@@ -57,6 +57,7 @@
 use std::sync::{Arc, Mutex};
 
 use crate::{
+    credential::CredentialStore,
     diagnostics,
     error::{Error, RefusalReason},
     persisted::Persisted,
@@ -142,7 +143,8 @@ fn invitation_refused(organization_name: &str, refusal: Refusal) -> Error {
 /// *be* an organization store: the application hands over one it opened for this accept, and a
 /// test hands over the one it is already holding, which is the same read either way.
 #[allow(clippy::too_many_arguments)]
-pub async fn accept<S, F, R>(
+pub(crate) async fn accept<S, F, R>(
+    credentials: &dyn CredentialStore,
     store_for: S,
     machine: &mut Persisted<RemoteSyncStore>,
     link: &JoinLink,
@@ -273,6 +275,7 @@ where
     // (effort 826, requirement 12). Filed after the row is written, so a re-seal that did not
     // land leaves no key behind for a vault it does not open.
     remember(
+        credentials,
         &held.id,
         &session.member_id,
         session.session_epoch,
@@ -318,7 +321,9 @@ where
 /// that. `held` is what the record names, which a connect wrote with no member and a first run
 /// or an earlier sign-in wrote with one; either way the person is found by what they typed, and
 /// the record is written back naming them.
-pub async fn admit(
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn admit(
+    credentials: &dyn CredentialStore,
     store: &OrganizationStore,
     machine: &mut Persisted<RemoteSyncStore>,
     held: &HeldOrganization,
@@ -330,7 +335,8 @@ pub async fn admit(
     // a row still carrying `must_change_password` is one whose invitation link has not been
     // opened, and the wall refuses it inside the sign-in itself; every session that reaches here
     // has a password of its own, so nothing about the flag is acted on (effort 826, ticket 03).
-    let session = sign_in_by_username(store, held, username, password, credential).await?;
+    let session =
+        sign_in_by_username(credentials, store, held, username, password, credential).await?;
 
     // a sign-in reads the organization in this build's format and in no other, so the record keeps
     // that it has (effort 838, ticket 25).
@@ -365,9 +371,9 @@ mod tests {
 
     use super::{accept, admit};
     use crate::{
+        credential::{CredentialStore, Memory},
         database::Database,
         error::{Error, RefusalReason},
-        keyring::{self, take_the_credential_store},
         organization::{
             HeldOrganization, connect,
             invite::{
@@ -471,6 +477,7 @@ mod tests {
     /// it has pulled; the pull itself is `organization/store.rs`'s and is not what this module
     /// proves.
     async fn invited(
+        credentials: &dyn CredentialStore,
         directory: &std::path::Path,
     ) -> (
         OrganizationStore,
@@ -504,6 +511,7 @@ mod tests {
         .await;
         let platform = Arc::new(InMemoryPlatform::new("an-org"));
         let (_, organization) = create_organization(
+            credentials,
             &mut store,
             "a-platform-token",
             &McpEndpoint::at(&mcp.url("")),
@@ -592,6 +600,7 @@ mod tests {
     /// does with the link they were sent, on the machine they were sent it on. The accept records
     /// the organization itself, so nothing connects first (effort 828, requirement 1).
     async fn opened(
+        credentials: &dyn CredentialStore,
         directory: &std::path::Path,
         store: &OrganizationStore,
         invitation: &JoinLink,
@@ -607,7 +616,16 @@ mod tests {
             "the second machine has prior state"
         );
 
-        let session = accept_on(&mut machine, store, invitation, code, password, now).await;
+        let session = accept_on(
+            credentials,
+            &mut machine,
+            store,
+            invitation,
+            code,
+            password,
+            now,
+        )
+        .await;
 
         (machine, session)
     }
@@ -619,6 +637,7 @@ mod tests {
     /// is a local file every test in this module shares, and what the accept does with it is the
     /// same read either way.
     async fn accept_on(
+        credentials: &dyn CredentialStore,
         machine: &mut Persisted<RemoteSyncStore>,
         store: &OrganizationStore,
         link: &JoinLink,
@@ -627,6 +646,7 @@ mod tests {
         now: i64,
     ) -> Result<MemberSession, Error> {
         accept(
+            credentials,
             |_| async { Ok::<_, Error>(store) },
             machine,
             link,
@@ -673,8 +693,9 @@ mod tests {
     /// the accept answers, and the test below it is where that is pinned.
     #[tokio::test]
     async fn reading_a_link_is_a_decode_and_says_nothing_about_the_row() {
+        let credentials = Memory::new();
         let directory = scratch("read");
-        let (_, owner, link, invitation, _, _) = invited(&directory).await;
+        let (_, owner, link, invitation, _, _) = invited(&credentials, &directory).await;
 
         let shape = crate::organization::link::read(&invitation.encode().expect("the link"))
             .expect("the invitation link could not be read");
@@ -716,8 +737,10 @@ mod tests {
     /// link opened a second time is refused as already opened.
     #[tokio::test]
     async fn the_owner_signs_in_at_the_wall_and_the_invited_member_opens_their_link() {
+        let credentials = Memory::new();
         let directory = scratch("admit");
-        let (store, owner, link, invitation, workspace_id, code) = invited(&directory).await;
+        let (store, owner, link, invitation, workspace_id, code) =
+            invited(&credentials, &directory).await;
 
         // the owner, on a second machine, by the username the first run took and their password,
         // in another case. The credential slot holds the member's own on the way out.
@@ -725,6 +748,7 @@ mod tests {
         let (mut machine, held) = connected_machine(&owners, &store, &link).await;
         let credential = slot();
         let session = admit(
+            &credentials,
             &store,
             &mut machine,
             &held,
@@ -788,8 +812,16 @@ mod tests {
             "the owner has an invitation"
         );
 
-        let (mut their_machine, member) =
-            opened(&theirs, &store, &invitation, &code, CHOSEN, ISSUED_AT + 3).await;
+        let (mut their_machine, member) = opened(
+            &credentials,
+            &theirs,
+            &store,
+            &invitation,
+            &code,
+            CHOSEN,
+            ISSUED_AT + 3,
+        )
+        .await;
         let member = member.expect("the member could not open their link");
         let their_held = held_by(&their_machine);
 
@@ -848,6 +880,7 @@ mod tests {
 
         // from now on the wall admits them on the password they chose, and on nothing else.
         let again = admit(
+            &credentials,
             &store,
             &mut their_machine,
             &their_held,
@@ -862,6 +895,7 @@ mod tests {
         assert!(!again.must_change_password);
         assert!(
             admit(
+                &credentials,
                 &store,
                 &mut their_machine,
                 &their_held,
@@ -877,6 +911,7 @@ mod tests {
 
         // the link opened again is a consumed invitation, refused by name.
         let refused = accept_on(
+            &credentials,
             &mut their_machine,
             &store,
             &invitation,
@@ -902,8 +937,16 @@ mod tests {
         // organization, and the person setting a second machine up meets the wall rather than a
         // dead end (effort 828, requirement 1).
         let third = scratch("admit-third");
-        let (spent_machine, spent) =
-            opened(&third, &store, &invitation, &code, CHOSEN, ISSUED_AT + 5).await;
+        let (spent_machine, spent) = opened(
+            &credentials,
+            &third,
+            &store,
+            &invitation,
+            &code,
+            CHOSEN,
+            ISSUED_AT + 5,
+        )
+        .await;
 
         assert!(
             matches!(
@@ -931,9 +974,11 @@ mod tests {
     #[tokio::test]
     async fn the_wrong_password_an_unknown_username_and_another_members_password_are_one_sentence()
     {
+        let credentials = Memory::new();
         let directory = scratch("refused");
-        let (store, owner, link, invitation, _, code) = invited(&directory).await;
+        let (store, owner, link, invitation, _, code) = invited(&credentials, &directory).await;
         let (_, member) = opened(
+            &credentials,
             &scratch("refused-member"),
             &store,
             &invitation,
@@ -958,6 +1003,7 @@ mod tests {
             ("", "not the password"),
         ] {
             let refused = admit(
+                &credentials,
                 &store,
                 &mut machine,
                 &held,
@@ -1011,8 +1057,9 @@ mod tests {
     #[tokio::test]
     async fn an_accept_refuses_another_organizations_link_a_short_password_and_a_link_with_no_half()
     {
+        let credentials = Memory::new();
         let directory = scratch("accept-refused");
-        let (store, owner, link, invitation, _, code) = invited(&directory).await;
+        let (store, owner, link, invitation, _, code) = invited(&credentials, &directory).await;
         let (mut machine, held) =
             connected_machine(&scratch("accept-refused-machine"), &store, &link).await;
         let member_id = {
@@ -1042,6 +1089,7 @@ mod tests {
         });
 
         let refused = accept_on(
+            &credentials,
             &mut elsewhere,
             &store,
             &invitation,
@@ -1057,6 +1105,7 @@ mod tests {
         );
 
         let refused = accept_on(
+            &credentials,
             &mut machine,
             &store,
             &invitation,
@@ -1087,6 +1136,7 @@ mod tests {
             },
         );
         let refused = accept_on(
+            &credentials,
             &mut machine,
             &store,
             &a_machines,
@@ -1127,8 +1177,9 @@ mod tests {
     /// effort 828 found nothing calling it; the row is deleted directly instead.*
     #[tokio::test]
     async fn a_link_whose_invitation_row_is_gone_is_refused_and_lands_at_the_wall() {
+        let credentials = Memory::new();
         let directory = scratch("revoked");
-        let (store, owner, link, _, _, _) = invited(&directory).await;
+        let (store, owner, link, _, _, _) = invited(&credentials, &directory).await;
         let gone = make_account_and_link(
             &store,
             &owner,
@@ -1152,6 +1203,7 @@ mod tests {
             .expect("the invitation row could not be deleted");
 
         let (machine, refused) = opened(
+            &credentials,
             &scratch("revoked-machine"),
             &store,
             &their_link,
@@ -1184,8 +1236,9 @@ mod tests {
     /// admits them on a password of their choosing (effort 826, requirement 9).
     #[tokio::test]
     async fn a_lapsed_invitation_refuses_the_link_by_name_and_a_reissue_admits() {
+        let credentials = Memory::new();
         let directory = scratch("lapsed");
-        let (store, owner, link, _, _, _) = invited(&directory).await;
+        let (store, owner, link, _, _, _) = invited(&credentials, &directory).await;
         let late = make_account_and_link(
             &store,
             &owner,
@@ -1205,8 +1258,16 @@ mod tests {
         let after = ISSUED_AT + INVITATION_LIFETIME_MS;
         let theirs = scratch("lapsed-machine");
 
-        let (mut machine, refused) =
-            opened(&theirs, &store, &their_link, &late.code, CHOSEN, after).await;
+        let (mut machine, refused) = opened(
+            &credentials,
+            &theirs,
+            &store,
+            &their_link,
+            &late.code,
+            CHOSEN,
+            after,
+        )
+        .await;
 
         assert!(
             matches!(refused, Err(Error::Refused { reason: RefusalReason::Lapsed, ref message })
@@ -1240,6 +1301,7 @@ mod tests {
         assert_ne!(fresh, their_link, "a reissue handed the same link");
 
         let refused = accept_on(
+            &credentials,
             &mut machine,
             &store,
             &their_link,
@@ -1261,6 +1323,7 @@ mod tests {
         );
 
         let member = accept_on(
+            &credentials,
             &mut machine,
             &store,
             &fresh,
@@ -1283,11 +1346,21 @@ mod tests {
     /// admits them on a new one, and what they held is theirs again.
     #[tokio::test]
     async fn a_reset_link_brings_a_member_who_forgot_their_password_back() {
+        let credentials = Memory::new();
         let directory = scratch("reset");
-        let (store, owner, link, invitation, workspace_id, code) = invited(&directory).await;
+        let (store, owner, link, invitation, workspace_id, code) =
+            invited(&credentials, &directory).await;
         let theirs = scratch("reset-machine");
-        let (mut machine, member) =
-            opened(&theirs, &store, &invitation, &code, CHOSEN, ISSUED_AT + 2).await;
+        let (mut machine, member) = opened(
+            &credentials,
+            &theirs,
+            &store,
+            &invitation,
+            &code,
+            CHOSEN,
+            ISSUED_AT + 2,
+        )
+        .await;
         let member = member.expect("the member");
         let held = held_by(&machine);
 
@@ -1306,6 +1379,7 @@ mod tests {
 
         assert!(
             admit(
+                &credentials,
                 &store,
                 &mut machine,
                 &held,
@@ -1320,6 +1394,7 @@ mod tests {
         );
 
         let back = accept_on(
+            &credentials,
             &mut machine,
             &store,
             &fresh,
@@ -1335,6 +1410,7 @@ mod tests {
         assert!(back.workspace_credentials.contains_key(&workspace_id));
         assert!(
             admit(
+                &credentials,
                 &store,
                 &mut machine,
                 &held,
@@ -1355,11 +1431,13 @@ mod tests {
     /// application state built the way `lib.rs` builds it.
     #[tokio::test]
     async fn signing_out_leaves_the_record_naming_the_organization_with_its_member() {
+        let credentials = Memory::new();
         let directory = scratch("sign-out");
-        let (store, owner, link, _, _, _) = invited(&directory).await;
+        let (store, owner, link, _, _, _) = invited(&credentials, &directory).await;
         let theirs = scratch("sign-out-machine");
         let (mut machine, held) = connected_machine(&theirs, &store, &link).await;
         let session = admit(
+            &credentials,
             &store,
             &mut machine,
             &held,
@@ -1380,7 +1458,7 @@ mod tests {
         *app_state.organization.write().await = Some(store);
         *app_state.member.write().await = Some(session);
 
-        crate::organization::sign_out(&app_state).await;
+        crate::organization::sign_out(&app_state, &credentials).await;
 
         assert!(
             app_state.member.read().await.is_none(),
@@ -1455,13 +1533,14 @@ mod tests {
     /// read below runs at a moment the link is open at, so what refuses them is the tag.
     #[tokio::test]
     async fn the_link_secret_alone_opens_neither_the_payload_nor_the_vault() {
+        let credentials = Memory::new();
         use crate::organization::{
             link::{code_salt, payload_context},
             vault::{derive_member_key, open_under_member_key, open_vault},
         };
 
         let directory = scratch("code");
-        let (store, owner, link, invitation, _, code) = invited(&directory).await;
+        let (store, owner, link, invitation, _, code) = invited(&credentials, &directory).await;
         let half = invitation.half.clone();
         let sealed = invitation.credential.clone();
         let theirs = scratch("code-machine");
@@ -1516,6 +1595,7 @@ mod tests {
         let mut machine = Persisted::<RemoteSyncStore>::load(theirs.join(RemoteSync::FILENAME))
             .expect("the machine");
         let refused = accept_on(
+            &credentials,
             &mut machine,
             &store,
             &rewritten,
@@ -1532,6 +1612,7 @@ mod tests {
 
         // a wrong code, at a moment the link is open at: the tag refuses it, by name.
         let refused = accept_on(
+            &credentials,
             &mut machine,
             &store,
             &invitation,
@@ -1548,6 +1629,7 @@ mod tests {
 
         // no code at all is about what the person did, and is refused as input.
         let refused = accept_on(
+            &credentials,
             &mut machine,
             &store,
             &invitation,
@@ -1564,6 +1646,7 @@ mod tests {
 
         // the link's own moment, past: refused as a lapsed link before any key is derived.
         let refused = accept_on(
+            &credentials,
             &mut machine,
             &store,
             &invitation,
@@ -1589,6 +1672,7 @@ mod tests {
         // and the right code opens the payload, reaches the organization, records it and spends
         // the invitation.
         let member = accept_on(
+            &credentials,
             &mut machine,
             &store,
             &invitation,
@@ -1655,8 +1739,9 @@ mod tests {
     /// owner's open vault to reach.
     #[tokio::test]
     async fn the_rows_a_link_holder_reads_carry_no_username_and_no_workspace_name() {
+        let credentials = Memory::new();
         let directory = scratch("legible");
-        let (store, owner, link, invitation, _, code) = invited(&directory).await;
+        let (store, owner, link, invitation, _, code) = invited(&credentials, &directory).await;
         let invitation_text = invitation.encode().expect("the invitation link");
         let half = invitation.half.clone();
         let link_secret = half.secret.clone();
@@ -1778,8 +1863,8 @@ mod tests {
     /// the provisioning; B starts from an empty directory and is handed the link text, the
     /// owner's username and password, and the consent's product. The consent's product is the
     /// platform token, read from the environment as every live test here reads it, and it is the
-    /// one thing the keyring holds in common between the two, because this process has one
-    /// keyring. What the test cannot cover is two operating-system accounts and two keyrings;
+    /// one thing the credential store holds in common between the two, because this test has one
+    /// store. What the test cannot cover is two operating-system accounts and two keyrings;
     /// what it does cover is that nothing about the organization is machine-local, which is the
     /// property. The member is admitted on a third directory the same way, by their username and
     /// the password they were handed. Both databases are deleted by the same run. *Under effort
@@ -1809,6 +1894,8 @@ mod tests {
             },
         };
 
+        let credentials = Arc::new(Memory::new());
+
         let read = |name: &str| {
             std::env::var(name)
                 .ok()
@@ -1825,13 +1912,17 @@ mod tests {
         );
 
         let token = read("TURSO_CONSENT_TOKEN");
-        store_platform_token(&token).expect("failed to file the token");
+        store_platform_token(credentials.as_ref(), &token).expect("failed to file the token");
 
         let organization = TursoOrganization {
             slug: read("TURSO_ORG"),
             group: read("TURSO_GROUP"),
         };
-        let platform = PlatformApi::new(PlatformEndpoint::production(), organization.clone());
+        let platform = PlatformApi::new(
+            PlatformEndpoint::production(),
+            organization.clone(),
+            credentials.clone(),
+        );
         let now = || {
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -1844,10 +1935,17 @@ mod tests {
         let mut store_a = Persisted::<RemoteSyncStore>::load(machine_a.join("remote-sync.json"))
             .expect("A's store");
         let (created, organization_a) = create_organization(
+            credentials.as_ref(),
             &mut store_a,
             &token,
             &McpEndpoint::production(),
-            |organization| PlatformApi::new(PlatformEndpoint::production(), organization),
+            |organization| {
+                PlatformApi::new(
+                    PlatformEndpoint::production(),
+                    organization,
+                    credentials.clone(),
+                )
+            },
             Remote::libsql(),
             &machine_a.join("app.db"),
             CreateOrganization {
@@ -1967,6 +2065,7 @@ mod tests {
         let (organization_b, credential_b) = reach(&machine_b).await;
         let (mut store_b, held_b) = connected_machine(&machine_b, &organization_b, &link).await;
         let restored = admit(
+            credentials.as_ref(),
             &organization_b,
             &mut store_b,
             &held_b,
@@ -2021,6 +2120,7 @@ mod tests {
         let mut store_c = Persisted::<RemoteSyncStore>::load(machine_c.join(RemoteSync::FILENAME))
             .expect("C's record");
         let member_c = accept_on(
+            credentials.as_ref(),
             &mut store_c,
             &organization_c,
             &JoinLink::decode(&invited.join_link).expect("the invitation link"),
@@ -2081,18 +2181,28 @@ mod tests {
     /// the key that opens the vault the accept just resealed rather than the one the link carried.
     #[tokio::test]
     async fn an_accepted_invitation_files_the_key_the_chosen_password_derives() {
-        let _turn = take_the_credential_store().await;
+        let credentials = Memory::new();
         let directory = scratch("accept-remembers");
-        let (store, owner, _, invitation, _, code) = invited(&directory).await;
+        let (store, owner, _, invitation, _, code) = invited(&credentials, &directory).await;
         let theirs = scratch("accept-remembers-member");
-        let (_, member) = opened(&theirs, &store, &invitation, &code, CHOSEN, ISSUED_AT + 3).await;
-        let member = member.expect("the member could not open their link");
-        let filed = keyring::read(
-            MEMBER_KEY_SERVICE,
-            &format!("{}:{}", member.organization_id, member.member_id),
+        let (_, member) = opened(
+            &credentials,
+            &theirs,
+            &store,
+            &invitation,
+            &code,
+            CHOSEN,
+            ISSUED_AT + 3,
         )
-        .expect("the store would not answer")
-        .expect("the accept filed no key");
+        .await;
+        let member = member.expect("the member could not open their link");
+        let filed = credentials
+            .get(
+                MEMBER_KEY_SERVICE,
+                &format!("{}:{}", member.organization_id, member.member_id),
+            )
+            .expect("the store would not answer")
+            .expect("the accept filed no key");
         let (_, key) = read_entry(&filed).expect("what was filed is not a remembered session");
         let rows = store
             .members(&owner.verifying_key)
@@ -2228,13 +2338,15 @@ mod tests {
     /// until ticket 23, which is an upgrade's last row missing rather than format 1.*
     #[tokio::test]
     async fn an_older_organization_opened_first_by_an_invited_member_waits_for_its_owner() {
+        let credentials = Memory::new();
         let directory = scratch("older");
-        let (store, _, _, invitation, _, code) = invited(&directory).await;
+        let (store, _, _, invitation, _, code) = invited(&credentials, &directory).await;
 
         as_format_one(&store).await;
 
         let before = contents(&store).await;
         let (machine, refused) = opened(
+            &credentials,
             &scratch("older-machine"),
             &store,
             &invitation,

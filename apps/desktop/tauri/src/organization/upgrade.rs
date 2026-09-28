@@ -77,7 +77,9 @@
 //! check that fails rolls the whole walk back and refuses with `ShapeNotAsBuilt`.
 
 use crate::{
-    backup, diagnostics,
+    backup,
+    credential::CredentialStore,
+    diagnostics,
     error::{Error, RefusalReason},
     schema,
     turso::platform::{AccessLevel, PlatformApi, TursoPlatform},
@@ -323,6 +325,7 @@ pub(crate) async fn with_password_over(
 /// the key opens no vault. The resume then leaves the person at the wall, where their password
 /// does what the key could not.
 pub(crate) async fn with_remembered_key(
+    credentials: &dyn CredentialStore,
     store: &OrganizationStore,
     remote: &impl Replication,
     held: &HeldOrganization,
@@ -334,7 +337,7 @@ pub(crate) async fn with_remembered_key(
     }
 
     let member_id = held.member_id.as_deref().ok_or_else(waits_for_its_owner)?;
-    let (filed_epoch, member_key) = remembered(&held.id, member_id)?;
+    let (filed_epoch, member_key) = remembered(credentials, &held.id, member_id)?;
     let reading = reading(store, TRANSITIONS).await?;
     let member = (reading.members)(store)
         .await?
@@ -994,8 +997,8 @@ mod tests {
     };
     use crate::{
         backup,
+        credential::Memory,
         error::{Error, RefusalReason},
-        keyring::take_the_credential_store,
         organization::{
             HeldOrganization,
             authority::{
@@ -1144,6 +1147,7 @@ mod tests {
     /// of what the old build captured came first, then the pull, then the push of the upgrade.
     #[tokio::test]
     async fn the_owners_sign_in_upgrades_the_organization_and_everybody_keeps_what_they_could_do() {
+        let credentials = Memory::new();
         let older = older("sign-in").await;
         let store = older.open().await;
         let owner = older.person("owner");
@@ -1172,6 +1176,7 @@ mod tests {
             .expect("the upgraded organization was refused");
 
         let session = sign_in_by_username(
+            &credentials,
             &store,
             &older.held,
             owner.username,
@@ -1250,6 +1255,7 @@ mod tests {
     /// administration acts sign afterwards, with the owner nowhere in it, verifies there too.
     #[tokio::test]
     async fn every_upgraded_row_and_every_act_signed_afterwards_verifies_on_another_machine() {
+        let credentials = Memory::new();
         let older = older("elsewhere").await;
         let store = older.open().await;
         let owner = older.person("owner");
@@ -1271,6 +1277,7 @@ mod tests {
         // upgrade issued them.
         let adam = older.person("adam");
         let adams = sign_in_by_username(
+            &credentials,
             &store,
             &older.held_by("adam"),
             adam.username,
@@ -1288,6 +1295,7 @@ mod tests {
 
         let lena = older.person("lena");
         let lenas = sign_in_by_username(
+            &credentials,
             &store,
             &older.held_by("lena"),
             lena.username,
@@ -1381,7 +1389,7 @@ mod tests {
     /// done and writes nothing, the first's schema change above all.
     #[tokio::test]
     async fn a_second_owner_machine_finds_the_upgrade_done_and_replays_nothing() {
-        let _turn = take_the_credential_store().await;
+        let credentials = Memory::new();
         let older = older("two-owners").await;
         let store = older.open().await;
         let owner = older.person("owner");
@@ -1414,14 +1422,22 @@ mod tests {
         .expect("the second machine's sign-in");
 
         remember(
+            &credentials,
             ORGANIZATION_ID,
             "owner",
             owner.session_epoch,
             &owner.member_key,
         );
-        with_remembered_key(&store, &second, &older.held, &slot(), NOW + 60_000)
-            .await
-            .expect("the second machine's resume");
+        with_remembered_key(
+            &credentials,
+            &store,
+            &second,
+            &older.held,
+            &slot(),
+            NOW + 60_000,
+        )
+        .await
+        .expect("the second machine's resume");
 
         assert!(second.asked().is_empty(), "{:?}", second.asked());
         assert_eq!(
@@ -1438,13 +1454,14 @@ mod tests {
     /// upgrade needs a connection; a pull is not tried after a push that failed.
     #[tokio::test]
     async fn offline_or_with_the_push_or_the_pull_failing_nothing_is_written() {
-        let _turn = take_the_credential_store().await;
+        let credentials = Memory::new();
         let older = older("offline").await;
         let store = older.open().await;
         let owner = older.person("owner");
         let before = contents(&store).await;
 
         remember(
+            &credentials,
             ORGANIZATION_ID,
             "owner",
             owner.session_epoch,
@@ -1483,7 +1500,8 @@ mod tests {
             assert_eq!(remote.asked(), asked, "{case}");
 
             let remote = Answering::new(push, pull);
-            let refused = with_remembered_key(&store, &remote, &older.held, &slot(), NOW).await;
+            let refused =
+                with_remembered_key(&credentials, &store, &remote, &older.held, &slot(), NOW).await;
 
             assert_eq!(
                 reason_of(&refused),
@@ -1505,13 +1523,14 @@ mod tests {
     /// once the owner has upgraded on their own machine and the pull brings it, both go through.
     #[tokio::test]
     async fn a_member_pulls_first_and_follows_the_owner_once_the_owner_has_upgraded() {
-        let _turn = take_the_credential_store().await;
+        let credentials = Memory::new();
         let older = older("member-pulls").await;
         let store = older.open().await;
         let mina = older.person("mina");
         let before = contents(&store).await;
 
         remember(
+            &credentials,
             ORGANIZATION_ID,
             "mina",
             mina.session_epoch,
@@ -1557,8 +1576,15 @@ mod tests {
             owner_upgraded: false,
             pulled_with: Mutex::new(Vec::new()),
         };
-        let refused =
-            with_remembered_key(&store, &remote, &older.held_by("mina"), &credential, NOW).await;
+        let refused = with_remembered_key(
+            &credentials,
+            &store,
+            &remote,
+            &older.held_by("mina"),
+            &credential,
+            NOW,
+        )
+        .await;
 
         assert_eq!(
             reason_of(&refused),
@@ -1582,15 +1608,22 @@ mod tests {
             pulled_with: Mutex::new(Vec::new()),
         };
 
-        with_remembered_key(&store, &remote, &older.held_by("mina"), &credential, NOW)
-            .await
-            .expect("the member's resume did not follow the owner's upgrade");
+        with_remembered_key(
+            &credentials,
+            &store,
+            &remote,
+            &older.held_by("mina"),
+            &credential,
+            NOW,
+        )
+        .await
+        .expect("the member's resume did not follow the owner's upgrade");
         store
             .refuse_another_format()
             .await
             .expect("the member's machine still read the organization as older");
 
-        match resume(&store, &older.held_by("mina"), &credential).await {
+        match resume(&credentials, &store, &older.held_by("mina"), &credential).await {
             Ok(Resumption::Opened(session)) => assert_eq!(session.role, "member"),
             other => panic!("mina did not resume after the owner's upgrade: {other:?}"),
         }
@@ -1619,6 +1652,7 @@ mod tests {
         .expect("the member's sign-in was held after the owner's upgrade");
 
         let session = sign_in_by_username(
+            &credentials,
             &store,
             &older.held_by("mina"),
             mina.username,
@@ -1635,6 +1669,7 @@ mod tests {
     /// the password: the member's pull brings the owner's upgrade, and the sign-in goes through.
     #[tokio::test]
     async fn a_members_sign_in_follows_an_upgrade_its_pull_brings() {
+        let credentials = Memory::new();
         let older = older("member-sign-in-pulls").await;
         let store = older.open().await;
         let mina = older.person("mina");
@@ -1665,6 +1700,7 @@ mod tests {
         );
 
         let session = sign_in_by_username(
+            &credentials,
             &store,
             &older.held_by("mina"),
             mina.username,
@@ -1851,6 +1887,7 @@ mod tests {
     /// them: they sign in on this format afterwards.
     #[tokio::test]
     async fn must_change_password_on_the_owners_row_hides_nothing() {
+        let credentials = Memory::new();
         let older = older("owner-must-change").await;
         let store = older.open().await;
         let owner = older.person("owner");
@@ -1879,6 +1916,7 @@ mod tests {
         assert_upgraded(&store, &older, &older.pinned()).await;
 
         let session = sign_in_by_username(
+            &credentials,
             &store,
             &older.held,
             owner.username,
@@ -1898,6 +1936,7 @@ mod tests {
     /// ordinary walk afterwards pins the new key and signs the owner in.
     #[tokio::test]
     async fn a_pin_a_format_one_handover_left_stale_is_settled_before_the_owner_is_looked_for() {
+        let credentials = Memory::new();
         let older = older("stale-pin").await;
         let store = older.open().await;
         let owner = older.person("owner");
@@ -1961,9 +2000,16 @@ mod tests {
         );
 
         let held = machine.organization.clone().expect("the record");
-        let session = sign_in_by_username(&store, &held, owner.username, owner.password, &slot())
-            .await
-            .expect("the owner did not sign in after the upgrade");
+        let session = sign_in_by_username(
+            &credentials,
+            &store,
+            &held,
+            owner.username,
+            owner.password,
+            &slot(),
+        )
+        .await
+        .expect("the owner did not sign in after the upgrade");
 
         assert_eq!(session.role, "owner");
     }
@@ -1974,7 +2020,7 @@ mod tests {
     /// is the wall's one sentence, as any sign-in's.
     #[tokio::test]
     async fn opened_first_by_a_member_it_waits_for_its_owner_and_nothing_is_written() {
-        let _turn = take_the_credential_store().await;
+        let credentials = Memory::new();
         let older = older("member-first").await;
         let store = older.open().await;
         let before = contents(&store).await;
@@ -2018,14 +2064,22 @@ mod tests {
         let mina = older.person("mina");
 
         remember(
+            &credentials,
             ORGANIZATION_ID,
             "mina",
             mina.session_epoch,
             &mina.member_key,
         );
 
-        let refused =
-            with_remembered_key(&store, &online(), &older.held_by("mina"), &slot(), NOW).await;
+        let refused = with_remembered_key(
+            &credentials,
+            &store,
+            &online(),
+            &older.held_by("mina"),
+            &slot(),
+            NOW,
+        )
+        .await;
 
         assert_eq!(
             reason_of(&refused),
@@ -2082,19 +2136,21 @@ mod tests {
     /// upgrade both resume, because every epoch was kept.
     #[tokio::test]
     async fn the_owners_resume_upgrades_it_and_every_remembered_session_survives() {
-        let _turn = take_the_credential_store().await;
+        let credentials = Memory::new();
         let older = older("resume").await;
         let store = older.open().await;
         let owner = older.person("owner");
         let mina = older.person("mina");
 
         remember(
+            &credentials,
             ORGANIZATION_ID,
             "owner",
             owner.session_epoch,
             &owner.member_key,
         );
         remember(
+            &credentials,
             ORGANIZATION_ID,
             "mina",
             mina.session_epoch,
@@ -2103,9 +2159,16 @@ mod tests {
 
         let credential = slot();
 
-        with_remembered_key(&store, &online(), &older.held, &credential, NOW)
-            .await
-            .expect("the owner's resume did not upgrade the organization");
+        with_remembered_key(
+            &credentials,
+            &store,
+            &online(),
+            &older.held,
+            &credential,
+            NOW,
+        )
+        .await
+        .expect("the owner's resume did not upgrade the organization");
 
         assert_eq!(
             store.format().await.expect("the format"),
@@ -2117,7 +2180,7 @@ mod tests {
         );
 
         for (id, role) in [("owner", "owner"), ("mina", "member")] {
-            match resume(&store, &older.held_by(id), &slot()).await {
+            match resume(&credentials, &store, &older.held_by(id), &slot()).await {
                 Ok(Resumption::Opened(session)) => {
                     assert_eq!(session.role, role, "{id}");
                     assert_eq!(
@@ -2162,7 +2225,7 @@ mod tests {
     /// with the remote out of reach.
     #[tokio::test]
     async fn the_connect_on_the_owners_account_upgrades_it_the_same_way() {
-        let _turn = take_the_credential_store().await;
+        let credentials = Memory::new();
         let platform = Arc::new(InMemoryPlatform::new("an-org"));
 
         // the account holds the organization's database and the workspace's, which is what the
@@ -2177,6 +2240,7 @@ mod tests {
             .expect("the machine");
         let adam = first.person("adam");
         let refused = connect_existing(
+            &credentials,
             &mut machine,
             "a-platform-token",
             &McpEndpoint::at(&mcp.url("")),
@@ -2204,6 +2268,7 @@ mod tests {
             .expect("the machine");
         let owner = offline.person("owner");
         let refused = connect_existing(
+            &credentials,
             &mut machine,
             "a-platform-token",
             &McpEndpoint::at(&mcp.url("")),
@@ -2231,6 +2296,7 @@ mod tests {
             .expect("the machine");
         let owner = older.person("owner");
         let (held, replica, session) = connect_existing(
+            &credentials,
             &mut machine,
             "a-platform-token",
             &McpEndpoint::at(&mcp.url("")),
@@ -2402,7 +2468,7 @@ mod tests {
     /// holds exactly the certificate the upgrade issued her.
     #[tokio::test]
     async fn an_organization_read_in_this_format_is_never_transformed_again() {
-        let _turn = take_the_credential_store().await;
+        let credentials = Memory::new();
         let (older, store) = upgraded("never-again").await;
         let owner = older.person("owner");
         let pinned = older.pinned();
@@ -2435,13 +2501,15 @@ mod tests {
         );
 
         remember(
+            &credentials,
             ORGANIZATION_ID,
             "owner",
             owner.session_epoch,
             &owner.member_key,
         );
 
-        let refused = with_remembered_key(&store, &remote, &held, &slot(), NOW + 60_000).await;
+        let refused =
+            with_remembered_key(&credentials, &store, &remote, &held, &slot(), NOW + 60_000).await;
 
         assert_eq!(
             reason_of(&refused),
@@ -2476,7 +2544,7 @@ mod tests {
     /// it holds a root certificate the organization key signed, and nothing is written.
     #[tokio::test]
     async fn without_that_record_a_root_the_organization_key_signed_refuses_the_transform() {
-        let _turn = take_the_credential_store().await;
+        let credentials = Memory::new();
         let (older, store) = upgraded("a-root-refuses").await;
         let owner = older.person("owner");
 
@@ -2504,13 +2572,15 @@ mod tests {
         );
 
         remember(
+            &credentials,
             ORGANIZATION_ID,
             "owner",
             owner.session_epoch,
             &owner.member_key,
         );
 
-        let refused = with_remembered_key(&store, &online(), &older.held, &slot(), NOW).await;
+        let refused =
+            with_remembered_key(&credentials, &store, &online(), &older.held, &slot(), NOW).await;
 
         assert_eq!(
             reason_of(&refused),
@@ -2657,6 +2727,7 @@ mod tests {
     /// it read as format 2 until format 3 was added.*
     #[tokio::test]
     async fn a_format_row_below_two_with_nothing_of_format_one_left_is_written_back() {
+        let credentials = Memory::new();
         for row in [1, 0, -1] {
             for read_before in [false, true] {
                 let (older, store) = upgraded(&format!("low-row-{row}-{read_before}")).await;
@@ -2716,9 +2787,16 @@ mod tests {
                     .refuse_another_format()
                     .await
                     .unwrap_or_else(|error| panic!("{row}: still refused: {error}"));
-                sign_in_by_username(&store, &held, owner.username, owner.password, &credential)
-                    .await
-                    .unwrap_or_else(|error| panic!("{row}: the owner did not sign in: {error}"));
+                sign_in_by_username(
+                    &credentials,
+                    &store,
+                    &held,
+                    owner.username,
+                    owner.password,
+                    &credential,
+                )
+                .await
+                .unwrap_or_else(|error| panic!("{row}: the owner did not sign in: {error}"));
             }
         }
     }
@@ -2893,7 +2971,7 @@ mod tests {
     /// nothing is pulled, and nothing is written.
     #[tokio::test]
     async fn changes_a_reshaped_remote_refuses_give_their_own_reason_and_nothing_is_written() {
-        let _turn = take_the_credential_store().await;
+        let credentials = Memory::new();
         let older = older("unsendable").await;
         let store = older.open().await;
         let owner = older.person("owner");
@@ -2931,6 +3009,7 @@ mod tests {
         assert_eq!(remote.asked(), vec!["push"]);
 
         remember(
+            &credentials,
             ORGANIZATION_ID,
             "owner",
             owner.session_epoch,
@@ -2938,6 +3017,7 @@ mod tests {
         );
 
         let refused = with_remembered_key(
+            &credentials,
             &store,
             &online().pushing(Pushed::Unsendable),
             &older.held,

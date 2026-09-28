@@ -180,6 +180,8 @@ pub async fn clear_mark(store: &OrganizationStore, session: &MemberSession) -> R
 
 #[cfg(test)]
 mod tests {
+    use crate::credential::{CredentialStore, Memory};
+
     use std::sync::{Arc, Mutex};
 
     use serde_json::json;
@@ -242,6 +244,7 @@ mod tests {
 
     /// An organization a first run made on this machine, and its owner signed in.
     async fn owned(
+        credentials: &dyn CredentialStore,
         directory: &std::path::Path,
     ) -> (OrganizationStore, HeldOrganization, MemberSession) {
         let mut store = Persisted::<RemoteSyncStore>::load(directory.join("remote-sync.json"))
@@ -269,6 +272,7 @@ mod tests {
         let platform = Arc::new(InMemoryPlatform::new("an-org"));
 
         let (_, organization) = create_organization(
+            credentials,
             &mut store,
             "a-platform-token",
             &McpEndpoint::at(&mcp.url("")),
@@ -437,8 +441,9 @@ mod tests {
 
     #[tokio::test]
     async fn the_owner_and_a_manager_set_and_clear_the_mark_sealed_and_signed() {
+        let credentials = Memory::new();
         let directory = scratch("roles");
-        let (store, _, owner) = owned(&directory).await;
+        let (store, _, owner) = owned(&credentials, &directory).await;
 
         assert_eq!(read_mark(&store, &owner).await.expect("the read"), None);
 
@@ -491,8 +496,9 @@ mod tests {
 
     #[tokio::test]
     async fn a_member_reads_the_mark_and_is_refused_changing_it() {
+        let credentials = Memory::new();
         let directory = scratch("member");
-        let (store, _, owner) = owned(&directory).await;
+        let (store, _, owner) = owned(&credentials, &directory).await;
         let set = set_mark(&store, &owner, PNG, 1_757_000_000_001)
             .await
             .expect("the owner could not set the mark");
@@ -533,8 +539,9 @@ mod tests {
     /// certificate carries the flag.
     #[tokio::test]
     async fn setting_and_clearing_the_mark_follow_manage_mark_and_not_the_role() {
+        let credentials = Memory::new();
         let directory = scratch("flag");
-        let (store, _, owner) = owned(&directory).await;
+        let (store, _, owner) = owned(&credentials, &directory).await;
         let manage_mark = permission::mask_of(&[Flag::ManageMark]);
         let narrowed = another(
             &store,
@@ -593,8 +600,9 @@ mod tests {
     /// signed by nobody with a certificate, and it is read as no mark rather than printed.
     #[tokio::test]
     async fn a_mark_written_around_the_gate_is_never_read_as_the_organizations() {
+        let credentials = Memory::new();
         let directory = scratch("forged");
-        let (store, _, owner) = owned(&directory).await;
+        let (store, _, owner) = owned(&credentials, &directory).await;
         let member = another(&store, &owner, "member-b", permission::MEMBER, 0).await;
         let forged = seal_content(&member.content_key, COLUMN, PNG).expect("sealed");
 
@@ -627,8 +635,9 @@ mod tests {
 
     #[tokio::test]
     async fn a_mark_set_on_one_machine_is_read_from_another_machines_replica() {
+        let credentials = Memory::new();
         let directory = scratch("elsewhere");
-        let (store, joined, owner) = owned(&directory).await;
+        let (store, joined, owner) = owned(&credentials, &directory).await;
 
         set_mark(&store, &owner, PNG, 1_757_000_000_001)
             .await

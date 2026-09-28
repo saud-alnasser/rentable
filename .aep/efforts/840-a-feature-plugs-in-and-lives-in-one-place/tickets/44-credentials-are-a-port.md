@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [02]
 ---
 # refactor(tauri): the credential store is a port
@@ -14,9 +14,9 @@ The spec is [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]]; the 
 
 Traces requirement 12 of [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]], and criterion 12.
 
-- [ ] No `cfg(test)` or `cfg(not(test))` switches credential behaviour in production code (criterion 12).
-- [ ] No test takes a shared credential lock (criterion 12).
-- [ ] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19).
+- [x] No `cfg(test)` or `cfg(not(test))` switches credential behaviour in production code (criterion 12). Verified: `grep -rn "cfg(not(test))" src` prints nothing; in `src/credential` the only `cfg(test)` lines declare the `Memory` adapter (`mod.rs:24`, `:32`) and a doc comment; production has the one `Os` adapter, managed as `Credentials` in `lib.rs`, and nothing branches on the flag.
+- [x] No test takes a shared credential lock (criterion 12). Verified: `grep -rn "take_the_credential_store|CredentialStoreTurn|crate::keyring|mod keyring" src` prints nothing; each test builds its own `Memory::new()`; `setup.rs`'s fixed-id list is `thread_local!`.
+- [x] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19). Verified: in the run's tree: `cargo fmt --check` 0, `cargo test --lib` `633 passed; 0 failed; 11 ignored`, check 0, `pnpm test` 0. Test changes are the store argument and `keyring::read` becoming `credentials.get`. The orchestrator added a type alias in `credential/memory.rs` for a new clippy `type_complexity` warning.
 
 ## Relevant areas
 

@@ -3982,6 +3982,8 @@ fn unexpected(index: usize, expected: &str, found: &turso::Value) -> Error {
 
 #[cfg(test)]
 mod tests {
+    use crate::credential::Memory;
+
     use std::path::PathBuf;
 
     use super::{
@@ -6291,6 +6293,8 @@ mod tests {
             platform::{DeletionIntent, PlatformApi, PlatformEndpoint, TursoPlatform},
         };
 
+        let credentials = std::sync::Arc::new(Memory::new());
+
         let read = |name: &str| {
             std::env::var(name)
                 .ok()
@@ -6305,7 +6309,8 @@ mod tests {
             "1",
             "a live run is armed by RENTABLE_LIVE_TURSO=1 as well as by --ignored"
         );
-        store_platform_token(&read("TURSO_CONSENT_TOKEN")).expect("failed to file the token");
+        store_platform_token(credentials.as_ref(), &read("TURSO_CONSENT_TOKEN"))
+            .expect("failed to file the token");
 
         let platform = PlatformApi::new(
             PlatformEndpoint::production(),
@@ -6313,6 +6318,7 @@ mod tests {
                 slug: read("TURSO_ORG"),
                 group: read("TURSO_GROUP"),
             },
+            credentials.clone(),
         );
         let nonce = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)

@@ -59,6 +59,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::{
+    credential::{CredentialStore, Credentials},
     diagnostics,
     error::{Error, RefusalReason},
     http::build_client,
@@ -361,17 +362,35 @@ impl PlatformEndpoint {
 /// keyring and the disconnect removes it, so a client that captured the token at construction would
 /// keep spending an authority the owner had given up. Reading it each time is what makes
 /// requirement 5's disconnect take effect at the next request rather than at the next launch.
-#[derive(Clone, Debug)]
+/// What it holds is the store the consent filed the token in, which is where each call reads it.
+#[derive(Clone)]
 pub struct PlatformApi {
     endpoint: PlatformEndpoint,
     organization: TursoOrganization,
+    credentials: Credentials,
+}
+
+/// the store is left out: it is a port, and what it would print is nothing a reader needs.
+impl std::fmt::Debug for PlatformApi {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("PlatformApi")
+            .field("endpoint", &self.endpoint)
+            .field("organization", &self.organization)
+            .finish_non_exhaustive()
+    }
 }
 
 impl PlatformApi {
-    pub fn new(endpoint: PlatformEndpoint, organization: TursoOrganization) -> Self {
+    pub(crate) fn new(
+        endpoint: PlatformEndpoint,
+        organization: TursoOrganization,
+        credentials: Credentials,
+    ) -> Self {
         Self {
             endpoint,
             organization,
+            credentials,
         }
     }
 
@@ -436,7 +455,7 @@ impl TursoPlatform for PlatformApi {
     async fn create_database(&self, name: &str) -> Result<WorkspaceDatabase, PlatformError> {
         let what = "create the workspace database";
         let client = client()?;
-        let platform_token = authority()?;
+        let platform_token = authority(self.credentials.as_ref())?;
 
         let body = call(
             what,
@@ -497,7 +516,7 @@ impl TursoPlatform for PlatformApi {
     async fn copy_database(&self, source: &str, name: &str) -> Result<(), PlatformError> {
         let what = "copy the database";
         let client = client()?;
-        let platform_token = authority()?;
+        let platform_token = authority(self.credentials.as_ref())?;
 
         call(
             what,
@@ -539,7 +558,7 @@ impl TursoPlatform for PlatformApi {
     ) -> Result<String, PlatformError> {
         let what = "mint a token for this workspace";
         let client = client()?;
-        let platform_token = authority()?;
+        let platform_token = authority(self.credentials.as_ref())?;
 
         // reqwest is built without its `query` feature here, so the two parameters are put on
         // the URL by the url crate, which encodes them the same way.
@@ -625,7 +644,7 @@ impl TursoPlatform for PlatformApi {
 
     async fn protect_database(&self, name: &str) -> Result<(), PlatformError> {
         let client = client()?;
-        let platform_token = authority()?;
+        let platform_token = authority(self.credentials.as_ref())?;
 
         self.set_delete_protection(
             &client,
@@ -640,7 +659,7 @@ impl TursoPlatform for PlatformApi {
     async fn rotate_credentials(&self, database_name: &str) -> Result<(), PlatformError> {
         let what = "lock the removed member out of this workspace";
         let client = client()?;
-        let platform_token = authority()?;
+        let platform_token = authority(self.credentials.as_ref())?;
 
         call(
             what,
@@ -659,7 +678,7 @@ impl TursoPlatform for PlatformApi {
     ) -> Result<(), PlatformError> {
         let what = "remove the workspace database";
         let client = client()?;
-        let platform_token = authority()?;
+        let platform_token = authority(self.credentials.as_ref())?;
 
         diagnostics::info("turso.platform.deletingDatabase")
             .with("database", name)
@@ -695,8 +714,8 @@ fn client() -> Result<reqwest::Client, PlatformError> {
 }
 
 /// The authority this machine holds, read from where the consent filed it.
-fn authority() -> Result<String, PlatformError> {
-    platform_token().map_err(|_| PlatformError::NoAuthority)
+fn authority(credentials: &dyn CredentialStore) -> Result<String, PlatformError> {
+    platform_token(credentials).map_err(|_| PlatformError::NoAuthority)
 }
 
 /// Send one request and read its JSON body, or say how it failed in the port's vocabulary.
@@ -1191,9 +1210,11 @@ impl TursoPlatform for InMemoryPlatform {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use serde_json::json;
 
-    use crate::keyring::{CredentialStoreTurn, take_the_credential_store};
+    use crate::credential::Memory;
     use crate::sync::test::server::{RecordedRequest, ScriptedResponse, ScriptedServer};
     use crate::turso::consent::store_platform_token;
     use crate::turso::discovery::TursoOrganization;
@@ -1213,27 +1234,34 @@ mod tests {
         }
     }
 
-    /// a platform with the test token filed, and the turn on the credential store that keeps
-    /// it filed until the test is over.
+    /// a platform with the test token filed in a credential store of the test's own, and that
+    /// store, for a test that changes what is filed in it.
     async fn platform_answering(
         script: Vec<ScriptedResponse>,
-    ) -> (PlatformApi, ScriptedServer, CredentialStoreTurn) {
-        let turn = take_the_credential_store().await;
-        store_platform_token(TOKEN).expect("failed to file the test token");
+    ) -> (PlatformApi, ScriptedServer, Arc<Memory>) {
+        let credentials = Arc::new(Memory::new());
+        store_platform_token(credentials.as_ref(), TOKEN).expect("failed to file the test token");
 
         let server = ScriptedServer::start(script).await;
-        let platform = PlatformApi::new(PlatformEndpoint::at(&server.url("")), organization());
+        let platform = PlatformApi::new(
+            PlatformEndpoint::at(&server.url("")),
+            organization(),
+            credentials.clone(),
+        );
 
-        (platform, server, turn)
+        (platform, server, credentials)
     }
 
-    /// A client against a scripted server, with no credential filed and no turn taken on the
-    /// store. `group_named` is handed the token it spends, so the keyring is not in its way, and
-    /// a test that scripts two accounts can stand up two of these; two turns on the store would
-    /// be one test waiting on itself.
+    /// A client against a scripted server, over an empty credential store. `group_named` is
+    /// handed the token it spends, so the store is not in its way, and a test that scripts two
+    /// accounts can stand up two of these.
     async fn platform_at(script: Vec<ScriptedResponse>) -> (PlatformApi, ScriptedServer) {
         let server = ScriptedServer::start(script).await;
-        let platform = PlatformApi::new(PlatformEndpoint::at(&server.url("")), organization());
+        let platform = PlatformApi::new(
+            PlatformEndpoint::at(&server.url("")),
+            organization(),
+            Arc::new(Memory::new()),
+        );
 
         (platform, server)
     }
@@ -1268,7 +1296,7 @@ mod tests {
 
     #[tokio::test]
     async fn creating_a_database_names_it_groups_it_protects_it_and_reads_the_hostname_back() {
-        let (platform, server, _turn) =
+        let (platform, server, _credentials) =
             platform_answering(vec![created("ws-1-an-org.turso.io"), configured(true)]).await;
 
         let database = platform
@@ -1322,7 +1350,7 @@ mod tests {
     // would be a silent total failure of the one route this port exists for, so both are read.
     #[tokio::test]
     async fn either_spelling_of_the_hostname_is_read() {
-        let (platform, _server, _turn) = platform_answering(vec![
+        let (platform, _server, _credentials) = platform_answering(vec![
             ScriptedResponse::new(
                 200,
                 json!({ "database": { "hostname": "ws-2-an-org.turso.io" } }).to_string(),
@@ -1343,7 +1371,7 @@ mod tests {
     /// again, and the caller sees the create fail. Nothing unprotected ever leaves this port.
     #[tokio::test]
     async fn a_database_that_cannot_be_protected_is_removed_and_the_create_fails() {
-        let (platform, server, _turn) = platform_answering(vec![
+        let (platform, server, _credentials) = platform_answering(vec![
             created("ws-3-an-org.turso.io"),
             refusal(400, "configuration is not available"),
             ScriptedResponse::new(200, json!({ "database": "ws-3" }).to_string()),
@@ -1372,7 +1400,7 @@ mod tests {
     /// same protection after it (effort 838, ticket 27).
     #[tokio::test]
     async fn copying_a_database_seeds_it_from_the_source_in_the_group_and_protects_it() {
-        let (platform, server, _turn) = platform_answering(vec![
+        let (platform, server, _credentials) = platform_answering(vec![
             created("org-1-copy-an-org.turso.io"),
             configured(true),
         ])
@@ -1413,7 +1441,7 @@ mod tests {
     /// A copy whose protection could not be turned on is removed again, and the copy fails.
     #[tokio::test]
     async fn a_copy_that_cannot_be_protected_is_removed_and_the_copy_fails() {
-        let (platform, server, _turn) = platform_answering(vec![
+        let (platform, server, _credentials) = platform_answering(vec![
             created("org-1-copy-an-org.turso.io"),
             refusal(400, "configuration is not available"),
             ScriptedResponse::new(200, json!({ "database": "org-1-copy" }).to_string()),
@@ -1443,7 +1471,7 @@ mod tests {
 
     #[tokio::test]
     async fn minting_asks_for_one_database_full_access_and_the_lifetime_it_was_given() {
-        let (platform, server, _turn) = platform_answering(vec![ScriptedResponse::new(
+        let (platform, server, _credentials) = platform_answering(vec![ScriptedResponse::new(
             200,
             json!({ "jwt": "a-database-token" }).to_string(),
         )])
@@ -1483,7 +1511,7 @@ mod tests {
     /// can get past it. The intent is on the call, so a reader of any call site knows why.
     #[tokio::test]
     async fn deleting_lifts_the_protection_then_names_the_database_in_the_path() {
-        let (platform, server, _turn) = platform_answering(vec![
+        let (platform, server, _credentials) = platform_answering(vec![
             configured(false),
             ScriptedResponse::new(200, json!({ "database": "ws-1" }).to_string()),
         ])
@@ -1518,7 +1546,7 @@ mod tests {
     /// through the MCP server on a first run into an empty group.
     #[tokio::test]
     async fn protecting_a_database_this_port_did_not_create_is_the_same_patch() {
-        let (platform, server, _turn) = platform_answering(vec![configured(true)]).await;
+        let (platform, server, _credentials) = platform_answering(vec![configured(true)]).await;
 
         platform
             .protect_database("org-7f3a")
@@ -1709,7 +1737,7 @@ mod tests {
     // about a workspace, not about the infrastructure under it.
     #[tokio::test]
     async fn a_turso_that_refuses_on_purpose_does_not_tell_anybody_to_try_again() {
-        let (platform, _server, _turn) = platform_answering(vec![refusal(
+        let (platform, _server, _credentials) = platform_answering(vec![refusal(
             409,
             "database ws-1 already exists in organization an-org",
         )])
@@ -1737,7 +1765,7 @@ mod tests {
     // moment that will pass.
     #[tokio::test]
     async fn a_delete_turso_refuses_is_a_refusal_not_a_moment_that_will_pass() {
-        let (platform, _server, _turn) = platform_answering(vec![
+        let (platform, _server, _credentials) = platform_answering(vec![
             configured(false),
             refusal(
                 403,
@@ -1765,7 +1793,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_turso_having_a_bad_minute_is_a_moment_that_will_pass() {
-        let (platform, _server, _turn) =
+        let (platform, _server, _credentials) =
             platform_answering(vec![ScriptedResponse::new(502, "")]).await;
 
         let error = platform
@@ -1784,7 +1812,8 @@ mod tests {
 
     #[tokio::test]
     async fn a_turso_that_never_answers_is_a_moment_that_will_pass() {
-        let (platform, _server, _turn) = platform_answering(vec![ScriptedResponse::hangup()]).await;
+        let (platform, _server, _credentials) =
+            platform_answering(vec![ScriptedResponse::hangup()]).await;
 
         let error = platform
             .mint_token("ws-1", "3d", AccessLevel::FullAccess)
@@ -1802,7 +1831,7 @@ mod tests {
     /// Requirement 25's distinction is made here, at the response.
     #[tokio::test]
     async fn a_refusal_that_belongs_to_the_account_is_told_apart_from_one_about_the_request() {
-        let (platform, _server, _turn) = platform_answering(vec![
+        let (platform, _server, _credentials) = platform_answering(vec![
             refusal(402, "payment required"),
             refusal(400, "plan quota exceeded: databases"),
             refusal(400, "group not found"),
@@ -1950,7 +1979,7 @@ mod tests {
 
     #[tokio::test]
     async fn an_answer_with_no_hostname_is_a_failure_rather_than_a_workspace_with_no_database() {
-        let (platform, server, _turn) = platform_answering(vec![ScriptedResponse::new(
+        let (platform, server, _credentials) = platform_answering(vec![ScriptedResponse::new(
             200,
             json!({ "database": {} }).to_string(),
         )])
@@ -1974,7 +2003,7 @@ mod tests {
 
     #[tokio::test]
     async fn an_answer_with_no_jwt_is_a_failure_rather_than_an_empty_token() {
-        let (platform, _server, _turn) =
+        let (platform, _server, _credentials) =
             platform_answering(vec![ScriptedResponse::new(200, json!({}).to_string())]).await;
 
         let error = platform
@@ -1992,10 +2021,10 @@ mod tests {
     /// request leaves it.
     #[tokio::test]
     async fn no_authority_is_a_refusal_before_any_request_is_made() {
-        let (platform, server, _turn) = platform_answering(vec![]).await;
+        let (platform, server, credentials) = platform_answering(vec![]).await;
 
         crate::turso::consent::TursoConsent::new()
-            .disconnect()
+            .disconnect(credentials.as_ref())
             .expect("failed to disconnect");
 
         let error = platform
@@ -2133,13 +2162,19 @@ mod tests {
             "a live run is armed by RENTABLE_LIVE_TURSO=1 as well as by --ignored"
         );
 
-        store_platform_token(&read("TURSO_CONSENT_TOKEN")).expect("failed to file the token");
+        let credentials = Arc::new(Memory::new());
+        store_platform_token(credentials.as_ref(), &read("TURSO_CONSENT_TOKEN"))
+            .expect("failed to file the token");
 
         let organization = TursoOrganization {
             slug: read("TURSO_ORG"),
             group: read("TURSO_GROUP"),
         };
-        let platform = PlatformApi::new(PlatformEndpoint::production(), organization.clone());
+        let platform = PlatformApi::new(
+            PlatformEndpoint::production(),
+            organization.clone(),
+            credentials,
+        );
         let nonce = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|elapsed| elapsed.as_nanos())

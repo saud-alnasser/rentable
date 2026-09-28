@@ -1668,6 +1668,8 @@ fn with_link(
 
 #[cfg(test)]
 mod tests {
+    use crate::credential::{CredentialStore, Memory};
+
     use std::sync::{Arc, Mutex};
 
     use serde_json::json;
@@ -1808,6 +1810,7 @@ mod tests {
 
     /// An organization with its owner signed in and one workspace, on a fake account.
     async fn owned(
+        credentials: &dyn CredentialStore,
         directory: &std::path::Path,
     ) -> (
         OrganizationStore,
@@ -1841,6 +1844,7 @@ mod tests {
         let platform = Arc::new(InMemoryPlatform::new("an-org"));
 
         let (created, organization) = create_organization(
+            credentials,
             &mut store,
             "a-platform-token",
             &McpEndpoint::at(&mcp.url("")),
@@ -1905,8 +1909,9 @@ mod tests {
     /// what signs them in from then on.
     #[tokio::test]
     async fn an_account_is_made_with_no_link_and_its_first_link_sets_its_password() {
+        let credentials = Memory::new();
         let directory = scratch("account");
-        let (store, owner, link, _, _) = owned(&directory).await;
+        let (store, owner, link, _, _) = owned(&credentials, &directory).await;
         let account = create_account(
             &store,
             &owner,
@@ -1938,7 +1943,7 @@ mod tests {
 
         for attempt in ["sami.staff", PASSWORD, "a password sami chose"] {
             assert!(
-                sign_in_by_username(&store, &held, "sami.staff", attempt, &slot())
+                sign_in_by_username(&credentials, &store, &held, "sami.staff", attempt, &slot())
                     .await
                     .is_err(),
                 "an account with no link admitted {attempt} at the wall"
@@ -1985,6 +1990,7 @@ mod tests {
 
         assert!(
             crate::organization::join::accept(
+                &credentials,
                 |_| async { Ok::<_, Error>(&store) },
                 &mut late_machine,
                 &decoded,
@@ -2003,6 +2009,7 @@ mod tests {
         let theirs = scratch("account-theirs");
         let mut their_machine = fresh_machine(&theirs);
         let (_, session) = crate::organization::join::accept(
+            &credentials,
             |_| async { Ok::<_, Error>(&store) },
             &mut their_machine,
             &decoded,
@@ -2018,7 +2025,7 @@ mod tests {
         assert!(!session.must_change_password);
 
         // and the wall admits them on it from now on.
-        sign_in_by_username(&store, &held, "sami.staff", CHOSEN, &slot())
+        sign_in_by_username(&credentials, &store, &held, "sami.staff", CHOSEN, &slot())
             .await
             .expect("the chosen password did not admit them at the wall");
 
@@ -2030,6 +2037,7 @@ mod tests {
 
         assert!(
             crate::organization::join::accept(
+                &credentials,
                 |_| async { Ok::<_, Error>(&store) },
                 &mut second_machine,
                 &decoded,
@@ -2060,8 +2068,9 @@ mod tests {
     /// what the maker can sign.
     #[tokio::test]
     async fn a_link_is_made_by_a_holder_of_either_act_and_by_nobody_else() {
+        let credentials = Memory::new();
         let directory = scratch("link-acts");
-        let (store, owner, link, _, _) = owned(&directory).await;
+        let (store, owner, link, _, _) = owned(&credentials, &directory).await;
         let subject = create_account(
             &store,
             &owner,
@@ -2075,7 +2084,16 @@ mod tests {
         )
         .await
         .expect("the account could not be made");
-        let (sami, _) = opened_as(&store, &owner, &link, &subject.id, "sami", NOW).await;
+        let (sami, _) = opened_as(
+            &credentials,
+            &store,
+            &owner,
+            &link,
+            &subject.id,
+            "sami",
+            NOW,
+        )
+        .await;
 
         // a manager holding `resetPassword` and not `inviteMember`.
         let resetter = create_account(
@@ -2091,7 +2109,16 @@ mod tests {
         )
         .await
         .expect("the narrowed manager could not be made");
-        let (rita, _) = opened_as(&store, &owner, &link, &resetter.id, "rita", NOW + 2).await;
+        let (rita, _) = opened_as(
+            &credentials,
+            &store,
+            &owner,
+            &link,
+            &resetter.id,
+            "rita",
+            NOW + 2,
+        )
+        .await;
 
         make_link(
             &store,
@@ -2129,6 +2156,7 @@ mod tests {
     /// One account opened on a machine of its own: the owner makes its link, the person opens it
     /// and chooses a password, and what comes back is their session and their machine's id.
     async fn opened_as(
+        credentials: &dyn CredentialStore,
         store: &OrganizationStore,
         owner: &MemberSession,
         link: &Locator,
@@ -2150,6 +2178,7 @@ mod tests {
         let directory = scratch(&format!("opened-{name}"));
         let mut machine = fresh_machine(&directory);
         let (_, session) = crate::organization::join::accept(
+            credentials,
             |_| async { Ok::<_, Error>(store) },
             &mut machine,
             &JoinLink::decode(&made.link).expect("the link"),
@@ -2183,8 +2212,9 @@ mod tests {
     /// as it is given links for, and nobody signs out of one to be handed another.
     #[tokio::test]
     async fn a_machine_signed_in_is_offered_a_link_and_a_reset_makes_the_next_one_ask_a_password() {
+        let credentials = Memory::new();
         let directory = scratch("standing");
-        let (store, owner, link, _, _) = owned(&directory).await;
+        let (store, owner, link, _, _) = owned(&credentials, &directory).await;
         let account = create_account(
             &store,
             &owner,
@@ -2213,6 +2243,7 @@ mod tests {
         let mut their_machine = fresh_machine(&theirs);
 
         crate::organization::join::accept(
+            &credentials,
             |_| async { Ok::<_, Error>(&store) },
             &mut their_machine,
             &JoinLink::decode(&first.link).expect("the link"),
@@ -2309,7 +2340,7 @@ mod tests {
         let held = joined_as(&owner, &account.id, permission::MEMBER);
 
         assert!(
-            sign_in_by_username(&store, &held, "sami.staff", CHOSEN, &slot())
+            sign_in_by_username(&credentials, &store, &held, "sami.staff", CHOSEN, &slot())
                 .await
                 .is_err(),
             "the reset left the old password admitting them"
@@ -2318,6 +2349,7 @@ mod tests {
         let next = scratch("standing-next");
         let mut next_machine = fresh_machine(&next);
         let (_, session) = crate::organization::join::accept(
+            &credentials,
             |_| async { Ok::<_, Error>(&store) },
             &mut next_machine,
             &decoded,
@@ -2342,8 +2374,9 @@ mod tests {
     /// [`make_link`] reads neither half, so no line here is the reason a link is missing.
     #[tokio::test]
     async fn a_standing_is_the_password_and_the_register_read_together() {
+        let credentials = Memory::new();
         let directory = scratch("standings");
-        let (store, owner, link, _, _) = owned(&directory).await;
+        let (store, owner, link, _, _) = owned(&credentials, &directory).await;
         let account = create_account(
             &store,
             &owner,
@@ -2391,6 +2424,7 @@ mod tests {
         let mut their_machine = fresh_machine(&theirs);
 
         crate::organization::join::accept(
+            &credentials,
             |_| async { Ok::<_, Error>(&store) },
             &mut their_machine,
             &JoinLink::decode(&made.link).expect("the link"),
@@ -2458,8 +2492,9 @@ mod tests {
     /// opens, and an invitation row naming that member with the secret sealed to the issuer.
     #[tokio::test]
     async fn an_invitation_makes_a_member_and_one_link_carrying_the_secret() {
+        let credentials = Memory::new();
         let directory = scratch("invite");
-        let (store, owner, link, workspace_id, _) = owned(&directory).await;
+        let (store, owner, link, workspace_id, _) = owned(&credentials, &directory).await;
         let workspaces = vec![workspace_id.clone()];
 
         let invited = make_account_and_link(
@@ -2588,8 +2623,9 @@ mod tests {
     /// would be taken, so the alphabet and the draw are asserted on the generator itself.
     #[tokio::test]
     async fn the_generated_password_is_drawn_and_not_derived() {
+        let credentials = Memory::new();
         let directory = scratch("password");
-        let (store, owner, link, _, _) = owned(&directory).await;
+        let (store, owner, link, _, _) = owned(&credentials, &directory).await;
         let invite = |username: &'static str| {
             let store = &store;
             let owner = &owner;
@@ -2654,8 +2690,9 @@ mod tests {
     /// 828 found nothing calling it.*
     #[tokio::test]
     async fn an_invitation_lapses_and_is_reissuable_while_the_link_stands() {
+        let credentials = Memory::new();
         let directory = scratch("lifetime");
-        let (store, owner, link, workspace_id, _) = owned(&directory).await;
+        let (store, owner, link, workspace_id, _) = owned(&credentials, &directory).await;
         let workspaces = vec![workspace_id.clone()];
         let issued_at = 1_757_000_000_000;
         let invite = |username: &'static str, now: i64| {
@@ -2778,8 +2815,9 @@ mod tests {
     /// fresh invitation writes the role's own mask.
     #[tokio::test]
     async fn a_reset_keeps_a_widened_members_permissions_and_a_fresh_invitation_writes_the_roles() {
+        let credentials = Memory::new();
         let directory = scratch("widened");
-        let (store, owner, link, _, _) = owned(&directory).await;
+        let (store, owner, link, _, _) = owned(&credentials, &directory).await;
         let invited = make_account_and_link(
             &store,
             &owner,
@@ -2866,8 +2904,9 @@ mod tests {
     /// act, are each refused by name before anything is written.
     #[tokio::test]
     async fn a_read_only_invitation_is_minted_on_the_owners_machine_and_refused_elsewhere() {
+        let credentials = Memory::new();
         let directory = scratch("read-only");
-        let (store, owner, link, workspace_id, platform) = owned(&directory).await;
+        let (store, owner, link, workspace_id, platform) = owned(&credentials, &directory).await;
         let read_only = vec![WorkspaceGrant {
             id: workspace_id.clone(),
             access: AccessLevel::ReadOnly,
@@ -2990,8 +3029,9 @@ mod tests {
     /// is made and on the link that follows a reset alike, which are the same act, `make_link`.
     #[tokio::test]
     async fn a_link_seals_the_issuers_own_grant_and_lapses_no_later_than_it_does() {
+        let credentials = Memory::new();
         let directory = scratch("sealed-payload");
-        let (store, owner, link, _, _) = owned(&directory).await;
+        let (store, owner, link, _, _) = owned(&credentials, &directory).await;
         let now = 1_757_000_000_000;
         let four_weeks = 28 * 24 * 60 * 60 * 1000;
         // a grant with three days left, which is a four-week one the owner minted twenty-five days
@@ -3111,8 +3151,9 @@ mod tests {
     /// read without a refusal.
     #[tokio::test]
     async fn resetting_a_manager_leaves_every_row_verifiable_and_everyone_signs_in() {
+        let credentials = Memory::new();
         let directory = scratch("manager-reset-by-owner");
-        let (store, owner, link, workspace_id, _) = owned(&directory).await;
+        let (store, owner, link, workspace_id, _) = owned(&credentials, &directory).await;
 
         let manager = make_account_and_link(
             &store,
@@ -3248,8 +3289,9 @@ mod tests {
     /// invites nobody.
     #[tokio::test]
     async fn administration_is_what_the_row_carries_and_an_account_ranks_below_its_maker() {
+        let credentials = Memory::new();
         let directory = scratch("roles");
-        let (store, owner, link, _, _) = owned(&directory).await;
+        let (store, owner, link, _, _) = owned(&credentials, &directory).await;
 
         let manager = make_account_and_link(
             &store,
@@ -3367,8 +3409,9 @@ mod tests {
     /// granting less.
     #[tokio::test]
     async fn an_unsettled_inviter_and_an_unreachable_workspace_are_both_refused() {
+        let credentials = Memory::new();
         let directory = scratch("refused");
-        let (store, owner, link, _, _) = owned(&directory).await;
+        let (store, owner, link, _, _) = owned(&credentials, &directory).await;
         let mut unsettled = sign_in(
             &store,
             &joined_as(&owner, &owner.member_id, permission::OWNER),
@@ -3442,8 +3485,9 @@ mod tests {
     /// told otherwise, and the person opening the link would find the workspace missing.
     #[tokio::test]
     async fn a_link_made_by_somebody_who_cannot_reach_a_workspace_says_which_grant_it_dropped() {
+        let credentials = Memory::new();
         let directory = scratch("dropped-grant");
-        let (store, owner, link, workspace_id, _) = owned(&directory).await;
+        let (store, owner, link, workspace_id, _) = owned(&credentials, &directory).await;
         let manager = make_account_and_link(
             &store,
             &owner,
@@ -3594,8 +3638,9 @@ mod tests {
     /// The refusal for a username outside the rules is the other sentence, and it comes first.
     #[tokio::test]
     async fn a_username_already_held_is_refused_in_any_case() {
+        let credentials = Memory::new();
         let directory = scratch("taken");
-        let (store, owner, link, _, _) = owned(&directory).await;
+        let (store, owner, link, _, _) = owned(&credentials, &directory).await;
         let invite = |username: &'static str| {
             let store = &store;
             let owner = &owner;
@@ -3681,8 +3726,9 @@ mod tests {
     /// own username under another case, because their own row is not counted as taking it.
     #[tokio::test]
     async fn a_rename_is_read_back_by_the_members_list_and_the_row_is_signed_by_the_renamer() {
+        let credentials = Memory::new();
         let directory = scratch("rename");
-        let (store, owner, link, workspace_id, _) = owned(&directory).await;
+        let (store, owner, link, workspace_id, _) = owned(&credentials, &directory).await;
 
         // a manager invites the member, so the member's row is signed under the
         // manager's certificate and a rename by the owner has a signer to change.
@@ -3810,8 +3856,9 @@ mod tests {
     /// the uniqueness one, as it does on an invitation.
     #[tokio::test]
     async fn a_rename_is_refused_for_a_taken_username_for_ones_own_row_and_without_the_act() {
+        let credentials = Memory::new();
         let directory = scratch("rename-refused");
-        let (store, owner, link, _, _) = owned(&directory).await;
+        let (store, owner, link, _, _) = owned(&credentials, &directory).await;
         let invite = |username: &'static str| {
             let store = &store;
             let owner = &owner;
@@ -3941,8 +3988,9 @@ mod tests {
     /// the directory was read by nobody.*
     #[tokio::test]
     async fn a_rename_is_refused_of_the_owner_at_or_above_the_renamer_and_of_oneself() {
+        let credentials = Memory::new();
         let directory = scratch("rename-rank");
-        let (store, owner, link, _, _) = owned(&directory).await;
+        let (store, owner, link, _, _) = owned(&credentials, &directory).await;
         let ada = made(&store, &owner, "ada.manager", permission::MANAGER, 0)
             .await
             .expect("the owner could not make a manager");
@@ -3952,7 +4000,8 @@ mod tests {
         let mo = made(&store, &owner, "mo.staff", permission::MEMBER, 0)
             .await
             .expect("the owner could not make a member");
-        let (ada_session, _) = opened_as(&store, &owner, &link, &ada.id, "ada", NOW + 1).await;
+        let (ada_session, _) =
+            opened_as(&credentials, &store, &owner, &link, &ada.id, "ada", NOW + 1).await;
         let certificates = store.certificates().await.expect("the certificates");
 
         for (member_id, reason, what) in [
@@ -4024,8 +4073,9 @@ mod tests {
     /// one wrote a grant every reader refused, taking the grants with it.*
     #[tokio::test]
     async fn making_or_resetting_an_account_without_grant_workspace_is_refused_by_name() {
+        let credentials = Memory::new();
         let directory = scratch("directory-grant");
-        let (store, owner, link, _, _) = owned(&directory).await;
+        let (store, owner, link, _, _) = owned(&credentials, &directory).await;
         let grant_workspace = permission::mask_of(&[permission::Flag::GrantWorkspace]);
         let nora = made(
             &store,
@@ -4039,7 +4089,16 @@ mod tests {
         let mo = made(&store, &owner, "mo.staff", permission::MEMBER, 0)
             .await
             .expect("the owner could not make a member");
-        let (nora_session, _) = opened_as(&store, &owner, &link, &nora.id, "nora", NOW + 1).await;
+        let (nora_session, _) = opened_as(
+            &credentials,
+            &store,
+            &owner,
+            &link,
+            &nora.id,
+            "nora",
+            NOW + 1,
+        )
+        .await;
         let certificates = store.certificates().await.expect("the certificates");
         let members = store
             .members(&owner.verifying_key)
@@ -4146,8 +4205,9 @@ mod tests {
     /// is not one to rest on.
     #[tokio::test]
     async fn a_reissue_carries_the_rows_session_epoch_through() {
+        let credentials = Memory::new();
         let directory = scratch("reissue-epoch");
-        let (store, owner, link, workspace_id, _) = owned(&directory).await;
+        let (store, owner, link, workspace_id, _) = owned(&credentials, &directory).await;
         let workspaces = full(&[workspace_id.clone()]);
         let invited = make_account_and_link(
             &store,
@@ -4305,8 +4365,9 @@ mod tests {
     /// refusal names the kind. Nothing is written, and the same role with the view kept is made.
     #[tokio::test]
     async fn an_account_writing_a_kind_it_cannot_view_is_not_made() {
+        let credentials = Memory::new();
         let directory = scratch("unviewed");
-        let (store, owner, _, _, _) = owned(&directory).await;
+        let (store, owner, _, _, _) = owned(&credentials, &directory).await;
         let members = store
             .members(&owner.verifying_key)
             .await
@@ -4371,8 +4432,9 @@ mod tests {
     /// the account they asked for.
     #[tokio::test]
     async fn an_account_is_made_below_the_maker_and_with_only_flags_they_hold() {
+        let credentials = Memory::new();
         let directory = scratch("below");
-        let (store, owner, link, _, _) = owned(&directory).await;
+        let (store, owner, link, _, _) = owned(&credentials, &directory).await;
         let edit_payment = permission::mask_of(&[permission::Flag::EditPayment]);
         let delete_unit = permission::mask_of(&[permission::Flag::DeleteUnit]);
         let lock_out = permission::mask_of(&[permission::Flag::LockOut]);
@@ -4386,7 +4448,16 @@ mod tests {
             let account = made(&store, &owner, username, permission::MANAGER, override_mask)
                 .await
                 .expect("the owner could not make a manager");
-            let (session, _) = opened_as(&store, &owner, &link, &account.id, username, at).await;
+            let (session, _) = opened_as(
+                &credentials,
+                &store,
+                &owner,
+                &link,
+                &account.id,
+                username,
+                at,
+            )
+            .await;
 
             sessions.push(session);
         }
@@ -4507,12 +4578,22 @@ mod tests {
     /// exactly one live certificate afterwards, the owner and the manager included.
     #[tokio::test]
     async fn a_managers_account_is_certified_from_their_own_certificate() {
+        let credentials = Memory::new();
         let directory = scratch("delegated");
-        let (store, owner, link, _, _) = owned(&directory).await;
+        let (store, owner, link, _, _) = owned(&credentials, &directory).await;
         let manager = made(&store, &owner, "ada.manager", permission::MANAGER, 0)
             .await
             .expect("the manager");
-        let (ada, _) = opened_as(&store, &owner, &link, &manager.id, "ada", NOW + 1).await;
+        let (ada, _) = opened_as(
+            &credentials,
+            &store,
+            &owner,
+            &link,
+            &manager.id,
+            "ada",
+            NOW + 1,
+        )
+        .await;
 
         assert!(
             crate::organization::role::organization_key_of(&ada).is_err(),
@@ -4586,8 +4667,9 @@ mod tests {
     /// member signs in on the fresh link. A second manager is not the first's to reset.
     #[tokio::test]
     async fn a_manager_resets_a_member_and_every_row_their_old_certificate_signed_still_verifies() {
+        let credentials = Memory::new();
         let directory = scratch("manager-reset");
-        let (store, owner, link, north, _) = owned(&directory).await;
+        let (store, owner, link, north, _) = owned(&credentials, &directory).await;
         let north_only = full(std::slice::from_ref(&north));
         let manager = create_account(
             &store,
@@ -4621,9 +4703,36 @@ mod tests {
         let colleague = made(&store, &owner, "bob.staff", permission::MEMBER, 0)
             .await
             .expect("the colleague");
-        let (ada, _) = opened_as(&store, &owner, &link, &manager.id, "ada", NOW + 1).await;
-        let (sami, _) = opened_as(&store, &owner, &link, &granter.id, "sami", NOW + 3).await;
-        let (_, _) = opened_as(&store, &owner, &link, &colleague.id, "bob", NOW + 5).await;
+        let (ada, _) = opened_as(
+            &credentials,
+            &store,
+            &owner,
+            &link,
+            &manager.id,
+            "ada",
+            NOW + 1,
+        )
+        .await;
+        let (sami, _) = opened_as(
+            &credentials,
+            &store,
+            &owner,
+            &link,
+            &granter.id,
+            "sami",
+            NOW + 3,
+        )
+        .await;
+        let (_, _) = opened_as(
+            &credentials,
+            &store,
+            &owner,
+            &link,
+            &colleague.id,
+            "bob",
+            NOW + 5,
+        )
+        .await;
 
         // the member's certificate signs a row: their colleague's grant on the workspace.
         crate::organization::workspace::grant_workspace::<InMemoryPlatform>(

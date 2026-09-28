@@ -1,5 +1,8 @@
 pub mod backup;
 pub mod bootstrap;
+// private, and it stays that way: what it hands back is a credential, so its callers are in
+// this crate and nowhere else ([[rules/credentials]], *Client boundary*).
+mod credential;
 pub mod database;
 pub mod diagnostics;
 pub mod earlier;
@@ -10,9 +13,6 @@ pub mod export;
 mod guard;
 pub mod http;
 mod import;
-// private, and it stays that way: what it hands back is a credential, so its callers are in
-// this crate and nowhere else ([[rules/credentials]], *Client boundary*).
-mod keyring;
 pub mod organization;
 pub mod persisted;
 pub mod print;
@@ -81,6 +81,8 @@ pub fn run() {
     }
 
     tauri::Builder::default()
+        // the credential store, managed before any plugin so that whatever reads it finds it.
+        .manage::<credential::Credentials>(Arc::new(credential::Os))
         // first, so that a second launch with a link on its command line reaches the instance
         // already running rather than starting another: the `deep-link` feature hands the
         // arguments to the deep-link plugin below, whose handler is the one place a link lands.

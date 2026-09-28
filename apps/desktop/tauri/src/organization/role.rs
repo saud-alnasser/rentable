@@ -2531,6 +2531,8 @@ pub async fn set_workspace_override(
 
 #[cfg(test)]
 mod tests {
+    use crate::credential::{CredentialStore, Memory};
+
     use std::sync::{Arc, Mutex};
 
     use serde_json::json;
@@ -2664,6 +2666,7 @@ mod tests {
 
     /// An organization with its owner signed in and one workspace, on a fake account.
     async fn owned(
+        credentials: &dyn CredentialStore,
         directory: &std::path::Path,
     ) -> (OrganizationStore, MemberSession, Locator, String) {
         let mut store = Persisted::<RemoteSyncStore>::load(directory.join("remote-sync.json"))
@@ -2691,6 +2694,7 @@ mod tests {
         let platform = Arc::new(InMemoryPlatform::new("an-org"));
 
         let (_, organization) = create_organization(
+            credentials,
             &mut store,
             "a-platform-token",
             &McpEndpoint::at(&mcp.url("")),
@@ -2987,8 +2991,9 @@ mod tests {
     /// certificate follows each, and the answer is the member as the list will show them.
     #[tokio::test]
     async fn a_role_and_an_override_are_written_re_signed_and_read_back() {
+        let credentials = Memory::new();
         let directory = scratch("write");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let (invited, _) = a_member(
             &store,
             &owner,
@@ -3065,8 +3070,9 @@ mod tests {
     /// the web layer reads; and nothing about a certificate crosses.
     #[tokio::test]
     async fn the_facts_carry_the_role_its_rank_the_override_and_the_effective_permissions() {
+        let credentials = Memory::new();
         let directory = scratch("facts");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let mask = permission::MEMBER_ROLE.mask | permission::mask_of(&[Flag::RenameMember]);
         let bookkeeper = a_role(&store, &owner, "bookkeeper", mask, permission::MANAGER).await;
         let held = holding_role(
@@ -3198,8 +3204,9 @@ mod tests {
     /// not assigned, and a member who is not here is not found.
     #[tokio::test]
     async fn the_refusals_come_before_any_write() {
+        let credentials = Memory::new();
         let directory = scratch("refusals");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let (invited, sami) = a_member(
             &store,
             &owner,
@@ -3294,8 +3301,9 @@ mod tests {
     /// act, until effort 838 made every member hold one.*
     #[tokio::test]
     async fn a_signing_flag_given_and_taken_back_follows_the_certificate() {
+        let credentials = Memory::new();
         let directory = scratch("certificate");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let (sami, opened) = a_member(
             &store,
             &owner,
@@ -3426,8 +3434,9 @@ mod tests {
     /// row are as they were.
     #[tokio::test]
     async fn a_reissue_the_actor_could_not_complete_is_refused_by_name_and_moves_nothing() {
+        let credentials = Memory::new();
         let directory = scratch("reissue-refused");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let (sami, widened) = a_member(
             &store,
             &owner,
@@ -3503,8 +3512,9 @@ mod tests {
     /// session still carries the bit, and what refuses them is the verified row, by the act's name.
     #[tokio::test]
     async fn a_member_narrowed_out_of_one_act_is_refused_on_their_open_session_by_name() {
+        let credentials = Memory::new();
         let directory = scratch("narrowed");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let (sami, theirs) = a_member(
             &store,
             &owner,
@@ -3571,8 +3581,9 @@ mod tests {
     /// live and the rows it signed go on verifying.
     #[tokio::test]
     async fn what_a_narrowed_member_issued_is_issued_again_and_stays_live() {
+        let credentials = Memory::new();
         let directory = scratch("reparent");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let (ada, ada_session) = a_member(
             &store,
             &owner,
@@ -3677,8 +3688,9 @@ mod tests {
     /// and the member's masks, and every holder's certificate carries the new one.
     #[tokio::test]
     async fn the_built_in_roles_are_kept_and_the_owner_edits_the_managers_and_the_members_masks() {
+        let credentials = Memory::new();
         let directory = scratch("built-in");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let custom = a_role(
             &store,
             &owner,
@@ -3790,8 +3802,9 @@ mod tests {
     /// exclusive-or'd with the override they kept until requirement 6 was amended on 2026-09-27.*
     #[tokio::test]
     async fn a_custom_role_lives_between_member_and_manager_and_its_holders_fall_to_member() {
+        let credentials = Memory::new();
         let directory = scratch("lifecycle");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let collector = a_role(
             &store,
             &owner,
@@ -3995,8 +4008,9 @@ mod tests {
     /// 2026-09-27, and the override switched viewing payments off, which that amendment refuses.*
     #[tokio::test]
     async fn the_owners_role_is_not_assigned_and_the_owners_row_carries_no_override() {
+        let credentials = Memory::new();
         let directory = scratch("assign");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let custom = a_role(
             &store,
             &owner,
@@ -4128,8 +4142,12 @@ mod tests {
         spare_low: String,
     }
 
-    async fn ranked(directory: &std::path::Path, flag: Flag) -> Ranked {
-        let (store, owner, link, workspace_id) = owned(directory).await;
+    async fn ranked(
+        credentials: &dyn CredentialStore,
+        directory: &std::path::Path,
+        flag: Flag,
+    ) -> Ranked {
+        let (store, owner, link, workspace_id) = owned(credentials, directory).await;
         let members = permission::MEMBER_ROLE.mask;
         let high = a_role(&store, &owner, "high", members, permission::MANAGER).await;
         let mine = a_role(
@@ -4170,13 +4188,14 @@ mod tests {
     /// roles share a rank. A holder of one management flag is refused the acts of the others.
     #[tokio::test]
     async fn only_strictly_below_succeeds_for_every_management_flag() {
+        let credentials = Memory::new();
         let directory = scratch("matrix");
         let edit_payment = permission::mask_of(&[Flag::EditPayment]);
         let members = permission::MEMBER_ROLE.mask;
 
         // manageRoles: rename, re-mask, move, delete, and making a role in a place.
         {
-            let r = ranked(&directory.join("roles"), Flag::ManageRoles).await;
+            let r = ranked(&credentials, &directory.join("roles"), Flag::ManageRoles).await;
             let before = every_row(&r.store).await;
 
             for (place, role) in [("above", &r.spare_high), ("at", &r.mine)] {
@@ -4257,7 +4276,7 @@ mod tests {
 
         // assignRole and overrideMember: the member above, at the rank, below, and themselves.
         for flag in [Flag::AssignRole, Flag::OverrideMember] {
-            let r = ranked(&directory.join(flag.name()), flag).await;
+            let r = ranked(&credentials, &directory.join(flag.name()), flag).await;
             let act = |member: String| {
                 let r = &r;
 
@@ -4338,8 +4357,9 @@ mod tests {
     /// the flag's name and nothing is written. A flag they hold, switched the same ways, goes.
     #[tokio::test]
     async fn a_flag_the_actor_lacks_is_switched_neither_on_nor_off_in_a_role_or_an_override() {
+        let credentials = Memory::new();
         let directory = scratch("flags-held");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let deleting = permission::mask_of(&[Flag::DeletePayment]);
         let members = permission::MEMBER_ROLE.mask;
         let deputy = a_role(
@@ -4427,8 +4447,9 @@ mod tests {
     /// act went, as ticket 14 asked.*
     #[tokio::test]
     async fn a_role_and_an_override_given_together_are_held_to_the_flags_they_move_together() {
+        let credentials = Memory::new();
         let directory = scratch("one-act");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let deleting = permission::mask_of(&[Flag::DeletePayment]);
         let editing = permission::mask_of(&[Flag::EditPayment]);
         let members = permission::MEMBER_ROLE.mask;
@@ -4605,8 +4626,9 @@ mod tests {
     /// custom role's mask or an override, from the owner or from a manager.
     #[tokio::test]
     async fn the_owners_flags_are_refused_in_every_mask_and_every_override() {
+        let credentials = Memory::new();
         let directory = scratch("owner-only");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let custom = a_role(
             &store,
             &owner,
@@ -4712,8 +4734,9 @@ mod tests {
     /// every holder's certificate again, and the row still verifies.
     #[tokio::test]
     async fn a_manager_gives_a_signing_flag_without_the_owner_and_it_verifies_on_a_third_store() {
+        let credentials = Memory::new();
         let directory = scratch("three-stores");
-        let (owners, owner, link, workspace_id) = owned(&directory).await;
+        let (owners, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let recruiting = permission::MEMBER_ROLE.mask
             | permission::mask_of(&[Flag::InviteMember, Flag::GrantWorkspace]);
         let recruiter = a_role(
@@ -4923,7 +4946,9 @@ mod tests {
     /// A manager who opened their link on a machine of their own and chose a password,
     /// which is the standing an offer of the organization needs: a vault of their own, that their
     /// own password opens, on a machine that pinned this organization's key.
+    #[allow(clippy::too_many_arguments)]
     async fn a_settled_manager(
+        credentials: &dyn CredentialStore,
         directory: &std::path::Path,
         store: &OrganizationStore,
         owner: &MemberSession,
@@ -4943,6 +4968,7 @@ mod tests {
         .await;
         let mut machine = fresh_machine(directory, username);
         let (_, session) = accept(
+            credentials,
             |_| async { Ok::<_, Error>(store) },
             &mut machine,
             &JoinLink::decode(&invited.join_link).expect("the invitation link"),
@@ -5024,9 +5050,11 @@ mod tests {
     /// sign in as. That is what the first shape of this act did.
     #[tokio::test]
     async fn the_offer_is_refused_for_an_unset_account_a_removed_one_the_owner_and_a_non_owner() {
+        let credentials = Memory::new();
         let directory = scratch("offer-refusals");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let (ada, ada_session, _) = a_settled_manager(
+            &credentials,
             &directory,
             &store,
             &owner,
@@ -5156,9 +5184,11 @@ mod tests {
     /// signed under, and reading the rows under it is refused.
     #[tokio::test]
     async fn the_acceptance_re_keys_and_every_row_and_certificate_verifies_under_the_new_key() {
+        let credentials = Memory::new();
         let directory = scratch("accept");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let (ada, mut ada_session, mut ada_machine) = a_settled_manager(
+            &credentials,
             &directory,
             &store,
             &owner,
@@ -5315,9 +5345,11 @@ mod tests {
     #[tokio::test]
     async fn after_a_handover_every_certificate_walks_to_the_new_key_and_the_founder_is_a_manager()
     {
+        let credentials = Memory::new();
         let directory = scratch("handover-chain");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let (ada, mut ada_session, mut ada_machine) = a_settled_manager(
+            &credentials,
             &directory,
             &store,
             &owner,
@@ -5328,6 +5360,7 @@ mod tests {
         )
         .await;
         let (bilal, bilal_session, _) = a_settled_manager(
+            &credentials,
             &directory,
             &store,
             &owner,
@@ -5636,9 +5669,11 @@ mod tests {
     /// check the change against, and it is the thing it already holds.
     #[tokio::test]
     async fn a_second_store_holding_the_old_key_follows_the_succession_and_verifies_every_row() {
+        let credentials = Memory::new();
         let directory = scratch("follow");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let (ada, mut ada_session, mut ada_machine) = a_settled_manager(
+            &credentials,
             &directory,
             &store,
             &owner,
@@ -5724,9 +5759,11 @@ mod tests {
     /// put one there that opens to the key the accepting machine already has from its link.
     #[tokio::test]
     async fn a_planted_seal_opens_nothing_and_the_acceptance_refuses() {
+        let credentials = Memory::new();
         let directory = scratch("planted-seal");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let (ada, mut ada_session, mut ada_machine) = a_settled_manager(
+            &credentials,
             &directory,
             &store,
             &owner,
@@ -5804,9 +5841,11 @@ mod tests {
     /// re-issue is of what the key being left issued, and of nothing else.
     #[tokio::test]
     async fn a_planted_certificate_is_not_reissued_by_the_handover() {
+        let credentials = Memory::new();
         let directory = scratch("planted-certificate");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let (ada, mut ada_session, mut ada_machine) = a_settled_manager(
+            &credentials,
             &directory,
             &store,
             &owner,
@@ -5939,9 +5978,11 @@ mod tests {
     /// nothing afterwards.
     #[tokio::test]
     async fn the_withdrawal_clears_the_offer_and_the_seal() {
+        let credentials = Memory::new();
         let directory = scratch("withdraw");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let (ada, mut ada_session, mut ada_machine) = a_settled_manager(
+            &credentials,
             &directory,
             &store,
             &owner,
@@ -6008,9 +6049,11 @@ mod tests {
     /// the key the one before it handed over.
     #[tokio::test]
     async fn two_successions_in_a_row_are_followed_by_a_machine_that_pinned_the_first_key() {
+        let credentials = Memory::new();
         let directory = scratch("two-successions");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let (ada, mut ada_session, mut ada_machine) = a_settled_manager(
+            &credentials,
             &directory,
             &store,
             &owner,
@@ -6021,6 +6064,7 @@ mod tests {
         )
         .await;
         let (bilal, mut bilal_session, mut bilal_machine) = a_settled_manager(
+            &credentials,
             &directory,
             &store,
             &owner,
@@ -6108,9 +6152,11 @@ mod tests {
     /// everywhere since is refused by name either way, and the founder stays owner.
     #[tokio::test]
     async fn a_removed_or_signed_out_everywhere_account_cannot_accept_the_offer() {
+        let credentials = Memory::new();
         let directory = scratch("accept-refused-on-the-row");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let (ada, mut ada_session, mut ada_machine) = a_settled_manager(
+            &credentials,
             &directory,
             &store,
             &owner,
@@ -6121,6 +6167,7 @@ mod tests {
         )
         .await;
         let (bilal, mut bilal_session, mut bilal_machine) = a_settled_manager(
+            &credentials,
             &directory,
             &store,
             &owner,
@@ -6229,9 +6276,11 @@ mod tests {
     /// nothing is written and the sentence says what happened.
     #[tokio::test]
     async fn a_withdrawal_that_finds_the_offer_accepted_is_refused_by_name() {
+        let credentials = Memory::new();
         let directory = scratch("withdraw-after-acceptance");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let (ada, mut ada_session, mut ada_machine) = a_settled_manager(
+            &credentials,
             &directory,
             &store,
             &owner,
@@ -6296,9 +6345,11 @@ mod tests {
     /// manager's certificate, which walks to the key in force (effort 838).
     #[tokio::test]
     async fn a_session_whose_vault_does_not_derive_the_pinned_key_certifies_nobody() {
+        let credentials = Memory::new();
         let directory = scratch("certify-under-the-pinned-key");
-        let (store, mut owner, link, workspace_id) = owned(&directory).await;
+        let (store, mut owner, link, workspace_id) = owned(&credentials, &directory).await;
         let (ada, mut ada_session, mut ada_machine) = a_settled_manager(
+            &credentials,
             &directory,
             &store,
             &owner,
@@ -6452,8 +6503,9 @@ mod tests {
     /// issued the clerk a certificate carrying all four.*
     #[tokio::test]
     async fn a_member_widening_their_own_row_is_refused_and_no_role_edit_reissues_the_width() {
+        let credentials = Memory::new();
         let directory = scratch("own-row");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let clerk = a_role(
             &store,
             &owner,
@@ -6548,8 +6600,9 @@ mod tests {
     /// so no holder of the role reads either flag.
     #[tokio::test]
     async fn a_role_row_wider_than_its_signer_is_refused_by_the_store_and_on_every_other_machine() {
+        let credentials = Memory::new();
         let directory = scratch("role-row");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let without_grant =
             permission::MANAGER_ROLE.mask & !permission::mask_of(&[Flag::GrantWorkspace]);
         let supervisor = a_role(
@@ -6634,8 +6687,9 @@ mod tests {
     /// round two). *A rename and a removal were refused here too until then.*
     #[tokio::test]
     async fn an_act_whose_rows_the_actor_could_not_sign_is_refused_by_name_before_it_writes() {
+        let credentials = Memory::new();
         let directory = scratch("uncovered-acts");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let manny = holding_role(
             &store,
             &owner,
@@ -6756,9 +6810,11 @@ mod tests {
     /// wider certificate beside the new one.
     #[tokio::test]
     async fn what_the_new_owner_revoked_as_a_manager_stays_revoked_after_the_handover() {
+        let credentials = Memory::new();
         let directory = scratch("handover-revocations");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let (ada, mut ada_session, mut ada_machine) = a_settled_manager(
+            &credentials,
             &directory,
             &store,
             &owner,
@@ -6906,8 +6962,9 @@ mod tests {
     #[tokio::test]
     async fn a_lead_inviting_while_the_owner_widens_the_member_role_leaves_the_directory_readable()
     {
+        let credentials = Memory::new();
         let directory = scratch("race-widen");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let lead = a_role(
             &store,
             &owner,
@@ -6973,8 +7030,9 @@ mod tests {
     #[tokio::test]
     async fn a_member_row_a_rank_move_left_uncovered_grants_nothing_and_is_removed_rather_than_saved()
      {
+        let credentials = Memory::new();
         let directory = scratch("race-rank");
-        let (store, mut owner, link, workspace_id) = owned(&directory).await;
+        let (store, mut owner, link, workspace_id) = owned(&credentials, &directory).await;
         let lead = a_role(
             &store,
             &owner,
@@ -7090,8 +7148,9 @@ mod tests {
     #[tokio::test]
     async fn a_removal_is_not_refused_for_a_flag_the_member_role_carries_and_the_removed_row_grants_nothing()
      {
+        let credentials = Memory::new();
         let directory = scratch("removal-member-role");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let mut manny = holding_role(
             &store,
             &owner,
@@ -7174,8 +7233,9 @@ mod tests {
     /// role.
     #[tokio::test]
     async fn a_manager_does_every_act_below_them_and_every_machine_reads_the_result() {
+        let credentials = Memory::new();
         let directory = scratch("manager-acts");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let mut manny = holding_role(
             &store,
             &owner,
@@ -7329,8 +7389,9 @@ mod tests {
     /// and removes them, and the directory reads on another machine.
     #[tokio::test]
     async fn a_custom_role_holding_the_member_administration_flags_does_what_they_say() {
+        let credentials = Memory::new();
         let directory = scratch("lead-acts");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let lead = a_role(
             &store,
             &owner,
@@ -7417,8 +7478,9 @@ mod tests {
     #[tokio::test]
     async fn a_demotion_signed_by_one_who_does_not_outrank_the_member_never_reads_as_the_named_role()
      {
+        let credentials = Memory::new();
         let directory = scratch("demotion");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let lead = a_role(
             &store,
             &owner,
@@ -7535,8 +7597,9 @@ mod tests {
     /// owner with every flag, the vault and the username as they were.
     #[tokio::test]
     async fn the_owners_machine_repairs_a_forged_demotion_of_the_owners_row_at_sign_in() {
+        let credentials = Memory::new();
         let directory = scratch("owner-repair");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let lead = a_role(
             &store,
             &owner,
@@ -7605,8 +7668,9 @@ mod tests {
     /// does not save it either, an assignment included, and removes the manager instead.
     #[tokio::test]
     async fn a_managers_machine_does_not_repair_their_own_demoted_row_and_the_owner_removes_them() {
+        let credentials = Memory::new();
         let directory = scratch("manager-no-repair");
-        let (store, mut owner, link, workspace_id) = owned(&directory).await;
+        let (store, mut owner, link, workspace_id) = owned(&credentials, &directory).await;
         let lead = a_role(
             &store,
             &owner,
@@ -7792,8 +7856,9 @@ mod tests {
     /// owner's rename of a lead's forged "manager" row is refused the same way. Each is removed.
     #[tokio::test]
     async fn a_forged_promotion_is_never_saved_by_any_act_and_is_removed() {
+        let credentials = Memory::new();
         let directory = scratch("launder");
-        let (store, mut owner, link, workspace_id) = owned(&directory).await;
+        let (store, mut owner, link, workspace_id) = owned(&credentials, &directory).await;
         let delete_contract = permission::mask_of(&[Flag::DeleteContract]);
 
         set_role_mask(
@@ -7933,8 +7998,9 @@ mod tests {
     /// and the owner removes sami.
     #[tokio::test]
     async fn a_row_naming_a_role_that_is_gone_is_refused_every_act_and_removed() {
+        let credentials = Memory::new();
         let directory = scratch("gone-role");
-        let (store, mut owner, link, workspace_id) = owned(&directory).await;
+        let (store, mut owner, link, workspace_id) = owned(&credentials, &directory).await;
         let lead = a_role(
             &store,
             &owner,
@@ -8009,8 +8075,9 @@ mod tests {
     /// removal the owner wrote.
     #[tokio::test]
     async fn a_removal_written_from_below_reads_as_removed_and_is_not_lifted() {
+        let credentials = Memory::new();
         let directory = scratch("removal-from-below");
-        let (store, mut owner, link, workspace_id) = owned(&directory).await;
+        let (store, mut owner, link, workspace_id) = owned(&credentials, &directory).await;
         let lena = a_lead(&store, &owner, &link, &workspace_id).await;
         let (invited, manny) = a_member(
             &store,
@@ -8080,8 +8147,9 @@ mod tests {
     /// refused by name, sami still cannot sign in, and the owner removes sami again, which stands.
     #[tokio::test]
     async fn a_covered_removal_a_forger_re_signs_is_not_lifted() {
+        let credentials = Memory::new();
         let directory = scratch("removal-re-signed");
-        let (store, mut owner, link, workspace_id) = owned(&directory).await;
+        let (store, mut owner, link, workspace_id) = owned(&credentials, &directory).await;
         let lena = a_lead(&store, &owner, &link, &workspace_id).await;
         let (invited, sami) = a_member(
             &store,
@@ -8146,8 +8214,9 @@ mod tests {
     /// revoked, and none that lives names it either.
     #[tokio::test]
     async fn a_signing_key_a_forger_puts_on_a_row_is_never_certified() {
+        let credentials = Memory::new();
         let directory = scratch("forged-key");
-        let (store, mut owner, link, workspace_id) = owned(&directory).await;
+        let (store, mut owner, link, workspace_id) = owned(&credentials, &directory).await;
         let lena = a_lead(&store, &owner, &link, &workspace_id).await;
         let manny = holding_role(
             &store,
@@ -8224,8 +8293,9 @@ mod tests {
     #[tokio::test]
     async fn a_covered_removal_is_not_undone_by_an_assignment_and_an_uncovered_row_can_be_removed()
     {
+        let credentials = Memory::new();
         let directory = scratch("covered-removal");
-        let (store, mut owner, link, workspace_id) = owned(&directory).await;
+        let (store, mut owner, link, workspace_id) = owned(&credentials, &directory).await;
         let lena = a_lead(&store, &owner, &link, &workspace_id).await;
         let (sami, _) = a_member(
             &store,
@@ -8281,8 +8351,9 @@ mod tests {
     /// would make the forged one real. Once the owner removes sami, the lead's removal goes.
     #[tokio::test]
     async fn retiring_a_certificate_that_signed_an_uncovered_row_waits_for_that_members_removal() {
+        let credentials = Memory::new();
         let directory = scratch("resign-uncovered");
-        let (store, mut owner, link, workspace_id) = owned(&directory).await;
+        let (store, mut owner, link, workspace_id) = owned(&credentials, &directory).await;
         let lena = a_lead(&store, &owner, &link, &workspace_id).await;
         let senior = a_role(
             &store,
@@ -8338,8 +8409,9 @@ mod tests {
     /// the owner's secret opens, and no seal.
     #[tokio::test]
     async fn the_owners_repair_takes_the_owners_own_keys_and_never_the_rows() {
+        let credentials = Memory::new();
         let directory = scratch("owner-repair-keys");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let lena = a_lead(&store, &owner, &link, &workspace_id).await;
         let root = the_certificate(&store, &owner, &owner.member_id).await;
         let forger = AdministratorKey::generate().expect("a key");
@@ -8396,8 +8468,9 @@ mod tests {
     /// carries it, and the row verifies on a second store.
     #[tokio::test]
     async fn a_member_given_another_role_holds_it_exactly() {
+        let credentials = Memory::new();
         let directory = scratch("exactly");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let (invited, _) = a_member(
             &store,
             &owner,
@@ -8498,8 +8571,9 @@ mod tests {
     /// them an override is what asks `overrideMember`.
     #[tokio::test]
     async fn clearing_an_override_asks_nothing_more_than_assigning() {
+        let credentials = Memory::new();
         let directory = scratch("clearing");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let lead = a_role(
             &store,
             &owner,
@@ -8579,8 +8653,9 @@ mod tests {
     /// role is refused too where it would leave a holder's override doing so.
     #[tokio::test]
     async fn a_role_or_an_override_writing_a_kind_it_cannot_view_is_refused_by_kind() {
+        let credentials = Memory::new();
         let directory = scratch("unviewed");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let collector = a_role(
             &store,
             &owner,
@@ -8770,8 +8845,9 @@ mod tests {
     /// The row verifies on another machine, and a mask of zero leaves no row at all.
     #[tokio::test]
     async fn a_workspace_override_is_set_replaced_and_cleared_and_read_everywhere() {
+        let credentials = Memory::new();
         let directory = scratch("workspace-override");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let (sami, sami_session) = a_member(
             &store,
             &owner,
@@ -8879,8 +8955,9 @@ mod tests {
     /// does not view; a flag granted and not pinned; and an actor without `overrideMember`.
     #[tokio::test]
     async fn every_refusal_of_a_workspace_override_is_named_and_writes_nothing() {
+        let credentials = Memory::new();
         let directory = scratch("workspace-override-refused");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let lena = an_overrider(&store, &owner, &link, "lena", &workspace_id).await;
         let (sami, sami_session) = a_member(
             &store,
@@ -9107,8 +9184,9 @@ mod tests {
     #[tokio::test]
     async fn a_workspace_override_goes_with_the_role_the_reset_the_grant_the_removal_and_the_workspace()
      {
+        let credentials = Memory::new();
         let directory = scratch("workspace-override-cleared");
-        let (store, mut owner, link, workspace_id) = owned(&directory).await;
+        let (store, mut owner, link, workspace_id) = owned(&credentials, &directory).await;
         let (sami, _) = a_member(
             &store,
             &owner,
@@ -9251,8 +9329,9 @@ mod tests {
     /// one the lead may write reads.
     #[tokio::test]
     async fn a_workspace_override_written_around_the_command_beyond_its_signer_is_left_out() {
+        let credentials = Memory::new();
         let directory = scratch("workspace-override-around");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let lena = an_overrider(&store, &owner, &link, "lena", &workspace_id).await;
         let (sami, _) = a_member(
             &store,
@@ -9374,8 +9453,9 @@ mod tests {
     /// override standing on every machine.
     #[tokio::test]
     async fn a_workspace_override_is_signed_again_when_its_signers_certificate_is() {
+        let credentials = Memory::new();
         let directory = scratch("workspace-override-resigned");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let lena = an_overrider(&store, &owner, &link, "lena", &workspace_id).await;
         let (sami, _) = a_member(
             &store,
@@ -9438,8 +9518,9 @@ mod tests {
     /// a flag the lead holds, the reset goes through and takes it.
     #[tokio::test]
     async fn a_reset_that_would_unpin_a_flag_its_actor_does_not_hold_is_refused() {
+        let credentials = Memory::new();
         let directory = scratch("workspace-override-reset-unheld");
-        let (store, owner, link, workspace_id) = owned(&directory).await;
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
         let lena = an_overrider(&store, &owner, &link, "lena", &workspace_id).await;
         let (sami, _) = a_member(
             &store,

@@ -1,5 +1,6 @@
 ---
 paths:
+  - apps/desktop/tauri/src/credential/**
   - apps/desktop/tauri/src/sync/**
   - apps/desktop/tauri/src/turso/**
   - apps/desktop/tauri/src/organization/**
@@ -47,6 +48,16 @@ token until both retired on 2026-09-12.*
 
 *Why: the credential boundary and the network boundary have to be the same boundary — where they
 differ, the gap is exactly what an incident occupies.*
+
+**Where a credential is kept, it is kept through `credential/`, and that module is private to the
+crate.** `credential::CredentialStore` is a port with two adapters: `Os`, the operating system's
+store, which `lib.rs` manages at launch before any plugin, and `Memory`, which each test builds
+for itself. A command that files, reads or forgets a credential takes the store as managed state
+(`tauri::State<Credentials>`) and hands it down; it never hands back what the store answered. The
+trait is `pub(crate)`, so a command that takes it is `pub(crate)` too, and nothing outside the
+crate can name it. Service names, account names and what is filed under them are data on installed
+machines and do not change with the code that reaches them. *It was `keyring.rs`, with a
+process-wide fake swapped in by `cfg(test)`, until effort 840 (ticket 44).*
 
 **Widened 2026-08-18** ([[efforts/a-workspace-follows-its-user/spec]], decision 09): this is the rule for **every**
 credential this application holds, not Drive's alone. The workspace's sync token is a credential

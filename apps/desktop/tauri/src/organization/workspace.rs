@@ -820,6 +820,8 @@ fn random_id() -> Result<String, Error> {
 
 #[cfg(test)]
 mod tests {
+    use crate::credential::{CredentialStore, Memory};
+
     use std::sync::{Arc, Mutex};
 
     use serde_json::json;
@@ -933,6 +935,7 @@ mod tests {
     /// An organization a first run made on this machine, its owner signed in, and the fake
     /// account it lives on.
     async fn owned(
+        credentials: &dyn CredentialStore,
         directory: &std::path::Path,
     ) -> (
         Persisted<RemoteSyncStore>,
@@ -966,6 +969,7 @@ mod tests {
         let platform = Arc::new(InMemoryPlatform::new("an-org"));
 
         let (_, organization) = create_organization(
+            credentials,
             &mut store,
             "a-platform-token",
             &McpEndpoint::at(&mcp.url("")),
@@ -1112,8 +1116,9 @@ mod tests {
 
     #[tokio::test]
     async fn an_owner_creates_a_workspace_migrated_recorded_signed_and_granted() {
+        let credentials = Memory::new();
         let directory = scratch("create");
-        let (_, store, _, mut owner, platform) = owned(&directory).await;
+        let (_, store, _, mut owner, platform) = owned(&credentials, &directory).await;
         let pipeline = applying_pipeline().await;
 
         let facts = create_workspace(
@@ -1194,8 +1199,9 @@ mod tests {
     /// Requirement 1: two workspaces of one organization, both openable.
     #[tokio::test]
     async fn two_workspaces_of_one_organization_exist_and_both_open() {
+        let credentials = Memory::new();
         let directory = scratch("two");
-        let (_, store, _, mut owner, platform) = owned(&directory).await;
+        let (_, store, _, mut owner, platform) = owned(&credentials, &directory).await;
         let pipeline = applying_pipeline().await;
         let mut ids = Vec::new();
 
@@ -1249,8 +1255,9 @@ mod tests {
     /// The refusals come first: the act, the owner's own grant, and a grant nobody holds.
     #[tokio::test]
     async fn a_withdrawal_removes_one_grant_and_rotates_nothing() {
+        let credentials = Memory::new();
         let directory = scratch("withdraw");
-        let (_, store, _, mut owner, platform) = owned(&directory).await;
+        let (_, store, _, mut owner, platform) = owned(&credentials, &directory).await;
         let pipeline = applying_pipeline().await;
         let workspace = create_workspace(
             &store,
@@ -1368,8 +1375,9 @@ mod tests {
     /// Requirement 11, at the command: creating is the owner's, and anybody else is told to ask.
     #[tokio::test]
     async fn anybody_but_the_owner_is_refused_a_create_and_a_delete_before_any_request() {
+        let credentials = Memory::new();
         let directory = scratch("refused");
-        let (_, store, _, mut owner, platform) = owned(&directory).await;
+        let (_, store, _, mut owner, platform) = owned(&credentials, &directory).await;
         let joined_b = second_member(&store, &owner).await;
         let mut member = sign_in(&store, &joined_b, OTHER_PASSWORD, &slot())
             .await
@@ -1442,8 +1450,9 @@ mod tests {
     /// answering rather than as a bit the manager happened not to hold.
     #[tokio::test]
     async fn a_manager_holding_every_flag_but_the_owners_is_refused_what_needs_the_authority() {
+        let credentials = Memory::new();
         let directory = scratch("authority");
-        let (_, store, _, mut owner, platform) = owned(&directory).await;
+        let (_, store, _, mut owner, platform) = owned(&credentials, &directory).await;
         let joined = a_manager(&store, &owner).await;
         let mut manager = sign_in(&store, &joined, OTHER_PASSWORD, &slot())
             .await
@@ -1550,8 +1559,9 @@ mod tests {
     #[tokio::test]
     async fn every_owner_only_act_refuses_a_manager_holding_every_other_flag_and_the_owner_does_it()
     {
+        let credentials = Memory::new();
         let directory = scratch("owner-only");
-        let (_, store, _, mut owner, platform) = owned(&directory).await;
+        let (_, store, _, mut owner, platform) = owned(&credentials, &directory).await;
         let joined = a_manager(&store, &owner).await;
         let _ = second_member(&store, &owner).await;
         let mut manager = sign_in(&store, &joined, OTHER_PASSWORD, &slot())
@@ -1757,8 +1767,9 @@ mod tests {
     /// command, straight into the database, is refused by every reader.
     #[tokio::test]
     async fn a_managers_grant_verifies_on_a_third_store_and_a_read_only_one_they_sign_does_not() {
+        let credentials = Memory::new();
         let directory = scratch("manager-grant");
-        let (_, store, joined_owner, mut owner, platform) = owned(&directory).await;
+        let (_, store, joined_owner, mut owner, platform) = owned(&credentials, &directory).await;
         let pipeline = applying_pipeline().await;
         let workspace = create_workspace(
             &store,
@@ -1951,8 +1962,9 @@ mod tests {
     /// a workspace.
     #[tokio::test]
     async fn a_manager_grants_a_read_only_grant_again_at_full_access_and_withdraws_one() {
+        let credentials = Memory::new();
         let directory = scratch("manager-read-only");
-        let (_, store, _, mut owner, platform) = owned(&directory).await;
+        let (_, store, _, mut owner, platform) = owned(&credentials, &directory).await;
         let pipeline = applying_pipeline().await;
         let workspace = create_workspace(
             &store,
@@ -2088,8 +2100,9 @@ mod tests {
     /// their public key, and their next sign-in unseals it.
     #[tokio::test]
     async fn a_member_is_added_to_a_second_workspace_after_joining_without_their_password() {
+        let credentials = Memory::new();
         let directory = scratch("second");
-        let (_, store, _, mut owner, platform) = owned(&directory).await;
+        let (_, store, _, mut owner, platform) = owned(&credentials, &directory).await;
         let joined_b = second_member(&store, &owner).await;
         let pipeline = applying_pipeline().await;
 
@@ -2181,8 +2194,9 @@ mod tests {
     /// hold the workspace themselves.
     #[tokio::test]
     async fn a_read_only_grant_is_minted_and_only_where_the_authority_is() {
+        let credentials = Memory::new();
         let directory = scratch("readonly");
-        let (_, store, _, mut owner, platform) = owned(&directory).await;
+        let (_, store, _, mut owner, platform) = owned(&credentials, &directory).await;
         let _ = second_member(&store, &owner).await;
         let pipeline = applying_pipeline().await;
         let facts = create_workspace(
@@ -2287,8 +2301,9 @@ mod tests {
     /// a grant however the interface looks.
     #[tokio::test]
     async fn a_member_without_the_act_is_refused_a_grant_by_the_command() {
+        let credentials = Memory::new();
         let directory = scratch("act");
-        let (_, store, _, mut owner, platform) = owned(&directory).await;
+        let (_, store, _, mut owner, platform) = owned(&credentials, &directory).await;
         let joined_b = second_member(&store, &owner).await;
         let pipeline = applying_pipeline().await;
         let facts = create_workspace(
@@ -2337,8 +2352,9 @@ mod tests {
     /// what stands behind it. The gate is the whole of it, and the gate reads the row.
     #[tokio::test]
     async fn a_member_narrowed_out_of_renaming_is_refused_on_their_open_session() {
+        let credentials = Memory::new();
         let directory = scratch("rename-narrowed");
-        let (_, store, _, mut owner, platform) = owned(&directory).await;
+        let (_, store, _, mut owner, platform) = owned(&credentials, &directory).await;
         let joined = a_manager(&store, &owner).await;
         let pipeline = applying_pipeline().await;
         let facts = create_workspace(
@@ -2443,8 +2459,9 @@ mod tests {
     /// Deletion goes through the one intent the port takes for it, and the rows go with it.
     #[tokio::test]
     async fn deleting_a_workspace_is_the_human_intent_and_removes_the_rows() {
+        let credentials = Memory::new();
         let directory = scratch("delete");
-        let (_, store, _, mut owner, platform) = owned(&directory).await;
+        let (_, store, _, mut owner, platform) = owned(&credentials, &directory).await;
         let pipeline = applying_pipeline().await;
         let facts = create_workspace(
             &store,
@@ -2492,8 +2509,9 @@ mod tests {
     /// exactly what a replay leaves; the renewal skips it.
     #[tokio::test]
     async fn renew_credentials_seals_nothing_to_a_removed_member() {
+        let credentials = Memory::new();
         let directory = scratch("renew-removed");
-        let (_, store, _, mut owner, platform) = owned(&directory).await;
+        let (_, store, _, mut owner, platform) = owned(&credentials, &directory).await;
         second_member(&store, &owner).await;
         let pipeline = applying_pipeline().await;
         let facts = create_workspace(
@@ -2558,8 +2576,9 @@ mod tests {
     /// "remove and lock out now", which rotates the credential the replay rides on.
     #[tokio::test]
     async fn an_ordinary_removal_does_not_defeat_a_members_replay_of_their_own_row() {
+        let credentials = Memory::new();
         let directory = scratch("replay");
-        let (_, store, _, mut owner, platform) = owned(&directory).await;
+        let (_, store, _, mut owner, platform) = owned(&credentials, &directory).await;
         second_member(&store, &owner).await;
         let pipeline = applying_pipeline().await;
         let facts = create_workspace(
@@ -2659,8 +2678,9 @@ mod tests {
     /// grant with no recorded expiry, which is a token that never expires, is never due.
     #[tokio::test]
     async fn credentials_due_answers_on_the_soonest_expiry() {
+        let credentials = Memory::new();
         let directory = scratch("due");
-        let (_, store, _, owner, _) = owned(&directory).await;
+        let (_, store, _, owner, _) = owned(&credentials, &directory).await;
         let now = 1_757_000_000_000_i64;
         let day = 24 * 60 * 60 * 1000_i64;
 
@@ -2711,8 +2731,9 @@ mod tests {
     /// one mint per database and level, and the owner's own move with the rows.
     #[tokio::test]
     async fn renewal_reseals_every_standing_grant_from_one_mint_per_database_and_level() {
+        let credentials = Memory::new();
         let directory = scratch("renew");
-        let (_, store, _, mut owner, platform) = owned(&directory).await;
+        let (_, store, _, mut owner, platform) = owned(&credentials, &directory).await;
         let joined_b = second_member(&store, &owner).await;
         let pipeline = applying_pipeline().await;
         let facts = create_workspace(
@@ -2768,8 +2789,9 @@ mod tests {
     /// A migration the database refuses leaves no workspace and no database behind.
     #[tokio::test]
     async fn a_create_whose_migration_fails_removes_the_database_it_made() {
+        let credentials = Memory::new();
         let directory = scratch("rollback");
-        let (_, store, _, mut owner, platform) = owned(&directory).await;
+        let (_, store, _, mut owner, platform) = owned(&credentials, &directory).await;
         let pipeline = ScriptedServer::start(vec![ScriptedResponse::new(
             200,
             json!({ "results": [{ "type": "error", "error": { "message": "no" } }] }).to_string(),
@@ -2833,6 +2855,8 @@ mod tests {
             platform::{PlatformApi, PlatformEndpoint, TursoPlatform},
         };
 
+        let credentials = Arc::new(Memory::new());
+
         let read = |name: &str| {
             std::env::var(name)
                 .ok()
@@ -2847,7 +2871,8 @@ mod tests {
             "1",
             "a live run is armed by RENTABLE_LIVE_TURSO=1 as well as by --ignored"
         );
-        store_platform_token(&read("TURSO_CONSENT_TOKEN")).expect("failed to file the token");
+        store_platform_token(credentials.as_ref(), &read("TURSO_CONSENT_TOKEN"))
+            .expect("failed to file the token");
 
         let platform = PlatformApi::new(
             PlatformEndpoint::production(),
@@ -2855,6 +2880,7 @@ mod tests {
                 slug: read("TURSO_ORG"),
                 group: read("TURSO_GROUP"),
             },
+            credentials.clone(),
         );
         let nonce = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)

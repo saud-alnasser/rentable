@@ -25,6 +25,7 @@
 //! call, is a test fixture now.*
 
 use crate::{
+    credential::CredentialStore,
     diagnostics,
     error::{Error, RefusalReason},
 };
@@ -40,7 +41,8 @@ use super::{
 /// machine left unlocked cannot be used to lock its person out; the new one has to reach the
 /// floor. What clears `must_change_password` is exactly this, which is what ends a joined
 /// member's requirement to change.
-pub async fn change_password(
+pub(crate) async fn change_password(
+    credentials: &dyn CredentialStore,
     store: &OrganizationStore,
     session: &mut MemberSession,
     current: &str,
@@ -88,6 +90,7 @@ pub async fn change_password(
     // the entry this machine stays signed in on, rewritten in the same call: what was filed
     // before this opened the old seal and opens nothing now (effort 826, requirement 12).
     remember(
+        credentials,
         &session.organization_id,
         &session.member_id,
         session.session_epoch,
@@ -117,8 +120,8 @@ mod tests {
 
     use super::change_password;
     use crate::{
+        credential::{CredentialStore, Memory},
         error::Error,
-        keyring::{self, take_the_credential_store},
         organization::{
             HeldOrganization,
             invite::{
@@ -252,6 +255,7 @@ mod tests {
     /// An organization: its owner signed in, two workspaces, a manager holding the first,
     /// and a member holding both. Everybody has signed in once and changed nothing yet.
     async fn organization(
+        credentials: &dyn CredentialStore,
         directory: &std::path::Path,
     ) -> (
         OrganizationStore,
@@ -284,6 +288,7 @@ mod tests {
         .await;
         let platform = Arc::new(InMemoryPlatform::new("an-org"));
         let (_, store) = create_organization(
+            credentials,
             &mut machine,
             "a-platform-token",
             &McpEndpoint::at(&mcp.url("")),
@@ -369,9 +374,10 @@ mod tests {
     /// the timestamp and nothing else.
     #[tokio::test]
     async fn a_password_change_touches_the_members_own_vault_and_no_other_row() {
+        let credentials = Memory::new();
         let directory = scratch("change");
         let (store, owner, (north, south), _, (member_id, generated)) =
-            organization(&directory).await;
+            organization(&credentials, &directory).await;
         let joined = joined_as(&owner, &member_id, permission::MEMBER);
         let credential = slot();
         let mut session = sign_in(&store, &joined, &generated, &credential)
@@ -383,6 +389,7 @@ mod tests {
         let before = every_row(&store).await;
 
         change_password(
+            &credentials,
             &store,
             &mut session,
             &generated,
@@ -454,8 +461,10 @@ mod tests {
     /// not open. Neither writes.
     #[tokio::test]
     async fn the_floor_and_the_current_password_are_both_checked_before_anything_is_written() {
+        let credentials = Memory::new();
         let directory = scratch("floor");
-        let (store, owner, _, _, (member_id, generated)) = organization(&directory).await;
+        let (store, owner, _, _, (member_id, generated)) =
+            organization(&credentials, &directory).await;
         let joined = joined_as(&owner, &member_id, permission::MEMBER);
         let mut session = sign_in(&store, &joined, &generated, &slot())
             .await
@@ -463,8 +472,16 @@ mod tests {
         let before = every_row(&store).await;
 
         let short = "x".repeat(MINIMUM_PASSWORD_LENGTH - 1);
-        let refused =
-            change_password(&store, &mut session, &generated, &short, test_cost(), AT).await;
+        let refused = change_password(
+            &credentials,
+            &store,
+            &mut session,
+            &generated,
+            &short,
+            test_cost(),
+            AT,
+        )
+        .await;
 
         assert!(
             matches!(
@@ -478,6 +495,7 @@ mod tests {
         );
 
         let wrong = change_password(
+            &credentials,
             &store,
             &mut session,
             "not the password",
@@ -498,9 +516,10 @@ mod tests {
     /// secret keys are tried against every other member's sealed content key.
     #[tokio::test]
     async fn no_key_a_manager_holds_opens_a_vault_they_did_not_build() {
+        let credentials = Memory::new();
         let directory = scratch("escrow");
         let (store, owner, _, (manager_id, manager_password), (member_id, member_password)) =
-            organization(&directory).await;
+            organization(&credentials, &directory).await;
         let manager = sign_in(
             &store,
             &joined_as(&owner, &manager_id, permission::MANAGER),
@@ -526,6 +545,7 @@ mod tests {
         .expect("the member did not sign in");
 
         change_password(
+            &credentials,
             &store,
             &mut member,
             &member_password,
@@ -591,9 +611,10 @@ mod tests {
     /// the member's previous password, and it says which workspaces it could not restore.
     #[tokio::test]
     async fn a_reset_restores_what_the_manager_reaches_and_names_what_they_do_not() {
+        let credentials = Memory::new();
         let directory = scratch("reset");
         let (store, owner, (north, south), (manager_id, manager_password), (member_id, _)) =
-            organization(&directory).await;
+            organization(&credentials, &directory).await;
         let manager = sign_in(
             &store,
             &joined_as(&owner, &manager_id, permission::MANAGER),
@@ -606,6 +627,7 @@ mod tests {
 
         // the manager has settled, and holds north and not south.
         change_password(
+            &credentials,
             &store,
             &mut manager,
             &manager_password,
@@ -683,9 +705,10 @@ mod tests {
     /// so a launch after a change that left the old key behind would meet the wall.
     #[tokio::test]
     async fn a_password_change_rewrites_the_key_this_machine_stays_signed_in_on() {
-        let _turn = take_the_credential_store().await;
+        let credentials = Memory::new();
         let directory = scratch("change-remembers");
-        let (store, owner, _, _, (member_id, generated)) = organization(&directory).await;
+        let (store, owner, _, _, (member_id, generated)) =
+            organization(&credentials, &directory).await;
         let joined = joined_as(&owner, &member_id, permission::MEMBER);
         let account = format!("{}:{member_id}", owner.organization_id);
         let mut session = sign_in(&store, &joined, &generated, &slot())
@@ -693,12 +716,14 @@ mod tests {
             .expect("the member did not sign in");
 
         // what the sign-in on the generated password filed, which the change has to replace.
-        keyring::store(MEMBER_KEY_SERVICE, &account, "whatever was filed before")
+        credentials
+            .set(MEMBER_KEY_SERVICE, &account, "whatever was filed before")
             .expect("the store would not take the value");
 
         let chosen = "a password of their own choosing";
 
         change_password(
+            &credentials,
             &store,
             &mut session,
             &generated,
@@ -709,7 +734,8 @@ mod tests {
         .await
         .expect("the change failed");
 
-        let filed = keyring::read(MEMBER_KEY_SERVICE, &account)
+        let filed = credentials
+            .get(MEMBER_KEY_SERVICE, &account)
             .expect("the store would not answer")
             .expect("the change filed no key");
         let (_, key) = read_entry(&filed).expect("what was filed is not a remembered session");

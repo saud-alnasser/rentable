@@ -34,6 +34,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    credential::CredentialStore,
     diagnostics,
     error::{Error, RefusalReason},
     state::AppState,
@@ -320,8 +321,9 @@ pub const ONLY_THE_OWNER_DELETES: &str = "only the owner can delete the organiza
 ///
 /// **It is not recoverable and nothing here pretends otherwise.** The confirmation on the screen
 /// says what goes, and this is the act that does it.
-pub async fn delete_organization<P: TursoPlatform>(
+pub(crate) async fn delete_organization<P: TursoPlatform>(
     app_state: &AppState,
+    credentials: &dyn CredentialStore,
     platform: &P,
     password: &str,
 ) -> Result<(), Error> {
@@ -397,7 +399,7 @@ pub async fn delete_organization<P: TursoPlatform>(
         .with("workspaces", workspace_databases.len().to_string())
         .write();
 
-    forget::forget(app_state).await
+    forget::forget(app_state, credentials).await
 }
 
 /// The ordinary removal's writes, with nothing minted and nothing pushed: `member`'s grants go,
@@ -501,6 +503,8 @@ pub(crate) async fn retire_member(
 
 #[cfg(test)]
 mod tests {
+    use crate::credential::{CredentialStore, Memory};
+
     use std::sync::{Arc, Mutex};
 
     use serde_json::json;
@@ -667,7 +671,10 @@ mod tests {
 
     /// An organization with two workspaces, a manager holding North, and a member holding
     /// both. Everybody but the owner is on their generated password and has not signed in yet.
-    async fn organization(directory: &std::path::Path) -> Organization {
+    async fn organization(
+        credentials: &dyn CredentialStore,
+        directory: &std::path::Path,
+    ) -> Organization {
         let mut machine = Persisted::<RemoteSyncStore>::load(directory.join("remote-sync.json"))
             .expect("the store");
         let mcp = ScriptedServer::start(vec![
@@ -692,6 +699,7 @@ mod tests {
         .await;
         let platform = Arc::new(InMemoryPlatform::new("an-org"));
         let (created, store) = create_organization(
+            credentials,
             &mut machine,
             "a-platform-token",
             &McpEndpoint::at(&mcp.url("")),
@@ -786,8 +794,9 @@ mod tests {
     /// byte-identical, and a remaining member who reads their grants again finds nothing moved.
     #[tokio::test]
     async fn an_ordinary_removal_stops_renewing_and_disturbs_nobody() {
+        let credentials = Memory::new();
         let directory = scratch("ordinary");
-        let org = organization(&directory).await;
+        let org = organization(&credentials, &directory).await;
         let (member_id, member_password) = org.member.clone();
         let mut owner = org.owner;
 
@@ -905,8 +914,9 @@ mod tests {
     /// cost paid; and a remaining member recovers by reading their grants again.
     #[tokio::test]
     async fn a_lock_out_rotates_the_workspaces_held_re_seals_everybody_else_and_says_the_cost() {
+        let credentials = Memory::new();
         let directory = scratch("lockout");
-        let org = organization(&directory).await;
+        let org = organization(&credentials, &directory).await;
         let (member_id, _) = org.member.clone();
         let mut owner = org.owner;
         let mut manager = sign_in(
@@ -1025,8 +1035,9 @@ mod tests {
     /// synchronisation and reaches into nothing.
     #[tokio::test]
     async fn removal_leaves_the_removed_members_local_replica_readable() {
+        let credentials = Memory::new();
         let directory = scratch("replica");
-        let org = organization(&directory).await;
+        let org = organization(&credentials, &directory).await;
         let (member_id, member_password) = org.member.clone();
         let mut owner = org.owner;
         let their_machine = scratch("their-machine");
@@ -1090,8 +1101,9 @@ mod tests {
     /// themselves, a member removes nobody, and a lock-out is the owner's and needs the authority.
     #[tokio::test]
     async fn the_refusals_come_before_any_write() {
+        let credentials = Memory::new();
         let directory = scratch("refusals");
-        let org = organization(&directory).await;
+        let org = organization(&credentials, &directory).await;
         let (member_id, _) = org.member.clone();
         let mut owner = org.owner;
         let rows_before = everybody_elses_rows(&org.store, "nobody").await;
@@ -1254,8 +1266,9 @@ mod tests {
     /// the lock-out is refused all the same, because the gate reads the row.
     #[tokio::test]
     async fn a_manager_holding_every_flag_but_the_owners_is_refused_a_lock_out() {
+        let credentials = Memory::new();
         let directory = scratch("lock-out-authority");
-        let org = organization(&directory).await;
+        let org = organization(&credentials, &directory).await;
         let (member_id, _) = org.member.clone();
         let mut manager = sign_in(
             &org.store,
@@ -1317,6 +1330,7 @@ mod tests {
     /// every other client on read.
     #[tokio::test]
     async fn removing_a_manager_revokes_their_certificate_and_re_signs_what_they_signed() {
+        let credentials = Memory::new();
         use crate::organization::{
             authority::AdministratorKey,
             setup::ADMINISTRATOR_KEY_PURPOSE,
@@ -1324,7 +1338,7 @@ mod tests {
         };
 
         let directory = scratch("manager-removal");
-        let org = organization(&directory).await;
+        let org = organization(&credentials, &directory).await;
         let mut owner = org.owner;
         let (manager_id, manager_password) = org.manager.clone();
 
@@ -1521,15 +1535,15 @@ mod tests {
     /// them.
     #[tokio::test]
     async fn the_owner_deletes_every_workspace_then_the_organization_and_keeps_nothing() {
-        let _turn = crate::keyring::take_the_credential_store().await;
+        let credentials = Memory::new();
         let directory = scratch("delete");
-        let org = organization(&directory).await;
+        let org = organization(&credentials, &directory).await;
         let platform = Arc::clone(&org.platform);
         let database = org.database.clone();
         let north = org.north.clone();
         let south = org.south.clone();
 
-        store_platform_token("a-platform-token").expect("the authority");
+        store_platform_token(&credentials, "a-platform-token").expect("the authority");
 
         let held_before: Vec<String> = platform
             .databases()
@@ -1548,7 +1562,7 @@ mod tests {
             "no replica to forget"
         );
 
-        delete_organization(&app_state, platform.as_ref(), OWNER_PASSWORD)
+        delete_organization(&app_state, &credentials, platform.as_ref(), OWNER_PASSWORD)
             .await
             .expect("the delete failed");
 
@@ -1597,7 +1611,7 @@ mod tests {
             None
         );
         assert!(
-            platform_token().is_err(),
+            platform_token(&credentials).is_err(),
             "the consent survived the delete, with no organization left for it to be over"
         );
     }
@@ -1607,9 +1621,9 @@ mod tests {
     /// away is the owner check rather than a bit they happened not to hold.
     #[tokio::test]
     async fn a_manager_and_a_wrong_password_are_each_refused_before_anything_is_deleted() {
-        let _turn = crate::keyring::take_the_credential_store().await;
+        let credentials = Memory::new();
         let directory = scratch("delete-refused");
-        let org = organization(&directory).await;
+        let org = organization(&credentials, &directory).await;
         let platform = Arc::clone(&org.platform);
         let owner = org.owner;
         let mut manager = sign_in(
@@ -1637,9 +1651,14 @@ mod tests {
         let held_before = platform.databases();
         let app_state = machine_holding(&directory, org.store, manager).await;
 
-        let refused = delete_organization(&app_state, platform.as_ref(), &managers_password)
-            .await
-            .expect_err("a manager deleted the organization");
+        let refused = delete_organization(
+            &app_state,
+            &credentials,
+            platform.as_ref(),
+            &managers_password,
+        )
+        .await
+        .expect_err("a manager deleted the organization");
 
         assert!(
             matches!(refused, Error::Refused { reason: crate::error::RefusalReason::OwnerOnly, ref message } if message.contains("only the owner")),
@@ -1666,9 +1685,14 @@ mod tests {
 
         *app_state.member.write().await = Some(owner_again);
 
-        let wrong = delete_organization(&app_state, platform.as_ref(), "not the owners password")
-            .await
-            .expect_err("a wrong password deleted the organization");
+        let wrong = delete_organization(
+            &app_state,
+            &credentials,
+            platform.as_ref(),
+            "not the owners password",
+        )
+        .await
+        .expect_err("a wrong password deleted the organization");
 
         // the vault's one sentence, which says nothing about which of the ways it could fail this
         // was: a wrong password is not told apart from anything else here.
@@ -1719,6 +1743,8 @@ mod tests {
             },
         };
 
+        let credentials = Arc::new(Memory::new());
+
         let read = |name: &str| {
             std::env::var(name)
                 .ok()
@@ -1733,7 +1759,8 @@ mod tests {
             "1",
             "a live run is armed by RENTABLE_LIVE_TURSO=1 as well as by --ignored"
         );
-        store_platform_token(&read("TURSO_CONSENT_TOKEN")).expect("failed to file the token");
+        store_platform_token(credentials.as_ref(), &read("TURSO_CONSENT_TOKEN"))
+            .expect("failed to file the token");
 
         let platform = PlatformApi::new(
             PlatformEndpoint::production(),
@@ -1741,6 +1768,7 @@ mod tests {
                 slug: read("TURSO_ORG"),
                 group: read("TURSO_GROUP"),
             },
+            credentials.clone(),
         );
         let nonce = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -1997,6 +2025,7 @@ mod tests {
     /// on every machine, and the rest still read (ticket 25).
     #[tokio::test]
     async fn a_manager_removes_a_member_and_what_they_sign_afterwards_is_refused() {
+        let credentials = Memory::new();
         use crate::organization::{
             authority::AdministratorKey,
             setup::ADMINISTRATOR_KEY_PURPOSE,
@@ -2004,7 +2033,7 @@ mod tests {
         };
 
         let directory = scratch("manager-removes");
-        let org = organization(&directory).await;
+        let org = organization(&credentials, &directory).await;
         let (granter, colleague) = a_granter_and_the_row_they_signed(&org).await;
         let mut manager = the_manager(&org).await;
         let pinned = org.owner.verifying_key;
@@ -2119,8 +2148,9 @@ mod tests {
     #[tokio::test]
     async fn a_removal_is_refused_where_the_departing_certificate_signed_a_row_the_remover_cannot_sign()
      {
+        let credentials = Memory::new();
         let directory = scratch("remover-lacks");
-        let org = organization(&directory).await;
+        let org = organization(&credentials, &directory).await;
         let (granter, _) = a_granter_and_the_row_they_signed(&org).await;
         let mut remover = signed_in_account(
             &org,
@@ -2175,8 +2205,9 @@ mod tests {
     /// removing another manager is refused by rank, and nothing is written.
     #[tokio::test]
     async fn a_manager_is_not_removed_by_another_manager() {
+        let credentials = Memory::new();
         let directory = scratch("same-rank");
-        let org = organization(&directory).await;
+        let org = organization(&credentials, &directory).await;
         let mut other =
             signed_in_account(&org, &org.owner, "bea.manager", permission::MANAGER, 0, &[]).await;
         let rows_before = everybody_elses_rows(&org.store, "nobody").await;

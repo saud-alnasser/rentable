@@ -629,6 +629,8 @@ impl From<MigrationLeaseRecord> for LeaseFacts {
 
 #[cfg(test)]
 mod tests {
+    use crate::credential::{CredentialStore, Memory};
+
     use std::sync::{Arc, Mutex};
 
     use serde_json::json;
@@ -737,6 +739,7 @@ mod tests {
 
     /// An organization with one workspace, its owner and a member both signed in and settled.
     async fn organization(
+        credentials: &dyn CredentialStore,
         directory: &std::path::Path,
     ) -> (OrganizationStore, MemberSession, MemberSession, String) {
         let mut machine = Persisted::<RemoteSyncStore>::load(directory.join("remote-sync.json"))
@@ -763,6 +766,7 @@ mod tests {
         .await;
         let platform = Arc::new(InMemoryPlatform::new("an-org"));
         let (_, store) = create_organization(
+            credentials,
             &mut machine,
             "a-platform-token",
             &McpEndpoint::at(&mcp.url("")),
@@ -997,8 +1001,9 @@ mod tests {
     /// once it is released the other takes it; and a lease whose deadline has passed is anybody's.
     #[tokio::test]
     async fn two_clients_racing_for_the_lease_and_a_leaked_lease_that_expires() {
+        let credentials = Memory::new();
         let directory = scratch("race");
-        let (store, owner, member, workspace_id) = organization(&directory).await;
+        let (store, owner, member, workspace_id) = organization(&credentials, &directory).await;
         let lease = StoreLease::new(&store);
         let until = AT + MIGRATION_LEASE_LIFETIME_MS;
 
@@ -1096,8 +1101,9 @@ mod tests {
     /// records the version, and releases; a second client opening afterwards finds nothing to do.
     #[tokio::test]
     async fn a_pending_migration_is_applied_under_the_lease_and_recorded() {
+        let credentials = Memory::new();
         let directory = scratch("pending");
-        let (store, owner, member, workspace_id) = organization(&directory).await;
+        let (store, owner, member, workspace_id) = organization(&credentials, &directory).await;
         let shipped = migrate::shipped_version();
 
         // the workspace was migrated by an older build: one migration short.
@@ -1197,8 +1203,9 @@ mod tests {
     /// applies nothing, and only the organization's record is brought up.
     #[tokio::test]
     async fn a_workspace_already_at_the_shipped_version_brings_up_only_the_record() {
+        let credentials = Memory::new();
         let directory = scratch("already-at");
-        let (store, _, member, workspace_id) = organization(&directory).await;
+        let (store, _, member, workspace_id) = organization(&credentials, &directory).await;
         let shipped = migrate::shipped_version();
         let pipeline = LocalPipeline::start().await;
 
@@ -1259,8 +1266,9 @@ mod tests {
     /// when, and goes on once the version is recorded; a failed migration releases the lease.
     #[tokio::test]
     async fn a_client_waits_on_anothers_lease_and_a_failure_releases_it() {
+        let credentials = Memory::new();
         let directory = scratch("waiting");
-        let (store, owner, member, workspace_id) = organization(&directory).await;
+        let (store, owner, member, workspace_id) = organization(&credentials, &directory).await;
         let shipped = migrate::shipped_version();
 
         store
@@ -1478,8 +1486,9 @@ mod tests {
     /// nothing has touched the replica by the time it answers.
     #[tokio::test]
     async fn a_build_older_than_the_workspace_refuses_to_open_it_and_reads_nothing() {
+        let credentials = Memory::new();
         let directory = scratch("newer");
-        let (store, _, member, workspace_id) = organization(&directory).await;
+        let (store, _, member, workspace_id) = organization(&credentials, &directory).await;
         let shipped = migrate::shipped_version();
 
         store
@@ -1510,8 +1519,9 @@ mod tests {
     /// seeded from the workspace database.
     #[tokio::test]
     async fn a_pending_migration_copies_the_workspace_as_it_stood_before_applying() {
+        let credentials = Memory::new();
         let directory = scratch("copied");
-        let (store, owner, _, workspace_id) = organization(&directory).await;
+        let (store, owner, _, workspace_id) = organization(&credentials, &directory).await;
         let shipped = migrate::shipped_version();
 
         store
@@ -1610,8 +1620,9 @@ mod tests {
     /// version stays where it was, and nothing is asked of the account.
     #[tokio::test]
     async fn a_copy_that_cannot_be_written_releases_the_lease_and_applies_nothing() {
+        let credentials = Memory::new();
         let directory = scratch("copy-refused");
-        let (store, owner, _, workspace_id) = organization(&directory).await;
+        let (store, owner, _, workspace_id) = organization(&credentials, &directory).await;
         let shipped = migrate::shipped_version();
 
         store
@@ -1690,8 +1701,9 @@ mod tests {
     /// `backup.remoteCopyRefused`, and the migration goes on with the copy on this machine.
     #[tokio::test]
     async fn a_copy_the_account_refuses_leaves_the_migration_going_on() {
+        let credentials = Memory::new();
         let directory = scratch("remote-copy-refused");
-        let (store, owner, _, workspace_id) = organization(&directory).await;
+        let (store, owner, _, workspace_id) = organization(&credentials, &directory).await;
         let shipped = migrate::shipped_version();
 
         store

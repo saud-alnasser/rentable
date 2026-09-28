@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use tauri::Emitter;
 
 use crate::{
+    credential::{CredentialStore, Credentials},
     diagnostics,
     error::{Error, RefusalReason},
     persisted::Persisted,
@@ -105,14 +106,15 @@ pub struct OrganizationState {
 /// says to connect the account first. Every failure after the database exists removes it, so a
 /// first run that did not finish leaves nothing behind; `setup.rs` says how.
 #[tauri::command]
-pub async fn organization_create(
+pub(crate) async fn organization_create(
     app_state: tauri::State<'_, AppState>,
+    credentials: tauri::State<'_, Credentials>,
     name: String,
     username: String,
     password: String,
     group: Option<String>,
 ) -> Result<OrganizationCreated, Error> {
-    let platform_token = setup::authority()?;
+    let platform_token = setup::authority(credentials.inner().as_ref())?;
     let database_path = {
         let settings = app_state.settings.read().await;
 
@@ -131,10 +133,17 @@ pub async fn organization_create(
     connect::refuse_while_held(remote_sync.store_mut())?;
 
     let (created, store) = setup::create_organization(
+        credentials.inner().as_ref(),
         remote_sync.store_mut(),
         &platform_token,
         &McpEndpoint::production(),
-        |organization| PlatformApi::new(PlatformEndpoint::production(), organization),
+        |organization| {
+            PlatformApi::new(
+                PlatformEndpoint::production(),
+                organization,
+                credentials.inner().clone(),
+            )
+        },
         Remote::libsql(),
         &database_path,
         CreateOrganization {
@@ -185,10 +194,11 @@ pub async fn organization_create(
 /// this machine's record is untouched, so a person who stops here has changed nothing on their
 /// account.
 #[tauri::command]
-pub async fn organization_group_inspect(
+pub(crate) async fn organization_group_inspect(
     _app_state: tauri::State<'_, AppState>,
+    credentials: tauri::State<'_, Credentials>,
 ) -> Result<GroupState, Error> {
-    let platform_token = setup::authority()?;
+    let platform_token = setup::authority(credentials.inner().as_ref())?;
 
     setup::group_inspect(&platform_token, &McpEndpoint::production()).await
 }
@@ -211,12 +221,13 @@ pub async fn organization_group_inspect(
 /// seen inside the week, and point at the link that machine could make; the owner is handed no
 /// link, and an account is held on as many machines as its holder signs in on.
 #[tauri::command]
-pub async fn organization_connect_existing(
+pub(crate) async fn organization_connect_existing(
     app_state: tauri::State<'_, AppState>,
+    credentials: tauri::State<'_, Credentials>,
     username: String,
     password: String,
 ) -> Result<OrganizationState, Error> {
-    let platform_token = setup::authority()?;
+    let platform_token = setup::authority(credentials.inner().as_ref())?;
     let database_path = {
         let settings = app_state.settings.read().await;
 
@@ -230,10 +241,17 @@ pub async fn organization_connect_existing(
     let (store, session) = {
         let mut remote_sync = app_state.remote_sync.write().await;
         let (_, store, session) = setup::connect_existing(
+            credentials.inner().as_ref(),
             remote_sync.store_mut(),
             &platform_token,
             &McpEndpoint::production(),
-            |organization| PlatformApi::new(PlatformEndpoint::production(), organization),
+            |organization| {
+                PlatformApi::new(
+                    PlatformEndpoint::production(),
+                    organization,
+                    credentials.inner().clone(),
+                )
+            },
             Remote::libsql(),
             &database_path,
             &username,
@@ -248,7 +266,7 @@ pub async fn organization_connect_existing(
     *app_state.organization.write().await = Some(store);
     *app_state.member.write().await = Some(session);
 
-    state_of(&app_state).await
+    state_of(&app_state, &credentials).await
 }
 
 /// Where this machine stands: the organization it holds and who is signed in.
@@ -266,10 +284,11 @@ pub async fn organization_connect_existing(
 /// requirement 12), so the shell's first question is already answered with a session and the
 /// application opens on the workspace the person had last, with no wall in between.
 #[tauri::command]
-pub async fn organization_state_get(
+pub(crate) async fn organization_state_get(
     app_state: tauri::State<'_, AppState>,
+    credentials: tauri::State<'_, Credentials>,
 ) -> Result<OrganizationState, Error> {
-    state_of(&app_state).await
+    state_of(&app_state, &credentials).await
 }
 
 /// The state, with the once-per-launch check made first.
@@ -283,19 +302,22 @@ pub async fn organization_state_get(
 /// happens once a launch and is last for the same reason: the resume is what opens the replica
 /// the row is written through, so a machine that came back signed in refreshes its row here
 /// without anybody typing a password.
-pub(crate) async fn state_of(app_state: &AppState) -> Result<OrganizationState, Error> {
+pub(crate) async fn state_of(
+    app_state: &AppState,
+    credentials: &Credentials,
+) -> Result<OrganizationState, Error> {
     app_state
         .old_shape_check
         .get_or_try_init(|| async {
-            forget::forget_old_shape(app_state).await?;
-            resume_remembered(app_state).await;
+            forget::forget_old_shape(app_state, credentials.as_ref()).await?;
+            resume_remembered(app_state, credentials).await;
 
             // and the one sign that is the remote's rather than the replica's: the owner deleted
             // the organization from another machine, so there is no database to sync against any
             // more (effort 828, requirement 18). It is after the resume because the pull it reads
             // spends the credential the resumed vault unsealed, and before the registration
             // because a machine that has just forgotten has no row to write.
-            if forget::forget_deleted_organization(app_state).await? {
+            if forget::forget_deleted_organization(app_state, credentials.as_ref()).await? {
                 return Ok(());
             }
 
@@ -327,7 +349,7 @@ pub(crate) async fn state_of(app_state: &AppState) -> Result<OrganizationState, 
             current_facts(app_state).await?
         }
     };
-    let holds_turso_authority = owner_platform(app_state).await.is_some();
+    let holds_turso_authority = owner_platform(app_state, credentials).await.is_some();
 
     // the standing is only ever about a wall that is up: somebody signed in has answered it,
     // whichever way they got back in, so this one read clears it rather than five sign-in paths
@@ -351,12 +373,13 @@ pub(crate) async fn state_of(app_state: &AppState) -> Result<OrganizationState, 
 /// authority. The organization on Turso is untouched, and the person can connect again by the
 /// link. The one confirm before it is the screen's; this asks nothing.
 #[tauri::command]
-pub async fn organization_disconnect(
+pub(crate) async fn organization_disconnect(
     app_state: tauri::State<'_, AppState>,
+    credentials: tauri::State<'_, Credentials>,
 ) -> Result<OrganizationState, Error> {
-    forget::forget(&app_state).await?;
+    forget::forget(&app_state, credentials.inner().as_ref()).await?;
 
-    state_of(&app_state).await
+    state_of(&app_state, &credentials).await
 }
 
 /// Delete the organization: every workspace database and the organization's own directory go from
@@ -369,21 +392,30 @@ pub async fn organization_disconnect(
 /// What comes back is where the machine stands, which is a machine holding nothing: the shell
 /// reads it and raises the first screen, exactly as a disconnect leaves it.
 #[tauri::command]
-pub async fn organization_delete(
+pub(crate) async fn organization_delete(
     app_state: tauri::State<'_, AppState>,
+    credentials: tauri::State<'_, Credentials>,
     password: String,
 ) -> Result<OrganizationState, Error> {
-    let platform = owner_platform(&app_state).await.ok_or_else(|| {
-        Error::refused(
-            RefusalReason::OwnerMachineOnly,
-            "only an owner can delete the organization, from the machine that connected the \
+    let platform = owner_platform(&app_state, &credentials)
+        .await
+        .ok_or_else(|| {
+            Error::refused(
+                RefusalReason::OwnerMachineOnly,
+                "only an owner can delete the organization, from the machine that connected the \
                   turso account. ask the owner",
-        )
-    })?;
+            )
+        })?;
 
-    removal::delete_organization(&app_state, &platform, &password).await?;
+    removal::delete_organization(
+        &app_state,
+        credentials.inner().as_ref(),
+        &platform,
+        &password,
+    )
+    .await?;
 
-    state_of(&app_state).await
+    state_of(&app_state, &credentials).await
 }
 
 /// Sign in to the organization this machine holds, with a username and a password (effort 824,
@@ -401,8 +433,9 @@ pub async fn organization_delete(
 /// never produces. A first sign-in on a handed password spends the invitation and the record
 /// learns which member this person is; `join.rs` says how.
 #[tauri::command]
-pub async fn organization_sign_in(
+pub(crate) async fn organization_sign_in(
     app_state: tauri::State<'_, AppState>,
+    credentials: tauri::State<'_, Credentials>,
     username: String,
     password: String,
 ) -> Result<OrganizationState, Error> {
@@ -425,11 +458,12 @@ pub async fn organization_sign_in(
     // it would file a second member's key beside the first and leave the first for nothing to
     // delete, since a sign-out and a disconnect forget the one member the record names.
     if app_state.member.read().await.is_some() {
-        sign_out(app_state.inner()).await;
+        sign_out(app_state.inner(), credentials.inner().as_ref()).await;
     }
 
     let (store, credential) = open_replica(
         app_state.inner(),
+        credentials.inner(),
         &held,
         Opening::Password {
             username: &username,
@@ -461,6 +495,7 @@ pub async fn organization_sign_in(
         let mut remote_sync = app_state.remote_sync.write().await;
 
         join::admit(
+            credentials.inner().as_ref(),
             &store,
             remote_sync.store_mut(),
             &held,
@@ -480,18 +515,19 @@ pub async fn organization_sign_in(
     *app_state.organization.write().await = Some(store);
     *app_state.member.write().await = Some(member);
 
-    state_of(&app_state).await
+    state_of(&app_state, &credentials).await
 }
 
 /// Put the wall back up: drop the keys this process held, and let go of the replica. The record
 /// is untouched, so the wall comes back up on the same organization with the same member.
 #[tauri::command]
-pub async fn organization_sign_out(
+pub(crate) async fn organization_sign_out(
     app_state: tauri::State<'_, AppState>,
+    credentials: tauri::State<'_, Credentials>,
 ) -> Result<OrganizationState, Error> {
-    sign_out(&app_state).await;
+    sign_out(&app_state, credentials.inner().as_ref()).await;
 
-    state_of(&app_state).await
+    state_of(&app_state, &credentials).await
 }
 
 /// The sign-out itself: the keys go, the organization replica is dropped, and the key this
@@ -503,7 +539,7 @@ pub async fn organization_sign_out(
 /// forget it too: a machine that has let go of its organization must not keep the key that opened
 /// a member's vault in it. The record is read before it is emptied, which is why this runs before
 /// `forget` touches it.
-pub(crate) async fn sign_out(app_state: &AppState) {
+pub(crate) async fn sign_out(app_state: &AppState, credentials: &dyn CredentialStore) {
     // a sign-out the person asked for answers the standing: they are at the wall because they
     // put themselves there. The heartbeat's own sign-out sets it again afterwards, which is the
     // one case where the wall has something to say.
@@ -518,7 +554,7 @@ pub(crate) async fn sign_out(app_state: &AppState) {
         if let Some((organization_id, member_id)) =
             held.and_then(|held| held.member_id.as_ref().map(|member| (&held.id, member)))
         {
-            session::forget_remembered(organization_id, member_id);
+            session::forget_remembered(credentials, organization_id, member_id);
         }
     }
 
@@ -561,7 +597,7 @@ pub(crate) async fn sign_out(app_state: &AppState) {
 /// the one after, and it is the heartbeat's (effort 828, requirement 22). The one before the vault
 /// opens stays for a replica that already holds the re-keyed rows, which is what reads the member
 /// row the key has to open.
-async fn resume_remembered(app_state: &AppState) {
+async fn resume_remembered(app_state: &AppState, credentials: &Credentials) {
     if app_state.member.read().await.is_some() {
         return;
     }
@@ -575,7 +611,7 @@ async fn resume_remembered(app_state: &AppState) {
         return;
     };
 
-    let resumed = match open_replica(app_state, &held, Opening::Remembered).await {
+    let resumed = match open_replica(app_state, credentials, &held, Opening::Remembered).await {
         Ok((store, credential)) => {
             // a replica that already holds a handover this machine has not followed: the
             // succession is followed before the remembered key opens anything, so the resume
@@ -601,7 +637,7 @@ async fn resume_remembered(app_state: &AppState) {
                 }
             };
 
-            session::resume(&store, &held, &credential)
+            session::resume(credentials.as_ref(), &store, &held, &credential)
                 .await
                 .map(|resumption| (store, resumption))
         }
@@ -640,7 +676,7 @@ async fn resume_remembered(app_state: &AppState) {
     // session re-pinned, and a row that moved on while this machine was closed puts the wall up
     // with the sentence for it. A pull that could not go is the offline case, and this machine
     // stays signed in on the rows it has (819's requirement 18).
-    if ended_elsewhere(app_state).await {
+    if ended_elsewhere(app_state, credentials.as_ref()).await {
         return;
     }
 
@@ -760,7 +796,10 @@ pub(crate) async fn leave_registry(app_state: &AppState) {
 /// the key the rows are on. A row that still will not read is the offline case as before, and this
 /// member goes on working against what the replica holds (819's requirement 18). The launch runs
 /// this same check once a remembered session is open, so both paths follow after the pull.
-pub(crate) async fn ended_elsewhere(app_state: &AppState) -> bool {
+pub(crate) async fn ended_elsewhere(
+    app_state: &AppState,
+    credentials: &dyn CredentialStore,
+) -> bool {
     let ended = {
         let mut member = app_state.member.write().await;
         let organization = app_state.organization.read().await;
@@ -816,7 +855,7 @@ pub(crate) async fn ended_elsewhere(app_state: &AppState) -> bool {
         return false;
     }
 
-    sign_out(app_state).await;
+    sign_out(app_state, credentials).await;
     app_state.signed_out_elsewhere.store(true, Ordering::SeqCst);
 
     diagnostics::info("organization.session.endedFromAnotherMachine").write();
@@ -842,6 +881,7 @@ pub(crate) async fn ended_elsewhere(app_state: &AppState) -> bool {
 /// format or writes anything: no registry row and no push.
 async fn open_replica(
     app_state: &AppState,
+    credentials: &Credentials,
     held: &HeldOrganization,
     opening: Opening<'_>,
 ) -> Result<(OrganizationStore, CredentialSlot), Error> {
@@ -871,7 +911,7 @@ async fn open_replica(
     // before the owner's upgrade pushes (ticket 25). It mints only for the owner, whom the upgrade
     // finds by key, and only where the grant is lapsed or gone.
     let remote = upgrade::ItsRemote {
-        account: owner_platform(app_state).await,
+        account: owner_platform(app_state, credentials).await,
     };
 
     match opening {
@@ -888,8 +928,15 @@ async fn open_replica(
             .await?
         }
         Opening::Remembered => {
-            upgrade::with_remembered_key(&store, &remote, held, &credential, timestamp::now())
-                .await?
+            upgrade::with_remembered_key(
+                credentials.as_ref(),
+                &store,
+                &remote,
+                held,
+                &credential,
+                timestamp::now(),
+            )
+            .await?
         }
     }
 
@@ -1014,8 +1061,8 @@ async fn current_facts(app_state: &AppState) -> Result<Option<SessionFacts>, Err
 /// The Platform API client this machine can build, where it holds the authority and knows the
 /// organization: the owner's machine after a consent, and nobody else's. `None` is not a failure;
 /// it is what makes a read-only grant, a create and a delete the owner's, at the command.
-async fn owner_platform(app_state: &AppState) -> Option<PlatformApi> {
-    setup::authority().ok()?;
+async fn owner_platform(app_state: &AppState, credentials: &Credentials) -> Option<PlatformApi> {
+    setup::authority(credentials.as_ref()).ok()?;
 
     let mut remote_sync = app_state.remote_sync.write().await;
     let organization = remote_sync.store_mut().turso_organization.clone()?;
@@ -1023,6 +1070,7 @@ async fn owner_platform(app_state: &AppState) -> Option<PlatformApi> {
     Some(PlatformApi::new(
         PlatformEndpoint::production(),
         organization,
+        Arc::clone(credentials),
     ))
 }
 
@@ -1043,17 +1091,20 @@ fn signed_in<'a>(
 /// Create a workspace on the account, migrated and granted to the owner. Owner only, at the
 /// command: anybody else is told to ask the owner, before any request.
 #[tauri::command]
-pub async fn workspace_create(
+pub(crate) async fn workspace_create(
     app_state: tauri::State<'_, AppState>,
+    credentials: tauri::State<'_, Credentials>,
     name: String,
 ) -> Result<WorkspaceFacts, Error> {
-    let platform = owner_platform(&app_state).await.ok_or_else(|| {
-        Error::refused(
-            RefusalReason::OwnerMachineOnly,
-            "only an owner can create a workspace, from the machine that connected the turso \
+    let platform = owner_platform(&app_state, &credentials)
+        .await
+        .ok_or_else(|| {
+            Error::refused(
+                RefusalReason::OwnerMachineOnly,
+                "only an owner can create a workspace, from the machine that connected the turso \
                   account. ask the owner",
-        )
-    })?;
+            )
+        })?;
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
@@ -1072,13 +1123,14 @@ pub async fn workspace_create(
 /// Grant a workspace to a member. Full access re-seals the caller's own credential; read-only is
 /// minted, which only the owner's machine can do.
 #[tauri::command]
-pub async fn workspace_grant(
+pub(crate) async fn workspace_grant(
     app_state: tauri::State<'_, AppState>,
+    credentials: tauri::State<'_, Credentials>,
     workspace_id: String,
     member_id: String,
     access: AccessLevel,
 ) -> Result<(), Error> {
-    let platform = owner_platform(&app_state).await;
+    let platform = owner_platform(&app_state, &credentials).await;
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
@@ -1113,17 +1165,20 @@ pub async fn workspace_grant_withdraw(
 /// Delete a workspace: the one moment requirement 4 permits deleting a database, through the one
 /// intent the port takes for it. Owner only.
 #[tauri::command]
-pub async fn workspace_delete(
+pub(crate) async fn workspace_delete(
     app_state: tauri::State<'_, AppState>,
+    credentials: tauri::State<'_, Credentials>,
     workspace_id: String,
 ) -> Result<(), Error> {
-    let platform = owner_platform(&app_state).await.ok_or_else(|| {
-        Error::refused(
-            RefusalReason::OwnerMachineOnly,
-            "only an owner can delete a workspace, from the machine that connected the turso \
+    let platform = owner_platform(&app_state, &credentials)
+        .await
+        .ok_or_else(|| {
+            Error::refused(
+                RefusalReason::OwnerMachineOnly,
+                "only an owner can delete a workspace, from the machine that connected the turso \
                   account. ask the owner",
-        )
-    })?;
+            )
+        })?;
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
@@ -1150,9 +1205,10 @@ struct MigrationNotice {
 /// **The credential never leaves Rust.** What comes back is the workspace as a fact; the token is
 /// in the sync state's own hands and the replica asks it per request.
 #[tauri::command]
-pub async fn workspace_open(
+pub(crate) async fn workspace_open(
     app: tauri::AppHandle,
     app_state: tauri::State<'_, AppState>,
+    credentials: tauri::State<'_, Credentials>,
     workspace_id: String,
 ) -> Result<WorkspaceFacts, Error> {
     let (facts, credential) = {
@@ -1220,7 +1276,7 @@ pub async fn workspace_open(
             // the owner's account, where this machine holds its authority: the workspace is
             // copied there as well as here before the migration (effort 838, ticket 28). A
             // member's machine holds none and copies to this machine alone.
-            let account = owner_platform(&app_state).await;
+            let account = owner_platform(&app_state, &credentials).await;
             let notice = |phase: MigrationPhase| {
                 let _ = app.emit(
                     MIGRATION_EVENT,
@@ -1280,15 +1336,18 @@ pub async fn workspace_open(
 /// Mint fresh credentials for every grant and re-seal them, on the owner's machine. Answers with
 /// how many grants were renewed.
 #[tauri::command]
-pub async fn organization_renew_credentials(
+pub(crate) async fn organization_renew_credentials(
     app_state: tauri::State<'_, AppState>,
+    credentials: tauri::State<'_, Credentials>,
 ) -> Result<usize, Error> {
-    let platform = owner_platform(&app_state).await.ok_or_else(|| {
-        Error::refused(
-            RefusalReason::OwnerMachineOnly,
-            "credentials are renewed on the owner's machine, which holds the turso authority",
-        )
-    })?;
+    let platform = owner_platform(&app_state, &credentials)
+        .await
+        .ok_or_else(|| {
+            Error::refused(
+                RefusalReason::OwnerMachineOnly,
+                "credentials are renewed on the owner's machine, which holds the turso authority",
+            )
+        })?;
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
@@ -1335,8 +1394,11 @@ async fn hold_renewed_token(app_state: &AppState, member: &MemberSession) {
 /// answers `false` and does nothing, so the caller can fire it and forget it. It never blocks
 /// sign-in, which works offline (requirement 18).
 #[tauri::command]
-pub async fn organization_renew_due(app_state: tauri::State<'_, AppState>) -> Result<bool, Error> {
-    let Some(platform) = owner_platform(&app_state).await else {
+pub(crate) async fn organization_renew_due(
+    app_state: tauri::State<'_, AppState>,
+    credentials: tauri::State<'_, Credentials>,
+) -> Result<bool, Error> {
+    let Some(platform) = owner_platform(&app_state, &credentials).await else {
         return Ok(false);
     };
     let mut member = app_state.member.write().await;
@@ -1378,14 +1440,15 @@ pub async fn organization_renew_due(app_state: tauri::State<'_, AppState>) -> Re
 /// holds and `override_mask` the flags switched for them alone, `roleId` and `overrideMask` on the
 /// wire. The second is not spelled `override`, which Rust keeps as a word of its own.
 #[tauri::command]
-pub async fn member_create(
+pub(crate) async fn member_create(
     app_state: tauri::State<'_, AppState>,
+    credentials: tauri::State<'_, Credentials>,
     username: String,
     role_id: String,
     override_mask: i64,
     workspaces: Vec<WorkspaceGrant>,
 ) -> Result<MemberFacts, Error> {
-    let platform = owner_platform(&app_state).await;
+    let platform = owner_platform(&app_state, &credentials).await;
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
@@ -1417,11 +1480,12 @@ pub async fn member_create(
 /// screen and reads out on a call; nothing is written under the data directory, and a person who
 /// lost the pair makes another, which drops the one they lost.
 #[tauri::command]
-pub async fn member_link_make(
+pub(crate) async fn member_link_make(
     app_state: tauri::State<'_, AppState>,
+    credentials: tauri::State<'_, Credentials>,
     member_id: String,
 ) -> Result<MadeLink, Error> {
-    let platform = owner_platform(&app_state).await;
+    let platform = owner_platform(&app_state, &credentials).await;
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
@@ -1451,11 +1515,12 @@ pub async fn member_link_make(
 /// **It hands over nothing.** The answer names the workspaces it could not restore, and the
 /// member's permissions are kept; a link is a separate act on the same account.
 #[tauri::command]
-pub async fn member_password_unset(
+pub(crate) async fn member_password_unset(
     app_state: tauri::State<'_, AppState>,
+    credentials: tauri::State<'_, Credentials>,
     member_id: String,
 ) -> Result<Vec<UnreachableWorkspace>, Error> {
-    let platform = owner_platform(&app_state).await;
+    let platform = owner_platform(&app_state, &credentials).await;
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
@@ -1487,8 +1552,9 @@ pub async fn member_password_unset(
 /// **`public`, because it happens at the wall.** Neither the credential, the secret nor the
 /// password crosses back; what comes back is where the machine stands, with a session in it.
 #[tauri::command]
-pub async fn invitation_accept(
+pub(crate) async fn invitation_accept(
     app_state: tauri::State<'_, AppState>,
+    credentials: tauri::State<'_, Credentials>,
     link: String,
     code: String,
     password: String,
@@ -1498,6 +1564,7 @@ pub async fn invitation_accept(
         let mut remote_sync = app_state.remote_sync.write().await;
 
         join::accept(
+            credentials.inner().as_ref(),
             |credential| reached(&app_state, &link, credential),
             remote_sync.store_mut(),
             &link,
@@ -1515,7 +1582,7 @@ pub async fn invitation_accept(
     *app_state.organization.write().await = Some(store);
     *app_state.member.write().await = Some(member);
 
-    state_of(&app_state).await
+    state_of(&app_state, &credentials).await
 }
 
 /// Connect this machine with a machine-kind link, and leave it at the wall.
@@ -1530,8 +1597,9 @@ pub async fn invitation_accept(
 /// dropped rather than kept, and the sign-in at the wall opens it again
 /// with what the member's vault unseals.
 #[tauri::command]
-pub async fn machine_connect(
+pub(crate) async fn machine_connect(
     app_state: tauri::State<'_, AppState>,
+    credentials: tauri::State<'_, Credentials>,
     link: String,
     code: String,
 ) -> Result<OrganizationState, Error> {
@@ -1551,7 +1619,7 @@ pub async fn machine_connect(
         .await?;
     }
 
-    state_of(&app_state).await
+    state_of(&app_state, &credentials).await
 }
 
 /// Every role, highest rank first: the owner's, the manager's, the custom roles in order, and the
@@ -1791,8 +1859,9 @@ pub async fn member_withdraw_offer(app_state: tauri::State<'_, AppState>) -> Res
 /// their own machine the acts that mint run on the founder's machine or not at all, which is what
 /// the Turso account block in the organization section says beside the reconnect.
 #[tauri::command]
-pub async fn ownership_accept(
+pub(crate) async fn ownership_accept(
     app_state: tauri::State<'_, AppState>,
+    credentials: tauri::State<'_, Credentials>,
     password: String,
 ) -> Result<OrganizationState, Error> {
     {
@@ -1815,7 +1884,7 @@ pub async fn ownership_accept(
         .await?;
     }
 
-    state_of(&app_state).await
+    state_of(&app_state, &credentials).await
 }
 
 /// Rename a member: their row written back with the username re-sealed and signed by whoever
@@ -1897,8 +1966,9 @@ pub async fn organization_mark_clear(app_state: tauri::State<'_, AppState>) -> R
 /// machines open until one does, and the account section says so rather than reporting the act
 /// done.
 #[tauri::command]
-pub async fn organization_session_end_elsewhere(
+pub(crate) async fn organization_session_end_elsewhere(
     app_state: tauri::State<'_, AppState>,
+    credentials: tauri::State<'_, Credentials>,
 ) -> Result<SessionsEnded, Error> {
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
@@ -1911,7 +1981,13 @@ pub async fn organization_session_end_elsewhere(
     store.pull().await;
 
     Ok(SessionsEnded {
-        sent: session::end_elsewhere(store, member, timestamp::now()).await?,
+        sent: session::end_elsewhere(
+            credentials.inner().as_ref(),
+            store,
+            member,
+            timestamp::now(),
+        )
+        .await?,
     })
 }
 
@@ -1969,12 +2045,13 @@ pub async fn member_lock_out_cost(
 /// every remaining member of those workspaces syncing until their application collects a fresh
 /// credential; it is the owner's, because rotating needs the turso authority.
 #[tauri::command]
-pub async fn member_remove(
+pub(crate) async fn member_remove(
     app_state: tauri::State<'_, AppState>,
+    credentials: tauri::State<'_, Credentials>,
     member_id: String,
     lock_out: Option<bool>,
 ) -> Result<Removed, Error> {
-    let platform = owner_platform(&app_state).await;
+    let platform = owner_platform(&app_state, &credentials).await;
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
@@ -2127,8 +2204,9 @@ pub async fn organization_account_refusal_detail(
 /// Change the signed-in member's own password. The current one opens the vault, the new one has
 /// to reach the floor, and nothing else on the database moves. Neither password crosses back.
 #[tauri::command]
-pub async fn organization_change_password(
+pub(crate) async fn organization_change_password(
     app_state: tauri::State<'_, AppState>,
+    credentials: tauri::State<'_, Credentials>,
     current: String,
     new: String,
 ) -> Result<OrganizationState, Error> {
@@ -2138,6 +2216,7 @@ pub async fn organization_change_password(
         let (member, store) = signed_in(&mut member, &store)?;
 
         password::change_password(
+            credentials.inner().as_ref(),
             store,
             member,
             &current,
@@ -2148,7 +2227,7 @@ pub async fn organization_change_password(
         .await?;
     }
 
-    state_of(&app_state).await
+    state_of(&app_state, &credentials).await
 }
 
 /// Every member, for the members list: names opened with the content key the session holds and the
@@ -2221,10 +2300,11 @@ pub fn organization_link_read(link: String) -> Result<LinkShape, Error> {
 /// does after repeating the consent. The account is discovered the way the first run
 /// discovered it, and nothing about it was restored from anywhere.
 #[tauri::command]
-pub async fn organization_reconnect_authority(
+pub(crate) async fn organization_reconnect_authority(
     app_state: tauri::State<'_, AppState>,
+    credentials: tauri::State<'_, Credentials>,
 ) -> Result<OrganizationState, Error> {
-    let platform_token = setup::authority()?;
+    let platform_token = setup::authority(credentials.inner().as_ref())?;
 
     {
         let mut remote_sync = app_state.remote_sync.write().await;
@@ -2244,7 +2324,7 @@ pub async fn organization_reconnect_authority(
         }
     }
 
-    state_of(&app_state).await
+    state_of(&app_state, &credentials).await
 }
 
 /// The organization a link names, reached: its replica on this machine, opened against the
@@ -2307,9 +2387,9 @@ mod tests {
 
     use super::{HeldOrganization, Opening, open_replica, sign_out, state_of};
     use crate::{
+        credential::{CredentialStore, Credentials, Memory},
         database::Database,
         error::Error,
-        keyring::{self, CredentialStoreTurn, refuse_the_next_store, take_the_credential_store},
         organization::{
             authority::VERIFYING_KEY_BYTES,
             forget, invite, join,
@@ -2387,7 +2467,7 @@ mod tests {
     /// A machine that has run the first run: an organization on it, the owner's row recorded, and
     /// the owner's member key filed, which is what every launch after it starts from. Nobody is
     /// signed in here, because a launch is a fresh process.
-    async fn first_run(directory: &std::path::Path) -> AppState {
+    async fn first_run(credentials: &dyn CredentialStore, directory: &std::path::Path) -> AppState {
         let app_state = state_over(directory).await;
         let mcp = ScriptedServer::start(vec![
             ScriptedResponse::new(
@@ -2415,6 +2495,7 @@ mod tests {
             let mut remote_sync = app_state.remote_sync.write().await;
 
             create_organization(
+                credentials,
                 remote_sync.store_mut(),
                 "a-platform-token",
                 &McpEndpoint::at(&mcp.url("")),
@@ -2455,18 +2536,17 @@ mod tests {
     }
 
     /// What is filed under a member's entry, or nothing where nothing is.
-    fn filed(organization_id: &str, member_id: &str) -> Option<String> {
-        keyring::read(
-            MEMBER_KEY_SERVICE,
-            &format!("{organization_id}:{member_id}"),
-        )
-        .expect("the store would not answer")
-    }
-
-    /// A test's turn on the credential store, taken once at the top: the fake is one map for
-    /// every service, and a test that takes the turn twice deadlocks (`keyring.rs`).
-    async fn a_turn() -> CredentialStoreTurn {
-        take_the_credential_store().await
+    fn filed(
+        credentials: &dyn CredentialStore,
+        organization_id: &str,
+        member_id: &str,
+    ) -> Option<String> {
+        credentials
+            .get(
+                MEMBER_KEY_SERVICE,
+                &format!("{organization_id}:{member_id}"),
+            )
+            .expect("the store would not answer")
     }
 
     /// **Criterion 2.** The record names a member, the `member` slot is empty, and the key that
@@ -2474,13 +2554,13 @@ mod tests {
     /// session, so nothing ever draws the wall.
     #[tokio::test]
     async fn the_first_state_read_of_a_launch_resumes_the_remembered_session() {
-        let _turn = a_turn().await;
+        let credentials: Credentials = Arc::new(Memory::new());
         let directory = scratch("resume");
-        let app_state = first_run(&directory).await;
+        let app_state = first_run(credentials.as_ref(), &directory).await;
         let (organization_id, member_id) = recorded(&app_state).await;
 
         assert!(
-            filed(&organization_id, &member_id).is_some(),
+            filed(credentials.as_ref(), &organization_id, &member_id).is_some(),
             "the first run filed no member key"
         );
         assert!(
@@ -2488,7 +2568,7 @@ mod tests {
             "a launch starts with nobody in"
         );
 
-        let state = state_of(&app_state).await.expect("the state");
+        let state = state_of(&app_state, &credentials).await.expect("the state");
         let session = state.session.expect("the launch did not resume");
 
         assert_eq!(session.member_id, member_id);
@@ -2510,9 +2590,9 @@ mod tests {
     /// the machine's own record, which nothing replicated reaches.
     #[tokio::test]
     async fn the_record_keeps_that_this_machine_has_read_the_organization_in_this_format() {
-        let _turn = a_turn().await;
+        let credentials: Credentials = Arc::new(Memory::new());
         let directory = scratch("format-kept");
-        let app_state = first_run(&directory).await;
+        let app_state = first_run(credentials.as_ref(), &directory).await;
 
         assert_eq!(
             held(&app_state).await.format,
@@ -2532,7 +2612,7 @@ mod tests {
             record.commit().expect("the record");
         }
 
-        let state = state_of(&app_state).await.expect("the state");
+        let state = state_of(&app_state, &credentials).await.expect("the state");
 
         assert!(state.session.is_some(), "the launch did not resume");
         assert_eq!(
@@ -2604,7 +2684,7 @@ mod tests {
     /// gained.
     #[tokio::test]
     async fn a_held_replica_of_another_format_is_refused_at_the_launch_and_nothing_is_written() {
-        let _turn = a_turn().await;
+        let credentials: Credentials = Arc::new(Memory::new());
 
         // a format past the one this build ships, whichever that is.
         let newer = format!(
@@ -2625,7 +2705,7 @@ mod tests {
             ),
         ] {
             let directory = scratch(&format!("format-{name}"));
-            let app_state = first_run(&directory).await;
+            let app_state = first_run(credentials.as_ref(), &directory).await;
             let (organization_id, _) = recorded(&app_state).await;
             let replica = OrganizationStore::replica_path(
                 &directory.join(Database::FILENAME),
@@ -2647,7 +2727,7 @@ mod tests {
             }
 
             let before = contents(&replica).await;
-            let state = state_of(&app_state).await.expect("the state");
+            let state = state_of(&app_state, &credentials).await.expect("the state");
 
             assert!(
                 state.session.is_none(),
@@ -2669,7 +2749,7 @@ mod tests {
                     .clone()
                     .expect("the record")
             };
-            let refused = open_replica(&app_state, &held, Opening::Remembered)
+            let refused = open_replica(&app_state, &credentials, &held, Opening::Remembered)
                 .await
                 .map(|_| ());
 
@@ -2690,7 +2770,7 @@ mod tests {
         // The resume is the owner's, with a push no remote takes, so it is refused as the older one
         // above is, asking for a connection, and nothing is written.
         let directory = scratch("format-today");
-        let app_state = first_run(&directory).await;
+        let app_state = first_run(credentials.as_ref(), &directory).await;
         let (organization_id, _) = recorded(&app_state).await;
         let replica =
             OrganizationStore::replica_path(&directory.join(Database::FILENAME), &organization_id);
@@ -2710,7 +2790,7 @@ mod tests {
         }
 
         let before = contents(&replica).await;
-        let state = state_of(&app_state).await.expect("the state");
+        let state = state_of(&app_state, &credentials).await.expect("the state");
 
         assert!(state.session.is_none());
         assert_eq!(
@@ -2728,7 +2808,7 @@ mod tests {
                 .clone()
                 .expect("the record")
         };
-        let refused = open_replica(&app_state, &held, Opening::Remembered)
+        let refused = open_replica(&app_state, &credentials, &held, Opening::Remembered)
             .await
             .map(|_| ());
 
@@ -2759,12 +2839,12 @@ mod tests {
     /// file is what they share.
     #[tokio::test]
     async fn a_session_ended_from_another_machine_is_gone_after_one_heartbeat() {
-        let _turn = a_turn().await;
+        let credentials: Credentials = Arc::new(Memory::new());
         let directory = scratch("heartbeat");
-        let app_state = first_run(&directory).await;
+        let app_state = first_run(credentials.as_ref(), &directory).await;
         let (organization_id, member_id) = recorded(&app_state).await;
 
-        let state = state_of(&app_state).await.expect("the state");
+        let state = state_of(&app_state, &credentials).await.expect("the state");
 
         assert!(state.session.is_some(), "the launch did not resume");
         assert!(!state.signed_out_elsewhere);
@@ -2790,13 +2870,18 @@ mod tests {
             .await
             .expect("the other machine did not sign in");
 
-        session::end_elsewhere(&elsewhere, &mut theirs, CREATED_AT + 1)
-            .await
-            .expect("ending the other sessions failed");
+        session::end_elsewhere(
+            credentials.as_ref(),
+            &elsewhere,
+            &mut theirs,
+            CREATED_AT + 1,
+        )
+        .await
+        .expect("ending the other sessions failed");
 
         // one heartbeat on this machine.
         assert!(
-            super::ended_elsewhere(&app_state).await,
+            super::ended_elsewhere(&app_state, credentials.as_ref()).await,
             "the heartbeat did not read the row as moved on"
         );
         assert!(
@@ -2808,12 +2893,12 @@ mod tests {
             "the replica was still held open"
         );
         assert_eq!(
-            filed(&organization_id, &member_id),
+            filed(credentials.as_ref(), &organization_id, &member_id),
             None,
             "the remembered key outlived the sign-out"
         );
 
-        let state = state_of(&app_state).await.expect("the state");
+        let state = state_of(&app_state, &credentials).await.expect("the state");
 
         assert!(state.session.is_none());
         assert!(
@@ -2827,25 +2912,26 @@ mod tests {
         );
 
         // and a heartbeat on a machine with nobody in reads nothing and says nothing.
-        assert!(!super::ended_elsewhere(&app_state).await);
+        assert!(!super::ended_elsewhere(&app_state, credentials.as_ref()).await);
     }
 
     /// The wall, which is what every failure to resume comes to. Nothing filed is the plainest of
     /// them, and it is the state a machine that has signed out is in.
     #[tokio::test]
     async fn a_launch_with_nothing_filed_leaves_the_wall_up() {
-        let _turn = a_turn().await;
+        let credentials: Credentials = Arc::new(Memory::new());
         let directory = scratch("nothing");
-        let app_state = first_run(&directory).await;
+        let app_state = first_run(credentials.as_ref(), &directory).await;
         let (organization_id, member_id) = recorded(&app_state).await;
 
-        keyring::forget(
-            MEMBER_KEY_SERVICE,
-            &format!("{organization_id}:{member_id}"),
-        )
-        .expect("the store would not forget");
+        credentials
+            .delete(
+                MEMBER_KEY_SERVICE,
+                &format!("{organization_id}:{member_id}"),
+            )
+            .expect("the store would not forget");
 
-        let state = state_of(&app_state).await.expect("the state");
+        let state = state_of(&app_state, &credentials).await.expect("the state");
 
         assert!(state.session.is_none(), "a launch with no key signed in");
         assert!(
@@ -2859,28 +2945,28 @@ mod tests {
     /// puts the wall up rather than letting the machine back in behind the person's back.
     #[tokio::test]
     async fn a_sign_out_forgets_the_key_and_the_next_launch_shows_the_wall() {
-        let _turn = a_turn().await;
+        let credentials: Credentials = Arc::new(Memory::new());
         let directory = scratch("signout");
-        let app_state = first_run(&directory).await;
+        let app_state = first_run(credentials.as_ref(), &directory).await;
         let (organization_id, member_id) = recorded(&app_state).await;
 
-        state_of(&app_state)
+        state_of(&app_state, &credentials)
             .await
             .expect("the state")
             .session
             .expect("the launch did not resume");
 
-        sign_out(&app_state).await;
+        sign_out(&app_state, credentials.as_ref()).await;
 
         assert_eq!(
-            filed(&organization_id, &member_id),
+            filed(credentials.as_ref(), &organization_id, &member_id),
             None,
             "the sign-out left the key in the store"
         );
 
         // the next launch: a fresh process over the same data directory.
         let next = state_over(&directory).await;
-        let state = state_of(&next).await.expect("the state");
+        let state = state_of(&next, &credentials).await.expect("the state");
 
         assert!(state.session.is_none(), "the wall did not come back up");
         assert_eq!(
@@ -2894,16 +2980,18 @@ mod tests {
     /// no key to a vault in it either. The forget signs out first, which is where the entry goes.
     #[tokio::test]
     async fn a_disconnect_forgets_the_key_with_everything_else() {
-        let _turn = a_turn().await;
+        let credentials: Credentials = Arc::new(Memory::new());
         let directory = scratch("disconnect");
-        let app_state = first_run(&directory).await;
+        let app_state = first_run(credentials.as_ref(), &directory).await;
         let (organization_id, member_id) = recorded(&app_state).await;
 
-        state_of(&app_state).await.expect("the state");
-        forget::forget(&app_state).await.expect("the forget failed");
+        state_of(&app_state, &credentials).await.expect("the state");
+        forget::forget(&app_state, credentials.as_ref())
+            .await
+            .expect("the forget failed");
 
         assert_eq!(
-            filed(&organization_id, &member_id),
+            filed(credentials.as_ref(), &organization_id, &member_id),
             None,
             "the disconnect left the key in the store"
         );
@@ -2914,21 +3002,22 @@ mod tests {
     /// failure surface.
     #[tokio::test]
     async fn a_store_that_refuses_the_key_does_not_fail_the_first_run() {
-        let _turn = a_turn().await;
+        let memory = Arc::new(Memory::new());
+        let credentials: Credentials = memory.clone();
         let directory = scratch("refused");
 
-        refuse_the_next_store();
+        memory.refuse_the_next_store();
 
-        let app_state = first_run(&directory).await;
+        let app_state = first_run(credentials.as_ref(), &directory).await;
         let (organization_id, member_id) = recorded(&app_state).await;
 
         assert_eq!(
-            filed(&organization_id, &member_id),
+            filed(credentials.as_ref(), &organization_id, &member_id),
             None,
             "the store took a value it was told to refuse"
         );
 
-        let state = state_of(&app_state).await.expect("the state");
+        let state = state_of(&app_state, &credentials).await.expect("the state");
 
         assert!(state.organization.is_some(), "the first run did not finish");
         assert!(state.session.is_none(), "a launch with no key signed in");
@@ -2940,9 +3029,9 @@ mod tests {
     /// rather than the ones it expects to find.
     #[tokio::test]
     async fn neither_the_password_nor_the_member_key_reaches_a_file_this_machine_wrote() {
-        let _turn = a_turn().await;
+        let credentials: Credentials = Arc::new(Memory::new());
         let directory = scratch("secrecy");
-        let app_state = first_run(&directory).await;
+        let app_state = first_run(credentials.as_ref(), &directory).await;
         let (organization_id, member_id) = recorded(&app_state).await;
 
         // the sign-in at the wall, which is what `organization_sign_in` performs: the replica is
@@ -2958,6 +3047,7 @@ mod tests {
         };
         let (store, credential) = open_replica(
             &app_state,
+            &credentials,
             &held,
             Opening::Password {
                 username: USERNAME,
@@ -2970,6 +3060,7 @@ mod tests {
             let mut remote_sync = app_state.remote_sync.write().await;
 
             join::admit(
+                credentials.as_ref(),
                 &store,
                 remote_sync.store_mut(),
                 &held,
@@ -2984,7 +3075,8 @@ mod tests {
 
         assert_eq!(session.member_id, member_id);
 
-        let encoded = filed(&organization_id, &member_id).expect("the sign-in filed no key");
+        let encoded = filed(credentials.as_ref(), &organization_id, &member_id)
+            .expect("the sign-in filed no key");
         let (epoch, key) =
             read_entry(&encoded).expect("what was filed is not a remembered session");
         let bytes = {
@@ -3068,13 +3160,13 @@ mod tests {
     /// `POST /pull-updates` and the push is not, which is the whole of what is being distinguished.
     #[tokio::test]
     async fn the_heartbeat_pushes_the_organization_replica_after_its_pull() {
-        let _turn = a_turn().await;
+        let credentials: Credentials = Arc::new(Memory::new());
         let directory = scratch("heartbeat-push");
-        let app_state = first_run(&directory).await;
+        let app_state = first_run(credentials.as_ref(), &directory).await;
         let (organization_id, _) = recorded(&app_state).await;
 
         assert!(
-            state_of(&app_state)
+            state_of(&app_state, &credentials)
                 .await
                 .expect("the state")
                 .session
@@ -3112,7 +3204,7 @@ mod tests {
 
         // one heartbeat. Nobody ended anything, so the answer is that the session stands; what is
         // under test is what it did on the way to that answer.
-        assert!(!super::ended_elsewhere(&app_state).await);
+        assert!(!super::ended_elsewhere(&app_state, credentials.as_ref()).await);
         assert!(
             server.request_count() >= 2,
             "the heartbeat made {} request(s); a pull and a push are two",
@@ -3159,6 +3251,7 @@ mod tests {
     /// the standing an offer of the organization needs. *`role.rs` keeps the same fixture; one is
     /// written out per module ([[rules/testing]]).*
     async fn a_settled_manager(
+        credentials: &dyn CredentialStore,
         directory: &std::path::Path,
         store: &OrganizationStore,
         owner: &session::MemberSession,
@@ -3190,6 +3283,7 @@ mod tests {
         let mut machine = Persisted::<RemoteSyncStore>::load(theirs.join("remote-sync.json"))
             .expect("the record");
         let (_, session) = join::accept(
+            credentials,
             |_| async { Ok::<_, crate::error::Error>(store) },
             &mut machine,
             &JoinLink::decode(&invited.join_link).expect("the invitation link"),
@@ -3208,6 +3302,7 @@ mod tests {
     /// manager, who accepts on a machine of their own. Answers the key the organization is
     /// on afterwards, which the machine under test has not followed yet.
     async fn handed_over(
+        credentials: &dyn CredentialStore,
         directory: &std::path::Path,
         app_state: &AppState,
     ) -> [u8; VERIFYING_KEY_BYTES] {
@@ -3224,8 +3319,15 @@ mod tests {
         let founder = session::sign_in(&theirs, &held, PASSWORD, &slot())
             .await
             .expect("the founder did not sign in on the other machine");
-        let (ada, mut ada_session, mut ada_machine) =
-            a_settled_manager(directory, &theirs, &founder, "ada.admin", MANAGERS_PASSWORD).await;
+        let (ada, mut ada_session, mut ada_machine) = a_settled_manager(
+            credentials,
+            directory,
+            &theirs,
+            &founder,
+            "ada.admin",
+            MANAGERS_PASSWORD,
+        )
+        .await;
 
         role::offer_ownership(&theirs, &founder, &ada, PASSWORD, CREATED_AT + 1)
             .await
@@ -3273,11 +3375,11 @@ mod tests {
     /// plain member is theirs to make, and the directory verifies on every machine afterwards.
     #[tokio::test]
     async fn the_founders_open_session_is_a_managers_after_a_handover_elsewhere() {
-        let _turn = a_turn().await;
+        let credentials: Credentials = Arc::new(Memory::new());
         let directory = scratch("founder-after-handover");
-        let app_state = first_run(&directory).await;
+        let app_state = first_run(credentials.as_ref(), &directory).await;
         let (organization_id, _) = recorded(&app_state).await;
-        let state = state_of(&app_state).await.expect("the state");
+        let state = state_of(&app_state, &credentials).await.expect("the state");
 
         assert_eq!(
             state.session.expect("the launch did not resume").role,
@@ -3285,7 +3387,7 @@ mod tests {
         );
 
         let (old_key, _) = session_holds(&app_state).await;
-        let new_key = handed_over(&directory, &app_state).await;
+        let new_key = handed_over(credentials.as_ref(), &directory, &app_state).await;
 
         assert_ne!(new_key, old_key);
 
@@ -3321,7 +3423,7 @@ mod tests {
         }
 
         // the state read follows the succession, and the session is the row's.
-        let state = state_of(&app_state).await.expect("the state");
+        let state = state_of(&app_state, &credentials).await.expect("the state");
 
         assert_eq!(state.session.expect("the session was lost").role, "manager");
         assert_eq!(
@@ -3333,9 +3435,10 @@ mod tests {
         // deleting the organization: this machine holds the authority, and the session is refused
         // on the role by name.
         let platform = InMemoryPlatform::new("an-org");
-        let refused = removal::delete_organization(&app_state, &platform, PASSWORD)
-            .await
-            .expect_err("the founder deleted the organization after handing it over");
+        let refused =
+            removal::delete_organization(&app_state, credentials.as_ref(), &platform, PASSWORD)
+                .await
+                .expect_err("the founder deleted the organization after handing it over");
 
         assert!(
             matches!(refused, Error::Refused { reason: crate::error::RefusalReason::OwnerOnly, ref message } if message == removal::ONLY_THE_OWNER_DELETES),
@@ -3417,19 +3520,19 @@ mod tests {
     /// launch ends signed in on the key in force rather than at the wall.
     #[tokio::test]
     async fn a_machine_closed_across_a_handover_launches_signed_in_under_the_new_key() {
-        let _turn = a_turn().await;
+        let credentials: Credentials = Arc::new(Memory::new());
         let directory = scratch("launch-after-handover");
-        let app_state = first_run(&directory).await;
+        let app_state = first_run(credentials.as_ref(), &directory).await;
         let (organization_id, member_id) = recorded(&app_state).await;
-        let new_key = handed_over(&directory, &app_state).await;
+        let new_key = handed_over(credentials.as_ref(), &directory, &app_state).await;
 
         assert!(
             app_state.member.read().await.is_none(),
             "a launch starts with nobody in"
         );
-        assert!(filed(&organization_id, &member_id).is_some());
+        assert!(filed(credentials.as_ref(), &organization_id, &member_id).is_some());
 
-        let state = state_of(&app_state).await.expect("the state");
+        let state = state_of(&app_state, &credentials).await.expect("the state");
         let session = state
             .session
             .expect("the launch across the handover did not resume");
@@ -3441,7 +3544,7 @@ mod tests {
             "the wall was told a sign-out that did not happen"
         );
         assert!(
-            filed(&organization_id, &member_id).is_some(),
+            filed(credentials.as_ref(), &organization_id, &member_id).is_some(),
             "the remembered key was forgotten"
         );
         assert_eq!(
@@ -3458,13 +3561,13 @@ mod tests {
     /// the heartbeat says so and keeps everything it holds.
     #[tokio::test]
     async fn a_machine_open_across_a_handover_follows_it_on_the_heartbeat() {
-        let _turn = a_turn().await;
+        let credentials: Credentials = Arc::new(Memory::new());
         let directory = scratch("heartbeat-after-handover");
-        let app_state = first_run(&directory).await;
+        let app_state = first_run(credentials.as_ref(), &directory).await;
         let (organization_id, member_id) = recorded(&app_state).await;
 
         assert!(
-            state_of(&app_state)
+            state_of(&app_state, &credentials)
                 .await
                 .expect("the state")
                 .session
@@ -3473,13 +3576,13 @@ mod tests {
         );
 
         let (old_key, _) = session_holds(&app_state).await;
-        let new_key = handed_over(&directory, &app_state).await;
+        let new_key = handed_over(credentials.as_ref(), &directory, &app_state).await;
 
         assert_eq!(pinned(&app_state).await, encoded(old_key));
 
         // one heartbeat.
         assert!(
-            !super::ended_elsewhere(&app_state).await,
+            !super::ended_elsewhere(&app_state, credentials.as_ref()).await,
             "the heartbeat read a handover as a sign-out"
         );
         assert_eq!(
@@ -3493,12 +3596,12 @@ mod tests {
             "the replica was let go of"
         );
         assert!(
-            filed(&organization_id, &member_id).is_some(),
+            filed(credentials.as_ref(), &organization_id, &member_id).is_some(),
             "the remembered key was forgotten"
         );
 
         // and the state read afterwards has nothing left to follow.
-        let state = state_of(&app_state).await.expect("the state");
+        let state = state_of(&app_state, &credentials).await.expect("the state");
 
         assert_eq!(state.session.expect("the session").role, "manager");
         assert!(!state.signed_out_elsewhere);
@@ -3629,8 +3732,11 @@ mod tests {
             .filter(|(_, line)| line.trim() == "#[tauri::command]")
             .filter_map(|(index, _)| {
                 let signature = lines.get(index + 1)?.trim();
+                // a command that takes the credential store is `pub(crate)`, because the store's
+                // trait is private to the crate ([[rules/credentials]]).
                 let name = signature
                     .strip_prefix("pub async fn ")
+                    .or_else(|| signature.strip_prefix("pub(crate) async fn "))
                     .or_else(|| signature.strip_prefix("pub fn "))?;
 
                 Some(name.split('(').next()?.to_string())
@@ -3748,13 +3854,13 @@ mod tests {
             workspace::signer_of,
         };
 
-        let _turn = a_turn().await;
+        let credentials: Credentials = Arc::new(Memory::new());
         let directory = scratch("owner-repair-heartbeat");
-        let app_state = first_run(&directory).await;
+        let app_state = first_run(credentials.as_ref(), &directory).await;
         let (organization_id, member_id) = recorded(&app_state).await;
 
         assert!(
-            state_of(&app_state)
+            state_of(&app_state, &credentials)
                 .await
                 .expect("the state")
                 .session
@@ -3835,7 +3941,7 @@ mod tests {
         assert_eq!(demoted.effective, 0);
 
         // one heartbeat on the owner's machine.
-        assert!(!super::ended_elsewhere(&app_state).await);
+        assert!(!super::ended_elsewhere(&app_state, credentials.as_ref()).await);
 
         let repaired = elsewhere
             .member(&key, &member_id)

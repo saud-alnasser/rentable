@@ -221,6 +221,8 @@ pub fn refuse_while_held(machine: &RemoteSyncStore) -> Result<(), Error> {
 
 #[cfg(test)]
 mod tests {
+    use crate::credential::{CredentialStore, Memory};
+
     use std::sync::{Arc, Mutex};
 
     use serde_json::json;
@@ -290,6 +292,7 @@ mod tests {
     /// from, read off the owner's own machine record. That record is returned with it, holding the
     /// organization.
     async fn created(
+        credentials: &dyn CredentialStore,
         directory: &std::path::Path,
     ) -> (OrganizationStore, Persisted<RemoteSyncStore>, Locator) {
         let mut store = Persisted::<RemoteSyncStore>::load(directory.join("remote-sync.json"))
@@ -316,6 +319,7 @@ mod tests {
         .await;
         let platform = Arc::new(InMemoryPlatform::new("an-org"));
         let (created, organization) = create_organization(
+            credentials,
             &mut store,
             "a-platform-token",
             &McpEndpoint::at(&mcp.url("")),
@@ -356,8 +360,9 @@ mod tests {
     /// password and hands back no session.
     #[tokio::test]
     async fn connecting_by_the_link_records_the_organization_and_no_member() {
+        let credentials = Memory::new();
         let directory = scratch("fresh");
-        let (store, owners_machine, link) = created(&directory).await;
+        let (store, owners_machine, link) = created(&credentials, &directory).await;
         let mut machine = fresh_machine(&directory);
 
         let held = connect(&store, &mut machine, &link, UNSEALED, ISSUED_AT + 1)
@@ -420,8 +425,9 @@ mod tests {
     /// naming the code, while the organization's own link connected with none.*
     #[tokio::test]
     async fn a_connect_with_no_credential_in_hand_records_nothing() {
+        let credentials = Memory::new();
         let directory = scratch("no-credential");
-        let (store, _, link) = created(&directory).await;
+        let (store, _, link) = created(&credentials, &directory).await;
         let mut machine = fresh_machine(&directory);
 
         for nothing in ["", "   "] {
@@ -476,8 +482,9 @@ mod tests {
     /// member writes.
     #[tokio::test]
     async fn the_registry_follows_the_machine_through_the_connect_the_two_sessions_and_the_leave() {
+        let credentials = Memory::new();
         let directory = scratch("registry");
-        let (store, _, link) = created(&directory).await;
+        let (store, _, link) = created(&credentials, &directory).await;
         let mut machine = fresh_machine(&directory);
         let verifying_key = link.verifying_key_bytes().expect("the key the link pins");
         let connected = |at: i64| {
@@ -519,6 +526,7 @@ mod tests {
         // the sign-in at the wall: the same machine, now naming the member on it.
         let credential: CredentialSlot = Arc::new(Mutex::new(None));
         let session = admit(
+            &credentials,
             &store,
             &mut machine,
             &held,
@@ -585,8 +593,9 @@ mod tests {
     /// is refused with nothing recorded.
     #[tokio::test]
     async fn a_link_whose_key_or_id_the_rows_do_not_carry_is_refused_and_nothing_is_recorded() {
+        let credentials = Memory::new();
         let directory = scratch("pinned");
-        let (store, _, link) = created(&directory).await;
+        let (store, _, link) = created(&credentials, &directory).await;
         let mut machine = fresh_machine(&directory);
 
         let strangers_key = Locator {
@@ -662,6 +671,7 @@ mod tests {
     /// records nothing.
     #[tokio::test]
     async fn an_organization_of_another_format_is_refused_at_the_connect_and_nothing_is_written() {
+        let credentials = Memory::new();
         // a format past the one this build ships, whichever that is.
         let newer = format!(
             "UPDATE \"format\" SET \"version\" = {}",
@@ -681,7 +691,7 @@ mod tests {
             ),
         ] {
             let directory = scratch(name);
-            let (store, _, link) = created(&directory).await;
+            let (store, _, link) = created(&credentials, &directory).await;
             let mut machine = fresh_machine(&directory);
 
             store

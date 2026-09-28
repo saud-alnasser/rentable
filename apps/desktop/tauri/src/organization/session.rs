@@ -66,9 +66,10 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    credential::CredentialStore,
     diagnostics,
     error::{Error, RefusalReason},
-    keyring, timestamp,
+    timestamp,
 };
 
 use crate::turso::platform::AccessLevel;
@@ -603,7 +604,8 @@ pub fn refused_by_name(organization_name: &str) -> Error {
     )
 }
 
-pub async fn sign_in_by_username(
+pub(crate) async fn sign_in_by_username(
+    credentials: &dyn CredentialStore,
     store: &OrganizationStore,
     held: &HeldOrganization,
     username: &str,
@@ -673,6 +675,7 @@ pub async fn sign_in_by_username(
     .await?;
 
     remember(
+        credentials,
         &held.id,
         &session.member_id,
         session.session_epoch,
@@ -693,12 +696,13 @@ pub async fn sign_in_by_username(
 /// what they lose is not being asked again next time. Nothing here is on the path of anything the
 /// person asked for, so there is no refusal for them to act on.
 pub(crate) fn remember(
+    credentials: &dyn CredentialStore,
     organization_id: &str,
     member_id: &str,
     session_epoch: i64,
     member_key: &MemberKey,
 ) {
-    let filed = keyring::store(
+    let filed = credentials.set(
         MEMBER_KEY_SERVICE,
         &account_of(organization_id, member_id),
         &filed_entry(session_epoch, member_key),
@@ -712,8 +716,8 @@ pub(crate) fn remember(
         Err(refusal) => diagnostics::warn("organization.session.notRemembered")
             .with("organization", organization_id)
             .with("member", member_id)
-            // the value never reaches a keyring error (`keyring.rs`), so this carries the reason
-            // and no part of the key.
+            // the value never reaches a credential error (`credential/`), so this carries the
+            // reason and no part of the key.
             .with("reason", refusal.to_string())
             .write(),
     }
@@ -725,9 +729,13 @@ pub(crate) fn remember(
 /// A refusal is a diagnostic for the reason [`remember`]'s is: the caller is doing something else
 /// and there is nothing here for the person to act on. An entry that was never filed is already
 /// in the state this asks for.
-pub(crate) fn forget_remembered(organization_id: &str, member_id: &str) {
+pub(crate) fn forget_remembered(
+    credentials: &dyn CredentialStore,
+    organization_id: &str,
+    member_id: &str,
+) {
     if let Err(refusal) =
-        keyring::forget(MEMBER_KEY_SERVICE, &account_of(organization_id, member_id))
+        credentials.delete(MEMBER_KEY_SERVICE, &account_of(organization_id, member_id))
     {
         diagnostics::warn("organization.session.notForgotten")
             .with("organization", organization_id)
@@ -774,6 +782,7 @@ pub(crate) enum Resumption {
 /// outcome to the person: they sign in. The entry is deleted rather than kept, so the next launch
 /// does not try a key that has already been shown not to open anything.
 pub(crate) async fn resume(
+    credentials: &dyn CredentialStore,
     store: &OrganizationStore,
     held: &HeldOrganization,
     credential: &CredentialSlot,
@@ -784,10 +793,10 @@ pub(crate) async fn resume(
             format!("this machine holds {} and no member in it yet", held.name),
         )
     })?;
-    let resumed = resumed(store, held, &member_id, credential).await;
+    let resumed = resumed(credentials, store, held, &member_id, credential).await;
 
     if !matches!(resumed, Ok(Resumption::Opened(_))) {
-        forget_remembered(&held.id, &member_id);
+        forget_remembered(credentials, &held.id, &member_id);
     }
 
     resumed
@@ -795,12 +804,13 @@ pub(crate) async fn resume(
 
 /// The resume itself, so that [`resume`] has one place to forget the entry from.
 async fn resumed(
+    credentials: &dyn CredentialStore,
     store: &OrganizationStore,
     held: &HeldOrganization,
     member_id: &str,
     credential: &CredentialSlot,
 ) -> Result<Resumption, Error> {
-    let (filed_epoch, member_key) = remembered(&held.id, member_id)?;
+    let (filed_epoch, member_key) = remembered(credentials, &held.id, member_id)?;
     let verifying_key = verifying_key_of(held)?;
     let members = store.members(&verifying_key).await?;
     let member = members
@@ -935,7 +945,8 @@ pub async fn ended_elsewhere(
 /// not go leaves the number on this machine's replica alone, which means the other machines are
 /// still open: the caller says so rather than reporting the act done, and the heartbeat's own
 /// push is what carries it out when there is a connection again.
-pub async fn end_elsewhere(
+pub(crate) async fn end_elsewhere(
+    credentials: &dyn CredentialStore,
     store: &OrganizationStore,
     session: &mut MemberSession,
     now: i64,
@@ -965,7 +976,12 @@ pub async fn end_elsewhere(
     }
 
     session.session_epoch = epoch;
-    refile(&session.organization_id, &session.member_id, epoch);
+    refile(
+        credentials,
+        &session.organization_id,
+        &session.member_id,
+        epoch,
+    );
 
     diagnostics::info("organization.session.endedElsewhere")
         .with("member", session.member_id.as_str())
@@ -1074,9 +1090,14 @@ pub async fn end_member_sessions(
 /// the key unsealed, not the key. So the entry is read, its key half kept, and the pair written
 /// back. Nothing filed is the case where the credential store refused the sign-in's write, and
 /// there is nothing to rewrite.
-fn refile(organization_id: &str, member_id: &str, session_epoch: i64) {
+fn refile(
+    credentials: &dyn CredentialStore,
+    organization_id: &str,
+    member_id: &str,
+    session_epoch: i64,
+) {
     let account = account_of(organization_id, member_id);
-    let filed = match keyring::read(MEMBER_KEY_SERVICE, &account) {
+    let filed = match credentials.get(MEMBER_KEY_SERVICE, &account) {
         Ok(Some(filed)) => filed,
         Ok(None) => return,
         Err(refusal) => {
@@ -1091,10 +1112,16 @@ fn refile(organization_id: &str, member_id: &str, session_epoch: i64) {
     };
 
     match read_entry(&filed) {
-        Ok((_, member_key)) => remember(organization_id, member_id, session_epoch, &member_key),
+        Ok((_, member_key)) => remember(
+            credentials,
+            organization_id,
+            member_id,
+            session_epoch,
+            &member_key,
+        ),
         // a value this build did not write opens nothing anyway, so it goes rather than being
         // carried forward under a number that would make it look current.
-        Err(_) => forget_remembered(organization_id, member_id),
+        Err(_) => forget_remembered(credentials, organization_id, member_id),
     }
 }
 
@@ -1127,10 +1154,12 @@ pub(crate) fn read_entry(filed: &str) -> Result<(i64, MemberKey), Error> {
 /// not an entry this build wrote. Read by the resume, and by the owner's upgrade of an older
 /// organization on the way to it (`upgrade.rs`, effort 838, ticket 22), which reads the same key.
 pub(crate) fn remembered(
+    credentials: &dyn CredentialStore,
     organization_id: &str,
     member_id: &str,
 ) -> Result<(i64, MemberKey), Error> {
-    let filed = keyring::read(MEMBER_KEY_SERVICE, &account_of(organization_id, member_id))?
+    let filed = credentials
+        .get(MEMBER_KEY_SERVICE, &account_of(organization_id, member_id))?
         .ok_or_else(|| {
             Error::refused(
                 RefusalReason::SignInAgain,
@@ -1415,7 +1444,7 @@ mod tests {
         end_member_sessions, facts_of, permissions_on_row, resume, sign_in, sign_in_by_username,
     };
     use crate::{
-        keyring::{self, refuse_the_next_store, take_the_credential_store},
+        credential::{CredentialStore, Memory},
         organization::{
             HeldOrganization,
             authority::{AdministratorKey, OrganizationKey, issue_root_certificate},
@@ -1478,6 +1507,7 @@ mod tests {
     /// An organization a first run made, on this machine, with no remote: the owner's vault,
     /// their grant on the organization database, and the machine's record of having joined.
     async fn created(
+        credentials: &dyn CredentialStore,
         directory: &std::path::Path,
     ) -> (
         Persisted<RemoteSyncStore>,
@@ -1509,6 +1539,7 @@ mod tests {
         let platform = Arc::new(InMemoryPlatform::new("an-org"));
 
         let (_, organization) = create_organization(
+            credentials,
             &mut store,
             "a-platform-token",
             &McpEndpoint::at(&mcp.url("")),
@@ -1533,8 +1564,9 @@ mod tests {
 
     #[tokio::test]
     async fn a_password_opens_the_vault_with_no_remote_and_the_facts_follow_from_the_rows() {
+        let credentials = Memory::new();
         let directory = scratch("opens");
-        let (_, store, joined) = created(&directory).await;
+        let (_, store, joined) = created(&credentials, &directory).await;
         let credential = slot();
 
         let session = sign_in(&store, &joined, PASSWORD, &credential)
@@ -1572,8 +1604,9 @@ mod tests {
 
     #[tokio::test]
     async fn a_wrong_password_opens_nothing_and_says_only_that() {
+        let credentials = Memory::new();
         let directory = scratch("wrong");
-        let (_, store, joined) = created(&directory).await;
+        let (_, store, joined) = created(&credentials, &directory).await;
         let credential = slot();
 
         let refusal = sign_in(&store, &joined, "the wrong password", &credential)
@@ -1597,8 +1630,9 @@ mod tests {
     /// no grant opens under it. Performed here with exactly such a secret.
     #[tokio::test]
     async fn a_client_that_skips_the_password_check_still_cannot_open_a_grant() {
+        let credentials = Memory::new();
         let directory = scratch("skip");
-        let (_, store, joined) = created(&directory).await;
+        let (_, store, joined) = created(&credentials, &directory).await;
         let key = super::verifying_key_of(&joined).expect("the key");
         let grant = store
             .grants(&key)
@@ -1642,8 +1676,9 @@ mod tests {
 
     #[tokio::test]
     async fn a_member_who_must_change_their_password_is_refused_by_the_guard() {
+        let credentials = Memory::new();
         let directory = scratch("guard");
-        let (_, store, joined) = created(&directory).await;
+        let (_, store, joined) = created(&credentials, &directory).await;
         let mut session = sign_in(&store, &joined, PASSWORD, &slot())
             .await
             .expect("the password did not open the vault");
@@ -1680,8 +1715,9 @@ mod tests {
     /// member before any row is read.
     #[tokio::test]
     async fn a_record_with_no_member_is_refused_before_any_row_is_read() {
+        let credentials = Memory::new();
         let directory = scratch("no-member");
-        let (_, store, joined) = created(&directory).await;
+        let (_, store, joined) = created(&credentials, &directory).await;
         let connected = HeldOrganization {
             member_id: None,
             role: None,
@@ -1712,8 +1748,9 @@ mod tests {
     /// effort 824's requirement 17 has it hold one, so the two records here are two machines'.*
     #[tokio::test]
     async fn two_organizations_open_with_their_own_passwords_and_roles() {
+        let credentials = Memory::new();
         let directory = scratch("two");
-        let (_, store_a, joined_a) = created(&directory).await;
+        let (_, store_a, joined_a) = created(&credentials, &directory).await;
 
         // the second organization, made elsewhere: its owner's chain, and this person as a member.
         let organization_key = OrganizationKey::generate().expect("a key");
@@ -1882,20 +1919,24 @@ mod tests {
     /// front of it, so the entry is read as a pair from here on.*
     #[tokio::test]
     async fn a_sign_in_files_the_member_key_and_a_resume_opens_the_vault_with_it() {
-        let _turn = take_the_credential_store().await;
+        let credentials = Memory::new();
         let directory = scratch("remember");
-        let (_, store, joined) = created(&directory).await;
+        let (_, store, joined) = created(&credentials, &directory).await;
         let member_id = joined.member_id.clone().expect("the record names a member");
         let account = format!("{}:{member_id}", joined.id);
 
         // the first run filed the owner's key already; emptied, so what is read back below is
         // what this sign-in filed.
-        keyring::forget(MEMBER_KEY_SERVICE, &account).expect("the store would not forget");
+        credentials
+            .delete(MEMBER_KEY_SERVICE, &account)
+            .expect("the store would not forget");
 
-        let session = sign_in_by_username(&store, &joined, "olivia", PASSWORD, &slot())
-            .await
-            .expect("the sign-in failed");
-        let filed = keyring::read(MEMBER_KEY_SERVICE, &account)
+        let session =
+            sign_in_by_username(&credentials, &store, &joined, "olivia", PASSWORD, &slot())
+                .await
+                .expect("the sign-in failed");
+        let filed = credentials
+            .get(MEMBER_KEY_SERVICE, &account)
             .expect("the store would not answer")
             .expect("the sign-in filed nothing");
         let (epoch, encoded) = filed
@@ -1930,7 +1971,7 @@ mod tests {
         // and the resume the next launch performs reaches the same session, with no password.
         let credential = slot();
         let resumed = opened(
-            resume(&store, &joined, &credential)
+            resume(&credentials, &store, &joined, &credential)
                 .await
                 .expect("the resume failed"),
         );
@@ -1951,17 +1992,19 @@ mod tests {
     /// the person meets.
     #[tokio::test]
     async fn a_vault_resealed_elsewhere_leaves_the_remembered_key_opening_nothing() {
-        let _turn = take_the_credential_store().await;
+        let credentials = Memory::new();
         let directory = scratch("stale");
-        let (_, store, joined) = created(&directory).await;
+        let (_, store, joined) = created(&credentials, &directory).await;
         let member_id = joined.member_id.clone().expect("the record names a member");
         let account = format!("{}:{member_id}", joined.id);
-        let session = sign_in_by_username(&store, &joined, "olivia", PASSWORD, &slot())
-            .await
-            .expect("the sign-in failed");
+        let session =
+            sign_in_by_username(&credentials, &store, &joined, "olivia", PASSWORD, &slot())
+                .await
+                .expect("the sign-in failed");
 
         assert!(
-            keyring::read(MEMBER_KEY_SERVICE, &account)
+            credentials
+                .get(MEMBER_KEY_SERVICE, &account)
                 .expect("the store would not answer")
                 .is_some()
         );
@@ -1980,7 +2023,7 @@ mod tests {
             .await
             .expect("the row would not be written");
 
-        let refusal = resume(&store, &joined, &slot())
+        let refusal = resume(&credentials, &store, &joined, &slot())
             .await
             .expect_err("a key that opens nothing resumed a session");
 
@@ -1989,7 +2032,9 @@ mod tests {
             "{refusal:?}"
         );
         assert_eq!(
-            keyring::read(MEMBER_KEY_SERVICE, &account).expect("the store would not answer"),
+            credentials
+                .get(MEMBER_KEY_SERVICE, &account)
+                .expect("the store would not answer"),
             None,
             "a key that opens nothing was kept"
         );
@@ -1999,28 +2044,33 @@ mod tests {
     /// diagnostic: the person is in, and what they lose is being asked again next launch.
     #[tokio::test]
     async fn a_store_that_refuses_the_key_does_not_refuse_the_sign_in() {
-        let _turn = take_the_credential_store().await;
+        let credentials = Memory::new();
         let directory = scratch("refused");
-        let (_, store, joined) = created(&directory).await;
+        let (_, store, joined) = created(&credentials, &directory).await;
         let member_id = joined.member_id.clone().expect("the record names a member");
         let account = format!("{}:{member_id}", joined.id);
 
-        keyring::forget(MEMBER_KEY_SERVICE, &account).expect("the store would not forget");
-        refuse_the_next_store();
+        credentials
+            .delete(MEMBER_KEY_SERVICE, &account)
+            .expect("the store would not forget");
+        credentials.refuse_the_next_store();
 
-        let session = sign_in_by_username(&store, &joined, "olivia", PASSWORD, &slot())
-            .await
-            .expect("a refused store failed the sign-in");
+        let session =
+            sign_in_by_username(&credentials, &store, &joined, "olivia", PASSWORD, &slot())
+                .await
+                .expect("a refused store failed the sign-in");
 
         assert_eq!(session.member_id, member_id);
         assert_eq!(
-            keyring::read(MEMBER_KEY_SERVICE, &account).expect("the store would not answer"),
+            credentials
+                .get(MEMBER_KEY_SERVICE, &account)
+                .expect("the store would not answer"),
             None,
             "the store took a value it was told to refuse"
         );
 
         // and the launch after it meets the wall rather than an error.
-        let refusal = resume(&store, &joined, &slot())
+        let refusal = resume(&credentials, &store, &joined, &slot())
             .await
             .expect_err("a launch with nothing filed resumed a session");
 
@@ -2040,16 +2090,16 @@ mod tests {
     /// link is in that state, and the person signs in at the wall.
     #[tokio::test]
     async fn a_record_with_no_member_has_nothing_to_resume() {
-        let _turn = take_the_credential_store().await;
+        let credentials = Memory::new();
         let directory = scratch("resume-no-member");
-        let (_, store, joined) = created(&directory).await;
+        let (_, store, joined) = created(&credentials, &directory).await;
         let connected = HeldOrganization {
             member_id: None,
             role: None,
             ..joined
         };
 
-        let refusal = resume(&store, &connected, &slot())
+        let refusal = resume(&credentials, &store, &connected, &slot())
             .await
             .expect_err("a record naming no member resumed a session");
 
@@ -2163,16 +2213,18 @@ mod tests {
     /// again. The gate refuses a session behind its row, here and before every other act.
     #[tokio::test]
     async fn a_session_behind_its_row_is_refused_the_bump_and_every_act() {
-        let _turn = take_the_credential_store().await;
+        let credentials = Memory::new();
         let directory = scratch("behind-the-row");
-        let (_, store, joined) = created(&directory).await;
+        let (_, store, joined) = created(&credentials, &directory).await;
         let member_id = joined.member_id.clone().expect("the record names a member");
         let account = format!("{}:{member_id}", joined.id);
 
-        let mut session = sign_in_by_username(&store, &joined, "olivia", PASSWORD, &slot())
-            .await
-            .expect("the sign-in failed");
-        let before = keyring::read(MEMBER_KEY_SERVICE, &account)
+        let mut session =
+            sign_in_by_username(&credentials, &store, &joined, "olivia", PASSWORD, &slot())
+                .await
+                .expect("the sign-in failed");
+        let before = credentials
+            .get(MEMBER_KEY_SERVICE, &account)
             .expect("the store would not answer")
             .expect("the sign-in filed nothing");
 
@@ -2182,7 +2234,7 @@ mod tests {
             .await
             .expect("the bump failed");
 
-        let refused = end_elsewhere(&store, &mut session, 1_757_000_000_100)
+        let refused = end_elsewhere(&credentials, &store, &mut session, 1_757_000_000_100)
             .await
             .expect_err("a session behind its row ended everybody else's");
 
@@ -2203,7 +2255,8 @@ mod tests {
         assert_eq!(epoch_of(&store, &joined, &member_id).await, 1);
         assert_eq!(session.session_epoch, 0);
         assert_eq!(
-            keyring::read(MEMBER_KEY_SERVICE, &account)
+            credentials
+                .get(MEMBER_KEY_SERVICE, &account)
                 .expect("the store would not answer")
                 .as_deref(),
             Some(before.as_str()),
@@ -2229,16 +2282,18 @@ mod tests {
     /// machines file under the same account.
     #[tokio::test]
     async fn ending_sessions_elsewhere_keeps_this_machine_in_and_leaves_every_other_behind() {
-        let _turn = take_the_credential_store().await;
+        let credentials = Memory::new();
         let directory = scratch("end-elsewhere");
-        let (_, store, joined) = created(&directory).await;
+        let (_, store, joined) = created(&credentials, &directory).await;
         let member_id = joined.member_id.clone().expect("the record names a member");
         let account = format!("{}:{member_id}", joined.id);
 
-        let mut session = sign_in_by_username(&store, &joined, "olivia", PASSWORD, &slot())
-            .await
-            .expect("the sign-in failed");
-        let before = keyring::read(MEMBER_KEY_SERVICE, &account)
+        let mut session =
+            sign_in_by_username(&credentials, &store, &joined, "olivia", PASSWORD, &slot())
+                .await
+                .expect("the sign-in failed");
+        let before = credentials
+            .get(MEMBER_KEY_SERVICE, &account)
             .expect("the store would not answer")
             .expect("the sign-in filed nothing");
 
@@ -2257,7 +2312,7 @@ mod tests {
         .await
         .expect("the second machine's replica");
 
-        end_elsewhere(&store, &mut session, 1_757_000_000_100)
+        end_elsewhere(&credentials, &store, &mut session, 1_757_000_000_100)
             .await
             .expect("ending the other sessions failed");
 
@@ -2266,7 +2321,8 @@ mod tests {
 
         // this machine stays in: the entry moved with the row, so the next launch opens the vault
         // as it did before.
-        let rewritten = keyring::read(MEMBER_KEY_SERVICE, &account)
+        let rewritten = credentials
+            .get(MEMBER_KEY_SERVICE, &account)
             .expect("the store would not answer")
             .expect("the entry was not rewritten");
 
@@ -2282,7 +2338,7 @@ mod tests {
         );
 
         let resumed = opened(
-            resume(&store, &joined, &slot())
+            resume(&credentials, &store, &joined, &slot())
                 .await
                 .expect("this machine's own resume failed"),
         );
@@ -2291,10 +2347,11 @@ mod tests {
         assert_eq!(resumed.session_epoch, 1);
 
         // and the other machine, whose entry is the one filed before the bump.
-        keyring::store(MEMBER_KEY_SERVICE, &account, &before)
+        credentials
+            .set(MEMBER_KEY_SERVICE, &account, &before)
             .expect("the store would not take the value");
 
-        let standing = resume(&second, &joined, &slot())
+        let standing = resume(&credentials, &second, &joined, &slot())
             .await
             .expect("the second machine's resume failed");
 
@@ -2303,7 +2360,9 @@ mod tests {
             "{standing:?}"
         );
         assert_eq!(
-            keyring::read(MEMBER_KEY_SERVICE, &account).expect("the store would not answer"),
+            credentials
+                .get(MEMBER_KEY_SERVICE, &account)
+                .expect("the store would not answer"),
             None,
             "a key from before the sign-out was kept"
         );
@@ -2315,9 +2374,9 @@ mod tests {
     /// (effort 838, requirement 7).
     #[tokio::test]
     async fn ending_a_members_sessions_is_reset_passwords_and_never_the_owners_row() {
-        let _turn = take_the_credential_store().await;
+        let credentials = Memory::new();
         let directory = scratch("end-member");
-        let (_, store, joined) = created(&directory).await;
+        let (_, store, joined) = created(&credentials, &directory).await;
         let owner_id = joined.member_id.clone().expect("the record names a member");
         let owner = sign_in(&store, &joined, PASSWORD, &slot())
             .await

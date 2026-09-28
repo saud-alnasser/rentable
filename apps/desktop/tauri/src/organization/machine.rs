@@ -231,6 +231,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::credential::{CredentialStore, Memory};
+
     use std::sync::{Arc, Mutex};
 
     use serde_json::json;
@@ -316,6 +318,7 @@ mod tests {
     /// link that follows. *It was signed out here until then, because a link was refused while a
     /// machine was signed in.*
     async fn account(
+        credentials: &dyn CredentialStore,
         directory: &std::path::Path,
     ) -> (OrganizationStore, MemberSession, Locator, String, String) {
         let mut record = Persisted::<RemoteSyncStore>::load(directory.join("remote-sync.json"))
@@ -342,6 +345,7 @@ mod tests {
         .await;
         let platform = Arc::new(InMemoryPlatform::new("an-org"));
         let (_, store) = create_organization(
+            credentials,
             &mut record,
             "a-platform-token",
             &McpEndpoint::at(&mcp.url("")),
@@ -397,6 +401,7 @@ mod tests {
 
         let mut their_machine = fresh_machine(&theirs);
         let (_, session) = join::accept(
+            credentials,
             |_| async { Ok::<_, Error>(&store) },
             &mut their_machine,
             &invitation,
@@ -475,8 +480,9 @@ mod tests {
     /// and it lapses a week out because the in-memory grant carries no death of its own.
     #[tokio::test]
     async fn a_link_for_an_account_with_a_password_lands_at_the_wall_where_that_password_admits() {
+        let credentials = Memory::new();
         let directory = scratch("connect");
-        let (store, owner, locator, member_id, username) = account(&directory).await;
+        let (store, owner, locator, member_id, username) = account(&credentials, &directory).await;
         let made = make_link(
             &store,
             &owner,
@@ -531,9 +537,10 @@ mod tests {
         // the wall on the machine that just connected: the password is the one they chose when
         // they opened their first link, and nothing here changed it.
         let credential = slot();
-        let session = sign_in_by_username(&store, &held, &username, CHOSEN, &credential)
-            .await
-            .expect("the member could not sign in on their next machine");
+        let session =
+            sign_in_by_username(&credentials, &store, &held, &username, CHOSEN, &credential)
+                .await
+                .expect("the member could not sign in on their next machine");
 
         assert_eq!(session.member_id, member_id);
         assert_eq!(session.role, permission::MEMBER);
@@ -554,8 +561,9 @@ mod tests {
     /// ordinary way a person meets this: they press the link in the message a second time.
     #[tokio::test]
     async fn one_machine_once_and_a_lapsed_link_or_a_wrong_code_reaches_nothing() {
+        let credentials = Memory::new();
         let directory = scratch("once");
-        let (store, owner, locator, member_id, _) = account(&directory).await;
+        let (store, owner, locator, member_id, _) = account(&credentials, &directory).await;
         let made = make_link(
             &store,
             &owner,
@@ -702,8 +710,9 @@ mod tests {
     /// so the alternative was no row at all and no single use.
     #[tokio::test]
     async fn a_rewritten_row_reopens_a_spent_link_and_the_machine_still_lands_at_the_wall() {
+        let credentials = Memory::new();
         let directory = scratch("rewritten");
-        let (store, owner, locator, member_id, username) = account(&directory).await;
+        let (store, owner, locator, member_id, username) = account(&credentials, &directory).await;
         let made = make_link(
             &store,
             &owner,
@@ -746,14 +755,21 @@ mod tests {
 
         // and the wall is where it lands: the password admits, exactly as it does anywhere else,
         // so what the rewrite bought is availability and never authority.
-        sign_in_by_username(&store, &held, &username, CHOSEN, &slot())
+        sign_in_by_username(&credentials, &store, &held, &username, CHOSEN, &slot())
             .await
             .expect("the member could not sign in on the reopened machine");
 
         assert!(
-            sign_in_by_username(&store, &held, &username, "not their password", &slot())
-                .await
-                .is_err(),
+            sign_in_by_username(
+                &credentials,
+                &store,
+                &held,
+                &username,
+                "not their password",
+                &slot()
+            )
+            .await
+            .is_err(),
             "the reopened machine admitted a wrong password"
         );
     }
@@ -766,8 +782,9 @@ mod tests {
     /// lapse with it, so a link never outlives what it carries and the panel prints the true date.
     #[tokio::test]
     async fn a_machine_link_seals_the_makers_own_grant_and_lapses_no_later_than_it_does() {
+        let credentials = Memory::new();
         let directory = scratch("grant");
-        let (store, owner, locator, member_id, _) = account(&directory).await;
+        let (store, owner, locator, member_id, _) = account(&credentials, &directory).await;
         let now = ISSUED_AT + 2;
         // a round moment, since a credential spells its expiry in seconds and a link reads it
         // back in milliseconds.
@@ -864,8 +881,9 @@ mod tests {
     /// recorded.
     #[tokio::test]
     async fn a_link_made_before_a_removal_admits_nobody_and_records_nothing() {
+        let credentials = Memory::new();
         let directory = scratch("removed");
-        let (store, mut owner, locator, member_id, _) = account(&directory).await;
+        let (store, mut owner, locator, member_id, _) = account(&credentials, &directory).await;
         let made = make_link(
             &store,
             &owner,
@@ -964,8 +982,9 @@ mod tests {
     /// lives and a row nothing had spent, and one way in stands at a time.
     #[tokio::test]
     async fn a_link_made_before_a_reset_admits_nobody_afterwards() {
+        let credentials = Memory::new();
         let directory = scratch("reset");
-        let (store, owner, locator, member_id, _) = account(&directory).await;
+        let (store, owner, locator, member_id, _) = account(&credentials, &directory).await;
         let made = make_link(
             &store,
             &owner,
@@ -1135,8 +1154,9 @@ mod tests {
     /// which is an upgrade's last row missing rather than format 1.*
     #[tokio::test]
     async fn an_older_organization_opened_first_by_a_machine_link_waits_for_its_owner() {
+        let credentials = Memory::new();
         let directory = scratch("older");
-        let (store, owner, locator, member_id, _) = account(&directory).await;
+        let (store, owner, locator, member_id, _) = account(&credentials, &directory).await;
         let made = make_link(
             &store,
             &owner,

@@ -25,13 +25,12 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-// `crate::keyring`, this application's own, rather than the `keyring` crate the extern prelude
-// would otherwise answer with: reaching the platform's store is that module's job and nothing
-// here has an entry to open.
+// reaching the platform's store is `crate::credential`'s job and nothing here has an entry to
+// open: the store is handed in by whoever called.
 use crate::{
+    credential::CredentialStore,
     error::{Error, RefusalReason},
     http::build_client,
-    keyring,
 };
 
 use super::oauth::{
@@ -439,7 +438,11 @@ impl TursoConsent {
     /// succeeded, rather than by writing early and cleaning up after a failure that may be
     /// the process going away. The read back is the other half of it: granted means the next
     /// run will find the token, which is a different claim from the write having returned.
-    pub async fn result(&self, session_id: &str) -> Result<TursoConsentResult, Error> {
+    pub(crate) async fn result(
+        &self,
+        session_id: &str,
+        credentials: &dyn CredentialStore,
+    ) -> Result<TursoConsentResult, Error> {
         let session_id = session_id.trim().to_string();
 
         // the sessions map is a std mutex, so nothing may be awaited while it is held.
@@ -472,15 +475,15 @@ impl TursoConsent {
         )
         .await
         .and_then(|access_token| {
-            store_platform_token(&access_token)?;
+            store_platform_token(credentials, &access_token)?;
 
             // read back from where the next run will look, and drop what comes back. A
             // credential store that accepted a write and kept nothing would otherwise be
             // reported as a grant and discovered as a failure at the first provisioning. One
             // that took the write and refuses the read is told to let go of it, so a consent
             // reported as failed leaves no authority behind that a later run could spend.
-            platform_token().map(|_| ()).inspect_err(|_| {
-                let _ = forget_platform_token();
+            platform_token(credentials).map(|_| ()).inspect_err(|_| {
+                let _ = forget_platform_token(credentials);
             })
         });
 
@@ -516,8 +519,8 @@ impl TursoConsent {
     ///
     /// Disconnecting twice is not an error. There is no state to be in beyond holding the
     /// token or not, and a person pressing the button again means the same thing both times.
-    pub fn disconnect(&self) -> Result<(), Error> {
-        forget_platform_token()?;
+    pub(crate) fn disconnect(&self, credentials: &dyn CredentialStore) -> Result<(), Error> {
+        forget_platform_token(credentials)?;
 
         self.sessions
             .lock()
@@ -761,11 +764,14 @@ fn callback_page_message(outcome: &ConsentOutcome) -> String {
 /// File the token where the next run will look for it.
 ///
 /// **The two names above are the whole of what this module knows about the store**, and
-/// `crate::keyring` is the whole of how it reaches one: the entry, the platform's own store
-/// behind it, and the fake a test runs over all live there. It is `pub(crate)` because a test
-/// of anything that spends the authority has to file one first.
-pub(crate) fn store_platform_token(platform_token: &str) -> Result<(), Error> {
-    keyring::store(
+/// the store handed in is the whole of how it reaches one: the platform's own store at launch,
+/// and a test's own in-memory one in a test (`crate::credential`). It is `pub(crate)` because a
+/// test of anything that spends the authority has to file one first.
+pub(crate) fn store_platform_token(
+    credentials: &dyn CredentialStore,
+    platform_token: &str,
+) -> Result<(), Error> {
+    credentials.set(
         TURSO_PLATFORM_KEYRING_SERVICE,
         TURSO_PLATFORM_KEYRING_ACCOUNT,
         platform_token,
@@ -780,12 +786,13 @@ pub(crate) fn store_platform_token(platform_token: &str) -> Result<(), Error> {
 /// at every call site, and the one that forgot would send an empty bearer token to Turso and report
 /// whatever Turso said about it. The store answering nothing and the store not answering stay
 /// apart on the way through: only the first is this refusal.
-pub(crate) fn platform_token() -> Result<String, Error> {
-    keyring::read(
-        TURSO_PLATFORM_KEYRING_SERVICE,
-        TURSO_PLATFORM_KEYRING_ACCOUNT,
-    )?
-    .ok_or_else(no_platform_authority)
+pub(crate) fn platform_token(credentials: &dyn CredentialStore) -> Result<String, Error> {
+    credentials
+        .get(
+            TURSO_PLATFORM_KEYRING_SERVICE,
+            TURSO_PLATFORM_KEYRING_ACCOUNT,
+        )?
+        .ok_or_else(no_platform_authority)
 }
 
 /// Forget the token, and leave nothing a later run could read as a grant.
@@ -795,8 +802,8 @@ pub(crate) fn platform_token() -> Result<String, Error> {
 /// consented group turns out to already hold an organization (requirement 21 of effort 826):
 /// the grant is no use where it landed, and abandoning it is what lets the person consent again
 /// over another group or another Turso account.
-pub(crate) fn forget_platform_token() -> Result<(), Error> {
-    keyring::forget(
+pub(crate) fn forget_platform_token(credentials: &dyn CredentialStore) -> Result<(), Error> {
+    credentials.delete(
         TURSO_PLATFORM_KEYRING_SERVICE,
         TURSO_PLATFORM_KEYRING_ACCOUNT,
     )
@@ -832,15 +839,14 @@ mod tests {
     use serde_json::json;
 
     use crate::{
+        credential::{CredentialStore, Memory},
         error::Error,
-        keyring::{self, CredentialStoreTurn, take_the_credential_store},
         sync::test::server::{ScriptedResponse, ScriptedServer},
     };
 
     use super::{
         TURSO_CONSENT_SCOPES, TURSO_PLATFORM_KEYRING_ACCOUNT, TURSO_PLATFORM_KEYRING_SERVICE,
-        TURSO_RESOURCE_INDICATOR, TursoConsent, TursoConsentStatus, TursoEndpoints,
-        forget_platform_token, platform_token,
+        TURSO_RESOURCE_INDICATOR, TursoConsent, TursoConsentStatus, TursoEndpoints, platform_token,
     };
 
     const ACCESS_TOKEN: &str = "the-platform-api-token";
@@ -862,22 +868,15 @@ mod tests {
         "read",
     ];
 
-    /// an empty credential store, held for the whole test. The turn is taken once, here, and
-    /// never again inside the test: one turn covers every entry the fake holds.
-    async fn forget_the_stored_token() -> CredentialStoreTurn {
-        let turn = take_the_credential_store().await;
-        forget_platform_token().expect("the test credential store would not empty");
-        turn
-    }
-
     /// read out of the store this module files into, rather than out of a copy of it, so what
     /// the assertion sees is what a later run would find.
-    fn stored_token() -> Option<String> {
-        keyring::read(
-            TURSO_PLATFORM_KEYRING_SERVICE,
-            TURSO_PLATFORM_KEYRING_ACCOUNT,
-        )
-        .expect("the test credential store would not answer")
+    fn stored_token(credentials: &Memory) -> Option<String> {
+        credentials
+            .get(
+                TURSO_PLATFORM_KEYRING_SERVICE,
+                TURSO_PLATFORM_KEYRING_ACCOUNT,
+            )
+            .expect("the test credential store would not answer")
     }
 
     fn registration_answer() -> ScriptedResponse {
@@ -945,10 +944,14 @@ mod tests {
     }
 
     /// poll the way the interface does, until the consent stops being pending.
-    async fn settled(consent: &TursoConsent, session_id: &str) -> super::TursoConsentResult {
+    async fn settled(
+        consent: &TursoConsent,
+        credentials: &Memory,
+        session_id: &str,
+    ) -> super::TursoConsentResult {
         for _ in 0..200 {
             let result = consent
-                .result(session_id)
+                .result(session_id, credentials)
                 .await
                 .expect("failed to read the consent");
 
@@ -1166,7 +1169,7 @@ mod tests {
     /// asserted so that a listing cannot come back without this test noticing.
     #[tokio::test]
     async fn a_granted_consent_exchanges_the_code_and_asks_turso_nothing_else() {
-        let _turn = forget_the_stored_token().await;
+        let credentials = Memory::new();
 
         let server = ScriptedServer::start(vec![registration_answer(), token_answer()]).await;
         let consent = TursoConsent::new();
@@ -1181,7 +1184,7 @@ mod tests {
         )
         .await;
 
-        let result = settled(&consent, &started.session_id).await;
+        let result = settled(&consent, &credentials, &started.session_id).await;
         let exchange = server.request(1);
         let exchanged = url::form_urlencoded::parse(exchange.body.as_bytes())
             .map(|(key, value)| (key.into_owned(), value.into_owned()))
@@ -1236,7 +1239,7 @@ mod tests {
     /// **the whole of the client boundary, at the one place the token exists.**
     #[tokio::test]
     async fn the_platform_token_reaches_the_keyring_and_nothing_the_caller_can_read() {
-        let _turn = forget_the_stored_token().await;
+        let credentials = Memory::new();
 
         let server = ScriptedServer::start(vec![registration_answer(), token_answer()]).await;
         let consent = TursoConsent::new();
@@ -1251,10 +1254,10 @@ mod tests {
         )
         .await;
 
-        let result = settled(&consent, &started.session_id).await;
+        let result = settled(&consent, &credentials, &started.session_id).await;
         let crossing = serde_json::to_string(&result).expect("the result would not serialize");
 
-        assert_eq!(stored_token().as_deref(), Some(ACCESS_TOKEN));
+        assert_eq!(stored_token(&credentials).as_deref(), Some(ACCESS_TOKEN));
         assert!(
             !crossing.contains(ACCESS_TOKEN),
             "the platform token crossed to the web layer: {crossing}"
@@ -1324,7 +1327,7 @@ mod tests {
     /// criterion 5 asks the consent to tell apart.
     #[tokio::test]
     async fn a_declined_consent_is_abandoned_and_leaves_the_keyring_empty() {
-        let _turn = forget_the_stored_token().await;
+        let credentials = Memory::new();
 
         let server = ScriptedServer::start(vec![registration_answer()]).await;
         let consent = TursoConsent::new();
@@ -1335,10 +1338,10 @@ mod tests {
 
         arrive_at_the_callback(&started.authorization_url, &[("error", "access_denied")]).await;
 
-        let result = settled(&consent, &started.session_id).await;
+        let result = settled(&consent, &credentials, &started.session_id).await;
 
         assert_eq!(result.status, TursoConsentStatus::Abandoned);
-        assert_eq!(stored_token(), None);
+        assert_eq!(stored_token(&credentials), None);
     }
 
     /// **A consent the person abandons leaves no half-created organization.** The first run spends
@@ -1346,7 +1349,7 @@ mod tests {
     /// before it asks anything of Turso: no database, no replica, no organization on this machine.
     #[tokio::test]
     async fn an_abandoned_consent_leaves_a_first_run_nothing_to_spend_and_nothing_is_created() {
-        let _turn = forget_the_stored_token().await;
+        let credentials = Memory::new();
 
         let server = ScriptedServer::start(vec![registration_answer()]).await;
         let consent = TursoConsent::new();
@@ -1358,11 +1361,13 @@ mod tests {
         arrive_at_the_callback(&started.authorization_url, &[("error", "access_denied")]).await;
 
         assert_eq!(
-            settled(&consent, &started.session_id).await.status,
+            settled(&consent, &credentials, &started.session_id)
+                .await
+                .status,
             TursoConsentStatus::Abandoned
         );
 
-        let refusal = crate::organization::setup::authority()
+        let refusal = crate::organization::setup::authority(&credentials)
             .expect_err("a first run found authority after an abandoned consent");
 
         assert!(
@@ -1388,7 +1393,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_refused_consent_fails_and_leaves_the_keyring_empty() {
-        let _turn = forget_the_stored_token().await;
+        let credentials = Memory::new();
 
         let server = ScriptedServer::start(vec![registration_answer()]).await;
         let consent = TursoConsent::new();
@@ -1399,10 +1404,10 @@ mod tests {
 
         arrive_at_the_callback(&started.authorization_url, &[("error", "invalid_scope")]).await;
 
-        let result = settled(&consent, &started.session_id).await;
+        let result = settled(&consent, &credentials, &started.session_id).await;
 
         assert_eq!(result.status, TursoConsentStatus::Failed);
-        assert_eq!(stored_token(), None);
+        assert_eq!(stored_token(&credentials), None);
         assert_eq!(result.error.as_deref(), Some("invalid_scope"));
     }
 
@@ -1411,7 +1416,7 @@ mod tests {
     /// minute wait.
     #[tokio::test]
     async fn a_consent_nobody_answers_is_abandoned_when_the_patience_runs_out() {
-        let _turn = forget_the_stored_token().await;
+        let credentials = Memory::new();
 
         let server = ScriptedServer::start(vec![registration_answer()]).await;
         let consent = TursoConsent::with_patience(Duration::from_millis(150));
@@ -1420,17 +1425,17 @@ mod tests {
             .await
             .expect("failed to begin the consent");
 
-        let result = settled(&consent, &started.session_id).await;
+        let result = settled(&consent, &credentials, &started.session_id).await;
 
         assert_eq!(result.status, TursoConsentStatus::Abandoned);
-        assert_eq!(stored_token(), None);
+        assert_eq!(stored_token(&credentials), None);
     }
 
     /// a callback carrying somebody else's state is not this consent's, and a code redeemed
     /// off one would be a code this application did not ask for.
     #[tokio::test]
     async fn a_callback_whose_state_does_not_match_fails_without_redeeming_anything() {
-        let _turn = forget_the_stored_token().await;
+        let credentials = Memory::new();
 
         let server = ScriptedServer::start(vec![registration_answer()]).await;
         let consent = TursoConsent::new();
@@ -1445,10 +1450,10 @@ mod tests {
         )
         .await;
 
-        let result = settled(&consent, &started.session_id).await;
+        let result = settled(&consent, &credentials, &started.session_id).await;
 
         assert_eq!(result.status, TursoConsentStatus::Failed);
-        assert_eq!(stored_token(), None);
+        assert_eq!(stored_token(&credentials), None);
         assert_eq!(server.request_count(), 1, "a mismatched state was redeemed");
     }
 
@@ -1456,7 +1461,7 @@ mod tests {
     /// already answered, and it must leave the credential store exactly as it found it.
     #[tokio::test]
     async fn a_refused_exchange_leaves_nothing_in_the_keyring() {
-        let _turn = forget_the_stored_token().await;
+        let credentials = Memory::new();
 
         let server = ScriptedServer::start(vec![
             registration_answer(),
@@ -1482,10 +1487,10 @@ mod tests {
         )
         .await;
 
-        let result = settled(&consent, &started.session_id).await;
+        let result = settled(&consent, &credentials, &started.session_id).await;
 
         assert_eq!(result.status, TursoConsentStatus::Failed);
-        assert_eq!(stored_token(), None);
+        assert_eq!(stored_token(&credentials), None);
         assert!(
             result
                 .error
@@ -1504,7 +1509,7 @@ mod tests {
     /// sending an empty bearer token to Turso and reporting whatever Turso said about it.
     #[tokio::test]
     async fn a_disconnect_forgets_the_token_and_leaves_no_authority_to_find() {
-        let _turn = forget_the_stored_token().await;
+        let credentials = Memory::new();
 
         let server = ScriptedServer::start(vec![registration_answer(), token_answer()]).await;
         let consent = TursoConsent::new();
@@ -1520,24 +1525,28 @@ mod tests {
         .await;
 
         assert_eq!(
-            settled(&consent, &started.session_id).await.status,
+            settled(&consent, &credentials, &started.session_id)
+                .await
+                .status,
             TursoConsentStatus::Granted
         );
-        assert_eq!(stored_token().as_deref(), Some(ACCESS_TOKEN));
+        assert_eq!(stored_token(&credentials).as_deref(), Some(ACCESS_TOKEN));
         assert!(
-            platform_token().is_ok(),
+            platform_token(&credentials).is_ok(),
             "a granted consent left nothing for a provisioning call to spend"
         );
 
-        consent.disconnect().expect("failed to disconnect");
+        consent
+            .disconnect(&credentials)
+            .expect("failed to disconnect");
 
         assert_eq!(
-            stored_token(),
+            stored_token(&credentials),
             None,
             "the keyring entry outlived the disconnect"
         );
 
-        let refusal = platform_token().expect_err("authority survived the disconnect");
+        let refusal = platform_token(&credentials).expect_err("authority survived the disconnect");
 
         assert!(
             matches!(
@@ -1564,7 +1573,7 @@ mod tests {
     /// goes with the token rather than outliving it.
     #[tokio::test]
     async fn a_disconnect_leaves_no_consent_a_later_read_could_take_for_a_grant() {
-        let _turn = forget_the_stored_token().await;
+        let credentials = Memory::new();
 
         let server = ScriptedServer::start(vec![registration_answer(), token_answer()]).await;
         let consent = TursoConsent::new();
@@ -1579,11 +1588,13 @@ mod tests {
         )
         .await;
 
-        settled(&consent, &started.session_id).await;
-        consent.disconnect().expect("failed to disconnect");
+        settled(&consent, &credentials, &started.session_id).await;
+        consent
+            .disconnect(&credentials)
+            .expect("failed to disconnect");
 
         let error = consent
-            .result(&started.session_id)
+            .result(&started.session_id, &credentials)
             .await
             .expect_err("a disconnected consent still reported on itself");
 
@@ -1600,14 +1611,18 @@ mod tests {
     /// is already in the state it asks for.
     #[tokio::test]
     async fn disconnecting_what_was_never_connected_is_not_an_error() {
-        let _turn = forget_the_stored_token().await;
+        let credentials = Memory::new();
 
         let consent = TursoConsent::new();
 
-        consent.disconnect().expect("the first disconnect failed");
-        consent.disconnect().expect("the second disconnect failed");
+        consent
+            .disconnect(&credentials)
+            .expect("the first disconnect failed");
+        consent
+            .disconnect(&credentials)
+            .expect("the second disconnect failed");
 
-        assert_eq!(stored_token(), None);
+        assert_eq!(stored_token(&credentials), None);
     }
 
     /// every `.rs` file under `root`, for the source-level assertion above.

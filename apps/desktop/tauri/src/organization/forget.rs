@@ -67,7 +67,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{diagnostics, error::Error, state::AppState, turso::platform::database_is_gone};
+use crate::{
+    credential::CredentialStore, diagnostics, error::Error, state::AppState,
+    turso::platform::database_is_gone,
+};
 
 use super::store::OrganizationStore;
 
@@ -163,7 +166,10 @@ const OWNER_SEED_COLUMN: &str = "owner_seed_sealed";
 /// `ws-*.db*` under the data directory, empties the record (`RemoteSync::forget_organization`),
 /// clears the Turso authority from the keyring (`TursoConsent::disconnect`), and commits. A file
 /// that could not be removed is reported after all of that has run, by name.
-pub async fn forget(app_state: &AppState) -> Result<(), Error> {
+pub(crate) async fn forget(
+    app_state: &AppState,
+    credentials: &dyn CredentialStore,
+) -> Result<(), Error> {
     // the row this machine wrote to the registry goes first, through the replica that carries the
     // delete (effort 828, requirement 15): after the sign-out below there is no replica left to
     // say anything through, and a machine that disconnected should stop standing in the owner's
@@ -172,7 +178,7 @@ pub async fn forget(app_state: &AppState) -> Result<(), Error> {
 
     // the sign-out, the one `organization_sign_out` performs: the keys go and the organization
     // replica is dropped, which is what lets its file be deleted below.
-    super::sign_out(app_state).await;
+    super::sign_out(app_state, credentials).await;
 
     // the workspace engine, released the way `open_database` releases it before opening the next.
     // Nothing reopens it here: a machine holding no organization has nothing to open, which is the
@@ -188,7 +194,7 @@ pub async fn forget(app_state: &AppState) -> Result<(), Error> {
         remote_sync.forget_organization().await?;
     }
 
-    app_state.consent.disconnect()?;
+    app_state.consent.disconnect(credentials)?;
 
     diagnostics::info("organization.forgotten")
         .with("removed", swept.removed.len().to_string())
@@ -222,7 +228,10 @@ pub async fn forget(app_state: &AppState) -> Result<(), Error> {
 /// The check reads the record and, where an organization is held, its replica's schema, and
 /// nothing else; it opens no vault and pulls nothing. `None` is a machine whose shape is this
 /// build's, held organization or not.
-pub async fn forget_old_shape(app_state: &AppState) -> Result<Option<OldShape>, Error> {
+pub(crate) async fn forget_old_shape(
+    app_state: &AppState,
+    credentials: &dyn CredentialStore,
+) -> Result<Option<OldShape>, Error> {
     let Some(shape) = old_shape(app_state).await? else {
         return Ok(None);
     };
@@ -231,7 +240,7 @@ pub async fn forget_old_shape(app_state: &AppState) -> Result<Option<OldShape>, 
         .with("reason", shape.to_string())
         .write();
 
-    forget(app_state).await?;
+    forget(app_state, credentials).await?;
 
     Ok(Some(shape))
 }
@@ -253,7 +262,10 @@ pub async fn forget_old_shape(app_state: &AppState) -> Result<Option<OldShape>, 
 /// absent leaves the machine exactly as it was: a credential that lapsed, a refusal for the
 /// account and a remote nothing could reach are all the offline case, and the replica goes on
 /// serving what it holds (819's requirement 18).
-pub async fn forget_deleted_organization(app_state: &AppState) -> Result<bool, Error> {
+pub(crate) async fn forget_deleted_organization(
+    app_state: &AppState,
+    credentials: &dyn CredentialStore,
+) -> Result<bool, Error> {
     let gone = {
         let organization = app_state.organization.read().await;
         let Some(store) = organization.as_ref() else {
@@ -282,7 +294,7 @@ pub async fn forget_deleted_organization(app_state: &AppState) -> Result<bool, E
 
     diagnostics::warn("organization.forgotten.deletedOnThePlatform").write();
 
-    forget(app_state).await?;
+    forget(app_state, credentials).await?;
 
     Ok(true)
 }
@@ -432,6 +444,8 @@ async fn data_directory(app_state: &AppState) -> PathBuf {
 
 #[cfg(test)]
 mod tests {
+    use crate::credential::{CredentialStore, Memory};
+
     use std::sync::{Arc, Mutex};
 
     use serde_json::json;
@@ -534,7 +548,10 @@ mod tests {
 
     /// An organization created in `directory` by a first run: the replica on disk and the
     /// machine's record naming it, with the owner as its member.
-    async fn created(directory: &std::path::Path) -> (OrganizationStore, HeldOrganization) {
+    async fn created(
+        credentials: &dyn CredentialStore,
+        directory: &std::path::Path,
+    ) -> (OrganizationStore, HeldOrganization) {
         let mut store = Persisted::<RemoteSyncStore>::load(directory.join(RemoteSync::FILENAME))
             .expect("the store");
         let mcp = ScriptedServer::start(vec![
@@ -559,6 +576,7 @@ mod tests {
         .await;
         let platform = Arc::new(InMemoryPlatform::new("an-org"));
         let (_, organization) = create_organization(
+            credentials,
             &mut store,
             "a-platform-token",
             &McpEndpoint::at(&mcp.url("")),
@@ -610,13 +628,13 @@ mod tests {
     /// or `ws-*` file, an empty record, and no authority in the keyring.
     #[tokio::test]
     async fn forgetting_leaves_no_replica_no_record_and_no_authority() {
-        let _turn = crate::keyring::take_the_credential_store().await;
+        let credentials = Memory::new();
         let directory = scratch("whole");
-        let (organization, held) = created(&directory).await;
+        let (organization, held) = created(&credentials, &directory).await;
 
         a_workspace_replica(&directory, "north").await;
         a_workspace_replica(&directory, "south").await;
-        store_platform_token("a-platform-token").expect("the authority");
+        store_platform_token(&credentials, "a-platform-token").expect("the authority");
 
         let app_state = state_over(&directory).await;
 
@@ -664,9 +682,14 @@ mod tests {
                 && before.iter().any(|name| name == "ws-south.db"),
             "the two workspace replicas are not there: {before:?}"
         );
-        assert!(platform_token().is_ok(), "no authority to clear");
+        assert!(
+            platform_token(&credentials).is_ok(),
+            "no authority to clear"
+        );
 
-        forget(&app_state).await.expect("the forget failed");
+        forget(&app_state, &credentials)
+            .await
+            .expect("the forget failed");
 
         assert_eq!(
             replica_files(&directory),
@@ -698,7 +721,7 @@ mod tests {
         assert!(app_state.member.read().await.is_none());
         assert!(app_state.organization.read().await.is_none());
         assert!(
-            platform_token().is_err(),
+            platform_token(&credentials).is_err(),
             "the authority survived the disconnect"
         );
     }
@@ -707,7 +730,7 @@ mod tests {
     /// the old shape, and the first state read forgets it, replicas and all, saying why.
     #[tokio::test]
     async fn a_record_listing_organizations_is_forgotten_at_startup() {
-        let _turn = crate::keyring::take_the_credential_store().await;
+        let credentials = Memory::new();
         let directory = scratch("listed");
 
         std::fs::write(
@@ -721,7 +744,7 @@ mod tests {
         std::fs::write(directory.join("ws-north.db-wal"), b"not read").expect("a sidecar");
 
         let app_state = state_over(&directory).await;
-        let forgotten = forget_old_shape(&app_state)
+        let forgotten = forget_old_shape(&app_state, &credentials)
             .await
             .expect("the check failed");
 
@@ -736,7 +759,12 @@ mod tests {
         assert!(!written.contains("north"), "{written}");
 
         // and a second read finds the new shape, and forgets nothing.
-        assert_eq!(forget_old_shape(&app_state).await.expect("the check"), None);
+        assert_eq!(
+            forget_old_shape(&app_state, &credentials)
+                .await
+                .expect("the check"),
+            None
+        );
     }
 
     /// Criterion 17, the old schema, and criterion 19 of effort 826: a held organization whose
@@ -751,7 +779,7 @@ mod tests {
     /// its owner's machine upgrades (ticket 22).
     #[tokio::test]
     async fn a_replica_of_the_old_schema_or_none_at_all_is_forgotten_at_startup() {
-        let _turn = crate::keyring::take_the_credential_store().await;
+        let credentials = Memory::new();
 
         // the old schema: the member table as 819 wrote it, with an email and a display name.
         let directory = scratch("old-schema");
@@ -788,7 +816,7 @@ mod tests {
         let app_state = state_over(&directory).await;
 
         assert_eq!(
-            forget_old_shape(&app_state)
+            forget_old_shape(&app_state, &credentials)
                 .await
                 .expect("the check failed"),
             Some(OldShape::MemberWithoutUsername)
@@ -830,7 +858,7 @@ mod tests {
         let app_state = state_over(&directory).await;
 
         assert_eq!(
-            forget_old_shape(&app_state)
+            forget_old_shape(&app_state, &credentials)
                 .await
                 .expect("the check failed"),
             Some(OldShape::InvitationWithSealedHalf)
@@ -869,7 +897,7 @@ mod tests {
         let app_state = state_over(&directory).await;
 
         assert_eq!(
-            forget_old_shape(&app_state)
+            forget_old_shape(&app_state, &credentials)
                 .await
                 .expect("the check failed"),
             Some(OldShape::InvitationWithoutSealedSecret)
@@ -915,7 +943,7 @@ mod tests {
         let app_state = state_over(&directory).await;
 
         assert_eq!(
-            forget_old_shape(&app_state)
+            forget_old_shape(&app_state, &credentials)
                 .await
                 .expect("the check failed"),
             Some(OldShape::MemberWithoutSigningKey)
@@ -962,7 +990,7 @@ mod tests {
         let app_state = state_over(&directory).await;
 
         assert_eq!(
-            forget_old_shape(&app_state)
+            forget_old_shape(&app_state, &credentials)
                 .await
                 .expect("the check failed"),
             Some(OldShape::MemberWithoutSessionEpoch)
@@ -1010,7 +1038,7 @@ mod tests {
         let app_state = state_over(&directory).await;
 
         assert_eq!(
-            forget_old_shape(&app_state)
+            forget_old_shape(&app_state, &credentials)
                 .await
                 .expect("the check failed"),
             Some(OldShape::MemberWithoutOwnerSeed)
@@ -1060,7 +1088,7 @@ mod tests {
         let app_state = state_over(&directory).await;
 
         assert_eq!(
-            forget_old_shape(&app_state)
+            forget_old_shape(&app_state, &credentials)
                 .await
                 .expect("the check failed"),
             None,
@@ -1078,7 +1106,7 @@ mod tests {
         // upgrades it in place and a machine that had forgotten it would have nothing left to
         // upgrade.
         let directory = scratch("no-format");
-        let (organization, held) = created(&directory).await;
+        let (organization, held) = created(&credentials, &directory).await;
 
         organization
             .connection()
@@ -1090,7 +1118,7 @@ mod tests {
         let app_state = state_over(&directory).await;
 
         assert_eq!(
-            forget_old_shape(&app_state)
+            forget_old_shape(&app_state, &credentials)
                 .await
                 .expect("the check failed"),
             None,
@@ -1121,7 +1149,7 @@ mod tests {
         std::fs::write(directory.join(RemoteSync::FILENAME), record("gone")).expect("the record");
 
         let app_state = state_over(&directory).await;
-        let forgotten = forget_old_shape(&app_state)
+        let forgotten = forget_old_shape(&app_state, &credentials)
             .await
             .expect("the check failed");
 
@@ -1133,13 +1161,18 @@ mod tests {
         // and this build's own shape is left alone: the first run's replica, with the username
         // column, and the record naming it.
         let directory = scratch("kept");
-        let (organization, held) = created(&directory).await;
+        let (organization, held) = created(&credentials, &directory).await;
 
         drop(organization);
 
         let app_state = state_over(&directory).await;
 
-        assert_eq!(forget_old_shape(&app_state).await.expect("the check"), None);
+        assert_eq!(
+            forget_old_shape(&app_state, &credentials)
+                .await
+                .expect("the check"),
+            None
+        );
         assert_eq!(
             app_state
                 .remote_sync
@@ -1190,9 +1223,9 @@ mod tests {
     /// there for a pull.
     #[tokio::test]
     async fn a_launch_whose_pull_says_the_database_is_gone_forgets_the_organization() {
-        let _turn = crate::keyring::take_the_credential_store().await;
+        let credentials = Memory::new();
         let directory = scratch("deleted");
-        let (organization, held) = created(&directory).await;
+        let (organization, held) = created(&credentials, &directory).await;
 
         drop(organization);
 
@@ -1210,7 +1243,7 @@ mod tests {
             Some(replica_against(&directory, &held, &absent.url("")).await);
 
         assert!(
-            forget_deleted_organization(&app_state)
+            forget_deleted_organization(&app_state, &credentials)
                 .await
                 .expect("the check failed"),
             "a pull answered by a remote holding no such database left the organization here"
@@ -1230,7 +1263,7 @@ mod tests {
         // a credential the remote will not accept is not a deleted organization: the machine keeps
         // what it holds and the shell renews or reconnects.
         let directory = scratch("refused");
-        let (organization, held) = created(&directory).await;
+        let (organization, held) = created(&credentials, &directory).await;
 
         drop(organization);
 
@@ -1246,7 +1279,7 @@ mod tests {
             Some(replica_against(&directory, &held, &refusing.url("")).await);
 
         assert!(
-            !forget_deleted_organization(&app_state)
+            !forget_deleted_organization(&app_state, &credentials)
                 .await
                 .expect("the check failed"),
             "a refused credential was read as a deleted organization"
@@ -1261,7 +1294,7 @@ mod tests {
         // and a machine that reaches nothing at all is the offline case, which says nothing about
         // whether the organization is still there.
         let directory = scratch("unreachable");
-        let (organization, held) = created(&directory).await;
+        let (organization, held) = created(&credentials, &directory).await;
 
         drop(organization);
 
@@ -1273,7 +1306,7 @@ mod tests {
             Some(replica_against(&directory, &held, &unreachable.url("")).await);
 
         assert!(
-            !forget_deleted_organization(&app_state)
+            !forget_deleted_organization(&app_state, &credentials)
                 .await
                 .expect("the check failed"),
             "a remote that answered nothing was read as a deleted organization"

@@ -1,4 +1,4 @@
-use crate::{error::Error, state::AppState};
+use crate::{credential::Credentials, error::Error, state::AppState};
 
 use super::store::RemoteSyncState;
 use crate::turso::consent::{TursoConsentResult, TursoConsentStart, TursoEndpoints};
@@ -91,17 +91,19 @@ pub(crate) async fn note_reached(app_state: &AppState) {
 /// row has moved past the session, empties the member slot, forgets the remembered key and says
 /// so on `standing`. The shell reads that and puts the wall up.
 #[tauri::command]
-pub async fn remote_sync_replicate(
+pub(crate) async fn remote_sync_replicate(
     app_state: tauri::State<'_, AppState>,
+    credentials: tauri::State<'_, Credentials>,
 ) -> Result<Replication, Error> {
     // before the workspace's own replication, because a machine whose member is signed out has
     // no business pushing under a credential the organization has moved past. A machine with
     // nobody in, or whose row has not moved, pays one pull of the organization replica for it.
-    let standing = if crate::organization::ended_elsewhere(&app_state).await {
-        SessionStanding::SignedOutElsewhere
-    } else {
-        SessionStanding::Held
-    };
+    let standing =
+        if crate::organization::ended_elsewhere(&app_state, credentials.inner().as_ref()).await {
+            SessionStanding::SignedOutElsewhere
+        } else {
+            SessionStanding::Held
+        };
 
     // and that is where this replication ends: the wall is up, and the workspace's push and pull
     // would go out under a credential the member no longer stands behind. What this machine wrote
@@ -303,11 +305,15 @@ pub async fn organization_consent_begin(
 /// person abandoned says that instead, because closing the browser tab is the ordinary way a
 /// consent ends and there is nothing to report about it.
 #[tauri::command]
-pub async fn organization_consent_result(
+pub(crate) async fn organization_consent_result(
     app_state: tauri::State<'_, AppState>,
+    credentials: tauri::State<'_, Credentials>,
     session_id: String,
 ) -> Result<TursoConsentResult, Error> {
-    app_state.consent.result(&session_id).await
+    app_state
+        .consent
+        .result(&session_id, credentials.inner().as_ref())
+        .await
 }
 
 /// Hand the Turso authority back.
@@ -327,8 +333,9 @@ pub async fn organization_consent_result(
 /// organization itself (`organization::organization_disconnect`), which clears the authority as
 /// one of its steps; what the setup walk offers is this narrower act, the consent alone.*
 #[tauri::command]
-pub async fn organization_consent_disconnect(
+pub(crate) async fn organization_consent_disconnect(
     app_state: tauri::State<'_, AppState>,
+    credentials: tauri::State<'_, Credentials>,
 ) -> Result<(), Error> {
-    app_state.consent.disconnect()
+    app_state.consent.disconnect(credentials.inner().as_ref())
 }

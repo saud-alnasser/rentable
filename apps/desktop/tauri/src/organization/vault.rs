@@ -168,7 +168,7 @@ impl MemberKey {
     ///
     /// **This is the one way the bytes leave**, which is why it is a method here rather than an
     /// accessor somebody else encodes. The `String` it returns is not scrubbed on drop, so a
-    /// caller holds it for the length of a `keyring::store` call and no longer.
+    /// caller holds it for the length of a `CredentialStore::set` call and no longer.
     pub(crate) fn encode(&self) -> String {
         use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64URL};
 

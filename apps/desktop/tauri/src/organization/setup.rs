@@ -44,7 +44,9 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64URL}
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    backup, diagnostics,
+    backup,
+    credential::CredentialStore,
+    diagnostics,
     error::{Error, RefusalReason},
     persisted::Persisted,
     sync::{RemoteSyncStore, consented_organization},
@@ -278,7 +280,8 @@ impl<P: TursoPlatform> upgrade::Replication for OnTheAccount<'_, P> {
 /// account will say it, and tries the names it can work out after that, before the walk asks for
 /// one at all.
 #[allow(clippy::too_many_arguments)]
-pub async fn create_organization<P, F>(
+pub(crate) async fn create_organization<P, F>(
+    credentials: &dyn CredentialStore,
     store: &mut Persisted<RemoteSyncStore>,
     platform_token: &str,
     mcp: &McpEndpoint,
@@ -354,7 +357,7 @@ where
             // this check and passed it.
             if let Some(databases) = consented.databases.as_deref() {
                 if let Err(refusal) = one_organization_to_a_group(databases) {
-                    abandon_the_consent(store);
+                    abandon_the_consent(store, credentials);
 
                     return Err(refusal);
                 }
@@ -395,6 +398,7 @@ where
 
     // from here on a database exists that nothing refers to yet, so every failure removes it.
     let finished = finish(
+        credentials,
         &platform,
         store,
         remote,
@@ -585,6 +589,7 @@ fn is_about_the_group(error: &Error) -> bool {
 /// record of this machine having joined.
 #[allow(clippy::too_many_arguments)]
 async fn finish<P: TursoPlatform>(
+    credentials: &dyn CredentialStore,
     platform: &P,
     store: &mut Persisted<RemoteSyncStore>,
     remote: Remote,
@@ -761,7 +766,7 @@ async fn finish<P: TursoPlatform>(
     // the machine stays signed in as the owner from here (effort 826, requirement 12). After the
     // record is committed, because the entry is read back against what the record names.
     // the first epoch, the one the owner's row was just written with.
-    remember(organization_id, &member_id, 0, &member_key);
+    remember(credentials, organization_id, &member_id, 0, &member_key);
 
     diagnostics::info("organization.created")
         .with("organization", organization_id)
@@ -916,7 +921,8 @@ const ORGANIZATION_THIS_ACCOUNT_HOLDS: &str = "the organization this turso accou
 /// every way out of it goes through [`leave_no_replica`]; what the walk is told is exactly what it
 /// was told before, since each arm returns the error it always returned.
 #[allow(clippy::too_many_arguments)]
-pub async fn connect_existing<P, F>(
+pub(crate) async fn connect_existing<P, F>(
+    credentials: &dyn CredentialStore,
     store: &mut Persisted<RemoteSyncStore>,
     platform_token: &str,
     mcp: &McpEndpoint,
@@ -1037,7 +1043,15 @@ where
             format: Some(FORMAT_VERSION),
         };
         let mut session =
-            sign_in_by_username(&replica, &signing_in, username, password, &credential).await?;
+            sign_in_by_username(
+                credentials,
+                &replica,
+                &signing_in,
+                username,
+                password,
+                &credential,
+            )
+            .await?;
 
         // every grant fresh, the owner's included, so the credential the session holds is one that
         // lives: nothing renewed while every machine was gone.
@@ -1216,8 +1230,8 @@ fn one_organization_to_a_group(databases: &[String]) -> Result<(), Error> {
 /// Best effort in both halves: what the person reads is the refusal that brought them here, and
 /// a credential store that would not empty goes to the diagnostics log rather than taking the
 /// refusal's place on the screen.
-fn abandon_the_consent(store: &mut Persisted<RemoteSyncStore>) {
-    if let Err(error) = crate::turso::consent::forget_platform_token() {
+fn abandon_the_consent(store: &mut Persisted<RemoteSyncStore>, credentials: &dyn CredentialStore) {
+    if let Err(error) = crate::turso::consent::forget_platform_token(credentials) {
         diagnostics::error("organization.setup.consentNotForgotten")
             .with("error", error.to_string())
             .write();
@@ -1290,7 +1304,7 @@ pub fn credential_expiry(token: &str) -> Option<String> {
 /// Turso database name may carry, so `org-<id>` is a valid name at 36 characters.
 fn random_id() -> Result<String, Error> {
     #[cfg(test)]
-    if let Some(id) = fixed_ids().lock().ok().and_then(|mut ids| ids.pop_front()) {
+    if let Some(id) = FIXED_IDS.with_borrow_mut(|ids| ids.pop_front()) {
         return Ok(id);
     }
 
@@ -1303,22 +1317,25 @@ fn random_id() -> Result<String, Error> {
     Ok(bytes.iter().map(|byte| format!("{byte:02x}")).collect())
 }
 
-/// Ids a test has fixed in advance, drawn in order, so a scripted reply can name what a run is
-/// about to create. Empty outside a test that asked, and never consulted in a shipping build.
+// Ids a test has fixed in advance, drawn in order, so a scripted reply can name what a run is
+// about to create. Empty outside a test that asked, and never consulted in a shipping build.
+//
+// **One list per thread, which is one per test.** A test runs on a thread of its own and its
+// runtime is that thread's, so what one test fixed is never drawn by a run in another. It was one
+// list for the process until effort 840, and the tests that fixed ids took turns on the credential
+// store's lock, which is what kept two of them from drawing each other's.
 #[cfg(test)]
-fn fixed_ids() -> &'static std::sync::Mutex<std::collections::VecDeque<String>> {
-    static IDS: std::sync::OnceLock<std::sync::Mutex<std::collections::VecDeque<String>>> =
-        std::sync::OnceLock::new();
-
-    IDS.get_or_init(|| std::sync::Mutex::new(std::collections::VecDeque::new()))
+thread_local! {
+    static FIXED_IDS: std::cell::RefCell<std::collections::VecDeque<String>> =
+        const { std::cell::RefCell::new(std::collections::VecDeque::new()) };
 }
 
 #[cfg(test)]
 fn draw_these_ids_next(ids: &[&str]) {
-    let mut fixed = fixed_ids().lock().expect("the fixed ids lock");
-
-    fixed.clear();
-    fixed.extend(ids.iter().map(|id| id.to_string()));
+    FIXED_IDS.with_borrow_mut(|fixed| {
+        fixed.clear();
+        fixed.extend(ids.iter().map(|id| id.to_string()));
+    });
 }
 
 /// The authority this machine holds, for a first run.
@@ -1327,8 +1344,8 @@ fn draw_these_ids_next(ids: &[&str]) {
 /// token, so a first run reached without one stops here, having created nothing, and the answer
 /// says what to do: grant the consent. Requirement 5's re-consent, at the one place a first run
 /// spends the authority.
-pub fn authority() -> Result<String, Error> {
-    crate::turso::consent::platform_token().map_err(|_| {
+pub(crate) fn authority(credentials: &dyn CredentialStore) -> Result<String, Error> {
+    crate::turso::consent::platform_token(credentials).map_err(|_| {
         Error::refused(
             RefusalReason::TursoNotConnected,
             "this machine holds no turso authority. connect the turso account first, then \
@@ -1354,8 +1371,8 @@ mod tests {
         draw_these_ids_next, group_inspect,
     };
     use crate::{
+        credential::{CredentialStore, Memory},
         error::Error,
-        keyring::take_the_credential_store,
         organization::{
             authority::{AdministratorKey, OrganizationKey},
             invite::{AccountAndLink, Invitation, USERNAME_RULES, locator, make_account_and_link},
@@ -1527,9 +1544,10 @@ mod tests {
     async fn a_group_already_holding_an_organization_refuses_the_run_and_gives_the_consent_back() {
         // taken once, at the top: the refusal reads and empties the same credential store the
         // fake keeps for the whole process.
-        let _turn = take_the_credential_store().await;
+        let credentials = Memory::new();
 
-        store_platform_token(TOKEN).expect("the test credential store would not take the token");
+        store_platform_token(&credentials, TOKEN)
+            .expect("the test credential store would not take the token");
 
         let directory = scratch("one-organization");
         let mut store = store(&directory);
@@ -1552,6 +1570,7 @@ mod tests {
         let platform = Arc::new(InMemoryPlatform::new("an-org"));
 
         let refusal = create_organization(
+            &credentials,
             &mut store,
             TOKEN,
             &McpEndpoint::at(&mcp.url("")),
@@ -1599,7 +1618,7 @@ mod tests {
         // and the consent is abandoned: the token is gone from the credential store, and so is
         // the slug it was read under, so the next consent is looked up rather than assumed.
         assert!(
-            platform_token().is_err(),
+            platform_token(&credentials).is_err(),
             "the refused consent left its authority on this machine"
         );
         assert_eq!(store.turso_organization, None);
@@ -1611,9 +1630,10 @@ mod tests {
     #[tokio::test]
     async fn a_typed_group_that_is_not_the_consented_one_is_refused_by_name_and_keeps_the_consent()
     {
-        let _turn = take_the_credential_store().await;
+        let credentials = Memory::new();
 
-        store_platform_token(TOKEN).expect("the test credential store would not take the token");
+        store_platform_token(&credentials, TOKEN)
+            .expect("the test credential store would not take the token");
 
         let directory = scratch("another-group");
         let mut store = store(&directory);
@@ -1621,6 +1641,7 @@ mod tests {
         let platform = Arc::new(InMemoryPlatform::new("an-org"));
 
         let refusal = create_organization(
+            &credentials,
             &mut store,
             TOKEN,
             &McpEndpoint::at(&mcp.url("")),
@@ -1661,7 +1682,7 @@ mod tests {
             "a database was created on a refused run"
         );
         assert!(store.organization.is_none());
-        assert!(platform_token().is_ok());
+        assert!(platform_token(&credentials).is_ok());
     }
 
     /// The other half of the same rule: a group holding databases of the person's own is the
@@ -1669,9 +1690,10 @@ mod tests {
     /// application writes counts, so a name that merely carries the word does not.
     #[tokio::test]
     async fn a_group_holding_unrelated_databases_is_not_a_refusal() {
-        let _turn = take_the_credential_store().await;
+        let credentials = Memory::new();
 
-        store_platform_token(TOKEN).expect("the test credential store would not take the token");
+        store_platform_token(&credentials, TOKEN)
+            .expect("the test credential store would not take the token");
 
         let directory = scratch("unrelated-databases");
         let mut store = store(&directory);
@@ -1699,6 +1721,7 @@ mod tests {
         let platform = Arc::new(InMemoryPlatform::new("an-org"));
 
         let (created, _organization) = create_organization(
+            &credentials,
             &mut store,
             TOKEN,
             &McpEndpoint::at(&mcp.url("")),
@@ -1727,7 +1750,7 @@ mod tests {
             format!("org-{}", created.organization_id)
         );
         // and the authority the run spent is still this machine's, because nothing was refused.
-        assert!(platform_token().is_ok());
+        assert!(platform_token(&credentials).is_ok());
     }
 
     /// A first run against a group that already holds a database: the common shape of every
@@ -1735,6 +1758,7 @@ mod tests {
     #[tokio::test]
     async fn a_first_run_creates_the_database_the_keys_the_rows_and_the_link_from_a_name_a_username_and_a_password()
      {
+        let credentials = Memory::new();
         let directory = scratch("first");
         let mut store = store(&directory);
         let mcp = ScriptedServer::start(populated_group()).await;
@@ -1742,6 +1766,7 @@ mod tests {
         let database_path = directory.join("app.db");
 
         let (outcome, organization) = create_organization(
+            &credentials,
             &mut store,
             TOKEN,
             &McpEndpoint::at(&mcp.url("")),
@@ -1943,6 +1968,7 @@ mod tests {
     /// taken**, which is the account nobody is asked anything on.
     #[tokio::test]
     async fn a_first_run_into_an_empty_group_creates_the_first_database_through_mcp() {
+        let credentials = Memory::new();
         let directory = scratch("empty");
         let mut store = store(&directory);
         let platform = Arc::new(InMemoryPlatform::new("acme-co"));
@@ -1968,6 +1994,7 @@ mod tests {
         .await;
 
         let (outcome, organization) = create_organization(
+            &credentials,
             &mut store,
             TOKEN,
             &McpEndpoint::at(&mcp.url("")),
@@ -2040,6 +2067,7 @@ mod tests {
     /// runs where nobody could say the name, and this is a run where somebody could.
     #[tokio::test]
     async fn a_group_the_mcp_server_listed_is_the_name_the_first_create_uses() {
+        let credentials = Memory::new();
         let directory = scratch("learned-from-mcp");
         let mut store = store(&directory);
         let platform = Arc::new(InMemoryPlatform::new("acme-co"));
@@ -2066,6 +2094,7 @@ mod tests {
         .await;
 
         let (outcome, _organization) = create_organization(
+            &credentials,
             &mut store,
             &token_naming_the_group(),
             &McpEndpoint::at(&mcp.url("")),
@@ -2107,6 +2136,7 @@ mod tests {
     /// name it gives is the one the create uses, and the cascade is not reached either.
     #[tokio::test]
     async fn a_server_with_no_group_tool_falls_to_the_name_the_platform_gives() {
+        let credentials = Memory::new();
         let directory = scratch("learned-from-platform");
         let mut store = store(&directory);
         let platform = Arc::new(InMemoryPlatform::new("acme-co"));
@@ -2130,6 +2160,7 @@ mod tests {
         .await;
 
         let (outcome, _organization) = create_organization(
+            &credentials,
             &mut store,
             &token_naming_the_group(),
             &McpEndpoint::at(&mcp.url("")),
@@ -2173,6 +2204,7 @@ mod tests {
     /// walk reads and carries Turso's last reason so the person can see what they are answering.
     #[tokio::test]
     async fn the_first_create_tries_three_names_before_the_walk_asks_for_one() {
+        let credentials = Memory::new();
         let directory = scratch("cascade");
         let mut store = store(&directory);
         let platform = Arc::new(InMemoryPlatform::new("acme-co"));
@@ -2193,6 +2225,7 @@ mod tests {
         .await;
 
         let refusal = create_organization(
+            &credentials,
             &mut store,
             &token,
             &McpEndpoint::at(&mcp.url("")),
@@ -2262,6 +2295,7 @@ mod tests {
     /// limit under another group would spend two more requests to be told the same thing.
     #[tokio::test]
     async fn a_first_create_refused_for_anything_but_the_group_is_answered_at_once() {
+        let credentials = Memory::new();
         let directory = scratch("not-the-group");
         let mut store = store(&directory);
         let platform = Arc::new(InMemoryPlatform::new("acme-co"));
@@ -2277,6 +2311,7 @@ mod tests {
         .await;
 
         let refusal = create_organization(
+            &credentials,
             &mut store,
             &token_naming_the_group(),
             &McpEndpoint::at(&mcp.url("")),
@@ -2313,6 +2348,7 @@ mod tests {
     /// started.
     #[tokio::test]
     async fn a_group_the_walk_asked_for_is_the_only_name_the_first_create_tries() {
+        let credentials = Memory::new();
         let directory = scratch("asked");
         let mut store = store(&directory);
         let platform = Arc::new(InMemoryPlatform::new("acme-co"));
@@ -2333,6 +2369,7 @@ mod tests {
         .await;
 
         let (outcome, _organization) = create_organization(
+            &credentials,
             &mut store,
             &token_naming_the_group(),
             &McpEndpoint::at(&mcp.url("")),
@@ -2369,6 +2406,7 @@ mod tests {
     /// and records no organization on this machine.
     #[tokio::test]
     async fn a_first_run_that_fails_after_the_database_exists_leaves_nothing() {
+        let credentials = Memory::new();
         let directory = scratch("rollback");
         let mut store = store(&directory);
         let mcp = ScriptedServer::start(populated_group()).await;
@@ -2384,6 +2422,7 @@ mod tests {
         );
 
         let error = create_organization(
+            &credentials,
             &mut store,
             TOKEN,
             &McpEndpoint::at(&mcp.url("")),
@@ -2429,6 +2468,7 @@ mod tests {
     /// this application can work out, so a run that carries none is the ordinary one.
     #[tokio::test]
     async fn an_empty_name_a_bad_username_or_a_short_password_is_refused_before_any_request() {
+        let credentials = Memory::new();
         let directory = scratch("refused");
         let mut store = store(&directory);
         let mcp = ScriptedServer::start(populated_group()).await;
@@ -2446,6 +2486,7 @@ mod tests {
             ("Acme", "olivia@acme.example", PASSWORD),
         ] {
             let error = create_organization(
+                &credentials,
                 &mut store,
                 TOKEN,
                 &McpEndpoint::at(&mcp.url("")),
@@ -2554,6 +2595,7 @@ mod tests {
     /// left on disk. It is the same read either way, which is the reason `join.rs` and
     /// `machine.rs` hand their own replicas in.
     async fn an_organization(
+        credentials: &dyn CredentialStore,
         directory: &std::path::Path,
     ) -> (
         Arc<InMemoryPlatform>,
@@ -2567,6 +2609,7 @@ mod tests {
         draw_these_ids_next(&[HELD_ID]);
 
         let (_, replica) = create_organization(
+            credentials,
             &mut owners_machine,
             TOKEN,
             &McpEndpoint::at(&mcp.url("")),
@@ -2632,12 +2675,13 @@ mod tests {
     /// the one the row offered, and the two agree here because this is the owner.
     #[tokio::test]
     async fn the_owners_password_connects_this_machine_to_the_organization_the_group_holds() {
-        let _turn = take_the_credential_store().await;
+        let credentials = Memory::new();
 
-        store_platform_token(TOKEN).expect("the test credential store would not take the token");
+        store_platform_token(&credentials, TOKEN)
+            .expect("the test credential store would not take the token");
 
         let directory = scratch("connect-existing");
-        let (platform, replica, owners_machine) = an_organization(&directory).await;
+        let (platform, replica, owners_machine) = an_organization(&credentials, &directory).await;
         let held_before = owners_machine.organization.clone().expect("the record");
         let owner = sign_in(&replica, &held_before, PASSWORD, &slot())
             .await
@@ -2650,6 +2694,7 @@ mod tests {
         let mcp = ScriptedServer::start(holding_the_organization()).await;
         let mut machine = fresh_machine(&directory, "second-machine");
         let (held, replica, session) = connect_existing(
+            &credentials,
             &mut machine,
             TOKEN,
             &McpEndpoint::at(&mcp.url("")),
@@ -2741,12 +2786,13 @@ mod tests {
     /// row and believes it.
     #[tokio::test]
     async fn a_managers_password_is_refused_and_the_machine_holds_nothing() {
-        let _turn = take_the_credential_store().await;
+        let credentials = Memory::new();
 
-        store_platform_token(TOKEN).expect("the test credential store would not take the token");
+        store_platform_token(&credentials, TOKEN)
+            .expect("the test credential store would not take the token");
 
         let directory = scratch("connect-existing-manager");
-        let (platform, replica, owners_machine) = an_organization(&directory).await;
+        let (platform, replica, owners_machine) = an_organization(&credentials, &directory).await;
         let owner = sign_in(
             &replica,
             &owners_machine.organization.clone().expect("the record"),
@@ -2780,6 +2826,7 @@ mod tests {
         let mut their_machine = fresh_machine(&theirs, "remote-sync");
 
         join::accept(
+            &credentials,
             |_| async { Ok::<_, Error>(&replica) },
             &mut their_machine,
             &JoinLink::decode(&invited.join_link).expect("the invitation link"),
@@ -2799,6 +2846,7 @@ mod tests {
         let mcp = ScriptedServer::start(holding_the_organization()).await;
         let mut machine = fresh_machine(&directory, "second-machine");
         let refused = connect_existing(
+            &credentials,
             &mut machine,
             TOKEN,
             &McpEndpoint::at(&mcp.url("")),
@@ -2830,9 +2878,10 @@ mod tests {
     /// account, the founder's session as it stood before the handover, and the platform, with the
     /// replica let go of so a connect can open one of its own.
     async fn handed_over(
+        credentials: &dyn CredentialStore,
         directory: &std::path::Path,
     ) -> (Arc<InMemoryPlatform>, AccountAndLink, MemberSession) {
-        let (platform, replica, owners_machine) = an_organization(directory).await;
+        let (platform, replica, owners_machine) = an_organization(credentials, directory).await;
         let held_before = owners_machine.organization.clone().expect("the record");
         let owner = sign_in(&replica, &held_before, PASSWORD, &slot())
             .await
@@ -2861,6 +2910,7 @@ mod tests {
 
         let mut their_machine = fresh_machine(&theirs, "remote-sync");
         let (_, mut their_session) = join::accept(
+            credentials,
             |_| async { Ok::<_, Error>(&replica) },
             &mut their_machine,
             &JoinLink::decode(&invited.join_link).expect("the invitation link"),
@@ -2906,12 +2956,13 @@ mod tests {
     /// requirement 22 was rewritten for.
     #[tokio::test]
     async fn the_new_owner_connects_a_fresh_machine_with_their_password_alone() {
-        let _turn = take_the_credential_store().await;
+        let credentials = Memory::new();
 
-        store_platform_token(TOKEN).expect("the test credential store would not take the token");
+        store_platform_token(&credentials, TOKEN)
+            .expect("the test credential store would not take the token");
 
         let directory = scratch("connect-existing-handed-over");
-        let (platform, invited, owner) = handed_over(&directory).await;
+        let (platform, invited, owner) = handed_over(&credentials, &directory).await;
 
         // well past the window the register counts a machine as connected inside, which bears on
         // nothing here: the register gates no way in, and what lets the connect through is the key.
@@ -2919,6 +2970,7 @@ mod tests {
         let mcp = ScriptedServer::start(holding_the_organization()).await;
         let mut machine = fresh_machine(&directory, "third-machine");
         let (held, _, session) = connect_existing(
+            &credentials,
             &mut machine,
             TOKEN,
             &McpEndpoint::at(&mcp.url("")),
@@ -2967,17 +3019,19 @@ mod tests {
     /// the key had not moved.
     #[tokio::test]
     async fn the_founder_is_refused_as_a_manager_after_handing_the_organization_over() {
-        let _turn = take_the_credential_store().await;
+        let credentials = Memory::new();
 
-        store_platform_token(TOKEN).expect("the test credential store would not take the token");
+        store_platform_token(&credentials, TOKEN)
+            .expect("the test credential store would not take the token");
 
         let directory = scratch("connect-existing-founder-after");
-        let (platform, _, _) = handed_over(&directory).await;
+        let (platform, _, _) = handed_over(&credentials, &directory).await;
 
         let now = ISSUED_AT + 2 * FOUR_WEEKS_MS;
         let mcp = ScriptedServer::start(holding_the_organization()).await;
         let mut founders_machine = fresh_machine(&directory, "the-founders-next-machine");
         let refused = connect_existing(
+            &credentials,
             &mut founders_machine,
             TOKEN,
             &McpEndpoint::at(&mcp.url("")),
@@ -3013,12 +3067,13 @@ mod tests {
     /// register feeds the standing line on a card and gates nothing.
     #[tokio::test]
     async fn a_machine_seen_six_days_ago_leaves_the_way_in_open_and_keeps_its_own_session() {
-        let _turn = take_the_credential_store().await;
+        let credentials = Memory::new();
 
-        store_platform_token(TOKEN).expect("the test credential store would not take the token");
+        store_platform_token(&credentials, TOKEN)
+            .expect("the test credential store would not take the token");
 
         let directory = scratch("connect-existing-in-use");
-        let (platform, replica, owners_machine) = an_organization(&directory).await;
+        let (platform, replica, owners_machine) = an_organization(&credentials, &directory).await;
         let held = owners_machine.organization.clone().expect("the record");
         let owner = sign_in(&replica, &held, PASSWORD, &slot())
             .await
@@ -3034,6 +3089,7 @@ mod tests {
         let mcp = ScriptedServer::start(holding_the_organization()).await;
         let mut machine = fresh_machine(&directory, "second-machine");
         let (second, replica, session) = connect_existing(
+            &credentials,
             &mut machine,
             TOKEN,
             &McpEndpoint::at(&mcp.url("")),
@@ -3089,7 +3145,7 @@ mod tests {
         );
 
         // the consent is kept, as it is on every connect that goes through.
-        assert!(platform_token().is_ok());
+        assert!(platform_token(&credentials).is_ok());
         assert!(machine.turso_organization.is_some());
     }
 
@@ -3107,23 +3163,24 @@ mod tests {
     /// here and the first case now takes it away.
     #[tokio::test]
     async fn a_wrong_username_or_password_meets_the_walls_one_sentence() {
-        let _turn = take_the_credential_store().await;
+        let credentials = Memory::new();
 
         for (machine_name, username, password) in [
             ("wrong-password", "olivia.owner", "not the owners password"),
             ("wrong-username", "nobody.here", PASSWORD),
         ] {
-            store_platform_token(TOKEN)
+            store_platform_token(&credentials, TOKEN)
                 .expect("the test credential store would not take the token");
 
             let directory = scratch(&format!("connect-existing-{machine_name}"));
-            let (platform, replica, _) = an_organization(&directory).await;
+            let (platform, replica, _) = an_organization(&credentials, &directory).await;
 
             drop(replica);
 
             let mcp = ScriptedServer::start(holding_the_organization()).await;
             let mut machine = fresh_machine(&directory, machine_name);
             let refused = connect_existing(
+                &credentials,
                 &mut machine,
                 TOKEN,
                 &McpEndpoint::at(&mcp.url("")),
@@ -3151,7 +3208,7 @@ mod tests {
             // and the consent is untouched by either, so the person retypes where they are: this
             // is the refusal the walk has to tell from the one that gives the consent back, and
             // the authority is exactly where it was.
-            assert!(platform_token().is_ok(), "{machine_name}");
+            assert!(platform_token(&credentials).is_ok(), "{machine_name}");
             assert!(
                 machine.turso_organization.is_some(),
                 "{machine_name} let the account the consent was over go"
