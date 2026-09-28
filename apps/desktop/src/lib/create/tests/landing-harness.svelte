@@ -4,14 +4,15 @@
 	 * can see where the focus landed. The navigation hook is registered here as the root layout
 	 * registers it.
 	 *
-	 * Scaffolding rather than a test, as `list-motion-harness.svelte` is. `data` is this fixture's
-	 * own prop, so a test changes the result set with `rerender` exactly as a refetch would.
+	 * Scaffolding rather than a test, as `design/tests/list-motion-harness.svelte` is. `data` is
+	 * this fixture's own prop, so a test changes the result set with `rerender` exactly as a
+	 * refetch would.
 	 */
 	import List from '$lib/design/block/list.svelte';
-	import { dropLandingOnNavigation } from '$lib/design/landing.svelte';
+	import { dropLandingOnNavigation } from '$lib/create';
 	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import { DesignProvider } from '@rentable/design/strings.js';
-	import { placeholderStrings as strings } from './strings';
+	import { placeholderStrings as strings } from '$lib/design/tests/strings';
 
 	let { data, isShown = true }: { data: { id: string }[]; isShown?: boolean } = $props();
 

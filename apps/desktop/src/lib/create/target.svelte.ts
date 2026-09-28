@@ -1,4 +1,4 @@
-import type { CreateTarget } from '$lib/design/create-key';
+import type { CreateTarget } from '$lib/create/key';
 
 /**
  * The sets on screen that a record can be added to, in the order they were drawn.

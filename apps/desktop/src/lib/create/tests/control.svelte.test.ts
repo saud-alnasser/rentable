@@ -7,9 +7,9 @@ import { i18nObject } from '$lib/i18n/i18n-util';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import { shortcuts, type ApplicationShortcut } from '$lib/shortcut';
 
-import CreateHarness from './create-harness.svelte';
-import { expectCreateControlLast } from './create-control';
-import ListHarness from './list-harness.svelte';
+import CreateHarness from './harness.svelte';
+import { expectCreateControlLast } from './control';
+import ListHarness from '$lib/design/tests/list-harness.svelte';
 
 /**
  * ONE CREATE CONTROL, IN ONE PLACE, AND ONE CREATE KEY
@@ -17,7 +17,7 @@ import ListHarness from './list-harness.svelte';
  * Criterion 9 of [[efforts/832-the-interface-speaks-one-language-and-guides/spec]]: (a) the create
  * control sits in the same position on every set, and (b) one key creates in the set on screen.
  * The settings directories' half of (a) is read in their own tests, by the same assertion
- * (`./create-control.ts`), because they are drawn only under the organization's providers.
+ * (`./control.ts`), because they are drawn only under the organization's providers.
  */
 
 beforeEach(() => {

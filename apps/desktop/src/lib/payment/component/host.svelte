@@ -32,7 +32,7 @@
 	import { useReadOrganizationMark, useReadOrganizationName } from '$lib/organization/query';
 	import { writeDetailsToClipboard } from '$lib/platform/clipboard';
 	import { formatLocaleMoney } from '$lib/platform/locale';
-	import { landing } from '$lib/design/landing.svelte';
+	import { landing } from '$lib/create';
 	import { onDestroy, untrack } from 'svelte';
 	import PaymentForm from './form.svelte';
 	import PrintedReceipt, { type PrintedReceiptValue } from './receipt.svelte';

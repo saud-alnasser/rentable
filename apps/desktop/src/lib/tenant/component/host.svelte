@@ -7,8 +7,8 @@
 	import { AWAITING_BLOCKERS } from '@rentable/design/confirmation.js';
 	import { usesAppleKeyboard } from '@rentable/design/shortcut.js';
 	import { useListContracts } from '$lib/contract/query';
+	import { consumeCreateIntent, landing } from '$lib/create';
 	import { toDeleteStep, toPaletteVerbs } from '$lib/act';
-	import { consumeCreateIntent } from '$lib/design/create-intent.svelte';
 	import { onMutationError, onMutationSuccess } from '$lib/design/mutation';
 	import { showErrorSentence, showErrorToast, showRefusal } from '$lib/notification';
 	import { LL } from '$lib/i18n/i18n-svelte';
@@ -24,7 +24,6 @@
 	} from '$lib/tenant/host.svelte';
 	import { useDeleteTenant, useReadTenant } from '$lib/tenant/query';
 	import { isTenantDeletable } from '$lib/tenant/tenant';
-	import { landing } from '$lib/design/landing.svelte';
 	import { onDestroy, untrack } from 'svelte';
 	import TenantForm from './form.svelte';
 

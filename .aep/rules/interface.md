@@ -453,7 +453,7 @@ Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], re
 
 **Every set a person can add to offers one create control, in one place, and one key.**
 
-- **The control** is `design/block/create-control.svelte`, and nothing else draws a create: a
+- **The control** is `create/component/control.svelte`, and nothing else draws a create: a
   quiet plus, its words in the tooltip and on the control, with the key beside them. It stands
   **last at the end of the bar above the records**: `design/block/list-toolbar.svelte`, which the
   list shell draws and the settings directories' tray (`organization/component/directory-tray.svelte`)
@@ -461,8 +461,8 @@ Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], re
   that may not be added to right now keeps its control, refused, with its reason on hover and focus
   (*Guidance*, below); the workspaces tray puts its refusal in that place instead.
 - **The key** is Ctrl or Cmd with N, an application shortcut in the registry
-  (`design/create-key.ts`, registered by `layout/component/create-shortcut.svelte`). It is answered
-  by the set on screen: a drawn control holds its place (`design/create-target.svelte.ts`) and the
+  (`create/key.ts`, registered by `create/component/shortcut.svelte`). It is answered
+  by the set on screen: a drawn control holds its place (`create/target.svelte.ts`) and the
   last one drawn answers. Where no set is on screen the key is unavailable and says why, and it is
   still taken from the webview, which would otherwise open a window. A form or confirmation standing
   over the set takes the key and opens nothing a second time.
@@ -471,7 +471,7 @@ Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], re
   mode, for the complex or the contract it cannot be without.
 - **Every route reaches the concept host's `create`**, and nothing else opens a create form. The
   command menu's `?create` on a directory is consumed by the host, which owns the form
-  (`design/create-intent.svelte.ts`), and never by the directory.
+  (`create/intent.svelte.ts`), and never by the directory.
 
 *Why: a create drawn per surface came from two icon families and was reached by a link the
 directory itself had to answer. A reader who has added a tenant knows where to add a payment,
@@ -1077,12 +1077,12 @@ what it wrote to its host through `onCreated`, and the host decides where the re
 - **a contract opens its own page**, since its units, payments and term are all read and changed
   there (`contract/tests/landing.svelte.test.ts`);
 - **a tenant, a complex or a payment is brought into view in the set that lists it**, with the
-  focus on its card, through `design/landing.svelte.ts`. The host names the record and the list
+  focus on its card, through `create/landing.svelte.ts`. The host names the record and the list
   block answers where it shows it: it scrolls the record into view and puts the focus on it once
   the form has gone, through the same request an arrow key raises, so the keyboard carries on from
   the new record. Each list on screen answers the request once, from the set it holds, and the next
   navigation drops it, so a set opened later or a filter cleared later never moves the focus
-  (`design/tests/landing.svelte.test.ts`).
+  (`create/tests/landing.svelte.test.ts`).
 
 ### An act that cannot run says why at the control
 
@@ -1092,7 +1092,7 @@ of the act's `flag` where the reader lacks it, and otherwise the act's `unavaila
 (`act/act.ts`, read as *Record card actions* says; *this read "the act's `unavailable`" until
 ticket 16 of effort 838*), and every surface draws it from the one declaration: the card's
 two menus (`record-card.svelte`), the record page's cluster (`record-action-control.svelte`), and
-the create control (`create-control.svelte`, given the set's reason by the list's
+the create control (`create/component/control.svelte`, given the set's reason by the list's
 `createUnavailable`), whose key answers with the same reason, and the create an empty list offers
 under its title. The command menu puts it beside the
 row, where its keys would be, because its rows are chosen from the search field and never take the

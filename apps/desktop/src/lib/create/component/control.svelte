@@ -4,8 +4,8 @@
 	import { Kbd } from '@rentable/design/primitive/kbd/index.js';
 	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import { toShortcutHint, usesAppleKeyboard } from '@rentable/design/shortcut.js';
-	import { CREATE_KEYS } from '$lib/design/create-key';
-	import { createTargets } from '$lib/design/create-target.svelte';
+	import { CREATE_KEYS } from '$lib/create/key';
+	import { createTargets } from '$lib/create/target.svelte';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import { untrack } from 'svelte';
 
@@ -19,7 +19,7 @@
 	 * control itself: a set is read before anything is added to it, so the control that adds is
 	 * found without competing with the records.
 	 *
-	 * **While it is drawn, it is the set on screen.** It holds its place in `create-target`, and the
+	 * **While it is drawn, it is the set on screen.** It holds its place in `target`, and the
 	 * create key asks whoever holds the last place. So the key and the control cannot come to create
 	 * in two different sets, and a screen whose set may not be added to draws no control and answers
 	 * the key with its reason.

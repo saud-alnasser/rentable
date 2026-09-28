@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [12]
 ---
 # refactor(desktop): create is a capability
@@ -14,8 +14,8 @@ The spec is [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]]; the 
 
 Traces requirement 20 of [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]], and criterion 20.
 
-- [ ] Create machinery lives only in `create/` (criterion 20).
-- [ ] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19).
+- [x] Create machinery lives only in `create/` (criterion 20). Verified: a search of `apps/desktop/src` outside `create/` and tests for `createTargets`, `CREATE_KEYS`, `toCreateShortcut`, `consumeCreateIntent`, `hasCreateIntent`, `create-intent.js` and `whenSurfacesClose` finds only call sites whose names are imported from `$lib/create`; the design package's `create-intent` is imported only inside `create/`. `layout/create.ts` (the command menu's create group) stays for the palette ticket 29, as the plan places it.
+- [x] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19). Verified: in the run's tree, after resolving six import conflicts with ticket 15 and pruning 12 stale baseline lines the older side carried: check 0, eslint 0, `pnpm test` 3 of 3 tasks, build:web 0, validate 0; test changes are import paths and comments only.
 
 ## Relevant areas
 

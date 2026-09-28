@@ -22,7 +22,7 @@ import {
 	searchGlass,
 	typeSearch
 } from '$lib/design/tests/search';
-import { expectCreateControlLast } from '$lib/design/tests/create-control';
+import { expectCreateControlLast } from '$lib/create/tests/control';
 import { BAR_CONTROL, expectBarOrder } from '$lib/design/tests/set-bar';
 
 import { hostAnswers, resetHostAnswers } from './host-hooks';

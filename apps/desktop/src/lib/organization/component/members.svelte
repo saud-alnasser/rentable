@@ -9,7 +9,7 @@
 	import { Badge } from '@rentable/design/primitive/badge/index.js';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
-	import CreateControl from '$lib/design/block/create-control.svelte';
+	import CreateControl from '$lib/create/component/control.svelte';
 	import { toCardActions } from '$lib/act';
 	import type { ListSort } from '@rentable/design/sort.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
@@ -49,7 +49,7 @@
 	 * **Activating a card opens its record** ([[rules/interface]], *Row activation*). A member has
 	 * no page, so what opening one means is the member's sheet, and the card's `href` is this
 	 * section's address with the member named on it. The address is consumed on arrival and
-	 * cleared, the way a concept's host consumes a create intent (`design/create-intent.svelte.ts`),
+	 * cleared, the way a concept's host consumes a create intent (`create/intent.svelte.ts`),
 	 * so pressing the same card twice opens the same surface twice. The rule records this as its accepted
 	 * deviation, dated 2026-09-17: in the settings directories a record's page is its sheet.
 	 *

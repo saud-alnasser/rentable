@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { toCreateShortcut } from '$lib/design/create-key';
-	import { createTargets } from '$lib/design/create-target.svelte';
+	import { toCreateShortcut } from '$lib/create/key';
+	import { createTargets } from '$lib/create/target.svelte';
 	import { shortcuts } from '$lib/shortcut';
 
 	/**

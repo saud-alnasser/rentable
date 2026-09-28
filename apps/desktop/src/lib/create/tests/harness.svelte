@@ -6,12 +6,12 @@
 	 * Scaffolding rather than a test: the control needs the string contract and the tooltip's
 	 * provider, and a component test cannot write either in a `.ts` file.
 	 */
-	import CreateControl from '$lib/design/block/create-control.svelte';
-	import LayoutCreateShortcut from '$lib/layout/component/create-shortcut.svelte';
+	import CreateControl from '$lib/create/component/control.svelte';
+	import CreateShortcut from '$lib/create/component/shortcut.svelte';
 	import ShortcutListener from '$lib/shortcut/component/listener.svelte';
 	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import { DesignProvider } from '@rentable/design/strings.js';
-	import { placeholderStrings as strings } from './strings';
+	import { placeholderStrings as strings } from '$lib/design/tests/strings';
 
 	let {
 		sets = []
@@ -24,7 +24,7 @@
 <DesignProvider {strings} direction="ltr">
 	<Tooltip.Provider>
 		<ShortcutListener />
-		<LayoutCreateShortcut />
+		<CreateShortcut />
 
 		{#each sets as set (set.label)}
 			<CreateControl label={set.label} onCreate={set.onCreate} unavailable={set.unavailable} />

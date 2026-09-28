@@ -17,13 +17,12 @@
 		resetComplexHost
 	} from '$lib/complex/host.svelte';
 	import { useDeleteComplex, useFetchUnits, useReadComplex } from '$lib/complex/query';
+	import { consumeCreateIntent, landing } from '$lib/create';
 	import { toDeleteStep, toPaletteVerbs } from '$lib/act';
-	import { consumeCreateIntent } from '$lib/design/create-intent.svelte';
 	import { onMutationError, onMutationSuccess } from '$lib/design/mutation';
 	import { showErrorSentence, showErrorToast, showRefusal } from '$lib/notification';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { writeDetailsToClipboard } from '$lib/platform/clipboard';
-	import { landing } from '$lib/design/landing.svelte';
 	import { onDestroy, untrack } from 'svelte';
 	import ComplexForm from './form.svelte';
 

@@ -460,15 +460,16 @@ the package boundary. `@rentable/design` imports nothing that names this applica
 words and its reading direction are supplied from outside: one typed object and one direction,
 handed to `DesignProvider` once in `src/routes/+layout.svelte`. `@rentable/design/strings.js` is
 the contract, and it holds what enforces it and why the direction travels with the words.
-
 *Everything above is unchanged for a component that lives in this application, and that is every
-cell, every component under a concept or under `layout`, and the five blocks under `design/block/`:
-`list.svelte`, the three that effort 832 added around it, `create-control.svelte`,
+cell, every component under a concept, a capability or `layout`, the four blocks under
+`design/block/`: `list.svelte`, two of the three that effort 832 added around it,
 `list-toolbar.svelte` and `search-field.svelte`, and `language-choice.svelte`, which effort 835
 added for the language a printed page or a reminder is written in and which reads this
-application's own list of languages (`localesMetadata`). **They stay because each reads a module of this
-application, not a contract the package could be handed.** `create-control` reads the create key
-(`design/create-key.ts`) and registers with what answers it (`design/create-target.svelte.ts`),
+application's own list of languages (`localesMetadata`), and the third of effort 832's,
+the create control, which has been the create capability's own `create/component/control.svelte`
+since effort 840. **They stay because each reads a module of this
+application, not a contract the package could be handed.** The create control reads the create key
+(`create/key.ts`) and registers with what answers it (`create/target.svelte.ts`),
 which is what makes it the one control [[rules/interface]] *Create* says draws a create and the one
 the key finds. `search-field` registers the list's search shortcut (`design/list-keyboard.ts`) in
 this application's shortcut capability (`$lib/shortcut`), which reaches `$lib/platform` to record a collision, and

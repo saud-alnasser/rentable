@@ -1,7 +1,7 @@
 <script lang="ts" generics="TData extends { id: string }, TGroup extends ListGroup">
 	import { browser } from '$app/environment';
 	import ExportDialog from '@rentable/design/block/export-dialog.svelte';
-	import CreateControl from '$lib/design/block/create-control.svelte';
+	import CreateControl from '$lib/create/component/control.svelte';
 	import EmptyState, { type EmptyKind } from '@rentable/design/block/empty.svelte';
 	import Loading from '@rentable/design/block/loading.svelte';
 	import RecordActionControl, {
@@ -63,7 +63,7 @@
 		toClipPath,
 		toTransitionName
 	} from '$lib/design/list-motion';
-	import { landing, whenSurfacesClose, type LandingRequest } from '$lib/design/landing.svelte';
+	import { landing, whenSurfacesClose, type LandingRequest } from '$lib/create';
 	import { tick, untrack, type Snippet } from 'svelte';
 	import { get } from 'svelte/store';
 

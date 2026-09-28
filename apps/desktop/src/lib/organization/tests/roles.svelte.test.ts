@@ -15,7 +15,7 @@ import type { OrganizationMember, OrganizationRole } from '$lib/platform/host';
 import en from '$lib/i18n/en';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
-import { expectCreateControlLast } from '$lib/design/tests/create-control';
+import { expectCreateControlLast } from '$lib/create/tests/control';
 import { BAR_CONTROL, expectBarOrder } from '$lib/design/tests/set-bar';
 import {
 	pastTheWait,

@@ -18,7 +18,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import type { ResolvedPathname } from '$app/types';
-	import { withCreateIntent } from '@rentable/design/create-intent.js';
+	import { withCreateIntent } from '$lib/create';
 	import { unitHost } from '$lib/complex/unit/host.svelte';
 	import {
 		declarePaletteCreates,
