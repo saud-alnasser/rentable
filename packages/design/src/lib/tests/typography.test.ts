@@ -31,8 +31,7 @@ function occurrences(pattern: RegExp) {
 const TRACKING_ALLOWED = [
 	{ label: 'lib/primitive/command/command-shortcut.svelte', token: 'tracking-widest' },
 	{ label: 'lib/primitive/context-menu/context-menu-shortcut.svelte', token: 'tracking-widest' },
-	{ label: 'lib/primitive/dropdown-menu/dropdown-menu-shortcut.svelte', token: 'tracking-widest' },
-	{ label: 'lib/primitive/menubar/menubar-shortcut.svelte', token: 'tracking-widest' }
+	{ label: 'lib/primitive/dropdown-menu/dropdown-menu-shortcut.svelte', token: 'tracking-widest' }
 ];
 
 describe('the typeface', () => {
