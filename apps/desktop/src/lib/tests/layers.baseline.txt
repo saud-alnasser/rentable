@@ -331,14 +331,10 @@ payment/router.ts -> contract/contract.ts : deep
 payment/router.ts -> contract/reconcile.ts : deep
 platform -> api : cycle
 platform -> i18n : cycle
-platform -> tenant : cycle
 platform/database/schema.ts -> complex : literal
 platform/database/schema.ts -> contract : literal
 platform/database/schema.ts -> payment : literal
-platform/database/schema.ts -> tenant : import
 platform/database/schema.ts -> tenant : literal
-platform/database/schema.ts -> tenant/tenant.ts : deep
-platform/database/schema.ts -> tenant/tenant.ts : upward
 platform/database/schema.ts -> unit : literal
 print -> design : cycle
 print -> i18n : cycle
@@ -423,6 +419,7 @@ workspace/router.ts -> contract/contract.ts : deep
 workspace/router.ts -> contract/reconcile.ts : deep
 workspace/router.ts -> payment/payment.ts : deep
 workspace/router.ts -> tenant : literal
+workspace/router.ts -> tenant/tenant.ts : deep
 workspace/router.ts -> unit : literal
 workspace/workspace.ts -> complex : literal
 workspace/workspace.ts -> contract : literal

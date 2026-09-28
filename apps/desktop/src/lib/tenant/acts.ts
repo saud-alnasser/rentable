@@ -1,5 +1,5 @@
 import type { RecordAct } from '$lib/design/acts';
-import type { Tenant } from '$lib/platform/database/schema';
+import type { Tenant } from '$lib/tenant/tenant';
 import CopyIcon from '@lucide/svelte/icons/copy';
 import FilePlusIcon from '@lucide/svelte/icons/file-plus';
 import SquarePenIcon from '@lucide/svelte/icons/square-pen';

@@ -1,4 +1,3 @@
-import { identityField, phone } from '$lib/tenant/tenant';
 import { relations, type AnyColumn } from 'drizzle-orm';
 import { index, integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import z from 'zod';
@@ -12,21 +11,10 @@ export const tenant = sqliteTable('tenant', {
 	phone: text('phone').unique().notNull()
 });
 
-export const TenantSchema = z.object({
-	id: z.string(),
-	name: z.string(),
-	nationalId: identityField(
-		'national identity number must start with 1 or 2; and be 10 digits long'
-	),
-	phone: z.string().regex(phone, 'phone must start with +966; and be 10 digits long')
-});
-
-export type Tenant = z.infer<typeof TenantSchema>;
-
 /**
  * The text columns whose stored side cannot hold a character search folding would change,
- * declared here because only the schema knows — and placed beside the schema above, which is
- * what makes it true: `identityField` anchors to `[12]\d{9}` and the phone pattern to
+ * declared here because only the schema knows. What makes it true is `TenantSchema`, in
+ * `$lib/tenant/tenant`: `identityField` anchors to `[12]\d{9}` and the phone pattern to
  * `\+9665…[0-9]{7}`, and neither `\d` nor `[0-9]` matches an Arabic-Indic digit. A value that
  * would fold differently is refused on the way in, so folding these on read compares a column
  * against itself.

@@ -8,6 +8,7 @@ import type { AnyColumn, SQL } from 'drizzle-orm';
 
 import { foldSearchText, matchesSearch, SEARCH_FOLDINGS } from '$lib/platform/database/search.ts';
 import * as s from '$lib/platform/database/schema.ts';
+import { TenantSchema } from '$lib/tenant/tenant.ts';
 import type { ZodString } from 'zod';
 
 const PHONE = '+966551234567';
@@ -371,8 +372,8 @@ test('every column declared ASCII-only has a validator that refuses a foldable c
 	// The declaration is safe *because* the write path enforces it. If a validator is ever
 	// loosened, this fails here rather than as a record nobody can find months later.
 	const refusals: [name: string, field: ZodString, arabicIndic: string][] = [
-		['nationalId', s.TenantSchema.shape.nationalId, '١٢٣٤٥٦٧٨٩٠'],
-		['phone', s.TenantSchema.shape.phone, '+٩٦٦٥٠١٢٣٤٥٦٧']
+		['nationalId', TenantSchema.shape.nationalId, '١٢٣٤٥٦٧٨٩٠'],
+		['phone', TenantSchema.shape.phone, '+٩٦٦٥٠١٢٣٤٥٦٧']
 	];
 
 	assert.equal(

@@ -3,9 +3,9 @@ import {
 	ComplexSchema,
 	ContractSchema,
 	PaymentSchema,
-	TenantSchema,
 	UnitSchema
 } from '$lib/platform/database/schema';
+import { TenantSchema } from '$lib/tenant/tenant';
 import { autosync, procedure, router } from '$lib/api/trpc';
 import { ensureContractIsNotTerminated, ensureValidContractInput } from '$lib/contract/contract';
 import { ensurePaymentIsNotInTheFuture, ensureValidPaymentAmount } from '$lib/payment/payment';

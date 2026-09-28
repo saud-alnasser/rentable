@@ -6,7 +6,7 @@ import {
 	type RecordMatch
 } from '$lib/platform/database/search';
 import { ensureIdFree, newId } from '$lib/platform/database/identity';
-import { TenantSchema, type Contract } from '$lib/platform/database/schema';
+import type { Contract } from '$lib/platform/database/schema';
 import { planSelection } from '$lib/api/selection';
 import { refuse } from '$lib/api/refusal';
 import { autosync, procedure, router } from '$lib/api/trpc';
@@ -17,6 +17,7 @@ import {
 	ensurePhoneAvailable,
 	ensureTenantDeletable,
 	ensureTenantStillExists,
+	TenantSchema,
 	whatRefusesTenantDeletion,
 	type TenantSortColumnId
 } from '$lib/tenant/tenant';

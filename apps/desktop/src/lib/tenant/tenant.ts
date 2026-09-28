@@ -37,6 +37,23 @@ export type TenantSortColumnId = (typeof TENANT_SORT_COLUMN_IDS)[number];
 export const identityField = (message: string) => z.string().trim().regex(identity, message);
 
 /**
+ * A tenant as the routers take it in. The table is `tenant` in `$lib/platform/database/schema`;
+ * this is kept here because it is built from the validators above, and the platform imports no
+ * feature. `ASCII_ONLY_COLUMNS` in that schema holds only while these two fields refuse an
+ * Arabic-Indic digit.
+ */
+export const TenantSchema = z.object({
+	id: z.string(),
+	name: z.string(),
+	nationalId: identityField(
+		'national identity number must start with 1 or 2; and be 10 digits long'
+	),
+	phone: z.string().regex(phone, 'phone must start with +966; and be 10 digits long')
+});
+
+export type Tenant = z.infer<typeof TenantSchema>;
+
+/**
  * the router passes whatever row its uniqueness query found; any row is a conflict.
  *
  * @param named the identity the conflict is over, where the caller acts on more than one tenant.
