@@ -1,6 +1,4 @@
 import type { Pathname } from '$app/types';
-import type { OrganizationSession } from '$lib/organization/host';
-import { permits, type Flag } from '@rentable/workspace-permission';
 
 /**
  * THE SETTINGS AREA'S FOUR SECTIONS, AND HOW ONE IS ADDRESSED
@@ -13,6 +11,11 @@ import { permits, type Flag } from '@rentable/workspace-permission';
  * the way in; and `back.ts` keys its trail by pathname, so moving between sections is not
  * leaving the page. A segment per section would need both of those to match prefixes instead,
  * which `opensSignedOut`'s own comment argues against.
+ *
+ * **The address is this module's and what fills it is not.** General is the area's own; account,
+ * organization and workspaces are sections the organization contributes (`on: 'settings'` in its
+ * `surface.ts`), each under one of the names written here, so an address, a bookmark and the
+ * command menu's rows name a section without naming the feature that draws it.
  *
  * Nothing here renders. The area draws what `sectionsFor` returns and the route reads
  * `sectionOf`, so which sections a reader is offered is one answer in one place, testable
@@ -127,22 +130,6 @@ export type SettingsSectionAddress =
 export const DEFAULT_SECTION: SettingsSection = 'general';
 
 /**
- * The acts that make the members directory worth drawing.
- *
- * `renameWorkspace` is deliberately absent: it is the workspaces section's act, and a member who
- * holds it alone has nothing to do on a list of people.
- */
-const MEMBER_ACTS = [
-	'inviteMember',
-	'removeMember',
-	'assignRole',
-	'overrideMember',
-	'resetPassword',
-	'renameMember',
-	'grantWorkspace'
-] as const satisfies readonly Flag[];
-
-/**
  * `/settings`, opened at `section`, which may be a name that is gone: the address is the live
  * one either way, so nothing written here sends a reader to a word the area no longer draws.
  *
@@ -202,16 +189,9 @@ export function shownSection(
 	return offered.includes(section) ? section : DEFAULT_SECTION;
 }
 
-/**
- * Whether this reader has anything to do on a directory of people.
- *
- * It gated the members section while there was one. The directory is a block of the organization
- * section now, so the same answer gates the block, and the section itself is offered to anybody
- * signed in: what else it holds, the sync status and the way out of the organization, is read by
- * every member.
- */
-export function administersMembers(session: OrganizationSession | null): boolean {
-	return MEMBER_ACTS.some((act) => permits(session?.permissions ?? 0, act));
+/** Whether `value` names one of the four: the names a contributed section is drawn under. */
+export function isSettingsSection(value: string): value is SettingsSection {
+	return (SETTINGS_SECTIONS as readonly string[]).includes(value);
 }
 
 /**
@@ -223,22 +203,20 @@ export function administersMembers(session: OrganizationSession | null): boolean
  * there is the language, the ending-soon figure, updates and diagnostics, which is everything the
  * three signed-out sections held between them before the four.
  *
- * @param holdsTursoAuthority whether this machine holds the Turso authority. It decides what the
- * organization section *contains*, the reconnect in place of the account, rather than whether the
- * section is offered, since a member reads the sync status either way. It is taken here because
- * the area is handed one answer about who is reading rather than two.
+ * General is the area's own and leads; what follows is what is contributed, in the order it is
+ * handed, which is each contribution's `order`. A contribution under a name that is not one of the
+ * four has no address to be opened at, so it is not offered.
+ *
+ * @param contributed the names of the sections contributed to the area that this reader may see,
+ * in their order.
  */
-export function sectionsFor(
-	session: OrganizationSession | null,
-	// taken and not read, for the reason the docstring gives: the flag decides what the
-	// organization section draws rather than whether it is offered, and the area reads it from its
-	// own prop.
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	holdsTursoAuthority: boolean
-): SettingsSection[] {
-	if (!session) {
+export function sectionsFor(signedIn: boolean, contributed: readonly string[]): SettingsSection[] {
+	if (!signedIn) {
 		return ['general'];
 	}
 
-	return [...SETTINGS_SECTIONS];
+	return [
+		'general',
+		...contributed.filter(isSettingsSection).filter((value) => value !== 'general')
+	];
 }

@@ -1,51 +1,26 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import type api from '$lib/api/caller';
-	import type { RemoteSyncState } from '$lib/sync/host';
-	import type {
-		MemberStanding,
-		OrganizationMember,
-		OrganizationRole,
-		OrganizationSession
-	} from '$lib/organization/host';
+	import type { Section } from '$lib/feature/surface';
 	import type { Locales } from '$lib/i18n/i18n-types';
 	import PageFrame from '@rentable/design/block/page-frame.svelte';
 	import SectionSwitch from '@rentable/design/block/section-switch.svelte';
-	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { Separator } from '@rentable/design/primitive/separator/index.js';
-	import { toErrorText } from '$lib/error/message';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
-	import OrganizationAcceptOwnership from '$lib/organization/component/accept-ownership.svelte';
-	import OrganizationChangePasswordDialog from '$lib/organization/component/change-password-dialog.svelte';
-	import OrganizationDeleteOrganization from '$lib/organization/component/delete-organization.svelte';
-	import OrganizationDisconnect from '$lib/organization/component/disconnect.svelte';
-	import OrganizationEndOtherSessions from '$lib/organization/component/end-other-sessions.svelte';
-	import OrganizationForgetAccount from '$lib/organization/component/forget-account.svelte';
-	import OrganizationIdentity from '$lib/organization/component/identity.svelte';
-	import OrganizationMark from '$lib/organization/component/mark.svelte';
-	import OrganizationMembers from '$lib/organization/component/members.svelte';
-	import OrganizationReconnectAuthority from '$lib/organization/component/reconnect-authority.svelte';
-	import OrganizationRoles from '$lib/organization/component/roles.svelte';
-	import OrganizationStanding from '$lib/organization/component/standing.svelte';
-	import OrganizationWorkspaces from '$lib/organization/component/workspaces.svelte';
-	import { memberReaderOf, roleReaderOf, workspaceContextOf } from '$lib/organization/acts';
 	import SettingsAppearance from '$lib/settings/component/appearance.svelte';
 	import SettingsDiagnostics from '$lib/settings/component/diagnostics.svelte';
 	import SettingsEndingSoon from '$lib/settings/component/ending-soon.svelte';
 	import SettingsLocale from '$lib/settings/component/locale.svelte';
 	import SettingsUpdates from '$lib/settings/component/updates.svelte';
 	import {
-		administersMembers,
 		holdingSection,
 		sectionsFor,
 		shownSection,
 		withSection,
 		type AddressableSection
 	} from '$lib/settings/section';
-	import { permits } from '@rentable/workspace-permission';
-	import CrownIcon from '@lucide/svelte/icons/crown';
-	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
+	import { untrack } from 'svelte';
 
 	type AppSettings = Awaited<ReturnType<typeof api.settings.get>>;
 
@@ -66,49 +41,30 @@
 	 * something; workspaces carries the directory and the transfer beneath it. Nothing moved
 	 * between sections beyond that list.
 	 *
-	 * **Inside a section: what it is about, then what it holds, then what ends something, at the
-	 * foot.** *Settled by the human on the real organization, on the four sections above.* Account
-	 * opens with the offer where one stands, because it is the one block there waiting on a reply.
-	 * Organization opens with how this machine stands to the organization and closes with leaving
-	 * it. What each block is gated on did not change with the order.
+	 * **General is the area's own, and the other three are contributed** (effort 840,
+	 * requirements 4 and 5). The organization declares them in its `surface.ts` with
+	 * `on: 'settings'`, and the route hands them here from `app/surfaces`, so this names no
+	 * feature: it draws the rail from general and what it is handed, in their order and under
+	 * their labels, and draws the chosen one's component. Each reads what it shows for itself,
+	 * and starts reading it here, through its `load`, as the area opens.
 	 *
 	 * **It owns no query**, which is what makes requirement 14's gating readable without a shell:
-	 * the route reads the four queries the four pages read, and this is handed their answers and
-	 * a callback per act of its own. A member's or a workspace's acts are not among them: the
-	 * directories project them from `organization/acts.ts`, and the organization host in the frame
-	 * runs them (effort 832, requirement 8). So its test renders it with one session and then another and reads the
-	 * rail, which no test of a route could do.
+	 * the route reads the settings and whether anybody is signed in, and this is handed the
+	 * answers and a callback per act of its own. So its test renders it signed in and signed out
+	 * and reads the rail, which no test of a route could do.
 	 *
-	 * **What a section shows is the session's, and a section with nothing to show is absent**:
-	 * `sectionsFor` decides which tabs exist, and inside a section the same permissions decide
-	 * each block. Rust refuses every one of them again.
-	 *
-	 * **Each block is one component, and this composes rather than draws.** The members list, the
-	 * workspaces list and the standing block each own their rows and their gates;
-	 * what is here is which of them a reader is offered and what they are handed. *The workspaces
-	 * and sync blocks were the retired pages' components stood side by side until ticket 11 rebuilt
-	 * them; the sync block became the standing block with ticket 26 of effort 828.*
+	 * **A section with nothing to show is absent**: `sectionsFor` decides which tabs exist, and
+	 * inside a section the reader's permissions decide each block. Rust refuses every one of them
+	 * again.
 	 */
 	let {
 		section,
 		settings,
-		session,
-		holdsTursoAuthority,
-		syncState,
-		members,
-		standings,
-		roles,
-		isChangingPassword,
-		isAcceptingOwnership,
-		isDeletingOrganization,
+		signedIn,
+		sections,
 		onChangeLocale,
 		onRevealDiagnostics,
-		onChangePassword,
-		onEndOtherSessions,
-		onAcceptOwnership,
-		onAuthorityReconnected,
-		onDeleteOrganization,
-		onDisconnect
+		leaveForTheWall
 	}: {
 		/**
 		 * the section the address named. One this reader is not offered draws the default, and a
@@ -116,137 +72,50 @@
 		 */
 		section: AddressableSection;
 		settings: AppSettings;
-		/** who is reading, or `null` on the way in, where the area still draws three sections. */
-		session: OrganizationSession | null;
-		/** whether this machine holds the Turso authority: the owner's, after a consent. */
-		holdsTursoAuthority: boolean;
-		/** the machine's sync record; `null` until it has been read, and while signed out. */
-		syncState: RemoteSyncState | null;
-		members: OrganizationMember[];
-		/** where each account stands, as the members section draws it in a line. */
-		standings: MemberStanding[];
-		/** every role the organization has, which the organization section lists. */
-		roles: OrganizationRole[];
-		isChangingPassword: boolean;
-		/** the organization is being accepted, which re-keys the whole directory and pushes it. */
-		isAcceptingOwnership: boolean;
-		/** the organization is being deleted, which is several requests and a sweep of the disk. */
-		isDeletingOrganization: boolean;
+		/** whether anybody is signed in; `false` on the way in, where the area draws general alone. */
+		signedIn: boolean;
+		/** the sections contributed to the area, in their order: `sectionsOn('settings')`. */
+		sections: Section<'settings'>[];
 		onChangeLocale: (next: Locales) => void;
 		onRevealDiagnostics: () => void;
-		/** change the reader's own password; rejects with what the shared handler has said. */
-		onChangePassword: (current: string, next: string) => Promise<void>;
 		/**
-		 * sign the reader out of their other machines; rejects so the confirm stays open on it.
+		 * this machine let go of its organization: leave for wherever signing out leaves. Handed to
+		 * each contributed section, since the act that lets go is one of theirs.
 		 */
-		onEndOtherSessions: () => Promise<void>;
-		/**
-		 * accept the organization offered to this reader, with their own password. Rejects with
-		 * what the shared handler has said, which the account section puts on the password.
-		 */
-		onAcceptOwnership: (password: string) => Promise<void>;
-		onAuthorityReconnected: () => void;
-		/**
-		 * delete the organization with the owner's password: every workspace database and the
-		 * organization's own go from the Turso account and this machine forgets what it held.
-		 * Rejects with what the shared handler has said, which this puts on the password.
-		 */
-		onDeleteOrganization: (password: string) => Promise<void>;
-		/** forget the organization on this machine; rejects so the confirm stays open. */
-		onDisconnect: () => Promise<void>;
+		leaveForTheWall: () => Promise<void>;
 	} = $props();
 
-	const sections = $derived(sectionsFor(session, holdsTursoAuthority));
-	const shown = $derived(shownSection(holdingSection(section), sections));
+	// every contribution starts what it reads as the area opens, whichever section is shown, so
+	// switching to one draws its data rather than a load. The list is the route's constant, so the
+	// first value is the one there is.
+	for (const entry of untrack(() => sections)) {
+		entry.load?.();
+	}
+
+	// what is contributed and this reader may see, in its order; one the reader may not see is
+	// left out whole.
+	const contributed = $derived(sections.filter((entry) => entry.shows?.() ?? true));
+	const offered = $derived(
+		sectionsFor(
+			signedIn,
+			contributed.map((entry) => entry.value)
+		)
+	);
+	const shown = $derived(shownSection(holdingSection(section), offered));
+	const contribution = $derived(contributed.find((entry) => entry.value === shown));
 
 	// every section is addressable, so the switch is a row of links to the addresses a menu row,
 	// the command palette and a bookmark open too. The mark follows `shown`, so an address naming
 	// a section this reader is not offered marks the section that is drawn.
 	const switchable = $derived(
-		sections.map((value) => ({
+		offered.map((value) => ({
 			value,
-			label: $LL.settings.section[value](),
+			label:
+				contributed.find((entry) => entry.value === value)?.label($LL) ??
+				$LL.settings.section[value](),
 			href: resolve(withSection(value))
 		}))
 	);
-
-	const isOwner = $derived(session?.role === 'owner');
-	// an owner restored on this machine holds no Turso authority until they repeat the consent.
-	const needsAuthority = $derived(isOwner && !holdsTursoAuthority);
-	const canCreateWorkspace = $derived(isOwner && holdsTursoAuthority);
-	// the directory is the organization section's own gate: it was a section of its own, and what
-	// admitted a reader to that section now decides whether the block is drawn.
-	const administers = $derived(administersMembers(session));
-
-	let changingPassword = $state(false);
-	/** what the shell refused the last change with, marked on the dialog's current-password field. */
-	let passwordRefusal = $state<string | null>(null);
-
-	/**
-	 * the reader's own password, changed from the account section.
-	 *
-	 * A change that went through closes the surface, which empties it: the two values on it are
-	 * the ones that must not be left on screen. A refusal keeps it open with what was typed, and
-	 * the sentence the shared handler already said in a toast is put back on the field it belongs
-	 * to, because the current password is what the shell refuses this with
-	 * ([[rules/interface]], *Validation errors*).
-	 */
-	const changePassword = async (current: string, next: string) => {
-		passwordRefusal = null;
-
-		try {
-			await onChangePassword(current, next);
-			changingPassword = false;
-		} catch (error) {
-			passwordRefusal = toErrorText(error, $LL);
-		}
-	};
-
-	let acceptingOwnership = $state(false);
-	/** what the shell refused the last acceptance with, marked on its password field. */
-	let acceptRefusal = $state<string | null>(null);
-
-	/**
-	 * the organization, accepted from the account section.
-	 *
-	 * The same shape again. What this reader sees afterwards is an owner's settings area, because
-	 * the session's role is refreshed with the act, and the surface closes because the offer it
-	 * was drawn for is spent.
-	 */
-	const acceptOwnership = async (password: string) => {
-		acceptRefusal = null;
-
-		try {
-			await onAcceptOwnership(password);
-			acceptingOwnership = false;
-		} catch (error) {
-			acceptRefusal = toErrorText(error, $LL);
-		}
-	};
-
-	let deletingOrganization = $state(false);
-	/** what the shell refused the last delete with, marked on the surface's password field. */
-	let deleteRefusal = $state<string | null>(null);
-
-	/**
-	 * the organization, deleted from the organization section.
-	 *
-	 * The same shape the password change has, and for the same reason: a delete that went through
-	 * closes the surface, which empties the one value on it, and a refusal keeps it open with what
-	 * was typed and puts the sentence on the password, because the password is what the shell
-	 * refuses this with ([[rules/interface]], *Validation errors*). Nothing is drawn afterwards
-	 * either way, since the machine that deleted the organization is a machine holding nothing.
-	 */
-	const deleteOrganization = async (password: string) => {
-		deleteRefusal = null;
-
-		try {
-			await onDeleteOrganization(password);
-			deletingOrganization = false;
-		} catch (error) {
-			deleteRefusal = toErrorText(error, $LL);
-		}
-	};
 </script>
 
 <PageFrame>
@@ -283,219 +152,7 @@
 				<SettingsDiagnostics diagnosticsDir={settings.diagnosticsDir} {onRevealDiagnostics} />
 			</Field.Set>
 		</Field.Group>
-	{:else if shown === 'account' && session}
-		<Field.Group>
-			<!-- the offer first, and only where one stands: it is the one thing in this section
-			     waiting on the reader, and everything under it is a fact about their account that
-			     will read the same tomorrow (requirement 22). *It stood last while it was the block
-			     most often absent; the human read the four sections and asked for what is waiting to
-			     come first.* -->
-			{#if session.ownershipOffered}
-				<Field.Set>
-					<Field.Legend>{$LL.settings.you.ownership.title()}</Field.Legend>
-					<Field.Field orientation="vertical" data-ownership-offer>
-						<Field.Content>
-							<Field.Description>
-								{$LL.settings.you.ownership.offered({ owner: session.ownerUsername })}
-							</Field.Description>
-						</Field.Content>
-
-						<div>
-							<Button
-								type="button"
-								variant="outline"
-								data-accept-ownership-open
-								onclick={() => {
-									acceptRefusal = null;
-									acceptingOwnership = true;
-								}}
-							>
-								<CrownIcon class="size-4" />
-								{$LL.organization.dashboard.acceptOwnership()}
-							</Button>
-						</div>
-					</Field.Field>
-				</Field.Set>
-
-				<Separator />
-			{/if}
-
-			<!-- then who this reader is, then the one thing they change about themselves, then the
-			     machines they left signed in: the section is about them, so it opens with them. -->
-			<Field.Set>
-				<Field.Legend>{$LL.settings.you.signedInAs()}</Field.Legend>
-				<OrganizationIdentity {session} />
-			</Field.Set>
-
-			<Separator />
-
-			<Field.Set>
-				<Field.Legend>{$LL.settings.you.password.title()}</Field.Legend>
-				<!-- the fact, and the control that opens the write: nothing about the password is
-				     drawn until the person asks to change it (requirement 8). -->
-				<Field.Field orientation="vertical" data-password>
-					<Field.Content>
-						<Field.Description>{$LL.settings.you.password.description()}</Field.Description>
-					</Field.Content>
-
-					<div>
-						<!-- the verb's glyph before its label; outline rather than solid, since the act is
-						     offered and never invited. -->
-						<Button
-							type="button"
-							variant="outline"
-							data-change-password-open
-							onclick={() => {
-								passwordRefusal = null;
-								changingPassword = true;
-							}}
-						>
-							<KeyRoundIcon class="size-4" />
-							{$LL.settings.you.password.change()}
-						</Button>
-					</div>
-				</Field.Field>
-			</Field.Set>
-
-			<Separator />
-
-			<Field.Set>
-				<Field.Legend>{$LL.settings.you.sessions.title()}</Field.Legend>
-				<OrganizationEndOtherSessions
-					organizationName={session.organizationName}
-					{onEndOtherSessions}
-				/>
-			</Field.Set>
-		</Field.Group>
-
-		<OrganizationChangePasswordDialog
-			open={changingPassword}
-			onOpenChange={(open) => {
-				changingPassword = open;
-
-				if (!open) passwordRefusal = null;
-			}}
-			currentLabel={$LL.settings.you.password.currentLabel()}
-			isChanging={isChangingPassword}
-			errorMessage={passwordRefusal}
-			onChange={(current, next) => void changePassword(current, next)}
-		/>
-
-		<OrganizationAcceptOwnership
-			open={acceptingOwnership}
-			onOpenChange={(open) => {
-				acceptingOwnership = open;
-
-				if (!open) acceptRefusal = null;
-			}}
-			organizationName={session.organizationName}
-			ownerUsername={session.ownerUsername}
-			isAccepting={isAcceptingOwnership}
-			errorMessage={acceptRefusal}
-			onAccept={(password) => void acceptOwnership(password)}
-		/>
-	{:else if shown === 'organization' && session}
-		<Field.Group>
-			<!-- how this machine stands to the organization first: it is what the section is about,
-			     it is what a reader who came here worried is looking for, and it reads the same for
-			     everybody. Then the signature or seal its pages print, then the account the databases
-			     sit on, then the people, then the two acts that end something. *The directory stood
-			     first until the human read the four sections and asked for the elements in each to be
-			     ordered.* -->
-			{#if syncState}
-				<Field.Set data-standing-block>
-					<OrganizationStanding {syncState} {session} {needsAuthority} />
-				</Field.Set>
-
-				<Separator />
-			{/if}
-
-			<!-- what the organization prints on its pages: everybody sees it, and whoever holds the
-			     flag to manage it changes it (effort 835, requirement 13; effort 838). -->
-			<OrganizationMark setsMark={permits(session.permissions, 'manageMark')} />
-
-			<Separator />
-
-			<!-- the Turso account, which is the owner's alone: reconnected where this machine holds
-			     no authority, and given back where it does. Both are the same subject, so they share
-			     the legend rather than standing as two sections a reader meets one of. -->
-			{#if isOwner}
-				<Field.Set>
-					<Field.Legend>{$LL.organization.dashboard.authorityTitle()}</Field.Legend>
-					{#if needsAuthority}
-						<OrganizationReconnectAuthority onReconnected={onAuthorityReconnected} />
-					{:else}
-						<OrganizationForgetAccount />
-					{/if}
-				</Field.Set>
-
-				<Separator />
-			{/if}
-
-			<!-- the roles, before the people who hold them: what each kind of person may do, read by
-			     everybody and changed by whoever holds the flag to (effort 838, requirement 12). The
-			     section answers the search key once, and where the people are drawn below, it is
-			     theirs, the set a reader searches ([[rules/interface]], *Search*). -->
-			<OrganizationRoles
-				{roles}
-				{members}
-				reader={roleReaderOf(session)}
-				answersSearchKey={!administers}
-			/>
-
-			<Separator />
-
-			<!-- the people. The directory owns its own legend, the sentence under it, the cards and
-			     the add at its foot; what is decided here is what this reader may do, and a member
-			     who changes nobody's row meets no directory at all. -->
-			{#if administers}
-				<!-- the reader's gates, read by the one builder the command menu reads them by. -->
-				<OrganizationMembers {members} {standings} {...memberReaderOf(session)} />
-
-				<Separator />
-			{/if}
-
-			<!-- and the foot, where both acts end something: leaving with this machine, and leaving
-			     with the organization. One legend over the two, because what they have in common is
-			     the thing a reader needs to know before reading either, and the heavier one is last.
-			     The delete is the owner's and needs the authority the block above is about, so an
-			     owner whose machine holds none meets the disconnect alone, exactly as they did while
-			     the delete sat inside that block. -->
-			<Field.Set data-leaving>
-				<Field.Legend>{$LL.organization.dashboard.leavingTitle()}</Field.Legend>
-				<OrganizationDisconnect organizationName={session.organizationName} {onDisconnect} />
-
-				{#if isOwner && !needsAuthority}
-					<Field.Separator />
-
-					<OrganizationDeleteOrganization
-						open={deletingOrganization}
-						onOpenChange={(value) => {
-							deletingOrganization = value;
-
-							if (!value) deleteRefusal = null;
-						}}
-						isDeleting={isDeletingOrganization}
-						errorMessage={deleteRefusal}
-						onDelete={(password) => void deleteOrganization(password)}
-					/>
-				{/if}
-			</Field.Set>
-		</Field.Group>
-	{:else if shown === 'workspaces' && session}
-		<Field.Group>
-			<!-- the list owns its own legend, its rows' surfaces and the transfer beneath it; what is
-			     decided here is what this reader may do. The refusal is the rail's own sentence, and
-			     it is drawn for an owner whose machine lost the authority alone: nobody else ever
-			     had a create to be refused, so a sentence saying whose it is would be
-			     announcing something missing. -->
-			<OrganizationWorkspaces
-				workspaces={session.workspaces}
-				{members}
-				{...workspaceContextOf(session, syncState?.workspace.remoteId ?? null)}
-				canCreate={canCreateWorkspace}
-				refusal={needsAuthority ? $LL.layout.workspaceMenu.workspaceRefusedAuthority() : null}
-			/>
-		</Field.Group>
+	{:else if contribution}
+		<contribution.component {leaveForTheWall} />
 	{/if}
 </PageFrame>

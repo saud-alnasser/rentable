@@ -39,7 +39,7 @@ import { get } from 'svelte/store';
  * (`organization/acts.ts`); what is here is where the menu reads the facts they are gated on.
  *
  * **The gates are read by the builders the directories read them by** (`memberReaderOf`,
- * `toMemberActContext`, `workspaceContextOf`), from the same queries the settings route reads, so
+ * `toMemberActContext`, `workspaceContextOf`), from the same queries the settings sections read, so
  * the menu cannot offer an act a card does not. Every gate is today's, and Rust refuses each act
  * again on the signed row. An act a card draws refused on every record, as *who is in a workspace*
  * is to a reader without `grantWorkspace`, is not offered: it could never run from here, and
@@ -174,7 +174,7 @@ const OFFERINGS = Symbol('organization offerings');
  *
  * A hook: it reads the session, the members, where each stands and the workspace open here, and
  * the three that only an act needs are read only while `enabled` says so, which is while the menu
- * is open. They are the settings route's own queries, so an open menu reads their cache.
+ * is open. They are the settings sections' own queries, so an open menu reads their cache.
  *
  * **Read once per menu.** The organization's search entries and act entries are each a hook the
  * menu calls as it mounts (`organization/surface.ts`), and all four answer from these reads, so

@@ -6,6 +6,7 @@ import { searchField } from '$lib/list/tests/search';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
+import { hostAnswers, resetHostAnswers } from '$lib/organization/tests/host-hooks';
 import { fakeOrganizationSession } from '$lib/organization/tests/testing.ts';
 import { fakeSettings } from '$lib/settings/tests/testing.ts';
 import { fakeSyncState } from '$lib/sync/tests/testing.ts';
@@ -29,7 +30,9 @@ import PaletteHarness from '#tests/palette-harness.svelte';
  *
  * **The address and the reads are the mock.** `$app/state` carries no navigation under this
  * runner, and the tenant page's two reads would reach a shell there is none of, so the tenant is
- * stood in for and its contracts are none.
+ * stood in for and its contracts are none. The settings area's organization section reads the
+ * organization for itself, so its reads are the organization host's hooks stood in for
+ * (`organization/tests/host-hooks.ts`).
  */
 
 const { address } = vi.hoisted(() => ({
@@ -54,6 +57,16 @@ vi.mock('$lib/tenant/query', async (importOriginal) => ({
 	})
 }));
 
+vi.mock('$lib/organization/query', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/organization/query')>()),
+	...(await import('$lib/organization/tests/host-hooks')).hostHooks
+}));
+
+vi.mock('$lib/sync/query', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/sync/query')>()),
+	...(await import('$lib/organization/tests/host-hooks')).syncHooks
+}));
+
 vi.mock('$lib/contract/query', async (importOriginal) => ({
 	...(await importOriginal<typeof import('$lib/contract/query')>()),
 	useListContracts: () => ({ data: [], isLoading: false, isFetching: false })
@@ -62,7 +75,7 @@ vi.mock('$lib/contract/query', async (importOriginal) => ({
 /**
  * a route, as the fixture draws it: a component and whatever props it is handed. The fixture only
  * spreads them, so they are not checked against the route here; the settings area's are the ones
- * `settings/tests/area.svelte.test.ts` renders it with, and a wrong one fails the render.
+ * `app/tests/settings-area.svelte.test.ts` renders it with, and a wrong one fails the render.
  */
 const asScreen = (route: unknown) => route as Component<Record<string, unknown>>;
 
@@ -70,6 +83,7 @@ const noop = () => {};
 const resolved = async () => {};
 
 beforeEach(() => {
+	resetHostAnswers();
 	loadLocale('en');
 	setLocale('en');
 
@@ -96,6 +110,9 @@ const pressPaletteKey = (target: Element) =>
 
 const onSettings = () => {
 	address.url = new URL('http://localhost/settings?section=organization');
+	hostAnswers.session = fakeOrganizationSession({ permissions: BUILT_IN.manager.mask });
+	hostAnswers.holdsTursoAuthority = true;
+	hostAnswers.syncState = fakeSyncState();
 
 	return render(PaletteHarness, {
 		strings,
@@ -104,23 +121,11 @@ const onSettings = () => {
 		screenProps: {
 			section: 'organization',
 			settings: fakeSettings(),
-			session: fakeOrganizationSession({ permissions: BUILT_IN.manager.mask }),
-			holdsTursoAuthority: true,
-			syncState: fakeSyncState(),
-			members: [],
-			standings: [],
-			roles: [],
-			isChangingPassword: false,
-			isAcceptingOwnership: false,
-			isDeletingOrganization: false,
+			signedIn: true,
+			sections: sectionsOn('settings'),
 			onChangeLocale: noop,
 			onRevealDiagnostics: noop,
-			onChangePassword: resolved,
-			onEndOtherSessions: resolved,
-			onAcceptOwnership: resolved,
-			onAuthorityReconnected: noop,
-			onDeleteOrganization: resolved,
-			onDisconnect: resolved
+			leaveForTheWall: resolved
 		}
 	});
 };

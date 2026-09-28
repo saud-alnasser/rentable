@@ -63,7 +63,7 @@ import { unfold } from './switches';
  * Both halves are read here: the `href` a card carries, and what the section does when the address
  * carries one.
  *
- * **The address and the navigation are mocked**, the way `settings/tests/area.svelte.test.ts`
+ * **The address and the navigation are mocked**, the way `app/tests/settings-area.svelte.test.ts`
  * mocks the address: `$app/state` carries no navigation under this runner, and `goto` has no
  * router to reach.
  *

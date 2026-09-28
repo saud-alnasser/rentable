@@ -1,8 +1,10 @@
 import type {
+	MemberStanding,
 	OrganizationMember,
 	OrganizationRole,
 	OrganizationSession
 } from '$lib/organization/host';
+import type { RemoteSyncState } from '$lib/sync/host';
 
 /**
  * THE ORGANIZATION HOST'S HOOKS, STOOD IN FOR
@@ -21,6 +23,17 @@ import type {
  *
  * `hostAnswers` is what the hooks answer: the session, members and roles they read, and a refusal per
  * write where a test wants one. `resetHostAnswers` belongs in a `beforeEach`.
+ *
+ * The sections the organization contributes to the settings area read and write through the same
+ * module, and the sync record beside it, so a test drawing the area stands in for both the same
+ * way, the sync query's read with `syncHooks`:
+ *
+ * ```ts
+ * vi.mock('$lib/sync/query', async (importOriginal) => ({
+ * 	...(await importOriginal<typeof import('$lib/sync/query')>()),
+ * 	...(await import('$lib/organization/tests/host-hooks')).syncHooks
+ * }));
+ * ```
  */
 
 /** one write the host asked for: the hook, and what it was handed. */
@@ -31,7 +44,11 @@ export const hostAnswers = {
 	/** whether this machine holds the Turso authority, as the organization's state says. */
 	holdsTursoAuthority: false,
 	members: [] as OrganizationMember[],
+	/** where each member stands, as the members section draws it in a line. */
+	standings: [] as MemberStanding[],
 	roles: [] as OrganizationRole[],
+	/** the machine's sync record; `null` until it has been read, and while signed out. */
+	syncState: null as RemoteSyncState | null,
 	writes: [] as HostWrite[],
 	/** a write the shell refuses, by hook, with what it refuses it with. */
 	refusals: {} as Record<string, Error>
@@ -41,7 +58,9 @@ export function resetHostAnswers() {
 	hostAnswers.session = null;
 	hostAnswers.holdsTursoAuthority = false;
 	hostAnswers.members = [];
+	hostAnswers.standings = [];
 	hostAnswers.roles = [];
+	hostAnswers.syncState = null;
 	hostAnswers.writes = [];
 	hostAnswers.refusals = {};
 }
@@ -80,6 +99,11 @@ export const hostHooks = {
 			return hostAnswers.members;
 		}
 	}),
+	useFetchMemberStandings: () => ({
+		get data() {
+			return hostAnswers.standings;
+		}
+	}),
 	useFetchRoles: () => ({
 		get data() {
 			return hostAnswers.roles;
@@ -102,5 +126,19 @@ export const hostHooks = {
 	useMakeMemberLink: mutation('useMakeMemberLink'),
 	useUnsetMemberPassword: mutation('useUnsetMemberPassword'),
 	useEndMemberSessions: mutation('useEndMemberSessions'),
-	useDeleteWorkspace: mutation('useDeleteWorkspace')
+	useDeleteWorkspace: mutation('useDeleteWorkspace'),
+	useChangePassword: mutation('useChangePassword'),
+	useAcceptOwnership: mutation('useAcceptOwnership'),
+	useEndOtherSessions: mutation('useEndOtherSessions'),
+	useDeleteOrganization: mutation('useDeleteOrganization'),
+	useDisconnectOrganization: mutation('useDisconnectOrganization')
+};
+
+/** what the sync query's read of the sync record is replaced with. */
+export const syncHooks = {
+	useFetchRemoteSyncState: () => ({
+		get data() {
+			return hostAnswers.syncState ?? undefined;
+		}
+	})
 };

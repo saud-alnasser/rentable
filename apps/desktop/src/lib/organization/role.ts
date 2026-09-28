@@ -1,5 +1,9 @@
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
-import type { OrganizationMember, OrganizationRole } from '$lib/organization/host';
+import type {
+	OrganizationMember,
+	OrganizationRole,
+	OrganizationSession
+} from '$lib/organization/host';
 import {
 	BUILT_IN,
 	EVERY_FLAG,
@@ -500,6 +504,34 @@ export const recordsOf = (mask: number): number =>
 
 /** whether a mask adds, edits or deletes any kind of record. */
 export const writesAny = (mask: number): boolean => WRITE_FLAGS.some((flag) => permits(mask, flag));
+
+/**
+ * The acts that make the members directory worth drawing.
+ *
+ * `renameWorkspace` is deliberately absent: it is the workspaces section's act, and a member who
+ * holds it alone has nothing to do on a list of people.
+ */
+const MEMBER_ACTS = [
+	'inviteMember',
+	'removeMember',
+	'assignRole',
+	'overrideMember',
+	'resetPassword',
+	'renameMember',
+	'grantWorkspace'
+] as const satisfies readonly Flag[];
+
+/**
+ * Whether this reader has anything to do on a directory of people.
+ *
+ * It gated the members section while there was one. The directory is a block of the organization
+ * section now, so the same answer gates the block, and the section itself is offered to anybody
+ * signed in: what else it holds, the sync status and the way out of the organization, is read by
+ * every member.
+ */
+export function administersMembers(session: OrganizationSession | null): boolean {
+	return MEMBER_ACTS.some((act) => permits(session?.permissions ?? 0, act));
+}
 
 /** every record flag pinned in any of these workspaces: what clearing all of them unpins. */
 export const pinnedAcross = (workspaces: readonly { pinned: number }[]): number =>

@@ -15,7 +15,10 @@ import {
 	type Flag
 } from '@rentable/workspace-permission';
 
+import { fakeOrganizationSession } from '$lib/organization/tests/testing.ts';
+
 import {
+	administersMembers,
 	administrationHeld,
 	firstUnheldMoved,
 	holdersWritingBlind,
@@ -453,4 +456,45 @@ test('clearing every workspace needs every flag pinned in any of them held', () 
 	assert.equal(firstUnheldPinned(BUILT_IN.manager.mask, pinned), null);
 	assert.equal(firstUnheldPinned(MEMBER, pinned), 'deleteUnit');
 	assert.equal(firstUnheldPinned(0, 0), null);
+});
+
+// requirement 24 of effort 828: the gate moved from the section to the block inside it. A member
+// who changes nobody's row still reads the sync status, the way out and their own account, so the
+// organization section is theirs and the directory is not. *Read in `settings/tests/section.test.ts`
+// beside the sections a session is offered until effort 840 moved the gate to the organization.*
+test('a member who administers nothing is given no directory', () => {
+	const session = fakeOrganizationSession({ role: 'member', permissions: 0 });
+
+	assert.ok(!administersMembers(session));
+});
+
+// the gate is any one of the flags that changes a member's row, so each of them on its own is
+// enough: a member who may only rename people still has a list of people to rename.
+test('any single act that changes a member row is enough for the directory', () => {
+	for (const act of [
+		'inviteMember',
+		'removeMember',
+		'assignRole',
+		'overrideMember',
+		'resetPassword',
+		'renameMember',
+		'grantWorkspace'
+	] as const) {
+		const session = fakeOrganizationSession({ role: 'member', permissions: maskOf(act) });
+
+		assert.ok(administersMembers(session), `${act} alone did not reach the members directory`);
+	}
+});
+
+// the workspaces section is its own, and renaming a workspace is what it is for; a member
+// holding that act and nothing else has no reason to be given a list of people.
+test('renaming a workspace is not one of them', () => {
+	const session = fakeOrganizationSession({
+		role: 'member',
+		permissions: maskOf('renameWorkspace')
+	});
+
+	assert.ok(!administersMembers(session));
+	// and nobody at all is one on the way in.
+	assert.ok(!administersMembers(null));
 });

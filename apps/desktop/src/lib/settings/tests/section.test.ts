@@ -1,13 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { fakeOrganizationSession } from '$lib/organization/tests/testing.ts';
-import { maskOf } from '@rentable/workspace-permission';
-
 import {
 	SECTION_HOLDING,
 	SETTINGS_SECTIONS,
-	administersMembers,
 	holdingSection,
 	recordOf,
 	sectionOf,
@@ -21,12 +17,9 @@ import {
  *
  * The area is drawn from these answers, so they are read here rather than through a rendered
  * rail: what the address names, what the address for a section is, which of the four holds a name
- * that is gone, and which sections a session carries. `area.svelte.test.ts` reads the same gating
- * on screen.
- *
- * The session comes from the shared fixture, because a hand-written partial is a shape the shell
- * never produces; what each case varies is the permission value, which is the one thing the gate
- * consults.
+ * that is gone, and which sections a reader is offered. `app/tests/settings-area.svelte.test.ts`
+ * reads the same gating on screen, and `organization/tests/role.test.ts` the gate on the members
+ * directory, which is the organization section's own.
  */
 
 const at = (search: string) => new URL(`http://localhost/settings${search}`);
@@ -115,64 +108,18 @@ test('a workspace is named by its own word, and a member is not one', () => {
 // is the only section that needs no organization. What it holds there is the language, the
 // ending-soon figure, updates and diagnostics.
 test('with nobody signed in, only the section that needs no session is offered', () => {
-	assert.deepEqual(sectionsFor(null, false), ['general']);
-	assert.deepEqual(sectionsFor(null, true), ['general']);
+	assert.deepEqual(sectionsFor(false, []), ['general']);
+	assert.deepEqual(sectionsFor(false, ['account', 'organization', 'workspaces']), ['general']);
 });
 
 test('anybody signed in is offered all four, in order', () => {
-	const session = fakeOrganizationSession({
-		role: 'owner',
-		permissions: maskOf(
-			'inviteMember',
-			'removeMember',
-			'assignRole',
-			'renameWorkspace',
-			'resetPassword',
-			'renameMember',
-			'grantWorkspace'
-		)
-	});
-
-	assert.deepEqual(sectionsFor(session, true), [...SETTINGS_SECTIONS]);
+	assert.deepEqual(sectionsFor(true, ['account', 'organization', 'workspaces']), [
+		...SETTINGS_SECTIONS
+	]);
 });
 
-// requirement 24: the gate moved from the section to the block inside it. A member who changes
-// nobody's row still reads the sync status, the way out and their own account, so the section is
-// theirs and the directory is not.
-test('a member who administers nothing is offered all four, and no directory', () => {
-	const session = fakeOrganizationSession({ role: 'member', permissions: 0 });
-
-	assert.deepEqual(sectionsFor(session, true), [...SETTINGS_SECTIONS]);
-	assert.ok(!administersMembers(session));
-});
-
-// the gate is any one of the flags that changes a member's row, so each of them on its own is
-// enough: a member who may only rename people still has a list of people to rename.
-test('any single act that changes a member row is enough for the directory', () => {
-	for (const act of [
-		'inviteMember',
-		'removeMember',
-		'assignRole',
-		'overrideMember',
-		'resetPassword',
-		'renameMember',
-		'grantWorkspace'
-	] as const) {
-		const session = fakeOrganizationSession({ role: 'member', permissions: maskOf(act) });
-
-		assert.ok(administersMembers(session), `${act} alone did not reach the members directory`);
-	}
-});
-
-// the workspaces section is its own, and renaming a workspace is what it is for; a member
-// holding that act and nothing else has no reason to be given a list of people.
-test('renaming a workspace is not one of them', () => {
-	const session = fakeOrganizationSession({
-		role: 'member',
-		permissions: maskOf('renameWorkspace')
-	});
-
-	assert.ok(!administersMembers(session));
-	// and nobody at all is one on the way in.
-	assert.ok(!administersMembers(null));
+// general is the area's own, so it leads whatever is contributed, and a contribution under a name
+// that is not one of the four has no address to be opened at.
+test('general leads, and a contribution with no address is not offered', () => {
+	assert.deepEqual(sectionsFor(true, ['general', 'account', 'nowhere']), ['general', 'account']);
 });

@@ -319,7 +319,8 @@ const TERMS = [
 ] as const;
 
 // requirement 24 of effort 828: the area's four sections, each named for what it holds, in both
-// locales. The names themselves are read here; which blocks sit under each is `area.svelte.test.ts`.
+// locales. The names themselves are read here; which blocks sit under each is
+// `app/tests/settings-area.svelte.test.ts`.
 const SECTIONS = ['general', 'account', 'organization', 'workspaces'] as const;
 
 test('both locales name the four sections of the settings area', () => {

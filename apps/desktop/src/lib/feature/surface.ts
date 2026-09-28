@@ -35,10 +35,8 @@ export type Surface = {
 	acts?: ActEntry[];
 	/** mounted once by the frame, above whatever route is drawn */
 	host?: Component;
-	/** what it contributes to a page another feature draws */
+	/** what it contributes to a page another feature draws: a record's, or the settings area */
 	sections?: AnySection[];
-	/** what it contributes to the settings area */
-	settings?: SettingsSection[];
 	/** what it contributes to the shell's own menus: the account menu, the workspace menu */
 	slots?: ShellSlot[];
 	/**
@@ -182,18 +180,32 @@ export type SectionTarget = RecordKind | 'settings';
 
 /**
  * What the page hands a section it draws. A record's page hands it the record: its kind, which is
- * the `on` it was contributed to, and its id.
+ * the `on` it was contributed to, and its id. The settings area hands it the one thing only the
+ * shell can do for it, {@link SettingsSectionProps}.
  */
 export type SectionProps<On extends SectionTarget = SectionTarget> = On extends RecordKind
 	? { kind: On; recordId: string }
-	: Record<string, never>;
+	: SettingsSectionProps;
+
+/**
+ * What the settings area hands a section it draws. A section there reads what it shows for
+ * itself, as a record's section reads its records; what it cannot reach is the shell.
+ */
+export type SettingsSectionProps = {
+	/**
+	 * this machine let go of what it stood in, by an act the section ran: the area leaves for
+	 * wherever signing out leaves, and the shell reads where the machine stands again. It resolves
+	 * once both have been asked for.
+	 */
+	leaveForTheWall: () => Promise<void>;
+};
 
 /**
  * A section drawn on a page another feature owns, placed by `order` among that page's others.
  *
- * On a record's page it is one of the record's collections: `value` names it in the address, and
- * the reader chooses it by `label`. One the reader may not see, where `shows` says so, is left
- * out whole rather than drawn empty.
+ * On a record's page it is one of the record's collections, and in the settings area one of its
+ * sections: `value` names it in the address, and the reader chooses it by `label`. One the reader
+ * may not see, where `shows` says so, is left out whole rather than drawn empty.
  */
 export type Section<On extends SectionTarget = SectionTarget> = {
 	on: On;
@@ -202,16 +214,22 @@ export type Section<On extends SectionTarget = SectionTarget> = {
 	label: (t: TranslationFunctions) => string;
 	shows?: () => boolean;
 	component: Component<SectionProps<On>>;
+	/** what the section reads, started as the page is set up: {@link SectionLoad}. */
+	load?: SectionLoad<On>;
 };
+
+/**
+ * What a section starts reading before it is drawn, where the page asks for it. The settings area
+ * calls every contribution's during its own setup, whichever section is shown, so what a section
+ * reads is asked for as the area opens and switching to it draws data rather than a load. It runs
+ * during component setup, so it may call query hooks. A record's page asks for none.
+ */
+export type SectionLoad<On extends SectionTarget = SectionTarget> = On extends RecordKind
+	? never
+	: () => void;
 
 /** A section for any page: what a surface declares, and what the list of surfaces holds. */
 export type AnySection = { [On in SectionTarget]: Section<On> }[SectionTarget];
-
-/** A section of the settings area, placed by `order` among the others. */
-export type SettingsSection = {
-	order: number;
-	component: Component;
-};
 
 /** Something drawn inside one of the shell's own menus. */
 export type ShellSlot = {

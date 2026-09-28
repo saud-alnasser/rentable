@@ -77,11 +77,11 @@
 
 	const session = $derived(stateQuery.data?.session ?? null);
 
-	// the members are read only while the one surface that lists them is open: the settings route
-	// reads them already, so this is the same cache rather than a second request.
+	// the members are read only while the one surface that lists them is open: the settings
+	// sections read them already, so this is the same cache rather than a second request.
 	const membersQuery = useFetchMembers(() => workspace.changingAccess !== null);
-	// the roles, read while a surface that chooses or edits one is open: the settings route reads
-	// them already, so this is the same cache.
+	// the roles, read while a surface that chooses or edits one is open: the organization section
+	// of the settings area reads them already, so this is the same cache.
 	const rolesQuery = useFetchRoles(
 		() => member.editing !== null || role.editing !== null || role.creating
 	);

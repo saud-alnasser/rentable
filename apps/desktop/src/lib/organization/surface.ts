@@ -4,15 +4,26 @@ import { defineSurface } from '$lib/feature/surface';
 import { RECORD_PARAM, WORKSPACE_PARAM, withSection } from '$lib/settings/section';
 import host from './component/host.svelte';
 import { useOrganizationOfferings } from './palette';
+import SettingsAccount from './component/settings-account.svelte';
+import SettingsOrganization, {
+	loadOrganizationSettings
+} from './component/settings-organization.svelte';
+import SettingsWorkspaces from './component/settings-workspaces.svelte';
 
 /**
- * The organization's host, and its members and workspaces in the command menu.
+ * The organization's host, its members and workspaces in the command menu, and the three sections
+ * it contributes to the settings area.
  *
  * **A member and a workspace are found only while one of their acts asks for one.** They are
  * opened from their settings directory, and the menu reaches them to run an act on them; their
  * acts are gated on who is reading, so the organization reads what they are gated on and offers
  * only the acts that reader may take (`palette.ts`). Opening one goes to its card in the settings
  * area.
+ *
+ * **The settings sections follow the area's own general section**, each drawn under the name
+ * `settings/section.ts` gives it in the address, in this order, and only while somebody is signed
+ * in, which the area decides: each needs an organization to show anything. What the three read is
+ * started as the area opens, by the organization section's `load`.
  */
 export default defineSurface({
 	name: 'organization',
@@ -37,5 +48,29 @@ export default defineSurface({
 	acts: [
 		{ subject: 'member', use: (isOpen) => useOrganizationOfferings(isOpen).member },
 		{ subject: 'workspace', use: (isOpen) => useOrganizationOfferings(isOpen).workspace }
+	],
+	sections: [
+		{
+			on: 'settings',
+			order: 10,
+			value: 'account',
+			label: (t) => t.settings.section.account(),
+			component: SettingsAccount
+		},
+		{
+			on: 'settings',
+			order: 20,
+			value: 'organization',
+			label: (t) => t.settings.section.organization(),
+			component: SettingsOrganization,
+			load: loadOrganizationSettings
+		},
+		{
+			on: 'settings',
+			order: 30,
+			value: 'workspaces',
+			label: (t) => t.settings.section.workspaces(),
+			component: SettingsWorkspaces
+		}
 	]
 });
