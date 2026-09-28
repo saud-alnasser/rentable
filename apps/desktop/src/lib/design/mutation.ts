@@ -1,6 +1,6 @@
 import api from '$lib/api/caller';
 import { invalidateWorkspaceData, workspacePrefixes } from '$lib/design/query';
-import { historyKeys, type HistoryEntry } from '$lib/history/history';
+import { historyKeys, type HistoryEntry } from '$lib/history';
 import { recordDiagnosticError } from '$lib/platform/diagnostics';
 import { inverseStack, type Inverse } from '$lib/design/inverse';
 import { NAMED_RECORDS, unforeseenRefusals } from '@rentable/design/selection.js';

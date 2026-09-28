@@ -143,8 +143,7 @@ design/block/list.svelte -> shortcut/index.ts : upward
 design/block/search-field.svelte -> shortcut/index.ts : upward
 design/filter.ts -> date/index.ts : upward
 design/inverse.ts -> permission/index.ts : upward
-design/mutation.ts -> history/history.ts : deep
-design/mutation.ts -> history/history.ts : upward
+design/mutation.ts -> history/index.ts : upward
 design/mutation.ts -> notification/index.ts : upward
 error -> api : cycle
 error -> i18n : cycle
@@ -152,11 +151,6 @@ history -> api : cycle
 history -> design : cycle
 history -> i18n : cycle
 history -> platform : cycle
-history/history.ts -> complex : literal
-history/history.ts -> contract : literal
-history/history.ts -> payment : literal
-history/history.ts -> tenant : literal
-history/history.ts -> unit : literal
 i18n -> platform : cycle
 i18n/en/index.ts -> complex : literal
 i18n/en/index.ts -> contract : literal

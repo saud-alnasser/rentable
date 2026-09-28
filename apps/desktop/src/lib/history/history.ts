@@ -1,5 +1,6 @@
 import { workspacePrefixes } from '$lib/design/query';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
+import type { RecordKind } from '$lib/permission';
 import { FAMILIES, type Flag } from '@rentable/workspace-permission';
 
 /**
@@ -12,8 +13,12 @@ import { FAMILIES, type Flag } from '@rentable/workspace-permission';
  * A type owned by one of them would make the other import its writer or its reader.
  */
 
-/** which kind of record an entry is about. */
-export type HistoryConcept = 'tenant' | 'complex' | 'unit' | 'contract' | 'payment';
+/**
+ * which kind of record an entry is about: one of the permission package's `RECORD_KINDS`, read
+ * off that list rather than spelled again, as the stored `concept` column in
+ * `platform/database/schema.ts` is.
+ */
+export type HistoryConcept = RecordKind;
 
 /**
  * The changes an entry can name.

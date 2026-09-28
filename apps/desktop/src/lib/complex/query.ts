@@ -7,7 +7,7 @@ import {
 } from '$lib/complex/complex';
 import { declareMutation, describeOutcomeChange } from '$lib/design/mutation';
 import type { SelectionCall } from '@rentable/design/selection.js';
-import type { HistoryEntry } from '$lib/history/history';
+import type { HistoryEntry } from '$lib/history';
 import { workspacePrefixes } from '$lib/design/query';
 import { isRecordId } from '$lib/platform/database/identity';
 import type { ListSort } from '@rentable/design/sort.js';
