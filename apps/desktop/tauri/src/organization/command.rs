@@ -4,13 +4,13 @@ use serde::{Deserialize, Serialize};
 use tauri::Emitter;
 
 use crate::{
+    clock,
     credential::{CredentialStore, Credentials},
     diagnostics,
     error::{Error, RefusalReason},
     persisted::Persisted,
     state::AppState,
     sync::RemoteSyncStore,
-    timestamp,
 };
 
 use super::{
@@ -109,6 +109,7 @@ pub struct OrganizationState {
 pub(crate) async fn organization_create(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
+    clock: tauri::State<'_, clock::Shared>,
     name: String,
     username: String,
     password: String,
@@ -134,6 +135,7 @@ pub(crate) async fn organization_create(
 
     let (created, store) = setup::create_organization(
         credentials.inner().as_ref(),
+        &clock,
         remote_sync.store_mut(),
         &platform_token,
         &McpEndpoint::production(),
@@ -153,7 +155,7 @@ pub(crate) async fn organization_create(
             group: group.as_deref(),
         },
         setup::SHIPPING_KDF,
-        timestamp::now(),
+        clock.now(),
     )
     .await?;
 
@@ -174,7 +176,7 @@ pub(crate) async fn organization_create(
     // the owner's machine enters the registry (effort 828, requirement 15). A first run draws the
     // machine id with the record (`setup.rs`) and registers here, after the sign-in, because the
     // push goes out under the credential the vault unsealed.
-    session::machine_seen(&store, &joined, Some(&member.member_id), timestamp::now()).await;
+    session::machine_seen(&store, &joined, Some(&member.member_id), clock.now()).await;
 
     *app_state.organization.write().await = Some(store);
     *app_state.member.write().await = Some(member);
@@ -224,6 +226,7 @@ pub(crate) async fn organization_group_inspect(
 pub(crate) async fn organization_connect_existing(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
+    clock: tauri::State<'_, clock::Shared>,
     username: String,
     password: String,
 ) -> Result<OrganizationState, Error> {
@@ -242,6 +245,7 @@ pub(crate) async fn organization_connect_existing(
         let mut remote_sync = app_state.remote_sync.write().await;
         let (_, store, session) = setup::connect_existing(
             credentials.inner().as_ref(),
+            &clock,
             remote_sync.store_mut(),
             &platform_token,
             &McpEndpoint::production(),
@@ -256,7 +260,7 @@ pub(crate) async fn organization_connect_existing(
             &database_path,
             &username,
             &password,
-            timestamp::now(),
+            clock.now(),
         )
         .await?;
 
@@ -266,7 +270,7 @@ pub(crate) async fn organization_connect_existing(
     *app_state.organization.write().await = Some(store);
     *app_state.member.write().await = Some(session);
 
-    state_of(&app_state, &credentials).await
+    state_of(&app_state, &credentials, &clock).await
 }
 
 /// Where this machine stands: the organization it holds and who is signed in.
@@ -287,8 +291,9 @@ pub(crate) async fn organization_connect_existing(
 pub(crate) async fn organization_state_get(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
+    clock: tauri::State<'_, clock::Shared>,
 ) -> Result<OrganizationState, Error> {
-    state_of(&app_state, &credentials).await
+    state_of(&app_state, &credentials, &clock).await
 }
 
 /// The state, with the once-per-launch check made first.
@@ -305,12 +310,13 @@ pub(crate) async fn organization_state_get(
 pub(crate) async fn state_of(
     app_state: &AppState,
     credentials: &Credentials,
+    clock: &clock::Shared,
 ) -> Result<OrganizationState, Error> {
     app_state
         .old_shape_check
         .get_or_try_init(|| async {
-            forget::forget_old_shape(app_state, credentials.as_ref()).await?;
-            resume_remembered(app_state, credentials).await;
+            forget::forget_old_shape(app_state, credentials.as_ref(), clock).await?;
+            resume_remembered(app_state, credentials, clock).await;
 
             // and the one sign that is the remote's rather than the replica's: the owner deleted
             // the organization from another machine, so there is no database to sync against any
@@ -376,10 +382,11 @@ pub(crate) async fn state_of(
 pub(crate) async fn organization_disconnect(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
+    clock: tauri::State<'_, clock::Shared>,
 ) -> Result<OrganizationState, Error> {
     forget::forget(&app_state, credentials.inner().as_ref()).await?;
 
-    state_of(&app_state, &credentials).await
+    state_of(&app_state, &credentials, &clock).await
 }
 
 /// Delete the organization: every workspace database and the organization's own directory go from
@@ -395,6 +402,7 @@ pub(crate) async fn organization_disconnect(
 pub(crate) async fn organization_delete(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
+    clock: tauri::State<'_, clock::Shared>,
     password: String,
 ) -> Result<OrganizationState, Error> {
     let platform = owner_platform(&app_state, &credentials)
@@ -415,7 +423,7 @@ pub(crate) async fn organization_delete(
     )
     .await?;
 
-    state_of(&app_state, &credentials).await
+    state_of(&app_state, &credentials, &clock).await
 }
 
 /// Sign in to the organization this machine holds, with a username and a password (effort 824,
@@ -436,6 +444,7 @@ pub(crate) async fn organization_delete(
 pub(crate) async fn organization_sign_in(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
+    clock: tauri::State<'_, clock::Shared>,
     username: String,
     password: String,
 ) -> Result<OrganizationState, Error> {
@@ -464,6 +473,7 @@ pub(crate) async fn organization_sign_in(
     let (store, credential) = open_replica(
         app_state.inner(),
         credentials.inner(),
+        clock.inner(),
         &held,
         Opening::Password {
             username: &username,
@@ -502,7 +512,7 @@ pub(crate) async fn organization_sign_in(
             &username,
             &password,
             &credential,
-            timestamp::now(),
+            clock.now(),
         )
         .await?
     };
@@ -515,7 +525,7 @@ pub(crate) async fn organization_sign_in(
     *app_state.organization.write().await = Some(store);
     *app_state.member.write().await = Some(member);
 
-    state_of(&app_state, &credentials).await
+    state_of(&app_state, &credentials, &clock).await
 }
 
 /// Put the wall back up: drop the keys this process held, and let go of the replica. The record
@@ -524,10 +534,11 @@ pub(crate) async fn organization_sign_in(
 pub(crate) async fn organization_sign_out(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
+    clock: tauri::State<'_, clock::Shared>,
 ) -> Result<OrganizationState, Error> {
     sign_out(&app_state, credentials.inner().as_ref()).await;
 
-    state_of(&app_state, &credentials).await
+    state_of(&app_state, &credentials, &clock).await
 }
 
 /// The sign-out itself: the keys go, the organization replica is dropped, and the key this
@@ -570,7 +581,7 @@ pub(crate) async fn sign_out(app_state: &AppState, credentials: &dyn CredentialS
         let organization = app_state.organization.read().await;
 
         if let (Some(held), Some(store)) = (held, organization.as_ref()) {
-            session::machine_seen(store, &held, None, timestamp::now()).await;
+            session::machine_seen(store, &held, None, store.clock().now()).await;
         }
     }
 
@@ -597,7 +608,7 @@ pub(crate) async fn sign_out(app_state: &AppState, credentials: &dyn CredentialS
 /// the one after, and it is the heartbeat's (effort 828, requirement 22). The one before the vault
 /// opens stays for a replica that already holds the re-keyed rows, which is what reads the member
 /// row the key has to open.
-async fn resume_remembered(app_state: &AppState, credentials: &Credentials) {
+async fn resume_remembered(app_state: &AppState, credentials: &Credentials, clock: &clock::Shared) {
     if app_state.member.read().await.is_some() {
         return;
     }
@@ -611,38 +622,39 @@ async fn resume_remembered(app_state: &AppState, credentials: &Credentials) {
         return;
     };
 
-    let resumed = match open_replica(app_state, credentials, &held, Opening::Remembered).await {
-        Ok((store, credential)) => {
-            // a replica that already holds a handover this machine has not followed: the
-            // succession is followed before the remembered key opens anything, so the resume
-            // reads the member row under the key the rows are on (effort 828, requirement 22).
-            // A handover the replica has not received yet is followed after the pull, below.
-            let held = {
-                let mut remote_sync = app_state.remote_sync.write().await;
+    let resumed =
+        match open_replica(app_state, credentials, clock, &held, Opening::Remembered).await {
+            Ok((store, credential)) => {
+                // a replica that already holds a handover this machine has not followed: the
+                // succession is followed before the remembered key opens anything, so the resume
+                // reads the member row under the key the rows are on (effort 828, requirement 22).
+                // A handover the replica has not received yet is followed after the pull, below.
+                let held = {
+                    let mut remote_sync = app_state.remote_sync.write().await;
 
-                match role::follow_succession(&store, remote_sync.store_mut()).await {
-                    Ok(Some(_)) => remote_sync
-                        .store_mut()
-                        .organization
-                        .clone()
-                        .unwrap_or_else(|| held.clone()),
-                    Ok(None) => held.clone(),
-                    Err(refusal) => {
-                        diagnostics::warn("organization.succession.notFollowed")
-                            .with("reason", refusal.to_string())
-                            .write();
+                    match role::follow_succession(&store, remote_sync.store_mut()).await {
+                        Ok(Some(_)) => remote_sync
+                            .store_mut()
+                            .organization
+                            .clone()
+                            .unwrap_or_else(|| held.clone()),
+                        Ok(None) => held.clone(),
+                        Err(refusal) => {
+                            diagnostics::warn("organization.succession.notFollowed")
+                                .with("reason", refusal.to_string())
+                                .write();
 
-                        held.clone()
+                            held.clone()
+                        }
                     }
-                }
-            };
+                };
 
-            session::resume(credentials.as_ref(), &store, &held, &credential)
-                .await
-                .map(|resumption| (store, resumption))
-        }
-        Err(refusal) => Err(refusal),
-    };
+                session::resume(credentials.as_ref(), &store, &held, &credential)
+                    .await
+                    .map(|resumption| (store, resumption))
+            }
+            Err(refusal) => Err(refusal),
+        };
 
     let (store, member) = match resumed {
         Ok((store, Resumption::Opened(member))) => (store, *member),
@@ -728,7 +740,7 @@ async fn machine_registered(app_state: &AppState) -> Result<(), Error> {
     let organization = app_state.organization.read().await;
 
     if let Some(store) = organization.as_ref() {
-        session::machine_seen(store, &held, held.member_id.as_deref(), timestamp::now()).await;
+        session::machine_seen(store, &held, held.member_id.as_deref(), store.clock().now()).await;
     }
 
     Ok(())
@@ -882,6 +894,7 @@ pub(crate) async fn ended_elsewhere(
 async fn open_replica(
     app_state: &AppState,
     credentials: &Credentials,
+    clock: &clock::Shared,
     held: &HeldOrganization,
     opening: Opening<'_>,
 ) -> Result<(OrganizationStore, CredentialSlot), Error> {
@@ -893,6 +906,7 @@ async fn open_replica(
     let credential: CredentialSlot = Arc::new(Mutex::new(None));
     let slot = Arc::clone(&credential);
     let store = OrganizationStore::open(
+        clock.clone(),
         &OrganizationStore::replica_path(&database_path, &held.id),
         Some(held.remote_url.clone()),
         move || {
@@ -923,7 +937,7 @@ async fn open_replica(
                 username,
                 password,
                 &credential,
-                timestamp::now(),
+                store.clock().now(),
             )
             .await?
         }
@@ -934,7 +948,7 @@ async fn open_replica(
                 &remote,
                 held,
                 &credential,
-                timestamp::now(),
+                store.clock().now(),
             )
             .await?
         }
@@ -1094,6 +1108,7 @@ fn signed_in<'a>(
 pub(crate) async fn workspace_create(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
+    clock: tauri::State<'_, clock::Shared>,
     name: String,
 ) -> Result<WorkspaceFacts, Error> {
     let platform = owner_platform(&app_state, &credentials)
@@ -1109,15 +1124,7 @@ pub(crate) async fn workspace_create(
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
 
-    workspace::create_workspace(
-        store,
-        member,
-        &platform,
-        Pipeline::of,
-        &name,
-        timestamp::now(),
-    )
-    .await
+    workspace::create_workspace(store, member, &platform, Pipeline::of, &name, clock.now()).await
 }
 
 /// Grant a workspace to a member. Full access re-seals the caller's own credential; read-only is
@@ -1209,6 +1216,7 @@ pub(crate) async fn workspace_open(
     app: tauri::AppHandle,
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
+    clock: tauri::State<'_, clock::Shared>,
     workspace_id: String,
 ) -> Result<WorkspaceFacts, Error> {
     let (facts, credential) = {
@@ -1299,7 +1307,7 @@ pub(crate) async fn workspace_open(
                 &lease,
                 || tokio::time::sleep(migration::LEASE_POLL_INTERVAL),
                 notice,
-                timestamp::now,
+                || clock.now(),
             )
             .await?;
         }
@@ -1326,7 +1334,7 @@ pub(crate) async fn workspace_open(
         )?;
     }
 
-    if let Some(error) = crate::bootstrap::open_database(&app_state).await {
+    if let Some(error) = crate::bootstrap::open_database(&app_state, clock.as_ref()).await {
         return Err(error);
     }
 
@@ -1397,6 +1405,7 @@ async fn hold_renewed_token(app_state: &AppState, member: &MemberSession) {
 pub(crate) async fn organization_renew_due(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
+    clock: tauri::State<'_, clock::Shared>,
 ) -> Result<bool, Error> {
     let Some(platform) = owner_platform(&app_state, &credentials).await else {
         return Ok(false);
@@ -1413,7 +1422,7 @@ pub(crate) async fn organization_renew_due(
     // after a pull, for the reason `organization_renew_credentials` gives.
     store.pull().await;
 
-    let now = crate::timestamp::now();
+    let now = clock.now();
     if !workspace::credentials_due(store, member, workspace::CREDENTIAL_RENEWAL_WINDOW_MS, now)
         .await?
     {
@@ -1443,6 +1452,7 @@ pub(crate) async fn organization_renew_due(
 pub(crate) async fn member_create(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
+    clock: tauri::State<'_, clock::Shared>,
     username: String,
     role_id: String,
     override_mask: i64,
@@ -1462,7 +1472,7 @@ pub(crate) async fn member_create(
         override_mask,
         &workspaces,
         invite::INVITED_KDF,
-        timestamp::now(),
+        clock.now(),
     )
     .await
 }
@@ -1483,6 +1493,7 @@ pub(crate) async fn member_create(
 pub(crate) async fn member_link_make(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
+    clock: tauri::State<'_, clock::Shared>,
     member_id: String,
 ) -> Result<MadeLink, Error> {
     let platform = owner_platform(&app_state, &credentials).await;
@@ -1503,7 +1514,7 @@ pub(crate) async fn member_link_make(
         &locator,
         &member_id,
         invite::INVITED_KDF,
-        timestamp::now(),
+        clock.now(),
     )
     .await
 }
@@ -1518,6 +1529,7 @@ pub(crate) async fn member_link_make(
 pub(crate) async fn member_password_unset(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
+    clock: tauri::State<'_, clock::Shared>,
     member_id: String,
 ) -> Result<Vec<UnreachableWorkspace>, Error> {
     let platform = owner_platform(&app_state, &credentials).await;
@@ -1534,7 +1546,7 @@ pub(crate) async fn member_password_unset(
         platform.as_ref(),
         &member_id,
         invite::INVITED_KDF,
-        timestamp::now(),
+        clock.now(),
     )
     .await
 }
@@ -1555,6 +1567,7 @@ pub(crate) async fn member_password_unset(
 pub(crate) async fn invitation_accept(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
+    clock: tauri::State<'_, clock::Shared>,
     link: String,
     code: String,
     password: String,
@@ -1565,13 +1578,13 @@ pub(crate) async fn invitation_accept(
 
         join::accept(
             credentials.inner().as_ref(),
-            |credential| reached(&app_state, &link, credential),
+            |credential| reached(&app_state, &clock, &link, credential),
             remote_sync.store_mut(),
             &link,
             &code,
             &password,
             setup::SHIPPING_KDF,
-            timestamp::now(),
+            clock.now(),
         )
         .await?
     };
@@ -1582,7 +1595,7 @@ pub(crate) async fn invitation_accept(
     *app_state.organization.write().await = Some(store);
     *app_state.member.write().await = Some(member);
 
-    state_of(&app_state, &credentials).await
+    state_of(&app_state, &credentials, &clock).await
 }
 
 /// Connect this machine with a machine-kind link, and leave it at the wall.
@@ -1600,6 +1613,7 @@ pub(crate) async fn invitation_accept(
 pub(crate) async fn machine_connect(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
+    clock: tauri::State<'_, clock::Shared>,
     link: String,
     code: String,
 ) -> Result<OrganizationState, Error> {
@@ -1609,17 +1623,17 @@ pub(crate) async fn machine_connect(
         let mut remote_sync = app_state.remote_sync.write().await;
 
         machine::connect(
-            |credential| reached(&app_state, &link, credential),
+            |credential| reached(&app_state, &clock, &link, credential),
             remote_sync.store_mut(),
             &link,
             &code,
             setup::SHIPPING_KDF,
-            timestamp::now(),
+            clock.now(),
         )
         .await?;
     }
 
-    state_of(&app_state, &credentials).await
+    state_of(&app_state, &credentials, &clock).await
 }
 
 /// Every role, highest rank first: the owner's, the manager's, the custom roles in order, and the
@@ -1642,6 +1656,7 @@ pub async fn organization_roles(
 #[tauri::command]
 pub async fn role_create(
     app_state: tauri::State<'_, AppState>,
+    clock: tauri::State<'_, clock::Shared>,
     name: String,
     mask: i64,
     after_role_id: String,
@@ -1653,13 +1668,14 @@ pub async fn role_create(
     // the session epoch, so they are read after a pull (effort 826, requirement 22).
     store.pull().await;
 
-    role::create_role(store, member, &name, mask, &after_role_id, timestamp::now()).await
+    role::create_role(store, member, &name, mask, &after_role_id, clock.now()).await
 }
 
 /// Rename a custom role. `manageRoles`, below the actor's rank; a built-in role is refused.
 #[tauri::command]
 pub async fn role_rename(
     app_state: tauri::State<'_, AppState>,
+    clock: tauri::State<'_, clock::Shared>,
     role_id: String,
     name: String,
 ) -> Result<RoleFacts, Error> {
@@ -1668,7 +1684,7 @@ pub async fn role_rename(
     let (member, store) = signed_in(&mut member, &store)?;
     store.pull().await;
 
-    role::rename_role(store, member, &role_id, &name, timestamp::now()).await
+    role::rename_role(store, member, &role_id, &name, clock.now()).await
 }
 
 /// Change what a role carries: the manager's, the member's or a custom role's, never the owner's.
@@ -1677,6 +1693,7 @@ pub async fn role_rename(
 #[tauri::command]
 pub async fn role_set_mask(
     app_state: tauri::State<'_, AppState>,
+    clock: tauri::State<'_, clock::Shared>,
     role_id: String,
     mask: i64,
 ) -> Result<RoleFacts, Error> {
@@ -1686,7 +1703,7 @@ pub async fn role_set_mask(
     // every holder's row is written back whole, and it carries the session epoch.
     store.pull().await;
 
-    role::set_role_mask(store, member, &role_id, mask, timestamp::now()).await
+    role::set_role_mask(store, member, &role_id, mask, clock.now()).await
 }
 
 /// Move a custom role to directly below `after_role_id`. `manageRoles`, and both the role and the
@@ -1695,6 +1712,7 @@ pub async fn role_set_mask(
 #[tauri::command]
 pub async fn role_move(
     app_state: tauri::State<'_, AppState>,
+    clock: tauri::State<'_, clock::Shared>,
     role_id: String,
     after_role_id: String,
 ) -> Result<RoleFacts, Error> {
@@ -1703,7 +1721,7 @@ pub async fn role_move(
     let (member, store) = signed_in(&mut member, &store)?;
     store.pull().await;
 
-    role::move_role(store, member, &role_id, &after_role_id, timestamp::now()).await
+    role::move_role(store, member, &role_id, &after_role_id, clock.now()).await
 }
 
 /// Delete a custom role; everybody who held it holds the member role from here on, exactly, the
@@ -1712,6 +1730,7 @@ pub async fn role_move(
 #[tauri::command]
 pub async fn role_delete(
     app_state: tauri::State<'_, AppState>,
+    clock: tauri::State<'_, clock::Shared>,
     role_id: String,
 ) -> Result<(), Error> {
     let mut member = app_state.member.write().await;
@@ -1719,7 +1738,7 @@ pub async fn role_delete(
     let (member, store) = signed_in(&mut member, &store)?;
     store.pull().await;
 
-    role::delete_role(store, member, &role_id, timestamp::now()).await
+    role::delete_role(store, member, &role_id, clock.now()).await
 }
 
 /// Give a member a role (effort 838, requirement 5): their row names it, re-signed, and their
@@ -1737,6 +1756,7 @@ pub async fn role_delete(
 #[tauri::command]
 pub async fn member_assign_role(
     app_state: tauri::State<'_, AppState>,
+    clock: tauri::State<'_, clock::Shared>,
     member_id: String,
     role_id: String,
     override_mask: Option<i64>,
@@ -1754,7 +1774,7 @@ pub async fn member_assign_role(
         &member_id,
         &role_id,
         override_mask,
-        timestamp::now(),
+        clock.now(),
     )
     .await
 }
@@ -1766,6 +1786,7 @@ pub async fn member_assign_role(
 #[tauri::command]
 pub async fn member_set_override(
     app_state: tauri::State<'_, AppState>,
+    clock: tauri::State<'_, clock::Shared>,
     member_id: String,
     override_mask: i64,
 ) -> Result<MemberFacts, Error> {
@@ -1774,7 +1795,7 @@ pub async fn member_set_override(
     let (member, store) = signed_in(&mut member, &store)?;
     store.pull().await;
 
-    role::set_override(store, member, &member_id, override_mask, timestamp::now()).await
+    role::set_override(store, member, &member_id, override_mask, clock.now()).await
 }
 
 /// Set what is pinned for a member in one workspace, whatever they hold across the organization,
@@ -1814,6 +1835,7 @@ pub async fn member_set_workspace_override(
 #[tauri::command]
 pub async fn member_offer_ownership(
     app_state: tauri::State<'_, AppState>,
+    clock: tauri::State<'_, clock::Shared>,
     member_id: String,
     password: String,
 ) -> Result<MemberFacts, Error> {
@@ -1824,7 +1846,7 @@ pub async fn member_offer_ownership(
     // rather than off this machine's last sight of it (effort 826, requirement 22).
     store.pull().await;
 
-    role::offer_ownership(store, member, &member_id, &password, timestamp::now()).await
+    role::offer_ownership(store, member, &member_id, &password, clock.now()).await
 }
 
 /// Take the offer back (effort 828, requirement 22).
@@ -1833,14 +1855,17 @@ pub async fn member_offer_ownership(
 /// something this person did. Whether an offer stands at all is Rust's to answer, and the refusal
 /// where none does is the sentence the members section shows.
 #[tauri::command]
-pub async fn member_withdraw_offer(app_state: tauri::State<'_, AppState>) -> Result<(), Error> {
+pub async fn member_withdraw_offer(
+    app_state: tauri::State<'_, AppState>,
+    clock: tauri::State<'_, clock::Shared>,
+) -> Result<(), Error> {
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
 
     store.pull().await;
 
-    role::withdraw_offer(store, member, timestamp::now()).await
+    role::withdraw_offer(store, member, clock.now()).await
 }
 
 /// Accept the organization: the second act, on the offered account's own machine (effort 828,
@@ -1862,6 +1887,7 @@ pub async fn member_withdraw_offer(app_state: tauri::State<'_, AppState>) -> Res
 pub(crate) async fn ownership_accept(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
+    clock: tauri::State<'_, clock::Shared>,
     password: String,
 ) -> Result<OrganizationState, Error> {
     {
@@ -1879,12 +1905,12 @@ pub(crate) async fn ownership_accept(
             member,
             remote_sync.store_mut(),
             &password,
-            timestamp::now(),
+            clock.now(),
         )
         .await?;
     }
 
-    state_of(&app_state, &credentials).await
+    state_of(&app_state, &credentials, &clock).await
 }
 
 /// Rename a member: their row written back with the username re-sealed and signed by whoever
@@ -1895,6 +1921,7 @@ pub(crate) async fn ownership_accept(
 #[tauri::command]
 pub async fn member_rename(
     app_state: tauri::State<'_, AppState>,
+    clock: tauri::State<'_, clock::Shared>,
     member_id: String,
     username: String,
 ) -> Result<MemberFacts, Error> {
@@ -1905,7 +1932,7 @@ pub async fn member_rename(
     // rather than off this machine's last sight of it (effort 826, requirement 22).
     store.pull().await;
 
-    invite::rename_member(store, member, &member_id, &username, timestamp::now()).await
+    invite::rename_member(store, member, &member_id, &username, clock.now()).await
 }
 
 /// The organization's mark, a signature or a seal, opened for the pages it is printed on and the
@@ -1928,6 +1955,7 @@ pub async fn organization_mark_get(
 #[tauri::command]
 pub async fn organization_mark_set(
     app_state: tauri::State<'_, AppState>,
+    clock: tauri::State<'_, clock::Shared>,
     path: String,
 ) -> Result<mark::MarkFacts, Error> {
     let unreadable = |error: std::io::Error| Error::Io {
@@ -1942,7 +1970,7 @@ pub async fn organization_mark_set(
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
 
-    mark::set_mark(store, member, &image, timestamp::now()).await
+    mark::set_mark(store, member, &image, clock.now()).await
 }
 
 /// Remove the organization's mark; whoever carries `manageMark` does it.
@@ -1969,6 +1997,7 @@ pub async fn organization_mark_clear(app_state: tauri::State<'_, AppState>) -> R
 pub(crate) async fn organization_session_end_elsewhere(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
+    clock: tauri::State<'_, clock::Shared>,
 ) -> Result<SessionsEnded, Error> {
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
@@ -1981,13 +2010,8 @@ pub(crate) async fn organization_session_end_elsewhere(
     store.pull().await;
 
     Ok(SessionsEnded {
-        sent: session::end_elsewhere(
-            credentials.inner().as_ref(),
-            store,
-            member,
-            timestamp::now(),
-        )
-        .await?,
+        sent: session::end_elsewhere(credentials.inner().as_ref(), store, member, clock.now())
+            .await?,
     })
 }
 
@@ -2001,6 +2025,7 @@ pub(crate) async fn organization_session_end_elsewhere(
 #[tauri::command]
 pub async fn member_end_sessions(
     app_state: tauri::State<'_, AppState>,
+    clock: tauri::State<'_, clock::Shared>,
     member_id: String,
 ) -> Result<SessionsEnded, Error> {
     let mut member = app_state.member.write().await;
@@ -2013,7 +2038,7 @@ pub async fn member_end_sessions(
     store.pull().await;
 
     Ok(SessionsEnded {
-        sent: session::end_member_sessions(store, member, &member_id, timestamp::now()).await?,
+        sent: session::end_member_sessions(store, member, &member_id, clock.now()).await?,
     })
 }
 
@@ -2048,6 +2073,7 @@ pub async fn member_lock_out_cost(
 pub(crate) async fn member_remove(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
+    clock: tauri::State<'_, clock::Shared>,
     member_id: String,
     lock_out: Option<bool>,
 ) -> Result<Removed, Error> {
@@ -2067,7 +2093,7 @@ pub(crate) async fn member_remove(
         &organization_database,
         &member_id,
         lock_out.unwrap_or(false),
-        timestamp::now(),
+        clock.now(),
     )
     .await?;
 
@@ -2157,7 +2183,8 @@ pub(crate) async fn rename_current_workspace(
         let store = app_state.organization.read().await;
         let (member, store) = signed_in(&mut member, &store)?;
 
-        workspace::rename_workspace(store, member, &workspace_id, name, timestamp::now()).await?;
+        workspace::rename_workspace(store, member, &workspace_id, name, store.clock().now())
+            .await?;
     }
 
     let mut remote_sync = app_state.remote_sync.write().await;
@@ -2207,6 +2234,7 @@ pub async fn organization_account_refusal_detail(
 pub(crate) async fn organization_change_password(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
+    clock: tauri::State<'_, clock::Shared>,
     current: String,
     new: String,
 ) -> Result<OrganizationState, Error> {
@@ -2222,12 +2250,12 @@ pub(crate) async fn organization_change_password(
             &current,
             &new,
             setup::SHIPPING_KDF,
-            timestamp::now(),
+            clock.now(),
         )
         .await?;
     }
 
-    state_of(&app_state, &credentials).await
+    state_of(&app_state, &credentials, &clock).await
 }
 
 /// Every member, for the members list: names opened with the content key the session holds and the
@@ -2256,12 +2284,13 @@ pub async fn organization_members(
 #[tauri::command]
 pub async fn organization_member_standings(
     app_state: tauri::State<'_, AppState>,
+    clock: tauri::State<'_, clock::Shared>,
 ) -> Result<Vec<MemberStanding>, Error> {
     let mut member = app_state.member.write().await;
     let store = app_state.organization.read().await;
     let (member, store) = signed_in(&mut member, &store)?;
 
-    invite::standings(store, member, timestamp::now()).await
+    invite::standings(store, member, clock.now()).await
 }
 
 /// The link the operating system handed this process, if one is waiting: a launch with a link
@@ -2303,6 +2332,7 @@ pub fn organization_link_read(link: String) -> Result<LinkShape, Error> {
 pub(crate) async fn organization_reconnect_authority(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
+    clock: tauri::State<'_, clock::Shared>,
 ) -> Result<OrganizationState, Error> {
     let platform_token = setup::authority(credentials.inner().as_ref())?;
 
@@ -2324,7 +2354,7 @@ pub(crate) async fn organization_reconnect_authority(
         }
     }
 
-    state_of(&app_state, &credentials).await
+    state_of(&app_state, &credentials, &clock).await
 }
 
 /// The organization a link names, reached: its replica on this machine, opened against the
@@ -2340,6 +2370,7 @@ pub(crate) async fn organization_reconnect_authority(
 /// the credential together.*
 async fn reached(
     app_state: &AppState,
+    clock: &clock::Shared,
     link: &JoinLink,
     credential: CredentialSlot,
 ) -> Result<OrganizationStore, Error> {
@@ -2350,6 +2381,7 @@ async fn reached(
     };
     let slot = Arc::clone(&credential);
     let store = OrganizationStore::open(
+        clock.clone(),
         &OrganizationStore::replica_path(&database_path, &link.organization_id),
         Some(link.remote_url.clone()),
         move || {
@@ -2445,13 +2477,20 @@ mod tests {
         settings.commit().expect("the settings");
 
         let settings = Arc::new(RwLock::new(settings));
-        let remote_sync = RemoteSync::new(settings.clone(), directory.join(RemoteSync::FILENAME))
-            .await
-            .expect("the sync record");
+        let remote_sync = RemoteSync::new(
+            settings.clone(),
+            directory.join(RemoteSync::FILENAME),
+            crate::clock::System::shared(),
+        )
+        .await
+        .expect("the sync record");
         let update = Update::new(settings.clone()).await.expect("the update");
 
         AppState {
-            db: Arc::new(RwLock::new(Database::new(settings.clone()))),
+            db: Arc::new(RwLock::new(Database::new(
+                settings.clone(),
+                crate::clock::System::shared(),
+            ))),
             settings,
             remote_sync: Arc::new(RwLock::new(remote_sync)),
             update: Arc::new(RwLock::new(update)),
@@ -2496,6 +2535,7 @@ mod tests {
 
             create_organization(
                 credentials,
+                &crate::clock::System::shared(),
                 remote_sync.store_mut(),
                 "a-platform-token",
                 &McpEndpoint::at(&mcp.url("")),
@@ -2568,7 +2608,9 @@ mod tests {
             "a launch starts with nobody in"
         );
 
-        let state = state_of(&app_state, &credentials).await.expect("the state");
+        let state = state_of(&app_state, &credentials, &crate::clock::System::shared())
+            .await
+            .expect("the state");
         let session = state.session.expect("the launch did not resume");
 
         assert_eq!(session.member_id, member_id);
@@ -2612,7 +2654,9 @@ mod tests {
             record.commit().expect("the record");
         }
 
-        let state = state_of(&app_state, &credentials).await.expect("the state");
+        let state = state_of(&app_state, &credentials, &crate::clock::System::shared())
+            .await
+            .expect("the state");
 
         assert!(state.session.is_some(), "the launch did not resume");
         assert_eq!(
@@ -2636,7 +2680,7 @@ mod tests {
     /// Everything the replica on disk holds, table by table and row by row, read through a store
     /// opened on the file with no remote and let go of again: a write anywhere changes it.
     async fn contents(path: &std::path::Path) -> Vec<(String, Vec<Vec<turso::Value>>)> {
-        let store = OrganizationStore::open(path, None, || async {
+        let store = OrganizationStore::open(crate::clock::System::shared(), path, None, || async {
             Ok::<String, turso::Error>(String::new())
         })
         .await
@@ -2713,9 +2757,12 @@ mod tests {
             );
 
             {
-                let store = OrganizationStore::open(&replica, None, || async {
-                    Ok::<String, turso::Error>(String::new())
-                })
+                let store = OrganizationStore::open(
+                    crate::clock::System::shared(),
+                    &replica,
+                    None,
+                    || async { Ok::<String, turso::Error>(String::new()) },
+                )
                 .await
                 .expect("the replica");
 
@@ -2727,7 +2774,9 @@ mod tests {
             }
 
             let before = contents(&replica).await;
-            let state = state_of(&app_state, &credentials).await.expect("the state");
+            let state = state_of(&app_state, &credentials, &crate::clock::System::shared())
+                .await
+                .expect("the state");
 
             assert!(
                 state.session.is_none(),
@@ -2749,9 +2798,15 @@ mod tests {
                     .clone()
                     .expect("the record")
             };
-            let refused = open_replica(&app_state, &credentials, &held, Opening::Remembered)
-                .await
-                .map(|_| ());
+            let refused = open_replica(
+                &app_state,
+                &credentials,
+                &crate::clock::System::shared(),
+                &held,
+                Opening::Remembered,
+            )
+            .await
+            .map(|_| ());
 
             assert!(
                 matches!(refused, Err(Error::Refused { reason: refusal, .. }) if refusal == reason),
@@ -2776,11 +2831,12 @@ mod tests {
             OrganizationStore::replica_path(&directory.join(Database::FILENAME), &organization_id);
 
         {
-            let store = OrganizationStore::open(&replica, None, || async {
-                Ok::<String, turso::Error>(String::new())
-            })
-            .await
-            .expect("the replica");
+            let store =
+                OrganizationStore::open(crate::clock::System::shared(), &replica, None, || async {
+                    Ok::<String, turso::Error>(String::new())
+                })
+                .await
+                .expect("the replica");
 
             store
                 .connection()
@@ -2790,7 +2846,9 @@ mod tests {
         }
 
         let before = contents(&replica).await;
-        let state = state_of(&app_state, &credentials).await.expect("the state");
+        let state = state_of(&app_state, &credentials, &crate::clock::System::shared())
+            .await
+            .expect("the state");
 
         assert!(state.session.is_none());
         assert_eq!(
@@ -2808,9 +2866,15 @@ mod tests {
                 .clone()
                 .expect("the record")
         };
-        let refused = open_replica(&app_state, &credentials, &held, Opening::Remembered)
-            .await
-            .map(|_| ());
+        let refused = open_replica(
+            &app_state,
+            &credentials,
+            &crate::clock::System::shared(),
+            &held,
+            Opening::Remembered,
+        )
+        .await
+        .map(|_| ());
 
         assert!(
             matches!(
@@ -2844,7 +2908,9 @@ mod tests {
         let app_state = first_run(credentials.as_ref(), &directory).await;
         let (organization_id, member_id) = recorded(&app_state).await;
 
-        let state = state_of(&app_state, &credentials).await.expect("the state");
+        let state = state_of(&app_state, &credentials, &crate::clock::System::shared())
+            .await
+            .expect("the state");
 
         assert!(state.session.is_some(), "the launch did not resume");
         assert!(!state.signed_out_elsewhere);
@@ -2860,6 +2926,7 @@ mod tests {
                 .expect("the record names no organization")
         };
         let elsewhere = OrganizationStore::open(
+            crate::clock::System::shared(),
             &OrganizationStore::replica_path(&directory.join(Database::FILENAME), &organization_id),
             None,
             || async { Ok::<String, turso::Error>(String::new()) },
@@ -2898,7 +2965,9 @@ mod tests {
             "the remembered key outlived the sign-out"
         );
 
-        let state = state_of(&app_state, &credentials).await.expect("the state");
+        let state = state_of(&app_state, &credentials, &crate::clock::System::shared())
+            .await
+            .expect("the state");
 
         assert!(state.session.is_none());
         assert!(
@@ -2931,7 +3000,9 @@ mod tests {
             )
             .expect("the store would not forget");
 
-        let state = state_of(&app_state, &credentials).await.expect("the state");
+        let state = state_of(&app_state, &credentials, &crate::clock::System::shared())
+            .await
+            .expect("the state");
 
         assert!(state.session.is_none(), "a launch with no key signed in");
         assert!(
@@ -2950,7 +3021,7 @@ mod tests {
         let app_state = first_run(credentials.as_ref(), &directory).await;
         let (organization_id, member_id) = recorded(&app_state).await;
 
-        state_of(&app_state, &credentials)
+        state_of(&app_state, &credentials, &crate::clock::System::shared())
             .await
             .expect("the state")
             .session
@@ -2966,7 +3037,9 @@ mod tests {
 
         // the next launch: a fresh process over the same data directory.
         let next = state_over(&directory).await;
-        let state = state_of(&next, &credentials).await.expect("the state");
+        let state = state_of(&next, &credentials, &crate::clock::System::shared())
+            .await
+            .expect("the state");
 
         assert!(state.session.is_none(), "the wall did not come back up");
         assert_eq!(
@@ -2985,7 +3058,9 @@ mod tests {
         let app_state = first_run(credentials.as_ref(), &directory).await;
         let (organization_id, member_id) = recorded(&app_state).await;
 
-        state_of(&app_state, &credentials).await.expect("the state");
+        state_of(&app_state, &credentials, &crate::clock::System::shared())
+            .await
+            .expect("the state");
         forget::forget(&app_state, credentials.as_ref())
             .await
             .expect("the forget failed");
@@ -3017,7 +3092,9 @@ mod tests {
             "the store took a value it was told to refuse"
         );
 
-        let state = state_of(&app_state, &credentials).await.expect("the state");
+        let state = state_of(&app_state, &credentials, &crate::clock::System::shared())
+            .await
+            .expect("the state");
 
         assert!(state.organization.is_some(), "the first run did not finish");
         assert!(state.session.is_none(), "a launch with no key signed in");
@@ -3048,6 +3125,7 @@ mod tests {
         let (store, credential) = open_replica(
             &app_state,
             &credentials,
+            &crate::clock::System::shared(),
             &held,
             Opening::Password {
                 username: USERNAME,
@@ -3067,7 +3145,7 @@ mod tests {
                 USERNAME,
                 PASSWORD,
                 &credential,
-                crate::timestamp::now(),
+                crate::clock::Clock::now(&crate::clock::System),
             )
             .await
             .expect("the sign-in failed")
@@ -3166,7 +3244,7 @@ mod tests {
         let (organization_id, _) = recorded(&app_state).await;
 
         assert!(
-            state_of(&app_state, &credentials)
+            state_of(&app_state, &credentials, &crate::clock::System::shared())
                 .await
                 .expect("the state")
                 .session
@@ -3184,6 +3262,7 @@ mod tests {
             *organization = None;
             *organization = Some(
                 OrganizationStore::open(
+                    crate::clock::System::shared(),
                     &OrganizationStore::replica_path(
                         &directory.join(Database::FILENAME),
                         &organization_id,
@@ -3239,6 +3318,7 @@ mod tests {
     /// so the file is what they share, and what one writes the other reads at once.
     async fn elsewhere(directory: &std::path::Path, organization_id: &str) -> OrganizationStore {
         OrganizationStore::open(
+            crate::clock::System::shared(),
             &OrganizationStore::replica_path(&directory.join(Database::FILENAME), organization_id),
             None,
             || async { Ok::<String, turso::Error>(String::new()) },
@@ -3379,7 +3459,9 @@ mod tests {
         let directory = scratch("founder-after-handover");
         let app_state = first_run(credentials.as_ref(), &directory).await;
         let (organization_id, _) = recorded(&app_state).await;
-        let state = state_of(&app_state, &credentials).await.expect("the state");
+        let state = state_of(&app_state, &credentials, &crate::clock::System::shared())
+            .await
+            .expect("the state");
 
         assert_eq!(
             state.session.expect("the launch did not resume").role,
@@ -3423,7 +3505,9 @@ mod tests {
         }
 
         // the state read follows the succession, and the session is the row's.
-        let state = state_of(&app_state, &credentials).await.expect("the state");
+        let state = state_of(&app_state, &credentials, &crate::clock::System::shared())
+            .await
+            .expect("the state");
 
         assert_eq!(state.session.expect("the session was lost").role, "manager");
         assert_eq!(
@@ -3532,7 +3616,9 @@ mod tests {
         );
         assert!(filed(credentials.as_ref(), &organization_id, &member_id).is_some());
 
-        let state = state_of(&app_state, &credentials).await.expect("the state");
+        let state = state_of(&app_state, &credentials, &crate::clock::System::shared())
+            .await
+            .expect("the state");
         let session = state
             .session
             .expect("the launch across the handover did not resume");
@@ -3567,7 +3653,7 @@ mod tests {
         let (organization_id, member_id) = recorded(&app_state).await;
 
         assert!(
-            state_of(&app_state, &credentials)
+            state_of(&app_state, &credentials, &crate::clock::System::shared())
                 .await
                 .expect("the state")
                 .session
@@ -3601,7 +3687,9 @@ mod tests {
         );
 
         // and the state read afterwards has nothing left to follow.
-        let state = state_of(&app_state, &credentials).await.expect("the state");
+        let state = state_of(&app_state, &credentials, &crate::clock::System::shared())
+            .await
+            .expect("the state");
 
         assert_eq!(state.session.expect("the session").role, "manager");
         assert!(!state.signed_out_elsewhere);
@@ -3860,7 +3948,7 @@ mod tests {
         let (organization_id, member_id) = recorded(&app_state).await;
 
         assert!(
-            state_of(&app_state, &credentials)
+            state_of(&app_state, &credentials, &crate::clock::System::shared())
                 .await
                 .expect("the state")
                 .session
@@ -3878,6 +3966,7 @@ mod tests {
         };
         let key = verifying_key_of(&held).expect("the pinned key");
         let elsewhere = OrganizationStore::open(
+            crate::clock::System::shared(),
             &OrganizationStore::replica_path(&directory.join(Database::FILENAME), &organization_id),
             None,
             || async { Ok::<String, turso::Error>(String::new()) },

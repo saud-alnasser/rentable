@@ -1845,6 +1845,7 @@ mod tests {
 
         let (created, organization) = create_organization(
             credentials,
+            &crate::clock::System::shared(),
             &mut store,
             "a-platform-token",
             &McpEndpoint::at(&mcp.url("")),

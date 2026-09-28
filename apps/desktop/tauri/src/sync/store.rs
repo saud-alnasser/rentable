@@ -4,10 +4,10 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 
 use crate::{
+    clock,
     error::Error,
     persisted::{Persistable, Persisted},
     settings::Settings,
-    timestamp,
 };
 
 use crate::turso::discovery::{
@@ -38,6 +38,8 @@ pub struct RemoteSync {
     /// there is none to collect, so the member is told their access needs attention rather than
     /// shown nothing wrong.
     pub(super) credential_refusal: Option<i64>,
+    /// what says when, for every moment this record keeps.
+    pub(super) clock: clock::Shared,
 }
 
 /// A replication Turso refused for the account: when, and what it said.
@@ -266,10 +268,8 @@ impl Persistable for RemoteSyncStore {
             self.workspace.name = DEFAULT_WORKSPACE_NAME.to_string();
         }
 
-        if self.workspace.created_at <= 0 {
-            self.workspace.created_at = timestamp::now();
-        }
-
+        // a moment at or before the epoch is filled in by `RemoteSync::reconcile`, which holds the
+        // clock and runs on every load that reaches the application.
         if self.workspace.updated_at <= 0 {
             self.workspace.updated_at = self.workspace.created_at;
         }
@@ -277,11 +277,8 @@ impl Persistable for RemoteSyncStore {
         // a moment at or before the epoch is no moment.
         self.last_reached_at = self.last_reached_at.filter(|moment| *moment > 0);
 
+        // an empty device id is given one by `RemoteSync::reconcile`, for the same reason.
         self.device_id = sanitize_string(&self.device_id);
-
-        if self.device_id.is_empty() {
-            self.device_id = format!("device-{}", timestamp::now());
-        }
 
         // a replica held for nobody is one nothing can check.
         self.replicas
@@ -324,6 +321,7 @@ impl RemoteSync {
     pub async fn new(
         settings: Arc<RwLock<Persisted<Settings>>>,
         path: PathBuf,
+        clock: clock::Shared,
     ) -> Result<Self, Error> {
         let store = Persisted::<RemoteSyncStore>::load(path)?;
         let mut this = Self {
@@ -332,6 +330,7 @@ impl RemoteSync {
             workspace_token: None,
             account_refusal: None,
             credential_refusal: None,
+            clock,
         };
         this.reconcile().await?;
         Ok(this)
@@ -388,7 +387,7 @@ impl RemoteSync {
         }
 
         self.store.workspace.name = name.to_string();
-        self.store.workspace.updated_at = timestamp::now();
+        self.store.workspace.updated_at = self.clock.now();
 
         self.store.commit()
     }
@@ -414,7 +413,7 @@ impl RemoteSync {
         self.store.organizations_of_the_old_shape.clear();
         self.store.replicas.clear();
         self.store.turso_organization = None;
-        self.store.workspace = Self::default_workspace(database_path, timestamp::now());
+        self.store.workspace = Self::default_workspace(database_path, self.clock.now());
         // the moment was about a workspace this machine no longer holds.
         self.store.last_reached_at = None;
 
@@ -433,7 +432,7 @@ impl RemoteSync {
 
         self.store.workspace.remote_id = None;
         self.store.workspace.remote_url = None;
-        self.store.workspace.updated_at = timestamp::now();
+        self.store.workspace.updated_at = self.clock.now();
 
         self.store.commit()
     }
@@ -564,14 +563,14 @@ impl RemoteSync {
         workspace.remote_url = url;
         workspace.name = name;
         workspace.permissions = permissions;
-        workspace.updated_at = timestamp::now();
+        workspace.updated_at = self.clock.now();
 
         self.store.commit()
     }
 
     async fn reconcile(&mut self) -> Result<(), Error> {
         let current_database_path = self.current_database_path().await;
-        let now = timestamp::now();
+        let now = self.clock.now();
         let mut changed = false;
 
         if self.store.device_id.is_empty() {
@@ -581,6 +580,18 @@ impl RemoteSync {
 
         if self.store.workspace.id.is_empty() {
             self.store.workspace = Self::default_workspace(current_database_path.clone(), now);
+            changed = true;
+        }
+
+        // the two moments `sanitize` leaves for this, since it has no clock: a record written with
+        // no moment it was made is made now, and one never updated was updated when it was made.
+        if self.store.workspace.created_at <= 0 {
+            self.store.workspace.created_at = now;
+            changed = true;
+        }
+
+        if self.store.workspace.updated_at <= 0 {
+            self.store.workspace.updated_at = self.store.workspace.created_at;
             changed = true;
         }
 
@@ -904,6 +915,7 @@ mod tests {
             workspace_token: None,
             account_refusal: None,
             credential_refusal: None,
+            clock: crate::clock::System::shared(),
         }
     }
 
@@ -1031,9 +1043,13 @@ mod tests {
                 settings.commit().expect("failed to commit settings");
 
                 let settings = Arc::new(RwLock::new(settings));
-                let mut remote_sync = RemoteSync::new(settings, root.join(RemoteSync::FILENAME))
-                    .await
-                    .expect("failed to initialize remote sync");
+                let mut remote_sync = RemoteSync::new(
+                    settings,
+                    root.join(RemoteSync::FILENAME),
+                    crate::clock::System::shared(),
+                )
+                .await
+                .expect("failed to initialize remote sync");
 
                 let state = remote_sync.get_state().await.expect("failed to get state");
                 assert_eq!(state.workspace.local_database_path, root.join("app.db"));
@@ -1057,10 +1073,13 @@ mod tests {
                 settings.commit().expect("failed to commit settings");
 
                 let settings = Arc::new(RwLock::new(settings));
-                let mut remote_sync =
-                    RemoteSync::new(settings.clone(), root.join(RemoteSync::FILENAME))
-                        .await
-                        .expect("failed to initialize remote sync");
+                let mut remote_sync = RemoteSync::new(
+                    settings.clone(),
+                    root.join(RemoteSync::FILENAME),
+                    crate::clock::System::shared(),
+                )
+                .await
+                .expect("failed to initialize remote sync");
 
                 {
                     let mut settings = settings.write().await;

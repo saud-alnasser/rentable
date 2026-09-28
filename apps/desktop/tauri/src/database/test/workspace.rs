@@ -152,6 +152,7 @@ impl LiveWorkspace {
 
         let token = self.token.clone();
         let database = Database::open_replica(
+            &crate::clock::System,
             &directory.join("app.db"),
             Some(self.url.clone()),
             move || {

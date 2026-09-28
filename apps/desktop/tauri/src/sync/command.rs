@@ -1,4 +1,9 @@
-use crate::{credential::Credentials, error::Error, state::AppState};
+use crate::{
+    clock::{self, Clock},
+    credential::Credentials,
+    error::Error,
+    state::AppState,
+};
 
 use super::store::RemoteSyncState;
 use crate::turso::consent::{TursoConsentResult, TursoConsentStart, TursoEndpoints};
@@ -41,13 +46,16 @@ pub async fn remote_sync_rename_workspace(
 /// between the person and the application shutting; what must not be skipped is the offer of what
 /// they wrote.
 #[tauri::command]
-pub async fn remote_sync_push(app_state: tauri::State<'_, AppState>) -> Result<bool, Error> {
+pub async fn remote_sync_push(
+    app_state: tauri::State<'_, AppState>,
+    clock: tauri::State<'_, clock::Shared>,
+) -> Result<bool, Error> {
     let pushed = app_state.db.read().await.push_replica().await;
 
     // a push that went is a replication that went through, and the last one of a session is
     // exactly the moment the block should read on the next launch (effort 828, requirement 25).
     if pushed {
-        note_reached(&app_state).await;
+        note_reached(&app_state, clock.as_ref()).await;
     }
 
     Ok(pushed)
@@ -60,10 +68,10 @@ pub async fn remote_sync_push(app_state: tauri::State<'_, AppState>) -> Result<b
 /// above; and the pull `bootstrap` makes at sign-in. `Database` holds the engine and not the
 /// record, so the moment is written by the callers that hold both. A record that cannot be
 /// written is a diagnostic rather than a failed replication: the replication itself went.
-pub(crate) async fn note_reached(app_state: &AppState) {
+pub(crate) async fn note_reached(app_state: &AppState, clock: &dyn Clock) {
     let mut remote_sync = app_state.remote_sync.write().await;
 
-    if let Err(error) = remote_sync.note_reached(crate::timestamp::now()) {
+    if let Err(error) = remote_sync.note_reached(clock.now()) {
         crate::diagnostics::error("sync.lastReached.notRecorded")
             .with("error", error.to_string())
             .write();
@@ -94,6 +102,7 @@ pub(crate) async fn note_reached(app_state: &AppState) {
 pub(crate) async fn remote_sync_replicate(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
+    clock: tauri::State<'_, clock::Shared>,
 ) -> Result<Replication, Error> {
     // before the workspace's own replication, because a machine whose member is signed out has
     // no business pushing under a credential the organization has moved past. A machine with
@@ -135,7 +144,7 @@ pub(crate) async fn remote_sync_replicate(
             // the moment the standing block says: a half went through, whether or not anything
             // moved. A quiet heartbeat that found nothing new still reached Turso.
             if replicated.completed {
-                note_reached(&app_state).await;
+                note_reached(&app_state, clock.as_ref()).await;
             }
 
             Ok(Replication::of(replicated, standing))
@@ -148,7 +157,7 @@ pub(crate) async fn remote_sync_replicate(
                 .remote_sync
                 .write()
                 .await
-                .note_account_refusal(detail, crate::timestamp::now());
+                .note_account_refusal(detail, clock.now());
 
             Ok(Replication::of(replicated, standing))
         }
@@ -162,7 +171,7 @@ pub(crate) async fn remote_sync_replicate(
                     .remote_sync
                     .write()
                     .await
-                    .note_credential_refusal(crate::timestamp::now());
+                    .note_credential_refusal(clock.now());
                 return Ok(Replication::of(replicated, standing));
             }
 
@@ -187,10 +196,10 @@ pub(crate) async fn remote_sync_replicate(
                         }
                     }
                     SyncRefusal::Account { detail } => {
-                        remote_sync.note_account_refusal(detail, crate::timestamp::now());
+                        remote_sync.note_account_refusal(detail, clock.now());
                     }
                     SyncRefusal::Credential => {
-                        remote_sync.note_credential_refusal(crate::timestamp::now());
+                        remote_sync.note_credential_refusal(clock.now());
                     }
                 }
             }
@@ -198,7 +207,7 @@ pub(crate) async fn remote_sync_replicate(
             // the retry under the collected credential went through: the same moment the first
             // arm records, since this is the other place a replication completes.
             if matches!(again.refusal, SyncRefusal::None) && again.completed {
-                note_reached(&app_state).await;
+                note_reached(&app_state, clock.as_ref()).await;
             }
 
             Ok(Replication {

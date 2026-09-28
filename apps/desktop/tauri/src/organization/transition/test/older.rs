@@ -261,7 +261,7 @@ impl Older {
 
     /// The organization's replica on this machine, with no remote.
     pub(crate) async fn open(&self) -> OrganizationStore {
-        OrganizationStore::open(&self.path, None, || async {
+        OrganizationStore::open(crate::clock::System::shared(), &self.path, None, || async {
             Ok::<String, turso::Error>(String::new())
         })
         .await
@@ -557,7 +557,7 @@ pub(crate) async fn write_mark(
 pub(crate) async fn older(name: &str) -> Older {
     let directory = scratch(name);
     let path = OrganizationStore::replica_path(&directory.join("app.db"), ORGANIZATION_ID);
-    let store = OrganizationStore::open(&path, None, || async {
+    let store = OrganizationStore::open(crate::clock::System::shared(), &path, None, || async {
         Ok::<String, turso::Error>(String::new())
     })
     .await
@@ -884,6 +884,7 @@ pub(crate) async fn another_machine(from: &Path) -> OrganizationStore {
     }
 
     OrganizationStore::open(
+        crate::clock::System::shared(),
         &OrganizationStore::replica_path(&elsewhere.join("app.db"), ORGANIZATION_ID),
         None,
         || async { Err(turso::Error::Misuse("no remote".into())) },

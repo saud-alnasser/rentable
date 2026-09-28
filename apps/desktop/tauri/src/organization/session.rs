@@ -69,7 +69,6 @@ use crate::{
     credential::CredentialStore,
     diagnostics,
     error::{Error, RefusalReason},
-    timestamp,
 };
 
 use crate::turso::platform::AccessLevel;
@@ -503,8 +502,14 @@ async fn owner_row_repaired(
     member: &MemberRecord,
     secret: &MemberSecretKey,
 ) -> Option<MemberRecord> {
-    match super::role::repair_owner_row(store, verifying_key, &member.id, secret, timestamp::now())
-        .await
+    match super::role::repair_owner_row(
+        store,
+        verifying_key,
+        &member.id,
+        secret,
+        store.clock().now(),
+    )
+    .await
     {
         Ok(true) => store.member(verifying_key, &member.id).await.ok().flatten(),
         Ok(false) => None,
@@ -1540,6 +1545,7 @@ mod tests {
 
         let (_, organization) = create_organization(
             credentials,
+            &crate::clock::System::shared(),
             &mut store,
             "a-platform-token",
             &McpEndpoint::at(&mcp.url("")),
@@ -1766,9 +1772,12 @@ mod tests {
         let (vault, their_secret) =
             create_vault_with_secret("the other password", test_cost()).expect("a vault");
         let credential = "token-for-org-b";
-        let store_b = OrganizationStore::open(&directory.join("org-b.db"), None, || async {
-            Ok::<String, turso::Error>(String::new())
-        })
+        let store_b = OrganizationStore::open(
+            crate::clock::System::shared(),
+            &directory.join("org-b.db"),
+            None,
+            || async { Ok::<String, turso::Error>(String::new()) },
+        )
         .await
         .expect("the second replica");
 
@@ -2305,6 +2314,7 @@ mod tests {
 
         // the second machine, over the same replica and holding the entry above.
         let second = OrganizationStore::open(
+            crate::clock::System::shared(),
             &OrganizationStore::replica_path(&directory.join("app.db"), &joined.id),
             None,
             || async { Ok::<String, turso::Error>(String::new()) },

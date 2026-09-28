@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [02]
 ---
 # refactor(tauri): the clock is a port
@@ -14,8 +14,8 @@ The spec is [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]]; the 
 
 Traces requirement 12 of [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]], and criterion 12.
 
-- [ ] A test finds no `SystemTime::now` outside `clock/` in production sources (criterion 12).
-- [ ] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19).
+- [x] A test finds no `SystemTime::now` outside `clock/` in production sources (criterion 12). Verified: `guard::clock::tests::nothing_outside_the_clock_reads_the_system_time` passes; a scratch `std::time::SystemTime::now()` appended to `settings.rs` made `cargo test --lib guard::clock` fail naming `settings.rs:286`; reverted. Production code reads the time through `clock::Shared` (managed) or a holder (`Database`, `RemoteSync`, `OrganizationStore`); `RemoteSyncStore::sanitize`'s fills moved into `RemoteSync::reconcile`, the only production load.
+- [x] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19). Verified: in the run's tree: `cargo fmt --check` 0, `cargo test --lib` `637 passed; 0 failed; 11 ignored`, no new clippy warning, check 0, `pnpm test` 0; test changes are the clock argument only.
 
 ## Relevant areas
 

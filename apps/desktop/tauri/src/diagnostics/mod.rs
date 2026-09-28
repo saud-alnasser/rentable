@@ -20,14 +20,15 @@ pub use writer::{DiagnosticLog, RotationLimits};
 
 use std::sync::OnceLock;
 
-use crate::timestamp;
+use crate::clock;
 
 /// the diagnostics directory, under the application data directory.
 pub const DIRECTORY_NAME: &str = "logs";
 
-static LOG: OnceLock<DiagnosticLog> = OnceLock::new();
+/// the log, and the clock that says when each event it is given happened.
+static LOG: OnceLock<(DiagnosticLog, clock::Shared)> = OnceLock::new();
 
-/// point the process at a log, once, during setup.
+/// point the process at a log, and the clock that stamps what it is given, once, during setup.
 ///
 /// Nothing else in this crate takes a log as an argument. An event is written
 /// from wherever the thing happened — a migration, a snapshot, a failed
@@ -38,8 +39,8 @@ static LOG: OnceLock<DiagnosticLog> = OnceLock::new();
 ///
 /// A second call is ignored: the first log installed is the one the process
 /// writes to.
-pub fn install(log: DiagnosticLog) {
-    let _ = LOG.set(log);
+pub fn install(log: DiagnosticLog, clock: clock::Shared) {
+    let _ = LOG.set((log, clock));
 }
 
 /// an event to describe and then [`DiagnosticRecord::write`].
@@ -65,10 +66,10 @@ impl DiagnosticRecord {
     /// never cause one — and a logger whose failures have to be handled is a
     /// logger that gets called less.
     pub fn write(self) {
-        let Some(log) = LOG.get() else {
+        let Some((log, clock)) = LOG.get() else {
             return;
         };
 
-        let _ = log.append(self, timestamp::now());
+        let _ = log.append(self, clock.now());
     }
 }

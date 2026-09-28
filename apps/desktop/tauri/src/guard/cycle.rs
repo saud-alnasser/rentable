@@ -8,7 +8,7 @@
 //! because a line that no longer occurs fails as well.
 
 #[cfg(test)]
-mod tests {
+pub(in crate::guard) mod tests {
     use std::collections::{BTreeMap, BTreeSet, VecDeque};
     use std::path::Path;
 
@@ -45,7 +45,7 @@ mod tests {
     ];
 
     #[derive(Debug, Clone, PartialEq)]
-    enum Token {
+    pub(in crate::guard) enum Token {
         Ident(String),
         Punct(char),
     }
@@ -57,7 +57,7 @@ mod tests {
     /// The identifiers and punctuation of a Rust source file, each with its line. Comments,
     /// string, character and number literals and lifetimes are dropped, so a path written in a
     /// doc comment or a message is not read as a dependency.
-    fn lex(source: &str) -> Vec<(Token, usize)> {
+    pub(in crate::guard) fn lex(source: &str) -> Vec<(Token, usize)> {
         let chars: Vec<char> = source.chars().collect();
         let mut tokens = Vec::new();
         let mut line = 1;
@@ -206,7 +206,7 @@ mod tests {
 
     /// The tokens with every `#[cfg(test)]` item taken out: the attribute and the item under it,
     /// up to its closing brace or its semicolon.
-    fn without_tests(tokens: Vec<(Token, usize)>) -> Vec<(Token, usize)> {
+    pub(in crate::guard) fn without_tests(tokens: Vec<(Token, usize)>) -> Vec<(Token, usize)> {
         let attribute = [
             Token::Punct('#'),
             Token::Punct('['),
@@ -333,7 +333,7 @@ mod tests {
     }
 
     /// Whether a file is test code as a whole: under a `test/` or `tests/` directory.
-    fn is_test_file(path: &str) -> bool {
+    pub(in crate::guard) fn is_test_file(path: &str) -> bool {
         let parts: Vec<&str> = path.split('/').collect();
         parts[..parts.len() - 1]
             .iter()
@@ -469,7 +469,11 @@ mod tests {
     }
 
     /// Every `.rs` file under `directory`, as a path relative to `root` with `/` separators.
-    fn read_sources(root: &Path, directory: &Path, sources: &mut Vec<(String, String)>) {
+    pub(in crate::guard) fn read_sources(
+        root: &Path,
+        directory: &Path,
+        sources: &mut Vec<(String, String)>,
+    ) {
         for entry in std::fs::read_dir(directory).expect("src/ could not be read") {
             let path = entry.expect("an entry of src/ could not be read").path();
 

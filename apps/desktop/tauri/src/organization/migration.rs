@@ -767,6 +767,7 @@ mod tests {
         let platform = Arc::new(InMemoryPlatform::new("an-org"));
         let (_, store) = create_organization(
             credentials,
+            &crate::clock::System::shared(),
             &mut machine,
             "a-platform-token",
             &McpEndpoint::at(&mcp.url("")),

@@ -2695,6 +2695,7 @@ mod tests {
 
         let (_, organization) = create_organization(
             credentials,
+            &crate::clock::System::shared(),
             &mut store,
             "a-platform-token",
             &McpEndpoint::at(&mcp.url("")),
@@ -2866,6 +2867,7 @@ mod tests {
         }
 
         OrganizationStore::open(
+            crate::clock::System::shared(),
             &OrganizationStore::replica_path(&elsewhere.join("app.db"), organization_id),
             None,
             || async { Err(turso::Error::Misuse("no remote".into())) },
@@ -4777,7 +4779,7 @@ mod tests {
         let path =
             OrganizationStore::replica_path(&directory.join("app.db"), &owner.organization_id);
         let open = || async {
-            OrganizationStore::open(&path, None, || async {
+            OrganizationStore::open(crate::clock::System::shared(), &path, None, || async {
                 Err(turso::Error::Misuse("no remote".into()))
             })
             .await

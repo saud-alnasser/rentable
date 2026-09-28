@@ -246,7 +246,10 @@ mod tests {
         settings.commit().expect("failed to commit settings");
 
         let settings = Arc::new(RwLock::new(settings));
-        let db = Arc::new(RwLock::new(Database::new(settings.clone())));
+        let db = Arc::new(RwLock::new(Database::new(
+            settings.clone(),
+            crate::clock::System::shared(),
+        )));
         db.write()
             .await
             .connect()
@@ -366,10 +369,13 @@ mod tests {
                 assert_eq!(before, after, "preparing an update rewrote the workspace");
 
                 // and it is still a database, not merely the same bytes.
-                let mut reopened = Database::new(Arc::new(RwLock::new(
-                    Persisted::<Settings>::load(root.join(Settings::FILENAME))
-                        .expect("failed to load settings"),
-                )));
+                let mut reopened = Database::new(
+                    Arc::new(RwLock::new(
+                        Persisted::<Settings>::load(root.join(Settings::FILENAME))
+                            .expect("failed to load settings"),
+                    )),
+                    crate::clock::System::shared(),
+                );
                 reopened
                     .connect()
                     .await

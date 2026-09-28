@@ -616,11 +616,12 @@ mod tests {
     /// `bootstrap_if_empty(false)`, which is what makes an engine with no reachable remote a
     /// usable local database rather than nothing at all.
     async fn replica_holding(path: &std::path::Path, fixture: &[&str]) -> turso::sync::Database {
-        let database = crate::database::Database::open_replica(path, None, || async {
-            Ok::<String, turso::Error>(String::new())
-        })
-        .await
-        .expect("replica engine");
+        let database =
+            crate::database::Database::open_replica(&crate::clock::System, path, None, || async {
+                Ok::<String, turso::Error>(String::new())
+            })
+            .await
+            .expect("replica engine");
 
         let connection = database.connect().await.expect("replica connection");
 

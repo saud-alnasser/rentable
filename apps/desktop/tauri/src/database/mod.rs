@@ -16,6 +16,7 @@ use std::{
 use tokio::sync::RwLock;
 
 use crate::{
+    clock::{self, Clock},
     database::proxy::{SQLQuery, SQLRow},
     error::Error,
     persisted::Persisted,
@@ -111,16 +112,19 @@ pub struct Database {
     /// recorded beside it (`corrupt.rs`). Empty on the `Local` arm and with no engine.
     watch: corrupt::Watch,
     settings: Arc<RwLock<Persisted<Settings>>>,
+    /// what says when a damaged replica was set aside, in the name it is set aside under.
+    clock: clock::Shared,
 }
 
 impl Database {
     pub const FILENAME: &'static str = "app.db";
 
-    pub fn new(settings: Arc<RwLock<Persisted<Settings>>>) -> Self {
+    pub fn new(settings: Arc<RwLock<Persisted<Settings>>>, clock: clock::Shared) -> Self {
         Database {
             engine: None,
             watch: corrupt::Watch::default(),
             settings,
+            clock,
         }
     }
 
@@ -207,7 +211,7 @@ impl Database {
         }
 
         self.engine = Some(Engine::Workspace(
-            Self::open_replica(&db_path, remote_url, auth_token).await?,
+            Self::open_replica(self.clock.as_ref(), &db_path, remote_url, auth_token).await?,
         ));
         self.watch = corrupt::Watch::over(&db_path);
 
@@ -389,6 +393,7 @@ impl Database {
     /// has answered is recorded beside the replica by the reads that meet it, and set aside here at
     /// the next open.
     pub async fn open_replica<F, Fut>(
+        clock: &dyn Clock,
         db_path: &Path,
         remote_url: Option<String>,
         auth_token: F,
@@ -414,7 +419,7 @@ impl Database {
         // requirement 17), which `corrupt.rs` says the whole of. The first read is part of the
         // open because that is where the engine reports a damaged page it did not meet opening
         // the file; any other answer to it is left for the caller's own reads, as it was.
-        Ok(corrupt::opened_once_more(db_path, || {
+        Ok(corrupt::opened_once_more(clock, db_path, || {
             let auth_token = Arc::clone(&auth_token);
             let remote_url = remote_url.clone();
 
@@ -632,9 +637,12 @@ mod tests {
         let directory = std::env::temp_dir().join(format!("rentable-{name}-{nanos}"));
         std::fs::create_dir_all(&directory).expect("scratch directory");
 
-        let database = Database::open_replica(&directory.join("app.db"), None, || async {
-            Ok::<String, turso::Error>(String::new())
-        })
+        let database = Database::open_replica(
+            &crate::clock::System,
+            &directory.join("app.db"),
+            None,
+            || async { Ok::<String, turso::Error>(String::new()) },
+        )
         .await
         .expect("replica engine");
 
@@ -717,6 +725,7 @@ mod tests {
         let directory = std::env::temp_dir().join(format!("rentable-refused-{nanos}"));
         std::fs::create_dir_all(&directory).expect("scratch directory");
         let database = Database::open_replica(
+            &crate::clock::System,
             &directory.join("app.db"),
             Some(refusing.url("")),
             || async { Ok::<String, turso::Error>("a-credential".to_string()) },
@@ -765,6 +774,7 @@ mod tests {
         let unreachable =
             ScriptedServer::start((0..8).map(|_| ScriptedResponse::hangup()).collect()).await;
         let offline = Database::open_replica(
+            &crate::clock::System,
             &directory.join("offline.db"),
             Some(unreachable.url("")),
             || async { Ok::<String, turso::Error>("a-credential".to_string()) },
@@ -840,7 +850,10 @@ mod tests {
             Persisted::<Settings>::load(directory.join("settings.json")).expect("settings");
         settings.database_path = directory.join("app.db");
 
-        let mut database = Database::new(Arc::new(RwLock::new(settings)));
+        let mut database = Database::new(
+            Arc::new(RwLock::new(settings)),
+            crate::clock::System::shared(),
+        );
         database.connect().await.expect("the database should open");
 
         assert!(
@@ -882,7 +895,10 @@ mod tests {
             Persisted::<Settings>::load(directory.join("settings.json")).expect("settings");
         settings.database_path = directory.join("app.db");
 
-        let mut database = Database::new(Arc::new(RwLock::new(settings)));
+        let mut database = Database::new(
+            Arc::new(RwLock::new(settings)),
+            crate::clock::System::shared(),
+        );
         database.engine = Some(Engine::Workspace(engine));
 
         let refusal = database.reconnect().await;

@@ -512,6 +512,7 @@ mod tests {
         let platform = Arc::new(InMemoryPlatform::new("an-org"));
         let (_, organization) = create_organization(
             credentials,
+            &crate::clock::System::shared(),
             &mut store,
             "a-platform-token",
             &McpEndpoint::at(&mcp.url("")),
@@ -1501,13 +1502,20 @@ mod tests {
         settings.commit().expect("the settings");
 
         let settings = Arc::new(RwLock::new(settings));
-        let remote_sync = RemoteSync::new(settings.clone(), directory.join(RemoteSync::FILENAME))
-            .await
-            .expect("the sync record");
+        let remote_sync = RemoteSync::new(
+            settings.clone(),
+            directory.join(RemoteSync::FILENAME),
+            crate::clock::System::shared(),
+        )
+        .await
+        .expect("the sync record");
         let update = Update::new(settings.clone()).await.expect("the update");
 
         AppState {
-            db: Arc::new(RwLock::new(Database::new(settings.clone()))),
+            db: Arc::new(RwLock::new(Database::new(
+                settings.clone(),
+                crate::clock::System::shared(),
+            ))),
             settings,
             remote_sync: Arc::new(RwLock::new(remote_sync)),
             update: Arc::new(RwLock::new(update)),
@@ -1936,6 +1944,7 @@ mod tests {
             .expect("A's store");
         let (created, organization_a) = create_organization(
             credentials.as_ref(),
+            &crate::clock::System::shared(),
             &mut store_a,
             &token,
             &McpEndpoint::production(),
@@ -2040,8 +2049,11 @@ mod tests {
             async move {
                 let credential: CredentialSlot = Arc::new(Mutex::new(Some(reached_with)));
                 let slot = Arc::clone(&credential);
-                let store =
-                    OrganizationStore::open(&path, Some(link.remote_url.clone()), move || {
+                let store = OrganizationStore::open(
+                    crate::clock::System::shared(),
+                    &path,
+                    Some(link.remote_url.clone()),
+                    move || {
                         let slot = Arc::clone(&slot);
 
                         async move {
@@ -2050,9 +2062,10 @@ mod tests {
                                 .and_then(|slot| slot.clone())
                                 .ok_or_else(|| turso::Error::Misuse("no credential".into()))
                         }
-                    })
-                    .await
-                    .expect("the replica did not open");
+                    },
+                )
+                .await
+                .expect("the replica did not open");
 
                 assert!(store.pull().await, "nothing was pulled from the account");
 
@@ -2138,6 +2151,7 @@ mod tests {
         // and the member's credential opens the workspace: a replica of it pulls the schema.
         let held = member_c.workspace_credentials[&workspace.id].token.clone();
         let workspace_c = crate::database::Database::open_replica(
+            &crate::clock::System,
             &machine_c.join("workspace.db"),
             Some(format!("libsql://{}", workspace.database_hostname)),
             move || {

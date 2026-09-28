@@ -44,7 +44,7 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64URL}
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    backup,
+    backup, clock,
     credential::CredentialStore,
     diagnostics,
     error::{Error, RefusalReason},
@@ -282,6 +282,7 @@ impl<P: TursoPlatform> upgrade::Replication for OnTheAccount<'_, P> {
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn create_organization<P, F>(
     credentials: &dyn CredentialStore,
+    clock: &clock::Shared,
     store: &mut Persisted<RemoteSyncStore>,
     platform_token: &str,
     mcp: &McpEndpoint,
@@ -399,6 +400,7 @@ where
     // from here on a database exists that nothing refers to yet, so every failure removes it.
     let finished = finish(
         credentials,
+        clock,
         &platform,
         store,
         remote,
@@ -590,6 +592,7 @@ fn is_about_the_group(error: &Error) -> bool {
 #[allow(clippy::too_many_arguments)]
 async fn finish<P: TursoPlatform>(
     credentials: &dyn CredentialStore,
+    clock: &clock::Shared,
     platform: &P,
     store: &mut Persisted<RemoteSyncStore>,
     remote: Remote,
@@ -642,11 +645,12 @@ async fn finish<P: TursoPlatform>(
     // the replica, its schema, and the rows.
     let replica = OrganizationStore::replica_path(database_path, organization_id);
     let token = owner_credential.clone();
-    let organization_store = OrganizationStore::open(&replica, replica_remote, move || {
-        let token = token.clone();
-        async move { Ok::<String, turso::Error>(token) }
-    })
-    .await?;
+    let organization_store =
+        OrganizationStore::open(clock.clone(), &replica, replica_remote, move || {
+            let token = token.clone();
+            async move { Ok::<String, turso::Error>(token) }
+        })
+        .await?;
 
     organization_store.install_schema().await?;
     organization_store.write_format().await?;
@@ -923,6 +927,7 @@ const ORGANIZATION_THIS_ACCOUNT_HOLDS: &str = "the organization this turso accou
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn connect_existing<P, F>(
     credentials: &dyn CredentialStore,
+    clock: &clock::Shared,
     store: &mut Persisted<RemoteSyncStore>,
     platform_token: &str,
     mcp: &McpEndpoint,
@@ -972,6 +977,7 @@ where
     let remote_url = format!("libsql://{}", database.hostname);
     let slot = Arc::clone(&credential);
     let replica = OrganizationStore::open(
+        clock.clone(),
         &OrganizationStore::replica_path(database_path, &organization_id),
         remote.url_for(&database.hostname),
         move || {
@@ -1571,6 +1577,7 @@ mod tests {
 
         let refusal = create_organization(
             &credentials,
+            &crate::clock::System::shared(),
             &mut store,
             TOKEN,
             &McpEndpoint::at(&mcp.url("")),
@@ -1642,6 +1649,7 @@ mod tests {
 
         let refusal = create_organization(
             &credentials,
+            &crate::clock::System::shared(),
             &mut store,
             TOKEN,
             &McpEndpoint::at(&mcp.url("")),
@@ -1722,6 +1730,7 @@ mod tests {
 
         let (created, _organization) = create_organization(
             &credentials,
+            &crate::clock::System::shared(),
             &mut store,
             TOKEN,
             &McpEndpoint::at(&mcp.url("")),
@@ -1767,6 +1776,7 @@ mod tests {
 
         let (outcome, organization) = create_organization(
             &credentials,
+            &crate::clock::System::shared(),
             &mut store,
             TOKEN,
             &McpEndpoint::at(&mcp.url("")),
@@ -1995,6 +2005,7 @@ mod tests {
 
         let (outcome, organization) = create_organization(
             &credentials,
+            &crate::clock::System::shared(),
             &mut store,
             TOKEN,
             &McpEndpoint::at(&mcp.url("")),
@@ -2095,6 +2106,7 @@ mod tests {
 
         let (outcome, _organization) = create_organization(
             &credentials,
+            &crate::clock::System::shared(),
             &mut store,
             &token_naming_the_group(),
             &McpEndpoint::at(&mcp.url("")),
@@ -2161,6 +2173,7 @@ mod tests {
 
         let (outcome, _organization) = create_organization(
             &credentials,
+            &crate::clock::System::shared(),
             &mut store,
             &token_naming_the_group(),
             &McpEndpoint::at(&mcp.url("")),
@@ -2226,6 +2239,7 @@ mod tests {
 
         let refusal = create_organization(
             &credentials,
+            &crate::clock::System::shared(),
             &mut store,
             &token,
             &McpEndpoint::at(&mcp.url("")),
@@ -2312,6 +2326,7 @@ mod tests {
 
         let refusal = create_organization(
             &credentials,
+            &crate::clock::System::shared(),
             &mut store,
             &token_naming_the_group(),
             &McpEndpoint::at(&mcp.url("")),
@@ -2370,6 +2385,7 @@ mod tests {
 
         let (outcome, _organization) = create_organization(
             &credentials,
+            &crate::clock::System::shared(),
             &mut store,
             &token_naming_the_group(),
             &McpEndpoint::at(&mcp.url("")),
@@ -2423,6 +2439,7 @@ mod tests {
 
         let error = create_organization(
             &credentials,
+            &crate::clock::System::shared(),
             &mut store,
             TOKEN,
             &McpEndpoint::at(&mcp.url("")),
@@ -2487,6 +2504,7 @@ mod tests {
         ] {
             let error = create_organization(
                 &credentials,
+                &crate::clock::System::shared(),
                 &mut store,
                 TOKEN,
                 &McpEndpoint::at(&mcp.url("")),
@@ -2610,6 +2628,7 @@ mod tests {
 
         let (_, replica) = create_organization(
             credentials,
+            &crate::clock::System::shared(),
             &mut owners_machine,
             TOKEN,
             &McpEndpoint::at(&mcp.url("")),
@@ -2695,6 +2714,7 @@ mod tests {
         let mut machine = fresh_machine(&directory, "second-machine");
         let (held, replica, session) = connect_existing(
             &credentials,
+            &crate::clock::System::shared(),
             &mut machine,
             TOKEN,
             &McpEndpoint::at(&mcp.url("")),
@@ -2847,6 +2867,7 @@ mod tests {
         let mut machine = fresh_machine(&directory, "second-machine");
         let refused = connect_existing(
             &credentials,
+            &crate::clock::System::shared(),
             &mut machine,
             TOKEN,
             &McpEndpoint::at(&mcp.url("")),
@@ -2971,6 +2992,7 @@ mod tests {
         let mut machine = fresh_machine(&directory, "third-machine");
         let (held, _, session) = connect_existing(
             &credentials,
+            &crate::clock::System::shared(),
             &mut machine,
             TOKEN,
             &McpEndpoint::at(&mcp.url("")),
@@ -3032,6 +3054,7 @@ mod tests {
         let mut founders_machine = fresh_machine(&directory, "the-founders-next-machine");
         let refused = connect_existing(
             &credentials,
+            &crate::clock::System::shared(),
             &mut founders_machine,
             TOKEN,
             &McpEndpoint::at(&mcp.url("")),
@@ -3090,6 +3113,7 @@ mod tests {
         let mut machine = fresh_machine(&directory, "second-machine");
         let (second, replica, session) = connect_existing(
             &credentials,
+            &crate::clock::System::shared(),
             &mut machine,
             TOKEN,
             &McpEndpoint::at(&mcp.url("")),
@@ -3181,6 +3205,7 @@ mod tests {
             let mut machine = fresh_machine(&directory, machine_name);
             let refused = connect_existing(
                 &credentials,
+                &crate::clock::System::shared(),
                 &mut machine,
                 TOKEN,
                 &McpEndpoint::at(&mcp.url("")),

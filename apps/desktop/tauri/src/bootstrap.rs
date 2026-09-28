@@ -1,4 +1,5 @@
 use crate::{
+    clock::{self, Clock},
     diagnostics,
     error::Error,
     state::AppState,
@@ -6,7 +7,10 @@ use crate::{
 };
 
 #[tauri::command]
-pub async fn bootstrap(app_state: tauri::State<'_, AppState>) -> Result<Recovery, Error> {
+pub async fn bootstrap(
+    app_state: tauri::State<'_, AppState>,
+    clock: tauri::State<'_, clock::Shared>,
+) -> Result<Recovery, Error> {
     let version = app_state.settings.read().await.version.clone();
 
     diagnostics::info("startup.started")
@@ -43,7 +47,7 @@ pub async fn bootstrap(app_state: tauri::State<'_, AppState>) -> Result<Recovery
         update.resolve()?;
     }
 
-    let error = open_database(&app_state).await;
+    let error = open_database(&app_state, clock.as_ref()).await;
 
     if let Some(error) = error.as_ref() {
         diagnostics::error("startup.database.unavailable")
@@ -105,7 +109,7 @@ enum WorkspaceStanding {
 /// `sqlx` and `turso` are in disjoint locking domains — `database/mod.rs` has the detail — so a
 /// pool left open on the file the replica is about to take would be a second writer nothing
 /// reports. Taking the engine out before building the next one is what makes the swap safe.
-pub(crate) async fn open_database(app_state: &AppState) -> Option<Error> {
+pub(crate) async fn open_database(app_state: &AppState, clock: &dyn Clock) -> Option<Error> {
     // **What this machine is holding, reconciled against what is on disk.** The tracked list is how
     // a later launch knows a replica exists at all; an entry whose file somebody deleted by hand
     // would otherwise sit there forever, and a machine that could not say what it holds cannot be
@@ -217,8 +221,7 @@ pub(crate) async fn open_database(app_state: &AppState) -> Option<Error> {
         let mut remote_sync = app_state.remote_sync.write().await;
 
         if let Some(member_id) = member_id
-            && let Err(error) =
-                remote_sync.remember_replica(&workspace_id, &member_id, crate::timestamp::now())
+            && let Err(error) = remote_sync.remember_replica(&workspace_id, &member_id, clock.now())
         {
             diagnostics::error("startup.replica.notTracked")
                 .with("error", error.to_string())
@@ -240,7 +243,7 @@ pub(crate) async fn open_database(app_state: &AppState) -> Option<Error> {
     // first one of a session, so the standing block reads its moment before the heartbeat has
     // run (effort 828, requirement 25).
     if db.pull_replica().await.completed {
-        crate::sync::note_reached(app_state).await;
+        crate::sync::note_reached(app_state, clock).await;
     }
 
     if !db.is_ready().await {

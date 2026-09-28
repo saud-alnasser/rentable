@@ -37,6 +37,7 @@ use std::{
 
 use crate::{
     backup,
+    clock::{self, Clock},
     database::{Database, corrupt},
     diagnostics,
     error::{Error, RefusalReason},
@@ -715,6 +716,9 @@ pub struct OrganizationStore {
     connection: corrupt::Watched,
     /// where the replica is, which is what says where the application's data directory is.
     path: PathBuf,
+    /// what says when, for whatever acts on the replica after it opened: the clock the command
+    /// that opened it was given.
+    clock: clock::Shared,
 }
 
 impl std::fmt::Debug for OrganizationStore {
@@ -741,6 +745,7 @@ impl OrganizationStore {
     /// about the engine, this one learns too. A damaged `org-<id>.db` is one of those things: it is
     /// set aside there and opened again empty, and the sign-in's or the resume's pull fills it.
     pub async fn open<F, Fut>(
+        clock: clock::Shared,
         path: &Path,
         remote_url: Option<String>,
         auth_token: F,
@@ -755,7 +760,7 @@ impl OrganizationStore {
             std::fs::create_dir_all(parent)?;
         }
 
-        let database = Database::open_replica(path, remote_url, auth_token).await?;
+        let database = Database::open_replica(clock.as_ref(), path, remote_url, auth_token).await?;
         let watch = corrupt::Watch::over(path);
         let connection = corrupt::Watched::new(watch.note(database.connect().await)?, watch);
 
@@ -763,7 +768,13 @@ impl OrganizationStore {
             database,
             connection,
             path: path.to_path_buf(),
+            clock,
         })
+    }
+
+    /// The clock the replica was opened with.
+    pub(crate) fn clock(&self) -> &dyn Clock {
+        self.clock.as_ref()
     }
 
     /// The directory the replica lives in: the application's data directory, beside `app.db`, as
@@ -4133,9 +4144,12 @@ mod tests {
     }
 
     async fn open(directory: &std::path::Path) -> OrganizationStore {
-        let store = OrganizationStore::open(&directory.join("org-acme.db"), None, || async {
-            Ok::<String, turso::Error>(String::new())
-        })
+        let store = OrganizationStore::open(
+            crate::clock::System::shared(),
+            &directory.join("org-acme.db"),
+            None,
+            || async { Ok::<String, turso::Error>(String::new()) },
+        )
         .await
         .expect("the organization replica");
 
@@ -4208,9 +4222,12 @@ mod tests {
         // statement but the last, and the format row the first run writes.
         let directory = scratch("schema-completes");
         let newest = super::TABLES[super::TABLES.len() - 1];
-        let store = OrganizationStore::open(&directory.join("org-x.db"), None, || async {
-            Ok::<String, turso::Error>(String::new())
-        })
+        let store = OrganizationStore::open(
+            crate::clock::System::shared(),
+            &directory.join("org-x.db"),
+            None,
+            || async { Ok::<String, turso::Error>(String::new()) },
+        )
         .await
         .expect("the store");
 
@@ -4257,9 +4274,12 @@ mod tests {
     /// Every table in the schema but `format`, created as every build before effort 838 created
     /// them: an organization of today's shape, before the format break.
     async fn without_format(directory: &std::path::Path) -> OrganizationStore {
-        let store = OrganizationStore::open(&directory.join("org-old.db"), None, || async {
-            Ok::<String, turso::Error>(String::new())
-        })
+        let store = OrganizationStore::open(
+            crate::clock::System::shared(),
+            &directory.join("org-old.db"),
+            None,
+            || async { Ok::<String, turso::Error>(String::new()) },
+        )
         .await
         .expect("the store");
 
@@ -4528,9 +4548,12 @@ mod tests {
     #[tokio::test]
     async fn a_replica_still_carrying_the_link_credential_column_opens_and_reads() {
         let directory = scratch("dropped-column");
-        let store = OrganizationStore::open(&directory.join("org-acme.db"), None, || async {
-            Ok::<String, turso::Error>(String::new())
-        })
+        let store = OrganizationStore::open(
+            crate::clock::System::shared(),
+            &directory.join("org-acme.db"),
+            None,
+            || async { Ok::<String, turso::Error>(String::new()) },
+        )
         .await
         .expect("the organization replica");
         let chain = Chain::new();
@@ -6229,6 +6252,7 @@ mod tests {
         let chain = Chain::new();
 
         let workspace = crate::database::Database::open_replica(
+            &crate::clock::System,
             &directory.join("ws-north.db"),
             None,
             || async { Ok::<String, turso::Error>(String::new()) },
@@ -6351,6 +6375,7 @@ mod tests {
 
         // machine A: schema, rows, push.
         let store_a = OrganizationStore::open(
+            crate::clock::System::shared(),
             &machine_a.join("org-live.db"),
             Some(remote_url.clone()),
             token_for(token.clone()),
@@ -6365,6 +6390,7 @@ mod tests {
 
         // machine B: a fresh directory, a pull, and the rows verified against the pinned key.
         let store_b = OrganizationStore::open(
+            crate::clock::System::shared(),
             &machine_b.join("org-live.db"),
             Some(remote_url.clone()),
             token_for(token.clone()),

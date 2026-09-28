@@ -68,7 +68,7 @@ use std::{
 };
 
 use crate::{
-    credential::CredentialStore, diagnostics, error::Error, state::AppState,
+    clock, credential::CredentialStore, diagnostics, error::Error, state::AppState,
     turso::platform::database_is_gone,
 };
 
@@ -231,8 +231,9 @@ pub(crate) async fn forget(
 pub(crate) async fn forget_old_shape(
     app_state: &AppState,
     credentials: &dyn CredentialStore,
+    clock: &clock::Shared,
 ) -> Result<Option<OldShape>, Error> {
-    let Some(shape) = old_shape(app_state).await? else {
+    let Some(shape) = old_shape(app_state, clock).await? else {
         return Ok(None);
     };
 
@@ -300,7 +301,7 @@ pub(crate) async fn forget_deleted_organization(
 }
 
 /// The sign that what this machine holds was built before this build, where there is one.
-async fn old_shape(app_state: &AppState) -> Result<Option<OldShape>, Error> {
+async fn old_shape(app_state: &AppState, clock: &clock::Shared) -> Result<Option<OldShape>, Error> {
     let (listed, held) = {
         let mut remote_sync = app_state.remote_sync.write().await;
         let store = remote_sync.store_mut();
@@ -327,7 +328,7 @@ async fn old_shape(app_state: &AppState) -> Result<Option<OldShape>, Error> {
 
     // opened with no remote, so the engine serves the file and reaches nothing; dropped before
     // anything else opens it.
-    let store = OrganizationStore::open(&replica, None, || async {
+    let store = OrganizationStore::open(clock.clone(), &replica, None, || async {
         Ok::<String, turso::Error>(String::new())
     })
     .await?;
@@ -527,13 +528,20 @@ mod tests {
         settings.commit().expect("the settings");
 
         let settings = Arc::new(RwLock::new(settings));
-        let remote_sync = RemoteSync::new(settings.clone(), directory.join(RemoteSync::FILENAME))
-            .await
-            .expect("the sync record");
+        let remote_sync = RemoteSync::new(
+            settings.clone(),
+            directory.join(RemoteSync::FILENAME),
+            crate::clock::System::shared(),
+        )
+        .await
+        .expect("the sync record");
         let update = Update::new(settings.clone()).await.expect("the update");
 
         AppState {
-            db: Arc::new(RwLock::new(Database::new(settings.clone()))),
+            db: Arc::new(RwLock::new(Database::new(
+                settings.clone(),
+                crate::clock::System::shared(),
+            ))),
             settings,
             remote_sync: Arc::new(RwLock::new(remote_sync)),
             update: Arc::new(RwLock::new(update)),
@@ -577,6 +585,7 @@ mod tests {
         let platform = Arc::new(InMemoryPlatform::new("an-org"));
         let (_, organization) = create_organization(
             credentials,
+            &crate::clock::System::shared(),
             &mut store,
             "a-platform-token",
             &McpEndpoint::at(&mcp.url("")),
@@ -602,7 +611,7 @@ mod tests {
     /// A workspace replica on disk under `ws-<id>.db`, with the sidecars a synced engine keeps.
     async fn a_workspace_replica(directory: &std::path::Path, id: &str) {
         let path = Database::replica_path(&directory.join(Database::FILENAME), id);
-        let replica = Database::open_replica(&path, None, || async {
+        let replica = Database::open_replica(&crate::clock::System, &path, None, || async {
             Ok::<String, turso::Error>(String::new())
         })
         .await
@@ -744,7 +753,7 @@ mod tests {
         std::fs::write(directory.join("ws-north.db-wal"), b"not read").expect("a sidecar");
 
         let app_state = state_over(&directory).await;
-        let forgotten = forget_old_shape(&app_state, &credentials)
+        let forgotten = forget_old_shape(&app_state, &credentials, &crate::clock::System::shared())
             .await
             .expect("the check failed");
 
@@ -760,7 +769,7 @@ mod tests {
 
         // and a second read finds the new shape, and forgets nothing.
         assert_eq!(
-            forget_old_shape(&app_state, &credentials)
+            forget_old_shape(&app_state, &credentials, &crate::clock::System::shared())
                 .await
                 .expect("the check"),
             None
@@ -784,11 +793,12 @@ mod tests {
         // the old schema: the member table as 819 wrote it, with an email and a display name.
         let directory = scratch("old-schema");
         let replica = OrganizationStore::replica_path(&directory.join(Database::FILENAME), "old");
-        let store = OrganizationStore::open(&replica, None, || async {
-            Ok::<String, turso::Error>(String::new())
-        })
-        .await
-        .expect("the replica");
+        let store =
+            OrganizationStore::open(crate::clock::System::shared(), &replica, None, || async {
+                Ok::<String, turso::Error>(String::new())
+            })
+            .await
+            .expect("the replica");
 
         store
             .connection()
@@ -816,7 +826,7 @@ mod tests {
         let app_state = state_over(&directory).await;
 
         assert_eq!(
-            forget_old_shape(&app_state, &credentials)
+            forget_old_shape(&app_state, &credentials, &crate::clock::System::shared())
                 .await
                 .expect("the check failed"),
             Some(OldShape::MemberWithoutUsername)
@@ -835,11 +845,12 @@ mod tests {
         // the shape between tickets 10 and 11: usernames, and an invitation with its sealed half.
         let directory = scratch("sealed-half");
         let replica = OrganizationStore::replica_path(&directory.join(Database::FILENAME), "half");
-        let store = OrganizationStore::open(&replica, None, || async {
-            Ok::<String, turso::Error>(String::new())
-        })
-        .await
-        .expect("the replica");
+        let store =
+            OrganizationStore::open(crate::clock::System::shared(), &replica, None, || async {
+                Ok::<String, turso::Error>(String::new())
+            })
+            .await
+            .expect("the replica");
 
         for statement in [
             "CREATE TABLE IF NOT EXISTS \"member\" (\"id\" TEXT PRIMARY KEY NOT NULL, \"username_sealed\" BLOB NOT NULL)",
@@ -858,7 +869,7 @@ mod tests {
         let app_state = state_over(&directory).await;
 
         assert_eq!(
-            forget_old_shape(&app_state, &credentials)
+            forget_old_shape(&app_state, &credentials, &crate::clock::System::shared())
                 .await
                 .expect("the check failed"),
             Some(OldShape::InvitationWithSealedHalf)
@@ -873,11 +884,12 @@ mod tests {
         // forgotten rather than read.
         let directory = scratch("six-acts");
         let replica = OrganizationStore::replica_path(&directory.join(Database::FILENAME), "six");
-        let store = OrganizationStore::open(&replica, None, || async {
-            Ok::<String, turso::Error>(String::new())
-        })
-        .await
-        .expect("the replica");
+        let store =
+            OrganizationStore::open(crate::clock::System::shared(), &replica, None, || async {
+                Ok::<String, turso::Error>(String::new())
+            })
+            .await
+            .expect("the replica");
 
         for statement in [
             "CREATE TABLE IF NOT EXISTS \"member\" (\"id\" TEXT PRIMARY KEY NOT NULL, \"username_sealed\" BLOB NOT NULL, \"permissions\" INTEGER NOT NULL)",
@@ -897,7 +909,7 @@ mod tests {
         let app_state = state_over(&directory).await;
 
         assert_eq!(
-            forget_old_shape(&app_state, &credentials)
+            forget_old_shape(&app_state, &credentials, &crate::clock::System::shared())
                 .await
                 .expect("the check failed"),
             Some(OldShape::InvitationWithoutSealedSecret)
@@ -919,11 +931,12 @@ mod tests {
         // replica would refuse on its first read rather than open.
         let directory = scratch("no-signing-key");
         let replica = OrganizationStore::replica_path(&directory.join(Database::FILENAME), "nokey");
-        let store = OrganizationStore::open(&replica, None, || async {
-            Ok::<String, turso::Error>(String::new())
-        })
-        .await
-        .expect("the replica");
+        let store =
+            OrganizationStore::open(crate::clock::System::shared(), &replica, None, || async {
+                Ok::<String, turso::Error>(String::new())
+            })
+            .await
+            .expect("the replica");
 
         for statement in [
             "CREATE TABLE IF NOT EXISTS \"member\" (\"id\" TEXT PRIMARY KEY NOT NULL, \"username_sealed\" BLOB NOT NULL, \"public_key\" BLOB NOT NULL, \"permissions\" INTEGER NOT NULL)",
@@ -943,7 +956,7 @@ mod tests {
         let app_state = state_over(&directory).await;
 
         assert_eq!(
-            forget_old_shape(&app_state, &credentials)
+            forget_old_shape(&app_state, &credentials, &crate::clock::System::shared())
                 .await
                 .expect("the check failed"),
             Some(OldShape::MemberWithoutSigningKey)
@@ -965,11 +978,12 @@ mod tests {
         let directory = scratch("no-session-epoch");
         let replica =
             OrganizationStore::replica_path(&directory.join(Database::FILENAME), "noepoch");
-        let store = OrganizationStore::open(&replica, None, || async {
-            Ok::<String, turso::Error>(String::new())
-        })
-        .await
-        .expect("the replica");
+        let store =
+            OrganizationStore::open(crate::clock::System::shared(), &replica, None, || async {
+                Ok::<String, turso::Error>(String::new())
+            })
+            .await
+            .expect("the replica");
 
         for statement in [
             "CREATE TABLE IF NOT EXISTS \"member\" (\"id\" TEXT PRIMARY KEY NOT NULL, \"username_sealed\" BLOB NOT NULL, \"public_key\" BLOB NOT NULL, \"signing_public_key\" BLOB NOT NULL, \"permissions\" INTEGER NOT NULL)",
@@ -990,7 +1004,7 @@ mod tests {
         let app_state = state_over(&directory).await;
 
         assert_eq!(
-            forget_old_shape(&app_state, &credentials)
+            forget_old_shape(&app_state, &credentials, &crate::clock::System::shared())
                 .await
                 .expect("the check failed"),
             Some(OldShape::MemberWithoutSessionEpoch)
@@ -1014,11 +1028,12 @@ mod tests {
         let directory = scratch("no-owner-seed");
         let replica =
             OrganizationStore::replica_path(&directory.join(Database::FILENAME), "noseed");
-        let store = OrganizationStore::open(&replica, None, || async {
-            Ok::<String, turso::Error>(String::new())
-        })
-        .await
-        .expect("the replica");
+        let store =
+            OrganizationStore::open(crate::clock::System::shared(), &replica, None, || async {
+                Ok::<String, turso::Error>(String::new())
+            })
+            .await
+            .expect("the replica");
 
         for statement in [
             "CREATE TABLE IF NOT EXISTS \"member\" (\"id\" TEXT PRIMARY KEY NOT NULL, \"username_sealed\" BLOB NOT NULL, \"public_key\" BLOB NOT NULL, \"signing_public_key\" BLOB NOT NULL, \"permissions\" INTEGER NOT NULL, \"session_epoch\" INTEGER NOT NULL DEFAULT 0)",
@@ -1038,7 +1053,7 @@ mod tests {
         let app_state = state_over(&directory).await;
 
         assert_eq!(
-            forget_old_shape(&app_state, &credentials)
+            forget_old_shape(&app_state, &credentials, &crate::clock::System::shared())
                 .await
                 .expect("the check failed"),
             Some(OldShape::MemberWithoutOwnerSeed)
@@ -1062,11 +1077,12 @@ mod tests {
         let directory = scratch("no-code-seal");
         let replica =
             OrganizationStore::replica_path(&directory.join(Database::FILENAME), "nocode");
-        let store = OrganizationStore::open(&replica, None, || async {
-            Ok::<String, turso::Error>(String::new())
-        })
-        .await
-        .expect("the replica");
+        let store =
+            OrganizationStore::open(crate::clock::System::shared(), &replica, None, || async {
+                Ok::<String, turso::Error>(String::new())
+            })
+            .await
+            .expect("the replica");
 
         for statement in [
             "CREATE TABLE IF NOT EXISTS \"member\" (\"id\" TEXT PRIMARY KEY NOT NULL, \"username_sealed\" BLOB NOT NULL, \"public_key\" BLOB NOT NULL, \"signing_public_key\" BLOB NOT NULL, \"permissions\" INTEGER NOT NULL, \"session_epoch\" INTEGER NOT NULL DEFAULT 0, \"owner_seed_sealed\" BLOB)",
@@ -1088,7 +1104,7 @@ mod tests {
         let app_state = state_over(&directory).await;
 
         assert_eq!(
-            forget_old_shape(&app_state, &credentials)
+            forget_old_shape(&app_state, &credentials, &crate::clock::System::shared())
                 .await
                 .expect("the check failed"),
             None,
@@ -1118,7 +1134,7 @@ mod tests {
         let app_state = state_over(&directory).await;
 
         assert_eq!(
-            forget_old_shape(&app_state, &credentials)
+            forget_old_shape(&app_state, &credentials, &crate::clock::System::shared())
                 .await
                 .expect("the check failed"),
             None,
@@ -1149,7 +1165,7 @@ mod tests {
         std::fs::write(directory.join(RemoteSync::FILENAME), record("gone")).expect("the record");
 
         let app_state = state_over(&directory).await;
-        let forgotten = forget_old_shape(&app_state, &credentials)
+        let forgotten = forget_old_shape(&app_state, &credentials, &crate::clock::System::shared())
             .await
             .expect("the check failed");
 
@@ -1168,7 +1184,7 @@ mod tests {
         let app_state = state_over(&directory).await;
 
         assert_eq!(
-            forget_old_shape(&app_state, &credentials)
+            forget_old_shape(&app_state, &credentials, &crate::clock::System::shared())
                 .await
                 .expect("the check"),
             None
@@ -1199,6 +1215,7 @@ mod tests {
         remote: &str,
     ) -> OrganizationStore {
         OrganizationStore::open(
+            crate::clock::System::shared(),
             &OrganizationStore::replica_path(&directory.join(Database::FILENAME), &held.id),
             Some(remote.to_string()),
             || async { Ok::<String, turso::Error>("a-credential".to_string()) },

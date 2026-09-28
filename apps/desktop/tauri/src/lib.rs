@@ -1,5 +1,6 @@
 pub mod backup;
 pub mod bootstrap;
+pub mod clock;
 // private, and it stays that way: what it hands back is a credential, so its callers are in
 // this crate and nowhere else ([[rules/credentials]], *Client boundary*).
 mod credential;
@@ -20,7 +21,6 @@ pub mod schema;
 pub mod settings;
 pub mod state;
 pub mod sync;
-pub mod timestamp;
 pub mod turso;
 pub mod update;
 pub mod window;
@@ -83,6 +83,8 @@ pub fn run() {
     tauri::Builder::default()
         // the credential store, managed before any plugin so that whatever reads it finds it.
         .manage::<credential::Credentials>(Arc::new(credential::Os))
+        // the clock, managed the same way and for the same reason.
+        .manage::<clock::Shared>(clock::System::shared())
         // first, so that a second launch with a link on its command line reaches the instance
         // already running rather than starting another: the `deep-link` feature hands the
         // arguments to the deep-link plugin below, whose handler is the one place a link lands.
@@ -112,13 +114,14 @@ pub fn run() {
 
             std::fs::create_dir_all(&data_dir).expect("failed to create directory");
 
+            let clock = app.state::<clock::Shared>().inner().clone();
             let diagnostics_dir = data_dir.join(diagnostics::DIRECTORY_NAME);
 
             // installed before anything else can fail, so that what fails next
             // is recorded. A log that cannot be opened is the one failure with
             // nowhere to report itself.
             match DiagnosticLog::new(diagnostics_dir.clone(), RotationLimits::DEFAULT) {
-                Ok(log) => diagnostics::install(log),
+                Ok(log) => diagnostics::install(log, clock.clone()),
                 Err(error) => eprintln!("failed to open the diagnostics log: {error}"),
             }
 
@@ -164,12 +167,16 @@ pub fn run() {
 
                 let settings = Arc::new(RwLock::new(settings));
 
-                let db = Arc::new(RwLock::new(Database::new(settings.clone())));
+                let db = Arc::new(RwLock::new(Database::new(settings.clone(), clock.clone())));
 
                 let remote_sync = Arc::new(RwLock::new(
-                    RemoteSync::new(settings.clone(), data_dir.join(RemoteSync::FILENAME))
-                        .await
-                        .expect("failed to create remote sync manager"),
+                    RemoteSync::new(
+                        settings.clone(),
+                        data_dir.join(RemoteSync::FILENAME),
+                        clock.clone(),
+                    )
+                    .await
+                    .expect("failed to create remote sync manager"),
                 ));
 
                 let update = Arc::new(RwLock::new(

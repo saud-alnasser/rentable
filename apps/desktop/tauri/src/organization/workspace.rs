@@ -970,6 +970,7 @@ mod tests {
 
         let (_, organization) = create_organization(
             credentials,
+            &crate::clock::System::shared(),
             &mut store,
             "a-platform-token",
             &McpEndpoint::at(&mcp.url("")),
@@ -1232,6 +1233,7 @@ mod tests {
                 .expect("the open")
                 .expect("a grant the owner holds");
             let replica = crate::database::Database::open_replica(
+                &crate::clock::System,
                 &crate::database::Database::replica_path(&directory.join("app.db"), id),
                 None,
                 move || {
@@ -1848,6 +1850,7 @@ mod tests {
         }
 
         let third = OrganizationStore::open(
+            crate::clock::System::shared(),
             &OrganizationStore::replica_path(&elsewhere.join("app.db"), &joined_owner.id),
             None,
             || async { Err(turso::Error::Misuse("no remote".into())) },
@@ -2928,13 +2931,17 @@ mod tests {
             let remote = remote.clone();
 
             async move {
-                let engine =
-                    crate::database::Database::open_replica(&path, Some(remote), move || {
+                let engine = crate::database::Database::open_replica(
+                    &crate::clock::System,
+                    &path,
+                    Some(remote),
+                    move || {
                         let token = token.clone();
                         async move { Ok::<String, turso::Error>(token) }
-                    })
-                    .await
-                    .expect("the replica");
+                    },
+                )
+                .await
+                .expect("the replica");
 
                 assert!(
                     engine.pull().await.is_ok(),
