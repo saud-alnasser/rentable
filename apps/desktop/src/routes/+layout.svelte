@@ -1,4 +1,6 @@
 <script lang="ts">
+	// First, so the root router is bound into `$lib/api/caller` before anything below can call it.
+	import '$lib/app/caller';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { refusedWith } from '$lib/api/tests/testing.ts';
+import { refusedWith } from '$lib/app/tests/testing.ts';
 import test from 'node:test';
 import {
 	ensureValidPaymentAmount,

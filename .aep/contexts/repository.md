@@ -160,8 +160,10 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   left.*;
   **`platform`**, capabilities that cross a process boundary or are
   nondeterministic (the desktop shell, the database, diagnostics, locale); and **`api`**,
-  the in-webview caller itself: the request context, the tRPC wiring, and the root router
-  that assembles every concept's procedures. The clock is the one capability `platform`
+  the in-webview caller itself, the request context and the tRPC wiring. The root router is
+  `app/`'s, the composition root and the one place that names every feature: it builds the
+  router from its list of features, each declared in its own `feature.ts` against the contract
+  in `feature/`, and binds it into the caller once as the root layout loads (effort 840). The clock is the one capability `platform`
   does not hold, because it is read nowhere but the context that supplies it. The
   application shell is neither primitive nor concept, so it is its own home, `layout`.
   `src/routes/` stays layer-first, as the framework requires. **The tree is this shape

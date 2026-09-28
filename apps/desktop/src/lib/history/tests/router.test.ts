@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { type Api, createApi, createFileApi, unusedId } from '$lib/api/tests/testing.ts';
+import { type Api, createApi, createFileApi, unusedId } from '$lib/app/tests/testing.ts';
 
 /** One entry as `history.append` takes it — read off the procedure, so the two cannot disagree. */
 type AppendedEntry = Parameters<Api['history']['append']>[0]['entries'][number];

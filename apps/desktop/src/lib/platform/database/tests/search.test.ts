@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { type Api, createApi, monthsFromNow, NOW } from '$lib/api/tests/testing.ts';
+import { type Api, createApi, monthsFromNow, NOW } from '$lib/app/tests/testing.ts';
 import { formatLocaleNumber } from '$lib/platform/locale.ts';
 import { SQLiteSyncDialect } from 'drizzle-orm/sqlite-core';
 import type { AnyColumn, SQL } from 'drizzle-orm';

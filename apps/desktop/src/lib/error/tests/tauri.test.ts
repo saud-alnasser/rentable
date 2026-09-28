@@ -10,7 +10,7 @@ import {
 	toTauriErrorCode,
 	toTauriRefusalReason
 } from '$lib/error/tauri';
-import { appRouter } from '$lib/api/router.ts';
+import { appRouter } from '$lib/app/router.ts';
 import { caller, context } from '$lib/api/trpc.ts';
 import { PASSWORD_FLOOR, refusalAfterFailedConnect } from '$lib/organization/setup.ts';
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';

@@ -11,7 +11,7 @@ import {
 	unusedId,
 	withStatementLog,
 	refusedWith
-} from '$lib/api/tests/testing.ts';
+} from '$lib/app/tests/testing.ts';
 import { isRecordId } from '$lib/platform/database/identity.ts';
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import type { ListSort } from '@rentable/design/sort.ts';

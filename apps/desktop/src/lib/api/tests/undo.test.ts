@@ -10,7 +10,7 @@ import {
 	monthsFromNow,
 	seedTenant,
 	refusedWith
-} from '$lib/api/tests/testing.ts';
+} from '$lib/app/tests/testing.ts';
 import { bindingOf } from '$lib/design/tests/testing.ts';
 import { fakeSyncState } from '$lib/platform/tests/testing.ts';
 

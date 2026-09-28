@@ -17,7 +17,7 @@ import {
 	withStatementLog,
 	refusedWith,
 	refusalReadIn
-} from '$lib/api/tests/testing.ts';
+} from '$lib/app/tests/testing.ts';
 
 /** What `contract.create` takes — read off the procedure, so a fixture cannot drift from it. */
 type ContractInput = Parameters<Api['contract']['create']>[0];

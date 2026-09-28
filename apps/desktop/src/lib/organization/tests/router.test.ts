@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { appRouter } from '$lib/api/router.ts';
+import { appRouter } from '$lib/app/router.ts';
 import { caller, context, type Meta } from '$lib/api/trpc.ts';
-import { organization } from '$lib/organization/router.ts';
+import organization from '$lib/organization/router.ts';
 import { PASSWORD_FLOOR } from '$lib/organization/setup.ts';
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import {
@@ -12,7 +12,7 @@ import {
 	fakeOrganizationMember,
 	fakeOrganizationState
 } from '$lib/platform/tests/testing.ts';
-import { fakeIdentity } from '$lib/api/tests/testing.ts';
+import { fakeIdentity } from '$lib/app/tests/testing.ts';
 import { BUILT_IN, EVERY_FLAG, maskOf, type Flag } from '@rentable/workspace-permission';
 import { readRefusal } from '$lib/api/refusal.ts';
 import type { Host } from '$lib/platform/host.ts';

@@ -10,7 +10,7 @@ import {
 	seedTenant,
 	withStatementLog,
 	refusedWith
-} from '$lib/api/tests/testing.ts';
+} from '$lib/app/tests/testing.ts';
 import { isRecordId, newId } from '$lib/platform/database/identity.ts';
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import type { ComplexSortColumnId } from '$lib/complex/complex.ts';

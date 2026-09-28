@@ -16,7 +16,7 @@ import {
 	fakeIdentity,
 	monthsFromNow,
 	seedTenant
-} from '$lib/api/tests/testing.ts';
+} from '$lib/app/tests/testing.ts';
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import { fakeHost, fakeSettings } from '$lib/platform/tests/testing.ts';
 

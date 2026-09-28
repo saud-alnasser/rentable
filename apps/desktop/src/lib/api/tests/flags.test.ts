@@ -15,9 +15,9 @@ import {
 	fakeSyncState,
 	fakeWorkspace
 } from '$lib/platform/tests/testing.ts';
-import { appRouter } from '../router.ts';
+import { appRouter } from '$lib/app/router.ts';
 import { caller, context, type Meta } from '../trpc.ts';
-import { createApi, fakeIdentity, NOW, unusedId } from './testing.ts';
+import { createApi, fakeIdentity, NOW, unusedId } from '$lib/app/tests/testing.ts';
 
 /**
  * EVERY PROCEDURE NAMES WHO MAY CALL IT

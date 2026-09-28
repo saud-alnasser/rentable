@@ -12,7 +12,7 @@ import {
 	monthsFromNow,
 	NOW,
 	refusedWith
-} from '$lib/api/tests/testing.ts';
+} from '$lib/app/tests/testing.ts';
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import { toTables } from './file.ts';
 import {

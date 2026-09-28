@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import { BUILT_IN, maskOf } from '@rentable/workspace-permission';
 
-import { createApi, fakeIdentity } from '$lib/api/tests/testing.ts';
+import { createApi, fakeIdentity } from '$lib/app/tests/testing.ts';
 import { fakeHost, fakeSyncState, fakeWorkspace } from '$lib/platform/tests/testing.ts';
 import { WORKSPACE_NAME_LIMIT } from '$lib/workspace/workspace.ts';
 

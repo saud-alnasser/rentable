@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { appRouter } from '$lib/api/router.ts';
+import { appRouter } from '$lib/app/router.ts';
 import { caller, context } from '$lib/api/trpc.ts';
-import { fakeIdentity, refusedWith } from '$lib/api/tests/testing.ts';
+import { fakeIdentity, refusedWith } from '$lib/app/tests/testing.ts';
 import { fakeHost } from '$lib/platform/tests/testing.ts';
 import { isRecordId, newId } from '../identity.ts';
 import { createMemoryDatabase } from '../memory.ts';

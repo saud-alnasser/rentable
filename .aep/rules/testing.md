@@ -44,7 +44,7 @@ lists the concept, and what covers it is one listing instead of a filter over an
 one.*
 
 **Shared scaffolding sits in the same `tests/` directory and is not a test.**
-`src/lib/api/tests/testing.ts` builds the caller a dozen router tests need; it carries no
+`src/lib/app/tests/testing.ts` builds the caller a dozen router tests need; it carries no
 `.test` in its name, which is what keeps the runner from collecting it.
 
 Two levels are covered, and they are not interchangeable:
@@ -63,7 +63,7 @@ than `any`, and a fixture in the shape production actually produces.
 
 **A fixture for a declared interface is shared, not written out per file.** Five scaffolding
 modules hold them: `platform/tests/testing.ts` builds a whole `Host` and the remote-sync
-payloads it speaks in, `api/tests/testing.ts` the router caller, `design/tests/testing.ts` the
+payloads it speaks in, `app/tests/testing.ts` the router caller, `design/tests/testing.ts` the
 binding a declared mutation hands the query library, `design/tests/strings.ts` the string
 contract a packaged block reads from its provider, and `workspace/tests/file.ts` the file a
 workspace transfer crosses as. **A hand-written partial of any of them is a shape nothing
@@ -139,7 +139,7 @@ Three things bind a component test, and each of them is a way of passing while m
   component that reads its strings from context is rendered under test at all. A test file still
   imports `test` and `expect` explicitly; nothing here relies on a global being in scope.
 - **A fixture is scaffolding**, and carries no `.test` in its name for the same reason
-  `api/tests/testing.ts` does not. **The package's own live in `packages/design/src/tests/`**,
+  `app/tests/testing.ts` does not. **The package's own live in `packages/design/src/tests/`**,
   whatever they cover and wherever the test that uses them sits: `probe.svelte` is the runner's,
   `contract.svelte` and `contract-harness.svelte` are the string contract's, and each
   `<family>-harness.svelte` is a subject that cannot be rendered on its own. **An application's

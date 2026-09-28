@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { refuse, readRefusal } from '$lib/api/refusal.ts';
-import { appRouter } from '$lib/api/router.ts';
+import { appRouter } from '$lib/app/router.ts';
 import { toErrorMessage } from '$lib/error/message.ts';
 import { fieldOfFailure, fieldOfRefusal, toRefusalText } from '$lib/error/refusal.ts';
 import { i18nObject } from '$lib/i18n/i18n-util.ts';

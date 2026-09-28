@@ -11,9 +11,9 @@ import {
 	fakeOrganizationState,
 	fakeSyncState
 } from '$lib/platform/tests/testing.ts';
-import { appRouter } from '../router.ts';
+import { appRouter } from '$lib/app/router.ts';
 import { caller, context, middleware, procedure, router } from '../trpc.ts';
-import { fakeIdentity, NOW } from './testing.ts';
+import { fakeIdentity, NOW } from '$lib/app/tests/testing.ts';
 
 /**
  * WHO MAY CALL WHAT

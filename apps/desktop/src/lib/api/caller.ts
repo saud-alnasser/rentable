@@ -1,5 +1,5 @@
+import type { AppRouter } from '$lib/app/router';
 import type { Context } from './context';
-import { appRouter } from './router';
 import { caller, context } from './trpc';
 
 /**
@@ -51,4 +51,35 @@ export function forgetContext() {
 	held = null;
 }
 
-export default caller(appRouter)(heldContext);
+/** Every procedure in the application, as the caller the composition root binds hands them over. */
+export type Api = ReturnType<ReturnType<typeof caller<AppRouter['_def']['record']>>>;
+
+/** What the composition root binds: the caller factory of the root router. */
+type CallerFactory = (context: () => Promise<Context>) => Api;
+
+/**
+ * **The router is bound in, never imported.** Every procedure is a feature's, and this home sits
+ * below the features, so importing the root router here would have the wiring depend on every
+ * feature it wires. `$lib/app/caller` binds the root router's caller factory once, as the root
+ * layout loads and before anything has rendered; this module knows the router only by its type.
+ */
+let bound: Api | null = null;
+
+/** Bind the root router's caller. Called once, by `$lib/app/caller`. */
+export function bindCaller(factory: CallerFactory) {
+	bound = factory(heldContext);
+}
+
+function boundCaller(): Api {
+	if (bound === null) {
+		throw new Error(
+			'a procedure was called before the root router was bound: import `$lib/app/caller` first'
+		);
+	}
+
+	return bound;
+}
+
+export default new Proxy({} as Api, {
+	get: (_, key) => Reflect.get(boundCaller(), key)
+});

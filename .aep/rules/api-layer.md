@@ -1,6 +1,8 @@
 ---
 paths:
   - apps/desktop/src/lib/api/**
+  - apps/desktop/src/lib/app/**
+  - apps/desktop/src/lib/feature/**
   - apps/desktop/src/lib/*/router.ts
   - apps/desktop/src/lib/*/reconcile.ts
   - apps/desktop/src/lib/platform/host.ts

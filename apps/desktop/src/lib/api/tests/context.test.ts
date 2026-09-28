@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import type { Host, OrganizationSession } from '$lib/platform/host.ts';
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
-import { fakeIdentity } from '$lib/api/tests/testing.ts';
+import { fakeIdentity } from '$lib/app/tests/testing.ts';
 import {
 	fakeHost,
 	fakeOrganizationSession,

@@ -13,7 +13,7 @@ import {
 	withStatementLog,
 	refusedWith,
 	refusalReadIn
-} from '$lib/api/tests/testing.ts';
+} from '$lib/app/tests/testing.ts';
 import { isRecordId } from '$lib/platform/database/identity.ts';
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import type { ContractSortColumnId } from '$lib/contract/contract.ts';

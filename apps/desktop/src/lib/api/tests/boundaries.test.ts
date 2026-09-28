@@ -27,7 +27,9 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const LIB_ROOT = fileURLToPath(new URL('../..', import.meta.url));
-const API_ROOT = join(LIB_ROOT, 'api');
+// `api/` is the wiring, and `app/` holds the root router, the `app.*` procedures and the caller
+// that moved out of it once the router was built from the list of features.
+const LAYER_HOMES = ['api', 'app'];
 const REQUEST_TIME_MODULES = ['router.ts', 'reconcile.ts'];
 
 function toPosix(path: string) {
@@ -38,16 +40,18 @@ function labelled(file: string) {
 	return { file, label: toPosix(relative(LIB_ROOT, file)) };
 }
 
-// every source file the layer owns: all of `api/`, plus the request-time modules of each
-// concept home beside it. The label is library-relative, because `router.ts` on its own
+// every source file the layer owns: all of `api/` and `app/`, plus the request-time modules of
+// each concept home beside them. The label is library-relative, because `router.ts` on its own
 // now names half a dozen files.
 function apiSourceFiles() {
-	const inApi = readdirSync(API_ROOT, { recursive: true, withFileTypes: true })
-		.filter((entry) => entry.isFile() && entry.name.endsWith('.ts'))
-		.map((entry) => labelled(join(entry.parentPath, entry.name)));
+	const inApi = LAYER_HOMES.flatMap((home) =>
+		readdirSync(join(LIB_ROOT, home), { recursive: true, withFileTypes: true })
+			.filter((entry) => entry.isFile() && entry.name.endsWith('.ts'))
+			.map((entry) => labelled(join(entry.parentPath, entry.name)))
+	);
 
 	const inConcepts = readdirSync(LIB_ROOT, { withFileTypes: true })
-		.filter((entry) => entry.isDirectory() && entry.name !== 'api')
+		.filter((entry) => entry.isDirectory() && !LAYER_HOMES.includes(entry.name))
 		.flatMap((home) =>
 			REQUEST_TIME_MODULES.map((name) => join(LIB_ROOT, home.name, name)).filter(existsSync)
 		)

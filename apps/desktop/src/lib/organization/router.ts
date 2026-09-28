@@ -113,7 +113,7 @@ async function refuseEffectiveWriteWithoutView(
  * first run yields an id and a link. The token, the keys and the password stay on the other side
  * of the boundary ([[rules/credentials]], *Client boundary*).
  */
-export const organization = router({
+export default router({
 	consent: {
 		begin: procedure.public.mutation(async ({ ctx }): Promise<OrganizationConsentStart> => {
 			return ctx.host.organization.consentBegin();

@@ -3,7 +3,7 @@ import { beforeEach, describe, it, mock } from 'node:test';
 
 import type { CreateMutationResult } from '@tanstack/svelte-query';
 
-import { type Api, createApi, monthsFromNow, seedTenant } from '$lib/api/tests/testing.ts';
+import { type Api, createApi, monthsFromNow, seedTenant } from '$lib/app/tests/testing.ts';
 import { bindingOf } from '$lib/design/tests/testing.ts';
 import { fakeSyncState } from '$lib/platform/tests/testing.ts';
 

@@ -18,7 +18,7 @@ import z from 'zod';
  * would make it answerable only to the machines whose answer is already known.
  */
 
-export const remoteSync = router({
+export default router({
 	getState: procedure.public.query(async ({ ctx }): Promise<RemoteSyncState> => {
 		return ctx.host.remoteSync.getState();
 	}),

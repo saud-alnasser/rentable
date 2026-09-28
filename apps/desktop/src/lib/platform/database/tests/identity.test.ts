@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { type Api, createApi, monthsFromNow, seedTenant } from '$lib/api/tests/testing.ts';
+import { type Api, createApi, monthsFromNow, seedTenant } from '$lib/app/tests/testing.ts';
 import { isRecordId, newId } from '../identity.ts';
 
 // IDENTITY

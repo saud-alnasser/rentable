@@ -21,7 +21,7 @@ import type { Database, Identity } from '$lib/api/context.ts';
 import type { Host } from '$lib/platform/host.ts';
 import { fakeHost } from '$lib/platform/tests/testing.ts';
 import { appRouter } from '../router.ts';
-import { caller, context } from '../trpc.ts';
+import { caller, context } from '$lib/api/trpc.ts';
 
 /** Every record flag, of every kind. */
 const RECORD_FLAGS = [
