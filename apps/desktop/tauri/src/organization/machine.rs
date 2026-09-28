@@ -22,7 +22,7 @@
 //! **One link stands at a time.** Making one drops the account's other unspent rows, so a pair
 //! somebody lost stops being a way in the moment another is made.
 //!
-//! **The row behind it carries no signature, and that is an accepted limit.** `store.rs`'s
+//! **The row behind it carries no signature, and that is an accepted limit.** `store/session.rs`'s
 //! [`MachineLinkRecord`] says why: the row gates availability and never authority, and a rewritten
 //! one reopens a spent link on one more machine that still lands at the wall. A test here rewrites
 //! it and shows exactly that, so the limit is recorded rather than found.

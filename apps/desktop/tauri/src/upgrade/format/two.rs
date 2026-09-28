@@ -30,7 +30,7 @@
 //! same id and key its signature verifies against this chain, bounded by the ceiling the member
 //! was given, so the row reads like any other. One that reaches past that ceiling is left out of
 //! the read and logged, as every workspace, grant, invitation and mark row that does not verify is
-//! (`store::read_or_left_out`, ticket 25), and the rows beside it still read.
+//! (`store::signature::read_or_left_out`, ticket 25), and the rows beside it still read.
 //!
 //! **The upgrade is a list of steps, in order, and each tolerates the shape it finds** (ticket
 //! 23): the reshape runs only the statements the table still needs, every row is written by its

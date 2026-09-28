@@ -5,8 +5,8 @@
 //! same keypair, so `sealed_secret_key`, `kdf_salt` and `kdf_params` are rewritten and the public
 //! key stays. Every credential the member holds is sealed to that public key, so no grant is
 //! re-sealed, no other member's row is read, and the write carries no signature because nothing
-//! the chain vouches for has changed (`organization/store.rs::reseal_member`). A test asserts
-//! every other row byte-identical rather than arguing it.
+//! the chain vouches for has changed (`organization/store/member.rs::reseal_member`). A test
+//! asserts every other row byte-identical rather than arguing it.
 //!
 //! **The floor is checked on the machine, and it is the whole defence.** There is no server to
 //! slow a guess down, so the password's length is the only thing between anybody holding the

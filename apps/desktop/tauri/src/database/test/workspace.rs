@@ -304,7 +304,7 @@ pub(in crate::database) fn shipped_migration_count() -> usize {
 /// remote, and so did rows written in the new shape. The one failure was a row change captured
 /// under a column that a later statement in the same push dropped, which fails that push with
 /// `Number of arguments mismatch` and leaves the remote with part of it. The reading, and the
-/// order the upgrade keeps because of it, are at `organization/store.rs`,
+/// order the upgrade keeps because of it, are at `organization/store/format.rs`,
 /// `OrganizationStore::format_one_reshape`.
 ///
 /// So the shipped schema goes on through [`LiveWorkspace::apply_schema_remotely`] instead, which

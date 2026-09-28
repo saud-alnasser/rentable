@@ -458,7 +458,7 @@ mod tests {
     /// the store with two members every test here runs over, the organization's locator (the four
     /// clear fields every link seals a payload onto; nothing connects with it alone), and the
     /// member's invitation link. The replica the owner wrote is what a connected machine reads once
-    /// it has pulled; the pull itself is `organization/store.rs`'s and is not what this module
+    /// it has pulled; the pull itself is `organization/store/`'s and is not what this module
     /// proves.
     async fn invited(
         credentials: &dyn CredentialStore,
@@ -1719,7 +1719,7 @@ mod tests {
 
     /// Criterion 15 against the rows a real invitation wrote: given the link's contents and a
     /// credential that reads every row, no username or workspace name is legible.
-    /// `store.rs` proves it over hand-written rows; this is the same read over what `invite` and
+    /// `store/` proves it over hand-written rows; this is the same read over what `invite` and
     /// `create_workspace` actually write.
     ///
     /// **The code, the vault password and the organization credential are swept for too** (effort

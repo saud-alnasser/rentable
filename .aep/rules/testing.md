@@ -364,7 +364,7 @@ answer means anything.
 
 **A sixth property: whether the organization lives on the remote rather than on the machine that
 made it. Two instances.** The first is ticket 08's, `organization_live_a_second_machine_reads_what_the_first_wrote`
-in `tauri/src/organization/store.rs`: machine A writes the organization's rows through a replica,
+in `tauri/src/organization/store/mod.rs`: machine A writes the organization's rows through a replica,
 machine B opens a second replica of the same database and reads them back verified. The second is
 ticket 18's, for criterion 6: machine A provisions, machine A goes offline, and machine B
 restores the organization from the link, the email, the password and one consent. *The first

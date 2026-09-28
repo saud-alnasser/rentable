@@ -61,7 +61,7 @@
 //! Read as it answers, that is a pass nobody checked. So the pragma is run only where the engine
 //! lists it in `PRAGMA pragma_list`, and otherwise the log says it could not be checked and no
 //! violation is counted, which the organization's schema makes safe: it declares no foreign key
-//! (`organization/store.rs`), and a schema equal to a fresh one declares none either.
+//! (`organization/store/mod.rs`), and a schema equal to a fresh one declares none either.
 
 use std::collections::{BTreeMap, BTreeSet};
 
