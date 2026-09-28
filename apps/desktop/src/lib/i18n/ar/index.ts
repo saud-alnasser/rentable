@@ -1215,7 +1215,6 @@ const ar = {
 			noWorkspaces: 'لا مساحة عمل بعد.',
 			workspacesHeld: '{count|number} {{مساحة عمل|مساحات عمل}}',
 			accessFull: 'وصول كامل',
-			accessTakenBack: 'سحب مساحة عمل لا يصدر شيئًا، فما يحمله الآن يعمل حتى تنتهي صلاحيته.',
 			memberWorkspacesDescription: 'مساحات العمل التي يستطيع فتحها. شغّل مفتاح أي منها ليدخلها.',
 			accessSaved: 'حُفظت مساحات العمل.',
 			workspaceAccessTitle: 'الأعضاء والوصول',
@@ -1331,7 +1330,10 @@ const ar = {
 		},
 
 		override: {
-			legend: 'ما يستطيع فعله'
+			legend: 'صلاحيات المؤسسة',
+			says: 'تغييرات على دوره في المؤسسة كلها.',
+			workspaces: 'صلاحيات مساحات العمل',
+			workspacesSays: 'مساحات العمل التي يستطيع فتحها، وتغييرات تخص كل واحدة وحدها.'
 		},
 
 		switches: {

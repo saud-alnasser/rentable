@@ -1314,8 +1314,6 @@ const en = {
 			// ones, and which of them are locked to read only, is the sheet the card's edit opens.
 			workspacesHeld: '{count|number} {{workspace|workspaces}}',
 			accessFull: 'full access',
-			accessTakenBack:
-				'taking a workspace back mints nothing, so what they already hold works until it runs out.',
 			// the line under the workspaces on the sheet that adds a member.
 			memberWorkspacesDescription: 'the workspaces they can open. switch one on to let them in.',
 			accessSaved: 'the workspaces were saved.',
@@ -1461,8 +1459,13 @@ const en = {
 		},
 
 		/** what a member may do, on their card (effort 838, requirement 12). */
+		// the three layers a member's card sets, each titled by where it reaches: the role, then
+		// what is changed for them across the organization, then what is changed in one workspace.
 		override: {
-			legend: 'what they may do'
+			legend: 'organization permissions',
+			says: 'changes to their role, everywhere in the organization.',
+			workspaces: 'workspace permissions',
+			workspacesSays: 'which workspaces they can open, and changes for each one alone.'
 		},
 
 		/**

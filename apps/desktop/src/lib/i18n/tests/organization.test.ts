@@ -285,7 +285,10 @@ const RETIRED = [
 	'organization.workspaceSwitches.readOnly',
 	'organization.workspaceSwitches.readOnlySays',
 	'organization.workspaceSwitches.reset',
-	'organization.switches.contractEdit'
+	'organization.switches.contractEdit',
+	// the line under a member's workspaces, until the section was titled by its scope and said
+	// what it holds instead.
+	'organization.dashboard.accessTakenBack'
 ] as const;
 
 test('both locales have let go of every string the retired pages read', () => {

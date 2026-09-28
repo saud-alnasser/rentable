@@ -402,7 +402,8 @@
 		<MemberWorkspaces
 			id="workspaces"
 			rowPrefix="access"
-			description={$LL.organization.dashboard.accessTakenBack()}
+			legend={$LL.organization.override.workspaces()}
+			description={$LL.organization.override.workspacesSays()}
 			empty={$LL.organization.dashboard.noWorkspaces()}
 			{rows}
 			{access}

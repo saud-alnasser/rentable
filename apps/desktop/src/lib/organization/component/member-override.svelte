@@ -129,6 +129,7 @@
 	<MemberSectionHead
 		{id}
 		legend={$LL.organization.override.legend()}
+		description={$LL.organization.override.says()}
 		control={override !== 0 ? resetControl : null}
 	/>
 

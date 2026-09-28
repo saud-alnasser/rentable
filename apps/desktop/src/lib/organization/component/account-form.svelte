@@ -252,6 +252,7 @@
 		<MemberWorkspaces
 			id="account-workspaces"
 			rowPrefix="account-access"
+			legend={$LL.organization.override.workspaces()}
 			description={$LL.organization.dashboard.memberWorkspacesDescription()}
 			empty={$LL.organization.dashboard.noWorkspaceToGrant()}
 			{rows}

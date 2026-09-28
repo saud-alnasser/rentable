@@ -47,7 +47,8 @@
 		refusal = null,
 		disabled,
 		error = null,
-		beneath
+		beneath,
+		legend
 	}: {
 		/** the section's name in the document: its head is `<id>` and its legend `<id>-legend`. */
 		id: string;
@@ -69,11 +70,16 @@
 		error?: string | null;
 		/** what is drawn beneath a workspace the member is in: the card's permissions there. */
 		beneath?: Snippet<[AccessSwitchRow]>;
+		/**
+		 * the section's title, where it says more than *workspaces*: on both sheets a member has,
+		 * it names the scope, the permissions each workspace carries.
+		 */
+		legend?: string;
 	} = $props();
 </script>
 
 <Field.Set class="gap-3" aria-labelledby={`${id}-legend`} data-sheet-section="workspaces">
-	<MemberSectionHead {id} legend={$LL.settings.section.workspaces()} {description} />
+	<MemberSectionHead {id} legend={legend ?? $LL.settings.section.workspaces()} {description} />
 
 	{#if rows.length === 0}
 		<Field.Description data-access-empty>{empty}</Field.Description>

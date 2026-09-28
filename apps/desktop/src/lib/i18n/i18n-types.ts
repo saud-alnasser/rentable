@@ -3900,10 +3900,6 @@ type RootTranslation = {
 			 */
 			accessFull: string
 			/**
-			 * t​a​k​i​n​g​ ​a​ ​w​o​r​k​s​p​a​c​e​ ​b​a​c​k​ ​m​i​n​t​s​ ​n​o​t​h​i​n​g​,​ ​s​o​ ​w​h​a​t​ ​t​h​e​y​ ​a​l​r​e​a​d​y​ ​h​o​l​d​ ​w​o​r​k​s​ ​u​n​t​i​l​ ​i​t​ ​r​u​n​s​ ​o​u​t​.
-			 */
-			accessTakenBack: string
-			/**
 			 * t​h​e​ ​w​o​r​k​s​p​a​c​e​s​ ​t​h​e​y​ ​c​a​n​ ​o​p​e​n​.​ ​s​w​i​t​c​h​ ​o​n​e​ ​o​n​ ​t​o​ ​l​e​t​ ​t​h​e​m​ ​i​n​.
 			 */
 			memberWorkspacesDescription: string
@@ -4272,9 +4268,21 @@ type RootTranslation = {
 		}
 		override: {
 			/**
-			 * w​h​a​t​ ​t​h​e​y​ ​m​a​y​ ​d​o
+			 * o​r​g​a​n​i​z​a​t​i​o​n​ ​p​e​r​m​i​s​s​i​o​n​s
 			 */
 			legend: string
+			/**
+			 * c​h​a​n​g​e​s​ ​t​o​ ​t​h​e​i​r​ ​r​o​l​e​,​ ​e​v​e​r​y​w​h​e​r​e​ ​i​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
+			 */
+			says: string
+			/**
+			 * w​o​r​k​s​p​a​c​e​ ​p​e​r​m​i​s​s​i​o​n​s
+			 */
+			workspaces: string
+			/**
+			 * w​h​i​c​h​ ​w​o​r​k​s​p​a​c​e​s​ ​t​h​e​y​ ​c​a​n​ ​o​p​e​n​,​ ​a​n​d​ ​c​h​a​n​g​e​s​ ​f​o​r​ ​e​a​c​h​ ​o​n​e​ ​a​l​o​n​e​.
+			 */
+			workspacesSays: string
 		}
 		switches: {
 			verbSays: {
@@ -8315,10 +8323,6 @@ export type TranslationFunctions = {
 			 */
 			accessFull: () => LocalizedString
 			/**
-			 * taking a workspace back mints nothing, so what they already hold works until it runs out.
-			 */
-			accessTakenBack: () => LocalizedString
-			/**
 			 * the workspaces they can open. switch one on to let them in.
 			 */
 			memberWorkspacesDescription: () => LocalizedString
@@ -8681,9 +8685,21 @@ export type TranslationFunctions = {
 		}
 		override: {
 			/**
-			 * what they may do
+			 * organization permissions
 			 */
 			legend: () => LocalizedString
+			/**
+			 * changes to their role, everywhere in the organization.
+			 */
+			says: () => LocalizedString
+			/**
+			 * workspace permissions
+			 */
+			workspaces: () => LocalizedString
+			/**
+			 * which workspaces they can open, and changes for each one alone.
+			 */
+			workspacesSays: () => LocalizedString
 		}
 		switches: {
 			verbSays: {

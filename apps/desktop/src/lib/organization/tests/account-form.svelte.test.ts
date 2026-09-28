@@ -466,7 +466,7 @@ test('the sheet that adds a member draws the sections the sheet that edits one d
 		en.organization.dashboard.username,
 		en.organization.dashboard.role,
 		en.organization.override.legend,
-		en.settings.section.workspaces
+		en.organization.override.workspaces
 	]);
 });
 

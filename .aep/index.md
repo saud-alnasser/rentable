@@ -131,7 +131,7 @@ Start at [[protocol]].
 | 828-the-link-needs-a-code-and-the-settings-area-guides | implemented | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] | 5 | 0 | 29 |
 | 832-the-interface-speaks-one-language-and-guides | accepted | [[efforts/832-the-interface-speaks-one-language-and-guides/spec]] | 3 | 4 | 43 |
 | 835-the-rent-is-receipted-scheduled-and-chased | implemented | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]] | 1 | 0 | 19 |
-| 838-permissions-are-a-role-and-an-override | implemented | [[efforts/838-permissions-are-a-role-and-an-override/spec]] | 2 | 0 | 58 |
+| 838-permissions-are-a-role-and-an-override | implemented | [[efforts/838-permissions-are-a-role-and-an-override/spec]] | 2 | 0 | 59 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -396,3 +396,4 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/56-review-round-two-of-the-workspace-layer-is-settled]] fix(organization): review round two of the workspace layer is settled | 838-permissions-are-a-role-and-an-override | resolved | 55 |
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/57-permissions-are-groups-that-fold]] feat(desktop): permissions are groups that fold, and a workspace is access with its permissions beneath | 838-permissions-are-a-role-and-an-override | resolved | 56 |
 | [[efforts/838-permissions-are-a-role-and-an-override/tickets/58-a-roles-card-says-little]] feat(desktop): a roles card says little | 838-permissions-are-a-role-and-an-override | resolved | 56 |
+| [[efforts/838-permissions-are-a-role-and-an-override/tickets/59-each-layer-is-titled-by-its-scope]] fix(desktop): each layer on a member's sheet is titled by its scope | 838-permissions-are-a-role-and-an-override | resolved | 57, 58 |

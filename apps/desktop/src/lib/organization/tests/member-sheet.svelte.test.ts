@@ -216,6 +216,21 @@ test('the sheet is a heavy form surface: the role, what they may do and the work
 
 // a tray on top and records below: the role is the tray's control, with who it is for under it,
 // and the save stays in the surface's own footer.
+// the human's call on the running application, 2026-09-28: each of the three layers is titled by
+// where it reaches, the role, then the organization, then each workspace.
+test('the three layers are titled by their scope: role, organization, workspaces', () => {
+	sheet();
+
+	const legend = (name: string) =>
+		section(name)?.querySelector('legend')?.textContent?.trim().toLowerCase();
+
+	expect(legend('role')).toBe(en.organization.dashboard.role);
+	expect(legend('override')).toBe(en.organization.override.legend);
+	expect(legend('workspaces')).toBe(en.organization.override.workspaces);
+	expect(section('override')?.textContent).toContain(en.organization.override.says);
+	expect(section('workspaces')?.textContent).toContain(en.organization.override.workspacesSays);
+});
+
 test('it reads as a tray on top and lists below, the way a directory does', () => {
 	sheet();
 
