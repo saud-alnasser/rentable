@@ -101,9 +101,9 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   is a server, it holds the record, and it is still not in the data path.** The API layer is a
   direct caller executing in the webview, and that part is unchanged: a read or a write reaches a
   local file over Tauri's IPC into Rust, never over HTTP. The replica syncs on its own, and the
-  one service it reaches is the customer's own Turso account. `platform/database/hosted.ts` is the one
-  transport in the tree that would read over the wire from the webview, and nothing imports it —
-  [[rules/api-layer]], under *One database client type*, is where that is recorded.
+  one service it reaches is the customer's own Turso account. No transport in the tree
+  reads over the wire from the webview; [[rules/api-layer]], under *One database client type*,
+  counts the callers that build a client.
 
   The property the old boundary was protecting therefore survives the premise that stated it, which
   is why this is superseded in place rather than footnoted: a reader who takes "never HTTP" at

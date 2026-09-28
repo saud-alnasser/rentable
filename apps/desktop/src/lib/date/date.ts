@@ -18,13 +18,6 @@ export function addUtcDays(value: Date, days: number) {
 	return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate() + days));
 }
 
-/** whether a date falls inside a UTC-day range, both ends included. */
-export function isWithinUtcRange(value: Date, rangeStart: Date, rangeEnd: Date) {
-	const normalizedValue = toUtcDay(value).getTime();
-
-	return normalizedValue >= rangeStart.getTime() && normalizedValue <= rangeEnd.getTime();
-}
-
 /** advances by calendar months, clamping to the last day of shorter months. */
 export function addUtcMonths(value: DateLike, months: number) {
 	const date = toUtcDay(value);

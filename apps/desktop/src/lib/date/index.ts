@@ -3,7 +3,7 @@
  * period read, and the periods a reader can ask about. This file is its whole API; a concept
  * imports `$lib/date` and never a file inside it.
  */
-export { addUtcDays, addUtcMonths, isWithinUtcRange, toUtcDay, type DateLike } from './date';
+export { addUtcDays, addUtcMonths, toUtcDay, type DateLike } from './date';
 export {
 	formatCalendarDate,
 	formatDateInput,

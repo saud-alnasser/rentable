@@ -235,24 +235,16 @@ in the Rust layer behind `db_execute_single_sql` and `db_execute_batch_sql`, so 
 the shipping client hands the factory still call `invoke`, and what changed is the engine behind
 the command.
 
-**The conclusion the gate bought still holds, and the count is three.** `createDatabase` has three
-callers in the tree: `client.ts` with Tauri's `invoke`, `memory.ts` with the in-memory engine, and
-`hosted.ts`, which carries a statement to a `@tursodatabase/sync` replica in the webview. **All
-three return the same `SqliteRemoteDatabase<typeof schema>`**, which is the property this rule
-protects: a transport is a caller at this factory, never a second kind of client. What the move
-into Rust costs is a second row mapping, in `tauri/src/database/proxy.rs`, held to the first by a
-Rust test rather than by this rule.
+**The conclusion the gate bought still holds, and the count is two.** `createDatabase` has two
+callers in the tree: `client.ts` with Tauri's `invoke`, and `memory.ts` with the in-memory
+engine. **Both return the same `SqliteRemoteDatabase<typeof schema>`**, which is the property
+this rule protects: a transport is a caller at this factory, never a second kind of client. What
+the move into Rust costs is a second row mapping, in `tauri/src/database/proxy.rs`, held to the
+first by a Rust test rather than by this rule.
 
-> **`hosted.ts` is imported by nothing but its own test** — checked 2026-08-20 while rewriting
-> this section. #565 moved the engine into Rust and left the web-layer transport, its test and the
-> `@tursodatabase/sync` dependency standing. It is counted above because it is in the tree and
-> because its own doc comment cites this rule by name; whether it should still be there is not
-> this rule's question, and it is raised rather than answered here.
-
-*The word that went on 2026-08-20 is "hosted": this read "**A hosted workspace is a third caller
-at this factory**". There is one kind of workspace, so the qualifier picked it out from nothing.
-**The count it carried was right and is kept**, which is the half worth saying out loud: the
-qualifier and the count came off the same sentence and only one of them was wrong.*
+*The count was three until #840 removed the third: a web-layer transport to a
+`@tursodatabase/sync` replica, left standing by #565 when it moved the engine into Rust and
+imported by nothing but its own test. The dependency stays for the development scripts below.*
 
 ### Development tooling is excluded, deliberately
 

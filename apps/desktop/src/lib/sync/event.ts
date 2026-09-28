@@ -97,23 +97,3 @@ export function listenForWorkspaceSyncRequests(listener: (detail: WorkspaceSyncR
 	window.addEventListener(REQUEST_EVENT, handler as EventListener);
 	return () => window.removeEventListener(REQUEST_EVENT, handler as EventListener);
 }
-
-export function listenForWorkspaceSyncResults(
-	listener: (detail: WorkspaceSyncEventResult) => void
-) {
-	if (typeof window === 'undefined') {
-		return () => {};
-	}
-
-	const handler = (event: Event) => {
-		listener(
-			(event as CustomEvent<WorkspaceSyncEventResult>).detail ?? {
-				action: 'error',
-				errorMessage: null
-			}
-		);
-	};
-
-	window.addEventListener(RESULT_EVENT, handler as EventListener);
-	return () => window.removeEventListener(RESULT_EVENT, handler as EventListener);
-}

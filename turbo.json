@@ -18,9 +18,8 @@
 			// ran. `$TURBO_DEFAULT$` keeps the package's own files; the entries after it add the
 			// packages whose contents decide what those tests assert.
 			//
-			// `workspace-permission` joined them when the flag table moved out of the control
-			// plane, which has since retired: the desktop's tests assert against a table it does
-			// not hold.
+			// `workspace-permission` is among them because the desktop's tests assert against a
+			// table it does not hold.
 			//
 			// `design` is listed before the interface moves into it. That happens over the tickets
 			// that follow, and from the first component onwards a desktop test renders markup this

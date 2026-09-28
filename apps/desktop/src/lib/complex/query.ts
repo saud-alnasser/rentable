@@ -213,13 +213,6 @@ export function usePlanManyUnits(ids: () => readonly string[]) {
 	});
 }
 
-export function useFetchComplexes() {
-	return createQuery(() => ({
-		queryKey: keys.all,
-		queryFn: () => api.complex.getMany({})
-	}));
-}
-
 export function useFetchComplex(id: () => string) {
 	return createQuery(() => {
 		const freshId = id();

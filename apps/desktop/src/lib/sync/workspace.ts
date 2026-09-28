@@ -5,7 +5,6 @@ import { invalidateRoot } from '$lib/design/query';
 import {
 	tauri,
 	type RemoteSyncState,
-	type RemoteSyncWorkspace,
 	type ReplicationRefusal,
 	type SessionStanding
 } from '$lib/platform/tauri';
@@ -78,12 +77,6 @@ export async function announceReceivedRows(client: QueryClient): Promise<number>
 	await invalidateRoot(client);
 
 	return reconciledAt;
-}
-
-export function getWorkspaceFromSyncState(
-	syncState?: RemoteSyncState | null
-): RemoteSyncWorkspace | null {
-	return syncState?.workspace ?? null;
 }
 
 /**
