@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { surfaces } from '$lib/app/surfaces';
+	import { palette, surfaces } from '$lib/app/surfaces';
 	import { PrintSheet } from '$lib/print/ui';
 	import { tauri } from '$lib/platform/tauri';
 	import { Button } from '@rentable/design/primitive/button/index.js';
@@ -11,14 +11,16 @@
 	import LayoutBreadcrumb from '$lib/layout/component/breadcrumb.svelte';
 	import { CreateShortcut } from '$lib/create/ui';
 	import LayoutCaughtError from '$lib/layout/component/caught-error.svelte';
-	import LayoutPalette, { PALETTE_SHORTCUT_HINT } from '$lib/layout/component/palette.svelte';
+	import { Palette, PALETTE_SHORTCUT_HINT } from '$lib/palette/ui';
 	import { ShortcutListener } from '$lib/shortcut/ui';
 	import { UndoShortcut } from '$lib/undo/ui';
 	import LayoutShortcutSheet from '$lib/layout/component/shortcut-sheet.svelte';
 	import LayoutSidebar from '$lib/layout/component/sidebar.svelte';
 	import LayoutWindowControls from '$lib/layout/component/window-controls.svelte';
 	import { CAUGHT_ERROR_EVENT, toCaughtErrorFields } from '$lib/layout/boundary';
-	import { toBreadcrumbTrail } from '$lib/layout/navigation';
+	import { primaryDestinations, secondaryDestinations } from '$lib/layout/destination';
+	import { toBreadcrumbTrail, toViewablePlaces } from '$lib/layout/navigation';
+	import { memberPermissions } from '$lib/permission';
 	import { recordDiagnosticError } from '$lib/platform/diagnostics';
 	import KeyboardIcon from '@lucide/svelte/icons/keyboard';
 	import SearchIcon from '@lucide/svelte/icons/search';
@@ -206,7 +208,14 @@
 					<surface.host />
 				{/if}
 			{/each}
-			<LayoutPalette bind:open={isPaletteOpen} />
+			<Palette
+				bind:open={isPaletteOpen}
+				{palette}
+				destinations={toViewablePlaces(
+					[...primaryDestinations, ...secondaryDestinations],
+					memberPermissions.views
+				)}
+			/>
 			<LayoutShortcutSheet bind:open={isShortcutSheetOpen} />
 		{/if}
 		<Sidebar.Provider class="h-full min-h-0 overflow-hidden">

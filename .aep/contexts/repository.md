@@ -154,6 +154,8 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   840, as the shortcut registry and its one key listener are the `shortcut/` capability. The
   create control that is each set's one way to add to it, the create key and what it answers,
   the `?create` intent and where a create lands are the `create/` capability since effort 840.
+  The command menu is the `palette/` capability: `app/surfaces.ts` builds it from each surface's
+  `search`, `create` and `acts`, so it names no feature.
   *It holds 80 files, counted on 2026-09-25. It held 459 until 2026-08-23 and 34 just after,
   and the count read 34 until 2026-09-25 while the home grew. The 425 that left are 387
   primitives, thirteen of the fifteen composites, fifteen root modules with the class merging and `csv.ts`

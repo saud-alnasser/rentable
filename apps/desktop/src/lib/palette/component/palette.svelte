@@ -17,29 +17,23 @@
 
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import type { ResolvedPathname } from '$app/types';
-	import { withCreateIntent } from '$lib/create';
-	import { unitHost } from '$lib/complex/unit/host.svelte';
-	import {
-		declarePaletteCreates,
-		toOfferedCreates,
-		type CreateDirectory
-	} from '$lib/layout/create';
-	import { paymentHost } from '$lib/payment/host.svelte';
+	import type { SearchEntry } from '$lib/feature/surface';
 	import { Kbd, KbdGroup } from '@rentable/design/primitive/kbd/index.js';
 	import * as Command from '@rentable/design/primitive/command/index.js';
 	import { shortcuts } from '$lib/shortcut';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import { primaryDestinations, secondaryDestinations } from '$lib/layout/destination';
+	import { toOfferedCreates } from '../create';
 	import {
+		MATCH_LIMIT,
 		matchesTerm,
 		toPaletteShortcuts,
+		type Palette,
+		type PaletteDestination,
 		type PaletteShortcut,
 		type RecordSubject
-	} from '$lib/layout/palette';
-	import { toViewablePlaces } from '$lib/layout/navigation';
-	import { useRecordConcepts } from '$lib/layout/record-search';
+	} from '../palette';
 	import { memberPermissions } from '$lib/permission';
+	import { untrack } from 'svelte';
 	import ZapIcon from '@lucide/svelte/icons/zap';
 	import FileIcon from '@lucide/svelte/icons/file-text';
 	import PlusIcon from '@lucide/svelte/icons/plus';
@@ -53,31 +47,40 @@
 		run: (recordId: string) => void;
 	};
 
-	// every concept a person can create (`layout/create.ts`). The three that stand on their own are
-	// made in their directory, which their host opens the form on; a unit and a payment ask for the
-	// record they cannot be without, and their host is asked with it.
-	const createActions = declarePaletteCreates({
-		unit: (prefill) => unitHost.create(prefill),
-		payment: (prefill) => paymentHost.create(prefill)
-	});
-
-	// resolved once, and each literally: `resolve` reads the route out of the type it is handed.
-	const createAddresses = {
-		'/tenants': resolve(withCreateIntent('/tenants')),
-		'/complexes': resolve(withCreateIntent('/complexes')),
-		'/contracts': resolve(withCreateIntent('/contracts'))
-	} satisfies Record<CreateDirectory, ResolvedPathname>;
-
 	let {
-		open = $bindable(false)
+		open = $bindable(false),
+		palette,
+		destinations
 	}: {
 		/** Whether the palette is showing. Bind to it to open the palette from a trigger. */
 		open?: boolean;
+		/**
+		 * what it finds, creates and does to a record, as the surfaces declare it
+		 * (`createPalette`), which `app/` builds.
+		 */
+		palette: Palette;
+		/** the places it offers to go to, the ones the reader may not go to left out. */
+		destinations: readonly PaletteDestination[];
 	} = $props();
 
-	// the concepts the palette finds records of. What a member's and a workspace's acts are gated
-	// on is read while the palette is showing, and not otherwise.
-	const recordConcepts = useRecordConcepts(() => open);
+	const isOpen = () => open;
+
+	// the menu `app/` built, read once: every search and act it declares is a hook, called here as
+	// the palette mounts, and the list of surfaces does not change while the window is open.
+	const declared = untrack(() => palette);
+
+	/**
+	 * A kind's term: nothing where the reader may not view that kind, which is below every search's
+	 * minimum, so the question is never asked rather than asked and refused on each keystroke
+	 * (effort 838, requirement 10).
+	 */
+	const termFor = (concept: Pick<SearchEntry, 'kind'>, term: () => string) => () =>
+		concept.kind === undefined || memberPermissions.views(concept.kind) ? term() : '';
+
+	// what can be done to a record, per concept that declares its acts, each read once, here: what a
+	// member's and a workspace's acts are gated on is read from queries while the palette is
+	// showing, and not otherwise.
+	const actGroups = declared.acts.map((group) => ({ ...group, ...group.use(isOpen) }));
 
 	// the term the palette is holding. It reaches the record searches as a query and narrows the
 	// destinations here, which is why the command primitive's own filtering is off: records are
@@ -94,15 +97,14 @@
 	// rather than once per action.
 	const isAppleKeyboard = usesAppleKeyboard();
 
-	const destinations = $derived(
-		toViewablePlaces(
-			[...primaryDestinations, ...secondaryDestinations],
-			memberPermissions.views
-		).filter((destination) => matchesTerm(destination.label($LL), term))
+	const places = $derived(
+		destinations.filter((destination) => matchesTerm(destination.label($LL), term))
 	);
 	// only what the reader may create: a create they lack a flag for is not offered.
 	const creations = $derived(
-		toOfferedCreates(createActions, (flags) => memberPermissions.refusalOfEvery(flags, $LL)).filter(
+		toOfferedCreates(declared.creates, (flags) =>
+			memberPermissions.refusalOfEvery(flags, $LL)
+		).filter(
 			(action) =>
 				matchesTerm(action.label($LL), term) || matchesTerm($LL.common.actions.create(), term)
 		)
@@ -118,22 +120,22 @@
 	);
 
 	// what can be done to a record, per concept that declares its acts: each concept's list, in its
-	// own order and under its own names, which is what the record's card and page offer too. A
-	// concept's name finds all of its acts, since an act's own name ("edit") says nothing about
-	// which record it edits.
+	// own order and under its own names, which is what the record's card and page offer too, and
+	// nothing of a kind the reader may not view. A concept's name finds all of its acts, since an
+	// act's own name ("edit") says nothing about which record it edits.
 	const recordActs = $derived(
-		recordConcepts.flatMap((concept) => {
-			if (!concept.acts) {
-				return [];
-			}
+		actGroups.flatMap((group) => {
+			const runOn = group.runOn;
+			const heading = group.heading($LL);
+			const offered =
+				group.kind === undefined || memberPermissions.views(group.kind)
+					? group.offered($LL, isAppleKeyboard)
+					: [];
+			const acts = offered.filter(
+				(act) => matchesTerm(act.label, term) || matchesTerm(heading, term)
+			);
 
-			const runOn = concept.acts.runOn;
-			const heading = concept.heading($LL);
-			const acts = concept.acts
-				.offered($LL, isAppleKeyboard)
-				.filter((act) => matchesTerm(act.label, term) || matchesTerm(heading, term));
-
-			return acts.length > 0 ? [{ subject: concept.subject, heading, acts, runOn }] : [];
+			return acts.length > 0 ? [{ subject: group.subject, heading, acts, runOn }] : [];
 		})
 	);
 
@@ -141,11 +143,12 @@
 	// four would run on every keystroke and have their answers thrown away, and the term is being
 	// typed at a question about contracts rather than at the palette. An empty term is below the
 	// search's own minimum, so each of them simply does not run.
-	const found = recordConcepts.map((concept) => ({
+	const found = declared.search.map((concept) => ({
 		concept,
 		query: concept.find(
-			() => (asking && asking.subject !== concept.subject ? '' : term),
-			() => asking?.actId ?? null
+			termFor(concept, () => (asking && asking.subject !== concept.subject ? '' : term)),
+			() => asking?.actId ?? null,
+			{ limit: MATCH_LIMIT, isOpen }
 		)
 	}));
 
@@ -263,7 +266,7 @@
 			<Command.Group heading={$LL.common.ui.commandPaletteGoTo()}>
 				<!-- keyed on the whole address rather than on its pathname: the settings area's
 				     four sections are four rows on `/settings`, told apart by `?section=`. -->
-				{#each destinations as destination (destination.url)}
+				{#each places as destination (destination.url)}
 					<Command.LinkItem href={resolve(destination.url)} onSelect={() => (open = false)}>
 						<destination.icon />
 						<span>{toTitleCase(destination.label($LL))}</span>
@@ -277,7 +280,7 @@
 				{#each creations as action (action.subject)}
 					{#if action.kind === 'directory'}
 						<Command.LinkItem
-							href={createAddresses[action.directory]}
+							href={action.href}
 							keywords={[$LL.common.actions.create()]}
 							onSelect={() => (open = false)}
 						>

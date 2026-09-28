@@ -3,6 +3,7 @@ import contract from '$lib/contract/surface';
 import dashboard from '$lib/dashboard/surface';
 import type { AnySection, NavigationPlace, Section, SectionTarget } from '$lib/feature/surface';
 import organization from '$lib/organization/surface';
+import { createPalette } from '$lib/palette';
 import payment from '$lib/payment/surface';
 import settings from '$lib/settings/surface';
 import tenant from '$lib/tenant/surface';
@@ -30,6 +31,14 @@ export const surfaces = [
 	dashboard,
 	settings
 ] as const;
+
+/**
+ * The command menu, built from what every surface declares for it: the kinds it searches, the
+ * create group and the acts, each in this list's order. The menu opens on tenants, complexes,
+ * units, contracts and payments, then a member and a workspace, which is the order the surfaces
+ * declaring them stand in above.
+ */
+export const palette = createPalette(surfaces);
 
 /**
  * Every place the shell names or offers, in the order it offers them: the rail's rows from the top,

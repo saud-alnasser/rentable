@@ -1,4 +1,12 @@
 import { toShortcutHint } from '@rentable/design/shortcut.js';
+import type {
+	ActEntry,
+	CreateEntry,
+	NavigationPlace,
+	PlaceAddress,
+	SearchEntry,
+	Surface
+} from '$lib/feature/surface';
 import type { ShortcutRegistration } from '$lib/shortcut';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 import { foldSearchText, type RecordMatch } from '$lib/platform/database/search';
@@ -6,8 +14,14 @@ import { foldSearchText, type RecordMatch } from '$lib/platform/database/search'
 /**
  * PALETTE
  *
- * What the palette offers besides the records it finds: the application's own shortcuts it can
- * run, and how anything it shows is matched against what the reader typed.
+ * The command menu, as the surfaces declare it: the records it finds, what it creates and what it
+ * does to a record, each read off the surfaces `app/` hands it ({@link createPalette}), and what
+ * it offers besides: the application's own shortcuts it can run, and how anything it shows is
+ * matched against what the reader typed.
+ *
+ * **It names no feature.** Which kinds it searches, what each group is called, where opening a
+ * record goes, what can be created and which acts are offered are each kind's own `search`,
+ * `create` and `acts`, in its `surface.ts`, and the menu presents them in the list's order.
  *
  * The shortcuts are **derived from the shortcut registry, not listed here**. Every registration
  * already states its name, why it might be unavailable and what it does, so a second table
@@ -17,13 +31,15 @@ import { foldSearchText, type RecordMatch } from '$lib/platform/database/search'
  * palette needs to know about one.
  *
  * **A record's acts are not here.** Each concept declares them once, in `<concept>/acts.ts`, and
- * the palette offers them through `act/act.ts`, as the record's card and page do: an act asks
+ * its surface offers them through `act/act.ts`, as the record's card and page do: an act asks
  * for the record it runs on, and the concept's host answers it.
  */
 
-/** A concept the palette can ask the reader to choose a record of. */
-export type RecordSubject =
-	'tenant' | 'complex' | 'unit' | 'contract' | 'payment' | 'member' | 'workspace';
+/**
+ * A concept the palette can ask the reader to choose a record of: a search entry's `subject`,
+ * which is its record kind where it has one.
+ */
+export type RecordSubject = string;
 
 /**
  * One record the palette found.
@@ -36,6 +52,62 @@ export type PaletteMatch = RecordMatch & { unavailable?: string };
 
 /** What a concept's search answers the palette with, found in SQL or in memory. */
 export type RecordSearch = { readonly data: PaletteMatch[] | undefined };
+
+/** How many records of each concept the palette offers before the reader narrows further. */
+export const MATCH_LIMIT = 5;
+
+/**
+ * A place the palette offers to go to: the shell's destinations, which it hands the palette with
+ * the ones the reader may not go to already left out.
+ */
+export type PaletteDestination = {
+	url: PlaceAddress | NonNullable<NavigationPlace['url']>;
+	icon: NonNullable<NavigationPlace['icon']>;
+	label: NavigationPlace['label'];
+};
+
+/** What the command menu offers to do to one kind of record, under that kind's heading. */
+export type PaletteActGroup = ActEntry & { heading: SearchEntry['heading'] };
+
+/** The command menu, as the surfaces declare it, each list in the surfaces' order. */
+export type Palette = {
+	/** the kinds it finds records of, a group each, in the order it presents them. */
+	search: SearchEntry[];
+	/** the create group, in the order records are searched. */
+	creates: CreateEntry[];
+	/** what it offers to do to a record, a group per kind, each under its search entry's heading. */
+	acts: PaletteActGroup[];
+};
+
+/**
+ * The command menu built from what the surfaces declare, which `app/` hands it: every surface's
+ * search entries, create entry and act entries, in the list's order and each surface's own.
+ *
+ * An act entry is grouped under the heading of the search entry naming the same subject, which is
+ * where the records it runs on are found; one with no such entry could never be run, so declaring
+ * it is a mistake this refuses at once rather than a group the menu draws and cannot answer.
+ */
+export function createPalette(
+	surfaces: readonly Pick<Surface, 'search' | 'create' | 'acts'>[]
+): Palette {
+	const search = surfaces.flatMap((surface) => surface.search ?? []);
+
+	return {
+		search,
+		creates: surfaces.flatMap((surface) => (surface.create ? [surface.create] : [])),
+		acts: surfaces
+			.flatMap((surface) => surface.acts ?? [])
+			.map((entry) => {
+				const found = search.find((concept) => concept.subject === entry.subject);
+
+				if (!found) {
+					throw new Error(`the acts on ${entry.subject} have no search entry to find one by`);
+				}
+
+				return { ...entry, heading: found.heading };
+			})
+	};
+}
 
 /**
  * One shortcut the palette offers by name.

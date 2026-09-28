@@ -163,7 +163,7 @@ Three things bind a component test, and each of them is a way of passing while m
   and `tenant/tests/` had copied it.*
 
   `palette-harness.svelte` is the second: the command menu and the application's one keyboard
-  listener beside a screen, which the layout tests render directly and the complex, contract,
+  listener beside a screen, which the palette's own tests render directly and the complex, contract,
   payment and tenant permission tests render through `permission.ts`'s `openPalette`. So is the
   one `ResizeObserver` a component test needs where a tooltip or a list measures itself: jsdom
   implements none, and `permission.ts`'s `layOutLists` stands one in, so a test reaching a

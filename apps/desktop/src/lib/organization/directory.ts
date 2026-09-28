@@ -1,5 +1,5 @@
 import type { ListSort } from '@rentable/design/sort.js';
-import { matchesTerm } from '$lib/layout/palette';
+import { matchesTerm } from '$lib/palette';
 import { byRank } from '$lib/organization/role';
 import type {
 	OrganizationMember,

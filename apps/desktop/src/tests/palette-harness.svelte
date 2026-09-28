@@ -9,16 +9,22 @@
 	 * record page alike. The three providers are the ones `routes/+layout.svelte` and the frame put
 	 * above every screen, nested the same way round.
 	 *
-	 * **Here rather than in `layout/tests/`** because the tests of several modules render it: the
-	 * layout's own, and every record concept's permission tests through `permission.ts`'s
+	 * **Here rather than in `palette/tests/`** because the tests of several modules render it: the
+	 * palette's own, and every record concept's permission tests through `permission.ts`'s
 	 * `openPalette` ([[rules/testing]], *Component tests*). A test reaches it as
 	 * `#tests/palette-harness.svelte`. *It lived in `layout/tests/` until ticket 19 of effort 838.*
 	 *
 	 * It provides the workspace cache policy as the root layout does, by loading `$lib/app/cache`,
-	 * because a query key is read from it when a screen's query runs.
+	 * because a query key is read from it when a screen's query runs. The palette is handed what
+	 * the frame hands it: the menu `app/` builds from the surfaces, and the places the reader may
+	 * go to.
 	 */
 	import '$lib/app/cache';
-	import LayoutPalette from '$lib/layout/component/palette.svelte';
+	import { palette } from '$lib/app/surfaces';
+	import { primaryDestinations, secondaryDestinations } from '$lib/layout/destination';
+	import { toViewablePlaces } from '$lib/layout/navigation';
+	import { Palette } from '$lib/palette/ui';
+	import { memberPermissions } from '$lib/permission';
 	import { ShortcutListener } from '$lib/shortcut/ui';
 	import { TooltipProvider } from '@rentable/design/primitive/tooltip/index.js';
 	import {
@@ -51,7 +57,14 @@
 	<QueryClientProvider {client}>
 		<TooltipProvider>
 			<ShortcutListener />
-			<LayoutPalette bind:open={isPaletteOpen} />
+			<Palette
+				bind:open={isPaletteOpen}
+				{palette}
+				destinations={toViewablePlaces(
+					[...primaryDestinations, ...secondaryDestinations],
+					memberPermissions.views
+				)}
+			/>
 			<output data-palette-open={isPaletteOpen}></output>
 			{#if Screen}
 				<Screen {...screenProps} />

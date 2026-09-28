@@ -2,7 +2,7 @@ import { toPaletteActs, toPaletteVerbs, type PaletteAct, type RecordAct } from '
 import { showErrorSentence } from '$lib/notification';
 import { LL } from '$lib/i18n/i18n-svelte';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
-import type { PaletteMatch, RecordSearch } from '$lib/layout/palette';
+import type { PaletteMatch, RecordSearch } from '$lib/palette';
 import {
 	memberReaderOf,
 	toMemberActContext,
@@ -28,6 +28,7 @@ import {
 } from '$lib/organization/query';
 import { useFetchRemoteSyncState } from '$lib/settings/query';
 import { usesAppleKeyboard } from '@rentable/design/shortcut.js';
+import { getContext, hasContext, setContext } from 'svelte';
 import { get } from 'svelte/store';
 
 /**
@@ -165,14 +166,32 @@ function offering<T>(
 	};
 }
 
+/** where the menu holds the offerings it read, for the rest of its declarations to share. */
+const OFFERINGS = Symbol('organization offerings');
+
 /**
  * The member and workspace acts, as the command menu offers them.
  *
  * A hook: it reads the session, the members, where each stands and the workspace open here, and
  * the three that only an act needs are read only while `enabled` says so, which is while the menu
  * is open. They are the settings route's own queries, so an open menu reads their cache.
+ *
+ * **Read once per menu.** The organization's search entries and act entries are each a hook the
+ * menu calls as it mounts (`organization/surface.ts`), and all four answer from these reads, so
+ * the first call holds them in the menu's context and every later one is handed the same.
  */
-export function useOrganizationOfferings(enabled: () => boolean) {
+export function useOrganizationOfferings(enabled: () => boolean): OrganizationOfferings {
+	if (hasContext(OFFERINGS)) {
+		return getContext<OrganizationOfferings>(OFFERINGS);
+	}
+
+	return setContext(OFFERINGS, readOrganizationOfferings(enabled));
+}
+
+/** what the menu offers of the two, by which one. */
+type OrganizationOfferings = { member: OrganizationOffering; workspace: OrganizationOffering };
+
+function readOrganizationOfferings(enabled: () => boolean): OrganizationOfferings {
 	const stateQuery = useFetchOrganizationState();
 	const membersQuery = useFetchMembers(enabled);
 	const standingsQuery = useFetchMemberStandings(enabled);

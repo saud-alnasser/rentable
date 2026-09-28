@@ -1,37 +1,51 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import { afterEach, test, vi } from 'vitest';
 
-import { i18nObject } from '$lib/i18n/i18n-util.ts';
-import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
-import { declarePaletteCreates, toOfferedCreates, type PaletteCreate } from '../create.ts';
+import { palette } from '$lib/app/surfaces';
+import { unitHost } from '$lib/complex/unit/host.svelte';
+import type { CreateEntry } from '$lib/feature/surface';
+import { i18nObject } from '$lib/i18n/i18n-util';
+import { loadLocale } from '$lib/i18n/i18n-util.sync';
+import { paymentHost } from '$lib/payment/host.svelte';
 import { refusalOfEvery, type RecordFlag, type Standing } from '$lib/permission';
 import { EVERY_FLAG, maskOf } from '@rentable/workspace-permission';
-import type { RecordSubject } from '../palette.ts';
+import { toOfferedCreates, type RecordSubject } from '$lib/palette';
 
 /**
  * THE COMMAND MENU CREATES EVERY CONCEPT
  *
  * Criterion 9(c) of [[efforts/832-the-interface-speaks-one-language-and-guides/spec]]: the command
- * menu creates tenants, complexes, units, contracts and payments. The group is declared against
- * the two hosts it asks directly, so it is read and run here with stand-ins for them.
+ * menu creates tenants, complexes, units, contracts and payments. The group is what the surfaces
+ * declare, as `app/` builds it for the menu, and the two hosts it asks directly are spied on here,
+ * so what is asserted is what each was asked.
+ *
+ * **Under the component runner** since effort 840 moved each entry into its surface, which draws
+ * and so loads only there; the assertions are the ones it made under Node.
  */
 
 loadLocale('en');
 
 const translations = i18nObject('en');
 
+afterEach(() => {
+	vi.restoreAllMocks();
+});
+
 /** the create group, with a record of what each host was asked. */
 function group() {
 	const asked: { host: string; prefill: unknown }[] = [];
-	const creates = declarePaletteCreates({
-		unit: (prefill) => asked.push({ host: 'unit', prefill }),
-		payment: (prefill) => asked.push({ host: 'payment', prefill })
+
+	vi.spyOn(unitHost, 'create').mockImplementation((prefill) => {
+		asked.push({ host: 'unit', prefill });
+	});
+	vi.spyOn(paymentHost, 'create').mockImplementation((prefill) => {
+		asked.push({ host: 'payment', prefill });
 	});
 
-	return { creates, asked };
+	return { creates: palette.creates, asked };
 }
 
-const entry = (creates: PaletteCreate[], subject: RecordSubject) => {
+const entry = (creates: CreateEntry[], subject: RecordSubject) => {
 	const found = creates.find((create) => create.subject === subject);
 
 	assert.ok(found, `the group offers ${subject}`);

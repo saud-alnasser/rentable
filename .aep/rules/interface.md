@@ -467,9 +467,10 @@ Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], re
   last one drawn answers. Where no set is on screen the key is unavailable and says why, and it is
   still taken from the webview, which would otherwise open a window. A form or confirmation standing
   over the set takes the key and opens nothing a second time.
-- **The command menu** creates every concept a person can (`layout/create.ts`): tenants, complexes
-  and contracts in their directory, and a unit or a payment after asking, in the menu's asking
-  mode, for the complex or the contract it cannot be without.
+- **The command menu** creates every concept a person can (each record's `create` in its
+  `surface.ts`, which `palette/` offers): tenants, complexes and contracts in their directory,
+  and a unit or a payment after asking, in the menu's asking mode, for the complex or the
+  contract it cannot be without.
 - **Every route reaches the concept host's `create`**, and nothing else opens a create form. The
   command menu's `?create` on a directory is consumed by the host, which owns the form
   (`create/intent.svelte.ts`), and never by the directory.
