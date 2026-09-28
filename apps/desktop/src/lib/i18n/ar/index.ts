@@ -1,8 +1,23 @@
 import type { Translation } from '../i18n-types';
 import * as complex from '../../complex/i18n/ar.js';
 import * as contract from '../../contract/i18n/ar.js';
+import * as create from '../../create/i18n/ar.js';
+import * as dashboard from '../../dashboard/i18n/ar.js';
+import * as history from '../../history/i18n/ar.js';
+import * as layout from '../../layout/i18n/ar.js';
+import * as list from '../../list/i18n/ar.js';
+import * as organization from '../../organization/i18n/ar.js';
+import * as palette from '../../palette/i18n/ar.js';
 import * as payment from '../../payment/i18n/ar.js';
+import * as permission from '../../permission/i18n/ar.js';
+import * as print from '../../print/i18n/ar.js';
+import * as settings from '../../settings/i18n/ar.js';
+import * as shortcut from '../../shortcut/i18n/ar.js';
+import * as startup from '../../startup/i18n/ar.js';
 import * as tenant from '../../tenant/i18n/ar.js';
+import * as transfer from '../../transfer/i18n/ar.js';
+import * as undo from '../../undo/i18n/ar.js';
+import * as workspace from '../../workspace/i18n/ar.js';
 
 const ar = {
 	app: {
@@ -94,10 +109,7 @@ const ar = {
 			timedOut: 'استغرقت العملية وقتاً طويلاً وتوقفت.'
 		},
 
-		export: {
-			description: 'إلى أي ملف يتحول هذا؟',
-			nothingToExport: 'لا شيء هنا للتصدير'
-		},
+		export: list.common.export,
 
 		failures: {
 			forbidden: 'دورك لا يسمح بهذا في مساحة العمل هذه.',
@@ -110,51 +122,9 @@ const ar = {
 			xlsx: 'مصنف إكسل'
 		},
 
-		import: {
-			title: 'استيراد {record}',
-			missingColumns: 'هذا الملف تنقصه الأعمدة: {columns}. لا يمكن قراءة شيء منه.',
-			collision: 'الصفان {rows} يحملان {identity} نفسه. لن يُستورد شيء حتى يُحذف أحدهما.',
-			nothingToCreate: 'كل صف في هذا الملف موجود هنا أصلاً أو لا يمكن قراءته، فلا شيء ليُستورد.',
-			willCreate: 'سيتم إنشاء {count|number} سجل',
-			willReject: 'سيتم تخطي {count|number} صف',
-			rejectedRow: 'الصف {row|number}',
-			reasons: {
-				duplicateOfExisting: '{detail} موجود هنا أصلاً',
-				missingValue: 'لا يوجد {detail}',
-				invalid: 'تعذّرت قراءة {detail}',
-				unresolved: 'يشير إلى {detail} وهو غير موجود هنا'
-			},
-			incompleteColumns:
-				'هذا الملف لا يحمل {columns}، فلا يمكن إنشاء أي سجل منه — يمكن فقط التعرف على ما هو موجود هنا أصلاً.',
-			skippedUnresolved: '{count|number} يشير إلى سجل غير موجود هنا',
-			noSheets: 'لا يحتوي هذا الملف على أي ورقة معروفة، فلا شيء لاستيراده.',
-			sheetMissingColumns: 'تنقص ورقة {sheet} الأعمدة: {columns}. لا يمكن قراءة شيء من هذا الملف.',
-			sheetIncompleteColumns:
-				'لا تحمل ورقة {sheet} العمود {columns}، فلا تطابق صفوفها إلا سجلات موجودة هنا.',
-			sheetCollision: 'الصفان {rows} في ورقة {sheet} يدّعيان {identity} معًا. احذف أحدهما لتستورد.',
-			unresolvedRefused:
-				'يشير {count|number} صف إلى سجل لا تحتويه أي ورقة، فلا يمكن استيراد شيء من هذا الملف.',
-			unresolvedRow: 'الصف {row|number} في {sheet} يشير إلى {reference}',
-			skippedHeld: '{count|number} موجود هنا أصلاً',
-			skippedIncomplete: '{count|number} تنقصه قيمة مطلوبة',
-			skippedUnreadable: '{count|number} تعذّرت قراءته',
-			more: 'و{count|number} غيرها'
-		},
+		import: transfer.common.import,
 
-		history: {
-			actions: {
-				assigned: 'تغيرت الوحدات',
-				created: 'أنشئ',
-				deleted: 'حذف',
-				edited: 'عدل',
-				renewed: 'جدد',
-				terminated: 'أنهي',
-				unterminated: 'أعيد'
-			},
-			emptyDescription: 'ستظهر هنا التغييرات التي تجرى على هذا السجل.',
-			emptyTitle: 'لم يحدث شيء لهذا السجل بعد.',
-			title: 'السجل الزمني'
-		},
+		history: history.common.history,
 
 		labels: {
 			action: 'إجراء',
@@ -231,38 +201,9 @@ const ar = {
 			workspace: 'مساحة العمل'
 		},
 
-		periods: {
-			'last-month': 'الشهر الماضي',
-			'last-year': 'السنة الماضية',
-			'this-month': 'هذا الشهر',
-			'this-year': 'هذه السنة'
-		},
+		periods: list.common.periods,
 
-		permission: {
-			missing: {
-				viewComplex: 'ليست لديك صلاحية عرض المجمعات.',
-				createComplex: 'ليست لديك صلاحية إضافة المجمعات.',
-				editComplex: 'ليست لديك صلاحية تعديل المجمعات.',
-				deleteComplex: 'ليست لديك صلاحية حذف المجمعات.',
-				viewUnit: 'ليست لديك صلاحية عرض الوحدات.',
-				createUnit: 'ليست لديك صلاحية إضافة الوحدات.',
-				editUnit: 'ليست لديك صلاحية تعديل الوحدات.',
-				deleteUnit: 'ليست لديك صلاحية حذف الوحدات.',
-				viewTenant: 'ليست لديك صلاحية عرض المستأجرين.',
-				createTenant: 'ليست لديك صلاحية إضافة المستأجرين.',
-				editTenant: 'ليست لديك صلاحية تعديل المستأجرين.',
-				deleteTenant: 'ليست لديك صلاحية حذف المستأجرين.',
-				viewContract: 'ليست لديك صلاحية عرض العقود.',
-				createContract: 'ليست لديك صلاحية إضافة العقود.',
-				editContract: 'ليست لديك صلاحية تعديل العقود.',
-				deleteContract: 'ليست لديك صلاحية حذف العقود.',
-				viewPayment: 'ليست لديك صلاحية عرض المدفوعات.',
-				createPayment: 'ليست لديك صلاحية إضافة المدفوعات.',
-				editPayment: 'ليست لديك صلاحية تعديل المدفوعات.',
-				deletePayment: 'ليست لديك صلاحية حذف المدفوعات.'
-			},
-			readOnly: 'وصولك إلى مساحة العمل هذه للقراءة فقط، فلا يمكن تغيير شيء فيها.'
-		},
+		permission: permission.common.permission,
 
 		refusals: {
 			complex: complex.refusals.complex,
@@ -381,23 +322,10 @@ const ar = {
 			},
 			tenant: tenant.refusals.tenant,
 			unit: complex.refusals.unit,
-			workspace: {
-				nothingToImport: 'لا يوجد ما يمكن استيراده.',
-				unknownComplex: 'يذكر الملف مجمعاً باسم {name}، ولا يوجد مجمع بهذا الاسم.',
-				unknownContract: 'يذكر الملف عقداً باسم {name}، ولا يوجد عقد بهذا الاسم.',
-				unknownTenant: 'يذكر الملف مستأجراً باسم {name}، ولا يوجد مستأجر بهذا الاسم.',
-				unknownUnit: 'يذكر الملف وحدة باسم {name}، ولا توجد وحدة بهذا الاسم.'
-			}
+			workspace: workspace.refusals.workspace
 		},
 
-		selection: {
-			more: 'و{count|number} غيرها',
-			nothingToDo: 'لا يمكن تنفيذ هذا الإجراء على أي من السجلات المحددة.',
-			outcomeChanged:
-				'تغيّرت مساحة العمل أثناء فتح هذه النافذة، فتعذّر تنفيذ {records}. لم تتم أي إعادة محاولة.',
-			outcomeChangedCount:
-				'تغيّرت مساحة العمل أثناء فتح هذه النافذة، فتعذّر تنفيذ {count|number} سجل. لم تتم أي إعادة محاولة.'
-		},
+		selection: list.common.selection,
 
 		status: {
 			active: 'نشط',
@@ -423,73 +351,29 @@ const ar = {
 			vacant: 'لا يشغلها أي عقد اليوم'
 		},
 
-		table: {
-			focusSearch: 'البحث في هذه القائمة',
-			goToFirstPage: 'اذهب للصفحة الأولى',
-			goToLastPage: 'اذهب للصفحة الأخيرة',
-			goToNextPage: 'اذهب للصفحة التالية',
-			goToPreviousPage: 'اذهب للصفحة السابقة',
-			moveBetweenRecords: 'التنقل بين السجلات',
-			openRecord: 'فتح السجل المحدد',
-			pageOf: 'الصفحة {page} من {count}',
-			recordsSelected: 'تم تحديد {count|number}',
-			results: '{count|number} نتيجة',
-			rowsPerPage: 'عدد الصفوف لكل صفحة',
-			rowsSelected: '{selected} من {total} صف محدد.',
-			searchPlaceholder: 'بحث...',
-			selectRecord: 'تحديد هذا السجل'
-		},
+		table: list.common.table,
 
 		time: {
 			day: '{count} يوم',
 			days: '{count} أيام'
 		},
 
-		undo: {
-			assigned: 'تغيير وحدات {record}',
-			created: 'إنشاء {record}',
-			deleted: 'حذف {record}',
-			createdMany: 'إنشاء {count|number} سجل',
-			deletedMany: 'حذف {count|number} سجل',
-			edited: 'تعديل {record}',
-			lasts: 'يمكنك التراجع عن هذا ما دام التطبيق مفتوحًا.',
-			nothingToRedo: 'لا يوجد ما يمكن إعادته',
-			nothingToUndo: 'لا يوجد ما يمكن التراجع عنه',
-			redo: 'إعادة',
-			redone: 'تمت إعادة {change}',
-			renewed: 'تجديد {record}',
-			terminated: 'إنهاء {record}',
-			terminatedMany: 'إنهاء {count|number} عقد',
-			undo: 'تراجع',
-			undone: 'تم التراجع عن {change}',
-			unterminated: 'استعادة {record}',
-			unterminatedMany: 'استعادة {count|number} عقد'
-		},
+		undo: undo.common.undo,
 
-		window: {
-			close: 'إغلاق النافذة',
-			minimize: 'تصغير النافذة',
-			toggleMaximize: 'تبديل تكبير النافذة'
-		},
+		window: layout.common.window,
 
 		ui: {
 			breadcrumb: 'مسار التنقل',
 			close: 'إغلاق',
-			commandPalette: 'لوحة الأوامر',
-			commandPaletteActDoesNotApply: 'لا ينطبق «{act}» على {record}.',
-			commandPaletteChooseRecord: 'اكتب للبحث عن السجل الذي سينفذ عليه.',
-			commandPaletteDescription: 'ابحث عن أمر للتنفيذ',
-			commandPaletteEmpty: 'لا توجد نتائج مطابقة',
-			commandPaletteGoTo: 'الانتقال إلى',
-			keyboardShortcuts: 'اختصارات لوحة المفاتيح',
-			keyboardShortcutsDescription: 'كل اختصار يستجيب له التطبيق، أينما كنت.',
+			...palette.ui,
+			...shortcut.ui,
 			loading: 'جاري التحميل',
 			mobileSidebarDescription: 'يعرض الشريط الجانبي للهاتف.',
 			more: 'المزيد',
 			morePages: 'صفحات أكثر',
 			next: 'التالي',
 			nextSlide: 'الشريحة التالية',
-			nothingToCreateHere: 'لا شيء في هذه الشاشة يقبل سجلاً جديداً',
+			...create.ui,
 			pagination: 'ترقيم الصفحات',
 			previous: 'السابق',
 			previousSlide: 'الشريحة السابقة',
@@ -508,609 +392,33 @@ const ar = {
 		}
 	},
 	layout: {
-		notFound: {
-			description: 'ربما كان الرابط الذي أوصلك إلى هنا قديمًا.',
-			title: 'هذه الصفحة غير موجودة'
-		},
-
-		error: {
-			description: 'حدث خطأ في هذه الشاشة. العودة إلى لوحة التحكم تحل المشكلة عادة.',
-			goHome: 'الذهاب إلى لوحة التحكم',
-			retry: 'المحاولة مرة أخرى',
-			shellDescription:
-				'حدث خطأ خارج هذه الشاشة، فلا توجد شاشة للعودة إليها. المحاولة مرة أخرى تعيد رسم النافذة من جديد.',
-			shellTitle: 'تعذر رسم التطبيق',
-			title: 'تعذر عرض هذه الشاشة'
-		},
-
-		accountMenu: {
-			signedOutHint: 'غير مسجل الدخول',
-			signedOutName: 'مستخدم'
-		},
-
-		workspaceMenu: {
-			create: 'مساحة عمل جديدة',
-			locked: 'غير متاح',
-			members: '{count|number} عضو',
-			switchTo: 'التبديل إلى',
-			open: 'مفتوحة',
-			workspaceRefusedAuthority:
-				'إنشاء مساحة عمل يحتاج إلى حساب Turso. أعد ربطه من الإعدادات، في قسم المؤسسة.'
-		},
-
-		noWorkspace: {
-			nameLabel: 'اسم مساحة العمل',
-			create: 'أنشئ مساحة العمل',
-			creating: 'يجري إنشاء مساحة العمل على حساب Turso الخاص بك. يستغرق هذا لحظة.',
-			created: 'تم إنشاء مساحة العمل.',
-			ownerOnly: 'المالك وحده من ينشئ مساحة العمل الأولى، من الجهاز الذي ربط حساب Turso.',
-			title: 'لا مساحة عمل بعد',
-			description: 'لا تملك مؤسستك مساحة عمل بعد. أنشئ الأولى لتبدأ حفظ السجلات.'
-		},
-
-		signIn: {
-			noOrganizationTitle: 'مرحبًا',
-			noOrganizationSubtitle: 'لا مؤسسة على هذا الجهاز بعد.',
-			subtitle: 'سجّل الدخول للمتابعة',
-			help: 'تواجه صعوبة في تسجيل الدخول؟',
-			username: 'اسم المستخدم',
-			password: 'كلمة المرور',
-			unlocking: 'يجري تسجيل دخولك. يستغرق هذا لحظة عن قصد.',
-			roleOwner: 'مالك',
-			roleManager: 'مدير',
-			roleMember: 'عضو',
-			setUp: 'استعمل حساب Turso الخاص بك',
-			setUpDescription: 'أنت مالك المؤسسة.',
-			connectByLink: 'استعمل رابطًا ورمزًا',
-			connectByLinkDescription: 'سُلّم إليك رابط ورمز.',
-			signedOutElsewhere: 'سُجّل خروجك من هذا الجهاز من جهاز آخر. سجّل الدخول مجددًا للمتابعة.',
-			useALink: 'افتح رابطًا لديك',
-			disconnect: 'افصل هذا الجهاز',
-			disconnectDescription:
-				'يحذف هذا الجهاز نسخته من المؤسسة ومساحات عملها، وينسى حساب Turso. لا يتغير شيء على Turso. يعيد المالك الربط بحساب Turso الخاص به، ويحتاج غيره إلى رابط جديد.'
-		},
-
-		startup: {
-			factUpdatingTo: 'الترقية إلى',
-			failedToStartFallback: 'فشل في تشغيل التطبيق.',
-			failureDescription: 'تعذر فتح مساحة عملك. لا شيء فيها في خطر، فجرّب التشغيل مجددًا.',
-			failureTitle: 'تعذر على rentable إكمال التشغيل',
-			previousVersion: 'الإصدار السابق',
-			recoveryDetails:
-				'لا شيء في مساحة العمل هذه في خطر، فلدى هذا الجهاز نسخة منها. وإذا استمر الفشل، فأعد تثبيت الإصدار السابق.',
-			recoveryRequiredTitle: 'مطلوب استرداد التحديث',
-			stageAccount: 'التحقق من حسابك',
-			stageChanges: 'البحث عن التغييرات',
-			stageRecords: 'تحديث السجلات',
-			migrationApplying:
-				'يجري رفع مساحة العمل إلى هذا الإصدار من rentable. يصل هذا إلى Turso ويستغرق لحظة؛ لا شيء هنا عالق.',
-			migrationWaiting:
-				'عضو آخر يرفع مساحة العمل إلى هذا الإصدار من rentable. ننتظره، حتى {until} على أبعد تقدير.',
-			stagePrepare: 'إنشاء مساحة عملك الأولى',
-			stageSettings: 'قراءة إعداداتك',
-			stageWorkspace: 'فتح مساحة عملك'
-		}
+		notFound: layout.layout.notFound,
+		error: layout.layout.error,
+		accountMenu: organization.layout.accountMenu,
+		workspaceMenu: workspace.layout.workspaceMenu,
+		noWorkspace: workspace.layout.noWorkspace,
+		signIn: organization.layout.signIn,
+		startup: startup.layout.startup
 	},
 
-	dashboard: {
-		empty: {
-			description: 'لا يوجد متأخر ولا متعثر ولا عقد ينتهي خلال فترة الإشعار.',
-			title: 'لا شيء يحتاج إلى إجراء اليوم.'
-		},
+	dashboard: dashboard.dashboard,
 
-		figures: {
-			collected: 'المحصل',
-			occupiedUnits: 'الوحدات المشغولة',
-			outstanding: 'المستحق'
-		},
-
-		sections: {
-			alsoEnding: 'ينتهي أيضاً',
-			contractCount: '{count|number} عقد',
-			openContract: 'افتح عقد {tenant}',
-			openContractNumbered: 'افتح العقد {number}',
-			openThisContract: 'افتح العقد',
-			seeAll: 'عرض الكل ({count|number})'
-		},
-
-		title: 'لوحة التحكم'
-	},
-
-	settings: {
-		diagnosticsDescription:
-			'سجل بما يفعله رينتابل لتتبع الأعطال. يبقى هنا، ولا تُكتب فيه كلمات المرور ولا الرموز.',
-		diagnosticsReveal: 'فتح مجلد السجل',
-		diagnosticsTitle: 'التشخيص',
-
-		downloadingUpdate: 'جاري تنزيل التحديث',
-
-		endingSoonDescription:
-			'يظهر العقد في لوحة التحكم ضمن العقود القريبة من الانتهاء قبل هذا العدد من الأيام من نهايته.',
-		endingSoonInvalid: 'يجب أن يكون عدد الأيام أكبر من صفر',
-		endingSoonTitle: 'قريب من الانتهاء',
-
-		latestRelease: 'أنت تستخدم أحدث إصدار.',
-
-		loadErrorTitle: 'الإعدادات غير متاحة حالياً',
-
-		transferImportTitle: 'استيراد مساحة عمل',
-		transferImportSuccess: 'تم استيراد الملف',
-
-		restartNotice: 'تم تثبيت التحديث. أعد تشغيل رينتابل لإكماله.',
-
-		localeDescription: 'تتغير الواجهة بمجرد اختيارك.',
-		localeTitle: 'اللغة',
-
-		appearanceTitle: 'المظهر',
-		appearanceDescription: 'فاتح أو داكن، أو يتبع نظامك كلما تغيّر.',
-		appearance: {
-			system: 'النظام',
-			light: 'فاتح',
-			dark: 'داكن'
-		},
-
-		// أقسام الإعدادات السبعة، بترتيب الشريط لا بالترتيب الأبجدي: الترتيب من المتطلب 14
-		// ويُقرأ هنا كقائمة.
-		section: {
-			general: 'عام',
-			account: 'حسابك',
-			organization: 'المؤسسة',
-			workspaces: 'مساحات العمل'
-		},
-
-		title: 'الإعدادات',
-
-		updatesChecking: 'جارٍ التحقق من التحديثات...',
-		updatesDescription:
-			'تحقق من وجود إصدار أحدث وثبّته. وإذا تعذر تشغيل التطبيق بعده، فسيعرض إعادة الإصدار السابق.',
-		updatesTitle: 'التحديثات',
-
-		you: {
-			signedInAs: 'مسجل الدخول باسم',
-			password: {
-				title: 'كلمة المرور',
-				description: 'كلمة المرور التي تسجّل بها الدخول، على كل جهاز.',
-				currentLabel: 'كلمة المرور الحالية',
-				nextLabel: 'كلمة المرور الجديدة',
-				confirmLabel: 'كلمة المرور الجديدة مرة أخرى',
-				mismatch: 'الاثنتان غير متطابقتين.',
-				change: 'غيّر كلمة المرور',
-				changed: 'تم تغيير كلمة مرورك.'
-			},
-			sessions: {
-				title: 'الأجهزة الأخرى',
-				description: 'سجّل الخروج من كل مكان عدا هنا. كلمة مرورك تبقى كما هي.',
-				action: 'سجّل الخروج من الأجهزة الأخرى',
-				confirmDescription:
-					'يُسجَّل خروجك من كل جهاز آخر. يبقى هذا الجهاز مسجل الدخول، ولا تتغير كلمة مرورك.',
-				ended: 'سُجّل الخروج من أجهزتك الأخرى.',
-				endedPending: 'هذا الجهاز غير متصل؛ سيصل تسجيل الخروج إلى الأجهزة الأخرى عند عودة الاتصال.'
-			},
-			ownership: {
-				title: 'الملكية',
-				offered: 'عرض عليك {owner} هذه المؤسسة. إن قبلتها صرت المالك وصار هو مديرًا.'
-			}
-		}
-	},
+	settings: settings.settings,
 	complexes: complex.complexes,
 
 	tenants: tenant.tenants,
 
 	contracts: { ...contract.contracts, payments: payment.payments },
 
-	print: {
-		failed: 'تعذّرت طباعة الصفحة.',
-		language: 'لغة الصفحة',
-		print: 'طباعة',
-		save: 'حفظ كملف PDF',
-		saved: 'تم حفظ ملف PDF'
-	},
+	print: print.print,
 
-	settingsHooks: {
-		endingSoonUpdated: 'تم تحديث فترة الإشعار!',
-		workspaceUpToDate: 'كل شيء محدّث.'
-	},
+	settingsHooks: settings.settingsHooks,
 
-	organization: {
-		mark: {
-			alt: 'توقيع المؤسسة أو ختمها',
-			choose: 'اختيار صورة',
-			description: 'يُطبع أسفل كل سند قبض وجدول دفعات.',
-			none: 'لم يُضف بعد',
-			readOnly: 'يستطيع تغييره من يُسمح له بتغيير التوقيع.',
-			remove: 'إزالة',
-			removed: 'أُزيل التوقيع أو الختم',
-			replace: 'استبدال الصورة',
-			saved: 'حُفظ التوقيع أو الختم',
-			title: 'التوقيع أو الختم'
-		},
-		setup: {
-			connectTitle: 'اربط حساب Turso الخاص بك',
-			connectDescription: 'تقيم مؤسستك على حساب Turso الخاص بك.',
-			connectDetails: 'قبل أن تربط',
-			position: 'الخطوة {step|number} من {total|number}',
-			groupCoverage: 'تشمل الموافقة كل قاعدة بيانات في المجموعة التي تختارها، ولا شيء خارجها.',
-			oneOrganization:
-				'تحمل المجموعة الواحدة مؤسسة واحدة، وإن كانت تحمل واحدة بالفعل فالاتصال بها هو ما يحدث، لا الرفض.',
-			accountCreation:
-				'حساب Turso المجاني أو Developer يحمل مجموعة واحدة، فخصّص حسابًا لـ rentable وحده. وفي الحساب المدفوع اختر مجموعة فارغة.',
-			succession:
-				'لا يمنح الصلاحية مجددًا إلا أنت أو مدير منظمة Turso، وتستطيع Turso نقل المجموعة. لا يفعل rentable أيًا منهما.',
-			groupAskedOnce:
-				'المجموعة التي لا تحمل شيئاً بعد يطلب rentable اسمها مرة واحدة في الخطوة التالية، فـ Turso لا تذكر هذا الاسم في أي مكان يصل إليه.',
-			openDashboard: 'افتح لوحة تحكم Turso',
-			connect: 'اربط حساب Turso',
-			connecting: 'أكمل الموافقة في نافذة المتصفح التي فُتحت للتو.',
-			connected: 'تم ربط حساب Turso.',
-			consentAbandoned: 'لم تُمنح الموافقة. لم يُنشأ شيء.',
-			consentFailed: 'رفضت Turso الموافقة.',
-			existingTitle: 'ادخل إلى مؤسستك',
-			existingDescription:
-				'حساب Turso هذا يحمل مؤسسة بالفعل. يدخل مالكها هنا فينضم هذا الجهاز إليها.',
-			existingConnect: 'اربط هذا الجهاز',
-			existingConnecting: 'يجري ربط هذا الجهاز...',
-			nameTitle: 'سمِّ مؤسستك',
-			nameDescription:
-				'اختر اسماً للمؤسسة، واسم المستخدم الخاص بك، وكلمة مرور. كلمة المرور تفتح مكانك فيها.',
-			nameLabel: 'اسم المؤسسة',
-			usernameLabel: 'اسم المستخدم الخاص بك',
-			nameRequired: 'أعطِ المؤسسة اسماً.',
-			nameTooLong: 'هذا الاسم طويل جداً.',
-			passwordLabel: 'كلمة مرورك',
-			passwordFloor:
-				'استخدم 12 حرفاً على الأقل. كلمة المرور هذه هي كل ما يقف بين السجلات وأي شخص يحمل نسخة منها.',
-			passwordTooShort: 'استخدم 12 حرفاً على الأقل.',
-			groupNeeded: 'لم تعرف rentable من Turso أي مجموعة تقصد، فاكتب اسمها هنا مرة واحدة.',
-			groupLabel: 'مجموعة Turso',
-			groupDescription: 'الاسم كما يظهر في شاشة موافقة Turso. قاعدة بيانات المؤسسة تسكن فيها.',
-			groupRequired: 'اكتب اسم المجموعة التي حدّدتها في شاشة موافقة Turso.',
-			create: 'أنشئ المؤسسة',
-			creating: 'يجري إنشاء المؤسسة على حساب Turso الخاص بك...',
-			copyLink: 'انسخ الرابط',
-			linkCopied: 'تم نسخ الرابط.',
-			continue: 'متابعة',
-			back: 'رجوع'
-		},
-		join: {
-			title: 'الربط برابط',
-			description: 'الصق الرابط واكتب الرمز الذي رافقه.',
-			linkLabel: 'الرابط',
-			reading: 'تجري قراءة الرابط...',
-			unreadable: 'هذا ليس رابطًا من rentable. الصق الرابط كاملاً كما سُلّم إليك تمامًا.',
-			unreachable: 'تعذّر الوصول إلى المؤسسة. تحقّق من الاتصال وحاول مجددًا.',
-			lapsed: 'انتهت صلاحية هذا الرابط. اطلب رابطًا جديدًا ممن أرسله إليك.',
-			consumed: 'سبق استخدام هذا الرابط هنا. سجّل الدخول بكلمة المرور التي اخترتها.',
-			consumedElsewhere: 'سبق استخدام هذا الرابط. اطلب رابطًا جديدًا ممن أرسله إليك.',
-			revoked: 'سُحب هذا الرابط. اطلب رابطًا جديدًا ممن أرسله إليك.',
-			replaced: 'حلّ رابط أحدث محل هذا الرابط. اطلب الرابط الجديد ممن أرسله إليك.',
-			anotherOrganization: 'هذا الجهاز مرتبط بمؤسسة أخرى. افصله عنها من شاشة تسجيل الدخول أولًا.',
-			toSignIn: 'انتقل إلى تسجيل الدخول',
-			passwordTitle: 'اختر كلمة مرورك',
-			passwordDescription:
-				'تسجّل بها دخولك على أي جهاز. لا أحد يستطيع استعادتها، والرابط الجديد وحده يعيدك.',
-			organizationLabel: 'المؤسسة',
-			codeLabel: 'الرمز',
-			codeDescription: 'الأحرف الستة التي أُمليت عليك مع الرابط.',
-			codeWrong: 'الرمز خاطئ. اطلب ممن أرسل إليك الرابط أن يمليه عليك مجددًا.',
-			codeMissing: 'اكتب الأحرف الستة التي رافقت الرابط.',
-			confirmLabel: 'كلمة مرورك مجددًا',
-			mismatch: 'الكلمتان غير متطابقتين.',
-			tryAgain: 'حاول مجددًا',
-			back: 'رجوع'
-		},
-		standing: {
-			title: 'هذا الجهاز وTurso',
-			purpose:
-				'المؤسسة محفوظة على Turso وتصل إلى هذا الجهاز تلقائيًا. ما تكتبه يُرسل حين يمكن الوصول إلى Turso.',
-			notYetReached: 'لم يصل هذا الجهاز إلى Turso بعد',
-			upToDateChecked: 'كل شيء محدّث، آخر فحص {moment}',
-			lastReached: 'آخر وصول إلى Turso في {moment}',
-			accountNeedsAttention: 'حساب Turso يحتاج إلى عناية',
-			accessNeedsAttention: 'صلاحية وصول هذا الجهاز تحتاج إلى عناية',
-			needsReconnecting: 'هذا الجهاز يحتاج إلى إعادة ربط',
-			reconnectBelow: 'يُعاد ربط حساب Turso من القسم أدناه.',
-			checkNow: 'زامن',
-			checking: 'جارية المزامنة...'
-		},
-		dashboard: {
-			membersTitle: 'الأعضاء',
-			membersDescription: 'كل من في المؤسسة. الأعضاء يُنشأون ويُغيّرون من هنا.',
-			workspacesDescription: 'كل مساحات عمل المؤسسة. مساحات العمل تُنشأ وتُغيّر من هنا.',
-			standingNoPassword: 'لا كلمة مرور بعد',
-			standingNoMachine: 'لا جهاز مسجّل الدخول',
-			standingSignedIn: 'مسجّل الدخول على جهاز',
+	organization: organization.organization,
 
-			memberTitle: 'عضو جديد',
-			memberDescription:
-				'اسم المستخدم والدور ومساحات العمل التي يحملها. لا كلمة مرور له حتى يفتح رابطًا تصنعه له.',
-			role: 'الدور',
-			noWorkspaceToGrant: 'لا مساحة عمل لمنحها بعد. يمكن منحهم واحدة لاحقًا.',
-			noMemberToGrant: 'لا عضو لإضافته إلى مساحة العمل هذه بعد.',
-			addMember: 'أضف عضوًا',
-			cannotSend:
-				'rentable لا يرسل شيئًا: انسخ الرابط أدناه وسلّمه، وأعطِ الرمز على حدة. يعمل مرة واحدة.',
-			linkTitle: 'الرابط والرمز',
-			codeTitle: 'رمز التأكيد',
-			codeDescription:
-				'أملِ هذا الرمز في مكالمة أو وجهًا لوجه. إنه النصف الآخر مما يحتاجه الرابط، فلا يُرسل أبدًا معه.',
-			done: 'تم',
-			invitationExpires: 'تنتهي صلاحية الرابط في {date}',
-			makeLink: 'اصنع رابطًا',
-			transferOwnership: 'سلّم الملكية',
-			transferOwnershipGoes: 'يُعرض عليه أخذ المؤسسة. فإذا قبل، صار هو المالك وصرت أنت مديرًا.',
-			transferOwnershipMember: 'من يُعرض عليه',
-			transferOwnershipAuthority:
-				'يبقى حساب Turso وقواعد بياناته معك. ويصل المالك الجديد حسابه قبل أن ينشئ مساحات عمل.',
-			transferOwnershipConfirm: 'اعرضها',
-			ownershipOffered: 'عُرضت المؤسسة. يقبلها من جهاز له هو.',
-			withdrawOffer: 'اسحب العرض',
-			ownershipOfferWithdrawn: 'سُحب العرض. لم تنتقل الملكية.',
-			acceptOwnership: 'اقبل الملكية',
-			acceptOwnershipGoes:
-				'تصير مالك {organization} ويصير {owner} مديرًا، وتُوقَّع المؤسسة بكلمة مرورك من الآن.',
-			acceptOwnershipAuthority:
-				'يبقى حساب Turso مع من وصله. صِل حسابك من قسم المؤسسة لتنشئ مساحات العمل.',
-			acceptOwnershipConfirm: 'اقبلها',
-			ownershipAccepted: 'صارت المؤسسة لك. أنت المالك الآن.',
-			lockOut: 'احظر',
-			unsetPassword: 'أعد تعيين كلمة المرور',
-			passwordUnset: 'أُلغيت كلمة مروره. اصنع له رابطًا ليختار كلمة مرور جديدة.',
-			endSessions: 'سجّل خروجه من كل جهاز',
-			sessionsEnded: 'سُجّل خروجه من كل جهاز.',
-			sessionsEndedPending: 'هذا الجهاز غير متصل؛ سيصل تسجيل الخروج إلى أجهزته عند عودة الاتصال.',
-			rename: 'غيّر الاسم',
-			renameDescription:
-				'اسم المستخدم الذي يسجل به الدخول على كل جهاز. لا شيء يخبره بأنه تغيّر؛ أخبره بنفسك.',
-			username: 'اسم المستخدم',
-			usernameDescription: 'اسم المستخدم الذي يسجل به الدخول على كل جهاز.',
-			usernameRules:
-				'اسم المستخدم من ثلاثة إلى اثنين وثلاثين حرفًا من الحروف والأرقام والنقاط والشرطات السفلية والشرطات',
-			renamed: 'غُيّر اسم العضو.',
-			authorityTitle: 'حساب Turso',
-			authorityDescription:
-				'لا يحمل هذا الجهاز صلاحية على حساب Turso، ولا يمكن استعادتها. امنح الموافقة مجددًا.',
-			authorityFollowsTheAccount: 'الصلاحية تتبع حساب Turso الذي منحها، لا من يملك المؤسسة.',
-			authorityReconnected: 'حساب Turso متصل على هذا الجهاز.',
-			remove: 'أزل',
-			removeDescription:
-				'ينتهي وصوله حين تنتهي صلاحية اعتماده، خلال أربعة أسابيع. لا يتأثر أحد غيره.',
-			removeAndLockOut: 'أزل واحظر',
-			lockOutReading: 'تجري قراءة مساحات العمل التي يمسّها هذا...',
-			lockOutDescription:
-				'ينتهي وصوله إلى {workspaces} الآن، ويتوقف {count|number} من الأعضاء الآخرين فيها عن المزامنة حتى يعيد تطبيقهم الاتصال.',
-			removed: 'أُزيل العضو. ينتهي وصوله حين تنتهي صلاحية اعتماده.',
-			lockedOut: 'حُظر العضو. يعيد {count|number} من الأعضاء الآخرين الاتصال من تلقاء أنفسهم.',
-			unreachableWorkspaces:
-				'أنت لا تملك {workspaces}، لذا لم تستطع إعادة التعيين استعادتها. يمكن لمدير يملكها منحها مجددًا.',
-			linkUnreachableWorkspaces:
-				'أنت لا تملك {workspaces}، لذا لم يستطع الرابط نقلها. يمكن لمدير يملكها منحها مجددًا.',
-			noWorkspaces: 'لا مساحة عمل بعد.',
-			workspacesHeld: '{count|number} {{مساحة عمل|مساحات عمل}}',
-			accessFull: 'وصول كامل',
-			memberWorkspacesDescription: 'مساحات العمل التي يستطيع فتحها. شغّل مفتاح أي منها ليدخلها.',
-			accessSaved: 'حُفظت مساحات العمل.',
-			workspaceAccessTitle: 'الأعضاء والوصول',
-			workspaceAccessDescription:
-				'من يستطيع فتح {workspace}. شغّل مفتاح أي منهم ليدخلها. الوصول المسحوب يبقى حتى تنتهي صلاحيته.',
-			deleteWorkspace: 'احذف مساحة العمل',
-			deleteWorkspaceDescription:
-				'تُحذف مساحة العمل وكل سجل فيها من Turso ومن كل جهاز يزامنها. لا شيء يعيدها.',
-			workspaceDeleted: 'حُذفت مساحة العمل.',
-			transferTitle: 'تصدير واستيراد {workspace}',
-			forgetAccount: 'انسَ حساب Turso',
-			memberSheetDescription: 'ما يستطيع {username} فعله في هذه المؤسسة.',
-			roleChanged: 'حُفظ الدور.',
-			overrideSaved: 'حُفظ ما يستطيع فعله.',
-			notBelowYou: 'ليس أدنى منك رتبة، فيفعل هذا من هو أعلى منه.',
-			yourOwn: 'هذا أنت: يغيّر دورك وصلاحياتك من هو أعلى منك رتبة.',
-			lacksFlag: 'لا يحق لك {flag}.',
-			roleOutOfReach: 'الدور الذي في رتبتك أو فوقها يمنحه من هو أعلى منه.',
-			leavingTitle: 'المغادرة',
-			disconnectForgets: 'يسجّل خروجك ويحذف نسخة المؤسسة من هذا الجهاز. لا يتغير شيء على Turso.',
-			disconnect: 'افصل',
-			disconnected: 'لم يعد هذا الجهاز يحتفظ بالمؤسسة.',
-			forgetAccountDescription:
-				'يحتفظ هذا الجهاز برمز لحساب Turso الخاص بالمؤسسة. إن نسيته، فلن يصل شيء من هنا إلى ذلك الحساب.',
-			forgetAccountRevokes:
-				'النسيان لا يلغي الرمز. أنهِ المنح بنفسك من لوحة تحكم Turso على app.turso.tech.',
-			forgetAccountRevokesAt: 'app.turso.tech',
-			accountForgotten: 'لم يعد هذا الجهاز يحتفظ برمز وصول إلى حساب Turso.',
-			deleteOrganization: 'احذف المؤسسة',
-			deleteOrganizationDescription:
-				'تُحذف المؤسسة وكل مساحة عمل فيها من حساب Turso. لا شيء يعيدها.',
-			deleteOrganizationGoes:
-				'تُحذف كل مساحة عمل وكل سجل فيها، ويفقد كل عضو سبيل دخوله. لا شيء يعيد هذا.',
-			organizationDeleted: 'حُذفت المؤسسة.'
-		},
+	workspace: workspace.workspace,
 
-		roles: {
-			owner: {
-				who: 'يملك حساب Turso ويستطيع فعل أي شيء. المالك واحد، ولا يسلّم الملكية غيره.'
-			},
-			manager: {
-				who: 'يضيف الأعضاء ويصنع الروابط ويمنح مساحات العمل. أما حساب Turso فيبقى للمالك.'
-			},
-			member: {
-				who: 'يعمل في مساحات العمل التي يحملها، ولا يغيّر شيئًا عن أحد غيره إلا أن تأذن له.'
-			}
-		},
-
-		families: {
-			administration: 'المؤسسة',
-			owner: 'للمالك وحده',
-			complex: 'المجمعات',
-			unit: 'الوحدات',
-			tenant: 'المستأجرون',
-			contract: 'العقود',
-			payment: 'المدفوعات'
-		},
-		flagVerbs: {
-			view: 'عرض',
-			create: 'إضافة',
-			edit: 'تعديل',
-			delete: 'حذف'
-		},
-		flags: {
-			inviteMember: 'دعوة الأعضاء',
-			removeMember: 'إزالة الأعضاء',
-			assignRole: 'منح الأعضاء أدوارهم',
-			renameWorkspace: 'تغيير أسماء مساحات العمل',
-			resetPassword: 'إعادة تعيين كلمات المرور',
-			renameMember: 'تغيير أسماء الأعضاء',
-			grantWorkspace: 'منح مساحات العمل',
-			manageRoles: 'إدارة الأدوار',
-			overrideMember: 'تغيير صلاحيات عضو بعينه',
-			manageMark: 'تغيير توقيع المؤسسة أو ختمها',
-			createWorkspace: 'إنشاء مساحات العمل',
-			deleteWorkspace: 'حذف مساحات العمل',
-			mintReadOnly: 'منح وصول القراءة فقط',
-			lockOut: 'حظر الأعضاء',
-			renewCredentials: 'تجديد الاعتمادات',
-			tursoAccount: 'وصل حساب Turso',
-			transferOwnership: 'تسليم المؤسسة',
-			deleteOrganization: 'حذف المؤسسة'
-		},
-
-		roleList: {
-			title: 'الأدوار',
-			description: 'ما يستطيع كل صنف من الناس فعله، من الأعلى رتبة. وبطاقة العضو تغيّره له وحده.',
-			add: 'أضف دورًا',
-			rank: 'الرتبة',
-			heldBy: 'يحمله {count|number} {{عضو|أعضاء}}',
-			heldByNobody: 'لا يحمله أحد بعد',
-			carriesNothing: 'لا شيء بعد',
-			moveUp: 'انقله أعلى',
-			moveDown: 'انقله أدنى',
-			highest: 'هو أصلًا أدنى من المدير مباشرة.',
-			lowest: 'هو أصلًا أعلى من العضو مباشرة.',
-			notBelowYou: 'هذا الدور ليس أدنى من دورك.',
-			newTitle: 'دور جديد',
-			newDescription:
-				'اسم، وما يستطيع كل من يُمنحه فعله. يبدأ أعلى من العضو مباشرة، ويُنقل من بطاقته.',
-			editDescription: 'ما يستطيع كل من يحمل دور {role} فعله.',
-			name: 'الاسم',
-			nameDescription: 'ما يُسمّى به الدور على كل بطاقة.',
-			builtInName: 'لكل مؤسسة هذا الدور، فيبقى اسمه كما هو.',
-			flagsTitle: 'ما يستطيع فعله',
-			create: 'أضف الدور',
-			deleteTitle: 'احذف الدور',
-			deleteDescription: 'يصبح كل من كان يحمله عضوًا، له ما يمنحه دور العضو بالضبط.',
-			created: 'أُضيف الدور.',
-			saved: 'حُفظ الدور.',
-			moved: 'نُقل الدور.',
-			deleted: 'حُذف الدور.'
-		},
-
-		override: {
-			legend: 'تجاوز على مستوى المؤسسة',
-			says: 'يتجاوز دوره في المؤسسة كلها.',
-			workspaces: 'تجاوزات مساحات العمل',
-			workspacesSays: 'مساحات العمل التي يستطيع فتحها، وفي كل واحدة تجاوزات لصلاحياته في المؤسسة.'
-		},
-
-		switches: {
-			verbSays: {
-				view: 'رؤيتها في القوائم وفي صفحاتها.',
-				create: 'إضافة جديد منها.',
-				edit: 'تغيير ما فيها.',
-				delete: 'إزالتها.'
-			},
-			flagSays: {
-				editContract: 'تغييرها، بما في ذلك الإنهاء والتجديد والاستعادة.',
-				inviteMember: 'إدخال أشخاص جدد إلى المؤسسة.',
-				removeMember: 'إخراج أشخاص من المؤسسة.',
-				assignRole: 'اختيار الدور الذي يحمله كل عضو.',
-				renameWorkspace: 'تغيير اسم مساحة العمل.',
-				resetPassword: 'تمكين عضو فقد كلمة مروره من تعيين كلمة جديدة.',
-				renameMember: 'تغيير اسم المستخدم لعضو.',
-				grantWorkspace: 'إدخال الأعضاء إلى مساحات العمل أو إخراجهم منها.',
-				manageRoles: 'إضافة الأدوار وتعديلها وترتيبها وحذفها.',
-				overrideMember: 'منح عضو بعينه أكثر أو أقل مما يمنحه دوره.',
-				manageMark: 'ضبط التوقيع أو الختم المطبوع على صفحات المؤسسة.'
-			},
-			viewFirst: 'شغّل العرض أولًا، فإضافة السجل أو تعديله أو حذفه تحتاج إلى رؤيته.',
-			groupRefused: 'بعضها ليس لك أن تغيّره',
-			folded: '{count|number} من {total|number}',
-			owner: 'إنشاء مساحات العمل وحذفها وحساب Turso وتسليم المؤسسة تبقى للمالك.',
-			notHeld: 'المفتاح الباهت صلاحية لا تحملها أنت، فليس لك أن تغيّرها.',
-			writesNotHeld: 'إيقافه يوقف صلاحية تحته لا تحملها أنت.',
-			differs: 'يختلف عن {role}',
-			custom: 'مخصّص',
-			reset: 'أعِده إلى {role}',
-			resetNotHeld: 'الإعادة تغيّر صلاحية لا تحملها أنت.'
-		},
-
-		roleCard: {
-			everything: 'وصول كامل إلى كل شيء',
-			full: 'وصول كامل إلى {kinds}',
-			does: '{verbs} {kinds}',
-			verbs: {
-				view: 'يعرض',
-				create: 'يضيف',
-				edit: 'يعدّل',
-				delete: 'يحذف'
-			},
-			kinds: {
-				complex: 'المجمعات',
-				unit: 'الوحدات',
-				tenant: 'المستأجرين',
-				contract: 'العقود',
-				payment: 'المدفوعات'
-			},
-			everyRecord: 'كل السجلات',
-			everyOtherRecord: 'بقية السجلات',
-			organization: {
-				all: 'يدير المؤسسة',
-				some: 'يشارك في إدارة المؤسسة'
-			}
-		},
-
-		foreseen: {
-			roleMoves: 'هذا الدور يغيّر صلاحية {flag}، ولا يحق لك ذلك.',
-			pinnedMoves: 'هذا الدور يلغي صلاحية {flag} المضبوطة له في مساحة عمل، ولا يحق لك ذلك.',
-			deleteMoves: 'حذفه يغيّر صلاحية {username} في {flag}، ولا يحق لك ذلك.',
-			holdersBlind:
-				'{names}: إضافة سجلات أو تعديلها أو حذفها دون رؤيتها. أعِد كل واحد إلى هذا الدور من بطاقته أولًا.'
-		},
-
-		workspaceSwitches: {
-			permissions: 'الصلاحيات',
-			permissionsSays:
-				'ما يستطيعه في مساحة العمل هذه وحدها. والنقطة تدل على ما يختلف عن بقية المؤسسة.',
-			differs: 'يختلف عن بقية المؤسسة',
-			customHere: 'مخصّص هنا',
-			movesNotHeld: 'هذا يغيّر هنا صلاحية لا تحملها أنت.',
-			notHeld: 'تحمل مساحة العمل هذه للقراءة فقط، فلا تستطيع منحها.'
-		}
-	},
-
-	workspace: {
-		nameTooLong: 'هذا الاسم طويل جداً.',
-		nameRequired: 'أعطِ مساحة العمل اسماً.',
-		renameDescription: 'اسم مساحة العمل هذه على كل جهاز مسجل الدخول إليها.',
-		renamed: 'تمت إعادة تسمية مساحة العمل.',
-		credentialRefused:
-			'جُدّد وصولك وهذا الجهاز يجلبه. يستمر العمل هنا، وإن لم يُحَل الأمر فاسأل المالك.',
-		accountRefusedMember:
-			'حساب Turso الخاص بالمؤسسة يحتاج إلى اهتمام، فلا يصل شيء إلى Turso حاليًا. أخبر {owner}. يستمر العمل هنا.',
-		accountRefusedOwner:
-			'يرفض Turso حساب المؤسسة: {detail}. يستمر العمل هنا؛ أصلِح الأمر على app.turso.tech ليُرسَل.',
-		accountRefusedOwnerNoDetail:
-			'يرفض Turso حساب المؤسسة. يستمر العمل هنا؛ أصلِح الأمر على app.turso.tech ليُرسَل.',
-		transferDescription:
-			'اكتب كل السجلات في ملف واحد، أو اقرأ ملفًا كهذا. تشير السجلات إلى بعضها بالأسماء، فيفتح الملف على أي جهاز.'
-	},
-
-	// the records 0.12.0 and 0.13.0 left on this machine, offered on the way in and in the settings
-	// area's workspace group until they are brought in or put aside (effort 838, requirement 18).
-	earlier: {
-		wayIn: 'سجلات الإصدار {version} موجودة على هذا الجهاز. انقلها من الإعدادات حين توجد مساحة عمل.',
-		title: 'سجلات الإصدار {version}',
-		description: 'ما زالت على هذا الجهاز. راجع ما ستضيفه، ثم انقلها إلى مساحة العمل هذه.',
-		kept: 'تُحفظ نسخة منها في مصنف:',
-		bringIn: 'انقلها...',
-		dismiss: 'إخفاء'
-	}
+	earlier: workspace.earlier
 } satisfies Translation;
 
 export default ar;

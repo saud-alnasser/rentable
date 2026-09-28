@@ -462,6 +462,18 @@ arabic piece, or left there after the english one lost it and the types were reg
 `pnpm check` at the piece. `lib/tests/layers.test.ts` holds a piece to importing nothing at
 runtime.
 
+A capability's strings and the shell's sit the same way, in `<home>/i18n/`, and so does a block of
+`common` or `layout` that is one concept's: `common.undo` is the undo capability's,
+`layout.signIn` the organization's. A concept's piece exports its whole namespace under the
+namespace's name, and the blocks it adds under another path in one object named for their parent
+(`layout`, `common`, `refusals`, `ui`). What stays written in the index is the **shared
+vocabulary**, the words every concept speaks rather than one: `app`, and under `common` the
+actions, labels, nav, statuses, messages, errors, failures, formats, time, the generic `ui`
+chrome, the delete dialog, and the refusals the shell's own reasons become (`refusals.host`,
+`refusals.record`). `lib/i18n/tests/composition.test.ts` holds each index to its imports, that
+list, and the composed object, so a new string for one concept goes in its piece, and a word
+added to the shared list is added to the test's list too.
+
 **One exception: text handed to a tenant in the language chosen for it.** The printed schedule, the
 receipt, the name a saved one is offered under, and the WhatsApp reminder are written in the
 language picked in their preview, which need not be the one the application shows, so they read it
