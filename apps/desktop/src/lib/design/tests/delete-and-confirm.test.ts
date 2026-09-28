@@ -94,7 +94,7 @@ for (const glyph of [
 	mock.module(`@lucide/svelte/icons/${glyph}`, { exports: { default: () => {} } });
 }
 
-const { inverseStack } = await import('$lib/design/inverse');
+const { inverseStack } = await import('$lib/undo/undo');
 const { toDeleteStep } = await import('$lib/act');
 const { useDeleteTenant } = await import('$lib/tenant/query');
 const { useCreateComplex, useCreateUnit, useDeleteUnit } = await import('$lib/complex/query');

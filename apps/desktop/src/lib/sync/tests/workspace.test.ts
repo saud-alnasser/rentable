@@ -44,7 +44,7 @@ mock.module('$lib/platform/tauri', {
 });
 
 const { syncWorkspaceNow, syncWorkspaceBeforeExit } = await import('$lib/sync/workspace');
-const { inverseStack } = await import('$lib/design/inverse');
+const { inverseStack } = await import('$lib/undo/undo');
 
 function reset() {
 	calls.length = 0;

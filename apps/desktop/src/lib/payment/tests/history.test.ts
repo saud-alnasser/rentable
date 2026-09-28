@@ -73,8 +73,8 @@ mock.module('$lib/platform/tauri', {
 	}
 });
 
-const { inverseStack } = await import('$lib/design/inverse');
-const { applyUndo } = await import('$lib/mutation');
+const { inverseStack } = await import('$lib/undo/undo');
+const { applyUndo } = await import('$lib/undo');
 const { useQueryClient } = await import('@tanstack/svelte-query');
 const { useCreatePayment, useUpdatePayment, useDeletePayment } = await import('$lib/payment/query');
 const { loadLocale } = await import('$lib/i18n/i18n-util.sync');

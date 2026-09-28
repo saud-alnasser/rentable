@@ -19,9 +19,9 @@
 	import LayoutCaughtError from '$lib/layout/component/caught-error.svelte';
 	import LayoutPalette, { PALETTE_SHORTCUT_HINT } from '$lib/layout/component/palette.svelte';
 	import { ShortcutListener } from '$lib/shortcut/ui';
+	import { UndoShortcut } from '$lib/undo/ui';
 	import LayoutShortcutSheet from '$lib/layout/component/shortcut-sheet.svelte';
 	import LayoutSidebar from '$lib/layout/component/sidebar.svelte';
-	import LayoutUndoShortcut from '$lib/layout/component/undo-shortcut.svelte';
 	import LayoutWindowControls from '$lib/layout/component/window-controls.svelte';
 	import { CAUGHT_ERROR_EVENT, toCaughtErrorFields } from '$lib/layout/boundary';
 	import { toBreadcrumbTrail } from '$lib/layout/navigation';
@@ -186,7 +186,7 @@
      answers: a change made on a screen that carries no navigation is still a change the reader
      can take back. -->
 <ShortcutListener />
-<LayoutUndoShortcut />
+<UndoShortcut />
 <!-- and the create key, on every screen for the same reason: where no set is on screen it is
      refused with its reason, rather than left to the webview. -->
 <CreateShortcut />

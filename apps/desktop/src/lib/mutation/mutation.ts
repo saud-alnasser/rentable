@@ -2,15 +2,21 @@ import api from '$lib/api/caller';
 import { invalidateWorkspaceData, workspacePrefixes } from './cache';
 import { historyKeys, type HistoryEntry } from '$lib/history';
 import { recordDiagnosticError } from '$lib/platform/diagnostics';
-import { inverseStack, type Inverse } from '$lib/design/inverse';
 import { NAMED_RECORDS, unforeseenRefusals } from '@rentable/design/selection.js';
 import { LL } from '$lib/i18n/i18n-svelte';
 import { readHostRefusal, toRefusalText, toRouterFailureText } from '$lib/error/refusal';
 import { toTauriErrorCode } from '$lib/error/tauri';
-import { notify, type NotificationId } from '$lib/notification';
+import { notify } from '$lib/notification';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 import { createMutation, useQueryClient, type QueryClient } from '@tanstack/svelte-query';
 import { TRPCError } from '@trpc/server';
+import {
+	announceWithOffer,
+	recordInverse,
+	type Inverse,
+	type Settlement,
+	type UndoOffer
+} from '$lib/undo';
 import { get } from 'svelte/store';
 
 type ToastMessage = string | (() => string);
@@ -165,8 +171,8 @@ function resolveToastMessage(message: ToastMessage) {
  * What a declared mutation announces, given the change it is about.
  *
  * Resolved here rather than inside {@link onMutationSuccess}, because this is the only place a
- * change exists: that handler is also reached by the undo path and by surfaces with no
- * declaration behind them, and neither of those has one to hand it.
+ * change exists: that handler is also reached by surfaces with no declaration behind them, which
+ * have none to hand it.
  */
 function resolveAnnouncement<TVariables, TResult, TCaptured>(
 	message: ToastSuccessMessage<TVariables, TResult, TCaptured> | undefined,
@@ -193,64 +199,6 @@ function decideErrorToast(
 	return option;
 }
 
-/**
- * How long an announcement carrying an offer stays on screen.
- *
- * The shared duration suits a confirmation that only has to be read. One that also has to be
- * decided on, and reached for, does not fit in it.
- */
-const OFFER_DURATION = 8000;
-
-/** which way an offer would move the undo stack. */
-type OfferDirection = 'undo' | 'redo';
-
-/**
- * The offer to move a change back, carried by the announcement that change makes.
- *
- * It names the change rather than a position, because the stack moves whatever is on top and
- * an announcement outlives the moment it was raised in.
- */
-export type UndoOffer = { client: QueryClient; change: Inverse; direction: OfferDirection };
-
-/**
- * the announcement currently carrying an offer, where one is on screen.
- *
- * Only the change on top of the stack can be moved, so only one offer is ever live — and an
- * older announcement left standing would offer a control over somebody else's change.
- */
-let outstandingOffer: NotificationId | null = null;
-
-function withdrawOutstandingOffer() {
-	if (outstandingOffer !== null) {
-		notify.dismiss(outstandingOffer);
-		outstandingOffer = null;
-	}
-}
-
-// the stack is emptied whenever the workspace underneath it is replaced, which is a workspace
-// switch. An offer still on screen then names a change nothing can move, so it leaves with the
-// stack rather than waiting to be pressed and refuse.
-inverseStack.observe(() => {
-	if (!inverseStack.undoable && !inverseStack.redoable) {
-		withdrawOutstandingOffer();
-	}
-});
-
-function toToastAction({ client, change, direction }: UndoOffer) {
-	const translations = get(LL);
-
-	return {
-		label: direction === 'undo' ? translations.common.undo.undo() : translations.common.undo.redo(),
-		onClick: () => {
-			// by identity: the stack is emptied whenever the workspace underneath it is replaced,
-			// and an offer outliving that names a change nothing can move.
-			const top = direction === 'undo' ? inverseStack.undoable : inverseStack.redoable;
-
-			return top === change ? applyInverse(client, direction) : undefined;
-		}
-	};
-}
-
 export function onMutationSuccess(opts: MutationOptions, offer?: UndoOffer) {
 	if (!opts.toast?.success) {
 		return;
@@ -266,22 +214,9 @@ export function onMutationSuccess(opts: MutationOptions, offer?: UndoOffer) {
 		return;
 	}
 
-	withdrawOutstandingOffer();
-
-	// an offer the reader may not take is not made (effort 838, requirement 10): the change is
-	// announced alone, without the line saying how long an undo lasts, and the key, asked for it,
-	// says why it cannot be taken back.
-	if (inverseStack.refusal(offer.direction, get(LL))) {
-		notify.success(message);
-
-		return;
-	}
-
-	outstandingOffer = notify.success(message, {
-		...detail,
-		action: toToastAction(offer),
-		duration: OFFER_DURATION
-	});
+	// the offer riding on the announcement is undo's: the control, how long it stays, and whether
+	// the reader may take it at all.
+	announceWithOffer(message, detail || undefined, offer);
 }
 
 /**
@@ -417,78 +352,6 @@ function toKnownFailureText(e: Error, translations: TranslationFunctions): strin
 }
 
 /**
- * Move the undo stack one step, and announce what moved with the offer to move it back.
- *
- * The inverse issues an ordinary procedure, so the workspace has moved by the time it resolves
- * and the cache is as stale as it would be after any other mutation.
- *
- * **It refreshes when the inverse fails, too.** An inverse can be more than one call, as a
- * contract creation's is, and one failing after another has landed leaves the workspace moved
- * part of the way. The entry stays on the stack to be pressed again, and the screen shows what
- * was written rather than what was there before.
- */
-async function applyInverse(client: QueryClient, direction: OfferDirection) {
-	// refused here as well as where it is offered, for the key: the procedures behind it would
-	// refuse too, and the reader is owed the flag rather than a failure.
-	const refusal = inverseStack.refusal(direction, get(LL));
-
-	if (refusal) {
-		notify.error(refusal);
-
-		return;
-	}
-
-	try {
-		const applied = await (direction === 'undo' ? inverseStack.undo() : inverseStack.redo());
-
-		if (!applied) {
-			return;
-		}
-
-		await invalidateWorkspaceData(client);
-
-		// an inverse issues its procedure directly rather than through a declared mutation, so
-		// this is the only place that can record it. Without it the account shows a change and
-		// stays silent about it being taken back.
-		recordHistory(client, applied.records?.(direction));
-
-		const translations = get(LL);
-		const change = applied.describe(translations);
-
-		onMutationSuccess(
-			{
-				toast: {
-					success:
-						direction === 'undo'
-							? translations.common.undo.undone({ change })
-							: translations.common.undo.redone({ change })
-				}
-			},
-			// what a change offers next is its opposite: one taken back is one to apply again.
-			{ client, change: applied, direction: direction === 'undo' ? 'redo' : 'undo' }
-		);
-	} catch (failure) {
-		// first, as on success: what landed before the failure is on screen before it is spoken of.
-		await invalidateWorkspaceData(client);
-
-		onMutationError(
-			{ toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() } },
-			failure as Error
-		);
-	}
-}
-
-/** take back the change on top of the undo stack. What the keyboard shortcut calls. */
-export function applyUndo(client: QueryClient) {
-	return applyInverse(client, 'undo');
-}
-
-/** apply the most recently taken-back change again. The mirror of {@link applyUndo}. */
-export function applyRedo(client: QueryClient) {
-	return applyInverse(client, 'redo');
-}
-
-/**
  * Append what happened to a record's account, and tell whatever is showing it.
  *
  * Never awaited into the change it describes: the change is what the reader asked for, and an
@@ -516,6 +379,21 @@ function recordHistory(client: QueryClient, recorded: HistoryEntry | HistoryEntr
 }
 
 /**
+ * How a change this layer put on the undo stack settles when it is moved: the same refresh and
+ * the same account a declared mutation writes when it lands, and a failure said the way any
+ * failed write is. Undo moves the stack and asks for these; it knows nothing of the cache.
+ */
+const settlement: Settlement = {
+	refresh: invalidateWorkspaceData,
+	record: recordHistory,
+	fail: (failure) =>
+		onMutationError(
+			{ toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() } },
+			failure
+		)
+};
+
+/**
  * The invalidation is unconditional: a mutation that changed nothing costs one redundant local
  * refetch, where a mutation that changed something and skipped it shows the user a row that is
  * no longer there.
@@ -540,7 +418,7 @@ function bindMutation<TVariables, TResult, TCaptured>(
 			const inverse = declaration.inverse?.(change);
 
 			if (inverse) {
-				inverseStack.record(inverse);
+				recordInverse(inverse, settlement);
 			}
 
 			// appended after the work landed, and never awaited into it: the change is what the

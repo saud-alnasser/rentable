@@ -63,8 +63,9 @@ mock.module('$lib/platform/tauri', {
 	}
 });
 
-const { inverseStack } = await import('$lib/design/inverse');
-const { applyUndo, workspacePrefixes } = await import('$lib/mutation');
+const { inverseStack } = await import('$lib/undo/undo');
+const { applyUndo } = await import('$lib/undo');
+const { workspacePrefixes } = await import('$lib/mutation');
 const { useQueryClient } = await import('@tanstack/svelte-query');
 const { useCreateTenant, useUpdateTenant, useDeleteTenant } = await import('$lib/tenant/query');
 const {

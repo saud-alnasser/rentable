@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { inverseStack } from '$lib/design/inverse';
-	import { undoable } from '$lib/design/inverse.svelte';
-	import { applyRedo, applyUndo } from '$lib/mutation';
 	import { shortcuts } from '$lib/shortcut';
-	import { toUndoShortcuts } from '$lib/design/undo-shortcut';
+	import { toUndoShortcuts } from '$lib/undo/key';
+	import { applyRedo, applyUndo } from '$lib/undo/move';
+	import { inverseStack } from '$lib/undo/undo';
+	import { undoable } from '$lib/undo/undo.svelte';
 	import { useQueryClient } from '@tanstack/svelte-query';
 
 	const client = useQueryClient();

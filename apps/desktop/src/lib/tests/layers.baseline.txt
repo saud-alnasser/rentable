@@ -141,7 +141,6 @@ dashboard/router.ts -> contract/serialize.ts : deep
 date -> platform : cycle
 design -> i18n : cycle
 design -> platform : cycle
-design/inverse.ts -> permission/index.ts : upward
 error -> api : cycle
 error -> i18n : cycle
 history -> api : cycle
@@ -164,7 +163,6 @@ layout -> complex : cycle
 layout -> contract : cycle
 layout -> create : cycle
 layout -> date : cycle
-layout -> design : cycle
 layout -> error : cycle
 layout -> i18n : cycle
 layout -> mutation : cycle
@@ -176,6 +174,7 @@ layout -> settings : cycle
 layout -> shortcut : cycle
 layout -> sync : cycle
 layout -> tenant : cycle
+layout -> undo : cycle
 layout -> workspace : cycle
 layout/component/account-menu.svelte -> settings : import
 layout/component/account-menu.svelte -> settings/section.ts : deep
@@ -269,12 +268,12 @@ list -> notification : cycle
 list -> platform : cycle
 list -> shortcut : cycle
 mutation -> api : cycle
-mutation -> design : cycle
 mutation -> error : cycle
 mutation -> history : cycle
 mutation -> i18n : cycle
 mutation -> notification : cycle
 mutation -> platform : cycle
+mutation -> undo : cycle
 notification -> error : cycle
 notification -> platform : cycle
 organization -> act : cycle
@@ -415,6 +414,9 @@ tenant/component/directory.svelte -> workspace/workspace.ts : deep
 tenant/component/host.svelte -> contract/query.ts : deep
 tenant/host.svelte.ts -> contract/host.svelte.ts : deep
 tenant/router.ts -> contract/contract.ts : deep
+undo -> i18n : cycle
+undo -> notification : cycle
+undo -> shortcut : cycle
 workspace -> api : cycle
 workspace -> contract : cycle
 workspace -> date : cycle

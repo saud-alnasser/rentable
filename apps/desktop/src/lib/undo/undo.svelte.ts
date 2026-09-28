@@ -1,4 +1,4 @@
-import { inverseStack } from '$lib/design/inverse';
+import { inverseStack } from '$lib/undo/undo';
 
 /**
  * The reactive face of {@link inverseStack}. Owns nothing but the mirror — the stack is the

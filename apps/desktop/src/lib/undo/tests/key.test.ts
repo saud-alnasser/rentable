@@ -6,7 +6,7 @@ import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
 
 import type { ShortcutKeydown } from '@rentable/design/shortcut.ts';
 import { ShortcutRegistry } from '$lib/shortcut/shortcut.ts';
-import { toUndoShortcuts, type UndoIntent } from '../undo-shortcut.ts';
+import { toUndoShortcuts, type UndoIntent } from '../key.ts';
 
 /**
  * What a keydown reached, carrying the two properties a shortcut standing down while text is

@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [12, 13]
 ---
 # refactor(desktop): undo and redo are one capability
@@ -14,9 +14,9 @@ The stacks, issuing an inverse, the undo shortcut and the toast's undo action be
 
 Traces requirement 20 of [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]], and criterion 20.
 
-- [ ] A search finds undo logic nowhere outside `undo/` (criterion 20).
-- [ ] The undo tests move and keep their assertions.
-- [ ] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19).
+- [x] A search finds undo logic nowhere outside `undo/` (criterion 20). Verified: a search of `apps/desktop/src` (tests aside) for `inverseStack`, `undoStack`, `applyUndo`, `applyRedo`, `UNDO_KEY`, `REDO_KEY`, `recordInverse`, `announceWithOffer`, `UndoOffer`, `OFFER_DURATION`, `design/inverse` and `undo-shortcut` outside `lib/undo/` finds only `mutation/mutation.ts` importing and calling undo's API (`recordInverse`, `announceWithOffer`, the `UndoOffer` type). Mutation hands undo its refresh, history and failure functions per entry; undo imports nothing from mutation.
+- [x] The undo tests move and keep their assertions. Verified: `inverse.test.ts` and `undo-shortcut.test.ts` moved to `undo/tests/undo.test.ts` and `key.test.ts` with only imports changed; the two offer blocks moved from `mutation.test.ts` to `undo/tests/move.test.ts`; the child's sorted diff of every `assert`, `it(` and `describe(` line before and after printed nothing.
+- [x] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19). Verified: in the run's tree: check 0, eslint 0, `pnpm test` 3 of 3 tasks, build:web 0; the layer test passes with no stale line.
 
 ## Relevant areas
 

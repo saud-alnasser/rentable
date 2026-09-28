@@ -420,11 +420,12 @@ Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], re
 
 **A change to a workspace's records can be taken back while the application is open, by the
 announcement or by the key, and the two do one thing.** A mutation that declares an `inverse` in
-`mutation/mutation.ts` leaves it on the session's stack (`design/inverse.ts`), and its announcement
-carries *undo*. Ctrl/Cmd+Z takes back the change on top of the stack, and Ctrl/Cmd+Shift+Z or
-Ctrl+Y applies it again (`design/undo-shortcut.ts`). Both are application shortcuts that stand down
-in a text field, where those keys are the field's own, and the command menu offers both by name,
-saying why where there is nothing to move.
+`mutation/mutation.ts` leaves it on the session's stack, and its announcement carries *undo*.
+Ctrl/Cmd+Z takes back the change on top of the stack, and Ctrl/Cmd+Shift+Z or Ctrl+Y applies it
+again. The stack, the offer and the key pair are the `undo/` capability's, and nothing outside it
+knows how undo works. Both are application shortcuts that stand down in a text field, where those
+keys are the field's own, and the command menu offers both by name, saying why where there is
+nothing to move.
 
 - **What was taken back is announced, with the offer to apply it again**, so undo and redo answer
   each other from the same toast.
