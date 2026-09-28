@@ -1,0 +1,6 @@
+//! The crate's structural guards (effort 840): tests that read `src/` as text and hold it to
+//! `rules/module-layout`. Each keeps a baseline beside it of what it tolerates today, and fails on
+//! anything new and on any line that no longer occurs, so a baseline can only shrink. Nothing
+//! here ships.
+
+mod naming;

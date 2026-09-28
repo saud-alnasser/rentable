@@ -1,0 +1,3 @@
+apps/desktop/src/lib/settings/: plural
+packages/design/src/lib/primitive/chart/chart-utils.ts: banned name
+packages/design/src/lib/primitive/tabs/: plural

@@ -5,6 +5,9 @@ pub mod diagnostics;
 pub mod earlier;
 pub mod error;
 pub mod export;
+// test-only: the structural guards, which hold the tree to rules/module-layout and ship nothing.
+#[cfg(test)]
+mod guard;
 pub mod http;
 mod import;
 // private, and it stays that way: what it hands back is a credential, so its callers are in
