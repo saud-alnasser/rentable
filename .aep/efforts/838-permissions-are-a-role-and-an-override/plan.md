@@ -640,6 +640,18 @@ turning a write on re-grants it full access (the reader must hold the workspace 
 writes the override. The Rust read-only grant and its renewal stay, for grants already minted; the
 interface makes no new one.
 
+*Amended at review round one, the human's call: what is tailored is pinned.* An override switched
+against the organization-wide layer inverts when that layer moves under it (a workspace set read
+only gains a write when the write is taken away across the organization). So the row holds two
+masks, `pinned` (the record flags set for this workspace) and `granted` (which of them are on,
+within `pinned`), and the workspace's permissions are `(effective & !pinned) | granted`, then any
+add, edit or delete whose kind's view is not held is dropped, since the layers beneath can move.
+A switch turned on the card pins it; *read only* pins every add, edit and delete off; *reset*
+unpins all. The dots mark what is pinned. Covered, and set, where the signer holds every pinned
+flag. Format 3 has not shipped, so `three.rs` is changed in place. *And:* the owner-only rule
+for a grant already minted read-only goes with the lock, so anybody who may grant the workspace
+at full access re-grants it, and anybody who may withdraw it withdraws it.
+
 # Testing Strategy
 
 | Criterion | Checked by |
