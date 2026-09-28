@@ -1,5 +1,5 @@
 ---
-status: draft
+status: accepted
 ---
 
 # Problem
@@ -109,6 +109,10 @@ the `.aep/` rules and contexts that describe the layout.
     along the concerns they mix, and routes delegate to `src/lib` as the entity routes already do.
 18. **The layout is documented where it is enforced.** The rules and contexts that describe the
     tree describe the new one, and one place says what adding a feature touches.
+21. **An AEP context says how features are handled.** Once the tree is final, a context describes,
+    for whoever builds the next feature, how a feature and a capability are built, declared,
+    registered, added and removed on both sides of the IPC boundary, with the layer rule and the
+    worked examples as the tree then holds them.
 19. **Behaviour does not change.** Every screen, command, stored format, permission and message
     behaves as it does on `1aa8d6a5`.
 20. **Every mechanism is one module.** A mechanical concern the application applies across
@@ -166,6 +170,10 @@ the `.aep/` rules and contexts that describe the layout.
     `routes/settings/+page.svelte` hold no mutation wiring.
 18. `validate.mjs` passes; the rules' `paths:` globs match the new tree; [[contexts/repository]]
     lists the homes as they are; one artifact lists what adding a feature touches.
+21. `.aep/contexts/desktop/feature.md` exists, with a `use-when` that fires on adding, removing or
+    changing a feature or capability and `paths:` covering `src/lib/app/`, `src/lib/feature/` and
+    `tauri/src/lib.rs`; it is written last, against the finished tree, and every path it names
+    exists; [[contexts/repository]] links it.
 19. The integration gate passes on every commit of the effort's branch; no workspace migration is
     added; no persisted file, table or column changes shape; the existing tests' assertions are
     unchanged except where they name a moved path.
@@ -221,12 +229,6 @@ the `.aep/` rules and contexts that describe the layout.
   deleting them loses nothing.
 - Removing `@tursodatabase/sync` from the web layer, if `hosted.ts` is its only user, does not
   affect the Rust engine, which uses the crate.
-
-# Open Questions
-
-- How far the Rust store split goes: one store per sub-concept over one shared connection, or one
-  `OrganizationStore` whose methods move into per-sub-concept modules. Structural, so it is
-  `/plan`'s to settle.
 
 # Risks
 

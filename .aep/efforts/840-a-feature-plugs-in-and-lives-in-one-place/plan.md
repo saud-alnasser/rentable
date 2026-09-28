@@ -367,6 +367,8 @@ move is in place before the move.
    with the last.
 9. **Governance** closes each step rather than trailing it (the constraint in `spec.md`); the last
    ticket writes what adding a feature touches and the naming lint.
+10. **The feature context** (requirement 21), last of all: `contexts/desktop/feature.md`, written
+    against the finished tree by reading it, never from this plan, so it describes what was built.
 
 # Integration
 
@@ -417,6 +419,7 @@ families; a consumer wanting one runs the shadcn-svelte CLI, which writes into t
 | 16 | `knip` run once in the dead-code ticket to confirm nothing unimported remains (not added to the gate); `turbo run test --dry` lists no `turso-platform` task |
 | 17 | review against the survey's list; routes checked by the dependency test's rule that a `routes/` file imports only `$lib/*/component` and `$lib/app` |
 | 18 | `validate.mjs`; a test that every rule's `paths:` glob matches at least one file |
+| 21 | `validate.mjs` (frontmatter, links); a check in that ticket that every path the context names exists |
 | 20 | the dependency test's layer rule (no capability imports a feature); a test per capability that its API is its `index.ts` and no file outside it imports its internals; review against the capability list above |
 | 19 | the integration gate on every commit; `drizzle-kit generate` producing no migration, run in the gate's check step for this effort's tickets; existing assertions unchanged except moved paths, which review checks by diffing each test file's assertions |
 
