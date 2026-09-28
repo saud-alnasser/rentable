@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { ContractSection } from '$lib/contract/section';
-	import RecordHistory from '$lib/history/component/record-history.svelte';
+	import { RecordHistory } from '$lib/history/ui';
 	import { resolve } from '$app/paths';
 	import type { Contract } from '$lib/platform/database/schema';
 	import RecordSurface from '@rentable/design/block/record-surface.svelte';

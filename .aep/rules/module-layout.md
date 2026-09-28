@@ -61,6 +61,29 @@ and Rust already spends `test/` on shared scaffolding, so the two would collide.
 [[rules/testing]] defines it and this is the only place it is allowed. Settled 2026-08-18 with
 #559.
 
+## A concept is entered through `index.ts`, and a capability's components through `ui.ts`
+
+The canonical layout of a concept under `apps/desktop/src/lib/` is
+[[efforts/840-a-feature-plugs-in-and-lives-in-one-place/plan]]'s, under *The canonical concept
+shape*. Its entries are these:
+
+```
+<concept>/
+  index.ts     what other concepts may import: types, domain functions, query hooks.
+               Re-exports only Node-loadable modules, never a component
+  ui.ts        a capability's components other concepts may render, re-exported by name
+               from component/: export { default as List } from './component/list.svelte'.
+               Present only where a component is shared
+  component/   its Svelte components, private to the concept
+```
+
+Another concept imports `$lib/<concept>` and, for a capability, `$lib/<capability>/ui`; never a
+file past them. `index.ts` stays loadable under Node, which is why it cannot carry a component,
+and a feature shares no component, so a feature has no `ui.ts`. `apps/desktop/src/lib/tests/
+layers.test.ts` holds it: an import into another home's `component/` is `deep`. Decided by the
+human on 2026-09-28, when the list capability left features importing its `component/` with no
+public way to render it.
+
 ## A Rust directory is rooted by `mod.rs`
 
 A module with children is a `<concept>/` directory whose root is `mod.rs` — `sync/mod.rs`,

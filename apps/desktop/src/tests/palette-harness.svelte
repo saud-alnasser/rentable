@@ -15,7 +15,7 @@
 	 * `#tests/palette-harness.svelte`. *It lived in `layout/tests/` until ticket 19 of effort 838.*
 	 */
 	import LayoutPalette from '$lib/layout/component/palette.svelte';
-	import ShortcutListener from '$lib/shortcut/component/listener.svelte';
+	import { ShortcutListener } from '$lib/shortcut/ui';
 	import { TooltipProvider } from '@rentable/design/primitive/tooltip/index.js';
 	import {
 		DesignProvider,

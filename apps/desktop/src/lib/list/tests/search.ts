@@ -2,7 +2,7 @@ import { fireEvent, render, within } from '@testing-library/svelte';
 import { expect } from 'vitest';
 
 import { SEARCH_DEBOUNCE_MS } from '$lib/list/component/search-field.svelte';
-import ShortcutListener from '$lib/shortcut/component/listener.svelte';
+import { ShortcutListener } from '$lib/shortcut/ui';
 
 /**
  * THE SHARED SEARCH, READ ON A SURFACE

@@ -6,7 +6,7 @@
 	import RecordCard from '@rentable/design/block/record-card.svelte';
 	import SelectionDialog from '@rentable/design/block/selection-dialog.svelte';
 	import { toCardActions } from '$lib/act';
-	import List from '$lib/list/component/list.svelte';
+	import { List } from '$lib/list/ui';
 	import * as Cell from '$lib/design/cell';
 	import { toNarrowedName } from '@rentable/design/csv.js';
 	import {

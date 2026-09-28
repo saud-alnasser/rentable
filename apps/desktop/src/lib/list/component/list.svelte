@@ -1,7 +1,7 @@
 <script lang="ts" generics="TData extends { id: string }, TGroup extends ListGroup">
 	import { browser } from '$app/environment';
 	import ExportDialog from '@rentable/design/block/export-dialog.svelte';
-	import CreateControl from '$lib/create/component/control.svelte';
+	import { CreateControl } from '$lib/create/ui';
 	import Loading from '@rentable/design/block/loading.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Skeleton } from '@rentable/design/primitive/skeleton/index.js';

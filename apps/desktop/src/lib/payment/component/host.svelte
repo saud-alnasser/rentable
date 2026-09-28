@@ -26,7 +26,7 @@
 	} from '$lib/payment/host.svelte';
 	import { useReadContract } from '$lib/contract/query';
 	import { useDeletePayment, useReadPayment, useReadPaymentReceipt } from '$lib/payment/query';
-	import PrintPreview from '$lib/print/component/preview.svelte';
+	import { PrintPreview } from '$lib/print/ui';
 	import { sendPage, surfacesSettled } from '$lib/print/sheet.svelte';
 	import type { Locales } from '$lib/i18n/i18n-types';
 	import { useReadOrganizationMark, useReadOrganizationName } from '$lib/organization/query';

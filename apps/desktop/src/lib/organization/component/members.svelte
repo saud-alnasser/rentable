@@ -9,7 +9,7 @@
 	import { Badge } from '@rentable/design/primitive/badge/index.js';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
-	import CreateControl from '$lib/create/component/control.svelte';
+	import { CreateControl } from '$lib/create/ui';
 	import { toCardActions } from '$lib/act';
 	import type { ListSort } from '@rentable/design/sort.js';
 	import { LL } from '$lib/i18n/i18n-svelte';

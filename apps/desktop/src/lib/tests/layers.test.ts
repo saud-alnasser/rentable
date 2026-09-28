@@ -7,7 +7,7 @@
 //
 //   upward   file -> file       a module imports one in a higher layer
 //   cycle    module -> module   an edge of the module graph that lies on a cycle
-//   deep     file -> file       an import past a feature's or capability's `index.ts`
+//   deep     file -> file       an import past a feature's or capability's entry
 //   import   file -> feature    a feature imported by a home that is neither a feature nor `app/`
 //   literal  file -> kind       a record kind spelled as a literal outside its feature and `app/`
 //
@@ -15,8 +15,11 @@
 // (requirement 2). A feature may import another feature's entry, since requirement 4 has
 // features talk through their public APIs; one reaching past that entry is a `deep` line, and
 // is not counted again as `import`. A deep import is judged against features and capabilities,
-// the homes requirement 4 gives a public API; `app/` may also read a feature's `feature.ts` and
-// `surface.ts`, which is how it lists them. `import type` is erased at runtime and is not
+// the homes requirement 4 gives a public API. A home's entry is its `index.ts`, and a capability
+// has a second one, `ui.ts`, which re-exports by name the components other concepts render; its
+// `component/` stays private, so reaching into it from outside is `deep`. A feature shares no
+// component, so a feature's `ui.ts` is no entry. `app/` may also read a feature's `feature.ts`
+// and `surface.ts`, which is how it lists them. `import type` is erased at runtime and is not
 // counted by any kind.
 //
 // The tree does not obey the rule yet, so today's violations are the baseline, and the baseline
@@ -232,9 +235,12 @@ function resolve(fromFile: string, specifier: string) {
 	return found ? toPosix(relative(LIB_ROOT, found)) : label;
 }
 
-function isEntry(label: string) {
+// Whether a label is its home's entry: the home's `index.ts`, or for a capability its `ui.ts`.
+function isEntry(label: string, layer: Layer) {
 	const parts = label.split('/');
-	return parts.length === 1 || (parts.length === 2 && /^index\.(ts|js)$/.test(parts[1]));
+	if (parts.length === 1) return true;
+	if (parts.length !== 2) return false;
+	return /^index\.(ts|js)$/.test(parts[1]) || (layer === 'capability' && parts[1] === 'ui.ts');
 }
 
 // Every edge of the module graph that lies on a cycle: `a -> b` where `b` reaches `a`. Removing
@@ -283,7 +289,11 @@ function violations() {
 
 			const declaration =
 				from === COMPOSITION_ROOT && DECLARATIONS.includes(target.slice(to.length + 1));
-			if ((toLayer === 'feature' || toLayer === 'capability') && !isEntry(target) && !declaration) {
+			if (
+				(toLayer === 'feature' || toLayer === 'capability') &&
+				!isEntry(target, toLayer) &&
+				!declaration
+			) {
 				found.add(`${label} -> ${target} : deep`);
 			}
 

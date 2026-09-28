@@ -8,7 +8,7 @@
 	import { trustWorkspaceData } from '$lib/design/query';
 	import { dropLandingOnNavigation } from '$lib/create';
 	import { TooltipProvider } from '@rentable/design/primitive/tooltip/index.js';
-	import NotificationProvider from '$lib/notification/component/provider.svelte';
+	import { NotificationProvider } from '$lib/notification/ui';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 	import LayoutCaughtError from '$lib/layout/component/caught-error.svelte';

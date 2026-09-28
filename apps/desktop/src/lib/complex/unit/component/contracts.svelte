@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type api from '$lib/api/caller';
-	import List from '$lib/list/component/list.svelte';
+	import { List } from '$lib/list/ui';
 	import type { ListSort } from '@rentable/design/sort.js';
 	import ContractRecord from '$lib/contract/component/record.svelte';
 	import ContractSelectionActions from '$lib/contract/component/selection-actions.svelte';

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import type { ListSort } from '@rentable/design/sort.js';
-	import ListToolbar from '$lib/list/component/list-toolbar.svelte';
+	import { ListToolbar } from '$lib/list/ui';
 	import type { ListSortOption } from '$lib/list';
 	import type { Snippet } from 'svelte';
 

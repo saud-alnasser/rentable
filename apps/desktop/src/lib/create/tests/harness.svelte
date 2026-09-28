@@ -8,7 +8,7 @@
 	 */
 	import CreateControl from '$lib/create/component/control.svelte';
 	import CreateShortcut from '$lib/create/component/shortcut.svelte';
-	import ShortcutListener from '$lib/shortcut/component/listener.svelte';
+	import { ShortcutListener } from '$lib/shortcut/ui';
 	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import { DesignProvider } from '@rentable/design/strings.js';
 	import { placeholderStrings as strings } from '$lib/design/tests/strings';

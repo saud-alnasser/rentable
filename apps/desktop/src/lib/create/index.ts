@@ -6,9 +6,9 @@
  * where a created record lands. The design package's `create-intent.js` is reached from here and
  * nowhere else in the application.
  *
- * Its two components are its own and are never re-exported here (plan, *Components*):
- * `component/control.svelte`, the one control every set draws, and `component/shortcut.svelte`,
- * the key's registration, which the frame mounts once.
+ * Its two components are rendered through `ui.ts` and are never re-exported here (plan,
+ * *Components*): the one control every set draws, and the key's registration, which the frame
+ * mounts once.
  */
 export { withCreateIntent } from '@rentable/design/create-intent.js';
 export { consumeCreateIntent } from './intent.svelte';

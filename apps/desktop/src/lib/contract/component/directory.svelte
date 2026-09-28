@@ -3,7 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import type api from '$lib/api/caller';
-	import List from '$lib/list/component/list.svelte';
+	import { List } from '$lib/list/ui';
 	import type { ListSort } from '@rentable/design/sort.js';
 	import { CONTRACT_SORT_COLUMN_IDS, type ContractSortColumnId } from '$lib/contract/contract';
 	import {

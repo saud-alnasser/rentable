@@ -40,7 +40,7 @@
 	import { writeDetailsToClipboard } from '$lib/platform/clipboard';
 	import { tauri } from '$lib/platform/tauri';
 	import { formatRecordDateRange } from '$lib/date';
-	import PrintPreview from '$lib/print/component/preview.svelte';
+	import { PrintPreview } from '$lib/print/ui';
 	import { sendPage, surfacesSettled } from '$lib/print/sheet.svelte';
 	import { useReadOrganizationMark, useReadOrganizationName } from '$lib/organization/query';
 	import type { Locales } from '$lib/i18n/i18n-types';

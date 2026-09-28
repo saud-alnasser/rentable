@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import RecordHistory from '$lib/history/component/record-history.svelte';
+	import { RecordHistory } from '$lib/history/ui';
 	import RecordSurface from '@rentable/design/block/record-surface.svelte';
 	import Specification from '@rentable/design/block/specification.svelte';
 	import * as Cell from '$lib/design/cell';
