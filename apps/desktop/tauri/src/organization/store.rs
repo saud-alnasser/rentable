@@ -4014,6 +4014,7 @@ mod tests {
             seal_content, seal_to_public_key,
         },
     };
+    use crate::test::scratch;
 
     /// A cost cheap enough to run in a suite, written out as a caller writes one.
     fn test_cost() -> KdfParams {
@@ -4022,17 +4023,6 @@ mod tests {
             iterations: 2,
             lanes: 1,
         }
-    }
-
-    fn scratch(name: &str) -> PathBuf {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|elapsed| elapsed.as_nanos())
-            .unwrap_or_default();
-        let directory = std::env::temp_dir().join(format!("rentable-org-{name}-{nanos:x}"));
-        std::fs::create_dir_all(&directory).expect("scratch directory");
-
-        directory
     }
 
     /// An organization with its owner, as the first run creates one: an organization key, the

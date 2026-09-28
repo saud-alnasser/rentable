@@ -22,6 +22,9 @@ pub mod schema;
 pub mod settings;
 pub mod state;
 pub mod sync;
+// test-only: the scaffolding every test in the crate shares.
+#[cfg(test)]
+mod test;
 pub mod turso;
 pub mod update;
 pub mod window;

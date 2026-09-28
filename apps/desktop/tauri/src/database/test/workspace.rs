@@ -147,8 +147,7 @@ impl LiveWorkspace {
         &self,
         name: &str,
     ) -> (std::path::PathBuf, turso::sync::Database) {
-        let directory = std::env::temp_dir().join(format!("rentable-{name}-{}", short_nonce()));
-        std::fs::create_dir_all(&directory).expect("scratch directory");
+        let directory = crate::test::scratch(name);
 
         let token = self.token.clone();
         let database = Database::open_replica(

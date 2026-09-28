@@ -402,21 +402,11 @@ mod tests {
         Damage, MAGIC, MARKER, Watch, marked, met, opened_once_more, record, reported, truncated,
     };
     use crate::database::Database;
+    use crate::test::scratch;
     use std::{
         path::{Path, PathBuf},
         sync::atomic::{AtomicUsize, Ordering},
     };
-
-    fn scratch(name: &str) -> PathBuf {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|elapsed| elapsed.as_nanos())
-            .unwrap_or_default();
-        let directory = std::env::temp_dir().join(format!("rentable-corrupt-{name}-{nanos}"));
-        std::fs::create_dir_all(&directory).expect("scratch directory");
-
-        directory
-    }
 
     fn names_in(directory: &Path) -> Vec<String> {
         let mut names: Vec<String> = std::fs::read_dir(directory)

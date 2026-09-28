@@ -56,7 +56,7 @@ use sqlx::{
 use crate::{
     diagnostics,
     error::{Error, RefusalReason},
-    turso::platform::{PlatformError, TursoPlatform},
+    turso::platform::TursoPlatform,
 };
 
 /// Where the copies live, under the application's data directory.
@@ -531,7 +531,7 @@ pub(crate) async fn remote_copy(
     database: &str,
     label: &str,
     at: i64,
-) -> Result<String, PlatformError> {
+) -> Result<String, Error> {
     let name = remote_name(database, label, at / 1000);
 
     match platform.copy_database(database, &name).await {
@@ -652,7 +652,7 @@ pub(crate) async fn contents_of(path: &Path) -> Vec<(String, Vec<Vec<turso::Valu
 
 #[cfg(test)]
 mod tests {
-    use std::path::{Path, PathBuf};
+    use std::path::Path;
 
     use sqlx::{
         AssertSqlSafe, ConnectOptions, Connection,
@@ -664,10 +664,11 @@ mod tests {
         KEPT, PAGE, REMOTE_NAME_LIMIT, Source, directory_of, local_copy, remember_remote_copy,
         remote_copy, remote_copy_made, remote_name, values_of,
     };
+    use crate::test::scratch;
     use crate::{
         error::{Error, RefusalReason},
         organization::setup::held_organization_id,
-        turso::platform::{InMemoryPlatform, PlatformError},
+        turso::platform::{InMemoryPlatform, turso_refused},
     };
 
     /// One row of `note`, as the copy is read back.
@@ -732,18 +733,6 @@ mod tests {
         async fn end(&self) -> Result<(), Error> {
             Ok(())
         }
-    }
-
-    /// A directory of this test's own under the system's temporary directory.
-    fn scratch(name: &str) -> PathBuf {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|elapsed| elapsed.as_nanos())
-            .unwrap_or_default();
-        let directory = std::env::temp_dir().join(format!("rentable-backup-{name}-{nanos:x}"));
-        std::fs::create_dir_all(&directory).expect("scratch directory");
-
-        directory
     }
 
     /// A source in `directory` holding `note` with a value of every storage class and `rows`
@@ -1124,9 +1113,7 @@ mod tests {
                 .any(|database| database.name == name && database.delete_protection)
         );
 
-        platform.refuse_next(PlatformError::Refused {
-            what: "copy the database",
-        });
+        platform.refuse_next(turso_refused("copy the database"));
 
         assert!(
             remote_copy(&platform, "org-1", "format-1-to-2", 1_758_000_060_000)

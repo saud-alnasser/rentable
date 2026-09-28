@@ -209,24 +209,14 @@ pub async fn update_prepare(
 #[cfg(test)]
 mod tests {
     use super::{Error, Recovery, RecoveryStatus, Update};
+    use crate::test::scratch;
     use crate::{
         database::{Database, proxy::SQLQuery},
         persisted::Persisted,
         settings::Settings,
     };
-    use std::{path::Path, path::PathBuf, sync::Arc};
+    use std::{path::Path, sync::Arc};
     use tokio::{runtime::Runtime, sync::RwLock};
-
-    fn unique_dir(name: &str) -> PathBuf {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("system time before unix epoch")
-            .as_nanos();
-
-        std::env::temp_dir()
-            .join("rentable-tests")
-            .join(format!("{}-{}", name, nanos))
-    }
 
     async fn setup_update(
         root: &Path,
@@ -280,7 +270,7 @@ mod tests {
         Runtime::new()
             .expect("failed to create tokio runtime")
             .block_on(async {
-                let root = unique_dir("update-prepare-pending-recovery");
+                let root = scratch("update-prepare-pending-recovery");
                 let (mut update, db, _) = setup_update(&root).await;
 
                 update.recovery.status = RecoveryStatus::Pending;
@@ -309,7 +299,7 @@ mod tests {
         Runtime::new()
             .expect("failed to create tokio runtime")
             .block_on(async {
-                let root = unique_dir("update-prepare-recovery-commit-failure");
+                let root = scratch("update-prepare-recovery-commit-failure");
                 let (mut update, db, _) = setup_update(&root).await;
                 let recovery_path = root.join(Update::FILENAME);
 
@@ -341,7 +331,7 @@ mod tests {
         Runtime::new()
             .expect("failed to create tokio runtime")
             .block_on(async {
-                let root = unique_dir("update-prepare-leaves-the-workspace");
+                let root = scratch("update-prepare-leaves-the-workspace");
                 let (mut update, db, _) = setup_update(&root).await;
                 let database_path = root.join(Database::FILENAME);
 
@@ -424,7 +414,7 @@ mod tests {
         Runtime::new()
             .expect("failed to create tokio runtime")
             .block_on(async {
-                let root = unique_dir("update-route-back-survives");
+                let root = scratch("update-route-back-survives");
                 let (mut update, db, settings) = setup_update(&root).await;
 
                 update

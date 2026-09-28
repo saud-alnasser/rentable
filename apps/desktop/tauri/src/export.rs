@@ -260,32 +260,14 @@ pub async fn export_write_workbook(path: String, sheets: Vec<Sheet>) -> Result<S
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// A destination under the temporary directory, unique to the test that asked for it.
-    ///
-    /// The same shape the rest of the crate's file tests use, and the parent is made here
-    /// because the save dialog is what would otherwise have made it exist.
-    fn unique_path(name: &str) -> std::path::PathBuf {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("system time before unix epoch")
-            .as_nanos();
-        let path = std::env::temp_dir()
-            .join("rentable-tests")
-            .join(format!("{name}-{nanos}"));
-
-        std::fs::create_dir_all(path.parent().expect("temp file should have parent"))
-            .expect("failed to create temp parent");
-
-        path
-    }
+    use crate::test::scratch;
 
     // the reader names the file, so any path they can name is one to write to — including one
     // outside the downloads directory this used to be confined to, which is the whole point.
     #[test]
     fn a_path_the_reader_chose_is_a_destination() {
-        assert!(ensure_destination(&unique_path("chosen.csv")).is_ok());
-        assert!(ensure_destination(&unique_path("المستأجرون.csv")).is_ok());
+        assert!(ensure_destination(&scratch("export-chosen").join("chosen.csv")).is_ok());
+        assert!(ensure_destination(&scratch("export-chosen").join("المستأجرون.csv")).is_ok());
     }
 
     // not a guard against the reader, who picked through a dialog: a guard against a destination
@@ -294,7 +276,7 @@ mod tests {
     fn a_destination_that_names_no_file_is_refused() {
         assert!(ensure_destination(Path::new("")).is_err());
         assert!(
-            ensure_destination(&std::env::temp_dir()).is_err(),
+            ensure_destination(&scratch("export-directory")).is_err(),
             "a directory is not a file to write"
         );
     }
@@ -303,8 +285,9 @@ mod tests {
     // nowhere else. Both writers, because they put different bytes on disk.
     #[test]
     fn a_file_lands_on_the_path_it_was_given() {
-        let text = unique_path("export-lands.csv");
-        let book = unique_path("export-lands.xlsx");
+        let directory = scratch("export-lands");
+        let text = directory.join("export-lands.csv");
+        let book = directory.join("export-lands.xlsx");
 
         tokio::runtime::Runtime::new()
             .expect("failed to create tokio runtime")

@@ -262,7 +262,7 @@ fn format_one_signature(
     key: &[u8; VERIFYING_KEY_BYTES],
     certificate: &FormatOneCertificate,
     member: &FormatOneMemberRow,
-) -> Result<(String, i64), String> {
+) -> Result<(String, i64), Error> {
     let roles = match member.role.as_deref() {
         Some(role) => vec![role],
         None => FORMAT_ONE_ROLES.to_vec(),
@@ -289,13 +289,15 @@ fn format_one_signature(
             ) {
                 Ok(()) => return Ok((role.to_string(), permissions)),
                 Err(error) => {
-                    refusal.get_or_insert_with(|| error.to_string());
+                    refusal.get_or_insert(error);
                 }
             }
         }
     }
 
-    Err(refusal.unwrap_or_else(|| "no role word verified".to_string()))
+    Err(refusal.unwrap_or_else(|| Error::Integrity {
+        message: "no role word verified".to_string(),
+    }))
 }
 
 /// Whether the organization holds a root certificate, one the organization key `key` signed:
@@ -778,7 +780,7 @@ impl<'a> Judge<'a> {
         certificate_id: &str,
         authority: Authority<'_>,
         signature: &[u8],
-    ) -> Result<(), String> {
+    ) -> Result<(), Error> {
         let mut refusal = None;
 
         if let Some(certificate) = self.format_one_certificate(certificate_id) {
@@ -797,13 +799,13 @@ impl<'a> Judge<'a> {
                 signature,
             ) {
                 Ok(()) => return Ok(()),
-                Err(error) => refusal = Some(error.to_string()),
+                Err(error) => refusal = Some(error),
             }
         }
 
         self.chain
             .verify(certificate_id, authority, signature)
-            .map_err(|error| refusal.unwrap_or_else(|| error.to_string()))
+            .map_err(|error| refusal.unwrap_or(error))
     }
 
     /// Where a member stands, from a row that is genuine, and why not where it is not.
@@ -811,7 +813,7 @@ impl<'a> Judge<'a> {
     /// A row still carrying format 1's signature is read under `member.v2`
     /// ([`format_one_signature`]). A row already written in this format is read through the chain,
     /// against the roles that verified, a custom one included.
-    fn member(&self, member: &FormatOneMemberRow) -> Result<Carried, String> {
+    fn member(&self, member: &FormatOneMemberRow) -> Result<Carried, Error> {
         let mut refusal = None;
 
         if let Some(certificate) = self.format_one_certificate(&member.certificate_id) {
@@ -847,21 +849,24 @@ impl<'a> Judge<'a> {
                         return Ok(carried);
                     }
 
-                    refusal.get_or_insert_with(|| {
-                        "it names a role no verified row stands for".to_string()
+                    refusal.get_or_insert_with(|| Error::Integrity {
+                        message: "it names a role no verified row stands for".to_string(),
                     });
                 }
                 Ok(Reading::Uncovered) => {
-                    refusal.get_or_insert_with(|| "its certificate does not cover it".to_string());
+                    refusal.get_or_insert_with(|| Error::Integrity {
+                        message: "its certificate does not cover it".to_string(),
+                    });
                 }
                 Err(error) => {
-                    refusal.get_or_insert_with(|| error.to_string());
+                    refusal.get_or_insert(error);
                 }
             }
         }
 
-        Err(refusal
-            .unwrap_or_else(|| "it names a certificate the organization never issued".to_string()))
+        Err(refusal.unwrap_or_else(|| Error::Integrity {
+            message: "it names a certificate the organization never issued".to_string(),
+        }))
     }
 }
 
@@ -957,9 +962,9 @@ fn judged<'a>(judge: &Judge<'_>, directory: &'a FormatOneDirectory, owner_id: &s
 
         match judge.member(member) {
             Ok(carried) => judged.members.push((member, carried)),
-            Err(reason) => judged.dropped.push(Dropped {
+            Err(error) => judged.dropped.push(Dropped {
                 row: Row::Member(member.id.clone()),
-                reason,
+                reason: error.to_string(),
             }),
         }
     }
@@ -973,9 +978,9 @@ fn judged<'a>(judge: &Judge<'_>, directory: &'a FormatOneDirectory, owner_id: &s
             &signed.signature,
         ) {
             Ok(()) => judged.workspaces.push(record.clone()),
-            Err(reason) => judged.dropped.push(Dropped {
+            Err(error) => judged.dropped.push(Dropped {
                 row: Row::Workspace(record.id.clone()),
-                reason,
+                reason: error.to_string(),
             }),
         }
     }
@@ -989,12 +994,12 @@ fn judged<'a>(judge: &Judge<'_>, directory: &'a FormatOneDirectory, owner_id: &s
             &signed.signature,
         ) {
             Ok(()) => judged.grants.push(record.clone()),
-            Err(reason) => judged.dropped.push(Dropped {
+            Err(error) => judged.dropped.push(Dropped {
                 row: Row::Grant {
                     member_id: record.member_id.clone(),
                     workspace_id: record.workspace_id.clone(),
                 },
-                reason,
+                reason: error.to_string(),
             }),
         }
     }
@@ -1008,9 +1013,9 @@ fn judged<'a>(judge: &Judge<'_>, directory: &'a FormatOneDirectory, owner_id: &s
             &signed.signature,
         ) {
             Ok(()) => judged.invitations.push(record.clone()),
-            Err(reason) => judged.dropped.push(Dropped {
+            Err(error) => judged.dropped.push(Dropped {
                 row: Row::Invitation(record.id.clone()),
-                reason,
+                reason: error.to_string(),
             }),
         }
     }
@@ -1024,9 +1029,9 @@ fn judged<'a>(judge: &Judge<'_>, directory: &'a FormatOneDirectory, owner_id: &s
             &signed.signature,
         ) {
             Ok(()) => judged.mark = Some(record.clone()),
-            Err(reason) => judged.dropped.push(Dropped {
+            Err(error) => judged.dropped.push(Dropped {
                 row: Row::Mark,
-                reason,
+                reason: error.to_string(),
             }),
         }
     }

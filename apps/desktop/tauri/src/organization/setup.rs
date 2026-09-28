@@ -1376,6 +1376,7 @@ mod tests {
         SHIPPING_KDF, connect_existing, create_organization, credential_expiry,
         draw_these_ids_next, group_inspect,
     };
+    use crate::test::scratch;
     use crate::{
         credential::{CredentialStore, Memory},
         error::Error,
@@ -1399,7 +1400,7 @@ mod tests {
         turso::{
             consent::{platform_token, store_platform_token},
             discovery::McpEndpoint,
-            platform::{AccessLevel, DeletionIntent, InMemoryPlatform, PlatformError},
+            platform::{AccessLevel, DeletionIntent, InMemoryPlatform, account_refused},
         },
     };
 
@@ -1412,17 +1413,6 @@ mod tests {
             iterations: 2,
             lanes: 1,
         }
-    }
-
-    fn scratch(name: &str) -> std::path::PathBuf {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|elapsed| elapsed.as_nanos())
-            .unwrap_or_default();
-        let directory = std::env::temp_dir().join(format!("rentable-setup-{name}-{nanos:x}"));
-        std::fs::create_dir_all(&directory).expect("scratch directory");
-
-        directory
     }
 
     fn handshake() -> ScriptedResponse {
@@ -2428,12 +2418,7 @@ mod tests {
         let database_path = directory.join("app.db");
 
         // create, protect, then the first mint is refused by the account.
-        platform.refuse_nth(
-            3,
-            PlatformError::AccountRefused {
-                what: "mint a token for this workspace",
-            },
-        );
+        platform.refuse_nth(3, account_refused("mint a token for this workspace"));
 
         let error = create_organization(
             &credentials,

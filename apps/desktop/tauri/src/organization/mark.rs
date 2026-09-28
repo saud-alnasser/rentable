@@ -187,6 +187,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+    use crate::test::scratch;
     use crate::{
         machine::RemoteSyncStore,
         organization::{
@@ -214,17 +215,6 @@ mod tests {
             iterations: 2,
             lanes: 1,
         }
-    }
-
-    fn scratch(name: &str) -> std::path::PathBuf {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|elapsed| elapsed.as_nanos())
-            .unwrap_or_default();
-        let directory = std::env::temp_dir().join(format!("rentable-mark-{name}-{nanos:x}"));
-        std::fs::create_dir_all(&directory).expect("scratch directory");
-
-        directory
     }
 
     fn slot() -> CredentialSlot {

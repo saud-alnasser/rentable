@@ -1144,13 +1144,7 @@ mod tests {
         .await;
         let first = ScriptedServer::start(vec![streamed(Vec::new(), Some(&held.url("")))]).await;
         let pipeline = Pipeline::at(&first.url(""));
-        let data = std::env::temp_dir().join(format!(
-            "rentable-migrate-paged-{:x}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|elapsed| elapsed.as_nanos())
-                .unwrap_or_default()
-        ));
+        let data = crate::test::scratch("migrate-paged");
         let path = backup::local_copy(
             &OverThePipeline::new(&pipeline, "a-token"),
             &data,

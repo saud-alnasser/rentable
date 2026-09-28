@@ -1448,6 +1448,7 @@ mod tests {
         CredentialSlot, MEMBER_KEY_SERVICE, MemberSession, Resumption, end_elsewhere,
         end_member_sessions, facts_of, permissions_on_row, resume, sign_in, sign_in_by_username,
     };
+    use crate::test::scratch;
     use crate::{
         credential::{CredentialStore, Memory},
         machine::RemoteSyncStore,
@@ -1480,17 +1481,6 @@ mod tests {
             iterations: 2,
             lanes: 1,
         }
-    }
-
-    fn scratch(name: &str) -> std::path::PathBuf {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|elapsed| elapsed.as_nanos())
-            .unwrap_or_default();
-        let directory = std::env::temp_dir().join(format!("rentable-session-{name}-{nanos:x}"));
-        std::fs::create_dir_all(&directory).expect("scratch directory");
-
-        directory
     }
 
     fn slot() -> CredentialSlot {

@@ -144,67 +144,54 @@ pub enum DeletionIntent {
     CreatedAndUnreferenced,
 }
 
-/// How a Platform API operation failed, in the vocabulary a caller can act on.
-///
-/// The `what` in each is the operation as a person would name it, `create the workspace
-/// database` and the like, so the message reads as a sentence about a workspace rather than about
-/// the infrastructure under it.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum PlatformError {
-    /// the request never arrived, or Turso could not serve it. Asking again is the right response.
-    Unreachable { what: &'static str },
-    /// Turso refused on purpose: a group that does not exist, a name already taken, a database
-    /// that is delete-protected. Nothing about asking again changes the answer.
-    Refused { what: &'static str },
-    /// the refusal belongs to the customer's account, a quota or a bill, and not to the request.
-    /// Requirement 25 tells this one from the two above.
-    AccountRefused { what: &'static str },
-    /// this machine holds no Turso authority, because no consent was granted or it was given up.
-    /// Requirement 5: the answer is to consent again.
-    NoAuthority,
-}
+// How a Platform API operation fails, in the vocabulary a caller can act on: four answers, each an
+// [`Error`] as it crosses to the web layer.
+//
+// The `what` in each is the operation as a person would name it, `create the workspace database`
+// and the like, so the message reads as a sentence about a workspace rather than about the
+// infrastructure under it. A refusal crosses with a reason of its own, so the interface says a
+// sentence about the account where the account is what Turso refused over, and the message naming
+// it stays a developer's description (effort 832, requirement 23).
+//
+// *These were `PlatformError`'s four variants and the `From` that turned each into an `Error`, until
+// effort 840 left the crate one error type (ticket 47). Each is the `Error` that conversion made,
+// word for word.*
 
-impl PlatformError {
-    fn message(&self) -> String {
-        match self {
-            Self::Unreachable { what } => {
-                format!("could not {what} just now. try again in a moment")
-            }
-            Self::Refused { what } => format!("could not {what}. trying again will not help"),
-            Self::AccountRefused { what } => format!(
-                "could not {what}: the organization's turso account needs attention before this \
-                 can continue"
-            ),
-            Self::NoAuthority => {
-                "this machine holds no turso authority. grant the consent again to continue"
-                    .to_string()
-            }
-        }
+/// the request never arrived, or Turso could not serve it. Asking again is the right response.
+pub(crate) fn unreachable(what: &str) -> Error {
+    Error::Network {
+        message: format!("could not {what} just now. try again in a moment"),
     }
 }
 
-impl std::fmt::Display for PlatformError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(&self.message())
-    }
+/// Turso refused on purpose: a group that does not exist, a name already taken, a database that
+/// is delete-protected. Nothing about asking again changes the answer.
+pub(crate) fn turso_refused(what: &str) -> Error {
+    Error::refused(
+        RefusalReason::TursoRefused,
+        format!("could not {what}. trying again will not help"),
+    )
 }
 
-/// How each failure crosses to the web layer. A refusal crosses with a reason of its own, so the
-/// interface says a sentence about the account where the account is what Turso refused over, and
-/// the message naming it stays a developer's description (effort 832, requirement 23).
-impl From<PlatformError> for Error {
-    fn from(error: PlatformError) -> Self {
-        let message = error.message();
+/// the refusal belongs to the customer's account, a quota or a bill, and not to the request.
+/// Requirement 25 tells this one from the two above.
+pub(crate) fn account_refused(what: &str) -> Error {
+    Error::refused(
+        RefusalReason::TursoAccountRefused,
+        format!(
+            "could not {what}: the organization's turso account needs attention before this can \
+             continue"
+        ),
+    )
+}
 
-        match error {
-            PlatformError::Unreachable { .. } => Error::Network { message },
-            PlatformError::Refused { .. } => Error::refused(RefusalReason::TursoRefused, message),
-            PlatformError::AccountRefused { .. } => {
-                Error::refused(RefusalReason::TursoAccountRefused, message)
-            }
-            PlatformError::NoAuthority => Error::refused(RefusalReason::TursoNotConnected, message),
-        }
-    }
+/// this machine holds no Turso authority, because no consent was granted or it was given up.
+/// Requirement 5: the answer is to consent again.
+pub(crate) fn no_authority() -> Error {
+    Error::refused(
+        RefusalReason::TursoNotConnected,
+        "this machine holds no turso authority. grant the consent again to continue",
+    )
 }
 
 /// What every caller above this module reaches Turso through.
@@ -218,7 +205,7 @@ pub trait TursoPlatform {
     fn create_database(
         &self,
         name: &str,
-    ) -> impl Future<Output = Result<WorkspaceDatabase, PlatformError>> + Send;
+    ) -> impl Future<Output = Result<WorkspaceDatabase, Error>> + Send;
 
     /// Copy `source` into a new database `name` in the same group, seeded from it, with delete
     /// protection on: the copy taken before a database changes shape (`backup.rs`). A copy that
@@ -227,7 +214,7 @@ pub trait TursoPlatform {
         &self,
         source: &str,
         name: &str,
-    ) -> impl Future<Output = Result<(), PlatformError>> + Send;
+    ) -> impl Future<Output = Result<(), Error>> + Send;
 
     /// A token for one database at `access`, expiring after `expiration` in Turso's own duration
     /// spelling, `3d` and the like, or `never`.
@@ -236,7 +223,7 @@ pub trait TursoPlatform {
         database_name: &str,
         expiration: &str,
         access: AccessLevel,
-    ) -> impl Future<Output = Result<String, PlatformError>> + Send;
+    ) -> impl Future<Output = Result<String, Error>> + Send;
 
     /// Remove `name`, lifting its delete protection first. The intent is the caller's statement of
     /// why, and there is no way to call this without making one.
@@ -244,17 +231,14 @@ pub trait TursoPlatform {
         &self,
         name: &str,
         intent: DeletionIntent,
-    ) -> impl Future<Output = Result<(), PlatformError>> + Send;
+    ) -> impl Future<Output = Result<(), Error>> + Send;
 
     /// Turn delete protection on for a database this port did not create.
     ///
     /// One caller: the first run into an empty group, where the organization's database is
     /// created through the MCP server because no slug exists yet for this port to create it with
     /// (`discovery.rs`). Everything this port creates itself is protected inside the create.
-    fn protect_database(
-        &self,
-        name: &str,
-    ) -> impl Future<Output = Result<(), PlatformError>> + Send;
+    fn protect_database(&self, name: &str) -> impl Future<Output = Result<(), Error>> + Send;
 
     /// Invalidate every credential ever minted for `database_name`, at once. Turso revokes per
     /// database and totally; nothing finer exists, which is why an ordinary removal never calls
@@ -263,7 +247,7 @@ pub trait TursoPlatform {
     fn rotate_credentials(
         &self,
         database_name: &str,
-    ) -> impl Future<Output = Result<(), PlatformError>> + Send;
+    ) -> impl Future<Output = Result<(), Error>> + Send;
 
     /// What the consented group is called, where the Platform API will say it.
     ///
@@ -285,17 +269,17 @@ pub trait TursoPlatform {
         &self,
         platform_token: &str,
         group_uuid: Option<&str>,
-    ) -> impl Future<Output = Result<Option<String>, PlatformError>> + Send;
+    ) -> impl Future<Output = Result<Option<String>, Error>> + Send;
 }
 
 /// A shared port is a port: a caller that is handed the platform by a factory can keep a handle on
 /// the same one, which is what lets a test read back what an in-memory platform was asked.
 impl<T: TursoPlatform + Sync + Send> TursoPlatform for std::sync::Arc<T> {
-    async fn create_database(&self, name: &str) -> Result<WorkspaceDatabase, PlatformError> {
+    async fn create_database(&self, name: &str) -> Result<WorkspaceDatabase, Error> {
         (**self).create_database(name).await
     }
 
-    async fn copy_database(&self, source: &str, name: &str) -> Result<(), PlatformError> {
+    async fn copy_database(&self, source: &str, name: &str) -> Result<(), Error> {
         (**self).copy_database(source, name).await
     }
 
@@ -304,23 +288,19 @@ impl<T: TursoPlatform + Sync + Send> TursoPlatform for std::sync::Arc<T> {
         database_name: &str,
         expiration: &str,
         access: AccessLevel,
-    ) -> Result<String, PlatformError> {
+    ) -> Result<String, Error> {
         (**self).mint_token(database_name, expiration, access).await
     }
 
-    async fn delete_database(
-        &self,
-        name: &str,
-        intent: DeletionIntent,
-    ) -> Result<(), PlatformError> {
+    async fn delete_database(&self, name: &str, intent: DeletionIntent) -> Result<(), Error> {
         (**self).delete_database(name, intent).await
     }
 
-    async fn protect_database(&self, name: &str) -> Result<(), PlatformError> {
+    async fn protect_database(&self, name: &str) -> Result<(), Error> {
         (**self).protect_database(name).await
     }
 
-    async fn rotate_credentials(&self, database_name: &str) -> Result<(), PlatformError> {
+    async fn rotate_credentials(&self, database_name: &str) -> Result<(), Error> {
         (**self).rotate_credentials(database_name).await
     }
 
@@ -328,7 +308,7 @@ impl<T: TursoPlatform + Sync + Send> TursoPlatform for std::sync::Arc<T> {
         &self,
         platform_token: &str,
         group_uuid: Option<&str>,
-    ) -> Result<Option<String>, PlatformError> {
+    ) -> Result<Option<String>, Error> {
         (**self).group_named(platform_token, group_uuid).await
     }
 }
@@ -418,7 +398,7 @@ impl PlatformApi {
         name: &str,
         protected: bool,
         what: &'static str,
-    ) -> Result<(), PlatformError> {
+    ) -> Result<(), Error> {
         call(
             what,
             client
@@ -452,7 +432,7 @@ impl PlatformApi {
 }
 
 impl TursoPlatform for PlatformApi {
-    async fn create_database(&self, name: &str) -> Result<WorkspaceDatabase, PlatformError> {
+    async fn create_database(&self, name: &str) -> Result<WorkspaceDatabase, Error> {
         let what = "create the workspace database";
         let client = client()?;
         let platform_token = authority(self.credentials.as_ref())?;
@@ -482,7 +462,7 @@ impl TursoPlatform for PlatformApi {
                     .with("database", name)
                     .write();
 
-                PlatformError::Unreachable { what }
+                unreachable(what)
             })?;
 
         // requirement 4. Turso's create takes no protection flag, so the database is briefly
@@ -513,7 +493,7 @@ impl TursoPlatform for PlatformApi {
     /// **The create, with a seed.** Turso makes a database from another in the same group when the
     /// create names it as `seed: {type: "database", name}`, and the protection follows in the same
     /// second request a create makes, for the same reason.
-    async fn copy_database(&self, source: &str, name: &str) -> Result<(), PlatformError> {
+    async fn copy_database(&self, source: &str, name: &str) -> Result<(), Error> {
         let what = "copy the database";
         let client = client()?;
         let platform_token = authority(self.credentials.as_ref())?;
@@ -555,7 +535,7 @@ impl TursoPlatform for PlatformApi {
         database_name: &str,
         expiration: &str,
         access: AccessLevel,
-    ) -> Result<String, PlatformError> {
+    ) -> Result<String, Error> {
         let what = "mint a token for this workspace";
         let client = client()?;
         let platform_token = authority(self.credentials.as_ref())?;
@@ -563,7 +543,7 @@ impl TursoPlatform for PlatformApi {
         // reqwest is built without its `query` feature here, so the two parameters are put on
         // the URL by the url crate, which encodes them the same way.
         let mut url = url::Url::parse(&format!("{}/auth/tokens", self.database_url(database_name)))
-            .map_err(|_| PlatformError::Unreachable { what })?;
+            .map_err(|_| unreachable(what))?;
         url.query_pairs_mut()
             .append_pair("expiration", expiration)
             .append_pair("authorization", access.as_str());
@@ -580,7 +560,7 @@ impl TursoPlatform for PlatformApi {
                     .with("database", database_name)
                     .write();
 
-                PlatformError::Unreachable { what }
+                unreachable(what)
             })
     }
 
@@ -588,7 +568,7 @@ impl TursoPlatform for PlatformApi {
         &self,
         platform_token: &str,
         group_uuid: Option<&str>,
-    ) -> Result<Option<String>, PlatformError> {
+    ) -> Result<Option<String>, Error> {
         let what = "read the name of the organization's turso group";
         let client = client()?;
 
@@ -642,7 +622,7 @@ impl TursoPlatform for PlatformApi {
         Ok(group_named_in(&groups, group_uuid))
     }
 
-    async fn protect_database(&self, name: &str) -> Result<(), PlatformError> {
+    async fn protect_database(&self, name: &str) -> Result<(), Error> {
         let client = client()?;
         let platform_token = authority(self.credentials.as_ref())?;
 
@@ -656,7 +636,7 @@ impl TursoPlatform for PlatformApi {
         .await
     }
 
-    async fn rotate_credentials(&self, database_name: &str) -> Result<(), PlatformError> {
+    async fn rotate_credentials(&self, database_name: &str) -> Result<(), Error> {
         let what = "lock the removed member out of this workspace";
         let client = client()?;
         let platform_token = authority(self.credentials.as_ref())?;
@@ -671,11 +651,7 @@ impl TursoPlatform for PlatformApi {
         .map(|_| ())
     }
 
-    async fn delete_database(
-        &self,
-        name: &str,
-        intent: DeletionIntent,
-    ) -> Result<(), PlatformError> {
+    async fn delete_database(&self, name: &str, intent: DeletionIntent) -> Result<(), Error> {
         let what = "remove the workspace database";
         let client = client()?;
         let platform_token = authority(self.credentials.as_ref())?;
@@ -701,31 +677,26 @@ impl TursoPlatform for PlatformApi {
     }
 }
 
-fn client() -> Result<reqwest::Client, PlatformError> {
+fn client() -> Result<reqwest::Client, Error> {
     build_client(PLATFORM_REQUEST_TIMEOUT).map_err(|error| {
         diagnostics::error("turso.platform.clientNotBuilt")
             .with("error", error.to_string())
             .write();
 
-        PlatformError::Unreachable {
-            what: "reach turso",
-        }
+        unreachable("reach turso")
     })
 }
 
 /// The authority this machine holds, read from where the consent filed it.
-fn authority(credentials: &dyn CredentialStore) -> Result<String, PlatformError> {
-    platform_token(credentials).map_err(|_| PlatformError::NoAuthority)
+fn authority(credentials: &dyn CredentialStore) -> Result<String, Error> {
+    platform_token(credentials).map_err(|_| no_authority())
 }
 
 /// Send one request and read its JSON body, or say how it failed in the port's vocabulary.
 ///
 /// Turso's own message goes to the diagnostics log and never to the caller, who is asking about a
 /// workspace rather than about the infrastructure underneath it.
-async fn call(
-    what: &'static str,
-    request: reqwest::RequestBuilder,
-) -> Result<Value, PlatformError> {
+async fn call(what: &'static str, request: reqwest::RequestBuilder) -> Result<Value, Error> {
     // no status is an absence here, so the `None` below cannot be reached; the empty object is
     // what an unreadable body already answers.
     call_unless(what, request, &[])
@@ -739,14 +710,14 @@ async fn call_unless(
     what: &'static str,
     request: reqwest::RequestBuilder,
     absent: &[u16],
-) -> Result<Option<Value>, PlatformError> {
+) -> Result<Option<Value>, Error> {
     let response = request.send().await.map_err(|error| {
         diagnostics::warn("turso.platform.unreachable")
             .with("what", what)
             .with("error", error.to_string())
             .write();
 
-        PlatformError::Unreachable { what }
+        unreachable(what)
     })?;
 
     let status = response.status();
@@ -774,11 +745,11 @@ async fn call_unless(
             .write();
 
         return Err(if status.is_server_error() {
-            PlatformError::Unreachable { what }
+            unreachable(what)
         } else if belongs_to_the_account(status.as_u16(), &body) {
-            PlatformError::AccountRefused { what }
+            account_refused(what)
         } else {
-            PlatformError::Refused { what }
+            turso_refused(what)
         });
     }
 
@@ -844,45 +815,44 @@ fn error_text(body: &str) -> String {
         .unwrap_or_else(|| body.trim().to_string())
 }
 
-/// Why a replication did not go, read off the sync engine's error at the response.
+/// Why a replication did not go, read off the sync engine's error at the response: the refusal,
+/// or nothing where nothing was refused.
 ///
 /// **The same reading the Platform API gets, applied to the other place Turso answers.** The
 /// engine reports an HTTP refusal as `status=NNN, body=...` inside its message, and that is the
 /// response; what is read is the status and the body Turso sent, never a word three layers up.
-/// A refusal that names the account is the account's (requirement 25); a `401` or `403`, which
-/// a rotated or expired credential answers with, is the credential's and what
-/// `organization::reconnect` acts on; anything else is a machine that could not reach the
-/// remote, which is the offline case and needs a different sentence from either.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "camelCase")]
-pub enum SyncRefusal {
-    /// nothing was refused: the remote was reached, or could not be, and neither is a refusal.
-    None,
-    /// the organization's Turso account needs attention. `detail` is Turso's own sentence, for
-    /// the owner and nobody else.
-    Account { detail: String },
-    /// the credential this machine holds is not accepted any more.
-    Credential,
-}
-
-pub fn read_sync_refusal(error: &turso::Error) -> SyncRefusal {
+/// A refusal that names the account is the account's (requirement 25), `TursoAccountRefused`
+/// carrying Turso's own sentence, which is for the owner and nobody else; a `401` or `403`, which
+/// a rotated or expired credential answers with, is the credential's, `Error::Credential`, and
+/// what `organization::reconnect` acts on; anything else is a machine that could not reach the
+/// remote, or reached it and was not refused, which is the offline case and needs a different
+/// sentence from either.
+///
+/// *This answered a `SyncRefusal` of its own, whose `None` is the `None` here, until effort 840
+/// left the crate one error type (ticket 47).*
+pub fn read_sync_refusal(error: &turso::Error) -> Option<Error> {
     let text = error.to_string();
-    let Some((status, body)) = status_and_body(&text) else {
-        return SyncRefusal::None;
-    };
+    let (status, body) = status_and_body(&text)?;
 
     if belongs_to_the_account(status, body) {
-        return SyncRefusal::Account {
-            detail: error_text(body),
-        };
+        return Some(Error::refused(
+            RefusalReason::TursoAccountRefused,
+            error_text(body),
+        ));
     }
 
     if status == 401 || status == 403 {
-        return SyncRefusal::Credential;
+        return Some(Error::Credential {
+            message: CREDENTIAL_NOT_ACCEPTED.to_string(),
+        });
     }
 
-    SyncRefusal::None
+    None
 }
+
+/// What a replication refused over its credential says, to whoever reads a log.
+pub(crate) const CREDENTIAL_NOT_ACCEPTED: &str =
+    "the credential this machine holds is not accepted any more";
 
 /// Whether a refused replication says the database is not on the platform any more.
 ///
@@ -940,10 +910,10 @@ struct InMemoryState {
     rotated: Vec<String>,
     /// every copy, as `(source, copy)`, in order.
     copies: Vec<(String, String)>,
-    refuse_next: Option<PlatformError>,
+    refuse_next: Option<Error>,
     /// how many operations have been asked, so a refusal can be placed on the nth.
     asked: usize,
-    refuse_at: Option<(usize, PlatformError)>,
+    refuse_at: Option<(usize, Error)>,
     /// what this account calls the consented group, where the caller said it has one to find.
     group_name: Option<String>,
 }
@@ -985,14 +955,14 @@ impl InMemoryPlatform {
     }
 
     /// the next operation fails with `error`, and the one after it is answered normally.
-    pub(crate) fn refuse_next(&self, error: PlatformError) {
+    pub(crate) fn refuse_next(&self, error: Error) {
         self.locked().refuse_next = Some(error);
     }
 
     /// the `nth` operation asked of this fake, counting from one, fails with `error`. For a
     /// caller whose sequence is fixed and whose handling of a failure part-way through is what is
     /// under test.
-    pub(crate) fn refuse_nth(&self, nth: usize, error: PlatformError) {
+    pub(crate) fn refuse_nth(&self, nth: usize, error: Error) {
         self.locked().refuse_at = Some((nth, error));
     }
 
@@ -1025,7 +995,7 @@ impl InMemoryPlatform {
             .expect("the in-memory platform lock was poisoned")
     }
 
-    fn take_refusal(state: &mut InMemoryState) -> Result<(), PlatformError> {
+    fn take_refusal(state: &mut InMemoryState) -> Result<(), Error> {
         state.asked += 1;
 
         if let Some((nth, _)) = &state.refuse_at
@@ -1044,14 +1014,12 @@ impl InMemoryPlatform {
 
 #[cfg(test)]
 impl TursoPlatform for InMemoryPlatform {
-    async fn create_database(&self, name: &str) -> Result<WorkspaceDatabase, PlatformError> {
+    async fn create_database(&self, name: &str) -> Result<WorkspaceDatabase, Error> {
         let mut state = self.locked();
         Self::take_refusal(&mut state)?;
 
         if state.databases.iter().any(|database| database.name == name) {
-            return Err(PlatformError::Refused {
-                what: "create the workspace database",
-            });
+            return Err(turso_refused("create the workspace database"));
         }
 
         state.databases.push(InMemoryDatabase {
@@ -1068,7 +1036,7 @@ impl TursoPlatform for InMemoryPlatform {
 
     /// A copy is a database like any other here, protected, and recorded with the one it was
     /// seeded from. Turso refuses a seed that is not on the account, and a name that is taken.
-    async fn copy_database(&self, source: &str, name: &str) -> Result<(), PlatformError> {
+    async fn copy_database(&self, source: &str, name: &str) -> Result<(), Error> {
         let mut state = self.locked();
         Self::take_refusal(&mut state)?;
 
@@ -1078,9 +1046,7 @@ impl TursoPlatform for InMemoryPlatform {
             .any(|database| database.name == source)
             || state.databases.iter().any(|database| database.name == name)
         {
-            return Err(PlatformError::Refused {
-                what: "copy the database",
-            });
+            return Err(turso_refused("copy the database"));
         }
 
         state.databases.push(InMemoryDatabase {
@@ -1098,7 +1064,7 @@ impl TursoPlatform for InMemoryPlatform {
         database_name: &str,
         expiration: &str,
         access: AccessLevel,
-    ) -> Result<String, PlatformError> {
+    ) -> Result<String, Error> {
         let mut state = self.locked();
         Self::take_refusal(&mut state)?;
 
@@ -1107,9 +1073,7 @@ impl TursoPlatform for InMemoryPlatform {
             .iter()
             .find(|database| database.name == database_name)
         else {
-            return Err(PlatformError::Refused {
-                what: "mint a token for this workspace",
-            });
+            return Err(turso_refused("mint a token for this workspace"));
         };
         let rotations = database.rotations;
 
@@ -1132,7 +1096,7 @@ impl TursoPlatform for InMemoryPlatform {
     /// the only caller of `protect_database`. Turso would refuse a name that does not exist; the
     /// fake cannot tell that case from the MCP one, and the scripted MCP server in the same test
     /// is what pins the create.
-    async fn protect_database(&self, name: &str) -> Result<(), PlatformError> {
+    async fn protect_database(&self, name: &str) -> Result<(), Error> {
         let mut state = self.locked();
         Self::take_refusal(&mut state)?;
 
@@ -1159,11 +1123,11 @@ impl TursoPlatform for InMemoryPlatform {
         &self,
         _platform_token: &str,
         _group_uuid: Option<&str>,
-    ) -> Result<Option<String>, PlatformError> {
+    ) -> Result<Option<String>, Error> {
         Ok(self.locked().group_name.clone())
     }
 
-    async fn rotate_credentials(&self, database_name: &str) -> Result<(), PlatformError> {
+    async fn rotate_credentials(&self, database_name: &str) -> Result<(), Error> {
         let mut state = self.locked();
         Self::take_refusal(&mut state)?;
 
@@ -1172,9 +1136,9 @@ impl TursoPlatform for InMemoryPlatform {
             .iter_mut()
             .find(|database| database.name == database_name)
         else {
-            return Err(PlatformError::Refused {
-                what: "lock the removed member out of this workspace",
-            });
+            return Err(turso_refused(
+                "lock the removed member out of this workspace",
+            ));
         };
 
         database.rotations += 1;
@@ -1183,11 +1147,7 @@ impl TursoPlatform for InMemoryPlatform {
         Ok(())
     }
 
-    async fn delete_database(
-        &self,
-        name: &str,
-        intent: DeletionIntent,
-    ) -> Result<(), PlatformError> {
+    async fn delete_database(&self, name: &str, intent: DeletionIntent) -> Result<(), Error> {
         let mut state = self.locked();
         Self::take_refusal(&mut state)?;
 
@@ -1196,9 +1156,7 @@ impl TursoPlatform for InMemoryPlatform {
             .iter()
             .position(|database| database.name == name)
         else {
-            return Err(PlatformError::Refused {
-                what: "remove the workspace database",
-            });
+            return Err(turso_refused("remove the workspace database"));
         };
 
         state.databases.remove(index);
@@ -1220,10 +1178,12 @@ mod tests {
     use crate::turso::discovery::TursoOrganization;
 
     use super::{
-        AccessLevel, DeletionIntent, InMemoryPlatform, PlatformApi, PlatformEndpoint,
-        PlatformError, SyncRefusal, TursoPlatform, WorkspaceDatabase, belongs_to_the_account,
-        database_is_gone, read_sync_refusal,
+        AccessLevel, CREDENTIAL_NOT_ACCEPTED, DeletionIntent, InMemoryPlatform, PlatformApi,
+        PlatformEndpoint, TursoPlatform, WorkspaceDatabase, account_refused,
+        belongs_to_the_account, database_is_gone, no_authority, read_sync_refusal, turso_refused,
+        unreachable,
     };
+    use crate::error::{Error, RefusalReason};
 
     const TOKEN: &str = "a-platform-token";
 
@@ -1383,12 +1343,7 @@ mod tests {
             .await
             .expect_err("an unprotected database was handed back");
 
-        assert_eq!(
-            error,
-            PlatformError::Refused {
-                what: "protect the workspace database"
-            }
-        );
+        assert_eq!(error, turso_refused("protect the workspace database"));
 
         let remove = server.request(2);
 
@@ -1453,12 +1408,7 @@ mod tests {
             .await
             .expect_err("an unprotected copy was kept");
 
-        assert_eq!(
-            error,
-            PlatformError::Refused {
-                what: "protect the copy of the database"
-            }
-        );
+        assert_eq!(error, turso_refused("protect the copy of the database"));
 
         let remove = server.request(2);
 
@@ -1658,9 +1608,9 @@ mod tests {
 
         assert_eq!(
             platform.group_named(TOKEN, None).await,
-            Err(PlatformError::Refused {
-                what: "read the name of the organization's turso group"
-            })
+            Err(turso_refused(
+                "read the name of the organization's turso group"
+            ))
         );
     }
 
@@ -1748,12 +1698,7 @@ mod tests {
             .await
             .expect_err("a 409 was read as a created database");
 
-        assert_eq!(
-            error,
-            PlatformError::Refused {
-                what: "create the workspace database"
-            }
-        );
+        assert_eq!(error, turso_refused("create the workspace database"));
         assert!(
             !error.to_string().contains("an-org"),
             "the organization went out: {error}"
@@ -1779,12 +1724,7 @@ mod tests {
             .await
             .expect_err("a 403 was read as a deleted database");
 
-        assert_eq!(
-            error,
-            PlatformError::Refused {
-                what: "remove the workspace database"
-            }
-        );
+        assert_eq!(error, turso_refused("remove the workspace database"));
         assert!(
             !error.to_string().contains("rentable"),
             "the group name went out: {error}"
@@ -1801,12 +1741,7 @@ mod tests {
             .await
             .expect_err("a 502 was read as a created database");
 
-        assert_eq!(
-            error,
-            PlatformError::Unreachable {
-                what: "create the workspace database"
-            }
-        );
+        assert_eq!(error, unreachable("create the workspace database"));
         assert!(error.to_string().contains("try again"), "{error}");
     }
 
@@ -1820,12 +1755,7 @@ mod tests {
             .await
             .expect_err("a dropped connection was read as a token");
 
-        assert_eq!(
-            error,
-            PlatformError::Unreachable {
-                what: "mint a token for this workspace"
-            }
-        );
+        assert_eq!(error, unreachable("mint a token for this workspace"));
     }
 
     /// Requirement 25's distinction is made here, at the response.
@@ -1844,12 +1774,7 @@ mod tests {
                 .await
                 .expect_err("an account refusal was read as a created database");
 
-            assert_eq!(
-                error,
-                PlatformError::AccountRefused {
-                    what: "create the workspace database"
-                }
-            );
+            assert_eq!(error, account_refused("create the workspace database"));
             assert!(error.to_string().contains("account"), "{error}");
             assert!(!error.to_string().contains("sync"), "{error}");
         }
@@ -1859,12 +1784,7 @@ mod tests {
             .await
             .expect_err("a missing group was read as a created database");
 
-        assert_eq!(
-            error,
-            PlatformError::Refused {
-                what: "create the workspace database"
-            }
-        );
+        assert_eq!(error, turso_refused("create the workspace database"));
     }
 
     #[test]
@@ -1898,18 +1818,20 @@ mod tests {
 
         assert_eq!(
             read_sync_refusal(&engine(402, r#"{"error":"quota exceeded"}"#)),
-            SyncRefusal::Account {
-                detail: "quota exceeded".to_string()
-            }
+            Some(Error::refused(
+                RefusalReason::TursoAccountRefused,
+                "quota exceeded"
+            ))
         );
         assert_eq!(
             read_sync_refusal(&engine(
                 403,
                 r#"{"error":"databases BLOCKED: exceeded the plan's storage"}"#
             )),
-            SyncRefusal::Account {
-                detail: "databases BLOCKED: exceeded the plan's storage".to_string()
-            }
+            Some(Error::refused(
+                RefusalReason::TursoAccountRefused,
+                "databases BLOCKED: exceeded the plan's storage"
+            ))
         );
         // seen live on 2026-09-12, after a rotation: the credential's, and what the shell
         // collects a fresh one on.
@@ -1918,7 +1840,9 @@ mod tests {
                 401,
                 r#"{"error":"Unauthorized: `unauthorized access attempt on database: invalid JWT token: role was invalidated after token was issued`"}"#
             )),
-            SyncRefusal::Credential
+            Some(Error::Credential {
+                message: CREDENTIAL_NOT_ACCEPTED.to_string()
+            })
         );
         // seen live on 2026-09-11: a read-only credential's write, the credential's and not the
         // account's for all that it says BLOCKED.
@@ -1927,17 +1851,19 @@ mod tests {
                 403,
                 r#"{"error":"BLOCKED: SQL write operations are forbidden (current session doesn't have write permission)"}"#
             )),
-            SyncRefusal::Credential
+            Some(Error::Credential {
+                message: CREDENTIAL_NOT_ACCEPTED.to_string()
+            })
         );
         assert_eq!(
             read_sync_refusal(&engine(500, r#"{"error":"internal"}"#)),
-            SyncRefusal::None
+            None
         );
         assert_eq!(
             read_sync_refusal(&turso::Error::Error(
                 "sync engine operation failed: connection refused".to_string()
             )),
-            SyncRefusal::None
+            None
         );
     }
 
@@ -1990,10 +1916,7 @@ mod tests {
             .await
             .expect_err("a database with no hostname was handed back");
 
-        assert!(
-            matches!(error, PlatformError::Unreachable { .. }),
-            "{error:?}"
-        );
+        assert!(matches!(error, Error::Network { .. }), "{error:?}");
         assert_eq!(
             server.request_count(),
             1,
@@ -2011,10 +1934,7 @@ mod tests {
             .await
             .expect_err("an empty token was handed back");
 
-        assert!(
-            matches!(error, PlatformError::Unreachable { .. }),
-            "{error:?}"
-        );
+        assert!(matches!(error, Error::Network { .. }), "{error:?}");
     }
 
     /// Requirement 5: a machine whose consent was given up is told to consent again, and no
@@ -2032,10 +1952,10 @@ mod tests {
             .await
             .expect_err("a request was made with no authority");
 
-        assert_eq!(error, PlatformError::NoAuthority);
+        assert_eq!(error, no_authority());
         assert_eq!(server.request_count(), 0);
         assert!(matches!(
-            crate::error::Error::from(error),
+            error,
             crate::error::Error::Refused {
                 reason: crate::error::RefusalReason::TursoNotConnected,
                 ..
@@ -2045,25 +1965,62 @@ mod tests {
 
     #[test]
     fn each_failure_crosses_to_the_web_layer_as_a_fact_and_not_as_tursos_words() {
-        use crate::error::Error;
-
         let what = "create the workspace database";
 
+        assert!(matches!(unreachable(what), Error::Network { .. }));
         assert!(matches!(
-            Error::from(PlatformError::Unreachable { what }),
-            Error::Network { .. }
-        ));
-        assert!(matches!(
-            Error::from(PlatformError::Refused { what }),
+            turso_refused(what),
             Error::Refused {
                 reason: crate::error::RefusalReason::TursoRefused,
                 ..
             }
         ));
         assert!(matches!(
-            Error::from(PlatformError::AccountRefused { what }),
+            account_refused(what),
             Error::Refused { reason: crate::error::RefusalReason::TursoAccountRefused, message } if message.contains("account")
         ));
+    }
+
+    /// **The words each failure crosses with, pinned as they reach the web layer** (effort 840,
+    /// ticket 47): the code, the reason and the developer's description, exactly.
+    #[test]
+    fn each_failure_crosses_with_the_words_it_always_had() {
+        let what = "create the workspace database";
+        let crossing =
+            |error: Error| serde_json::to_value(error).expect("an error did not serialise");
+
+        assert_eq!(
+            crossing(unreachable(what)),
+            json!({
+                "code": "network",
+                "message": "could not create the workspace database just now. try again in a moment"
+            })
+        );
+        assert_eq!(
+            crossing(turso_refused(what)),
+            json!({
+                "code": "refused",
+                "reason": "tursoRefused",
+                "message": "could not create the workspace database. trying again will not help"
+            })
+        );
+        assert_eq!(
+            crossing(account_refused(what)),
+            json!({
+                "code": "refused",
+                "reason": "tursoAccountRefused",
+                "message": "could not create the workspace database: the organization's turso \
+                            account needs attention before this can continue"
+            })
+        );
+        assert_eq!(
+            crossing(no_authority()),
+            json!({
+                "code": "refused",
+                "reason": "tursoNotConnected",
+                "message": "this machine holds no turso authority. grant the consent again to continue"
+            })
+        );
     }
 
     /// The in-memory port is what every caller above is tested against, so it has to keep the
@@ -2082,9 +2039,7 @@ mod tests {
         assert!(platform.databases()[0].delete_protection);
         assert_eq!(
             platform.create_database("ws-1").await,
-            Err(PlatformError::Refused {
-                what: "create the workspace database"
-            })
+            Err(turso_refused("create the workspace database"))
         );
 
         assert_eq!(
@@ -2097,19 +2052,18 @@ mod tests {
             platform
                 .mint_token("ws-9", "3d", AccessLevel::FullAccess)
                 .await,
-            Err(PlatformError::Refused {
-                what: "mint a token for this workspace"
-            })
+            Err(turso_refused("mint a token for this workspace"))
         );
 
-        platform.refuse_next(PlatformError::AccountRefused {
-            what: "mint a token for this workspace",
-        });
+        platform.refuse_next(account_refused("mint a token for this workspace"));
         assert!(matches!(
             platform
                 .mint_token("ws-1", "3d", AccessLevel::ReadOnly)
                 .await,
-            Err(PlatformError::AccountRefused { .. })
+            Err(crate::error::Error::Refused {
+                reason: crate::error::RefusalReason::TursoAccountRefused,
+                ..
+            })
         ));
         assert_eq!(platform.minted().len(), 1, "a refused mint minted nothing");
 

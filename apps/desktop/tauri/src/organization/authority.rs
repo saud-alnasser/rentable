@@ -935,7 +935,7 @@ pub struct Chain<'a> {
     revocations: &'a [Revocation],
     roles: HashMap<String, (i64, i64)>,
     members: HashMap<String, i64>,
-    walked: RefCell<HashMap<String, Result<(), String>>>,
+    walked: RefCell<HashMap<String, Result<(), Error>>>,
     revoked: OnceCell<HashSet<String>>,
 }
 
@@ -1188,9 +1188,7 @@ impl<'a> Chain<'a> {
         if let Some(verdict) = self.walked.borrow().get(certificate_id) {
             return match verdict {
                 Ok(()) => self.find(certificate_id),
-                Err(message) => Err(Error::Integrity {
-                    message: message.clone(),
-                }),
+                Err(error) => Err(error.clone()),
             };
         }
 
@@ -1198,7 +1196,7 @@ impl<'a> Chain<'a> {
 
         self.walked.borrow_mut().insert(
             certificate_id.to_string(),
-            verdict.as_ref().map(|_| ()).map_err(ToString::to_string),
+            verdict.as_ref().map(|_| ()).map_err(Clone::clone),
         );
 
         verdict
@@ -2077,12 +2075,6 @@ mod tests {
         )
     }
 
-    fn integrity(message: &str) -> Error {
-        Error::Integrity {
-            message: message.to_string(),
-        }
-    }
-
     // a row the root signed verifies against the chain
 
     #[test]
@@ -2171,7 +2163,9 @@ mod tests {
                 without,
                 &signed_with_seal
             ),
-            Err(integrity(FORGED_ROW))
+            Err(Error::Integrity {
+                message: FORGED_ROW.to_string(),
+            })
         );
 
         let signed_without = sign(
@@ -2188,7 +2182,9 @@ mod tests {
                 with,
                 &signed_without
             ),
-            Err(integrity(FORGED_ROW))
+            Err(Error::Integrity {
+                message: FORGED_ROW.to_string(),
+            })
         );
     }
 
@@ -2249,7 +2245,9 @@ mod tests {
                 promoted,
                 &signature
             ),
-            Err(integrity(FORGED_ROW)),
+            Err(Error::Integrity {
+                message: FORGED_ROW.to_string(),
+            }),
             "a rewritten role was accepted"
         );
 
@@ -2263,7 +2261,9 @@ mod tests {
                 taken_over,
                 &signature
             ),
-            Err(integrity(FORGED_ROW)),
+            Err(Error::Integrity {
+                message: FORGED_ROW.to_string(),
+            }),
             "a rewritten public key was accepted"
         );
 
@@ -2277,7 +2277,9 @@ mod tests {
                 signed,
                 &signature
             ),
-            Err(integrity(FORGED_ROW)),
+            Err(Error::Integrity {
+                message: FORGED_ROW.to_string(),
+            }),
             "a rewritten certificate id was accepted"
         );
     }
@@ -2329,7 +2331,9 @@ mod tests {
                 authority,
                 &signature
             ),
-            Err(integrity(REVOKED_CERTIFICATE))
+            Err(Error::Integrity {
+                message: REVOKED_CERTIFICATE.to_string(),
+            })
         );
     }
 
@@ -2387,7 +2391,9 @@ mod tests {
                     authority,
                     &signature
                 ),
-                Err(integrity(REVOKED_CERTIFICATE)),
+                Err(Error::Integrity {
+                    message: REVOKED_CERTIFICATE.to_string(),
+                }),
                 "a revoked certificate authorised {authority:?}"
             );
         }
@@ -2429,7 +2435,9 @@ mod tests {
                 promoted,
                 &their_signature
             ),
-            Err(integrity(FORGED_CERTIFICATE))
+            Err(Error::Integrity {
+                message: FORGED_CERTIFICATE.to_string(),
+            })
         );
     }
 
@@ -2452,7 +2460,9 @@ mod tests {
 
         assert_eq!(
             verify_under(&organization.verifying_key, &renamed, authority, &signature),
-            Err(integrity(FORGED_ROW))
+            Err(Error::Integrity {
+                message: FORGED_ROW.to_string(),
+            })
         );
     }
 
@@ -2474,9 +2484,9 @@ mod tests {
                 authority,
                 &signature
             ),
-            Err(integrity(
-                "the certificate certificate-a was issued by nobody"
-            ))
+            Err(Error::Integrity {
+                message: "the certificate certificate-a was issued by nobody".to_string(),
+            })
         );
     }
 
@@ -2537,7 +2547,9 @@ mod tests {
             )
             .live(&manager.id)
             .err(),
-            Some(integrity(FORGED_BY_ISSUER))
+            Some(Error::Integrity {
+                message: FORGED_BY_ISSUER.to_string(),
+            })
         );
 
         // and a root the pinned key did not sign
@@ -2551,7 +2563,9 @@ mod tests {
             )
             .live(&other.certificate.id)
             .err(),
-            Some(integrity(FORGED_CERTIFICATE))
+            Some(Error::Integrity {
+                message: FORGED_CERTIFICATE.to_string(),
+            })
         );
     }
 
@@ -2574,7 +2588,9 @@ mod tests {
             )
             .live(&manager.id)
             .err(),
-            Some(integrity(UNKNOWN_ISSUER))
+            Some(Error::Integrity {
+                message: UNKNOWN_ISSUER.to_string(),
+            })
         );
     }
 
@@ -2611,7 +2627,9 @@ mod tests {
 
         assert_eq!(
             chain.live(&member.id).err(),
-            Some(integrity(REVOKED_CERTIFICATE))
+            Some(Error::Integrity {
+                message: REVOKED_CERTIFICATE.to_string(),
+            })
         );
         assert_eq!(
             chain
@@ -2653,7 +2671,9 @@ mod tests {
             )
             .live("wider")
             .err(),
-            Some(integrity(ABOVE_ITS_ISSUERS_CEILING))
+            Some(Error::Integrity {
+                message: ABOVE_ITS_ISSUERS_CEILING.to_string(),
+            })
         );
         assert_eq!(
             issue_certificate(
@@ -2668,7 +2688,9 @@ mod tests {
                     issued_at: "2026-09-01T00:00:00Z",
                 }
             ),
-            Err(integrity(ABOVE_ITS_ISSUERS_CEILING)),
+            Err(Error::Integrity {
+                message: ABOVE_ITS_ISSUERS_CEILING.to_string(),
+            }),
             "the issue made a certificate the walk refuses"
         );
     }
@@ -2705,7 +2727,9 @@ mod tests {
                 )
                 .live("level")
                 .err(),
-                Some(integrity(NOT_BELOW_ITS_ISSUER)),
+                Some(Error::Integrity {
+                    message: NOT_BELOW_ITS_ISSUER.to_string(),
+                }),
                 "rank {rank} under a manager was accepted"
             );
         }
@@ -2742,7 +2766,9 @@ mod tests {
             )
             .live("below")
             .err(),
-            Some(integrity(ISSUER_ADMINISTERS_NOBODY))
+            Some(Error::Integrity {
+                message: ISSUER_ADMINISTERS_NOBODY.to_string(),
+            })
         );
     }
 
@@ -2772,8 +2798,15 @@ mod tests {
 
         assert!(chain.live("one").is_err());
         assert!(
-            [integrity(NOT_BELOW_ITS_ISSUER), integrity(CYCLE)]
-                .contains(&chain.live("one").expect_err("a cycle verified"))
+            [
+                Error::Integrity {
+                    message: NOT_BELOW_ITS_ISSUER.to_string(),
+                },
+                Error::Integrity {
+                    message: CYCLE.to_string(),
+                }
+            ]
+            .contains(&chain.live("one").expect_err("a cycle verified"))
         );
 
         // and a certificate that names itself as its issuer.
@@ -2831,7 +2864,9 @@ mod tests {
             Chain::new(&organization.verifying_key, &certificates, &[])
                 .live("past")
                 .err(),
-            Some(integrity(TOO_DEEP))
+            Some(Error::Integrity {
+                message: TOO_DEEP.to_string(),
+            })
         );
     }
 
@@ -2893,7 +2928,9 @@ mod tests {
         // a manager does not revoke another manager, however the row is made.
         assert_eq!(
             revoke(&peer_key, &peer, &manager, "2026-09-01T00:00:00Z"),
-            Err(integrity("a certificate revokes only one ranked below it"))
+            Err(Error::Integrity {
+                message: "a certificate revokes only one ranked below it".to_string(),
+            })
         );
 
         let mut by_peer = Revocation {
@@ -3016,7 +3053,12 @@ mod tests {
 
             for (ceiling, expected) in [
                 (with, Ok(())),
-                (without, Err(integrity(BEYOND_ITS_CERTIFICATE))),
+                (
+                    without,
+                    Err(Error::Integrity {
+                        message: BEYOND_ITS_CERTIFICATE.to_string(),
+                    }),
+                ),
             ] {
                 let (key, certificate) = delegate(
                     &organization.administrator_key,
@@ -3062,17 +3104,23 @@ mod tests {
             (member_authority(&public_key, "member"), Ok(())),
             (
                 member_authority(&public_key, "manager"),
-                Err(integrity(BEYOND_ITS_CERTIFICATE)),
+                Err(Error::Integrity {
+                    message: BEYOND_ITS_CERTIFICATE.to_string(),
+                }),
             ),
             (
                 member_authority(&public_key, "owner"),
-                Err(integrity(BEYOND_ITS_CERTIFICATE)),
+                Err(Error::Integrity {
+                    message: BEYOND_ITS_CERTIFICATE.to_string(),
+                }),
             ),
             // a role below the manager, and one at their rank: the manager role is the root's.
             (role_authority(&sealed, 0, MANAGER_ROLE.rank - 1), Ok(())),
             (
                 role_authority(&sealed, 0, MANAGER_ROLE.rank),
-                Err(integrity(BEYOND_ITS_CERTIFICATE)),
+                Err(Error::Integrity {
+                    message: BEYOND_ITS_CERTIFICATE.to_string(),
+                }),
             ),
         ] {
             let signature = sign(&manager_key, &manager, authority).expect("failed to sign");
@@ -3183,7 +3231,9 @@ mod tests {
         ] {
             assert_eq!(
                 judged(key, certificate, authority),
-                Err(integrity(BEYOND_ITS_CERTIFICATE)),
+                Err(Error::Integrity {
+                    message: BEYOND_ITS_CERTIFICATE.to_string(),
+                }),
                 "{authority:?}"
             );
         }
@@ -3195,7 +3245,9 @@ mod tests {
                 &organization.certificate,
                 member_authority(&public_key, "role-nobody-holds")
             ),
-            Err(integrity(BEYOND_ITS_CERTIFICATE))
+            Err(Error::Integrity {
+                message: BEYOND_ITS_CERTIFICATE.to_string(),
+            })
         );
     }
 
@@ -3262,7 +3314,9 @@ mod tests {
         ] {
             assert_eq!(
                 judged(authority),
-                Err(integrity(BEYOND_ITS_CERTIFICATE)),
+                Err(Error::Integrity {
+                    message: BEYOND_ITS_CERTIFICATE.to_string(),
+                }),
                 "{authority:?}"
             );
         }
@@ -3276,7 +3330,9 @@ mod tests {
                 permission::MEMBER,
                 widened
             )),
-            Err(integrity(BEYOND_ITS_CERTIFICATE))
+            Err(Error::Integrity {
+                message: BEYOND_ITS_CERTIFICATE.to_string(),
+            })
         );
         assert_eq!(
             judged(member_row(
@@ -3318,14 +3374,18 @@ mod tests {
         for (authority, expected) in [
             (
                 member_row("member-b", &public_key, permission::MEMBER, delete_contract),
-                Err(integrity(BEYOND_ITS_CERTIFICATE)),
+                Err(Error::Integrity {
+                    message: BEYOND_ITS_CERTIFICATE.to_string(),
+                }),
             ),
             // the role's mask is its role row's signer's to vouch for, not the member row's.
             (member_row("member-b", &public_key, "deleters", 0), Ok(())),
             // switching a flag off is switching it, and the ceiling does not carry it.
             (
                 member_row("member-b", &public_key, "deleters", delete_contract),
-                Err(integrity(BEYOND_ITS_CERTIFICATE)),
+                Err(Error::Integrity {
+                    message: BEYOND_ITS_CERTIFICATE.to_string(),
+                }),
             ),
             (
                 member_row("member-b", &public_key, permission::MEMBER, 0),
@@ -3395,23 +3455,33 @@ mod tests {
             // the owner's role signed by anybody but the root.
             (
                 member_row(&lead.member_id, &public_key, "clerk", 0),
-                Err(integrity(BEYOND_ITS_CERTIFICATE)),
+                Err(Error::Integrity {
+                    message: BEYOND_ITS_CERTIFICATE.to_string(),
+                }),
             ),
             (
                 member_row(&lead.member_id, &public_key, "moved", 0),
-                Err(integrity(BEYOND_ITS_CERTIFICATE)),
+                Err(Error::Integrity {
+                    message: BEYOND_ITS_CERTIFICATE.to_string(),
+                }),
             ),
             (
                 member_row("member-b", &public_key, "clerk", manage_roles),
-                Err(integrity(BEYOND_ITS_CERTIFICATE)),
+                Err(Error::Integrity {
+                    message: BEYOND_ITS_CERTIFICATE.to_string(),
+                }),
             ),
             (
                 member_row("member-b", &public_key, "moved", manage_roles),
-                Err(integrity(BEYOND_ITS_CERTIFICATE)),
+                Err(Error::Integrity {
+                    message: BEYOND_ITS_CERTIFICATE.to_string(),
+                }),
             ),
             (
                 owner_authority(&owner_id, &public_key),
-                Err(integrity(BEYOND_ITS_CERTIFICATE)),
+                Err(Error::Integrity {
+                    message: BEYOND_ITS_CERTIFICATE.to_string(),
+                }),
             ),
         ] {
             let signature = sign(&lead_key, &lead, authority).expect("failed to sign");
@@ -3442,17 +3512,23 @@ mod tests {
                 member_of(member_row("member-c", &public_key, "moved", 0)),
                 &signature
             ),
-            Err(integrity(FORGED_ROW))
+            Err(Error::Integrity {
+                message: FORGED_ROW.to_string(),
+            })
         );
         assert_eq!(
             Chain::new(&organization.verifying_key, &certificates, &revoked)
                 .with_roles(built_in_roles())
                 .read_member(&lead.id, member_of(authority), &signature),
-            Err(integrity(REVOKED_CERTIFICATE))
+            Err(Error::Integrity {
+                message: REVOKED_CERTIFICATE.to_string(),
+            })
         );
         assert_eq!(
             chain.verify(&lead.id, authority, &signature),
-            Err(integrity(BEYOND_ITS_CERTIFICATE))
+            Err(Error::Integrity {
+                message: BEYOND_ITS_CERTIFICATE.to_string(),
+            })
         );
     }
 
@@ -3476,11 +3552,15 @@ mod tests {
             (MEMBER_ROLE.mask, Ok(())),
             (
                 MEMBER_ROLE.mask | mask_of(&[Flag::GrantWorkspace]),
-                Err(integrity(BEYOND_ITS_CERTIFICATE)),
+                Err(Error::Integrity {
+                    message: BEYOND_ITS_CERTIFICATE.to_string(),
+                }),
             ),
             (
                 MEMBER_ROLE.mask | mask_of(&[Flag::GrantWorkspace, Flag::CreateWorkspace]),
-                Err(integrity(BEYOND_ITS_CERTIFICATE)),
+                Err(Error::Integrity {
+                    message: BEYOND_ITS_CERTIFICATE.to_string(),
+                }),
             ),
         ] {
             let authority = role_authority(&sealed, mask, 1);
@@ -3550,7 +3630,9 @@ mod tests {
                 read_only,
                 &by_manager
             ),
-            Err(integrity(BEYOND_ITS_CERTIFICATE))
+            Err(Error::Integrity {
+                message: BEYOND_ITS_CERTIFICATE.to_string(),
+            })
         );
         assert_eq!(
             verify(
@@ -3693,13 +3775,17 @@ mod tests {
                 about("member-sami", permission::mask_of(&[Flag::EditTenant])),
                 &signature
             ),
-            Err(integrity(FORGED_ROW))
+            Err(Error::Integrity {
+                message: FORGED_ROW.to_string(),
+            })
         );
         assert_eq!(
             Chain::new(&organization.verifying_key, &certificates, &[])
                 .with_roles(built_in_roles())
                 .verify(&overrider.id, authority, &signature),
-            Err(integrity(BEYOND_ITS_CERTIFICATE)),
+            Err(Error::Integrity {
+                message: BEYOND_ITS_CERTIFICATE.to_string(),
+            }),
             "a chain that does not know the member overrode them"
         );
     }
@@ -4059,7 +4145,9 @@ mod tests {
                     rewritten,
                     &signature
                 ),
-                Err(integrity(FORGED_ROW)),
+                Err(Error::Integrity {
+                    message: FORGED_ROW.to_string(),
+                }),
                 "rewriting {signed:?} to {rewritten:?} was accepted"
             );
         }
@@ -4113,7 +4201,9 @@ mod tests {
         ] {
             assert_eq!(
                 judged(&rewritten),
-                Err(integrity(FORGED_BY_ISSUER)),
+                Err(Error::Integrity {
+                    message: FORGED_BY_ISSUER.to_string(),
+                }),
                 "a rewritten certificate was accepted: {rewritten:?}"
             );
         }
@@ -4125,7 +4215,9 @@ mod tests {
                 issuer_certificate_id: None,
                 ..manager.clone()
             }),
-            Err(integrity(FORGED_CERTIFICATE))
+            Err(Error::Integrity {
+                message: FORGED_CERTIFICATE.to_string(),
+            })
         );
 
         // the other two are caught by the row's check instead, because a row's preimage names its
@@ -4144,7 +4236,9 @@ mod tests {
         ] {
             assert_eq!(
                 judged(&rewritten),
-                Err(integrity(FORGED_ROW)),
+                Err(Error::Integrity {
+                    message: FORGED_ROW.to_string(),
+                }),
                 "a rewritten certificate was accepted: {rewritten:?}"
             );
         }
@@ -4279,7 +4373,9 @@ mod tests {
                 read_as_a_member,
                 &signature
             ),
-            Err(integrity(FORGED_ROW))
+            Err(Error::Integrity {
+                message: FORGED_ROW.to_string(),
+            })
         );
     }
 
@@ -4305,7 +4401,9 @@ mod tests {
                     authority,
                     &signature
                 ),
-                Err(integrity(FORGED_ROW)),
+                Err(Error::Integrity {
+                    message: FORGED_ROW.to_string(),
+                }),
                 "a signature of {} bytes was accepted",
                 signature.len()
             );
@@ -4337,7 +4435,9 @@ mod tests {
                     authority,
                     &signature
                 ),
-                Err(integrity(FORGED_CERTIFICATE))
+                Err(Error::Integrity {
+                    message: FORGED_CERTIFICATE.to_string(),
+                })
             );
         }
     }
@@ -4376,7 +4476,9 @@ mod tests {
                 authority,
                 &[0_u8; SIGNATURE_BYTES]
             ),
-            Err(integrity(FORGED_ROW))
+            Err(Error::Integrity {
+                message: FORGED_ROW.to_string(),
+            })
         );
 
         // with the row's own signature good, the walk answers next
@@ -4391,7 +4493,9 @@ mod tests {
                 authority,
                 &signature
             ),
-            Err(integrity(FORGED_CERTIFICATE))
+            Err(Error::Integrity {
+                message: FORGED_CERTIFICATE.to_string(),
+            })
         );
 
         // with the walk good too, the revocation
@@ -4404,7 +4508,9 @@ mod tests {
                 authority,
                 &signature
             ),
-            Err(integrity(REVOKED_CERTIFICATE))
+            Err(Error::Integrity {
+                message: REVOKED_CERTIFICATE.to_string(),
+            })
         );
 
         // and with nothing revoked, what the certificate covers is what is left
@@ -4417,7 +4523,9 @@ mod tests {
                 authority,
                 &signature
             ),
-            Err(integrity(BEYOND_ITS_CERTIFICATE))
+            Err(Error::Integrity {
+                message: BEYOND_ITS_CERTIFICATE.to_string(),
+            })
         );
     }
 

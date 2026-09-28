@@ -28,6 +28,7 @@ use crate::organization::{
         generate_content_key, open_content, seal_content, seal_to_public_key,
     },
 };
+use crate::test::scratch;
 
 pub(crate) const ORGANIZATION_ID: &str = "7f3a";
 pub(crate) const NOW: i64 = 1_758_000_000_000;
@@ -151,18 +152,6 @@ pub(crate) fn test_cost() -> KdfParams {
         iterations: 2,
         lanes: 1,
     }
-}
-
-/// A directory of this test's own under the system's temporary directory.
-pub(crate) fn scratch(name: &str) -> PathBuf {
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|elapsed| elapsed.as_nanos())
-        .unwrap_or_default();
-    let directory = std::env::temp_dir().join(format!("rentable-upgrade-{name}-{nanos:x}"));
-    std::fs::create_dir_all(&directory).expect("scratch directory");
-
-    directory
 }
 
 /// One person in the older organization: their vault, the key it was opened with, and the

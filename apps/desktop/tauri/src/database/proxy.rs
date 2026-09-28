@@ -358,6 +358,7 @@ mod tests {
     use super::{
         SQLQuery, execute_single_sql, workspace_execute_batch_sql, workspace_execute_single_sql,
     };
+    use crate::test::scratch;
 
     /// One connection, because every connection to an in-memory database gets a database of
     /// its own — a pool of two would lose the fixture between statements.
@@ -595,20 +596,6 @@ mod tests {
         .collect()
     }
 
-    /// A directory of its own per test, because the replica is a real file with real sidecars
-    /// beside it.
-    fn scratch_directory(name: &str) -> std::path::PathBuf {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|elapsed| elapsed.as_nanos())
-            .unwrap_or_default();
-
-        let path = std::env::temp_dir().join(format!("rentable-{name}-{nanos}"));
-        std::fs::create_dir_all(&path).expect("scratch directory");
-
-        path
-    }
-
     /// A replica engine over a file of its own, holding the fixture, with no remote to reach.
     ///
     /// Built through [`crate::database::Database::open_replica`] rather than through the builder
@@ -646,7 +633,7 @@ mod tests {
     /// only kind that has ever shipped from here.
     #[tokio::test]
     async fn both_engines_map_every_storage_class_alike() {
-        let directory = scratch_directory("proxy-both-engines");
+        let directory = scratch("proxy-both-engines");
         let pool = memory_pool(BOTH_ENGINES_FIXTURE).await;
         let replica = replica_holding(&directory.join("app.db"), BOTH_ENGINES_FIXTURE).await;
         let connection = crate::database::corrupt::Watched::new(
@@ -695,7 +682,7 @@ mod tests {
     /// transaction is opened by hand.
     #[tokio::test]
     async fn a_batch_that_fails_partway_leaves_the_replica_as_it_was() {
-        let directory = scratch_directory("proxy-batch-rollback");
+        let directory = scratch("proxy-batch-rollback");
         let replica = replica_holding(
             &directory.join("app.db"),
             &["create table t (id integer primary key)"],

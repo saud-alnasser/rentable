@@ -3868,9 +3868,7 @@ mod tests {
         let platform = Arc::new(InMemoryPlatform::new("an-org"));
 
         platform.holding_unprotected("org-7f3a");
-        platform.refuse_next(crate::turso::platform::PlatformError::AccountRefused {
-            what: "copy the database",
-        });
+        platform.refuse_next(crate::turso::platform::account_refused("copy the database"));
 
         let remote = online().holding(&platform);
 

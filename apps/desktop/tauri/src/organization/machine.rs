@@ -44,19 +44,13 @@ use super::{
     vault::KdfParams,
 };
 
-/// Why a machine link no longer opens, which is what the sentence the person reads names.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Refusal {
-    /// past its moment, whether the link says so or the row does.
-    Lapsed,
-    /// a machine opened it already, and it admits one.
-    Consumed,
-    /// no row stands behind it: the member made a newer link, or the organization forgot this one.
-    Replaced,
-}
-
 /// The one sentence a machine link that no longer opens is refused with, said in the name of the
 /// organization the link names, since that is the only thing the person on the new machine has.
+/// `reason` is why the link no longer opens: `Lapsed`, past its moment, whether the link says so or
+/// the row does; `Consumed`, a machine opened it already, and it admits one; or `Replaced`, no row
+/// stands behind it, because the member made a newer link or the organization forgot this one.
+/// *A `Refusal` enum of this file's own named the three until effort 840 left the crate one error
+/// type (ticket 47).*
 ///
 /// **It points at whoever keeps the accounts.** A link is made by a holder of `inviteMember` or
 /// `resetPassword` ranked above the account, from the account's card (effort 828, requirement 20), so a refusal has exactly one remedy and
@@ -66,11 +60,12 @@ enum Refusal {
 ///
 /// **It crosses as `Error::Refused` with the reason beside the message**, the way an invitation's
 /// refusal does, so the connect screen names the standing rather than reading this sentence.
-fn machine_link_refused(organization_name: &str, refusal: Refusal) -> Error {
-    let (reason, why) = match refusal {
-        Refusal::Lapsed => (RefusalReason::Lapsed, "has lapsed"),
-        Refusal::Consumed => (RefusalReason::Consumed, "already connected a machine"),
-        Refusal::Replaced => (RefusalReason::Replaced, "was replaced by a newer one"),
+fn machine_link_refused(organization_name: &str, reason: RefusalReason) -> Error {
+    let why = match reason {
+        RefusalReason::Lapsed => "has lapsed",
+        RefusalReason::Consumed => "already connected a machine",
+        // `Replaced`, the third; nothing here refuses a machine link with another.
+        _ => "was replaced by a newer one",
     };
 
     Error::Refused {
@@ -156,7 +151,7 @@ where
     if half.expires_at <= now {
         return Err(machine_link_refused(
             &link.organization_name,
-            Refusal::Lapsed,
+            RefusalReason::Lapsed,
         ));
     }
 
@@ -173,19 +168,19 @@ where
     let row = store
         .machine_link(&half.id)
         .await?
-        .ok_or_else(|| machine_link_refused(&link.organization_name, Refusal::Replaced))?;
+        .ok_or_else(|| machine_link_refused(&link.organization_name, RefusalReason::Replaced))?;
 
     if row.expires_at <= now {
         return Err(machine_link_refused(
             &link.organization_name,
-            Refusal::Lapsed,
+            RefusalReason::Lapsed,
         ));
     }
 
     if row.consumed_at.is_some() {
         return Err(machine_link_refused(
             &link.organization_name,
-            Refusal::Consumed,
+            RefusalReason::Consumed,
         ));
     }
 
@@ -238,6 +233,7 @@ mod tests {
     use serde_json::json;
 
     use super::connect;
+    use crate::test::scratch;
     use crate::{
         error::{Error, RefusalReason},
         machine::{RemoteSync, RemoteSyncStore},
@@ -270,17 +266,6 @@ mod tests {
             iterations: 2,
             lanes: 1,
         }
-    }
-
-    fn scratch(name: &str) -> std::path::PathBuf {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|elapsed| elapsed.as_nanos())
-            .unwrap_or_default();
-        let directory = std::env::temp_dir().join(format!("rentable-machine-{name}-{nanos:x}"));
-        std::fs::create_dir_all(&directory).expect("scratch directory");
-
-        directory
     }
 
     fn slot() -> CredentialSlot {

@@ -547,6 +547,7 @@ pub async fn earlier_read(state: State<'_, AppState>) -> Result<Read, Error> {
 mod tests {
     use super::*;
 
+    use crate::test::scratch;
     use chrono::NaiveDate;
 
     /// The migrations 0.12.0 and 0.13.0 shipped, as those releases read them off disk: the same
@@ -576,21 +577,6 @@ mod tests {
     /// contract between this suite and `src/lib/workspace/tests/earlier.test.ts`, which plans an
     /// import over the same tables.
     const TABLES: &str = include_str!("../../src/lib/workspace/tests/earlier.json");
-
-    /// A directory of this test's own under the system's temporary directory.
-    fn scratch(name: &str) -> PathBuf {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|elapsed| elapsed.as_nanos())
-            .unwrap_or_default();
-        let directory = std::env::temp_dir()
-            .join("rentable-tests")
-            .join(format!("earlier-{name}-{nanos:x}"));
-
-        std::fs::create_dir_all(&directory).expect("scratch directory");
-
-        directory
-    }
 
     /// Midnight UTC on the day given, in unix milliseconds, as the earlier versions stored a day.
     fn at(year: i32, month: u32, day: u32) -> i64 {

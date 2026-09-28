@@ -35,7 +35,7 @@ use super::{
 use crate::turso::{
     consent::{TursoConsentResult, TursoConsentStart, TursoEndpoints},
     discovery::McpEndpoint,
-    platform::{AccessLevel, PlatformApi, PlatformEndpoint, SyncRefusal},
+    platform::{AccessLevel, PlatformApi, PlatformEndpoint},
 };
 
 /// The organization this machine holds, as the wall names it. No key.
@@ -2475,7 +2475,7 @@ pub(crate) async fn remote_sync_replicate(
         return Ok(Replication {
             pushed: false,
             received: false,
-            refusal: ReplicationRefusal::None,
+            refusal: None,
             standing,
         });
     }
@@ -2488,7 +2488,7 @@ pub(crate) async fn remote_sync_replicate(
 
     match &replicated.refusal {
         // the remote was reached, or could not be: the offline case, which needs nothing.
-        SyncRefusal::None => {
+        None => {
             if replicated.pushed || replicated.received {
                 let mut remote_sync = app_state.remote_sync.write().await;
                 remote_sync.clear_account_refusal();
@@ -2503,23 +2503,11 @@ pub(crate) async fn remote_sync_replicate(
 
             Ok(Replication::of(replicated, standing))
         }
-        // requirement 25: the account's, said as the account's. The local replica goes on
-        // serving every read and every write; what stops is replication, until the owner has
-        // seen to the account and the next one goes through.
-        SyncRefusal::Account { detail } => {
-            app_state
-                .remote_sync
-                .write()
-                .await
-                .note_account_refusal(detail, clock.now());
-
-            Ok(Replication::of(replicated, standing))
-        }
         // a credential that stopped being accepted: a lock-out rotated it and the owner
         // re-sealed a fresh one to this member. The organization database says so, and reading
         // it costs one pull; where a credential moved, the same replication is tried once more
         // under it, and nobody has to do anything.
-        SyncRefusal::Credential => {
+        Some(Error::Credential { .. }) => {
             if !reconnect(&app_state).await {
                 app_state
                     .remote_sync
@@ -2543,33 +2531,46 @@ pub(crate) async fn remote_sync_replicate(
                 // both, or the owner is shown an account needing attention with no sentence
                 // behind it until the next heartbeat.
                 match &again.refusal {
-                    SyncRefusal::None => {
+                    None => {
                         if again.pushed || again.received {
                             remote_sync.clear_account_refusal();
                             remote_sync.clear_credential_refusal();
                         }
                     }
-                    SyncRefusal::Account { detail } => {
-                        remote_sync.note_account_refusal(detail, clock.now());
-                    }
-                    SyncRefusal::Credential => {
+                    Some(Error::Credential { .. }) => {
                         remote_sync.note_credential_refusal(clock.now());
+                    }
+                    Some(account) => {
+                        remote_sync.note_account_refusal(&account.to_string(), clock.now());
                     }
                 }
             }
 
             // the retry under the collected credential went through: the same moment the first
             // arm records, since this is the other place a replication completes.
-            if matches!(again.refusal, SyncRefusal::None) && again.completed {
+            if again.refusal.is_none() && again.completed {
                 crate::machine::note_reached(&app_state.remote_sync, clock.as_ref()).await;
             }
 
             Ok(Replication {
                 pushed: replicated.pushed || again.pushed,
                 received: replicated.received || again.received,
-                refusal: again.refusal.into(),
+                refusal: again.refusal,
                 standing,
             })
+        }
+        // requirement 25: the account's, said as the account's, and the one other refusal
+        // `read_sync_refusal` reads; its message is Turso's own sentence. The local replica goes
+        // on serving every read and every write; what stops is replication, until the owner has
+        // seen to the account and the next one goes through.
+        Some(account) => {
+            app_state
+                .remote_sync
+                .write()
+                .await
+                .note_account_refusal(&account.to_string(), clock.now());
+
+            Ok(Replication::of(replicated, standing))
         }
     }
 }
@@ -2588,7 +2589,8 @@ pub struct Replication {
     pub received: bool,
     /// why a half did not go, where Turso said: the account's, or the credential's. `none` is
     /// offline or nothing to say, and the two halves say which.
-    pub refusal: ReplicationRefusal,
+    #[serde(serialize_with = "one_word")]
+    pub refusal: Option<Error>,
     /// where the signed-in member stands after this replication. `signedOutElsewhere` is the one
     /// answer the caller has to act on: the wall is already up on this side and the shell reads
     /// where the machine stands again (effort 826, requirement 22).
@@ -2608,24 +2610,22 @@ pub enum SessionStanding {
     SignedOutElsewhere,
 }
 
-/// The refusal as the web layer reads it: which kind, and never Turso's sentence, which is the
-/// owner's alone and read through `organization_account_refusal_detail`.
-#[derive(serde::Serialize, Clone, Copy, Debug, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub enum ReplicationRefusal {
-    None,
-    Account,
-    Credential,
-}
-
-impl From<SyncRefusal> for ReplicationRefusal {
-    fn from(refusal: SyncRefusal) -> Self {
-        match refusal {
-            SyncRefusal::None => Self::None,
-            SyncRefusal::Account { .. } => Self::Account,
-            SyncRefusal::Credential => Self::Credential,
-        }
-    }
+/// The refusal as the web layer reads it: which kind, `none`, `account` or `credential`, and never
+/// Turso's sentence, which is the owner's alone and read through
+/// `organization_account_refusal_detail`.
+///
+/// *This was `ReplicationRefusal`, an enum of the three words, until effort 840 left the crate one
+/// error type (ticket 47). The words are the ones it serialised to, and
+/// `a_replication_crosses_with_its_refusal_as_one_word` pins them.*
+fn one_word<S: serde::Serializer>(
+    refusal: &Option<Error>,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    serializer.serialize_str(match refusal {
+        None => "none",
+        Some(Error::Credential { .. }) => "credential",
+        Some(_) => "account",
+    })
 }
 
 impl Replication {
@@ -2636,7 +2636,7 @@ impl Replication {
         Self {
             pushed: replicated.pushed,
             received: replicated.received,
-            refusal: replicated.refusal.into(),
+            refusal: replicated.refusal,
             standing,
         }
     }
@@ -2711,6 +2711,7 @@ mod tests {
     use tokio::sync::RwLock;
 
     use super::{HeldOrganization, Opening, open_replica, sign_out, state_of};
+    use crate::test::scratch;
     use crate::{
         credential::{CredentialStore, Credentials, Memory},
         database::Database,
@@ -2738,23 +2739,60 @@ mod tests {
     const USERNAME: &str = "olivia";
     const CREATED_AT: i64 = 1_757_000_000_000;
 
+    /// **What one replication answers the web layer, pinned as it crosses** (effort 840, ticket
+    /// 47): each of the three refusals, as the one word `platform/host.ts`'s `ReplicationRefusal`
+    /// reads, and never Turso's sentence, which is the owner's alone.
+    #[test]
+    fn a_replication_crosses_with_its_refusal_as_one_word() {
+        use super::{Replication, SessionStanding};
+        use crate::{error::RefusalReason, turso::platform::CREDENTIAL_NOT_ACCEPTED};
+
+        let crossing = |refusal, standing| {
+            serde_json::to_value(Replication {
+                pushed: true,
+                received: false,
+                refusal,
+                standing,
+            })
+            .expect("a replication did not serialise")
+        };
+
+        assert_eq!(
+            crossing(None, SessionStanding::Held),
+            json!({ "pushed": true, "received": false, "refusal": "none", "standing": "held" })
+        );
+        assert_eq!(
+            crossing(
+                Some(Error::refused(
+                    RefusalReason::TursoAccountRefused,
+                    "BLOCKED: quota exceeded",
+                )),
+                SessionStanding::Held
+            ),
+            json!({ "pushed": true, "received": false, "refusal": "account", "standing": "held" })
+        );
+        assert_eq!(
+            crossing(
+                Some(Error::Credential {
+                    message: CREDENTIAL_NOT_ACCEPTED.to_string(),
+                }),
+                SessionStanding::SignedOutElsewhere
+            ),
+            json!({
+                "pushed": true,
+                "received": false,
+                "refusal": "credential",
+                "standing": "signedOutElsewhere"
+            })
+        );
+    }
+
     fn test_cost() -> KdfParams {
         KdfParams {
             memory_kib: 1024,
             iterations: 2,
             lanes: 1,
         }
-    }
-
-    fn scratch(name: &str) -> std::path::PathBuf {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|elapsed| elapsed.as_nanos())
-            .unwrap_or_default();
-        let directory = std::env::temp_dir().join(format!("rentable-command-{name}-{nanos:x}"));
-        std::fs::create_dir_all(&directory).expect("scratch directory");
-
-        directory
     }
 
     /// The whole of the application state over one data directory, as `lib.rs` builds it, with

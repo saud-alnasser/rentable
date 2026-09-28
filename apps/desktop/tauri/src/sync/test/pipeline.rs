@@ -65,13 +65,7 @@ impl LocalPipeline {
 
     /// A stand-in that answers its first requests from `script`, then runs the rest.
     pub(crate) async fn after(script: Vec<ScriptedResponse>) -> Self {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|elapsed| elapsed.as_nanos())
-            .unwrap_or_default();
-        let directory = std::env::temp_dir().join(format!("rentable-pipeline-{nanos:x}"));
-
-        std::fs::create_dir_all(&directory).expect("the stand-in's directory");
+        let directory = crate::test::scratch("pipeline");
 
         let path = directory.join("primary.db");
         let listener = TcpListener::bind(("127.0.0.1", 0))

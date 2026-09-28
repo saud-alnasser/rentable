@@ -18,29 +18,26 @@ impl CredentialStore for Os {
     fn set(&self, service: &str, account: &str, value: &str) -> Result<(), Error> {
         entry(service, account)?
             .set_password(value)
-            .map_err(|error| refused("store", service, error))
+            .map_err(|error| refusal("store", service, &error.to_string()))
     }
 
     fn get(&self, service: &str, account: &str) -> Result<Option<String>, Error> {
         match entry(service, account)?.get_password() {
             Ok(value) => Ok(Some(value)),
             Err(KeyringError::NoEntry) => Ok(None),
-            Err(error) => Err(refused("read", service, error)),
+            Err(error) => Err(refusal("read", service, &error.to_string())),
         }
     }
 
     fn delete(&self, service: &str, account: &str) -> Result<(), Error> {
         match entry(service, account)?.delete_credential() {
             Ok(()) | Err(KeyringError::NoEntry) => Ok(()),
-            Err(error) => Err(refused("forget", service, error)),
+            Err(error) => Err(refusal("forget", service, &error.to_string())),
         }
     }
 }
 
 fn entry(service: &str, account: &str) -> Result<KeyringEntry, Error> {
-    KeyringEntry::new(service, account).map_err(|error| refused("open", service, error))
-}
-
-fn refused(action: &str, service: &str, error: KeyringError) -> Error {
-    refusal(action, service, &error.to_string())
+    KeyringEntry::new(service, account)
+        .map_err(|error| refusal("open", service, &error.to_string()))
 }

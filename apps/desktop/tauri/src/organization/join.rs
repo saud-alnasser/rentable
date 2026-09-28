@@ -77,33 +77,26 @@ use super::{
     vault::{KdfParams, open_vault, reseal_vault_with_key},
 };
 
-/// Why an invitation no longer opens, which is what the sentence a person reads names.
-///
-/// *These were `LinkStanding`'s four values, answered to the connect screen before anybody had
-/// typed anything. Nothing reads a row before the code is out, so the standing is judged inside
-/// the accept and these survive as the reasons a refusal carries.*
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Refusal {
-    /// past its lifetime; a new link is what the person needs.
-    Lapsed,
-    /// opened once already.
-    Consumed,
-    /// the invitation this link was made for is gone, or the member it named is.
-    Revoked,
-}
-
 /// The one sentence an invitation that no longer opens is refused with: which of the three it is,
 /// and the organization it was for, since the link names the organization and the invitation is
-/// what is refused.
+/// what is refused. `reason` is `Lapsed`, past its lifetime, where a new link is what the person
+/// needs; `Consumed`, opened once already; or `Revoked`, the invitation this link was made for is
+/// gone, or the member it named is.
+///
+/// *These were `LinkStanding`'s four values, answered to the connect screen before anybody had
+/// typed anything, and then a `Refusal` enum of this file's own until effort 840 left the crate one
+/// error type (ticket 47). Nothing reads a row before the code is out, so the standing is judged
+/// inside the accept and survives as the reason a refusal carries.*
 ///
 /// **It crosses as `Error::Refused` with the reason beside the message**, as a wrong code does
 /// with `CodeWrong`. The screen draws its own sentence per standing and offers the wall
 /// on a spent link, so what it needs is the word and not the prose.
-fn invitation_refused(organization_name: &str, refusal: Refusal) -> Error {
-    let (reason, why) = match refusal {
-        Refusal::Lapsed => (RefusalReason::Lapsed, "has lapsed"),
-        Refusal::Consumed => (RefusalReason::Consumed, "was already opened"),
-        Refusal::Revoked => (RefusalReason::Revoked, "was revoked"),
+fn invitation_refused(organization_name: &str, reason: RefusalReason) -> Error {
+    let why = match reason {
+        RefusalReason::Lapsed => "has lapsed",
+        RefusalReason::Consumed => "was already opened",
+        // `Revoked`, the third; nothing here refuses an invitation with another.
+        _ => "was revoked",
     };
 
     Error::Refused {
@@ -184,7 +177,10 @@ where
     // so a rewritten copy opens nothing either way; refusing here is what keeps a dead link from
     // costing an Argon2id pass per guess.
     if half.expires_at <= now {
-        return Err(invitation_refused(&link.organization_name, Refusal::Lapsed));
+        return Err(invitation_refused(
+            &link.organization_name,
+            RefusalReason::Lapsed,
+        ));
     }
 
     // the code and the link's secret together: the code keys the seal and the secret salts it, so
@@ -193,7 +189,7 @@ where
     let payload = open_payload(code, &link.locator(), half, &link.credential, kdf_params)?;
     let vault_password = payload
         .vault_password
-        .ok_or_else(|| invitation_refused(&link.organization_name, Refusal::Revoked))?;
+        .ok_or_else(|| invitation_refused(&link.organization_name, RefusalReason::Revoked))?;
 
     // the reach, under the credential that was inside the link, held in the slot the replica reads
     // from and the session fills with the member's own on the way out ([[rules/credentials]]).
@@ -224,15 +220,15 @@ where
     let invitation: &InvitationRecord = invitations
         .iter()
         .find(|invitation| invitation.id == half.id)
-        .ok_or_else(|| invitation_refused(&held.name, Refusal::Revoked))?;
+        .ok_or_else(|| invitation_refused(&held.name, RefusalReason::Revoked))?;
 
     match InvitationStanding::of(invitation, now) {
         InvitationStanding::Open => {}
         InvitationStanding::Lapsed => {
-            return Err(invitation_refused(&held.name, Refusal::Lapsed));
+            return Err(invitation_refused(&held.name, RefusalReason::Lapsed));
         }
         InvitationStanding::Consumed => {
-            return Err(invitation_refused(&held.name, Refusal::Consumed));
+            return Err(invitation_refused(&held.name, RefusalReason::Consumed));
         }
     }
 
@@ -240,10 +236,10 @@ where
     let member: &MemberRecord = members
         .iter()
         .find(|member| member.id == invitation.member_id)
-        .ok_or_else(|| invitation_refused(&held.name, Refusal::Revoked))?;
+        .ok_or_else(|| invitation_refused(&held.name, RefusalReason::Revoked))?;
 
     if member.removed_at.is_some() {
-        return Err(invitation_refused(&held.name, Refusal::Revoked));
+        return Err(invitation_refused(&held.name, RefusalReason::Revoked));
     }
 
     // that password is the one thing that opens this vault; a link somebody altered says no more
@@ -370,6 +366,7 @@ mod tests {
     use tokio::sync::RwLock;
 
     use super::{accept, admit};
+    use crate::test::scratch;
     use crate::{
         credential::{CredentialStore, Memory},
         database::Database,
@@ -413,17 +410,6 @@ mod tests {
             iterations: 2,
             lanes: 1,
         }
-    }
-
-    fn scratch(name: &str) -> std::path::PathBuf {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|elapsed| elapsed.as_nanos())
-            .unwrap_or_default();
-        let directory = std::env::temp_dir().join(format!("rentable-join-{name}-{nanos:x}"));
-        std::fs::create_dir_all(&directory).expect("scratch directory");
-
-        directory
     }
 
     fn slot() -> CredentialSlot {

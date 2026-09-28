@@ -130,11 +130,9 @@ where
 mod tests {
     use super::{Error, Persistable, Persisted};
     use serde::{Deserialize, Serialize};
-    use std::{
-        fs,
-        path::PathBuf,
-        time::{SystemTime, UNIX_EPOCH},
-    };
+    use std::fs;
+
+    use crate::test::scratch;
 
     #[derive(Clone, Default, Serialize, Deserialize)]
     struct TestData {
@@ -149,22 +147,9 @@ mod tests {
         }
     }
 
-    fn unique_path(name: &str) -> PathBuf {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("system time before unix epoch")
-            .as_nanos();
-
-        std::env::temp_dir()
-            .join("rentable-tests")
-            .join(format!("{}-{}.json", name, nanos))
-    }
-
     #[test]
     fn load_sanitizes_existing_data_and_persists_it() {
-        let path = unique_path("persisted-load-sanitizes");
-        fs::create_dir_all(path.parent().expect("temp file should have parent"))
-            .expect("failed to create temp parent");
+        let path = scratch("persisted-load-sanitizes").join("data.json");
         fs::write(&path, r#"{"value":0}"#).expect("failed to seed test file");
 
         let persisted =
@@ -182,7 +167,9 @@ mod tests {
 
     #[test]
     fn load_creates_missing_parent_directories_for_new_files() {
-        let path = unique_path("persisted-load-creates-parent");
+        let path = scratch("persisted-load-creates-parent")
+            .join("parent")
+            .join("data.json");
 
         let persisted =
             Persisted::<TestData>::load(path.clone()).expect("failed to create persisted");
@@ -198,9 +185,7 @@ mod tests {
 
     #[test]
     fn load_returns_error_for_invalid_json_without_overwriting_file() {
-        let path = unique_path("persisted-load-invalid-json");
-        fs::create_dir_all(path.parent().expect("temp file should have parent"))
-            .expect("failed to create temp parent");
+        let path = scratch("persisted-load-invalid-json").join("data.json");
         fs::write(&path, "{invalid json").expect("failed to seed invalid file");
 
         let error = match Persisted::<TestData>::load(path.clone()) {

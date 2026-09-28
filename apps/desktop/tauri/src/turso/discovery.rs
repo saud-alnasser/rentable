@@ -800,7 +800,7 @@ async fn call(
     let body = response.text().await.unwrap_or_default();
 
     if !status.is_success() {
-        return Err(refused(status.as_u16()));
+        return Err(consent_refused(status.as_u16().to_string()));
     }
 
     let message = json_rpc_body(&body)?;
@@ -811,29 +811,22 @@ async fn call(
             .get("code")
             .and_then(Value::as_i64)
             .unwrap_or_default();
-        return Err(refused_with_code(code));
+        return Err(consent_refused(format!("rpc {code}")));
     }
 
     Ok((message, session))
 }
 
+/// What a refused request to identify the account answers, whichever way Turso refused it:
+/// `answer` is the status, or `rpc` and the JSON-RPC code.
+///
 /// **A refusal never quotes Turso back.** The message reaching a screen is ours, so that a
 /// server-side string can never become the instruction a customer follows.
-fn refused(status: u16) -> Error {
+fn consent_refused(answer: String) -> Error {
     Error::refused(
         RefusalReason::ConsentNeededAgain,
         format!(
-            "turso refused this application's request to identify the account ({status}). \
-             Setting up an organization needs the consent granted again."
-        ),
-    )
-}
-
-fn refused_with_code(code: i64) -> Error {
-    Error::refused(
-        RefusalReason::ConsentNeededAgain,
-        format!(
-            "turso refused this application's request to identify the account (rpc {code}). \
+            "turso refused this application's request to identify the account ({answer}). \
              Setting up an organization needs the consent granted again."
         ),
     )

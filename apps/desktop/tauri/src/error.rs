@@ -61,7 +61,9 @@ pub enum Error {
     Network { message: String },
     /// a database operation failed.
     Database { message: String },
-    /// a credential-store (keyring) operation failed.
+    /// a credential failed: the credential store (the keyring) would not keep or give one, or the
+    /// remote no longer accepts the one this machine holds, which is how a replication refused over
+    /// its credential is read (`turso::platform::read_sync_refusal`).
     Credential { message: String },
     /// an internal invariant broke; not actionable by the user.
     Internal { message: String },
@@ -347,6 +349,17 @@ impl From<sqlx::Error> for Error {
     }
 }
 
+/// **A shell operation failing is never something the user can act on**: a window shown, moved or
+/// closed, a print window built, a webview reached. The shell either honoured the request or it did
+/// not.
+impl From<tauri::Error> for Error {
+    fn from(error: tauri::Error) -> Self {
+        Self::Internal {
+            message: error.to_string(),
+        }
+    }
+}
+
 /// **Everything the replica engine can fail with is a database failure here, including a push
 /// conflict.** `turso::Error` has no conflict variant: the sync engine constructs one, handles it
 /// nowhere, and flattens it to a string on the way out, so telling a conflict from an unreachable
@@ -587,6 +600,19 @@ mod tests {
             Error::from(source),
             Error::Database {
                 message: sqlx::Error::RowNotFound.to_string()
+            }
+        );
+    }
+
+    /// a window or a webview the shell could not reach reads as the shell's own failure, with its
+    /// words as they were: what `window.rs` and `print.rs` each wrote out by hand until effort 840
+    /// (ticket 47).
+    #[test]
+    fn shell_errors_become_internal_with_the_underlying_message() {
+        assert_eq!(
+            Error::from(tauri::Error::WindowNotFound),
+            Error::Internal {
+                message: tauri::Error::WindowNotFound.to_string()
             }
         );
     }

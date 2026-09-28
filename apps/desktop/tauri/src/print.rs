@@ -127,7 +127,7 @@ mod platform {
     type Dispatch<'a> =
         Box<dyn FnOnce(Box<dyn FnOnce(PlatformWebview) + Send>) -> tauri::Result<()> + Send + 'a>;
 
-    type Answer = Result<(), String>;
+    type Answer = Result<(), Error>;
 
     /// the one answer a print gives, sent once from whichever of the call or its completion
     /// finishes it.
@@ -169,12 +169,8 @@ mod platform {
         page: PrintedPage,
     ) -> Result<(), Error> {
         let main = webview.window();
-        let position = main
-            .outer_position()
-            .map_err(|error| failed(error.to_string()))?;
-        let size = main
-            .outer_size()
-            .map_err(|error| failed(error.to_string()))?;
+        let position = main.outer_position()?;
+        let size = main.outer_size()?;
         let label = format!("print-{}", PRINT_WINDOWS.fetch_add(1, Ordering::Relaxed));
         let window = tauri::WebviewWindowBuilder::new(
             app,
@@ -187,15 +183,13 @@ mod platform {
         .skip_taskbar(true)
         .always_on_bottom(true)
         .resizable(false)
-        .build()
-        .map_err(|error| failed(error.to_string()))?;
+        .build()?;
 
         let printed = async {
             window
                 .set_position(position)
                 .and_then(|_| window.set_size(size))
-                .and_then(|_| window.show())
-                .map_err(|error| failed(error.to_string()))?;
+                .and_then(|_| window.show())?;
 
             wait_for(
                 &window,
@@ -259,51 +253,46 @@ mod platform {
         window: &tauri::WebviewWindow<R>,
         script: String,
     ) -> Result<String, Error> {
-        type Answered = Arc<Mutex<Option<tokio::sync::oneshot::Sender<Result<String, String>>>>>;
+        type Answered = Arc<Mutex<Option<tokio::sync::oneshot::Sender<Result<String, Error>>>>>;
 
-        let (sender, receiver) = tokio::sync::oneshot::channel::<Result<String, String>>();
+        let (sender, receiver) = tokio::sync::oneshot::channel::<Result<String, Error>>();
         let sender: Answered = Arc::new(Mutex::new(Some(sender)));
         let on_webview = Arc::clone(&sender);
 
-        window
-            .with_webview(move |platform| {
-                let answer = |slot: &Answered, result: Result<String, String>| {
-                    if let Some(sender) = slot.lock().ok().and_then(|mut slot| slot.take()) {
-                        let _ = sender.send(result);
-                    }
-                };
-                let answered = Arc::clone(&on_webview);
-                // SAFETY: COM calls on the WebView2 thread, which this closure runs on.
-                let started = unsafe {
-                    platform.controller().CoreWebView2().and_then(|core| {
-                        core.ExecuteScript(
-                            &HSTRING::from(script),
-                            &ExecuteScriptCompletedHandler::create(Box::new(
-                                move |result, value| {
-                                    answer(
-                                        &answered,
-                                        result.map(|_| value).map_err(|e| e.message()),
-                                    );
-
-                                    Ok(())
-                                },
-                            )),
-                        )
-                    })
-                };
-
-                if let Err(error) = started {
-                    answer(&on_webview, Err(error.message()));
+        window.with_webview(move |platform| {
+            let answer = |slot: &Answered, result: Result<String, Error>| {
+                if let Some(sender) = slot.lock().ok().and_then(|mut slot| slot.take()) {
+                    let _ = sender.send(result);
                 }
-            })
-            .map_err(|error| failed(error.to_string()))?;
+            };
+            let answered = Arc::clone(&on_webview);
+            // SAFETY: COM calls on the WebView2 thread, which this closure runs on.
+            let started = unsafe {
+                platform.controller().CoreWebView2().and_then(|core| {
+                    core.ExecuteScript(
+                        &HSTRING::from(script),
+                        &ExecuteScriptCompletedHandler::create(Box::new(move |result, value| {
+                            answer(
+                                &answered,
+                                result.map(|_| value).map_err(|e| failed(e.message())),
+                            );
+
+                            Ok(())
+                        })),
+                    )
+                })
+            };
+
+            if let Err(error) = started {
+                answer(&on_webview, Err(failed(error.message())));
+            }
+        })?;
 
         drop(sender);
 
         receiver
             .await
             .map_err(|_| failed("the print window did not answer".into()))?
-            .map_err(failed)
     }
 
     fn json(text: &str) -> String {
@@ -326,24 +315,17 @@ mod platform {
             let started = unsafe { start(platform.controller(), mode, path, &on_webview) };
 
             if let Err(error) = started {
-                on_webview.send(Err(error.message()));
+                on_webview.send(Err(not_done(mode, error.message())));
             }
-        }))
-        .map_err(|error| failed(error.to_string()))?;
+        }))?;
 
         // the webview's copies are the only senders left, so a webview torn down before it answers
         // closes the channel rather than leaving this waiting.
         drop(reply);
 
-        let answer = receiver
+        receiver
             .await
-            .map_err(|_| failed("the webview did not answer".into()))?;
-
-        match (mode, answer) {
-            (_, Ok(())) => Ok(()),
-            (PrintMode::Pdf, Err(message)) => Err(Error::Io { message }),
-            (PrintMode::Print, Err(message)) => Err(failed(message)),
-        }
+            .map_err(|_| failed("the webview did not answer".into()))?
     }
 
     unsafe fn start(
@@ -379,8 +361,8 @@ mod platform {
                     PrintToPdfCompletedHandler::create(Box::new(move |result, written| {
                         completed.send(match result.map(|_| written) {
                             Ok(true) => Ok(()),
-                            Ok(false) => Err("the PDF could not be written".into()),
-                            Err(error) => Err(error.message()),
+                            Ok(false) => Err(not_done(mode, "the PDF could not be written".into())),
+                            Err(error) => Err(not_done(mode, error.message())),
                         });
 
                         Ok(())
@@ -401,6 +383,15 @@ mod platform {
     fn failed(message: String) -> Error {
         Error::Internal { message }
     }
+
+    /// what a print the webview could not finish answers: a PDF that was not written is a file that
+    /// failed, and paper that was not printed is the webview's own failure.
+    fn not_done(mode: PrintMode, message: String) -> Error {
+        match mode {
+            PrintMode::Pdf => Error::Io { message },
+            PrintMode::Print => failed(message),
+        }
+    }
 }
 
 #[cfg(not(windows))]
@@ -415,9 +406,7 @@ mod platform {
         _path: Option<String>,
         _page: Option<super::PrintedPage>,
     ) -> Result<(), Error> {
-        webview.print().map_err(|error| Error::Internal {
-            message: error.to_string(),
-        })
+        Ok(webview.print()?)
     }
 }
 

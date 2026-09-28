@@ -21,7 +21,7 @@ use crate::{
     error::Error,
     persisted::Persisted,
     settings::Settings,
-    turso::platform::{SyncRefusal, read_sync_refusal},
+    turso::platform::read_sync_refusal,
 };
 
 /// what one replication did, and why it did not where it did not.
@@ -29,7 +29,7 @@ use crate::{
 pub struct Replicated {
     pub pushed: bool,
     pub received: bool,
-    pub refusal: SyncRefusal,
+    pub refusal: Option<Error>,
     /// whether either half went through: the remote took the push, or answered the pull, whether
     /// or not it had anything to bring.
     ///
@@ -58,7 +58,7 @@ pub(crate) async fn replicate_engine(
     database: &turso::sync::Database,
     watch: &corrupt::Watch,
 ) -> Replicated {
-    let mut refusal = SyncRefusal::None;
+    let mut refusal = None;
     let pushed = match watch.note(database.push().await) {
         Ok(()) => true,
         Err(error) => {
@@ -69,7 +69,7 @@ pub(crate) async fn replicate_engine(
     let pulled = match watch.note(database.pull().await) {
         Ok(brought) => Some(brought),
         Err(error) => {
-            if refusal == SyncRefusal::None {
+            if refusal.is_none() {
                 refusal = read_sync_refusal(&error);
             }
             None
@@ -372,7 +372,7 @@ impl Database {
             Some(Engine::Local(_)) | None => Replicated {
                 pushed: false,
                 received: false,
-                refusal: SyncRefusal::None,
+                refusal: None,
                 completed: false,
             },
         }
@@ -626,16 +626,11 @@ mod tests {
         LiveWorkspace, apply_schema, concepts, count, distinct, run, shipped_migration_count, text,
     };
     use super::{Database, Engine};
+    use crate::test::scratch;
 
     /// A replica engine over a file of its own, with no remote to reach.
     async fn replica(name: &str) -> (std::path::PathBuf, turso::sync::Database) {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|elapsed| elapsed.as_nanos())
-            .unwrap_or_default();
-
-        let directory = std::env::temp_dir().join(format!("rentable-{name}-{nanos}"));
-        std::fs::create_dir_all(&directory).expect("scratch directory");
+        let directory = scratch(name);
 
         let database = Database::open_replica(
             &crate::clock::System,
@@ -702,8 +697,8 @@ mod tests {
     #[tokio::test]
     async fn a_refusal_for_the_account_is_read_as_the_accounts_and_the_replica_goes_on_serving() {
         use crate::{
+            error::{Error, RefusalReason},
             sync::test::server::{ScriptedResponse, ScriptedServer},
-            turso::platform::SyncRefusal,
         };
 
         // every request Turso would get is answered as a blocked account.
@@ -718,12 +713,7 @@ mod tests {
                 .collect(),
         )
         .await;
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|elapsed| elapsed.as_nanos())
-            .unwrap_or_default();
-        let directory = std::env::temp_dir().join(format!("rentable-refused-{nanos}"));
-        std::fs::create_dir_all(&directory).expect("scratch directory");
+        let directory = scratch("refused");
         let database = Database::open_replica(
             &crate::clock::System,
             &directory.join("app.db"),
@@ -739,9 +729,10 @@ mod tests {
         assert!(!replicated.received);
         assert_eq!(
             replicated.refusal,
-            SyncRefusal::Account {
-                detail: "BLOCKED: quota exceeded, upgrade the plan or enable overages".to_string()
-            }
+            Some(Error::refused(
+                RefusalReason::TursoAccountRefused,
+                "BLOCKED: quota exceeded, upgrade the plan or enable overages"
+            ))
         );
 
         // and the replica serves a write and a read while it stands.
@@ -784,7 +775,7 @@ mod tests {
 
         let unreached = super::replicate_engine(&offline, &Default::default()).await;
 
-        assert_eq!(unreached.refusal, SyncRefusal::None);
+        assert_eq!(unreached.refusal, None);
 
         // and neither a refusal nor being offline is a replication that went through, so neither
         // moves the moment the standing block says (effort 828, requirement 25).
@@ -837,14 +828,7 @@ mod tests {
         use std::sync::Arc;
         use tokio::sync::RwLock;
 
-        let directory = std::env::temp_dir().join(format!(
-            "rentable-readiness-local-{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|elapsed| elapsed.as_nanos())
-                .unwrap_or_default()
-        ));
-        std::fs::create_dir_all(&directory).expect("scratch directory");
+        let directory = scratch("readiness-local");
 
         let mut settings =
             Persisted::<Settings>::load(directory.join("settings.json")).expect("settings");

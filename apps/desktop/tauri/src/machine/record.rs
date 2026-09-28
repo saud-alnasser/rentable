@@ -833,21 +833,11 @@ mod tests {
     use super::{
         DEFAULT_WORKSPACE_NAME, LearnedWorkspace, RemoteSync, RemoteSyncStore, RemoteSyncWorkspace,
     };
+    use crate::test::scratch;
     use crate::{
         persisted::{Persistable as _, Persisted},
         settings::Settings,
     };
-
-    fn unique_dir(name: &str) -> PathBuf {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("system time before unix epoch")
-            .as_nanos();
-
-        std::env::temp_dir()
-            .join("rentable-tests")
-            .join(format!("{}-{}", name, nanos))
-    }
 
     /// **A replica is tracked when it is opened, and tracking it twice does not move it.**
     ///
@@ -907,7 +897,7 @@ mod tests {
     /// on the record rather than in memory beside the two refusals.
     #[test]
     fn the_moment_of_the_last_replication_that_went_through_is_recorded_and_absent_before() {
-        let path = unique_dir("last-reached").join("store.json");
+        let path = scratch("last-reached").join("store.json");
         let mut remote_sync = a_remote_sync_at(path.clone());
 
         assert_eq!(
@@ -967,12 +957,12 @@ mod tests {
     }
 
     fn a_remote_sync(name: &str) -> RemoteSync {
-        a_remote_sync_at(unique_dir(name).join("store.json"))
+        a_remote_sync_at(scratch(name).join("store.json"))
     }
 
     /// the same, over a record at a path the test names, so it can be opened twice.
     fn a_remote_sync_at(path: PathBuf) -> RemoteSync {
-        let settings = unique_dir("settings").join("settings.json");
+        let settings = scratch("settings").join("settings.json");
 
         RemoteSync {
             database_path: Arc::new(RwLock::new(
@@ -1100,7 +1090,7 @@ mod tests {
         Runtime::new()
             .expect("failed to create tokio runtime")
             .block_on(async {
-                let root = unique_dir("remote-sync-default-profile");
+                let root = scratch("remote-sync-default-profile");
                 std::fs::create_dir_all(&root).expect("failed to create test root");
 
                 let settings_path = root.join(Settings::FILENAME);
@@ -1130,7 +1120,7 @@ mod tests {
         Runtime::new()
             .expect("failed to create tokio runtime")
             .block_on(async {
-                let root = unique_dir("remote-sync-reconcile-path-change");
+                let root = scratch("remote-sync-reconcile-path-change");
                 std::fs::create_dir_all(&root).expect("failed to create test root");
 
                 let settings_path = root.join(Settings::FILENAME);
@@ -1464,6 +1454,7 @@ mod tests {
         };
 
         use super::super::{RemoteSyncStore, consented_organization};
+        use crate::test::scratch;
 
         const TOKEN: &str = "the-platform-api-token";
 
@@ -1499,19 +1490,6 @@ mod tests {
             )
         }
 
-        /// A directory of this machine's own, the way every other test here makes one. No crate is
-        /// added for it: `std::env::temp_dir` is what `database/mod.rs` and `export.rs` already use.
-        fn temporary_directory(name: &str) -> std::path::PathBuf {
-            let nanos = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .expect("the clock is before the epoch")
-                .as_nanos();
-            let directory = std::env::temp_dir().join(format!("rentable-{name}-{nanos}"));
-            std::fs::create_dir_all(&directory).expect("no temporary directory");
-
-            directory
-        }
-
         /// A store on disk, so the remembering is the real thing rather than a field in a test.
         fn load_store(directory: &std::path::Path) -> Persisted<RemoteSyncStore> {
             Persisted::<RemoteSyncStore>::load(directory.join("remote-sync.json"))
@@ -1521,7 +1499,7 @@ mod tests {
         /// Criterion 4: the slug is stored locally and a second provisioning call asks nothing.
         #[tokio::test]
         async fn the_second_call_reads_the_store_and_makes_no_request() {
-            let directory = temporary_directory("discovery-remembers");
+            let directory = scratch("discovery-remembers");
             let mut store = load_store(&directory);
 
             let server = ScriptedServer::start(vec![
@@ -1588,7 +1566,7 @@ mod tests {
         /// the account has no organization.
         #[tokio::test]
         async fn an_empty_group_is_not_remembered_as_an_answer() {
-            let directory = temporary_directory("discovery-empty-group");
+            let directory = scratch("discovery-empty-group");
             let mut store = load_store(&directory);
 
             let server = ScriptedServer::start(vec![handshake(), listing(json!([]))]).await;

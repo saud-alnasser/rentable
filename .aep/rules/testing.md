@@ -263,6 +263,13 @@ A helper that is genuinely shared scaffolding rather than a fixture — the loop
 `sync/test/server.rs`, say — is a module of its own under a `test/` directory, not a test
 module.
 
+What every module's tests share lives in the crate's own `test/` directory, `src/test/mod.rs`, and
+the one thing there is the scratch directory: a directory of a test's own under the system's
+temporary directory is `test::scratch`, and `guard/error.rs` fails on `temp_dir` named anywhere
+else. *Added 2026-09-28 (effort 840, requirement 13, ticket 47): the helper was written out in each
+module that needed one, twenty-eight times, which is the drift the cost above does not buy. A
+fixture is still written out per module.*
+
 *Admitted 2026-09-27, the human's call (effort 838, ticket 31): a builder that stands in for a
 database an older build wrote, which nothing in this build writes any more, is scaffolding of that
 kind, not a fixture, when it is too large to write out twice. The format 1 organization under

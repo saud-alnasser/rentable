@@ -639,6 +639,7 @@ mod tests {
         LeaseAuthority, LeaseOutcome, MIGRATION_LEASE_LIFETIME_MS, MigrationPhase, Pending,
         StoreLease, is_pending, refuse_newer, upgrade,
     };
+    use crate::test::scratch;
     use crate::{
         backup,
         error::{Error, RefusalReason},
@@ -661,7 +662,7 @@ mod tests {
         },
         turso::{
             discovery::McpEndpoint,
-            platform::{AccessLevel, InMemoryPlatform, PlatformError},
+            platform::{AccessLevel, InMemoryPlatform, account_refused},
         },
     };
 
@@ -674,17 +675,6 @@ mod tests {
             iterations: 2,
             lanes: 1,
         }
-    }
-
-    fn scratch(name: &str) -> std::path::PathBuf {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|elapsed| elapsed.as_nanos())
-            .unwrap_or_default();
-        let directory = std::env::temp_dir().join(format!("rentable-migration-{name}-{nanos:x}"));
-        std::fs::create_dir_all(&directory).expect("scratch directory");
-
-        directory
     }
 
     fn slot() -> CredentialSlot {
@@ -1714,9 +1704,7 @@ mod tests {
         let platform = InMemoryPlatform::new("an-org");
 
         platform.holding_unprotected(&facts.database_name);
-        platform.refuse_next(PlatformError::AccountRefused {
-            what: "copy the database",
-        });
+        platform.refuse_next(account_refused("copy the database"));
 
         let pipeline = copied_then_applied().await;
         let reached = upgrade(
