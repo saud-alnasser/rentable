@@ -47,7 +47,7 @@ test('every procedure names a flag, or says it is a member procedure or public',
 });
 
 /** The record routers, whose every procedure is a record act. */
-const RECORD_ROUTERS = ['complex.', 'tenant.', 'contract.', 'payment.', 'history.', 'workspace.'];
+const RECORD_ROUTERS = ['complex.', 'tenant.', 'contract.', 'payment.', 'history.', 'transfer.'];
 
 /**
  * The two reads open to every member, each answering with nothing of a kind the member may not
@@ -55,7 +55,7 @@ const RECORD_ROUTERS = ['complex.', 'tenant.', 'contract.', 'payment.', 'history
  * machine's reconcile, a member's own act that moved under the contract router with the flat tree
  * (effort 840) and is no record act.
  */
-const OPEN_TO_EVERY_MEMBER = ['dashboard.get', 'workspace.held', 'contract.reconcile'];
+const OPEN_TO_EVERY_MEMBER = ['dashboard.get', 'transfer.held', 'contract.reconcile'];
 
 test('every record procedure names its flag, the open reads and the reconcile aside', () => {
 	const unnamed = procedures
@@ -141,8 +141,8 @@ const PLANNED: Record<string, readonly Flag[]> = {
 	'payment.update': ['editPayment'],
 	'payment.delete': ['deletePayment'],
 	'payment.deleteMany': ['deletePayment'],
-	'workspace.get': VIEW,
-	'workspace.importWhole': CREATE
+	'transfer.get': VIEW,
+	'transfer.importWhole': CREATE
 };
 
 test('each record procedure names the flag the plan maps it to', () => {

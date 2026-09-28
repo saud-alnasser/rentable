@@ -18,7 +18,7 @@
 	import { toNarrowedName } from '@rentable/design/csv.js';
 	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
 	import { useImportRecords } from '$lib/workspace/query';
-	import { toTransferInput } from '$lib/workspace/workspace';
+	import { toTransferInput } from '$lib/transfer';
 	import { IMPORT_FLAGS, memberPermissions } from '$lib/permission';
 	import { contractHost } from '$lib/contract/host.svelte';
 	import ContractRecord from './record.svelte';

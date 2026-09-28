@@ -25,7 +25,7 @@
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
 	import { useImportRecords } from '$lib/workspace/query';
-	import { toTransferInput } from '$lib/workspace/workspace';
+	import { toTransferInput } from '$lib/transfer';
 	import { IMPORT_FLAGS, memberPermissions } from '$lib/permission';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	// the counts of occupied and vacant units wear the glyphs the unit's own status wears, so a

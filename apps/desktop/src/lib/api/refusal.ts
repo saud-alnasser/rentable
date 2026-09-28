@@ -5,7 +5,7 @@ import type { HostRefusalCode } from '$lib/error/tauri';
 import type { PaymentRefusalCode } from '$lib/payment/refusal';
 import type { RecordRefusalCode } from '$lib/platform/database/identity';
 import type { TenantRefusalCode } from '$lib/tenant/refusal';
-import type { WorkspaceRefusalCode } from '$lib/workspace/refusal';
+import type { TransferRefusalCode } from '$lib/transfer/refusal';
 import { TRPCError } from '@trpc/server';
 
 /**
@@ -20,7 +20,7 @@ import { TRPCError } from '@trpc/server';
  * that places it has to match its words, and a reader who switches language holds sentences
  * cached in the one they left. Effort 832, requirement 23.*
  *
- * Each concept names its own refusals in its own `refusal.ts`, and this is their union. The imports
+ * Each concept and capability names its own refusals in its own `refusal.ts`, and this is their union. The imports
  * are types alone, erased before anything runs, so the plumbing a feature raises through never
  * loads a feature. `host` is the shell's: a Rust refusal carries its reason, and the reason is named here the way a
  * router's code is, so one lookup finds either sentence. A procedure raises one only as the earlier
@@ -34,8 +34,8 @@ export type RefusalCode =
 	| PaymentRefusalCode
 	| RecordRefusalCode
 	| TenantRefusalCode
-	| UnitRefusalCode
-	| WorkspaceRefusalCode;
+	| TransferRefusalCode
+	| UnitRefusalCode;
 
 /** the values a refusal's sentence is built from: a name, an id, a count of days. */
 export type RefusalParams = Record<string, string | number>;

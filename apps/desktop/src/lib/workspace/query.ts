@@ -34,8 +34,8 @@ import { get } from 'svelte/store';
  * whoever administers the account rather than to this screen.
  */
 export const useImportRecords = declareMutation({
-	mutate: (transfer: Parameters<typeof api.workspace.importWhole>[0]) =>
-		api.workspace.importWhole(transfer),
+	mutate: (transfer: Parameters<typeof api.transfer.importWhole>[0]) =>
+		api.transfer.importWhole(transfer),
 	touches: 'every',
 	toast: {
 		success: () => get(LL).settings.transferImportSuccess(),

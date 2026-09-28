@@ -1,5 +1,6 @@
 import type { RouteId } from '$app/types';
 import type { RecordKind } from '$lib/permission';
+import type { Transfer } from '$lib/transfer';
 import type { AnyRouter } from '@trpc/server';
 
 /**
@@ -32,6 +33,12 @@ export type Feature<N extends string = string, R extends AnyRouter = AnyRouter> 
 	prefix?: readonly string[];
 	/** the pages it holds, which the shell's navigation reads */
 	pages?: readonly Page[];
+	/**
+	 * the sheets it hands a workspace file, on a feature that holds records: what each tab is
+	 * called, its columns, its turn, and how its rows are read and its records written. Read by
+	 * `$lib/transfer`, which the composition root hands the list.
+	 */
+	transfer?: Transfer;
 };
 
 /**

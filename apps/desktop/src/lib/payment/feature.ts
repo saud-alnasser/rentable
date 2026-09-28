@@ -1,5 +1,6 @@
 import { defineFeature } from '$lib/feature/feature';
 import router from './router';
+import payments from './transfer';
 
 // a payment has no name of its own and no directory: it is listed inside its contract, and its
 // address sits under `/contracts` without a page at `/contracts/payments`, so its trail runs
@@ -9,5 +10,6 @@ export default defineFeature({
 	router,
 	kind: 'payment',
 	prefix: ['contracts', 'payments'],
+	transfer: [payments],
 	pages: [{ route: '/contracts/payments/[id]', parent: '/contracts/[id]' }]
 });

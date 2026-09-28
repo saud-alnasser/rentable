@@ -5,17 +5,22 @@ import type { AnyProcedure } from '@trpc/server';
 
 import { router } from '$lib/api/trpc.ts';
 import complex from '$lib/complex/router.ts';
+import complexes from '$lib/complex/transfer.ts';
+import units from '$lib/complex/unit/transfer.ts';
 import contract from '$lib/contract/router.ts';
+import contracts from '$lib/contract/transfer.ts';
 import dashboard from '$lib/dashboard/router.ts';
 import history from '$lib/history/router.ts';
 import organization from '$lib/organization/router.ts';
 import payment from '$lib/payment/router.ts';
+import payments from '$lib/payment/transfer.ts';
 import settings from '$lib/settings/router.ts';
 import startup from '$lib/startup/router.ts';
 import sync from '$lib/sync/router.ts';
 import tenant from '$lib/tenant/router.ts';
+import tenants from '$lib/tenant/transfer.ts';
+import transfer from '$lib/transfer/router.ts';
 import update from '$lib/update/router.ts';
-import workspace from '$lib/workspace/router.ts';
 import { features } from '../features.ts';
 import { appRouter } from '../router.ts';
 
@@ -38,12 +43,12 @@ const handWritten = router({
 	payment,
 	dashboard,
 	history,
-	workspace,
 	organization,
 	settings,
 	sync,
 	update,
-	startup
+	startup,
+	transfer: transfer([tenants, complexes, units, contracts, payments])
 });
 
 // A compile-time check: `pnpm check` fails here if the list changes a procedure's path or type.

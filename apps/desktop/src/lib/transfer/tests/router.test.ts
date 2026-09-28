@@ -22,7 +22,7 @@ import {
 	toTransferInput as toInput,
 	toUnitReference,
 	type WorkspaceTransfer
-} from '../workspace.ts';
+} from '../index.ts';
 import { formatDateInput } from '$lib/date';
 
 /**
@@ -76,15 +76,15 @@ test('a workspace exported as a file imports into an empty one and reproduces it
 
 	await seedWorkspace(source);
 
-	const written = await source.workspace.get();
+	const written = await source.transfer.get();
 	const target = await createApi();
 	const plan = planWorkspaceImport(toTables(written), NOW, emptyHeld());
 
 	assert.ok(isWorkspaceImportable(plan), 'the file it wrote is a file it can read');
 
-	await target.workspace.importWhole(toInput(plan.transfer));
+	await target.transfer.importWhole(toInput(plan.transfer));
 
-	const read = await target.workspace.get();
+	const read = await target.transfer.get();
 
 	assert.deepEqual(read.tenants, written.tenants);
 	assert.deepEqual(read.complexes, written.complexes);
@@ -136,7 +136,7 @@ test('an export written before the format break imports whole into an empty work
 
 	assert.ok(isWorkspaceImportable(plan), 'the earlier export is not a file this build can read');
 
-	const imported = await target.workspace.importWhole(toInput(plan.transfer));
+	const imported = await target.transfer.importWhole(toInput(plan.transfer));
 
 	assert.deepEqual(imported, {
 		tenants: written.tenants.length,
@@ -146,7 +146,7 @@ test('an export written before the format break imports whole into an empty work
 		payments: written.payments.length
 	});
 
-	const read = await target.workspace.get();
+	const read = await target.transfer.get();
 
 	// every record, and every relationship by the names the file carried. What is derived from the
 	// clock is left out: the export was written on another day, so the expected amount and a
@@ -167,11 +167,11 @@ test('the reproduced workspace derives its own statuses rather than trusting the
 
 	await seedWorkspace(source);
 
-	const written = await source.workspace.get();
+	const written = await source.transfer.get();
 	const target = await createApi();
 	const plan = planWorkspaceImport(toTables(written), NOW, emptyHeld());
 
-	await target.workspace.importWhole(toInput(plan.transfer));
+	await target.transfer.importWhole(toInput(plan.transfer));
 
 	const [contract] = await target.contract.getMany({});
 
@@ -196,12 +196,12 @@ test('a refused write leaves the workspace exactly as it was', async () => {
 
 	await seedWorkspace(api);
 
-	const before = await api.workspace.get();
+	const before = await api.transfer.get();
 
 	await assert.rejects(
 		// the last statement of the batch is the one that cannot stand: the payment names a
 		// contract no sheet holds and none of the rows before it may survive it.
-		api.workspace.importWhole({
+		api.transfer.importWhole({
 			tenants: [{ name: 'Omar Ali', nationalId: '2234567890', phone: '+966559999999' }],
 			complexes: [{ name: 'Al Waha', location: 'Jeddah' }],
 			units: [{ complex: 'Al Waha', name: 'B1' }],
@@ -210,7 +210,7 @@ test('a refused write leaves the workspace exactly as it was', async () => {
 		})
 	);
 
-	assert.deepEqual(await api.workspace.get(), before);
+	assert.deepEqual(await api.transfer.get(), before);
 });
 
 test('a unit no sheet answers for is named back the way the file wrote it', async () => {
@@ -220,7 +220,7 @@ test('a unit no sheet answers for is named back the way the file wrote it', asyn
 	// unresolvable reference has already been refused, and what this pins is that the last resort
 	// still refuses it and still says which unit — as a person spelled it, not as it is keyed.
 	await assert.rejects(
-		api.workspace.importWhole({
+		api.transfer.importWhole({
 			tenants: [{ name: 'Omar Ali', nationalId: '2234567890', phone: '+966559999999' }],
 			complexes: [{ name: 'Al Waha', location: 'Jeddah' }],
 			units: [],
@@ -251,7 +251,7 @@ test('a contract worth nothing is refused here as it is everywhere else', async 
 	const api = await createApi();
 
 	await assert.rejects(
-		api.workspace.importWhole({
+		api.transfer.importWhole({
 			tenants: [{ name: 'Omar Ali', nationalId: '2234567890', phone: '+966559999999' }],
 			complexes: [],
 			units: [],
@@ -278,7 +278,7 @@ test('a contract whose term matches no whole number of cycles is refused here to
 	const api = await createApi();
 
 	await assert.rejects(
-		api.workspace.importWhole({
+		api.transfer.importWhole({
 			tenants: [{ name: 'Omar Ali', nationalId: '2234567890', phone: '+966559999999' }],
 			complexes: [],
 			units: [],
@@ -312,7 +312,7 @@ test('a contract whose term matches no whole number of cycles is refused here to
 test('a tenant a file names is held to the same patterns the form is', async () => {
 	const api = await createApi();
 	const write = (nationalId: string, phone: string) =>
-		api.workspace.importWhole({
+		api.transfer.importWhole({
 			tenants: [{ name: 'Omar Ali', nationalId, phone }],
 			complexes: [],
 			units: [],
@@ -330,7 +330,7 @@ test('a tenant a file names is held to the same patterns the form is', async () 
 test('a payment a file names is held to the same rules the ledger is', async () => {
 	const api = await createApi();
 
-	await api.workspace.importWhole({
+	await api.transfer.importWhole({
 		tenants: [{ name: 'Omar Ali', nationalId: '2234567890', phone: '+966559999999' }],
 		complexes: [],
 		units: [],
@@ -349,7 +349,7 @@ test('a payment a file names is held to the same rules the ledger is', async () 
 	});
 
 	const write = (amount: number, date: number) =>
-		api.workspace.importWhole({
+		api.transfer.importWhole({
 			tenants: [],
 			complexes: [],
 			units: [],
@@ -399,7 +399,7 @@ test('a file cannot put money on a contract that has been terminated', async () 
 	await api.contract.terminate({ id: contract.id });
 
 	const write = () =>
-		api.workspace.importWhole({
+		api.transfer.importWhole({
 			tenants: [],
 			complexes: [],
 			units: [],
@@ -436,10 +436,10 @@ test('a duplicate identity refuses the whole write, creating nothing', async () 
 
 	await seedWorkspace(api);
 
-	const before = await api.workspace.get();
+	const before = await api.transfer.get();
 
 	await assert.rejects(
-		api.workspace.importWhole({
+		api.transfer.importWhole({
 			// the second tenant is fine; the first repeats a national id the workspace already
 			// holds, and the unique constraint refuses the batch it is in.
 			tenants: [
@@ -453,7 +453,7 @@ test('a duplicate identity refuses the whole write, creating nothing', async () 
 		})
 	);
 
-	assert.deepEqual(await api.workspace.get(), before);
+	assert.deepEqual(await api.transfer.get(), before);
 });
 
 // a tenant is unique on two columns, and the second one is the quiet half: a file whose rows are
@@ -464,10 +464,10 @@ test('a phone another tenant already holds refuses the write the same way', asyn
 
 	await seedWorkspace(api);
 
-	const before = await api.workspace.get();
+	const before = await api.transfer.get();
 
 	await assert.rejects(
-		api.workspace.importWhole({
+		api.transfer.importWhole({
 			tenants: [{ name: 'Omar Ali', nationalId: '2234567890', phone: '+966512345678' }],
 			complexes: [],
 			units: [],
@@ -477,7 +477,7 @@ test('a phone another tenant already holds refuses the write the same way', asyn
 		/phone|UNIQUE/i
 	);
 
-	assert.deepEqual(await api.workspace.get(), before);
+	assert.deepEqual(await api.transfer.get(), before);
 });
 
 test('what the workspace holds is reported by the names a file uses', async () => {
@@ -485,7 +485,7 @@ test('what the workspace holds is reported by the names a file uses', async () =
 
 	await seedWorkspace(api);
 
-	const held = await api.workspace.held();
+	const held = await api.transfer.held();
 
 	assert.deepEqual(held.tenants, [['1234567890', '+966512345678']]);
 	assert.deepEqual(held.complexes, ['Al Nakheel']);
@@ -507,7 +507,7 @@ test('what the workspace holds leaves out a kind the member may not view', async
 		db,
 		identity: fakeIdentity({ permissions: EVERY_RECORD_ACT - 2 ** FLAGS.viewTenant })
 	});
-	const held = await lacking.workspace.held();
+	const held = await lacking.transfer.held();
 
 	assert.deepEqual(held.tenants, []);
 	assert.deepEqual(held.complexes, ['Al Nakheel']);
@@ -519,8 +519,8 @@ test('a file read into a workspace that already holds its records adds nothing',
 
 	await seedWorkspace(api);
 
-	const written = await api.workspace.get();
-	const plan = planWorkspaceImport(toTables(written), NOW, await api.workspace.held());
+	const written = await api.transfer.get();
+	const plan = planWorkspaceImport(toTables(written), NOW, await api.transfer.held());
 
 	// every row of it is already here, so there is nothing to agree to — which is what stops a
 	// reader importing the same file twice and doubling their workspace.
@@ -553,13 +553,13 @@ test('payments read into a ledger move the contract they are against', async () 
 			}
 		],
 		NOW,
-		await api.workspace.held(),
+		await api.transfer.held(),
 		['payments']
 	);
 
 	assert.ok(isWorkspaceImportable(plan));
 
-	await api.workspace.importWhole(toInput(plan.transfer));
+	await api.transfer.importWhole(toInput(plan.transfer));
 
 	const [after] = await api.contract.getMany({});
 

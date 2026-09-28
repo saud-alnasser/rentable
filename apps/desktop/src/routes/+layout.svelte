@@ -1,8 +1,10 @@
 <script lang="ts">
-	// First, so the root router is bound into `$lib/api/caller` and the cache policy provided to
-	// `$lib/mutation` before anything below can call a procedure or read a query key.
+	// First, so the root router is bound into `$lib/api/caller`, the cache policy provided to
+	// `$lib/mutation` and every feature's sheets bound into `$lib/transfer` before anything below
+	// can call a procedure, read a query key or open a file.
 	import '$lib/app/caller';
 	import '$lib/app/cache';
+	import '$lib/app/transfer';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';

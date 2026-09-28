@@ -3,17 +3,17 @@
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
 	import * as Dialog from '@rentable/design/primitive/dialog/index.js';
-	import type { ImportRejection } from '$lib/design/import';
 	import { showErrorSentence, showErrorToast } from '$lib/notification';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { tauri } from '$lib/platform/tauri';
 	import {
 		isWorkspaceImportable,
 		planWorkspaceImport,
+		type ImportRejection,
 		type TransferConcept,
 		type WorkspacePlan,
 		type WorkspaceTransfer
-	} from '$lib/workspace/workspace';
+	} from '$lib/transfer';
 	import CirclePlusIcon from '@lucide/svelte/icons/circle-plus';
 	import CircleSlashIcon from '@lucide/svelte/icons/circle-slash';
 	import Columns3Icon from '@lucide/svelte/icons/columns-3';
@@ -200,7 +200,7 @@
 			// what the workspace already holds, read once for the whole file: a row duplicating a
 			// record is turned away here rather than at the write, and a reference a row makes is
 			// answered from the same read.
-			const held = await api.workspace.held();
+			const held = await api.transfer.held();
 
 			fileName = path.split(/[\\/]/).pop() ?? path;
 			plan = planWorkspaceImport(tables, Date.now(), held, [concept]);

@@ -9,7 +9,8 @@ import type { EarlierRead, ImportTable, Settings } from '$lib/platform/host';
 import { fakeSettings } from '$lib/platform/tests/testing';
 import EarlierRecords from '$lib/workspace/component/app-database-records.svelte';
 import { IMPORT_FLAGS } from '$lib/permission';
-import { emptyHeld } from '$lib/workspace/workspace';
+import '$lib/app/transfer';
+import { emptyHeld } from '$lib/transfer';
 import QueryProviders from '#tests/query-providers.svelte';
 import { forgetReader, holdEveryFlagBut, layOutLists, refusedControl } from '#tests/permission.ts';
 import earlierTables from './app-database.json';
@@ -51,7 +52,7 @@ vi.mock('$lib/api/caller', () => ({
 			get: async () => hooks.settings.current,
 			set: hooks.set
 		},
-		workspace: { held: hooks.held, importWhole: hooks.importWhole }
+		transfer: { held: hooks.held, importWhole: hooks.importWhole }
 	}
 }));
 

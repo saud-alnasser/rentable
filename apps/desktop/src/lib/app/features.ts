@@ -8,8 +8,8 @@ import settings from '$lib/settings/feature';
 import startup from '$lib/startup/feature';
 import sync from '$lib/sync/feature';
 import tenant from '$lib/tenant/feature';
+import transfer from '$lib/transfer/feature';
 import update from '$lib/update/feature';
-import workspace from '$lib/workspace/feature';
 
 /**
  * THE FEATURES
@@ -26,7 +26,7 @@ import workspace from '$lib/workspace/feature';
  * the cache policy from this list, and the prefixes are invalidated in the order their features
  * stand here.
  */
-export const features = [
+const declared = [
 	contract,
 	payment,
 	tenant,
@@ -34,10 +34,16 @@ export const features = [
 	unit,
 	dashboard,
 	history,
-	workspace,
 	organization,
 	settings,
 	sync,
 	update,
 	startup
 ] as const;
+
+/**
+ * **A capability that reads what features declare is handed the list here**, and listed after it:
+ * the transfer builds its router from every sheet the features above declare, since it may not
+ * import one of them (plan, *How a capability is configured*).
+ */
+export const features = [...declared, transfer(declared)] as const;

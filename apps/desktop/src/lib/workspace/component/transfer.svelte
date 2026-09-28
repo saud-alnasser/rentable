@@ -4,7 +4,6 @@
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
-	import { toExportSheet } from '@rentable/design/csv.js';
 	import { isolateDirection } from '$lib/error/message';
 	import { showErrorToast, showSuccessToast } from '$lib/notification';
 	import { LL } from '$lib/i18n/i18n-svelte';
@@ -12,13 +11,7 @@
 	import WorkspaceImportDialog from '$lib/workspace/component/import-dialog.svelte';
 	import { useImportRecords } from '$lib/workspace/query';
 	import { EXPORT_FLAGS, IMPORT_FLAGS, memberPermissions } from '$lib/permission';
-	import {
-		TRANSFER_COLUMNS,
-		TRANSFER_CONCEPTS,
-		toSheetTitle,
-		toTransferInput,
-		type WorkspaceTransfer
-	} from '$lib/workspace/workspace';
+	import { toTransferInput, toWorkbook } from '$lib/transfer';
 
 	/**
 	 * A whole workspace, out as one file and back in from one.
@@ -42,26 +35,12 @@
 	// as the procedure asks, since a workspace file holds every kind (effort 838, requirement 10).
 	const importUnavailable = $derived(memberPermissions.refusalOfEvery(IMPORT_FLAGS, $LL));
 	// and why the reader may not take the workspace out, naming the first view flag they lack: the
-	// file holds every kind, so `workspace.get` asks for every kind's view.
+	// file holds every kind, so `transfer.get` asks for every kind's view.
 	const exportUnavailable = $derived(memberPermissions.refusalOfEvery(EXPORT_FLAGS, $LL));
 	// one id for the row, and one reason under it per control.
 	const reasonId = $props.id();
 	const importReasonId = `${reasonId}-import`;
 	const exportReasonId = `${reasonId}-export`;
-
-	/** Every sheet of the file, in the order the reader has to read them back in. */
-	function toSheets(transfer: WorkspaceTransfer) {
-		return TRANSFER_CONCEPTS.map((concept) =>
-			// the cast is what a per-concept table costs in one expression: each concept's columns
-			// read its own records and the loop is over five different pairs, which no single
-			// signature describes. The pairing itself is checked where the columns are declared.
-			toExportSheet(
-				TRANSFER_COLUMNS[concept] as never,
-				transfer[concept] as never[],
-				toSheetTitle(concept)
-			)
-		);
-	}
 
 	async function exportWorkspace() {
 		if (isExporting || exportUnavailable) {
@@ -81,8 +60,8 @@
 
 			// read now rather than from a cache: the file is what the workspace is at the moment
 			// the reader asked for it, and nothing on this screen was showing any of it.
-			const transfer = await api.workspace.get();
-			const path = await tauri.export.writeWorkbook(chosen, toSheets(transfer));
+			const transfer = await api.transfer.get();
+			const path = await tauri.export.writeWorkbook(chosen, toWorkbook(transfer));
 
 			showSuccessToast($LL.common.messages.exported({ path: isolateDirection(path) }));
 

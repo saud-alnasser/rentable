@@ -4,9 +4,9 @@ import test from 'node:test';
 import type { ImportTable } from '$lib/platform/host.ts';
 
 import { toTables } from './file.ts';
+import type { TransferContract } from '$lib/contract/transfer.ts';
 import {
 	type TransferConcept,
-	type TransferContract,
 	type WorkspaceHeld,
 	type WorkspacePlan,
 	type WorkspaceSheetPlan,
@@ -17,7 +17,7 @@ import {
 	toContractReference,
 	toUnitParts,
 	toUnitReference
-} from '../workspace.ts';
+} from '../index.ts';
 import { formatDateInput } from '$lib/date';
 
 const DAY = 86_400_000;

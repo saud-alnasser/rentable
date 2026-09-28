@@ -10,7 +10,7 @@
 	import { IMPORT_FLAGS, memberPermissions } from '$lib/permission';
 	import { useEarlierRecords } from '$lib/workspace/app-database';
 	import { useImportRecords } from '$lib/workspace/query';
-	import { toTransferInput } from '$lib/workspace/workspace';
+	import { toTransferInput } from '$lib/transfer';
 	import ArchiveRestoreIcon from '@lucide/svelte/icons/archive-restore';
 
 	/**

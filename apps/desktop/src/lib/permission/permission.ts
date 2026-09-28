@@ -49,7 +49,7 @@ export const VIEW_FLAG = Object.fromEntries(
 ) as { readonly [Kind in RecordKind]: ViewFlagOf<Kind> } satisfies Record<RecordKind, RecordFlag>;
 
 /**
- * What an export reads, and so what it asks for: every kind's view, as `workspace.get` does, since
+ * What an export reads, and so what it asks for: every kind's view, as `transfer.get` does, since
  * the file holds every kind and a member who may not view one is not handed it in a file.
  */
 export const EXPORT_FLAGS: readonly ViewFlagOf<RecordKind>[] = RECORD_KINDS.map(
@@ -57,7 +57,7 @@ export const EXPORT_FLAGS: readonly ViewFlagOf<RecordKind>[] = RECORD_KINDS.map(
 );
 
 /**
- * What an import writes, and so what it asks for: every kind's create, as `workspace.importWhole`
+ * What an import writes, and so what it asks for: every kind's create, as `transfer.importWhole`
  * does, since one procedure takes a file of any kind and writes it all or none.
  */
 export const IMPORT_FLAGS: readonly CreateFlagOf<RecordKind>[] = RECORD_KINDS.map(

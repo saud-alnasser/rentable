@@ -542,7 +542,7 @@ the order and before the create, holding *export* and *import* and nothing else.
   agree. **Nothing is written before the last step.** The dialog says how many rows go in, how many
   do not and why, and which rows to go and look at. A row wrong on its own is turned away and the
   rest goes in; a file whose rows contradict each other is refused whole and offers no import
-  (`design/import.ts`). An import is outside undo (*Undo*).
+  (`transfer/import.ts`). An import is outside undo (*Undo*).
 
 Tenants, complexes, units, contracts and payments offer both. A contract that takes no new payment
 refuses the import on its ledger, with the reason its create is refused (`importUnavailable` on

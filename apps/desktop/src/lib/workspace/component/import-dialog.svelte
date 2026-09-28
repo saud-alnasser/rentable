@@ -6,17 +6,17 @@
 	import { showErrorSentence, showErrorToast } from '$lib/notification';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { tauri } from '$lib/platform/tauri';
-	import type { ImportRejection } from '$lib/design/import';
 	import type { ImportTable } from '$lib/platform/host';
 	import {
 		countTransfer,
 		isWorkspaceImportable,
 		planWorkspaceImport,
+		type ImportRejection,
 		type TransferConcept,
 		type WorkspacePlan,
 		type WorkspaceSheetPlan,
 		type WorkspaceTransfer
-	} from '$lib/workspace/workspace';
+	} from '$lib/transfer';
 	import CirclePlusIcon from '@lucide/svelte/icons/circle-plus';
 	import CircleSlashIcon from '@lucide/svelte/icons/circle-slash';
 	import Columns3Icon from '@lucide/svelte/icons/columns-3';
@@ -165,7 +165,7 @@
 		// what the workspace already holds, read once for the whole file: a row that duplicates
 		// a record is turned away here rather than at the write, and a reference may resolve
 		// against a record that is already here as readily as against one the file creates.
-		const held = await api.workspace.held();
+		const held = await api.transfer.held();
 
 		fileName = path.split(/[\\/]/).pop() ?? path;
 		plan = planWorkspaceImport(tables, Date.now(), held);

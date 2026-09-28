@@ -20,14 +20,14 @@
 //! **The tables are the workbook read back**, through the reader `import_read_book` is, rather
 //! than built beside it. What the interface is handed is then what it would have been handed had
 //! the person chosen the workbook themselves, and there is no second spelling of a date or an
-//! amount for the two to disagree over. The sheets are the ones `TRANSFER_COLUMNS` in
-//! `src/lib/workspace/workspace.ts` writes, in `TRANSFER_CONCEPTS`' order, and
+//! amount for the two to disagree over. The sheets are the ones the record features declare to
+//! `src/lib/transfer/` (each feature's `transfer.ts`), in their order, and
 //! `src/lib/workspace/tests/app-database.json` is what a test on each side holds them to.
 //!
 //! **A record whose parent is missing is left out, and counted.** A unit whose complex, a contract
 //! whose tenant, or a payment whose contract is not in the file has nothing the import could
 //! attach it to, and the import refuses a whole file over a reference nothing answers to, so the
-//! read leaves it out as `workspace.get` does. A contract's link to a unit that is missing, or was
+//! read leaves it out as `transfer.get` does. A contract's link to a unit that is missing, or was
 //! itself left out, goes the same way, and the unit is not on the contract's row. How many of
 //! each were left out is written in the `earlier.read` line, which is a warning where any was, so
 //! the records a person does not find brought over are accounted for somewhere.
@@ -268,7 +268,7 @@ impl LeftOut {
 ///
 /// **The same statements at both versions.** Schema 3 added only `history`, and the export has no
 /// sheet for it: the history of a record is not something a workspace hands over. Each read is
-/// ordered as `workspace.get` orders it, and each value is cast to what the export writes, so a
+/// ordered as `transfer.get` orders it, and each value is cast to what the export writes, so a
 /// value an earlier version happened to store in another storage class still reads.
 ///
 /// The joins leave out a record whose parent is missing; how many of each is counted beside the
@@ -391,7 +391,7 @@ async fn sheets(connection: &mut SqliteConnection) -> Result<(Vec<Sheet>, LeftOu
     let units_read = units.len();
     let contracts_read = contracts.len();
 
-    // a payment whose contract is gone is left out, as `workspace.get` leaves it out: the import
+    // a payment whose contract is gone is left out, as `transfer.get` leaves it out: the import
     // refuses a whole file over a reference nothing answers to.
     let payment_rows: Vec<Vec<Cell>> = payments
         .into_iter()

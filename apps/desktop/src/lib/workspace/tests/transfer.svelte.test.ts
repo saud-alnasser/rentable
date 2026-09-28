@@ -14,7 +14,7 @@ import { forgetReader, holdEveryFlagBut, refusedControl } from '#tests/permissio
  * A WORKSPACE'S EXPORT, FOR A READER WHO MAY NOT VIEW EVERY KIND
  *
  * Effort 838, requirement 10 and criterion 10: the file holds every kind of record, so
- * `workspace.get` asks for every view flag, and the export control is refused, naming the view
+ * `transfer.get` asks for every view flag, and the export control is refused, naming the view
  * flag the reader lacks, unless they hold all five. A refused export asks for no file and reads
  * nothing.
  *
@@ -31,7 +31,7 @@ vi.mock('$lib/platform/tauri', () => ({
 	}
 }));
 
-vi.mock('$lib/api/caller', () => ({ default: { workspace: { get: hooks.get } } }));
+vi.mock('$lib/api/caller', () => ({ default: { transfer: { get: hooks.get } } }));
 
 beforeEach(() => {
 	loadLocale('en');

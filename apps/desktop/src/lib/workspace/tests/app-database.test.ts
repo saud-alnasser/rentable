@@ -4,12 +4,13 @@ import test from 'node:test';
 
 import type { ImportTable } from '$lib/platform/host.ts';
 
+import '$lib/app/transfer.ts';
 import {
-	TRANSFER_CONCEPTS,
 	countTransfer,
 	isWorkspaceImportable,
-	planWorkspaceImport
-} from '../workspace.ts';
+	planWorkspaceImport,
+	transferConcepts
+} from '$lib/transfer/index.ts';
 
 // The records 0.12.0 and 0.13.0 left in `app.db`, as `tauri/src/upgrade/record.rs` reads them:
 // the tables its tests find for either version, one record of every kind. The file is the
@@ -24,7 +25,7 @@ const NOW = Date.UTC(2026, 8, 27);
 test('the records of an earlier version plan as an import creating every one of them', () => {
 	const plan = planWorkspaceImport(tables, NOW);
 
-	for (const concept of TRANSFER_CONCEPTS) {
+	for (const concept of transferConcepts()) {
 		const sheet = plan.sheets.find((each) => each.concept === concept);
 		const table = tables.find((each) => each.name.toLowerCase() === concept);
 
