@@ -18,7 +18,7 @@
 	import LayoutCreateShortcut from '$lib/layout/component/create-shortcut.svelte';
 	import LayoutCaughtError from '$lib/layout/component/caught-error.svelte';
 	import LayoutPalette, { PALETTE_SHORTCUT_HINT } from '$lib/layout/component/palette.svelte';
-	import LayoutShortcutListener from '$lib/layout/component/shortcut-listener.svelte';
+	import ShortcutListener from '$lib/shortcut/component/listener.svelte';
 	import LayoutShortcutSheet from '$lib/layout/component/shortcut-sheet.svelte';
 	import LayoutSidebar from '$lib/layout/component/sidebar.svelte';
 	import LayoutUndoShortcut from '$lib/layout/component/undo-shortcut.svelte';
@@ -185,7 +185,7 @@
 <!-- the application's one keyboard listener, and outside the navigation with the undo pair it
      answers: a change made on a screen that carries no navigation is still a change the reader
      can take back. -->
-<LayoutShortcutListener />
+<ShortcutListener />
 <LayoutUndoShortcut />
 <!-- and the create key, on every screen for the same reason: where no set is on screen it is
      refused with its reason, rather than left to the webview. -->

@@ -10,7 +10,7 @@ import {
 	toShortcutSheetEntries,
 	type ApplicationShortcut,
 	type ShortcutCollision
-} from '../shortcut-registry.ts';
+} from '../shortcut.ts';
 
 // a registration describes itself from the whole of what a locale answers with, so the loaded
 // locale is what a test hands it rather than a two-key shape nothing ever passes.

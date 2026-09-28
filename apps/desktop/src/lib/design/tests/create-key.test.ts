@@ -3,8 +3,8 @@ import test from 'node:test';
 
 import { i18nObject } from '$lib/i18n/i18n-util.ts';
 import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
+import { ShortcutRegistry } from '$lib/shortcut/shortcut.ts';
 import { toCreateShortcut, type CreateTarget } from '../create-key.ts';
-import { ShortcutRegistry } from '../shortcut-registry.ts';
 
 /**
  * THE CREATE KEY, AS THE REGISTRY ANSWERS IT

@@ -1,5 +1,5 @@
 import type { ShortcutCombination } from '@rentable/design/shortcut.js';
-import type { ApplicationShortcut } from '$lib/design/shortcut-registry';
+import type { ApplicationShortcut } from '$lib/shortcut';
 
 /**
  * THE CREATE KEY

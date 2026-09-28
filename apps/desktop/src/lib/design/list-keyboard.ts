@@ -10,7 +10,7 @@
  * is genuinely the DOM's — which element takes focus, and when it exists to take it.
  */
 import type { ListGroup, ListRow } from '@rentable/design/group.js';
-import type { ShortcutRegistration } from '$lib/design/shortcut-registry';
+import type { ShortcutRegistration } from '$lib/shortcut';
 
 /** One row of records, as moving through the list sees it. */
 export type ListRecordRow = {

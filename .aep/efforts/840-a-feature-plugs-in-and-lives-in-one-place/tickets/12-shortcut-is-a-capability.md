@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [01]
 ---
 # refactor(desktop): shortcuts are a capability
@@ -14,8 +14,8 @@ The spec is [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]]; the 
 
 Traces requirement 20 of [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]], and criterion 20.
 
-- [ ] Every shortcut registration goes through `$lib/shortcut` (criterion 20).
-- [ ] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19).
+- [x] Every shortcut registration goes through `$lib/shortcut` (criterion 20). Verified: a search of `apps/desktop/src` (tests aside) for `shortcuts.register(` and `new ShortcutRegistry(` finds six `shortcuts.register` calls (list, search-field, create-shortcut, palette, sidebar, undo-shortcut), each file importing `shortcuts` from `'$lib/shortcut'`, and one `new ShortcutRegistry` inside `shortcut/shortcut.svelte.ts`; the only window key listener in the app and the design package is `shortcut/component/listener.svelte:28`.
+- [x] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19). Verified: in the run's tree: check 0, eslint 0, `pnpm test` 3 of 3 tasks, build:web 0; no assertion line changed in any test (`git diff -- '*.test.ts'` shows only import paths).
 
 ## Relevant areas
 

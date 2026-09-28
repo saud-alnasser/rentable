@@ -147,11 +147,14 @@ design -> history : cycle
 design -> i18n : cycle
 design -> notification : cycle
 design -> platform : cycle
+design -> shortcut : cycle
 design -> workspace : cycle
 design/acts.ts -> workspace : import
 design/acts.ts -> workspace/permission.ts : deep
 design/acts.ts -> workspace/permission.ts : upward
 design/block/list.svelte -> notification/index.ts : upward
+design/block/list.svelte -> shortcut/index.ts : upward
+design/block/search-field.svelte -> shortcut/index.ts : upward
 design/filter.ts -> date/index.ts : upward
 design/inverse.ts -> workspace : import
 design/inverse.ts -> workspace/permission.ts : deep
@@ -190,6 +193,7 @@ layout -> payment : cycle
 layout -> platform : cycle
 layout -> print : cycle
 layout -> settings : cycle
+layout -> shortcut : cycle
 layout -> sync : cycle
 layout -> tenant : cycle
 layout -> workspace : cycle
@@ -208,6 +212,7 @@ layout/component/frame.svelte -> organization/component/host.svelte : deep
 layout/component/frame.svelte -> payment : import
 layout/component/frame.svelte -> payment/component/host.svelte : deep
 layout/component/frame.svelte -> print/component/sheet.svelte : deep
+layout/component/frame.svelte -> shortcut/component/listener.svelte : deep
 layout/component/frame.svelte -> tenant : import
 layout/component/frame.svelte -> tenant/component/host.svelte : deep
 layout/component/frame.svelte -> workspace : import
@@ -389,6 +394,7 @@ settings/component/area.svelte -> organization/component/workspaces.svelte : dee
 settings/query.ts -> dashboard/query.ts : deep
 settings/query.ts -> sync/event.ts : deep
 settings/query.ts -> sync/workspace.ts : deep
+shortcut -> platform : cycle
 sync -> api : cycle
 sync -> design : cycle
 sync -> error : cycle

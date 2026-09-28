@@ -3,7 +3,7 @@
 	import { page } from '$app/state';
 	import { SIDEBAR_KEYBOARD_SHORTCUT } from '@rentable/design/primitive/sidebar/constants.js';
 	import * as Sidebar from '@rentable/design/primitive/sidebar/index.js';
-	import { shortcuts } from '$lib/design/shortcut-registry.svelte';
+	import { shortcuts } from '$lib/shortcut';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import LayoutAccountMenu from '$lib/layout/component/account-menu.svelte';
 	import LayoutAccountSignedOut from '$lib/layout/component/account-signed-out.svelte';

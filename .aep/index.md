@@ -410,7 +410,7 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/09-date-is-a-capability]] refactor(desktop): dates and periods are one capability | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | 01 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/10-history-is-a-capability]] refactor(desktop): history is a capability | 840-a-feature-plugs-in-and-lives-in-one-place | open | 08 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/11-notification-is-a-capability]] refactor(desktop): notifications are a capability | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | 01 |
-| [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/12-shortcut-is-a-capability]] refactor(desktop): shortcuts are a capability | 840-a-feature-plugs-in-and-lives-in-one-place | open | 01 |
+| [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/12-shortcut-is-a-capability]] refactor(desktop): shortcuts are a capability | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | 01 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/13-mutation-is-a-capability]] refactor(desktop): mutation and the query cache are a capability | 840-a-feature-plugs-in-and-lives-in-one-place | open | 10 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/14-undo-is-a-capability]] refactor(desktop): undo and redo are one capability | 840-a-feature-plugs-in-and-lives-in-one-place | open | 12, 13 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/15-record-acts-are-a-capability]] refactor(desktop): record acts are a capability | 840-a-feature-plugs-in-and-lives-in-one-place | open | 08 |

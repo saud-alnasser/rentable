@@ -2,7 +2,7 @@ import {
 	describeShortcutCollision,
 	ShortcutRegistry,
 	type ShortcutRegistration
-} from '$lib/design/shortcut-registry';
+} from '$lib/shortcut/shortcut';
 import { recordDiagnosticError } from '$lib/platform/diagnostics';
 
 /**

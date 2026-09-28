@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { shortcuts } from '$lib/design/shortcut-registry.svelte';
+	import { shortcuts } from '$lib/shortcut/shortcut.svelte';
 
 	/**
 	 * The application's one keyboard listener.

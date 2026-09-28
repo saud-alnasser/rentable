@@ -5,7 +5,8 @@
  * combination it claims, whether a keydown carries that combination, whether two combinations
  * could be carried by one keydown, and how a combination is printed.
  *
- * The registry that holds them is `shortcut-registry.ts`; nothing here knows it exists.
+ * The registry that holds them is the application's `shortcut/` capability; nothing here knows it
+ * exists.
  */
 
 /** the physical keys whose name is not derived from the character sitting on them. */

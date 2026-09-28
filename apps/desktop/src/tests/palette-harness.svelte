@@ -15,7 +15,7 @@
 	 * `#tests/palette-harness.svelte`. *It lived in `layout/tests/` until ticket 19 of effort 838.*
 	 */
 	import LayoutPalette from '$lib/layout/component/palette.svelte';
-	import LayoutShortcutListener from '$lib/layout/component/shortcut-listener.svelte';
+	import ShortcutListener from '$lib/shortcut/component/listener.svelte';
 	import { TooltipProvider } from '@rentable/design/primitive/tooltip/index.js';
 	import {
 		DesignProvider,
@@ -46,7 +46,7 @@
 <DesignProvider {strings} {direction}>
 	<QueryClientProvider {client}>
 		<TooltipProvider>
-			<LayoutShortcutListener />
+			<ShortcutListener />
 			<LayoutPalette bind:open={isPaletteOpen} />
 			<output data-palette-open={isPaletteOpen}></output>
 			{#if Screen}

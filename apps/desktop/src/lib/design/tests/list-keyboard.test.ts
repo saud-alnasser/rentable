@@ -12,7 +12,7 @@ import {
 	toSearchShortcut
 } from '../list-keyboard.ts';
 import { listRows } from '@rentable/design/group.js';
-import { toShortcutSheetEntries } from '../shortcut-registry.ts';
+import { toShortcutSheetEntries } from '$lib/shortcut/shortcut.ts';
 
 // the loaded locale rather than a hand-written stand-in: a description reads the whole of
 // `TranslationFunctions`, and the three-key object this used to pass was a shape nothing ever

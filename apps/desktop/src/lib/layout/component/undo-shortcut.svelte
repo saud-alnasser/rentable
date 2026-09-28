@@ -2,7 +2,7 @@
 	import { inverseStack } from '$lib/design/inverse';
 	import { undoable } from '$lib/design/inverse.svelte';
 	import { applyRedo, applyUndo } from '$lib/design/mutation';
-	import { shortcuts } from '$lib/design/shortcut-registry.svelte';
+	import { shortcuts } from '$lib/shortcut';
 	import { toUndoShortcuts } from '$lib/design/undo-shortcut';
 	import { useQueryClient } from '@tanstack/svelte-query';
 

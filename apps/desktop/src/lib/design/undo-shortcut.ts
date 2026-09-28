@@ -1,4 +1,4 @@
-import type { ApplicationShortcut } from '$lib/design/shortcut-registry';
+import type { ApplicationShortcut } from '$lib/shortcut';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 
 /** Held with ctrl or command: undo, and redo with shift. */

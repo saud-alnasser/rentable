@@ -28,7 +28,7 @@
 	import { paymentHost } from '$lib/payment/host.svelte';
 	import { Kbd, KbdGroup } from '@rentable/design/primitive/kbd/index.js';
 	import * as Command from '@rentable/design/primitive/command/index.js';
-	import { shortcuts } from '$lib/design/shortcut-registry.svelte';
+	import { shortcuts } from '$lib/shortcut';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { primaryDestinations, secondaryDestinations } from '$lib/layout/destination';
 	import {

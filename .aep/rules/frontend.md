@@ -471,7 +471,7 @@ application, not a contract the package could be handed.** `create-control` read
 (`design/create-key.ts`) and registers with what answers it (`design/create-target.svelte.ts`),
 which is what makes it the one control [[rules/interface]] *Create* says draws a create and the one
 the key finds. `search-field` registers the list's search shortcut (`design/list-keyboard.ts`) in
-this application's shortcut registry, which reaches `$lib/platform` to record a collision, and
+this application's shortcut capability (`$lib/shortcut`), which reaches `$lib/platform` to record a collision, and
 `list-toolbar` draws `search-field`, so both are on the application's side of the reach test under
 *Components* above. `$lib` names nothing inside the package, so none of the three could move without
 the create key, its targets and the list's keyboard moving with it. (`block/record-actions.svelte`
@@ -529,8 +529,8 @@ where the dictionary is.
 turned out to matter. `block/list.svelte` registers three shortcuts, each naming a key under
 `common.table`, and no amount of inverting its other couplings would have made those
 registrations legal in the package. So the block stays with this application, and
-`design/list-keyboard.ts` and `design/shortcut-registry.{ts,svelte.ts}` stay with it: the first
-builds the registrations and the second two hold them. *Since effort 832 the search key is
+`design/list-keyboard.ts` and the registry stay with it: the first builds the registrations and
+the second holds them, in the `shortcut/` capability since effort 840. *Since effort 832 the search key is
 registered by `design/block/search-field.svelte` (`toSearchShortcut`) and the other two by the
 list (`toListShortcuts`), so the field stays with this application for the same reason, and every
 set that draws it answers `/`.* **Nothing in the package holds a registry or wants one**:

@@ -126,7 +126,7 @@ export function describeShortcutCollision(collision: ShortcutCollision) {
  *
  * A plain object with observers rather than a runed one, so the whole of the decision — what
  * fires, what collides, what the sheet is given — is reachable from a test that runs under
- * Node. `shortcut-registry.svelte.ts` is the reactive mirror, and owns nothing this does not.
+ * Node. `shortcut.svelte.ts` is the reactive mirror, and owns nothing this does not.
  */
 export class ShortcutRegistry {
 	#registered: ShortcutRegistration[] = [];

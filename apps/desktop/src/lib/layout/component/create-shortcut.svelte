@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { toCreateShortcut } from '$lib/design/create-key';
 	import { createTargets } from '$lib/design/create-target.svelte';
-	import { shortcuts } from '$lib/design/shortcut-registry.svelte';
+	import { shortcuts } from '$lib/shortcut';
 
 	/**
 	 * The create key, registered once for the whole window.

@@ -8,7 +8,7 @@
 	 */
 	import CreateControl from '$lib/design/block/create-control.svelte';
 	import LayoutCreateShortcut from '$lib/layout/component/create-shortcut.svelte';
-	import LayoutShortcutListener from '$lib/layout/component/shortcut-listener.svelte';
+	import ShortcutListener from '$lib/shortcut/component/listener.svelte';
 	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import { DesignProvider } from '@rentable/design/strings.js';
 	import { placeholderStrings as strings } from './strings';
@@ -23,7 +23,7 @@
 
 <DesignProvider {strings} direction="ltr">
 	<Tooltip.Provider>
-		<LayoutShortcutListener />
+		<ShortcutListener />
 		<LayoutCreateShortcut />
 
 		{#each sets as set (set.label)}

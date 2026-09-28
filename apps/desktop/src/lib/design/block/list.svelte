@@ -42,7 +42,7 @@
 	import { isolateDirection } from '$lib/error/message';
 	import { showErrorToast, showSuccessToast } from '$lib/notification';
 	import { isEditingText } from '@rentable/design/shortcut.js';
-	import { shortcuts } from '$lib/design/shortcut-registry.svelte';
+	import { shortcuts } from '$lib/shortcut';
 	import type { ListSort } from '@rentable/design/sort.js';
 	import ListToolbar, { type ListSortOption } from '$lib/design/block/list-toolbar.svelte';
 	import { cn } from '@rentable/design/tailwind.js';

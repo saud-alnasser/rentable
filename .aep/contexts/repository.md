@@ -146,7 +146,8 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   832, when copy details became a record act); the record acts' shape and projections in
   `acts.ts`, the cells, and the
   cross-concept helpers beside them: mutation handling, the workspace query-cache policy, undo,
-  the shortcut registry and what builds the list's registrations, the list's motion
+  what builds the list's registrations (the registry they go into, and the one key listener, are
+  the `shortcut/` capability since effort 840), the list's motion
   (`list-motion`), the create key and what it answers (`create-key`, `create-target`,
   `create-intent`), where a create lands (`landing`), and the filter, date and import helpers.
   *It holds 80 files, counted on 2026-09-25. It held 459 until 2026-08-23 and 34 just after,

@@ -7,7 +7,7 @@ import {
 	ShortcutRegistry,
 	type ApplicationShortcut,
 	type ShortcutRegistration
-} from '../../design/shortcut-registry.ts';
+} from '$lib/shortcut/shortcut.ts';
 import { matchesTerm, toPaletteShortcuts } from '../palette.ts';
 
 // the loaded locale rather than a hand-written stand-in: a name and a reason are read from the
