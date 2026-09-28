@@ -654,6 +654,19 @@ flag. Format 3 has not shipped, so `three.rs` is changed in place. *And:* the ow
 for a grant already minted read-only goes with the lock, so anybody who may grant the workspace
 at full access re-grants it, and anybody who may withdraw it withdraws it.
 
+## Groups that fold, and quiet role cards (spec, requirement 12, amended a fourth time 2026-09-28)
+
+*The human's call on the running application.* The shared switch list becomes a list of groups:
+each kind of record and administration is a head (its glyph, its name, a count of what is on, and a
+chevron) that folds open to its permissions, one row each with the permission's own icon, its name
+and a one-line description, and a switch. The view dependency stays: adding, editing and deleting a
+kind are refused, saying why, while viewing it is off. A group holding a difference or a refused
+switch says so on its head while folded. A workspace on a member's card is its access switch, and
+beneath a workspace that is in, one folded *permissions* row opens the record groups. What is
+pinned for a workspace is what differs from the member's organization-wide permissions when saved,
+so turning a switch back unsets it; the read only and reset buttons leave. A roles card is the
+role's name, how many hold it, and one plain line of what it can do; the detail is the editor's.
+
 # Testing Strategy
 
 | Criterion | Checked by |

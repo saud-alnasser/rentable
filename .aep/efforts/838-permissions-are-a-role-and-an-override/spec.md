@@ -1,5 +1,5 @@
 ---
-status: implemented
+status: accepted
 ---
 
 # Problem
@@ -165,6 +165,13 @@ rank, without the owner present.
     the workspace's dialog: *read only* is those switches, enforced by the application, and a grant
     already minted read-only keeps working, reads as read only, and becomes a full-access grant when
     a write is turned back on.*
+    *Amended a fourth time 2026-09-28, the human's call on the running application: the switch list
+    is a list of groups, each folding as administration folds, and beneath each group its
+    permissions, each with its icon, its name and a line saying what it allows. A workspace on a
+    member's card is one main switch, access, with its permissions folded beneath it as that same
+    list; the read only and reset buttons go, and a switch turned back to what the member holds
+    across the organization is no longer set for that workspace. A roles card says little: the
+    role's name, who holds it, and one plain line of what it can do.*
 13. **Nothing changes an organization's format or a workspace's schema without a copy of it first.**
     Before the owner's machine transforms the organization, and before the member holding a
     workspace's lease applies a pending migration to it, the machine writes a copy of every table
