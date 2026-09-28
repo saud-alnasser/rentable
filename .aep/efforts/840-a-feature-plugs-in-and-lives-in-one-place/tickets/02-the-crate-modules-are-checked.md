@@ -1,5 +1,6 @@
 ---
 status: open
+blocked-by: [60]
 ---
 # test(tauri): the crate's modules are checked for cycles against a baseline
 

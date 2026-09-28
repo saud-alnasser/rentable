@@ -144,8 +144,8 @@ tauri-plugin-updater = "2.10.0"
 # system print dialog, reached through the controller Tauri hands over. The versions are the ones
 # wry already links, so nothing new is compiled.
 [target.'cfg(windows)'.dependencies]
-webview2-com = "0.38.2"
-windows = "0.61.3"
+webview2-com = "0.39.1"
+windows = "0.62.2"
 
 # Argon2id is memory-hard on purpose, and an unoptimized build of it is several times
 # slower than the one that ships. Left alone, that difference lands in two places: a

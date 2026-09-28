@@ -1,5 +1,6 @@
 ---
 status: open
+blocked-by: [60]
 ---
 # test: file and directory names are checked
 
