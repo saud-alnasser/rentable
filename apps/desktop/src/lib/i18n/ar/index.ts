@@ -1347,11 +1347,28 @@ const ar = {
 		},
 
 		roleCard: {
-			edit: 'يستطيع التعديل',
-			add: 'يستطيع الإضافة',
-			view: 'عرض فقط',
-			everything: 'كل شيء',
-			administers: 'يدير'
+			everything: 'وصول كامل إلى كل شيء',
+			full: 'وصول كامل إلى {kinds}',
+			does: '{verbs} {kinds}',
+			verbs: {
+				view: 'يعرض',
+				create: 'يضيف',
+				edit: 'يعدّل',
+				delete: 'يحذف'
+			},
+			kinds: {
+				complex: 'المجمعات',
+				unit: 'الوحدات',
+				tenant: 'المستأجرين',
+				contract: 'العقود',
+				payment: 'المدفوعات'
+			},
+			everyRecord: 'كل السجلات',
+			everyOtherRecord: 'بقية السجلات',
+			organization: {
+				all: 'يدير المؤسسة',
+				some: 'يشارك في إدارة المؤسسة'
+			}
 		},
 
 		foreseen: {

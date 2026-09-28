@@ -268,7 +268,13 @@ const RETIRED = [
 	// workspace's differences were measured against, until review round one of the workspace
 	// layer let the rule go with the lock and marked what is set there instead.
 	'organization.workspaceSwitches.ownerMadeReadOnly',
-	'organization.workspaceSwitches.acrossOrganization'
+	'organization.workspaceSwitches.acrossOrganization',
+	// the words a role's card summed each kind of record in, and its count of the organization's
+	// ten, until ticket 58 of effort 838 made the card one line of what the role can do.
+	'organization.roleCard.edit',
+	'organization.roleCard.add',
+	'organization.roleCard.view',
+	'organization.roleCard.administers'
 ] as const;
 
 test('both locales have let go of every string the retired pages read', () => {

@@ -36,7 +36,7 @@ import HostProviders from './host-providers.svelte';
  * THE ROLES, AS A LIST OF CARDS, AND THE EDITOR THEY OPEN
  *
  * Requirement 12 of [[efforts/838-permissions-are-a-role-and-an-override/spec]] from the
- * organization section's side: the roles by rank, each summed by kind of record and level,
+ * organization section's side: the roles by rank, each said in one line of what it can do,
  * and every write a holder of `manageRoles` makes through the card's acts and the editor they
  * open. A write is read off what the organization host asked of its hooks (`./host-hooks.ts`),
  * and what each hook asks of the shell is `platform/tests/roles.test.ts`'s.
@@ -151,26 +151,13 @@ test('the roles are listed by rank, the owner first and the member last', () => 
 	);
 });
 
-// requirement 12 as amended 2026-09-27: a card sums the role by kind of record, a line per level,
-// each kind under its glyph; a kind it cannot see is left out, the owner reads everything, and a
-// short line counts the organization's ten where the role holds any.
+// requirement 12 as amended a fourth time: a card says little, the role's name, how many hold it
+// and one plain line of what it can do; the detail is the editor's. Which words the line picks is
+// `role.test.ts`'s, over `roleLine`.
 
-/** a card's lines: each level's words and the kinds on it. */
-const levels = (id: string) =>
-	Array.from(card(id)!.querySelectorAll('[data-role-level]')).map((line) => ({
-		level: line.getAttribute('data-role-level'),
-		word: line.querySelector('[data-role-level-word]')?.textContent?.trim(),
-		kinds: Array.from(line.querySelectorAll('[data-role-kind-line]')).map((kind) =>
-			kind.getAttribute('data-role-kind-line')
-		)
-	}));
-
-/** the administration line, as it reads, or `null` where the card has none. */
-const administers = (id: string) =>
-	card(id)?.querySelector('[data-role-administers]')?.textContent?.replace(/\s+/g, ' ').trim() ??
-	null;
-
-const EVERY_KIND = ['complex', 'unit', 'tenant', 'contract', 'payment'];
+/** a card's one line, as it reads. */
+const lineOf = (id: string) =>
+	card(id)?.querySelector('[data-role-line]')?.textContent?.replace(/\s+/g, ' ').trim() ?? null;
 
 /**
  * render the block over the roles every organization has and these beside them, in a language,
@@ -194,108 +181,31 @@ const blockOf = (roles: OrganizationRole[], language: 'en' | 'ar' = 'en') => {
 const custom = (id: string, flags: Flag[]) =>
 	fakeOrganizationRole({ id, mask: flags.reduce((mask, flag) => mask + maskOf(flag), 0) });
 
-test('the owner reads everything, under its crown, and nothing else', () => {
-	block();
-
-	expect(card('owner')?.querySelector('[data-role-everything]')?.textContent?.trim()).toBe(
-		en.organization.roleCard.everything
-	);
-	expect(card('owner')?.querySelector('[data-role-everything] svg')).not.toBeNull();
-	expect(levels('owner')).toEqual([]);
-	expect(administers('owner')).toBeNull();
-});
-
-test('the manager has full access to every kind, and administers all ten', () => {
-	block();
-
-	expect(levels('manager')).toEqual([
-		{ level: 'full', word: en.organization.dashboard.accessFull, kinds: EVERY_KIND }
-	]);
-	expect(administers('manager')).toBe(`${en.organization.roleCard.administers} 10 of 10`);
-	expect(card('manager')?.querySelector('[data-role-administers] svg')).not.toBeNull();
-	expect(card('manager')?.querySelector('[data-role-everything]')).toBeNull();
-});
-
-test('the member can edit every kind, and administers nothing, so says nothing of it', () => {
-	block();
-
-	expect(levels('member')).toEqual([
-		{ level: 'edit', word: en.organization.roleCard.edit, kinds: EVERY_KIND }
-	]);
-
-	// every kind carries its glyph beside its name, never the glyph alone.
-	const complexes = card('member')!.querySelector('[data-role-kind-line="complex"]')!;
-
-	expect(complexes.querySelector('svg')).not.toBeNull();
-	expect(complexes.textContent?.trim()).toBe(en.organization.families.complex);
-	expect(administers('member')).toBeNull();
-});
-
-test('a custom role reads each level it has, widest first, leaving out what it cannot see', () => {
+test('each card says in one line what its role can do, and nothing more', () => {
 	blockOf([
-		custom('clerk', [
-			'viewComplex',
-			'createComplex',
-			'editComplex',
-			'deleteComplex',
-			'viewUnit',
-			'createUnit',
-			'editUnit',
-			'viewTenant',
-			'createTenant',
-			'viewContract',
-			'inviteMember',
-			'manageRoles'
-		])
-	]);
-
-	expect(levels('clerk')).toEqual([
-		{ level: 'full', word: en.organization.dashboard.accessFull, kinds: ['complex'] },
-		{ level: 'edit', word: en.organization.roleCard.edit, kinds: ['unit'] },
-		{ level: 'add', word: en.organization.roleCard.add, kinds: ['tenant'] },
-		{ level: 'view', word: en.organization.roleCard.view, kinds: ['contract'] }
-	]);
-	// payments it cannot see, so they are not on the card.
-	expect(card('clerk')?.querySelector('[data-role-kind-line="payment"]')).toBeNull();
-	expect(administers('clerk')).toBe(`${en.organization.roleCard.administers} 2 of 10`);
-});
-
-test('a mix off the ladder reads as the verbs it carries, and a role of nothing says so', () => {
-	blockOf([
-		custom('auditor', ['viewPayment', 'deletePayment', 'viewTenant', 'deleteTenant']),
+		custom('clerk', ['viewTenant', 'createTenant', 'viewPayment', 'createPayment']),
 		custom('empty', [])
 	]);
 
-	expect(levels('auditor')).toEqual([
-		{ level: 'mixed', word: 'view, delete', kinds: ['tenant', 'payment'] }
-	]);
-	expect(card('empty')?.querySelector('[data-role-carries-nothing]')?.textContent?.trim()).toBe(
-		en.organization.roleList.carriesNothing
-	);
-	expect(levels('empty')).toEqual([]);
+	expect(lineOf('owner')).toBe(en.organization.roleCard.everything);
+	expect(lineOf('manager')).toBe('full access to every record, runs the organization');
+	expect(lineOf('member')).toBe('edits every record');
+	expect(lineOf('clerk')).toBe('views and adds tenants and payments');
+	expect(lineOf('empty')).toBe(en.organization.roleList.carriesNothing);
+
+	// one line apiece, and no glyph on it: the kinds and levels are the editor's to draw.
+	for (const role of document.querySelectorAll('[data-role]')) {
+		expect(role.querySelectorAll('[data-role-line]')).toHaveLength(1);
+		expect(role.querySelector('[data-role-line] svg')).toBeNull();
+	}
 });
 
-test('in Arabic, the card reads the same levels in Arabic words', () => {
-	blockOf([custom('clerk', ['viewTenant', 'createTenant', 'viewContract', 'inviteMember'])], 'ar');
+test('in Arabic, the line is written in Arabic', () => {
+	blockOf([custom('clerk', ['viewTenant', 'createTenant', 'viewPayment', 'createPayment'])], 'ar');
 
-	expect(card('owner')?.querySelector('[data-role-everything]')?.textContent?.trim()).toBe(
-		ar.organization.roleCard.everything
-	);
-	expect(levels('manager')).toEqual([
-		{ level: 'full', word: ar.organization.dashboard.accessFull, kinds: EVERY_KIND }
-	]);
-	expect(levels('member')).toEqual([
-		{ level: 'edit', word: ar.organization.roleCard.edit, kinds: EVERY_KIND }
-	]);
-	expect(levels('clerk')).toEqual([
-		{ level: 'add', word: ar.organization.roleCard.add, kinds: ['tenant'] },
-		{ level: 'view', word: ar.organization.roleCard.view, kinds: ['contract'] }
-	]);
-	expect(card('clerk')?.querySelector('[data-role-kind-line="tenant"]')?.textContent?.trim()).toBe(
-		ar.organization.families.tenant
-	);
-	expect(administers('clerk')).toBe(`${ar.organization.roleCard.administers} 1 من 10`);
-	expect(administers('member')).toBeNull();
+	expect(lineOf('owner')).toBe(ar.organization.roleCard.everything);
+	expect(lineOf('member')).toBe('يعدّل كل السجلات');
+	expect(lineOf('clerk')).toBe('يعرض ويضيف المستأجرين والمدفوعات');
 });
 
 // requirement 4: making a role is the block's one create, and the editor it opens writes the name

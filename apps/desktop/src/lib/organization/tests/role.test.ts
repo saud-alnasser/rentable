@@ -18,7 +18,6 @@ import {
 	firstUnheldMoved,
 	holdersWritingBlind,
 	levelOf,
-	levelWord,
 	memberWritesOf,
 	newRoleMask,
 	firstUnheldPinned,
@@ -27,6 +26,7 @@ import {
 	pinnedAcross,
 	readOnlyTailoring,
 	recordsOf,
+	roleLine,
 	resetTailoring,
 	tailoredShown,
 	tailoredTo,
@@ -35,12 +35,13 @@ import {
 } from '../role.ts';
 
 /**
- * A ROLE'S LEVEL, PER KIND OF RECORD
+ * A ROLE'S LEVEL PER KIND OF RECORD, AND THE ONE LINE ITS CARD SAYS
  *
- * Requirement 12 of [[efforts/838-permissions-are-a-role-and-an-override/spec]] as amended
- * 2026-09-27: a role card sums a kind in one word, on a ladder where each step is the one below
- * and one verb more. Every one of a kind's sixteen masks is walked, so a mix off the ladder is
- * seen to read as its verbs rather than be rounded to a step it is not.
+ * Requirement 12 of [[efforts/838-permissions-are-a-role-and-an-override/spec]] as amended a
+ * fourth time: a role card says what the role can do in one plain line, built from a step on a
+ * ladder per kind, where each step is the one below and one verb more. Every one of a kind's
+ * sixteen masks is walked, so a mix off the ladder is seen to read as its verbs rather than be
+ * rounded to a step it is not.
  */
 
 loadLocale('en');
@@ -48,46 +49,39 @@ loadLocale('ar');
 
 const en = i18nObject('en');
 const ar = i18nObject('ar');
-const list = new Intl.ListFormat('en', { type: 'unit' });
 
 const TENANT: readonly Flag[] = ['viewTenant', 'createTenant', 'editTenant', 'deleteTenant'];
+const PAYMENT: readonly Flag[] = ['viewPayment', 'createPayment', 'editPayment', 'deletePayment'];
 
 const masked = (flags: readonly Flag[]) => flags.reduce((mask, flag) => mask + maskOf(flag), 0);
 
+/** a role the organization made, carrying these flags alone. */
+const custom = (flags: readonly Flag[]) => ({ kind: 'custom' as const, mask: masked(flags) });
+
 test('each step on the ladder is its own level, and nothing is none', () => {
-	const steps: [readonly Flag[], KindLevel, string | null][] = [
-		[[], 'none', null],
-		[TENANT.slice(0, 1), 'view', 'view only'],
-		[TENANT.slice(0, 2), 'add', 'can add'],
-		[TENANT.slice(0, 3), 'edit', 'can edit'],
-		[TENANT, 'full', 'full access']
+	const steps: [readonly Flag[], KindLevel][] = [
+		[[], 'none'],
+		[TENANT.slice(0, 1), 'view'],
+		[TENANT.slice(0, 2), 'add'],
+		[TENANT.slice(0, 3), 'edit'],
+		[TENANT, 'full']
 	];
 
-	for (const [flags, level, word] of steps) {
+	for (const [flags, level] of steps) {
 		assert.equal(levelOf(masked(flags), 'tenant'), level, flags.join(' '));
-		assert.equal(levelWord(en, list, masked(flags), 'tenant'), word, flags.join(' '));
 	}
 });
 
-test('every other mix is off the ladder and reads as the verbs it carries', () => {
+test('every other mix is off the ladder', () => {
 	const onLadder = new Set([0, 1, 3, 7, 15]);
 
 	for (let bits = 0; bits < 16; bits++) {
 		const flags = TENANT.filter((_, index) => bits & (1 << index));
-		const mask = masked(flags);
 
 		if (onLadder.has(bits)) continue;
 
-		assert.equal(levelOf(mask, 'tenant'), 'mixed', flags.join(' '));
+		assert.equal(levelOf(masked(flags), 'tenant'), 'mixed', flags.join(' '));
 	}
-
-	// view and delete without add is neither view only (it deletes) nor full access (it cannot add).
-	assert.equal(
-		levelWord(en, list, masked(['viewTenant', 'deleteTenant']), 'tenant'),
-		'view, delete'
-	);
-	// a write stored without its view, before view was needed, is named rather than hidden.
-	assert.equal(levelWord(en, list, masked(['editTenant']), 'tenant'), 'edit');
 });
 
 test('the level reads one kind and none of the others', () => {
@@ -98,12 +92,101 @@ test('the level reads one kind and none of the others', () => {
 	assert.equal(levelOf(mask, 'complex'), 'none');
 });
 
-test('the built-in roles stand on the ladder in both languages', () => {
-	assert.equal(levelWord(en, list, BUILT_IN.manager.mask, 'contract'), 'full access');
-	assert.equal(levelWord(en, list, BUILT_IN.member.mask, 'contract'), 'can edit');
+test('the roles every organization has each read as one line', () => {
 	assert.equal(
-		levelWord(ar, list, BUILT_IN.member.mask, 'contract'),
-		ar.organization.roleCard.edit()
+		roleLine(en, 'en', { kind: 'owner', mask: BUILT_IN.owner.mask }),
+		'full access to everything'
+	);
+	assert.equal(
+		roleLine(en, 'en', { kind: 'manager', mask: BUILT_IN.manager.mask }),
+		'full access to every record, runs the organization'
+	);
+	assert.equal(
+		roleLine(en, 'en', { kind: 'member', mask: BUILT_IN.member.mask }),
+		'edits every record'
+	);
+});
+
+test("a role's line says each step it stands on, widest first, and leaves out what it cannot see", () => {
+	assert.equal(
+		roleLine(en, 'en', custom(['viewTenant', 'createTenant', 'viewPayment', 'createPayment'])),
+		'views and adds tenants and payments'
+	);
+	assert.equal(
+		roleLine(
+			en,
+			'en',
+			custom([
+				'viewContract',
+				'viewComplex',
+				'createComplex',
+				'editComplex',
+				'deleteComplex',
+				'viewUnit',
+				'createUnit',
+				'editUnit',
+				'viewTenant',
+				'createTenant',
+				'inviteMember',
+				'manageRoles'
+			])
+		),
+		'full access to complexes, edits units, views and adds tenants, views contracts, helps run the organization'
+	);
+});
+
+test('what a role holds of every kind it does not name otherwise reads as every other record', () => {
+	assert.equal(
+		roleLine(
+			en,
+			'en',
+			custom(['viewComplex', 'viewUnit', 'viewTenant', 'viewContract', ...PAYMENT])
+		),
+		'full access to payments, views every other record'
+	);
+	// one kind left is named, since "every other record" would say no more in more words.
+	assert.equal(
+		roleLine(en, 'en', custom(['viewContract', ...PAYMENT])),
+		'full access to payments, views contracts'
+	);
+});
+
+test('a mix off the ladder reads as the verbs it carries, and a write without its view too', () => {
+	assert.equal(
+		roleLine(en, 'en', custom(['viewTenant', 'deleteTenant', 'viewPayment', 'deletePayment'])),
+		'views and deletes tenants and payments'
+	);
+	// a write stored without its view, before view was needed, is named rather than hidden.
+	assert.equal(roleLine(en, 'en', custom(['editTenant'])), 'edits tenants');
+});
+
+test('a role of the organization alone says only that, and a role of nothing says so', () => {
+	assert.equal(
+		roleLine(en, 'en', {
+			kind: 'custom',
+			mask: BUILT_IN.manager.mask - recordsOf(BUILT_IN.manager.mask)
+		}),
+		'runs the organization'
+	);
+	assert.equal(roleLine(en, 'en', custom([])), en.organization.roleList.carriesNothing());
+});
+
+test('in Arabic, the line is written in Arabic, the kinds named as a verb takes them', () => {
+	assert.equal(
+		roleLine(ar, 'ar', { kind: 'owner', mask: BUILT_IN.owner.mask }),
+		ar.organization.roleCard.everything()
+	);
+	assert.equal(
+		roleLine(ar, 'ar', { kind: 'member', mask: BUILT_IN.member.mask }),
+		'يعدّل كل السجلات'
+	);
+	assert.equal(
+		roleLine(ar, 'ar', { kind: 'manager', mask: BUILT_IN.manager.mask }),
+		'وصول كامل إلى كل السجلات ويدير المؤسسة'
+	);
+	assert.equal(
+		roleLine(ar, 'ar', custom(['viewTenant', 'createTenant', 'viewPayment', 'createPayment'])),
+		'يعرض ويضيف المستأجرين والمدفوعات'
 	);
 });
 

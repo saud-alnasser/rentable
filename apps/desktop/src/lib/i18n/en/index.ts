@@ -1384,8 +1384,9 @@ const en = {
 		 * what each flag is called where a role or a member's permissions list it (effort 838,
 		 * requirement 12), grouped under its family. A record kind's four read as the verb alone,
 		 * under the kind's name; the organization's and the owner's read as what the person does.
-		 * The four verbs are the switch list's, the role card's and a refusal's alike, so a create
-		 * flag reads *add* everywhere it is named.
+		 * The four verbs are the switch list's and a refusal's alike, so a create flag reads *add*
+		 * everywhere it is named, and a role's card says them as what the role does
+		 * (`roleCard.verbs`).
 		 */
 		families: {
 			administration: 'the organization',
@@ -1484,17 +1485,35 @@ const en = {
 		},
 
 		/**
-		 * a role's card in the roles block, summed by kind of record (effort 838, requirement 12 as
-		 * amended 2026-09-27): each kind the role can see under the one word for how much it may do
-		 * with it, the owner as everything, and how many of the organization's ten it holds. The top
-		 * of the ladder is `dashboard.accessFull`, the one key that says full access.
+		 * the one line a role's card in the roles block says of what it can do (effort 838,
+		 * requirement 12 as amended a fourth time, `organization/role.ts`'s `roleLine`): a clause
+		 * per step, the verbs and the kinds on it, and whether it runs the organization.
+		 * The kinds are named as a verb takes them, which in Arabic is not how a heading names them
+		 * (`families`), so the line keeps its own.
 		 */
 		roleCard: {
-			edit: 'can edit',
-			add: 'can add',
-			view: 'view only',
-			everything: 'everything',
-			administers: 'administers'
+			everything: 'full access to everything',
+			full: 'full access to {kinds:string}',
+			does: '{verbs:string} {kinds:string}',
+			verbs: {
+				view: 'views',
+				create: 'adds',
+				edit: 'edits',
+				delete: 'deletes'
+			},
+			kinds: {
+				complex: 'complexes',
+				unit: 'units',
+				tenant: 'tenants',
+				contract: 'contracts',
+				payment: 'payments'
+			},
+			everyRecord: 'every record',
+			everyOtherRecord: 'every other record',
+			organization: {
+				all: 'runs the organization',
+				some: 'helps run the organization'
+			}
 		},
 
 		/**

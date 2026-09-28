@@ -4320,25 +4320,78 @@ type RootTranslation = {
 		}
 		roleCard: {
 			/**
-			 * c​a​n​ ​e​d​i​t
-			 */
-			edit: string
-			/**
-			 * c​a​n​ ​a​d​d
-			 */
-			add: string
-			/**
-			 * v​i​e​w​ ​o​n​l​y
-			 */
-			view: string
-			/**
-			 * e​v​e​r​y​t​h​i​n​g
+			 * f​u​l​l​ ​a​c​c​e​s​s​ ​t​o​ ​e​v​e​r​y​t​h​i​n​g
 			 */
 			everything: string
 			/**
-			 * a​d​m​i​n​i​s​t​e​r​s
+			 * f​u​l​l​ ​a​c​c​e​s​s​ ​t​o​ ​{​k​i​n​d​s​}
+			 * @param {string} kinds
 			 */
-			administers: string
+			full: RequiredParams<'kinds'>
+			/**
+			 * {​v​e​r​b​s​}​ ​{​k​i​n​d​s​}
+			 * @param {string} kinds
+			 * @param {string} verbs
+			 */
+			does: RequiredParams<'kinds' | 'verbs'>
+			verbs: {
+				/**
+				 * v​i​e​w​s
+				 */
+				view: string
+				/**
+				 * a​d​d​s
+				 */
+				create: string
+				/**
+				 * e​d​i​t​s
+				 */
+				edit: string
+				/**
+				 * d​e​l​e​t​e​s
+				 */
+				'delete': string
+			}
+			kinds: {
+				/**
+				 * c​o​m​p​l​e​x​e​s
+				 */
+				complex: string
+				/**
+				 * u​n​i​t​s
+				 */
+				unit: string
+				/**
+				 * t​e​n​a​n​t​s
+				 */
+				tenant: string
+				/**
+				 * c​o​n​t​r​a​c​t​s
+				 */
+				contract: string
+				/**
+				 * p​a​y​m​e​n​t​s
+				 */
+				payment: string
+			}
+			/**
+			 * e​v​e​r​y​ ​r​e​c​o​r​d
+			 */
+			everyRecord: string
+			/**
+			 * e​v​e​r​y​ ​o​t​h​e​r​ ​r​e​c​o​r​d
+			 */
+			everyOtherRecord: string
+			organization: {
+				/**
+				 * r​u​n​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n
+				 */
+				all: string
+				/**
+				 * h​e​l​p​s​ ​r​u​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n
+				 */
+				some: string
+			}
 		}
 		foreseen: {
 			/**
@@ -8616,25 +8669,75 @@ export type TranslationFunctions = {
 		}
 		roleCard: {
 			/**
-			 * can edit
-			 */
-			edit: () => LocalizedString
-			/**
-			 * can add
-			 */
-			add: () => LocalizedString
-			/**
-			 * view only
-			 */
-			view: () => LocalizedString
-			/**
-			 * everything
+			 * full access to everything
 			 */
 			everything: () => LocalizedString
 			/**
-			 * administers
+			 * full access to {kinds}
 			 */
-			administers: () => LocalizedString
+			full: (arg: { kinds: string }) => LocalizedString
+			/**
+			 * {verbs} {kinds}
+			 */
+			does: (arg: { kinds: string, verbs: string }) => LocalizedString
+			verbs: {
+				/**
+				 * views
+				 */
+				view: () => LocalizedString
+				/**
+				 * adds
+				 */
+				create: () => LocalizedString
+				/**
+				 * edits
+				 */
+				edit: () => LocalizedString
+				/**
+				 * deletes
+				 */
+				'delete': () => LocalizedString
+			}
+			kinds: {
+				/**
+				 * complexes
+				 */
+				complex: () => LocalizedString
+				/**
+				 * units
+				 */
+				unit: () => LocalizedString
+				/**
+				 * tenants
+				 */
+				tenant: () => LocalizedString
+				/**
+				 * contracts
+				 */
+				contract: () => LocalizedString
+				/**
+				 * payments
+				 */
+				payment: () => LocalizedString
+			}
+			/**
+			 * every record
+			 */
+			everyRecord: () => LocalizedString
+			/**
+			 * every other record
+			 */
+			everyOtherRecord: () => LocalizedString
+			organization: {
+				/**
+				 * runs the organization
+				 */
+				all: () => LocalizedString
+				/**
+				 * helps run the organization
+				 */
+				some: () => LocalizedString
+			}
 		}
 		foreseen: {
 			/**

@@ -54,12 +54,13 @@ export const EDITABLE_FAMILIES = [
 	'payment'
 ] as const satisfies readonly Family[];
 
-/** every family, in the order a role's card lists what it carries. */
+/** every family, in the package's order. */
 export const LISTED_FAMILIES = Object.keys(FAMILIES) as Family[];
 
 /**
  * the four verbs a record kind's flags are named by, in the order `FAMILIES` holds them: one set,
- * which a refusal, a switch and a role card's mix all read (`organization.flagVerbs`).
+ * which a refusal and a switch read (`organization.flagVerbs`), and a role's line says in its
+ * own words (`organization.roleCard.verbs`).
  */
 const RECORD_VERBS = ['view', 'create', 'edit', 'delete'] as const;
 
@@ -141,7 +142,7 @@ export const switchedTo = (mask: number, flag: Flag, on: boolean): number => {
  *
  * **A mix off the ladder is not rounded to a step.** Rounding view and delete down to *view only*
  * would hide a delete the role holds, and rounding it up would claim an add it does not, so a mix
- * reads as the verbs it carries (`levelWord`). A write without its view is refused since
+ * reads as the verbs it carries (`roleLine`). A write without its view is refused since
  * requirement 6 was amended, but a mask stored before then can still carry one, and it reads the
  * same way.
  */
@@ -159,36 +160,100 @@ export const levelOf = (mask: number, kind: RecordKind): KindLevel => {
 	return carried.slice(reached).some(Boolean) ? 'mixed' : LADDER[reached];
 };
 
-/**
- * the words a role's card says for a kind: `can edit`, `view only`. A mix off the ladder is its
- * verbs as the switches name them (`view, delete`), joined by the reader's list format; a kind the
- * mask carries nothing of has no words, and is left out where it would be.
- *
- * **A role's card is what says it.** The switch list names no level: its folded administration
- * group shares with the card only the count of the organization's flags (`administrationHeld`)
- * and the words that count is said in.
- */
-export const levelWord = (
-	t: TranslationFunctions,
-	list: Intl.ListFormat,
-	mask: number,
-	kind: RecordKind
-): string | null => {
-	const level = levelOf(mask, kind);
+/** the order a role's line says its steps in: the widest first, and any mix off the ladder last. */
+const LINE_ORDER: readonly KindLevel[] = ['full', 'edit', 'add', 'view', 'mixed'];
 
+/**
+ * the verbs a step is said with on a role's line, in the verbs' own order: the step's top verb
+ * for edit, since editing a record means seeing and adding it; view and add for add, where *adds*
+ * alone would read as adding blind; and the verbs a mix carries for a mix. Full access is said
+ * without verbs.
+ */
+const lineVerbs = (mask: number, kind: RecordKind, level: KindLevel): RecordVerb[] => {
 	switch (level) {
-		case 'none':
-			return null;
-		case 'mixed':
-			return list.format(
-				FAMILIES[kind].flatMap((flag) => (permits(mask, flag) ? [flagName(t, flag)] : []))
-			);
-		// one name per thing: full access is what a workspace grant calls the same thing.
-		case 'full':
-			return t.organization.dashboard.accessFull();
+		case 'edit':
+			return ['edit'];
+		case 'add':
+			return ['view', 'create'];
+		case 'view':
+			return ['view'];
 		default:
-			return t.organization.roleCard[level]();
+			return FAMILIES[kind].flatMap((flag) => (permits(mask, flag) ? [verbOf(flag)!] : []));
 	}
+};
+
+/**
+ * What a role can do, in one plain line: what its card says under its name (effort 838,
+ * requirement 12 as amended a fourth time), `edits every record`. The detail is the role
+ * editor's; the line is there to tell one role from another at a glance.
+ *
+ * - **The owner has full access to everything**, and nothing more is said.
+ * - **Each step a role stands on is one clause**, widest first, naming the kinds on it: *full
+ *   access to payments*, *edits units*, *views and adds tenants*. Kinds on the same step share a
+ *   clause, and a kind the role cannot see is left out. A step every kind stands on is *every
+ *   record*; the last step, holding two kinds or more and every kind no clause before it named,
+ *   is *every other record*.
+ * - **The organization's ten close the line**: a role holding all of them *runs the
+ *   organization*, one holding some *helps run* it, and one holding none says nothing of it.
+ *   Which of the ten, and how many, are the editor's to say.
+ * - **A role of nothing says so**: *nothing yet*.
+ *
+ * *It was a line per level with every kind under its glyph, and a count of the organization's
+ * ten, until the human found the cards too much on the running application, 2026-09-28.*
+ */
+export const roleLine = (
+	t: TranslationFunctions,
+	locale: string,
+	role: { kind: RoleKind; mask: number }
+): string => {
+	const card = t.organization.roleCard;
+
+	if (role.kind === 'owner') return card.everything();
+
+	const and = new Intl.ListFormat(locale, { type: 'conjunction' });
+	const steps: { level: KindLevel; verbs: RecordVerb[]; kinds: RecordKind[] }[] = [];
+
+	for (const kind of RECORD_KINDS) {
+		const level = levelOf(role.mask, kind);
+
+		if (level === 'none') continue;
+
+		const verbs = lineVerbs(role.mask, kind, level);
+		const step = steps.find((each) => each.level === level && each.verbs.join() === verbs.join());
+
+		if (step) step.kinds.push(kind);
+		else steps.push({ level, verbs, kinds: [kind] });
+	}
+
+	steps.sort((one, other) => LINE_ORDER.indexOf(one.level) - LINE_ORDER.indexOf(other.level));
+
+	const held = administrationHeld(role.mask);
+
+	if (steps.length === 0 && held === 0) return t.organization.roleList.carriesNothing();
+
+	const clauses = steps.map((step, index) => {
+		const kinds =
+			step.kinds.length === RECORD_KINDS.length
+				? card.everyRecord()
+				: index > 0 &&
+					  index === steps.length - 1 &&
+					  step.kinds.length > 1 &&
+					  steps.reduce((named, each) => named + each.kinds.length, 0) === RECORD_KINDS.length
+					? card.everyOtherRecord()
+					: and.format(step.kinds.map((kind) => card.kinds[kind]()));
+
+		return step.level === 'full'
+			? card.full({ kinds })
+			: card.does({ verbs: and.format(step.verbs.map((verb) => card.verbs[verb]())), kinds });
+	});
+
+	if (held > 0) {
+		clauses.push(
+			held === ADMINISTRATION_TOTAL ? card.organization.all() : card.organization.some()
+		);
+	}
+
+	return new Intl.ListFormat(locale, { type: 'unit' }).format(clauses);
 };
 
 /** how many of the organization's own flags a mask carries: what its folded group counts. */
