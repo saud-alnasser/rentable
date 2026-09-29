@@ -6,7 +6,7 @@ import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import Frame from '$lib/shell/component/frame.svelte';
-import QueryProviders from '#tests/query-providers.svelte';
+import Providers from '#tests/providers.svelte';
 
 /**
  * WHAT OF THE FRAME REACHES PAPER
@@ -68,7 +68,7 @@ for (const shell of SHELLS) {
 		const { container } = render(
 			Frame,
 			{ currentDirection: 'ltr', shell, children },
-			{ wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' } }
+			{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } }
 		);
 
 		const sheets = container.querySelectorAll('[data-print-sheet]');

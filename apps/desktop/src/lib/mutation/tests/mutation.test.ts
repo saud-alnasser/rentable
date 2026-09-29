@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { readRefusal, refuse } from '$lib/api/refusal.ts';
 
 import type { MutationDeclaration, MutationOptions } from '$lib/mutation';
-import { bindingOf } from '$lib/design/tests/testing.ts';
+import { bindingOf } from '#tests/mutation.ts';
 
 // both dependencies reach a `.svelte` file, which this harness cannot load. the substitutes
 // are also the assertions: what the toast was asked to render, and which options the hook

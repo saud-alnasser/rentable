@@ -47,6 +47,7 @@
 		"@faker-js/faker": "^10.6.0",
 		"@internationalized/date": "^3.12.3",
 		"@lucide/svelte": "^1.33.0",
+		"@rentable/testing": "workspace:*",
 		"@sveltejs/adapter-static": "^3.0.10",
 		"@sveltejs/kit": "^2.70.3",
 		"@sveltejs/vite-plugin-svelte": "^7.3.0",

@@ -4,7 +4,7 @@ import { beforeEach, describe, it, mock } from 'node:test';
 import type { CreateMutationResult } from '@tanstack/svelte-query';
 
 import { type Api, createApi, monthsFromNow, seedTenant } from '$lib/app/tests/testing.ts';
-import { bindingOf } from '$lib/design/tests/testing.ts';
+import { bindingOf } from '#tests/mutation.ts';
 import { AWAITING_BLOCKERS } from '@rentable/design/confirmation.js';
 
 /**

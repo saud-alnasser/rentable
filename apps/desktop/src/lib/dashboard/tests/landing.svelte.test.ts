@@ -10,7 +10,7 @@ import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import { formatLocaleMoney } from '$lib/platform/locale';
 import en from '$lib/i18n/en';
-import QueryProviders from '#tests/query-providers.svelte';
+import Providers from '#tests/providers.svelte';
 
 /**
  * WHAT FALLS DUE THIS WEEK IS ON THE LANDING SCREEN
@@ -75,7 +75,7 @@ beforeEach(() => {
 });
 
 const renderLanding = () =>
-	render(Landing, {}, { wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' } });
+	render(Landing, {}, { wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } });
 
 /** the band's outstanding figure, found under its own label. */
 const outstandingFigure = () =>

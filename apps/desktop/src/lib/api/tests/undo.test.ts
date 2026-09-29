@@ -11,7 +11,7 @@ import {
 	seedTenant,
 	refusedWith
 } from '$lib/app/tests/testing.ts';
-import { bindingOf } from '$lib/design/tests/testing.ts';
+import { bindingOf } from '#tests/mutation.ts';
 import { fakeSyncState } from '$lib/sync/tests/testing.ts';
 
 // The declarations live beside the query hooks, which reach `.svelte` files this harness

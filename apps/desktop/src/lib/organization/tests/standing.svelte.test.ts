@@ -10,7 +10,7 @@ import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { fakeOrganizationSession } from '$lib/organization/tests/testing';
 import { fakeSyncState, fakeWorkspace } from '$lib/sync/tests/testing';
 
-import QueryProviders from '#tests/query-providers.svelte';
+import Providers from '#tests/providers.svelte';
 
 /**
  * THE STANDING BLOCK, RENDERED
@@ -64,7 +64,7 @@ const block = (
 			...overrides
 		},
 		{
-			wrapper: QueryProviders,
+			wrapper: Providers,
 			wrapperProps: { strings, direction: locale === 'ar' ? 'rtl' : 'ltr' }
 		}
 	);

@@ -16,7 +16,7 @@ import { chooseOption, openSelect } from '$lib/design/tests/select';
 import { fakeOrganizationRoles } from '$lib/organization/tests/testing';
 import { BUILT_IN, WRITE_FLAGS, maskOf, permits } from '@rentable/workspace-permission';
 
-import Providers from '$lib/organization/tests/providers.svelte';
+import Providers from '#tests/providers.svelte';
 import { unfold } from '$lib/organization/tests/switches';
 
 /**

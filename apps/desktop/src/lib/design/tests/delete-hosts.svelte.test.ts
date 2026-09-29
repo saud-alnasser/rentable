@@ -14,7 +14,7 @@ import type { ContractActRecord } from '$lib/contract/acts';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import QueryProviders from '#tests/query-providers.svelte';
+import Providers from '#tests/providers.svelte';
 import PaymentHost from '$lib/payment/component/host.svelte';
 import { paymentHost } from '$lib/payment/host.svelte';
 import TenantHost from '$lib/tenant/component/host.svelte';
@@ -32,7 +32,7 @@ import { tenantHost } from '$lib/tenant/host.svelte';
  * **The hooks are stood in for**, through partial mocks of each concept's query module: what the
  * blockers read answers is the test's to set (`held`), and every delete or terminate the host
  * asks for is noted (`asked`). The forms the hosts also mount keep their real hooks, under the
- * query client `query-providers.svelte` supplies, and stay closed.
+ * query client `providers.svelte` supplies, and stay closed.
  *
  * The delete dialog and the confirm dialog are told apart by the attribute the confirm dialog
  * carries, `data-confirm-dialog`, so nothing here reads a word that changes with the locale.
@@ -126,7 +126,7 @@ beforeEach(() => {
 });
 
 const mount = (Host: Parameters<typeof render>[0]) =>
-	render(Host, {}, { wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' } });
+	render(Host, {}, { wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } });
 
 const dialog = () => document.querySelector('[data-slot="dialog-content"]');
 

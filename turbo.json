@@ -25,9 +25,13 @@
 			// that follow, and from the first component onwards a desktop test renders markup this
 			// package owns, so a change to one moves nothing under `apps/desktop/`. Declaring the
 			// input now is what stops that from having to be remembered later.
+			//
+			// `testing` is among them because both packages' tests run through it: the source
+			// scanner the lint tests read the tree with, and the setup file Vitest loads first.
 			"inputs": [
 				"$TURBO_DEFAULT$",
 				"$TURBO_ROOT$/packages/design/**",
+				"$TURBO_ROOT$/packages/testing/**",
 				"$TURBO_ROOT$/packages/workspace-migrations/**",
 				"$TURBO_ROOT$/packages/workspace-permission/**"
 			],

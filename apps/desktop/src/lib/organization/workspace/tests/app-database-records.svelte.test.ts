@@ -13,7 +13,7 @@ import type { EarlierRead } from '$lib/workspace/host';
 import { IMPORT_FLAGS } from '$lib/permission';
 import '$lib/app/transfer';
 import { emptyHeld } from '$lib/transfer';
-import QueryProviders from '#tests/query-providers.svelte';
+import Providers from '#tests/providers.svelte';
 import { forgetReader, holdEveryFlagBut, layOutLists, refusedControl } from '#tests/permission.ts';
 import earlierTables from '$lib/workspace/tests/app-database.json';
 
@@ -92,7 +92,7 @@ const drawn = () =>
 	render(
 		EarlierRecords,
 		{},
-		{ wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' as const } }
+		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' as const } }
 	);
 
 const callout = () => document.querySelector<HTMLElement>('[data-earlier-records]');

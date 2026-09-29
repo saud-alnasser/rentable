@@ -9,7 +9,7 @@ import { contractHost } from '$lib/contract/host.svelte';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import QueryProviders from '#tests/query-providers.svelte';
+import Providers from '#tests/providers.svelte';
 
 /**
  * WHERE A NEW CONTRACT LANDS
@@ -43,11 +43,7 @@ loadLocale('en');
 setLocale('en');
 
 test('creating a contract opens its record', async () => {
-	render(
-		ContractHost,
-		{},
-		{ wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' } }
-	);
+	render(ContractHost, {}, { wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } });
 
 	contractHost.create();
 

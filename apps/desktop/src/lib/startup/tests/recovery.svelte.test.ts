@@ -6,7 +6,7 @@ import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import StartupRecovery from '$lib/startup/component/recovery.svelte';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
-import QueryProviders from '#tests/query-providers.svelte';
+import Providers from '#tests/providers.svelte';
 
 import { fakeRecovery } from './harness.ts';
 
@@ -15,7 +15,7 @@ const recoveryScreen = (updateError: string | null) =>
 	render(
 		StartupRecovery,
 		{ recovery: fakeRecovery({ status: 'pending', updateError }), onRetry: () => {} },
-		{ wrapper: QueryProviders, wrapperProps: { strings, direction: 'rtl' } }
+		{ wrapper: Providers, wrapperProps: { strings, direction: 'rtl' } }
 	);
 
 /**

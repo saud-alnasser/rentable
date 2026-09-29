@@ -71,7 +71,7 @@ mock.module('$lib/api/caller', {
 const { useChangeAccess } = await import('$lib/organization/access/query');
 const { useEndMemberSessions, useRemoveMember } = await import('$lib/organization/member/query');
 const { useEndOtherSessions } = await import('$lib/organization/session/query');
-const { bindingOf } = await import('$lib/design/tests/testing.ts');
+const { bindingOf } = await import('#tests/mutation.ts');
 const { loadLocale } = await import('$lib/i18n/i18n-util.sync');
 const { i18nObject } = await import('$lib/i18n/i18n-util');
 const { setLocale } = await import('$lib/i18n/i18n-svelte');

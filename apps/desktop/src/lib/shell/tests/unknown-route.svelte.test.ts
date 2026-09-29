@@ -6,7 +6,7 @@ import ar from '$lib/i18n/ar';
 import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import Providers from '$lib/organization/tests/providers.svelte';
+import Providers from '#tests/providers.svelte';
 
 import ErrorPage from '$lib/shell/component/route-error.svelte';
 

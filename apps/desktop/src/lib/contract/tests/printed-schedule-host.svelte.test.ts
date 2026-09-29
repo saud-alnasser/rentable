@@ -8,7 +8,7 @@ import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import type { ContractActRecord } from '$lib/contract/acts';
 import ContractHost from '$lib/contract/component/host.svelte';
 import { contractHost } from '$lib/contract/host.svelte';
-import QueryProviders from '#tests/query-providers.svelte';
+import Providers from '#tests/providers.svelte';
 import { forgetReader, holdEveryFlagBut, layOutLists } from '#tests/permission.ts';
 
 /**
@@ -92,7 +92,7 @@ const previewed = async () => {
 	render(
 		ContractHost,
 		{},
-		{ wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' as const } }
+		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' as const } }
 	);
 
 	expect(contractHost.run('contract.print', CONTRACT)).toBe(true);

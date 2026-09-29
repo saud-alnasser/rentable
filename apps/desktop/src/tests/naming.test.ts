@@ -19,7 +19,7 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const REPOSITORY = fileURLToPath(new URL('../../../..', import.meta.url));
-const TREES = ['apps/desktop/src', 'packages/design/src'];
+const TREES = ['apps/desktop/src', 'packages/design/src', 'packages/testing'];
 const SKIPPED = new Set(['apps/desktop/src/routes']);
 const BANNED = ['utils', 'common'];
 const BASELINE = fileURLToPath(new URL('naming.baseline.txt', import.meta.url));

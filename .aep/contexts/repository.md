@@ -18,9 +18,10 @@ sync retired (#554) and the record of truth moved.*
 `apps/desktop/`.** The root holds only what governs every package — the lockfile,
 `.changeset/`, the linting and formatting configuration, `turbo.json`, and `.aep/`.
 
-**There is one application, and three packages beside it.** `packages/workspace-migrations` is
+**There is one application, and four packages beside it.** `packages/workspace-migrations` is
 the SQL a workspace database is built from, `packages/workspace-permission` names what a member
-may do, and `packages/design` is the design system. *`apps/control-plane/`
+may do, `packages/design` is the design system, and `packages/testing` is the test scaffolding the
+application and the design package share (effort 840, ticket 42). *`apps/control-plane/`
 stood beside the desktop from 2026-08-18 (#549) to 2026-09-12: the always-online tier holding
 accounts, workspaces and membership, deployed nowhere. It retired with
 [[efforts/819-an-organization-hosts-its-own-workspaces/spec]], requirement 19, when an

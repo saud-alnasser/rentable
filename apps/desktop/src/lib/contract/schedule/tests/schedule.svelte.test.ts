@@ -9,7 +9,7 @@ import type { Locales } from '$lib/i18n/i18n-types';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import { formatLocaleMoney } from '$lib/platform/locale';
-import QueryProviders from '#tests/query-providers.svelte';
+import Providers from '#tests/providers.svelte';
 import type { ContractLike } from '$lib/contract/contract';
 import { scheduleContract, type SchedulePaymentLike } from '$lib/contract/schedule/schedule';
 import Schedule from '$lib/contract/schedule/component/schedule.svelte';
@@ -88,7 +88,7 @@ const schedule = (direction: 'ltr' | 'rtl' = 'ltr') =>
 	render(
 		Schedule,
 		{ contractId: 'contract-1' },
-		{ wrapper: QueryProviders, wrapperProps: { strings, direction } }
+		{ wrapper: Providers, wrapperProps: { strings, direction } }
 	);
 
 const rows = () => [...document.querySelectorAll<HTMLElement>('tbody tr[data-cycle]')];

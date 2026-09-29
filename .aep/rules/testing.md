@@ -3,13 +3,16 @@ paths:
   - apps/desktop/src/**
   - apps/desktop/tauri/src/**
   - packages/design/src/**
+  - packages/testing/**
 use-when: "writing or changing a test, or deciding what a change must be tested at"
 ---
 
 <!--
   Path-scoped: the `paths:` frontmatter above is the authority, and the harness
-  enforces it — this rule loads when source under any of the three paths listed
-  there is read, and costs nothing otherwise.
+  enforces it — this rule loads when source under any of the paths listed there
+  is read, and costs nothing otherwise. `packages/testing/**` joined them with
+  ticket 42 of effort 840, when that package became the scaffolding both
+  packages with tests share.
 
   The control plane was on that list from 2026-08-18 (#549) until it retired on
   2026-09-12 with [[efforts/819-an-organization-hosts-its-own-workspaces/spec]];
@@ -47,6 +50,32 @@ one.*
 `src/lib/app/tests/testing.ts` builds the caller a dozen router tests need; it carries no
 `.test` in its name, which is what keeps the runner from collecting it.
 
+**Where each runner's harness lives.** A runner's scaffolding, what a test needs because of the
+runner it runs under rather than the concept it covers, is one copy per runner, and a concept's
+fake of its own port stays beside the port.
+
+- **`node:test` in the application**: `apps/desktop/src/tests/`, reached as `#tests/<name>`.
+  `source.ts` is the lint tests' source scanner, bound to this `src/`, and `mutation.ts` reads what
+  a declared mutation handed the substituted query library, which this runner cannot load. The
+  router tests' harness is the composition root's: `app/tests/testing.ts` the caller and
+  `app/tests/host.ts` the composed fake host, where
+  [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/plan]] places them.
+- **Vitest in the application**: the same `src/tests/`. `providers.svelte` is the one set of
+  providers every component test renders under; `palette-harness.svelte` beside it renders inside
+  it rather than nesting them again.
+- **`node:test` and Vitest in the design package**: `packages/design/src/tests/`, reached as
+  `#tests/<name>`. It keeps a copy of its own only where it cannot import the application's, and
+  it cannot import any of it, since the package may not import the application. So its
+  `providers.svelte` is the package's own: the design and tooltip providers, without the
+  application's query client and cache policy.
+- **What both packages share**: `packages/testing/`, `@rentable/testing`, a development dependency
+  of each. `source.ts` is the one source scanner, which each package's `src/tests/source.ts` binds
+  to its own tree, and `setup.ts` is the one Vitest setup file both `vitest.config.js` name. It is
+  a package of its own because neither of the other two can hold it for both: the design package
+  may not import the application, and the package's `exports` map covers `src/lib/` alone, which
+  is what keeps its scaffolding out of every consumer. *Added by ticket 42 of effort 840 (criterion
+  13), which also folded the application's four sets of providers into one.*
+
 Two levels are covered, and they are not interchangeable:
 
 - **Pure logic** — the domain modules and helpers — is covered directly.
@@ -68,7 +97,7 @@ from, and each crossing concept's `tests/testing.ts` its own port and its payloa
 organization's, `sync/tests/testing.ts` with the remote-sync state and workspace,
 `settings/tests/testing.ts` with the settings file, and print's, transfer's, update's,
 startup's and the workspace's). `app/tests/testing.ts` holds the router caller,
-`design/tests/testing.ts` the binding a declared mutation hands the query library,
+`src/tests/mutation.ts` the binding a declared mutation hands the query library,
 `design/tests/strings.ts` the string contract a packaged block reads from its provider, and
 `transfer/tests/file.ts` the file a workspace transfer crosses as. **A hand-written partial of any of them is a shape nothing
 produces** — a two-key `Settings`, a `TranslationFunctions` with three of its hundreds, a
@@ -94,14 +123,14 @@ The two configurations are deliberately the same file with one difference, and t
 forced. `packages/design/vitest.config.js` uses `svelte()`: the package names its own files with
 subpath imports and wants the compiler and nothing else. `apps/desktop/vitest.config.js` uses
 `sveltekit()`, because a component here reaches `$lib/...` and `$app/...` and the framework plugin
-is what resolves both. Everything else is copied on purpose: `jsdom`, `globals`, a `setupFiles`
-holding the same bits-ui scroll-restore wait, and the same `include`. **A change to one is a
-question about the other.**
+is what resolves both. Everything else is copied on purpose: `jsdom`, `globals`, the same
+`include`, and one `setupFiles`, `@rentable/testing/setup`, holding the bits-ui scroll-restore wait.
+**A change to one is a question about the other.**
 
-*The setup file is duplicated rather than imported, and that is the export map's doing: the
-package's `exports` covers `src/lib/` alone, which is what keeps its fixtures out of every
-consumer, so `src/tests/setup.ts` is not something the desktop can reach. The copy says so in its
-own header and points at the original for the measurement.*
+*The setup file was duplicated rather than imported until ticket 42 of effort 840, and that was the
+export map's doing: the package's `exports` covers `src/lib/` alone, which is what keeps its
+fixtures out of every consumer, so the package's `src/tests/setup.ts` was not something the desktop
+could reach. `packages/testing/` is what both can, and it holds the one copy.*
 
 *Why there are two runners rather than one: `node:test` works through `tsx`, and `tsx` fails on a
 `.svelte` import with `ERR_UNKNOWN_FILE_EXTENSION`. No flag fixes that — compiling a component
@@ -148,21 +177,25 @@ Three things bind a component test, and each of them is a way of passing while m
   `contract.svelte` and `contract-harness.svelte` are the string contract's, and each
   `<family>-harness.svelte` is a subject that cannot be rendered on its own. **An application's
   fixture lives in the `tests/` directory of the module it serves**, as the TypeScript
-  scaffolding above does: `organization/tests/providers.svelte` wraps a surface that needs the
-  design and tooltip providers, `shell/tests/rail-providers.svelte` the rail's. *This said every
-  fixture lives in the package; that was true while the package held the only rendered tests,
-  and effort 824 wrote the desktop's first.*
+  scaffolding above does: `organization/tests/host-providers.svelte` puts the organization's host
+  beside a directory, `shell/tests/rail-providers.svelte` the rail's providers above a rail
+  component. *This said every fixture lives in the package; that was true while the package held
+  the only rendered tests, and effort 824 wrote the desktop's first.*
 
   **A fixture the tests of several modules render under lives in `apps/desktop/src/tests/`**,
   the application's shared `tests/` directory, and no module keeps a copy of it.
-  `query-providers.svelte` is this: complex, contract, design, organization, payment, shell and
-  tenant tests all render under it. A test reaches it through `#tests/<name>`, the same
-  `imports` entry the package declares, since a relative path from four directories down reads
-  as badly here as it did there. The lint tests' source scanner, `source.ts`, sits beside it for
-  the same reason, and the package keeps its own in `packages/design/src/tests/`: each package's
-  lint tests scan their own tree through their own scanner. *Added by ticket 40 of effort 832,
-  when `query-providers.svelte` had grown seven modules of callers from `organization/tests/`
-  and `tenant/tests/` had copied it.*
+  `providers.svelte` is this: the design contract, the query client and the tooltip provider,
+  with the workspace cache policy loaded, which every module's component tests render under. A
+  test reaches it through `#tests/<name>`, the same `imports` entry the package declares, since a
+  relative path from four directories down reads as badly here as it did there. A fixture that
+  puts a tree beside the subject renders inside it rather than nesting the providers again. The
+  lint tests' source scanner, `source.ts`, sits beside it for the same reason, and the package
+  binds the same scanner in `packages/design/src/tests/`: each package's lint tests scan their own
+  tree, through the one scanner in `packages/testing/`. *Added by ticket 40 of effort 832, when
+  `query-providers.svelte` had grown seven modules of callers from `organization/tests/` and
+  `tenant/tests/` had copied it; renamed `providers.svelte` by ticket 42 of effort 840, when the
+  three copies with a provider fewer in `organization/tests/`, `settings/tests/` and
+  `design/cell/tests/` folded into it.*
 
   `palette-harness.svelte` is the second: the command menu and the application's one keyboard
   listener beside a screen, which the palette's own tests render directly and the complex, contract,

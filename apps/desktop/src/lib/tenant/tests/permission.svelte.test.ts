@@ -9,7 +9,7 @@ import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import { newId } from '$lib/platform/database/identity';
 import TenantDetails from '$lib/tenant/component/details.svelte';
 import TenantDirectory from '$lib/tenant/component/directory.svelte';
-import QueryProviders from '#tests/query-providers.svelte';
+import Providers from '#tests/providers.svelte';
 import {
 	forgetReader,
 	holdEveryFlagBut,
@@ -57,7 +57,7 @@ afterEach(() => {
 	document.body.innerHTML = '';
 });
 
-const providers = { wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' as const } };
+const providers = { wrapper: Providers, wrapperProps: { strings, direction: 'ltr' as const } };
 
 const page = () =>
 	render(TenantDetails, { tenantId: TENANT.id, sections: sectionsOn('tenant') }, providers);

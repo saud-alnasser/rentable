@@ -7,7 +7,7 @@ import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import WorkspaceTransfer from '$lib/organization/workspace/component/transfer.svelte';
 import { EXPORT_FLAGS } from '$lib/permission';
-import QueryProviders from '#tests/query-providers.svelte';
+import Providers from '#tests/providers.svelte';
 import { forgetReader, holdEveryFlagBut, refusedControl } from '#tests/permission.ts';
 
 /**
@@ -50,7 +50,7 @@ const drawn = () =>
 	render(
 		WorkspaceTransfer,
 		{},
-		{ wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' as const } }
+		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' as const } }
 	);
 
 test.each(EXPORT_FLAGS)('without %s, the export is refused, naming the flag', async (flag) => {

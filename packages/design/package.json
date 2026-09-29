@@ -38,6 +38,7 @@
 		"tailwind-variants": "^3.3.1"
 	},
 	"devDependencies": {
+		"@rentable/testing": "workspace:*",
 		"@sveltejs/kit": "^2.70.3",
 		"@sveltejs/vite-plugin-svelte": "^7.3.0",
 		"@testing-library/svelte": "^5.4.2",

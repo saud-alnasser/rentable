@@ -4,7 +4,7 @@ import { describe, it, mock } from 'node:test';
 import type { CreateMutationResult } from '@tanstack/svelte-query';
 
 import type { SelectionCall } from '@rentable/design/selection.ts';
-import { bindingOf } from '$lib/design/tests/testing.ts';
+import { bindingOf } from '#tests/mutation.ts';
 
 /**
  * Every list that plans an action declares what to say when the workspace moved under the open

@@ -9,7 +9,7 @@ import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { BUILT_IN, FAMILIES, maskOf, permits } from '@rentable/workspace-permission';
 
-import Providers from '$lib/organization/tests/providers.svelte';
+import Providers from '#tests/providers.svelte';
 import { unfold } from '$lib/organization/tests/switches';
 
 /**

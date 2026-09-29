@@ -85,9 +85,10 @@ ReferenceError: document is not defined
  ❯ Timeout.cleanupFn [as _onTimeout] body-scroll-lock.svelte.js:69:17
 ```
 
-**`src/tests/setup.ts` is what holds it off**, named by `setupFiles`, and it is scaffolding rather
-than a test: an `afterAll` that waits out the timer once per file. The file carries the reasoning,
-including why the hook is `afterAll` and not `afterEach`.
+**`packages/testing/setup.ts` is what holds it off**, named by both packages' `setupFiles` as
+`@rentable/testing/setup`, and it is scaffolding rather than a test: an `afterAll` that waits out the
+timer once per file. The file carries the reasoning, including why the hook is `afterAll` and not
+`afterEach`. *Each package had a copy under its own `src/tests/` until ticket 42 of effort 840.*
 
 Two things about it are worth knowing before trusting a green run:
 

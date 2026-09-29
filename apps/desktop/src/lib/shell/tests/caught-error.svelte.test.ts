@@ -5,7 +5,7 @@ import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import ar from '$lib/i18n/ar';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import Providers from '$lib/organization/tests/providers.svelte';
+import Providers from '#tests/providers.svelte';
 
 import CaughtError from '../component/caught-error.svelte';
 

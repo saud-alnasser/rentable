@@ -16,7 +16,7 @@ import WorkspaceImportDialog from '$lib/transfer/component/import-dialog.svelte'
 import WorkspacePermissions from '$lib/workspace/component/permissions.svelte';
 import WorkspaceTransfer from '$lib/organization/workspace/component/transfer.svelte';
 import { memberPermissions } from '$lib/permission';
-import QueryProviders from '#tests/query-providers.svelte';
+import Providers from '#tests/providers.svelte';
 import { describedBy, forgetReader, holdEveryFlagBut, holdReadOnly } from '#tests/permission.ts';
 import { EVERY_FLAG, maskOf } from '@rentable/workspace-permission';
 
@@ -87,7 +87,7 @@ afterEach(() => {
 	document.body.innerHTML = '';
 });
 
-const providers = { wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' as const } };
+const providers = { wrapper: Providers, wrapperProps: { strings, direction: 'ltr' as const } };
 
 /** a member holding every flag, with a full grant on one workspace and a read-only one on another. */
 const everyFlagOnTwoWorkspaces = () =>

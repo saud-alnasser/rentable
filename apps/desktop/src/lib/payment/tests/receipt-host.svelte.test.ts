@@ -8,7 +8,7 @@ import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import type { PaymentActRecord } from '$lib/payment/acts';
 import PaymentHost from '$lib/payment/component/host.svelte';
 import { paymentHost } from '$lib/payment/host.svelte';
-import QueryProviders from '#tests/query-providers.svelte';
+import Providers from '#tests/providers.svelte';
 
 /**
  * A RECEIPT, FROM THE ACT TO THE PREVIEW
@@ -97,7 +97,7 @@ afterEach(() => {
 });
 
 const renderHost = () =>
-	render(PaymentHost, {}, { wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' } });
+	render(PaymentHost, {}, { wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } });
 
 const page = () => document.querySelector<HTMLElement>('[data-print-preview] [data-receipt]');
 

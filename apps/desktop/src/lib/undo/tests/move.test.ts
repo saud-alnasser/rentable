@@ -3,7 +3,7 @@ import { describe, it, mock } from 'node:test';
 
 import type { MutationDeclaration } from '$lib/mutation';
 import type { Inverse } from '$lib/undo';
-import { bindingOf } from '$lib/design/tests/testing.ts';
+import { bindingOf } from '#tests/mutation.ts';
 
 // The offer an announcement carries, and the key that moves the same stack. Driven through a
 // declared mutation, because that is the one writer of the stack and the one announcement an

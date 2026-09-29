@@ -6,7 +6,7 @@ import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import QueryProviders from '#tests/query-providers.svelte';
+import Providers from '#tests/providers.svelte';
 import PaymentForm from '$lib/payment/component/form.svelte';
 
 /**
@@ -90,7 +90,7 @@ async function submit() {
 	render(
 		PaymentForm,
 		{ contractId: 'contract-1', open: true, onOpenChange: () => {} },
-		{ wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' } }
+		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } }
 	);
 
 	const amount = () => document.querySelector<HTMLInputElement>('input[inputmode=decimal]');

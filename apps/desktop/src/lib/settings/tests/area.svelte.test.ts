@@ -11,7 +11,7 @@ import { placeholderStrings as strings } from '$lib/design/tests/strings';
 
 import type { Component } from 'svelte';
 
-import Providers from './providers.svelte';
+import Providers from '#tests/providers.svelte';
 
 /**
  * THE SETTINGS AREA'S CONTRIBUTIONS, STARTED AS IT OPENS

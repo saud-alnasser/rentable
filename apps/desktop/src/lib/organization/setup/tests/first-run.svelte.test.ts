@@ -7,7 +7,7 @@ import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import en from '$lib/i18n/en';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { harness, nowhereToGo } from '$lib/startup/tests/harness';
-import Providers from '$lib/organization/tests/providers.svelte';
+import Providers from '#tests/providers.svelte';
 import {
 	fakeOrganizationSession,
 	fakeOrganizationState,

@@ -1,5 +1,11 @@
 // Shared scaffolding for the tests that drive a declared mutation. Not a `*.test.ts` file, so
 // the test runner does not pick it up directly.
+//
+// The runner's rather than a module's: `node:test` cannot load the query library, which reaches a
+// `.svelte` file, so every test that drives a mutation substitutes it, and the tests of seven
+// modules read what the substitute was handed through this. A test reaches it as
+// `#tests/mutation.ts`. *It was `design/tests/testing.ts` until ticket 42 of effort 840, from
+// when mutations were declared in `design/`.*
 
 import assert from 'node:assert/strict';
 

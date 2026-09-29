@@ -1,0 +1,19 @@
+{
+	// The package has no build. `exports` points both conditions at the source, and each consumer
+	// compiles it: `tsx` loads `source.ts` under `node:test`, and Vitest loads `setup.ts` before
+	// every component test file. What is left for this configuration is to check the package on
+	// its own terms, which no consumer's `include` reaches.
+	"compilerOptions": {
+		"target": "es2023",
+		"lib": ["es2023"],
+		"module": "nodenext",
+		"moduleResolution": "nodenext",
+		"types": ["node"],
+		"allowImportingTsExtensions": true,
+		"forceConsistentCasingInFileNames": true,
+		"skipLibCheck": true,
+		"strict": true,
+		"noEmit": true
+	},
+	"include": ["source.ts", "setup.ts"]
+}

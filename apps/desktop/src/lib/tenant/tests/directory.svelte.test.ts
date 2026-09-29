@@ -6,7 +6,7 @@ import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import TenantDirectory from '$lib/tenant/component/directory.svelte';
-import QueryProviders from '#tests/query-providers.svelte';
+import Providers from '#tests/providers.svelte';
 import { forgetReader, holdEveryFlagBut, layOutLists } from '#tests/permission.ts';
 
 /**
@@ -58,7 +58,7 @@ const directory = () =>
 	render(
 		TenantDirectory,
 		{},
-		{ wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' as const } }
+		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' as const } }
 	);
 
 /** what a screen reader hears of each figure on the rows. */

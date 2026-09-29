@@ -13,7 +13,7 @@ or anything touching the lockfile.
 
 ## The workspace, and which tool runs what
 
-`pnpm-workspace.yaml` declares `apps/*` and `packages/*`. There are four packages, and the root
+`pnpm-workspace.yaml` declares `apps/*` and `packages/*`. There are five packages, and the root
 is a private, unversioned container named `rentable`. The scope is what keeps them distinct: the
 root holds the product's name, and every package under it is named within that scope.
 
@@ -23,6 +23,7 @@ root holds the product's name, and every package under it is named within that s
 | `@rentable/workspace-migrations` | `packages/workspace-migrations/` | the SQL a workspace database is built from |
 | `@rentable/workspace-permission` | `packages/workspace-permission/` | what a member may do to a workspace, named the same way on both sides |
 | `@rentable/design` | `packages/design/` | the interface every rentable client is drawn from |
+| `@rentable/testing` | `packages/testing/` | the test scaffolding the application and the design package share |
 
 *There was one until 2026-08-18, when #549 cut the second. This paragraph said "three packages"
 and named the first three until 2026-08-23, by which point there were five — the count is the

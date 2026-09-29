@@ -4,7 +4,7 @@ import { beforeEach, it, mock } from 'node:test';
 import { TRPCError } from '@trpc/server';
 
 import { refuse } from '$lib/api/refusal.ts';
-import { bindingOf } from '$lib/design/tests/testing.ts';
+import { bindingOf } from '#tests/mutation.ts';
 
 /**
  * AN IMPORT FAILURE IS SAID ONCE

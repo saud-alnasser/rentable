@@ -7,7 +7,7 @@ import en from '$lib/i18n/en';
 import type { Locales } from '$lib/i18n/i18n-types';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import QueryProviders from '#tests/query-providers.svelte';
+import Providers from '#tests/providers.svelte';
 import PrintPreview from '$lib/print/component/preview.svelte';
 
 /**
@@ -51,7 +51,7 @@ function opened(locale: Locales = 'en') {
 	render(
 		PrintPreview,
 		{ open: true, onOpenChange: () => {}, title: 'print receipt', locale, page, onSave, onPrint },
-		{ wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' } }
+		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } }
 	);
 
 	return { onSave, onPrint };

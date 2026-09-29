@@ -28,7 +28,7 @@ Start at [[protocol]].
 | [[rules/interface]] | a surface is being placed, built, or restyled — a screen, a block, a list row, a form, or a cell | apps/desktop/src/lib/**/component/**, apps/desktop/src/lib/design/block/**, apps/desktop/src/lib/design/cell/**, apps/desktop/src/lib/dashboard/**, apps/desktop/src/lib/contract/**, apps/desktop/src/lib/payment/component/**, apps/desktop/src/routes/**, apps/desktop/src/app.css, packages/design/src/lib/block/**, packages/design/src/lib/primitive/**, packages/design/src/lib/tokens.css | — |
 | [[rules/migrations]] | adding or changing a workspace migration or an organization's change of format | apps/desktop/tauri/migrations/**, packages/workspace-migrations/**, apps/desktop/tauri/src/upgrade/format/** | — |
 | [[rules/module-layout]] | adding a module, a file, or a directory under src/ or tauri/src/, including throwaway prototype code | apps/desktop/src/**, apps/desktop/tauri/src/**, packages/design/src/** | — |
-| [[rules/testing]] | writing or changing a test, or deciding what a change must be tested at | apps/desktop/src/**, apps/desktop/tauri/src/**, packages/design/src/** | — |
+| [[rules/testing]] | writing or changing a test, or deciding what a change must be tested at | apps/desktop/src/**, apps/desktop/tauri/src/**, packages/design/src/**, packages/testing/** | — |
 | [[rules/tracker]] | creating, reading, claiming, or labelling a ticket, or deciding whether work is a ticket at all | — | — |
 | [[rules/version-control]] | branching, committing, opening a pull request, or landing work here | — | — |
 
@@ -440,7 +440,7 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/39-contract-groups-its-sub-concepts]] refactor(desktop): the contract groups its sub-concepts | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | 30 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/40-the-remaining-oversized-files-are-split]] refactor(desktop): the remaining oversized files are split | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | 38, 39 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/41-every-feature-has-one-shape]] refactor(desktop): every feature and capability has one shape and an entry | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | 40 |
-| [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/42-test-scaffolding-is-shared]] test(desktop): each runner has one shared harness | 840-a-feature-plugs-in-and-lives-in-one-place | open | 41 |
+| [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/42-test-scaffolding-is-shared]] test(desktop): each runner has one shared harness | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | 41 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/43-the-clock-is-a-port]] refactor(tauri): the clock is a port | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | 02 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/44-credentials-are-a-port]] refactor(tauri): the credential store is a port | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | 02 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/45-turso-is-its-own-module]] refactor(tauri): Turso is a module of its own | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | 02 |

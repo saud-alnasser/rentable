@@ -10,7 +10,7 @@ import type { LinkShape } from '$lib/organization/host';
 import en from '$lib/i18n/en';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
-import Providers from '$lib/organization/tests/providers.svelte';
+import Providers from '#tests/providers.svelte';
 
 /**
  * THE CONNECT SCREEN, RENDERED

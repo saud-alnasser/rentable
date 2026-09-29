@@ -1,5 +1,10 @@
-// Runs before every component test file. It is scaffolding rather than a test, which is why it
-// carries no `.test` in its name and why `vitest.config.js` has to name it explicitly.
+// Runs before every component test file, in the design package and in the application alike. It
+// is scaffolding rather than a test, which is why it carries no `.test` in its name and why each
+// `vitest.config.js` has to name it explicitly, as `@rentable/testing/setup`.
+//
+// One copy for both runners. The application kept a second until effort 840, because the design
+// package's `exports` map covers `src/lib/` alone and so could not hand it this file; a package of
+// its own is what both can import.
 //
 // **What it exists for: bits-ui restores the body style on a timer, and the timer can outlive the
 // DOM.** A component that locks body scroll (a dialog, a sheet, the command dialog, and the
@@ -28,7 +33,7 @@
 // whatever order the hooks were registered in, which an `afterEach` here would not guarantee.
 import { afterAll } from 'vitest';
 
-// Twice the 24ms bits-ui waits. The margin is free: fourteen files pay 50ms each.
+// Twice the 24ms bits-ui waits. The margin is free: each file pays 50ms once.
 const RESTORE_SCROLL_DELAY = 50;
 
 afterAll(async () => {

@@ -15,7 +15,7 @@ import {
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import en from '$lib/i18n/en';
-import QueryProviders from '#tests/query-providers.svelte';
+import Providers from '#tests/providers.svelte';
 
 /**
  * THE CONTRACT'S UNIT PANES, SEARCHED
@@ -82,7 +82,7 @@ const units = () =>
 	render(
 		Units,
 		{ contractId: 'contract-1' },
-		{ wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' as const } }
+		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' as const } }
 	);
 
 test('the panes lead their search with the glass', () => {

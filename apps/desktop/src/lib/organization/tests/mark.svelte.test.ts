@@ -6,7 +6,7 @@ import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import OrganizationMark from '$lib/organization/component/mark.svelte';
-import QueryProviders from '#tests/query-providers.svelte';
+import Providers from '#tests/providers.svelte';
 
 /**
  * THE ORGANIZATION'S SIGNATURE OR SEAL, IN SETTINGS
@@ -76,7 +76,7 @@ const shown = (setsMark: boolean) =>
 	render(
 		OrganizationMark,
 		{ setsMark },
-		{ wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' } }
+		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } }
 	);
 
 const image = () =>

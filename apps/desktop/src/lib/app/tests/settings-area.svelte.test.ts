@@ -18,7 +18,7 @@ import { fakeSettings } from '$lib/settings/tests/testing.ts';
 import { fakeSyncState } from '$lib/sync/tests/testing.ts';
 import SettingsArea from '$lib/settings/component/area.svelte';
 import type { AddressableSection } from '$lib/settings/section';
-import Providers from '$lib/settings/tests/providers.svelte';
+import Providers from '#tests/providers.svelte';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { pressSearchKey } from '$lib/list/tests/search';
 import { BUILT_IN } from '@rentable/workspace-permission';

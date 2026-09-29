@@ -5,7 +5,7 @@ import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import QueryProviders from '#tests/query-providers.svelte';
+import Providers from '#tests/providers.svelte';
 import Ledger from '$lib/payment/component/ledger.svelte';
 import type { ListSort } from '@rentable/design/sort.js';
 
@@ -98,7 +98,7 @@ const ledger = () =>
 	render(
 		Ledger,
 		{ recordId: 'contract-1' },
-		{ wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' as const } }
+		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' as const } }
 	);
 
 /** what an element's `aria-describedby` names, as assistive technology hears it. */

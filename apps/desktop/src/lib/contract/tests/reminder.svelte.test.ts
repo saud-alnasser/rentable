@@ -13,7 +13,7 @@ import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { i18nObject } from '$lib/i18n/i18n-util';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import QueryProviders from '#tests/query-providers.svelte';
+import Providers from '#tests/providers.svelte';
 
 /**
  * A TENANT IS REMINDED ON WHATSAPP
@@ -94,11 +94,7 @@ afterEach(() => {
 });
 
 const renderHost = () =>
-	render(
-		ContractHost,
-		{},
-		{ wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' } }
-	);
+	render(ContractHost, {}, { wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } });
 
 /** the message a WhatsApp address carries, decoded as WhatsApp decodes it. */
 const textOf = (url: string) => new URL(url).searchParams.get('text');
@@ -194,7 +190,7 @@ test('a landing row in a money rank or due soon offers the reminder as a renewal
 		],
 		hiddenCount: 0
 	});
-	const wrap = { wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' as const } };
+	const wrap = { wrapper: Providers, wrapperProps: { strings, direction: 'ltr' as const } };
 
 	for (const rank of ['owing', 'due-soon'] as const) {
 		const { unmount } = render(Section, { section: sectionFor(rank) }, wrap);
