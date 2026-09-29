@@ -203,7 +203,7 @@ procedure-to-flag table and the view flags in `api/tests/flags.test.ts`, the fla
 `permission/tests/`, the role and member tests under `organization/`, whose groups and lines name
 each kind, `shell/tests/` for the rail and the places, `transfer/tests/`, whose masks name each
 kind's flags, and in the crate `permission.rs`'s own tests and the signed fixtures in
-`organization/authority/preimage.rs` and `upgrade/format/two/plan.rs`, which hold the member
+`organization/authority/preimage.rs` and `upgrade/format/chain/plan.rs`, which hold the member
 role's mask. The schema's migration comes with its seed in `organization/lease/apply.rs`'s
 `SEEDS`, as every workspace migration does, kind or not.
 

@@ -2077,7 +2077,7 @@ mod tests {
         assert!(store.is_older().await.expect("the format"));
 
         // what the refusal keeps from happening, a plan over this state carrying the replayed
-        // row as a manager signed from the root, is shown at the foot of `two/plan.rs`.
+        // row as a manager signed from the root, is shown at the foot of `chain/plan.rs`.
 
         let before = contents(&store).await;
         let remote = online();

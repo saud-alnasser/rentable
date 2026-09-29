@@ -79,7 +79,7 @@ pub(crate) const TRANSITION: Transition = Transition {
 
 /// A fresh organization of format 2: every table of this build's schema but what a later format
 /// added. Only the last change's is read (`runner/`), so it is read where a walk ends at format
-/// 2, as a test seeding an organization of format 2 walks (`three.rs`), and never where
+/// 2, as a test seeding an organization of format 2 walks (`overriding.rs`), and never where
 /// a walk goes on. *It was the schema this build installs until format 3 added a table to it.*
 fn built(connection: &turso::Connection) -> Pending<'_, ()> {
     Box::pin(install_format_two(connection))

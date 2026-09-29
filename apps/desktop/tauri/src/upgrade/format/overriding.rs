@@ -16,21 +16,21 @@
 //! like one of format 2 but a dropped table, and dropping it only loses the overrides it held,
 //! which the credential already allows by deleting their rows.
 //!
-//! **Its readers are format 2's** ([`super::two`]): the member rows and the grants of format 2 are
+//! **Its readers are format 2's** ([`super::chain`]): the member rows and the grants of format 2 are
 //! those of format 3, since the change adds a table and reshapes none, so what finds the owner's
 //! vault and grant in the format this starts from finds them in the one it arrives at too.
 
 use crate::organization::store::install;
 
-use super::{Pending, Transition, Upgrading, two};
+use super::{Pending, Transition, Upgrading, chain};
 
 /// The change from format 2, as [`super::TRANSITIONS`] lists it.
 pub(crate) const TRANSITION: Transition = Transition {
     from: 2,
     name: "format 2 to 3",
-    members: two::TRANSITION.members,
-    signed_as_its_own: two::TRANSITION.signed_as_its_own,
-    grant: two::TRANSITION.grant,
+    members: chain::TRANSITION.members,
+    signed_as_its_own: chain::TRANSITION.signed_as_its_own,
+    grant: chain::TRANSITION.grant,
     refused,
     run,
     built,

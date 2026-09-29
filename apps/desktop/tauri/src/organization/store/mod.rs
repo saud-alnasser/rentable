@@ -101,7 +101,7 @@ pub const TABLES: [&str; 15] = [
 ];
 
 /// How many of [`TABLES`] format 2 held: every one but `workspace_override`, which format 3 adds
-/// (`upgrade/format/three.rs`), and which is last in the schema for that reason.
+/// (`upgrade/format/overriding.rs`), and which is last in the schema for that reason.
 const FORMAT_TWO_TABLES: usize = 14;
 
 /// The schema, as the plan's data model gives it.
@@ -224,13 +224,13 @@ impl OrganizationStore {
     }
 
     /// Create the tables of format 2 where they do not exist, and none a later format adds: what
-    /// the change from format 1 creates (`upgrade/format/two/`), leaving the rest to the changes
+    /// the change from format 1 creates (`upgrade/format/chain/`), leaving the rest to the changes
     /// after it.
     pub async fn install_format_two_schema(&self) -> Result<(), Error> {
         install_format_two(&self.connection).await
     }
 
-    /// Create what format 3 adds where it does not exist (`upgrade/format/three.rs`).
+    /// Create what format 3 adds where it does not exist (`upgrade/format/overriding.rs`).
     pub async fn install_format_three_schema(&self) -> Result<(), Error> {
         install_format_three(&self.connection).await
     }
@@ -419,7 +419,7 @@ pub(crate) async fn install(connection: &turso::Connection) -> Result<(), Error>
 
 /// Create the tables of format 2 on `connection`: every one but what format 3 added. What the
 /// change arriving at format 2 builds a fresh organization with, where a walk ends there
-/// (`upgrade/format/two/`), and what a test builds an organization of format 2 from.
+/// (`upgrade/format/chain/`), and what a test builds an organization of format 2 from.
 pub(crate) async fn install_format_two(connection: &turso::Connection) -> Result<(), Error> {
     for statement in &SCHEMA[..FORMAT_TWO_TABLES] {
         connection.execute(statement, ()).await?;
@@ -429,7 +429,7 @@ pub(crate) async fn install_format_two(connection: &turso::Connection) -> Result
 }
 
 /// Create what format 3 adds, where it is missing: the `workspace_override` table (effort 838,
-/// ticket 53), and nothing else. What `upgrade/format/three.rs` runs.
+/// ticket 53), and nothing else. What `upgrade/format/overriding.rs` runs.
 pub(crate) async fn install_format_three(connection: &turso::Connection) -> Result<(), Error> {
     for statement in &SCHEMA[FORMAT_TWO_TABLES..] {
         connection.execute(statement, ()).await?;

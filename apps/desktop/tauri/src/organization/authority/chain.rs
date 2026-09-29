@@ -634,7 +634,7 @@ pub(super) fn verify_signature(
 /// ticket 22): signed by the organization key every time, and revoked by a column nobody signed.
 ///
 /// **Read by the upgrade and by nothing else.** An organization of this format is upgraded by its
-/// owner's machine before anything else reads it (`upgrade/format/two/`), and what the
+/// owner's machine before anything else reads it (`upgrade/format/chain/`), and what the
 /// upgrade needs from these rows is which of the rows they sign are genuine; the certificates
 /// themselves are not carried. Here rather than beside that format's verifier
 /// (`upgrade/format/signature.rs`) because the store reads it off format 1's table, and the store

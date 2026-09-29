@@ -42,9 +42,10 @@ effort 838 has no `format` table, which is format 1, and its owner's machine upg
 their sign-in, their resume or their connect on the Turso account: every row is judged under the
 old rules, carried into this format signed from the root, and the row is written last. The runner
 is `upgrade/format/runner/`; each change of format is a file or a directory under `upgrade/format/`
-(format 1 to 2 is `two/`; 2 to 3, which adds the `workspace_override` table and nothing else, is
-`three.rs`), listed in order in `upgrade/format/mod.rs` with the readers that find the
-owner in the format it starts from, and the version this build ships is the one after that list's
+and is named for what it does (format 1 to 2, which roots every row in the chain of certificates,
+is `chain/`; 2 to 3, which adds the `workspace_override` table and nothing else, is
+`overriding.rs`), listed in order in `upgrade/format/mod.rs` with the readers that find the owner
+in the format it starts from, and the version this build ships is the one after that list's
 last change, which a test there holds `store::FORMAT_VERSION` to. What format 1 signed, and how it
 judged a row, is `upgrade/format/signature.rs`. Nothing names `upgrade` but the organization's
 session (effort 840, requirement 15).

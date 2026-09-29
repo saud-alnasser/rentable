@@ -2,7 +2,9 @@
 //! format the organization is in to the one this build ships (effort 838, requirement 14, ticket
 //! 26).
 //!
-//! **One file for each change, and this list the one place they are named in order.** What every
+//! **One file for each change, named for what it does, and this list the one place they are
+//! named in order**, since a name says nothing about the order and a number says nothing about
+//! the change. *They were `two/` and `three.rs` until effort 840 (ticket 64).* What every
 //! change needs is written once, in `runner/`: finding the owner, the push and the pull before
 //! it, the refusal of an organization this machine has read in a later format, the copy, the one
 //! transaction, the `format` row last, and the push after. A change holds only what is its own:
@@ -26,7 +28,9 @@
 //!
 //! **The next format is added in five moves**:
 //!
-//! 1. a file here, named for the format it makes, one word as every Rust file is (`four.rs`);
+//! 1. a file here, named for what the change does to the stored format, in one word as every Rust
+//!    file is, and never for the number of the format it makes (`chain/` roots every row in the
+//!    chain of certificates, `overriding.rs` adds a member's override for one workspace);
 //! 2. in it, the change and a `TRANSITION` built from it, reading the format it starts from,
 //!    building a fresh organization of the format it makes, and naming the tables it leaves alone,
 //!    which the check before the commit reads (`schema/`, ticket 33); a table it reshapes in
@@ -55,16 +59,16 @@ use crate::organization::{
 
 use runner::Opened;
 
+pub mod chain;
+pub mod overriding;
 pub mod runner;
 pub mod signature;
 #[cfg(test)]
 pub(crate) mod test;
-pub mod three;
-pub mod two;
 
 /// Every change of format, in order: the one starting from format 1 first, and each after it
 /// starting where the one before it ends.
-pub(crate) const TRANSITIONS: &[Transition] = &[two::TRANSITION, three::TRANSITION];
+pub(crate) const TRANSITIONS: &[Transition] = &[chain::TRANSITION, overriding::TRANSITION];
 
 /// What a change of format hands the runner to await, borrowing what it was given.
 pub(crate) type Pending<'a, T> = Pin<Box<dyn Future<Output = Result<T, Error>> + Send + 'a>>;

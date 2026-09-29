@@ -293,7 +293,7 @@ pub const WRITE_FLAGS: [Flag; 15] = [
 
 /// Viewing, creating, editing and deleting every record kind: the five record families, and what
 /// the upgrade of an older organization gives every member it carries, since that build gated no
-/// record act (`upgrade/format/two/`).
+/// record act (`upgrade/format/chain/`).
 pub const RECORD_FLAGS: [Flag; 20] = [
     Flag::ViewComplex,
     Flag::CreateComplex,
@@ -570,10 +570,7 @@ mod tests {
         effective_in_workspace, first_beyond_records, first_not_held, first_owner_only,
         first_write_without_view, mask_of, permits, refuse_write_without_view, require,
     };
-    use crate::{
-        error::{Error, RefusalReason},
-        turso::platform::AccessLevel,
-    };
+    use crate::{error::Error, turso::platform::AccessLevel};
 
     /// A file of the package, read rather than imported: this crate cannot import TypeScript, and
     /// two tables of one vocabulary are held together by nothing but this.

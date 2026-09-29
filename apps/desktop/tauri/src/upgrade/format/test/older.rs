@@ -28,9 +28,9 @@ use crate::organization::{
 };
 use crate::test::scratch;
 use crate::upgrade::format::{
+    chain::FORMAT_ONE_ACTS,
     runner::Opened,
     signature::{FormatOneMember, FormatOneRow, issue_format_one_certificate, sign_format_one},
-    two::FORMAT_ONE_ACTS,
 };
 
 pub(crate) const ORGANIZATION_ID: &str = "7f3a";
