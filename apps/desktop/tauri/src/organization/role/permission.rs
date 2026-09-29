@@ -129,15 +129,11 @@ impl Family {
 
     /// The refusal for adding, editing or deleting this kind of record without viewing it, or
     /// `None` for the two families that are not a kind of record: the administration and the
-    /// owner's acts.
+    /// owner's acts. It names the kind by the family's name, so every kind of record has one.
     pub fn viewing_needed(self) -> Option<RefusalReason> {
         match self {
             Self::Administration | Self::Owner => None,
-            Self::Complex => Some(RefusalReason::ComplexNeedsViewing),
-            Self::Unit => Some(RefusalReason::UnitNeedsViewing),
-            Self::Tenant => Some(RefusalReason::TenantNeedsViewing),
-            Self::Contract => Some(RefusalReason::ContractNeedsViewing),
-            Self::Payment => Some(RefusalReason::PaymentNeedsViewing),
+            kind => Some(RefusalReason::NeedsViewing(kind.name())),
         }
     }
 }
@@ -1070,13 +1066,14 @@ mod tests {
             records
                 .iter()
                 .filter_map(|family| family.viewing_needed())
+                .map(|reason| serde_json::to_value(reason).expect("a reason serializes"))
                 .collect::<Vec<_>>(),
             [
-                RefusalReason::ComplexNeedsViewing,
-                RefusalReason::UnitNeedsViewing,
-                RefusalReason::TenantNeedsViewing,
-                RefusalReason::ContractNeedsViewing,
-                RefusalReason::PaymentNeedsViewing,
+                "complexNeedsViewing",
+                "unitNeedsViewing",
+                "tenantNeedsViewing",
+                "contractNeedsViewing",
+                "paymentNeedsViewing",
             ]
         );
 

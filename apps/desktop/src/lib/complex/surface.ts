@@ -9,6 +9,7 @@ import { useSearchComplexes } from './query';
 
 export default defineSurface({
 	name: 'complex',
+	record: { kind: 'complex', glyph: HouseIcon },
 	places: [
 		{ route: '/complexes', label: (t) => t.common.nav.complexes(), icon: HouseIcon, rail: true }
 	],

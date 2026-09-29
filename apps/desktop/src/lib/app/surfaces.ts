@@ -3,8 +3,11 @@ import contract from '$lib/contract/surface';
 import dashboard from '$lib/dashboard/surface';
 import { contributionsOf } from '$lib/feature/feature';
 import {
+	glyphsOf,
 	provideContributions,
+	provideGlyphs,
 	type AnySection,
+	type Icon,
 	type NavigationPlace,
 	type Section,
 	type SectionTarget,
@@ -19,6 +22,7 @@ import payment from '$lib/payment/surface';
 import settings from '$lib/settings/surface';
 import tenant from '$lib/tenant/surface';
 import workspace from '$lib/workspace/surface';
+import type { RecordKind } from '$lib/permission';
 import type { Component } from 'svelte';
 import type { SurfaceContributions } from './contributions';
 
@@ -60,6 +64,15 @@ export const surfaces: readonly Surface[] = declared;
 const contributions: SurfaceContributions = contributionsOf(declared);
 
 provideContributions(contributions);
+
+/**
+ * **And the glyph each kind of record is drawn with**, from the surface of the feature holding it
+ * (`record` in `$lib/feature/surface`): the role editor draws every kind, and may import none of
+ * them. A kind no surface declares a glyph for fails the type check here.
+ */
+const glyphs: Record<RecordKind, Icon> = glyphsOf(declared);
+
+provideGlyphs(glyphs);
 
 /**
  * The command menu, built from what every surface declares for it: the kinds it searches, the

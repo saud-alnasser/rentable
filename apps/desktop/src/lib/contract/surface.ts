@@ -17,6 +17,7 @@ const shows = () => memberPermissions.views('contract');
 
 export default defineSurface({
 	name: 'contract',
+	record: { kind: 'contract', glyph: ContractIcon },
 	places: [
 		{ route: '/contracts', label: (t) => t.common.nav.contracts(), icon: ContractIcon, rail: true }
 	],

@@ -1,6 +1,9 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { beforeEach, expect, test } from 'vitest';
 
+// the glyph each kind of record's group wears is its surface's, provided as the surfaces are
+// composed, as the frame does by importing them (`glyphOf` in `$lib/feature/surface`).
+import '$lib/app/surfaces';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import AccountForm from '$lib/organization/member/component/account-form.svelte';

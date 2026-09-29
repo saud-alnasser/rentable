@@ -78,6 +78,8 @@ pub enum Error {
 ///
 /// **A word, and no values.** A sentence that needs a name says it without one: the reader is
 /// looking at what they tried to act on, and the name sits in `message` for whoever reads a log.
+/// The one variant holding anything is [`RefusalReason::NeedsViewing`], whose kind of record is
+/// part of its word rather than a value beside it, so it crosses as one word like the rest.
 ///
 /// The first four are a link's standing after its code was right (effort 828): an invitation is
 /// `Lapsed`, `Consumed` or `Revoked`, and a machine link is `Lapsed`, `Consumed` or `Replaced`.
@@ -183,18 +185,6 @@ pub enum RefusalReason {
     NoRankBelow,
     /// the owner's role is not assigned; the owner hands the organization over.
     OwnerRoleNotAssigned,
-    /// a role or a member's permissions would add, edit or delete complexes without viewing them
-    /// (effort 838, requirement 6 as amended 2026-09-27). One word per kind of record, so the
-    /// sentence names the kind in the reader's language.
-    ComplexNeedsViewing,
-    /// the same, for units.
-    UnitNeedsViewing,
-    /// the same, for tenants.
-    TenantNeedsViewing,
-    /// the same, for contracts.
-    ContractNeedsViewing,
-    /// the same, for payments.
-    PaymentNeedsViewing,
     /// a member's override for one workspace names a flag that is not a record flag: a workspace
     /// changes only what may be done to its records (effort 838, requirement 12 as amended a third
     /// time).
@@ -296,6 +286,27 @@ pub enum RefusalReason {
     MarkTooLarge,
     /// the file is not a PNG, JPEG or WebP image.
     MarkNotAnImage,
+
+    // roles, per kind of record (effort 838, requirement 6 as amended 2026-09-27).
+    /// a role or a member's permissions would add, edit or delete one kind of record without
+    /// viewing it. One word per kind, so the sentence names the kind in the reader's language:
+    /// `complexNeedsViewing`, `unitNeedsViewing` and so on, spelled from the kind's name as
+    /// `Family::name` gives it (`organization::role::permission`), so a kind added there has its
+    /// word without one added here. `TAURI_REFUSAL_REASONS` spells it from the package's
+    /// `RECORD_KINDS` the same way.
+    ///
+    /// **Untagged, and so last**: serde writes it through [`needs_viewing`] as the one word the
+    /// rest are, rather than as an object naming the variant.
+    #[serde(untagged, serialize_with = "needs_viewing")]
+    NeedsViewing(&'static str),
+}
+
+/// the word [`RefusalReason::NeedsViewing`] crosses as: the kind's name, then `NeedsViewing`.
+fn needs_viewing<S: serde::Serializer>(
+    kind: &&'static str,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    serializer.collect_str(&format_args!("{kind}NeedsViewing"))
 }
 
 impl Error {
@@ -480,6 +491,37 @@ mod tests {
 
         for (reason, spelling) in reasons {
             let error = Error::refused(reason, "a developer's description");
+
+            assert_eq!(
+                serde_json::to_value(&error).expect("failed to serialize error"),
+                serde_json::json!({
+                    "code": "refused",
+                    "reason": spelling,
+                    "message": "a developer's description"
+                }),
+                "unexpected wire shape for {spelling}"
+            );
+        }
+    }
+
+    /// a kind of record's refusal of a write without its view crosses as the one word it did when
+    /// each kind was a variant of its own (effort 840, ticket 63): the kind's name, then
+    /// `NeedsViewing`.
+    #[test]
+    fn a_kind_needing_viewing_is_one_word_spelled_from_the_kind() {
+        let reasons = [
+            ("complex", "complexNeedsViewing"),
+            ("unit", "unitNeedsViewing"),
+            ("tenant", "tenantNeedsViewing"),
+            ("contract", "contractNeedsViewing"),
+            ("payment", "paymentNeedsViewing"),
+        ];
+
+        for (kind, spelling) in reasons {
+            let error = Error::refused(
+                RefusalReason::NeedsViewing(kind),
+                "a developer's description",
+            );
 
             assert_eq!(
                 serde_json::to_value(&error).expect("failed to serialize error"),

@@ -5,7 +5,7 @@
 	import { Switch } from '@rentable/design/primitive/switch/index.js';
 	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import { ADMINISTRATION_GLYPH, KIND_GLYPH, flagGlyph } from '$lib/organization/glyph';
+	import { ADMINISTRATION_GLYPH, flagGlyph, kindGlyph } from '$lib/organization/glyph';
 	import {
 		RECORD_KINDS,
 		carriedIn,
@@ -121,7 +121,7 @@
 	const groups = $derived<Group[]>([
 		...RECORD_KINDS.map((kind) => ({
 			family: kind,
-			glyph: KIND_GLYPH[kind],
+			glyph: kindGlyph(kind),
 			flags: FAMILIES[kind]
 		})),
 		...(records

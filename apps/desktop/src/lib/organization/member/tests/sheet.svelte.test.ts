@@ -3,6 +3,9 @@ import { beforeEach, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+// the glyph each kind of record's group wears is its surface's, provided as the surfaces are
+// composed, as the frame does by importing them (`glyphOf` in `$lib/feature/surface`).
+import '$lib/app/surfaces';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { i18nObject } from '$lib/i18n/i18n-util';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';

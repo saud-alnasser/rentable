@@ -1,6 +1,7 @@
 import { resolve } from '$app/paths';
 import { toPaletteActs } from '$lib/act';
 import { defineSurface } from '$lib/feature/surface';
+import BanknoteIcon from '@lucide/svelte/icons/banknote';
 import { historySection } from '$lib/history/ui';
 import { memberPermissions } from '$lib/permission';
 import host from './component/host.svelte';
@@ -11,6 +12,9 @@ import { useFetchContractPayments } from './query';
 
 export default defineSurface({
 	name: 'payment',
+	// the banknote a contract's payments are drawn with; the coins are the dashboard's outstanding
+	// figure, not a payment.
+	record: { kind: 'payment', glyph: BanknoteIcon },
 	// a payment cannot be without its contract, so the menu asks for the contract first, and the
 	// reader has to be able to see contracts to choose one.
 	create: {

@@ -1849,7 +1849,7 @@ mod tests {
             "an account was made writing contracts it cannot view",
         );
 
-        assert_eq!(reason, RefusalReason::ContractNeedsViewing, "{message}");
+        assert_eq!(reason, RefusalReason::NeedsViewing("contract"), "{message}");
         assert!(message.contains("contract"), "{message}");
         assert_eq!(
             store

@@ -1,26 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import type { AnyProcedure } from '@trpc/server';
+import type { AnyProcedure, AnyRouter } from '@trpc/server';
 
 import { router } from '$lib/api/trpc.ts';
-import complex from '$lib/complex/router.ts';
-import complexes from '$lib/complex/transfer.ts';
-import units from '$lib/complex/unit/transfer.ts';
-import contract from '$lib/contract/router.ts';
-import contracts from '$lib/contract/transfer.ts';
-import dashboard from '$lib/dashboard/router.ts';
-import history from '$lib/history/router.ts';
-import organization from '$lib/organization/router.ts';
-import payment from '$lib/payment/router.ts';
-import payments from '$lib/payment/transfer.ts';
-import settings from '$lib/settings/router.ts';
-import startup from '$lib/startup/router.ts';
-import sync from '$lib/sync/router.ts';
-import tenant from '$lib/tenant/router.ts';
-import tenants from '$lib/tenant/transfer.ts';
-import transfer from '$lib/transfer/router.ts';
-import update from '$lib/update/router.ts';
 import { features } from '../features.ts';
 import { appRouter } from '../router.ts';
 
@@ -36,26 +19,25 @@ import { appRouter } from '../router.ts';
 type Same<A, B> =
 	(<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
 
-const handWritten = router({
-	tenant,
-	complex,
-	contract,
-	payment,
-	dashboard,
-	history,
-	organization,
-	settings,
-	sync,
-	update,
-	startup,
-	transfer: transfer([tenants, complexes, units, contracts, payments])
-});
+/** The listed features with a router of their own; the unit's procedures are the complex's. */
+const routed = features.flatMap((feature) => ('router' in feature ? [feature] : []));
+
+/** Each of them under its name, as a record written out by hand would type it. */
+type Written = {
+	[F in Extract<(typeof features)[number], { router: AnyRouter }> as F['name']]: F['router'];
+};
+
+/**
+ * The root a hand-written record of the listed routers gives: each one under its name, built here
+ * from the list without `routersOf`, so what `routersOf` builds is checked against it. Read off
+ * the list rather than spelled, so a feature added there needs no line here.
+ */
+const handWritten = router(
+	Object.fromEntries(routed.map((feature) => [feature.name, feature.router])) as Written
+);
 
 // A compile-time check: `pnpm check` fails here if the list changes a procedure's path or type.
 const sameRouter: Same<typeof appRouter._def.record, typeof handWritten._def.record> = true;
-
-/** The listed features with a router of their own; the unit's procedures are the complex's. */
-const routed = features.flatMap((feature) => ('router' in feature ? [feature] : []));
 
 /** Every procedure a router holds, under its dotted path; read as what `_def.procedures` holds. */
 const proceduresOf = (held: { _def: { procedures: object } }) =>

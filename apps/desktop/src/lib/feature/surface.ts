@@ -8,7 +8,8 @@ import type { RecordMatch } from '$lib/platform/database/search';
 import type HouseIcon from '@lucide/svelte/icons/house';
 import type { Component } from 'svelte';
 
-type Icon = typeof HouseIcon;
+/** A glyph, as the design package's icon set draws one. */
+export type Icon = typeof HouseIcon;
 
 /**
  * THE SURFACE CONTRACT
@@ -25,6 +26,8 @@ type Icon = typeof HouseIcon;
 export type Surface = {
 	/** the feature or capability it is, by the name its `feature.ts` declares where it has one */
 	name: string;
+	/** the kind of record it holds, on a feature that holds one, and how the window draws it */
+	record?: RecordDeclaration;
 	/** where it sits in navigation: the sidebar, the trail, the breadcrumb's label, the route */
 	places?: NavigationPlace[];
 	/** its entry in the command menu's create group */
@@ -45,6 +48,17 @@ export type Surface = {
 	 * {@link contributionsTo}.
 	 */
 	contributes?: SurfaceContributing;
+};
+
+/**
+ * A kind of record as the window draws it, declared by the feature holding it: the glyph that
+ * stands for the kind itself, wherever the window shows the kind rather than a place, as the
+ * groups of a role's permissions do. A kind keeps one glyph everywhere it appears
+ * ([[rules/frontend]]), so where it has a place on the rail this is that place's icon.
+ */
+export type RecordDeclaration = {
+	kind: RecordKind;
+	glyph: Icon;
 };
 
 /**
@@ -317,6 +331,49 @@ export function contributionsTo<K extends keyof SurfaceContributions>(
 	}
 
 	return provided[kind];
+}
+
+/**
+ * **The glyph of every kind is provided the same way**, by `$lib/app/surfaces` from what each
+ * surface declares under `record`, since the one drawing a kind it does not hold, the role editor,
+ * may not import the surface declaring it.
+ */
+let glyphs: Record<RecordKind, Icon> | null = null;
+
+/**
+ * Every kind's glyph, keyed by the kind, from a list of surfaces: what the composition root
+ * provides. Typed from the list, so assigning it to a record over every kind is what finds a kind
+ * no surface declares.
+ */
+export type GlyphsOf<D extends readonly object[]> = {
+	[S in Extract<D[number], { record: RecordDeclaration }> as S['record']['kind']]: Icon;
+};
+
+/** Every declared kind's glyph, keyed by the kind, for the composition root to provide. */
+export function glyphsOf<const D extends readonly object[]>(declarations: D): GlyphsOf<D> {
+	return Object.fromEntries(
+		declarations.flatMap((declaration) => {
+			const { record } = declaration as { record?: RecordDeclaration };
+
+			return record ? [[record.kind, record.glyph]] : [];
+		})
+	) as GlyphsOf<D>;
+}
+
+/** Provide every kind's glyph. Called once, by `$lib/app/surfaces`. */
+export function provideGlyphs(provided: Record<RecordKind, Icon>) {
+	glyphs = provided;
+}
+
+/** The glyph a kind of record is drawn with, as the surface holding it declares. */
+export function glyphOf(kind: RecordKind): Icon {
+	if (glyphs === null) {
+		throw new Error(
+			'a glyph was read before the surfaces were composed: import `$lib/app/surfaces` first'
+		);
+	}
+
+	return glyphs[kind];
 }
 
 /**

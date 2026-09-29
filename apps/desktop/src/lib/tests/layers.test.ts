@@ -76,10 +76,12 @@ type Layer = 'foundation' | 'capability' | 'feature' | 'composition';
 
 const RANK: Record<Layer, number> = { foundation: 1, capability: 2, feature: 3, composition: 4 };
 
-// Every top-level directory of `src/lib/` and its layer, as plan.md's *Components* tree assigns
-// them. Homes the effort has not created yet are listed already, so a ticket creating one finds
-// its layer here; one that creates a home the plan does not name adds it.
-const LAYERS: Record<string, Layer> = {
+// Every top-level directory of `src/lib/` placed by hand, with its layer, as plan.md's
+// *Components* tree assigns it: the foundation, the capabilities and the composition. Homes the
+// effort has not created yet are listed already, so a ticket creating one finds its layer here;
+// one that creates a home the plan does not name adds it. A feature is not placed here: see
+// `LAYERS` below.
+const PLACED: Record<string, Layer> = {
 	// 1 foundation: imports the design package and third-party code
 	api: 'foundation',
 	design: 'foundation',
@@ -104,29 +106,36 @@ const LAYERS: Record<string, Layer> = {
 	transfer: 'capability',
 	undo: 'capability',
 
-	// 3 features
-	complex: 'feature',
-	contract: 'feature',
-	dashboard: 'feature',
-	organization: 'feature',
-	payment: 'feature',
-	settings: 'feature',
-	startup: 'feature',
-	sync: 'feature',
-	tenant: 'feature',
-	update: 'feature',
-	workspace: 'feature',
-
 	// 4 composition: `app/` is the composition root, the one place that names every feature
 	app: 'composition',
 	prototype: 'composition',
 	shell: 'composition'
 };
 
+const COMPOSITION_ROOT = 'app';
+
+// The composition root's two lists, which name every feature and capability it reads.
+const ROOT_LISTS = ['features.ts', 'surfaces.ts'];
+
+// Every home whose declaration, its `feature.ts` or its `surface.ts`, one of the composition root's
+// lists imports.
+function listedHomes() {
+	return ROOT_LISTS.flatMap((name) =>
+		valueImports(readSource(join(LIB_ROOT, COMPOSITION_ROOT, name)).script)
+	).flatMap((specifier) => /^\$lib\/([^/]+)\/(?:feature|surface)$/.exec(specifier)?.[1] ?? []);
+}
+
+// Every top-level directory's layer: 3, a feature, for every home the composition root lists that
+// is not placed above, so adding a feature to the list is what gives its home a layer; and the
+// placed layer for the rest, a capability the list also names among them. A home neither placed
+// nor listed has none, and the first test below refuses it.
+const LAYERS: Record<string, Layer> = {
+	...Object.fromEntries(listedHomes().map((home) => [home, 'feature' as const])),
+	...PLACED
+};
+
 // The feature a record kind belongs to, where it is not the feature of the same name.
 const KIND_OWNER: Record<string, string> = { unit: 'complex' };
-
-const COMPOSITION_ROOT = 'app';
 
 // What the composition root reads from a feature besides its entry (plan, *Components*): its two
 // declarations, and the Tauri adapter `app/host.ts` binds its host port to.

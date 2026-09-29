@@ -9,6 +9,7 @@ import { useSearchTenants } from './query';
 
 export default defineSurface({
 	name: 'tenant',
+	record: { kind: 'tenant', glyph: UserIcon },
 	places: [{ route: '/tenants', label: (t) => t.common.nav.tenants(), icon: UserIcon, rail: true }],
 	// a tenant stands on its own, so it is made in its directory, where it will be listed.
 	create: {

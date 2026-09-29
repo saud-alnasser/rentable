@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [58]
 ---
 # refactor(desktop): adding a record kind touches only what the spec allows
@@ -14,9 +14,9 @@ Ticket 58 added a throwaway record kind and found it hand-edits files beyond cri
 
 Traces requirement 1 and 2 of [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]], and criteria 1 and 2.
 
-- [ ] Adding a throwaway kind hand-edits, outside its own directory, only the composition root's list, the permission package and its Rust mirror (with the fixtures that sign its mask), the schema, its routes and its locale entries; the commit body lists the files it took (criterion 2).
-- [ ] Every refusal code, glyph and message is unchanged for today's five kinds (criterion 19).
-- [ ] The integration gate passes on this commit; no test assertion changes except where it names a moved path or reads the list instead of spelling it (criterion 19).
+- [x] Adding a throwaway kind hand-edits, outside its own directory, only the composition root's list, the permission package and its Rust mirror (with the fixtures that sign its mask), the schema, its routes and its locale entries; the commit body lists the files it took (criterion 2). Verified: the child's throwaway `parcel` kind (router, feature, surface, page, strings, table, migration) edited, outside its own directory, only `app/features.ts`, `app/surfaces.ts`, `packages/workspace-permission/index.ts` and its mirror `permission.rs`, `schema.ts` (with its migration seed), `routes/parcels/+page.svelte` and the locale files, plus the generated `i18n-types.ts` and migration; it was reverted and the list is in the commit body. Glyphs come from each surface's `record: { kind, glyph }`, the needs-viewing refusal from the one list on each side, the layer map from the composition root's imports. Disclosed: tests that pin each kind's flags, groups, places and the signed mask fixtures also change with a kind, since they state a kind's expected behaviour; `rules/module-layout` records them.
+- [x] Every refusal code, glyph and message is unchanged for today's five kinds (criterion 19). Verified: `error::tests::a_kind_needing_viewing_is_one_word_spelled_from_the_kind` pins all five `<kind>NeedsViewing` words on the wire; `tauri.test.ts` still compares the frontend decoder with Rust; `message.test.ts` passes unchanged; glyphs render from the same icons.
+- [x] The integration gate passes on this commit; no test assertion changes except where it names a moved path or reads the list instead of spelling it (criterion 19). Verified: in the run's tree: `cargo fmt --check` 0, `cargo test --lib` `648 passed`, check 0, eslint 0, vitest 0, build:web 0, validate 0; node tests fail only the date-dependent receipt test. Assertion changes: the permission test compares the serialised words and `tauri.test.ts` parses the list.
 
 ## Relevant areas
 

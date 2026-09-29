@@ -99,8 +99,8 @@ job:
 <concept>/
   feature.ts         defineFeature({ name, router?, kind?, prefix?, pages?, transfer?, contributes? }).
                      Loads under Node; read only by app/
-  surface.ts         defineSurface({ name, places?, create?, search?, acts?, host?, sections?,
-                     slots?, contributes? }). May import a component; read only by app/
+  surface.ts         defineSurface({ name, record?, places?, create?, search?, acts?, host?,
+                     sections?, slots?, contributes? }). May import a component; read only by app/
   index.ts           what other concepts may import under Node: types, keys, domain functions
   ui.ts              what other concepts may use that only the window can load: query hooks,
                      rune state, the few components another concept renders, re-exported by
@@ -167,15 +167,15 @@ same `ui.ts`.
 A feature is added in its own directory and listed in the composition root; what else it edits by
 hand is below, and nothing more. Criterion 2 of
 [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]] allows a record kind the list, the
-permission package and its Rust mirror, the schema, its routes and its locale entries. The table
-was checked on 2026-09-29 (ticket 58) by adding a throwaway kind, `parcel`, with a router, a
-feature, a surface, a page and strings, running the gate, and taking it out again; the second
-table is what that check found beyond criterion 2's set, which a later change folds into the kind's
-declaration rather than this rule excusing.
+permission package and its Rust mirror, the schema, its routes and its locale entries, and the
+table is exactly that set. It was checked by adding a throwaway kind, `parcel`, with a router, a
+feature, a surface, a page and strings, running the gate, and taking it out again: first on
+2026-09-29 by ticket 58, which found four more files, and again the same day by ticket 63 once
+each of the four read the kind's declaration or the one list instead of naming the kinds.
 
 **A kind of record.** Inside `src/lib/<kind>/`: `<kind>.ts` with its `<KIND>_KIND`, `feature.ts`,
-`surface.ts`, `index.ts`, `router.ts`, `i18n/en.ts`, `i18n/ar.ts`, its components, and the rest
-of the shape above as it needs them. Outside it:
+`surface.ts` with its `record: { kind, glyph }`, `index.ts`, `router.ts`, `i18n/en.ts`,
+`i18n/ar.ts`, its components, and the rest of the shape above as it needs them. Outside it:
 
 | File | What it gains |
 | --- | --- |
@@ -184,24 +184,28 @@ of the shape above as it needs them. Outside it:
 | `tauri/src/organization/role/permission.rs` | the same, mirrored: `Flag`, `Family` and their `ALL`, names and bit ranges, `WRITE_FLAGS`, `RECORD_FLAGS`, `MEMBER_ROLE` |
 | `src/lib/platform/database/schema.ts` | its table; `pnpm db:generate` writes the migration into `packages/workspace-migrations/` |
 | `src/routes/<kinds>/` | its pages, each delegating to its components |
-| `src/lib/i18n/en/index.ts`, `ar/index.ts` | its strings composed at their key, and `common.refusals.<kind>NeedsViewing`; `pnpm i18n` regenerates `i18n-types.ts` |
+| `src/lib/i18n/en/index.ts`, `ar/index.ts` | its strings composed at their key, and `common.refusals.host.<kind>NeedsViewing`; `pnpm i18n` regenerates `i18n-types.ts` |
 | `src/lib/permission/i18n/en.ts`, `ar.ts` | the sentence refusing each of its four flags |
 | `src/lib/organization/i18n/en.ts`, `ar.ts` | its family's name in the role editor, and its word on a role's card |
 
-Found beyond criterion 2's set:
+**What follows from the declaration or the list, and is edited nowhere else:**
 
-| File | What it gains | Why it is not read from the declaration yet |
-| --- | --- | --- |
-| `src/lib/organization/glyph.ts` | its glyph in `KIND_GLYPH` | the role editor keeps a glyph per kind rather than reading the kind's surface |
-| `tauri/src/error.rs`, `src/lib/error/tauri.ts` | `RefusalReason::<Kind>NeedsViewing`, and its spelling in the list the window decodes | `Family::viewing_needed` names one refusal per kind rather than one refusal carrying the kind |
-| `src/lib/tests/layers.test.ts` | its home's layer in `LAYERS` | the guard refuses a home it cannot place, by design |
+| What | Read from |
+| --- | --- |
+| its glyph in the role editor's groups | its surface's `record.glyph`, which `app/surfaces.ts` provides and `glyphOf` in `feature/surface.ts` reads; a kind with no glyph fails the type check there |
+| its refusal of a write without its view | the family on each side: Rust's `RefusalReason::NeedsViewing(kind)` crosses as `<kind>NeedsViewing`, and `TAURI_REFUSAL_REASONS` spells the same word from `RECORD_KINDS` |
+| its home's layer | `layers.test.ts`, which makes a feature of every home whose declaration `app/features.ts` or `app/surfaces.ts` imports |
+| the root router's test | `app/tests/router.test.ts`, which builds the hand-written root from the list |
 
-Tests that pin today's five kinds change with it as well, and are not counted above: the hand-written
-router in `app/tests/router.test.ts`, the flag tables in `api/tests/flags.test.ts` and
-`permission/tests/`, the role and member tests under `organization/`, `shell/tests/` for the rail,
-`transfer/tests/`, whose masks name each kind's flags, and in the crate `permission.rs`'s own tests
-and the signed fixtures in `organization/authority/preimage.rs` and `upgrade/format/two/plan.rs`,
-which hold the member role's mask.
+Tests that pin today's kinds by what they specify change with it as well, and are not counted
+above, since each states what a kind is allowed or shown rather than listing the kinds: the
+procedure-to-flag table and the view flags in `api/tests/flags.test.ts`, the flag tables in
+`permission/tests/`, the role and member tests under `organization/`, whose groups and lines name
+each kind, `shell/tests/` for the rail and the places, `transfer/tests/`, whose masks name each
+kind's flags, and in the crate `permission.rs`'s own tests and the signed fixtures in
+`organization/authority/preimage.rs` and `upgrade/format/two/plan.rs`, which hold the member
+role's mask. The schema's migration comes with its seed in `organization/lease/apply.rs`'s
+`SEEDS`, as every workspace migration does, kind or not.
 
 **A feature with no kind** is its directory, its lines in `app/features.ts` and, where it draws
 anything, `app/surfaces.ts`, its strings composed in `i18n/{en,ar}/index.ts`, its home's layer in

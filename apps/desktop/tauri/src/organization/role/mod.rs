@@ -4693,7 +4693,7 @@ mod tests {
                 )
                 .await
                 .map(|_| ()),
-                RefusalReason::ContractNeedsViewing,
+                RefusalReason::NeedsViewing("contract"),
             ),
             (
                 "the member's role adding tenants without viewing them",
@@ -4706,7 +4706,7 @@ mod tests {
                 )
                 .await
                 .map(|_| ()),
-                RefusalReason::TenantNeedsViewing,
+                RefusalReason::NeedsViewing("tenant"),
             ),
             (
                 "an override switching viewing payments off the member's role",
@@ -4719,7 +4719,7 @@ mod tests {
                 )
                 .await
                 .map(|_| ()),
-                RefusalReason::PaymentNeedsViewing,
+                RefusalReason::NeedsViewing("payment"),
             ),
             (
                 "a role given with an override deleting complexes",
@@ -4733,7 +4733,7 @@ mod tests {
                 )
                 .await
                 .map(|_| ()),
-                RefusalReason::ComplexNeedsViewing,
+                RefusalReason::NeedsViewing("complex"),
             ),
             (
                 "a role edit leaving its holder adding units without viewing them",
@@ -4746,7 +4746,7 @@ mod tests {
                 )
                 .await
                 .map(|_| ()),
-                RefusalReason::UnitNeedsViewing,
+                RefusalReason::NeedsViewing("unit"),
             ),
         ];
 
@@ -5072,7 +5072,7 @@ mod tests {
                 permission::mask_of(&[Flag::DeletePayment]),
             )
             .await,
-            RefusalReason::PaymentNeedsViewing,
+            RefusalReason::NeedsViewing("payment"),
             "deleting payments turned on there without viewing them",
         );
         refused(
