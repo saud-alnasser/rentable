@@ -86,11 +86,20 @@ caller remembers it.** `announceReceivedRows` is what a dispatch's caller calls,
 can render afterwards both call it; the one that does not is startup, where a whole-table reconcile
 runs on the next line and nothing has been drawn yet. A caller that took the answer and did nothing
 with it would be an unannounced writer, and what that shows a user is wrong data rather than slow
-data. **There are no optimistic updates.**
+data. **There are no optimistic updates to workspace data.**
 
 *Why: TanStack Query's server-era defaults pay a visible round trip for a staleness problem this
 application answers by enumeration instead — and the refetch behind an invalidate is a
 sub-millisecond local query, so there is no latency for an optimistic write to hide.*
+
+**Two of this machine's settings are drawn before they are written, and they are the only
+optimistic writes.** The appearance (`useSetAppearance` in `settings/query.ts`) applies the choice
+in its declaration's `capture`, which runs as TanStack Query's `onMutate`, and its `failed` puts
+back what `capture` replaced. The language is changed the same way by hand on the settings page
+(`settings/component/page.svelte`): `setLocale` first, then the write, and the previous locale
+restored where the write is refused. Neither touches the query cache ahead of the write; the
+settings key is still set from what came back. What they hide is not a query's latency but the
+shell's round trip, which a reader who pressed dark and waited would answer by pressing it again.
 
 **Scoped 2026-08-18, the scoping withdrawn 2026-08-20 (#573), and this is the row that had to be
 got right** ([[efforts/a-workspace-follows-its-user/spec]], decision 09). The rule used to be

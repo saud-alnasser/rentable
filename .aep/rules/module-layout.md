@@ -182,7 +182,7 @@ each of the four read the kind's declaration or the one list instead of naming t
 | `src/lib/app/features.ts`, `src/lib/app/surfaces.ts` | the feature and the surface in their lists, and the surface in `places` where it has a row on the rail. `app/contributions.ts` as well, where it contributes to a kind or is contributed to |
 | `packages/workspace-permission/index.ts` | its four flags on free bits, its family in `FAMILIES`, its writes in `WRITE_FLAGS`, and what the member role holds of it. `RECORD_KINDS`, `RecordKind`, `HistoryConcept` and the history `concept` values follow from `FAMILIES` |
 | `tauri/src/organization/role/permission.rs` | the same, mirrored: `Flag`, `Family` and their `ALL`, names and bit ranges, `WRITE_FLAGS`, `RECORD_FLAGS`, `MEMBER_ROLE` |
-| `src/lib/platform/database/schema.ts` | its table; `pnpm db:generate` writes the migration into `packages/workspace-migrations/` |
+| `src/lib/platform/database/schema.ts` | its table; `pnpm db:generate` in `apps/desktop` (`pnpm db:generate:desktop` from the root) writes the migration into `packages/workspace-migrations/` |
 | `src/routes/<kinds>/` | its pages, each delegating to its components |
 | `src/lib/i18n/en/index.ts`, `ar/index.ts` | its strings composed at their key, and `common.refusals.host.<kind>NeedsViewing`; `pnpm i18n` regenerates `i18n-types.ts` |
 | `src/lib/permission/i18n/en.ts`, `ar.ts` | the sentence refusing each of its four flags |

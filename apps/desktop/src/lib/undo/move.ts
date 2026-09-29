@@ -72,9 +72,9 @@ function withdrawOutstandingOffer() {
 	}
 }
 
-// the stack is emptied whenever the workspace underneath it is replaced, which is a workspace
-// switch. An offer still on screen then names a change nothing can move, so it leaves with the
-// stack rather than waiting to be pressed and refuse.
+// a stack with nothing left to move, which is what a clear leaves, takes the offer on screen with
+// it rather than leaving it to be pressed and refuse. Nothing in the application clears the stack
+// yet, a workspace switch included.
 inverseStack.observe(() => {
 	if (!inverseStack.undoable && !inverseStack.redoable) {
 		withdrawOutstandingOffer();
@@ -87,8 +87,8 @@ function toToastAction({ client, change, direction }: UndoOffer) {
 	return {
 		label: direction === 'undo' ? translations.common.undo.undo() : translations.common.undo.redo(),
 		onClick: () => {
-			// by identity: the stack is emptied whenever the workspace underneath it is replaced,
-			// and an offer outliving that names a change nothing can move.
+			// by identity: an offer that outlived its change on top of the stack, through a newer
+			// change or a clear, names a change this press must not move.
 			const top = direction === 'undo' ? inverseStack.undoable : inverseStack.redoable;
 
 			return top === change ? applyInverse(client, direction) : undefined;

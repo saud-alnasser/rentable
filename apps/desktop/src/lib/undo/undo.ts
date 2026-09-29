@@ -53,9 +53,9 @@ export type Inverse = {
  * never handed out again and that collision is gone.** The ordering is kept because undo and
  * redo mean last-in-first-out to a person, which is reason enough.
  *
- * Cleared whenever the workspace underneath it is replaced. An inverse is a statement about a
- * database, and a workspace switch replaces the one it was written against; replaying it there
- * would corrupt rather than undo.
+ * {@link clear} forgets it, and nothing in the application calls it yet: a workspace switch
+ * leaves the stack as it was. An inverse is a statement about one database, and replaying it
+ * against another would corrupt rather than undo.
  */
 export class InverseStack {
 	#undoable: Inverse[] = [];
@@ -63,8 +63,8 @@ export class InverseStack {
 	#observers = new Set<() => void>();
 	#isApplying = false;
 
-	// bumped by every clear, so an inverse that was in flight when the workspace was replaced
-	// cannot land on the stack it was taken from.
+	// bumped by every clear, so an inverse that was in flight when the stack was cleared cannot
+	// land on the stack it was taken from.
 	#generation = 0;
 
 	/** the change undo would take back, or `null` when there is nothing to take back. */

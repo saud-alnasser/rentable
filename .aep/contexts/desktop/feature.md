@@ -230,7 +230,7 @@ Each of these is the whole list of kinds of edit; the file-by-file tables are
 **A kind of record** is all of the above plus the permission package
 (`packages/workspace-permission/index.ts`) and its mirror
 (`tauri/src/organization/role/permission.rs`), the table in `src/lib/platform/database/schema.ts`
-with `pnpm db:generate`, and the refusal and role-editor strings. Its glyph, its refusal of a write
+with the desktop's `pnpm db:generate`, and the refusal and role-editor strings. Its glyph, its refusal of a write
 without viewing, its layer and the root router's test follow from the declaration. A kind's flags
 sit in stored role masks, and its table in the workspace's schema, so both are data at rest.
 

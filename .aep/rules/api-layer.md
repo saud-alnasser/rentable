@@ -58,6 +58,20 @@ use-when: "adding or changing a router, a domain module, a database client or tr
   through its entry (`transferHost` from `$lib/transfer`), and the shell is handed a feature's
   port by the root layout. *It read "belongs in the Tauri facade" until ticket 23 of effort 840
   gave the organization its own port, and ticket 24 gave every other crossing concept its own.*
+- **Every `invoke` names a command of one of the application's own feature plugins, as
+  `plugin:<name>|<command>`.** Each Rust feature that answers the frontend registers an inline
+  plugin in its own `tauri/src/<feature>/plugin.rs`, whose `Builder::new("<name>")` gives the
+  `<name>` and whose one `generate_handler!` lists its commands. A command's function is named
+  `<feature>_<act>` and answers to `<act>` through `#[tauri::command(rename = "<act>")]`, so
+  `settings_get` is invoked as `plugin:settings|get` and `organization_role_list` as
+  `plugin:organization|role_list`. A function that does not carry its feature's prefix answers to
+  its own name with no rename (transfer's `export_write` and `import_read`, startup's
+  `bootstrap`). `build.rs` reads each `plugin.rs` and derives the plugin's command list from its
+  handler, taking the `<feature>_` prefix off, and registers each plugin with a `default`
+  permission allowing exactly those commands; `capabilities/default.json` grants
+  `"<name>:default"`. The test in `guard/acl.rs` holds each derived list to what the handler
+  answers, so a renamed or added command needs no second list, only the handler entry and the
+  capability line for a new plugin.
 - **Ambient capabilities only in the request context** — the things that cross the process
   boundary or are nondeterministic. Business configuration is not one of them and does not
   belong there.

@@ -435,8 +435,13 @@ nothing to move.
   the one before it rather than leaving a control over somebody else's change.
 - **An offer stays eight seconds**, longer than an announcement that only has to be read, because
   it also has to be decided on and reached for.
-- **Switching workspace empties the stack**, and any offer on screen goes with it: an inverse is a
-  statement about one database.
+- **Switching workspace does not empty the stack today.** `InverseStack.clear()` in `undo/undo.ts`
+  forgets both directions and withdraws any offer on screen (`undo/move.ts` dismisses it when the
+  stack has nothing left to move), but nothing in production calls it: `startup/switch.ts` drops
+  the cached queries and the held context and leaves the stack as it was, and so does the sign-in
+  wall. An inverse is a statement about one database, so one replayed after a switch reaches the
+  wrong workspace: emptying the stack on a switch is what the capability is built for, not yet what
+  the application does.
 
 Every create, edit and delete of a tenant, complex, unit, contract or payment is inside undo, as
 are a contract's renewal, termination, restoration and units, and every action on a selection

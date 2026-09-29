@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 # docs(aep): the rules say what the code does
 
@@ -13,8 +13,8 @@ Converge round one found statements the finished tree contradicts: `rules/data` 
 
 Traces requirement 18 of [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]], and criterion 18.
 
-- [ ] Each statement above reads as the code does; a search finds no rule or context naming a path that does not exist (criterion 18).
-- [ ] `validate.mjs` and the governance test pass (criterion 18).
+- [x] Each statement above reads as the code does; a search finds no rule or context naming a path that does not exist (criterion 18). Verified: `rules/data` confines "no optimistic updates" to workspace data and names the appearance and language writes applied before they are written; `rules/api-layer` states the plugin IPC convention (`plugin:<name>|<command>`, `<feature>_<act>` with `rename`, the three unprefixed transfer and startup commands, the derived lists and `"<name>:default"`); `rules/interface` and the `undo/` comments say a workspace switch does not empty the undo stack; `print/host.ts` names `tauri/src/print/`; `rules/module-layout` and `contexts/desktop/feature.md` place `db:generate` in the desktop package; `rules/frontend`'s block count and chevron bullet match what is left. A sweep of every backticked path in `.aep/rules/` and `.aep/contexts/` finds only dated historical notes, gitignored paths and placeholders missing.
+- [x] `validate.mjs` and the governance test pass (criterion 18). Verified: `validate.mjs` passes and the governance test prints `pass 3 / fail 0` in the run's tree; check 0, eslint 0, prettier 0. Source edits are three comments.
 
 ## Relevant areas
 

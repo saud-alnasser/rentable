@@ -77,20 +77,23 @@ as the sentence its code stands for, in their language (`error/refusal.ts`, and
   **Which `block/` is decided by what the composite reaches**, and #781 sorted the fifteen that
   existed: `packages/design/src/lib/block/` holds the eleven that reach nothing but the design
   system and what the package is already allowed (`$app/*`, which `back` navigates
-  with), and `design/block/` here holds the ones that reach past it (four then, five since
-  `language-choice.svelte`, below; the list, its bar and its search field left for the `list/`
-  capability in effort 840). A new composite that
+  with), and `design/block/` here holds the ones that reach past it. Four did then; #802 moved
+  `export-dialog` and `record-card` into the package once their reach was inverted, effort 832
+  retired `record-actions`, effort 840 moved the list, its bar and its search field to the
+  `list/` capability, and what is left is `language-choice.svelte` (below). A new composite that
   reaches `$lib/api`, `$lib/platform`, `$lib/error` or a concept belongs in this application; one
   that reaches none of them belongs in the package, where a second client can draw it.
 
-  **Read the whole reach, not the import list.** Two of the four that stayed import nothing from
-  that list themselves: `export-dialog` reaches `$lib/platform` through `design/csv`, and
-  `record-card` reaches both `$lib/platform` and `$lib/error` through the class list it borrows
-  from `list.svelte`. A test applied to the first line of imports would have moved them both.
-  **A type-only import is a reach.** `csv.ts` names `$lib/platform/tauri` for two types and
-  nothing else, and the bar is not what survives the build but what resolves: `$lib` has no
-  meaning inside the package, so `svelte-check` fails there on an erased import as readily as on
-  a live one.
+  **Read the whole reach, not the import list.** Two of the four that stayed at #781 imported
+  nothing from that list themselves: `export-dialog` reached `$lib/platform` through
+  `design/csv`, and `record-card` reached both `$lib/platform` and `$lib/error` through the class
+  list it borrowed from `list.svelte`. A test applied to the first line of imports would have
+  moved them both. **A type-only import is a reach.** `csv.ts` named `$lib/platform/tauri` for two
+  types and nothing else, and the bar is not what survives the build but what resolves: `$lib` has
+  no meaning inside the package, so `svelte-check` fails there on an erased import as readily as
+  on a live one. *#802 then moved all three into the package, each once its reach was inverted:
+  `csv.ts` (now `packages/design/src/lib/csv.ts`) takes an `ExportWriter` from its consumer,
+  and `record-card` took the class list with it.*
 
   **`$lib/i18n` is not on that list, and it is the reach most likely to be mistaken for one.**
   A `$LL` read is a cost rather than a bar, because the contract is what it inverts onto: #781
@@ -436,12 +439,14 @@ effort 810, which formatted Arabic in Arabic-Indic digits.*
 shows is a direction along the line of text:
 
 - **back and next**: `arrow-left` and `arrow-right` on a back or a forward control;
-- **sequence chevrons**: `chevron-left`/`-right` and `chevrons-left`/`-right` on pagination, a
-  calendar's months, a carousel, a sub-menu, and the breadcrumb's separator;
+- **sequence chevrons**: `chevron-left`/`-right` and `chevrons-left`/`-right` on a calendar's
+  months, a sub-menu, and the breadcrumb's separator (pagination and a carousel carried them too,
+  until effort 840 removed the primitive families nothing imported);
 - **progress**: a bar fills from the start edge, which is why `primitive/progress` sets a width
   rather than a translate;
-- **sliders**: the slider's range fills from the start edge, which is why `primitive/slider`
-  hands bits-ui `contract.direction`;
+- **sliders**: a slider's range fills from the start edge, so one added to the package hands
+  bits-ui `contract.direction` (`primitive/slider` did, until effort 840 removed the primitive
+  families nothing imported);
 - **switches**: the thumb rests at the start edge and slides toward the end when on, which is why
   `primitive/switch` runs its translate the other way under `rtl:` (effort 838, ticket 43).
 
