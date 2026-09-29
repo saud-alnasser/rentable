@@ -1,6 +1,5 @@
 ---
 paths:
-  - apps/desktop/tauri/migrations/**
   - packages/workspace-migrations/**
   - apps/desktop/tauri/src/upgrade/format/**
 use-when: "adding or changing a workspace migration or an organization's change of format"

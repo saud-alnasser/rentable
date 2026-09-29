@@ -135,87 +135,53 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
 - **Domain rules live in their concept's own module.** Routers validate, call the domain,
   persist, and reconcile — they hold no rules. There is no repository layer; routers reach
   the database directly (#107, #108).
-- **Modules are organised by concept, not by layer.** A concept owns its rules, its
-  queries, and its components together, under one singular directory named for it:
-  `contract`, `payment`, `tenant`, `complex`, `dashboard`, `settings`, `sync`, `update`,
-  `startup`. A unit is
-  reached only through the complex holding it, so it lives inside that concept rather than
-  beside it. Three homes own no concept, and a domain rule lives in none of them —
-  **`design`**, what is left of the frontend machinery once the shareable half became a
-  package — the composites that reach past the design system, in `block/` (`record-actions`
-  retired with effort 832, when copy details became a record act); the record acts' shape and
-  projections in `acts.ts`, and the cells. Reading a file into a directory and the
-  whole-workspace workbook are the `transfer/` capability since effort 840, built from the sheet
-  each record feature declares in its `feature.ts`; the import helpers left `design` for it. How a
-  data mutation is
-  declared and announced, and the workspace query-cache policy, are the `mutation/` capability
-  since effort 840, and the undo and redo stacks, the offer to take a change back and the undo
-  key pair are the `undo/` capability, which the mutation layer records onto through its API. The list, the `list-toolbar` and `search-field` every set draws above
-  its records, the list's keyboard, motion and filters are the `list/` capability since effort
-  840, as the shortcut registry and its one key listener are the `shortcut/` capability. The
-  create control that is each set's one way to add to it, the create key and what it answers,
-  the `?create` intent and where a create lands are the `create/` capability since effort 840.
-  The command menu is the `palette/` capability: `app/surfaces.ts` builds it from each surface's
-  `search`, `create` and `acts`, so it names no feature.
-  *It holds 80 files, counted on 2026-09-25. It held 459 until 2026-08-23 and 34 just after,
-  and the count read 34 until 2026-09-25 while the home grew. The 425 that left are 387
-  primitives, thirteen of the fifteen composites, fifteen root modules with the class merging and `csv.ts`
-  among them, and the ten tests that moved with those; all of them are in `@rentable/design` now,
-  whose last move landed at #784 ([[efforts/773-the-design-system-becomes-a-package/spec]]). This read
-  "the frontend machinery every concept shares" until then, and what shares is exactly what
-  left.*;
-  **`platform`**, capabilities that cross a process boundary or are
-  nondeterministic (the desktop shell, the database, diagnostics, locale); and **`api`**,
-  the in-webview caller itself, the request context and the tRPC wiring. The root router is
-  `app/`'s, the composition root and the one place that names every feature: it builds the
-  router from its list of features, each declared in its own `feature.ts` against the contract
-  in `feature/`, and binds it into the caller once as the root layout loads (effort 840). Every
-  feature's router mounts at the root under its name and none mounts another's, so a procedure's
-  path is its feature and then the procedure: `payment.get`, `sync.getState`, `startup.bootstrap`.
-  It lists what the window draws the same way, each feature's `surface.ts` in `app/surfaces.ts`,
-  and the frame mounts the hosts those declare. A record page draws the sections those contribute
-  to its kind, and the settings area the sections contributed to it (the organization's account,
-  organization and workspaces), each handed them by its route, so no feature renders another
-  feature's components. A route composes and holds no wiring: it imports only a home's
-  components, a home's `ui.ts` and `app/`, which `lib/tests/layers.test.ts` holds it to.
-  The root layout hands the shell's window (`shell/component/window.svelte`) to startup's root
-  (`startup/component/root.svelte`) to draw its state in, and the three addresses that open
-  signed out take the startup unit and the way in from `app/wall.ts` (effort 840, ticket 34). Record features depend one way, the contract on the tenant and the unit
-  and the payment on the contract, and what a depended-on feature needs of the one depending on it (the contracts that
-  refuse a tenant's deletion, the payments a contract's settlement reads) is a contribution that
-  feature declares under `contributes` in its `feature.ts` or `surface.ts`: `app/contributions.ts`
-  names every need, a router reads its kind's off `ctx.contributions`, and a page, host or act
-  reads its kind's through `contributionsTo` (`feature/feature.ts` says how).
-  The workspace, which holds no kind of record, is served the same way: its rail row and its
-  permissions read the session of the organization, which depends on it, through what the
-  organization contributes. A feature groups its sub-concepts in directories below it, each in
-  the feature's own shape, rather than behind filename prefixes: `complex/unit/`, and
-  `organization/`'s `member/`, `role/`, `access/`, `workspace/`, `setup/` and `session/` (effort 840,
-  ticket 37).
-  Every feature and capability has one shape and is entered through its `index.ts`, which loads
-  under Node, and its window half (query hooks, rune state, a shared component) through its `ui.ts`;
-  [[rules/module-layout]] states the shape, the four layers and where a concept departs from them
-  (effort 840, ticket 41).
-  What `platform` holds of the desktop shell is only
-  what is no feature's (the window, the opener, the dialogs and diagnostics): a feature or
-  capability that crosses to Rust declares its own port and Tauri adapter (`host.ts`,
-  `tauri.ts`: the organization, sync, update, settings, startup, the workspace, print and
-  transfer), and `app/host.ts` composes them with the platform's part into the host the caller
-  is bound with. The clock is the one capability `platform`
-  does not hold, because it is read nowhere but the context that supplies it. The
-  application shell is neither primitive nor concept, so it is its own home, `shell` (it was
-  `layout` until effort 840), and it holds only the shell: the workspace and account rows of the
-  rail and the organization's dialogs are those features' components, declared as `slots` in
-  their `surface.ts` and drawn at the places the shell names.
-  The startup lifecycle and its screens are the `startup` feature since effort 840: the root
-  layout creates the unit and draws its screens inside the frame, and hands the rail what a
-  workspace switch runs, so the shell imports nothing of startup.
-  `src/routes/` stays layer-first, as the framework requires. **The tree is this shape
-  throughout** (#123–#126). Three directories sit outside it: `i18n`, whose path the locale
-  generator fixes; `error`, which decodes failures crossing the IPC boundary and has
-  not been placed; and `prototype`, the repository's own prototype machinery —
-  `switcher.svelte`, driven by `pnpm prototype` (`apps/desktop/scripts/prototype.mjs`). It is where
-  throwaway prototype code is written; [[rules/module-layout]], under *Prototype code*, is what binds a change.
+- **Modules are organised by concept, not by layer.** A concept owns its rules, its queries, its
+  strings and its components together, under one singular directory named for it, and is entered
+  through its `index.ts` (what loads under Node) and its `ui.ts` (what only the window loads).
+  [[rules/module-layout]] states that shape, the layer rule, where a concept departs from them, and
+  what adding a feature touches. The homes of `src/lib/`, in their four layers (effort 840), as
+  `lib/tests/layers.test.ts` places them; imports point down, or sideways through an entry, never
+  up and never in a cycle:
+
+  | Layer | Home | What it holds |
+  | --- | --- | --- |
+  | 4 composition | `app/` | the composition root, the one place that names every feature: `features.ts` and `surfaces.ts` list the declarations, and `router.ts`, `host.ts`, `caller.ts`, `cache.ts`, `transfer.ts`, `contributions.ts` and `wall.ts` build from them what the shell and the capabilities are handed |
+  | | `shell/` | the window around the pages: the frame, the rail, the breadcrumb, the window controls, the error boundaries and the shortcut sheet, drawn from the surfaces and their `slots`; it names no feature. It was `layout/` until effort 840 |
+  | | `prototype/` | the repository's prototype machinery, `switcher.svelte`, driven by `pnpm prototype` (`apps/desktop/scripts/prototype.mjs`), where throwaway prototype code is written ([[rules/module-layout]], under *Prototype code*) |
+  | | `src/routes/` | the pages, layer-first as SvelteKit requires; a route composes and holds no wiring, importing only a home's components, a home's `ui.ts` and `app/` |
+  | 3 features | `tenant/`, `complex/` (with `unit/`, a kind of its own, inside it), `contract/`, `payment/`, `dashboard/` | the record features and the landing screen. A unit is reached only through the complex holding it |
+  | | `workspace/`, `organization/`, `settings/`, `sync/`, `update/`, `startup/` | the workspace, the organization with its sub-concepts `member/`, `role/`, `access/`, `workspace/`, `setup/` and `session/`, the settings area, replication, the updater, and the startup lifecycle with its screens |
+  | 2 capabilities | `permission/`, `mutation/`, `undo/`, `history/`, `shortcut/`, `notification/`, `palette/`, `create/`, `act/`, `list/`, `form/`, `transfer/`, `print/`, `date/` | the mechanisms every feature shares, each one directory with its own API; a capability imports no feature, and one that needs what features declare is handed it by `app/` |
+  | 1 foundation | `feature/` | the contract a feature declares against: `defineFeature`, `defineSurface`, sections, slots and contributions |
+  | | `design/` | presentation only: the cells and the language choice, what is left once the design system became `@rentable/design` |
+  | | `platform/` | what crosses a process boundary and is no feature's: the window, the opener, the dialogs, diagnostics, locale, appearance and the database transport and schema |
+  | | `api/` | the in-webview caller, the request context, the tRPC wiring and the refusal plumbing |
+  | | `i18n/` | the generated runtime, and each locale's `index.ts` composing every concept's strings at their key; its path is the generator's |
+  | | `error/` | decoding the failures that cross the IPC boundary into what a reader is shown |
+
+  A feature or capability that crosses to Rust declares its own port and adapter (`host.ts`,
+  `tauri.ts`), and `app/host.ts` composes them with the platform's part into the host the caller
+  is bound with. Every feature's router mounts at the root under its name and none mounts
+  another's, so a procedure's path is its feature and then the procedure: `payment.get`,
+  `sync.getState`, `startup.bootstrap`. Features never render each other's components: a page draws
+  the sections contributed to it, the shell draws the slots contributed to its places, and where a
+  depended-on feature needs something of the one depending on it (the contracts that refuse a
+  tenant's deletion, the payments a contract's settlement reads), that feature declares it under
+  `contributes`, which `app/contributions.ts` names and `feature/feature.ts` explains.
+
+  **The Rust crate, `tauri/src/`, is a set of inline Tauri plugins** that `lib.rs` composes, one
+  line each, and nothing else: `diagnostics/`, `window/`, `settings/`, `database/`, `sync/`,
+  `update/`, `print/`, `transfer/`, `startup/`, `upgrade/` (everything that brings a 0.12 to 0.15
+  install forward) and `organization/` (one subdirectory per sub-concept, with `act.rs` running the
+  signed-in check, the pull and the machine lock once). Beside them, holding no commands: the ports
+  `clock/` and `credential/`, `turso/` (the Turso adapter), `machine/` (this machine's record),
+  `schema/`, `backup.rs`, `error.rs`, `http.rs`, `persisted.rs`, the shared test scaffolding in
+  `test/`, and `guard/`, the tests holding the crate to its module graph, its names and its ACL.
+
+  *This bullet grew by accretion through effort 840 and was rewritten against the finished tree on
+  2026-09-29 (ticket 58). It read "three homes own no concept", `design`, `platform` and `api`, and
+  counted `design` at 80 files; the record acts, the list, the create control, transfer, mutation
+  and undo that `design` held are capabilities now, and it holds 30.*
 - **Reconciliation owns the derived columns** — contract status, the contract payment
   aggregates, and unit status. Any mutation touching contracts, payments, or unit
   assignments must reconcile, or the stored values go stale. A mutation may seed the

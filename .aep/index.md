@@ -26,7 +26,7 @@ Start at [[protocol]].
 | [[rules/data]] | a read, a write, a cached query, derived state, or undo is in question | apps/desktop/src/lib/design/**, apps/desktop/src/lib/mutation/**, apps/desktop/src/lib/undo/**, apps/desktop/src/lib/transfer/**, apps/desktop/src/lib/api/**, apps/desktop/src/lib/platform/database/**, apps/desktop/src/lib/payment/**, apps/desktop/src/lib/contract/reconcile.ts, apps/desktop/tauri/src/database/** | — |
 | [[rules/frontend]] | writing or changing Svelte components, routes, styles, or client state | apps/desktop/src/lib/**, apps/desktop/src/routes/**, apps/desktop/src/app.css, packages/design/src/**, packages/design/components.json | — |
 | [[rules/interface]] | a surface is being placed, built, or restyled — a screen, a block, a list row, a form, or a cell | apps/desktop/src/lib/**/component/**, apps/desktop/src/lib/design/block/**, apps/desktop/src/lib/design/cell/**, apps/desktop/src/lib/dashboard/**, apps/desktop/src/lib/contract/**, apps/desktop/src/lib/payment/component/**, apps/desktop/src/routes/**, apps/desktop/src/app.css, packages/design/src/lib/block/**, packages/design/src/lib/primitive/**, packages/design/src/lib/tokens.css | — |
-| [[rules/migrations]] | adding or changing a workspace migration or an organization's change of format | apps/desktop/tauri/migrations/**, packages/workspace-migrations/**, apps/desktop/tauri/src/upgrade/format/** | — |
+| [[rules/migrations]] | adding or changing a workspace migration or an organization's change of format | packages/workspace-migrations/**, apps/desktop/tauri/src/upgrade/format/** | — |
 | [[rules/module-layout]] | adding a module, a file, or a directory under src/ or tauri/src/, including throwaway prototype code | apps/desktop/src/**, apps/desktop/tauri/src/**, packages/design/src/** | — |
 | [[rules/testing]] | writing or changing a test, or deciding what a change must be tested at | apps/desktop/src/**, apps/desktop/tauri/src/**, packages/design/src/**, packages/testing/** | — |
 | [[rules/tracker]] | creating, reading, claiming, or labelling a ticket, or deciding whether work is a ticket at all | — | — |
@@ -38,7 +38,7 @@ Start at [[protocol]].
 | --- | --- | --- | --- |
 | [[contexts/desktop/contract]] | the request touches contracts, payments, unit assignments, or any derived status | apps/desktop/src/lib/contract/**, apps/desktop/src/lib/payment/** | — |
 | [[contexts/desktop/organization]] | the request touches an organization, its members, their roles and permissions, their vaults, or the account it lives on | apps/desktop/tauri/src/organization/**, apps/desktop/tauri/src/upgrade/**, apps/desktop/src/lib/organization/**, apps/desktop/src/lib/startup/machine.ts, apps/desktop/src/lib/startup/wall.ts | — |
-| [[contexts/desktop/persistence]] | the request touches the schema, migrations, or how queries reach SQLite | apps/desktop/src/lib/platform/database/**, apps/desktop/tauri/src/database/**, apps/desktop/tauri/migrations/** | — |
+| [[contexts/desktop/persistence]] | the request touches the schema, migrations, or how queries reach SQLite | apps/desktop/src/lib/platform/database/**, apps/desktop/tauri/src/database/**, packages/workspace-migrations/** | — |
 | [[contexts/desktop/property]] | the request touches complexes or units | apps/desktop/src/lib/complex/** | — |
 | [[contexts/desktop/remote-sync]] | the request touches signing in, or the credential a workspace replicates under | apps/desktop/tauri/src/machine/**, apps/desktop/tauri/src/sync/**, apps/desktop/tauri/src/turso/**, apps/desktop/tauri/src/http.rs, apps/desktop/src/lib/sync/** | — |
 | [[contexts/desktop/tenant]] | the request touches tenants, identity, or phone numbers | apps/desktop/src/lib/tenant/** | — |
@@ -132,7 +132,7 @@ Start at [[protocol]].
 | 832-the-interface-speaks-one-language-and-guides | accepted | [[efforts/832-the-interface-speaks-one-language-and-guides/spec]] | 3 | 4 | 43 |
 | 835-the-rent-is-receipted-scheduled-and-chased | implemented | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]] | 1 | 0 | 19 |
 | 838-permissions-are-a-role-and-an-override | implemented | [[efforts/838-permissions-are-a-role-and-an-override/spec]] | 2 | 0 | 60 |
-| 840-a-feature-plugs-in-and-lives-in-one-place | accepted | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]] | 2 | 0 | 62 |
+| 840-a-feature-plugs-in-and-lives-in-one-place | accepted | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]] | 2 | 0 | 63 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -456,8 +456,9 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/55-sync-becomes-a-plugin]] refactor(tauri): sync becomes a plugin | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | 54 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/56-the-organization-becomes-a-plugin]] refactor(tauri): the organization becomes a plugin | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | 55 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/57-lib-composes-plugins-and-state-goes]] refactor(tauri): lib.rs composes plugins and nothing else | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | 56 |
-| [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/58-the-tree-and-its-description-agree]] docs(aep): the tree and its description agree | 840-a-feature-plugs-in-and-lives-in-one-place | open | 57, 41 |
-| [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/59-the-feature-context-is-written]] docs(aep): the feature context says how features are handled | 840-a-feature-plugs-in-and-lives-in-one-place | open | 58 |
+| [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/58-the-tree-and-its-description-agree]] docs(aep): the tree and its description agree | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | 57, 41 |
+| [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/59-the-feature-context-is-written]] docs(aep): the feature context says how features are handled | 840-a-feature-plugs-in-and-lives-in-one-place | open | 58, 63 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/60-the-crate-builds-on-windows]] build(tauri): the crate builds on Windows against the webview it links | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | — |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/61-shared-components-go-through-ui]] refactor(desktop): a capability's shared components are reached through its ui entry | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | 17, 18 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/62-reverse-needs-are-contributions]] refactor(desktop): a feature's reverse needs are contributions, and the record cycles break | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | 30 |
+| [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/63-a-new-kind-touches-only-the-allowed-set]] refactor(desktop): adding a record kind touches only what the spec allows | 840-a-feature-plugs-in-and-lives-in-one-place | open | 58 |

@@ -61,19 +61,21 @@ and Rust already spends `test/` on shared scaffolding, so the two would collide.
 [[rules/testing]] defines it and this is the only place it is allowed. Settled 2026-08-18 with
 #559.
 
-**A word ending in `s` is not always a plural.** Two module names in `tauri/src/` end in `s` and
-name one thing, so the row above does not reach them:
+**A word ending in `s` is not always a plural.** Two module names end in `s` and name one thing,
+so the row above does not reach them: `diagnostics/` in `tauri/src/`, and `settings/` in both
+`tauri/src/` and `src/lib/`:
 
 | Word          | Why it is not a plural                                                          |
 | ------------- | ------------------------------------------------------------------------------- |
 | `diagnostics` | a field, as `physics` is: the one record of what went wrong on this machine      |
 | `settings`    | the one record of how this machine is set up; there is no `setting` it is many of |
 
-Renaming either would make the name worse, so they stand. The Rust naming guard
-(`tauri/src/guard/naming.rs`) reads the same two words as not plural, from a list of its own
-named `UNCOUNTABLE`, and the two lists change together. A word joins only by the same test: it
-names one thing, and no singular the tree could use says it better. Settled 2026-09-29 with
-effort 840, ticket 52.
+Renaming either would make the name worse, so they stand. Both naming guards read the same two
+words as not plural, each from a list of its own named `UNCOUNTABLE`: `tauri/src/guard/naming.rs`
+for the crate and `src/tests/naming.test.ts` for the TypeScript trees. The table and the two lists
+change together. A word joins only by the same test: it names one thing, and no singular the tree
+could use says it better. Settled 2026-09-29 with effort 840, ticket 52; the TypeScript guard took
+the list with ticket 58, which left both naming baselines empty.
 
 ## A concept has one shape, and is entered through `index.ts`
 
@@ -159,6 +161,54 @@ same `ui.ts`.
 | `workspace/app-database.ts` | holds the earlier records' read outside `query.ts` | the way in reads the offer, and that read loads without the mutation capability `query.ts` declares its writes through |
 | `organization/dialogs.svelte.ts` | a second host state, beside `host.svelte.ts` | the dialogs the shell's `dialogs` slot draws are opened from the rail and the settings area, which share no parent |
 | `settings/component/updates.svelte`, `settings/update-announcement.ts` | the update's block and its announcement sit with the settings | general is the settings' own tab, and a contributed section fills a whole tab, so nothing can place another feature's block inside it |
+
+## What adding a feature touches
+
+A feature is added in its own directory and listed in the composition root; what else it edits by
+hand is below, and nothing more. Criterion 2 of
+[[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]] allows a record kind the list, the
+permission package and its Rust mirror, the schema, its routes and its locale entries. The table
+was checked on 2026-09-29 (ticket 58) by adding a throwaway kind, `parcel`, with a router, a
+feature, a surface, a page and strings, running the gate, and taking it out again; the second
+table is what that check found beyond criterion 2's set, which a later change folds into the kind's
+declaration rather than this rule excusing.
+
+**A kind of record.** Inside `src/lib/<kind>/`: `<kind>.ts` with its `<KIND>_KIND`, `feature.ts`,
+`surface.ts`, `index.ts`, `router.ts`, `i18n/en.ts`, `i18n/ar.ts`, its components, and the rest
+of the shape above as it needs them. Outside it:
+
+| File | What it gains |
+| --- | --- |
+| `src/lib/app/features.ts`, `src/lib/app/surfaces.ts` | the feature and the surface in their lists, and the surface in `places` where it has a row on the rail. `app/contributions.ts` as well, where it contributes to a kind or is contributed to |
+| `packages/workspace-permission/index.ts` | its four flags on free bits, its family in `FAMILIES`, its writes in `WRITE_FLAGS`, and what the member role holds of it. `RECORD_KINDS`, `RecordKind`, `HistoryConcept` and the history `concept` values follow from `FAMILIES` |
+| `tauri/src/organization/role/permission.rs` | the same, mirrored: `Flag`, `Family` and their `ALL`, names and bit ranges, `WRITE_FLAGS`, `RECORD_FLAGS`, `MEMBER_ROLE` |
+| `src/lib/platform/database/schema.ts` | its table; `pnpm db:generate` writes the migration into `packages/workspace-migrations/` |
+| `src/routes/<kinds>/` | its pages, each delegating to its components |
+| `src/lib/i18n/en/index.ts`, `ar/index.ts` | its strings composed at their key, and `common.refusals.<kind>NeedsViewing`; `pnpm i18n` regenerates `i18n-types.ts` |
+| `src/lib/permission/i18n/en.ts`, `ar.ts` | the sentence refusing each of its four flags |
+| `src/lib/organization/i18n/en.ts`, `ar.ts` | its family's name in the role editor, and its word on a role's card |
+
+Found beyond criterion 2's set:
+
+| File | What it gains | Why it is not read from the declaration yet |
+| --- | --- | --- |
+| `src/lib/organization/glyph.ts` | its glyph in `KIND_GLYPH` | the role editor keeps a glyph per kind rather than reading the kind's surface |
+| `tauri/src/error.rs`, `src/lib/error/tauri.ts` | `RefusalReason::<Kind>NeedsViewing`, and its spelling in the list the window decodes | `Family::viewing_needed` names one refusal per kind rather than one refusal carrying the kind |
+| `src/lib/tests/layers.test.ts` | its home's layer in `LAYERS` | the guard refuses a home it cannot place, by design |
+
+Tests that pin today's five kinds change with it as well, and are not counted above: the hand-written
+router in `app/tests/router.test.ts`, the flag tables in `api/tests/flags.test.ts` and
+`permission/tests/`, the role and member tests under `organization/`, `shell/tests/` for the rail,
+`transfer/tests/`, whose masks name each kind's flags, and in the crate `permission.rs`'s own tests
+and the signed fixtures in `organization/authority/preimage.rs` and `upgrade/format/two/plan.rs`,
+which hold the member role's mask.
+
+**A feature with no kind** is its directory, its lines in `app/features.ts` and, where it draws
+anything, `app/surfaces.ts`, its strings composed in `i18n/{en,ar}/index.ts`, its home's layer in
+`layers.test.ts`, and its routes if it has pages. **A Rust feature** is its directory with a
+`plugin.rs`, its `pub mod` and `.plugin(<feature>::plugin())` in `lib.rs`, and `"<plugin>:default"`
+in `capabilities/default.json`; `build.rs` reads each `plugin.rs` for the commands the ACL allows,
+so no command is listed anywhere else. Removing either is the reverse.
 
 ## A Rust directory is rooted by `mod.rs`
 

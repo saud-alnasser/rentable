@@ -1,12 +1,12 @@
 // Holds every file and directory name in the TypeScript and Svelte trees to
 // `rules/module-layout` (effort 840, requirement and criterion 14). The rule is the authority;
-// this is its mechanical half, and `tauri/src/naming/` is the Rust one.
+// this is its mechanical half, and `tauri/src/guard/naming.rs` is the Rust one.
 //
 // What it checks is what the rule's table states and a reader of names alone can decide: no
 // module is named `utils` or `common`, as a whole name or as one word of one; no file is
-// `mod.ts`; no directory name is a plural but `tests/`. The trees are the application's `src/`
-// (its `routes/` aside: those segments are URL paths, not module names) and the design
-// package's `src/`.
+// `mod.ts`; no directory name is a plural but `tests/` and the words the rule lists as naming one
+// thing. The trees are the application's `src/` (its `routes/` aside: those segments are URL
+// paths, not module names), the design package's `src/` and the testing package.
 //
 // **The baseline only shrinks.** Today's offenders are `naming.baseline.txt`, sorted, one line
 // each. An offender that is not in it fails, and so does a line in it that no longer occurs, so
@@ -22,6 +22,10 @@ const REPOSITORY = fileURLToPath(new URL('../../../..', import.meta.url));
 const TREES = ['apps/desktop/src', 'packages/design/src', 'packages/testing'];
 const SKIPPED = new Set(['apps/desktop/src/routes']);
 const BANNED = ['utils', 'common'];
+// The words ending in `s` that name one thing rather than many, as the rule lists them under *A
+// word ending in `s` is not always a plural*. The Rust guard reads the same list, `UNCOUNTABLE` in
+// `tauri/src/guard/naming.rs`, and the two change together.
+const UNCOUNTABLE = ['diagnostics', 'settings'];
 const BASELINE = fileURLToPath(new URL('naming.baseline.txt', import.meta.url));
 
 function label(path: string) {
@@ -34,10 +38,13 @@ function words(name: string) {
 }
 
 // A word read as a plural by its ending. `-ss`, `-us` and `-is` end singulars (`progress`,
-// `status`, `analysis`), so they are not counted.
+// `status`, `analysis`), so they are not counted, and nor is a word in `UNCOUNTABLE`.
 function plural(name: string) {
 	return (
-		name !== 'tests' && name.endsWith('s') && !['ss', 'us', 'is'].some((end) => name.endsWith(end))
+		name !== 'tests' &&
+		!UNCOUNTABLE.includes(name) &&
+		name.endsWith('s') &&
+		!['ss', 'us', 'is'].some((end) => name.endsWith(end))
 	);
 }
 
@@ -97,5 +104,6 @@ test('every name follows the module layout rule', () => {
 
 test('the checks read names as the rule does', () => {
 	assert.deepEqual(words('chart-utils.ts'), ['chart', 'utils']);
-	assert.ok(plural('settings') && !plural('tests') && !plural('progress') && !plural('status'));
+	assert.ok(plural('tenants') && !plural('tests') && !plural('progress') && !plural('status'));
+	assert.ok(!plural('settings') && !plural('diagnostics'));
 });

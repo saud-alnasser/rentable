@@ -2,7 +2,7 @@
 paths:
   - apps/desktop/src/lib/platform/database/**
   - apps/desktop/tauri/src/database/**
-  - apps/desktop/tauri/migrations/**
+  - packages/workspace-migrations/**
 use-when: "the request touches the schema, migrations, or how queries reach SQLite"
 ---
 
