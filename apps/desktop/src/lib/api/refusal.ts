@@ -1,10 +1,4 @@
-import type { ComplexRefusalCode } from '$lib/complex/refusal';
-import type { UnitRefusalCode } from '$lib/complex/unit/refusal';
-import type { ContractRefusalCode } from '$lib/contract/refusal';
-import type { HostRefusalCode } from '$lib/error/tauri';
-import type { PaymentRefusalCode } from '$lib/payment/refusal';
-import type { TenantRefusalCode } from '$lib/tenant/refusal';
-import type { TransferRefusalCode } from '$lib/transfer/refusal';
+import type { RefusalCode } from '$lib/app/refusal';
 import { TRPCError } from '@trpc/server';
 
 /**
@@ -19,22 +13,16 @@ import { TRPCError } from '@trpc/server';
  * that places it has to match its words, and a reader who switches language holds sentences
  * cached in the one they left. Effort 832, requirement 23.*
  *
- * Each concept and capability names its own refusals in its own `refusal.ts`, and this is their union. The imports
- * are types alone, erased before anything runs, so the plumbing a feature raises through never
- * loads a feature. `host` is the shell's: a Rust refusal carries its reason, and the reason is named here the way a
- * router's code is, so one lookup finds either sentence. A procedure raises one only as the earlier
- * of two refusals of the same thing: the organization router refuses a role or an override that
- * writes a kind of record without viewing it with the code Rust refuses it with.
+ * Each concept and capability names its own refusals in its own `refusal.ts`, and their union is
+ * the composition root's (`$lib/app/refusal`), the one place that names every feature. It is
+ * imported here as a type alone, erased before anything runs, so the plumbing a feature raises
+ * through never loads a feature. `host` is the shell's: a Rust refusal carries its reason, and the
+ * reason is named the way a router's code is, so one lookup finds either sentence. A procedure
+ * raises one only as the earlier of two refusals of the same thing: the organization router
+ * refuses a role or an override that writes a kind of record without viewing it with the code
+ * Rust refuses it with.
  */
-export type RefusalCode =
-	| ComplexRefusalCode
-	| ContractRefusalCode
-	| HostRefusalCode
-	| PaymentRefusalCode
-	| RecordRefusalCode
-	| TenantRefusalCode
-	| TransferRefusalCode
-	| UnitRefusalCode;
+export type { RefusalCode };
 
 /** the values a refusal's sentence is built from: a name, an id, a count of days. */
 export type RefusalParams = Record<string, string | number>;

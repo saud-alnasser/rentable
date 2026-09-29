@@ -8,11 +8,11 @@
 	import { trustWorkspaceData } from '$lib/mutation';
 	import { linkArrived } from '$lib/organization';
 	import { useCreateWorkspace } from '$lib/organization/ui';
-	import type { OrganizationHost } from '$lib/organization/host';
+	import type { OrganizationHost } from '$lib/organization';
 	import { listenForWindowCloseRequests } from '$lib/platform/window';
-	import type { SettingsHost } from '$lib/settings/host';
+	import type { SettingsHost } from '$lib/settings';
 	import { listenForSessionEnded, listenForSignOut, startWorkspaceSyncManager } from '$lib/sync';
-	import type { SyncHost } from '$lib/sync/host';
+	import type { SyncHost } from '$lib/sync';
 	import { useEarlierRecords } from '$lib/workspace/ui';
 	import { QueryClient, QueryClientProvider } from '@tanstack/svelte-query';
 	import { getCurrentWindow } from '@tauri-apps/api/window';

@@ -5,9 +5,9 @@ import type {
 } from '$lib/complex';
 import type { ContractContributions, ContractSurfaceContributions } from '$lib/contract';
 import { contributionsOf } from '$lib/feature/feature';
-import type { SettingsSurfaceContributions } from '$lib/settings/settings';
+import type { SettingsSurfaceContributions } from '$lib/settings';
 import type { TenantContributions, TenantSurfaceContributions } from '$lib/tenant';
-import type { WorkspaceSurfaceContributions } from '$lib/workspace/workspace';
+import type { WorkspaceSurfaceContributions } from '$lib/workspace';
 import { features } from './features';
 
 /**

@@ -10,7 +10,7 @@
  * gives: a client that is not the Tauri shell has to be able to read the port without the facade.
  */
 
-import type { ImportTable } from '$lib/transfer/host';
+import type { ImportTable } from '$lib/transfer';
 
 /**
  * A release before organizations that kept every record in `app.db`, named as the release was.

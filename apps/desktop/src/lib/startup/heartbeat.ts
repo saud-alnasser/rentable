@@ -1,4 +1,4 @@
-import type { OrganizationState } from '$lib/organization/host';
+import type { OrganizationState } from '$lib/organization';
 import type { StartupMachine } from './machine';
 
 /** what a sync manager reported, as this unit needs to read it. */

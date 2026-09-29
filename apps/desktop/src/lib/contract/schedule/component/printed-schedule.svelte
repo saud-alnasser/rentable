@@ -1,6 +1,6 @@
 <script lang="ts" module>
 	import type { ContractScheduleCycle } from '$lib/contract/query';
-	import type { OrganizationMark } from '$lib/organization/host';
+	import type { OrganizationMark } from '$lib/organization';
 
 	/** Everything a printed schedule carries, read by the host before it is previewed. */
 	export type PrintedScheduleValue = {

@@ -1,4 +1,4 @@
-import type { OrganizationSession, OrganizationState } from '$lib/organization/host';
+import type { OrganizationSession, OrganizationState } from '$lib/organization';
 
 /**
  * ADMISSION

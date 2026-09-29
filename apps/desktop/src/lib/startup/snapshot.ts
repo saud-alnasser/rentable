@@ -1,6 +1,6 @@
-import type { RemoteSyncState } from '$lib/sync/host';
-import type { Recovery } from '$lib/update/host';
-import type { OrganizationState } from '$lib/organization/host';
+import type { RemoteSyncState } from '$lib/sync';
+import type { Recovery } from '$lib/update';
+import type { OrganizationState } from '$lib/organization';
 
 /**
  * What startup draws the shell from: the states it can be in, why the wall is up, and the one

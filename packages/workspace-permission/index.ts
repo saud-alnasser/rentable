@@ -113,6 +113,9 @@ export type Family = keyof typeof FAMILIES;
 /** A kind of record: every family but the organization's administration and the owner's acts. */
 export type RecordKind = Exclude<Family, 'administration' | 'owner'>;
 
+/** A record flag: viewing, creating, editing or deleting one kind of record. */
+export type RecordFlag = (typeof FAMILIES)[RecordKind][number];
+
 /** Every kind of record, in the order `FAMILIES` holds them. */
 export const RECORD_KINDS = (Object.keys(FAMILIES) as Family[]).filter(
 	(family): family is RecordKind => family !== 'administration' && family !== 'owner'

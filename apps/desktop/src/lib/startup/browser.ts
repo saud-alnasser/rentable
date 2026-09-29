@@ -12,9 +12,9 @@ import { tauri } from '$lib/platform/tauri';
 import { organizationKeys } from '$lib/organization/ui';
 import { announceReceivedRows, syncWorkspaceBeforeExit, syncWorkspaceNow } from '$lib/sync';
 import { syncKeys } from '$lib/sync/ui';
-import type { OrganizationHost } from '$lib/organization/host';
-import type { SettingsHost } from '$lib/settings/host';
-import type { SyncHost } from '$lib/sync/host';
+import type { OrganizationHost } from '$lib/organization';
+import type { SettingsHost } from '$lib/settings';
+import type { SyncHost } from '$lib/sync';
 import type { QueryClient } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
 

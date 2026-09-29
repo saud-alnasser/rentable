@@ -137,7 +137,7 @@ export type TauriRefusalReason = (typeof TAURI_REFUSAL_REASONS)[number];
 
 /**
  * a shell refusal named as a router's refusal is: the concept `host` and the reason. It joins
- * `RefusalCode` (`$lib/api/refusal`), so the sentence is found the same way and the type check in
+ * `RefusalCode` (`$lib/app/refusal`), so the sentence is found the same way and the type check in
  * `error/refusal.ts` holds the list and the locale together.
  */
 export type HostRefusalCode = `host.${TauriRefusalReason}`;

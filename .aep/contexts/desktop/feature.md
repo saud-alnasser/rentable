@@ -131,7 +131,10 @@ may import components and runes.
 
 - **Through an entry.** A feature imports another's `$lib/<concept>` or `$lib/<concept>/ui`, and
   never a file past them. The tenant's kind leaves it as `TENANT_KIND` from `tenant/index.ts`, and
-  its reads a contract's page draws leave it from `tenant/ui.ts`.
+  its reads a contract's page draws leave it from `tenant/ui.ts`. A type is reached the same way,
+  whether or not the import is erased: one another concept names is exported from `index.ts`. The
+  one exemption is a type read up from the composition root, `app/`, which is how the client, the
+  contract and the capabilities are typed from the list.
 - **One way.** Record features depend one way: the contract on the tenant and the unit, the
   payment on the contract. Where the depended-on side needs something back it declares the need as
   a type and the depending side contributes it, in `feature.ts` for a router and in `surface.ts`
@@ -222,11 +225,14 @@ Each of these is the whole list of kinds of edit; the file-by-file tables are
 2. Its declaration in `app/features.ts`, and its surface in `app/surfaces.ts` where it draws
    anything (and in `places` there where the rail or the menu offers it). Being listed is what
    gives its home layer 3.
-3. Its port in `app/host.ts`, a member of `Host` and one of `host`, where it crosses to Rust.
+3. Its port in `app/host.ts`, a member of `Host` and one of `host`, where it crosses to Rust; the
+   port's type leaves its home through `index.ts`.
 4. Its contributions: a need is a member of the kind's type in `app/contributions.ts`; a value is
    under `contributes` in its own declaration.
-5. Its strings composed in `src/lib/i18n/en/index.ts` and `src/lib/i18n/ar/index.ts`, then `pnpm i18n`.
-6. Its routes under `src/routes/`, importing only components, `ui.ts` and `app/`.
+5. Its refusals, where it raises any: its `refusal.ts`, exported from its `index.ts`, and a member
+   of `RefusalCode` in `app/refusal.ts`.
+6. Its strings composed in `src/lib/i18n/en/index.ts` and `src/lib/i18n/ar/index.ts`, then `pnpm i18n`.
+7. Its routes under `src/routes/`, importing only components, `ui.ts` and `app/`.
 
 **A kind of record** is all of the above plus the permission package
 (`packages/workspace-permission/index.ts`) and its mirror

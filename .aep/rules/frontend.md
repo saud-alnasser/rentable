@@ -95,6 +95,12 @@ as the sentence its code stands for, in their language (`error/refusal.ts`, and
   `csv.ts` (now `packages/design/src/lib/csv.ts`) takes an `ExportWriter` from its consumer,
   and `record-card` took the class list with it.*
 
+  **Inside the application it is a reach too**, and the layers hold it to the entry rule as they
+  hold a live import ([[rules/module-layout]], under *A concept has one shape*): it goes through a
+  concept's `index.ts` or `ui.ts` and never points up. The one exemption is an upward type import
+  of the composition root, `app/`, which is how the client, the feature contract and the
+  capabilities are typed from the list; it is written in that rule's departures, with its reason.
+
   **`$lib/i18n` is not on that list, and it is the reach most likely to be mistaken for one.**
   A `$LL` read is a cost rather than a bar, because the contract is what it inverts onto: #781
   moved five blocks that each had one. All four that stayed read `$LL` too, and not one of them

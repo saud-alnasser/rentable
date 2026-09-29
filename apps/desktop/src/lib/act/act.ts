@@ -3,6 +3,7 @@ import { toConfirmation, type Blockers } from '@rentable/design/confirmation.js'
 import { toShortcutHint, type ShortcutCombination } from '@rentable/design/shortcut.js';
 import { get } from 'svelte/store';
 import { LL } from '$lib/i18n/i18n-svelte';
+import type { PaletteAct } from '$lib/feature/surface';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 import { memberPermissions, type RecordFlag } from '$lib/permission';
 
@@ -190,15 +191,8 @@ export function toPageActions<T>(
 	}));
 }
 
-/** One act as the command menu offers it. */
-export type PaletteAct = {
-	id: string;
-	label: string;
-	icon: IconComponent;
-	tone: 'neutral' | 'error';
-	/** the keys that also run it, as the keyboard prints them. Empty where none reach it. */
-	hints: string[];
-};
+/** One act as the command menu offers it, as the surface contract declares it. */
+export type { PaletteAct };
 
 /** One act as the command menu offers it on a record it already holds. */
 export type PaletteVerb = PaletteAct & {

@@ -119,7 +119,10 @@ job:
 ```
 
 **A feature and a capability have the same two entries.** Another concept imports
-`$lib/<concept>` and `$lib/<concept>/ui`, never a file past them. `index.ts` re-exports only what
+`$lib/<concept>` and `$lib/<concept>/ui`, never a file past them. **A type-only import is an
+import**: it goes through the same entries, a type another concept names is exported from
+`index.ts`, and it points down or sideways as any import does. The one exemption is an upward type
+import of the composition root, in the table below. `index.ts` re-exports only what
 loads under Node, so it never carries a component, a module of runes or a query hook; `ui.ts` is
 the window half, and everything else stays private. A feature showing something on another's page
 contributes a section rather than handing over a component, and where a feature depended on needs
@@ -140,7 +143,11 @@ kind is no spelling of one: an option handed to an `Intl` constructor (`{ type: 
 
 `apps/desktop/src/lib/tests/layers.test.ts` holds all of it, against a baseline that only
 shrinks: an upward import, a module on a cycle, an import past an entry (`deep`), a feature
-imported by a home that is neither a feature nor `app/`, and a kind spelled elsewhere. Decided by
+imported by a home that is neither a feature nor `app/`, and a kind spelled elsewhere. A type-only
+import counts for the first, the third and the fourth, but for the exemption below; being erased,
+it is no edge a cycle runs through. Settled on 2026-09-29 by ticket 68 of effort 840, when review
+round one found the guard passing every type import while this rule named no such exemption.
+Decided by
 the human on 2026-09-28: the list with the composition root, capabilities a layer below the
 features, a capability's components through `ui.ts` when the list capability left features
 importing its `component/`, and a feature's reverse needs as contributions when the record
@@ -154,7 +161,8 @@ same `ui.ts`.
 | --- | --- | --- |
 | notification's and undo's `index.ts` | load `svelte-sonner`, which loads under Node only where a test mocks it, as every Node test reaching them does | the toast is the whole of notification's API and the offer to take a change back is one, so nothing of either would be left to put in `index.ts` |
 | notification, print, shortcut, create and undo | mounted by the frame through `ui.ts` rather than declared as a surface's `host` | the frame places each at a fixed point around the hosts: the provider outside them, the sheet beside the page, the listeners once. The palette was among them until ticket 67 of effort 840, when its host joined the list to keep its place between the workspace's and the tenant's |
-| dashboard's and payment's `index.ts` | export nothing | no concept reads either; what each hands another it contributes in its `surface.ts` |
+| dashboard's `index.ts`, and payment's but for its refusal codes | export nothing | no concept reads either; what each hands another it contributes in its `surface.ts`, and payment's codes are there for the composition root's union of them |
+| any home below `app/` | imports a type of the composition root, upward: `AppRouter` and `Host` in `api/`, the contributions in `feature/` and `api/`, the feature list in `mutation/` and `transfer/`, the refusal codes in `api/` | the client, the feature contract and the capabilities that read the list are typed from the list, which only `app/` holds, and a type import is erased before anything runs, so nothing below loads the root or any feature. It is the only upward import there is: a value import of `app/` from below is still one |
 | workspace's `feature.ts` | declares only its name | it has no router, no kind, no prefix and no page; what it draws is its `surface.ts` |
 | a sub-concept without a `feature.ts` | organization's `member/`, `role/`, `access/`, `workspace/`, `setup/` and `session/`, contract's `assignment/`, `schedule/`, `renewal/` and the rest | its parent's router serves it and its parent's surface draws it; only `complex/unit/` declares itself, because it holds a kind of its own |
 | tenant, complex, unit, contract and payment's `transfer.ts` | the sheet `feature.ts` declares under `transfer` | columns, reader and writer are long enough to be a module of their own |
@@ -179,7 +187,7 @@ each of the four read the kind's declaration or the one list instead of naming t
 
 | File | What it gains |
 | --- | --- |
-| `src/lib/app/features.ts`, `src/lib/app/surfaces.ts` | the feature and the surface in their lists, and the surface in `places` where it has a row on the rail. `app/contributions.ts` as well, where it contributes to a kind or is contributed to |
+| `src/lib/app/features.ts`, `src/lib/app/surfaces.ts` | the feature and the surface in their lists, and the surface in `places` where it has a row on the rail. `app/contributions.ts` as well, where it contributes to a kind or is contributed to, and `app/refusal.ts`, its refusal codes in `RefusalCode` |
 | `packages/workspace-permission/index.ts` | its four flags on free bits, its family in `FAMILIES`, its writes in `WRITE_FLAGS`, and what the member role holds of it. `RECORD_KINDS`, `RecordKind`, `HistoryConcept` and the history `concept` values follow from `FAMILIES` |
 | `tauri/src/organization/role/permission.rs` | the same, mirrored: `Flag`, `Family` and their `ALL`, names and bit ranges, `WRITE_FLAGS`, `RECORD_FLAGS`, `MEMBER_ROLE` |
 | `src/lib/platform/database/schema.ts` | its table; `pnpm db:generate` in `apps/desktop` (`pnpm db:generate:desktop` from the root) writes the migration into `packages/workspace-migrations/` |
@@ -208,8 +216,8 @@ role's mask. The schema's migration comes with its seed in `organization/lease/a
 `SEEDS`, as every workspace migration does, kind or not.
 
 **A feature with no kind** is its directory, its lines in `app/features.ts` and, where it draws
-anything, `app/surfaces.ts`, its strings composed in `i18n/{en,ar}/index.ts`, its home's layer in
-`layers.test.ts`, and its routes if it has pages. **A Rust feature** is its directory with a
+anything, `app/surfaces.ts`, its codes in `app/refusal.ts` where it refuses, its strings composed
+in `i18n/{en,ar}/index.ts`, its home's layer in `layers.test.ts`, and its routes if it has pages. **A Rust feature** is its directory with a
 `plugin.rs`, its `pub mod` and `.plugin(<feature>::plugin())` in `lib.rs`, and `"<plugin>:default"`
 in `capabilities/default.json`; `build.rs` reads each `plugin.rs` for the commands the ACL allows,
 so no command is listed anywhere else. Removing either is the reverse.

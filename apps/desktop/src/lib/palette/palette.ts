@@ -3,13 +3,15 @@ import type {
 	ActEntry,
 	CreateEntry,
 	NavigationPlace,
+	PaletteMatch,
 	PlaceAddress,
+	RecordSearch,
 	SearchEntry,
 	Surface
 } from '$lib/feature/surface';
 import type { ShortcutRegistration } from '$lib/shortcut';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
-import { foldSearchText, type RecordMatch } from '$lib/platform/database/search';
+import { foldSearchText } from '$lib/platform/database/search';
 
 /**
  * PALETTE
@@ -42,16 +44,10 @@ import { foldSearchText, type RecordMatch } from '$lib/platform/database/search'
 export type RecordSubject = string;
 
 /**
- * One record the palette found.
- *
- * `unavailable` is where the concept already knows, while the reader is choosing, that the act
- * waiting for a record cannot run on this one now: the row is shown and refused with the reason,
- * as a shortcut's is. A member's and a workspace's acts are the ones that know it.
+ * One record the palette found, and what a concept's search answers it with, as the surface
+ * contract declares them beside the search entry.
  */
-export type PaletteMatch = RecordMatch & { unavailable?: string };
-
-/** What a concept's search answers the palette with, found in SQL or in memory. */
-export type RecordSearch = { readonly data: PaletteMatch[] | undefined };
+export type { PaletteMatch, RecordSearch };
 
 /** How many records of each concept the palette offers before the reader narrows further. */
 export const MATCH_LIMIT = 5;

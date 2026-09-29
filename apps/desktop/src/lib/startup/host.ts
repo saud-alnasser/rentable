@@ -9,7 +9,7 @@
  * gives: a client that is not the Tauri shell has to be able to read the port without the facade.
  */
 
-import type { Recovery } from '$lib/update/host';
+import type { Recovery } from '$lib/update';
 
 /** what startup may ask of the shell: the bootstrap, and what it had to recover to open. */
 export type StartupHost = {

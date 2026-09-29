@@ -1,4 +1,4 @@
-import type { Recovery } from '$lib/update/host';
+import type { Recovery } from '$lib/update';
 import { organizationAdmission } from '$lib/sync';
 import type { StartupPorts } from './ports';
 import { Reconciliation } from './reconcile';

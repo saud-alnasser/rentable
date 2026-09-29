@@ -1,7 +1,6 @@
 import type { RouteId } from '$app/types';
 import type { Contributions } from '$lib/app/contributions';
-import type { RecordKind } from '$lib/permission';
-import type { Transfer } from '$lib/transfer';
+import type { RecordKind } from '@rentable/workspace-permission';
 import type { AnyRouter } from '@trpc/server';
 
 /**
@@ -37,9 +36,11 @@ export type Feature<N extends string = string, R extends AnyRouter = AnyRouter> 
 	/**
 	 * the sheets it hands a workspace file, on a feature that holds records: what each tab is
 	 * called, its columns, its turn, and how its rows are read and its records written. Read by
-	 * `$lib/transfer`, which the composition root hands the list.
+	 * `$lib/transfer`, which the composition root hands the list. A sheet is the capability's type,
+	 * a layer above this contract, so it is checked there, where the list is handed over
+	 * (`Declaring` in `transfer/sheet.ts`), and each is built with its `defineSheet`.
 	 */
-	transfer?: Transfer;
+	transfer?: readonly object[];
 	/**
 	 * what it contributes to the kinds it depends on, keyed by the kind each serves: what a
 	 * feature it depends on reads of it without importing it. Its router reads its own kind's

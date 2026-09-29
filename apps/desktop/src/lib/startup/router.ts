@@ -1,4 +1,4 @@
-import type { Recovery } from '$lib/update/host';
+import type { Recovery } from '$lib/update';
 import { procedure, router } from '$lib/api/trpc';
 
 /**

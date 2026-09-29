@@ -28,8 +28,17 @@
 // same two entries*). Its `component/` stays private, so reaching into it from outside is `deep`,
 // as is reaching any other file past the two. `app/` may also read a feature's `feature.ts`
 // and `surface.ts`, which is how it lists them, and its `tauri.ts`, which is how `app/host.ts`
-// binds the feature's host port to its adapter. `import type` is erased at runtime and is not
-// counted by any kind.
+// binds the feature's host port to its adapter.
+//
+// A type-only import (`import type`, `export type`, a named list all of inline `type`) is held to
+// the same rule, since a type is reached through an entry like anything else: it counts for
+// `upward`, `deep` and `import`, and a type another concept shares goes in its `index.ts`. It
+// has one exemption, an upward type import of the composition root, `app/`: the typed client,
+// the feature contract and the capabilities that read the list are typed from it (`AppRouter`,
+// `SurfaceContributions`, the feature list, the refusal codes), and the import is erased before
+// anything runs (`rules/module-layout`, under *Where a concept departs from the shape*). Being
+// erased, a type-only import is no edge of the module graph, so it lies on no `cycle`; and a
+// route's imports are judged at runtime only.
 //
 // A feature's declaration files, `feature.ts` and `surface.ts`, may spell another's kind: they
 // are where it names what it contributes to, a section drawn on a tenant's page or what a tenant's
@@ -243,34 +252,41 @@ function readSource(file: string) {
 	return { script, all: `${script}\n${markup}` };
 }
 
-// Every specifier the script imports at runtime: static imports and re-exports, side-effect
-// imports and dynamic imports. `import type`, `export type`, and a named list whose every
-// specifier is inline `type` are erased and left out.
-function valueImports(script: string) {
-	const specifiers: string[] = [];
+// Every specifier the script imports: static imports and re-exports, side-effect imports and
+// dynamic imports, each marked with whether it is erased. `import type`, `export type`, and a
+// named list whose every specifier is inline `type` are type-only; the other two never are.
+function imports(script: string) {
+	const found: { specifier: string; typeOnly: boolean }[] = [];
 
 	const statement = /(?:^|[;\s}])(?:import|export)\s+([^;'"`]*?)\s*from\s*(['"])([^'"]+)\2/g;
 	for (const [, clause, , specifier] of script.matchAll(statement)) {
-		if (/^type\s/.test(clause)) continue;
-
 		const named = /^\{([\s\S]*)\}$/.exec(clause.trim());
 		const names = named?.[1]
 			.split(',')
 			.map((name) => name.trim())
 			.filter(Boolean);
-		if (names && names.length > 0 && names.every((name) => /^type\s/.test(name))) continue;
+		const typeOnly =
+			/^type\s/.test(clause) ||
+			(names !== undefined && names.length > 0 && names.every((name) => /^type\s/.test(name)));
 
-		specifiers.push(specifier);
+		found.push({ specifier, typeOnly });
 	}
 
 	for (const [, , specifier] of script.matchAll(/(?:^|[;\s])import\s*(['"])([^'"]+)\1/g)) {
-		specifiers.push(specifier);
+		found.push({ specifier, typeOnly: false });
 	}
 	for (const [, , specifier] of script.matchAll(/\bimport\s*\(\s*(['"])([^'"]+)\1\s*\)/g)) {
-		specifiers.push(specifier);
+		found.push({ specifier, typeOnly: false });
 	}
 
-	return specifiers;
+	return found;
+}
+
+// Every specifier the script imports at runtime, the erased ones left out.
+function valueImports(script: string) {
+	return imports(script)
+		.filter(({ typeOnly }) => !typeOnly)
+		.map(({ specifier }) => specifier);
 }
 
 function isFile(path: string) {
@@ -390,7 +406,7 @@ function violations() {
 		const fromLayer = LAYERS[from];
 		const { script, all } = readSource(file);
 
-		for (const specifier of valueImports(script)) {
+		for (const { specifier, typeOnly } of imports(script)) {
 			const target = resolve(file, specifier);
 			if (target === undefined) continue;
 
@@ -398,10 +414,17 @@ function violations() {
 			const toLayer = LAYERS[to];
 			if (to === from || toLayer === undefined || isLocalePiece(label, target)) continue;
 
-			if (!edges.has(from)) edges.set(from, new Set());
-			edges.get(from)!.add(to);
+			// an erased import runs nothing, so no cycle runs through it.
+			if (!typeOnly) {
+				if (!edges.has(from)) edges.set(from, new Set());
+				edges.get(from)!.add(to);
+			}
 
-			if (RANK[fromLayer] < RANK[toLayer]) found.add(`${label} -> ${target} : upward`);
+			// the one exemption: a type read up from the composition root, as the header says.
+			const typedFromRoot = typeOnly && to === COMPOSITION_ROOT;
+			if (RANK[fromLayer] < RANK[toLayer] && !typedFromRoot) {
+				found.add(`${label} -> ${target} : upward`);
+			}
 
 			const declaration =
 				from === COMPOSITION_ROOT && DECLARATIONS.includes(target.slice(to.length + 1));
@@ -482,6 +505,18 @@ test('a kind is spelled as a string, but not as an Intl option or a data attribu
 		kindSpelled("new Intl.ListFormat(locale, { type: 'unit' }); views('unit')", 'unit'),
 		true
 	);
+});
+
+test('an import is type-only where every name it brings is a type', () => {
+	const marked = (script: string) => imports(script).map(({ typeOnly }) => typeOnly);
+
+	assert.deepEqual(marked("import type { Host } from '$lib/app/host';"), [true]);
+	assert.deepEqual(marked("export type { Host } from '$lib/app/host';"), [true]);
+	assert.deepEqual(marked("import { type A, type B } from '$lib/sync';"), [true]);
+	assert.deepEqual(marked("import { a, type B } from '$lib/sync';"), [false]);
+	assert.deepEqual(marked("import a from '$lib/sync';"), [false]);
+	assert.deepEqual(marked("import '$lib/app/surfaces';"), [false]);
+	assert.deepEqual(marked("await import('$lib/sync');"), [false]);
 });
 
 test('the baseline is sorted and holds each violation once', () => {

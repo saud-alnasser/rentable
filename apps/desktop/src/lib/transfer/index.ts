@@ -7,6 +7,7 @@
  */
 export type { ExportCell, ExportSheet, ImportTable, TransferHost } from './host';
 export type { ImportRejection } from './import';
+export type { TransferRefusalCode } from './refusal';
 export {
 	UNIT_LIST_SEPARATOR,
 	toContractReference,

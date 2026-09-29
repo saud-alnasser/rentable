@@ -1,6 +1,6 @@
-import type { RemoteSyncState } from '$lib/sync/host';
-import type { Recovery } from '$lib/update/host';
-import type { OrganizationState } from '$lib/organization/host';
+import type { RemoteSyncState } from '$lib/sync';
+import type { Recovery } from '$lib/update';
+import type { OrganizationState } from '$lib/organization';
 import type { StartupStage } from './stage';
 
 /**

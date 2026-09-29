@@ -1,4 +1,4 @@
-import type { OrganizationMember, OrganizationSession } from '$lib/organization/host';
+import type { OrganizationMember, OrganizationSession } from '$lib/organization';
 
 /**
  * What the workspace's row at the top of the rail and its permissions in the frame need of the

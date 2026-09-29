@@ -4,7 +4,8 @@ import {
 	permits,
 	RECORD_KINDS,
 	WRITE_FLAGS,
-	type AccessLevel
+	type AccessLevel,
+	type RecordFlag
 } from '@rentable/workspace-permission';
 import { createSubscriber } from 'svelte/reactivity';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
@@ -35,7 +36,7 @@ import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 export type RecordKind = (typeof RECORD_KINDS)[number];
 
 /** A record flag: viewing, creating, editing or deleting one kind of record. */
-export type RecordFlag = (typeof FAMILIES)[RecordKind][number];
+export type { RecordFlag };
 
 /** The flag that lets a member see records of one kind at all: its family's first. */
 type ViewFlagOf<Kind extends RecordKind> = (typeof FAMILIES)[Kind][0];

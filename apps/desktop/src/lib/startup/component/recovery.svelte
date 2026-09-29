@@ -4,7 +4,7 @@
 	import DetailDisclosure from '$lib/error/component/detail-disclosure.svelte';
 	import SurfaceAction from '@rentable/design/block/surface-action.svelte';
 	import { tauri } from '$lib/platform/tauri';
-	import type { Recovery } from '$lib/update/host';
+	import type { Recovery } from '$lib/update';
 	import DownloadIcon from '@lucide/svelte/icons/download';
 	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';

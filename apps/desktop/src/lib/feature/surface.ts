@@ -1,10 +1,9 @@
 import type { Pathname, ResolvedPathname, RouteId } from '$app/types';
-import type { PaletteAct } from '$lib/act';
 import type { SurfaceContributions } from '$lib/app/contributions';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
-import type { RecordSearch } from '$lib/palette';
-import type { RecordFlag, RecordKind } from '$lib/permission';
+import type { RecordFlag, RecordKind } from '@rentable/workspace-permission';
 import type { RecordMatch } from '$lib/platform/database/search';
+import type { RecordCardAction } from '@rentable/design/block/record-card.svelte';
 import type HouseIcon from '@lucide/svelte/icons/house';
 import type { Component } from 'svelte';
 
@@ -138,6 +137,19 @@ export type CreateEntry = {
 );
 
 /**
+ * One record the palette found.
+ *
+ * `unavailable` is where the concept already knows, while the reader is choosing, that the act
+ * waiting for a record cannot run on this one now: the row is shown and refused with the reason,
+ * as a shortcut's is. A member's and a workspace's acts are the ones that know it. Declared here,
+ * beside the search that answers with it, and re-exported by `$lib/palette`.
+ */
+export type PaletteMatch = RecordMatch & { unavailable?: string };
+
+/** What a concept's search answers the palette with, found in SQL or in memory. */
+export type RecordSearch = { readonly data: PaletteMatch[] | undefined };
+
+/**
  * One group of the command menu's search: the records of one kind that match what is typed, what
  * the group is called, and where opening one goes.
  */
@@ -167,6 +179,19 @@ export type SearchEntry = {
 		asked: () => string | null,
 		reading: { limit: number; isOpen: () => boolean }
 	) => RecordSearch;
+};
+
+/**
+ * One act as the command menu offers it. Declared here, beside the entry that offers it, and
+ * re-exported by `$lib/act`, which projects a record's acts onto it.
+ */
+export type PaletteAct = {
+	id: string;
+	label: string;
+	icon: RecordCardAction['icon'];
+	tone: 'neutral' | 'error';
+	/** the keys that also run it, as the keyboard prints them. Empty where none reach it. */
+	hints: string[];
 };
 
 /**

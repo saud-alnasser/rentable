@@ -1,20 +1,20 @@
-import type { OrganizationHost } from '$lib/organization/host';
+import type { OrganizationHost } from '$lib/organization';
 import { tauri as organization } from '$lib/organization/tauri';
 import type { PlatformHost } from '$lib/platform/host';
 import { tauri as platform } from '$lib/platform/tauri';
-import type { PrintHost } from '$lib/print/host';
+import type { PrintHost } from '$lib/print';
 import { tauri as print } from '$lib/print/tauri';
-import type { SettingsHost } from '$lib/settings/host';
+import type { SettingsHost } from '$lib/settings';
 import { tauri as settings } from '$lib/settings/tauri';
-import type { StartupHost } from '$lib/startup/host';
+import type { StartupHost } from '$lib/startup';
 import { tauri as startup } from '$lib/startup/tauri';
-import type { SyncHost } from '$lib/sync/host';
+import type { SyncHost } from '$lib/sync';
 import { tauri as sync } from '$lib/sync/tauri';
-import type { TransferHost } from '$lib/transfer/host';
+import type { TransferHost } from '$lib/transfer';
 import { tauri as transfer } from '$lib/transfer/tauri';
-import type { UpdateHost } from '$lib/update/host';
+import type { UpdateHost } from '$lib/update';
 import { tauri as update } from '$lib/update/tauri';
-import type { WorkspaceHost } from '$lib/workspace/host';
+import type { WorkspaceHost } from '$lib/workspace';
 import { tauri as workspace } from '$lib/workspace/tauri';
 
 /**

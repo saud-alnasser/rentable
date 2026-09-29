@@ -5,6 +5,7 @@ import { toTransferKey } from './reference';
 import {
 	sheetsOf,
 	type AnySheet,
+	type Declaring,
 	type HeldName,
 	type Reference,
 	type TransferConcept,
@@ -66,7 +67,7 @@ import {
 let bound: AnySheet[] | null = null;
 
 /** Bind the sheets every feature declares. Called once, by `$lib/app/transfer`. */
-export function bindTransfer(declaring: readonly object[]) {
+export function bindTransfer(declaring: readonly Declaring[]) {
 	bound = sheetsOf(declaring);
 }
 

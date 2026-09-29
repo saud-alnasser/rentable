@@ -1,6 +1,6 @@
 import api from '$lib/api/caller';
 import { tauri } from '$lib/platform/tauri';
-import type { RemoteSyncState } from '$lib/sync/host';
+import type { RemoteSyncState } from '$lib/sync';
 import { tauri as update } from '$lib/update/tauri';
 import { syncWorkspaceBeforeExit } from '$lib/sync';
 import { syncKeys } from '$lib/sync/ui';

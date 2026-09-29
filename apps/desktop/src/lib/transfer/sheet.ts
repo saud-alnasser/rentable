@@ -185,8 +185,12 @@ export type SheetsOf<F extends readonly object[]> = F[number] extends infer Each
 		: never
 	: never;
 
-/** A feature as the transfer reads it: whatever else it declares, perhaps its sheets. */
-type Declaring = { transfer?: Transfer };
+/**
+ * A feature as the transfer reads it: whatever else it declares, its name and perhaps its sheets.
+ * The feature contract (`$lib/feature/feature`) sits below this capability and cannot name a sheet,
+ * so this is where a declared sheet is checked: the composition root hands the list over as this.
+ */
+export type Declaring = { name: string; transfer?: Transfer };
 
 type RecordOf<S> = S extends { read(db: Database): Promise<(infer R)[]> } ? R : never;
 type InputOf<S> = S extends { input: ZodType<infer I> } ? I : never;
@@ -223,8 +227,6 @@ export type TransferInput = InputFileOf<Sheets>;
 export type WorkspaceHeld = HeldOf<Sheets>;
 
 /** Every sheet the features declare, in the order they are written and read. */
-export function sheetsOf(declaring: readonly object[]): AnySheet[] {
-	return (declaring as readonly Declaring[])
-		.flatMap((feature) => feature.transfer ?? [])
-		.sort((a, b) => a.order - b.order);
+export function sheetsOf(declaring: readonly Declaring[]): AnySheet[] {
+	return declaring.flatMap((feature) => feature.transfer ?? []).sort((a, b) => a.order - b.order);
 }

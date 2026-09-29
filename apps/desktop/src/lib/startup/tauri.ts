@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 
-import type { Recovery } from '$lib/update/host';
+import type { Recovery } from '$lib/update';
 
 import type { StartupHost } from './host';
 

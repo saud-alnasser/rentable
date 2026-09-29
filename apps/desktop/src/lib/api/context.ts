@@ -6,7 +6,6 @@ import {
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy';
 
 import type { Host } from '$lib/app/host';
-import type { OrganizationSession } from '$lib/organization/host';
 
 /**
  * DATABASE
@@ -35,6 +34,14 @@ export type Clock = {
  * type alone, so the wiring loads no feature.
  */
 export type { Host };
+
+/**
+ * who is signed in on this machine, as the organization's port answers it: read off the composed
+ * host rather than off the port, so the wiring names no feature.
+ */
+type OrganizationSession = NonNullable<
+	Awaited<ReturnType<Host['organization']['getState']>>['session']
+>;
 
 /**
  * IDENTITY
