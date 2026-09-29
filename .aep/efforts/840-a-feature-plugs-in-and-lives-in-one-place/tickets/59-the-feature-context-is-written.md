@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [58, 63]
 ---
 # docs(aep): the feature context says how features are handled
@@ -14,9 +14,9 @@ The spec is [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]]; the 
 
 Traces requirement 21 of [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]], and criterion 21.
 
-- [ ] The file exists with a `use-when` for adding, removing or changing a feature or capability, and `paths:` covering `src/lib/app/`, `src/lib/feature/` and `tauri/src/lib.rs` (criterion 21).
-- [ ] Every path it names exists (criterion 21).
-- [ ] `validate.mjs` passes and the index is regenerated.
+- [x] The file exists with a `use-when` for adding, removing or changing a feature or capability, and `paths:` covering `src/lib/app/`, `src/lib/feature/` and `tauri/src/lib.rs` (criterion 21). Verified: `.aep/contexts/desktop/feature.md` exists with `use-when: "adding, removing or changing a feature, a record kind or a capability, on either side of the IPC boundary"` and `paths:` holding `apps/desktop/src/lib/app/**`, `apps/desktop/src/lib/feature/**` and `apps/desktop/tauri/src/lib.rs` (plus each `plugin.rs`, `build.rs` and the capability); `contexts/repository` links it.
+- [x] Every path it names exists (criterion 21). Verified: a script extracting every backticked path from the context and checking it on disk printed `149 path tokens, 0 missing` (placeholder patterns skipped); `governance.test.ts` passes.
+- [x] `validate.mjs` passes and the index is regenerated. Verified: `node .aep/scripts/validate.mjs` printed `489 artifacts checked, no failures`, and `.aep/index.md` was regenerated in this commit.
 
 ## Relevant areas
 

@@ -37,6 +37,7 @@ Start at [[protocol]].
 | Artifact | Load when | Paths | Owner |
 | --- | --- | --- | --- |
 | [[contexts/desktop/contract]] | the request touches contracts, payments, unit assignments, or any derived status | apps/desktop/src/lib/contract/**, apps/desktop/src/lib/payment/** | — |
+| [[contexts/desktop/feature]] | adding, removing or changing a feature, a record kind or a capability, on either side of the IPC boundary | apps/desktop/src/lib/app/**, apps/desktop/src/lib/feature/**, apps/desktop/tauri/src/lib.rs, apps/desktop/tauri/src/*/plugin.rs, apps/desktop/tauri/build.rs, apps/desktop/tauri/capabilities/default.json | — |
 | [[contexts/desktop/organization]] | the request touches an organization, its members, their roles and permissions, their vaults, or the account it lives on | apps/desktop/tauri/src/organization/**, apps/desktop/tauri/src/upgrade/**, apps/desktop/src/lib/organization/**, apps/desktop/src/lib/startup/machine.ts, apps/desktop/src/lib/startup/wall.ts | — |
 | [[contexts/desktop/persistence]] | the request touches the schema, migrations, or how queries reach SQLite | apps/desktop/src/lib/platform/database/**, apps/desktop/tauri/src/database/**, packages/workspace-migrations/** | — |
 | [[contexts/desktop/property]] | the request touches complexes or units | apps/desktop/src/lib/complex/** | — |
@@ -457,7 +458,7 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/56-the-organization-becomes-a-plugin]] refactor(tauri): the organization becomes a plugin | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | 55 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/57-lib-composes-plugins-and-state-goes]] refactor(tauri): lib.rs composes plugins and nothing else | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | 56 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/58-the-tree-and-its-description-agree]] docs(aep): the tree and its description agree | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | 57, 41 |
-| [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/59-the-feature-context-is-written]] docs(aep): the feature context says how features are handled | 840-a-feature-plugs-in-and-lives-in-one-place | open | 58, 63 |
+| [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/59-the-feature-context-is-written]] docs(aep): the feature context says how features are handled | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | 58, 63 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/60-the-crate-builds-on-windows]] build(tauri): the crate builds on Windows against the webview it links | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | — |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/61-shared-components-go-through-ui]] refactor(desktop): a capability's shared components are reached through its ui entry | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | 17, 18 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/62-reverse-needs-are-contributions]] refactor(desktop): a feature's reverse needs are contributions, and the record cycles break | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | 30 |

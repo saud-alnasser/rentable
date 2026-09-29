@@ -229,6 +229,7 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
 | Area | Context |
 | --- | --- |
 | contracts, payments, unit assignments, derived status | [[contexts/desktop/contract]] |
+| declaring, composing, adding or removing a feature or a capability, on both sides of the IPC boundary | [[contexts/desktop/feature]] |
 | schema, migrations, how queries reach SQLite | [[contexts/desktop/persistence]] |
 | complexes and units | [[contexts/desktop/property]] |
 | an organization, its members, their vaults, and the account it lives on | [[contexts/desktop/organization]] |
