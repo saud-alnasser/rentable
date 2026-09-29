@@ -1,7 +1,8 @@
 use crate::{clock, error::Error, machine::RemoteSyncState, state::AppState};
 
-#[tauri::command]
-pub async fn remote_sync_state_get(
+/// what this machine holds and how it stands. Invoked as `plugin:sync|state_get`.
+#[tauri::command(rename = "state_get")]
+pub async fn sync_state_get(
     app_state: tauri::State<'_, AppState>,
 ) -> Result<RemoteSyncState, Error> {
     let mut remote_sync = app_state.remote_sync.write().await;
@@ -15,8 +16,10 @@ pub async fn remote_sync_state_get(
 /// a window that is closing, with nothing left to render them and a network round trip standing
 /// between the person and the application shutting; what must not be skipped is the offer of what
 /// they wrote.
-#[tauri::command]
-pub async fn remote_sync_push(
+///
+/// Invoked as `plugin:sync|push`.
+#[tauri::command(rename = "push")]
+pub async fn sync_push(
     app_state: tauri::State<'_, AppState>,
     clock: tauri::State<'_, clock::Shared>,
 ) -> Result<bool, Error> {

@@ -10,7 +10,7 @@ import type { RemoteSyncState, ReplicationRefusal, SessionStanding, SyncHost } f
  * sync its own port.
  */
 export const tauri = {
-	getState: () => invoke<RemoteSyncState>('remote_sync_state_get'),
+	getState: () => invoke<RemoteSyncState>('plugin:sync|state_get'),
 	replicate: () =>
 		invoke<{
 			pushed: boolean;
@@ -18,7 +18,7 @@ export const tauri = {
 			refusal: ReplicationRefusal;
 			standing: SessionStanding;
 		}>('remote_sync_replicate'),
-	push: () => invoke<boolean>('remote_sync_push'),
+	push: () => invoke<boolean>('plugin:sync|push'),
 	renameWorkspace: (name: string) =>
 		invoke<RemoteSyncState>('remote_sync_rename_workspace', { name })
 } satisfies SyncHost;

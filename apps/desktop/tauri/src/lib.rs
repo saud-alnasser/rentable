@@ -110,6 +110,7 @@ pub fn run() {
         .plugin(update::plugin())
         .plugin(transfer::plugin())
         .plugin(startup::plugin())
+        .plugin(sync::plugin())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -240,10 +241,8 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            sync::remote_sync_state_get,
             organization::workspace::remote_sync_rename_workspace,
             organization::session::remote_sync_replicate,
-            sync::remote_sync_push,
             organization::setup::organization_consent_begin,
             organization::setup::organization_consent_result,
             organization::setup::organization_consent_disconnect,

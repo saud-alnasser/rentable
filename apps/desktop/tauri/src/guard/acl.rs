@@ -41,6 +41,7 @@ mod tests {
             "print",
             "settings",
             "startup",
+            "sync",
             "transfer",
             "update",
             "window",

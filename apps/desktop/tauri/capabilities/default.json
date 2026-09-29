@@ -16,6 +16,7 @@
 		"print:default",
 		"update:default",
 		"transfer:default",
-		"startup:default"
+		"startup:default",
+		"sync:default"
 	]
 }
