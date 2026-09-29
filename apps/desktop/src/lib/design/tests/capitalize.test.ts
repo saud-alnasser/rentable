@@ -33,10 +33,11 @@ const ALLOWED: readonly { label: string; most: number; reason: string }[] = [
 	{ label: 'lib/tenant/component/form.svelte', most: 1, reason: 'the submit verb' },
 	{ label: 'lib/payment/component/form.svelte', most: 1, reason: 'the submit verb' },
 	{ label: 'lib/workspace/component/rename-form.svelte', most: 1, reason: 'the submit verb' },
+	{ label: 'lib/contract/component/form.svelte', most: 1, reason: 'the submit verb' },
 	{
-		label: 'lib/contract/component/form.svelte',
-		most: 2,
-		reason: 'the interval names ("monthly", "semi-annual") and the submit verb'
+		label: 'lib/contract/component/interval-field.svelte',
+		most: 1,
+		reason: 'the interval names ("monthly", "semi-annual")'
 	},
 	{
 		label: 'lib/dashboard/component/landing.svelte',

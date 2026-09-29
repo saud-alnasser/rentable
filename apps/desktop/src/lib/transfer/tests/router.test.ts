@@ -245,7 +245,7 @@ test('a unit no sheet answers for is named back the way the file wrote it', asyn
 // planning pass rather than a second one: a file reaching here with a term or a cost the concept
 // refuses has already been turned away per row, and what these pin is that the last resort still
 // refuses it. Without them `importWhole` was the one way into the workspace that asked neither
-// question, and `contract/renewal.ts` states outright that the second cannot arise through a
+// question, and `contract/renewal/renewal.ts` states outright that the second cannot arise through a
 // router.
 test('a contract worth nothing is refused here as it is everywhere else', async () => {
 	const api = await createApi();

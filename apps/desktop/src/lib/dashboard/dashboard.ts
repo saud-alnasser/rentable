@@ -1,4 +1,4 @@
-import type { ContractRank, ContractRankSummary } from '$lib/contract/rank';
+import type { ContractRank, ContractRankSummary } from '$lib/contract/rank/rank';
 import type { Contract } from '$lib/platform/database/schema';
 
 /**

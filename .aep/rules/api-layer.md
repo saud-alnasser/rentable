@@ -4,6 +4,8 @@ paths:
   - apps/desktop/src/lib/app/**
   - apps/desktop/src/lib/feature/**
   - apps/desktop/src/lib/*/router.ts
+  - apps/desktop/src/lib/*/*/router.ts
+  - apps/desktop/src/lib/contract/row.ts
   - apps/desktop/src/lib/*/reconcile.ts
   - apps/desktop/src/lib/*/host.ts
   - apps/desktop/src/lib/*/tauri.ts
@@ -19,7 +21,10 @@ use-when: "adding or changing a router, a domain module, a database client or tr
 
   The layer is no longer one directory. A concept that has relocated (#123-#126)
   keeps its router under its own name, so the globs follow it there; without them
-  the router rules below stop loading for exactly the routers they govern. The
+  the router rules below stop loading for exactly the routers they govern. A router
+  split along its concept's sub-concepts keeps a `router.ts` in each of them
+  (`contract/renewal/router.ts`), which the second glob follows, and `contract/row.ts`
+  holds the reads those routers share. The
   `host.ts`, `tauri.ts` and `platform/database` globs are there for the same reason in
   the other direction: the ports, their Tauri adapters and the database transport left
   the layer, and the `invoke` rule below is the one that governs them.

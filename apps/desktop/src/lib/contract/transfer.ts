@@ -14,11 +14,8 @@ import {
 } from '$lib/transfer';
 import { asc, eq } from 'drizzle-orm';
 import z from 'zod';
-import {
-	ensureValidContractInput,
-	hasValidContractCost,
-	hasValidContractPeriodForInterval
-} from './contract';
+import { ensureValidContractInput, hasValidContractCost } from './contract';
+import { hasValidContractPeriodForInterval } from './schedule/cycle';
 import { reconcileTouched } from './reconcile';
 
 /**
@@ -194,7 +191,7 @@ export default defineSheet({
 		}
 
 		// the domain's own period rule, called rather than restated. A term matching no whole
-		// number of cycles is refused on every other way in, and `contract/renewal.ts` states
+		// number of cycles is refused on every other way in, and `contract/renewal/renewal.ts` states
 		// outright that one cannot arise through a router; a file was the way it could.
 		if (!hasValidContractPeriodForInterval({ start, end, interval })) {
 			return row.end;

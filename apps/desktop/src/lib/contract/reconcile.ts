@@ -1,12 +1,8 @@
 import type { Contributed } from '$lib/api/contribution';
 import type { Context, Database } from '$lib/api/context';
 import * as s from '$lib/platform/database/schema';
-import {
-	deriveContractStatus,
-	deriveUnitStatuses,
-	getContractPaymentSummary,
-	type ContractAssignment
-} from '$lib/contract/contract';
+import { deriveContractStatus, getContractPaymentSummary } from '$lib/contract/contract';
+import { deriveUnitStatuses, type ContractAssignment } from '$lib/contract/assignment/assignment';
 import { eq, inArray } from 'drizzle-orm';
 
 /**

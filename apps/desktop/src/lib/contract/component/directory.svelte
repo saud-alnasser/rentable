@@ -11,7 +11,7 @@
 		readContractRank,
 		toChosenRank,
 		toRankArrivalSelection
-	} from '$lib/contract/rank-filter';
+	} from '$lib/contract/rank/filter';
 	import { useListContracts } from '$lib/contract/query';
 	import { toChosenLabel, type FilterSelection } from '$lib/list';
 	import { LL } from '$lib/i18n/i18n-svelte';

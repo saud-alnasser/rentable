@@ -1,5 +1,5 @@
 <script lang="ts" module>
-	import type { ContractRank } from '$lib/contract/rank';
+	import type { ContractRank } from '$lib/contract/rank/rank';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import CalendarClockIcon from '@lucide/svelte/icons/calendar-clock';
 	import ClockIcon from '@lucide/svelte/icons/clock';
@@ -28,9 +28,9 @@
 	import { Badge } from '@rentable/design/primitive/badge/index.js';
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
 	import { contractActs, contractHost } from '$lib/contract/host.svelte';
-	import { isMoneyRank } from '$lib/contract/rank';
-	import { isReminderRank } from '$lib/contract/reminder';
-	import { withContractRank } from '$lib/contract/rank-filter';
+	import { isMoneyRank } from '$lib/contract/rank/rank';
+	import { isReminderRank } from '$lib/contract/schedule/reminder';
+	import { withContractRank } from '$lib/contract/rank/filter';
 	import { toContractName } from '$lib/contract/contract';
 	import type { DashboardSection } from '$lib/dashboard/dashboard';
 	import { LL } from '$lib/i18n/i18n-svelte';

@@ -86,12 +86,12 @@ const {
 	useCreateContract,
 	useDeleteContract,
 	useUpdateContract,
-	useRenewContract,
 	useSetContractUnits,
 	useTerminateContract,
 	useUnterminateContract
 } = await import('$lib/contract/query');
-const { getContractRenewalTerm } = await import('$lib/contract/renewal');
+const { useRenewContract } = await import('$lib/contract/renewal/query');
+const { getContractRenewalTerm } = await import('$lib/contract/renewal/renewal');
 const { useCreatePayment, useDeletePayment } = await import('$lib/payment/query');
 const { loadLocale } = await import('$lib/i18n/i18n-util.sync');
 const { LL, setLocale } = await import('$lib/i18n/i18n-svelte');

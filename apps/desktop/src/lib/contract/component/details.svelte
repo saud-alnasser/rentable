@@ -14,8 +14,8 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { useFetchTenant } from '$lib/tenant/query';
 	import { memberPermissions } from '$lib/permission';
-	import ContractSchedule from './schedule.svelte';
-	import ContractUnits from './units.svelte';
+	import ContractSchedule from '$lib/contract/schedule/component/schedule.svelte';
+	import ContractUnits from '$lib/contract/assignment/component/units.svelte';
 
 	let {
 		contractId,

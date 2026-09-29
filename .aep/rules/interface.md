@@ -883,7 +883,7 @@ Recorded originally as ADR 0031, *A contract's attention rank is the contract's 
 owes nothing today and whose next cycle falls due within the next seven days without being covered
 in full; its landing row states that cycle's amount and due date. It is not a money rank: what falls
 due this week is not owed yet, so the landing screen's outstanding figure sums *overdue* and
-*owing* alone (`isMoneyRank` in `contract/rank.ts`), and a due-soon heading carries no total. Every
+*owing* alone (`isMoneyRank` in `contract/rank/rank.ts`), and a due-soon heading carries no total. Every
 list that filters by rank offers it. Settled by
 [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]], requirement 11.
 

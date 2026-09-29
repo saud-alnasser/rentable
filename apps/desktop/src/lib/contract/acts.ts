@@ -3,7 +3,7 @@ import {
 	canManuallyTerminateContractStatus,
 	canUnterminateContractStatus
 } from '$lib/contract/contract';
-import { isReminderRank } from '$lib/contract/reminder';
+import { isReminderRank } from '$lib/contract/schedule/reminder';
 import type { RecordAct } from '$lib/act';
 import { memberPermissions } from '$lib/permission';
 import BanIcon from '@lucide/svelte/icons/ban';

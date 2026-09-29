@@ -2,7 +2,7 @@ import { render, screen, within } from '@testing-library/svelte';
 import { beforeEach, expect, test, vi } from 'vitest';
 
 import type api from '$lib/api/caller';
-import type { ContractRankSummary } from '$lib/contract/rank';
+import type { ContractRankSummary } from '$lib/contract/rank/rank';
 import Landing from '$lib/dashboard/component/landing.svelte';
 import { formatRecordDate } from '$lib/date';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';

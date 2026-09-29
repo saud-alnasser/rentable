@@ -7,7 +7,7 @@ import '$lib/app/surfaces';
 import ContractHost from '$lib/contract/component/host.svelte';
 import { contractHost, contractHostState } from '$lib/contract/host.svelte';
 import type { ContractActRecord } from '$lib/contract/acts';
-import type { ContractReminder } from '$lib/contract/reminder';
+import type { ContractReminder } from '$lib/contract/schedule/reminder';
 import Section from '$lib/dashboard/component/section.svelte';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { setLocale } from '$lib/i18n/i18n-svelte';

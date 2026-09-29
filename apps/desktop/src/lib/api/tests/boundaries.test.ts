@@ -21,7 +21,7 @@
 // each, the `$lib` one. They are in another home now, so no relative path can name them.
 
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -41,8 +41,9 @@ function labelled(file: string) {
 }
 
 // every source file the layer owns: all of `api/` and `app/`, plus the request-time modules of
-// each concept home beside them. The label is library-relative, because `router.ts` on its own
-// now names half a dozen files.
+// each concept home beside them, its sub-concepts' included, since a router split along its
+// concept's concerns is still the layer. The label is library-relative, because `router.ts` on
+// its own now names a dozen files.
 function apiSourceFiles() {
 	const inApi = LAYER_HOMES.flatMap((home) =>
 		readdirSync(join(LIB_ROOT, home), { recursive: true, withFileTypes: true })
@@ -53,7 +54,9 @@ function apiSourceFiles() {
 	const inConcepts = readdirSync(LIB_ROOT, { withFileTypes: true })
 		.filter((entry) => entry.isDirectory() && !LAYER_HOMES.includes(entry.name))
 		.flatMap((home) =>
-			REQUEST_TIME_MODULES.map((name) => join(LIB_ROOT, home.name, name)).filter(existsSync)
+			readdirSync(join(LIB_ROOT, home.name), { recursive: true, withFileTypes: true })
+				.filter((entry) => entry.isFile() && REQUEST_TIME_MODULES.includes(entry.name))
+				.map((entry) => join(entry.parentPath, entry.name))
 		)
 		.map(labelled);
 

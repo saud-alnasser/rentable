@@ -43,7 +43,7 @@ mock.module('@tanstack/svelte-query', {
 	}
 });
 
-const contract = await import('$lib/contract/query');
+const contract = await import('$lib/contract/selection/query');
 const tenant = await import('$lib/tenant/query');
 const complex = await import('$lib/complex/query');
 const payment = await import('$lib/payment/query');

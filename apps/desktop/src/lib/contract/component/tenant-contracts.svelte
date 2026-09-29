@@ -5,7 +5,7 @@
 	import ContractRecord from './record.svelte';
 	import ContractSelectionActions from './selection-actions.svelte';
 	import { CONTRACT_SORT_COLUMN_IDS, type ContractSortColumnId } from '$lib/contract/contract';
-	import { RANK_FILTER, toChosenRank } from '$lib/contract/rank-filter';
+	import { RANK_FILTER, toChosenRank } from '$lib/contract/rank/filter';
 	import { useListContracts } from '$lib/contract/query';
 	import { contractHost } from '$lib/contract/host.svelte';
 	import type { FilterSelection } from '$lib/list';

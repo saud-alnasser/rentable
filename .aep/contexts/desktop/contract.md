@@ -39,7 +39,7 @@ interval has four cycles, counted from the start date.
 A contract's period laid out as its cycles, every one of them, each with its due date (the start
 date, then the first day of each following interval), its amount (the cost), the part of it the
 payments cover, and its state: _paid_, _late_, _due_, _partly paid_ or _upcoming_. Computed on
-read by `scheduleContract` in `contract/schedule.ts` and never stored. On a contract that is not
+read by `scheduleContract` in `contract/schedule/schedule.ts` and never stored. On a contract that is not
 terminated, what the late and due cycles leave uncovered is the _outstanding_, so the schedule and
 the figure are one answer; a terminated contract's schedule reads no cycle as late or due. The
 contract record shows it as its _schedule_ section, read through `contract.schedule`.

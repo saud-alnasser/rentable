@@ -466,7 +466,7 @@ test('a file with no sheet this recognises has nothing to import', () => {
 // A contract row is read against the contract domain's own rules rather than against a weaker
 // restatement of them. Both of the terms below reached the workspace before: the planner asked for
 // a cost that was merely not negative and asked nothing at all about the term, so a file could
-// write a contract `contract.create` would have refused, and `contract/renewal.ts` states outright
+// write a contract `contract.create` would have refused, and `contract/renewal/renewal.ts` states outright
 // that a term matching no whole number of cycles cannot arise through a router.
 //
 // **The payment is dropped from the two fixtures below, and the test after them is why.** A
