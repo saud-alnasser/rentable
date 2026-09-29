@@ -38,7 +38,7 @@ cycle:**
 | Layer | Holds | May import |
 | --- | --- | --- |
 | 4 composition | `app/`, `shell/`, `src/routes/` | everything below |
-| 3 features | tenant, complex, contract, payment, dashboard, workspace, organization, settings, sync, update, startup | capabilities and foundation; another feature only through its `index.ts`, a capability's components only through its `ui.ts` |
+| 3 features | tenant, complex, contract, payment, dashboard, workspace, organization, settings, sync, update, startup | capabilities and foundation; another feature or capability only through its `index.ts` or `ui.ts` |
 | 2 capabilities | permission, mutation, undo, history, shortcut, notification, palette, create, act, list, form, transfer, print, date | foundation; another capability only through its `index.ts` or `ui.ts` |
 | 1 foundation | `feature/` (the declaration contract), `design/` (presentation only), `platform/`, `api/` (tRPC wiring), `i18n/` runtime, `error/` (decoding) | the design package and third-party code only |
 
@@ -62,6 +62,11 @@ out.*
 under Node, so it cannot carry a component, and `component/` stays private. *Decided by the human
 on 2026-09-28, during implementation, when the list capability (ticket 17) left features importing
 `list/component/*.svelte` with no public way to render it; ticket 61 carries it out.*
+
+**A feature has the same two entries.** `index.ts` holds what loads under Node (types, keys, domain
+functions); `ui.ts` holds what only the window can load (query hooks, rune state, the few components
+another concept uses). *Decided by the human on 2026-09-29, when ticket 41 found `index.ts` could
+not be both Node-loadable and the home of the query hooks other features read.*
 
 ## Alternatives that lost
 
@@ -145,9 +150,10 @@ this name and this job, and nothing else holds that job.
                      settings? }). May import .svelte; imported only by app/surfaces.ts
   index.ts           what other concepts may import: types, domain functions, query hooks.
                      Re-exports only Node-loadable modules, never a component
-  ui.ts              the components other concepts may render, re-exported by name from
-                     component/ (`export { default as List } from './component/list.svelte'`).
-                     Present only where a component is shared; component/ itself stays private
+  ui.ts              the window-side entry: the query hooks, rune state and components other
+                     concepts use, re-exported by name (`export { default as List } from
+                     './component/list.svelte'`). Present only where something window-side is
+                     shared; component/ and the rest stay private
   <concept>.ts       the domain: types and rules
   router.ts          the tRPC router, `export default`
   query.ts           every query and mutation hook, mutations through declareMutation
