@@ -10,7 +10,7 @@
 		"updater:default",
 		"dialog:default",
 		"diagnostics:default",
-		"window:default",
+		"frame:default",
 		"settings:default",
 		"database:default",
 		"print:default",

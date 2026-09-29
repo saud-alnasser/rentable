@@ -5,8 +5,9 @@
 //! Tauri checks a plugin's commands against that list by exact name and checks the list against
 //! nothing, so a command handled but not listed would be refused at runtime and nowhere earlier.
 //! What is held here is that the list the build wrote is what the handler answers, that the
-//! capability grants each plugin its default, that `lib.rs` registers them in the order the plan
-//! sets, and that it composes them and does nothing a feature does.
+//! capability grants each plugin its default, that no plugin takes the name of one of Tauri's own,
+//! that `lib.rs` registers them in the order the plan sets, and that it composes them and does
+//! nothing a feature does.
 
 #[cfg(test)]
 mod tests {
@@ -81,6 +82,40 @@ mod tests {
             assert!(
                 permissions.iter().any(|permission| permission == &default),
                 "capabilities/default.json does not grant {default}"
+            );
+        }
+    }
+
+    /// **Criterion 9.** No feature plugin takes the name of one of Tauri's core plugins.
+    ///
+    /// `Builder::build` registers the core plugins after the builder's own, and the plugin store
+    /// drops a plugin whose name a later one takes (`register_core_plugins` in tauri's `app.rs`,
+    /// `PluginStore::register` in its `plugin.rs`). The ACL is still checked against the
+    /// application's manifest, so every command passes it and then reaches Tauri's plugin, which
+    /// answers some of the same names differently and the rest not at all. The list is the one
+    /// tauri 2.12 registers, `menu` and `tray` included although only a desktop build with the
+    /// tray feature registers the last.
+    #[test]
+    fn no_plugin_takes_the_name_of_a_core_plugin() {
+        const CORE_PLUGINS: [&str; 9] = [
+            "path",
+            "event",
+            "window",
+            "webview",
+            "app",
+            "resources",
+            "image",
+            "menu",
+            "tray",
+        ];
+
+        for plugin in FEATURE_PLUGINS {
+            assert!(
+                !CORE_PLUGINS.contains(&plugin.name),
+                "src/{}/plugin.rs registers as `{}`, the name of a Tauri core plugin, which \
+                 replaces it at build time; give it a name of its own",
+                plugin.module,
+                plugin.name
             );
         }
     }

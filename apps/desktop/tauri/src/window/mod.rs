@@ -1,7 +1,8 @@
-//! the application window: the frameless shell's own controls, served as the `window` plugin.
+//! the application window: the frameless shell's own controls, served as the `frame` plugin, since
+//! `window` is the name of Tauri's own (see `plugin.rs`).
 //!
 //! Each command keeps its crate-unique Rust name and answers to the name without the feature
-//! prefix, since the plugin supplies it: `window_show` is invoked as `plugin:window|show`.
+//! prefix, since the plugin supplies it: `window_show` is invoked as `plugin:frame|show`.
 
 mod plugin;
 

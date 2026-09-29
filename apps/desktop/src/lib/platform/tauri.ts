@@ -26,13 +26,13 @@ export type { DiagnosticRecord } from '$lib/platform/host';
  */
 export const tauri = {
 	window: {
-		show: () => invoke<void>('plugin:window|show'),
-		hide: () => invoke<void>('plugin:window|hide'),
-		minimize: () => invoke<void>('plugin:window|minimize'),
-		maximize: () => invoke<void>('plugin:window|maximize'),
-		drag: () => invoke<void>('plugin:window|drag'),
-		close: () => invoke<void>('plugin:window|close'),
-		restart: () => invoke<void>('plugin:window|restart')
+		show: () => invoke<void>('plugin:frame|show'),
+		hide: () => invoke<void>('plugin:frame|hide'),
+		minimize: () => invoke<void>('plugin:frame|minimize'),
+		maximize: () => invoke<void>('plugin:frame|maximize'),
+		drag: () => invoke<void>('plugin:frame|drag'),
+		close: () => invoke<void>('plugin:frame|close'),
+		restart: () => invoke<void>('plugin:frame|restart')
 	},
 	opener: {
 		openUrl: (url: string) => openExternalUrl(url),
