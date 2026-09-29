@@ -705,6 +705,8 @@ test('a payment is found by a part of its reference, in either spelling of its d
 // effort 835, ticket 06, requirement 9: a receipt states the payment, who paid it, what it was for,
 // the cycles it covers by the oldest-first allocation, and what remains of the total cost after it.
 test("a payment's receipt states who paid, what for, the cycles it covers and what remains", async () => {
+	// every date is the 15th: a day past 28 rolls into the next month in February, and the
+	// cycles would no longer fall on the dates asserted below.
 	const api = await createApi();
 	const tenant = await seedTenant(api);
 	const complex = await api.complex.create({ name: 'Al Nakheel', location: 'Riyadh' });
@@ -713,8 +715,8 @@ test("a payment's receipt states who paid, what for, the cycles it covers and wh
 	const contract = await api.contract.create({
 		tenantId: tenant.id,
 		govId: '20471133',
-		start: monthsFromNow(-7),
-		end: monthsFromNow(5),
+		start: dayOf(-7, 15),
+		end: dayOf(5, 15),
 		interval: '3m',
 		cost: 3000
 	});
@@ -722,13 +724,13 @@ test("a payment's receipt states who paid, what for, the cycles it covers and wh
 	await api.contract.units.set({ contractId: contract.id, unitIds: [second.id, first.id] });
 	await api.payment.create({
 		contractId: contract.id,
-		date: monthsFromNow(-7),
+		date: dayOf(-7, 15),
 		amount: 3000
 	});
 
 	const payment = await api.payment.create({
 		contractId: contract.id,
-		date: monthsFromNow(-1),
+		date: dayOf(-1, 15),
 		amount: 4500,
 		method: 'bank-transfer',
 		reference: 'SADAD-7731'
@@ -744,7 +746,7 @@ test("a payment's receipt states who paid, what for, the cycles it covers and wh
 			method: receipt.payment.method,
 			reference: receipt.payment.reference
 		},
-		{ amount: 4500, date: monthsFromNow(-1), method: 'bank-transfer', reference: 'SADAD-7731' }
+		{ amount: 4500, date: dayOf(-1, 15), method: 'bank-transfer', reference: 'SADAD-7731' }
 	);
 	assert.deepEqual(receipt.tenant, { name: tenant.name, nationalId: tenant.nationalId });
 	assert.equal(receipt.contract?.govId, '20471133');
@@ -756,8 +758,8 @@ test("a payment's receipt states who paid, what for, the cycles it covers and wh
 	assert.deepEqual(
 		receipt.cycles.map((cycle) => [cycle.index, cycle.due]),
 		[
-			[1, monthsFromNow(-4)],
-			[2, monthsFromNow(-1)]
+			[1, dayOf(-4, 15)],
+			[2, dayOf(-1, 15)]
 		]
 	);
 	assert.equal(receipt.remaining, 12000 - 3000 - 4500);
