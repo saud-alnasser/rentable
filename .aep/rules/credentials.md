@@ -118,7 +118,8 @@ invitation code crossed out of `invitation_code` until 2026-09-15; there is one 
 so it crosses out of `member_invite`, `member_reset` and `invitation_link`, and a fresh code means
 a fresh link. Corrected 2026-09-16 (requirements 19 and 20): those three commands are gone, and a
 code crosses out of `member_link_make` alone, which is the one act that makes a link. Nothing hands
-a link over a second time, so nothing reads a code back out of a row.*
+a link over a second time, so nothing reads a code back out of a row. Renamed 2026-09-29 (effort
+840): that act is `invitation_link_make` on the organization plugin, and nothing else changed.*
 
 *Corrected 2026-09-16 ([[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]],
 requirement 16, which supersedes requirement 4): **no link carries a legible credential, and the

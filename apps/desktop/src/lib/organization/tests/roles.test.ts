@@ -44,26 +44,29 @@ test('each role write reaches its own command, with the arguments Rust names', a
 	await tauri.member.create('sami', 'role-7', 64, []);
 
 	assert.deepEqual(asked, [
-		{ command: 'organization_roles', args: undefined },
+		{ command: 'plugin:organization|role_list', args: undefined },
 		{
-			command: 'role_create',
+			command: 'plugin:organization|role_create',
 			args: { name: 'collector', mask: 8, afterRoleId: 'manager' }
 		},
-		{ command: 'role_rename', args: { roleId: 'role-7', name: 'supervisor' } },
-		{ command: 'role_set_mask', args: { roleId: 'role-7', mask: 16 } },
-		{ command: 'role_move', args: { roleId: 'role-7', afterRoleId: 'role-3' } },
-		{ command: 'role_delete', args: { roleId: 'role-7' } },
+		{ command: 'plugin:organization|role_rename', args: { roleId: 'role-7', name: 'supervisor' } },
+		{ command: 'plugin:organization|role_set_mask', args: { roleId: 'role-7', mask: 16 } },
+		{ command: 'plugin:organization|role_move', args: { roleId: 'role-7', afterRoleId: 'role-3' } },
+		{ command: 'plugin:organization|role_delete', args: { roleId: 'role-7' } },
 		{
-			command: 'member_assign_role',
+			command: 'plugin:organization|role_assign',
 			args: { memberId: 'member-2', roleId: 'role-7', overrideMask: null }
 		},
 		{
-			command: 'member_assign_role',
+			command: 'plugin:organization|role_assign',
 			args: { memberId: 'member-2', roleId: 'role-7', overrideMask: 0 }
 		},
-		{ command: 'member_set_override', args: { memberId: 'member-2', overrideMask: 32 } },
 		{
-			command: 'member_create',
+			command: 'plugin:organization|role_set_override',
+			args: { memberId: 'member-2', overrideMask: 32 }
+		},
+		{
+			command: 'plugin:organization|invitation_member_create',
 			args: { username: 'sami', roleId: 'role-7', overrideMask: 64, workspaces: [] }
 		}
 	]);

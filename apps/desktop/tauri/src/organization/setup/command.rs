@@ -42,8 +42,8 @@ use crate::turso::{
 /// A machine with no consent is refused before anything is asked of Turso, with an answer that
 /// says to connect the account first. Every failure after the database exists removes it, so a
 /// first run that did not finish leaves nothing behind; `setup/` says how.
-#[tauri::command]
-pub(crate) async fn organization_create(
+#[tauri::command(rename = "setup_create")]
+pub(crate) async fn organization_setup_create(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
@@ -132,8 +132,8 @@ pub(crate) async fn organization_create(
 /// It reads and nothing else: nothing is minted, nothing is created, no replica is opened and
 /// this machine's record is untouched, so a person who stops here has changed nothing on their
 /// account.
-#[tauri::command]
-pub(crate) async fn organization_group_inspect(
+#[tauri::command(rename = "setup_group_inspect")]
+pub(crate) async fn organization_setup_group_inspect(
     _app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
 ) -> Result<GroupState, Error> {
@@ -159,8 +159,8 @@ pub(crate) async fn organization_group_inspect(
 /// on 2026-09-20). This used to refuse while a machine an owner or an administrator was on had been
 /// seen inside the week, and point at the link that machine could make; the owner is handed no
 /// link, and an account is held on as many machines as its holder signs in on.
-#[tauri::command]
-pub(crate) async fn organization_connect_existing(
+#[tauri::command(rename = "setup_connect_existing")]
+pub(crate) async fn organization_setup_connect_existing(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
@@ -218,8 +218,8 @@ pub(crate) async fn organization_connect_existing(
 /// **The owner is the owner's verified row**, asked for `tursoAccount` (effort 838, requirement
 /// 2), and not the role the session opened with: a founder whose session is still open after
 /// handing the organization over is a manager, and reads nothing here.
-#[tauri::command]
-pub async fn organization_account_refusal_detail(
+#[tauri::command(rename = "setup_account_refusal_detail")]
+pub async fn organization_setup_account_refusal_detail(
     app_state: tauri::State<'_, AppState>,
 ) -> Result<Option<String>, Error> {
     // not through `as_member`: this reads, so it holds the session for reading where every act
@@ -252,8 +252,8 @@ pub async fn organization_account_refusal_detail(
 /// machine can build the Platform API client again: what an owner restored on a new machine
 /// does after repeating the consent. The account is discovered the way the first run
 /// discovered it, and nothing about it was restored from anywhere.
-#[tauri::command]
-pub(crate) async fn organization_reconnect_authority(
+#[tauri::command(rename = "setup_reconnect_authority")]
+pub(crate) async fn organization_setup_reconnect_authority(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
@@ -289,9 +289,9 @@ pub(crate) async fn organization_reconnect_authority(
 ///
 /// Nothing is granted by this call. It claims a loopback port, registers this application as a
 /// public client on it, and returns; what the person does next arrives on that port and is read
-/// by [`organization_consent_result`].
-#[tauri::command]
-pub async fn organization_consent_begin(
+/// by [`organization_setup_consent_result`].
+#[tauri::command(rename = "setup_consent_begin")]
+pub async fn organization_setup_consent_begin(
     app_state: tauri::State<'_, AppState>,
 ) -> Result<TursoConsentStart, Error> {
     app_state.consent.begin(TursoEndpoints::production()).await
@@ -306,8 +306,8 @@ pub async fn organization_consent_begin(
 /// Polled while the status is `pending`. A consent that failed says so and says why; one the
 /// person abandoned says that instead, because closing the browser tab is the ordinary way a
 /// consent ends and there is nothing to report about it.
-#[tauri::command]
-pub(crate) async fn organization_consent_result(
+#[tauri::command(rename = "setup_consent_result")]
+pub(crate) async fn organization_setup_consent_result(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
     session_id: String,
@@ -332,10 +332,11 @@ pub(crate) async fn organization_consent_result(
 /// caller asked for there to be no token, and afterwards there is none.
 ///
 /// *This was `organization_disconnect` until effort 824 gave that name to forgetting the
-/// organization itself (`organization::organization_disconnect`), which clears the authority as
-/// one of its steps; what the setup walk offers is this narrower act, the consent alone.*
-#[tauri::command]
-pub(crate) async fn organization_consent_disconnect(
+/// organization itself (`organization_session_disconnect` since effort 840), which clears the
+/// authority as one of its steps; what the setup walk offers is this narrower act, the consent
+/// alone.*
+#[tauri::command(rename = "setup_consent_disconnect")]
+pub(crate) async fn organization_setup_consent_disconnect(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
 ) -> Result<(), Error> {

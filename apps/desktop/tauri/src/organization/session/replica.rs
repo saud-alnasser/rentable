@@ -24,8 +24,8 @@ use crate::organization::{
 /// slot empty, which is the wall, and the person signs in as they did before. So this answers
 /// with nothing and writes what happened to the diagnostics log.
 ///
-/// The replica is opened the way `organization_sign_in` opens it, through the same call, so a
-/// resumed session reaches its remote on exactly the terms a typed one does.
+/// The replica is opened the way `organization_session_sign_in` opens it, through the same call, so
+/// a resumed session reaches its remote on exactly the terms a typed one does.
 ///
 /// **What the organization says now is read the way the heartbeat reads it**, once the session is
 /// open and its vault can pay for the pull: one call of [`ended_elsewhere`], which pulls, follows

@@ -1086,7 +1086,10 @@ function flagNamed(rust: string): Flag {
 	return flag;
 }
 
-/** Every command in `GATES`, with the gate it names and the flags that gate asks for. */
+/**
+ * Every command in `GATES`, by the name it is invoked by (the plugin's, then the name `GATES` holds),
+ * with the gate it names and the flags that gate asks for.
+ */
 function gatesInRust(source: string): Map<string, Gate> {
 	const start = source.indexOf('const GATES: &[(&str, Gate)] = &[');
 	const table = source.slice(start, source.indexOf('];', start));
@@ -1095,7 +1098,7 @@ function gatesInRust(source: string): Map<string, Gate> {
 	for (const [, command, kind, inner] of table.matchAll(
 		/\(\s*"(\w+)",\s*Gate::(\w+)(?:\(([^()]*)\))?,?\s*\)/g
 	)) {
-		gates.set(command, {
+		gates.set(`plugin:organization|${command}`, {
 			kind,
 			flags: [...(inner ?? '').matchAll(/Flag::(\w+)/g)].map(([, rust]) => flagNamed(rust))
 		});
@@ -1108,42 +1111,42 @@ function gatesInRust(source: string): Map<string, Gate> {
 
 /** Each organization mutation and the Tauri command its host call invokes. */
 const COMMAND_OF: Record<string, string> = {
-	connectExisting: 'organization_connect_existing',
-	'consent.begin': 'organization_consent_begin',
-	'consent.disconnect': 'organization_consent_disconnect',
-	create: 'organization_create',
-	delete: 'organization_delete',
-	disconnect: 'organization_disconnect',
-	groupInspect: 'organization_group_inspect',
-	'invitation.accept': 'invitation_accept',
-	'machine.connect': 'machine_connect',
-	'mark.clear': 'organization_mark_clear',
-	'mark.set': 'organization_mark_set',
-	'member.assignRole': 'member_assign_role',
-	'member.create': 'member_create',
-	'member.endSessions': 'member_end_sessions',
-	'member.linkMake': 'member_link_make',
-	'member.offerOwnership': 'member_offer_ownership',
-	'member.remove': 'member_remove',
-	'member.rename': 'member_rename',
-	'member.setOverride': 'member_set_override',
-	'member.setWorkspaceOverride': 'member_set_workspace_override',
-	'member.unsetPassword': 'member_password_unset',
-	'member.withdrawOffer': 'member_withdraw_offer',
-	ownershipAccept: 'ownership_accept',
-	'password.change': 'organization_change_password',
-	'role.create': 'role_create',
-	'role.delete': 'role_delete',
-	'role.move': 'role_move',
-	'role.rename': 'role_rename',
-	'role.setMask': 'role_set_mask',
-	'session.endElsewhere': 'organization_session_end_elsewhere',
-	'workspace.create': 'workspace_create',
-	'workspace.grant': 'workspace_grant',
-	'workspace.open': 'workspace_open',
-	'workspace.remove': 'workspace_delete',
-	'workspace.renewCredentials': 'organization_renew_credentials',
-	'workspace.withdraw': 'workspace_grant_withdraw'
+	connectExisting: 'plugin:organization|setup_connect_existing',
+	'consent.begin': 'plugin:organization|setup_consent_begin',
+	'consent.disconnect': 'plugin:organization|setup_consent_disconnect',
+	create: 'plugin:organization|setup_create',
+	delete: 'plugin:organization|member_organization_delete',
+	disconnect: 'plugin:organization|session_disconnect',
+	groupInspect: 'plugin:organization|setup_group_inspect',
+	'invitation.accept': 'plugin:organization|invitation_accept',
+	'machine.connect': 'plugin:organization|invitation_machine_connect',
+	'mark.clear': 'plugin:organization|mark_clear',
+	'mark.set': 'plugin:organization|mark_set',
+	'member.assignRole': 'plugin:organization|role_assign',
+	'member.create': 'plugin:organization|invitation_member_create',
+	'member.endSessions': 'plugin:organization|member_end_sessions',
+	'member.linkMake': 'plugin:organization|invitation_link_make',
+	'member.offerOwnership': 'plugin:organization|ownership_offer',
+	'member.remove': 'plugin:organization|member_remove',
+	'member.rename': 'plugin:organization|member_rename',
+	'member.setOverride': 'plugin:organization|role_set_override',
+	'member.setWorkspaceOverride': 'plugin:organization|role_set_workspace_override',
+	'member.unsetPassword': 'plugin:organization|invitation_password_unset',
+	'member.withdrawOffer': 'plugin:organization|ownership_withdraw_offer',
+	ownershipAccept: 'plugin:organization|ownership_accept',
+	'password.change': 'plugin:organization|member_change_password',
+	'role.create': 'plugin:organization|role_create',
+	'role.delete': 'plugin:organization|role_delete',
+	'role.move': 'plugin:organization|role_move',
+	'role.rename': 'plugin:organization|role_rename',
+	'role.setMask': 'plugin:organization|role_set_mask',
+	'session.endElsewhere': 'plugin:organization|session_end_elsewhere',
+	'workspace.create': 'plugin:organization|workspace_create',
+	'workspace.grant': 'plugin:organization|workspace_grant',
+	'workspace.open': 'plugin:organization|workspace_open',
+	'workspace.remove': 'plugin:organization|workspace_delete',
+	'workspace.renewCredentials': 'plugin:organization|workspace_renew_credentials',
+	'workspace.withdraw': 'plugin:organization|workspace_grant_withdraw'
 };
 
 /**

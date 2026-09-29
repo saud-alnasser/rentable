@@ -38,6 +38,7 @@ mod tests {
         for expected in [
             "database",
             "diagnostics",
+            "organization",
             "print",
             "settings",
             "startup",

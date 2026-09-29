@@ -22,15 +22,15 @@ use crate::organization::{
 /// **Nothing crosses back but the account as the directory draws it.** The generated password the
 /// vault is sealed under never leaves `invitation::create_account`, and nothing stores it: the
 /// account holds no password anybody knows until its first link is opened, which is
-/// [`member_link_make`]. Everything the account is made of stays on this side: the vault, the
-/// content key sealed to them, and the grants. A read-only grant is minted with the owner's
-/// authority, which is why the platform is handed in where this machine holds it.
+/// [`organization_invitation_link_make`]. Everything the account is made of stays on this side: the
+/// vault, the content key sealed to them, and the grants. A read-only grant is minted with the
+/// owner's authority, which is why the platform is handed in where this machine holds it.
 ///
 /// **One role and one override** (effort 838, requirement 5): `role_id` names the role the account
 /// holds and `override_mask` the flags switched for them alone, `roleId` and `overrideMask` on the
 /// wire. The second is not spelled `override`, which Rust keeps as a word of its own.
-#[tauri::command]
-pub(crate) async fn member_create(
+#[tauri::command(rename = "invitation_member_create")]
+pub(crate) async fn organization_invitation_member_create(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
@@ -69,8 +69,8 @@ pub(crate) async fn member_create(
 /// The link's text carries the credential sealed and the code is what the person reads off the
 /// screen and reads out on a call; nothing is written under the data directory, and a person who
 /// lost the pair makes another, which drops the one they lost.
-#[tauri::command]
-pub(crate) async fn member_link_make(
+#[tauri::command(rename = "invitation_link_make")]
+pub(crate) async fn organization_invitation_link_make(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
@@ -104,8 +104,8 @@ pub(crate) async fn member_link_make(
 ///
 /// **It hands over nothing.** The answer names the workspaces it could not restore, and the
 /// member's permissions are kept; a link is a separate act on the same account.
-#[tauri::command]
-pub(crate) async fn member_password_unset(
+#[tauri::command(rename = "invitation_password_unset")]
+pub(crate) async fn organization_invitation_password_unset(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
@@ -140,8 +140,8 @@ pub(crate) async fn member_password_unset(
 ///
 /// **`public`, because it happens at the wall.** Neither the credential, the secret nor the
 /// password crosses back; what comes back is where the machine stands, with a session in it.
-#[tauri::command]
-pub(crate) async fn invitation_accept(
+#[tauri::command(rename = "invitation_accept")]
+pub(crate) async fn organization_invitation_accept(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
@@ -186,8 +186,8 @@ pub(crate) async fn invitation_accept(
 /// **The credential is let go of with the replica.** Nobody is signed in here, so the store is
 /// dropped rather than kept, and the sign-in at the wall opens it again
 /// with what the member's vault unseals.
-#[tauri::command]
-pub(crate) async fn machine_connect(
+#[tauri::command(rename = "invitation_machine_connect")]
+pub(crate) async fn organization_invitation_machine_connect(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
@@ -217,8 +217,8 @@ pub(crate) async fn machine_connect(
 /// on the command line, or a link opened while the application was already running and before
 /// the shell was listening. Taken once; the shell reads it at startup and then listens for the
 /// event the same arrival raises afterwards.
-#[tauri::command]
-pub async fn organization_link_take(
+#[tauri::command(rename = "invitation_link_take")]
+pub async fn organization_invitation_link_take(
     app_state: tauri::State<'_, AppState>,
 ) -> Result<Option<String>, Error> {
     let mut arriving = app_state
@@ -235,12 +235,12 @@ pub async fn organization_link_take(
 ///
 /// **A decode and nothing else** (effort 828, requirement 1). Nothing is reached and no row is
 /// read, because there is no credential to read one with until somebody types the code; where the
-/// invitation behind a link stands is judged inside `invitation_accept`, which has one. What
-/// crosses back is what the text says; the credential and the secret stay on this side
+/// invitation behind a link stands is judged inside `organization_invitation_accept`, which has
+/// one. What crosses back is what the text says; the credential and the secret stay on this side
 /// ([[rules/credentials]]). *It was `organization_link_inspect`, which opened the replica with the
 /// link's clear credential before the person had given anything.*
-#[tauri::command]
-pub fn organization_link_read(link: String) -> Result<LinkShape, Error> {
+#[tauri::command(rename = "invitation_link_read")]
+pub fn organization_invitation_link_read(link: String) -> Result<LinkShape, Error> {
     link::read(&link)
 }
 

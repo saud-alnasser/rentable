@@ -86,8 +86,8 @@ pub struct OrganizationState {
 /// **That same first read signs the machine back in** where it stayed signed in (effort 826,
 /// requirement 12), so the shell's first question is already answered with a session and the
 /// application opens on the workspace the person had last, with no wall in between.
-#[tauri::command]
-pub(crate) async fn organization_state_get(
+#[tauri::command(rename = "session_state_get")]
+pub(crate) async fn organization_session_state_get(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
@@ -177,8 +177,8 @@ pub(crate) async fn state_of(
 /// delete every replica under the data directory, empty the record, and clear the Turso
 /// authority. The organization on Turso is untouched, and the person can connect again by the
 /// link. The one confirm before it is the screen's; this asks nothing.
-#[tauri::command]
-pub(crate) async fn organization_disconnect(
+#[tauri::command(rename = "session_disconnect")]
+pub(crate) async fn organization_session_disconnect(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
@@ -202,8 +202,8 @@ pub(crate) async fn organization_disconnect(
 /// skip, and the session that results holds the keys the password unsealed, which a wrong one
 /// never produces. A first sign-in on a handed password spends the invitation and the record
 /// learns which member this person is; `invitation/join.rs` says how.
-#[tauri::command]
-pub(crate) async fn organization_sign_in(
+#[tauri::command(rename = "session_sign_in")]
+pub(crate) async fn organization_session_sign_in(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
@@ -292,8 +292,8 @@ pub(crate) async fn organization_sign_in(
 
 /// Put the wall back up: drop the keys this process held, and let go of the replica. The record
 /// is untouched, so the wall comes back up on the same organization with the same member.
-#[tauri::command]
-pub(crate) async fn organization_sign_out(
+#[tauri::command(rename = "session_sign_out")]
+pub(crate) async fn organization_session_sign_out(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
@@ -304,7 +304,7 @@ pub(crate) async fn organization_sign_out(
 }
 
 /// The sign-out itself: the keys go, the organization replica is dropped, and the key this
-/// machine was staying signed in on is deleted. What `organization_sign_out` does, and what
+/// machine was staying signed in on is deleted. What `organization_session_sign_out` does, and what
 /// `forget` does first, so that letting go of the replica is one routine and the file it held can
 /// be deleted afterwards.
 ///
@@ -374,16 +374,16 @@ async fn current_facts(app_state: &AppState) -> Result<Option<SessionFacts>, Err
 /// **What comes back says whether the bump went out.** A push that could not go leaves the other
 /// machines open until one does, and the account section says so rather than reporting the act
 /// done.
-#[tauri::command]
+#[tauri::command(rename = "session_end_elsewhere")]
 pub(crate) async fn organization_session_end_elsewhere(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
 ) -> Result<SessionsEnded, Error> {
-    // before the bump, as `invitation_accept` pulls before it admits: the new number is one past
-    // the row's, and a row this machine has not refreshed since somebody else's sign-out is a
-    // number already reached, which would write nothing and report the sessions ended. A pull
-    // that could not go is the offline case and leaves the row as it stands.
+    // before the bump, as `organization_invitation_accept` pulls before it admits: the new number
+    // is one past the row's, and a row this machine has not refreshed since somebody else's
+    // sign-out is a number already reached, which would write nothing and report the sessions
+    // ended. A pull that could not go is the offline case and leaves the row as it stands.
     as_member(&app_state, Pull::First, async |Acting { member, store }| {
         Ok(SessionsEnded {
             sent: session::end_elsewhere(credentials.inner().as_ref(), store, member, clock.now())
@@ -413,8 +413,8 @@ pub(crate) async fn organization_session_end_elsewhere(
 /// machine nobody is touching; it pulls the organization replica as well and, where the member's
 /// row has moved past the session, empties the member slot, forgets the remembered key and says
 /// so on `standing`. The shell reads that and puts the wall up.
-#[tauri::command]
-pub(crate) async fn remote_sync_replicate(
+#[tauri::command(rename = "session_replicate")]
+pub(crate) async fn organization_session_replicate(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
@@ -572,7 +572,7 @@ pub enum SessionStanding {
 
 /// The refusal as the web layer reads it: which kind, `none`, `account` or `credential`, and never
 /// Turso's sentence, which is the owner's alone and read through
-/// `organization_account_refusal_detail`.
+/// `organization_setup_account_refusal_detail`.
 ///
 /// *This was `ReplicationRefusal`, an enum of the three words, until effort 840 left the crate one
 /// error type (ticket 47). The words are the ones it serialised to, and
@@ -913,8 +913,9 @@ mod tests {
         let app_state = first_run(credentials.as_ref(), &directory).await;
         let (organization_id, member_id) = recorded(&app_state).await;
 
-        // the sign-in at the wall, which is what `organization_sign_in` performs: the replica is
-        // opened, the password is tried, and the record is written back naming the member.
+        // the sign-in at the wall, which is what `organization_session_sign_in` performs: the
+        // replica is opened, the password is tried, and the record is written back naming the
+        // member.
         let held = {
             let mut remote_sync = app_state.remote_sync.write().await;
 

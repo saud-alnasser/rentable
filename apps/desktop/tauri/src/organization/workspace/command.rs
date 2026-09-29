@@ -22,8 +22,8 @@ use crate::turso::platform::AccessLevel;
 
 /// Create a workspace on the account, migrated and granted to the owner. Owner only, at the
 /// command: anybody else is told to ask the owner, before any request.
-#[tauri::command]
-pub(crate) async fn workspace_create(
+#[tauri::command(rename = "workspace_create")]
+pub(crate) async fn organization_workspace_create(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
@@ -47,8 +47,8 @@ pub(crate) async fn workspace_create(
 
 /// Grant a workspace to a member. Full access re-seals the caller's own credential; read-only is
 /// minted, which only the owner's machine can do.
-#[tauri::command]
-pub(crate) async fn workspace_grant(
+#[tauri::command(rename = "workspace_grant")]
+pub(crate) async fn organization_workspace_grant(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
     workspace_id: String,
@@ -73,8 +73,8 @@ pub(crate) async fn workspace_grant(
 /// Take a workspace back from a member: the grant row goes, and nothing is minted or rotated, so
 /// the credential they already hold works until it expires as an ordinary removal's does. The act
 /// is the one that gives; the owner's own grant is refused.
-#[tauri::command]
-pub async fn workspace_grant_withdraw(
+#[tauri::command(rename = "workspace_grant_withdraw")]
+pub async fn organization_workspace_grant_withdraw(
     app_state: tauri::State<'_, AppState>,
     workspace_id: String,
     member_id: String,
@@ -87,8 +87,8 @@ pub async fn workspace_grant_withdraw(
 
 /// Delete a workspace: the one moment requirement 4 permits deleting a database, through the one
 /// intent the port takes for it. Owner only.
-#[tauri::command]
-pub(crate) async fn workspace_delete(
+#[tauri::command(rename = "workspace_delete")]
+pub(crate) async fn organization_workspace_delete(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
     workspace_id: String,
@@ -126,8 +126,8 @@ struct MigrationNotice {
 ///
 /// **The credential never leaves Rust.** What comes back is the workspace as a fact; the token is
 /// in the sync state's own hands and the replica asks it per request.
-#[tauri::command]
-pub(crate) async fn workspace_open(
+#[tauri::command(rename = "workspace_open")]
+pub(crate) async fn organization_workspace_open(
     app: tauri::AppHandle,
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
@@ -257,8 +257,8 @@ pub(crate) async fn workspace_open(
 
 /// Mint fresh credentials for every grant and re-seal them, on the owner's machine. Answers with
 /// how many grants were renewed.
-#[tauri::command]
-pub(crate) async fn organization_renew_credentials(
+#[tauri::command(rename = "workspace_renew_credentials")]
+pub(crate) async fn organization_workspace_renew_credentials(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
 ) -> Result<usize, Error> {
@@ -314,8 +314,8 @@ pub(crate) async fn hold_renewed_token(app_state: &AppState, member: &MemberSess
 /// every launch. A machine that is not the owner's, or holds no authority, or is not signed in,
 /// answers `false` and does nothing, so the caller can fire it and forget it. It never blocks
 /// sign-in, which works offline (requirement 18).
-#[tauri::command]
-pub(crate) async fn organization_renew_due(
+#[tauri::command(rename = "workspace_renew_due")]
+pub(crate) async fn organization_workspace_renew_due(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
@@ -330,7 +330,7 @@ pub(crate) async fn organization_renew_due(
             return Ok(false);
         }
 
-        // after a pull, for the reason `organization_renew_credentials` gives.
+        // after a pull, for the reason `organization_workspace_renew_credentials` gives.
         store.pull().await;
 
         let now = clock.now();
@@ -352,7 +352,7 @@ pub(crate) async fn organization_renew_due(
 
 /// Rename the workspace this machine has open, on the organization database, and on this
 /// machine's own record of it so the rail reads the new name before the next pull. What
-/// `remote_sync_rename_workspace` calls; both live here because the name is the organization's.
+/// `organization_workspace_rename` calls; both live here because the name is the organization's.
 pub(crate) async fn rename_current_workspace(
     app_state: &AppState,
     name: &str,
@@ -389,8 +389,8 @@ pub(crate) async fn rename_current_workspace(
 /// The name is validated by the form before it gets here and again by the shell, which is what
 /// stores it. Nothing is validated in between: a third opinion in the middle would be the one
 /// that goes stale.
-#[tauri::command]
-pub async fn remote_sync_rename_workspace(
+#[tauri::command(rename = "workspace_rename")]
+pub async fn organization_workspace_rename(
     app_state: tauri::State<'_, AppState>,
     name: String,
 ) -> Result<RemoteSyncState, Error> {

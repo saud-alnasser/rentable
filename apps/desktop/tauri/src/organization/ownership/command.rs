@@ -23,8 +23,8 @@ use crate::organization::{
 /// and every signature stay as they were until the other person accepts on a machine of their own.
 ///
 /// What comes back is the offered account as the members list shows them.
-#[tauri::command]
-pub async fn member_offer_ownership(
+#[tauri::command(rename = "ownership_offer")]
+pub async fn organization_ownership_offer(
     app_state: tauri::State<'_, AppState>,
     clock: tauri::State<'_, clock::Shared>,
     member_id: String,
@@ -43,8 +43,8 @@ pub async fn member_offer_ownership(
 /// The owner's, and it asks for no password: nothing is unsealed and what is being undone is
 /// something this person did. Whether an offer stands at all is Rust's to answer, and the refusal
 /// where none does is the sentence the members section shows.
-#[tauri::command]
-pub async fn member_withdraw_offer(
+#[tauri::command(rename = "ownership_withdraw_offer")]
+pub async fn organization_ownership_withdraw_offer(
     app_state: tauri::State<'_, AppState>,
     clock: tauri::State<'_, clock::Shared>,
 ) -> Result<(), Error> {
@@ -69,8 +69,8 @@ pub async fn member_withdraw_offer(
 /// The Turso account does not move with the ownership: until the new owner grants the consent on
 /// their own machine the acts that mint run on the founder's machine or not at all, which is what
 /// the Turso account block in the organization section says beside the reconnect.
-#[tauri::command]
-pub(crate) async fn ownership_accept(
+#[tauri::command(rename = "ownership_accept")]
+pub(crate) async fn organization_ownership_accept(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,

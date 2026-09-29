@@ -33,8 +33,7 @@ use state::AppState;
 use std::env;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use tauri::{Emitter, Manager, async_runtime};
-use tauri_plugin_deep_link::DeepLinkExt;
+use tauri::{Manager, async_runtime};
 use tauri_plugin_fs::FsExt;
 use tokio::sync::RwLock;
 
@@ -43,31 +42,6 @@ use crate::persisted::Persisted;
 use crate::settings::Settings;
 use crate::turso::consent::TursoConsent;
 use crate::update::Update;
-
-/// The event the shell listens to for a link that arrives while it is running.
-pub const LINK_ARRIVED_EVENT: &str = "organization:link";
-
-/// A `rentable://` link reached this process: hold it for the shell to take, and tell the shell.
-/// Held as well as announced because the two races both happen: a launch hands the link over
-/// before the webview exists, and an arrival while running finds the webview listening.
-fn arrive(handle: &tauri::AppHandle, link: String) {
-    if let Some(state) = handle.try_state::<AppState>()
-        && let Ok(mut arriving) = state.arriving_link.lock()
-    {
-        *arriving = Some(link.clone());
-    }
-
-    if let Err(error) = handle.emit(LINK_ARRIVED_EVENT, link) {
-        diagnostics::warn("organization.link.notAnnounced")
-            .with("error", error.to_string().as_str())
-            .write();
-    }
-
-    if let Some(window) = handle.get_webview_window("main") {
-        let _ = window.show();
-        let _ = window.set_focus();
-    }
-}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -111,6 +85,7 @@ pub fn run() {
         .plugin(transfer::plugin())
         .plugin(startup::plugin())
         .plugin(sync::plugin())
+        .plugin(organization::plugin())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -206,93 +181,15 @@ pub fn run() {
                 });
             });
 
-            // **How a join link reaches the application** (`organization/invitation/join.rs`
-            // records the decision). The `rentable` scheme is registered with the operating system
-            // by the installer on Windows and Linux and by `Info.plist` on macOS, from the plugin's
-            // configuration; a development build has no installer, so it registers the scheme for
-            // its own executable here, and a failure to is logged rather than fatal, because the
-            // join screen also takes a pasted link.
-            #[cfg(all(debug_assertions, any(windows, target_os = "linux")))]
-            if let Err(error) = app.deep_link().register_all() {
-                diagnostics::warn("organization.link.schemeNotRegistered")
-                    .with("error", error.to_string().as_str())
-                    .write();
-            }
-
-            // a link opened while the application runs, or forwarded by the second launch the
-            // single-instance plugin turned away: held for the shell to take, and announced to it.
-            let handle = app.handle().clone();
-
-            app.deep_link().on_open_url(move |event| {
-                let Some(link) = event.urls().first().map(|url| url.to_string()) else {
-                    return;
-                };
-
-                arrive(&handle, link);
-            });
-
-            // the link this process was launched with, if any.
-            if let Ok(Some(urls)) = app.deep_link().get_current()
-                && let Some(link) = urls.first().map(|url| url.to_string())
-            {
-                arrive(app.handle(), link);
-            }
+            // a `rentable://` link: the one this process was launched with, and any opened while
+            // it runs. Here and not in the organization plugin's setup, because it shows the main
+            // window and holds the link in the state managed above, and a plugin's setup runs
+            // before either exists (`organization/invitation/arrival.rs`).
+            organization::invitation::arrival::receive(app);
 
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            organization::workspace::remote_sync_rename_workspace,
-            organization::session::remote_sync_replicate,
-            organization::setup::organization_consent_begin,
-            organization::setup::organization_consent_result,
-            organization::setup::organization_consent_disconnect,
-            organization::setup::organization_create,
-            organization::setup::organization_group_inspect,
-            organization::setup::organization_connect_existing,
-            organization::session::organization_disconnect,
-            organization::member::organization_delete,
-            organization::session::organization_state_get,
-            organization::session::organization_sign_in,
-            organization::session::organization_sign_out,
-            organization::workspace::workspace_create,
-            organization::workspace::workspace_grant,
-            organization::workspace::workspace_grant_withdraw,
-            organization::workspace::workspace_delete,
-            organization::workspace::workspace_open,
-            organization::workspace::organization_renew_credentials,
-            organization::workspace::organization_renew_due,
-            organization::invitation::member_create,
-            organization::invitation::member_link_make,
-            organization::invitation::member_password_unset,
-            organization::role::organization_roles,
-            organization::role::role_create,
-            organization::role::role_rename,
-            organization::role::role_set_mask,
-            organization::role::role_move,
-            organization::role::role_delete,
-            organization::role::member_assign_role,
-            organization::role::member_set_override,
-            organization::role::member_set_workspace_override,
-            organization::ownership::member_offer_ownership,
-            organization::ownership::member_withdraw_offer,
-            organization::ownership::ownership_accept,
-            organization::member::member_rename,
-            organization::mark::organization_mark_get,
-            organization::mark::organization_mark_set,
-            organization::mark::organization_mark_clear,
-            organization::member::member_remove,
-            organization::member::member_lock_out_cost,
-            organization::member::member_end_sessions,
-            organization::session::organization_session_end_elsewhere,
-            organization::member::organization_change_password,
-            organization::setup::organization_account_refusal_detail,
-            organization::invitation::invitation_accept,
-            organization::invitation::machine_connect,
-            organization::member::organization_members,
-            organization::member::organization_member_standings,
-            organization::invitation::organization_link_take,
-            organization::invitation::organization_link_read,
-            organization::setup::organization_reconnect_authority,
             upgrade::record::earlier_find,
             upgrade::record::earlier_read,
         ])

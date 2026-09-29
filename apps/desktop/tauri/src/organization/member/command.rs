@@ -29,8 +29,8 @@ use crate::organization::{
 ///
 /// What comes back is where the machine stands, which is a machine holding nothing: the shell
 /// reads it and raises the first screen, exactly as a disconnect leaves it.
-#[tauri::command]
-pub(crate) async fn organization_delete(
+#[tauri::command(rename = "member_organization_delete")]
+pub(crate) async fn organization_member_organization_delete(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
@@ -62,8 +62,8 @@ pub(crate) async fn organization_delete(
 /// the owner's; the username is
 /// held to the same rules and the same uniqueness as an invitation's. What comes back is the
 /// member as the list shows them.
-#[tauri::command]
-pub async fn member_rename(
+#[tauri::command(rename = "member_rename")]
+pub async fn organization_member_rename(
     app_state: tauri::State<'_, AppState>,
     clock: tauri::State<'_, clock::Shared>,
     member_id: String,
@@ -84,8 +84,8 @@ pub async fn member_rename(
 /// they signed in on were staying signed in with; the password they know still opens their vault.
 /// The caller's own row is refused, because that is `organization_session_end_elsewhere` and
 /// keeps this machine in, and the owner's is refused to anybody but the owner.
-#[tauri::command]
-pub async fn member_end_sessions(
+#[tauri::command(rename = "member_end_sessions")]
+pub async fn organization_member_end_sessions(
     app_state: tauri::State<'_, AppState>,
     clock: tauri::State<'_, clock::Shared>,
     member_id: String,
@@ -103,8 +103,8 @@ pub async fn member_end_sessions(
 
 /// What locking a member out would cost, said before it is done: which workspaces rotate and how
 /// many other members stop syncing until their application reconnects.
-#[tauri::command]
-pub async fn member_lock_out_cost(
+#[tauri::command(rename = "member_lock_out_cost")]
+pub async fn organization_member_lock_out_cost(
     app_state: tauri::State<'_, AppState>,
     member_id: String,
 ) -> Result<LockOutCost, Error> {
@@ -127,8 +127,8 @@ pub async fn member_lock_out_cost(
 /// disturbed. `true` rotates every workspace they held, which cuts them off at once and stops
 /// every remaining member of those workspaces syncing until their application collects a fresh
 /// credential; it is the owner's, because rotating needs the turso authority.
-#[tauri::command]
-pub(crate) async fn member_remove(
+#[tauri::command(rename = "member_remove")]
+pub(crate) async fn organization_member_remove(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
@@ -164,8 +164,8 @@ pub(crate) async fn member_remove(
 
 /// Change the signed-in member's own password. The current one opens the vault, the new one has
 /// to reach the floor, and nothing else on the database moves. Neither password crosses back.
-#[tauri::command]
-pub(crate) async fn organization_change_password(
+#[tauri::command(rename = "member_change_password")]
+pub(crate) async fn organization_member_change_password(
     app_state: tauri::State<'_, AppState>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
@@ -193,8 +193,8 @@ pub(crate) async fn organization_change_password(
 /// workspaces each holds with their access. *There was a second command answering the invitations
 /// until effort 826, which folded the unspent one into the row; effort 828 dropped it again, since
 /// nothing read it.*
-#[tauri::command]
-pub async fn organization_members(
+#[tauri::command(rename = "member_list")]
+pub async fn organization_member_list(
     app_state: tauri::State<'_, AppState>,
 ) -> Result<Vec<MemberFacts>, Error> {
     as_member(&app_state, Pull::No, async |Acting { member, store }| {
@@ -211,7 +211,7 @@ pub async fn organization_members(
 /// password is on the signed member row and the machine is on the unsigned register every machine
 /// writes for itself. Asked apart, a list of people is still a list of people when the register
 /// says nothing, and the directory joins the two on the member's id.
-#[tauri::command]
+#[tauri::command(rename = "member_standings")]
 pub async fn organization_member_standings(
     app_state: tauri::State<'_, AppState>,
     clock: tauri::State<'_, clock::Shared>,

@@ -51,8 +51,8 @@
 //! puts the connect screen on with the link already in it. A person whose platform did not hand
 //! the link over, a chat client that refuses unknown schemes, a link copied as text, pastes it
 //! into the same screen; that is the fallback and not the design. Both are in
-//! `organization/invitation/command.rs`'s `organization_link_take` and the shell's listener, and
-//! the decision is recorded here because the join ticket made it.
+//! `organization/invitation/command.rs`'s `organization_invitation_link_take` and the shell's
+//! listener, and the decision is recorded here because the join ticket made it.
 
 use std::sync::{Arc, Mutex};
 
@@ -1416,8 +1416,8 @@ mod tests {
 
     /// Signing out leaves the record naming the organization with its member: the sign-out
     /// drops the keys this process held and the replica, and the record on disk is exactly what
-    /// the sign-in wrote. Driven through the routine `organization_sign_out` calls, over the whole
-    /// application state built the way `lib.rs` builds it.
+    /// the sign-in wrote. Driven through the routine `organization_session_sign_out` calls, over
+    /// the whole application state built the way `lib.rs` builds it.
     #[tokio::test]
     async fn signing_out_leaves_the_record_naming_the_organization_with_its_member() {
         let credentials = Memory::new();

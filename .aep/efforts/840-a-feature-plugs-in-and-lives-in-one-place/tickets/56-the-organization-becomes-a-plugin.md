@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [55]
 ---
 # refactor(tauri): the organization becomes a plugin
@@ -14,9 +14,9 @@ The spec is [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]]; the 
 
 Traces requirement 9 of [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]], and criterion 9.
 
-- [ ] `organization` is a plugin; `lib.rs` names none of its commands (criterion 9).
-- [ ] A link launch while closed still shows the window: a test where one can reach it, and the human check at the close.
-- [ ] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19).
+- [x] `organization` is a plugin; `lib.rs` names none of its commands (criterion 9). Verified: `organization/plugin.rs` registers all 52 organization commands as `organization_<sub>_<act>` with IPC names `<sub>_<act>`; `lib.rs`'s `generate_handler!` holds only `upgrade::record::earlier_find` and `earlier_read`, and the frontend's only bare invoke strings are those two; `acl.rs` and `every_organization_command_names_its_gate` (now reading `plugin.rs` and `rename`) pass. The child's before-and-after comparison: all 52 invoke pairs match its map, argument shapes unchanged.
+- [x] A link launch while closed still shows the window: a test where one can reach it, and the human check at the close. Verified: `links_are_received_once_the_window_and_the_state_exist` passes: in `lib.rs`, `.setup(` precedes `handle.manage(AppState` precedes `arrival::receive(app)`, and no `src/*/plugin.rs` receives links; the link arrival lives in `organization/invitation/arrival.rs`, still called from the app's `.setup`. That the window shows on a link launch while closed is held for the human check at the close (the mock runtime cannot observe it).
+- [x] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19). Verified: in the run's tree, integrated over ticket 41: `cargo fmt --check` 0, `cargo build` finished, `cargo test --lib` `646 passed; 0 failed; 11 ignored`, check 0, eslint 0, vitest 0, build:web 0, validate 0; node tests fail only the date-dependent receipt test.
 
 ## Relevant areas
 

@@ -20,9 +20,12 @@
 //! their removal (`member/`), the roles (`role/`), the handover (`ownership/`), the workspaces
 //! (`workspace/`) and the lease their schema is brought up under (`lease/`), and the mark the
 //! organization prints (`mark/`). What every command does first, acting as the signed-in member,
-//! is `act.rs`. The owner's upgrade of an organization an earlier version made, which runs once, is
-//! not here: it is `upgrade/format/`, with everything else that brings an older install forward,
-//! and the session is what reaches it.
+//! is `act.rs`. The commands are served as one plugin, `organization`, whose handler in `plugin.rs`
+//! lists every sub-concept's: a command answers to its Rust name without `organization_`, so
+//! `organization_member_rename` is invoked as `plugin:organization|member_rename`. The owner's
+//! upgrade of an organization an earlier version made, which runs once, is not here: it is
+//! `upgrade/format/`, with everything else that brings an older install forward, and the session
+//! is what reaches it.
 
 mod act;
 pub mod authority;
@@ -31,6 +34,7 @@ pub mod lease;
 pub mod mark;
 pub mod member;
 pub mod ownership;
+mod plugin;
 pub mod role;
 pub mod session;
 pub mod setup;
@@ -41,6 +45,8 @@ pub mod workspace;
 /// the record (`machine`), which is what it is part of; named here, where the organization's own
 /// code reads and writes it.
 pub use crate::machine::HeldOrganization;
+
+pub use plugin::plugin;
 
 #[cfg(test)]
 mod tests {
@@ -81,42 +87,42 @@ mod tests {
 
     /// Every command the sub-concepts declare, with its gate.
     const GATES: &[(&str, Gate)] = &[
-        ("organization_create", Gate::Public),
-        ("organization_group_inspect", Gate::Public),
-        ("organization_connect_existing", Gate::Public),
-        ("organization_state_get", Gate::Public),
-        ("organization_disconnect", Gate::ThisMachine),
-        ("organization_delete", Gate::Owner(Flag::DeleteOrganization)),
-        ("organization_sign_in", Gate::Public),
-        ("organization_sign_out", Gate::ThisMachine),
+        ("setup_create", Gate::Public),
+        ("setup_group_inspect", Gate::Public),
+        ("setup_connect_existing", Gate::Public),
+        ("session_state_get", Gate::Public),
+        ("session_disconnect", Gate::ThisMachine),
+        (
+            "member_organization_delete",
+            Gate::Owner(Flag::DeleteOrganization),
+        ),
+        ("session_sign_in", Gate::Public),
+        ("session_sign_out", Gate::ThisMachine),
         ("workspace_create", Gate::Owner(Flag::CreateWorkspace)),
         ("workspace_grant", Gate::Flag(Flag::GrantWorkspace)),
         ("workspace_grant_withdraw", Gate::Flag(Flag::GrantWorkspace)),
         ("workspace_delete", Gate::Owner(Flag::DeleteWorkspace)),
         ("workspace_open", Gate::Own),
         (
-            "organization_renew_credentials",
+            "workspace_renew_credentials",
             Gate::Owner(Flag::RenewCredentials),
         ),
+        ("workspace_renew_due", Gate::Owner(Flag::RenewCredentials)),
         (
-            "organization_renew_due",
-            Gate::Owner(Flag::RenewCredentials),
-        ),
-        (
-            "member_create",
+            "invitation_member_create",
             Gate::AllFlags(&[Flag::InviteMember, Flag::GrantWorkspace]),
         ),
         (
-            "member_link_make",
+            "invitation_link_make",
             Gate::AnyFlag(&[Flag::InviteMember, Flag::ResetPassword]),
         ),
         (
-            "member_password_unset",
+            "invitation_password_unset",
             Gate::AllFlags(&[Flag::ResetPassword, Flag::GrantWorkspace]),
         ),
         ("invitation_accept", Gate::Public),
-        ("machine_connect", Gate::Public),
-        ("organization_roles", Gate::SignedIn),
+        ("invitation_machine_connect", Gate::Public),
+        ("role_list", Gate::SignedIn),
         ("role_create", Gate::Flag(Flag::ManageRoles)),
         ("role_rename", Gate::Flag(Flag::ManageRoles)),
         ("role_set_mask", Gate::Flag(Flag::ManageRoles)),
@@ -124,51 +130,45 @@ mod tests {
         ("role_delete", Gate::Flag(Flag::ManageRoles)),
         // and `overrideMember` too, where the override given with the role is not the one the
         // member carries (`role::assign_role`).
-        ("member_assign_role", Gate::Flag(Flag::AssignRole)),
-        ("member_set_override", Gate::Flag(Flag::OverrideMember)),
+        ("role_assign", Gate::Flag(Flag::AssignRole)),
+        ("role_set_override", Gate::Flag(Flag::OverrideMember)),
         (
-            "member_set_workspace_override",
+            "role_set_workspace_override",
             Gate::Flag(Flag::OverrideMember),
         ),
+        ("ownership_offer", Gate::Owner(Flag::TransferOwnership)),
         (
-            "member_offer_ownership",
-            Gate::Owner(Flag::TransferOwnership),
-        ),
-        (
-            "member_withdraw_offer",
+            "ownership_withdraw_offer",
             Gate::Owner(Flag::TransferOwnership),
         ),
         ("ownership_accept", Gate::Own),
         ("member_rename", Gate::Flag(Flag::RenameMember)),
-        ("organization_mark_get", Gate::SignedIn),
-        ("organization_mark_set", Gate::Flag(Flag::ManageMark)),
-        ("organization_mark_clear", Gate::Flag(Flag::ManageMark)),
-        ("organization_session_end_elsewhere", Gate::Own),
+        ("mark_get", Gate::SignedIn),
+        ("mark_set", Gate::Flag(Flag::ManageMark)),
+        ("mark_clear", Gate::Flag(Flag::ManageMark)),
+        ("session_end_elsewhere", Gate::Own),
         ("member_end_sessions", Gate::Flag(Flag::ResetPassword)),
         ("member_lock_out_cost", Gate::Flag(Flag::RemoveMember)),
         ("member_remove", Gate::Flag(Flag::RemoveMember)),
         (
-            "organization_account_refusal_detail",
+            "setup_account_refusal_detail",
             Gate::Owner(Flag::TursoAccount),
         ),
-        ("organization_change_password", Gate::Own),
-        ("organization_members", Gate::SignedIn),
-        ("organization_member_standings", Gate::SignedIn),
-        ("organization_link_take", Gate::Public),
-        ("organization_link_read", Gate::Public),
-        ("organization_reconnect_authority", Gate::ThisMachine),
+        ("member_change_password", Gate::Own),
+        ("member_list", Gate::SignedIn),
+        ("member_standings", Gate::SignedIn),
+        ("invitation_link_take", Gate::Public),
+        ("invitation_link_read", Gate::Public),
+        ("setup_reconnect_authority", Gate::ThisMachine),
         // the Turso consent this machine holds, which the setup walk asks for before there is
         // anybody to act as, and hands back.
-        ("organization_consent_begin", Gate::ThisMachine),
-        ("organization_consent_result", Gate::ThisMachine),
-        ("organization_consent_disconnect", Gate::ThisMachine),
+        ("setup_consent_begin", Gate::ThisMachine),
+        ("setup_consent_result", Gate::ThisMachine),
+        ("setup_consent_disconnect", Gate::ThisMachine),
         // the heartbeat over this machine's own replicas; it asks nothing of a row, and a member
         // signed out elsewhere ends it before anything is pushed.
-        ("remote_sync_replicate", Gate::ThisMachine),
-        (
-            "remote_sync_rename_workspace",
-            Gate::Flag(Flag::RenameWorkspace),
-        ),
+        ("session_replicate", Gate::ThisMachine),
+        ("workspace_rename", Gate::Flag(Flag::RenameWorkspace)),
     ];
 
     /// Every sub-concept's commands, where each declares them.
@@ -183,15 +183,34 @@ mod tests {
         include_str!("workspace/command.rs"),
     ];
 
-    /// The name of every `#[tauri::command]` in a source file, in order.
+    /// The name a command is invoked by: its function name without `organization_`, since the
+    /// plugin supplies it, as `build.rs` derives it for the ACL.
+    fn invoked_as(function: &str) -> String {
+        function
+            .strip_prefix("organization_")
+            .unwrap_or(function)
+            .to_string()
+    }
+
+    /// The name every `#[tauri::command]` in a source file is invoked by, in order: the one its
+    /// `rename = ".."` gives, or its function's where it has none.
     fn declared_commands(source: &str) -> Vec<String> {
         let lines: Vec<&str> = source.lines().collect();
 
         lines
             .iter()
             .enumerate()
-            .filter(|(_, line)| line.trim() == "#[tauri::command]")
-            .filter_map(|(index, _)| {
+            .filter_map(|(index, line)| {
+                let attribute = line.trim().strip_prefix("#[tauri::command")?;
+
+                if let Some(renamed) = attribute.strip_prefix("(rename = \"") {
+                    return Some(renamed.split('"').next()?.to_string());
+                }
+
+                if attribute != "]" {
+                    return None;
+                }
+
                 let signature = lines.get(index + 1)?.trim();
                 // a command that takes the credential store is `pub(crate)`, because the store's
                 // trait is private to the crate ([[rules/credentials]]).
@@ -200,25 +219,25 @@ mod tests {
                     .or_else(|| signature.strip_prefix("pub(crate) async fn "))
                     .or_else(|| signature.strip_prefix("pub fn "))?;
 
-                Some(name.split('(').next()?.to_string())
+                Some(invoked_as(name.split('(').next()?))
             })
             .collect()
     }
 
-    /// Every command of this module the application registers: each
-    /// `organization::<sub-concept>::<name>` in `lib.rs`'s handler list, by its name.
+    /// Every command the plugin registers: each `super::<sub-concept>::<name>` in its handler, by
+    /// the name it is invoked by.
     fn registered_commands(source: &str) -> Vec<String> {
         let handlers = source
             .split("tauri::generate_handler![")
             .nth(1)
             .and_then(|rest| rest.split(']').next())
-            .expect("lib.rs registers no handlers");
+            .expect("the organization plugin registers no handlers");
 
         handlers
             .split(',')
-            .filter_map(|entry| entry.trim().strip_prefix("organization::"))
+            .filter_map(|entry| entry.trim().strip_prefix("super::"))
             .filter_map(|path| path.rsplit("::").next())
-            .map(str::to_string)
+            .map(invoked_as)
             .collect()
     }
 
@@ -240,14 +259,14 @@ mod tests {
         )
     }
 
-    /// **Criterion 1, the Rust half.** Every command this module declares, and every one the
-    /// application registers from it, names its gate here; a command with none fails, naming it,
+    /// **Criterion 1, the Rust half.** Every command this module declares, and every one its
+    /// plugin registers, names its gate here; a command with none fails, naming it,
     /// and so does a gate for a command that is gone. The flags named are the vocabulary's own,
     /// so each is a bit a refusal names.
     #[test]
     fn every_organization_command_names_its_gate() {
         let declared = declared_commands(&SOURCES.concat());
-        let registered = registered_commands(include_str!("../lib.rs"));
+        let registered = registered_commands(include_str!("plugin.rs"));
 
         assert!(
             declared.len() > 40,
@@ -264,7 +283,7 @@ mod tests {
                 sorted.sort();
                 sorted
             },
-            "lib.rs registers a different set of organization commands than the sub-concepts declare"
+            "the plugin registers a different set of organization commands than the sub-concepts declare"
         );
 
         let (without, stale) = ungated(&declared, GATES);
@@ -295,7 +314,7 @@ mod tests {
         // and the check itself: a command declared with no gate is named.
         let (without, _) = ungated(
             &["member_widen_everything".to_string()],
-            &[("organization_members", Gate::SignedIn)],
+            &[("member_list", Gate::SignedIn)],
         );
 
         assert_eq!(without, vec!["member_widen_everything".to_string()]);

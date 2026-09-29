@@ -28,8 +28,8 @@
 //! `member` table has no `owner_seed_sealed` column, which is every replica written before effort
 //! 828's requirement 22 gave the founder's key a row to be handed over in, and which every read of
 //! a member row names. The last five are a local read of the replica's schema, before any pull,
-//! so an unreachable remote does not stop the check. It runs on the first `organization_state_get`
-//! of a launch, before anything else opens the replica.
+//! so an unreachable remote does not stop the check. It runs on the first
+//! `organization_session_state_get` of a launch, before anything else opens the replica.
 //!
 //! *There was a ninth sign, and effort 838 both added it and retired it (ticket 22).*
 //! A replica with no `format` table is every organization made before effort 838's format break,

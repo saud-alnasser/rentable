@@ -118,6 +118,7 @@
 //! under the resetter first, and a row the resetter could not sign refuses the reset by name.
 
 mod account;
+pub mod arrival;
 mod command;
 pub mod connect;
 pub mod join;

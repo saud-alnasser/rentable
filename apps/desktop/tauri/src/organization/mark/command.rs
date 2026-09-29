@@ -10,7 +10,7 @@ use crate::organization::{
 /// The organization's mark, a signature or a seal, opened for the pages it is printed on and the
 /// settings it is set in; nothing where none is set. Any signed-in member reads it, from the
 /// replica, offline included.
-#[tauri::command]
+#[tauri::command(rename = "mark_get")]
 pub async fn organization_mark_get(
     app_state: tauri::State<'_, AppState>,
 ) -> Result<Option<mark::MarkFacts>, Error> {
@@ -23,7 +23,7 @@ pub async fn organization_mark_get(
 /// Keep the image at `path`, which the open dialog chose, as the organization's mark. It is read
 /// here rather than handed over, checked by its bytes, sealed, written and sent; whoever carries
 /// `manageMark` does it.
-#[tauri::command]
+#[tauri::command(rename = "mark_set")]
 pub async fn organization_mark_set(
     app_state: tauri::State<'_, AppState>,
     clock: tauri::State<'_, clock::Shared>,
@@ -44,7 +44,7 @@ pub async fn organization_mark_set(
 }
 
 /// Remove the organization's mark; whoever carries `manageMark` does it.
-#[tauri::command]
+#[tauri::command(rename = "mark_clear")]
 pub async fn organization_mark_clear(app_state: tauri::State<'_, AppState>) -> Result<(), Error> {
     as_member(&app_state, Pull::No, async |Acting { member, store }| {
         mark::clear_mark(store, member).await

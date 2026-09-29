@@ -45,8 +45,8 @@ pub(crate) async fn forget(
     // way at once rather than in a week.
     super::leave_registry(app_state).await;
 
-    // the sign-out, the one `organization_sign_out` performs: the keys go and the organization
-    // replica is dropped, which is what lets its file be deleted below.
+    // the sign-out, the one `organization_session_sign_out` performs: the keys go and the
+    // organization replica is dropped, which is what lets its file be deleted below.
     super::sign_out(app_state, credentials).await;
 
     // the workspace engine, released the way `open_database` releases it before opening the next.

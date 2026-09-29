@@ -46,7 +46,7 @@ pub struct AppState {
     /// cleared by the next state read that finds somebody signed in, which is every way back in.
     pub signed_out_elsewhere: Arc<AtomicBool>,
     /// whether this launch has checked the shape of what the machine holds, which the first
-    /// `organization_state_get` does before anything opens the replica
+    /// `organization_session_state_get` does before anything opens the replica
     /// (`upgrade/shape.rs`). Set once the check has run to completion; a check that
     /// failed leaves it empty, so the next read tries again rather than reading past it.
     pub old_shape_check: tokio::sync::OnceCell<()>,
