@@ -66,12 +66,12 @@ const ALLOWED: readonly { label: string; most: number; reason: string }[] = [
 		reason: 'the "export" and "import" rows'
 	},
 	{
-		label: 'lib/organization/component/account-menu.svelte',
+		label: 'lib/organization/session/component/account-menu.svelte',
 		most: 2,
 		reason: '"settings" and "sign out"'
 	},
 	{
-		label: 'lib/organization/component/account-signed-out.svelte',
+		label: 'lib/organization/session/component/account-signed-out.svelte',
 		most: 2,
 		reason: '"sign in" and "settings"'
 	},

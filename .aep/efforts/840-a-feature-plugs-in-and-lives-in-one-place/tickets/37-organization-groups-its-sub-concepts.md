@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [30, 31]
 ---
 # refactor(desktop): the organization groups its sub-concepts
@@ -14,11 +14,13 @@ The spec is [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]]; the 
 
 Traces requirements 6, 13 and 17 of [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]], and criteria 6, 13 and 17.
 
-- [ ] No raw `createMutation` in `organization/` (criterion 13).
-- [ ] Sub-concepts are directories, not filename prefixes (criterion 6).
-- [ ] No file in `organization/` passes 500 lines (criterion 17).
-- [ ] The baseline loses the organization and workspace cycle.
-- [ ] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19).
+- [x] No raw `createMutation` in `organization/` (criterion 13). Verified: a search of `src/lib/organization` (tests aside) for `createMutation(` prints nothing.
+- [x] Sub-concepts are directories, not filename prefixes (criterion 6). Verified: `find src/lib/organization -type f | grep -E '/(member|role|access|workspace|setup|session)-'` prints nothing; the sub-concepts are `member/`, `role/`, `access/`, `workspace/`, `setup/` and `session/`, and the workspace's name form and fields moved to the `workspace` feature.
+- [x] No file in `organization/` passes 500 lines (criterion 17). Verified: no source file in `organization/` passes 500 lines (largest `member/component/host.svelte` 498, `setup/connect.ts` 489); nine test files are longer, read as outside spec criterion 17's source files.
+- [x] The baseline loses `workspace -> organization : cycle` and the workspace's imports of organization modules. Verified: the baseline holds no `workspace -> organization` line and no `workspace/... -> organization/...` line; the workspace reads the organization's session and members through a surface contribution.
+- [x] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19). Verified: in the run's tree, after merging two routes with ticket 33's `startup/` paths and adding the no-workspace screen's two lines at their new `workspace/` address: check 0, eslint 0, build:web 0, validate 0; `pnpm test` fails only the date-dependent receipt test that fails at the tip without this ticket.
+
+*Narrowed on 2026-09-29 at integration: `organization -> workspace : cycle` survives only through workspace to settings to dashboard to contract to organization, edges outside this ticket, which converge checks against criterion 5.*
 
 ## Relevant areas
 

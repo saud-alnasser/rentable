@@ -58,30 +58,38 @@ vi.mock('$lib/startup/context', () => ({
 	useStartup: () => hooks.startup
 }));
 
-vi.mock('$lib/organization/query', async (original) => {
+vi.mock('$lib/organization/query', async (original) => ({
+	...(await original<Record<string, unknown>>()),
+	// a machine holding the Turso authority, with nobody in: the consent step opens granted.
+	useFetchOrganizationState: () => ({
+		data: {
+			organization: null,
+			session: null,
+			holdsTursoAuthority: true,
+			signedOutElsewhere: false
+		},
+		refetch: async () => ({ data: { holdsTursoAuthority: true } })
+	})
+}));
+
+vi.mock('$lib/organization/setup/query', async (original) => {
 	const idle = { isPending: false, mutateAsync: async () => ({}) };
 
 	return {
 		...(await original<Record<string, unknown>>()),
-		// a machine holding the Turso authority, with nobody in: the consent step opens granted.
-		useFetchOrganizationState: () => ({
-			data: {
-				organization: null,
-				session: null,
-				holdsTursoAuthority: true,
-				signedOutElsewhere: false
-			},
-			refetch: async () => ({ data: { holdsTursoAuthority: true } })
-		}),
 		useBeginConsent: () => idle,
 		useConsentResult: () => ({ data: undefined }),
 		useDisconnect: () => idle,
 		useConnectExisting: () => idle,
 		useInspectGroup: () => ({ isPending: false, mutateAsync: async () => ({ kind: 'empty' }) }),
-		useCreateOrganization: () => ({ isPending: false, mutateAsync: hooks.createOrganization }),
-		useCreateWorkspace: () => ({ isPending: false, mutateAsync: hooks.createWorkspace })
+		useCreateOrganization: () => ({ isPending: false, mutateAsync: hooks.createOrganization })
 	};
 });
+
+vi.mock('$lib/organization/workspace/query', async (original) => ({
+	...(await original<Record<string, unknown>>()),
+	useCreateWorkspace: () => ({ isPending: false, mutateAsync: hooks.createWorkspace })
+}));
 
 afterEach(() => {
 	hooks.events.length = 0;

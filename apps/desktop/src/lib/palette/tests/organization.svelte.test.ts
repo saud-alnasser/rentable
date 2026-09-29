@@ -58,7 +58,11 @@ vi.mock('$lib/organization/query', async (importOriginal) => ({
 		get data() {
 			return answers.session ? { session: answers.session } : undefined;
 		}
-	}),
+	})
+}));
+
+vi.mock('$lib/organization/member/query', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/organization/member/query')>()),
 	useFetchMembers: () => ({
 		get data() {
 			return answers.members;

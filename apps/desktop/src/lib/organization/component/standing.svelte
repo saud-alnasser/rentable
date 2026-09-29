@@ -8,7 +8,7 @@
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { useAccountRefusalDetail } from '$lib/organization/query';
-	import { TURSO_DASHBOARD_URL } from '$lib/organization/setup';
+	import { TURSO_DASHBOARD_URL } from '$lib/organization/setup/setup';
 	import { useSyncWorkspace } from '$lib/sync/query';
 	import { accountRefusalSentence } from '$lib/error/refusal';
 	import { syncFaultOf, syncStandingSentence, syncStatusOf } from '$lib/workspace/sync-status';

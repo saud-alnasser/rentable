@@ -4,7 +4,7 @@ import test from 'node:test';
 import { appRouter } from '$lib/app/router.ts';
 import { caller, context, type Meta } from '$lib/api/trpc.ts';
 import organization from '$lib/organization/router.ts';
-import { PASSWORD_FLOOR } from '$lib/organization/setup.ts';
+import { PASSWORD_FLOOR } from '$lib/organization/setup/setup.ts';
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import { fakeHost } from '$lib/app/tests/host.ts';
 import {

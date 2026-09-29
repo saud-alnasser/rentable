@@ -6,6 +6,7 @@ import * as dashboard from '../../dashboard/i18n/ar.js';
 import * as history from '../../history/i18n/ar.js';
 import * as list from '../../list/i18n/ar.js';
 import * as organization from '../../organization/i18n/ar.js';
+import * as organizationSession from '../../organization/session/i18n/ar.js';
 import * as palette from '../../palette/i18n/ar.js';
 import * as payment from '../../payment/i18n/ar.js';
 import * as permission from '../../permission/i18n/ar.js';
@@ -394,10 +395,10 @@ const ar = {
 	layout: {
 		notFound: shell.layout.notFound,
 		error: shell.layout.error,
-		accountMenu: organization.layout.accountMenu,
+		accountMenu: organizationSession.layout.accountMenu,
 		workspaceMenu: workspace.layout.workspaceMenu,
 		noWorkspace: workspace.layout.noWorkspace,
-		signIn: organization.layout.signIn,
+		signIn: organizationSession.layout.signIn,
 		startup: startup.layout.startup
 	},
 

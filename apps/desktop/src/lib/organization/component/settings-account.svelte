@@ -5,16 +5,13 @@
 	import { Separator } from '@rentable/design/primitive/separator/index.js';
 	import { toErrorText } from '$lib/error/message';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import OrganizationAcceptOwnership from '$lib/organization/component/accept-ownership.svelte';
-	import OrganizationChangePasswordDialog from '$lib/organization/component/change-password-dialog.svelte';
-	import OrganizationEndOtherSessions from '$lib/organization/component/end-other-sessions.svelte';
-	import OrganizationIdentity from '$lib/organization/component/identity.svelte';
-	import {
-		useAcceptOwnership,
-		useChangePassword,
-		useEndOtherSessions,
-		useFetchOrganizationState
-	} from '$lib/organization/query';
+	import OrganizationAcceptOwnership from '$lib/organization/member/component/accept-ownership.svelte';
+	import OrganizationChangePasswordDialog from '$lib/organization/session/component/change-password-dialog.svelte';
+	import OrganizationEndOtherSessions from '$lib/organization/session/component/end-other-sessions.svelte';
+	import OrganizationIdentity from '$lib/organization/session/component/identity.svelte';
+	import { useAcceptOwnership } from '$lib/organization/member/query';
+	import { useChangePassword, useEndOtherSessions } from '$lib/organization/session/query';
+	import { useFetchOrganizationState } from '$lib/organization/query';
 	import CrownIcon from '@lucide/svelte/icons/crown';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 

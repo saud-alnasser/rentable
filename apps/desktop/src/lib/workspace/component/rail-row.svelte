@@ -1,6 +1,5 @@
 <script lang="ts">
-	import type { ShellSlotProps } from '$lib/feature/surface';
-	import { useFetchMembers, useFetchOrganizationState } from '$lib/organization/query';
+	import { contributionsTo, type ShellSlotProps } from '$lib/feature/surface';
 	import { useFetchRemoteSyncState } from '$lib/sync/query';
 	import WorkspaceLocked from '$lib/workspace/component/locked.svelte';
 	import WorkspaceMenu from '$lib/workspace/component/menu.svelte';
@@ -17,17 +16,22 @@
 	 * **It carries no loading state.** The rail draws it signed in only past admission, so a
 	 * workspace is open whenever the menu is drawn; the startup path also writes the state into the
 	 * sync query's key before the shell mounts, so there is no first frame with nothing in it.
+	 *
+	 * **Who is signed in and who holds what are the organization's**, read through what it
+	 * contributes to the workspace (`WorkspaceSurfaceContributions` in `../workspace.ts`), so the
+	 * workspace imports nothing of the organization.
 	 */
 	let { signedOut, onSwitch }: ShellSlotProps['workspace-menu'] = $props();
 
 	// asking who is signed in on a machine where nobody is would be refused by design and
 	// reported as a failure, so the row that already knows the answer does not ask.
 	const remoteSyncQuery = useFetchRemoteSyncState(() => !signedOut);
-	const organizationQuery = useFetchOrganizationState();
+	const organization = contributionsTo('workspace');
+	const organizationQuery = organization.useOrganizationState();
 	// gated the same way, and for the same reason: the rail is one instance across the wall and
 	// the application, a refused read is kept as an error that nothing retries, and a menu drawn
 	// off it would say the workspace has no members for the run of the process.
-	const membersQuery = useFetchMembers(() => !signedOut);
+	const membersQuery = organization.useMembers(() => !signedOut);
 
 	const workspace = $derived(remoteSyncQuery.data?.workspace);
 	// the workspaces the member holds a grant on, which is what the menu lists; the one that is

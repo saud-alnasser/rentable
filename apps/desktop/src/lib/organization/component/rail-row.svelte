@@ -1,8 +1,8 @@
 <script lang="ts">
 	import type { ShellSlotProps } from '$lib/feature/surface';
 	import { useFetchOrganizationState } from '$lib/organization/query';
-	import OrganizationAccountMenu from '$lib/organization/component/account-menu.svelte';
-	import OrganizationAccountSignedOut from '$lib/organization/component/account-signed-out.svelte';
+	import OrganizationAccountMenu from '$lib/organization/session/component/account-menu.svelte';
+	import OrganizationAccountSignedOut from '$lib/organization/session/component/account-signed-out.svelte';
 
 	/**
 	 * The account's row at the foot of the rail, which the shell draws at its `account-menu` place:

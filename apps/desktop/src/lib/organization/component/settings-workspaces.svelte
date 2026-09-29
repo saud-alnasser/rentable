@@ -2,9 +2,10 @@
 	import type { SettingsSectionProps } from '$lib/feature/surface';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import OrganizationWorkspaces from '$lib/organization/component/workspaces.svelte';
-	import { workspaceContextOf } from '$lib/organization/acts';
-	import { useFetchMembers, useFetchOrganizationState } from '$lib/organization/query';
+	import OrganizationWorkspaces from '$lib/organization/workspace/component/directory.svelte';
+	import { workspaceContextOf } from '$lib/organization/workspace/acts';
+	import { useFetchMembers } from '$lib/organization/member/query';
+	import { useFetchOrganizationState } from '$lib/organization/query';
 	import { useFetchRemoteSyncState } from '$lib/sync/query';
 
 	/**

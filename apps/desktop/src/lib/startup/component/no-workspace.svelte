@@ -2,8 +2,8 @@
 	import StandaloneSurface from '@rentable/design/block/standalone-surface.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import WorkspaceFields from '$lib/organization/component/workspace-fields.svelte';
-	import { workspaceFormSchema } from '$lib/organization/workspace-form';
+	import WorkspaceFields from '$lib/workspace/component/fields.svelte';
+	import { workspaceFormSchema } from '$lib/workspace/form';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import { defaults, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
@@ -19,7 +19,7 @@
 	 * screen saying the same thing before they press anything.
 	 *
 	 * **The form is the shared one.** The name field and the rule it is refused by are
-	 * `organization/workspace-form.ts` and `organization/component/workspace-fields.svelte`, the
+	 * `workspace/form.ts` and `workspace/component/fields.svelte`, the
 	 * same pair the first run's last step and the new-workspace dialog draw, so a name refused here
 	 * is refused there with the same sentence. This surface owns the `superForm` over that schema
 	 * and nothing else: the mutation stays in the root layout, which hands the result of a create

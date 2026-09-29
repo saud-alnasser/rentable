@@ -181,6 +181,12 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   feature declares under `contributes` in its `feature.ts` or `surface.ts`: `app/contributions.ts`
   names every need, a router reads its kind's off `ctx.contributions`, and a page, host or act
   reads its kind's through `contributionsTo` (`feature/feature.ts` says how).
+  The workspace, which holds no kind of record, is served the same way: its rail row and its
+  permissions read the session of the organization, which depends on it, through what the
+  organization contributes. A feature groups its sub-concepts in directories below it, each in
+  the feature's own shape, rather than behind filename prefixes: `complex/unit/`, and
+  `organization/`'s `member/`, `role/`, `access/`, `workspace/`, `setup/` and `session/` (effort 840,
+  ticket 37).
   What `platform` holds of the desktop shell is only
   what is no feature's (the window, the opener, the dialogs and diagnostics): a feature or
   capability that crosses to Rust declares its own port and Tauri adapter (`host.ts`,

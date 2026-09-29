@@ -286,14 +286,16 @@ human accepted it at that effort's review round two on 2026-09-17.*
 *The deviation named the members and workspaces directories alone until ticket 19 of
 [[efforts/838-permissions-are-a-role-and-an-override/spec]] added the roles directory beside them,
 for the same reason: a role became a record of the organization's own with that effort, and what
-opening it means is its editor (`organization/component/roles.svelte`).*
+opening it means is its editor (`organization/role/component/directory.svelte`).*
 
 *Kept by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 8: the two
-directories declare their acts in `organization/acts.ts` like every concept (*Record card actions*,
+directories declare their acts in `organization/member/acts.ts` and `organization/workspace/acts.ts`
+like every concept (*Record card actions*,
 below), and the sheet a card opens is the organization host's, mounted in the frame. A member's or a
 workspace's acts are gated on who is reading as much as on the record, so the record an act is given
 carries the reader's facts beside the member or the workspace. Those facts are read in one place
-(`memberReaderOf`, `toMemberActContext` and `workspaceContextOf` in `organization/acts.ts`), by the
+(`memberReaderOf` and `toMemberActContext` in `organization/member/acts.ts`, `workspaceContextOf` in
+`organization/workspace/acts.ts`), by the
 settings area for its directories and by the command menu for its own offer, so neither can gate an
 act the other does not. A member's name is part of its one edit, so the card offers *edit* and never
 *rename* beside it.*
@@ -616,19 +618,19 @@ Recorded originally as ADR 0017, *A form surface is one component that presents 
 form chooses other records or writes more than one record (contract, complex with its units, tenant
 with its phone composite, member, role), and **light** otherwise (payment, unit, rename, password).
 So a complex is heavy for both create and edit, and a concept never opens on two presentations.
-**A role is heavy although its form holds one name and one set of flags** (`role-editor.svelte`):
+**A role is heavy although its form holds one name and one set of flags** (`role/component/editor.svelte`):
 a new mask moves the permissions of everybody holding the role, so its save issues every
 holder's certificate again in the same act, and the form writes as many records as the role has
 holders. *The editor declared the weight before this paragraph named it; ticket 19 of
 [[efforts/838-permissions-are-a-role-and-an-override/spec]] wrote down why.*
 
 **A member's two sheets share one layout.** The sheet that adds a member
-(`organization/component/account-form.svelte`) and the sheet that edits one (`member-sheet.svelte`)
+(`organization/member/component/account-form.svelte`) and the sheet that edits one (`member/component/sheet.svelte`)
 draw the same sections, in the same order, with the same legends and control shapes, from the same
-pieces: the username under its head, the role picker in its tray (`member-role.svelte`), the
-switch list under it (`member-override.svelte`, which draws `permission-switches.svelte` with
+pieces: the username under its head, the role picker in its tray (`member/component/role.svelte`), the
+switch list under it (`member/component/override.svelte`, which draws `role/component/permission-switches.svelte` with
 the role to compare against and the reset), and a switch per workspace
-(`member-workspaces.svelte`), where off is what not granting it is. Only the sentences that
+(`member/component/workspaces.svelte`), where off is what not granting it is. Only the sentences that
 belong to the moment differ, and the permissions beneath a workspace that is in, which the edit
 sheet alone draws, since what a person may do in a workspace is set once they are in it. Who may
 hand out what is decided in the shared pieces, so the two sheets cannot gate differently. *Settled
@@ -641,7 +643,7 @@ per workspace, and asked for it to read like the edit sheet.*
 the member ends up with.** The picker is a select over every role but the owner's, highest rank
 first, with the sentence a built-in role means under it; a role at or above the reader's own rank
 is drawn refused in the list, and the tray says why. Under it is the switch list the role editor
-draws (`permission-switches.svelte`), set to the role's mask exclusive-or'd with the override; a
+draws (`role/component/permission-switches.svelte`), set to the role's mask exclusive-or'd with the override; a
 switch turned writes the override that makes the member end up with what the switches say, and the
 override itself is never shown. A switch that differs from the role carries a dot naming it; where
 any does, the role's name reads *custom* in the tray and the switches' head offers *reset to* the
@@ -669,7 +671,7 @@ workspace the reader holds is a switch headed by the workspaces' building glyph:
 full-access grant, off is none. Beneath one that is in, on the member's card, one folded row,
 *permissions*, reads *custom* beside it where what the member may do there differs from what they
 may do across the organization, and opens the record groups of the switch list
-(`workspace-tailoring.svelte`, drawing `permission-switches.svelte` with `records`), each folding
+(`access/component/tailoring.svelte`, drawing `role/component/permission-switches.svelte` with `records`), each folding
 in turn, set to what they end up with there. **What is set there is what differs**: a switch
 turned away from what the member holds across the organization is pinned for that workspace at
 its new value when the card is saved, and holds it however the organization moves; a switch turned
@@ -694,7 +696,7 @@ acts are the grants that exist (`useChangeAccess`), sent only for the workspaces
 one workspace override per workspace whose pins changed, carrying what is pinned there and which
 of it is on (`useSetWorkspaceOverride`). **A workspace's own dialog draws its
 people the same way**, a switch per member, in or out, with the same refusals at the same
-controls, from the one list both surfaces share (`access-switches.svelte`), so the two cannot
+controls, from the one list both surfaces share (`access/component/switches.svelte`), so the two cannot
 refuse differently; a person tailored there is marked *custom here* beside their name, and the
 tailoring itself is the card's. A member is drawn with the member's glyph (`organization/glyph.ts`,
 `circle-user`, the account's), never the tenant's person, and the owner and the reader are not
@@ -746,7 +748,7 @@ organization's did.
 | a count | the count cell |
 
 **A permission is a switch, although it takes effect when its editor is saved.** The role editor
-and a member's card draw one list of them (`organization/component/permission-switches.svelte`):
+and a member's card draw one list of them (`organization/role/component/permission-switches.svelte`):
 each kind of record, and the organization, is a group that folds to its glyph, its name, how many
 of its permissions are on and a chevron, and a folded head carries a dot where a switch inside
 differs and a lock where one is not the reader's to turn. Opened, a group is one row per
@@ -784,7 +786,7 @@ application can dial, and grows as they are added.
 
 **A member's role is a choice among the organization's roles**, which are records the organization
 adds to itself, so it takes the control another record does: a select over them, the owner's left
-out, highest rank first (`member-role.svelte`, on the allowlist for that reason). How many there are
+out, highest rank first (`member/component/role.svelte`, on the allowlist for that reason). How many there are
 is the organization's to say. The same two conventions hold for it: the sentence of a built-in role
 chosen, *who it is for*, stands under the control, and a role the reader may not give is drawn
 refused in the list, never removed. *It was a toggle group of the two roles there were until effort

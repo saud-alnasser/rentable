@@ -6,14 +6,16 @@ import type { PaletteMatch, RecordSearch } from '$lib/palette';
 import {
 	memberReaderOf,
 	toMemberActContext,
-	workspaceContextOf,
 	type MemberActId,
-	type MemberActRecord,
+	type MemberActRecord
+} from '$lib/organization/member/acts';
+import {
+	workspaceContextOf,
 	type WorkspaceActId,
 	type WorkspaceActRecord
-} from '$lib/organization/acts';
+} from '$lib/organization/workspace/acts';
 import { toMemberDirectory, toWorkspaceDirectory } from '$lib/organization/directory';
-import { memberRoleName } from '$lib/organization/role';
+import { memberRoleName } from '$lib/organization/role/role';
 import {
 	memberActs,
 	memberHost,
@@ -21,11 +23,8 @@ import {
 	workspaceActs,
 	workspaceHost
 } from '$lib/organization/host.svelte';
-import {
-	useFetchMemberStandings,
-	useFetchMembers,
-	useFetchOrganizationState
-} from '$lib/organization/query';
+import { useFetchMemberStandings, useFetchMembers } from '$lib/organization/member/query';
+import { useFetchOrganizationState } from '$lib/organization/query';
 import { useFetchRemoteSyncState } from '$lib/sync/query';
 import { usesAppleKeyboard } from '@rentable/design/shortcut.js';
 import { getContext, hasContext, setContext } from 'svelte';
@@ -36,7 +35,8 @@ import { get } from 'svelte/store';
  *
  * What the command menu offers of a member's and a workspace's acts, and how it runs one on the
  * record the reader names. The acts are the lists the settings directories draw
- * (`organization/acts.ts`); what is here is where the menu reads the facts they are gated on.
+ * (`member/acts.ts` and `workspace/acts.ts`); what is here is where the menu reads the facts they
+ * are gated on.
  *
  * **The gates are read by the builders the directories read them by** (`memberReaderOf`,
  * `toMemberActContext`, `workspaceContextOf`), from the same queries the settings sections read, so

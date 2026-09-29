@@ -1,20 +1,18 @@
 <script lang="ts">
 	import type { WorkspaceGrant } from '$lib/organization/host';
-	import OrganizationAccountForm from '$lib/organization/component/account-form.svelte';
-	import OrganizationMadeLink from '$lib/organization/component/made-link.svelte';
-	import OrganizationWorkspaceDialog from '$lib/organization/component/workspace-dialog.svelte';
+	import OrganizationAccountForm from '$lib/organization/member/component/account-form.svelte';
+	import OrganizationMadeLink from '$lib/organization/member/component/made-link.svelte';
+	import OrganizationWorkspaceDialog from '$lib/organization/workspace/component/dialog.svelte';
 	import {
 		closeOrganizationDialog,
 		dismissMadeLink,
 		organizationDialog,
 		resetOrganizationDialogs
 	} from '$lib/organization/dialogs.svelte';
-	import {
-		useCreateAccount,
-		useCreateWorkspace,
-		useFetchOrganizationState,
-		useFetchRoles
-	} from '$lib/organization/query';
+	import { useCreateAccount } from '$lib/organization/member/query';
+	import { useCreateWorkspace } from '$lib/organization/workspace/query';
+	import { useFetchOrganizationState } from '$lib/organization/query';
+	import { useFetchRoles } from '$lib/organization/role/query';
 	import { onDestroy } from 'svelte';
 	import { locale } from '$lib/i18n/i18n-svelte';
 

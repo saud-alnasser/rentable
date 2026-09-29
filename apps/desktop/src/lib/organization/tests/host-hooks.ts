@@ -10,9 +10,11 @@ import type { RemoteSyncState } from '$lib/sync/host';
  * THE ORGANIZATION HOST'S HOOKS, STOOD IN FOR
  *
  * Scaffolding rather than a test. The host in `organization/component/host.svelte` reads the
- * session and writes through the hooks in `organization/query.ts`, which reach a shell this
- * runner has none of. A test of what a card's act opens or writes replaces those hooks with these,
- * through a partial `vi.mock` of the query module, and reads what was asked of them:
+ * session and writes through the hooks in `organization/query.ts` and each sub-concept's own
+ * (`member/query.ts`, `role/query.ts`, `access/query.ts`, `workspace/query.ts`,
+ * `session/query.ts`), which reach a shell this runner has none of. A test of what a card's act
+ * opens or writes replaces those hooks with these, through a partial `vi.mock` of each query
+ * module, and reads what was asked of them:
  *
  * ```ts
  * vi.mock('$lib/organization/query', async (importOriginal) => ({
@@ -20,6 +22,10 @@ import type { RemoteSyncState } from '$lib/sync/host';
  * 	...(await import('./host-hooks')).hostHooks
  * }));
  * ```
+ *
+ * and the same block for every sub-concept's module, `$lib/organization/member/query` and the rest:
+ * a hook this stands in for is whichever module declares it, and a module mocked with every hook
+ * holds the ones it does not declare harmlessly.
  *
  * `hostAnswers` is what the hooks answer: the session, members and roles they read, and a refusal per
  * write where a test wants one. `resetHostAnswers` belongs in a `beforeEach`.

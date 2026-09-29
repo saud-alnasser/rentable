@@ -153,11 +153,11 @@ does not hold) and with the grant (a withdrawal, a removal, a deleted workspace)
 the members list carry each workspace's pins and permissions, and the tRPC context answers a
 record procedure by the open workspace's (`api/context.ts`, `permissionsIn`). A member's card
 sets it beneath each workspace the member is in, as that workspace's permissions
-(`workspace-tailoring.svelte`, the record groups of the shared switch list, folded): **what is
+(`access/component/tailoring.svelte`, the record groups of the shared switch list, folded): **what is
 pinned is exactly what the switches differ on from what the member holds across the organization
 when the card is saved**, so a switch turned back is unpinned, and each switch that differs is
 marked. The card writes both masks through `organization.member.setWorkspaceOverride`; the
-arithmetic of what the switches come to is `organization/role.ts` (`tailoredTo`). *Effort 838,
+arithmetic of what the switches come to is `organization/access/access.ts` (`tailoredTo`). *Effort 838,
 requirement 12 as amended a third time, tickets 53 and 54; pinned rather than switched at review
 round one (ticket 55), since a switch over the layers beneath inverted when they moved. A switch
 turned stayed pinned when turned back, beside a reset and a read only preset, until the fourth
@@ -203,9 +203,9 @@ withdrawn by anybody who may withdraw (`withdraw_grant`, `grant_workspace`). *Bo
 owner's alone until review round one of ticket 54, when the rule went with the lock.* A member's
 card and the sheet that adds
 one draw each workspace as a switch, in (a full-access grant) or out (none)
-(`member-workspaces.svelte`, ticket 48 of effort 838), the card with the workspace's
+(`member/component/workspaces.svelte`, ticket 48 of effort 838), the card with the workspace's
 permissions folded beneath one that is in; a workspace's own dialog draws each member the same way, from the same list
-(`access-switches.svelte`, ticket 49), marking one tailored there *custom here*. *The owner's lock
+(`access/component/switches.svelte`, ticket 49), marking one tailored there *custom here*. *The owner's lock
 to read only sat beneath a workspace that was in until ticket 54.*
 
 **Chain**:

@@ -565,18 +565,15 @@ for (const glyph of ORGANIZATION_GLYPHS.filter((declared) => !GLYPHS.includes(de
 	});
 }
 
-const {
-	declareMemberActs,
-	declareRoleActs,
-	declareWorkspaceActs,
-	lacking: lackingFlag
-} = await import('$lib/organization/acts');
+const { declareMemberActs } = await import('$lib/organization/member/acts');
+const { declareRoleActs, lacking: lackingFlag } = await import('$lib/organization/role/acts');
+const { declareWorkspaceActs } = await import('$lib/organization/workspace/acts');
 const { BUILT_IN } = await import('@rentable/workspace-permission');
-type RoleActRecord = import('$lib/organization/acts').RoleActRecord;
-type MemberActRecord = import('$lib/organization/acts').MemberActRecord;
-type MemberActContext = import('$lib/organization/acts').MemberActContext;
-type WorkspaceActRecord = import('$lib/organization/acts').WorkspaceActRecord;
-type WorkspaceActContext = import('$lib/organization/acts').WorkspaceActContext;
+type RoleActRecord = import('$lib/organization/role/acts').RoleActRecord;
+type MemberActRecord = import('$lib/organization/member/acts').MemberActRecord;
+type MemberActContext = import('$lib/organization/member/acts').MemberActContext;
+type WorkspaceActRecord = import('$lib/organization/workspace/acts').WorkspaceActRecord;
+type WorkspaceActContext = import('$lib/organization/workspace/acts').WorkspaceActContext;
 type OrganizationMember = import('$lib/organization/host').OrganizationMember;
 type OrganizationWorkspace = import('$lib/organization/host').OrganizationWorkspace;
 

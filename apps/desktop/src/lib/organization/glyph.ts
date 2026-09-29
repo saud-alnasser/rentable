@@ -20,7 +20,7 @@ import UserPenIcon from '@lucide/svelte/icons/user-pen';
 import UserPlusIcon from '@lucide/svelte/icons/user-plus';
 import UsersIcon from '@lucide/svelte/icons/users';
 
-import { verbOf, type RecordKind } from '$lib/organization/role';
+import { verbOf, type RecordKind } from '$lib/organization/role/role';
 import type { Flag } from '@rentable/workspace-permission';
 
 /**

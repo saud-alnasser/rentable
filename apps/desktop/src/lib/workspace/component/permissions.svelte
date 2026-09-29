@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { accessIn, workspacePermissionsIn } from '$lib/api/context';
-	import { useFetchOrganizationState } from '$lib/organization/query';
+	import { contributionsTo } from '$lib/feature/surface';
 	import { useFetchRemoteSyncState } from '$lib/sync/query';
 	import { memberPermissions } from '$lib/permission';
 
@@ -14,9 +14,10 @@
 	 * read again on every heartbeat and on a workspace switch (`startup/startup.ts`), which is what
 	 * carries a narrowed role or a read-only grant here.
 	 *
-	 * Mounted in the frame while somebody is signed in, and nothing is held once it goes.
+	 * Mounted in the frame while somebody is signed in, and nothing is held once it goes. The
+	 * session is the organization's, read through what it contributes to the workspace.
 	 */
-	const organizationQuery = useFetchOrganizationState();
+	const organizationQuery = contributionsTo('workspace').useOrganizationState();
 	const remoteSyncQuery = useFetchRemoteSyncState();
 
 	$effect(() => {

@@ -65,6 +65,31 @@ vi.mock('$lib/organization/query', async (importOriginal) => ({
 	...(await import('$lib/organization/tests/host-hooks')).hostHooks
 }));
 
+vi.mock('$lib/organization/member/query', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/organization/member/query')>()),
+	...(await import('$lib/organization/tests/host-hooks')).hostHooks
+}));
+
+vi.mock('$lib/organization/role/query', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/organization/role/query')>()),
+	...(await import('$lib/organization/tests/host-hooks')).hostHooks
+}));
+
+vi.mock('$lib/organization/access/query', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/organization/access/query')>()),
+	...(await import('$lib/organization/tests/host-hooks')).hostHooks
+}));
+
+vi.mock('$lib/organization/workspace/query', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/organization/workspace/query')>()),
+	...(await import('$lib/organization/tests/host-hooks')).hostHooks
+}));
+
+vi.mock('$lib/organization/session/query', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/organization/session/query')>()),
+	...(await import('$lib/organization/tests/host-hooks')).hostHooks
+}));
+
 vi.mock('$lib/sync/query', async (importOriginal) => ({
 	...(await importOriginal<typeof import('$lib/sync/query')>()),
 	...(await import('$lib/organization/tests/host-hooks')).syncHooks

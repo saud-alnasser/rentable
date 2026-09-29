@@ -2,17 +2,17 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { tauri } from '$lib/platform/tauri';
-	import OrganizationSetupWalk from '$lib/organization/component/setup-walk.svelte';
+	import OrganizationSetupWalk from '$lib/organization/setup/component/walk.svelte';
 	import {
 		useBeginConsent,
 		useConnectExisting,
 		useConsentResult,
 		useCreateOrganization,
-		useCreateWorkspace,
 		useDisconnect,
-		useFetchOrganizationState,
 		useInspectGroup
-	} from '$lib/organization/query';
+	} from '$lib/organization/setup/query';
+	import { useCreateWorkspace } from '$lib/organization/workspace/query';
+	import { useFetchOrganizationState } from '$lib/organization/query';
 	import {
 		SETUP_STEPS,
 		TURSO_DASHBOARD_URL,
@@ -22,7 +22,7 @@
 		stepFor,
 		type SetupStep,
 		type WalkRefusal
-	} from '$lib/organization/setup';
+	} from '$lib/organization/setup/setup';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { toErrorDetail, toErrorText } from '$lib/error/message';
 	import { THE_WAY_IN } from '$lib/shell/shell-surface';
@@ -31,7 +31,7 @@
 	/**
 	 * The first run's address, and the one that wires the walk to the shell.
 	 *
-	 * The screen is `organization/component/setup-walk.svelte`, drawn from props; what is here is
+	 * The screen is `organization/setup/component/walk.svelte`, drawn from props; what is here is
 	 * every call that reaches Rust and the state each answers with: opening the consent, polling it,
 	 * creating the organization, and handing the first workspace's creation to the loading pass. It
 	 * opens with nobody signed in,
@@ -63,8 +63,8 @@
 	 * **A create Turso refuses over the group asks for the group.** That one leaves the consent
 	 * where it is, so the walk stays on the name step and draws the field with what was already
 	 * typed still in it, and the create that follows carries all four values.
-	 * `organization/setup.ts` tells the two refusals apart by their reasons, and Turso's own account
-	 * of the refusal is what the field keeps under its sentence, behind a disclosure.
+	 * `organization/setup/setup.ts` tells the two refusals apart by their reasons, and Turso's own
+	 * account of the refusal is what the field keeps under its sentence, behind a disclosure.
 	 *
 	 * **That is also why this route says what a failed create failed at, rather than the shared
 	 * handler.** The handler shows a thrown message as a toast, which is the loudest thing on the
@@ -110,7 +110,7 @@
 		detail: toErrorDetail(error)
 	});
 
-	// the walk resumes where the machine stands, and `organization/setup.ts` decides what that
+	// the walk resumes where the machine stands, and `organization/setup/setup.ts` decides what that
 	// means: somebody already signed in has nothing left to ask here, since both steps would create
 	// the organization again, and is sent to the way in rather than shown a step. A reload or an
 	// address typed in reaches this route the same way, which is what makes the dev server's own

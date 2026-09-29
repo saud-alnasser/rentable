@@ -6,7 +6,7 @@
 	import { toErrorMessage } from '$lib/error/message';
 	import { THE_WAY_IN } from '$lib/shell/shell-surface';
 	import { useStartup } from '$lib/startup/context';
-	import OrganizationConnectScreen from '$lib/organization/component/connect-screen.svelte';
+	import OrganizationConnectScreen from '$lib/organization/setup/component/connect-screen.svelte';
 	import {
 		afterRead,
 		beginWith,
@@ -19,16 +19,16 @@
 		takeArrivingLink,
 		THE_WALL,
 		type JoinStep
-	} from '$lib/organization/connect';
+	} from '$lib/organization/setup/connect';
 
 	/**
 	 * The connect screen's address, and the one that wires it to the shell.
 	 *
-	 * The screen is `organization/component/connect-screen.svelte`, drawn from props, and its steps
-	 * are `organization/connect.ts`, driven without a window. What is here is the calls that reach
-	 * Rust, and what follows each: the way in, and the startup unit reading where the machine
-	 * stands again, which raises the wall for a link that connected the machine and enters the
-	 * application for an invitation that was accepted. It opens with nobody signed in, which
+	 * The screen is `organization/setup/component/connect-screen.svelte`, drawn from props, and its
+	 * steps are `organization/setup/connect.ts`, driven without a window. What is here is the calls
+	 * that reach Rust, and what follows each: the way in, and the startup unit reading where the
+	 * machine stands again, which raises the wall for a link that connected the machine and enters
+	 * the application for an invitation that was accepted. It opens with nobody signed in, which
 	 * `shell/shell-surface.ts` decides.
 	 *
 	 * **Read, then act on what the read said** (effort 828, requirements 1, 16 and 17). The form

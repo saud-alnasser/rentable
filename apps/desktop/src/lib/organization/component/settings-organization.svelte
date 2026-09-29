@@ -1,10 +1,10 @@
 <script lang="ts" module>
 	import {
 		useFetchMemberStandings as startStandings,
-		useFetchMembers as startMembers,
-		useFetchOrganizationState as startState,
-		useFetchRoles as startRoles
-	} from '$lib/organization/query';
+		useFetchMembers as startMembers
+	} from '$lib/organization/member/query';
+	import { useFetchOrganizationState as startState } from '$lib/organization/query';
+	import { useFetchRoles as startRoles } from '$lib/organization/role/query';
 	import { useFetchRemoteSyncState as startSync } from '$lib/sync/query';
 
 	/**
@@ -31,22 +31,22 @@
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import OrganizationDeleteOrganization from '$lib/organization/component/delete-organization.svelte';
 	import OrganizationDisconnect from '$lib/organization/component/disconnect.svelte';
-	import OrganizationForgetAccount from '$lib/organization/component/forget-account.svelte';
+	import OrganizationForgetAccount from '$lib/organization/setup/component/forget-account.svelte';
 	import OrganizationMark from '$lib/organization/component/mark.svelte';
-	import OrganizationMembers from '$lib/organization/component/members.svelte';
-	import OrganizationReconnectAuthority from '$lib/organization/component/reconnect-authority.svelte';
-	import OrganizationRoles from '$lib/organization/component/roles.svelte';
+	import OrganizationMembers from '$lib/organization/member/component/directory.svelte';
+	import OrganizationReconnectAuthority from '$lib/organization/setup/component/reconnect-authority.svelte';
+	import OrganizationRoles from '$lib/organization/role/component/directory.svelte';
 	import OrganizationStanding from '$lib/organization/component/standing.svelte';
-	import { memberReaderOf, roleReaderOf } from '$lib/organization/acts';
+	import { memberReaderOf } from '$lib/organization/member/acts';
+	import { roleReaderOf } from '$lib/organization/role/acts';
 	import {
 		useDeleteOrganization,
 		useDisconnectOrganization,
-		useFetchMemberStandings,
-		useFetchMembers,
-		useFetchOrganizationState,
-		useFetchRoles
+		useFetchOrganizationState
 	} from '$lib/organization/query';
-	import { administersMembers } from '$lib/organization/role';
+	import { useFetchMemberStandings, useFetchMembers } from '$lib/organization/member/query';
+	import { useFetchRoles } from '$lib/organization/role/query';
+	import { administersMembers } from '$lib/organization/member/member';
 	import { useFetchRemoteSyncState } from '$lib/sync/query';
 	import { permits } from '@rentable/workspace-permission';
 
@@ -58,8 +58,8 @@
 	 *
 	 * **What it reads and writes is its own**, the way a record's section reads its records. A
 	 * member's or a role's acts are not among them: the directories project them from
-	 * `organization/acts.ts`, and the organization host in the frame runs them (effort 832,
-	 * requirement 8). What it cannot do is leave the page once this machine lets go of the
+	 * `member/acts.ts` and `role/acts.ts`, and the organization host in the frame runs them (effort
+	 * 832, requirement 8). What it cannot do is leave the page once this machine lets go of the
 	 * organization, so the area hands it `leaveForTheWall`. *The settings route read all of this
 	 * and handed the area a callback per act until effort 840, when the area stopped naming the
 	 * organization.*

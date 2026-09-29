@@ -12,7 +12,7 @@ import {
 } from '$lib/error/tauri';
 import { appRouter } from '$lib/app/router.ts';
 import { caller, context } from '$lib/api/trpc.ts';
-import { PASSWORD_FLOOR, refusalAfterFailedConnect } from '$lib/organization/setup.ts';
+import { PASSWORD_FLOOR, refusalAfterFailedConnect } from '$lib/organization/setup/setup.ts';
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import { fakeHost } from '$lib/app/tests/host.ts';
 import { TRPCError } from '@trpc/server';

@@ -105,8 +105,9 @@ const { declareComplexActs } = await import('$lib/complex/acts');
 const { declareUnitActs } = await import('$lib/complex/unit/acts');
 const { declarePaymentActs } = await import('$lib/payment/acts');
 const { declareContractActs } = await import('$lib/contract/acts');
-const { declareMemberActs, declareRoleActs, declareWorkspaceActs } =
-	await import('$lib/organization/acts');
+const { declareMemberActs } = await import('$lib/organization/member/acts');
+const { declareRoleActs } = await import('$lib/organization/role/acts');
+const { declareWorkspaceActs } = await import('$lib/organization/workspace/acts');
 const { loadLocale } = await import('$lib/i18n/i18n-util.sync');
 const { LL, setLocale } = await import('$lib/i18n/i18n-svelte');
 const { get } = await import('svelte/store');

@@ -31,7 +31,7 @@
 		shellSurface,
 		wayInFrom
 	} from '$lib/shell/shell-surface';
-	import { linkArrived } from '$lib/organization/connect';
+	import { linkArrived } from '$lib/organization/setup/connect';
 	import { noteMigration } from '$lib/startup/migration-notice.svelte';
 	import { startupSurfaceBeforeLocale } from '$lib/startup/gate';
 	import { recordDiagnosticError } from '$lib/platform/diagnostics';
@@ -42,7 +42,7 @@
 	import { listenForWindowCloseRequests } from '$lib/shell/event';
 	import { createStartup } from '$lib/startup/startup';
 	import { provideStartup } from '$lib/startup/context';
-	import { useCreateWorkspace } from '$lib/organization/query';
+	import { useCreateWorkspace } from '$lib/organization/workspace/query';
 	import { useEarlierRecords } from '$lib/workspace/app-database';
 	import { browserStartupPorts } from '$lib/startup/browser';
 	import { DesignProvider, type DesignStrings } from '@rentable/design/strings.js';

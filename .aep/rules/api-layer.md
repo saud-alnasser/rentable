@@ -232,7 +232,7 @@ procedure's refusals are its concept's codes, with one exception: where a router
 what the shell refuses anyway, it throws the shell's own code rather than a second one for the
 same thing. The organization router refuses a role mask, or a role and an override, that adds,
 edits or deletes a kind of record without viewing it with `host.<kind>NeedsViewing`
-(`refuseWriteWithoutView` in `organization/router.ts`), the reason Rust's
+(`refuseWriteWithoutView` in `organization/role/router.ts`), the reason Rust's
 `refuse_write_without_view` gives. *Why: it is one rule, the package's `firstWriteWithoutView`,
 asked twice; two codes would be two sentences for it in each locale, and a reader would read one
 or the other depending on which side refused first. Added 2026-09-27 by ticket 46 of

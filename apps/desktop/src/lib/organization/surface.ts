@@ -5,7 +5,9 @@ import { RECORD_PARAM, WORKSPACE_PARAM, withSection } from '$lib/settings/sectio
 import dialogs from './component/dialogs.svelte';
 import host from './component/host.svelte';
 import railRow from './component/rail-row.svelte';
+import { useFetchMembers } from './member/query';
 import { useOrganizationOfferings } from './palette';
+import { useFetchOrganizationState } from './query';
 import SettingsAccount from './component/settings-account.svelte';
 import SettingsOrganization, {
 	loadOrganizationSettings
@@ -31,6 +33,10 @@ import SettingsWorkspaces from './component/settings-workspaces.svelte';
  * shell draws at its own places, so the shell names no organization component: making an account,
  * creating a workspace and the link an account's act produces are drawn beside the frame by
  * `component/dialogs.svelte`, and who is signed in by `component/rail-row.svelte`.
+ *
+ * **The workspace reads the session through what the organization contributes to it**: its row at
+ * the top of the rail and its permissions in the frame read who is signed in and who holds what,
+ * and the organization depends on the workspace rather than the other way round.
  */
 export default defineSurface({
 	name: 'organization',
@@ -83,5 +89,11 @@ export default defineSurface({
 	slots: [
 		{ slot: 'account-menu', component: railRow },
 		{ slot: 'dialogs', component: dialogs }
-	]
+	],
+	contributes: {
+		workspace: {
+			useOrganizationState: () => useFetchOrganizationState(),
+			useMembers: (enabled) => useFetchMembers(enabled)
+		}
+	}
 });

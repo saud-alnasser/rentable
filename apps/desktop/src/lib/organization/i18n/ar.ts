@@ -1,7 +1,8 @@
 // The organization feature's strings in arabic, composed back into `i18n/ar/index.ts` at
-// `organization`, `layout.accountMenu` and `layout.signIn`. It imports nothing but types, because
-// the typesafe-i18n generator transpiles it along with the locale. Each object satisfies its own
-// slice of the generated types, so a key missing, left over or without its placeholder fails here.
+// `organization`. It imports nothing but types, because the typesafe-i18n generator transpiles it
+// along with the locale; the session's `layout` blocks are `session/i18n/ar.ts`. Each object
+// satisfies its own slice of the generated types, so a key missing, left over or without its
+// placeholder fails here.
 
 import type { Translation } from '../../i18n/i18n-types';
 
@@ -376,32 +377,3 @@ export const organization = {
 		notHeld: 'تحمل مساحة العمل هذه للقراءة فقط، فلا تستطيع منحها.'
 	}
 } satisfies Translation['organization'];
-
-export const layout = {
-	accountMenu: {
-		signedOutHint: 'غير مسجل الدخول',
-		signedOutName: 'مستخدم'
-	},
-
-	signIn: {
-		noOrganizationTitle: 'مرحبًا',
-		noOrganizationSubtitle: 'لا مؤسسة على هذا الجهاز بعد.',
-		subtitle: 'سجّل الدخول للمتابعة',
-		help: 'تواجه صعوبة في تسجيل الدخول؟',
-		username: 'اسم المستخدم',
-		password: 'كلمة المرور',
-		unlocking: 'يجري تسجيل دخولك. يستغرق هذا لحظة عن قصد.',
-		roleOwner: 'مالك',
-		roleManager: 'مدير',
-		roleMember: 'عضو',
-		setUp: 'استعمل حساب Turso الخاص بك',
-		setUpDescription: 'أنت مالك المؤسسة.',
-		connectByLink: 'استعمل رابطًا ورمزًا',
-		connectByLinkDescription: 'سُلّم إليك رابط ورمز.',
-		signedOutElsewhere: 'سُجّل خروجك من هذا الجهاز من جهاز آخر. سجّل الدخول مجددًا للمتابعة.',
-		useALink: 'افتح رابطًا لديك',
-		disconnect: 'افصل هذا الجهاز',
-		disconnectDescription:
-			'يحذف هذا الجهاز نسخته من المؤسسة ومساحات عملها، وينسى حساب Turso. لا يتغير شيء على Turso. يعيد المالك الربط بحساب Turso الخاص به، ويحتاج غيره إلى رابط جديد.'
-	}
-} satisfies Pick<Translation['layout'], 'accountMenu' | 'signIn'>;

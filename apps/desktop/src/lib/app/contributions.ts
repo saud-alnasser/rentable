@@ -6,6 +6,7 @@ import type {
 import type { ContractContributions, ContractSurfaceContributions } from '$lib/contract';
 import { contributionsOf } from '$lib/feature/feature';
 import type { TenantContributions, TenantSurfaceContributions } from '$lib/tenant';
+import type { WorkspaceSurfaceContributions } from '$lib/workspace/workspace';
 import { features } from './features';
 
 /**
@@ -26,12 +27,17 @@ export type Contributions = {
 	contract: ContractContributions;
 };
 
-/** What each kind needs in the window: its pages, its host and its acts. */
+/**
+ * What each kind needs in the window: its pages, its host and its acts. The workspace is the one
+ * feature here that holds no kind of record: its rail row and its permissions read the session of
+ * the organization, which depends on it.
+ */
 export type SurfaceContributions = {
 	tenant: TenantSurfaceContributions;
 	complex: ComplexSurfaceContributions;
 	unit: UnitSurfaceContributions;
 	contract: ContractSurfaceContributions;
+	workspace: WorkspaceSurfaceContributions;
 };
 
 /**

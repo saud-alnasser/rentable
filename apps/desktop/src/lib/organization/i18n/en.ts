@@ -1,6 +1,6 @@
 // The organization feature's strings in english, composed back into `i18n/en/index.ts` at
-// `organization`, `layout.accountMenu` and `layout.signIn`. It imports nothing but types, because
-// the typesafe-i18n generator transpiles it along with the locale.
+// `organization`. It imports nothing but types, because the typesafe-i18n generator transpiles it
+// along with the locale. The session's `layout` blocks are `session/i18n/en.ts`.
 
 import type { BaseTranslation } from '../../i18n/i18n-types';
 
@@ -419,7 +419,7 @@ export const organization = {
 
 	/**
 	 * the one line a role's card in the roles block says of what it can do (effort 838,
-	 * requirement 12 as amended a fourth time, `organization/role.ts`'s `roleLine`): a clause
+	 * requirement 12 as amended a fourth time, `organization/role/role.ts`'s `roleLine`): a clause
 	 * per step, the verbs and the kinds on it, and whether it runs the organization.
 	 * The kinds are named as a verb takes them, which in Arabic is not how a heading names them
 	 * (`families`), so the line keeps its own.
@@ -478,35 +478,5 @@ export const organization = {
 		customHere: 'custom here',
 		movesNotHeld: 'this changes a permission here that you do not hold yourself.',
 		notHeld: 'you hold this workspace read only, so you cannot give it.'
-	}
-} satisfies BaseTranslation;
-
-export const layout = {
-	accountMenu: {
-		signedOutHint: 'not signed in',
-		signedOutName: 'user'
-	},
-
-	signIn: {
-		noOrganizationTitle: 'welcome',
-		noOrganizationSubtitle: 'no organization on this machine yet.',
-		subtitle: 'sign in to continue',
-		help: 'trouble signing in?',
-		username: 'username',
-		password: 'password',
-		unlocking: 'signing you in. this takes a moment on purpose.',
-		roleOwner: 'owner',
-		roleManager: 'manager',
-		roleMember: 'member',
-		setUp: 'use your Turso account',
-		setUpDescription: 'you own the organization.',
-		connectByLink: 'use a link and code',
-		connectByLinkDescription: 'you were given a link and a code.',
-		signedOutElsewhere:
-			'you were signed out of this machine from another one. sign in again to carry on.',
-		useALink: 'use a link',
-		disconnect: 'disconnect this machine',
-		disconnectDescription:
-			'this machine deletes its copy of the organization and its workspaces, and forgets the Turso account. nothing on Turso changes. the owner connects again with their Turso account; anyone else needs a new link.'
 	}
 } satisfies BaseTranslation;
