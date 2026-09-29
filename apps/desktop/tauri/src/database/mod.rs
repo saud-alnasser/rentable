@@ -1,4 +1,4 @@
-pub mod commands;
+pub mod command;
 pub(crate) mod corrupt;
 pub mod proxy;
 #[cfg(test)]

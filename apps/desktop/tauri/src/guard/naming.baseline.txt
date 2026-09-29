@@ -1,3 +1,0 @@
-database/commands.rs: plural
-diagnostics/: plural
-settings.rs: plural

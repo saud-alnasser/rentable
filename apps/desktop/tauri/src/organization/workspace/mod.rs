@@ -847,10 +847,8 @@ mod tests {
                 KdfParams, MemberSecretKey, create_vault_with_secret, seal_content,
                 seal_to_public_key,
             },
-            role::{
-                self,
-                permission::{self, Flag},
-            },
+            ownership,
+            role::permission::{self, Flag},
             session::{CredentialSlot, MemberSession, sign_in},
             setup::{CreateOrganization, Remote, create_organization},
             store::{GrantRecord, MemberRecord, OrganizationStore, Signer, TABLES},
@@ -1693,13 +1691,13 @@ mod tests {
                 .expect_err("a manager renewed the credentials"),
             );
             owner_only(
-                role::offer_ownership(&store, session, "member-b", OTHER_PASSWORD, 3)
+                ownership::offer_ownership(&store, session, "member-b", OTHER_PASSWORD, 3)
                     .await
                     .map(|_| ())
                     .expect_err("a manager offered the organization"),
             );
             owner_only(
-                role::withdraw_offer(&store, session, 3)
+                ownership::withdraw_offer(&store, session, 3)
                     .await
                     .expect_err("a manager withdrew an offer"),
             );
@@ -1738,10 +1736,10 @@ mod tests {
         renew_credentials(&store, &mut owner, &platform, &organization_database)
             .await
             .expect("the owner could not renew the credentials");
-        role::offer_ownership(&store, &owner, "member-b", PASSWORD, 5)
+        ownership::offer_ownership(&store, &owner, "member-b", PASSWORD, 5)
             .await
             .expect("the owner could not offer the organization");
-        role::withdraw_offer(&store, &owner, 6)
+        ownership::withdraw_offer(&store, &owner, 6)
             .await
             .expect("the owner could not withdraw the offer");
         delete_workspace(&store, &mut owner, &platform, &made.id)

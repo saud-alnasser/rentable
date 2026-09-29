@@ -352,7 +352,7 @@ impl OrganizationStore {
     ///
     /// **A second caller is a defect**, and a test in this module reads the source tree and fails
     /// where one appears. Anything else asking the database who its members are and believing the
-    /// answer is asking the database to vouch for itself, which is the one thing `authority.rs`
+    /// answer is asking the database to vouch for itself, which is the one thing `authority/`
     /// refuses.
     pub async fn members_unverified(&self) -> Result<Vec<MemberRecord>, Error> {
         Ok(self

@@ -35,7 +35,7 @@
 //! A replica with no `format` table is every organization made before effort 838's format break,
 //! and the sign forgot it at launch. That was right while such an organization could only be
 //! refused; since the human's call of 2026-09-26 its owner's sign-in, resume or connect upgrades
-//! it in place (`format/runner.rs`), and a machine that had forgotten it would have nothing left to
+//! it in place (`format/runner/`), and a machine that had forgotten it would have nothing left to
 //! upgrade, and would have lost the Turso authority with it. So a replica of that format is kept,
 //! the owner's machine upgrades it, and every other machine pulls before it answers, going on once
 //! the upgrade has arrived and told it waits for its owner until then (ticket 23).

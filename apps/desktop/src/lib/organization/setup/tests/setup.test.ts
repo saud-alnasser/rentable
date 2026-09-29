@@ -34,6 +34,25 @@ import { workspaceFormSchema } from '$lib/workspace/form.ts';
 import { WORKSPACE_NAME_LIMIT } from '$lib/workspace/workspace.ts';
 
 /**
+ * the first run's Rust as one text: `tauri/src/organization/setup/` less its commands, which is
+ * three files since effort 840 split what was one (ticket 52). The literals below are read back out
+ * of it.
+ */
+const setupRust = async () =>
+	(
+		await Promise.all(
+			['mod.rs', 'group.rs', 'connect.rs'].map((file) =>
+				readFile(
+					fileURLToPath(
+						new URL(`../../../../../tauri/src/organization/setup/${file}`, import.meta.url)
+					),
+					'utf8'
+				)
+			)
+		)
+	).join('\n');
+
+/**
  * THE WALK, ASSERTED OVER
  *
  * Criterion 3 of effort 819: **the only text entered into this application is the
@@ -178,10 +197,7 @@ test('the connect items together are shorter than the three paragraphs they repl
  * None of them imports the others, so this is what holds the four together.
  */
 test('the password floor is the same number in Rust, on the form, and in both locales', async () => {
-	const rust = await readFile(
-		fileURLToPath(new URL('../../../../../tauri/src/organization/setup/mod.rs', import.meta.url)),
-		'utf8'
-	);
+	const rust = await setupRust();
 	const declared = /pub const MINIMUM_PASSWORD_LENGTH: usize = (\d+);/.exec(rust);
 
 	assert.equal(Number(declared?.[1]), PASSWORD_FLOOR);
@@ -264,16 +280,13 @@ test('the connect step says these things, and says them in both locales', () => 
  *
  * The sentence the person reads is the locale's, from the refusal's `groupHoldsOrganization`
  * reason (effort 832, requirement 23). What Rust says is kept behind a disclosure under it, and the
- * literal below is read back out of `setup/mod.rs` so the fixture cannot drift away from it.
+ * literal below is read back out of `setup/` so the fixture cannot drift away from it.
  */
 const GROUP_ALREADY_HOLDS_ONE =
 	'this group already holds the organization database `org-7f3a`; a group holds one organization, so pick another group or another Turso account';
 
 test('the refusal a group already holding an organization gives is the sentence rust formats', async () => {
-	const rust = await readFile(
-		fileURLToPath(new URL('../../../../../tauri/src/organization/setup/mod.rs', import.meta.url)),
-		'utf8'
-	);
+	const rust = await setupRust();
 	// rust wraps a long literal with a trailing backslash and indents the next line; unwrapping
 	// it is what lets the sentence be compared as the one string it is at runtime.
 	const unwrapped = rust.replace(/\\\n\s*/g, '');
@@ -296,13 +309,10 @@ test('the refusal a group already holding an organization gives is the sentence 
  * created. **The refusal names both**, because the person is being asked to correct one word and
  * cannot do that without seeing what the other one is. The reader's sentence is the locale's,
  * from `groupMismatch`, and Rust's words behind it name both, so they are read back out of
- * `setup/mod.rs` here the way the group-already-held ones are.
+ * `setup/` here the way the group-already-held ones are.
  */
 test('the refusal a group that is not the consented one gives names both groups, and rust formats it', async () => {
-	const rust = await readFile(
-		fileURLToPath(new URL('../../../../../tauri/src/organization/setup/mod.rs', import.meta.url)),
-		'utf8'
-	);
+	const rust = await setupRust();
 	const unwrapped = rust.replace(/\\\n\s*/g, '');
 
 	assert.ok(
@@ -354,10 +364,7 @@ test('a create refused after the consent was given back sends the walk to the co
  * constant back out of `setup/mod.rs`. The reason replaced it, and the phrase is gone from both sides.*
  */
 test('the walk asks for the group on the reason rust gives, and on no phrase', async () => {
-	const rust = await readFile(
-		fileURLToPath(new URL('../../../../../tauri/src/organization/setup/mod.rs', import.meta.url)),
-		'utf8'
-	);
+	const rust = await setupRust();
 
 	assert.ok(rust.includes('RefusalReason::GroupNeeded'), 'rust no longer refuses with the reason');
 	assert.ok(!rust.includes('THE_GROUP_IS_NEEDED'), 'rust still carries the phrase');
@@ -738,17 +745,14 @@ test('a connect refused on the account itself sends the walk to the connect step
 
 /**
  * and the words the connect refuses with, behind the reader's sentence, are Rust's, read back out
- * of `setup/mod.rs`.
+ * of `setup/`.
  *
  * *There were two until 2026-09-20, and the one that went pointed at a link a connected machine
  * could make. Nothing formats it now, which this asserts as well: the owner is handed no link, so
  * that sentence sent them looking for something nobody could give them.*
  */
 test('the refusals the existing step can meet are the ones rust formats', async () => {
-	const rust = await readFile(
-		fileURLToPath(new URL('../../../../../tauri/src/organization/setup/mod.rs', import.meta.url)),
-		'utf8'
-	);
+	const rust = await setupRust();
 	const unwrapped = rust.replace(/\\\n\s*/g, '');
 
 	assert.ok(

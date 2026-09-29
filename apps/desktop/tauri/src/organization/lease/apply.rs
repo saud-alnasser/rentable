@@ -22,7 +22,7 @@
 //!    caller brings the organization's record up. Where it is above, `ROLLBACK` and
 //!    `WorkspaceNewer`, as an older build opening a newer workspace is refused.
 //! 3. Otherwise the tail after it as one batch, each statement run only where the one before it
-//!    answered `ok`, so nothing runs after a refusal; and the check's reads (`schema.rs`):
+//!    answered `ok`, so nothing runs after a refusal; and the check's reads (`schema/`):
 //!    `quick_check`, `foreign_key_check`, and the schema's structure (each table's columns,
 //!    each index's columns, each view's and trigger's statement), compared with a fresh database
 //!    of the version asked for, which is the embedded migrations applied to an in-memory SQLite

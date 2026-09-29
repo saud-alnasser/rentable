@@ -6,7 +6,7 @@ use crate::{clock, credential::Credentials, error::Error, state::AppState};
 use crate::organization::{
     act::{Acting, Pull, as_member},
     invitation::MemberFacts,
-    role,
+    ownership,
     session::{OrganizationState, state_of},
 };
 
@@ -33,7 +33,7 @@ pub async fn member_offer_ownership(
     // the row this act writes back whole carries the session epoch, so it is read after a pull
     // rather than off this machine's last sight of it (effort 826, requirement 22).
     as_member(&app_state, Pull::First, async |Acting { member, store }| {
-        role::offer_ownership(store, member, &member_id, &password, clock.now()).await
+        ownership::offer_ownership(store, member, &member_id, &password, clock.now()).await
     })
     .await
 }
@@ -49,7 +49,7 @@ pub async fn member_withdraw_offer(
     clock: tauri::State<'_, clock::Shared>,
 ) -> Result<(), Error> {
     as_member(&app_state, Pull::First, async |Acting { member, store }| {
-        role::withdraw_offer(store, member, clock.now()).await
+        ownership::withdraw_offer(store, member, clock.now()).await
     })
     .await
 }
@@ -81,7 +81,7 @@ pub(crate) async fn ownership_accept(
     as_member(&app_state, Pull::First, async |Acting { member, store }| {
         let mut remote_sync = app_state.remote_sync.write().await;
 
-        role::accept_ownership(
+        ownership::accept_ownership(
             store,
             member,
             remote_sync.store_mut(),

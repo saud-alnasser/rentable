@@ -4,7 +4,7 @@
 //! **Only the owner, because every row of this format is signed from the root**, and the root is
 //! the organization key, which the owner's vault secret derives (`setup::owner_key_from`) and no
 //! other vault does. A vault is the owner's exactly when that key is the key the machine pinned,
-//! followed along any handover format 1 signed ([`settled`]), the test `role::repair_owner_row`
+//! followed along any handover format 1 signed ([`settled`]), the test `ownership::repair_owner_row`
 //! makes. **Nothing else about the owner is read off a row**: not the role word, not
 //! `must_change_password`, not an unsigned `revoked_at` on their certificate. Anybody else who meets
 //! an organization of an earlier format, at a sign-in, a resume, a connect, a join or a machine
@@ -57,7 +57,7 @@
 //! what they share: the vault, the owner, the grant and the mint, following the owner, the push and
 //! the pull, the refusal of an organization this machine has read in a later format, then one
 //! transaction that walks the list from the format the organization is in to the one this build
-//! ships ([`walked`]), with the `format` row last, then the push. It is handed the list end to end
+//! ships ([`walked`](walk::walked)), with the `format` row last, then the push. It is handed the list end to end
 //! and counts the format it ships from it, so a test walks a list of its own through the same
 //! sign-in; production hands it [`TRANSITIONS`].
 //!
@@ -73,210 +73,34 @@
 //! 15): after the last change and the `format` row, SQLite's structural check passes and the
 //! schema is the one a fresh organization of the format it arrives at is built with, less the
 //! tables a change leaves alone, compared by structure so a table reshaped in place compares by
-//! its columns and not by the statement the engine rewrote for it ([`checked`], `schema.rs`). A
+//! its columns and not by the statement the engine rewrote for it ([`checked`](walk::checked), `schema/`). A
 //! check that fails rolls the whole walk back and refuses with `ShapeNotAsBuilt`.
 
 use crate::{
-    backup,
     credential::CredentialStore,
     diagnostics,
     error::{Error, RefusalReason},
-    schema,
-    turso::platform::{AccessLevel, PlatformApi, TursoPlatform},
 };
 
 use crate::organization::{
     HeldOrganization,
     authority::{AdministratorKey, VERIFYING_KEY_BYTES, verify_succession},
     member::vault::{MemberSecretKey, open_sealed_secret_key, open_vault, unseal_with_secret_key},
-    role::{authority_of, in_one_transaction},
+    ownership::authority_of,
     session::{
         CredentialSlot, content_key_of, opened, refused_by_name, remembered, verifying_key_of,
     },
-    setup::{
-        ADMINISTRATOR_KEY_PURPOSE, ORGANIZATION_CREDENTIAL_LIFETIME, ORGANIZATION_DATABASE_PREFIX,
-        Remote, owner_key_from,
-    },
+    setup::ADMINISTRATOR_KEY_PURPOSE,
     store::{OrganizationStore, waits_for_its_owner},
 };
 
-use super::{Sought, TRANSITIONS, Transition, Upgrading};
+use super::{Sought, TRANSITIONS, Transition};
 
-/// What the remote said to a push this measured failure is in: changes captured under a column
-/// set a later statement dropped (`OrganizationStore::format_one_reshape`).
-const ARGUMENTS_MISMATCH: &str = "Number of arguments mismatch";
+mod replication;
+mod walk;
 
-/// What a push came to.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Pushed {
-    /// the remote took everything this machine held.
-    Went,
-    /// it did not reach the remote, or the remote did not take it for now: the offline case.
-    DidNotGo,
-    /// the remote refused changes an earlier build captured under columns it has since dropped,
-    /// and will refuse them at every push after (ticket 25).
-    Unsendable,
-}
-
-/// How the upgrade reaches the organization's remote and the owner's own account: send what this
-/// machine holds, bring what the others wrote, and mint the owner a credential where theirs is
-/// gone.
-///
-/// **A seam, because the upgrade's answer depends on the remote's.** Production hands in
-/// [`ItsRemote`], the remote the replica was opened against and the owner's Turso account where
-/// this machine holds its authority, or [`OnTheAccount`] on the connect, which carries the
-/// account the connect was consented on; a test hands in a remote
-/// that answers as it is told, since there is no remote here to reach.
-pub(crate) trait Replication {
-    /// Send what `store` holds to its remote, and say what came of it.
-    async fn push(&self, store: &OrganizationStore) -> Pushed;
-    /// Bring what the others wrote into `store`; whether a pull completed, whatever it brought.
-    async fn pull(&self, store: &OrganizationStore) -> bool;
-    /// A credential on `database_name` minted through the owner's own Turso account, the way
-    /// `setup::connect_existing` mints one, or `None` where this machine holds no authority or the
-    /// account would not mint.
-    async fn minted(&self, database_name: &str) -> Option<String>;
-    /// A protected copy of `database_name` made on the owner's own Turso account before its format
-    /// changes, labelled `label` and stamped `at`, and what it is called; `None` where this machine
-    /// holds no authority or the account would not make one, which the upgrade goes on from.
-    async fn copied(&self, database_name: &str, label: &str, at: i64) -> Option<String>;
-}
-
-/// The remote the replica was opened against, and the Turso account `account` reaches where this
-/// machine holds the owner's authority over it.
-pub(crate) struct ItsRemote<P = PlatformApi> {
-    pub(crate) account: Option<P>,
-}
-
-impl<P: TursoPlatform + Sync> Replication for ItsRemote<P> {
-    /// The replica's own push.
-    async fn push(&self, store: &OrganizationStore) -> Pushed {
-        pushed(store).await
-    }
-
-    /// The replica's own pull.
-    async fn pull(&self, store: &OrganizationStore) -> bool {
-        pulled(store).await
-    }
-
-    /// A full-access credential for four weeks, as the connect on the account mints one.
-    async fn minted(&self, database_name: &str) -> Option<String> {
-        let account = self.account.as_ref()?;
-
-        match account
-            .mint_token(
-                database_name,
-                ORGANIZATION_CREDENTIAL_LIFETIME,
-                AccessLevel::FullAccess,
-            )
-            .await
-        {
-            Ok(token) => Some(token),
-            Err(refusal) => {
-                diagnostics::info("organization.upgrade.notMinted")
-                    .with("reason", refusal.to_string())
-                    .write();
-
-                None
-            }
-        }
-    }
-
-    /// A copy seeded from the organization database, as `backup::remote_copy` makes one.
-    async fn copied(&self, database_name: &str, label: &str, at: i64) -> Option<String> {
-        let account = self.account.as_ref()?;
-
-        backup::remote_copy(account, database_name, label, at)
-            .await
-            .ok()
-    }
-}
-
-/// The connect's remote, and the owner's Turso account the connect was consented on: how the
-/// upgrade of an older organization reaches both from `setup::connect_existing` (effort 838,
-/// tickets 23 and 27). The account is the one the connect minted its credential on, so the copy
-/// taken before the upgrade is made there too, as [`ItsRemote`] makes it on a sign-in. *It was in
-/// `organization/setup.rs` until effort 840 (ticket 48).*
-pub(crate) struct OnTheAccount<'a, P> {
-    pub(crate) remote: Remote,
-    pub(crate) account: &'a P,
-}
-
-impl<P: TursoPlatform> Replication for OnTheAccount<'_, P> {
-    async fn push(&self, store: &OrganizationStore) -> Pushed {
-        match self.remote {
-            Remote::Libsql => pushed(store).await,
-            Remote::None => Pushed::DidNotGo,
-            #[cfg(test)]
-            Remote::Answering => Pushed::Went,
-        }
-    }
-
-    async fn pull(&self, store: &OrganizationStore) -> bool {
-        match self.remote {
-            Remote::Libsql => pulled(store).await,
-            Remote::None => false,
-            #[cfg(test)]
-            Remote::Answering => true,
-        }
-    }
-
-    /// Nothing: the connect has minted the credential it upgrades under already, on this same
-    /// account, before the replica was opened.
-    async fn minted(&self, _: &str) -> Option<String> {
-        None
-    }
-
-    /// A copy seeded from the organization database on the account the connect holds, as
-    /// `backup::remote_copy` makes one.
-    async fn copied(&self, database_name: &str, label: &str, at: i64) -> Option<String> {
-        backup::remote_copy(self.account, database_name, label, at)
-            .await
-            .ok()
-    }
-}
-
-/// The replica's own push, told apart by what the remote answered: a column set it no longer has
-/// is refused for good, and anything else is the offline case. A push that did not go is logged.
-pub(crate) async fn pushed(store: &OrganizationStore) -> Pushed {
-    match store.pushed().await {
-        Ok(()) => Pushed::Went,
-        Err(refusal) => {
-            let refusal = refusal.to_string();
-
-            diagnostics::info("organization.upgrade.notPushed")
-                .with("reason", refusal.as_str())
-                .write();
-
-            classified(&refusal)
-        }
-    }
-}
-
-/// What a push the remote refused with `refusal` came to: the measured mismatch is refused for
-/// good, and anything else is the offline case.
-fn classified(refusal: &str) -> Pushed {
-    if refusal.contains(ARGUMENTS_MISMATCH) {
-        Pushed::Unsendable
-    } else {
-        Pushed::DidNotGo
-    }
-}
-
-/// The replica's own pull, where it completed, whatever it brought; a pull that did not is logged
-/// and answered as not gone.
-pub(crate) async fn pulled(store: &OrganizationStore) -> bool {
-    match store.pulled().await {
-        Ok(_) => true,
-        Err(refusal) => {
-            diagnostics::info("organization.upgrade.notPulled")
-                .with("reason", refusal.to_string())
-                .write();
-
-            false
-        }
-    }
-}
+pub(crate) use replication::*;
+use walk::upgrade;
 
 /// A vault a password or a remembered key opened, and the member row it sits on.
 pub(crate) struct Opened {
@@ -542,267 +366,6 @@ async fn vault_opened_by(
     }))
 }
 
-/// Upgrade an older organization where `opened` is the owner's vault, or follow the owner's
-/// upgrade where it is anybody else's: the member's own credential taken from their grant where
-/// the machine holds none, the owner's minted on their own account where theirs is lapsed or
-/// gone, then, for the owner alone, a push and a pull, every change of format in `transitions`
-/// [`walked`] in one transaction, and a push of what it wrote. The grant is read through
-/// `reading`, the first change due.
-#[allow(clippy::too_many_arguments)]
-async fn upgrade(
-    store: &OrganizationStore,
-    remote: &impl Replication,
-    transitions: &[Transition],
-    reading: &Transition,
-    organization_id: &str,
-    pinned: &[u8; VERIFYING_KEY_BYTES],
-    opened: &Opened,
-    credential: &CredentialSlot,
-    known_format: Option<i64>,
-    now: i64,
-) -> Result<(), Error> {
-    let organization_key = owner_key_from(&opened.secret)?;
-    let signing_key = signing_key_of(&opened.secret)?;
-    // the key the organization is on now, followed from the pin along any handover this replica
-    // holds, so a pin a format 1 handover left behind is settled before the owner is looked for.
-    let key = settled(store, pinned).await?;
-    let owner = organization_key.verifying_key() == key;
-    let shipped = shipped(transitions);
-    let mut reach = Reach::Held;
-
-    // the member's own credential on the organization database, where the machine holds none
-    // yet: their grant, judged under the rules of the format that signed it, and unsealed with the
-    // secret that opened their vault. The owner's certificate is judged by its key alone.
-    if credential
-        .lock()
-        .map_err(|_| poisoned())?
-        .as_deref()
-        .is_none()
-    {
-        let owners_signing_key = owner.then(|| signing_key.verifying_key());
-        let sought = Sought {
-            store,
-            key: &key,
-            member_id: &opened.member_id,
-        };
-        let grant = own_grant(
-            reading,
-            &sought,
-            organization_id,
-            &opened.secret,
-            owners_signing_key,
-        )
-        .await?;
-
-        reach = match &grant {
-            None => Reach::Missing,
-            Some(grant) if grant.lapsed(now) => Reach::Lapsed,
-            Some(_) => Reach::Held,
-        };
-
-        // the owner's lapsed or missing grant is renewed on their own account before the push
-        // spends it, as the connect on the account mints one; a machine without the authority
-        // goes on with what the grant held, and the push says whether that reached anything.
-        let minted = if owner && reach != Reach::Held {
-            remote
-                .minted(&format!("{ORGANIZATION_DATABASE_PREFIX}{organization_id}"))
-                .await
-        } else {
-            None
-        };
-
-        if minted.is_some() {
-            diagnostics::info("organization.upgrade.credentialRenewed")
-                .with("organization", organization_id)
-                .with("was", reach.as_str())
-                .write();
-
-            reach = Reach::Held;
-        }
-
-        if let Some(token) = minted.or(grant.map(|grant| grant.token)) {
-            *credential.lock().map_err(|_| poisoned())? = Some(token);
-        }
-    }
-
-    if !owner {
-        return follow_the_owner(store, remote, reach, shipped).await;
-    }
-
-    // what the old build left captured goes first, since a row captured under the columns the
-    // upgrade drops cannot share a push with the drop; then what the others wrote. Either not
-    // going is a refusal, and nothing has been written.
-    match remote.push(store).await {
-        Pushed::Went => {}
-        Pushed::Unsendable => return Err(changes_unsendable(organization_id)),
-        Pushed::DidNotGo => {
-            return Err(needs_a_connection(
-                organization_id,
-                "what this machine holds could not be sent",
-            ));
-        }
-    }
-
-    if !remote.pull(store).await {
-        return Err(needs_a_connection(
-            organization_id,
-            "what the others wrote could not be brought",
-        ));
-    }
-
-    // another machine of the owner's got there first, and what arrived is this format, or a
-    // newer one, which the caller refuses.
-    if !store.is_older_than(shipped).await? {
-        return Ok(());
-    }
-
-    // what arrived can carry a handover, so the owner is looked for again under what it settles.
-    let key = settled(store, pinned).await?;
-
-    if organization_key.verifying_key() != key {
-        return Err(waits_for_its_owner());
-    }
-
-    let upgrading = Upgrading {
-        store,
-        key: &key,
-        organization_key: &organization_key,
-        signing_key: &signing_key,
-        opened,
-        now,
-    };
-
-    walked(
-        &upgrading,
-        remote,
-        transitions,
-        organization_id,
-        known_format,
-    )
-    .await?;
-
-    if remote.push(store).await != Pushed::Went {
-        diagnostics::warn("organization.upgrade.notYetSent")
-            .with("organization", organization_id)
-            .write();
-    }
-
-    diagnostics::info("organization.upgraded")
-        .with("organization", organization_id)
-        .write();
-
-    Ok(())
-}
-
-/// Walk `transitions` over the organization, from the format it is in to the one after the last of
-/// them, in one transaction, and write the `format` row last: what every change of format shares
-/// (ticket 26). The upgrade walks the list it was handed, [`TRANSITIONS`] in production.
-///
-/// **The format it is in is 1 wherever anything of format 1 is left, and otherwise the `format`
-/// row, never below 2** (`OrganizationStore::format_as_it_stands`, which says why, and what no row
-/// reads as). An organization already in the last format is walked through nothing, and its row is
-/// all that is written.
-///
-/// **Nothing is written until every change due has said it may run** (ticket 25). An organization
-/// this machine has read in a later format than a change starts from, by `known_format`, its own
-/// record, has been made to look older, from rows a member can put back; each change's own check
-/// refuses the directory as it stands on grounds of its own. Either refusal writes nothing.
-///
-/// **Then a copy, before the transaction** (ticket 27): the organization as it stands, to a file
-/// under the data directory, and where `remote` holds the owner's account, to a protected database
-/// there. A local copy that cannot be written refuses the walk with `CopyNotTaken` and nothing is
-/// written. An organization walked through nothing is not copied: all that is written is the
-/// `format` row, which says what its directory already is.
-async fn walked(
-    upgrading: &Upgrading<'_>,
-    remote: &impl Replication,
-    transitions: &[Transition],
-    organization_id: &str,
-    known_format: Option<i64>,
-) -> Result<(), Error> {
-    let store = upgrading.store;
-    let to = shipped(transitions);
-    let from = store.format_as_it_stands(to).await?;
-    let due: Vec<&Transition> = transitions
-        .iter()
-        .filter(|transition| transition.from >= from)
-        .collect();
-
-    for transition in &due {
-        if known_format.is_some_and(|format| transition.from < format) {
-            return Err(upgraded_already(
-                organization_id,
-                transition.name,
-                "this machine has read the organization in this format",
-            ));
-        }
-
-        if let Some(why) = (transition.refused)(upgrading).await? {
-            return Err(upgraded_already(organization_id, transition.name, why));
-        }
-    }
-
-    if !due.is_empty() {
-        let database = format!("{ORGANIZATION_DATABASE_PREFIX}{organization_id}");
-        let label = format!("format-{from}-to-{to}");
-
-        backup::local_copy(store, store.directory(), &database, &label, upgrading.now).await?;
-        if !backup::remote_copy_made(store.directory(), &database, &label)
-            && let Some(name) = remote.copied(&database, &label, upgrading.now).await
-        {
-            backup::remember_remote_copy(store.directory(), &database, &label, &name);
-        }
-    }
-
-    in_one_transaction(store, async {
-        for transition in &due {
-            (transition.run)(upgrading).await?;
-        }
-
-        store.write_format_version(to).await?;
-
-        checked(store, transitions, to).await
-    })
-    .await
-}
-
-/// Refuse with `ShapeNotAsBuilt` unless the organization, read inside the walk's transaction, is
-/// what a fresh organization of format `to` is (ticket 33): built on an empty in-memory database
-/// by the last of `transitions`, the list the runner was handed, so a test's own list is checked
-/// against its own format. The tables any change of the list leaves alone are left out on both
-/// sides. A table a change reshapes in place is compared by its structure, as every table is
-/// (`schema.rs`), so the statement the engine rewrote for it needs no declaring. Built each time
-/// rather than kept: it runs once an upgrade.
-async fn checked(
-    store: &OrganizationStore,
-    transitions: &[Transition],
-    to: i64,
-) -> Result<(), Error> {
-    let last = transitions.last().ok_or_else(|| Error::Internal {
-        message: "a walk with no change of format has no format to be checked against".to_string(),
-    })?;
-    let fresh_database = turso::Builder::new_local(":memory:").build().await?;
-    let fresh_connection = fresh_database.connect()?;
-
-    (last.built)(&fresh_connection).await?;
-
-    let kept: Vec<&str> = transitions
-        .iter()
-        .flat_map(|transition| transition.kept.iter().copied())
-        .collect();
-    let fresh = schema::read_engine(&fresh_connection)
-        .await?
-        .shape
-        .without(&kept);
-    let found = store.found().await?;
-    let found = schema::Found {
-        shape: found.shape.without(&kept),
-        ..found
-    };
-
-    schema::as_built(&format!("the organization at format {to}"), &found, &fresh)
-}
-
 /// What the machine's own credential on the organization database comes to, before the pull
 /// that spends it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -880,21 +443,6 @@ fn changes_unsendable(organization_id: &str) -> Error {
     )
 }
 
-/// The refusal of an owner's upgrade of an organization that has been of this format and has
-/// been made to look older since (ticket 25): nothing was written to the organization. What it
-/// meets is the refusal every way in meets for an older organization, since the row that would
-/// say otherwise is the one that was taken away; the log says which change of format, `transition`,
-/// was refused, and which fact refused it.
-fn upgraded_already(organization_id: &str, transition: &str, why: &str) -> Error {
-    diagnostics::warn("organization.upgrade.refusedAgain")
-        .with("organization", organization_id)
-        .with("transition", transition)
-        .with("reason", why)
-        .write();
-
-    waits_for_its_owner()
-}
-
 /// The refusal of an owner whose upgrade could not reach the organization's latest state: nothing
 /// was written, and the upgrade runs at their next sign-in, resume or connect that can reach it.
 fn needs_a_connection(organization_id: &str, why: &str) -> Error {
@@ -913,7 +461,7 @@ fn needs_a_connection(organization_id: &str, why: &str) -> Error {
 }
 
 /// The key the organization is on now: the one `pinned`, followed along every completed
-/// succession this replica holds that the key in hand signed, as `role::follow_succession` walks
+/// succession this replica holds that the key in hand signed, as `ownership::follow_succession` walks
 /// them. A format 1 handover re-keyed the directory and left exactly such a row, so a machine
 /// that pinned the key it replaced settles here on the key that replaced it.
 ///
@@ -1037,8 +585,11 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        ItsRemote, Pushed, Replication, checked, classified, signing_key_of, vault_opened_by,
-        walked, with_password, with_password_over, with_remembered_key, with_the_owners_password,
+        ItsRemote, Pushed, Replication,
+        replication::classified,
+        signing_key_of, vault_opened_by,
+        walk::{checked, walked},
+        with_password, with_password_over, with_remembered_key, with_the_owners_password,
     };
     use crate::{
         backup,
@@ -1052,7 +603,8 @@ mod tests {
             },
             invitation::{connect, link::Locator, rename_member},
             member::vault::{MemberSecretKey, open_content},
-            role::{follow_succession, permission::OWNER_ROLE},
+            ownership::follow_succession,
+            role::permission::OWNER_ROLE,
             session::{
                 CredentialSlot, Resumption, refused_by_name, remember, resume, sign_in_by_username,
             },
@@ -2522,7 +2074,7 @@ mod tests {
         assert!(store.is_older().await.expect("the format"));
 
         // what the refusal keeps from happening, a plan over this state carrying the replayed
-        // row as a manager signed from the root, is shown at the foot of `two.rs`.
+        // row as a manager signed from the root, is shown at the foot of `two/plan.rs`.
 
         let before = contents(&store).await;
         let remote = online();

@@ -6,8 +6,9 @@
 //! - a name is one word: lowercase letters and digits, no underscore (*A Rust name is one word*);
 //! - no module is named `utils` or `common` (the table of names that are not available);
 //! - no module name is a plural, `tests` aside (the same table). In Rust a file is a module as
-//!   much as a directory is, so a file is held to it too: `database/commands.rs` is the case the
-//!   spec names;
+//!   much as a directory is, so a file is held to it too: `database/commands.rs` was the case the
+//!   spec named, and is `database/command.rs`. A word that ends in `s` without being a plural is
+//!   not one: the rule lists the few this tree uses, and `UNCOUNTABLE` below is that list;
 //! - a directory is rooted by `mod.rs`, and no `<x>.rs` sits beside `<x>/`
 //!   (*A Rust directory is rooted by `mod.rs`*).
 //!
@@ -25,6 +26,11 @@ mod tests {
     const ROOTS: [&str; 3] = ["lib", "main", "mod"];
     /// The names the rule's table forbids, as a whole name or as one word of one.
     const BANNED: [&str; 2] = ["utils", "common"];
+    /// The words ending in `s` that name one thing rather than many, as the rule lists them under
+    /// *A word ending in `s` is not always a plural*: `diagnostics`, a field as `physics` is, and
+    /// `settings`, the one record of how this machine is set up, holding no `Setting` it would be
+    /// the many of. Each is a module here whose name is right, and nothing else is on the list.
+    const UNCOUNTABLE: [&str; 2] = ["diagnostics", "settings"];
 
     fn source_root() -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR")).join("src")
@@ -42,9 +48,11 @@ mod tests {
     }
 
     /// A word read as a plural by its ending. `-ss`, `-us` and `-is` end singulars (`progress`,
-    /// `status`, `analysis`), so they are not counted.
+    /// `status`, `analysis`), so they are not counted, and nor is a word the rule lists as
+    /// [`UNCOUNTABLE`].
     fn plural(name: &str) -> bool {
         name != "tests"
+            && !UNCOUNTABLE.contains(&name)
             && name.ends_with('s')
             && !["ss", "us", "is"]
                 .iter()
@@ -165,5 +173,6 @@ mod tests {
         assert!(one_word("server"));
         assert!(banned("utils") && banned("chart_common") && !banned("commonplace"));
         assert!(plural("commands") && !plural("tests") && !plural("progress") && !plural("status"));
+        assert!(!plural("diagnostics") && !plural("settings") && plural("setups"));
     }
 }

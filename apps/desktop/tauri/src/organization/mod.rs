@@ -44,11 +44,11 @@ pub use crate::machine::HeldOrganization;
 
 #[cfg(test)]
 mod tests {
+    use crate::organization::role::permission::Flag;
+
     // -------------------------------------------------------------------------------------
     // Effort 838, criterion 1: every organization command names its gate.
     // -------------------------------------------------------------------------------------
-
-    use crate::organization::role::permission::Flag;
 
     /// What stands in front of an organization command before it does anything.
     ///

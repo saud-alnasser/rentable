@@ -90,7 +90,7 @@ impl OrganizationStore {
     ///
     /// **What a caller must do with these is check each one** through
     /// `authority::verify_succession`, against the key it already pinned and then against each key
-    /// the chain hands it (`role::follow_succession`, which is the only walk there is). A row
+    /// the chain hands it (`ownership::follow_succession`, which is the only walk there is). A row
     /// whose signature does not check under the key in hand is a row somebody wrote, and every
     /// such row is worth exactly nothing: without the check this table would be a way to tell any
     /// machine to trust any key.

@@ -442,11 +442,12 @@ pub(crate) async fn retire_member(
     // requirement 22): the seal comes off the row that is being written back anyway, and the
     // succession row naming them is deleted, so nothing remains that a removed account could
     // accept with and the owner can offer the organization to somebody else without withdrawing
-    // an offer from a person who is no longer here. `role::accept_ownership` refuses a removed row
+    // an offer from a person who is no longer here. `ownership::accept_ownership` refuses a removed row
     // by name as well, for the replica that has not pulled this yet.
-    if let Some(offer) = crate::organization::role::standing_offer(store, &session.verifying_key)
-        .await?
-        .filter(|offer| offer.offered_member_id == member_id)
+    if let Some(offer) =
+        crate::organization::ownership::standing_offer(store, &session.verifying_key)
+            .await?
+            .filter(|offer| offer.offered_member_id == member_id)
     {
         store.delete_succession(&offer.id).await?;
     }
@@ -2039,7 +2040,7 @@ mod tests {
         let pinned = org.owner.verifying_key;
 
         assert!(
-            crate::organization::role::organization_key_of(&manager).is_err(),
+            crate::organization::ownership::organization_key_of(&manager).is_err(),
             "a manager's vault derives the organization key"
         );
 

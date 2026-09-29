@@ -80,7 +80,7 @@ pub struct HeldOrganization {
     /// **The one fact about the format that lives outside the organization database** (effort
     /// 838, ticket 25). The `format` row is unsigned and every member can write that database, so
     /// an upgraded organization can be made to look older there; a machine that has read it in
-    /// this format never transforms it again, whatever the row says (`upgrade/format/runner.rs`).
+    /// this format never transforms it again, whatever the row says (`upgrade/format/runner/`).
     pub format: Option<i64>,
 }
 
@@ -231,7 +231,7 @@ pub struct RemoteSyncStore {
     ///
     /// **Kept because it cannot be asked for twice cheaply.** A consented token carries neither
     /// the organization slug nor anything that maps to one, and the only route to it is a lookup
-    /// against Turso's MCP server (`turso/discovery.rs`). That surface is versioned at
+    /// against Turso's MCP server (`turso/discovery/`). That surface is versioned at
     /// `v0.1.0` and documented for agents, so asking it once at setup and never again is what
     /// keeps a change there off the provisioning path.
     ///
@@ -794,7 +794,7 @@ pub(super) fn sanitize_optional_string(value: Option<String>) -> Option<String> 
 /// store and no request leaves the process. `None` is an empty group rather than a failure, and
 /// the caller creates the first database and reads the slug out of what comes back.
 ///
-/// **Here, beside the record it remembers into, rather than in `turso/discovery.rs`.** The lookup
+/// **Here, beside the record it remembers into, rather than in `turso/discovery/`.** The lookup
 /// is Turso's; the remembering is this machine's, and a Turso adapter that wrote this machine's
 /// record would reach back into `machine` from the module `machine` reaches for.
 pub async fn consented_organization(
@@ -1379,7 +1379,7 @@ mod tests {
         assert_eq!(workspace.name, "Riyadh");
     }
 
-    /// The memo over Turso's lookup, moved here from `turso/discovery.rs` with the function; the
+    /// The memo over Turso's lookup, moved here from `turso/discovery/` with the function; the
     /// scripted replies are that module's own.
     mod consented {
         use serde_json::json;

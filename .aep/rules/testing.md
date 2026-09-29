@@ -325,7 +325,7 @@ the file. All four are Rust.
 
 **A fourth property: whether the Platform API takes what a Rust port sends.** Ticket 05 moved the
 client that was `control-plane/src/workspace/turso.ts` (kept as `packages/turso-platform` until effort 840 removed it) into
-`tauri/src/turso/platform.rs` (`sync/turso/platform.rs` until effort 840), and its live half creates a database in a group the consent named, mints a credential against that
+`tauri/src/turso/platform/` (`sync/turso/platform.rs` until effort 840), and its live half, `live.rs` beside the in-memory `memory.rs`, creates a database in a group the consent named, mints a credential against that
 database, asserts delete protection is on, and deletes the database it just made once that
 protection has been lifted. **No group is created.** Nothing available to the application can make
 one: the consent screen selects a group and offers no way to create one, and the token cannot

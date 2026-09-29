@@ -576,7 +576,7 @@ impl OrganizationStore {
     }
 
     /// Remove one grant row and nothing beside it: what the change from format 1 drops, in an
-    /// organization that holds no workspace overrides yet (`upgrade/format/two.rs`).
+    /// organization that holds no workspace overrides yet (`upgrade/format/two/`).
     pub async fn delete_grant_alone(
         &self,
         member_id: &str,

@@ -3,7 +3,7 @@
 //! 26).
 //!
 //! **One file for each change, and this list the one place they are named in order.** What every
-//! change needs is written once, in `runner.rs`: finding the owner, the push and the pull before
+//! change needs is written once, in `runner/`: finding the owner, the push and the pull before
 //! it, the refusal of an organization this machine has read in a later format, the copy, the one
 //! transaction, the `format` row last, and the push after. A change holds only what is its own:
 //! the readers that find a vault and a member's own grant in the format it starts from, the check
@@ -12,7 +12,7 @@
 //! change the list holds, and the test at the foot of this file holds the two together; the runner
 //! counts it from the list it is handed.
 //!
-//! **Beside the changes, what they share**: `runner.rs`, the owner's upgrade that walks them, and
+//! **Beside the changes, what they share**: `runner/`, the owner's upgrade that walks them, and
 //! `signature.rs`, what format 1 signed and how that format judged a row. *They were
 //! `organization/transition/`, `organization/upgrade.rs` and the foot of
 //! `organization/authority.rs` until effort 840 (ticket 48) put them here, where nothing but the
@@ -29,7 +29,7 @@
 //! 1. a file here, named for the format it makes, one word as every Rust file is (`four.rs`);
 //! 2. in it, the change and a `TRANSITION` built from it, reading the format it starts from,
 //!    building a fresh organization of the format it makes, and naming the tables it leaves alone,
-//!    which the check before the commit reads (`schema.rs`, ticket 33); a table it reshapes in
+//!    which the check before the commit reads (`schema/`, ticket 33); a table it reshapes in
 //!    place needs nothing declared, since the check compares structure (ticket 38);
 //! 3. that entry at the end of [`TRANSITIONS`], and `store::FORMAT_VERSION` moved on by one to
 //!    match it, which the test at the foot of this file fails until it is;

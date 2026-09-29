@@ -29,7 +29,7 @@ use crate::turso::{
 /// ([[rules/credentials]], *Client boundary*): the first create into an empty group may have to
 /// name the group, and `setup/` tries every name it can work out before the walk asks anybody
 /// for one, so this is `None` on an ordinary run. It is a name rather than a credential when it
-/// does arrive; `setup/` and `turso/discovery.rs` say why.
+/// does arrive; `setup/` and `turso/discovery/` say why.
 ///
 /// **None of the four crosses back, and nothing else crosses at all.** The password is turned
 /// into a vault here and dropped; the organization key and the owner's signing key are derived

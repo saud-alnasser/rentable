@@ -72,7 +72,7 @@ does and what the sync manager schedules, and since the retirement nothing stand
 _Avoid_: calling the last dispatch of a session a replication: it pushes and does not pull.
 
 **Refusal**:
-Turso saying no to a dispatch, read at the response (`turso/platform.rs::read_sync_refusal`).
+Turso saying no to a dispatch, read at the response (`turso/platform/mod.rs::read_sync_refusal`).
 The account's, for quota or billing, is said to the owner in Turso's own words and to everybody
 else as the account needing attention; the credential's, a `401` or `403`, is what the reconnect
 collects a fresh credential on. A machine that reached nothing is neither, and needs a different

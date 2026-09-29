@@ -27,7 +27,7 @@ pub(super) const FORMAT: &str = "CREATE TABLE IF NOT EXISTS \"format\" (\
 /// this build creates carries this number in its one `format` row. Every organization made before
 /// effort 838 has no `format` table, which is what version 1 was: its owner's machine upgrades it
 /// in place at their sign-in, resume or connect, online, and writes this row last
-/// (`upgrade/format/runner.rs`, tickets 22 and 23). An upgrade cut short has no row either, and its
+/// (`upgrade/format/runner/`, tickets 22 and 23). An upgrade cut short has no row either, and its
 /// owner finishes it. Until then, and for an organization with a number above this one, nothing is
 /// read from it and nothing written to it: [`OrganizationStore::refuse_another_format`] says which,
 /// and the person is told what to do. That absence is how an older organization is told apart, and
@@ -159,7 +159,7 @@ impl OrganizationStore {
     }
 
     /// Record that this organization is of format `version`: the row the owner's upgrade writes
-    /// last, naming the format its walk ended at (`upgrade/format/runner.rs`, ticket 26), which is
+    /// last, naming the format its walk ended at (`upgrade/format/runner/`, ticket 26), which is
     /// this build's except where a test walks a list of its own. The table is created where it is
     /// missing, as [`OrganizationStore::write_format`] says.
     pub async fn write_format_version(&self, version: i64) -> Result<(), Error> {

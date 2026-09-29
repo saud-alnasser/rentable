@@ -116,12 +116,12 @@ const sections = () =>
 const rustUsernameRules = () => {
 	const source = readFileSync(
 		// the runner's root is `apps/desktop`, and the crate sits beside `src` there.
-		resolve(process.cwd(), 'tauri/src/organization/invitation/mod.rs'),
+		resolve(process.cwd(), 'tauri/src/organization/invitation/username.rs'),
 		'utf8'
 	);
 	const declared = /pub const USERNAME_RULES: &str = "([^"]+)";/.exec(source);
 
-	if (!declared) throw new Error('invitation/mod.rs no longer declares USERNAME_RULES');
+	if (!declared) throw new Error('invitation/username.rs no longer declares USERNAME_RULES');
 
 	return declared[1];
 };

@@ -224,7 +224,7 @@ impl OrganizationStore {
     }
 
     /// Create the tables of format 2 where they do not exist, and none a later format adds: what
-    /// the change from format 1 creates (`upgrade/format/two.rs`), leaving the rest to the changes
+    /// the change from format 1 creates (`upgrade/format/two/`), leaving the rest to the changes
     /// after it.
     pub async fn install_format_two_schema(&self) -> Result<(), Error> {
         install_format_two(&self.connection).await
@@ -290,7 +290,7 @@ impl OrganizationStore {
     /// **Only an organization of this build's format is completed** (effort 838, requirement 11).
     /// One of another format is written to not at all, so this creates nothing in it and answers
     /// that nothing was created; the reader that follows is what refuses it, or its owner's
-    /// upgrade reshapes it (`upgrade/format/runner.rs`). Above all it never creates `format` in an
+    /// upgrade reshapes it (`upgrade/format/runner/`). Above all it never creates `format` in an
     /// older organization, whose missing table is one of the things that tell it apart; one
     /// carrying a `format` row beside format 1's table or columns is older too (ticket 25), and a
     /// member's pull creates nothing in it.
@@ -393,7 +393,7 @@ impl OrganizationStore {
     }
 
     /// What the check before a change of format commits reads of this replica, inside that change's
-    /// transaction (effort 838, ticket 33; `schema.rs`).
+    /// transaction (effort 838, ticket 33; `schema/`).
     pub(crate) async fn found(&self) -> Result<schema::Found, Error> {
         schema::read_engine(&self.connection).await
     }
@@ -419,7 +419,7 @@ pub(crate) async fn install(connection: &turso::Connection) -> Result<(), Error>
 
 /// Create the tables of format 2 on `connection`: every one but what format 3 added. What the
 /// change arriving at format 2 builds a fresh organization with, where a walk ends there
-/// (`upgrade/format/two.rs`), and what a test builds an organization of format 2 from.
+/// (`upgrade/format/two/`), and what a test builds an organization of format 2 from.
 pub(crate) async fn install_format_two(connection: &turso::Connection) -> Result<(), Error> {
     for statement in &SCHEMA[..FORMAT_TWO_TABLES] {
         connection.execute(statement, ()).await?;
@@ -1357,7 +1357,7 @@ mod tests {
     /// both verify**, against the same unchanged key.
     ///
     /// The nullable column is a tagged field of the signed preimage (`authority::preimage`), so a
-    /// row with it and a row without it are two messages; `authority.rs` pins those bytes, and
+    /// row with it and a row without it are two messages; `authority/` pins those bytes, and
     /// this is the same claim read through the store, where a row also has to survive a write and
     /// a read.
     ///
@@ -2846,11 +2846,11 @@ mod tests {
     }
 
     /// Live, at the human's request: **machine A writes, machine B reads it back**, against a
-    /// database this run provisions through `turso/platform.rs` and removes at the end.
+    /// database this run provisions through `turso/platform/` and removes at the end.
     /// Admitted by name in [[rules/testing]] under *Tests that reach a live remote*, as the sixth
     /// property: whether the organization lives on the remote rather than on the machine that made
     /// it. `#[ignore]`, and it panics rather than skipping when its variables are absent, for the
-    /// reason `turso/discovery.rs` gives.
+    /// reason `turso/discovery/` gives.
     ///
     /// ```text
     /// RENTABLE_LIVE_TURSO=1 TURSO_CONSENT_TOKEN=… TURSO_ORG=… TURSO_GROUP=… \
@@ -3042,7 +3042,7 @@ mod tests {
 
         assert_eq!(
             callers,
-            vec!["organization/setup/mod.rs".to_string()],
+            vec!["organization/setup/connect.rs".to_string()],
             "the unverified member read is meant to have exactly one caller"
         );
     }

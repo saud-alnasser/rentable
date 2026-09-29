@@ -61,6 +61,20 @@ and Rust already spends `test/` on shared scaffolding, so the two would collide.
 [[rules/testing]] defines it and this is the only place it is allowed. Settled 2026-08-18 with
 #559.
 
+**A word ending in `s` is not always a plural.** Two module names in `tauri/src/` end in `s` and
+name one thing, so the row above does not reach them:
+
+| Word          | Why it is not a plural                                                          |
+| ------------- | ------------------------------------------------------------------------------- |
+| `diagnostics` | a field, as `physics` is: the one record of what went wrong on this machine      |
+| `settings`    | the one record of how this machine is set up; there is no `setting` it is many of |
+
+Renaming either would make the name worse, so they stand. The Rust naming guard
+(`tauri/src/guard/naming.rs`) reads the same two words as not plural, from a list of its own
+named `UNCOUNTABLE`, and the two lists change together. A word joins only by the same test: it
+names one thing, and no singular the tree could use says it better. Settled 2026-09-29 with
+effort 840, ticket 52.
+
 ## A concept is entered through `index.ts`, and a capability's components through `ui.ts`
 
 The canonical layout of a concept under `apps/desktop/src/lib/` is

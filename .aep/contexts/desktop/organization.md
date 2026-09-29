@@ -41,8 +41,8 @@ The one `format` row, version 3, written when an organization is made. An organi
 effort 838 has no `format` table, which is format 1, and its owner's machine upgrades it in place at
 their sign-in, their resume or their connect on the Turso account: every row is judged under the
 old rules, carried into this format signed from the root, and the row is written last. The runner
-is `upgrade/format/runner.rs`; each change of format is a file under `upgrade/format/`
-(format 1 to 2 is `two.rs`; 2 to 3, which adds the `workspace_override` table and nothing else, is
+is `upgrade/format/runner/`; each change of format is a file or a directory under `upgrade/format/`
+(format 1 to 2 is `two/`; 2 to 3, which adds the `workspace_override` table and nothing else, is
 `three.rs`), listed in order in `upgrade/format/mod.rs` with the readers that find the
 owner in the format it starts from, and the version this build ships is the one after that list's
 last change, which a test there holds `store::FORMAT_VERSION` to. What format 1 signed, and how it
@@ -52,7 +52,7 @@ Before the change the owner's machine writes a copy of the organization to
 `backups/org-<id>/`, and to their Turso account where it holds it; a copy that cannot be taken
 refuses the upgrade with `CopyNotTaken` and nothing is changed (838, requirements 13 and 14).
 Every change due then runs in one transaction with the `format` row last, and **the organization is
-checked before that transaction commits** (`upgrade/format/runner.rs`'s `checked`, over `schema.rs`; 838,
+checked before that transaction commits** (`upgrade/format/runner/walk.rs`'s `checked`, over `schema/`; 838,
 requirement 15): `PRAGMA quick_check` answers `ok`, and the schema is what a fresh organization of
 the format it arrives at is built with, which the last change's `Transition::built` makes on an
 empty in-memory database, less the tables any change of the walk names in `Transition::kept`
@@ -259,7 +259,7 @@ member's row grants nothing**, so nothing the member role
 carries refuses a removal. **The owner's own row is the owner's machine's to repair**: where it
 reads as anything but the owner's role, demoted or removed from below, the machine whose vault
 derives the pinned key writes it again under the root at sign-in, at resume and on the heartbeat
-(`role::repair_owner_row`), taking the signing key and the vault's public half from what the owner's
+(`ownership::repair_owner_row`), taking the signing key and the vault's public half from what the owner's
 own secret derives and opens, never from the row; no other machine writes anything. The store
 refuses to write a row its signer's certificate does not cover, naming what it needs, and every
 command refuses such an act by name before it writes, so no command of ours writes a row every
@@ -280,7 +280,7 @@ founder's own among them as a manager's. The new owner's earlier certificate has
 under the root and is revoked, so they hold one live certificate, the root. **A machine follows a succession rather than being told the key**: the
 `succession` row carries the key being left and the key replacing it, signed by the key being left,
 so a machine holding the old key checks the change against what it already pinned, pins the new one
-and re-reads (`role::follow_succession`).
+and re-reads (`ownership::follow_succession`).
 
 **Link**:
 `rentable://join/...`, the organization's locator: its id, name, remote and verifying key, a sealed
@@ -304,10 +304,10 @@ consented and not the ownership, so an owner who was handed the organization hol
 grant the consent on their own machine.
 
 **A handover is two acts, and the organization key becomes the new owner's own derivation.** The
-owner offers from the account's card with their own password (`role::offer_ownership`), which seals
+owner offers from the account's card with their own password (`ownership::offer_ownership`), which seals
 the outgoing key's seed to the offered member's public key and writes a `succession` row signed by
-the key in force; `role::withdraw_offer` takes both back. The offered member accepts on a machine
-they are signed in on, with their own password (`role::accept_ownership`): the seal is opened and
+the key in force; `ownership::withdraw_offer` takes both back. The offered member accepts on a machine
+they are signed in on, with their own password (`ownership::accept_ownership`): the seal is opened and
 refused unless what it yields is the key this machine pinned, and the directory is re-keyed as the
 *Chain* entry says. A founder who handed over is a manager from then on.
 
@@ -371,7 +371,7 @@ refused unless what it yields is the key this machine pinned, and the directory 
 - **A migration reaches a workspace under a lease taken at the primary**, by whichever member
   opens it, and an older build refuses a newer workspace before reading anything. The lease holder
   copies the workspace first (`backup.rs`), and a copy not taken applies nothing. The tail, a check
-  of what it made (`schema.rs`) and the workspace's own version row commit in one transaction or
+  of what it made (`schema/`) and the workspace's own version row commit in one transaction or
   not at all (`lease/apply.rs`); the organization's record is written after the commit, and where the
   workspace's row is already at the shipped version only the record is brought up.
 - **A damaged organization replica is rebuilt from the remote, not repaired.** `org-<id>.db` opens
