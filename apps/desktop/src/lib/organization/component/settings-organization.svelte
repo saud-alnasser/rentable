@@ -8,7 +8,7 @@
 	import { useFetchRemoteSyncState as startSync } from '$lib/sync/ui';
 
 	/**
-	 * What the organization's settings sections read, started as the area opens (its `load`):
+	 * What the organization's settings sections read, started as the settings page mounts (its `load`):
 	 * the session, the sync record, the members, where each stands and the roles. The settings
 	 * route asked for all five as it loaded until effort 840, so a reader switching to one of these
 	 * sections met data rather than a load, and this keeps that moment. The sections read the same

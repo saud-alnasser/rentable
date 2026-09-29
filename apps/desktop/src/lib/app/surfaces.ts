@@ -18,6 +18,7 @@ import {
 } from '$lib/feature/surface';
 import organization from '$lib/organization/surface';
 import { createPalette } from '$lib/palette';
+import commandMenu from '$lib/palette/surface';
 import payment from '$lib/payment/surface';
 import settings from '$lib/settings/surface';
 import tenant from '$lib/tenant/surface';
@@ -35,10 +36,13 @@ import type { SurfaceContributions } from './contributions';
  * **The order is load-bearing.** The frame mounts the hosts in this order, and a host may depend
  * on what mounted before it: the workspace's permissions come first, so every host below draws
  * off what the reader may do, and the rest keep the order they had when the frame named each one.
+ * The command menu's host is one of them, and stands where the frame drew the menu: after the
+ * workspace's permissions and before the tenant's host, as it did before effort 840.
  * Adding a surface appends it unless it has a reason to stand earlier.
  */
 const declared = [
 	workspace,
+	commandMenu,
 	tenant,
 	complex,
 	unit,

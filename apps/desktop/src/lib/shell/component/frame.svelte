@@ -11,7 +11,7 @@
 	import LayoutBreadcrumb from '$lib/shell/component/breadcrumb.svelte';
 	import { CreateShortcut } from '$lib/create/ui';
 	import LayoutCaughtError from '$lib/shell/component/caught-error.svelte';
-	import { Palette, PALETTE_SHORTCUT_HINT } from '$lib/palette/ui';
+	import { openPalette, PALETTE_SHORTCUT_HINT, providePalette } from '$lib/palette/ui';
 	import { ShortcutListener } from '$lib/shortcut/ui';
 	import { UndoShortcut } from '$lib/undo/ui';
 	import LayoutShortcutSheet from '$lib/shell/component/shortcut-sheet.svelte';
@@ -67,8 +67,15 @@
 
 	const hasBreadcrumb = $derived(toBreadcrumbTrail(page.route.id).length > 0);
 
-	let isPaletteOpen = $state(false);
 	let isShortcutSheetOpen = $state(false);
+
+	// what the command menu shows, which its host reads where `app/surfaces.ts` mounts it among the
+	// others: the menu built from the surfaces, and the places the reader may go to.
+	providePalette({
+		palette,
+		destinations: () =>
+			toViewablePlaces([...primaryDestinations, ...secondaryDestinations], memberPermissions.views)
+	});
 
 	/**
 	 * what the search and the shortcut sheet do before anybody has signed in, which is nothing.
@@ -150,7 +157,7 @@
 					size="sm"
 					aria-label={$LL.common.ui.commandPalette()}
 					aria-disabled={isSignedOut || undefined}
-					onclick={() => !isSignedOut && (isPaletteOpen = true)}
+					onclick={() => !isSignedOut && openPalette()}
 					class="ms-2 gap-2 text-muted-foreground {isSignedOut ? unavailable : ''}"
 				>
 					<SearchIcon />
@@ -201,24 +208,16 @@
 		{#if !isSignedOut}
 			<!-- every host a surface declares, once each and in the list's order, which is
 			     load-bearing (`app/surfaces.ts`): first what the reader may do to the records of the
-			     workspace open, so what is drawn below is drawn off it, then every record form and
-			     confirmation, and every member and workspace surface. A card, a record page, the
-			     dashboard, the palette and the settings directories each ask a host for what an act
-			     opens, and what it opens has to outlive the palette closing and the reader moving
-			     between screens. -->
+			     workspace open, so what is drawn below is drawn off it, then the command menu the
+			     search button above opens, then every record form and confirmation, and every member
+			     and workspace surface. A card, a record page, the dashboard, the palette and the
+			     settings directories each ask a host for what an act opens, and what it opens has to
+			     outlive the palette closing and the reader moving between screens. -->
 			{#each surfaces as surface (surface.name)}
 				{#if surface.host}
 					<surface.host />
 				{/if}
 			{/each}
-			<Palette
-				bind:open={isPaletteOpen}
-				{palette}
-				destinations={toViewablePlaces(
-					[...primaryDestinations, ...secondaryDestinations],
-					memberPermissions.views
-				)}
-			/>
 			<LayoutShortcutSheet bind:open={isShortcutSheetOpen} />
 		{/if}
 		<Sidebar.Provider class="h-full min-h-0 overflow-hidden">

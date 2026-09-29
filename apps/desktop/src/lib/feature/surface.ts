@@ -233,10 +233,11 @@ export type Section<On extends SectionTarget = SectionTarget> = {
 };
 
 /**
- * What a section starts reading before it is drawn, where the page asks for it. The settings area
- * calls every contribution's during its own setup, whichever section is shown, so what a section
- * reads is asked for as the area opens and switching to it draws data rather than a load. It runs
- * during component setup, so it may call query hooks. A record's page asks for none.
+ * What a section starts reading before it is drawn, where the page asks for it. The settings page
+ * calls every contribution's during its own setup, beside its settings query and whichever section
+ * is shown, so what a section reads is asked for as the page mounts and switching to it draws data
+ * rather than a load. It runs during component setup, so it may call query hooks. A record's page
+ * asks for none.
  */
 export type SectionLoad<On extends SectionTarget = SectionTarget> = On extends RecordKind
 	? never

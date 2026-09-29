@@ -27,7 +27,7 @@ import SettingsWorkspaces from './component/settings-workspaces.svelte';
  * **The settings sections follow the area's own general section**, each drawn under the name
  * `settings/section.ts` gives it in the address, in this order, and only while somebody is signed
  * in, which the area decides: each needs an organization to show anything. What the three read is
- * started as the area opens, by the organization section's `load`.
+ * started as the settings page mounts, by the organization section's `load`.
  *
  * **The account's row at the foot of the rail and the dialogs beside the frame are slots** the
  * shell draws at its own places, so the shell names no organization component: making an account,

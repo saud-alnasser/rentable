@@ -205,6 +205,19 @@ pub(super) struct LearnedWorkspace<'a> {
     pub permissions: Option<i64>,
 }
 
+/// The machine's record, `remote-sync.json`, as it is kept on disk.
+///
+/// **Loaded by [`RemoteSync::new`] and by nothing else in the application.** Its `sanitize` has no
+/// clock, so a record loaded from disk can come back with no `device_id` and a workspace with no
+/// `created_at`; the reconcile `RemoteSync::new` runs straight after the load is what fills both,
+/// from the clock it holds, and commits them. A `Persisted::<RemoteSyncStore>::load` anywhere else
+/// hands its caller a record missing both, and writes it back that way on its next commit. Code
+/// that needs the record takes it from a `RemoteSync`, through `store_mut`; only a test loads one
+/// directly.
+///
+/// *Documented rather than prevented (effort 840, ticket 67): the load is `Persisted`'s, generic
+/// over every persisted record, and the tests that build a machine from a file use it. `sanitize`
+/// filled both from the system clock until the clock became a port, earlier in the same effort.*
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct RemoteSyncStore {

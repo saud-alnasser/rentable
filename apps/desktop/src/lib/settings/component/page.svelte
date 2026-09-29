@@ -15,6 +15,7 @@
 	import SettingsArea from '$lib/settings/component/area.svelte';
 	import { useFetchSettings } from '$lib/settings/query';
 	import { sectionOf } from '$lib/settings/section';
+	import { untrack } from 'svelte';
 
 	/**
 	 * Everything a person sets, at one address.
@@ -26,6 +27,12 @@
 	 * and read what they show for themselves (effort 840); what they cannot do is leave for the
 	 * wall, so this hands them that. A member's and a workspace's acts are not here either: the
 	 * organization host in the frame runs them (effort 832, requirement 8).
+	 *
+	 * **What the contributed sections read starts here, as the page mounts, beside the settings
+	 * query.** Each one's `load` runs in this setup rather than the area's: the area is drawn only
+	 * once the settings have arrived, so started there the organization's reads waited on the
+	 * settings and never ran where the settings failed to load. The route started all of them
+	 * together as it mounted until effort 840, and this keeps that moment.
 	 *
 	 * **Whether anybody is signed in and the way to the wall are the route's to hand over**, from
 	 * `$lib/app/wall`: the one is the organization's and the other startup's, and settings reaches
@@ -57,6 +64,13 @@
 	} = $props();
 
 	const settingsQuery = useFetchSettings();
+
+	// every contribution starts what it reads now, whatever the settings query goes on to do, so
+	// switching to a section draws its data rather than a load. The list is the route's constant, so
+	// the first value is the one there is.
+	for (const entry of untrack(() => sections)) {
+		entry.load?.();
+	}
 
 	const isLoading = $derived(settingsQuery.isLoading && !settingsQuery.data);
 	const loadError = $derived(

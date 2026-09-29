@@ -153,7 +153,7 @@ same `ui.ts`.
 | Where | What | Why |
 | --- | --- | --- |
 | notification's and undo's `index.ts` | load `svelte-sonner`, which loads under Node only where a test mocks it, as every Node test reaching them does | the toast is the whole of notification's API and the offer to take a change back is one, so nothing of either would be left to put in `index.ts` |
-| notification, print, palette, shortcut, create and undo | mounted by the frame through `ui.ts` rather than declared as a surface's `host` | the frame places each at a fixed point around the hosts: the provider outside them, the sheet beside the page, the listeners once |
+| notification, print, shortcut, create and undo | mounted by the frame through `ui.ts` rather than declared as a surface's `host` | the frame places each at a fixed point around the hosts: the provider outside them, the sheet beside the page, the listeners once. The palette was among them until ticket 67 of effort 840, when its host joined the list to keep its place between the workspace's and the tenant's |
 | dashboard's and payment's `index.ts` | export nothing | no concept reads either; what each hands another it contributes in its `surface.ts` |
 | workspace's `feature.ts` | declares only its name | it has no router, no kind, no prefix and no page; what it draws is its `surface.ts` |
 | a sub-concept without a `feature.ts` | organization's `member/`, `role/`, `access/`, `workspace/`, `setup/` and `session/`, contract's `assignment/`, `schedule/`, `renewal/` and the rest | its parent's router serves it and its parent's surface draws it; only `complex/unit/` declares itself, because it holds a kind of its own |

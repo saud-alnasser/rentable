@@ -119,7 +119,7 @@ provides once as it is evaluated:
 
 **The shell draws what the surfaces declare and names no feature.** The frame mounts each
 surface's `host` in the order of `app/surfaces.ts`, which is load-bearing (the workspace's
-permissions first). The rail and the command menu read `places`. A route such as
+permissions first, then the command menu's host, where the frame drew the menu before effort 840). The rail and the command menu read `places`. A route such as
 `src/routes/tenants/[id]/+page.svelte` asks `sectionsOn('tenant')` and hands the sections to the
 tenant's own component.
 
@@ -156,12 +156,13 @@ and `app/` calls it once with the lists; the capability never imports `app/`. In
 | `mutation/` | `app/cache.ts` | `createCachePolicy(features, contract)`, then `provideCachePolicy` |
 | `history/` | `app/cache.ts`, `app/features.ts` | `provideHistoryPrefix`; and its own `feature.ts` for its router |
 | `transfer/` | `app/features.ts`, `app/transfer.ts`, `app/host.ts` | `transfer(declared)` builds its feature and router from every declared sheet; `bindTransfer(features)`; its port |
-| `palette/` | `app/surfaces.ts` | `createPalette(surfaces)` |
+| `palette/` | `app/surfaces.ts`, `shell/component/frame.svelte` | `createPalette(surfaces)`; its `surface.ts` host in the list; the frame hands that host the menu and the places through `providePalette` |
 | `print/` | `app/host.ts` | its port only |
 
 **Some capabilities take nothing from `app/`.** A feature uses them through their API, and the
 frame mounts the ones with something fixed on screen through their `ui.ts` (notification, print,
-palette, shortcut, create and undo, the departure [[rules/module-layout]] records). The list is
+shortcut, create and undo, the departure [[rules/module-layout]] records). The command menu is the
+one mounted as a host instead, from its `surface.ts`, so it keeps its place among the others. The list is
 one: a feature imports its filters and props types from `list/index.ts` and draws the list, its bar
 and its search from `list/ui.ts`.
 

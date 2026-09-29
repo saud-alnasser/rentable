@@ -20,7 +20,6 @@
 		withSection,
 		type AddressableSection
 	} from '$lib/settings/section';
-	import { untrack } from 'svelte';
 
 	type AppSettings = Awaited<ReturnType<typeof api.settings.get>>;
 
@@ -46,7 +45,9 @@
 	 * `on: 'settings'`, and the route hands them here from `app/surfaces`, so this names no
 	 * feature: it draws the rail from general and what it is handed, in their order and under
 	 * their labels, and draws the chosen one's component. Each reads what it shows for itself,
-	 * and starts reading it here, through its `load`, as the area opens.
+	 * and starts reading it through its `load`, which the settings page runs as it mounts rather
+	 * than this as it opens: this is drawn only once the settings have arrived, and the reads do
+	 * not wait on them.
 	 *
 	 * **It owns no query**, which is what makes requirement 14's gating readable without a shell:
 	 * the route reads the settings and whether anybody is signed in, and this is handed the
@@ -84,13 +85,6 @@
 		 */
 		leaveForTheWall: () => Promise<void>;
 	} = $props();
-
-	// every contribution starts what it reads as the area opens, whichever section is shown, so
-	// switching to one draws its data rather than a load. The list is the route's constant, so the
-	// first value is the one there is.
-	for (const entry of untrack(() => sections)) {
-		entry.load?.();
-	}
 
 	// what is contributed and this reader may see, in its order; one the reader may not see is
 	// left out whole.
