@@ -7,7 +7,7 @@
 	 * above the subject, and a `SurfaceAction` draws a tooltip, whose root reads
 	 * `TooltipProvider`'s context and whose content reads `DesignProvider`'s. The package does not
 	 * export its own copy, since its `exports` map covers `src/lib/` alone, so this application
-	 * keeps one beside the tests that render those screens. `routes/+layout.svelte` nests the two
+	 * keeps one beside the tests that render those screens. `shell/component/window.svelte` nests the two
 	 * the same way round.
 	 *
 	 * It takes the string contract's own props and hands them on, so a test passes `wrapperProps`

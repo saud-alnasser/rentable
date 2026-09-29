@@ -9,7 +9,7 @@
 	 * cluster draws a tooltip, whose root reads `TooltipProvider`. The client is a fresh one per render, with
 	 * retries off so a query that reaches the shell, which this runner has none of, settles rather
 	 * than waits; a test that wants no call at all renders the section with its query disabled.
-	 * `routes/+layout.svelte` nests the three the same way round.
+	 * `shell/component/window.svelte` nests the three the same way round.
 	 *
 	 * It sits here rather than in a module's `tests/` because more than one module renders under
 	 * it: complex, contract, design, layout, organization, payment and tenant tests all do, and a

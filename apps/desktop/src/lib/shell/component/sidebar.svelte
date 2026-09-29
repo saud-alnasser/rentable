@@ -26,7 +26,7 @@
 	 * shape.
 	 *
 	 * **Neither row can be empty once signed in, and neither carries a loading state.**
-	 * `+layout.svelte` renders the full rail only at `startupState === 'ready'`, which is past
+	 * `startup/component/root.svelte` renders the full rail only at `startupState === 'ready'`, which is past
 	 * admission, so an account is held and a workspace is open whenever that is drawn; the startup
 	 * path also writes the state into the sync query's key before the shell mounts, so there is no
 	 * first frame with nothing in it.

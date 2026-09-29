@@ -1,3 +1,10 @@
+/**
+ * THE WINDOW'S CLOSE REQUEST
+ *
+ * The shell's window controls ask, and startup's root answers, so the request sits below both:
+ * a feature cannot import the shell, and the shell imports no feature. It was `shell/event.ts`
+ * until effort 840's ticket 34 moved what answers it out of the root layout.
+ */
 const CLOSE_REQUEST_EVENT = 'rentable:window-close-request';
 
 /**

@@ -13,26 +13,27 @@ import {
 	fakeOrganizationState,
 	fakeOrganizationWorkspace
 } from '$lib/organization/tests/testing';
-import Page from '../+page.svelte';
+import type { Startup } from '$lib/startup';
+import FirstRun from '../component/first-run.svelte';
 
 /**
  * THE FIRST RUN, FROM THE PRESS OF CREATE TO THE LOADING PASS
  *
  * Effort 832, requirement 18: creating an organization is the consent, then the name, then the
  * application, with one loading pass after the walk. `setup-walk.svelte.test.ts` holds the walk's
- * two steps as the screen draws them; this holds what the route does once the name step's create
- * answers, because the hand-over is the route's: **after the create, no second busy surface comes
+ * two steps as the screen draws them; this holds what the first run does once the name step's create
+ * answers, because the hand-over is the first run's: **after the create, no second busy surface comes
  * before the loading pass**, the first workspace is made as that pass's first stage, named after
  * the organization, and the pass goes on into it.
  *
- * The route is rendered whole. What reaches Rust is stood in for at the query hooks, the address
+ * The first run is rendered whole, as its route draws it. What reaches Rust is stood in for at the query hooks, the address
  * and the navigation are mocked because this runner has no router, and the startup unit is a real
  * one, driven through the same harness `startup/tests/launch.test.ts` drives it with, so what the
  * loading surface would show is what the unit actually reported.
  */
 
 const hooks = vi.hoisted(() => ({
-	startup: null as unknown,
+	startup: null as Startup | null,
 	events: [] as string[],
 	createOrganization: vi.fn(),
 	createWorkspace: vi.fn(),
@@ -52,10 +53,6 @@ vi.mock('$app/navigation', async (original) => ({
 vi.mock('$app/paths', async (original) => ({
 	...(await original<Record<string, unknown>>()),
 	resolve: (path: string) => path
-}));
-
-vi.mock('$lib/startup/context', () => ({
-	useStartup: () => hooks.startup
 }));
 
 vi.mock('$lib/organization/query', async (original) => ({
@@ -121,7 +118,11 @@ const founded = () =>
 
 /** from the consent to a submitted name step, as a person walks it. */
 async function walkToCreate() {
-	render(Page, {}, { wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } });
+	render(
+		FirstRun,
+		{ startup: hooks.startup!, wayIn: '/' },
+		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } }
+	);
 
 	// the consent is already granted, so the way on is one press.
 	expect(document.querySelector('[data-setup-position]')?.textContent?.trim()).toBe(

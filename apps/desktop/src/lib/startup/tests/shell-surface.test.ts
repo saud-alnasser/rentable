@@ -9,7 +9,7 @@ import {
 	THE_JOIN,
 	THE_WAY_IN,
 	wayInFrom
-} from '$lib/shell/shell-surface.ts';
+} from '$lib/startup/shell-surface.ts';
 import {
 	fakeRecovery,
 	harness,

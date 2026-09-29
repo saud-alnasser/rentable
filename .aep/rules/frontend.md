@@ -491,7 +491,7 @@ through `i18nObject(locale)`, which startup has already loaded, and a page sets 
 **A packaged component reads neither the store nor the locale metadata**, and this rule stops at
 the package boundary. `@rentable/design` imports nothing that names this application, so its
 words and its reading direction are supplied from outside: one typed object and one direction,
-handed to `DesignProvider` once in `src/routes/+layout.svelte`. `@rentable/design/strings.js` is
+handed to `DesignProvider` once in `src/lib/shell/component/window.svelte`, the window the root layout draws. `@rentable/design/strings.js` is
 the contract, and it holds what enforces it and why the direction travels with the words.
 *Everything above is unchanged for a component that lives in this application, and that is every
 cell, every component under a concept, a capability or `shell`, the list and two of the three

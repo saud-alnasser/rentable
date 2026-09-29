@@ -33,7 +33,7 @@
 	 * and a created workspace reaches the rail's switcher and the area's list through the one
 	 * invalidation.
 	 *
-	 * **Drawn while the rail is up and a session is held**, which `routes/+layout.svelte` decides;
+	 * **Drawn while the rail is up and a session is held**, which `startup/component/root.svelte` decides;
 	 * what is here on unmount is reset, so no link outlives the session it was made in and a
 	 * surface left open at sign-out does not reopen on the next sign-in.
 	 */

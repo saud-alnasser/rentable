@@ -175,7 +175,11 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   and the frame mounts the hosts those declare. A record page draws the sections those contribute
   to its kind, and the settings area the sections contributed to it (the organization's account,
   organization and workspaces), each handed them by its route, so no feature renders another
-  feature's components. Record features depend one way, the contract on the tenant and the unit
+  feature's components. A route composes and holds no wiring: it imports only a home's
+  components, a capability's `ui.ts` and `app/`, which `lib/tests/layers.test.ts` holds it to.
+  The root layout hands the shell's window (`shell/component/window.svelte`) to startup's root
+  (`startup/component/root.svelte`) to draw its state in, and the three addresses that open
+  signed out take the startup unit and the way in from `app/wall.ts` (effort 840, ticket 34). Record features depend one way, the contract on the tenant and the unit
   and the payment on the contract, and what a depended-on feature needs of the one depending on it (the contracts that
   refuse a tenant's deletion, the payments a contract's settlement reads) is a contribution that
   feature declares under `contributes` in its `feature.ts` or `surface.ts`: `app/contributions.ts`
@@ -220,7 +224,7 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   dependency of ordinary use."* Both halves of that stopped being true when the record of truth
   moved: replication is how the workspace exists rather than an addition to it, and **the
   sign-in wall is built** — `sync/admission.ts` refuses a workspace to a machine with no
-  organization or with a locked vault, and `+layout.svelte` raises it before anything renders.
+  organization or with a locked vault, and `startup/component/root.svelte`, which the root layout draws, raises it before anything renders.
 
   **A first run needs a network and an account, and every launch after it needs neither.** The
   first run grants the application authority over the owner's Turso account in the browser and

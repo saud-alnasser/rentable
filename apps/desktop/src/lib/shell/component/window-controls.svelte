@@ -2,7 +2,7 @@
 	import { tauri } from '$lib/platform/tauri';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import { requestWindowClose } from '$lib/shell/event';
+	import { requestWindowClose } from '$lib/platform/window';
 	import CopyIcon from '@lucide/svelte/icons/copy';
 	import MinusIcon from '@lucide/svelte/icons/minus';
 	import SquareIcon from '@lucide/svelte/icons/square';

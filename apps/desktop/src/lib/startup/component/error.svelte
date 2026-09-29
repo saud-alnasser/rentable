@@ -20,7 +20,7 @@
 	 * place it was ever going to be useful.
 	 *
 	 * **It is not in the diagnostics yet, and this screen is where that shows.** Nothing writes the
-	 * startup error anywhere: `routes/+layout.svelte` formats it for display and holds it in a
+	 * startup error anywhere: `startup/component/root.svelte` formats it for display and holds it in a
 	 * variable. Taking it off the screen without writing it down is where it is lost, so the
 	 * `message` prop is gone rather than accepted and ignored — a prop this screen does not read is
 	 * a claim that it handles something it does not.

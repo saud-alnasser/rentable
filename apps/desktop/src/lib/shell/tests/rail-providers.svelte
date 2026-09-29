@@ -12,7 +12,7 @@
 	 * It takes the string contract's own props and hands them on, so a test using it as a
 	 * `wrapper` passes `wrapperProps` exactly as it would to `DesignProvider` directly, and
 	 * `rerender` still drives the subject's props rather than these. The application nests them
-	 * the same way round: `routes/+layout.svelte` holds the first and `shell/component/frame.svelte`
+	 * the same way round: `shell/component/window.svelte` holds the first and `shell/component/frame.svelte`
 	 * the second.
 	 *
 	 * Here rather than under `src/tests/`, which holds what belongs to the runner, because this

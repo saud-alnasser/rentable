@@ -76,7 +76,7 @@
 	 * said as a sentence and the confirmation is what catches a typo.
 	 *
 	 * On the application surface rather than in the frame, because it is drawn with nobody signed
-	 * in, which `shell/shell-surface.ts` allows for this one address and the first run's.
+	 * in, which `startup/shell-surface.ts` allows for this one address and the first run's.
 	 */
 	let {
 		step,

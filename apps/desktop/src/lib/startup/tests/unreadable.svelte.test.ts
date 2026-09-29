@@ -8,7 +8,7 @@ import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
 /**
  * THE SCREEN WITH NO ERROR BOUNDARY ABOVE IT
  *
- * `routes/+layout.svelte` draws this one outside `DesignProvider` and `TooltipProvider`, because
+ * `startup/component/root.svelte` draws this one outside `DesignProvider` and `TooltipProvider`, because
  * both are rendered inside the locale gate and this is the screen for a startup that failed before
  * it reached a dictionary. Nothing catches a throw here and there is no way out but quitting, so
  * an empty window is what a mistake in it looks like.

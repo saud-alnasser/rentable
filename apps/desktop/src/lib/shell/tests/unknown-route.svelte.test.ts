@@ -8,7 +8,7 @@ import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import Providers from '$lib/organization/tests/providers.svelte';
 
-import ErrorPage from '../../../routes/+error.svelte';
+import ErrorPage from '$lib/shell/component/route-error.svelte';
 
 /**
  * AN ADDRESS THAT LEADS NOWHERE

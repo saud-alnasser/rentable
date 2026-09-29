@@ -4,7 +4,7 @@
 # So it only shrinks: a move that removes a violation deletes its line in the same commit, and no
 # new dependency is ever added. A violation that moves with its code is rewritten at its new
 # address (an existing cycle running through a new home is still that cycle). One line per
-# violation, sorted, as `from -> to : kind`, where kind is upward, cycle, deep, import or literal;
+# violation, sorted, as `from -> to : kind`, where kind is upward, cycle, deep, import, literal or route;
 # the test's header says what each means.
 act -> i18n : cycle
 api -> platform : cycle

@@ -9,7 +9,7 @@
 	 * and the blocks it composes own queries of their own, which read the client from context.
 	 *
 	 * The client is a fresh one per render, with retries off so a query that reaches the shell,
-	 * which this runner has none of, settles rather than waits. `routes/+layout.svelte` nests the
+	 * which this runner has none of, settles rather than waits. `shell/component/window.svelte` nests the
 	 * three the same way round.
 	 */
 	import { TooltipProvider } from '@rentable/design/primitive/tooltip/index.js';

@@ -3,13 +3,20 @@
 // up, and never in a cycle. It reads the tree as text with `node:fs`, the way
 // `api/tests/boundaries.test.ts` does, so it adds no dependency.
 //
-// A violation is one line of `layers.baseline.txt`, `from -> to : kind`, and there are five kinds:
+// A violation is one line of `layers.baseline.txt`, `from -> to : kind`, and there are six kinds:
 //
 //   upward   file -> file       a module imports one in a higher layer
 //   cycle    module -> module   an edge of the module graph that lies on a cycle
 //   deep     file -> file       an import past a feature's or capability's entry
 //   import   file -> feature    a feature imported by a home that is neither a feature nor `app/`
 //   literal  file -> kind       a record kind spelled as a literal outside its feature and `app/`
+//   route    route -> file      a `src/routes/` file importing past a component and the root
+//
+// The last is the routes' own rule (criterion 17): a route composes and holds no wiring, so it
+// imports only a home's components (`$lib/<home>/.../component/...`), a capability's `ui.ts`
+// (`$lib/<home>/ui`) and the composition root (`$lib/app/...`), besides `$app/*`, third-party
+// code, its own files and the stylesheet. Anything else it needs is a component's to reach. A
+// route is labelled from `src/`, so its line reads `routes/... -> <library label> : route`.
 //
 // The last two are one rule, that the shell and the mechanisms hold no per-feature list
 // (requirement 2). A feature may import another feature's entry, since requirement 4 has
@@ -48,6 +55,8 @@ import { RECORD_KINDS } from '@rentable/workspace-permission';
 
 const LIB_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const BASELINE = fileURLToPath(new URL('layers.baseline.txt', import.meta.url));
+const SOURCE_ROOT = fileURLToPath(new URL('../..', import.meta.url));
+const ROUTES_ROOT = join(SOURCE_ROOT, 'routes');
 
 type Layer = 'foundation' | 'capability' | 'feature' | 'composition';
 
@@ -296,6 +305,40 @@ function cycleEdges(edges: Map<string, Set<string>>) {
 	);
 }
 
+// Every source file under `src/routes/`, labelled from `src/`, its tests aside as the library's
+// are.
+function routeFiles() {
+	return readdirSync(ROUTES_ROOT, { recursive: true, withFileTypes: true })
+		.filter((entry) => entry.isFile() && /\.(ts|js|svelte)$/.test(entry.name))
+		.map((entry) => {
+			const file = join(entry.parentPath, entry.name);
+			return { file, label: toPosix(relative(SOURCE_ROOT, file)) };
+		})
+		.filter(({ label }) => !label.split('/').includes('tests'));
+}
+
+// What a route may reach in the library, by the label its import resolves to: a component at any
+// depth of a home, a capability's `ui.ts`, and anything of the composition root.
+function routeMayImport(target: string) {
+	const parts = target.split('/');
+	return (
+		moduleOf(target) === COMPOSITION_ROOT ||
+		parts.slice(1, -1).includes('component') ||
+		(parts.length === 2 && parts[1] === 'ui.ts')
+	);
+}
+
+// Each import of a route that reaches into the library past what `routeMayImport` allows.
+// A specifier that leaves `src/lib/` is `$app/*`, third-party code, or the route's own files.
+function routeViolations() {
+	return routeFiles().flatMap(({ file, label }) =>
+		valueImports(readSource(file).script)
+			.map((specifier) => resolve(file, specifier))
+			.filter((target): target is string => target !== undefined && !routeMayImport(target))
+			.map((target) => `${label} -> ${target} : route`)
+	);
+}
+
 function violations() {
 	const found = new Set<string>();
 	const edges = new Map<string, Set<string>>();
@@ -343,6 +386,7 @@ function violations() {
 	}
 
 	for (const line of cycleEdges(edges)) found.add(line);
+	for (const line of routeViolations()) found.add(line);
 
 	return found;
 }

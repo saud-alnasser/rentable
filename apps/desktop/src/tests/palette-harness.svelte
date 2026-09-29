@@ -6,7 +6,7 @@
 	 * tree: the frame mounts the palette and the listener once, above whatever route is drawn, and
 	 * the question is whether the palette answers its key while that route is the one on screen. The
 	 * route is handed in as a component and its props, so one fixture draws the settings area and a
-	 * record page alike. The three providers are the ones `routes/+layout.svelte` and the frame put
+	 * record page alike. The three providers are the ones `shell/component/window.svelte` and the frame put
 	 * above every screen, nested the same way round.
 	 *
 	 * **Here rather than in `palette/tests/`** because the tests of several modules render it: the

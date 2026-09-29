@@ -1,13 +1,17 @@
-import type { StartupSnapshot } from '$lib/startup';
+import type { StartupSnapshot } from './snapshot';
 
 /**
  * WHAT THE FRAME DRAWS INSIDE ITSELF
  *
- * The shell's other decision, and the counterpart of `startup/gate.ts`: that one answers
- * what the window draws before a locale exists, this one answers what goes inside the frame once
- * one does. Both are here rather than in the route for the same reason, which the route states in
- * its own comment: a runes file cannot be imported by a `node:test` at all, so a decision left
- * inline in one is a decision nothing can drive.
+ * The shell's other decision, and the counterpart of `./gate`: that one answers what the window
+ * draws before a locale exists, this one answers what goes inside the frame once one does. Both
+ * are here rather than in `./component/root.svelte`, which draws them, for the reason that
+ * component states in its own comment: a runes file cannot be imported by a `node:test` at all,
+ * so a decision left inline in one is a decision nothing can drive.
+ *
+ * **Startup's rather than the shell's, though the frame is what it fills**, because what it reads
+ * is where startup has got to, and startup's root is what reads it (effort 840, ticket 34). The
+ * addresses beside the wall reach the way in and the sign-out's landing through `$lib/app/wall`.
  *
  * **It is the address that made this worth extracting.** Until 2026-08-21 the answer was the
  * startup state alone, and a chain of four branches in the route said it. Requirement 1 of
@@ -58,7 +62,7 @@ const OPENS_SIGNED_OUT: readonly string[] = ['/settings', THE_FIRST_RUN, THE_JOI
  * that *is* the card and the only way to reach one is to stand somewhere the card draws over.
  * Home is that somewhere; any address `OPENS_SIGNED_OUT` does not hold would serve.
  *
- * Here rather than in `+layout.svelte` for the reason the rest of this module is there: a runes
+ * Here rather than in `./component/root.svelte` for the reason the rest of this module is here: a runes
  * file cannot be imported by a `node:test` at all, so a destination left inline in one is a
  * destination nothing can drive. #735 is where the row went to the consent screen instead, and
  * `/settings` is where that was visible, being the one address that opens signed out and so the

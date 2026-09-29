@@ -12,27 +12,29 @@ import {
 	fakeOrganizationState,
 	fakeOrganizationWorkspace
 } from '$lib/organization/tests/testing';
-import Page from '../+page.svelte';
+import type { OrganizationHost } from '$lib/organization/host';
+import type { Startup } from '$lib/startup';
+import Join from '../component/join.svelte';
 
 /**
  * JOINING, FROM THE PRESS OF JOIN TO THE LOADING PASS
  *
  * Effort 832, requirement 19: joining is the link and its code, then the password, then the
  * application, with one loading pass after the password. `connect-screen.svelte.test.ts` holds the
- * steps as the screen draws them; this holds what the route does once the accept answers, because
- * the hand-over is the route's: **after the accept, no busy surface of the screen's own comes
+ * steps as the screen draws them; this holds what the join screen does once the accept answers, because
+ * the hand-over is the join screen's: **after the accept, no busy surface of the screen's own comes
  * before the loading pass**, and the pass goes on into the workspace the accept admitted the
  * person to.
  *
- * Modelled on `routes/organization/new/tests/page.svelte.test.ts`. The route is rendered whole;
- * what reaches Rust is stood in for at `tauri`, the address and the navigation are mocked because
+ * Modelled on `first-run.svelte.test.ts`. The screen is rendered whole, as its route draws it;
+ * what reaches Rust is stood in for at the host, the address and the navigation are mocked because
  * this runner has no router, and the startup unit is a real one, driven through the harness
  * `startup/tests/launch.test.ts` drives it with, so what the loading surface would show is what
  * the unit actually reported.
  */
 
 const hooks = vi.hoisted(() => ({
-	startup: null as unknown,
+	startup: null as Startup | null,
 	events: [] as string[],
 	linkRead: vi.fn(),
 	accept: vi.fn(),
@@ -49,19 +51,12 @@ vi.mock('$app/paths', async (original) => ({
 	resolve: (path: string) => path
 }));
 
-vi.mock('$lib/startup/context', () => ({
-	useStartup: () => hooks.startup
-}));
-
-vi.mock('$lib/app/host', () => ({
-	host: {
-		organization: {
-			linkRead: hooks.linkRead,
-			machineConnect: vi.fn(),
-			invitation: { accept: hooks.accept }
-		}
-	}
-}));
+/** the organization's commands the screen calls, handed over as its route hands the bound ones. */
+const host = {
+	linkRead: hooks.linkRead,
+	machineConnect: vi.fn(),
+	invitation: { accept: hooks.accept }
+} as unknown as OrganizationHost;
 
 afterEach(() => {
 	hooks.events.length = 0;
@@ -112,7 +107,11 @@ function watchTheScreen() {
 
 /** from the form to a submitted password step, as a person walks it. */
 async function walkToJoin() {
-	render(Page, {}, { wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } });
+	render(
+		Join,
+		{ startup: hooks.startup!, host, wayIn: '/' },
+		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } }
+	);
 
 	await fireEvent.input(document.querySelector('input[name="link"]')!, {
 		target: { value: LINK }
