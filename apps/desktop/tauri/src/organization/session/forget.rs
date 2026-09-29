@@ -11,7 +11,7 @@
 //! **The files are deleted after everything holding them is let go of.** On Windows a file the
 //! process still has open cannot be deleted, so the vault is closed, the organization replica is
 //! dropped and the workspace engine is released through the same paths a sign-out and
-//! `startup::open_database` use, and only then is the directory swept. A file that still will
+//! `workspace::open_database` use, and only then is the directory swept. A file that still will
 //! not go is reported by name rather than pretended away; the record is emptied regardless, so
 //! the machine does not go on naming an organization whose replica it half holds.
 //!
@@ -25,7 +25,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::{
-    credential::CredentialStore, diagnostics, error::Error, state::AppState,
+    credential::CredentialStore, diagnostics, error::Error, organization::Shared,
     turso::platform::database_is_gone,
 };
 
@@ -36,7 +36,7 @@ use crate::{
 /// clears the Turso authority from the keyring (`TursoConsent::disconnect`), and commits. A file
 /// that could not be removed is reported after all of that has run, by name.
 pub(crate) async fn forget(
-    app_state: &AppState,
+    app_state: &Shared,
     credentials: &dyn CredentialStore,
 ) -> Result<(), Error> {
     // the row this machine wrote to the registry goes first, through the replica that carries the
@@ -110,7 +110,7 @@ pub(crate) async fn forget(
 /// account and a remote nothing could reach are all the offline case, and the replica goes on
 /// serving what it holds (819's requirement 18).
 pub(crate) async fn forget_deleted_organization(
-    app_state: &AppState,
+    app_state: &Shared,
     credentials: &dyn CredentialStore,
 ) -> Result<bool, Error> {
     let gone = {
@@ -193,7 +193,7 @@ fn is_replica_file(name: &str) -> bool {
     (name.starts_with("org-") || name.starts_with("ws-")) && name.contains(".db")
 }
 
-async fn data_directory(app_state: &AppState) -> PathBuf {
+async fn data_directory(app_state: &Shared) -> PathBuf {
     let settings = app_state.settings.read().await;
 
     settings
@@ -217,6 +217,7 @@ mod tests {
     use crate::{
         database::Database,
         machine::{RemoteSync, RemoteSyncStore},
+        organization::Shared,
         organization::{
             HeldOrganization,
             member::vault::KdfParams,
@@ -226,7 +227,6 @@ mod tests {
         },
         persisted::Persisted,
         settings::Settings,
-        state::AppState,
         sync::test::server::{ScriptedResponse, ScriptedServer},
         turso::{
             consent::{TursoConsent, platform_token, store_platform_token},
@@ -265,10 +265,10 @@ mod tests {
         names
     }
 
-    /// The whole of the application state over one data directory, as `lib.rs` builds it, with
+    /// The organization's state over one data directory, as the plugins' setups build it, with
     /// nothing open and nobody in. `remote-sync.json` is loaded from the directory, so a test
     /// writes the record it wants first.
-    async fn state_over(directory: &std::path::Path) -> AppState {
+    async fn state_over(directory: &std::path::Path) -> Shared {
         let mut settings =
             Persisted::<Settings>::load(directory.join(Settings::FILENAME)).expect("the settings");
         settings.database_path = directory.join(Database::FILENAME);
@@ -283,16 +283,18 @@ mod tests {
         )
         .await
         .expect("the sync record");
-        let update = Update::new(settings.clone()).await.expect("the update");
+        // the update is the `update` plugin's and no part of this state, and it is made as a launch
+        // makes it, so the directory holds the file a launch leaves.
+        Update::new(settings.clone()).await.expect("the update");
 
-        AppState {
+        Shared {
             db: Arc::new(RwLock::new(Database::new(
                 settings.clone(),
                 crate::clock::System::shared(),
             ))),
             settings,
             remote_sync: Arc::new(RwLock::new(remote_sync)),
-            update: Arc::new(RwLock::new(update)),
+            upgrade: Arc::new(crate::upgrade::Upgrader),
             consent: Arc::new(TursoConsent::new()),
             organization: Arc::new(RwLock::new(None)),
             member: Arc::new(RwLock::new(None)),

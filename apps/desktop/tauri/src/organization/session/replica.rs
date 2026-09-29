@@ -4,7 +4,7 @@
 
 use std::sync::{Arc, Mutex, atomic::Ordering};
 
-use crate::{clock, credential::Credentials, diagnostics, error::Error, state::AppState};
+use crate::{clock, credential::Credentials, diagnostics, error::Error, organization::Shared};
 
 use super::heartbeat::ended_elsewhere;
 use crate::organization::{
@@ -36,7 +36,7 @@ use crate::organization::{
 /// opens stays for a replica that already holds the re-keyed rows, which is what reads the member
 /// row the key has to open.
 pub(super) async fn resume_remembered(
-    app_state: &AppState,
+    app_state: &Shared,
     credentials: &Credentials,
     clock: &clock::Shared,
 ) {
@@ -141,7 +141,7 @@ pub(super) async fn resume_remembered(
 /// signed in. Reaching the organization database at all takes a credential a vault holds, so a
 /// launch that stops at the wall has nothing to write through and nothing to write it under; the
 /// sign-in that follows is what writes the row, and the id drawn here is the one it writes.
-pub(super) async fn machine_registered(app_state: &AppState) -> Result<(), Error> {
+pub(super) async fn machine_registered(app_state: &Shared) -> Result<(), Error> {
     let held = {
         let mut remote_sync = app_state.remote_sync.write().await;
         let Some(held) = remote_sync.store_mut().organization.clone() else {
@@ -188,7 +188,7 @@ pub(super) async fn machine_registered(app_state: &AppState) -> Result<(), Error
 /// A disconnect from the wall has no replica open and leaves the row where it is, which the
 /// seven-day window ages out. Nothing here is a refusal: the person asked to forget the
 /// organization and that is what happens either way.
-pub(crate) async fn leave_registry(app_state: &AppState) {
+pub(crate) async fn leave_registry(app_state: &Shared) {
     let held = {
         let mut remote_sync = app_state.remote_sync.write().await;
 
@@ -235,7 +235,7 @@ pub(crate) async fn leave_registry(app_state: &AppState) {
 /// waiting for its owner. A newer one is refused by name. Neither refusal reads a row of this
 /// format or writes anything: no registry row and no push.
 pub(super) async fn open_replica(
-    app_state: &AppState,
+    app_state: &Shared,
     credentials: &Credentials,
     clock: &clock::Shared,
     held: &HeldOrganization,
@@ -271,27 +271,31 @@ pub(super) async fn open_replica(
 
     match opening {
         Opening::Password { username, password } => {
-            session::upgraded_with_password(
-                &store,
-                account,
-                held,
-                username,
-                password,
-                &credential,
-                store.clock().now(),
-            )
-            .await?
+            app_state
+                .upgrade
+                .with_password(
+                    &store,
+                    account,
+                    held,
+                    username,
+                    password,
+                    &credential,
+                    store.clock().now(),
+                )
+                .await?
         }
         Opening::Remembered => {
-            session::upgraded_with_remembered_key(
-                credentials.as_ref(),
-                &store,
-                account,
-                held,
-                &credential,
-                store.clock().now(),
-            )
-            .await?
+            app_state
+                .upgrade
+                .with_remembered_key(
+                    credentials.as_ref(),
+                    &store,
+                    account,
+                    held,
+                    &credential,
+                    store.clock().now(),
+                )
+                .await?
         }
     }
 
@@ -305,7 +309,7 @@ pub(super) async fn open_replica(
 /// the record does not say so yet: a record written before the field existed, at its first
 /// sign-in or resume past the format's refusal (effort 838, ticket 25). From then on the owner's
 /// upgrade never transforms the organization on this machine, whatever its `format` row says.
-async fn read_in_this_format(app_state: &AppState, held: &HeldOrganization) -> Result<(), Error> {
+async fn read_in_this_format(app_state: &Shared, held: &HeldOrganization) -> Result<(), Error> {
     if held.format == Some(store::FORMAT_VERSION) {
         return Ok(());
     }
@@ -343,6 +347,7 @@ mod tests {
     use crate::database::Database;
     use crate::error::Error;
     use crate::machine::{RemoteSync, RemoteSyncStore};
+    use crate::organization::Shared;
     use crate::organization::authority::VERIFYING_KEY_BYTES;
     use crate::organization::invitation::link::JoinLink;
     use crate::organization::invitation::{self, join};
@@ -355,7 +360,6 @@ mod tests {
     use crate::organization::{HeldOrganization, ownership};
     use crate::persisted::Persisted;
     use crate::settings::Settings;
-    use crate::state::AppState;
     use crate::sync::test::server::{ScriptedResponse, ScriptedServer};
     use crate::test::scratch;
     use crate::turso::consent::TursoConsent;
@@ -380,10 +384,10 @@ mod tests {
         }
     }
 
-    /// The whole of the application state over one data directory, as `lib.rs` builds it, with
+    /// The organization's state over one data directory, as the plugins' setups build it, with
     /// nothing open and nobody in. *`forget.rs` and `invitation/join.rs` keep the same builder; a
     /// fixture is written out per module ([[rules/testing]]).*
-    async fn state_over(directory: &std::path::Path) -> AppState {
+    async fn state_over(directory: &std::path::Path) -> Shared {
         let mut settings =
             Persisted::<Settings>::load(directory.join(Settings::FILENAME)).expect("the settings");
         settings.database_path = directory.join(Database::FILENAME);
@@ -398,16 +402,18 @@ mod tests {
         )
         .await
         .expect("the sync record");
-        let update = Update::new(settings.clone()).await.expect("the update");
+        // the update is the `update` plugin's and no part of this state, and it is made as a launch
+        // makes it, so the directory holds the file a launch leaves.
+        Update::new(settings.clone()).await.expect("the update");
 
-        AppState {
+        Shared {
             db: Arc::new(RwLock::new(Database::new(
                 settings.clone(),
                 crate::clock::System::shared(),
             ))),
             settings,
             remote_sync: Arc::new(RwLock::new(remote_sync)),
-            update: Arc::new(RwLock::new(update)),
+            upgrade: Arc::new(crate::upgrade::Upgrader),
             consent: Arc::new(TursoConsent::new()),
             organization: Arc::new(RwLock::new(None)),
             member: Arc::new(RwLock::new(None)),
@@ -420,7 +426,7 @@ mod tests {
     /// A machine that has run the first run: an organization on it, the owner's row recorded, and
     /// the owner's member key filed, which is what every launch after it starts from. Nobody is
     /// signed in here, because a launch is a fresh process.
-    async fn first_run(credentials: &dyn CredentialStore, directory: &std::path::Path) -> AppState {
+    async fn first_run(credentials: &dyn CredentialStore, directory: &std::path::Path) -> Shared {
         let app_state = state_over(directory).await;
         let mcp = ScriptedServer::start(vec![
             ScriptedResponse::new(
@@ -478,7 +484,7 @@ mod tests {
     }
 
     /// What the record names: the organization and the member, which is what an entry is keyed on.
-    async fn recorded(app_state: &AppState) -> (String, String) {
+    async fn recorded(app_state: &Shared) -> (String, String) {
         let mut remote_sync = app_state.remote_sync.write().await;
         let held = remote_sync
             .store_mut()
@@ -504,7 +510,7 @@ mod tests {
     }
 
     /// The record this machine keeps about the organization it holds.
-    async fn held(app_state: &AppState) -> HeldOrganization {
+    async fn held(app_state: &Shared) -> HeldOrganization {
         let mut remote_sync = app_state.remote_sync.write().await;
 
         remote_sync
@@ -598,7 +604,7 @@ mod tests {
     async fn handed_over(
         credentials: &dyn CredentialStore,
         directory: &std::path::Path,
-        app_state: &AppState,
+        app_state: &Shared,
     ) -> [u8; VERIFYING_KEY_BYTES] {
         let held = {
             let mut remote_sync = app_state.remote_sync.write().await;
@@ -640,7 +646,7 @@ mod tests {
     }
 
     /// What the record on this machine pins.
-    async fn pinned(app_state: &AppState) -> String {
+    async fn pinned(app_state: &Shared) -> String {
         let mut remote_sync = app_state.remote_sync.write().await;
 
         remote_sync
@@ -653,7 +659,7 @@ mod tests {
     }
 
     /// The key and the role the open session holds.
-    async fn session_holds(app_state: &AppState) -> ([u8; VERIFYING_KEY_BYTES], String) {
+    async fn session_holds(app_state: &Shared) -> ([u8; VERIFYING_KEY_BYTES], String) {
         let member = app_state.member.read().await;
         let session = member.as_ref().expect("nobody is in");
 

@@ -1,7 +1,7 @@
 //! the commands on the roles: listed, made, renamed, re-masked, moved and deleted, and a member's
 //! role and overrides set.
 
-use crate::{clock, error::Error, state::AppState};
+use crate::{clock, error::Error, organization::Shared};
 
 use crate::organization::{
     act::{Acting, Pull, as_member},
@@ -15,7 +15,7 @@ use crate::organization::{
 /// key the session holds, and nothing about a certificate crosses.
 #[tauri::command(rename = "role_list")]
 pub async fn organization_role_list(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
 ) -> Result<Vec<RoleFacts>, Error> {
     as_member(&app_state, Pull::No, async |Acting { member, store }| {
         role::roles(store, member).await
@@ -27,7 +27,7 @@ pub async fn organization_role_list(
 /// requirement 4). `manageRoles`, below the actor's rank, and only flags the actor holds.
 #[tauri::command(rename = "role_create")]
 pub async fn organization_role_create(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     clock: tauri::State<'_, clock::Shared>,
     name: String,
     mask: i64,
@@ -44,7 +44,7 @@ pub async fn organization_role_create(
 /// Rename a custom role. `manageRoles`, below the actor's rank; a built-in role is refused.
 #[tauri::command(rename = "role_rename")]
 pub async fn organization_role_rename(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     clock: tauri::State<'_, clock::Shared>,
     role_id: String,
     name: String,
@@ -60,7 +60,7 @@ pub async fn organization_role_rename(
 /// certificate is issued again in the same act.
 #[tauri::command(rename = "role_set_mask")]
 pub async fn organization_role_set_mask(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     clock: tauri::State<'_, clock::Shared>,
     role_id: String,
     mask: i64,
@@ -77,7 +77,7 @@ pub async fn organization_role_set_mask(
 /// certificate carrying the new one.
 #[tauri::command(rename = "role_move")]
 pub async fn organization_role_move(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     clock: tauri::State<'_, clock::Shared>,
     role_id: String,
     after_role_id: String,
@@ -93,7 +93,7 @@ pub async fn organization_role_move(
 /// below the actor's rank, and only flags the actor holds, over what moving the holders changes.
 #[tauri::command(rename = "role_delete")]
 pub async fn organization_role_delete(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     clock: tauri::State<'_, clock::Shared>,
     role_id: String,
 ) -> Result<(), Error> {
@@ -117,7 +117,7 @@ pub async fn organization_role_delete(
 /// *It was `member_change_role`, which wrote a role's word and seven acts, until effort 838.*
 #[tauri::command(rename = "role_assign")]
 pub async fn organization_role_assign(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     clock: tauri::State<'_, clock::Shared>,
     member_id: String,
     role_id: String,
@@ -145,7 +145,7 @@ pub async fn organization_role_assign(
 /// actor holds; the owner's row carries none.
 #[tauri::command(rename = "role_set_override")]
 pub async fn organization_role_set_override(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     clock: tauri::State<'_, clock::Shared>,
     member_id: String,
     override_mask: i64,
@@ -163,7 +163,7 @@ pub async fn organization_role_set_override(
 /// pinned, only flags the actor holds, and nothing written there that the member cannot view.
 #[tauri::command(rename = "role_set_workspace_override")]
 pub async fn organization_role_set_workspace_override(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     member_id: String,
     workspace_id: String,
     pinned: i64,

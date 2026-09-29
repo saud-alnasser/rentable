@@ -38,10 +38,11 @@ pub(in crate::guard) mod tests {
     /// Requirement 11 and criterion 11: `sync` imports nothing from `organization`, and
     /// `organization` nothing from `sync`'s internals.
     ///
-    /// Requirement 15 and criterion 15: nothing names `upgrade` but the organization's session,
-    /// which is where a sign-in, a resume, a connect and the launch's first state read reach it
-    /// (ticket 48). The composition root registers the commands `upgrade::record` answers, and is
-    /// not a module of the graph. A startup module that runs it joins `callers` when it exists.
+    /// Requirement 15 and criterion 15: nothing names `upgrade`. The composition root registers it
+    /// as the `upgrade` plugin, which serves the commands `upgrade::record` answers and manages the
+    /// port the organization's session reaches it through (`organization::session::Upgrade`), and
+    /// the root is not a module of the graph. *The session named it directly from ticket 48 until
+    /// ticket 57 made the port, which is what took the last cycle out.*
     const RULES: &[Rule] = &[
         Rule::Never {
             from: "sync",
@@ -53,7 +54,7 @@ pub(in crate::guard) mod tests {
         },
         Rule::Callers {
             to: "upgrade",
-            callers: &["organization/session"],
+            callers: &[],
         },
     ];
 
@@ -600,8 +601,8 @@ pub(in crate::guard) mod tests {
     }
 
     /// And the check itself, on a crate made up here: a cycle is named from both sides, each rule
-    /// is named where it is broken, a module its admitted callers name is not, and nothing is read
-    /// from a comment, a string, a test module or a `test/` directory.
+    /// is named where it is broken, and nothing is read from a comment, a string, a test module or
+    /// a `test/` directory.
     #[test]
     fn the_module_check_names_a_cycle_and_each_rule() {
         let file = |path: &str, text: &str| (path.to_string(), text.to_string());
@@ -634,7 +635,6 @@ pub(in crate::guard) mod tests {
                 "organization/mod.rs",
                 "use crate::sync::{Store, turso::consent};\npub struct Held;\n",
             ),
-            file("organization/session.rs", "use crate::upgrade::format;\n"),
             file("organization/setup.rs", "use crate::upgrade::format;\n"),
             file("upgrade/mod.rs", "pub mod format;\npub fn run() {}\n"),
         ];

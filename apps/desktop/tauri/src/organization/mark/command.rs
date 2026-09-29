@@ -1,6 +1,6 @@
 //! the commands on the organization's mark: read, set from a file, and cleared.
 
-use crate::{clock, error::Error, state::AppState};
+use crate::{clock, error::Error, organization::Shared};
 
 use crate::organization::{
     act::{Acting, Pull, as_member},
@@ -12,7 +12,7 @@ use crate::organization::{
 /// replica, offline included.
 #[tauri::command(rename = "mark_get")]
 pub async fn organization_mark_get(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
 ) -> Result<Option<mark::MarkFacts>, Error> {
     as_member(&app_state, Pull::No, async |Acting { member, store }| {
         mark::read_mark(store, member).await
@@ -25,7 +25,7 @@ pub async fn organization_mark_get(
 /// `manageMark` does it.
 #[tauri::command(rename = "mark_set")]
 pub async fn organization_mark_set(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     clock: tauri::State<'_, clock::Shared>,
     path: String,
 ) -> Result<mark::MarkFacts, Error> {
@@ -45,7 +45,7 @@ pub async fn organization_mark_set(
 
 /// Remove the organization's mark; whoever carries `manageMark` does it.
 #[tauri::command(rename = "mark_clear")]
-pub async fn organization_mark_clear(app_state: tauri::State<'_, AppState>) -> Result<(), Error> {
+pub async fn organization_mark_clear(app_state: tauri::State<'_, Shared>) -> Result<(), Error> {
     as_member(&app_state, Pull::No, async |Acting { member, store }| {
         mark::clear_mark(store, member).await
     })

@@ -2,23 +2,23 @@
 //! announced to it (`join.rs` records the decision).
 //!
 //! **Received in the app's `.setup`, and never in a plugin's.** A link the launch hands over is
-//! held in the application state and shows the hidden main window, and a plugin's setup runs
-//! before either exists: the state is built in the app's `.setup`, and the windows the
-//! configuration declares are made just before it. Received any earlier, the link would be
-//! neither held nor shown, and a launch by link while the application was closed would open
-//! nothing.
+//! held in the organization's state and shows the hidden main window, and a plugin's setup runs
+//! before the window exists: the windows the configuration declares are made after every plugin's
+//! setup and just before the app's `.setup`. The state is the organization plugin's, managed in
+//! its setup, so it is there by then. Received any earlier, the link would not be shown, and a
+//! launch by link while the application was closed would open nothing.
 
 use tauri::{Emitter, Manager};
 use tauri_plugin_deep_link::DeepLinkExt;
 
-use crate::{diagnostics, state::AppState};
+use crate::{diagnostics, organization::Shared};
 
 /// The event the shell listens to for a link that arrives while it is running.
 pub const LINK_ARRIVED_EVENT: &str = "organization:link";
 
 /// Register the scheme where a build has no installer to, listen for links opened while the
 /// application runs, and take the one it was launched with. Called from the app's `.setup`, once
-/// the application state is managed.
+/// the windows exist and the organization's state is managed.
 pub fn receive(app: &tauri::App) {
     // **How a join link reaches the application** (`organization/invitation/join.rs` records the
     // decision). The `rentable` scheme is registered with the operating system by the installer on
@@ -57,7 +57,7 @@ pub fn receive(app: &tauri::App) {
 /// Held as well as announced because the two races both happen: a launch hands the link over
 /// before the webview exists, and an arrival while running finds the webview listening.
 fn arrive(handle: &tauri::AppHandle, link: String) {
-    if let Some(state) = handle.try_state::<AppState>()
+    if let Some(state) = handle.try_state::<Shared>()
         && let Ok(mut arriving) = state.arriving_link.lock()
     {
         *arriving = Some(link.clone());
@@ -80,24 +80,29 @@ mod tests {
     use std::path::Path;
 
     /// **A launch by link while the application is closed still shows the window**, as far as a
-    /// test reaches it: the links are received in the app's `.setup`, after the application state
-    /// is managed there, and no plugin receives them in its own setup, which runs before any
-    /// window exists. That the window then shows is the person's check, since no window exists
-    /// under test.
+    /// test reaches it: the links are received in the app's `.setup`, which runs once the windows
+    /// exist, after the organization plugin whose setup manages the state they are held in, and no
+    /// plugin receives them in its own setup, which runs before any window exists. That the window
+    /// then shows is the person's check, since no window exists under test.
     #[test]
     fn links_are_received_once_the_window_and_the_state_exist() {
         let lib = include_str!("../../lib.rs");
+        let registered = lib
+            .find(".plugin(organization::plugin())")
+            .expect("lib.rs does not register the organization plugin");
         let setup = lib.find(".setup(|app|").expect("lib.rs has no app setup");
-        let managed = lib
-            .find("handle.manage(AppState")
-            .expect("lib.rs manages no application state");
         let received = lib
             .find("arrival::receive(app)")
             .expect("lib.rs's setup receives no links");
 
         assert!(
-            setup < managed && managed < received,
-            "the links are received before the application state is managed in the app's setup"
+            registered < setup && setup < received,
+            "the links are received outside the app's setup, or before the organization plugin \
+             that manages their state is registered"
+        );
+        assert!(
+            include_str!("../plugin.rs").contains("app.manage(Shared {"),
+            "the organization plugin's setup does not manage the state a link is held in"
         );
 
         let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");

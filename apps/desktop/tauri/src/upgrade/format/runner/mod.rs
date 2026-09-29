@@ -1833,6 +1833,7 @@ mod tests {
         let adam = first.person("adam");
         let refused = connect_existing(
             &credentials,
+            &crate::upgrade::Upgrader,
             &crate::clock::System::shared(),
             &mut machine,
             "a-platform-token",
@@ -1862,6 +1863,7 @@ mod tests {
         let owner = offline.person("owner");
         let refused = connect_existing(
             &credentials,
+            &crate::upgrade::Upgrader,
             &crate::clock::System::shared(),
             &mut machine,
             "a-platform-token",
@@ -1891,6 +1893,7 @@ mod tests {
         let owner = older.person("owner");
         let (held, replica, session) = connect_existing(
             &credentials,
+            &crate::upgrade::Upgrader,
             &crate::clock::System::shared(),
             &mut machine,
             "a-platform-token",

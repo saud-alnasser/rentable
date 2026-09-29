@@ -7,6 +7,7 @@ use crate::{
 };
 
 use crate::organization::{
+    session::AccountCopy,
     setup::{ORGANIZATION_CREDENTIAL_LIFETIME, Remote},
     store::OrganizationStore,
 };
@@ -105,13 +106,15 @@ impl<P: TursoPlatform + Sync> Replication for ItsRemote<P> {
 /// upgrade of an older organization reaches both from `setup::connect_existing` (effort 838,
 /// tickets 23 and 27). The account is the one the connect minted its credential on, so the copy
 /// taken before the upgrade is made there too, as [`ItsRemote`] makes it on a sign-in. *It was in
-/// `organization/setup.rs` until effort 840 (ticket 48).*
-pub(crate) struct OnTheAccount<'a, P> {
+/// `organization/setup.rs` until effort 840 (ticket 48).* The account is read through the session's
+/// [`AccountCopy`], which every platform answers with `backup::remote_copy`, since the connect
+/// reaches the upgrade through a port that cannot be generic over its platform.
+pub(crate) struct OnTheAccount<'a, P: ?Sized> {
     pub(crate) remote: Remote,
     pub(crate) account: &'a P,
 }
 
-impl<P: TursoPlatform> Replication for OnTheAccount<'_, P> {
+impl<P: AccountCopy + ?Sized> Replication for OnTheAccount<'_, P> {
     async fn push(&self, store: &OrganizationStore) -> Pushed {
         match self.remote {
             Remote::Libsql => pushed(store).await,
@@ -139,7 +142,8 @@ impl<P: TursoPlatform> Replication for OnTheAccount<'_, P> {
     /// A copy seeded from the organization database on the account the connect holds, as
     /// `backup::remote_copy` makes one.
     async fn copied(&self, database_name: &str, label: &str, at: i64) -> Option<String> {
-        backup::remote_copy(self.account, database_name, label, at)
+        self.account
+            .remote_copy(database_name, label, at)
             .await
             .ok()
     }

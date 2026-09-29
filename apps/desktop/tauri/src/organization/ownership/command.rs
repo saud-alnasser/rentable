@@ -1,7 +1,7 @@
 //! the commands of a handover: the organization offered to another account, the offer withdrawn,
 //! and the offer accepted.
 
-use crate::{clock, credential::Credentials, error::Error, state::AppState};
+use crate::{clock, credential::Credentials, error::Error, organization::Shared};
 
 use crate::organization::{
     act::{Acting, Pull, as_member},
@@ -25,7 +25,7 @@ use crate::organization::{
 /// What comes back is the offered account as the members list shows them.
 #[tauri::command(rename = "ownership_offer")]
 pub async fn organization_ownership_offer(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     clock: tauri::State<'_, clock::Shared>,
     member_id: String,
     password: String,
@@ -45,7 +45,7 @@ pub async fn organization_ownership_offer(
 /// where none does is the sentence the members section shows.
 #[tauri::command(rename = "ownership_withdraw_offer")]
 pub async fn organization_ownership_withdraw_offer(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     clock: tauri::State<'_, clock::Shared>,
 ) -> Result<(), Error> {
     as_member(&app_state, Pull::First, async |Acting { member, store }| {
@@ -71,7 +71,7 @@ pub async fn organization_ownership_withdraw_offer(
 /// the Turso account block in the organization section says beside the reconnect.
 #[tauri::command(rename = "ownership_accept")]
 pub(crate) async fn organization_ownership_accept(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
     password: String,

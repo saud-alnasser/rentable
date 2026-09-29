@@ -5,8 +5,8 @@
 //! Tauri checks a plugin's commands against that list by exact name and checks the list against
 //! nothing, so a command handled but not listed would be refused at runtime and nowhere earlier.
 //! What is held here is that the list the build wrote is what the handler answers, that the
-//! capability grants each plugin its default, and that `lib.rs` registers them in the order the
-//! plan sets.
+//! capability grants each plugin its default, that `lib.rs` registers them in the order the plan
+//! sets, and that it composes them and does nothing a feature does.
 
 #[cfg(test)]
 mod tests {
@@ -45,6 +45,7 @@ mod tests {
             "sync",
             "transfer",
             "update",
+            "upgrade",
             "window",
         ] {
             assert!(
@@ -119,6 +120,42 @@ mod tests {
         assert_eq!(
             first, "diagnostics",
             "the first feature plugin lib.rs registers"
+        );
+    }
+
+    /// **Criterion 9.** `lib.rs` composes and does nothing a feature does: it handles no command,
+    /// so every command is a plugin's; it manages nothing but the two ports every plugin's setup
+    /// may read, so every feature's state is its own plugin's; and `state.rs`, where the features'
+    /// state was once held together, is gone.
+    #[test]
+    fn lib_composes_plugins_and_names_no_command_or_state() {
+        let lib = read("src/lib.rs");
+
+        for handled in ["generate_handler!", "invoke_handler", "#[tauri::command]"] {
+            assert!(
+                !lib.contains(handled),
+                "lib.rs contains `{handled}`, and every command is a feature plugin's"
+            );
+        }
+
+        let managed: Vec<&str> = lib
+            .match_indices(".manage")
+            .map(|(at, _)| lib[at..].split('(').next().unwrap_or_default())
+            .collect();
+
+        assert_eq!(
+            managed,
+            vec![
+                ".manage::<credential::Credentials>",
+                ".manage::<clock::Shared>"
+            ],
+            "lib.rs manages state of its own, where each feature's is its plugin's"
+        );
+        assert!(
+            !Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("src/state.rs")
+                .exists(),
+            "src/state.rs is back"
         );
     }
 }

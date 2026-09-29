@@ -5,7 +5,7 @@ use crate::{
     clock,
     credential::Credentials,
     error::{Error, RefusalReason},
-    state::AppState,
+    organization::Shared,
 };
 
 use crate::organization::{
@@ -31,7 +31,7 @@ use crate::organization::{
 /// reads it and raises the first screen, exactly as a disconnect leaves it.
 #[tauri::command(rename = "member_organization_delete")]
 pub(crate) async fn organization_member_organization_delete(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
     password: String,
@@ -64,7 +64,7 @@ pub(crate) async fn organization_member_organization_delete(
 /// member as the list shows them.
 #[tauri::command(rename = "member_rename")]
 pub async fn organization_member_rename(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     clock: tauri::State<'_, clock::Shared>,
     member_id: String,
     username: String,
@@ -86,7 +86,7 @@ pub async fn organization_member_rename(
 /// keeps this machine in, and the owner's is refused to anybody but the owner.
 #[tauri::command(rename = "member_end_sessions")]
 pub async fn organization_member_end_sessions(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     clock: tauri::State<'_, clock::Shared>,
     member_id: String,
 ) -> Result<SessionsEnded, Error> {
@@ -105,7 +105,7 @@ pub async fn organization_member_end_sessions(
 /// many other members stop syncing until their application reconnects.
 #[tauri::command(rename = "member_lock_out_cost")]
 pub async fn organization_member_lock_out_cost(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     member_id: String,
 ) -> Result<LockOutCost, Error> {
     as_member(&app_state, Pull::No, async |Acting { member, store }| {
@@ -129,7 +129,7 @@ pub async fn organization_member_lock_out_cost(
 /// credential; it is the owner's, because rotating needs the turso authority.
 #[tauri::command(rename = "member_remove")]
 pub(crate) async fn organization_member_remove(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
     member_id: String,
@@ -166,7 +166,7 @@ pub(crate) async fn organization_member_remove(
 /// to reach the floor, and nothing else on the database moves. Neither password crosses back.
 #[tauri::command(rename = "member_change_password")]
 pub(crate) async fn organization_member_change_password(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
     current: String,
@@ -195,7 +195,7 @@ pub(crate) async fn organization_member_change_password(
 /// nothing read it.*
 #[tauri::command(rename = "member_list")]
 pub async fn organization_member_list(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
 ) -> Result<Vec<MemberFacts>, Error> {
     as_member(&app_state, Pull::No, async |Acting { member, store }| {
         invitation::members(store, member).await
@@ -213,7 +213,7 @@ pub async fn organization_member_list(
 /// says nothing, and the directory joins the two on the member's id.
 #[tauri::command(rename = "member_standings")]
 pub async fn organization_member_standings(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     clock: tauri::State<'_, clock::Shared>,
 ) -> Result<Vec<MemberStanding>, Error> {
     as_member(&app_state, Pull::No, async |Acting { member, store }| {

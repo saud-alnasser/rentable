@@ -7,7 +7,7 @@ use crate::{
     clock,
     credential::Credentials,
     error::{Error, RefusalReason},
-    state::AppState,
+    organization::Shared,
 };
 
 use crate::organization::{
@@ -44,7 +44,7 @@ use crate::turso::{
 /// first run that did not finish leaves nothing behind; `setup/` says how.
 #[tauri::command(rename = "setup_create")]
 pub(crate) async fn organization_setup_create(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
     name: String,
@@ -134,7 +134,7 @@ pub(crate) async fn organization_setup_create(
 /// account.
 #[tauri::command(rename = "setup_group_inspect")]
 pub(crate) async fn organization_setup_group_inspect(
-    _app_state: tauri::State<'_, AppState>,
+    _app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
 ) -> Result<GroupState, Error> {
     let platform_token = setup::authority(credentials.inner().as_ref())?;
@@ -161,7 +161,7 @@ pub(crate) async fn organization_setup_group_inspect(
 /// link, and an account is held on as many machines as its holder signs in on.
 #[tauri::command(rename = "setup_connect_existing")]
 pub(crate) async fn organization_setup_connect_existing(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
     username: String,
@@ -182,6 +182,7 @@ pub(crate) async fn organization_setup_connect_existing(
         let mut remote_sync = app_state.remote_sync.write().await;
         let (_, store, session) = setup::connect_existing(
             credentials.inner().as_ref(),
+            app_state.upgrade.as_ref(),
             &clock,
             remote_sync.store_mut(),
             &platform_token,
@@ -220,7 +221,7 @@ pub(crate) async fn organization_setup_connect_existing(
 /// handing the organization over is a manager, and reads nothing here.
 #[tauri::command(rename = "setup_account_refusal_detail")]
 pub async fn organization_setup_account_refusal_detail(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
 ) -> Result<Option<String>, Error> {
     // not through `as_member`: this reads, so it holds the session for reading where every act
     // holds it for writing, and nobody signed in is answered with nothing rather than the wall.
@@ -254,7 +255,7 @@ pub async fn organization_setup_account_refusal_detail(
 /// discovered it, and nothing about it was restored from anywhere.
 #[tauri::command(rename = "setup_reconnect_authority")]
 pub(crate) async fn organization_setup_reconnect_authority(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
 ) -> Result<OrganizationState, Error> {
@@ -292,7 +293,7 @@ pub(crate) async fn organization_setup_reconnect_authority(
 /// by [`organization_setup_consent_result`].
 #[tauri::command(rename = "setup_consent_begin")]
 pub async fn organization_setup_consent_begin(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
 ) -> Result<TursoConsentStart, Error> {
     app_state.consent.begin(TursoEndpoints::production()).await
 }
@@ -308,7 +309,7 @@ pub async fn organization_setup_consent_begin(
 /// consent ends and there is nothing to report about it.
 #[tauri::command(rename = "setup_consent_result")]
 pub(crate) async fn organization_setup_consent_result(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
     session_id: String,
 ) -> Result<TursoConsentResult, Error> {
@@ -337,7 +338,7 @@ pub(crate) async fn organization_setup_consent_result(
 /// alone.*
 #[tauri::command(rename = "setup_consent_disconnect")]
 pub(crate) async fn organization_setup_consent_disconnect(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
 ) -> Result<(), Error> {
     app_state.consent.disconnect(credentials.inner().as_ref())

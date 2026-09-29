@@ -5,8 +5,8 @@
 use std::sync::atomic::Ordering;
 
 use crate::{
-    credential::CredentialStore, diagnostics, machine::RemoteSyncStore, persisted::Persisted,
-    state::AppState,
+    credential::CredentialStore, diagnostics, machine::RemoteSyncStore, organization::Shared,
+    persisted::Persisted,
 };
 
 use super::command::sign_out;
@@ -40,10 +40,7 @@ use crate::organization::{
 /// the key the rows are on. A row that still will not read is the offline case as before, and this
 /// member goes on working against what the replica holds (819's requirement 18). The launch runs
 /// this same check once a remembered session is open, so both paths follow after the pull.
-pub(crate) async fn ended_elsewhere(
-    app_state: &AppState,
-    credentials: &dyn CredentialStore,
-) -> bool {
+pub(crate) async fn ended_elsewhere(app_state: &Shared, credentials: &dyn CredentialStore) -> bool {
     let ended = {
         let mut member = app_state.member.write().await;
         let organization = app_state.organization.read().await;
@@ -119,7 +116,7 @@ pub(crate) async fn ended_elsewhere(
 /// the key and every act reads rows through it. The locks are taken in the order every other act
 /// here takes them, the member before the replica before the record, so two acts cannot wait on
 /// each other.
-pub(super) async fn succession_followed(app_state: &AppState) {
+pub(super) async fn succession_followed(app_state: &Shared) {
     let mut member = app_state.member.write().await;
     let organization = app_state.organization.read().await;
 
@@ -178,7 +175,7 @@ async fn followed(
 /// **This is a remaining member's recovery after a lock-out, and it is automatic**: the sync
 /// dispatcher runs it when a replication is refused, and the next request goes out under the
 /// fresh credential. Nobody is signed out, and nobody is told to do anything.
-pub(crate) async fn reconnect(app_state: &AppState) -> bool {
+pub(crate) async fn reconnect(app_state: &Shared) -> bool {
     // nobody signed in answers `false`, with nothing pulled.
     if_member(app_state, Pull::First, async |Acting { member, store }| {
         let moved = match session::refresh_credentials(store, member).await {
@@ -230,6 +227,7 @@ mod tests {
     use crate::database::Database;
     use crate::error::Error;
     use crate::machine::{RemoteSync, RemoteSyncStore};
+    use crate::organization::Shared;
     use crate::organization::authority::VERIFYING_KEY_BYTES;
     use crate::organization::invitation::link::JoinLink;
     use crate::organization::invitation::{self, join};
@@ -244,7 +242,6 @@ mod tests {
     use crate::organization::store::OrganizationStore;
     use crate::persisted::Persisted;
     use crate::settings::Settings;
-    use crate::state::AppState;
     use crate::sync::test::server::{ScriptedResponse, ScriptedServer};
     use crate::test::scratch;
     use crate::turso::consent::TursoConsent;
@@ -269,10 +266,10 @@ mod tests {
         }
     }
 
-    /// The whole of the application state over one data directory, as `lib.rs` builds it, with
+    /// The organization's state over one data directory, as the plugins' setups build it, with
     /// nothing open and nobody in. *`forget.rs` and `invitation/join.rs` keep the same builder; a
     /// fixture is written out per module ([[rules/testing]]).*
-    async fn state_over(directory: &std::path::Path) -> AppState {
+    async fn state_over(directory: &std::path::Path) -> Shared {
         let mut settings =
             Persisted::<Settings>::load(directory.join(Settings::FILENAME)).expect("the settings");
         settings.database_path = directory.join(Database::FILENAME);
@@ -287,16 +284,18 @@ mod tests {
         )
         .await
         .expect("the sync record");
-        let update = Update::new(settings.clone()).await.expect("the update");
+        // the update is the `update` plugin's and no part of this state, and it is made as a launch
+        // makes it, so the directory holds the file a launch leaves.
+        Update::new(settings.clone()).await.expect("the update");
 
-        AppState {
+        Shared {
             db: Arc::new(RwLock::new(Database::new(
                 settings.clone(),
                 crate::clock::System::shared(),
             ))),
             settings,
             remote_sync: Arc::new(RwLock::new(remote_sync)),
-            update: Arc::new(RwLock::new(update)),
+            upgrade: Arc::new(crate::upgrade::Upgrader),
             consent: Arc::new(TursoConsent::new()),
             organization: Arc::new(RwLock::new(None)),
             member: Arc::new(RwLock::new(None)),
@@ -309,7 +308,7 @@ mod tests {
     /// A machine that has run the first run: an organization on it, the owner's row recorded, and
     /// the owner's member key filed, which is what every launch after it starts from. Nobody is
     /// signed in here, because a launch is a fresh process.
-    async fn first_run(credentials: &dyn CredentialStore, directory: &std::path::Path) -> AppState {
+    async fn first_run(credentials: &dyn CredentialStore, directory: &std::path::Path) -> Shared {
         let app_state = state_over(directory).await;
         let mcp = ScriptedServer::start(vec![
             ScriptedResponse::new(
@@ -367,7 +366,7 @@ mod tests {
     }
 
     /// What the record names: the organization and the member, which is what an entry is keyed on.
-    async fn recorded(app_state: &AppState) -> (String, String) {
+    async fn recorded(app_state: &Shared) -> (String, String) {
         let mut remote_sync = app_state.remote_sync.write().await;
         let held = remote_sync
             .store_mut()
@@ -476,7 +475,7 @@ mod tests {
     async fn handed_over(
         credentials: &dyn CredentialStore,
         directory: &std::path::Path,
-        app_state: &AppState,
+        app_state: &Shared,
     ) -> [u8; VERIFYING_KEY_BYTES] {
         let held = {
             let mut remote_sync = app_state.remote_sync.write().await;
@@ -518,7 +517,7 @@ mod tests {
     }
 
     /// What the record on this machine pins.
-    async fn pinned(app_state: &AppState) -> String {
+    async fn pinned(app_state: &Shared) -> String {
         let mut remote_sync = app_state.remote_sync.write().await;
 
         remote_sync
@@ -531,7 +530,7 @@ mod tests {
     }
 
     /// The key and the role the open session holds.
-    async fn session_holds(app_state: &AppState) -> ([u8; VERIFYING_KEY_BYTES], String) {
+    async fn session_holds(app_state: &Shared) -> ([u8; VERIFYING_KEY_BYTES], String) {
         let member = app_state.member.read().await;
         let session = member.as_ref().expect("nobody is in");
 

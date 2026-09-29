@@ -109,6 +109,10 @@ pub enum Engine {
     Workspace(turso::sync::Database),
 }
 
+/// the database as the plugin manages it, made in its setup: one engine behind one lock, which the
+/// commands, the startup and the organization's opening of a workspace all take.
+pub type Shared = Arc<RwLock<Database>>;
+
 pub struct Database {
     engine: Option<Engine>,
     /// where the replica the `Workspace` arm holds lies, so damage met on it after it opened is
@@ -120,7 +124,8 @@ pub struct Database {
 }
 
 impl Database {
-    pub const FILENAME: &'static str = "app.db";
+    /// the file's name, which the settings hold, since it is their setup that says where it is.
+    pub const FILENAME: &'static str = Settings::DATABASE_FILENAME;
 
     pub fn new(settings: Arc<RwLock<Persisted<Settings>>>, clock: clock::Shared) -> Self {
         Database {

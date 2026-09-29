@@ -464,7 +464,7 @@ mod tests {
     /// A connect puts the machine in with no member; the sign-in at the wall names the member;
     /// the sign-out drops the member and leaves the machine; the disconnect takes the row out. The
     /// sign-out and the disconnect are read here through the two calls those acts make, since the
-    /// acts themselves take the application state and this is the replica they reach it through.
+    /// acts themselves take the organization's state and this is the replica they reach it through.
     /// No signer is anywhere in it: a plain member signs nothing, and these are rows a plain
     /// member writes.
     #[tokio::test]

@@ -5,7 +5,8 @@
 //! the organization it holds, the Turso organization its consent is over, and the moment it last
 //! reached Turso. The holder, `RemoteSync`, keeps it beside what this process alone knows: the
 //! credential the member's vault unsealed for the replica, and whatever Turso last refused. Both
-//! sit behind the one lock `AppState` holds, so a forget or an opening moves them together.
+//! sit behind one lock, [`Shared`], which the `sync` plugin manages and the organization's commands
+//! write through as well, so a forget or an opening moves them together.
 //!
 //! **A module of its own, below the modules that write it.** It was `sync/store.rs` until effort
 //! 840, and `organization` reached into `sync` for it while `sync`'s commands reached back into
@@ -20,19 +21,23 @@ pub use record::{
     RemoteSyncStore, RemoteSyncWorkspace, consented_organization,
 };
 
-use std::{future::Future, path::PathBuf, pin::Pin};
+use std::{future::Future, path::PathBuf, pin::Pin, sync::Arc};
 
 use tokio::sync::RwLock;
 
 use crate::clock::Clock;
 
+/// this machine's record as the process holds it: one value behind one lock, managed once, whose
+/// every reader and writer takes the same lock.
+pub type Shared = Arc<RwLock<RemoteSync>>;
+
 /// Where the workspace database lives on this machine, read live, because the record follows it:
 /// every reconcile compares what it holds against this and writes the new place when it moved.
 ///
 /// **A port rather than the settings themselves**, which is what keeps this module below the ones
-/// that write it: the settings are served by a module that reaches the application state, and the
-/// state holds this record, so naming them here would put the record back on a cycle. The
-/// settings answer it (`settings/mod.rs`); a test answers it with any settings file it likes.
+/// that write it: the settings name this module to answer it, so naming them here would put the
+/// record back on a cycle. The settings answer it (`settings/mod.rs`); a test answers it with any
+/// settings file it likes.
 pub trait DatabasePath: Send + Sync {
     fn database_path(&self) -> Pin<Box<dyn Future<Output = PathBuf> + Send + '_>>;
 }

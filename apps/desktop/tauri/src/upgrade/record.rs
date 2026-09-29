@@ -3,7 +3,8 @@
 //!
 //! *It was `earlier.rs` until effort 840 (ticket 48) put it here, with everything else that brings
 //! an older install forward. The commands keep their names, `earlier_find` and `earlier_read`,
-//! because the interface invokes them by those names.*
+//! served by the `upgrade` plugin: `upgrade_earlier_find` is invoked as
+//! `plugin:upgrade|earlier_find`.*
 //!
 //! **0.12.0 and 0.13.0 kept every record in `app.db`**, one plain SQLite file on the machine,
 //! migrated by the application itself with a ledger of its own, `__migrations__`, naming each
@@ -45,7 +46,7 @@ use crate::{
     backup,
     diagnostics::{self, DiagnosticRecord},
     error::Error,
-    state::AppState,
+    settings,
     transfer::{
         export::{self, Cell, Sheet},
         import::{self, Table},
@@ -533,18 +534,20 @@ pub async fn read(path: &Path) -> Result<Read, Error> {
 }
 
 /// Whether this machine's `app.db` holds the records of an earlier version, and which.
-#[tauri::command]
-pub async fn earlier_find(state: State<'_, AppState>) -> Result<Option<Found>, Error> {
-    let path = state.settings.read().await.database_path.clone();
+#[tauri::command(rename = "earlier_find")]
+pub async fn upgrade_earlier_find(
+    settings: State<'_, settings::Shared>,
+) -> Result<Option<Found>, Error> {
+    let path = settings.read().await.database_path.clone();
 
     find(&path).await
 }
 
 /// Read the records of an earlier version out of this machine's `app.db`, as the export would
 /// have written them, and write that workbook under `backups/app/`.
-#[tauri::command]
-pub async fn earlier_read(state: State<'_, AppState>) -> Result<Read, Error> {
-    let path = state.settings.read().await.database_path.clone();
+#[tauri::command(rename = "earlier_read")]
+pub async fn upgrade_earlier_read(settings: State<'_, settings::Shared>) -> Result<Read, Error> {
+    let path = settings.read().await.database_path.clone();
 
     read(&path).await
 }

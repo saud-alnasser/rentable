@@ -9,7 +9,7 @@ use crate::{
     credential::Credentials,
     error::{Error, RefusalReason},
     machine::RemoteSyncState,
-    state::AppState,
+    organization::Shared,
 };
 
 use crate::organization::{
@@ -24,7 +24,7 @@ use crate::turso::platform::AccessLevel;
 /// command: anybody else is told to ask the owner, before any request.
 #[tauri::command(rename = "workspace_create")]
 pub(crate) async fn organization_workspace_create(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
     name: String,
@@ -49,7 +49,7 @@ pub(crate) async fn organization_workspace_create(
 /// minted, which only the owner's machine can do.
 #[tauri::command(rename = "workspace_grant")]
 pub(crate) async fn organization_workspace_grant(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
     workspace_id: String,
     member_id: String,
@@ -75,7 +75,7 @@ pub(crate) async fn organization_workspace_grant(
 /// is the one that gives; the owner's own grant is refused.
 #[tauri::command(rename = "workspace_grant_withdraw")]
 pub async fn organization_workspace_grant_withdraw(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     workspace_id: String,
     member_id: String,
 ) -> Result<(), Error> {
@@ -89,7 +89,7 @@ pub async fn organization_workspace_grant_withdraw(
 /// intent the port takes for it. Owner only.
 #[tauri::command(rename = "workspace_delete")]
 pub(crate) async fn organization_workspace_delete(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
     workspace_id: String,
 ) -> Result<(), Error> {
@@ -129,7 +129,7 @@ struct MigrationNotice {
 #[tauri::command(rename = "workspace_open")]
 pub(crate) async fn organization_workspace_open(
     app: tauri::AppHandle,
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
     workspace_id: String,
@@ -248,7 +248,7 @@ pub(crate) async fn organization_workspace_open(
         )?;
     }
 
-    if let Some(error) = crate::startup::open_database(&app_state, clock.as_ref()).await {
+    if let Some(error) = workspace::open_database(&app_state, clock.as_ref()).await {
         return Err(error);
     }
 
@@ -259,7 +259,7 @@ pub(crate) async fn organization_workspace_open(
 /// how many grants were renewed.
 #[tauri::command(rename = "workspace_renew_credentials")]
 pub(crate) async fn organization_workspace_renew_credentials(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
 ) -> Result<usize, Error> {
     let platform = owner_platform(&app_state, &credentials)
@@ -295,7 +295,7 @@ pub(crate) async fn organization_workspace_renew_credentials(
 /// against the session; the acting owner's session already carries the new one, so nothing there
 /// moves and the engine goes on under the token that was just rotated away. This is the one
 /// place the owner's own engine is told.
-pub(crate) async fn hold_renewed_token(app_state: &AppState, member: &MemberSession) {
+pub(crate) async fn hold_renewed_token(app_state: &Shared, member: &MemberSession) {
     let mut remote_sync = app_state.remote_sync.write().await;
     let current = remote_sync.workspace();
 
@@ -316,7 +316,7 @@ pub(crate) async fn hold_renewed_token(app_state: &AppState, member: &MemberSess
 /// sign-in, which works offline (requirement 18).
 #[tauri::command(rename = "workspace_renew_due")]
 pub(crate) async fn organization_workspace_renew_due(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
 ) -> Result<bool, Error> {
@@ -353,10 +353,7 @@ pub(crate) async fn organization_workspace_renew_due(
 /// Rename the workspace this machine has open, on the organization database, and on this
 /// machine's own record of it so the rail reads the new name before the next pull. What
 /// `organization_workspace_rename` calls; both live here because the name is the organization's.
-pub(crate) async fn rename_current_workspace(
-    app_state: &AppState,
-    name: &str,
-) -> Result<(), Error> {
+pub(crate) async fn rename_current_workspace(app_state: &Shared, name: &str) -> Result<(), Error> {
     let workspace_id = {
         let remote_sync = app_state.remote_sync.read().await;
 
@@ -391,7 +388,7 @@ pub(crate) async fn rename_current_workspace(
 /// that goes stale.
 #[tauri::command(rename = "workspace_rename")]
 pub async fn organization_workspace_rename(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     name: String,
 ) -> Result<RemoteSyncState, Error> {
     rename_current_workspace(app_state.inner(), &name).await?;

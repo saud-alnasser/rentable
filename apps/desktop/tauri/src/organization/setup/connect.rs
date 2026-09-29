@@ -30,7 +30,7 @@ use crate::organization::{
     authority::VERIFYING_KEY_BYTES,
     invitation::connect::{self, OrganizationFacts},
     member::vault::{ContentKey, open_content, open_vault},
-    session::{self, CredentialSlot, MemberSession, content_key_of, sign_in_by_username},
+    session::{self, CredentialSlot, MemberSession, Upgrade, content_key_of, sign_in_by_username},
     store::{FORMAT_VERSION, OrganizationRecord, OrganizationStore},
     workspace,
 };
@@ -113,6 +113,7 @@ pub(super) const ORGANIZATION_THIS_ACCOUNT_HOLDS: &str =
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn connect_existing<P, F>(
     credentials: &dyn CredentialStore,
+    upgrade: &dyn Upgrade,
     clock: &clock::Shared,
     store: &mut Persisted<RemoteSyncStore>,
     platform_token: &str,
@@ -125,7 +126,7 @@ pub(crate) async fn connect_existing<P, F>(
     now: i64,
 ) -> Result<(HeldOrganization, OrganizationStore, MemberSession), Error>
 where
-    P: TursoPlatform,
+    P: TursoPlatform + Sync,
     F: Fn(TursoOrganization) -> P,
 {
     // a machine holds one organization, so this is refused before the account is even asked what
@@ -195,7 +196,7 @@ where
         // owner's, and refused as waiting for its owner where it is anybody else's; one of another
         // format is refused before its row is read or any credential renewed in it (effort 838,
         // requirement 11 as amended, ticket 22).
-        session::upgraded_on_connect(
+        upgrade.on_connect(
             &replica,
             remote,
             &platform,
@@ -203,7 +204,7 @@ where
             password,
             &credential,
             now,
-            || session::refused_by_name(ORGANIZATION_THIS_ACCOUNT_HOLDS),
+            &|| session::refused_by_name(ORGANIZATION_THIS_ACCOUNT_HOLDS),
         )
         .await?;
         replica.refuse_another_format().await?;
@@ -610,6 +611,7 @@ mod tests {
         let mut machine = fresh_machine(&directory, "second-machine");
         let (held, replica, session) = connect_existing(
             &credentials,
+            &crate::upgrade::Upgrader,
             &crate::clock::System::shared(),
             &mut machine,
             TOKEN,
@@ -763,6 +765,7 @@ mod tests {
         let mut machine = fresh_machine(&directory, "second-machine");
         let refused = connect_existing(
             &credentials,
+            &crate::upgrade::Upgrader,
             &crate::clock::System::shared(),
             &mut machine,
             TOKEN,
@@ -888,6 +891,7 @@ mod tests {
         let mut machine = fresh_machine(&directory, "third-machine");
         let (held, _, session) = connect_existing(
             &credentials,
+            &crate::upgrade::Upgrader,
             &crate::clock::System::shared(),
             &mut machine,
             TOKEN,
@@ -950,6 +954,7 @@ mod tests {
         let mut founders_machine = fresh_machine(&directory, "the-founders-next-machine");
         let refused = connect_existing(
             &credentials,
+            &crate::upgrade::Upgrader,
             &crate::clock::System::shared(),
             &mut founders_machine,
             TOKEN,
@@ -1009,6 +1014,7 @@ mod tests {
         let mut machine = fresh_machine(&directory, "second-machine");
         let (second, replica, session) = connect_existing(
             &credentials,
+            &crate::upgrade::Upgrader,
             &crate::clock::System::shared(),
             &mut machine,
             TOKEN,
@@ -1101,6 +1107,7 @@ mod tests {
             let mut machine = fresh_machine(&directory, machine_name);
             let refused = connect_existing(
                 &credentials,
+                &crate::upgrade::Upgrader,
                 &crate::clock::System::shared(),
                 &mut machine,
                 TOKEN,

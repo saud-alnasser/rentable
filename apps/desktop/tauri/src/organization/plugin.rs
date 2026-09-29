@@ -1,15 +1,23 @@
+use std::sync::{Arc, Mutex, atomic::AtomicBool};
+
+use tauri::Manager;
 use tauri::plugin::{Builder, TauriPlugin};
+use tokio::sync::RwLock;
+
+use crate::{database, machine, settings, turso::consent::TursoConsent};
+
+use super::{Shared, session};
 
 /// the organization's commands, every sub-concept's in one handler: each is declared in its
 /// sub-concept's `command.rs` and answers to its Rust name without `organization_`, so
 /// `organization_member_rename` is invoked as `plugin:organization|member_rename`.
 ///
-/// It runs no setup and manages no state of its own. What its commands read is the application
-/// state the app's `.setup` builds, the organization and the member held there beside the
-/// database and this machine's record, which the `sync` plugin's commands read too; it is made
-/// after every plugin's setup has run, and a command reads it when it is called, which is after
-/// that. For the same reason a link the launch hands over is received in the app's `.setup` and
-/// not here (`invitation/arrival.rs`): a plugin's setup runs before any window exists.
+/// Its setup manages the organization's state ([`Shared`]): nothing open and nobody
+/// signed in, beside the database, the settings, this machine's record and the upgrade port, which
+/// it takes from the plugins that manage them. So it is registered after `settings`, `database`,
+/// `sync` and `upgrade`. A link
+/// the launch hands over is not received here but in the app's `.setup`, after this state exists
+/// (`invitation/arrival.rs`): a plugin's setup runs before any window exists.
 ///
 /// `build.rs` reads the handler below to write the plugin's permissions, so a command added to it
 /// is allowed by the ACL with no second list to keep, and the gate test in `mod.rs` reads it to
@@ -70,5 +78,21 @@ pub fn plugin() -> TauriPlugin<tauri::Wry> {
             super::mark::organization_mark_set,
             super::mark::organization_mark_clear,
         ])
+        .setup(|app, _api| {
+            app.manage(Shared {
+                db: app.state::<database::Shared>().inner().clone(),
+                settings: app.state::<settings::Shared>().inner().clone(),
+                remote_sync: app.state::<machine::Shared>().inner().clone(),
+                upgrade: app.state::<session::Upgrades>().inner().clone(),
+                consent: Arc::new(TursoConsent::new()),
+                organization: Arc::new(RwLock::new(None)),
+                member: Arc::new(RwLock::new(None)),
+                arriving_link: Arc::new(Mutex::new(None)),
+                signed_out_elsewhere: Arc::new(AtomicBool::new(false)),
+                old_shape_check: tokio::sync::OnceCell::new(),
+            });
+
+            Ok(())
+        })
         .build()
 }

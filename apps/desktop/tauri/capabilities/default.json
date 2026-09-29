@@ -18,6 +18,7 @@
 		"transfer:default",
 		"startup:default",
 		"sync:default",
-		"organization:default"
+		"organization:default",
+		"upgrade:default"
 	]
 }

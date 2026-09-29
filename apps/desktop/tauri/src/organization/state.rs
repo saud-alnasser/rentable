@@ -1,24 +1,38 @@
+//! what the organization's commands read and write, managed by its plugin (`plugin.rs`).
+
 use std::sync::{Arc, Mutex, atomic::AtomicBool};
 use tokio::sync::RwLock;
 
-use crate::{
-    database::Database,
-    machine::RemoteSync,
-    organization::{session::MemberSession, store::OrganizationStore},
-    persisted::Persisted,
-    settings::Settings,
-    turso::consent::TursoConsent,
-    update::Update,
+use crate::{database, machine, settings, turso::consent::TursoConsent};
+
+use super::{
+    session::{MemberSession, Upgrades},
+    store::OrganizationStore,
 };
 
-pub struct AppState {
-    pub db: Arc<RwLock<Database>>,
-    pub settings: Arc<RwLock<Persisted<Settings>>>,
-    pub remote_sync: Arc<RwLock<RemoteSync>>,
-    pub update: Arc<RwLock<Update>>,
+/// The organization's state as its plugin manages it: its own, and a handle on each of the four
+/// other plugins' values its commands act on. Named as every plugin's managed value is
+/// (`settings::Shared`, `machine::Shared`); the facts a state read answers the shell with are
+/// `session::OrganizationState`, which is another thing.
+///
+/// **The four handles are the very values those plugins manage**, cloned out of the application
+/// state by type in the plugin's setup, so a lock taken through one of them is the lock every other
+/// reader takes: `remote_sync` above all, which the `sync` plugin's commands write too. Held here
+/// rather than asked for per command because the organization's work passes them down together,
+/// through the act, the session and the opening of the workspace database (`workspace/open.rs`).
+pub struct Shared {
+    /// the workspace database, as the `database` plugin manages it.
+    pub db: database::Shared,
+    /// the settings, as the `settings` plugin manages them.
+    pub settings: settings::Shared,
+    /// this machine's record, as the `sync` plugin manages it.
+    pub remote_sync: machine::Shared,
+    /// the upgrade that brings an older install forward, as the `upgrade` plugin manages it: the
+    /// port the session runs it through (`session::Upgrade`).
+    pub(crate) upgrade: Upgrades,
     /// the Turso consents this process has started.
     ///
-    /// **Not behind an `RwLock` like the four above**, because it holds its own lock over the
+    /// **Not behind an `RwLock` like the handles above**, because it holds its own lock over the
     /// one map it has. A second lock around it would be held across the token exchange, which
     /// is a network round trip, and would stop the interface reading how far any consent had
     /// got while any other consent was being redeemed.

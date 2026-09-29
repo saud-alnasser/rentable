@@ -22,10 +22,11 @@
 //! organization prints (`mark/`). What every command does first, acting as the signed-in member,
 //! is `act.rs`. The commands are served as one plugin, `organization`, whose handler in `plugin.rs`
 //! lists every sub-concept's: a command answers to its Rust name without `organization_`, so
-//! `organization_member_rename` is invoked as `plugin:organization|member_rename`. The owner's
+//! `organization_member_rename` is invoked as `plugin:organization|member_rename`. What they read
+//! is the plugin's state (`state.rs`), managed in its setup. The owner's
 //! upgrade of an organization an earlier version made, which runs once, is not here: it is
 //! `upgrade/format/`, with everything else that brings an older install forward, and the session
-//! is what reaches it.
+//! reaches it through a port it defines (`session::Upgrade`), so nothing here names it.
 
 mod act;
 pub mod authority;
@@ -38,6 +39,7 @@ mod plugin;
 pub mod role;
 pub mod session;
 pub mod setup;
+mod state;
 pub mod store;
 pub mod workspace;
 
@@ -47,6 +49,7 @@ pub mod workspace;
 pub use crate::machine::HeldOrganization;
 
 pub use plugin::plugin;
+pub use state::Shared;
 
 #[cfg(test)]
 mod tests {

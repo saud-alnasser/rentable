@@ -61,8 +61,8 @@ use crate::{
     credential::CredentialStore,
     diagnostics,
     error::Error,
+    organization::Shared,
     organization::{session::forget::forget, store::OrganizationStore},
-    state::AppState,
 };
 
 /// Why the startup check forgot what the machine held: the sign it read.
@@ -157,7 +157,7 @@ const OWNER_SEED_COLUMN: &str = "owner_seed_sealed";
 /// nothing else; it opens no vault and pulls nothing. `None` is a machine whose shape is this
 /// build's, held organization or not.
 pub(crate) async fn forget_old_shape(
-    app_state: &AppState,
+    app_state: &Shared,
     credentials: &dyn CredentialStore,
     clock: &clock::Shared,
 ) -> Result<Option<OldShape>, Error> {
@@ -175,7 +175,7 @@ pub(crate) async fn forget_old_shape(
 }
 
 /// The sign that what this machine holds was built before this build, where there is one.
-async fn old_shape(app_state: &AppState, clock: &clock::Shared) -> Result<Option<OldShape>, Error> {
+async fn old_shape(app_state: &Shared, clock: &clock::Shared) -> Result<Option<OldShape>, Error> {
     let (listed, held) = {
         let mut remote_sync = app_state.remote_sync.write().await;
         let store = remote_sync.store_mut();
@@ -274,6 +274,7 @@ mod tests {
     use crate::{
         database::Database,
         machine::{RemoteSync, RemoteSyncStore},
+        organization::Shared,
         organization::{
             HeldOrganization,
             member::vault::KdfParams,
@@ -282,7 +283,6 @@ mod tests {
         },
         persisted::Persisted,
         settings::Settings,
-        state::AppState,
         sync::test::server::{ScriptedResponse, ScriptedServer},
         turso::{consent::TursoConsent, discovery::McpEndpoint, platform::InMemoryPlatform},
         update::Update,
@@ -315,10 +315,10 @@ mod tests {
         names
     }
 
-    /// The whole of the application state over one data directory, as `lib.rs` builds it, with
+    /// The organization's state over one data directory, as the plugins' setups build it, with
     /// nothing open and nobody in. `remote-sync.json` is loaded from the directory, so a test
     /// writes the record it wants first.
-    async fn state_over(directory: &std::path::Path) -> AppState {
+    async fn state_over(directory: &std::path::Path) -> Shared {
         let mut settings =
             Persisted::<Settings>::load(directory.join(Settings::FILENAME)).expect("the settings");
         settings.database_path = directory.join(Database::FILENAME);
@@ -333,16 +333,18 @@ mod tests {
         )
         .await
         .expect("the sync record");
-        let update = Update::new(settings.clone()).await.expect("the update");
+        // the update is the `update` plugin's and no part of this state, and it is made as a launch
+        // makes it, so the directory holds the file a launch leaves.
+        Update::new(settings.clone()).await.expect("the update");
 
-        AppState {
+        Shared {
             db: Arc::new(RwLock::new(Database::new(
                 settings.clone(),
                 crate::clock::System::shared(),
             ))),
             settings,
             remote_sync: Arc::new(RwLock::new(remote_sync)),
-            update: Arc::new(RwLock::new(update)),
+            upgrade: Arc::new(crate::upgrade::Upgrader),
             consent: Arc::new(TursoConsent::new()),
             organization: Arc::new(RwLock::new(None)),
             member: Arc::new(RwLock::new(None)),

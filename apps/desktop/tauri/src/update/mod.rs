@@ -7,8 +7,7 @@ use tokio::sync::RwLock;
 use crate::{
     error::Error,
     persisted::{Persistable, Persisted},
-    settings::Settings,
-    state::AppState,
+    settings::{self, Settings},
 };
 
 pub use plugin::plugin;
@@ -51,6 +50,10 @@ fn normalize_version(value: &str) -> String {
 /// where that is exercised. And the route back, which is this file: a version that cannot open
 /// the workspace has to be able to say which release the user came from, because reinstalling
 /// it is the only move left to them.
+/// the update as the plugin manages it, made in its setup from the route back the last launch
+/// left.
+pub type Shared = Arc<RwLock<Update>>;
+
 #[derive(Clone)]
 pub struct Update {
     recovery: Persisted<Recovery>,
@@ -115,7 +118,9 @@ impl Recovery {
 }
 
 impl Update {
-    pub const FILENAME: &'static str = "recovery.json";
+    /// the route back's file, which the settings hold, since it is their setup that says where it
+    /// is.
+    pub const FILENAME: &'static str = Settings::RECOVERY_FILENAME;
 
     pub async fn new(settings: Arc<RwLock<Persisted<Settings>>>) -> Result<Self, Error> {
         let settings = settings.read().await;
@@ -202,11 +207,12 @@ impl Update {
 /// Invoked as `plugin:update|prepare`.
 #[tauri::command(rename = "prepare")]
 pub async fn update_prepare(
-    app_state: tauri::State<'_, AppState>,
+    update: tauri::State<'_, Shared>,
+    settings: tauri::State<'_, settings::Shared>,
     target_version: String,
 ) -> Result<Recovery, Error> {
-    let mut update = app_state.update.write().await;
-    let settings = app_state.settings.read().await;
+    let mut update = update.write().await;
+    let settings = settings.read().await;
 
     update.prepare(&settings.version, &target_version).await
 }

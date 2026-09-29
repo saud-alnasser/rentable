@@ -77,20 +77,18 @@ pub use signin::*;
 
 use std::{
     collections::HashMap,
+    future::Future,
+    pin::Pin,
     sync::{Arc, Mutex},
 };
 
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    clock,
+    backup, clock,
     credential::CredentialStore,
     error::{Error, RefusalReason},
-    state::AppState,
-    upgrade::{
-        format::runner::{self, ItsRemote, OnTheAccount},
-        shape::{self, OldShape},
-    },
+    organization::Shared,
 };
 
 use crate::turso::platform::{AccessLevel, PlatformApi, TursoPlatform};
@@ -724,97 +722,105 @@ pub(crate) fn opened(key: &ContentKey, column: &str, sealed: &[u8]) -> Result<St
     })
 }
 
-// what an older install left: the one place the organization reaches `upgrade`
+// what an older install left: the port the organization reaches the upgrade through
 
-/// Upgrade the organization `held` names where it is of an earlier format and `password` opens its
-/// owner's vault under `username`, or follow the owner's upgrade where it opens anybody else's:
-/// the sign-in at the wall, before the format is refused (`upgrade/format/runner/`,
-/// `with_password`). `account` is the owner's Turso account where this machine holds its
-/// authority, which renews a lapsed grant before the upgrade pushes.
+/// A future the upgrade port answers with.
+pub(crate) type Upgrading<'a> = Pin<Box<dyn Future<Output = Result<(), Error>> + Send + 'a>>;
+
+/// What the session asks of the upgrade that brings an older install forward (`upgrade/`).
 ///
-/// **Here, and every other way to the upgrade beside it, because the session is what opens an
-/// organization**: a sign-in, a resume and a connect each open a vault, and the upgrade runs on the
-/// vault they open. Nothing else in the organization names `upgrade` (effort 840, requirement 15;
-/// `guard/cycle.rs` holds it).
-pub(crate) async fn upgraded_with_password(
-    store: &OrganizationStore,
-    account: Option<PlatformApi>,
-    held: &HeldOrganization,
-    username: &str,
-    password: &str,
-    credential: &CredentialSlot,
-    now: i64,
-) -> Result<(), Error> {
-    runner::with_password(
-        store,
-        &ItsRemote { account },
-        held,
-        username,
-        password,
-        credential,
-        now,
-    )
-    .await
+/// **A port, as the clock and the credential store are**, so that the organization names nothing
+/// of `upgrade` while `upgrade` reads the organization's store, chain and vaults: the `upgrade`
+/// plugin manages its implementation as [`Upgrades`], and the organization's state holds it
+/// (effort 840, requirement 15; `guard/cycle.rs` holds it). **Here, in the session, because the
+/// session is what opens an organization**: a sign-in, a resume and a connect each open a vault,
+/// and the upgrade runs on the vault they open; and the launch's first state read runs the check
+/// of the old shape before anything opens the replica.
+pub(crate) trait Upgrade: Send + Sync {
+    /// Upgrade the organization `held` names where it is of an earlier format and `password` opens
+    /// its owner's vault under `username`, or follow the owner's upgrade where it opens anybody
+    /// else's: the sign-in at the wall, before the format is refused (`upgrade/format/runner/`,
+    /// `with_password`). `account` is the owner's Turso account where this machine holds its
+    /// authority, which renews a lapsed grant before the upgrade pushes.
+    #[allow(clippy::too_many_arguments)]
+    fn with_password<'a>(
+        &'a self,
+        store: &'a OrganizationStore,
+        account: Option<PlatformApi>,
+        held: &'a HeldOrganization,
+        username: &'a str,
+        password: &'a str,
+        credential: &'a CredentialSlot,
+        now: i64,
+    ) -> Upgrading<'a>;
+
+    /// Upgrade the organization `held` names where it is of an earlier format and the key this
+    /// machine filed for the member it names opens the owner's vault, or follow the owner's upgrade
+    /// where it opens anybody else's: the launch resume, with no password
+    /// (`upgrade/format/runner/`, `with_remembered_key`). `account` is as
+    /// [`Upgrade::with_password`] takes it.
+    fn with_remembered_key<'a>(
+        &'a self,
+        credentials: &'a dyn CredentialStore,
+        store: &'a OrganizationStore,
+        account: Option<PlatformApi>,
+        held: &'a HeldOrganization,
+        credential: &'a CredentialSlot,
+        now: i64,
+    ) -> Upgrading<'a>;
+
+    /// Upgrade the organization a machine connecting on the owner's Turso account has just pulled,
+    /// where it is of an earlier format: `setup::connect_existing`, before the format is refused
+    /// (`upgrade/format/runner/`, `with_the_owners_password`). `remote` is the connect's remote and
+    /// `account` the account it was consented on; `refused` is the sentence that path gives a pair
+    /// that opens nothing.
+    #[allow(clippy::too_many_arguments)]
+    fn on_connect<'a>(
+        &'a self,
+        store: &'a OrganizationStore,
+        remote: Remote,
+        account: &'a dyn AccountCopy,
+        username: &'a str,
+        password: &'a str,
+        credential: &'a CredentialSlot,
+        now: i64,
+        refused: &'a (dyn Fn() -> Error + Send + Sync),
+    ) -> Upgrading<'a>;
+
+    /// Forget what the machine holds where its shape is the old one: the first thing the launch's
+    /// first state read does, before a resume opens anything (`upgrade/shape.rs`).
+    fn forget_old_shape<'a>(
+        &'a self,
+        state: &'a Shared,
+        credentials: &'a dyn CredentialStore,
+        clock: &'a clock::Shared,
+    ) -> Upgrading<'a>;
 }
 
-/// Upgrade the organization `held` names where it is of an earlier format and the key this machine
-/// filed for the member it names opens the owner's vault, or follow the owner's upgrade where it
-/// opens anybody else's: the launch resume, with no password (`upgrade/format/runner/`,
-/// `with_remembered_key`). `account` is as [`upgraded_with_password`] takes it.
-pub(crate) async fn upgraded_with_remembered_key(
-    credentials: &dyn CredentialStore,
-    store: &OrganizationStore,
-    account: Option<PlatformApi>,
-    held: &HeldOrganization,
-    credential: &CredentialSlot,
-    now: i64,
-) -> Result<(), Error> {
-    runner::with_remembered_key(
-        credentials,
-        store,
-        &ItsRemote { account },
-        held,
-        credential,
-        now,
-    )
-    .await
+/// The upgrade port as the `upgrade` plugin manages it and the organization's state holds it.
+pub(crate) type Upgrades = Arc<dyn Upgrade>;
+
+/// The copy the connect's upgrade takes of the organization database before its format changes,
+/// made on the Turso account the connect holds, as `backup::remote_copy` makes one.
+///
+/// **A trait object where the connect is generic over its platform**, since a port method cannot
+/// be: every platform answers it, and the upgrade reads the copy through it.
+pub(crate) trait AccountCopy: Sync {
+    fn remote_copy<'a>(
+        &'a self,
+        database: &'a str,
+        label: &'a str,
+        at: i64,
+    ) -> Pin<Box<dyn Future<Output = Result<String, Error>> + Send + 'a>>;
 }
 
-/// Upgrade the organization a machine connecting on the owner's Turso account has just pulled,
-/// where it is of an earlier format: `setup::connect_existing`, before the format is refused
-/// (`upgrade/format/runner/`, `with_the_owners_password`). `remote` is the connect's remote and
-/// `account` the account it was consented on; `refused` is the sentence that path gives a pair
-/// that opens nothing.
-#[allow(clippy::too_many_arguments)]
-pub(crate) async fn upgraded_on_connect<P: TursoPlatform>(
-    store: &OrganizationStore,
-    remote: Remote,
-    account: &P,
-    username: &str,
-    password: &str,
-    credential: &CredentialSlot,
-    now: i64,
-    refused: impl Fn() -> Error,
-) -> Result<(), Error> {
-    runner::with_the_owners_password(
-        store,
-        &OnTheAccount { remote, account },
-        username,
-        password,
-        credential,
-        now,
-        refused,
-    )
-    .await
-}
-
-/// Forget what the machine holds where its shape is the old one, and say which sign was read: the
-/// first thing the launch's first state read does, before a resume opens anything
-/// (`upgrade/shape.rs`).
-pub(crate) async fn forget_old_shape(
-    app_state: &AppState,
-    credentials: &dyn CredentialStore,
-    clock: &clock::Shared,
-) -> Result<Option<OldShape>, Error> {
-    shape::forget_old_shape(app_state, credentials, clock).await
+impl<P: TursoPlatform + Sync> AccountCopy for P {
+    fn remote_copy<'a>(
+        &'a self,
+        database: &'a str,
+        label: &'a str,
+        at: i64,
+    ) -> Pin<Box<dyn Future<Output = Result<String, Error>> + Send + 'a>> {
+        Box::pin(backup::remote_copy(self, database, label, at))
+    }
 }

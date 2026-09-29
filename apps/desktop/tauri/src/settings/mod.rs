@@ -7,18 +7,22 @@ mod plugin;
 
 pub use plugin::plugin;
 
-use std::{future::Future, path::PathBuf, pin::Pin};
+use std::{future::Future, path::PathBuf, pin::Pin, sync::Arc};
 
 use crate::{
     error::Error,
     machine::DatabasePath,
     persisted::{Persistable, Persisted},
-    state::AppState,
 };
 use serde::{Deserialize, Deserializer, Serialize};
 use tokio::sync::RwLock;
 
 const DEFAULT_ENDING_SOON_NOTICE_DAYS: u16 = 60;
+
+/// the settings as the plugin manages them, loaded once in its setup: every command reads and
+/// writes them through this one lock, and the database, this machine's record and the update read
+/// their paths off the same value.
+pub type Shared = Arc<RwLock<Persisted<Settings>>>;
 
 /// whether the application draws light or dark, as the reader chose it.
 ///
@@ -140,6 +144,12 @@ impl Persistable for Settings {
 
 impl Settings {
     pub const FILENAME: &'static str = "settings.json";
+    /// the workspace database's file, in the directory `database_path` is set to at launch.
+    /// `Database::FILENAME` is this name: the plugin's setup fills the path in, and it cannot
+    /// name the database, which reads the settings.
+    pub const DATABASE_FILENAME: &'static str = "app.db";
+    /// the update's route back, in the data directory, for the same reason `Update::FILENAME`.
+    pub const RECOVERY_FILENAME: &'static str = "recovery.json";
 }
 
 #[derive(Clone, Serialize, Deserialize, Default)]
@@ -152,21 +162,21 @@ pub struct SettingsChangeset {
 }
 
 #[tauri::command(rename = "get")]
-pub async fn settings_get(app_state: tauri::State<'_, AppState>) -> Result<Settings, Error> {
-    let settings = app_state.settings.read().await;
+pub async fn settings_get(settings: tauri::State<'_, Shared>) -> Result<Settings, Error> {
+    let settings = settings.read().await;
     Ok(settings.inner().clone())
 }
 
 #[tauri::command(rename = "set")]
 pub async fn settings_set(
-    app_state: tauri::State<'_, AppState>,
+    settings: tauri::State<'_, Shared>,
     changeset: SettingsChangeset,
 ) -> Result<Settings, Error> {
-    settings_set_inner(app_state.inner(), changeset).await
+    settings_set_inner(settings.inner(), changeset).await
 }
 
 pub async fn settings_set_inner(
-    app_state: &AppState,
+    settings: &Shared,
     changeset: SettingsChangeset,
 ) -> Result<Settings, Error> {
     if let Some(days) = changeset.ending_soon_notice_days {
@@ -177,7 +187,7 @@ pub async fn settings_set_inner(
         }
     }
 
-    let mut settings = app_state.settings.write().await;
+    let mut settings = settings.write().await;
 
     if let Some(days) = changeset.ending_soon_notice_days {
         settings.ending_soon_notice_days = days;

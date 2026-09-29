@@ -1,11 +1,15 @@
-use crate::{clock, error::Error, machine::RemoteSyncState, state::AppState};
+use crate::{
+    clock, database,
+    error::Error,
+    machine::{self, RemoteSyncState},
+};
 
 /// what this machine holds and how it stands. Invoked as `plugin:sync|state_get`.
 #[tauri::command(rename = "state_get")]
 pub async fn sync_state_get(
-    app_state: tauri::State<'_, AppState>,
+    remote_sync: tauri::State<'_, machine::Shared>,
 ) -> Result<RemoteSyncState, Error> {
-    let mut remote_sync = app_state.remote_sync.write().await;
+    let mut remote_sync = remote_sync.write().await;
 
     remote_sync.get_state().await
 }
@@ -20,15 +24,16 @@ pub async fn sync_state_get(
 /// Invoked as `plugin:sync|push`.
 #[tauri::command(rename = "push")]
 pub async fn sync_push(
-    app_state: tauri::State<'_, AppState>,
+    db: tauri::State<'_, database::Shared>,
+    remote_sync: tauri::State<'_, machine::Shared>,
     clock: tauri::State<'_, clock::Shared>,
 ) -> Result<bool, Error> {
-    let pushed = app_state.db.read().await.push_replica().await;
+    let pushed = db.read().await.push_replica().await;
 
     // a push that went is a replication that went through, and the last one of a session is
     // exactly the moment the block should read on the next launch (effort 828, requirement 25).
     if pushed {
-        crate::machine::note_reached(&app_state.remote_sync, clock.as_ref()).await;
+        machine::note_reached(&remote_sync, clock.as_ref()).await;
     }
 
     Ok(pushed)

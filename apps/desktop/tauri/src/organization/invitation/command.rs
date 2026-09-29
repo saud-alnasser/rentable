@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use crate::{clock, credential::Credentials, error::Error, state::AppState};
+use crate::{clock, credential::Credentials, error::Error, organization::Shared};
 
 use crate::organization::{
     act::{Acting, Pull, as_member, owner_platform},
@@ -31,7 +31,7 @@ use crate::organization::{
 /// wire. The second is not spelled `override`, which Rust keeps as a word of its own.
 #[tauri::command(rename = "invitation_member_create")]
 pub(crate) async fn organization_invitation_member_create(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
     username: String,
@@ -71,7 +71,7 @@ pub(crate) async fn organization_invitation_member_create(
 /// lost the pair makes another, which drops the one they lost.
 #[tauri::command(rename = "invitation_link_make")]
 pub(crate) async fn organization_invitation_link_make(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
     member_id: String,
@@ -106,7 +106,7 @@ pub(crate) async fn organization_invitation_link_make(
 /// member's permissions are kept; a link is a separate act on the same account.
 #[tauri::command(rename = "invitation_password_unset")]
 pub(crate) async fn organization_invitation_password_unset(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
     member_id: String,
@@ -142,7 +142,7 @@ pub(crate) async fn organization_invitation_password_unset(
 /// password crosses back; what comes back is where the machine stands, with a session in it.
 #[tauri::command(rename = "invitation_accept")]
 pub(crate) async fn organization_invitation_accept(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
     link: String,
@@ -188,7 +188,7 @@ pub(crate) async fn organization_invitation_accept(
 /// with what the member's vault unseals.
 #[tauri::command(rename = "invitation_machine_connect")]
 pub(crate) async fn organization_invitation_machine_connect(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
     link: String,
@@ -219,7 +219,7 @@ pub(crate) async fn organization_invitation_machine_connect(
 /// event the same arrival raises afterwards.
 #[tauri::command(rename = "invitation_link_take")]
 pub async fn organization_invitation_link_take(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
 ) -> Result<Option<String>, Error> {
     let mut arriving = app_state
         .arriving_link
@@ -256,7 +256,7 @@ pub fn organization_invitation_link_read(link: String) -> Result<LinkShape, Erro
 /// organization's own link carried a legible credential until requirement 16 retired the link and
 /// the credential together.*
 async fn reached(
-    app_state: &AppState,
+    app_state: &Shared,
     clock: &clock::Shared,
     link: &JoinLink,
     credential: CredentialSlot,

@@ -11,17 +11,20 @@
 //! - [`shape`]: what a machine holds in a shape this build replaced, found at startup and
 //!   forgotten.
 //!
-//! **Nothing names this module but the session that runs it.** The organization's session
-//! (`organization/session/`) is where a sign-in, a resume, a connect and the launch's first
-//! state read reach it, and the composition root registers the two commands `record` answers.
-//! Everything else in the crate is below it: this module reads the organization's store, its
-//! chain and its vaults, and nothing there names it back. `guard/cycle.rs` holds that, with the
-//! rule that admits only the session.
+//! **Nothing names this module but the composition root**, which registers it as the `upgrade`
+//! plugin (`plugin.rs`): the two commands `record` answers, and [`Upgrader`], managed as the
+//! organization session's upgrade port (`organization::session::Upgrade`), which is how a sign-in,
+//! a resume, a connect and the launch's first state read reach it. Everything else in the crate is
+//! below it: this module reads the organization's store, its chain and its vaults, and nothing
+//! there names it back. `guard/cycle.rs` holds that.
 //!
 //! **What it reads stays exactly as it was written.** Every read of an older format, every
 //! signature check and every stored spelling here is what those installs left on disk, and moving
 //! this code changed none of them.
 
 pub mod format;
+mod plugin;
 pub mod record;
 pub mod shape;
+
+pub use plugin::{Upgrader, plugin};

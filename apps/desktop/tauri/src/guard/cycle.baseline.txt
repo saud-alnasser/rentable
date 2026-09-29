@@ -37,22 +37,11 @@
 # Ticket 54 (2026-09-29) made `bootstrap` the `startup` plugin. Its four lines moved with it and
 # are rewritten at the new name: `startup -> database`, `startup -> state`, `startup -> update` and
 # `organization -> startup`. Nothing was added or removed.
-
-cycle database -> settings
-cycle database -> state
-cycle organization -> database
-cycle organization -> startup
-cycle organization -> state
-cycle organization -> upgrade
-cycle settings -> state
-cycle startup -> database
-cycle startup -> state
-cycle startup -> update
-cycle state -> database
-cycle state -> organization
-cycle state -> settings
-cycle state -> update
-cycle update -> settings
-cycle update -> state
-cycle upgrade -> organization
-cycle upgrade -> state
+#
+# Ticket 57 (2026-09-29) took `state` out: each plugin manages its own state, and a command reads
+# another plugin's by type. The settings fill in where the database and the route back live from
+# names they hold, so `settings` names neither; the opening of the workspace database, which reads
+# the member's grant, moved from `startup` into `organization/workspace/open.rs`, so nothing in
+# `organization` names `startup`; and the session reaches the upgrade through a port it defines
+# (`organization::session::Upgrade`), which the `upgrade` plugin implements and manages, so nothing
+# names `upgrade` but the composition root. Every line is gone.

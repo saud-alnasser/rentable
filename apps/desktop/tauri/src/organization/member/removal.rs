@@ -37,7 +37,7 @@ use crate::{
     credential::CredentialStore,
     diagnostics,
     error::{Error, RefusalReason},
-    state::AppState,
+    organization::Shared,
     turso::platform::{DeletionIntent, TursoPlatform},
 };
 
@@ -321,7 +321,7 @@ pub const ONLY_THE_OWNER_DELETES: &str = "only the owner can delete the organiza
 /// **It is not recoverable and nothing here pretends otherwise.** The confirmation on the screen
 /// says what goes, and this is the act that does it.
 pub(crate) async fn delete_organization<P: TursoPlatform>(
-    app_state: &AppState,
+    app_state: &Shared,
     credentials: &dyn CredentialStore,
     platform: &P,
     password: &str,
@@ -515,6 +515,7 @@ mod tests {
         database::Database,
         error::Error,
         machine::{RemoteSync, RemoteSyncStore},
+        organization::Shared,
         organization::{
             HeldOrganization,
             authority::Chain,
@@ -531,7 +532,6 @@ mod tests {
         },
         persisted::Persisted,
         settings::Settings,
-        state::AppState,
         sync::test::server::{ScriptedResponse, ScriptedServer},
         turso::{
             consent::{TursoConsent, platform_token, store_platform_token},
@@ -1464,7 +1464,7 @@ mod tests {
         assert!(refusal.to_string().contains(&manager_id), "{refusal}");
     }
 
-    /// The whole of the application state over one data directory, as `lib.rs` builds it, with the
+    /// The organization's state over one data directory, as the plugins' setups build it, with the
     /// replica and the session handed in: what a machine standing on the organization page looks
     /// like from inside. `remote-sync.json` is loaded from the directory, so the organization the
     /// fixture created is already recorded there.
@@ -1472,7 +1472,7 @@ mod tests {
         directory: &std::path::Path,
         store: OrganizationStore,
         session: MemberSession,
-    ) -> AppState {
+    ) -> Shared {
         let mut settings =
             Persisted::<Settings>::load(directory.join(Settings::FILENAME)).expect("the settings");
         settings.database_path = directory.join(Database::FILENAME);
@@ -1487,16 +1487,18 @@ mod tests {
         )
         .await
         .expect("the sync record");
-        let update = Update::new(settings.clone()).await.expect("the update");
+        // the update is the `update` plugin's and no part of this state, and it is made as a launch
+        // makes it, so the directory holds the file a launch leaves.
+        Update::new(settings.clone()).await.expect("the update");
 
-        AppState {
+        Shared {
             db: Arc::new(tokio::sync::RwLock::new(Database::new(
                 settings.clone(),
                 crate::clock::System::shared(),
             ))),
             settings,
             remote_sync: Arc::new(tokio::sync::RwLock::new(remote_sync)),
-            update: Arc::new(tokio::sync::RwLock::new(update)),
+            upgrade: Arc::new(crate::upgrade::Upgrader),
             consent: Arc::new(TursoConsent::new()),
             organization: Arc::new(tokio::sync::RwLock::new(Some(store))),
             member: Arc::new(tokio::sync::RwLock::new(Some(session))),

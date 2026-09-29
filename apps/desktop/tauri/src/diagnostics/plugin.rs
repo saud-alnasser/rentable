@@ -17,8 +17,8 @@ pub fn plugin() -> TauriPlugin<tauri::Wry> {
     Builder::new("diagnostics")
         .invoke_handler(tauri::generate_handler![super::diagnostics_write])
         .setup(|app, _api| {
-            // a data directory that cannot be found is left to the app's `.setup`, which fails
-            // the launch on it as it always has.
+            // a data directory that cannot be found is left to the settings plugin's setup, which
+            // fails the launch on it as the app's `.setup` always had.
             let Ok(data_dir) = app.path().app_data_dir() else {
                 return Ok(());
             };

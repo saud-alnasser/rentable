@@ -25,7 +25,7 @@ use std::sync::Arc;
 use crate::{
     credential::Credentials,
     error::{Error, RefusalReason},
-    state::AppState,
+    organization::Shared,
     turso::platform::{PlatformApi, PlatformEndpoint},
 };
 
@@ -51,7 +51,7 @@ pub enum Pull {
 
 /// Run `act` as the signed-in member, or refuse with the wall where nobody is signed in.
 pub async fn as_member<T>(
-    app_state: &AppState,
+    app_state: &Shared,
     pull: Pull,
     act: impl AsyncFnOnce(Acting<'_>) -> Result<T, Error>,
 ) -> Result<T, Error> {
@@ -65,7 +65,7 @@ pub async fn as_member<T>(
 /// whose answer to an empty machine is not a refusal: a best-effort renewal, and the recovery the
 /// sync dispatcher runs. Nothing is pulled on a machine nobody is signed in to.
 pub async fn if_member<T>(
-    app_state: &AppState,
+    app_state: &Shared,
     pull: Pull,
     act: impl AsyncFnOnce(Acting<'_>) -> T,
 ) -> Option<T> {
@@ -105,7 +105,7 @@ fn signed_out() -> Error {
 /// organization: the owner's machine after a consent, and nobody else's. `None` is not a failure;
 /// it is what makes a read-only grant, a create and a delete the owner's, at the command.
 pub(super) async fn owner_platform(
-    app_state: &AppState,
+    app_state: &Shared,
     credentials: &Credentials,
 ) -> Option<PlatformApi> {
     setup::authority(credentials.as_ref()).ok()?;

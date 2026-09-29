@@ -374,6 +374,7 @@ mod tests {
         database::Database,
         error::{Error, RefusalReason},
         machine::{RemoteSync, RemoteSyncStore},
+        organization::Shared,
         organization::{
             HeldOrganization,
             invitation::{
@@ -394,7 +395,6 @@ mod tests {
         },
         persisted::Persisted,
         settings::Settings,
-        state::AppState,
         sync::test::server::{ScriptedResponse, ScriptedServer},
         turso::{
             consent::TursoConsent,
@@ -1417,7 +1417,7 @@ mod tests {
     /// Signing out leaves the record naming the organization with its member: the sign-out
     /// drops the keys this process held and the replica, and the record on disk is exactly what
     /// the sign-in wrote. Driven through the routine `organization_session_sign_out` calls, over
-    /// the whole application state built the way `lib.rs` builds it.
+    /// the organization's state built the way the plugins' setups build it.
     #[tokio::test]
     async fn signing_out_leaves_the_record_naming_the_organization_with_its_member() {
         let credentials = Memory::new();
@@ -1441,7 +1441,7 @@ mod tests {
 
         drop(machine);
 
-        // the application state over the second machine's directory, with the person in.
+        // the organization's state over the second machine's directory, with the person in.
         let app_state = state_over(&theirs).await;
 
         *app_state.organization.write().await = Some(store);
@@ -1478,11 +1478,11 @@ mod tests {
         assert!(written.contains(&owner.member_id));
     }
 
-    /// The whole of the application state over one data directory, as `lib.rs` builds it, with
+    /// The organization's state over one data directory, as the plugins' setups build it, with
     /// nothing open and nobody in. `remote-sync.json` is loaded from the directory, so a test
     /// writes the record it wants first. *`session/forget.rs` keeps the same builder; a fixture is
     /// written out per module ([[rules/testing]]).*
-    async fn state_over(directory: &std::path::Path) -> AppState {
+    async fn state_over(directory: &std::path::Path) -> Shared {
         let mut settings =
             Persisted::<Settings>::load(directory.join(Settings::FILENAME)).expect("the settings");
         settings.database_path = directory.join(Database::FILENAME);
@@ -1497,16 +1497,18 @@ mod tests {
         )
         .await
         .expect("the sync record");
-        let update = Update::new(settings.clone()).await.expect("the update");
+        // the update is the `update` plugin's and no part of this state, and it is made as a launch
+        // makes it, so the directory holds the file a launch leaves.
+        Update::new(settings.clone()).await.expect("the update");
 
-        AppState {
+        Shared {
             db: Arc::new(RwLock::new(Database::new(
                 settings.clone(),
                 crate::clock::System::shared(),
             ))),
             settings,
             remote_sync: Arc::new(RwLock::new(remote_sync)),
-            update: Arc::new(RwLock::new(update)),
+            upgrade: Arc::new(crate::upgrade::Upgrader),
             consent: Arc::new(TursoConsent::new()),
             organization: Arc::new(RwLock::new(None)),
             member: Arc::new(RwLock::new(None)),

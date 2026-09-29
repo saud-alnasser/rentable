@@ -10,7 +10,7 @@ use crate::{
     credential::{CredentialStore, Credentials},
     diagnostics,
     error::{Error, RefusalReason},
-    state::AppState,
+    organization::Shared,
 };
 
 use super::{
@@ -88,7 +88,7 @@ pub struct OrganizationState {
 /// application opens on the workspace the person had last, with no wall in between.
 #[tauri::command(rename = "session_state_get")]
 pub(crate) async fn organization_session_state_get(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
 ) -> Result<OrganizationState, Error> {
@@ -107,14 +107,17 @@ pub(crate) async fn organization_session_state_get(
 /// the row is written through, so a machine that came back signed in refreshes its row here
 /// without anybody typing a password.
 pub(crate) async fn state_of(
-    app_state: &AppState,
+    app_state: &Shared,
     credentials: &Credentials,
     clock: &clock::Shared,
 ) -> Result<OrganizationState, Error> {
     app_state
         .old_shape_check
         .get_or_try_init(|| async {
-            session::forget_old_shape(app_state, credentials.as_ref(), clock).await?;
+            app_state
+                .upgrade
+                .forget_old_shape(app_state, credentials.as_ref(), clock)
+                .await?;
             resume_remembered(app_state, credentials, clock).await;
 
             // and the one sign that is the remote's rather than the replica's: the owner deleted
@@ -179,7 +182,7 @@ pub(crate) async fn state_of(
 /// link. The one confirm before it is the screen's; this asks nothing.
 #[tauri::command(rename = "session_disconnect")]
 pub(crate) async fn organization_session_disconnect(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
 ) -> Result<OrganizationState, Error> {
@@ -204,7 +207,7 @@ pub(crate) async fn organization_session_disconnect(
 /// learns which member this person is; `invitation/join.rs` says how.
 #[tauri::command(rename = "session_sign_in")]
 pub(crate) async fn organization_session_sign_in(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
     username: String,
@@ -294,7 +297,7 @@ pub(crate) async fn organization_session_sign_in(
 /// is untouched, so the wall comes back up on the same organization with the same member.
 #[tauri::command(rename = "session_sign_out")]
 pub(crate) async fn organization_session_sign_out(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
 ) -> Result<OrganizationState, Error> {
@@ -312,7 +315,7 @@ pub(crate) async fn organization_session_sign_out(
 /// forget it too: a machine that has let go of its organization must not keep the key that opened
 /// a member's vault in it. The record is read before it is emptied, which is why this runs before
 /// `forget` touches it.
-pub(crate) async fn sign_out(app_state: &AppState, credentials: &dyn CredentialStore) {
+pub(crate) async fn sign_out(app_state: &Shared, credentials: &dyn CredentialStore) {
     // a sign-out the person asked for answers the standing: they are at the wall because they
     // put themselves there. The heartbeat's own sign-out sets it again afterwards, which is the
     // one case where the wall has something to say.
@@ -353,7 +356,7 @@ pub(crate) async fn sign_out(app_state: &AppState, credentials: &dyn CredentialS
 
 /// The signed-in member's facts, re-read from the replica so a row that changed under them since
 /// sign-in is what the screen shows.
-async fn current_facts(app_state: &AppState) -> Result<Option<SessionFacts>, Error> {
+async fn current_facts(app_state: &Shared) -> Result<Option<SessionFacts>, Error> {
     let member = app_state.member.read().await;
     let organization = app_state.organization.read().await;
 
@@ -376,7 +379,7 @@ async fn current_facts(app_state: &AppState) -> Result<Option<SessionFacts>, Err
 /// done.
 #[tauri::command(rename = "session_end_elsewhere")]
 pub(crate) async fn organization_session_end_elsewhere(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
 ) -> Result<SessionsEnded, Error> {
@@ -415,7 +418,7 @@ pub(crate) async fn organization_session_end_elsewhere(
 /// so on `standing`. The shell reads that and puts the wall up.
 #[tauri::command(rename = "session_replicate")]
 pub(crate) async fn organization_session_replicate(
-    app_state: tauri::State<'_, AppState>,
+    app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
 ) -> Result<Replication, Error> {
@@ -619,9 +622,9 @@ mod tests {
 
     use super::{Opening, open_replica, sign_out, state_of};
     use crate::error::Error;
+    use crate::organization::Shared;
     use crate::persisted::Persisted;
     use crate::settings::Settings;
-    use crate::state::AppState;
     use crate::sync::test::server::{ScriptedResponse, ScriptedServer};
     use crate::test::scratch;
     use crate::turso::consent::TursoConsent;
@@ -644,10 +647,10 @@ mod tests {
         }
     }
 
-    /// The whole of the application state over one data directory, as `lib.rs` builds it, with
+    /// The organization's state over one data directory, as the plugins' setups build it, with
     /// nothing open and nobody in. *`forget.rs` and `invitation/join.rs` keep the same builder; a
     /// fixture is written out per module ([[rules/testing]]).*
-    async fn state_over(directory: &std::path::Path) -> AppState {
+    async fn state_over(directory: &std::path::Path) -> Shared {
         let mut settings =
             Persisted::<Settings>::load(directory.join(Settings::FILENAME)).expect("the settings");
         settings.database_path = directory.join(Database::FILENAME);
@@ -662,16 +665,18 @@ mod tests {
         )
         .await
         .expect("the sync record");
-        let update = Update::new(settings.clone()).await.expect("the update");
+        // the update is the `update` plugin's and no part of this state, and it is made as a launch
+        // makes it, so the directory holds the file a launch leaves.
+        Update::new(settings.clone()).await.expect("the update");
 
-        AppState {
+        Shared {
             db: Arc::new(RwLock::new(Database::new(
                 settings.clone(),
                 crate::clock::System::shared(),
             ))),
             settings,
             remote_sync: Arc::new(RwLock::new(remote_sync)),
-            update: Arc::new(RwLock::new(update)),
+            upgrade: Arc::new(crate::upgrade::Upgrader),
             consent: Arc::new(TursoConsent::new()),
             organization: Arc::new(RwLock::new(None)),
             member: Arc::new(RwLock::new(None)),
@@ -684,7 +689,7 @@ mod tests {
     /// A machine that has run the first run: an organization on it, the owner's row recorded, and
     /// the owner's member key filed, which is what every launch after it starts from. Nobody is
     /// signed in here, because a launch is a fresh process.
-    async fn first_run(credentials: &dyn CredentialStore, directory: &std::path::Path) -> AppState {
+    async fn first_run(credentials: &dyn CredentialStore, directory: &std::path::Path) -> Shared {
         let app_state = state_over(directory).await;
         let mcp = ScriptedServer::start(vec![
             ScriptedResponse::new(
@@ -737,7 +742,7 @@ mod tests {
     }
 
     /// What the record names: the organization and the member, which is what an entry is keyed on.
-    async fn recorded(app_state: &AppState) -> (String, String) {
+    async fn recorded(app_state: &Shared) -> (String, String) {
         let mut remote_sync = app_state.remote_sync.write().await;
         let held = remote_sync
             .store_mut()

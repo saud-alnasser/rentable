@@ -32,8 +32,10 @@
 //! intent the port requires. Nothing else in the organization reaches deletion.
 
 mod command;
+mod open;
 
 pub use command::*;
+pub(crate) use open::open_database;
 
 use std::collections::HashMap;
 
