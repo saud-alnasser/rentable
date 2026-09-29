@@ -28,7 +28,7 @@
 	 * way in, and the startup unit reading where the machine stands again, which raises the wall for
 	 * a link that connected the machine and enters the application for an invitation that was
 	 * accepted. It is drawn at `/organization/join`, which opens with nobody signed in, as
-	 * `$lib/startup/shell-surface` decides.
+	 * `$lib/startup/screen` decides.
 	 *
 	 * **The startup unit, the host and the way in are handed over by the route** rather than
 	 * imported: startup reaches the organization, so the organization cannot reach startup back,

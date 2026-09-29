@@ -7,8 +7,9 @@ import type { StartupHost } from './host';
 /**
  * startup's tauri command: its port, satisfied by the Tauri shell.
  *
- * **The command name is the Rust side's**, spelled here exactly as it was in the platform facade,
- * where it sat until effort 840 gave startup its own port.
+ * **The command name is the Rust side's.** It is the `startup` plugin's, so it is
+ * `plugin:startup|<command>`; it sat in the platform facade until effort 840 gave startup its own
+ * port.
  */
 export const tauri = {
 	bootstrap: () => invoke<Recovery>('plugin:startup|bootstrap')

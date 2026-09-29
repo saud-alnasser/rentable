@@ -171,34 +171,20 @@ export function fieldOfFailure(error: unknown): RefusalField | null {
  * there if the field is one of its own.
  */
 export function fieldOfRefusal(code: RefusalCode | null | undefined): RefusalField | null {
-	return (code && FIELDS[code]) ?? null;
+	return (code && fields[code]) ?? null;
 }
 
-const FIELDS: Partial<Record<RefusalCode, RefusalField>> = {
-	'complex.nameTaken': 'name',
-	'complex.nameTakenNamed': 'name',
-	'contract.costNotPositive': 'cost',
-	'contract.endBeforeStart': 'end',
-	'contract.govIdTaken': 'govId',
-	'contract.govIdTakenNamed': 'govId',
-	'contract.periodOffCycle': 'end',
-	'contract.renewalBeforeEnd': 'start',
-	'contract.tenantMissing': 'tenantId',
-	'contract.tenantMissingNamed': 'tenantId',
-	// both renewal refusals are about the term, so each marks the end of it the reader has to move.
-	'contract.unitsUnavailable': 'end',
-	// a new contract's units are the reader's choice, so a unit already held marks that choice.
-	'contract.unitsTaken': 'unitIds',
-	'payment.amountNotPositive': 'amount',
-	'tenant.nationalIdTaken': 'nationalId',
-	'tenant.nationalIdTakenNamed': 'nationalId',
-	'tenant.phoneTaken': 'phoneNumber',
-	'tenant.phoneTakenNamed': 'phoneNumber',
-	// a collision within the submitted list belongs to the list rather than to one name field.
-	'unit.nameRepeated': 'units',
-	'unit.nameTaken': 'name',
-	'unit.nameTakenNamed': 'name'
-};
+/**
+ * Each feature's refusals, by the field of its form they belong under. A feature names its own in
+ * its `refusal.ts`, beside the codes, and the composition root hands them over as it builds the
+ * root router (`$lib/app/refusal`), so nothing here spells a feature's code.
+ */
+let fields: Partial<Record<RefusalCode, RefusalField>> = {};
+
+/** hand over every feature's refusal fields; called once, by the composition root. */
+export function bindRefusalFields(bound: Partial<Record<RefusalCode, RefusalField>>) {
+	fields = bound;
+}
 
 /** every field a refusal can belong under, across the forms that place one. */
 const REFUSAL_FIELDS = [

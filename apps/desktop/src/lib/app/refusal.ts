@@ -1,9 +1,15 @@
 import type { RecordRefusalCode } from '$lib/api/refusal';
-import type { ComplexRefusalCode, UnitRefusalCode } from '$lib/complex';
-import type { ContractRefusalCode } from '$lib/contract';
+import {
+	COMPLEX_REFUSAL_FIELDS,
+	UNIT_REFUSAL_FIELDS,
+	type ComplexRefusalCode,
+	type UnitRefusalCode
+} from '$lib/complex';
+import { CONTRACT_REFUSAL_FIELDS, type ContractRefusalCode } from '$lib/contract';
+import type { RefusalField } from '$lib/error/refusal';
 import type { HostRefusalCode } from '$lib/error/tauri';
-import type { PaymentRefusalCode } from '$lib/payment';
-import type { TenantRefusalCode } from '$lib/tenant';
+import { PAYMENT_REFUSAL_FIELDS, type PaymentRefusalCode } from '$lib/payment';
+import { TENANT_REFUSAL_FIELDS, type TenantRefusalCode } from '$lib/tenant';
 import type { TransferRefusalCode } from '$lib/transfer';
 
 /**
@@ -28,3 +34,16 @@ export type RefusalCode =
 	| TenantRefusalCode
 	| TransferRefusalCode
 	| UnitRefusalCode;
+
+/**
+ * the field of a form each refusal belongs under, where one does: every feature's own, from its
+ * `refusal.ts`. `router.ts` binds it into `$lib/error/refusal` as it builds the root router, so a
+ * form finds its field through the application's caller and through every test's alike.
+ */
+export const refusalFields: Partial<Record<RefusalCode, RefusalField>> = {
+	...COMPLEX_REFUSAL_FIELDS,
+	...CONTRACT_REFUSAL_FIELDS,
+	...PAYMENT_REFUSAL_FIELDS,
+	...TENANT_REFUSAL_FIELDS,
+	...UNIT_REFUSAL_FIELDS
+};

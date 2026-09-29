@@ -44,9 +44,9 @@ export async function switchWorkspace(machine: StartupMachine, workspaceId: stri
 
 	await machine.enterApplication();
 
-	const { state, remoteSync } = machine.current;
+	const { state, sync } = machine.current;
 
-	if (state === 'ready' && remoteSync) {
-		machine.ports.cache.rememberRemoteSync(remoteSync);
+	if (state === 'ready' && sync) {
+		machine.ports.cache.rememberRemoteSync(sync);
 	}
 }

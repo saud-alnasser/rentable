@@ -25,7 +25,7 @@ import type {
  *
  * **Nothing here decides what a file means.** Which columns it has, which of its rows are
  * records and whether a reference resolves are all answered in the planning pass
- * (`transfer.ts`) before this is called — a batch is built before any of it runs and cannot
+ * (`transfer.ts`) before this is called: a batch is built before any of it runs and cannot
  * branch on its own results ([[rules/data]], under *Multi-table writes*), so the resolution
  * could not happen here even if it belonged here.
  *
@@ -107,7 +107,7 @@ export default function transferRouter<S extends AnySheet>(declared: readonly S[
 		 * The sheets write in their order, which is the order the schema allows: a complex before
 		 * the units in it, a tenant before the contracts naming them, a contract before its
 		 * assignments and its payments. The boundary runs a batch inside a transaction, so a refusal
-		 * anywhere leaves the workspace exactly as it was — nothing half-written, and no order in
+		 * anywhere leaves the workspace exactly as it was: nothing half-written, and no order in
 		 * which it could be.
 		 *
 		 * References are resolved again here rather than trusted: the plan was made against the

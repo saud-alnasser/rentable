@@ -108,7 +108,7 @@ export function onMutationNotice(message: string | undefined) {
  * What a multi-record action says when the workspace moved under an open confirmation.
  *
  * Every list that plans before it acts says the same thing, so it is worded once. The comparison
- * itself is `design/selection.ts`'s, because it is selection vocabulary and stays free of the
+ * itself is the design package's `selection.ts`'s, because it is selection vocabulary and stays free of the
  * reader's language; putting it in words is here, because this is where announcements are worded.
  *
  * **Answers with nothing where the outcome matched the plan**, which is what withholds the notice

@@ -72,6 +72,15 @@ use-when: "adding or changing a router, a domain module, a database client or tr
   `"<name>:default"`. The test in `guard/acl.rs` holds each derived list to what the handler
   answers, so a renamed or added command needs no second list, only the handler entry and the
   capability line for a new plugin.
+- **No feature plugin takes the name of one of Tauri's core plugins**: `path`, `event`,
+  `window`, `webview`, `app`, `resources`, `image`, `menu` and `tray`. Tauri registers its core
+  plugins after the application's, and a later plugin of the same name replaces the earlier one,
+  so a feature plugin named `window` is dropped at build time while the ACL still allows its
+  commands, which then reach Tauri's own plugin instead. The application's window plugin is
+  therefore `frame` (`tauri/src/window/plugin.rs`), not `window`. `guard/acl.rs` holds the list
+  (`no_plugin_takes_the_name_of_a_core_plugin`), and a new plugin is named against it. *Stated
+  here on 2026-09-29 by ticket 69 of effort 840, after review round one found the guard enforcing
+  a rule no rule stated.*
 - **Ambient capabilities only in the request context** — the things that cross the process
   boundary or are nondeterministic. Business configuration is not one of them and does not
   belong there.

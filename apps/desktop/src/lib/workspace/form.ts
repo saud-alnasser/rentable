@@ -9,11 +9,11 @@ import z from 'zod';
  * surface a member meets when their organization holds none yet, the first run's last step, and
  * the new-workspace dialog. Each of those owns its `superForm` and its `<form>`, because the form
  * surface owns one and the standalone surface does not, so what they share is this and the fields
- * in `component/workspace-fields.svelte`. A name over the limit is then refused with the same
+ * in `component/fields.svelte`. A name over the limit is then refused with the same
  * sentence wherever it was typed, and the limit changes in one place or not at all.
  *
  * **Built from the translations rather than at module load**, for the reason
- * `workspace/component/rename-form.svelte` gives: the messages resolve against a locale, and at
+ * `organization/workspace/component/rename-form.svelte` gives: the messages resolve against a locale, and at
  * module load there is none. A consumer calls this when it is built, which is past the locale gate.
  */
 export function workspaceFormSchema(translations: TranslationFunctions) {

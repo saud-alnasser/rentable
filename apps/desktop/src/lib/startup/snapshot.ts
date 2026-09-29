@@ -39,7 +39,7 @@ export type StartupSnapshot = {
 	 */
 	errorDetail: string | null;
 	recovery: Recovery | null;
-	remoteSync: RemoteSyncState | null;
+	sync: RemoteSyncState | null;
 	/** where this machine stands with organizations, which is what the wall admits on. */
 	organization: OrganizationState | null;
 	signInReason: SignInReason;
@@ -71,7 +71,7 @@ export const INITIAL: StartupSnapshot = {
 	error: null,
 	errorDetail: null,
 	recovery: null,
-	remoteSync: null,
+	sync: null,
 	organization: null,
 	signInReason: 'noOrganization',
 	railIsUp: false,

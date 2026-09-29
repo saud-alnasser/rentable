@@ -62,7 +62,7 @@ const setupRust = async () =>
  * named after the organization.* The screen draws its fields from `SETUP_WALK`, so this is an assertion over what the
  * screen presents and not over a list kept beside it, and a field added later that asks for a
  * slug, a group, a token or a URL fails here before it reaches review.
- * `setup-walk.svelte.test.ts` asserts the same thing over the rendered DOM.
+ * `walk.svelte.test.ts` asserts the same thing over the rendered DOM.
  *
  * **The group was a field here for one day and is not one now.** Turso began refusing a create
  * that names no group on 2026-09-15 and requirement 13's first correction added a fourth field;
@@ -70,7 +70,7 @@ const setupRust = async () =>
  * own default, then with the group uuid the consent token carries, and a group that already
  * holds anything named itself in the listing. What is left is a field the walk draws only when
  * Turso has refused all of that, which is not something the walk presents and is asserted in
- * `setup-walk.svelte.test.ts` where a person can be shown it.
+ * `walk.svelte.test.ts` where a person can be shown it.
  */
 
 test('the only fields the walk presents are the name, a username and a password', () => {
@@ -579,7 +579,7 @@ test('the group field names a group without instructing anybody about one', () =
  * Requirement 21 of the redesign: the walk's `name` step, the invite dialog and the rename
  * dialog each read the one username schema, so a username outside the rules is refused with
  * the same sentence wherever it was typed. This pins the bounds and that sentence to the schema
- * they all read; `members.svelte.test.ts` pins the English sentence to Rust's `USERNAME_RULES`,
+ * they all read; `organization/member/tests/directory.svelte.test.ts` pins the English sentence to Rust's `USERNAME_RULES`,
  * so the three forms, the router and the command cannot refuse the same name in two voices.
  */
 test('a username outside the rules is refused with the one sentence every form reads', () => {

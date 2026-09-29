@@ -6,7 +6,7 @@ A _workspace_ database is somebody's rents ledger: tenants, contracts, payments,
 on the organization's Turso account and every member's machine keeps a replica, and it is the
 **same schema either way**, which is why the SQL that builds it is a package rather than a
 directory inside whoever applies it. This is not the organization's own directory database,
-whose seven tables `apps/desktop/tauri/src/organization/store.rs` creates in place.
+whose seven tables `apps/desktop/tauri/src/organization/store/` creates in place.
 
 ```
 packages/workspace-migrations/
@@ -18,11 +18,11 @@ packages/workspace-migrations/
 
 ## Who consumes it
 
-|                                   |                                                                                                                                                                                                                                                                                        |
-| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`apps/desktop`, in Rust**       | `tauri/build.rs` mirrors the `.sql` files into `tauri/migrations/`, which is gitignored and generated, counts them into `WORKSPACE_SCHEMA_VERSION`, and embeds them for the wire runner below. Nothing applies them to a replica, and there is no local runner (#568)                  |
-| **`apps/desktop`, in TypeScript** | `src/lib/platform/database/memory.ts` builds the test database from this folder directly                                                                                                                                                                                               |
-| **`apps/desktop`, over the wire** | a workspace on the organization's account, created at the shipped version and brought up to it by whichever member opens it, under a lease: `tauri/build.rs` embeds the `.sql` files into the binary and `tauri/src/organization/migrate.rs` posts them to the database's own pipeline |
+|                                   |                                                                                                                                                                                                                                                                                            |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **`apps/desktop`, in Rust**       | `tauri/build.rs` mirrors the `.sql` files into `tauri/migrations/`, which is gitignored and generated, counts them into `WORKSPACE_SCHEMA_VERSION`, and embeds them for the wire runner below. Nothing applies them to a replica, and there is no local runner (#568)                      |
+| **`apps/desktop`, in TypeScript** | `src/lib/platform/database/memory.ts` builds the test database from this folder directly                                                                                                                                                                                                   |
+| **`apps/desktop`, over the wire** | a workspace on the organization's account, created at the shipped version and brought up to it by whichever member opens it, under a lease: `tauri/build.rs` embeds the `.sql` files into the binary and `tauri/src/organization/lease/apply.rs` posts them to the database's own pipeline |
 
 **The desktop's `tauri/migrations/` is generated and must not be edited.** It exists because the
 Rust runner takes a directory and Tauri bundles one, and because moving it would have changed the

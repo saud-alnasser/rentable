@@ -4,7 +4,7 @@ import test from 'node:test';
 import { i18nObject } from '$lib/i18n/i18n-util';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import { fakeSyncState, fakeWorkspace } from '$lib/sync/tests/testing';
-import { syncStandingSentence, syncStatusOf } from '$lib/workspace/sync-status';
+import { syncStandingSentence, syncStatusOf } from '$lib/sync/status';
 
 /**
  * THE STANDING'S ORDER, AND ITS SENTENCE

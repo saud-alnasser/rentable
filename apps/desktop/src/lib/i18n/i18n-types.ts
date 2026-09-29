@@ -1206,26 +1206,6 @@ type RootTranslation = {
 				 */
 				ownerRoleNotAssigned: string
 				/**
-				 * a​d​d​i​n​g​,​ ​e​d​i​t​i​n​g​ ​o​r​ ​d​e​l​e​t​i​n​g​ ​c​o​m​p​l​e​x​e​s​ ​n​e​e​d​s​ ​v​i​e​w​i​n​g​ ​t​h​e​m​.​ ​t​u​r​n​ ​o​n​ ​v​i​e​w​i​n​g​ ​c​o​m​p​l​e​x​e​s​ ​f​i​r​s​t​.
-				 */
-				complexNeedsViewing: string
-				/**
-				 * a​d​d​i​n​g​,​ ​e​d​i​t​i​n​g​ ​o​r​ ​d​e​l​e​t​i​n​g​ ​u​n​i​t​s​ ​n​e​e​d​s​ ​v​i​e​w​i​n​g​ ​t​h​e​m​.​ ​t​u​r​n​ ​o​n​ ​v​i​e​w​i​n​g​ ​u​n​i​t​s​ ​f​i​r​s​t​.
-				 */
-				unitNeedsViewing: string
-				/**
-				 * a​d​d​i​n​g​,​ ​e​d​i​t​i​n​g​ ​o​r​ ​d​e​l​e​t​i​n​g​ ​t​e​n​a​n​t​s​ ​n​e​e​d​s​ ​v​i​e​w​i​n​g​ ​t​h​e​m​.​ ​t​u​r​n​ ​o​n​ ​v​i​e​w​i​n​g​ ​t​e​n​a​n​t​s​ ​f​i​r​s​t​.
-				 */
-				tenantNeedsViewing: string
-				/**
-				 * a​d​d​i​n​g​,​ ​e​d​i​t​i​n​g​ ​o​r​ ​d​e​l​e​t​i​n​g​ ​c​o​n​t​r​a​c​t​s​ ​n​e​e​d​s​ ​v​i​e​w​i​n​g​ ​t​h​e​m​.​ ​t​u​r​n​ ​o​n​ ​v​i​e​w​i​n​g​ ​c​o​n​t​r​a​c​t​s​ ​f​i​r​s​t​.
-				 */
-				contractNeedsViewing: string
-				/**
-				 * a​d​d​i​n​g​,​ ​e​d​i​t​i​n​g​ ​o​r​ ​d​e​l​e​t​i​n​g​ ​p​a​y​m​e​n​t​s​ ​n​e​e​d​s​ ​v​i​e​w​i​n​g​ ​t​h​e​m​.​ ​t​u​r​n​ ​o​n​ ​v​i​e​w​i​n​g​ ​p​a​y​m​e​n​t​s​ ​f​i​r​s​t​.
-				 */
-				paymentNeedsViewing: string
-				/**
 				 * a​ ​w​o​r​k​s​p​a​c​e​ ​c​h​a​n​g​e​s​ ​o​n​l​y​ ​w​h​a​t​ ​m​a​y​ ​b​e​ ​d​o​n​e​ ​t​o​ ​i​t​s​ ​r​e​c​o​r​d​s​.​ ​s​e​t​ ​t​h​e​ ​r​e​s​t​ ​a​c​r​o​s​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
 				 */
 				recordFlagsOnly: string
@@ -1369,6 +1349,26 @@ type RootTranslation = {
 				 * T​u​r​s​o​ ​r​e​f​u​s​e​d​ ​t​h​e​ ​r​e​q​u​e​s​t​ ​b​e​c​a​u​s​e​ ​o​f​ ​t​h​e​ ​a​c​c​o​u​n​t​ ​i​t​s​e​l​f​.​ ​c​h​e​c​k​ ​t​h​e​ ​a​c​c​o​u​n​t​'​s​ ​p​l​a​n​ ​i​n​ ​T​u​r​s​o​.
 				 */
 				tursoAccountRefused: string
+				/**
+				 * a​d​d​i​n​g​,​ ​e​d​i​t​i​n​g​ ​o​r​ ​d​e​l​e​t​i​n​g​ ​c​o​m​p​l​e​x​e​s​ ​n​e​e​d​s​ ​v​i​e​w​i​n​g​ ​t​h​e​m​.​ ​t​u​r​n​ ​o​n​ ​v​i​e​w​i​n​g​ ​c​o​m​p​l​e​x​e​s​ ​f​i​r​s​t​.
+				 */
+				complexNeedsViewing: string
+				/**
+				 * a​d​d​i​n​g​,​ ​e​d​i​t​i​n​g​ ​o​r​ ​d​e​l​e​t​i​n​g​ ​u​n​i​t​s​ ​n​e​e​d​s​ ​v​i​e​w​i​n​g​ ​t​h​e​m​.​ ​t​u​r​n​ ​o​n​ ​v​i​e​w​i​n​g​ ​u​n​i​t​s​ ​f​i​r​s​t​.
+				 */
+				unitNeedsViewing: string
+				/**
+				 * a​d​d​i​n​g​,​ ​e​d​i​t​i​n​g​ ​o​r​ ​d​e​l​e​t​i​n​g​ ​t​e​n​a​n​t​s​ ​n​e​e​d​s​ ​v​i​e​w​i​n​g​ ​t​h​e​m​.​ ​t​u​r​n​ ​o​n​ ​v​i​e​w​i​n​g​ ​t​e​n​a​n​t​s​ ​f​i​r​s​t​.
+				 */
+				tenantNeedsViewing: string
+				/**
+				 * a​d​d​i​n​g​,​ ​e​d​i​t​i​n​g​ ​o​r​ ​d​e​l​e​t​i​n​g​ ​c​o​n​t​r​a​c​t​s​ ​n​e​e​d​s​ ​v​i​e​w​i​n​g​ ​t​h​e​m​.​ ​t​u​r​n​ ​o​n​ ​v​i​e​w​i​n​g​ ​c​o​n​t​r​a​c​t​s​ ​f​i​r​s​t​.
+				 */
+				contractNeedsViewing: string
+				/**
+				 * a​d​d​i​n​g​,​ ​e​d​i​t​i​n​g​ ​o​r​ ​d​e​l​e​t​i​n​g​ ​p​a​y​m​e​n​t​s​ ​n​e​e​d​s​ ​v​i​e​w​i​n​g​ ​t​h​e​m​.​ ​t​u​r​n​ ​o​n​ ​v​i​e​w​i​n​g​ ​p​a​y​m​e​n​t​s​ ​f​i​r​s​t​.
+				 */
+				paymentNeedsViewing: string
 			}
 			payment: {
 				/**
@@ -5746,26 +5746,6 @@ export type TranslationFunctions = {
 				 */
 				ownerRoleNotAssigned: () => LocalizedString
 				/**
-				 * adding, editing or deleting complexes needs viewing them. turn on viewing complexes first.
-				 */
-				complexNeedsViewing: () => LocalizedString
-				/**
-				 * adding, editing or deleting units needs viewing them. turn on viewing units first.
-				 */
-				unitNeedsViewing: () => LocalizedString
-				/**
-				 * adding, editing or deleting tenants needs viewing them. turn on viewing tenants first.
-				 */
-				tenantNeedsViewing: () => LocalizedString
-				/**
-				 * adding, editing or deleting contracts needs viewing them. turn on viewing contracts first.
-				 */
-				contractNeedsViewing: () => LocalizedString
-				/**
-				 * adding, editing or deleting payments needs viewing them. turn on viewing payments first.
-				 */
-				paymentNeedsViewing: () => LocalizedString
-				/**
 				 * a workspace changes only what may be done to its records. set the rest across the organization.
 				 */
 				recordFlagsOnly: () => LocalizedString
@@ -5909,6 +5889,26 @@ export type TranslationFunctions = {
 				 * Turso refused the request because of the account itself. check the account's plan in Turso.
 				 */
 				tursoAccountRefused: () => LocalizedString
+				/**
+				 * adding, editing or deleting complexes needs viewing them. turn on viewing complexes first.
+				 */
+				complexNeedsViewing: () => LocalizedString
+				/**
+				 * adding, editing or deleting units needs viewing them. turn on viewing units first.
+				 */
+				unitNeedsViewing: () => LocalizedString
+				/**
+				 * adding, editing or deleting tenants needs viewing them. turn on viewing tenants first.
+				 */
+				tenantNeedsViewing: () => LocalizedString
+				/**
+				 * adding, editing or deleting contracts needs viewing them. turn on viewing contracts first.
+				 */
+				contractNeedsViewing: () => LocalizedString
+				/**
+				 * adding, editing or deleting payments needs viewing them. turn on viewing payments first.
+				 */
+				paymentNeedsViewing: () => LocalizedString
 			}
 			payment: {
 				/**

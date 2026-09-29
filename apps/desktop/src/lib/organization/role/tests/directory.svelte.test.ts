@@ -40,10 +40,10 @@ import { unfold } from '$lib/organization/tests/switches';
  * organization section's side: the roles by rank, each said in one line of what it can do,
  * and every write a holder of `manageRoles` makes through the card's acts and the editor they
  * open. A write is read off what the organization host asked of its hooks (`./host-hooks.ts`),
- * and what each hook asks of the shell is `platform/tests/roles.test.ts`'s.
+ * and what each hook asks of the shell is `organization/tests/roles.test.ts`'s.
  *
  * **A control the reader may not use says why**: the flag they lack, or a role not below them.
- * A card's act is read through its menu, the way `members.svelte.test.ts` reads a member's, and
+ * A card's act is read through its menu, the way `organization/member/tests/directory.svelte.test.ts` reads a member's, and
  * its reason through the tooltip its entry opens on focus.
  */
 

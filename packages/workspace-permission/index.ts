@@ -24,7 +24,7 @@
  * above bit 31. The record flags start at bit 20 and end at 39, past that ceiling, so an operator
  * that reads naturally would lose the payment flags on every row.
  *
- * **Rust holds a copy of every table here** (`organization/permission.rs`) and reads this file as
+ * **Rust holds a copy of every table here** (`organization/role/permission.rs`) and reads this file as
  * text to prove the two agree, so the tables are written out in a shape that reading can follow:
  * one `name: bit` per line, and flag names quoted.
  */
@@ -243,7 +243,7 @@ export const effective = (roleMask: number, override: number): number => xorOf(r
  * **Read off `FAMILIES`**: each record kind's first flag is viewing it and the three after it are
  * what viewing it is needed for, so a kind added there is covered here without a second list. No
  * role mask and no member's effective permissions that fail this is ever written, here or in Rust
- * (`organization/permission.rs`, `first_write_without_view`), and the two are held to the same
+ * (`organization/role/permission.rs`, `first_write_without_view`), and the two are held to the same
  * cases in `./tests/effective.json`.
  */
 export const firstWriteWithoutView = (mask: number): RecordKind | null =>

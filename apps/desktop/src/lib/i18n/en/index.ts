@@ -1,5 +1,6 @@
 import type { BaseTranslation } from '../i18n-types';
 import * as complex from '../../complex/i18n/en.js';
+import * as unit from '../../complex/unit/i18n/en.js';
 import * as contract from '../../contract/i18n/en.js';
 import * as create from '../../create/i18n/en.js';
 import * as dashboard from '../../dashboard/i18n/en.js';
@@ -55,12 +56,12 @@ const en = {
 			import: 'import',
 			installingUpdate: 'installing update...',
 			join: 'join',
-			newComplex: 'new complex',
-			newContract: 'new contract',
-			newPayment: 'new payment',
+			...complex.common.actions,
+			...contract.common.actions,
+			...payment.common.actions,
 			newRecord: 'new record',
-			newTenant: 'new tenant',
-			newUnit: 'new unit',
+			...tenant.common.actions,
+			...unit.common.actions,
 			openMenu: 'open menu',
 			openPayments: 'open payments',
 			openPreviousRelease: 'open previous release',
@@ -215,57 +216,7 @@ const en = {
 			// what the shell says, by the reason a Rust refusal carries (`$lib/error/tauri`). Its own
 			// message is a developer's description; this is what the reader is told.
 			host: {
-				lapsed: 'this link has lapsed. ask whoever sent it for a new one.',
-				consumed: 'this link was already used. ask whoever sent it for a new one.',
-				revoked: 'this link was withdrawn. ask whoever sent it for a new one.',
-				replaced: 'a newer link replaced this one. ask whoever sent it for the new one.',
-				codeMissing: 'type the six-character code that came with the link.',
-				codeWrong: 'the code is wrong. ask whoever sent the link to read it out again.',
-				linkUnreadable: 'this is not a rentable join link. copy the whole link and try again.',
-				linkNotAnInvitation:
-					'this link connects another machine rather than inviting you. sign in with your username and password instead.',
-				linkNotForAMachine:
-					'this link is an invitation rather than a link for another machine. open it where you accept an invitation.',
-				anotherOrganizationHeld:
-					'this machine already holds another organization. disconnect it first.',
-				credentialsWrong: 'the username or password is wrong.',
-				passwordTooShort: 'the password needs at least 12 characters.',
-				passwordChangeRequired: 'change your password before doing anything else.',
-				signedOut: 'nobody is signed in on this machine. sign in and try again.',
-				noOrganization: 'this machine holds no organization yet.',
-				noMemberYet: 'nobody has signed in to the organization on this machine yet. sign in first.',
-				signInAgain: 'your account on this machine is out of date. sign in again.',
-				youWereRemoved: 'you were removed from this organization.',
-				sessionsEnded: 'your sessions were ended from another machine. sign in again.',
-				keyNotInForce: 'the organization was handed over, so only its new owner can do this.',
-				usernameInvalid:
-					'a username is 3 to 32 letters, digits, dots, underscores or hyphens, with no spaces.',
-				usernameTaken: 'that username is already taken in this organization. choose another.',
-				roleUnknown: 'choose one of the roles the organization has.',
-				memberMissing: 'that member is no longer in this organization. reload to see what changed.',
-				markNotAnImage: 'choose a PNG, JPEG or WebP image.',
-				markTooLarge: 'the image is over 512 KB. choose a smaller one.',
-				memberGone: 'this account is no longer in the organization.',
-				memberRemoved:
-					'that member was removed. make them an account again if they are to come back.',
-				notYourself: 'you cannot do this to your own account. somebody who ranks above you can.',
-				ownerProtected: "the owner's account is not changed this way. the organization is theirs.",
-				ownerOnly: 'only the owner can do this. ask the owner.',
-				ownerMachineOnly:
-					"this needs the Turso account, which is connected on the owner's machine. ask the owner.",
-				roleLacksAct: 'your role does not include this. ask a manager.',
-				notAdministrator: 'only a manager can do this.',
-				rankNotAbove: 'that role is not below your own. ask somebody who ranks above it.',
-				roleUnsettled:
-					"somebody not allowed to changed this member's record. somebody above them removes them and makes them an account again.",
-				roleBuiltIn:
-					"every organization has this role, so it is not renamed, moved or deleted. the owner's role always carries everything.",
-				roleNameMissing: 'give the role a name.',
-				roleNameTaken: 'another role has that name. choose a different one.',
-				roleOutOfPlace: 'a role goes below the manager and above the member.',
-				noRankBelow: 'there is no room left below your role. ask somebody who ranks above you.',
-				ownerRoleNotAssigned:
-					"the owner's role moves only when the owner hands the organization over.",
+				...organization.refusals.host,
 				complexNeedsViewing:
 					'adding, editing or deleting complexes needs viewing them. turn on viewing complexes first.',
 				unitNeedsViewing:
@@ -275,66 +226,7 @@ const en = {
 				contractNeedsViewing:
 					'adding, editing or deleting contracts needs viewing them. turn on viewing contracts first.',
 				paymentNeedsViewing:
-					'adding, editing or deleting payments needs viewing them. turn on viewing payments first.',
-				recordFlagsOnly:
-					'a workspace changes only what may be done to its records. set the rest across the organization.',
-				alreadyOwner: 'you are the owner already. choose the account that is to have it.',
-				accountNotSetUp:
-					'that account has no password of its own yet. once they open their link and choose one, offer it again.',
-				offerPending:
-					'the organization is already offered to an account. withdraw that offer first.',
-				offerAccepted:
-					'the offer was already accepted, and the organization is theirs now. nothing was changed.',
-				nothingOffered: 'no offer of this organization stands.',
-				offererGone: 'the account that offered you the organization is no longer in it.',
-				organizationNameMissing: 'the organization needs a name.',
-				workspaceNameMissing: 'the workspace needs a name.',
-				workspaceMissing:
-					'that workspace is no longer in this organization. reload to see what changed.',
-				noWorkspaceOpen: 'no workspace is open on this machine. open one and try again.',
-				noGrant: 'you have no access to that workspace.',
-				grantMissing: 'that member has no access to that workspace.',
-				grantBeyondOwn: 'you can share only a workspace you have full access to yourself.',
-				noOrganizationCredential:
-					"this machine holds no access to the organization's records. sign in again and try once more.",
-				workspaceNewer:
-					'a newer version of rentable upgraded this workspace. update rentable to open it.',
-				workspaceBehind:
-					'this workspace needs upgrading, and read-only access cannot do it. ask a member with full access to open it once.',
-				databaseRefused:
-					'the database refused the request, and nothing was changed. try again later.',
-				organizationOlder:
-					'an older version made this organization. it waits for its owner to open it in this version, which upgrades it.',
-				organizationUpgradeOffline:
-					'upgrading this organization needs a connection. connect to the internet and sign in again; nothing was changed.',
-				organizationChangesUnsendable:
-					'this machine holds unsent changes the upgraded organization cannot take. disconnect it and connect again to drop them.',
-				organizationCredentialLapsed:
-					"this machine's access to the organization has lapsed. ask your organization for a new link to connect it again.",
-				organizationNewer:
-					'a newer version of rentable made this organization. update rentable to open it.',
-				copyNotTaken:
-					'no copy was taken before upgrading, so nothing was changed. check the connection and the backups folder, then try again.',
-				shapeNotAsBuilt:
-					'the upgrade failed its check, so nothing was changed. update rentable and try again; the diagnostics log says why.',
-				tursoNotConnected:
-					'this machine is not connected to the Turso account. connect it and try again.',
-				consentNeededAgain:
-					'Turso needs the consent granted again. connect the Turso account again.',
-				consentGone: 'this consent is no longer waiting. start it again.',
-				groupMismatch:
-					'that is not the group the consent was given over. check the name and try again.',
-				groupNeeded: 'Turso needs the name of the group you picked. type it below.',
-				groupHoldsOrganization:
-					'that group already holds an organization. pick another group or another Turso account.',
-				groupEmpty:
-					'the consent was given over a group that holds no organization. give it over the group that holds yours.',
-				nothingToConnectTo:
-					'this Turso account holds no organization to connect to. go back and make one.',
-				createRefused: "Turso would not create the organization's database.",
-				tursoRefused: 'Turso refused the request. trying again will not help.',
-				tursoAccountRefused:
-					"Turso refused the request because of the account itself. check the account's plan in Turso."
+					'adding, editing or deleting payments needs viewing them. turn on viewing payments first.'
 			},
 			payment: payment.refusals.payment,
 			record: {

@@ -97,8 +97,8 @@ const contractHoldsUnitInComplex = (complexId: string) => sql`exists (
 
 // The bounds an attention rank puts on stored columns, as a `where` term.
 //
-// A rank cannot be a `where` — it is decided from what a contract owes today, which no column
-// holds — but everything a rank *implies* about the stored columns can be, and rank/rank.ts states
+// A rank cannot be a `where` (it is decided from what a contract owes today, which no column
+// holds), but everything a rank *implies* about the stored columns can be, and rank/rank.ts states
 // exactly that as bounds. Narrowing on them turns the read from the whole table into a superset
 // of the rank, small enough that deciding the rest in TypeScript costs what a rank filter should.
 //

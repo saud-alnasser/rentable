@@ -11,7 +11,7 @@ import { toImportIdentity } from './import';
  *
  * **These spellings are the file's**, so they are the transfer's rather than any one feature's:
  * the sheet that writes a reference and the sheet that reads it back are different features, and
- * two places composing it separately is two places for them to drift apart. `tauri/src/earlier.rs`
+ * two places composing it separately is two places for them to drift apart. `tauri/src/upgrade/record.rs`
  * composes the same two, for the workbook it writes from an earlier version's records.
  */
 

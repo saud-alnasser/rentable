@@ -1,5 +1,5 @@
 // The payment feature's strings in arabic, composed back into `i18n/ar/index.ts` at
-// `contracts.payments` and `common.refusals.payment`. It imports nothing but types, because the
+// `contracts.payments`, `common.refusals.payment` and `common.actions`. It imports nothing but types, because the
 // typesafe-i18n generator transpiles it along with the locale. Each object satisfies its own slice
 // of the generated types, so a key missing, left over or without its placeholder fails here.
 
@@ -54,3 +54,10 @@ export const refusals = {
 		repeatedInSet: 'دفعتان في هذه المجموعة تطالبان بـ {value}.'
 	}
 } satisfies Pick<Translation['common']['refusals'], 'payment'>;
+
+// the create control's label on this feature's list, composed back at `common.actions`.
+export const common = {
+	actions: {
+		newPayment: 'دفعة جديدة'
+	}
+} satisfies { actions: Pick<Translation['common']['actions'], 'newPayment'> };

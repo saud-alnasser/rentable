@@ -8,21 +8,37 @@
 //! capability grants each plugin its default, that no plugin takes the name of one of Tauri's own,
 //! that `lib.rs` registers them in the order the plan sets, and that it composes them and does
 //! nothing a feature does.
+//!
+//! The list the build wrote is also the one derivation of each plugin's commands the crate's other
+//! tests read (`plugin_in`): the organization's gate test holds every command it names to a gate
+//! rather than parsing the handler a second time.
+
+/// One plugin as `build.rs` read it: `commands` is what the ACL allows, `handled` is the string
+/// each handler entry answers to, from the macro `#[tauri::command]` writes beside it.
+pub struct FeaturePlugin {
+    pub module: &'static str,
+    pub name: &'static str,
+    pub commands: &'static [&'static str],
+    pub handled: &'static [&'static str],
+}
+
+include!(concat!(env!("OUT_DIR"), "/feature-plugins.rs"));
+
+/// The plugin `build.rs` read from `src/<module>/plugin.rs`: the one derivation of its commands,
+/// which a test holding them to anything else (the organization's gates) reads rather than
+/// parsing the handler again.
+pub fn plugin_in(module: &str) -> &'static FeaturePlugin {
+    FEATURE_PLUGINS
+        .iter()
+        .find(|plugin| plugin.module == module)
+        .unwrap_or_else(|| panic!("build.rs found no plugin in {module}/"))
+}
 
 #[cfg(test)]
 mod tests {
     use std::path::Path;
 
-    /// One plugin as `build.rs` read it: `commands` is what the ACL allows, `handled` is the
-    /// string each handler entry answers to, from the macro `#[tauri::command]` writes beside it.
-    pub struct FeaturePlugin {
-        pub module: &'static str,
-        pub name: &'static str,
-        pub commands: &'static [&'static str],
-        pub handled: &'static [&'static str],
-    }
-
-    include!(concat!(env!("OUT_DIR"), "/feature-plugins.rs"));
+    use super::FEATURE_PLUGINS;
 
     fn read(file: &str) -> String {
         let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(file);

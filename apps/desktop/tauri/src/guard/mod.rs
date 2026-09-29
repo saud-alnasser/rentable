@@ -4,7 +4,7 @@
 //! it to requirement 12 instead, `error` to requirement 13 and `acl` to requirement 9, and none of
 //! the three keeps a baseline because nothing it forbids occurs. Nothing here ships.
 
-mod acl;
+pub(crate) mod acl;
 mod clock;
 mod cycle;
 mod error;

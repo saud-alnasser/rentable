@@ -76,7 +76,7 @@ import { unfold } from '$lib/organization/tests/switches';
  * the host's hooks stood in for (`./host-hooks.ts`). A write a card asks for is read off what the
  * host asked of those hooks. Each entry is read by the act it projects, `data-act`, which is what
  * `act/act.ts` marks an entry with. The username's own rule is read on the sheet, in
- * `member-sheet.svelte.test.ts`.
+ * `sheet.svelte.test.ts`.
  */
 
 vi.mock('$lib/organization/query', async (importOriginal) => ({

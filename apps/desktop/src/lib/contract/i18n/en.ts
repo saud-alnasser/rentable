@@ -1,5 +1,5 @@
-// The contract feature's strings in english, composed back into `i18n/en/index.ts` at `contracts`
-// and `common.refusals.contract`. It imports nothing but types, because the typesafe-i18n generator
+// The contract feature's strings in english, composed back into `i18n/en/index.ts` at `contracts`,
+// `common.refusals.contract` and `common.actions`. It imports nothing but types, because the typesafe-i18n generator
 // transpiles it along with the locale.
 
 import type { BaseTranslation } from '../../i18n/i18n-types';
@@ -207,5 +207,12 @@ export const refusals = {
 			'another contract holds one or more of the chosen units over this term. choose other units or a different term.',
 		unitsUnavailable:
 			'another contract holds one or more of these units over the selected term. choose a different term.'
+	}
+} satisfies BaseTranslation;
+
+// the create control's label on this feature's list, composed back at `common.actions`.
+export const common = {
+	actions: {
+		newContract: 'new contract'
 	}
 } satisfies BaseTranslation;

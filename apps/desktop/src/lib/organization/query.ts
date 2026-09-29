@@ -81,6 +81,21 @@ export function useFetchOrganizationState() {
 }
 
 /**
+ * whether anybody is signed in on this machine, which decides the settings sections offered.
+ * Read off the organization's own state, as the settings address always has. *It sat in
+ * `$lib/app/wall` until effort 840's ticket 69 gave it to the organization, whose state it reads.*
+ */
+export function useSignedIn(): { readonly current: boolean } {
+	const stateQuery = useFetchOrganizationState();
+
+	return {
+		get current() {
+			return (stateQuery.data?.session ?? null) !== null;
+		}
+	};
+}
+
+/**
  * Read the organization's name once, for a page that names who issued it: a printed receipt or
  * schedule. Under the key `useFetchOrganizationState` reads, so the rail's own read is reused.
  * Every signed-in member holds it, opened from the replica, offline included.

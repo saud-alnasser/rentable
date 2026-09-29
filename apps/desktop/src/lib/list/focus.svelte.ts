@@ -194,7 +194,7 @@ export class ListFocus<TData extends { id: string }, TGroup extends ListGroup> {
 	 * The row is scrolled to rather than the element being relied on to bring itself into view: a
 	 * move out of the search field can land many rows from whatever the reader had scrolled to,
 	 * and a row outside the rendered window has no element to focus at all. Which is why the
-	 * request is left standing rather than dropped — the effect above answers it once the row is
+	 * request is left standing rather than dropped: the effect above answers it once the row is
 	 * laid out.
 	 */
 	#moveFocus(movement: ListMovement) {

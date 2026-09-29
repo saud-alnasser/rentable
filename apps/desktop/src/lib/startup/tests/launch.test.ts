@@ -80,7 +80,7 @@ test('and the first run, once it has created the organization and a workspace, g
 	assert.deepEqual(journal.stages.slice(-3), ['workspace', 'changes', 'records']);
 	assert.equal(journal.bootstrapped, 1);
 	assert.equal(journal.reconciled, 1);
-	assert.equal(startup.snapshot.remoteSync?.workspace.remoteId, 'first');
+	assert.equal(startup.snapshot.sync?.workspace.remoteId, 'first');
 });
 
 /**
@@ -321,7 +321,7 @@ test('a machine that stayed signed in opens its last workspace and never shows t
 		})
 	});
 	const { startup, journal, seen } = harness({
-		remoteSync: fakeSyncState({ workspace: fakeWorkspace({ remoteId: 'south' }) }),
+		sync: fakeSyncState({ workspace: fakeWorkspace({ remoteId: 'south' }) }),
 		organization: held
 	});
 

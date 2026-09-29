@@ -18,7 +18,7 @@ import RailProviders from '$lib/shell/tests/rail-providers.svelte';
  * username, and beside it the avatar's fallback text, which is the first two characters of that
  * username upper-cased (requirement 24). The sidebar has no test of its own, so this is where
  * the spec's criterion 24 is read for the rail; the members list's rows are read in
- * `organization/tests/members.svelte.test.ts`.
+ * `organization/member/tests/directory.svelte.test.ts`.
  *
  * And its two rows, once it is open (requirement 17 of effort 826, as corrected on the human's
  * first run): the settings area, and the way out. The organization row and the account row went

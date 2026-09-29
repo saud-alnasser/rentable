@@ -17,4 +17,4 @@ export {
 export { provideStartup, useStartup } from './context';
 export { startupSurfaceBeforeLocale, type PreLocaleSurface } from './gate';
 export type { StartupHost } from './host';
-export { addressAfterSignOut, THE_WAY_IN } from './shell-surface';
+export { addressAfterSignOut, THE_WAY_IN } from './screen';

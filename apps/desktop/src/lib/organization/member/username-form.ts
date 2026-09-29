@@ -6,14 +6,14 @@ import z from 'zod';
  *
  * The one rule behind every field that takes a username: the owner's on the walk's `name` step,
  * a member's on the invite dialog, and the new one on the member's sheet. Each of those owns its
- * `<form>`, the first two through a `superForm` as the workspace surfaces do (`./workspace-form.ts`
+ * `<form>`, the first two through a `superForm` as the workspace surfaces do (`$lib/workspace/form.ts`
  * says why), so what they share is this. A username outside the rule is then refused with the same sentence
  * wherever it was typed, and the rule changes in one place or not at all.
  *
  * **The rule is requirement 21's, and Rust holds it too.** Three to thirty-two characters of
  * letters, digits, `.`, `_` and `-`; `tauri/src/organization/invitation/` carries the same bounds
  * as `validate_username` and refuses with `USERNAME_RULES`, which the locale's `usernameRules`
- * repeats word for word and `members.svelte.test.ts` pins. Whether a username is already taken
+ * repeats word for word and `tests/directory.svelte.test.ts` pins. Whether a username is already taken
  * is Rust's alone, since usernames are sealed and only an open vault can compare them; that
  * refusal arrives as `BAD_REQUEST` and the shared handler shows it. The router's `USERNAME`
  * reads the three limits below so a caller that is not a form is turned away by the same rule.

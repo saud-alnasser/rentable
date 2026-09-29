@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { sectionsOn } from '$lib/app/surfaces';
-	import { useLeaveForTheWall, useSignedIn } from '$lib/app/wall';
+	import { useSignedIn } from '$lib/organization/ui';
 	import SettingsPage from '$lib/settings/component/page.svelte';
+	import { useLeaveForTheWall } from '$lib/startup/ui';
 
 	// the settings' address. The page and its queries are settings'; whether anybody is signed in,
 	// the sections other features contribute and the way to the wall are handed to it from here.

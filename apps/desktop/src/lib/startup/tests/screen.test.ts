@@ -4,12 +4,12 @@ import test from 'node:test';
 import {
 	addressAfterSignOut,
 	opensSignedOut,
-	shellSurface,
+	startupScreen,
 	THE_FIRST_RUN,
 	THE_JOIN,
 	THE_WAY_IN,
 	wayInFrom
-} from '$lib/startup/shell-surface.ts';
+} from '$lib/startup/screen.ts';
 import {
 	fakeRecovery,
 	harness,
@@ -50,7 +50,7 @@ test('with nobody signed in, settings draws the settings page rather than the ca
 	await startup.start();
 
 	assert.equal(startup.snapshot.state, 'sign-in');
-	assert.equal(shellSurface(startup.snapshot, '/settings'), 'route');
+	assert.equal(startupScreen(startup.snapshot, '/settings'), 'route');
 });
 
 test('and every other address draws the card', async () => {
@@ -59,7 +59,7 @@ test('and every other address draws the card', async () => {
 	await startup.start();
 
 	for (const address of ADDRESSES) {
-		assert.equal(shellSurface(startup.snapshot, address), 'sign-in', address);
+		assert.equal(startupScreen(startup.snapshot, address), 'sign-in', address);
 	}
 });
 
@@ -75,7 +75,7 @@ test('and the way in from the rail lands on an address the card draws over', asy
 	assert.equal(startup.snapshot.state, 'sign-in');
 	assert.equal(wayInFrom('/settings'), THE_WAY_IN);
 	assert.equal(opensSignedOut(THE_WAY_IN), false);
-	assert.equal(shellSurface(startup.snapshot, THE_WAY_IN), 'sign-in');
+	assert.equal(startupScreen(startup.snapshot, THE_WAY_IN), 'sign-in');
 });
 
 test('and it goes nowhere from an address the card is already drawn over', () => {
@@ -101,8 +101,8 @@ test('and the surface alone would leave the settings page drawn over a signed-ou
 	await startup.signOut();
 
 	assert.equal(startup.snapshot.state, 'sign-in');
-	assert.equal(shellSurface(startup.snapshot, '/settings'), 'route');
-	assert.equal(shellSurface(startup.snapshot, '/tenants/a-tenant'), 'sign-in');
+	assert.equal(startupScreen(startup.snapshot, '/settings'), 'route');
+	assert.equal(startupScreen(startup.snapshot, '/tenants/a-tenant'), 'sign-in');
 });
 
 // effort 826, requirement 11 as corrected on 2026-09-15: signing out lands on the wall from any
@@ -134,7 +134,7 @@ test('and the wall is what the frame draws once a sign-out has landed there', as
 	await startup.signOut();
 
 	assert.equal(startup.snapshot.state, 'sign-in');
-	assert.equal(shellSurface(startup.snapshot, addressAfterSignOut('/settings')!), 'sign-in');
+	assert.equal(startupScreen(startup.snapshot, addressAfterSignOut('/settings')!), 'sign-in');
 });
 
 test('and signing back in returns the reader to the address they were on', async () => {
@@ -143,12 +143,12 @@ test('and signing back in returns the reader to the address they were on', async
 	const { startup } = harness({ organization: locked() });
 
 	await startup.start();
-	assert.equal(shellSurface(startup.snapshot, '/tenants/a-tenant'), 'sign-in');
+	assert.equal(startupScreen(startup.snapshot, '/tenants/a-tenant'), 'sign-in');
 
 	await startup.signIn('olivia', 'a long enough password');
 
 	assert.equal(startup.snapshot.state, 'ready');
-	assert.equal(shellSurface(startup.snapshot, '/tenants/a-tenant'), 'route');
+	assert.equal(startupScreen(startup.snapshot, '/tenants/a-tenant'), 'route');
 });
 
 // --- Every other state, which reads no address ------------------------------------------
@@ -162,7 +162,7 @@ test('a startup still running draws the loading screen at every address, setting
 	assert.equal(startup.snapshot.state, 'loading');
 
 	for (const address of [...ADDRESSES, '/settings']) {
-		assert.equal(shellSurface(startup.snapshot, address), 'loading', address);
+		assert.equal(startupScreen(startup.snapshot, address), 'loading', address);
 	}
 });
 
@@ -178,7 +178,7 @@ test('a startup that failed draws the failure at every address, settings include
 	assert.equal(startup.snapshot.state, 'error');
 
 	for (const address of [...ADDRESSES, '/settings']) {
-		assert.equal(shellSurface(startup.snapshot, address), 'error', address);
+		assert.equal(startupScreen(startup.snapshot, address), 'error', address);
 	}
 });
 
@@ -192,7 +192,7 @@ test('an update waiting to be finished draws the recovery screen at every addres
 	assert.equal(startup.snapshot.state, 'recovery');
 
 	for (const address of [...ADDRESSES, '/settings']) {
-		assert.equal(shellSurface(startup.snapshot, address), 'recovery', address);
+		assert.equal(startupScreen(startup.snapshot, address), 'recovery', address);
 	}
 });
 
@@ -204,7 +204,7 @@ test('and a running application draws whatever address it is on', async () => {
 	assert.equal(startup.snapshot.state, 'ready');
 
 	for (const address of [...ADDRESSES, '/settings']) {
-		assert.equal(shellSurface(startup.snapshot, address), 'route', address);
+		assert.equal(startupScreen(startup.snapshot, address), 'route', address);
 	}
 });
 
@@ -227,7 +227,7 @@ test('a member with no workspace sees the no-workspace surface over every addres
 	assert.equal(startup.snapshot.state, 'no-workspace');
 
 	for (const address of [...ADDRESSES, '/settings', THE_FIRST_RUN]) {
-		assert.equal(shellSurface(startup.snapshot, address), 'no-workspace', address);
+		assert.equal(startupScreen(startup.snapshot, address), 'no-workspace', address);
 	}
 });
 
@@ -242,7 +242,7 @@ test('the first run opens signed out, and draws as a route rather than the card'
 	await startup.start();
 
 	assert.equal(startup.snapshot.state, 'sign-in');
-	assert.equal(shellSurface(startup.snapshot, THE_FIRST_RUN), 'route');
+	assert.equal(startupScreen(startup.snapshot, THE_FIRST_RUN), 'route');
 	assert.equal(wayInFrom(THE_FIRST_RUN), THE_WAY_IN);
 });
 
@@ -257,6 +257,6 @@ test('the join screen opens signed out, and draws as a route rather than the car
 	await startup.start();
 
 	assert.equal(startup.snapshot.state, 'sign-in');
-	assert.equal(shellSurface(startup.snapshot, THE_JOIN), 'route');
+	assert.equal(startupScreen(startup.snapshot, THE_JOIN), 'route');
 	assert.equal(wayInFrom(THE_JOIN), THE_WAY_IN);
 });

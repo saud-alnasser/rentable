@@ -303,7 +303,7 @@ export default defineSheet({
 	// what the file could not carry: a contract's status, its paid and its expected amount are
 	// what its term and its payments make them, and a unit's status is what its contracts make it.
 	// Recomputed here rather than trusted from a column anyone could have edited, and scoped to
-	// what was written — which is what [[rules/data]], under *Reconcile scope*, asks of a mutation.
+	// what was written, which is what [[rules/data]], under *Reconcile scope*, asks of a mutation.
 	//
 	// The touch-set is every contract the write reached, not only the ones it created: a payment
 	// resolves against a contract already here as readily as against one two statements above it,

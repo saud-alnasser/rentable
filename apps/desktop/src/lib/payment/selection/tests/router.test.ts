@@ -12,7 +12,7 @@ import {
 	refusedWith
 } from '$lib/app/tests/testing.ts';
 
-/** What `contract.create` takes — read off the procedure, so a fixture cannot drift from it. */
+/** What `contract.create` takes, read off the procedure, so a fixture cannot drift from it. */
 type ContractInput = Parameters<Api['contract']['create']>[0];
 
 async function seedContract(api: Api, overrides: Partial<ContractInput> = {}) {

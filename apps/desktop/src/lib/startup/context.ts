@@ -10,7 +10,7 @@ import type { Startup } from './startup';
  * the wall lets through, and a route cannot take a prop from the layout that mounted it. What
  * both do ends the same way: the machine's standing changed under the shell, and the unit has to
  * read it again and go on in. Context is how a route reaches the unit, and it is the only thing
- * shared this way. The route reads it through `$lib/app/wall` and hands it to the feature it
+ * shared this way. The route reads it through `./ui` and hands it to the feature it
  * draws as a prop, since the features that draw those screens are ones startup already imports.
  */
 const STARTUP = Symbol('startup');

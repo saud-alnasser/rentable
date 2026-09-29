@@ -1,5 +1,5 @@
 // The complex feature's strings in english, composed back into `i18n/en/index.ts` at `complexes`,
-// `common.refusals.complex` and `common.refusals.unit`. It imports nothing but types, because the
+// `common.refusals.complex`, `common.refusals.unit` and `common.actions`. It imports nothing but types, because the
 // typesafe-i18n generator transpiles it along with the locale.
 
 import type { BaseTranslation } from '../../i18n/i18n-types';
@@ -69,5 +69,12 @@ export const refusals = {
 		nameTaken: 'name is associated with a unit in the same complex.',
 		nameTakenNamed: 'the name {named:string} is associated with a unit in the same complex.',
 		repeatedInSet: 'two units in this set claim {value:string}.'
+	}
+} satisfies BaseTranslation;
+
+// the create control's label on this feature's list, composed back at `common.actions`.
+export const common = {
+	actions: {
+		newComplex: 'new complex'
 	}
 } satisfies BaseTranslation;

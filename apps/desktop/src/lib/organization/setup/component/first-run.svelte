@@ -33,12 +33,12 @@
 	 * The screen is `./walk.svelte`, drawn from props; what is here is every call that reaches Rust
 	 * and the state each answers with: opening the consent, polling it, creating the organization,
 	 * and handing the first workspace's creation to the loading pass. It is drawn at
-	 * `/organization/new`, which opens with nobody signed in, as `$lib/startup/shell-surface`
+	 * `/organization/new`, which opens with nobody signed in, as `$lib/startup/screen`
 	 * decides, because it is how a person comes to be somebody here.
 	 *
 	 * **The startup unit and the way in are handed over by the route** rather than imported:
 	 * startup reaches the organization, so the organization cannot reach startup back, and the
-	 * route has both from `$lib/app/wall`. *This was the route itself until effort 840's ticket 34.*
+	 * route has both from `$lib/startup/ui`. *This was the route itself until effort 840's ticket 34.*
 	 *
 	 * **It reads where the machine stands before asking for a consent.** A machine that already
 	 * holds Turso authority, because a person connected, went back to the wall and came here again,

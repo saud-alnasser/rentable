@@ -10,7 +10,7 @@ import { bindingOf } from '#tests/mutation.ts';
  * Every list that plans an action declares what to say when the workspace moved under the open
  * confirmation, and this is the one place that checks all of them at once.
  *
- * **It covers the declarations rather than the mechanism.** `design/tests/mutation.test.ts` drives
+ * **It covers the declarations rather than the mechanism.** `mutation/tests/mutation.test.ts` drives
  * the mechanism, so what is left to get wrong is a list that quietly declares nothing, which is
  * exactly the state four of the five lists were in before. A file per concept would repeat this
  * harness four times to assert one line each.

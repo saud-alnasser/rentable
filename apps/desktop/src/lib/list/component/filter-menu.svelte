@@ -36,7 +36,7 @@
      kinds of thing.
 
      A narrowed list says so by the control being filled rather than by printing the value beside
-     it. What it is narrowed *to* is on the menu, checked — and it is also the control's accessible
+     it. What it is narrowed *to* is on the menu, checked, and it is also the control's accessible
      name, so a reader who cannot see the fill is told the value rather than that a filter
      exists. -->
 <div class="flex items-center gap-1.5">

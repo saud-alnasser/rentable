@@ -9,12 +9,12 @@ import { tick, type Snippet } from 'svelte';
  * application draws, and it is the only thing a printed page shows: under `@media print` every
  * region of the frame is hidden and the sheet is drawn in its place (`app.css`). Printing is
  * handing it a snippet, waiting for it to draw, and asking the host to print the window
- * (`print_page`). What is printed is the caller's to draw, so a schedule and a receipt are two
+ * (`plugin:print|page`). What is printed is the caller's to draw, so a schedule and a receipt are two
  * snippets and this knows neither.
  *
  * **To paper or to a file.** On Windows the host writes a PDF with no dialog, or opens the
  * operating system's print dialog rather than the webview's browser preview; on macOS and Linux
- * both open the system's print panel (`tauri/src/print.rs`).
+ * both open the system's print panel (`tauri/src/print/`).
  *
  * **Printed in the main window, never in a second one or an iframe.** A second window runs the
  * whole startup again against the same replica, and an iframe's print does nothing on macOS
@@ -127,7 +127,7 @@ function pageOnSheet(): PrintedPage {
 
 /**
  * Whether the host writes a PDF itself, with no dialog, and prints from a window of its own. Only
- * WebView2 can (`tauri/src/print.rs`); on macOS and Linux the system's print panel, over this
+ * WebView2 can (`tauri/src/print/`); on macOS and Linux the system's print panel, over this
  * window, is how a page is printed and a PDF saved.
  */
 export const writesPdfSilently = () =>

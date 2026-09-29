@@ -25,7 +25,7 @@ export type StartupPorts = {
 	 * as it came off the file, and anything it does not recognise is system.
 	 */
 	appearance: { apply(setting: string | null | undefined): void };
-	remoteSync: {
+	sync: {
 		getState(): Promise<RemoteSyncState>;
 	};
 	/** the organization this machine holds, and the vault a username and password open. */

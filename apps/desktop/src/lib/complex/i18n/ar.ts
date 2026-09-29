@@ -1,5 +1,5 @@
 // The complex feature's strings in arabic, composed back into `i18n/ar/index.ts` at `complexes`,
-// `common.refusals.complex` and `common.refusals.unit`. It imports nothing but types, because the
+// `common.refusals.complex`, `common.refusals.unit` and `common.actions`. It imports nothing but types, because the
 // typesafe-i18n generator transpiles it along with the locale. Each object satisfies its own slice
 // of the generated types, so a key missing, left over or without its placeholder fails here.
 
@@ -70,3 +70,10 @@ export const refusals = {
 		repeatedInSet: 'وحدتان في هذه المجموعة تطالبان بـ {value}.'
 	}
 } satisfies Pick<Translation['common']['refusals'], 'complex' | 'unit'>;
+
+// the create control's label on this feature's list, composed back at `common.actions`.
+export const common = {
+	actions: {
+		newComplex: 'مجمع جديد'
+	}
+} satisfies { actions: Pick<Translation['common']['actions'], 'newComplex'> };

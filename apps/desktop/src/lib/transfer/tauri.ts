@@ -6,15 +6,16 @@ import type { ExportSheet, ImportTable, TransferHost } from './host';
  * import's and export's tauri commands: the transfer capability's port, satisfied by the Tauri
  * shell.
  *
- * **Every command name and argument shape is the Rust side's**, and they are spelled here exactly
- * as they were in the platform facade, where they sat until effort 840 gave transfer its own port.
+ * **Every command name and argument shape is the Rust side's.** The commands are the `transfer`
+ * plugin's, so each is `plugin:transfer|<command>`; the arguments are spelled as they were in the
+ * platform facade, where they sat until effort 840 gave transfer its own port.
  */
 export const tauri = {
 	export: {
 		/**
 		 * Write text to the path the user chose, and answer with where it landed.
 		 *
-		 * The path is theirs, from the platform's save dialog — symmetric with `import.read`,
+		 * The path is theirs, from the platform's save dialog, symmetric with `import.read`,
 		 * which is handed one from the open dialog. Where a file may go stopped being this
 		 * layer's question, and Rust's, the moment the reader was asked.
 		 */

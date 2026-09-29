@@ -161,7 +161,7 @@ same `ui.ts`.
 | --- | --- | --- |
 | notification's and undo's `index.ts` | load `svelte-sonner`, which loads under Node only where a test mocks it, as every Node test reaching them does | the toast is the whole of notification's API and the offer to take a change back is one, so nothing of either would be left to put in `index.ts` |
 | notification, print, shortcut, create and undo | mounted by the frame through `ui.ts` rather than declared as a surface's `host` | the frame places each at a fixed point around the hosts: the provider outside them, the sheet beside the page, the listeners once. The palette was among them until ticket 67 of effort 840, when its host joined the list to keep its place between the workspace's and the tenant's |
-| dashboard's `index.ts`, and payment's but for its refusal codes | export nothing | no concept reads either; what each hands another it contributes in its `surface.ts`, and payment's codes are there for the composition root's union of them |
+| dashboard's `index.ts`, and payment's but for its refusal codes and their fields | export nothing | no concept reads either; what each hands another it contributes in its `surface.ts`, and payment's codes and fields are there for the composition root's union of them |
 | any home below `app/` | imports a type of the composition root, upward: `AppRouter` and `Host` in `api/`, the contributions in `feature/` and `api/`, the feature list in `mutation/` and `transfer/`, the refusal codes in `api/` | the client, the feature contract and the capabilities that read the list are typed from the list, which only `app/` holds, and a type import is erased before anything runs, so nothing below loads the root or any feature. It is the only upward import there is: a value import of `app/` from below is still one |
 | workspace's `feature.ts` | declares only its name | it has no router, no kind, no prefix and no page; what it draws is its `surface.ts` |
 | a sub-concept without a `feature.ts` | organization's `member/`, `role/`, `access/`, `workspace/`, `setup/` and `session/`, contract's `assignment/`, `schedule/`, `renewal/` and the rest | its parent's router serves it and its parent's surface draws it; only `complex/unit/` declares itself, because it holds a kind of its own |
@@ -169,6 +169,9 @@ same `ui.ts`.
 | `workspace/app-database.ts` | holds the earlier records' read outside `query.ts` | the way in reads the offer, and that read loads without the mutation capability `query.ts` declares its writes through |
 | `organization/dialogs.svelte.ts` | a second host state, beside `host.svelte.ts` | the dialogs the shell's `dialogs` slot draws are opened from the rail and the settings area, which share no parent |
 | `settings/component/updates.svelte`, `settings/update-announcement.ts` | the update's block and its announcement sit with the settings | general is the settings' own tab, and a contributed section fills a whole tab, so nothing can place another feature's block inside it |
+| `sync/tauri.ts` | invokes two of the `organization` plugin's commands, `session_replicate` and `workspace_rename`, beside the `sync` plugin's own | in Rust both act on the organization (the member's session, the sealed workspace row), and the crate's `sync` names nothing of `organization`, so the commands are the organization plugin's. In TypeScript both are sync's: the replication its workspace sync runs (`sync/workspace.ts`) and the rename its router serves as `sync.rename`, each over sync's port, so moving the two calls to the organization's port would have sync reach another feature's host. Recorded by ticket 69 of effort 840 |
+| `startup/ui.ts` | re-exports `useStartup` and `THE_WAY_IN`, which `index.ts` exports as well | a route may import a feature's `ui.ts` but not its `index.ts`, and the first run's and the join screen's routes hand both to the organization's screens, which cannot reach startup back. They sat in `app/wall.ts` until ticket 69 of effort 840, which made the composition root a pass-through for them |
+| the organization's session, invitation, member and setup tests in the crate | construct `crate::upgrade::Upgrader`, where nothing else names `upgrade` | they drive the real sign-in, resume and connect over an organization of an earlier format, which is the upgrade's to bring forward, so they need its implementation behind the session's `Upgrade` port rather than a stand-in; test code is outside `guard/cycle.rs`'s graph. The modules are `organization/session/{command,forget,heartbeat,replica}.rs`, `organization/invitation/join.rs`, `organization/member/removal.rs` and `organization/setup/connect.rs`. When `upgrade` is removed, each hands the port a no-op. Recorded by ticket 69 of effort 840 |
 
 ## What adding a feature touches
 
@@ -187,12 +190,12 @@ each of the four read the kind's declaration or the one list instead of naming t
 
 | File | What it gains |
 | --- | --- |
-| `src/lib/app/features.ts`, `src/lib/app/surfaces.ts` | the feature and the surface in their lists, and the surface in `places` where it has a row on the rail. `app/contributions.ts` as well, where it contributes to a kind or is contributed to, and `app/refusal.ts`, its refusal codes in `RefusalCode` |
+| `src/lib/app/features.ts`, `src/lib/app/surfaces.ts` | the feature and the surface in their lists, and the surface in `places` where it has a row on the rail. `app/contributions.ts` as well, where it contributes to a kind or is contributed to, and `app/refusal.ts`, its refusal codes in `RefusalCode` and the fields they belong under in `refusalFields` |
 | `packages/workspace-permission/index.ts` | its four flags on free bits, its family in `FAMILIES`, its writes in `WRITE_FLAGS`, and what the member role holds of it. `RECORD_KINDS`, `RecordKind`, `HistoryConcept` and the history `concept` values follow from `FAMILIES` |
 | `tauri/src/organization/role/permission.rs` | the same, mirrored: `Flag`, `Family` and their `ALL`, names and bit ranges, `WRITE_FLAGS`, `RECORD_FLAGS`, `MEMBER_ROLE` |
 | `src/lib/platform/database/schema.ts` | its table; `pnpm db:generate` in `apps/desktop` (`pnpm db:generate:desktop` from the root) writes the migration into `packages/workspace-migrations/` |
 | `src/routes/<kinds>/` | its pages, each delegating to its components |
-| `src/lib/i18n/en/index.ts`, `ar/index.ts` | its strings composed at their key, and `common.refusals.host.<kind>NeedsViewing`; `pnpm i18n` regenerates `i18n-types.ts` |
+| `src/lib/i18n/en/index.ts`, `ar/index.ts` | its strings composed at their key, its create label spread into `common.actions` from its own piece, and `common.refusals.host.<kind>NeedsViewing`; `pnpm i18n` regenerates `i18n-types.ts` |
 | `src/lib/permission/i18n/en.ts`, `ar.ts` | the sentence refusing each of its four flags |
 | `src/lib/organization/i18n/en.ts`, `ar.ts` | its family's name in the role editor, and its word on a role's card |
 
@@ -216,7 +219,7 @@ role's mask. The schema's migration comes with its seed in `organization/lease/a
 `SEEDS`, as every workspace migration does, kind or not.
 
 **A feature with no kind** is its directory, its lines in `app/features.ts` and, where it draws
-anything, `app/surfaces.ts`, its codes in `app/refusal.ts` where it refuses, its strings composed
+anything, `app/surfaces.ts`, its codes and their fields in `app/refusal.ts` where it refuses, its strings composed
 in `i18n/{en,ar}/index.ts`, its home's layer in `layers.test.ts`, and its routes if it has pages. **A Rust feature** is its directory with a
 `plugin.rs`, its `pub mod` and `.plugin(<feature>::plugin())` in `lib.rs`, and `"<plugin>:default"`
 in `capabilities/default.json`; `build.rs` reads each `plugin.rs` for the commands the ACL allows,

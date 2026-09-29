@@ -57,7 +57,7 @@ export function browserStartupPorts(
 
 			return { apply: (setting) => appearance.apply(setting) };
 		})(),
-		remoteSync: {
+		sync: {
 			getState: () => sync.getState()
 		},
 		organization: {

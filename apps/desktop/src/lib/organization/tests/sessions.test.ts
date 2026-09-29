@@ -10,7 +10,7 @@ import { describe, it, mock } from 'node:test';
  * is the same shape for a different reason, and the access loops are the shape that had no hook
  * at all and announced themselves from the route.
  *
- * The three dependencies are substituted for the reason `design/tests/mutation.test.ts` gives:
+ * The three dependencies are substituted for the reason `mutation/tests/mutation.test.ts` gives:
  * two of them reach a `.svelte` file this runner cannot load, and the substitutes are also the
  * assertions. `createMutation` answers a hook with the very options it was handed, which is what
  * lets a test call `onSuccess` with an answer and read what was announced.

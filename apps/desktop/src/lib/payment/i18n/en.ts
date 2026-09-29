@@ -1,5 +1,5 @@
 // The payment feature's strings in english, composed back into `i18n/en/index.ts` at
-// `contracts.payments` and `common.refusals.payment`. It imports nothing but types, because the
+// `contracts.payments`, `common.refusals.payment` and `common.actions`. It imports nothing but types, because the
 // typesafe-i18n generator transpiles it along with the locale.
 
 import type { BaseTranslation } from '../../i18n/i18n-types';
@@ -54,5 +54,12 @@ export const refusals = {
 		datedInFuture: 'a payment cannot be dated in the future.',
 		missing: 'this payment is no longer in the workspace. reload to see what changed.',
 		repeatedInSet: 'two payments in this set claim {value:string}.'
+	}
+} satisfies BaseTranslation;
+
+// the create control's label on this feature's list, composed back at `common.actions`.
+export const common = {
+	actions: {
+		newPayment: 'new payment'
 	}
 } satisfies BaseTranslation;

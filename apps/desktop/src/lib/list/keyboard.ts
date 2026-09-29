@@ -7,7 +7,7 @@
  * The whole of the decision is here rather than in the block, so it can be checked: a list block
  * reaches a `.svelte` file and cannot be imported by a test at all, and a rule about which record
  * comes next is exactly the kind that regresses silently. What the list keeps is the part that
- * is genuinely the DOM's — which element takes focus, and when it exists to take it
+ * is genuinely the DOM's: which element takes focus, and when it exists to take it
  * (`focus.svelte.ts`).
  */
 import type { ListGroup, ListRow } from '@rentable/design/group.js';

@@ -6,10 +6,10 @@
  * cannot tell working from hung, while a bar that has moved since they last looked can only mean
  * one thing. That is the whole reason this module exists, and the reason it may not be faked.
  *
- * **The five below are the awaits `routes/+layout.svelte` already performs, in the order it
+ * **The five below are the awaits the startup (`machine.ts`) already performs, in the order it
  * performs them.** Nothing may be invented to fill the bar out and nothing real may be folded
  * away — a bar naming a step the application does not take is a decoration wearing a report's
- * clothes. `tests/stage.test.ts` holds that to the route rather than to good intentions.
+ * clothes. `tests/stage.test.ts` holds that to a startup it drives rather than to good intentions.
  *
  * **One pass has a stage of its own before those**, `prepare`, and it is below the five rather than
  * among them because a launch never takes it: see [`PREPARE_STAGE`].

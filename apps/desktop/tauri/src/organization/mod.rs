@@ -174,77 +174,38 @@ mod tests {
         ("workspace_rename", Gate::Flag(Flag::RenameWorkspace)),
     ];
 
-    /// Every sub-concept's commands, where each declares them.
-    const SOURCES: [&str; 8] = [
-        include_str!("invitation/command.rs"),
-        include_str!("mark/command.rs"),
-        include_str!("member/command.rs"),
-        include_str!("ownership/command.rs"),
-        include_str!("role/command.rs"),
-        include_str!("session/command.rs"),
-        include_str!("setup/command.rs"),
-        include_str!("workspace/command.rs"),
-    ];
-
-    /// The name a command is invoked by: its function name without `organization_`, since the
-    /// plugin supplies it, as `build.rs` derives it for the ACL.
-    fn invoked_as(function: &str) -> String {
-        function
-            .strip_prefix("organization_")
-            .unwrap_or(function)
-            .to_string()
-    }
-
-    /// The name every `#[tauri::command]` in a source file is invoked by, in order: the one its
-    /// `rename = ".."` gives, or its function's where it has none.
-    fn declared_commands(source: &str) -> Vec<String> {
-        let lines: Vec<&str> = source.lines().collect();
-
-        lines
-            .iter()
-            .enumerate()
-            .filter_map(|(index, line)| {
-                let attribute = line.trim().strip_prefix("#[tauri::command")?;
-
-                if let Some(renamed) = attribute.strip_prefix("(rename = \"") {
-                    return Some(renamed.split('"').next()?.to_string());
-                }
-
-                if attribute != "]" {
-                    return None;
-                }
-
-                let signature = lines.get(index + 1)?.trim();
-                // a command that takes the credential store is `pub(crate)`, because the store's
-                // trait is private to the crate ([[rules/credentials]]).
-                let name = signature
-                    .strip_prefix("pub async fn ")
-                    .or_else(|| signature.strip_prefix("pub(crate) async fn "))
-                    .or_else(|| signature.strip_prefix("pub fn "))?;
-
-                Some(invoked_as(name.split('(').next()?))
-            })
-            .collect()
-    }
-
-    /// Every command the plugin registers: each `super::<sub-concept>::<name>` in its handler, by
-    /// the name it is invoked by.
-    fn registered_commands(source: &str) -> Vec<String> {
-        let handlers = source
-            .split("tauri::generate_handler![")
-            .nth(1)
-            .and_then(|rest| rest.split(']').next())
-            .expect("the organization plugin registers no handlers");
-
-        handlers
-            .split(',')
-            .filter_map(|entry| entry.trim().strip_prefix("super::"))
-            .filter_map(|path| path.rsplit("::").next())
-            .map(invoked_as)
-            .collect()
-    }
-
     /// The commands that name no gate, and the gates that name no command.
+    /// Every command the sub-concepts declare, read off their source by walking `organization/`,
+    /// so a command declared and left out of the plugin's handler is caught, whatever file it is in.
+    fn declared_in_source() -> Vec<String> {
+        fn walk(dir: &std::path::Path, found: &mut Vec<String>) {
+            for entry in std::fs::read_dir(dir).expect("organization/ is readable") {
+                let path = entry.expect("an entry").path();
+                if path.is_dir() {
+                    walk(&path, found);
+                } else if path.extension().is_some_and(|extension| extension == "rs") {
+                    let source = std::fs::read_to_string(&path).expect("a source file");
+                    for line in source.lines() {
+                        if let Some(renamed) = line
+                            .trim()
+                            .strip_prefix("#[tauri::command(rename = \"")
+                            .and_then(|rest| rest.split('"').next())
+                        {
+                            found.push(renamed.to_string());
+                        }
+                    }
+                }
+            }
+        }
+
+        let mut found = Vec::new();
+        walk(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/organization"),
+            &mut found,
+        );
+        found
+    }
+
     fn ungated(declared: &[String], gates: &[(&str, Gate)]) -> (Vec<String>, Vec<String>) {
         let named: Vec<&str> = gates.iter().map(|(name, _)| *name).collect();
 
@@ -262,14 +223,18 @@ mod tests {
         )
     }
 
-    /// **Criterion 1, the Rust half.** Every command this module declares, and every one its
-    /// plugin registers, names its gate here; a command with none fails, naming it,
-    /// and so does a gate for a command that is gone. The flags named are the vocabulary's own,
-    /// so each is a bit a refusal names.
+    /// **Criterion 1, the Rust half.** Every command the organization plugin answers names its
+    /// gate here; a command with none fails, naming it, and so does a gate for a command that is
+    /// gone. The commands are the plugin's as `build.rs` derives them from its handler for the ACL
+    /// (`guard/acl.rs`), so this reads the one list rather than a second parse of it. The flags
+    /// named are the vocabulary's own, so each is a bit a refusal names.
     #[test]
     fn every_organization_command_names_its_gate() {
-        let declared = declared_commands(&SOURCES.concat());
-        let registered = registered_commands(include_str!("plugin.rs"));
+        let declared: Vec<String> = crate::guard::acl::plugin_in("organization")
+            .commands
+            .iter()
+            .map(|command| command.to_string())
+            .collect();
 
         assert!(
             declared.len() > 40,
@@ -277,12 +242,12 @@ mod tests {
         );
         assert_eq!(
             {
-                let mut sorted = registered.clone();
+                let mut sorted = declared.clone();
                 sorted.sort();
                 sorted
             },
             {
-                let mut sorted = declared.clone();
+                let mut sorted = declared_in_source();
                 sorted.sort();
                 sorted
             },

@@ -3,8 +3,9 @@
  *
  * what another concept may import of sync: what startup's root listens to while the application
  * runs (the sync manager, a session ended on another machine, and a sign-out), whether the
- * organization admits the machine, the replica's pushes, the account's initials, the bound on a
- * workspace's name, the shapes its host port hands over, and the request for a push the
+ * organization admits the machine, the replica's pushes, the account's initials, where the machine
+ * stands with the organization on Turso and the sentence that says so, the bound on a workspace's
+ * name, the shapes its host port hands over, and the request for a push the
  * composition root binds into every write that asks for one.
  *
  * **It loads under Node**, since startup's machine and the composition root import it. Sync's reads
@@ -21,4 +22,5 @@ export {
 	type SyncHost
 } from './host';
 export { listenForSignOut, requestSignOut } from './sign-out';
+export { syncFaultOf, syncStandingSentence, syncStatusOf, type SyncStatus } from './status';
 export { announceReceivedRows, syncWorkspaceBeforeExit, syncWorkspaceNow } from './workspace';

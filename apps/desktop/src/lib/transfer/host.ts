@@ -51,7 +51,7 @@ export type TransferHost = {
 		/**
 		 * Write text to the path the user chose, and answer with where it landed.
 		 *
-		 * The path is theirs, from the platform's save dialog — symmetric with `import.read`,
+		 * The path is theirs, from the platform's save dialog, symmetric with `import.read`,
 		 * which is handed one from the open dialog. Where a file may go is not this layer's
 		 * question.
 		 */

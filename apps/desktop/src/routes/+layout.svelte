@@ -11,7 +11,7 @@
 	import '$lib/app/surfaces';
 	import { page } from '$app/state';
 	import { host } from '$lib/app/host';
-	import LayoutFrame from '$lib/shell/component/frame.svelte';
+	import ShellFrame from '$lib/shell/component/frame.svelte';
 	import ShellWindow from '$lib/shell/component/window.svelte';
 	import StartupRoot from '$lib/startup/component/root.svelte';
 	import { toScreen } from '@rentable/design/back.js';
@@ -41,9 +41,9 @@
 	{/snippet}
 
 	{#snippet bareFrame(inside)}
-		<LayoutFrame currentDirection="ltr" shell="bare">
+		<ShellFrame currentDirection="ltr" shell="bare">
 			{@render inside()}
-		</LayoutFrame>
+		</ShellFrame>
 	{/snippet}
 
 	{@render children?.()}

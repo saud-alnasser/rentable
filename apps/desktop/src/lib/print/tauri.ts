@@ -5,8 +5,9 @@ import type { PrintHost } from './host';
 /**
  * printing's tauri command: its port, satisfied by the Tauri shell.
  *
- * **The command name and argument shape are the Rust side's**, spelled here exactly as they were
- * in the platform facade, where they sat until effort 840 gave printing its own port.
+ * **The command name and argument shape are the Rust side's.** The command is the `print`
+ * plugin's, so it is `plugin:print|<command>`; the argument is spelled as it was in the platform
+ * facade, where it sat until effort 840 gave printing its own port.
  */
 export const tauri = {
 	/**

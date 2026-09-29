@@ -6,7 +6,7 @@ import type { Pathname } from '$app/types';
  * `/settings` is one surface with four sections, and a section is named in the address rather
  * than in a path segment: `?section=<name>`, the idiom `record-surface.svelte` established and
  * `contracts/[id]` reads. **The pathname staying `/settings` is what the choice is for**, and
- * two things depend on it. `startup/shell-surface.ts` admits exactly `/settings` while nobody is
+ * two things depend on it. `startup/screen.ts` admits exactly `/settings` while nobody is
  * signed in, matching the address rather than a prefix, so the language control is reachable on
  * the way in; and `back.ts` keys its trail by pathname, so moving between sections is not
  * leaving the page. A segment per section would need both of those to match prefixes instead,

@@ -20,7 +20,7 @@ import FirstRun from '../component/first-run.svelte';
  * THE FIRST RUN, FROM THE PRESS OF CREATE TO THE LOADING PASS
  *
  * Effort 832, requirement 18: creating an organization is the consent, then the name, then the
- * application, with one loading pass after the walk. `setup-walk.svelte.test.ts` holds the walk's
+ * application, with one loading pass after the walk. `walk.svelte.test.ts` holds the walk's
  * two steps as the screen draws them; this holds what the first run does once the name step's create
  * answers, because the hand-over is the first run's: **after the create, no second busy surface comes
  * before the loading pass**, the first workspace is made as that pass's first stage, named after

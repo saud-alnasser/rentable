@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { THE_WAY_IN, useStartup } from '$lib/app/wall';
+	import { THE_WAY_IN, useStartup } from '$lib/startup/ui';
 	import OrganizationSetupFirstRun from '$lib/organization/setup/component/first-run.svelte';
 
 	// the first run's address. The walk and its hand-over are the organization's; the startup unit

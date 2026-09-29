@@ -106,7 +106,8 @@ imports `app/caller`, `app/cache`, `app/transfer` and `app/surfaces` first, each
 provides once as it is evaluated:
 
 - `app/router.ts` builds `appRouter` from `routersOf(features)`, every router mounted at the root
-  under its feature's name, and binds the merged `contributions` into `api/contribution.ts`.
+  under its feature's name, binds the merged `contributions` into `api/contribution.ts`, and binds
+  every feature's refusal fields (`app/refusal.ts`) into `error/refusal.ts`.
 - `app/caller.ts` binds that router's caller and `app/host.ts`'s host into `api/caller.ts`. A
   feature calls its own procedures through the default export of `$lib/api/caller`
   (`tenant/query.ts` is one), which knows the router only by its type.
@@ -210,7 +211,11 @@ its setup, so nothing in the crate names `upgrade`.
 
 **The two sides meet at the port.** A TypeScript feature that crosses has a `<concept>/host.ts` and a
 `<concept>/tauri.ts` whose calls invoke `plugin:<name>|<command>` (`print/tauri.ts` against
-`tauri/src/print/`, `sync/tauri.ts` against `tauri/src/sync/`). A record feature has no plugin of
+`tauri/src/print/`, `sync/tauri.ts` against `tauri/src/sync/`). A port may invoke another plugin's
+command where the Rust side keeps it elsewhere: `sync/tauri.ts` invokes the organization plugin's
+`session_replicate` and `workspace_rename`, because in the crate both act on the organization and
+`sync` names nothing of it, while in TypeScript replication and the rename are sync's. That is the
+one such crossing, and [[rules/module-layout]] records it among the departures. A record feature has no plugin of
 its own: its SQL reaches Rust through the database plugin, from `platform/database/client.ts`.
 
 ## Adding and removing
@@ -229,8 +234,9 @@ Each of these is the whole list of kinds of edit; the file-by-file tables are
    port's type leaves its home through `index.ts`.
 4. Its contributions: a need is a member of the kind's type in `app/contributions.ts`; a value is
    under `contributes` in its own declaration.
-5. Its refusals, where it raises any: its `refusal.ts`, exported from its `index.ts`, and a member
-   of `RefusalCode` in `app/refusal.ts`.
+5. Its refusals, where it raises any: its `refusal.ts`, with the codes and the field of its form
+   each belongs under, exported from its `index.ts`, and a member of `RefusalCode` and a spread in
+   `refusalFields` in `app/refusal.ts`, which `app/router.ts` binds into `error/refusal.ts`.
 6. Its strings composed in `src/lib/i18n/en/index.ts` and `src/lib/i18n/ar/index.ts`, then `pnpm i18n`.
 7. Its routes under `src/routes/`, importing only components, `ui.ts` and `app/`.
 

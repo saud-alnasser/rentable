@@ -162,7 +162,7 @@ export class StartupMachine {
 			return false;
 		}
 
-		const last = this.#snapshot.remoteSync?.workspace.remoteId ?? null;
+		const last = this.#snapshot.sync?.workspace.remoteId ?? null;
 		const chosen = workspaces.find((workspace) => workspace.id === last) ?? workspaces[0];
 
 		if (chosen) {
@@ -216,7 +216,7 @@ export class StartupMachine {
 		// meets the wall rather than a database that is no longer theirs. The sync state is read
 		// beside it because the changes stage is what spends it.
 		this.set({
-			remoteSync: await this.ports.remoteSync.getState(),
+			sync: await this.ports.sync.getState(),
 			organization: await this.ports.organization.getState()
 		});
 
@@ -228,8 +228,8 @@ export class StartupMachine {
 		// reconcile two lines down is a whole-table pass over exactly what a pull would have made
 		// stale, and the render has not happened yet.
 		this.ports.reportStage('changes');
-		const synced = await this.ports.workspace.syncNow(this.#snapshot.remoteSync);
-		this.set({ remoteSync: synced.state });
+		const synced = await this.ports.workspace.syncNow(this.#snapshot.sync);
+		this.set({ sync: synced.state });
 
 		// a session ended from another machine while this one was closed is learned at this
 		// pull, and the shell has already signed the member out on its side: where the machine
@@ -256,7 +256,7 @@ export class StartupMachine {
 	/** Start the application. What the shell calls once, on mount. */
 	async start() {
 		this.ports.reportStage('settings');
-		this.set({ state: 'loading', error: null, recovery: null, remoteSync: null });
+		this.set({ state: 'loading', error: null, recovery: null, sync: null });
 
 		try {
 			// the shell's own settings, read off the shell. They carry the locale the sign-in screen
@@ -295,7 +295,7 @@ export class StartupMachine {
 
 			this.ports.reportStage('account');
 			this.set({
-				remoteSync: await this.ports.remoteSync.getState(),
+				sync: await this.ports.sync.getState(),
 				organization: await this.ports.organization.getState()
 			});
 
@@ -314,7 +314,7 @@ export class StartupMachine {
 
 			await this.continue();
 		} catch (error) {
-			this.set({ remoteSync: null });
+			this.set({ sync: null });
 			await this.fail(error);
 		}
 	}
@@ -327,10 +327,10 @@ export class StartupMachine {
 	 * rebuilds it, and it outlives this screen by the whole run of the process.
 	 */
 	rememberSession() {
-		const { remoteSync } = this.#snapshot;
+		const { sync } = this.#snapshot;
 
-		if (remoteSync) {
-			this.ports.cache.rememberRemoteSync(remoteSync);
+		if (sync) {
+			this.ports.cache.rememberRemoteSync(sync);
 		}
 
 		this.ports.cache.forgetContext();

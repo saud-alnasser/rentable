@@ -237,7 +237,7 @@ test('switching workspaces drops what was drawn, opens the chosen one, and runs 
 	assert.equal(journal.invalidatedAll, 1);
 	// the rail reads the new workspace off its own query without waiting for a refetch.
 	assert.equal(journal.remembered.at(-1)?.workspace.remoteId, 'south');
-	assert.equal(startup.snapshot.remoteSync?.workspace.remoteId, 'south');
+	assert.equal(startup.snapshot.sync?.workspace.remoteId, 'south');
 	// the member is who they were, and what they may do is not: the context is dropped once, since
 	// a read-only grant on the workspace now open clears writes the one before allowed (effort 838).
 	assert.equal(journal.contextsForgotten, forgottenBefore + 1);

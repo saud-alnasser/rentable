@@ -2,7 +2,7 @@
  * THE SETUP WALK, AS A DESCRIPTION
  *
  * What a first run asks of a person and what it tells them, step by step, as plain data a
- * `node:test` can read. The screen in `component/setup-walk.svelte` draws from this rather than
+ * `node:test` can read. The screen in `component/walk.svelte` draws from this rather than
  * restating it, so the test that asserts **the only text typed is the organization's name, the
  * owner's username and a password** is asserting over the fields the screen actually presents
  * rather than over a list somebody remembered to keep beside it.

@@ -16,7 +16,7 @@ import { z } from 'zod';
  * here holds no state, so the fields it splits into read one definition of what they fill.
  *
  * **Built from the translations rather than at module load**, for the reason
- * `organization/workspace-form.ts` gives: a refusal's sentence resolves against a locale, and at
+ * `workspace/form.ts` gives: a refusal's sentence resolves against a locale, and at
  * module load there is none. The form builds it once, as it opens.
  */
 

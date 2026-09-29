@@ -113,7 +113,7 @@ export type Harness = {
  */
 export function harness(
 	overrides: {
-		remoteSync?: RemoteSyncState;
+		sync?: RemoteSyncState;
 		/** where the machine stands with organizations; unlocked with a workspace unless said. */
 		organization?: OrganizationState;
 		/** what the organization state answers after the bootstrap, where that differs. */
@@ -165,10 +165,10 @@ export function harness(
 	const seen: StartupSnapshot[] = [];
 	const now = { value: AT };
 
-	// what `remoteSync.getState` answers with, which the unit reads at the account stage, again
+	// what `sync.getState` answers with, which the unit reads at the account stage, again
 	// after the bootstrap, and after a sync manager reports. Opening a workspace records it as the
 	// current one, because that is what the shell does before it opens the replica.
-	let state = overrides.remoteSync ?? syncing();
+	let state = overrides.sync ?? syncing();
 	// what `organization.getState` answers with, which is what the wall admits on. The second read
 	// is the one after the bootstrap, which is allowed to answer differently.
 	let organization = overrides.organization ?? unlocked();
@@ -195,7 +195,7 @@ export function harness(
 		appearance: {
 			apply: (setting) => void (journal.appearance = setting ?? 'system')
 		},
-		remoteSync: {
+		sync: {
 			getState: async () => state
 		},
 		organization: {

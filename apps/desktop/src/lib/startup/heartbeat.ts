@@ -45,8 +45,8 @@ function standingOf(organization: OrganizationState | null): string | null {
  * landed in the old one and announce them to a person who never saw them.
  */
 export async function applySyncOutcome(machine: StartupMachine, outcome: SyncOutcome) {
-	const state = await machine.ports.remoteSync.getState().catch(() => null);
-	const open = (state ?? machine.current.remoteSync)?.workspace.remoteId ?? null;
+	const state = await machine.ports.sync.getState().catch(() => null);
+	const open = (state ?? machine.current.sync)?.workspace.remoteId ?? null;
 
 	if (outcome.workspaceId !== open) {
 		return;
@@ -55,7 +55,7 @@ export async function applySyncOutcome(machine: StartupMachine, outcome: SyncOut
 	await rereadOrganization(machine);
 
 	if (state) {
-		machine.set({ remoteSync: state });
+		machine.set({ sync: state });
 		machine.ports.cache.rememberRemoteSync(state);
 	}
 

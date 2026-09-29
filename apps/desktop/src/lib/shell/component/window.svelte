@@ -5,8 +5,8 @@
 	import { NotificationProvider } from '$lib/notification/ui';
 	import { recordDiagnosticError } from '$lib/platform/diagnostics';
 	import { CAUGHT_ERROR_EVENT, toCaughtErrorFields } from '$lib/shell/boundary';
-	import LayoutCaughtError from '$lib/shell/component/caught-error.svelte';
-	import LayoutFrame from '$lib/shell/component/frame.svelte';
+	import ShellCaughtError from '$lib/shell/component/caught-error.svelte';
+	import ShellFrame from '$lib/shell/component/frame.svelte';
 	import { TooltipProvider } from '@rentable/design/primitive/tooltip/index.js';
 	import {
 		DesignProvider,
@@ -39,7 +39,7 @@
 		queryClient: QueryClient;
 		currentDirection: DesignDirection;
 		/** how much of the frame this state draws. */
-		shell: ComponentProps<typeof LayoutFrame>['shell'];
+		shell: ComponentProps<typeof ShellFrame>['shell'];
 		onWayIn: () => void;
 		onSwitchWorkspace: (workspaceId: string) => void;
 		/** whether the dialogs beside the frame are drawn: the rail is up and a session is held. */
@@ -160,14 +160,14 @@
 			<NotificationProvider>
 				<TooltipProvider>
 					<!-- the rail's way in navigates, and that is the whole mechanism: signed out,
-					     `shellSurface` draws the card over every address but the ones `OPENS_SIGNED_OUT`
+					     `startupScreen` draws the card over every address but the ones `OPENS_SIGNED_OUT`
 					     holds, so leaving one of those is what puts the card on screen. From anywhere else
 					     the card is already drawn and `wayInFrom` answers nothing, which is what keeps the
 					     reader's place. Starting the flow stays with the card, the one surface that
 					     names the provider. -->
-					<LayoutFrame {currentDirection} {shell} {onWayIn} {onSwitchWorkspace}>
+					<ShellFrame {currentDirection} {shell} {onWayIn} {onSwitchWorkspace}>
 						{@render children()}
-					</LayoutFrame>
+					</ShellFrame>
 
 					<!-- the invite and new-workspace dialogs, mounted once and beside the frame rather
 					     than inside it, since the frame owns navigation and not forms. Inside the
@@ -191,7 +191,7 @@
 				dir={currentDirection}
 				class="flex h-screen w-screen flex-col overflow-y-auto bg-background"
 			>
-				<LayoutCaughtError {error} onRetry={reset} />
+				<ShellCaughtError {error} onRetry={reset} />
 			</div>
 		{/snippet}
 	</svelte:boundary>

@@ -17,7 +17,7 @@ import {
  * THE WORKBOOK IS A PUBLIC CONTRACT
  *
  * What a workspace export hands the Rust writer: every sheet's name, its columns in order, the
- * sheets in order, and every cell as the kind of thing it is. `tauri/src/earlier.rs` writes the
+ * sheets in order, and every cell as the kind of thing it is. `tauri/src/upgrade/record.rs` writes the
  * same workbook from an earlier version's records, and people hold files this wrote, so none of
  * it may move.
  *

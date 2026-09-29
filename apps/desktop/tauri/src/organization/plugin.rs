@@ -20,8 +20,8 @@ use super::{Shared, session};
 /// (`invitation/arrival.rs`): a plugin's setup runs before any window exists.
 ///
 /// `build.rs` reads the handler below to write the plugin's permissions, so a command added to it
-/// is allowed by the ACL with no second list to keep, and the gate test in `mod.rs` reads it to
-/// hold every command it lists to a gate.
+/// is allowed by the ACL with no second list to keep, and the gate test in `mod.rs` reads that
+/// derived list to hold every command to a gate.
 pub fn plugin() -> TauriPlugin<tauri::Wry> {
     Builder::new("organization")
         .invoke_handler(tauri::generate_handler![

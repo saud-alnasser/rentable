@@ -61,7 +61,7 @@
 </script>
 
 <!-- the keys are answered on the list rather than on the records, so a move works from the search
-     field as well as from a card — the whole point being that one reader gets from typing to
+     field as well as from a card, the whole point being that one reader gets from typing to
      opening without leaving the keyboard. -->
 {#snippet selectableRecord(item: TData)}
 	{#if selection.isSelectable}

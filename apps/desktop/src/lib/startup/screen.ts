@@ -3,7 +3,7 @@ import type { StartupSnapshot } from './snapshot';
 /**
  * WHAT THE FRAME DRAWS INSIDE ITSELF
  *
- * The shell's other decision, and the counterpart of `./gate`: that one answers what the window
+ * Startup's other decision about the frame, and the counterpart of `./gate`: that one answers what the window
  * draws before a locale exists, this one answers what goes inside the frame once one does. Both
  * are here rather than in `./component/root.svelte`, which draws them, for the reason that
  * component states in its own comment: a runes file cannot be imported by a `node:test` at all,
@@ -11,7 +11,7 @@ import type { StartupSnapshot } from './snapshot';
  *
  * **Startup's rather than the shell's, though the frame is what it fills**, because what it reads
  * is where startup has got to, and startup's root is what reads it (effort 840, ticket 34). The
- * addresses beside the wall reach the way in and the sign-out's landing through `$lib/app/wall`.
+ * addresses beside the wall reach the way in and the sign-out's landing through `./ui`.
  *
  * **It is the address that made this worth extracting.** Until 2026-08-21 the answer was the
  * startup state alone, and a chain of four branches in the route said it. Requirement 1 of
@@ -21,8 +21,8 @@ import type { StartupSnapshot } from './snapshot';
  * worked, because the requirement's API half landed and its layout half did not.
  */
 
-/** what the frame draws in place of its children, or `route` for the children themselves. */
-export type ShellSurface = 'loading' | 'sign-in' | 'no-workspace' | 'recovery' | 'error' | 'route';
+/** the screen startup has the frame draw in place of its children, or `route` for the children. */
+export type StartupScreen = 'loading' | 'sign-in' | 'no-workspace' | 'recovery' | 'error' | 'route';
 
 /**
  * Where an organization is created: the first run's own address.
@@ -131,7 +131,7 @@ export function addressAfterSignOut(pathname: string): typeof THE_WAY_IN | null 
  * this ticket is about that state, and changing it would be a second change hiding inside a
  * refactor.
  */
-export function shellSurface(snapshot: StartupSnapshot, pathname: string): ShellSurface {
+export function startupScreen(snapshot: StartupSnapshot, pathname: string): StartupScreen {
 	switch (snapshot.state) {
 		case 'loading':
 			return 'loading';

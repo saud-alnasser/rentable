@@ -1,5 +1,5 @@
 // The organization feature's strings in arabic, composed back into `i18n/ar/index.ts` at
-// `organization`. It imports nothing but types, because the typesafe-i18n generator transpiles it
+// `organization` and `common.refusals.host`. It imports nothing but types, because the typesafe-i18n generator transpiles it
 // along with the locale; the session's `layout` blocks are `session/i18n/ar.ts`. Each object
 // satisfies its own slice of the generated types, so a key missing, left over or without its
 // placeholder fails here.
@@ -377,3 +377,103 @@ export const organization = {
 		notHeld: 'تحمل مساحة العمل هذه للقراءة فقط، فلا تستطيع منحها.'
 	}
 } satisfies Translation['organization'];
+
+// what the shell says, by the reason a Rust refusal carries (`$lib/error/tauri`): every reason but
+// a kind's refusal of a write without its view, which the index writes beside these.
+export const refusals = {
+	host: {
+		lapsed: 'انتهت صلاحية هذا الرابط. اطلب رابطاً جديداً ممن أرسله إليك.',
+		consumed: 'استُخدم هذا الرابط من قبل. اطلب رابطاً جديداً ممن أرسله إليك.',
+		revoked: 'سُحب هذا الرابط. اطلب رابطاً جديداً ممن أرسله إليك.',
+		replaced: 'حلّ محل هذا الرابط رابط أحدث. اطلب الرابط الجديد ممن أرسله إليك.',
+		codeMissing: 'اكتب الرمز المكوّن من ستة أحرف الذي وصلك مع الرابط.',
+		codeWrong: 'الرمز غير صحيح. اطلب ممن أرسل الرابط أن يقرأه عليك مرة أخرى.',
+		linkUnreadable: 'هذا ليس رابط انضمام إلى rentable. انسخ الرابط كاملاً وحاول مرة أخرى.',
+		linkNotAnInvitation:
+			'هذا الرابط يربط جهازاً آخر ولا يحمل دعوة. سجّل الدخول باسم المستخدم وكلمة المرور بدلاً من ذلك.',
+		linkNotForAMachine: 'هذا الرابط دعوة وليس رابطاً لجهاز آخر. افتحه حيث تُقبل الدعوات.',
+		anotherOrganizationHeld: 'يحمل هذا الجهاز مؤسسة أخرى بالفعل. افصلها أولاً.',
+		credentialsWrong: 'اسم المستخدم أو كلمة المرور غير صحيحة.',
+		passwordTooShort: 'تحتاج كلمة المرور إلى 12 حرفاً على الأقل.',
+		passwordChangeRequired: 'غيّر كلمة المرور قبل أي شيء آخر.',
+		signedOut: 'لا أحد مسجّل الدخول على هذا الجهاز. سجّل الدخول وحاول مرة أخرى.',
+		noOrganization: 'لا يحمل هذا الجهاز أي مؤسسة بعد.',
+		noMemberYet: 'لم يسجّل أحد الدخول إلى المؤسسة على هذا الجهاز بعد. سجّل الدخول أولاً.',
+		signInAgain: 'لم يعد حسابك على هذا الجهاز محدّثاً. سجّل الدخول مرة أخرى.',
+		youWereRemoved: 'أُزلت من هذه المؤسسة.',
+		sessionsEnded: 'أُنهيت جلساتك من جهاز آخر. سجّل الدخول مرة أخرى.',
+		keyNotInForce: 'سُلّمت المؤسسة إلى مالك جديد، فلا يستطيع القيام بهذا سواه.',
+		usernameInvalid:
+			'يتكوّن اسم المستخدم من 3 إلى 32 من الحروف أو الأرقام أو النقاط أو الشرطات السفلية أو الشرطات، دون مسافات.',
+		usernameTaken: 'اسم المستخدم هذا مأخوذ في هذه المؤسسة. اختر اسماً آخر.',
+		roleUnknown: 'اختر دورًا من أدوار المؤسسة.',
+		memberMissing: 'لم يعد هذا العضو في هذه المؤسسة. أعد التحميل لترى ما تغيّر.',
+		markNotAnImage: 'اختر صورة بصيغة PNG أو JPEG أو WebP.',
+		markTooLarge: 'حجم الصورة أكبر من 512 كيلوبايت. اختر صورة أصغر.',
+		memberGone: 'لم يعد هذا الحساب في المؤسسة.',
+		memberRemoved: 'أُزيل هذا العضو. أنشئ له حساباً من جديد إن كان سيعود.',
+		notYourself: 'لا يمكنك القيام بهذا على حسابك أنت. يستطيع ذلك من هو أعلى منك رتبة.',
+		ownerProtected: 'لا يُغيَّر حساب المالك بهذه الطريقة، فالمؤسسة ملكه.',
+		ownerOnly: 'لا يقوم بهذا إلا المالك. اطلبه منه.',
+		ownerMachineOnly: 'يحتاج هذا إلى حساب Turso المتصل بجهاز المالك. اطلبه من المالك.',
+		roleLacksAct: 'لا يشمل دورك هذا الإجراء. اطلبه من أحد المديرين.',
+		notAdministrator: 'لا يقوم بهذا إلا مدير.',
+		rankNotAbove: 'هذا الدور ليس أدنى من دورك. اطلب ذلك ممن هو أعلى منه رتبة.',
+		roleUnsettled:
+			'غيّر سجلَّ هذا العضو من لا يحق له ذلك. يزيله من هو أعلى منه رتبة ثم ينشئ له حساباً من جديد.',
+		roleBuiltIn:
+			'هذا الدور موجود في كل مؤسسة، فلا يُعاد تسميته ولا يُنقل ولا يُحذف. ودور المالك يشمل كل شيء دائماً.',
+		roleNameMissing: 'اكتب اسماً للدور.',
+		roleNameTaken: 'هناك دور آخر بهذا الاسم. اختر اسماً مختلفاً.',
+		roleOutOfPlace: 'يأتي الدور أدنى من المدير وأعلى من العضو.',
+		noRankBelow: 'لم يبقَ مكان أدنى من دورك. اطلب ذلك ممن هو أعلى منك رتبة.',
+		ownerRoleNotAssigned: 'لا ينتقل دور المالك إلا حين يسلّم المالك المؤسسة.',
+		recordFlagsOnly: 'لا تغيّر مساحة العمل إلا ما يُفعل بسجلاتها. اضبط الباقي على مستوى المؤسسة.',
+		alreadyOwner: 'أنت المالك بالفعل. اختر الحساب الذي ستنتقل إليه المؤسسة.',
+		accountNotSetUp:
+			'ليست لهذا الحساب كلمة مرور خاصة به بعد. بعد أن يفتح صاحبه رابطه ويختار واحدة، اعرض عليه المؤسسة مرة أخرى.',
+		offerPending: 'المؤسسة معروضة على حساب بالفعل. اسحب ذلك العرض أولاً.',
+		offerAccepted: 'قُبل العرض بالفعل وأصبحت المؤسسة ملكه الآن. لم يتغيّر شيء.',
+		nothingOffered: 'لا يوجد عرض قائم لهذه المؤسسة.',
+		offererGone: 'لم يعد الحساب الذي عرض عليك المؤسسة موجوداً فيها.',
+		organizationNameMissing: 'تحتاج المؤسسة إلى اسم.',
+		workspaceNameMissing: 'تحتاج مساحة العمل إلى اسم.',
+		workspaceMissing: 'لم تعد مساحة العمل هذه في المؤسسة. أعد التحميل لترى ما تغيّر.',
+		noWorkspaceOpen: 'لا توجد مساحة عمل مفتوحة على هذا الجهاز. افتح واحدة وحاول مرة أخرى.',
+		noGrant: 'ليست لديك صلاحية على مساحة العمل هذه.',
+		grantMissing: 'ليست لهذا العضو صلاحية على مساحة العمل هذه.',
+		grantBeyondOwn: 'لا يمكنك مشاركة مساحة عمل إلا إذا كانت لديك صلاحية كاملة عليها.',
+		noOrganizationCredential:
+			'لا يملك هذا الجهاز صلاحية الوصول إلى سجلات المؤسسة. سجّل الدخول مرة أخرى وأعد المحاولة.',
+		workspaceNewer: 'رقّى إصدار أحدث من rentable مساحة العمل هذه. حدّث rentable لتفتحها.',
+		workspaceBehind:
+			'تحتاج مساحة العمل هذه إلى ترقية، وصلاحية القراءة وحدها لا تكفي لذلك. اطلب من عضو بصلاحية كاملة أن يفتحها مرة واحدة.',
+		databaseRefused: 'رفضت قاعدة البيانات الطلب ولم يتغيّر شيء. حاول مرة أخرى لاحقاً.',
+		organizationOlder:
+			'أنشأ إصدار أقدم هذه المؤسسة، وهي تنتظر مالكها ليفتحها في هذا الإصدار فيرقّيها.',
+		organizationUpgradeOffline:
+			'ترقية هذه المؤسسة تحتاج إلى اتصال. اتصل بالإنترنت وسجّل الدخول مرة أخرى؛ لم يتغيّر شيء.',
+		organizationChangesUnsendable:
+			'يحمل هذا الجهاز تغييرات لم تُرسل ولا تقبلها المؤسسة بعد ترقيتها. افصله ثم اربطه مرة أخرى لتُحذف.',
+		organizationCredentialLapsed:
+			'انتهت صلاحية وصول هذا الجهاز إلى المؤسسة. اطلب من مؤسستك رابطاً جديداً لتربطه مرة أخرى.',
+		organizationNewer: 'أنشأ إصدار أحدث من rentable هذه المؤسسة. حدّث rentable لتفتحها.',
+		copyNotTaken:
+			'تعذّر أخذ نسخة قبل الترقية، فلم يتغيّر شيء. تحقّق من الاتصال ومن مجلد النسخ الاحتياطية، ثم حاول مرة أخرى.',
+		shapeNotAsBuilt:
+			'فشلت الترقية في فحصها، فلم يتغيّر شيء. حدّث rentable وحاول مرة أخرى؛ ويبيّن سجل التشخيص السبب.',
+		tursoNotConnected: 'هذا الجهاز غير متصل بحساب Turso. اربطه وحاول مرة أخرى.',
+		consentNeededAgain: 'تحتاج Turso إلى منح الموافقة من جديد. اربط حساب Turso مرة أخرى.',
+		consentGone: 'لم تعد هذه الموافقة قيد الانتظار. ابدأها من جديد.',
+		groupMismatch: 'ليست هذه المجموعة التي مُنحت الموافقة عليها. تحقّق من الاسم وحاول مرة أخرى.',
+		groupNeeded: 'تحتاج Turso إلى اسم المجموعة التي اخترتها. اكتبه أدناه.',
+		groupHoldsOrganization: 'تحمل هذه المجموعة مؤسسة بالفعل. اختر مجموعة أخرى أو حساب Turso آخر.',
+		groupEmpty: 'مُنحت الموافقة على مجموعة لا تحمل أي مؤسسة. امنحها على المجموعة التي تحمل مؤسستك.',
+		nothingToConnectTo: 'لا يحمل حساب Turso هذا أي مؤسسة للاتصال بها. عد وأنشئ واحدة.',
+		createRefused: 'لم تُنشئ Turso قاعدة بيانات المؤسسة.',
+		tursoRefused: 'رفضت Turso الطلب. لن تفيد إعادة المحاولة.',
+		tursoAccountRefused: 'رفضت Turso الطلب بسبب الحساب نفسه. راجع خطة الحساب في Turso.'
+	}
+} satisfies {
+	host: Omit<Translation['common']['refusals']['host'], `${string}NeedsViewing`>;
+};

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { host } from '$lib/app/host';
-	import { THE_WAY_IN, useStartup } from '$lib/app/wall';
+	import { THE_WAY_IN, useStartup } from '$lib/startup/ui';
 	import OrganizationSetupJoin from '$lib/organization/setup/component/join.svelte';
 
 	// the join screen's address. The screen and what follows each link are the organization's; the

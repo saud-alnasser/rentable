@@ -25,7 +25,7 @@ import { unfold } from '$lib/organization/tests/switches';
  * and deleting refused while viewing is off; the owner's acts a line; a switch the reader may not
  * turn dimmed, saying why, and its folded group saying so; and, compared against a role, each
  * switch that differs marked, and its folded group too. The role editor and a member's card draw
- * this; `roles.svelte.test.ts` and `member-sheet.svelte.test.ts` read it from theirs.
+ * this; `directory.svelte.test.ts` and `organization/member/tests/sheet.svelte.test.ts` read it from theirs.
  *
  * The list is rendered with a mask and hands the next one up through `onChange`, which the test
  * feeds back, the way both surfaces hold it.

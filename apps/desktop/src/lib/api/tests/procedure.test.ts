@@ -179,7 +179,7 @@ const permittedRouter = router({
 /**
  * A shell answering with one state, and refusing everything else by name.
  *
- * `Host['sync']` is a whole object, so an override supplies all of it or none — a partial
+ * `Host['sync']` is a whole object, so an override supplies all of it or none; a partial
  * would not type-check. Written once here rather than twice below.
  */
 /** a shell answering whose vault is open, which is what a resolved identity is read off. */

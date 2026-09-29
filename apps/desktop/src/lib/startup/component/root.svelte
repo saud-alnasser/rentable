@@ -25,16 +25,16 @@
 		THE_FIRST_RUN,
 		THE_JOIN,
 		addressAfterSignOut,
-		shellSurface,
+		startupScreen,
 		wayInFrom
-	} from '../shell-surface';
+	} from '../screen';
 	import { createStartup } from '../startup';
-	import LayoutStartupError from './error.svelte';
-	import LayoutStartupLoading from './loading.svelte';
-	import LayoutStartupNoWorkspace from './no-workspace.svelte';
-	import LayoutStartupRecovery from './recovery.svelte';
-	import LayoutStartupSignIn from './sign-in.svelte';
-	import LayoutStartupUnreadable from './unreadable.svelte';
+	import StartupError from './error.svelte';
+	import StartupLoading from './loading.svelte';
+	import StartupNoWorkspace from './no-workspace.svelte';
+	import StartupRecovery from './recovery.svelte';
+	import StartupSignIn from './sign-in.svelte';
+	import StartupUnreadable from './unreadable.svelte';
 
 	/** what the window is handed to draw a running application's state in. */
 	type WindowProps = {
@@ -287,19 +287,20 @@
 	});
 
 	/**
-	 * what goes inside the frame, which is the shell's other decision and lives beside the first.
+	 * what goes inside the frame, which is startup's other decision about the frame and lives beside
+	 * the first.
 	 *
-	 * `../shell-surface.ts` holds it, for the reason stated at the top of this file: this is a
+	 * `../screen.ts` holds it, for the reason stated at the top of this file: this is a
 	 * runes file and a `node:test` cannot import one, so a chain of branches written here is a
 	 * decision nothing can drive. It was four branches on the startup state until 2026-08-21, when
 	 * the address became the second thing it reads.
 	 */
-	const surface = $derived(shellSurface(shellState, page.url.pathname));
+	const screen = $derived(startupScreen(shellState, page.url.pathname));
 
 	/**
 	 * what the rail's account row does, which is put the sign-in card on screen.
 	 *
-	 * The decision is `wayInFrom`'s, in `../shell-surface.ts`, for the reason the surface itself
+	 * The decision is `wayInFrom`'s, in `../screen.ts`, for the reason the screen itself
 	 * is: a runes file cannot be imported by a `node:test`, so a rule written here is a rule nothing
 	 * can drive.
 	 */
@@ -313,10 +314,10 @@
 </script>
 
 {#snippet inside()}
-	{#if surface === 'loading'}
-		<LayoutStartupLoading />
-	{:else if surface === 'sign-in'}
-		<LayoutStartupSignIn
+	{#if screen === 'loading'}
+		<StartupLoading />
+	{:else if screen === 'sign-in'}
+		<StartupSignIn
 			situation={shellState.signInReason}
 			organization={shellState.organization?.organization ?? null}
 			isSigningIn={shellState.isSigningIn}
@@ -328,26 +329,26 @@
 			onSetUpOrganization={() => void goto(resolve(THE_FIRST_RUN))}
 			onJoinByLink={() => void goto(resolve(THE_JOIN))}
 		/>
-	{:else if surface === 'no-workspace'}
-		<LayoutStartupNoWorkspace
+	{:else if screen === 'no-workspace'}
+		<StartupNoWorkspace
 			organizationName={shellState.organization?.session?.organizationName ?? ''}
 			canCreate={shellState.organization?.session?.role === 'owner'}
 			isCreating={createWorkspace.isPending}
 			onCreate={(name) => void createFirstWorkspace(name)}
 		/>
-	{:else if surface === 'recovery' && shellState.recovery}
-		<LayoutStartupRecovery recovery={shellState.recovery} onRetry={() => void startup.retry()} />
-	{:else if surface === 'error'}
+	{:else if screen === 'recovery' && shellState.recovery}
+		<StartupRecovery recovery={shellState.recovery} onRetry={() => void startup.retry()} />
+	{:else if screen === 'error'}
 		<!-- the reported error does not reach this screen: it is not shown, and nothing
 		     writes it down yet. See the component. -->
-		<LayoutStartupError onRetry={() => void startup.retry()} />
+		<StartupError onRetry={() => void startup.retry()} />
 	{:else}
 		{@render children?.()}
 	{/if}
 {/snippet}
 
 {#snippet unreadable()}
-	<LayoutStartupUnreadable message={shellState.error ?? ''} onRetry={() => void startup.retry()} />
+	<StartupUnreadable message={shellState.error ?? ''} onRetry={() => void startup.retry()} />
 {/snippet}
 
 {#if shellState.isI18nReady}

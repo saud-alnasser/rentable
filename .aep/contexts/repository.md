@@ -145,7 +145,7 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
 
   | Layer | Home | What it holds |
   | --- | --- | --- |
-  | 4 composition | `app/` | the composition root, the one place that names every feature: `features.ts` and `surfaces.ts` list the declarations, and `router.ts`, `host.ts`, `caller.ts`, `cache.ts`, `transfer.ts`, `contributions.ts` and `wall.ts` build from them what the shell and the capabilities are handed |
+  | 4 composition | `app/` | the composition root, the one place that names every feature: `features.ts` and `surfaces.ts` list the declarations, and `router.ts`, `host.ts`, `caller.ts`, `cache.ts`, `transfer.ts`, `contributions.ts` and `refusal.ts` build from them what the shell and the capabilities are handed |
   | | `shell/` | the window around the pages: the frame, the rail, the breadcrumb, the window controls, the error boundaries and the shortcut sheet, drawn from the surfaces and their `slots`; it names no feature. It was `layout/` until effort 840 |
   | | `prototype/` | the repository's prototype machinery, `switcher.svelte`, driven by `pnpm prototype` (`apps/desktop/scripts/prototype.mjs`), where throwaway prototype code is written ([[rules/module-layout]], under *Prototype code*) |
   | | `src/routes/` | the pages, layer-first as SvelteKit requires; a route composes and holds no wiring, importing only a home's components, a home's `ui.ts` and `app/` |

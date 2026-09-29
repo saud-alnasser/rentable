@@ -11,7 +11,7 @@
 	import { TURSO_DASHBOARD_URL } from '$lib/organization/setup/setup';
 	import { useSyncWorkspace } from '$lib/sync/ui';
 	import { accountRefusalSentence } from '$lib/error/refusal';
-	import { syncFaultOf, syncStandingSentence, syncStatusOf } from '$lib/workspace';
+	import { syncFaultOf, syncStandingSentence, syncStatusOf } from '$lib/sync';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 
 	/**
@@ -25,7 +25,7 @@
 	 * organization and could not tell what the block was for.*
 	 *
 	 * **One sentence, built from the standing and the moment** (effort 828, requirement 25).
-	 * `sync-status.ts` decides the standing and the order its answers are read in; this draws
+	 * `sync/status.ts` decides the standing and the order its answers are read in; this draws
 	 * what it decided. Up to date says when this machine last reached Turso, relative within a
 	 * day and as a date beyond it; a machine that never reached Turso says so rather than
 	 * claiming to be up to date; a standing that needs something says what needs doing, and

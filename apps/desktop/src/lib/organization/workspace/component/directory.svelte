@@ -66,7 +66,7 @@
 	 * and what this machine holds rather than from a bit on the row; renaming and granting are
 	 * acts, read by the area from the session and handed down.
 	 *
-	 * **The name is the open workspace's alone.** `remoteSync.rename` calls this machine's
+	 * **The name is the open workspace's alone.** `sync.rename` calls this machine's
 	 * workspace something else, and there is no command that renames one from a distance, so the
 	 * entry on another card would rename the wrong thing. Whoever holds `renameWorkspace` edits
 	 * the name of the workspace they are in, from the card that says it is open.

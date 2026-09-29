@@ -18,9 +18,9 @@ function mapUpdate(update: TauriUpdate): AvailableUpdate {
 /**
  * the updater's tauri commands and plugin: its port, satisfied by the Tauri shell.
  *
- * **Every command name and argument shape is the Rust side's**, and they are spelled here exactly
- * as they were in the platform facade, where they sat until effort 840 gave the updater its own
- * port.
+ * **Every command name and argument shape is the Rust side's.** The commands are the `update`
+ * plugin's, so each is `plugin:update|<command>`; the arguments are spelled as they were in the
+ * platform facade, where they sat until effort 840 gave the updater its own port.
  */
 export const tauri = {
 	prepare: (targetVersion: string) => invoke<Recovery>('plugin:update|prepare', { targetVersion }),

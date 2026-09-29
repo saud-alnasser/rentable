@@ -1,5 +1,5 @@
-// The tenant feature's strings in english, composed back into `i18n/en/index.ts` at `tenants` and
-// `common.refusals.tenant`. It imports nothing but types, because the typesafe-i18n generator
+// The tenant feature's strings in english, composed back into `i18n/en/index.ts` at `tenants`,
+// `common.refusals.tenant` and `common.actions`. It imports nothing but types, because the typesafe-i18n generator
 // transpiles it along with the locale.
 
 import type { BaseTranslation } from '../../i18n/i18n-types';
@@ -47,5 +47,12 @@ export const refusals = {
 		phoneTaken: 'phone is associated with a registered tenant.',
 		phoneTakenNamed: 'phone {named:string} is associated with a registered tenant.',
 		repeatedInSet: 'two tenants in this set claim {value:string}.'
+	}
+} satisfies BaseTranslation;
+
+// the create control's label on this feature's list, composed back at `common.actions`.
+export const common = {
+	actions: {
+		newTenant: 'new tenant'
 	}
 } satisfies BaseTranslation;

@@ -89,7 +89,7 @@ test('and the workspace opened is the one held last, where the session still hol
 		})
 	});
 	const remembered = harness({
-		remoteSync: fakeSyncState({ workspace: fakeWorkspace({ remoteId: 'south' }) }),
+		sync: fakeSyncState({ workspace: fakeWorkspace({ remoteId: 'south' }) }),
 		organization: held
 	});
 
@@ -98,7 +98,7 @@ test('and the workspace opened is the one held last, where the session still hol
 	assert.deepEqual(remembered.journal.workspacesOpened, ['south']);
 
 	const lost = harness({
-		remoteSync: fakeSyncState({ workspace: fakeWorkspace({ remoteId: 'gone' }) }),
+		sync: fakeSyncState({ workspace: fakeWorkspace({ remoteId: 'gone' }) }),
 		organization: held
 	});
 

@@ -4,7 +4,7 @@
 	 * can see where the focus landed. The navigation hook is registered here as the root layout
 	 * registers it.
 	 *
-	 * Scaffolding rather than a test, as `design/tests/list-motion-harness.svelte` is. `data` is
+	 * Scaffolding rather than a test, as `list/tests/list-motion-harness.svelte` is. `data` is
 	 * this fixture's own prop, so a test changes the result set with `rerender` exactly as a
 	 * refetch would.
 	 */

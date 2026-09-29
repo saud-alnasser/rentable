@@ -15,7 +15,7 @@ import { AWAITING_BLOCKERS } from '@rentable/design/confirmation.js';
  * the announcement and the control on it, rather than through the undo stack underneath: the
  * toast is substituted to keep what it was asked to render, and its control is pressed.
  *
- * The procedures are real, over the in-memory database `api/tests/testing.ts` builds, the way
+ * The procedures are real, over the in-memory database `app/tests/testing.ts` builds, the way
  * `api/tests/undo.test.ts` drives them. Nothing here reaches a workspace on disk or a remote.
  *
  * What a host does with a delete is read here too, as the pure step every host asks

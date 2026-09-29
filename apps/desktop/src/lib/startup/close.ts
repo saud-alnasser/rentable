@@ -42,8 +42,7 @@ export class WindowClose {
 
 			if (!skipSync && machine.current.state === 'ready') {
 				machine.set({
-					remoteSync: (await machine.ports.workspace.syncBeforeExit(machine.current.remoteSync))
-						.state
+					sync: (await machine.ports.workspace.syncBeforeExit(machine.current.sync)).state
 				});
 			}
 		} catch {

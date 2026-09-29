@@ -1,8 +1,10 @@
 import { routersOf } from '$lib/feature/feature';
 import { bindContributions } from '$lib/api/contribution';
+import { bindRefusalFields } from '$lib/error/refusal';
 import { router } from '$lib/api/trpc';
 import { contributions } from './contributions';
 import { features } from './features';
+import { refusalFields } from './refusal';
 
 /**
  * ROUTER
@@ -20,5 +22,8 @@ export const appRouter = router(routersOf(features));
  * procedure reads them off `ctx.contributions` when it runs (`$lib/api/contribution`).
  */
 bindContributions(contributions);
+
+/** and so is the field of a form each feature's refusals belong under (`./refusal`). */
+bindRefusalFields(refusalFields);
 
 export type AppRouter = typeof appRouter;

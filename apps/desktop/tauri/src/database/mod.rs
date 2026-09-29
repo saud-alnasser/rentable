@@ -141,7 +141,7 @@ impl Database {
     /// **It applies no migrations, and that is requirement 11 rather than an omission.** A
     /// workspace's schema is applied to its database over the wire, at creation and under a
     /// lease (`organization/lease/apply.rs`); the replica receives it as replicated pages. A client
-    /// that applied DDL of its own would not merely duplicate that work — DDL issued through the
+    /// that applied DDL of its own would not merely duplicate that work: DDL issued through the
     /// sync connection is captured as CDC and replicates, so one client's migration would reach
     /// every other replica.
     ///

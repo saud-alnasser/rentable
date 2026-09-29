@@ -1,5 +1,5 @@
-// The contract feature's strings in arabic, composed back into `i18n/ar/index.ts` at `contracts`
-// and `common.refusals.contract`. It imports nothing but types, because the typesafe-i18n generator
+// The contract feature's strings in arabic, composed back into `i18n/ar/index.ts` at `contracts`,
+// `common.refusals.contract` and `common.actions`. It imports nothing but types, because the typesafe-i18n generator
 // transpiles it along with the locale. Each object satisfies its own slice of the generated types,
 // so a key missing, left over or without its placeholder fails here.
 
@@ -197,3 +197,10 @@ export const refusals = {
 			'يحتفظ عقد آخر بواحدة أو أكثر من هذه الوحدات خلال المدة المحددة. اختر مدة أخرى.'
 	}
 } satisfies Pick<Translation['common']['refusals'], 'contract'>;
+
+// the create control's label on this feature's list, composed back at `common.actions`.
+export const common = {
+	actions: {
+		newContract: 'عقد جديد'
+	}
+} satisfies { actions: Pick<Translation['common']['actions'], 'newContract'> };

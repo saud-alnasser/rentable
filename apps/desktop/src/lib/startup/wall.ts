@@ -77,7 +77,7 @@ export async function signOut(machine: StartupMachine) {
 	const organization = await machine.ports.organization.signOut().catch(() => null);
 
 	machine.set({
-		remoteSync: await machine.ports.remoteSync.getState().catch(() => null),
+		sync: await machine.ports.sync.getState().catch(() => null),
 		organization: organization ?? {
 			organization: null,
 			session: null,
@@ -123,7 +123,7 @@ export async function disconnect(machine: StartupMachine) {
 
 	// the forget emptied the machine's own sync record as well, so the workspace it named is
 	// not one the next sign-in should look for.
-	machine.set({ remoteSync: await machine.ports.remoteSync.getState().catch(() => null) });
+	machine.set({ sync: await machine.ports.sync.getState().catch(() => null) });
 
 	await machine.standingChanged();
 }

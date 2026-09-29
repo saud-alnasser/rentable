@@ -8,15 +8,15 @@
 	import { Separator } from '@rentable/design/primitive/separator/index.js';
 	import * as Sidebar from '@rentable/design/primitive/sidebar/index.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
-	import LayoutBreadcrumb from '$lib/shell/component/breadcrumb.svelte';
+	import ShellBreadcrumb from '$lib/shell/component/breadcrumb.svelte';
 	import { CreateShortcut } from '$lib/create/ui';
-	import LayoutCaughtError from '$lib/shell/component/caught-error.svelte';
+	import ShellCaughtError from '$lib/shell/component/caught-error.svelte';
 	import { openPalette, PALETTE_SHORTCUT_HINT, providePalette } from '$lib/palette/ui';
 	import { ShortcutListener } from '$lib/shortcut/ui';
 	import { UndoShortcut } from '$lib/undo/ui';
-	import LayoutShortcutSheet from '$lib/shell/component/shortcut-sheet.svelte';
-	import LayoutSidebar from '$lib/shell/component/sidebar.svelte';
-	import LayoutWindowControls from '$lib/shell/component/window-controls.svelte';
+	import ShellShortcutSheet from '$lib/shell/component/shortcut-sheet.svelte';
+	import ShellSidebar from '$lib/shell/component/sidebar.svelte';
+	import ShellWindowControls from '$lib/shell/component/window-controls.svelte';
 	import { CAUGHT_ERROR_EVENT, toCaughtErrorFields } from '$lib/shell/boundary';
 	import { primaryDestinations, secondaryDestinations } from '$lib/shell/destination';
 	import { toBreadcrumbTrail, toViewablePlaces } from '$lib/shell/navigation';
@@ -129,7 +129,7 @@
 			     rail is what that means: the states drawn on the bare frame have no navigation, so
 			     offering to leave for the dashboard from one of them would be offering a way out
 			     that is not there. -->
-			<LayoutCaughtError {error} onRetry={reset} hasWorkingShell={hasRail} />
+			<ShellCaughtError {error} onRetry={reset} hasWorkingShell={hasRail} />
 		{/snippet}
 	</svelte:boundary>
 {/snippet}
@@ -150,7 +150,7 @@
 				<Sidebar.Trigger />
 				{#if hasBreadcrumb}
 					<Separator orientation="vertical" class="data-[orientation=vertical]:h-4" />
-					<LayoutBreadcrumb />
+					<ShellBreadcrumb />
 				{/if}
 				<Button
 					variant="outline"
@@ -183,7 +183,7 @@
 		{/if}
 
 		<div class="relative ms-auto">
-			<LayoutWindowControls />
+			<ShellWindowControls />
 		</div>
 	</header>
 {/snippet}
@@ -218,10 +218,10 @@
 					<surface.host />
 				{/if}
 			{/each}
-			<LayoutShortcutSheet bind:open={isShortcutSheetOpen} />
+			<ShellShortcutSheet bind:open={isShortcutSheetOpen} />
 		{/if}
 		<Sidebar.Provider class="h-full min-h-0 overflow-hidden">
-			<LayoutSidebar signedOut={isSignedOut} {onWayIn} {onSwitchWorkspace} />
+			<ShellSidebar signedOut={isSignedOut} {onWayIn} {onSwitchWorkspace} />
 			<Sidebar.Inset>
 				{@render titlebar()}
 				<div class="@container/main flex min-h-0 flex-1 flex-col overflow-y-auto">

@@ -38,7 +38,7 @@ vi.mock('$lib/shell/component/sidebar.svelte', () => ({ default: () => {} }));
 beforeAll(() => {
 	loadLocale('en');
 	setLocale('en');
-	// the two browser facts the rail's state reaches for, as `organization/tests/account-menu.svelte.test.ts` stubs
+	// the two browser facts the rail's state reaches for, as `organization/session/tests/account-menu.svelte.test.ts` stubs
 	// them: the shell breakpoint the stylesheet declares, read through `matchMedia`, and the
 	// `ResizeObserver` floating-ui measures with.
 	document.documentElement.style.setProperty('--breakpoint-shell', '48rem');

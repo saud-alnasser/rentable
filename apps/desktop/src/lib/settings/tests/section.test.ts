@@ -18,7 +18,7 @@ import {
  * The area is drawn from these answers, so they are read here rather than through a rendered
  * rail: what the address names, what the address for a section is, which of the four holds a name
  * that is gone, and which sections a reader is offered. `app/tests/settings-area.svelte.test.ts`
- * reads the same gating on screen, and `organization/tests/role.test.ts` the gate on the members
+ * reads the same gating on screen, and `organization/role/tests/role.test.ts` the gate on the members
  * directory, which is the organization section's own.
  */
 

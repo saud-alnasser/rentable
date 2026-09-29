@@ -54,7 +54,7 @@ import HostProviders from '$lib/organization/tests/host-providers.svelte';
  * Rust rather than a bit on anybody's row, so the section is handed who is reading, and the test
  * renders one reader and then another.
  *
- * **The rename is the open workspace's**, because `remoteSync.rename` calls this machine's
+ * **The rename is the open workspace's**, because `sync.rename` calls this machine's
  * workspace something else and there is no command that renames one from a distance. So the entry
  * is behind `renameWorkspace` and behind the open mark, and both are read below.
  *
@@ -63,7 +63,7 @@ import HostProviders from '$lib/organization/tests/host-providers.svelte';
  * it. Both halves are read here: the `href` a card carries, and what the section does when the
  * address carries one.
  *
- * **The address and the navigation are mocked**, the way `members.svelte.test.ts` mocks them:
+ * **The address and the navigation are mocked**, the way `organization/member/tests/directory.svelte.test.ts` mocks them:
  * `$app/state` carries no navigation under this runner, and `goto` has no router to reach.
  *
  * The rows the access dialog draws are the organization's members rather than its workspaces,

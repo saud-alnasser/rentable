@@ -31,7 +31,8 @@ const MIGRATION_EVENT = 'organization:migration';
 /**
  * the organization's tauri commands: its port, satisfied by the Tauri shell.
  *
- * **Every command name and argument shape is the Rust side's**, and they are spelled here exactly
+ * **Every command name and argument shape is the Rust side's.** The commands are the
+ * `organization` plugin's, so each is `plugin:organization|<command>`; the arguments are spelled
  * as they were in the platform facade, where they sat until effort 840 gave the organization its
  * own port.
  */

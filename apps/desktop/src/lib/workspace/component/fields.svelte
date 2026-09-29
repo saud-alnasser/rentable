@@ -13,7 +13,7 @@
 	 *
 	 * **The fields and not the form.** The surfaces that ask for a name each own their `<form>`,
 	 * because the form surface owns one and the standalone surface does not, so what they share
-	 * is the schema in `../workspace-form.ts` and this: one text input inside the input group,
+	 * is the schema in `../form.ts` and this: one text input inside the input group,
 	 * with the workspace's glyph leading it and the field's own error beside it. The caller owns
 	 * the `superForm` over that schema and hands it in.
 	 *

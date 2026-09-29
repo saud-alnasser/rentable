@@ -35,11 +35,11 @@
 	 * together as it mounted until effort 840, and this keeps that moment.
 	 *
 	 * **Whether anybody is signed in and the way to the wall are the route's to hand over**, from
-	 * `$lib/app/wall`: the one is the organization's and the other startup's, and settings reaches
-	 * neither. *This was the route itself until effort 840's ticket 34.*
+	 * `$lib/organization/ui` and `$lib/startup/ui`: the one is the organization's and the other
+	 * startup's, and settings reaches neither. *This was the route itself until effort 840's ticket 34.*
 	 *
 	 * **The section is `?section=` on this pathname, and the pathname is load-bearing.** This is
-	 * the one address that draws with nobody signed in (`startup/shell-surface.ts`), matched
+	 * the one address that draws with nobody signed in (`startup/screen.ts`), matched
 	 * exactly, and the back trail is keyed by pathname, so moving between sections is not leaving
 	 * the page. `settings/section.ts` says why that beat a segment per section.
 	 *
