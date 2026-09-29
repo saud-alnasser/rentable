@@ -35,9 +35,13 @@ const COMPLEX = { id: newId(), name: 'Al Nakheel', location: 'Riyadh' };
 vi.mock('$lib/complex/query', async (importOriginal) => ({
 	...(await importOriginal<typeof import('$lib/complex/query')>()),
 	useFetchComplex: () => ({ data: COMPLEX, isLoading: false }),
-	useFetchUnits: () => ({ data: [], isLoading: false }),
-	useListUnits: () => ({ data: [], isLoading: false, isFetching: false }),
 	useListComplexes: () => ({ data: [], isLoading: false, isFetching: false })
+}));
+
+vi.mock('$lib/complex/unit/query', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/complex/unit/query')>()),
+	useFetchUnits: () => ({ data: [], isLoading: false }),
+	useListUnits: () => ({ data: [], isLoading: false, isFetching: false })
 }));
 
 vi.mock('$lib/contract/query', async (importOriginal) => ({

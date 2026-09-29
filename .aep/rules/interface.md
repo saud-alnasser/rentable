@@ -371,7 +371,7 @@ and 8: contract is the first concept declared this way, and the others follow it
 **An ordinary delete happens at once and offers undo.** A record whose delete removes the record
 and nothing else is gone the moment the act is chosen, and the announcement it raises carries the
 undo control and the line saying the undo lasts while the application is open (the declaration's
-`toast.detail` in `mutation/mutation.ts`). Ctrl/Cmd+Z takes it back as well. There is no dialog in
+`toast.detail` in `mutation/announcement.ts`). Ctrl/Cmd+Z takes it back as well. There is no dialog in
 front of it.
 
 **A confirmation appears only where a delete removes more than the record, or cannot be undone.**
@@ -991,7 +991,7 @@ Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], re
 ### Feedback
 
 **Every toast goes through the shared handlers.** A mutation announces through its declaration and
-the handlers in `mutation/mutation.ts`; anything else, a failure raised outside a mutation or a
+the handlers in `mutation/announcement.ts`; anything else, a failure raised outside a mutation or a
 success nothing declared, goes through `$lib/notification`. The handlers raise through
 `$lib/notification` too, so `notification/notification.ts` is the only importer of `toast` and
 `notification/` the only home that mounts the packaged `Toaster`; `notification/tests/reach.test.ts`

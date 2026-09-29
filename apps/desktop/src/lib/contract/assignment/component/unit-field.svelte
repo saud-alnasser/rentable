@@ -11,7 +11,7 @@
 	import type { ContractForm } from '$lib/contract/form';
 	import type { ContractPrefill } from '$lib/contract/host.svelte';
 	import { useFetchAssignableUnitsForTerm } from '$lib/contract/query';
-	import { useReadUnit } from '$lib/complex/query';
+	import { useReadUnit } from '$lib/complex/unit/query';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';

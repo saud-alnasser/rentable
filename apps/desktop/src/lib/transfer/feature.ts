@@ -1,6 +1,6 @@
 import { defineFeature } from '$lib/feature/feature';
 import transferRouter from './router';
-import { sheetsOf, type SheetsOf } from './transfer';
+import { sheetsOf, type SheetsOf } from './sheet';
 
 /**
  * The transfer, declared from the features that hand it a sheet. Called once, by

@@ -53,8 +53,8 @@ vi.mock('$lib/tenant/query', async (importOriginal) => ({
 	useFetchTenants: () => ({ isLoading: false, data: [] })
 }));
 
-vi.mock('$lib/complex/query', async (importOriginal) => ({
-	...(await importOriginal<typeof import('$lib/complex/query')>()),
+vi.mock('$lib/complex/unit/query', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/complex/unit/query')>()),
 	useFetchUnit: () => ({ isLoading: false, data: UNIT }),
 	useReadUnit: () => async (id: string) => (id === UNIT.id ? UNIT : undefined)
 }));

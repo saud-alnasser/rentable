@@ -16,7 +16,8 @@
 		complexHostState,
 		resetComplexHost
 	} from '$lib/complex/host.svelte';
-	import { useDeleteComplex, useFetchUnits, useReadComplex } from '$lib/complex/query';
+	import { useDeleteComplex, useReadComplex } from '$lib/complex/query';
+	import { useFetchUnits } from '$lib/complex/unit/query';
 	import { consumeCreateIntent, landing } from '$lib/create';
 	import { toDeleteStep, toPaletteVerbs } from '$lib/act';
 	import { onMutationError, onMutationSuccess } from '$lib/mutation';

@@ -16,9 +16,20 @@ export {
 	toUnitReference
 } from './reference';
 export {
+	defineSheet,
+	type HeldName,
+	type Reference,
+	type Sheet,
+	type Transfer,
+	type TransferConcept,
+	type TransferInput,
+	type WorkspaceHeld,
+	type WorkspaceTransfer,
+	type Written
+} from './sheet';
+export {
 	bindTransfer,
 	countTransfer,
-	defineSheet,
 	emptyHeld,
 	emptyTransfer,
 	isWorkspaceImportable,
@@ -28,18 +39,9 @@ export {
 	toTransferInput,
 	toWorkbook,
 	transferConcepts,
-	type HeldName,
-	type Reference,
-	type Sheet,
-	type Transfer,
-	type TransferConcept,
-	type TransferInput,
 	type UnresolvedReference,
-	type WorkspaceHeld,
 	type WorkspacePlan,
-	type WorkspaceSheetPlan,
-	type WorkspaceTransfer,
-	type Written
+	type WorkspaceSheetPlan
 } from './transfer';
 // the port's Tauri adapter: writing the file a reader chose and reading one back, which a list's
 // export and the workspace's import and export reach through this entry rather than past it.

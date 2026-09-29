@@ -46,7 +46,11 @@ vi.mock('$lib/tenant/query', async (importOriginal) => ({
 
 vi.mock('$lib/complex/query', async (importOriginal) => ({
 	...(await importOriginal<typeof import('$lib/complex/query')>()),
-	useSearchComplexes: recording('complex'),
+	useSearchComplexes: recording('complex')
+}));
+
+vi.mock('$lib/complex/unit/query', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/complex/unit/query')>()),
 	useSearchUnits: recording('unit')
 }));
 

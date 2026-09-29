@@ -8,9 +8,9 @@ import { fileURLToPath } from 'node:url';
  * EVERY TOAST GOES THROUGH THE NOTIFICATION CAPABILITY
  *
  * Requirement 12 of [[efforts/832-the-interface-speaks-one-language-and-guides/spec]]: a surface
- * never raises a toast itself. It reports through the mutation handlers in `mutation/mutation.ts`,
- * or through `$lib/notification` for what no mutation stands behind, and the handlers raise
- * through `$lib/notification` too (requirement 20 of
+ * never raises a toast itself. It reports through the mutation handlers in
+ * `mutation/announcement.ts`, or through `$lib/notification` for what no mutation stands behind,
+ * and the handlers raise through `$lib/notification` too (requirement 20 of
  * [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]]). So `notification.ts` is the
  * only module that imports `toast`, and `notification/` the only home that mounts the packaged
  * `Toaster`. This reads the tree rather than trusting that nobody reached for either again.

@@ -8,15 +8,17 @@
  */
 export {
 	declareMutation,
-	describeOutcomeChange,
-	onMutationError,
-	onMutationSuccess,
 	type MutationChange,
 	type MutationDeclaration,
-	type MutationOptions,
 	type MutationToast,
 	type WorkspaceConcept
 } from './mutation';
+export {
+	describeOutcomeChange,
+	onMutationError,
+	onMutationSuccess,
+	type MutationOptions
+} from './announcement';
 export {
 	createCachePolicy,
 	invalidateRoot,

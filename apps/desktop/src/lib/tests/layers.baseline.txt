@@ -48,7 +48,7 @@ contract -> print : cycle
 contract -> tenant : cycle
 contract -> transfer : cycle
 contract -> workspace : cycle
-contract/assignment/component/unit-field.svelte -> complex/query.ts : deep
+contract/assignment/component/unit-field.svelte -> complex/unit/query.ts : deep
 contract/assignment/component/unit-pane.svelte -> complex/unit/host.svelte.ts : deep
 contract/component/details.svelte -> tenant/query.ts : deep
 contract/component/details.svelte -> unit : literal
@@ -175,6 +175,8 @@ payment/receipt.ts -> contract/schedule/cycle.ts : deep
 payment/receipt.ts -> contract/schedule/schedule.ts : deep
 payment/router.ts -> contract/contract.ts : deep
 payment/router.ts -> contract/reconcile.ts : deep
+payment/selection/router.ts -> contract/contract.ts : deep
+payment/selection/router.ts -> contract/reconcile.ts : deep
 payment/transfer.ts -> contract/contract.ts : deep
 platform -> api : cycle
 platform -> i18n : cycle

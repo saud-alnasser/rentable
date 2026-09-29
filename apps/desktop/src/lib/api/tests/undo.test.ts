@@ -73,15 +73,9 @@ const { applyUndo } = await import('$lib/undo');
 const { prefixOf } = await import('$lib/mutation');
 const { useQueryClient } = await import('@tanstack/svelte-query');
 const { useCreateTenant, useUpdateTenant, useDeleteTenant } = await import('$lib/tenant/query');
-const {
-	useCreateComplex,
-	useUpdateComplex,
-	useDeleteComplex,
-	useCreateUnit,
-	useCreateManyUnits,
-	useUpdateUnit,
-	useDeleteUnit
-} = await import('$lib/complex/query');
+const { useCreateComplex, useUpdateComplex, useDeleteComplex } = await import('$lib/complex/query');
+const { useCreateUnit, useCreateManyUnits, useUpdateUnit, useDeleteUnit } =
+	await import('$lib/complex/unit/query');
 const {
 	useCreateContract,
 	useDeleteContract,

@@ -46,6 +46,7 @@ mock.module('@tanstack/svelte-query', {
 const contract = await import('$lib/contract/selection/query');
 const tenant = await import('$lib/tenant/query');
 const complex = await import('$lib/complex/query');
+const unit = await import('$lib/complex/unit/query');
 const payment = await import('$lib/payment/query');
 const { loadLocale } = await import('$lib/i18n/i18n-util.sync');
 const { setLocale } = await import('$lib/i18n/i18n-svelte');
@@ -166,7 +167,7 @@ const DECLARATIONS = [
 		named: 'A12',
 		notice: (foreseen?: readonly string[]) =>
 			noticeFor(
-				complex.useDeleteManyUnits,
+				unit.useDeleteManyUnits,
 				{
 					deleted: [],
 					refused: [{ id: UNFORESEEN, name: 'A12', reason: 'holds-contracts' as const }]

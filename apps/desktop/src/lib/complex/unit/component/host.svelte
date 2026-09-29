@@ -7,7 +7,7 @@
 	import { AWAITING_BLOCKERS } from '@rentable/design/confirmation.js';
 	import { usesAppleKeyboard } from '@rentable/design/shortcut.js';
 	import { isUnitDeletable } from '$lib/complex/complex';
-	import { useDeleteUnit, useReadUnit } from '$lib/complex/query';
+	import { useDeleteUnit, useReadUnit } from '$lib/complex/unit/query';
 	import type { UnitActRecord } from '$lib/complex/unit/acts';
 	import {
 		closeUnitConfirmation,

@@ -4,7 +4,7 @@
 	import RecordSurface from '@rentable/design/block/record-surface.svelte';
 	import Specification from '@rentable/design/block/specification.svelte';
 	import * as Cell from '$lib/design/cell';
-	import { useFetchUnit } from '$lib/complex/query';
+	import { useFetchUnit } from '$lib/complex/unit/query';
 	import { unitActs } from '$lib/complex/unit/host.svelte';
 	import { toPageActions } from '$lib/act';
 	import type { Section } from '$lib/feature/surface';

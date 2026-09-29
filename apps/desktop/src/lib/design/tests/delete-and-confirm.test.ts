@@ -97,7 +97,8 @@ for (const glyph of [
 const { inverseStack } = await import('$lib/undo/undo');
 const { toDeleteStep } = await import('$lib/act');
 const { useDeleteTenant } = await import('$lib/tenant/query');
-const { useCreateComplex, useCreateUnit, useDeleteUnit } = await import('$lib/complex/query');
+const { useCreateComplex } = await import('$lib/complex/query');
+const { useCreateUnit, useDeleteUnit } = await import('$lib/complex/unit/query');
 const { useCreateContract, useDeleteContract } = await import('$lib/contract/query');
 const { useCreatePayment, useDeletePayment } = await import('$lib/payment/query');
 const { declareTenantActs } = await import('$lib/tenant/acts');

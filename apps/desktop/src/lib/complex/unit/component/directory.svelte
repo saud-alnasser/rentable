@@ -8,7 +8,7 @@
 		useListUnits,
 		usePlanManyUnits,
 		type UnitRefusalReason
-	} from '$lib/complex/query';
+	} from '$lib/complex/unit/query';
 	import { unitActs, unitHost } from '$lib/complex/unit/host.svelte';
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
 	import RecordCard from '@rentable/design/block/record-card.svelte';

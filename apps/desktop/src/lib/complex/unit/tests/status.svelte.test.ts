@@ -34,8 +34,8 @@ const { unit } = vi.hoisted(() => ({
 	}
 }));
 
-vi.mock('$lib/complex/query', async (importOriginal) => ({
-	...(await importOriginal<typeof import('$lib/complex/query')>()),
+vi.mock('$lib/complex/unit/query', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/complex/unit/query')>()),
 	useFetchUnit: () => ({ data: unit, isLoading: false })
 }));
 

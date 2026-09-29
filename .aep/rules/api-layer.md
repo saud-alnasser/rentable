@@ -205,9 +205,9 @@ message.** `FORBIDDEN` and `UNAUTHORIZED` are not refusals: the middlewares rais
 who reached a procedure the interface would not have drawn. Each reads as a sentence of its own,
 `common.failures.forbidden` and `common.failures.signedOut`, through `toRouterFailureText` in
 `error/refusal.ts`. Any other code reads as the declaration's unexpected sentence or the generic
-`common.messages.unexpectedError`. The message stays a developer's: `mutation/mutation.ts` records it
-in diagnostics, and a screen that already offers a details disclosure may show it there, never in
-visible text. *Revised 2026-09-25 by ticket 35 of the same effort: this read "they keep surfacing as
+`common.messages.unexpectedError`. The message stays a developer's: `mutation/announcement.ts`
+records it in diagnostics, and a screen that already offers a details disclosure may show it there,
+never in visible text. *Revised 2026-09-25 by ticket 35 of the same effort: this read "they keep surfacing as
 a generic failure", and the mutation handler, `toErrorMessage` and `toRefusalText` showed their
 English message instead.*
 

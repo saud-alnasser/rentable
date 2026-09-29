@@ -5,7 +5,8 @@
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { complexActs } from '$lib/complex/host.svelte';
-	import { useFetchComplex, useFetchUnits } from '$lib/complex/query';
+	import { useFetchComplex } from '$lib/complex/query';
+	import { useFetchUnits } from '$lib/complex/unit/query';
 	import { contributionsTo } from '$lib/feature/surface';
 	import { toPageActions } from '$lib/act';
 	import * as Cell from '$lib/design/cell';

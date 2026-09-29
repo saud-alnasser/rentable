@@ -8,7 +8,7 @@
 	import { onMutationError } from '$lib/mutation';
 	import { fieldOfFailure, toRefusalText } from '$lib/error/refusal';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import { useCreateManyUnits, useFetchUnits, useUpdateUnit } from '$lib/complex/query';
+	import { useCreateManyUnits, useFetchUnits, useUpdateUnit } from '$lib/complex/unit/query';
 	import type { DraftUnit } from '$lib/complex/unit/name';
 	import UnitEntry from './entry.svelte';
 	import PlusIcon from '@lucide/svelte/icons/plus';

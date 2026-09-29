@@ -1,7 +1,7 @@
 import { resolve } from '$app/paths';
 import { toPaletteActs } from '$lib/act';
 import { defineSurface } from '$lib/feature/surface';
-import { useSearchUnits } from '../query';
+import { useSearchUnits } from './query';
 import host from './component/host.svelte';
 import { unitActs, unitHost } from './host.svelte';
 

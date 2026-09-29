@@ -34,8 +34,8 @@ const { reads } = vi.hoisted(() => ({
 	reads: { sort: null as null | (() => ListSort | null), rows: [] as object[] }
 }));
 
-vi.mock('$lib/complex/query', async (importOriginal) => ({
-	...(await importOriginal<typeof import('$lib/complex/query')>()),
+vi.mock('$lib/complex/unit/query', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/complex/unit/query')>()),
 	useListUnits: (_complexId: () => string, _search: () => string, sort: () => ListSort | null) => {
 		reads.sort = sort;
 

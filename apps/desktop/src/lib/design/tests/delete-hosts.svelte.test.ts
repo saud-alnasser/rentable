@@ -75,8 +75,12 @@ vi.mock('$lib/tenant/query', async (importOriginal) => ({
 vi.mock('$lib/complex/query', async (importOriginal) => ({
 	...(await importOriginal<typeof import('$lib/complex/query')>()),
 	useDeleteComplex: noting('deleteComplex'),
+	useReadComplex: () => async () => undefined
+}));
+
+vi.mock('$lib/complex/unit/query', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/complex/unit/query')>()),
 	useDeleteUnit: noting('deleteUnit'),
-	useReadComplex: () => async () => undefined,
 	useReadUnit: () => async () => undefined,
 	useFetchUnits: settled(() => held.units)
 }));
