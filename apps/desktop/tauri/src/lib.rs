@@ -39,7 +39,6 @@ use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_fs::FsExt;
 use tokio::sync::RwLock;
 
-use crate::diagnostics::{DiagnosticLog, RotationLimits};
 use crate::machine::RemoteSync;
 use crate::persisted::Persisted;
 use crate::settings::Settings;
@@ -101,6 +100,12 @@ pub fn run() {
                 }
             },
         ))
+        // the application's own features, each an inline plugin. `diagnostics` first of them, so
+        // that its setup installs the log before anything after it can fail. None of them reads
+        // a window in its setup, since no window exists until every plugin's setup has run.
+        .plugin(diagnostics::plugin())
+        .plugin(window::plugin())
+        .plugin(settings::plugin())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -119,15 +124,8 @@ pub fn run() {
             std::fs::create_dir_all(&data_dir).expect("failed to create directory");
 
             let clock = app.state::<clock::Shared>().inner().clone();
+            // the log itself was installed by the diagnostics plugin's setup, which ran first.
             let diagnostics_dir = data_dir.join(diagnostics::DIRECTORY_NAME);
-
-            // installed before anything else can fail, so that what fails next
-            // is recorded. A log that cannot be opened is the one failure with
-            // nowhere to report itself.
-            match DiagnosticLog::new(diagnostics_dir.clone(), RotationLimits::DEFAULT) {
-                Ok(log) => diagnostics::install(log, clock.clone()),
-                Err(error) => eprintln!("failed to open the diagnostics log: {error}"),
-            }
 
             // **Where a development build keeps its databases, and it is a fixed place now.**
             //
@@ -238,18 +236,8 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            window::window_show,
-            window::window_hide,
-            window::window_minimize,
-            window::window_maximize,
-            window::window_drag,
-            window::window_close,
-            window::window_restart,
             database::command::db_execute_single_sql,
             database::command::db_execute_batch_sql,
-            settings::settings_get,
-            settings::settings_set,
-            diagnostics::diagnostics_write,
             sync::remote_sync_state_get,
             organization::workspace::remote_sync_rename_workspace,
             organization::session::remote_sync_replicate,

@@ -9,12 +9,14 @@
 //! [`DiagnosticRecord::redacted`].
 
 mod command;
+mod plugin;
 mod record;
 mod writer;
 
 // a glob, because `#[tauri::command]` also generates a macro the handler list
 // resolves through, and naming the function alone leaves it behind.
 pub use command::*;
+pub use plugin::plugin;
 pub use record::{DiagnosticLevel, DiagnosticRecord, REDACTED};
 pub use writer::{DiagnosticLog, RotationLimits};
 
@@ -28,7 +30,8 @@ pub const DIRECTORY_NAME: &str = "logs";
 /// the log, and the clock that says when each event it is given happened.
 static LOG: OnceLock<(DiagnosticLog, clock::Shared)> = OnceLock::new();
 
-/// point the process at a log, and the clock that stamps what it is given, once, during setup.
+/// point the process at a log, and the clock that stamps what it is given, once, during the
+/// plugin's setup.
 ///
 /// Nothing else in this crate takes a log as an argument. An event is written
 /// from wherever the thing happened — a migration, a snapshot, a failed

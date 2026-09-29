@@ -25,7 +25,220 @@ fn main() {
     write_workspace_schema_version(&migrations);
     write_workspace_migrations(&manifest_dir.join("migrations"));
 
-    tauri_build::build()
+    let plugins = feature_plugins(&manifest_dir.join("src"));
+
+    write_feature_plugins(&plugins);
+    build_with(&plugins);
+}
+
+/// One of the application's own features, served as an inline plugin: the name it registers
+/// under and the commands its handler answers to.
+struct FeaturePlugin {
+    /// the directory under `src/` that holds it, and so the Rust path to its commands.
+    module: String,
+    /// the name in its `Builder::new(..)`, the `<name>` of `plugin:<name>|<command>`.
+    name: String,
+    /// each command as the handler names it: a `super::` or `crate::` path from its `plugin.rs`.
+    handled: Vec<String>,
+    /// each command as it is invoked and allowed: its function name with `<module>_` taken off.
+    commands: Vec<String>,
+}
+
+/// Every `src/<module>/plugin.rs`, read for its name and its handler.
+///
+/// **The command list is derived, not kept.** A plugin's commands are checked against the ACL by
+/// exact name, and nothing in Tauri checks that list against the handler, so a command that is
+/// handled but not listed is refused at runtime and nowhere earlier. Reading the list out of the
+/// one `generate_handler!` each plugin has leaves no second list to forget. A command answers to
+/// its function name with the feature's prefix taken off, through `#[tauri::command(rename)]`,
+/// and the test in `guard/acl.rs` holds each rename to the name derived here.
+///
+/// The parse is strict rather than forgiving: an entry that is not a plain path (one behind a
+/// `#[cfg]`, say, which would make the list differ between builds) fails the build and says why.
+fn feature_plugins(source: &Path) -> Vec<FeaturePlugin> {
+    // the directory itself, so that a plugin added in a new module is noticed.
+    println!("cargo:rerun-if-changed={}", source.display());
+
+    let mut plugins: Vec<FeaturePlugin> = fs::read_dir(source)
+        .unwrap_or_else(|error| panic!("cannot read {}: {error}", source.display()))
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.path().join("plugin.rs"))
+        .filter(|path| path.is_file())
+        .map(|path| {
+            println!("cargo:rerun-if-changed={}", path.display());
+
+            let module = path
+                .parent()
+                .and_then(|folder| folder.file_name())
+                .and_then(|name| name.to_str())
+                .expect("a plugin outside a named module")
+                .to_string();
+            let text = fs::read_to_string(&path)
+                .unwrap_or_else(|error| panic!("cannot read {}: {error}", path.display()));
+
+            feature_plugin(module, &text)
+        })
+        .collect();
+
+    plugins.sort_by(|a, b| a.module.cmp(&b.module));
+    plugins
+}
+
+fn feature_plugin(module: String, text: &str) -> FeaturePlugin {
+    let file = format!("src/{module}/plugin.rs");
+
+    let name = only_one(text, "Builder::new(\"", &file)
+        .split('"')
+        .next()
+        .expect("a split yields at least one piece")
+        .to_string();
+
+    let handler = only_one(text, "generate_handler![", &file);
+    let handler = &handler[..handler
+        .find(']')
+        .unwrap_or_else(|| panic!("{file}: its `generate_handler![` is not closed"))];
+
+    let handled: Vec<String> = handler
+        .split(',')
+        .map(str::trim)
+        .filter(|entry| !entry.is_empty())
+        .map(|entry| {
+            let plain = entry.split("::").all(|part| {
+                !part.is_empty() && part.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+            });
+
+            if !plain || !(entry.starts_with("super::") || entry.starts_with("crate::")) {
+                panic!(
+                    "{file}: `{entry}` in its handler is not a plain `super::` or `crate::` path, \
+                     and the command list is read from the handler"
+                );
+            }
+
+            entry.to_string()
+        })
+        .collect();
+
+    let prefix = format!("{module}_");
+    let commands = handled
+        .iter()
+        .map(|entry| {
+            let function = entry.rsplit("::").next().expect("a path has a last part");
+
+            function
+                .strip_prefix(&prefix)
+                .unwrap_or(function)
+                .to_string()
+        })
+        .collect();
+
+    FeaturePlugin {
+        module,
+        name,
+        handled,
+        commands,
+    }
+}
+
+/// The text after the one occurrence of `marker` in a plugin's source.
+fn only_one<'a>(text: &'a str, marker: &str, file: &str) -> &'a str {
+    let mut found = text.match_indices(marker);
+
+    let Some((at, _)) = found.next() else {
+        panic!("{file}: no `{marker}` in a plugin's source");
+    };
+
+    if found.next().is_some() {
+        panic!("{file}: more than one `{marker}`, where a plugin has one name and one handler");
+    }
+
+    &text[at + marker.len()..]
+}
+
+/// The derived lists, written for the test in `guard/acl.rs` to hold against the handlers.
+///
+/// `handled` spells each handler entry as the macro `#[tauri::command]` generates beside its
+/// function, `__tauri_command_name_<fn>!()`, which is the very string the handler's `match`
+/// compares an invoke against. So the test compares what the ACL allows with what the handler
+/// answers, rather than two readings of the same text.
+fn write_feature_plugins(plugins: &[FeaturePlugin]) {
+    let entries: Vec<String> = plugins
+        .iter()
+        .map(|plugin| {
+            let commands: Vec<String> = plugin
+                .commands
+                .iter()
+                .map(|command| format!("{command:?}"))
+                .collect();
+            let handled: Vec<String> = plugin
+                .handled
+                .iter()
+                .map(|entry| {
+                    let entry = match entry.strip_prefix("super::") {
+                        Some(rest) => format!("crate::{}::{rest}", plugin.module),
+                        None => entry.clone(),
+                    };
+                    let (path, function) = entry.rsplit_once("::").expect("a path has a last part");
+
+                    format!("{path}::__tauri_command_name_{function}!()")
+                })
+                .collect();
+
+            format!(
+                "    FeaturePlugin {{ module: {:?}, name: {:?}, commands: &[{}], handled: &[{}] }},",
+                plugin.module,
+                plugin.name,
+                commands.join(", "),
+                handled.join(", ")
+            )
+        })
+        .collect();
+    let out_dir = PathBuf::from(env::var("OUT_DIR").expect("missing out dir"));
+    let source = format!(
+        "pub const FEATURE_PLUGINS: &[FeaturePlugin] = &[\n{}\n];\n",
+        entries.join("\n")
+    );
+
+    fs::write(out_dir.join("feature-plugins.rs"), source)
+        .expect("cannot write the feature plugins");
+}
+
+/// `tauri_build::build()`, with each feature plugin registered so that its commands have
+/// permissions: an `allow-<command>` for each, and a `default` allowing them all, which is what
+/// `capabilities/default.json` grants as `"<name>:default"`.
+fn build_with(plugins: &[FeaturePlugin]) {
+    let mut attributes = tauri_build::Attributes::new();
+
+    for plugin in plugins {
+        // `commands` takes `&'static` data, which a build script that runs once and exits can
+        // give it by leaking what it read.
+        let commands: Vec<&'static str> = plugin
+            .commands
+            .iter()
+            .map(|command| &*Box::leak(command.clone().into_boxed_str()))
+            .collect();
+
+        attributes = attributes.plugin(
+            Box::leak(plugin.name.clone().into_boxed_str()),
+            tauri_build::InlinedPlugin::new()
+                .commands(Box::leak(commands.into_boxed_slice()))
+                .default_permission(tauri_build::DefaultPermissionRule::AllowAllCommands),
+        );
+    }
+
+    // what `tauri_build::build()` does with its default attributes, word for word.
+    if let Err(error) = tauri_build::try_build(attributes) {
+        let error = format!("{error:#}");
+        println!("{error}");
+        if error.starts_with("unknown field") {
+            print!(
+                "found an unknown configuration field. This usually means that you are using a CLI version that is newer than `tauri-build` and is incompatible. "
+            );
+            println!(
+                "Please try updating the Rust crates by running `cargo update` in the Tauri app folder."
+            );
+        }
+        std::process::exit(1);
+    }
 }
 
 /// Where the workspace migrations actually live: `packages/workspace-migrations`.

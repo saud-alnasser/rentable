@@ -8,6 +8,9 @@
 		"core:webview:allow-print",
 		"opener:default",
 		"updater:default",
-		"dialog:default"
+		"dialog:default",
+		"diagnostics:default",
+		"window:default",
+		"settings:default"
 	]
 }

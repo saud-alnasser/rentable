@@ -32,7 +32,7 @@ use crate::clock::Clock;
 /// **A port rather than the settings themselves**, which is what keeps this module below the ones
 /// that write it: the settings are served by a module that reaches the application state, and the
 /// state holds this record, so naming them here would put the record back on a cycle. The
-/// settings answer it (`settings.rs`); a test answers it with any settings file it likes.
+/// settings answer it (`settings/mod.rs`); a test answers it with any settings file it likes.
 pub trait DatabasePath: Send + Sync {
     fn database_path(&self) -> Pin<Box<dyn Future<Output = PathBuf> + Send + '_>>;
 }

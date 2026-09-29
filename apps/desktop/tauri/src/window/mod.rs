@@ -1,21 +1,30 @@
+//! the application window: the frameless shell's own controls, served as the `window` plugin.
+//!
+//! Each command keeps its crate-unique Rust name and answers to the name without the feature
+//! prefix, since the plugin supplies it: `window_show` is invoked as `plugin:window|show`.
+
+mod plugin;
+
+pub use plugin::plugin;
+
 use crate::error::Error;
 
-#[tauri::command]
+#[tauri::command(rename = "show")]
 pub fn window_show(window: tauri::Window) -> Result<(), Error> {
     Ok(window.show()?)
 }
 
-#[tauri::command]
+#[tauri::command(rename = "hide")]
 pub fn window_hide(window: tauri::Window) -> Result<(), Error> {
     Ok(window.hide()?)
 }
 
-#[tauri::command]
+#[tauri::command(rename = "minimize")]
 pub fn window_minimize(window: tauri::Window) -> Result<(), Error> {
     Ok(window.minimize()?)
 }
 
-#[tauri::command]
+#[tauri::command(rename = "maximize")]
 pub fn window_maximize(window: tauri::Window) -> Result<(), Error> {
     if window.is_maximized()? {
         Ok(window.unmaximize()?)
@@ -24,17 +33,17 @@ pub fn window_maximize(window: tauri::Window) -> Result<(), Error> {
     }
 }
 
-#[tauri::command]
+#[tauri::command(rename = "drag")]
 pub fn window_drag(window: tauri::Window) -> Result<(), Error> {
     Ok(window.start_dragging()?)
 }
 
-#[tauri::command]
+#[tauri::command(rename = "close")]
 pub fn window_close(window: tauri::Window) -> Result<(), Error> {
     Ok(window.destroy()?)
 }
 
-#[tauri::command]
+#[tauri::command(rename = "restart")]
 pub fn window_restart(app: tauri::AppHandle) -> Result<(), Error> {
     app.restart();
 }

@@ -26,13 +26,13 @@ export type { DiagnosticRecord } from '$lib/platform/host';
  */
 export const tauri = {
 	window: {
-		show: () => invoke<void>('window_show'),
-		hide: () => invoke<void>('window_hide'),
-		minimize: () => invoke<void>('window_minimize'),
-		maximize: () => invoke<void>('window_maximize'),
-		drag: () => invoke<void>('window_drag'),
-		close: () => invoke<void>('window_close'),
-		restart: () => invoke<void>('window_restart')
+		show: () => invoke<void>('plugin:window|show'),
+		hide: () => invoke<void>('plugin:window|hide'),
+		minimize: () => invoke<void>('plugin:window|minimize'),
+		maximize: () => invoke<void>('plugin:window|maximize'),
+		drag: () => invoke<void>('plugin:window|drag'),
+		close: () => invoke<void>('plugin:window|close'),
+		restart: () => invoke<void>('plugin:window|restart')
 	},
 	opener: {
 		openUrl: (url: string) => openExternalUrl(url),
@@ -90,12 +90,13 @@ export const tauri = {
 		}
 	},
 	diagnostics: {
-		write: (record: DiagnosticRecord) => invoke<void>('diagnostics_write', { record }),
+		write: (record: DiagnosticRecord) => invoke<void>('plugin:diagnostics|write', { record }),
 		/**
 		 * The folder the diagnostics file is kept in, as the settings the shell holds report it.
 		 * The same command settings read their file with (`$lib/settings/tauri`), asked for this
 		 * one field, because the screens that open the folder are no feature's.
 		 */
-		directory: async () => (await invoke<{ diagnosticsDir: string }>('settings_get')).diagnosticsDir
+		directory: async () =>
+			(await invoke<{ diagnosticsDir: string }>('plugin:settings|get')).diagnosticsDir
 	}
 } satisfies PlatformHost;

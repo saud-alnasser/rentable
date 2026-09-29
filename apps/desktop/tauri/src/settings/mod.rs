@@ -1,3 +1,12 @@
+//! how this machine is set up, stored as `settings.json` and served as the `settings` plugin.
+//!
+//! Each command keeps its crate-unique Rust name and answers to the name without the feature
+//! prefix, since the plugin supplies it: `settings_get` is invoked as `plugin:settings|get`.
+
+mod plugin;
+
+pub use plugin::plugin;
+
 use std::{future::Future, path::PathBuf, pin::Pin};
 
 use crate::{
@@ -142,13 +151,13 @@ pub struct SettingsChangeset {
     pub earlier_records_settled: Option<bool>,
 }
 
-#[tauri::command]
+#[tauri::command(rename = "get")]
 pub async fn settings_get(app_state: tauri::State<'_, AppState>) -> Result<Settings, Error> {
     let settings = app_state.settings.read().await;
     Ok(settings.inner().clone())
 }
 
-#[tauri::command]
+#[tauri::command(rename = "set")]
 pub async fn settings_set(
     app_state: tauri::State<'_, AppState>,
     changeset: SettingsChangeset,
