@@ -148,7 +148,8 @@ the `.aep/` rules and contexts that describe the layout.
 8. No shared locale file is edited when a feature's strings change; each concept's strings sit in
    a file of their own; `pnpm check` fails on a key present in one locale and missing in the other.
 9. `lib.rs` names no command and no feature's state type; adding a Rust feature with commands and
-   state changes at most one line in `lib.rs` and none in `state.rs`.
+   state adds its module line and its plugin line to `lib.rs` and nothing else there. *Amended by the
+   human on 2026-09-29: Rust needs both lines, and the plugins make "at most one line" two.*
 10. `organization/` has one subdirectory per sub-concept, each with its own store and commands; no
     command repeats the signed-in check, the pull, or the machine record's lock inline.
 11. The Turso adapter is a top-level module; `sync` imports nothing from `organization` and
