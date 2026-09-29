@@ -1,7 +1,8 @@
 // The complex feature's strings in arabic, composed back into `i18n/ar/index.ts` at `complexes`,
-// `common.refusals.complex`, `common.refusals.unit` and `common.actions`. It imports nothing but types, because the
-// typesafe-i18n generator transpiles it along with the locale. Each object satisfies its own slice
-// of the generated types, so a key missing, left over or without its placeholder fails here.
+// `common.refusals.complex`, `common.actions` and `common.labels`. It imports nothing but types,
+// because the typesafe-i18n generator transpiles it along with the locale. Each object satisfies
+// its own slice of the generated types, so a key missing, left over or without its placeholder
+// fails here.
 
 import type { Translation } from '../../i18n/i18n-types';
 
@@ -60,20 +61,21 @@ export const refusals = {
 		nameTaken: 'الاسم مرتبط بمجمع مسجل مسبقاً.',
 		nameTakenNamed: 'الاسم {named} مرتبط بمجمع مسجل مسبقاً.',
 		repeatedInSet: 'مجمعان في هذه المجموعة يطالبان بـ {value}.'
-	},
-	unit: {
-		gone: 'لم تعد هذه الوحدة موجودة في مساحة العمل. أعد التحميل لترى ما تغيّر.',
-		holdsContracts: 'هناك عقد يذكر هذه الوحدة، فلا يمكن حذفها.',
-		nameRepeated: 'الاسم {name} مكرر؛ لكل وحدة اسمها الخاص.',
-		nameTaken: 'الاسم مرتبط بوحدة في نفس المجمع.',
-		nameTakenNamed: 'الاسم {named} مرتبط بوحدة في نفس المجمع.',
-		repeatedInSet: 'وحدتان في هذه المجموعة تطالبان بـ {value}.'
 	}
-} satisfies Pick<Translation['common']['refusals'], 'complex' | 'unit'>;
+} satisfies Pick<Translation['common']['refusals'], 'complex'>;
 
-// the create control's label on this feature's list, composed back at `common.actions`.
+// the create control's label on this feature's list, composed back at `common.actions`, and the
+// complex's column labels, at `common.labels`.
 export const common = {
 	actions: {
 		newComplex: 'مجمع جديد'
+	},
+	labels: {
+		location: 'الموقع',
+		occupiedUnits: 'وحدات مشغولة',
+		vacantUnits: 'وحدات شاغرة'
 	}
-} satisfies { actions: Pick<Translation['common']['actions'], 'newComplex'> };
+} satisfies {
+	actions: Pick<Translation['common']['actions'], 'newComplex'>;
+	labels: Pick<Translation['common']['labels'], 'location' | 'occupiedUnits' | 'vacantUnits'>;
+};

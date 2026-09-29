@@ -1,6 +1,6 @@
 // The shell's strings in english, composed back into `i18n/en/index.ts` at `layout.notFound`,
-// `layout.error` and `common.window`. It imports nothing but types, because the typesafe-i18n
-// generator transpiles it along with the locale.
+// `layout.error`, `common.window` and `common.actions`. It imports nothing but types, because the
+// typesafe-i18n generator transpiles it along with the locale.
 
 import type { BaseTranslation } from '../../i18n/i18n-types';
 
@@ -22,10 +22,16 @@ export const layout = {
 	}
 } satisfies BaseTranslation;
 
+// the frame's window controls, composed back at `common.window`, and its go-back and menu controls,
+// at `common.actions`.
 export const common = {
 	window: {
 		close: 'close window',
 		minimize: 'minimize window',
 		toggleMaximize: 'toggle maximize window'
+	},
+	actions: {
+		goBack: 'go back',
+		openMenu: 'open menu'
 	}
 } satisfies BaseTranslation;

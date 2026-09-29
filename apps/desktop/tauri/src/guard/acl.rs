@@ -5,9 +5,9 @@
 //! Tauri checks a plugin's commands against that list by exact name and checks the list against
 //! nothing, so a command handled but not listed would be refused at runtime and nowhere earlier.
 //! What is held here is that the list the build wrote is what the handler answers, that the
-//! capability grants each plugin its default, that no plugin takes the name of one of Tauri's own,
-//! that `lib.rs` registers them in the order the plan sets, and that it composes them and does
-//! nothing a feature does.
+//! capability grants each plugin its default, that no plugin takes the name of one of Tauri's own
+//! or of one `lib.rs` registers from a crate, that `lib.rs` registers them in the order the plan
+//! sets, and that it composes them and does nothing a feature does.
 //!
 //! The list the build wrote is also the one derivation of each plugin's commands the crate's other
 //! tests read (`plugin_in`): the organization's gate test holds every command it names to a gate
@@ -130,6 +130,58 @@ mod tests {
                 !CORE_PLUGINS.contains(&plugin.name),
                 "src/{}/plugin.rs registers as `{}`, the name of a Tauri core plugin, which \
                  replaces it at build time; give it a name of its own",
+                plugin.module,
+                plugin.name
+            );
+        }
+    }
+
+    /// **Criterion 9.** No feature plugin takes the name of a plugin `lib.rs` registers from a
+    /// crate: single-instance before the feature plugins, and deep-link, opener, dialog, fs and
+    /// the updater after them.
+    ///
+    /// The plugin store drops a plugin whose name a later one takes, as it does for the core
+    /// plugins above, so a feature plugin named `dialog` would be replaced by the dialog crate's
+    /// and a feature plugin registered after single-instance under its name would replace it. The
+    /// names are read off `lib.rs`: each `tauri_plugin_<crate>` it names registers as the crate's
+    /// suffix with its underscores as hyphens, which is the `Builder::new(..)` of every one of
+    /// them in the versions `Cargo.lock` holds (`deep-link` 2.5.0, `opener` 2.6.0, `dialog` 2.8.0,
+    /// `fs` 2.6.0, `updater` 2.13.0, `single-instance` 2.5.0).
+    #[test]
+    fn no_plugin_takes_the_name_of_a_registered_plugin() {
+        let lib = read("src/lib.rs");
+        let mut registered: Vec<String> = lib
+            .match_indices("tauri_plugin_")
+            .map(|(at, marker)| {
+                lib[at + marker.len()..]
+                    .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+                    .next()
+                    .unwrap_or_default()
+                    .replace('_', "-")
+            })
+            .collect();
+        registered.sort();
+        registered.dedup();
+
+        assert_eq!(
+            registered,
+            vec![
+                "deep-link",
+                "dialog",
+                "fs",
+                "opener",
+                "single-instance",
+                "updater"
+            ],
+            "lib.rs names a different set of plugin crates than this guard was checked against; \
+             read each one's `Builder::new(..)` and extend the list"
+        );
+
+        for plugin in FEATURE_PLUGINS {
+            assert!(
+                !registered.iter().any(|name| name == plugin.name),
+                "src/{}/plugin.rs registers as `{}`, the name of a plugin lib.rs registers from a \
+                 crate, and one of the two replaces the other; give it a name of its own",
                 plugin.module,
                 plugin.name
             );

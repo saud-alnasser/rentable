@@ -1,7 +1,8 @@
 // The contract feature's strings in arabic, composed back into `i18n/ar/index.ts` at `contracts`,
-// `common.refusals.contract` and `common.actions`. It imports nothing but types, because the typesafe-i18n generator
-// transpiles it along with the locale. Each object satisfies its own slice of the generated types,
-// so a key missing, left over or without its placeholder fails here.
+// `common.refusals.contract`, `common.actions` and `common.labels`. It imports nothing but types,
+// because the typesafe-i18n generator transpiles it along with the locale. Each object satisfies
+// its own slice of the generated types, so a key missing, left over or without its placeholder
+// fails here.
 
 import type { Translation } from '../../i18n/i18n-types';
 
@@ -198,9 +199,52 @@ export const refusals = {
 	}
 } satisfies Pick<Translation['common']['refusals'], 'contract'>;
 
-// the create control's label on this feature's list, composed back at `common.actions`.
+// the create control's label on this feature's list and the labels of its acts, composed back at
+// `common.actions`, and the contract's field and column labels, at `common.labels`.
 export const common = {
 	actions: {
-		newContract: 'عقد جديد'
+		newContract: 'عقد جديد',
+		remind: 'تذكير المستأجر',
+		unterminate: 'إلغاء الإنهاء',
+		renew: 'تجديد',
+		renewing: 'جاري التجديد...',
+		restoring: 'جاري الاستعادة...',
+		terminate: 'إنهاء',
+		terminating: 'جاري الإنهاء...'
+	},
+	labels: {
+		costPerPayment: 'التكلفة لكل دفعة',
+		cycle: 'الدورة',
+		end: 'النهاية',
+		expected: 'المتوقع',
+		governmentId: 'المعرف الحكومي',
+		governmentIdOptional: 'المعرف الحكومي (اختياري)',
+		paid: 'المدفوع',
+		rank: 'الأولوية',
+		start: 'البداية'
 	}
-} satisfies { actions: Pick<Translation['common']['actions'], 'newContract'> };
+} satisfies {
+	actions: Pick<
+		Translation['common']['actions'],
+		| 'newContract'
+		| 'remind'
+		| 'unterminate'
+		| 'renew'
+		| 'renewing'
+		| 'restoring'
+		| 'terminate'
+		| 'terminating'
+	>;
+	labels: Pick<
+		Translation['common']['labels'],
+		| 'costPerPayment'
+		| 'cycle'
+		| 'end'
+		| 'expected'
+		| 'governmentId'
+		| 'governmentIdOptional'
+		| 'paid'
+		| 'rank'
+		| 'start'
+	>;
+};

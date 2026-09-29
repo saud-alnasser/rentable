@@ -14,6 +14,70 @@ import ts from 'typescript';
 // vocabulary that grows without being named below.
 
 /**
+ * the controls' verbs and the headings' and columns' nouns written in the index, key by key rather
+ * than as the whole of `common.actions` and `common.labels`, because those two also hold what the
+ * concepts compose in: a concept's string written back among them fails here as a string written
+ * in the index, and one moved out fails as vocabulary the index no longer writes.
+ */
+const SHARED_ACTIONS = [
+	'add',
+	'cancel',
+	'chooseFile', // read by nothing today, kept so the generated types stay identical
+	'clearSearch',
+	'copyDetails',
+	'create',
+	'customizeColumns', // read by nothing today, kept so the generated types stay identical
+	'delete',
+	'deleting',
+	'details',
+	'duplicate',
+	'edit',
+	'export',
+	'import',
+	'openPayments', // read by nothing today, kept so the generated types stay identical
+	'proceed', // read by nothing today, kept so the generated types stay identical
+	'remove',
+	'restore', // read by nothing today, kept so the generated types stay identical
+	'rollback', // read by nothing today, kept so the generated types stay identical
+	'rollingBack', // read by nothing today, kept so the generated types stay identical
+	'save',
+	'saveDatabasePath', // read by nothing today, kept so the generated types stay identical
+	'saveWindow', // read by nothing today, kept so the generated types stay identical
+	'saving',
+	'signIn',
+	'update',
+	'useDefaultPath', // read by nothing today, kept so the generated types stay identical
+	'working'
+];
+
+const SHARED_LABELS = [
+	'action', // read by nothing today, kept so the generated types stay identical
+	'activeContracts',
+	'appVersion', // read by nothing today, kept so the generated types stay identical
+	'complex',
+	'contract',
+	'contractEnds', // read by nothing today, kept so the generated types stay identical
+	'contractNumber',
+	'contractPeriod',
+	'currentDatabasePath', // read by nothing today, kept so the generated types stay identical
+	'currentValue', // read by nothing today, kept so the generated types stay identical
+	'customDatabasePathOverride', // read by nothing today, kept so the generated types stay identical
+	'defaultDatabasePath', // read by nothing today, kept so the generated types stay identical
+	'dueBalance', // read by nothing today, kept so the generated types stay identical
+	'dueBalanceCoveredToDate', // read by nothing today, kept so the generated types stay identical
+	'information', // read by nothing today, kept so the generated types stay identical
+	'name',
+	'nationalId',
+	'noticeWindowDays', // read by nothing today, kept so the generated types stay identical
+	'paymentFulfillment',
+	'phone',
+	'remainingDueBalance', // read by nothing today, kept so the generated types stay identical
+	'status',
+	'tenant',
+	'units'
+];
+
+/**
  * the key paths whose strings are written in the index itself, because every concept speaks them
  * rather than one: the verbs on controls, the nouns in headings and columns, the navigation, the
  * statuses a record shows, the generic chrome of the frame, and the words an error or a refusal
@@ -21,12 +85,12 @@ import ts from 'typescript';
  */
 const SHARED = [
 	'app',
-	'common.actions',
+	...SHARED_ACTIONS.map((key) => `common.actions.${key}`),
 	'common.deleteDialog',
 	'common.errors',
 	'common.failures',
 	'common.formats',
-	'common.labels',
+	...SHARED_LABELS.map((key) => `common.labels.${key}`),
 	'common.messages',
 	'common.nav',
 	'common.refusals.host',

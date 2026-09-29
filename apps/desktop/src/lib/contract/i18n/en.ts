@@ -1,6 +1,6 @@
 // The contract feature's strings in english, composed back into `i18n/en/index.ts` at `contracts`,
-// `common.refusals.contract` and `common.actions`. It imports nothing but types, because the typesafe-i18n generator
-// transpiles it along with the locale.
+// `common.refusals.contract`, `common.actions` and `common.labels`. It imports nothing but types,
+// because the typesafe-i18n generator transpiles it along with the locale.
 
 import type { BaseTranslation } from '../../i18n/i18n-types';
 
@@ -210,9 +210,28 @@ export const refusals = {
 	}
 } satisfies BaseTranslation;
 
-// the create control's label on this feature's list, composed back at `common.actions`.
+// the create control's label on this feature's list and the labels of its acts, composed back at
+// `common.actions`, and the contract's field and column labels, at `common.labels`.
 export const common = {
 	actions: {
-		newContract: 'new contract'
+		newContract: 'new contract',
+		remind: 'remind tenant',
+		unterminate: 'unterminate',
+		renew: 'renew',
+		renewing: 'renewing...',
+		restoring: 'restoring...',
+		terminate: 'terminate',
+		terminating: 'terminating...'
+	},
+	labels: {
+		costPerPayment: 'cost per cycle',
+		cycle: 'cycle',
+		end: 'end',
+		expected: 'expected',
+		governmentId: 'government ID',
+		governmentIdOptional: 'government ID (optional)',
+		paid: 'paid',
+		rank: 'attention',
+		start: 'start'
 	}
 } satisfies BaseTranslation;

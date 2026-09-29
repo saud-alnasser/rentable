@@ -23,10 +23,6 @@ type RootTranslation = {
 	common: {
 		actions: {
 			/**
-			 * a​c​t​i​o​n​s
-			 */
-			actions: string
-			/**
 			 * a​d​d
 			 */
 			add: string
@@ -35,37 +31,9 @@ type RootTranslation = {
 			 */
 			cancel: string
 			/**
-			 * c​h​e​c​k​ ​f​o​r​ ​u​p​d​a​t​e​s
-			 */
-			checkForUpdates: string
-			/**
-			 * c​h​e​c​k​i​n​g​ ​f​o​r​ ​u​p​d​a​t​e​s​.​.​.
-			 */
-			checkingForUpdates: string
-			/**
-			 * c​l​e​a​r​ ​t​h​i​s​ ​f​i​l​t​e​r
-			 */
-			clearFilter: string
-			/**
-			 * c​l​e​a​r​ ​f​i​l​t​e​r​s
-			 */
-			clearFilters: string
-			/**
 			 * c​l​e​a​r​ ​s​e​a​r​c​h
 			 */
 			clearSearch: string
-			/**
-			 * c​l​e​a​r​ ​s​e​a​r​c​h​ ​a​n​d​ ​f​i​l​t​e​r​s
-			 */
-			clearSearchAndFilters: string
-			/**
-			 * c​l​e​a​r​ ​s​e​l​e​c​t​i​o​n
-			 */
-			clearSelection: string
-			/**
-			 * c​o​n​n​e​c​t
-			 */
-			connect: string
 			/**
 			 * c​o​p​y​ ​d​e​t​a​i​l​s
 			 */
@@ -83,10 +51,6 @@ type RootTranslation = {
 			 */
 			create: string
 			/**
-			 * c​r​e​a​t​i​n​g​.​.​.
-			 */
-			creating: string
-			/**
 			 * c​u​s​t​o​m​i​z​e​ ​c​o​l​u​m​n​s
 			 */
 			customizeColumns: string
@@ -98,10 +62,6 @@ type RootTranslation = {
 			 * d​e​l​e​t​i​n​g​.​.​.
 			 */
 			deleting: string
-			/**
-			 * d​o​w​n​l​o​a​d​ ​&​ ​i​n​s​t​a​l​l
-			 */
-			downloadAndInstall: string
 			/**
 			 * d​u​p​l​i​c​a​t​e
 			 */
@@ -115,25 +75,9 @@ type RootTranslation = {
 			 */
 			'export': string
 			/**
-			 * e​x​p​o​r​t​ ​s​e​l​e​c​t​i​o​n
-			 */
-			exportSelection: string
-			/**
-			 * g​o​ ​b​a​c​k
-			 */
-			goBack: string
-			/**
 			 * i​m​p​o​r​t
 			 */
 			'import': string
-			/**
-			 * i​n​s​t​a​l​l​i​n​g​ ​u​p​d​a​t​e​.​.​.
-			 */
-			installingUpdate: string
-			/**
-			 * j​o​i​n
-			 */
-			join: string
 			/**
 			 * n​e​w​ ​c​o​m​p​l​e​x
 			 */
@@ -143,45 +87,13 @@ type RootTranslation = {
 			 */
 			newContract: string
 			/**
-			 * n​e​w​ ​p​a​y​m​e​n​t
-			 */
-			newPayment: string
-			/**
-			 * n​e​w​ ​r​e​c​o​r​d
-			 */
-			newRecord: string
-			/**
-			 * n​e​w​ ​t​e​n​a​n​t
-			 */
-			newTenant: string
-			/**
-			 * n​e​w​ ​u​n​i​t
-			 */
-			newUnit: string
-			/**
-			 * o​p​e​n​ ​m​e​n​u
-			 */
-			openMenu: string
-			/**
-			 * o​p​e​n​ ​p​a​y​m​e​n​t​s
-			 */
-			openPayments: string
-			/**
-			 * o​p​e​n​ ​p​r​e​v​i​o​u​s​ ​r​e​l​e​a​s​e
-			 */
-			openPreviousRelease: string
-			/**
-			 * p​r​o​c​e​e​d
-			 */
-			proceed: string
-			/**
 			 * r​e​m​i​n​d​ ​t​e​n​a​n​t
 			 */
 			remind: string
 			/**
-			 * r​e​m​o​v​e
+			 * u​n​t​e​r​m​i​n​a​t​e
 			 */
-			remove: string
+			unterminate: string
 			/**
 			 * r​e​n​e​w
 			 */
@@ -191,13 +103,41 @@ type RootTranslation = {
 			 */
 			renewing: string
 			/**
-			 * r​e​s​t​o​r​e
-			 */
-			restore: string
-			/**
 			 * r​e​s​t​o​r​i​n​g​.​.​.
 			 */
 			restoring: string
+			/**
+			 * t​e​r​m​i​n​a​t​e
+			 */
+			terminate: string
+			/**
+			 * t​e​r​m​i​n​a​t​i​n​g​.​.​.
+			 */
+			terminating: string
+			/**
+			 * n​e​w​ ​p​a​y​m​e​n​t
+			 */
+			newPayment: string
+			/**
+			 * c​r​e​a​t​i​n​g​.​.​.
+			 */
+			creating: string
+			/**
+			 * c​h​e​c​k​ ​f​o​r​ ​u​p​d​a​t​e​s
+			 */
+			checkForUpdates: string
+			/**
+			 * d​o​w​n​l​o​a​d​ ​&​ ​i​n​s​t​a​l​l
+			 */
+			downloadAndInstall: string
+			/**
+			 * i​n​s​t​a​l​l​i​n​g​ ​u​p​d​a​t​e​.​.​.
+			 */
+			installingUpdate: string
+			/**
+			 * c​h​e​c​k​i​n​g​ ​f​o​r​ ​u​p​d​a​t​e​s​.​.​.
+			 */
+			checkingForUpdates: string
 			/**
 			 * r​e​s​t​a​r​t​ ​a​p​p
 			 */
@@ -207,9 +147,37 @@ type RootTranslation = {
 			 */
 			retry: string
 			/**
+			 * o​p​e​n​ ​p​r​e​v​i​o​u​s​ ​r​e​l​e​a​s​e
+			 */
+			openPreviousRelease: string
+			/**
 			 * r​e​t​r​y​ ​s​t​a​r​t​u​p
 			 */
 			retryStartup: string
+			/**
+			 * n​e​w​ ​t​e​n​a​n​t
+			 */
+			newTenant: string
+			/**
+			 * n​e​w​ ​u​n​i​t
+			 */
+			newUnit: string
+			/**
+			 * o​p​e​n​ ​p​a​y​m​e​n​t​s
+			 */
+			openPayments: string
+			/**
+			 * p​r​o​c​e​e​d
+			 */
+			proceed: string
+			/**
+			 * r​e​m​o​v​e
+			 */
+			remove: string
+			/**
+			 * r​e​s​t​o​r​e
+			 */
+			restore: string
 			/**
 			 * r​o​l​l​b​a​c​k
 			 */
@@ -235,37 +203,9 @@ type RootTranslation = {
 			 */
 			saving: string
 			/**
-			 * s​e​l​e​c​t​ ​r​e​c​o​r​d​s
-			 */
-			selectRecords: string
-			/**
 			 * s​i​g​n​ ​i​n
 			 */
 			signIn: string
-			/**
-			 * s​i​g​n​ ​o​u​t
-			 */
-			signOut: string
-			/**
-			 * s​o​r​t​ ​b​y
-			 */
-			sortBy: string
-			/**
-			 * t​e​r​m​i​n​a​t​e
-			 */
-			terminate: string
-			/**
-			 * i​m​p​o​r​t​ ​a​n​d​ ​e​x​p​o​r​t
-			 */
-			transferData: string
-			/**
-			 * t​e​r​m​i​n​a​t​i​n​g​.​.​.
-			 */
-			terminating: string
-			/**
-			 * u​n​t​e​r​m​i​n​a​t​e
-			 */
-			unterminate: string
 			/**
 			 * u​p​d​a​t​e
 			 */
@@ -278,6 +218,66 @@ type RootTranslation = {
 			 * w​o​r​k​i​n​g​.​.​.
 			 */
 			working: string
+			/**
+			 * c​l​e​a​r​ ​t​h​i​s​ ​f​i​l​t​e​r
+			 */
+			clearFilter: string
+			/**
+			 * c​l​e​a​r​ ​f​i​l​t​e​r​s
+			 */
+			clearFilters: string
+			/**
+			 * c​l​e​a​r​ ​s​e​a​r​c​h​ ​a​n​d​ ​f​i​l​t​e​r​s
+			 */
+			clearSearchAndFilters: string
+			/**
+			 * c​l​e​a​r​ ​s​e​l​e​c​t​i​o​n
+			 */
+			clearSelection: string
+			/**
+			 * e​x​p​o​r​t​ ​s​e​l​e​c​t​i​o​n
+			 */
+			exportSelection: string
+			/**
+			 * s​e​l​e​c​t​ ​r​e​c​o​r​d​s
+			 */
+			selectRecords: string
+			/**
+			 * s​o​r​t​ ​b​y
+			 */
+			sortBy: string
+			/**
+			 * i​m​p​o​r​t​ ​a​n​d​ ​e​x​p​o​r​t
+			 */
+			transferData: string
+			/**
+			 * c​o​n​n​e​c​t
+			 */
+			connect: string
+			/**
+			 * j​o​i​n
+			 */
+			join: string
+			/**
+			 * s​i​g​n​ ​o​u​t
+			 */
+			signOut: string
+			/**
+			 * a​c​t​i​o​n​s
+			 */
+			actions: string
+			/**
+			 * g​o​ ​b​a​c​k
+			 */
+			goBack: string
+			/**
+			 * o​p​e​n​ ​m​e​n​u
+			 */
+			openMenu: string
+			/**
+			 * n​e​w​ ​r​e​c​o​r​d
+			 */
+			newRecord: string
 		}
 		errors: {
 			/**
@@ -545,6 +545,22 @@ type RootTranslation = {
 		}
 		labels: {
 			/**
+			 * r​e​l​e​a​s​e​ ​n​o​t​e​s
+			 */
+			releaseNotes: string
+			/**
+			 * a​v​a​i​l​a​b​l​e​ ​v​e​r​s​i​o​n
+			 */
+			availableVersion: string
+			/**
+			 * c​u​r​r​e​n​t​ ​v​e​r​s​i​o​n
+			 */
+			currentVersion: string
+			/**
+			 * r​e​l​e​a​s​e​ ​d​a​t​e
+			 */
+			releaseDate: string
+			/**
 			 * a​c​t​i​o​n
 			 */
 			action: string
@@ -553,17 +569,9 @@ type RootTranslation = {
 			 */
 			activeContracts: string
 			/**
-			 * a​m​o​u​n​t
-			 */
-			amount: string
-			/**
 			 * a​p​p​ ​v​e​r​s​i​o​n
 			 */
 			appVersion: string
-			/**
-			 * a​v​a​i​l​a​b​l​e​ ​v​e​r​s​i​o​n
-			 */
-			availableVersion: string
 			/**
 			 * c​o​m​p​l​e​x
 			 */
@@ -585,14 +593,6 @@ type RootTranslation = {
 			 */
 			contractPeriod: string
 			/**
-			 * c​o​n​t​r​a​c​t​ ​s​t​a​t​u​s
-			 */
-			contractStatus: string
-			/**
-			 * c​o​s​t​ ​p​e​r​ ​c​y​c​l​e
-			 */
-			costPerPayment: string
-			/**
 			 * c​u​r​r​e​n​t​ ​d​a​t​a​b​a​s​e​ ​p​a​t​h
 			 */
 			currentDatabasePath: string
@@ -601,17 +601,9 @@ type RootTranslation = {
 			 */
 			currentValue: string
 			/**
-			 * c​u​r​r​e​n​t​ ​v​e​r​s​i​o​n
-			 */
-			currentVersion: string
-			/**
 			 * c​u​s​t​o​m​ ​d​a​t​a​b​a​s​e​ ​p​a​t​h​ ​o​v​e​r​r​i​d​e
 			 */
 			customDatabasePathOverride: string
-			/**
-			 * c​y​c​l​e
-			 */
-			cycle: string
 			/**
 			 * d​e​f​a​u​l​t​ ​d​a​t​a​b​a​s​e​ ​p​a​t​h
 			 */
@@ -625,29 +617,9 @@ type RootTranslation = {
 			 */
 			dueBalanceCoveredToDate: string
 			/**
-			 * e​n​d
-			 */
-			end: string
-			/**
-			 * e​x​p​e​c​t​e​d
-			 */
-			expected: string
-			/**
-			 * g​o​v​e​r​n​m​e​n​t​ ​I​D
-			 */
-			governmentId: string
-			/**
 			 * i​n​f​o​r​m​a​t​i​o​n
 			 */
 			information: string
-			/**
-			 * g​o​v​e​r​n​m​e​n​t​ ​I​D​ ​(​o​p​t​i​o​n​a​l​)
-			 */
-			governmentIdOptional: string
-			/**
-			 * l​o​c​a​t​i​o​n
-			 */
-			location: string
 			/**
 			 * n​a​m​e
 			 */
@@ -661,26 +633,6 @@ type RootTranslation = {
 			 */
 			noticeWindowDays: string
 			/**
-			 * o​c​c​u​p​i​e​d​ ​u​n​i​t​s
-			 */
-			occupiedUnits: string
-			/**
-			 * p​a​y​m​e​n​t
-			 */
-			payment: string
-			/**
-			 * p​a​i​d
-			 */
-			paid: string
-			/**
-			 * p​a​y​m​e​n​t​ ​d​a​t​e
-			 */
-			paymentDate: string
-			/**
-			 * p​e​r​i​o​d
-			 */
-			period: string
-			/**
 			 * p​a​y​m​e​n​t​ ​f​u​l​f​i​l​l​m​e​n​t
 			 */
 			paymentFulfillment: string
@@ -689,25 +641,9 @@ type RootTranslation = {
 			 */
 			phone: string
 			/**
-			 * a​t​t​e​n​t​i​o​n
-			 */
-			rank: string
-			/**
-			 * r​e​l​e​a​s​e​ ​d​a​t​e
-			 */
-			releaseDate: string
-			/**
-			 * r​e​l​e​a​s​e​ ​n​o​t​e​s
-			 */
-			releaseNotes: string
-			/**
 			 * r​e​m​a​i​n​i​n​g​ ​d​u​e​ ​b​a​l​a​n​c​e
 			 */
 			remainingDueBalance: string
-			/**
-			 * s​t​a​r​t
-			 */
-			start: string
 			/**
 			 * s​t​a​t​u​s
 			 */
@@ -717,17 +653,81 @@ type RootTranslation = {
 			 */
 			tenant: string
 			/**
-			 * u​n​i​t
-			 */
-			unit: string
-			/**
 			 * u​n​i​t​s
 			 */
 			units: string
 			/**
+			 * p​e​r​i​o​d
+			 */
+			period: string
+			/**
+			 * a​m​o​u​n​t
+			 */
+			amount: string
+			/**
+			 * c​o​n​t​r​a​c​t​ ​s​t​a​t​u​s
+			 */
+			contractStatus: string
+			/**
+			 * p​a​y​m​e​n​t
+			 */
+			payment: string
+			/**
+			 * p​a​y​m​e​n​t​ ​d​a​t​e
+			 */
+			paymentDate: string
+			/**
+			 * c​o​s​t​ ​p​e​r​ ​c​y​c​l​e
+			 */
+			costPerPayment: string
+			/**
+			 * c​y​c​l​e
+			 */
+			cycle: string
+			/**
+			 * e​n​d
+			 */
+			end: string
+			/**
+			 * e​x​p​e​c​t​e​d
+			 */
+			expected: string
+			/**
+			 * g​o​v​e​r​n​m​e​n​t​ ​I​D
+			 */
+			governmentId: string
+			/**
+			 * g​o​v​e​r​n​m​e​n​t​ ​I​D​ ​(​o​p​t​i​o​n​a​l​)
+			 */
+			governmentIdOptional: string
+			/**
+			 * p​a​i​d
+			 */
+			paid: string
+			/**
+			 * a​t​t​e​n​t​i​o​n
+			 */
+			rank: string
+			/**
+			 * s​t​a​r​t
+			 */
+			start: string
+			/**
+			 * l​o​c​a​t​i​o​n
+			 */
+			location: string
+			/**
+			 * o​c​c​u​p​i​e​d​ ​u​n​i​t​s
+			 */
+			occupiedUnits: string
+			/**
 			 * v​a​c​a​n​t​ ​u​n​i​t​s
 			 */
 			vacantUnits: string
+			/**
+			 * u​n​i​t
+			 */
+			unit: string
 		}
 		messages: {
 			/**
@@ -4599,10 +4599,6 @@ export type TranslationFunctions = {
 	common: {
 		actions: {
 			/**
-			 * actions
-			 */
-			actions: () => LocalizedString
-			/**
 			 * add
 			 */
 			add: () => LocalizedString
@@ -4611,37 +4607,9 @@ export type TranslationFunctions = {
 			 */
 			cancel: () => LocalizedString
 			/**
-			 * check for updates
-			 */
-			checkForUpdates: () => LocalizedString
-			/**
-			 * checking for updates...
-			 */
-			checkingForUpdates: () => LocalizedString
-			/**
-			 * clear this filter
-			 */
-			clearFilter: () => LocalizedString
-			/**
-			 * clear filters
-			 */
-			clearFilters: () => LocalizedString
-			/**
 			 * clear search
 			 */
 			clearSearch: () => LocalizedString
-			/**
-			 * clear search and filters
-			 */
-			clearSearchAndFilters: () => LocalizedString
-			/**
-			 * clear selection
-			 */
-			clearSelection: () => LocalizedString
-			/**
-			 * connect
-			 */
-			connect: () => LocalizedString
 			/**
 			 * copy details
 			 */
@@ -4659,10 +4627,6 @@ export type TranslationFunctions = {
 			 */
 			create: () => LocalizedString
 			/**
-			 * creating...
-			 */
-			creating: () => LocalizedString
-			/**
 			 * customize columns
 			 */
 			customizeColumns: () => LocalizedString
@@ -4674,10 +4638,6 @@ export type TranslationFunctions = {
 			 * deleting...
 			 */
 			deleting: () => LocalizedString
-			/**
-			 * download & install
-			 */
-			downloadAndInstall: () => LocalizedString
 			/**
 			 * duplicate
 			 */
@@ -4691,25 +4651,9 @@ export type TranslationFunctions = {
 			 */
 			'export': () => LocalizedString
 			/**
-			 * export selection
-			 */
-			exportSelection: () => LocalizedString
-			/**
-			 * go back
-			 */
-			goBack: () => LocalizedString
-			/**
 			 * import
 			 */
 			'import': () => LocalizedString
-			/**
-			 * installing update...
-			 */
-			installingUpdate: () => LocalizedString
-			/**
-			 * join
-			 */
-			join: () => LocalizedString
 			/**
 			 * new complex
 			 */
@@ -4719,45 +4663,13 @@ export type TranslationFunctions = {
 			 */
 			newContract: () => LocalizedString
 			/**
-			 * new payment
-			 */
-			newPayment: () => LocalizedString
-			/**
-			 * new record
-			 */
-			newRecord: () => LocalizedString
-			/**
-			 * new tenant
-			 */
-			newTenant: () => LocalizedString
-			/**
-			 * new unit
-			 */
-			newUnit: () => LocalizedString
-			/**
-			 * open menu
-			 */
-			openMenu: () => LocalizedString
-			/**
-			 * open payments
-			 */
-			openPayments: () => LocalizedString
-			/**
-			 * open previous release
-			 */
-			openPreviousRelease: () => LocalizedString
-			/**
-			 * proceed
-			 */
-			proceed: () => LocalizedString
-			/**
 			 * remind tenant
 			 */
 			remind: () => LocalizedString
 			/**
-			 * remove
+			 * unterminate
 			 */
-			remove: () => LocalizedString
+			unterminate: () => LocalizedString
 			/**
 			 * renew
 			 */
@@ -4767,13 +4679,41 @@ export type TranslationFunctions = {
 			 */
 			renewing: () => LocalizedString
 			/**
-			 * restore
-			 */
-			restore: () => LocalizedString
-			/**
 			 * restoring...
 			 */
 			restoring: () => LocalizedString
+			/**
+			 * terminate
+			 */
+			terminate: () => LocalizedString
+			/**
+			 * terminating...
+			 */
+			terminating: () => LocalizedString
+			/**
+			 * new payment
+			 */
+			newPayment: () => LocalizedString
+			/**
+			 * creating...
+			 */
+			creating: () => LocalizedString
+			/**
+			 * check for updates
+			 */
+			checkForUpdates: () => LocalizedString
+			/**
+			 * download & install
+			 */
+			downloadAndInstall: () => LocalizedString
+			/**
+			 * installing update...
+			 */
+			installingUpdate: () => LocalizedString
+			/**
+			 * checking for updates...
+			 */
+			checkingForUpdates: () => LocalizedString
 			/**
 			 * restart app
 			 */
@@ -4783,9 +4723,37 @@ export type TranslationFunctions = {
 			 */
 			retry: () => LocalizedString
 			/**
+			 * open previous release
+			 */
+			openPreviousRelease: () => LocalizedString
+			/**
 			 * retry startup
 			 */
 			retryStartup: () => LocalizedString
+			/**
+			 * new tenant
+			 */
+			newTenant: () => LocalizedString
+			/**
+			 * new unit
+			 */
+			newUnit: () => LocalizedString
+			/**
+			 * open payments
+			 */
+			openPayments: () => LocalizedString
+			/**
+			 * proceed
+			 */
+			proceed: () => LocalizedString
+			/**
+			 * remove
+			 */
+			remove: () => LocalizedString
+			/**
+			 * restore
+			 */
+			restore: () => LocalizedString
 			/**
 			 * rollback
 			 */
@@ -4811,37 +4779,9 @@ export type TranslationFunctions = {
 			 */
 			saving: () => LocalizedString
 			/**
-			 * select records
-			 */
-			selectRecords: () => LocalizedString
-			/**
 			 * sign in
 			 */
 			signIn: () => LocalizedString
-			/**
-			 * sign out
-			 */
-			signOut: () => LocalizedString
-			/**
-			 * sort by
-			 */
-			sortBy: () => LocalizedString
-			/**
-			 * terminate
-			 */
-			terminate: () => LocalizedString
-			/**
-			 * import and export
-			 */
-			transferData: () => LocalizedString
-			/**
-			 * terminating...
-			 */
-			terminating: () => LocalizedString
-			/**
-			 * unterminate
-			 */
-			unterminate: () => LocalizedString
 			/**
 			 * update
 			 */
@@ -4854,6 +4794,66 @@ export type TranslationFunctions = {
 			 * working...
 			 */
 			working: () => LocalizedString
+			/**
+			 * clear this filter
+			 */
+			clearFilter: () => LocalizedString
+			/**
+			 * clear filters
+			 */
+			clearFilters: () => LocalizedString
+			/**
+			 * clear search and filters
+			 */
+			clearSearchAndFilters: () => LocalizedString
+			/**
+			 * clear selection
+			 */
+			clearSelection: () => LocalizedString
+			/**
+			 * export selection
+			 */
+			exportSelection: () => LocalizedString
+			/**
+			 * select records
+			 */
+			selectRecords: () => LocalizedString
+			/**
+			 * sort by
+			 */
+			sortBy: () => LocalizedString
+			/**
+			 * import and export
+			 */
+			transferData: () => LocalizedString
+			/**
+			 * connect
+			 */
+			connect: () => LocalizedString
+			/**
+			 * join
+			 */
+			join: () => LocalizedString
+			/**
+			 * sign out
+			 */
+			signOut: () => LocalizedString
+			/**
+			 * actions
+			 */
+			actions: () => LocalizedString
+			/**
+			 * go back
+			 */
+			goBack: () => LocalizedString
+			/**
+			 * open menu
+			 */
+			openMenu: () => LocalizedString
+			/**
+			 * new record
+			 */
+			newRecord: () => LocalizedString
 		}
 		errors: {
 			/**
@@ -5093,6 +5093,22 @@ export type TranslationFunctions = {
 		}
 		labels: {
 			/**
+			 * release notes
+			 */
+			releaseNotes: () => LocalizedString
+			/**
+			 * available version
+			 */
+			availableVersion: () => LocalizedString
+			/**
+			 * current version
+			 */
+			currentVersion: () => LocalizedString
+			/**
+			 * release date
+			 */
+			releaseDate: () => LocalizedString
+			/**
 			 * action
 			 */
 			action: () => LocalizedString
@@ -5101,17 +5117,9 @@ export type TranslationFunctions = {
 			 */
 			activeContracts: () => LocalizedString
 			/**
-			 * amount
-			 */
-			amount: () => LocalizedString
-			/**
 			 * app version
 			 */
 			appVersion: () => LocalizedString
-			/**
-			 * available version
-			 */
-			availableVersion: () => LocalizedString
 			/**
 			 * complex
 			 */
@@ -5133,14 +5141,6 @@ export type TranslationFunctions = {
 			 */
 			contractPeriod: () => LocalizedString
 			/**
-			 * contract status
-			 */
-			contractStatus: () => LocalizedString
-			/**
-			 * cost per cycle
-			 */
-			costPerPayment: () => LocalizedString
-			/**
 			 * current database path
 			 */
 			currentDatabasePath: () => LocalizedString
@@ -5149,17 +5149,9 @@ export type TranslationFunctions = {
 			 */
 			currentValue: () => LocalizedString
 			/**
-			 * current version
-			 */
-			currentVersion: () => LocalizedString
-			/**
 			 * custom database path override
 			 */
 			customDatabasePathOverride: () => LocalizedString
-			/**
-			 * cycle
-			 */
-			cycle: () => LocalizedString
 			/**
 			 * default database path
 			 */
@@ -5173,29 +5165,9 @@ export type TranslationFunctions = {
 			 */
 			dueBalanceCoveredToDate: () => LocalizedString
 			/**
-			 * end
-			 */
-			end: () => LocalizedString
-			/**
-			 * expected
-			 */
-			expected: () => LocalizedString
-			/**
-			 * government ID
-			 */
-			governmentId: () => LocalizedString
-			/**
 			 * information
 			 */
 			information: () => LocalizedString
-			/**
-			 * government ID (optional)
-			 */
-			governmentIdOptional: () => LocalizedString
-			/**
-			 * location
-			 */
-			location: () => LocalizedString
 			/**
 			 * name
 			 */
@@ -5209,26 +5181,6 @@ export type TranslationFunctions = {
 			 */
 			noticeWindowDays: () => LocalizedString
 			/**
-			 * occupied units
-			 */
-			occupiedUnits: () => LocalizedString
-			/**
-			 * payment
-			 */
-			payment: () => LocalizedString
-			/**
-			 * paid
-			 */
-			paid: () => LocalizedString
-			/**
-			 * payment date
-			 */
-			paymentDate: () => LocalizedString
-			/**
-			 * period
-			 */
-			period: () => LocalizedString
-			/**
 			 * payment fulfillment
 			 */
 			paymentFulfillment: () => LocalizedString
@@ -5237,25 +5189,9 @@ export type TranslationFunctions = {
 			 */
 			phone: () => LocalizedString
 			/**
-			 * attention
-			 */
-			rank: () => LocalizedString
-			/**
-			 * release date
-			 */
-			releaseDate: () => LocalizedString
-			/**
-			 * release notes
-			 */
-			releaseNotes: () => LocalizedString
-			/**
 			 * remaining due balance
 			 */
 			remainingDueBalance: () => LocalizedString
-			/**
-			 * start
-			 */
-			start: () => LocalizedString
 			/**
 			 * status
 			 */
@@ -5265,17 +5201,81 @@ export type TranslationFunctions = {
 			 */
 			tenant: () => LocalizedString
 			/**
-			 * unit
-			 */
-			unit: () => LocalizedString
-			/**
 			 * units
 			 */
 			units: () => LocalizedString
 			/**
+			 * period
+			 */
+			period: () => LocalizedString
+			/**
+			 * amount
+			 */
+			amount: () => LocalizedString
+			/**
+			 * contract status
+			 */
+			contractStatus: () => LocalizedString
+			/**
+			 * payment
+			 */
+			payment: () => LocalizedString
+			/**
+			 * payment date
+			 */
+			paymentDate: () => LocalizedString
+			/**
+			 * cost per cycle
+			 */
+			costPerPayment: () => LocalizedString
+			/**
+			 * cycle
+			 */
+			cycle: () => LocalizedString
+			/**
+			 * end
+			 */
+			end: () => LocalizedString
+			/**
+			 * expected
+			 */
+			expected: () => LocalizedString
+			/**
+			 * government ID
+			 */
+			governmentId: () => LocalizedString
+			/**
+			 * government ID (optional)
+			 */
+			governmentIdOptional: () => LocalizedString
+			/**
+			 * paid
+			 */
+			paid: () => LocalizedString
+			/**
+			 * attention
+			 */
+			rank: () => LocalizedString
+			/**
+			 * start
+			 */
+			start: () => LocalizedString
+			/**
+			 * location
+			 */
+			location: () => LocalizedString
+			/**
+			 * occupied units
+			 */
+			occupiedUnits: () => LocalizedString
+			/**
 			 * vacant units
 			 */
 			vacantUnits: () => LocalizedString
+			/**
+			 * unit
+			 */
+			unit: () => LocalizedString
 		}
 		messages: {
 			/**

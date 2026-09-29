@@ -3,4 +3,4 @@
 // that button prints for the menu's key. The menu itself, for a test rendering it beside a screen.
 // `component/` stays private (plan, *The canonical concept shape*).
 export { default as Palette, PALETTE_SHORTCUT_HINT } from './component/palette.svelte';
-export { openPalette, providePalette } from './menu.svelte';
+export { openPalette, providePalette } from './host.svelte';

@@ -1,6 +1,6 @@
 // The payment feature's strings in english, composed back into `i18n/en/index.ts` at
-// `contracts.payments`, `common.refusals.payment` and `common.actions`. It imports nothing but types, because the
-// typesafe-i18n generator transpiles it along with the locale.
+// `contracts.payments`, `common.refusals.payment`, `common.actions` and `common.labels`. It imports
+// nothing but types, because the typesafe-i18n generator transpiles it along with the locale.
 
 import type { BaseTranslation } from '../../i18n/i18n-types';
 
@@ -57,9 +57,17 @@ export const refusals = {
 	}
 } satisfies BaseTranslation;
 
-// the create control's label on this feature's list, composed back at `common.actions`.
+// the create control's label on this feature's list and the form's pending state, composed back at
+// `common.actions`, and the payment's field and column labels, at `common.labels`.
 export const common = {
 	actions: {
-		newPayment: 'new payment'
+		newPayment: 'new payment',
+		creating: 'creating...'
+	},
+	labels: {
+		amount: 'amount',
+		contractStatus: 'contract status',
+		payment: 'payment',
+		paymentDate: 'payment date'
 	}
 } satisfies BaseTranslation;

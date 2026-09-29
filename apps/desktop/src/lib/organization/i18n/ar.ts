@@ -1,8 +1,8 @@
 // The organization feature's strings in arabic, composed back into `i18n/ar/index.ts` at
-// `organization` and `common.refusals.host`. It imports nothing but types, because the typesafe-i18n generator transpiles it
-// along with the locale; the session's `layout` blocks are `session/i18n/ar.ts`. Each object
-// satisfies its own slice of the generated types, so a key missing, left over or without its
-// placeholder fails here.
+// `organization`, `common.refusals.host` and `common.actions`. It imports nothing but types,
+// because the typesafe-i18n generator transpiles it along with the locale; the session's `layout`
+// blocks are `session/i18n/ar.ts`. Each object satisfies its own slice of the generated types, so a
+// key missing, left over or without its placeholder fails here.
 
 import type { Translation } from '../../i18n/i18n-types';
 
@@ -477,3 +477,11 @@ export const refusals = {
 } satisfies {
 	host: Omit<Translation['common']['refusals']['host'], `${string}NeedsViewing`>;
 };
+
+// the setup walk's connect and join controls, composed back at `common.actions`.
+export const common = {
+	actions: {
+		connect: 'ربط',
+		join: 'انضمام'
+	}
+} satisfies { actions: Pick<Translation['common']['actions'], 'connect' | 'join'> };

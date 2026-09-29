@@ -1,7 +1,8 @@
 // The payment feature's strings in arabic, composed back into `i18n/ar/index.ts` at
-// `contracts.payments`, `common.refusals.payment` and `common.actions`. It imports nothing but types, because the
-// typesafe-i18n generator transpiles it along with the locale. Each object satisfies its own slice
-// of the generated types, so a key missing, left over or without its placeholder fails here.
+// `contracts.payments`, `common.refusals.payment`, `common.actions` and `common.labels`. It imports
+// nothing but types, because the typesafe-i18n generator transpiles it along with the locale. Each
+// object satisfies its own slice of the generated types, so a key missing, left over or without its
+// placeholder fails here.
 
 import type { Translation } from '../../i18n/i18n-types';
 
@@ -55,9 +56,23 @@ export const refusals = {
 	}
 } satisfies Pick<Translation['common']['refusals'], 'payment'>;
 
-// the create control's label on this feature's list, composed back at `common.actions`.
+// the create control's label on this feature's list and the form's pending state, composed back at
+// `common.actions`, and the payment's field and column labels, at `common.labels`.
 export const common = {
 	actions: {
-		newPayment: 'دفعة جديدة'
+		newPayment: 'دفعة جديدة',
+		creating: 'جاري الإنشاء...'
+	},
+	labels: {
+		amount: 'المبلغ',
+		contractStatus: 'حالة العقد',
+		payment: 'دفعة',
+		paymentDate: 'تاريخ الدفع'
 	}
-} satisfies { actions: Pick<Translation['common']['actions'], 'newPayment'> };
+} satisfies {
+	actions: Pick<Translation['common']['actions'], 'newPayment' | 'creating'>;
+	labels: Pick<
+		Translation['common']['labels'],
+		'amount' | 'contractStatus' | 'payment' | 'paymentDate'
+	>;
+};

@@ -1,9 +1,13 @@
 // The list capability's strings in english, composed back into `i18n/en/index.ts` at
-// `common.export`, `common.periods`, `common.selection` and `common.table`. It imports nothing but
-// types, because the typesafe-i18n generator transpiles it along with the locale.
+// `common.export`, `common.periods`, `common.selection`, `common.table`, `common.actions` and
+// `common.labels`. It imports nothing but types, because the typesafe-i18n generator transpiles it
+// along with the locale.
 
 import type { BaseTranslation } from '../../i18n/i18n-types';
 
+// the list's own vocabulary, composed back at `common.export`, `common.periods`, `common.selection`
+// and `common.table`, and the controls and the period filter's label its toolbar draws, at
+// `common.actions` and `common.labels`.
 export const common = {
 	export: {
 		description: 'which file should this become?',
@@ -41,5 +45,18 @@ export const common = {
 		rowsSelected: '{selected} of {total} {{row|rows}} selected.',
 		searchPlaceholder: 'search...',
 		selectRecord: 'select this record'
+	},
+	actions: {
+		clearFilter: 'clear this filter',
+		clearFilters: 'clear filters',
+		clearSearchAndFilters: 'clear search and filters',
+		clearSelection: 'clear selection',
+		exportSelection: 'export selection',
+		selectRecords: 'select records',
+		sortBy: 'sort by',
+		transferData: 'import and export'
+	},
+	labels: {
+		period: 'period'
 	}
 } satisfies BaseTranslation;

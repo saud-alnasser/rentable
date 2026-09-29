@@ -1,6 +1,6 @@
 // The startup feature's strings in english, composed back into `i18n/en/index.ts` at
-// `layout.startup`. It imports nothing but types, because the typesafe-i18n generator transpiles it
-// along with the locale.
+// `layout.startup` and `common.actions`. It imports nothing but types, because the typesafe-i18n
+// generator transpiles it along with the locale.
 
 import type { BaseTranslation } from '../../i18n/i18n-types';
 
@@ -25,5 +25,14 @@ export const layout = {
 		stagePrepare: 'creating your first workspace',
 		stageSettings: 'reading your settings',
 		stageWorkspace: 'opening your workspace'
+	}
+} satisfies BaseTranslation;
+
+// the controls the startup's failure and recovery screens offer, composed back at
+// `common.actions`.
+export const common = {
+	actions: {
+		openPreviousRelease: 'open previous release',
+		retryStartup: 'retry startup'
 	}
 } satisfies BaseTranslation;

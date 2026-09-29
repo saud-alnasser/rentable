@@ -1,6 +1,6 @@
 // The complex feature's strings in english, composed back into `i18n/en/index.ts` at `complexes`,
-// `common.refusals.complex`, `common.refusals.unit` and `common.actions`. It imports nothing but types, because the
-// typesafe-i18n generator transpiles it along with the locale.
+// `common.refusals.complex`, `common.actions` and `common.labels`. It imports nothing but types,
+// because the typesafe-i18n generator transpiles it along with the locale.
 
 import type { BaseTranslation } from '../../i18n/i18n-types';
 
@@ -61,20 +61,18 @@ export const refusals = {
 		nameTaken: 'name is associated with a previously registered complex.',
 		nameTakenNamed: 'the name {named:string} is associated with a previously registered complex.',
 		repeatedInSet: 'two complexes in this set claim {value:string}.'
-	},
-	unit: {
-		gone: 'this unit is no longer in the workspace. reload to see what changed.',
-		holdsContracts: 'a contract mentions this unit, so it cannot be deleted.',
-		nameRepeated: '{name:string} is used twice; each unit needs its own name.',
-		nameTaken: 'name is associated with a unit in the same complex.',
-		nameTakenNamed: 'the name {named:string} is associated with a unit in the same complex.',
-		repeatedInSet: 'two units in this set claim {value:string}.'
 	}
 } satisfies BaseTranslation;
 
-// the create control's label on this feature's list, composed back at `common.actions`.
+// the create control's label on this feature's list, composed back at `common.actions`, and the
+// complex's column labels, at `common.labels`.
 export const common = {
 	actions: {
 		newComplex: 'new complex'
+	},
+	labels: {
+		location: 'location',
+		occupiedUnits: 'occupied units',
+		vacantUnits: 'vacant units'
 	}
 } satisfies BaseTranslation;

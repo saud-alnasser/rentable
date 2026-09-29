@@ -1,7 +1,7 @@
 // The startup feature's strings in arabic, composed back into `i18n/ar/index.ts` at
-// `layout.startup`. It imports nothing but types, because the typesafe-i18n generator transpiles it
-// along with the locale. Each object satisfies its own slice of the generated types, so a key
-// missing, left over or without its placeholder fails here.
+// `layout.startup` and `common.actions`. It imports nothing but types, because the typesafe-i18n
+// generator transpiles it along with the locale. Each object satisfies its own slice of the
+// generated types, so a key missing, left over or without its placeholder fails here.
 
 import type { Translation } from '../../i18n/i18n-types';
 
@@ -27,3 +27,14 @@ export const layout = {
 		stageWorkspace: 'فتح مساحة عملك'
 	}
 } satisfies Pick<Translation['layout'], 'startup'>;
+
+// the controls the startup's failure and recovery screens offer, composed back at
+// `common.actions`.
+export const common = {
+	actions: {
+		openPreviousRelease: 'فتح الإصدار السابق',
+		retryStartup: 'إعادة محاولة التشغيل'
+	}
+} satisfies {
+	actions: Pick<Translation['common']['actions'], 'openPreviousRelease' | 'retryStartup'>;
+};

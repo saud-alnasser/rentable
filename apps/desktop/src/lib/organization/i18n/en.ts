@@ -1,6 +1,7 @@
 // The organization feature's strings in english, composed back into `i18n/en/index.ts` at
-// `organization` and `common.refusals.host`. It imports nothing but types, because the typesafe-i18n generator transpiles it
-// along with the locale. The session's `layout` blocks are `session/i18n/en.ts`.
+// `organization`, `common.refusals.host` and `common.actions`. It imports nothing but types,
+// because the typesafe-i18n generator transpiles it along with the locale. The session's `layout`
+// blocks are `session/i18n/en.ts`.
 
 import type { BaseTranslation } from '../../i18n/i18n-types';
 
@@ -591,5 +592,13 @@ export const refusals = {
 		tursoRefused: 'Turso refused the request. trying again will not help.',
 		tursoAccountRefused:
 			"Turso refused the request because of the account itself. check the account's plan in Turso."
+	}
+} satisfies BaseTranslation;
+
+// the setup walk's connect and join controls, composed back at `common.actions`.
+export const common = {
+	actions: {
+		connect: 'connect',
+		join: 'join'
 	}
 } satisfies BaseTranslation;

@@ -37,8 +37,9 @@
 // the feature contract and the capabilities that read the list are typed from it (`AppRouter`,
 // `SurfaceContributions`, the feature list, the refusal codes), and the import is erased before
 // anything runs (`rules/module-layout`, under *Where a concept departs from the shape*). Being
-// erased, a type-only import is no edge of the module graph, so it lies on no `cycle`; and a
-// route's imports are judged at runtime only.
+// erased, a type-only import is no edge of the module graph, so it lies on no `cycle`. A route's
+// type imports count for `route` as its value imports do, so a type a route names comes through a
+// component, a `ui.ts` or the composition root.
 //
 // A feature's declaration files, `feature.ts` and `surface.ts`, may spell another's kind: they
 // are where it names what it contributes to, a section drawn on a tenant's page or what a tenant's
@@ -385,12 +386,13 @@ function routeMayImport(target: string) {
 	);
 }
 
-// Each import of a route that reaches into the library past what `routeMayImport` allows.
-// A specifier that leaves `src/lib/` is `$app/*`, third-party code, or the route's own files.
+// Each import of a route, type-only or not, that reaches into the library past what
+// `routeMayImport` allows. A specifier that leaves `src/lib/` is `$app/*`, third-party code, or the
+// route's own files.
 function routeViolations() {
 	return routeFiles().flatMap(({ file, label }) =>
-		valueImports(readSource(file).script)
-			.map((specifier) => resolve(file, specifier))
+		imports(readSource(file).script)
+			.map(({ specifier }) => resolve(file, specifier))
 			.filter((target): target is string => target !== undefined && !routeMayImport(target))
 			.map((target) => `${label} -> ${target} : route`)
 	);

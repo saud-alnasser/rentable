@@ -197,7 +197,10 @@ first plugin, and handles no command.
 **A plugin is `tauri/src/<module>/plugin.rs` beside the module's `mod.rs`**: `Builder::new("<name>")`, one
 `generate_handler!` of plain `super::` or `crate::` paths, and a `setup` where it manages state
 (`tauri/src/upgrade/plugin.rs`) or none (`tauri/src/print/plugin.rs`). A command function is named
-`<module>_<act>` and answers to `<act>` through `#[tauri::command(rename = "<act>")]`.
+`<module>_<act>` and answers to `<act>` through `#[tauri::command(rename = "<act>")]`. The name is
+usually the module's (the window module's is `frame`), and never one of Tauri's core plugins' nor
+one `lib.rs` registers from a crate (deep-link, opener, dialog, fs, updater, single-instance): the
+plugin store keeps only the later of two plugins sharing a name, and `guard/acl.rs` refuses both.
 
 **The ACL list is derived.** `tauri/build.rs` reads every `src/<module>/plugin.rs`, registers it as
 an inline plugin whose `default` permission allows exactly the handler's commands, and writes the
@@ -212,11 +215,23 @@ its setup, so nothing in the crate names `upgrade`.
 **The two sides meet at the port.** A TypeScript feature that crosses has a `<concept>/host.ts` and a
 `<concept>/tauri.ts` whose calls invoke `plugin:<name>|<command>` (`print/tauri.ts` against
 `tauri/src/print/`, `sync/tauri.ts` against `tauri/src/sync/`). A port may invoke another plugin's
-command where the Rust side keeps it elsewhere: `sync/tauri.ts` invokes the organization plugin's
-`session_replicate` and `workspace_rename`, because in the crate both act on the organization and
-`sync` names nothing of it, while in TypeScript replication and the rename are sync's. That is the
-one such crossing, and [[rules/module-layout]] records it among the departures. A record feature has no plugin of
-its own: its SQL reaches Rust through the database plugin, from `platform/database/client.ts`.
+command where the Rust side keeps it elsewhere, and three ports do:
+
+- `sync/tauri.ts` invokes the organization plugin's `session_replicate` and `workspace_rename`,
+  because in the crate both act on the organization and `sync` names nothing of it, while in
+  TypeScript replication and the rename are sync's.
+- `workspace/tauri.ts` invokes the upgrade plugin's `earlier_find` and `earlier_read`, because the
+  crate keeps the read of what 0.12.0 and 0.13.0 left in `app.db` with everything else that brings
+  an earlier install forward (`tauri/src/upgrade/`), so that one step removes it, while TypeScript
+  has no upgrade concept: offering those records and bringing them in through the import is the
+  workspace's (`workspace/app-database.ts`).
+- `platform/tauri.ts` invokes the settings plugin's `get` for the diagnostics folder, because the
+  crate holds that folder among the settings (`diagnostics_dir` in `tauri/src/settings/mod.rs`),
+  while the screens that open it are no feature's, and the platform, a foundation, cannot reach
+  the settings feature's port a layer above it.
+
+[[rules/module-layout]] records each among the departures. A record feature has no plugin of its
+own: its SQL reaches Rust through the database plugin, from `platform/database/client.ts`.
 
 ## Adding and removing
 
@@ -252,7 +267,8 @@ sit in stored role masks, and its table in the workspace's schema, so both are d
 1. `tauri/src/<feature>/mod.rs` and `tauri/src/<feature>/plugin.rs`.
 2. `pub mod <feature>;` and `.plugin(<feature>::plugin())` in `tauri/src/lib.rs`, placed by what
    its setup reads.
-3. `"<feature>:default"` in `tauri/capabilities/default.json`.
+3. `"<plugin>:default"` in `tauri/capabilities/default.json`, where `<plugin>` is the name in its
+   `Builder::new(..)`: no core plugin's and none `lib.rs` registers from a crate.
 
 No command is listed anywhere else.
 

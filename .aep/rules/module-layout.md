@@ -143,10 +143,12 @@ kind is no spelling of one: an option handed to an `Intl` constructor (`{ type: 
 
 `apps/desktop/src/lib/tests/layers.test.ts` holds all of it, against a baseline that only
 shrinks: an upward import, a module on a cycle, an import past an entry (`deep`), a feature
-imported by a home that is neither a feature nor `app/`, and a kind spelled elsewhere. A type-only
-import counts for the first, the third and the fourth, but for the exemption below; being erased,
-it is no edge a cycle runs through. Settled on 2026-09-29 by ticket 68 of effort 840, when review
-round one found the guard passing every type import while this rule named no such exemption.
+imported by a home that is neither a feature nor `app/`, a kind spelled elsewhere, and a route
+importing past a component, a `ui.ts` and the composition root. A type-only import counts for the
+first, the third, the fourth and the last, but for the exemption below; being erased, it is no edge
+a cycle runs through. Settled on 2026-09-29 by ticket 68 of effort 840, when review round one found
+the guard passing every type import while this rule named no such exemption, and for routes by
+ticket 70, when review round two found the guard still passing a route's.
 Decided by
 the human on 2026-09-28: the list with the composition root, capabilities a layer below the
 features, a capability's components through `ui.ts` when the list capability left features
@@ -170,6 +172,8 @@ same `ui.ts`.
 | `organization/dialogs.svelte.ts` | a second host state, beside `host.svelte.ts` | the dialogs the shell's `dialogs` slot draws are opened from the rail and the settings area, which share no parent |
 | `settings/component/updates.svelte`, `settings/update-announcement.ts` | the update's block and its announcement sit with the settings | general is the settings' own tab, and a contributed section fills a whole tab, so nothing can place another feature's block inside it |
 | `sync/tauri.ts` | invokes two of the `organization` plugin's commands, `session_replicate` and `workspace_rename`, beside the `sync` plugin's own | in Rust both act on the organization (the member's session, the sealed workspace row), and the crate's `sync` names nothing of `organization`, so the commands are the organization plugin's. In TypeScript both are sync's: the replication its workspace sync runs (`sync/workspace.ts`) and the rename its router serves as `sync.rename`, each over sync's port, so moving the two calls to the organization's port would have sync reach another feature's host. Recorded by ticket 69 of effort 840 |
+| `workspace/tauri.ts` | invokes the `upgrade` plugin's `earlier_find` and `earlier_read` | in Rust the read of what 0.12.0 and 0.13.0 left in `app.db` is `upgrade/record.rs`, with everything else that brings an earlier install forward, so a release that no longer carries those installs removes it in one step (requirement 15 of effort 840). TypeScript has no upgrade concept: offering those records and bringing them in through the import is the workspace's (`workspace/app-database.ts`), and the calls moved to its port from the platform facade earlier in effort 840. Recorded by ticket 70 of effort 840 |
+| `platform/tauri.ts` | invokes the `settings` plugin's `get` for the diagnostics folder, beside the `frame` and `diagnostics` plugins' own | in Rust the folder is one of the settings (`diagnostics_dir` in `settings/mod.rs`), so `get` is what reports it. The screens that open the folder are no feature's, and the platform is a foundation, which cannot reach the settings feature's port a layer above it, so its diagnostics port asks the same command for that one field. Recorded by ticket 70 of effort 840 |
 | `startup/ui.ts` | re-exports `useStartup` and `THE_WAY_IN`, which `index.ts` exports as well | a route may import a feature's `ui.ts` but not its `index.ts`, and the first run's and the join screen's routes hand both to the organization's screens, which cannot reach startup back. They sat in `app/wall.ts` until ticket 69 of effort 840, which made the composition root a pass-through for them |
 | the organization's session, invitation, member and setup tests in the crate | construct `crate::upgrade::Upgrader`, where nothing else names `upgrade` | they drive the real sign-in, resume and connect over an organization of an earlier format, which is the upgrade's to bring forward, so they need its implementation behind the session's `Upgrade` port rather than a stand-in; test code is outside `guard/cycle.rs`'s graph. The modules are `organization/session/{command,forget,heartbeat,replica}.rs`, `organization/invitation/join.rs`, `organization/member/removal.rs` and `organization/setup/connect.rs`. When `upgrade` is removed, each hands the port a no-op. Recorded by ticket 69 of effort 840 |
 

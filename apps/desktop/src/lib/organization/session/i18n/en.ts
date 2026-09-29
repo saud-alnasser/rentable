@@ -1,6 +1,6 @@
 // The organization session's strings in english: the account menu at the foot of the rail and the
-// sign-in card, composed back into `i18n/en/index.ts` at `layout.accountMenu` and
-// `layout.signIn`. It imports nothing but types, because the typesafe-i18n generator transpiles it
+// sign-in card, composed back into `i18n/en/index.ts` at `layout.accountMenu`, `layout.signIn` and
+// `common.actions`. It imports nothing but types, because the typesafe-i18n generator transpiles it
 // along with the locale.
 
 import type { BaseTranslation } from '../../../i18n/i18n-types';
@@ -32,5 +32,12 @@ export const layout = {
 		disconnect: 'disconnect this machine',
 		disconnectDescription:
 			'this machine deletes its copy of the organization and its workspaces, and forgets the Turso account. nothing on Turso changes. the owner connects again with their Turso account; anyone else needs a new link.'
+	}
+} satisfies BaseTranslation;
+
+// the account menu's sign-out, composed back at `common.actions`.
+export const common = {
+	actions: {
+		signOut: 'sign out'
 	}
 } satisfies BaseTranslation;

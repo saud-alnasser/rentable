@@ -174,9 +174,11 @@ mod tests {
         ("workspace_rename", Gate::Flag(Flag::RenameWorkspace)),
     ];
 
-    /// The commands that name no gate, and the gates that name no command.
     /// Every command the sub-concepts declare, read off their source by walking `organization/`,
     /// so a command declared and left out of the plugin's handler is caught, whatever file it is in.
+    /// A command renamed through `#[tauri::command(rename = "..")]` answers to its rename, and a
+    /// bare `#[tauri::command]` to the function declared after it with `organization_` taken off,
+    /// as `build.rs` derives the plugin's names from its handler.
     fn declared_in_source() -> Vec<String> {
         fn walk(dir: &std::path::Path, found: &mut Vec<String>) {
             for entry in std::fs::read_dir(dir).expect("organization/ is readable") {
@@ -185,13 +187,29 @@ mod tests {
                     walk(&path, found);
                 } else if path.extension().is_some_and(|extension| extension == "rs") {
                     let source = std::fs::read_to_string(&path).expect("a source file");
-                    for line in source.lines() {
+                    let mut lines = source.lines().map(str::trim);
+                    while let Some(line) = lines.next() {
                         if let Some(renamed) = line
-                            .trim()
                             .strip_prefix("#[tauri::command(rename = \"")
                             .and_then(|rest| rest.split('"').next())
                         {
                             found.push(renamed.to_string());
+                        } else if line == "#[tauri::command]" {
+                            let function = lines
+                                .find_map(|line| line.split_once("fn "))
+                                .and_then(|(_, rest)| rest.split(['(', '<']).next())
+                                .unwrap_or_else(|| {
+                                    panic!(
+                                        "{}: a `#[tauri::command]` over no function",
+                                        path.display()
+                                    )
+                                });
+                            found.push(
+                                function
+                                    .strip_prefix("organization_")
+                                    .unwrap_or(function)
+                                    .to_string(),
+                            );
                         }
                     }
                 }
@@ -206,6 +224,7 @@ mod tests {
         found
     }
 
+    /// The commands that name no gate, and the gates that name no command.
     fn ungated(declared: &[String], gates: &[(&str, Gate)]) -> (Vec<String>, Vec<String>) {
         let named: Vec<&str> = gates.iter().map(|(name, _)| *name).collect();
 

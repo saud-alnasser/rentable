@@ -1,6 +1,6 @@
-// The settings feature's strings in english, composed back into `i18n/en/index.ts` at `settings`
-// and `settingsHooks`. It imports nothing but types, because the typesafe-i18n generator transpiles
-// it along with the locale.
+// The settings feature's strings in english, composed back into `i18n/en/index.ts` at `settings`,
+// `settingsHooks`, `common.actions` and `common.labels`. It imports nothing but types, because the
+// typesafe-i18n generator transpiles it along with the locale.
 
 import type { BaseTranslation } from '../../i18n/i18n-types';
 
@@ -88,4 +88,24 @@ export const settings = {
 export const settingsHooks = {
 	endingSoonUpdated: 'ending soon notice window updated successfully!',
 	workspaceUpToDate: 'everything is up to date.'
+} satisfies BaseTranslation;
+
+// the update's controls and the labels of its block, which the settings' general tab draws
+// (`component/updates.svelte`), and the retry of a settings read that failed, composed back at
+// `common.actions` and `common.labels`.
+export const common = {
+	actions: {
+		checkForUpdates: 'check for updates',
+		downloadAndInstall: 'download & install',
+		installingUpdate: 'installing update...',
+		checkingForUpdates: 'checking for updates...',
+		restartApp: 'restart app',
+		retry: 'retry'
+	},
+	labels: {
+		releaseNotes: 'release notes',
+		availableVersion: 'available version',
+		currentVersion: 'current version',
+		releaseDate: 'release date'
+	}
 } satisfies BaseTranslation;

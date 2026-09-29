@@ -1,7 +1,7 @@
-// The settings feature's strings in arabic, composed back into `i18n/ar/index.ts` at `settings` and
-// `settingsHooks`. It imports nothing but types, because the typesafe-i18n generator transpiles it
-// along with the locale. Each object satisfies its own slice of the generated types, so a key
-// missing, left over or without its placeholder fails here.
+// The settings feature's strings in arabic, composed back into `i18n/ar/index.ts` at `settings`,
+// `settingsHooks`, `common.actions` and `common.labels`. It imports nothing but types, because the
+// typesafe-i18n generator transpiles it along with the locale. Each object satisfies its own slice
+// of the generated types, so a key missing, left over or without its placeholder fails here.
 
 import type { Translation } from '../../i18n/i18n-types';
 
@@ -86,3 +86,37 @@ export const settingsHooks = {
 	endingSoonUpdated: 'تم تحديث فترة الإشعار!',
 	workspaceUpToDate: 'كل شيء محدّث.'
 } satisfies Translation['settingsHooks'];
+
+// the update's controls and the labels of its block, which the settings' general tab draws
+// (`component/updates.svelte`), and the retry of a settings read that failed, composed back at
+// `common.actions` and `common.labels`.
+export const common = {
+	actions: {
+		checkForUpdates: 'التحقق من التحديثات',
+		downloadAndInstall: 'تنزيل وتثبيت',
+		installingUpdate: 'جاري تثبيت التحديث...',
+		checkingForUpdates: 'جاري التحقق من التحديثات...',
+		restartApp: 'إعادة تشغيل التطبيق',
+		retry: 'إعادة المحاولة'
+	},
+	labels: {
+		releaseNotes: 'ملاحظات الإصدار',
+		availableVersion: 'الإصدار المتاح',
+		currentVersion: 'الإصدار الحالي',
+		releaseDate: 'تاريخ الإصدار'
+	}
+} satisfies {
+	actions: Pick<
+		Translation['common']['actions'],
+		| 'checkForUpdates'
+		| 'downloadAndInstall'
+		| 'installingUpdate'
+		| 'checkingForUpdates'
+		| 'restartApp'
+		| 'retry'
+	>;
+	labels: Pick<
+		Translation['common']['labels'],
+		'releaseNotes' | 'availableVersion' | 'currentVersion' | 'releaseDate'
+	>;
+};
