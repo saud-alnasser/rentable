@@ -24,14 +24,15 @@
 		useUnterminateContract
 	} from '$lib/contract/query';
 	import { toDeleteStep, toPaletteVerbs } from '$lib/act';
-	import { consumeCreateIntent } from '$lib/create';
-	import { onMutationError, onMutationSuccess } from '$lib/mutation';
+	import { consumeCreateIntent } from '$lib/create/ui';
+	import { onMutationError, onMutationSuccess } from '$lib/mutation/ui';
 	import { showErrorSentence, showErrorToast, showRefusal } from '$lib/notification';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { writeDetailsToClipboard } from '$lib/platform/clipboard';
 	import { contributionsTo } from '$lib/feature/surface';
 	import { formatRecordDateRange } from '$lib/date';
-	import { useReadTenant } from '$lib/tenant/query';
+	import { TENANT_KIND } from '$lib/tenant';
+	import { useReadTenant } from '$lib/tenant/ui';
 	import { memberPermissions } from '$lib/permission';
 	import { onDestroy, untrack } from 'svelte';
 	import ContractForm from './form.svelte';
@@ -166,7 +167,7 @@
 	async function copyDetails(contract: ContractActRecord) {
 		// the tenant is neither read nor copied for a reader who may not view tenants (effort 838,
 		// requirement 10).
-		const viewsTenant = memberPermissions.views('tenant');
+		const viewsTenant = memberPermissions.views(TENANT_KIND);
 		const tenant = viewsTenant
 			? await readTenant(contract.tenantId).catch(() => undefined)
 			: undefined;

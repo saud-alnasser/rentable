@@ -56,6 +56,8 @@ export type ContractSurfaceContributions = {
 	 * deletion ({@link isContractDeletable}).
 	 */
 	useHeldPayments: (contractId: () => string, enabled: () => boolean) => ContributedRead<unknown[]>;
+	/** whether the reader may see payments at all, and so the figures a row carries of them. */
+	viewsPayments: () => boolean;
 };
 
 export type ContractLike = Omit<

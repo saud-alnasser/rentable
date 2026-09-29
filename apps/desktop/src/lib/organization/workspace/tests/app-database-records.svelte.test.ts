@@ -8,14 +8,14 @@ import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import type { Settings } from '$lib/settings/host';
 import { fakeSettings } from '$lib/settings/tests/testing';
 import type { ImportTable } from '$lib/transfer/host';
-import EarlierRecords from '$lib/workspace/component/app-database-records.svelte';
+import EarlierRecords from '$lib/organization/workspace/component/app-database-records.svelte';
 import type { EarlierRead } from '$lib/workspace/host';
 import { IMPORT_FLAGS } from '$lib/permission';
 import '$lib/app/transfer';
 import { emptyHeld } from '$lib/transfer';
 import QueryProviders from '#tests/query-providers.svelte';
 import { forgetReader, holdEveryFlagBut, layOutLists, refusedControl } from '#tests/permission.ts';
-import earlierTables from './app-database.json';
+import earlierTables from '$lib/workspace/tests/app-database.json';
 
 /**
  * THE EARLIER RECORDS, OFFERED IN THE WORKSPACE GROUP

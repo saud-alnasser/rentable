@@ -5,7 +5,8 @@ import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { i18nObject } from '$lib/i18n/i18n-util';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import { shortcuts, type ApplicationShortcut } from '$lib/shortcut';
+import type { ApplicationShortcut } from '$lib/shortcut';
+import { shortcuts } from '$lib/shortcut/ui';
 
 import CreateHarness from './harness.svelte';
 import { expectCreateControlLast } from './control';

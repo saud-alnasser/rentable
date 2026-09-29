@@ -1,7 +1,7 @@
 import api from '$lib/api/caller';
 import { browserAppearance, type AppearanceSetting } from '$lib/platform/appearance';
-import { declareMutation } from '$lib/mutation';
-import { keys as dashboardKeys } from '$lib/dashboard/query';
+import { declareMutation } from '$lib/mutation/ui';
+import { contributionsTo } from '$lib/feature/surface';
 import { LL } from '$lib/i18n/i18n-svelte';
 import { createQuery } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
@@ -35,14 +35,11 @@ export const useSetEndingSoonNoticeDays = declareMutation({
 		unexpected: () => get(LL).common.messages.unexpectedError()
 	},
 	sets: ({ result }) => [{ key: keys.settings, data: result }],
-	// a function, because the dashboard's prefix is the cache policy's and is read once it runs.
+	// a function, because what reads the figure is contributed, and its key is the cache policy's,
+	// read once it runs.
 	invalidates: () => [
 		{
-			together: [
-				keys.settings,
-				// the prefix, so the screen is refreshed whichever period it is currently showing.
-				dashboardKeys.all
-			]
+			together: [keys.settings, contributionsTo('settings').endingSoonReaders()]
 		}
 	]
 });

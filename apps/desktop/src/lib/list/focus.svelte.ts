@@ -4,8 +4,9 @@ import type { createVirtualizer, VirtualItem } from '@tanstack/svelte-virtual';
 import { tick, untrack } from 'svelte';
 import { get } from 'svelte/store';
 
-import { landing, whenSurfacesClose, type LandingRequest } from '$lib/create';
-import { shortcuts } from '$lib/shortcut';
+import type { LandingRequest } from '$lib/create';
+import { landing, whenSurfacesClose } from '$lib/create/ui';
+import { shortcuts } from '$lib/shortcut/ui';
 
 import {
 	nextPosition,

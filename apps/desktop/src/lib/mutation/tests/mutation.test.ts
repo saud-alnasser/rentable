@@ -82,7 +82,7 @@ mock.module('@tanstack/svelte-query', {
 	}
 });
 
-const { declareMutation, describeOutcomeChange } = await import('$lib/mutation');
+const { declareMutation, describeOutcomeChange } = await import('$lib/mutation/ui');
 // the policy the root layout provides, built from the features' declarations.
 const { cachePolicy } = await import('$lib/app/cache');
 const { loadLocale } = await import('$lib/i18n/i18n-util.sync');

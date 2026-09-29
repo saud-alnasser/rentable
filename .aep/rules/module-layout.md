@@ -75,28 +75,90 @@ named `UNCOUNTABLE`, and the two lists change together. A word joins only by the
 names one thing, and no singular the tree could use says it better. Settled 2026-09-29 with
 effort 840, ticket 52.
 
-## A concept is entered through `index.ts`, and a capability's components through `ui.ts`
+## A concept has one shape, and is entered through `index.ts`
 
-The canonical layout of a concept under `apps/desktop/src/lib/` is
-[[efforts/840-a-feature-plugs-in-and-lives-in-one-place/plan]]'s, under *The canonical concept
-shape*. Its entries are these:
+The tree under `apps/desktop/src/lib/` is
+[[efforts/840-a-feature-plugs-in-and-lives-in-one-place/plan]]'s, under *Components*, and it
+holds four layers. Imports point down, or sideways through an entry, never up and never in a
+cycle:
+
+| Layer | Holds | May import |
+| --- | --- | --- |
+| 4 composition | `app/`, `shell/`, `prototype/`, `src/routes/` | everything below; `app/` alone reads a feature's `feature.ts`, `surface.ts` and `tauri.ts` |
+| 3 features | tenant, complex, contract, payment, dashboard, workspace, organization, settings, sync, update, startup | capabilities and foundation; another feature or capability through its `index.ts` or `ui.ts` |
+| 2 capabilities | permission, mutation, undo, history, shortcut, notification, palette, create, act, list, form, transfer, print, date | foundation; another capability through its `index.ts` or `ui.ts` |
+| 1 foundation | `feature/`, `design/`, `platform/`, `api/`, `i18n/`, `error/` | the design package, third-party code, and one another without a cycle |
+
+**Every concept, feature or capability, has this shape.** Every file is optional except a
+feature's `feature.ts`; a file present has this name and this job, and nothing else holds that
+job:
 
 ```
 <concept>/
-  index.ts     what other concepts may import: types, domain functions, query hooks.
-               Re-exports only Node-loadable modules, never a component
-  ui.ts        a capability's components other concepts may render, re-exported by name
-               from component/: export { default as List } from './component/list.svelte'.
-               Present only where a component is shared
-  component/   its Svelte components, private to the concept
+  feature.ts         defineFeature({ name, router?, kind?, prefix?, pages?, transfer?, contributes? }).
+                     Loads under Node; read only by app/
+  surface.ts         defineSurface({ name, places?, create?, search?, acts?, host?, sections?,
+                     slots?, contributes? }). May import a component; read only by app/
+  index.ts           what other concepts may import under Node: types, keys, domain functions
+  ui.ts              what other concepts may use that only the window can load: query hooks,
+                     rune state, the few components another concept renders, re-exported by
+                     name. Present only where something window-side is shared
+  <concept>.ts       the domain: types and rules
+  router.ts          the tRPC router, export default
+  query.ts           every query and mutation hook, mutations through declareMutation
+  acts.ts            record acts
+  host.svelte.ts     host state
+  host.ts, tauri.ts  the concept's host port and its Tauri adapter, where it crosses to Rust
+  refusal.ts         its RefusalCode union and their fields
+  i18n/en.ts, ar.ts  its strings, as plain objects importing nothing but types
+  component/         its Svelte components, private to the concept
+  <sub-concept>/     the same shape, one level down: a directory, never a filename prefix
+  tests/
 ```
 
-Another concept imports `$lib/<concept>` and, for a capability, `$lib/<capability>/ui`; never a
-file past them. `index.ts` stays loadable under Node, which is why it cannot carry a component,
-and a feature shares no component, so a feature has no `ui.ts`. `apps/desktop/src/lib/tests/
-layers.test.ts` holds it: an import into another home's `component/` is `deep`. Decided by the
-human on 2026-09-28, when the list capability left features importing its `component/` with no
-public way to render it.
+**A feature and a capability have the same two entries.** Another concept imports
+`$lib/<concept>` and `$lib/<concept>/ui`, never a file past them. `index.ts` re-exports only what
+loads under Node, so it never carries a component, a module of runes or a query hook; `ui.ts` is
+the window half, and everything else stays private. A feature showing something on another's page
+contributes a section rather than handing over a component, and where a feature depended on needs
+something of the one depending on it, that one contributes it (`feature/feature.ts`, under *What a
+feature contributes*). A domain spread over several modules
+names each for what it holds (`contract/rank/`, `startup/machine.ts`, `sync/admission.ts`), and
+the names above stay reserved for their jobs.
+
+**A kind of record is named by its own feature.** Any other module reads it from a declaration:
+a feature it depends on exports its kind from its entry (`TENANT_KIND`, `UNIT_KIND`), a feature
+depending on it contributes what it needs, and the families read the permission package's
+`RECORD_KINDS`. A feature's `feature.ts` and `surface.ts` may spell the kinds they contribute to,
+and two homes spell them by design, the ones criterion 2 of effort 840 lists among what adding a
+kind edits: the schema, whose tables are named for the kinds and stored under those names, and
+the locale, whose entries and generated types carry a kind's word. A kind's word that is not a
+kind is no spelling of one: an option handed to an `Intl` constructor (`{ type: 'unit' }`) and a
+`data-` attribute's value.
+
+`apps/desktop/src/lib/tests/layers.test.ts` holds all of it, against a baseline that only
+shrinks: an upward import, a module on a cycle, an import past an entry (`deep`), a feature
+imported by a home that is neither a feature nor `app/`, and a kind spelled elsewhere. Decided by
+the human on 2026-09-28: the list with the composition root, capabilities a layer below the
+features, a capability's components through `ui.ts` when the list capability left features
+importing its `component/`, and a feature's reverse needs as contributions when the record
+features kept their cycles after the sections landed. On 2026-09-29, when an `index.ts` could not
+both load under Node and hold the query hooks other features read, the human gave features the
+same `ui.ts`.
+
+### Where a concept departs from the shape, and why
+
+| Where | What | Why |
+| --- | --- | --- |
+| notification's and undo's `index.ts` | load `svelte-sonner`, which loads under Node only where a test mocks it, as every Node test reaching them does | the toast is the whole of notification's API and the offer to take a change back is one, so nothing of either would be left to put in `index.ts` |
+| notification, print, palette, shortcut, create and undo | mounted by the frame through `ui.ts` rather than declared as a surface's `host` | the frame places each at a fixed point around the hosts: the provider outside them, the sheet beside the page, the listeners once |
+| dashboard's and payment's `index.ts` | export nothing | no concept reads either; what each hands another it contributes in its `surface.ts` |
+| workspace's `feature.ts` | declares only its name | it has no router, no kind, no prefix and no page; what it draws is its `surface.ts` |
+| a sub-concept without a `feature.ts` | organization's `member/`, `role/`, `access/`, `workspace/`, `setup/` and `session/`, contract's `assignment/`, `schedule/`, `renewal/` and the rest | its parent's router serves it and its parent's surface draws it; only `complex/unit/` declares itself, because it holds a kind of its own |
+| tenant, complex, unit, contract and payment's `transfer.ts` | the sheet `feature.ts` declares under `transfer` | columns, reader and writer are long enough to be a module of their own |
+| `workspace/app-database.ts` | holds the earlier records' read outside `query.ts` | the way in reads the offer, and that read loads without the mutation capability `query.ts` declares its writes through |
+| `organization/dialogs.svelte.ts` | a second host state, beside `host.svelte.ts` | the dialogs the shell's `dialogs` slot draws are opened from the rail and the settings area, which share no parent |
+| `settings/component/updates.svelte`, `settings/update-announcement.ts` | the update's block and its announcement sit with the settings | general is the settings' own tab, and a contributed section fills a whole tab, so nothing can place another feature's block inside it |
 
 ## A Rust directory is rooted by `mod.rs`
 

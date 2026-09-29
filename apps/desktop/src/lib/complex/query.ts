@@ -1,6 +1,7 @@
 import api from '$lib/api/caller';
 import { COMPLEX_SORT_COLUMN_IDS, type ComplexSortColumnId } from '$lib/complex/complex';
-import { declareMutation, describeOutcomeChange, prefixOf } from '$lib/mutation';
+import { prefixOf } from '$lib/mutation';
+import { declareMutation, describeOutcomeChange } from '$lib/mutation/ui';
 import type { SelectionCall } from '@rentable/design/selection.js';
 import type { HistoryEntry } from '$lib/history';
 import type { ListSort } from '@rentable/design/sort.js';

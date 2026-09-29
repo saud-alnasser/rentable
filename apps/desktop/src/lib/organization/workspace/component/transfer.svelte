@@ -8,8 +8,8 @@
 	import { showErrorToast, showSuccessToast } from '$lib/notification';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { tauri } from '$lib/platform/tauri';
-	import WorkspaceImportDialog from '$lib/workspace/component/import-dialog.svelte';
-	import { useImportRecords } from '$lib/workspace/query';
+	import { WorkspaceImportDialog } from '$lib/transfer/ui';
+	import { useImportRecords } from '$lib/workspace/ui';
 	import { EXPORT_FLAGS, IMPORT_FLAGS, memberPermissions } from '$lib/permission';
 	import { toTransferInput, toWorkbook, transferHost } from '$lib/transfer';
 

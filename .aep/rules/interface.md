@@ -541,7 +541,7 @@ the order and before the create, holding *export* and *import* and nothing else.
   cannot export, and its entry stays in the menu, refused, saying so (*Guidance*). With a selection, the selection bar's *export selection* writes only the
   selection, under a name that says so.
 - **Import** reads a file into the directory it was opened from, through
-  `workspace/component/directory-import-dialog.svelte`: choose the file, see what it would do, then
+  `transfer/component/directory-import-dialog.svelte`: choose the file, see what it would do, then
   agree. **Nothing is written before the last step.** The dialog says how many rows go in, how many
   do not and why, and which rows to go and look at. A row wrong on its own is turned away and the
   rest goes in; a file whose rows contradict each other is refused whole and offers no import
@@ -552,9 +552,9 @@ refuses the import on its ledger, with the reason its create is refused (`import
 the list shell), since an import only adds payments. The settings directories offer neither (*Search*).
 
 **A whole workspace is one file, and it moves from the settings area**, beside sync
-(`workspace/component/transfer.svelte`), never from a directory: a directory's control writes that
+(`organization/workspace/component/transfer.svelte`), never from a directory: a directory's control writes that
 directory's records and nothing else. Its import shows a line per sheet
-(`workspace/component/import-dialog.svelte`), and a reference nothing in the file answers refuses
+(`transfer/component/import-dialog.svelte`), and a reference nothing in the file answers refuses
 the whole file.
 
 *Why: the export was an icon that could say export and nothing else, so a second format had nowhere
@@ -564,7 +564,7 @@ Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], re
 
 **A stated exception: the earlier records skip choosing a file.** Where this machine still holds the
 records of 0.12.0 or 0.13.0, a callout in the settings workspace group, above the transfer controls
-(`workspace/component/app-database-records.svelte`), opens the same workspace import review over those
+(`organization/workspace/component/app-database-records.svelte`), opens the same workspace import review over those
 records as the shell reads them from the earlier version's database, rather than over a file the
 person chose. There is no file for the person to choose, since the records sit in the earlier
 version's own data, and nothing the pattern protects is lost: the plan is still shown, sheet by

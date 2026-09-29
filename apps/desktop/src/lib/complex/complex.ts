@@ -1,6 +1,7 @@
 import type { Contributed } from '$lib/api/contribution';
 import type { Context } from '$lib/api/context';
 import type { ContributedRead } from '$lib/feature/surface';
+import type { RecordKind } from '$lib/permission';
 import type { Contract, Unit } from '$lib/platform/database/schema';
 import { refuse } from '$lib/api/refusal';
 
@@ -195,6 +196,12 @@ export type UnitContributions = {
 	) => Promise<Map<string, Unit['status']>>;
 };
 
+/**
+ * The kind of record a unit is, as its declaration names it: what a feature depending on the unit
+ * asks the reader's permissions about, rather than spelling the kind itself.
+ */
+export const UNIT_KIND = 'unit' satisfies RecordKind;
+
 /** What the unit's host and acts need of the contracts holding a unit, in the window. */
 export type UnitSurfaceContributions = {
 	/**
@@ -207,6 +214,11 @@ export type UnitSurfaceContributions = {
 	) => ContributedRead<unknown[]>;
 	/** open a new contract holding the unit. */
 	newContract: (unitId: string) => void;
+	/**
+	 * whether the reader may see tenants, and so who holds a unit under the contract naming it:
+	 * the directory's tenant column.
+	 */
+	viewsTenants: () => boolean;
 };
 
 /** What the complex's page needs of the contracts on its units, in the window. */

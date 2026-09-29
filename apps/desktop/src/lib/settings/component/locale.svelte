@@ -2,7 +2,7 @@
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import * as ToggleGroup from '@rentable/design/primitive/toggle-group/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
+	import { localesMetadata } from '$lib/platform/locale';
 	import type { Locales } from '$lib/i18n/i18n-types';
 	import { locales } from '$lib/i18n/i18n-util';
 

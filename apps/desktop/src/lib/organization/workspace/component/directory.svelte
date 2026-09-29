@@ -17,9 +17,9 @@
 	import DirectoryTray from '$lib/organization/component/directory-tray.svelte';
 	import { toWorkspaceDirectory } from '$lib/organization/directory';
 	import { workspaceActs, workspaceHost } from '$lib/organization/host.svelte';
-	import { recordOf, withSection, WORKSPACE_PARAM } from '$lib/settings/section';
-	import WorkspaceTransfer from '$lib/workspace/component/transfer.svelte';
-	import EarlierRecords from '$lib/workspace/component/app-database-records.svelte';
+	import { recordOf, withSection, WORKSPACE_PARAM } from '$lib/settings';
+	import WorkspaceTransfer from './transfer.svelte';
+	import EarlierRecords from './app-database-records.svelte';
 	import DiscIcon from '$lib/design/cell/disc.svelte';
 	import XIcon from '@lucide/svelte/icons/x';
 

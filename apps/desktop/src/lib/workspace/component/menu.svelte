@@ -6,8 +6,8 @@
 	import * as Sidebar from '@rentable/design/primitive/sidebar/index.js';
 	import { useSidebar } from '@rentable/design/primitive/sidebar/index.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
-	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
-	import { withSection } from '$lib/settings/section';
+	import { localesMetadata } from '$lib/platform/locale';
+	import { withSection } from '$lib/settings';
 	import MarkIcon from '@lucide/svelte/icons/eclipse';
 	import BuildingIcon from '@lucide/svelte/icons/building';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';

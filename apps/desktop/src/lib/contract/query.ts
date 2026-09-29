@@ -4,7 +4,8 @@ import {
 	toContractName as toContractRecordName,
 	type ContractSortColumnId
 } from '$lib/contract/contract';
-import { declareMutation, prefixOf } from '$lib/mutation';
+import { prefixOf } from '$lib/mutation';
+import { declareMutation } from '$lib/mutation/ui';
 import type { ContractRank } from '$lib/contract/rank/rank';
 import type { ListSort } from '@rentable/design/sort.js';
 import { LL } from '$lib/i18n/i18n-svelte';

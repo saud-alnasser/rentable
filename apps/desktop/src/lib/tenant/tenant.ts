@@ -1,4 +1,5 @@
 import type { ContributedRead } from '$lib/feature/surface';
+import type { RecordKind } from '$lib/permission';
 import type { Contract } from '$lib/platform/database/schema';
 import { refuse } from '$lib/api/refusal';
 import z from 'zod';
@@ -12,6 +13,12 @@ import z from 'zod';
  * distinguished by leading digit — `identity` names the broader concept, never one of its
  * two forms.
  */
+
+/**
+ * The kind of record a tenant is, as its declaration names it: what a feature depending on the
+ * tenant asks the reader's permissions about, rather than spelling the kind itself.
+ */
+export const TENANT_KIND = 'tenant' satisfies RecordKind;
 
 export const identity = /^[12]\d{9}$/;
 export const phone = /^(\+9665)(5|0|3|6|4|9|1|8|7)([0-9]{7})$/;

@@ -1,5 +1,5 @@
 import api from '$lib/api/caller';
-import { declareMutation } from '$lib/mutation';
+import { declareMutation } from '$lib/mutation/ui';
 import { LL } from '$lib/i18n/i18n-svelte';
 import { keys, rolesAndMembersChanged } from '$lib/organization/query';
 import { createQuery } from '@tanstack/svelte-query';

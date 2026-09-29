@@ -20,9 +20,9 @@
 	import { formatLocaleMoney, getIntlLocale, RIYAL } from '$lib/platform/locale';
 	import { isWholeHalalas } from '@rentable/design/money.js';
 	import { cn } from '@rentable/design/tailwind.js';
-	import { getAmountDueThisCycle, getRemainingContractBalance } from '$lib/contract/contract';
-	import { useFetchContract } from '$lib/contract/query';
-	import { onMutationError } from '$lib/mutation';
+	import { getAmountDueThisCycle, getRemainingContractBalance } from '$lib/contract';
+	import { useFetchContract } from '$lib/contract/ui';
+	import { onMutationError } from '$lib/mutation/ui';
 	import { fieldOfFailure, toRefusalText } from '$lib/error/refusal';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { useCreatePayment, useUpdatePayment } from '$lib/payment/query';

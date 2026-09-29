@@ -1,5 +1,5 @@
 import api, { forgetContext } from '$lib/api/caller';
-import { declareMutation } from '$lib/mutation';
+import { declareMutation } from '$lib/mutation/ui';
 import { LL } from '$lib/i18n/i18n-svelte';
 import { tauri } from '$lib/organization/tauri';
 import type { OrganizationConsentResult } from '$lib/organization/host';

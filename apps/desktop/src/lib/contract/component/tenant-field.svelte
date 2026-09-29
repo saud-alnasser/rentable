@@ -1,5 +1,5 @@
 <script lang="ts" module>
-	import { useFetchTenant, useFetchTenants } from '$lib/tenant/query';
+	import { useFetchTenant, useFetchTenants } from '$lib/tenant/ui';
 
 	const MAX_VISIBLE_TENANTS = 20;
 

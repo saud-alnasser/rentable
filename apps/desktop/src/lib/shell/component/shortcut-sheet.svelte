@@ -3,7 +3,8 @@
 	import { Kbd, KbdGroup } from '@rentable/design/primitive/kbd/index.js';
 	import * as Sheet from '@rentable/design/primitive/sheet/index.js';
 	import { usesAppleKeyboard } from '@rentable/design/shortcut.js';
-	import { shortcuts, toShortcutSheetEntries } from '$lib/shortcut';
+	import { toShortcutSheetEntries } from '$lib/shortcut';
+	import { shortcuts } from '$lib/shortcut/ui';
 	import { LL } from '$lib/i18n/i18n-svelte';
 
 	let {

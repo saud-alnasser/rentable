@@ -3,7 +3,7 @@ import { fireEvent, render, within } from '@testing-library/svelte';
 import { beforeEach, expect, test } from 'vitest';
 
 import { setLocale } from '$lib/i18n/i18n-svelte';
-import { localesMetadata } from '$lib/i18n/i18n-translations-util';
+import { localesMetadata } from '$lib/platform/locale';
 import type { Locales } from '$lib/i18n/i18n-types';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import SettingsLocale from '$lib/settings/component/locale.svelte';

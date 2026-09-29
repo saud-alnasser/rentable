@@ -6,8 +6,8 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { recordDiagnosticError } from '$lib/platform/diagnostics';
 	import { formatLocaleDate } from '$lib/platform/locale';
-	import type { AvailableUpdate, UpdaterDownloadEvent } from '$lib/update/host';
-	import { useCheckForUpdate, usePrepareUpdate, useRestartApp } from '$lib/update/query';
+	import type { AvailableUpdate, UpdaterDownloadEvent } from '$lib/update';
+	import { useCheckForUpdate, usePrepareUpdate, useRestartApp } from '$lib/update/ui';
 	import { announceUpdateOutcome } from '$lib/settings/update-announcement';
 	import DownloadIcon from '@lucide/svelte/icons/download';
 	import PowerIcon from '@lucide/svelte/icons/power';

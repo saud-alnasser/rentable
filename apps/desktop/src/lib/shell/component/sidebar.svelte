@@ -3,7 +3,7 @@
 	import { page } from '$app/state';
 	import { SIDEBAR_KEYBOARD_SHORTCUT } from '@rentable/design/primitive/sidebar/constants.js';
 	import * as Sidebar from '@rentable/design/primitive/sidebar/index.js';
-	import { shortcuts } from '$lib/shortcut';
+	import { shortcuts } from '$lib/shortcut/ui';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { slotsAt } from '$lib/app/surfaces';
 	import { primaryDestinations, type Destination } from '$lib/shell/destination';

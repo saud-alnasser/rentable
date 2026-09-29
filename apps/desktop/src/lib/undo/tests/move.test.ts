@@ -70,7 +70,7 @@ mock.module('@tanstack/svelte-query', {
 	}
 });
 
-const { declareMutation } = await import('$lib/mutation');
+const { declareMutation } = await import('$lib/mutation/ui');
 const { applyRedo, applyUndo } = await import('$lib/undo');
 const { inverseStack } = await import('$lib/undo/undo');
 const { memberPermissions } = await import('$lib/permission');

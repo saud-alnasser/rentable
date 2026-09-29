@@ -5,7 +5,7 @@ import { expect, test } from 'vitest';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import WorkspaceDialog from '$lib/organization/workspace/component/dialog.svelte';
-import { WORKSPACE_NAME_LIMIT } from '$lib/workspace/workspace';
+import { WORKSPACE_NAME_LIMIT } from '$lib/sync/host';
 import en from '$lib/i18n/en';
 import { toTitleCase } from '@rentable/design/title-case.js';
 import ar from '$lib/i18n/ar';

@@ -24,9 +24,10 @@
 	import * as Cell from '$lib/design/cell';
 	import type { ListSort } from '@rentable/design/sort.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
-	import { useImportRecords } from '$lib/workspace/query';
+	import { DirectoryImportDialog } from '$lib/transfer/ui';
+	import { useImportRecords } from '$lib/workspace/ui';
 	import { toTransferInput } from '$lib/transfer';
+	import { contributionsTo } from '$lib/feature/surface';
 	import { IMPORT_FLAGS, memberPermissions } from '$lib/permission';
 	import UserIcon from '@lucide/svelte/icons/user';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
@@ -120,7 +121,7 @@
 
 	// the occupant is offered as an order and a column of the file only to a reader who may view
 	// tenants: the list answers anyone else with no occupant (effort 838, requirement 10).
-	const viewsTenant = $derived(memberPermissions.views('tenant'));
+	const viewsTenant = $derived(contributionsTo('unit').viewsTenants());
 
 	// what a unit's card offers, projected from the one list its own page and the command menu read
 	// (`complex/unit/acts.ts`). The row is handed over with the complex this directory lists, which

@@ -1,7 +1,7 @@
 import api from '$lib/api/caller';
 import { UNIT_SORT_COLUMN_IDS, type UnitSortColumnId } from '$lib/complex/complex';
 import { keys } from '$lib/complex/query';
-import { declareMutation, describeOutcomeChange } from '$lib/mutation';
+import { declareMutation, describeOutcomeChange } from '$lib/mutation/ui';
 import type { SelectionCall } from '@rentable/design/selection.js';
 import type { HistoryEntry } from '$lib/history';
 import { isRecordId } from '$lib/platform/database/identity';

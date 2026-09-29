@@ -1,4 +1,5 @@
 import contract from '$lib/contract/feature';
+import { provideHistoryPrefix } from '$lib/history';
 import { createCachePolicy, provideCachePolicy } from '$lib/mutation';
 import { features } from './features';
 
@@ -16,3 +17,10 @@ import { features } from './features';
 export const cachePolicy = createCachePolicy(features, contract);
 
 provideCachePolicy(cachePolicy);
+
+/**
+ * **The history reads the same shared prefix**, handed to it rather than read from
+ * `$lib/mutation`, which records history through the history's API and so may not be imported
+ * back by it.
+ */
+provideHistoryPrefix(cachePolicy.shared);

@@ -1,5 +1,27 @@
-import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 import type { Locales } from '$lib/i18n/i18n-types';
+
+export type LocaleMetadata = {
+	label: string;
+	direction: 'ltr' | 'rtl';
+};
+
+/**
+ * Each of this application's locales as a language chooser names it, and the direction it
+ * reads in.
+ *
+ * *It sat in `i18n/i18n-translations-util.ts` until effort 840, and the number formatter the
+ * generated runtime reads from here made the two homes import each other.*
+ */
+export const localesMetadata: Record<Locales, LocaleMetadata> = {
+	ar: {
+		label: 'العربية',
+		direction: 'rtl'
+	},
+	en: {
+		label: 'English',
+		direction: 'ltr'
+	}
+};
 
 /**
  * The `Intl` locale each of this application's locales formats in.

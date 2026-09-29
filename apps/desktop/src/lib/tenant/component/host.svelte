@@ -6,9 +6,9 @@
 	import DeleteDialog from '@rentable/design/block/delete-dialog.svelte';
 	import { AWAITING_BLOCKERS } from '@rentable/design/confirmation.js';
 	import { usesAppleKeyboard } from '@rentable/design/shortcut.js';
-	import { consumeCreateIntent, landing } from '$lib/create';
+	import { consumeCreateIntent, landing } from '$lib/create/ui';
 	import { toDeleteStep, toPaletteVerbs } from '$lib/act';
-	import { onMutationError, onMutationSuccess } from '$lib/mutation';
+	import { onMutationError, onMutationSuccess } from '$lib/mutation/ui';
 	import { showErrorSentence, showErrorToast, showRefusal } from '$lib/notification';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { writeDetailsToClipboard } from '$lib/platform/clipboard';

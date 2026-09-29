@@ -31,7 +31,7 @@
 		type ContractFormContract
 	} from '$lib/contract/form';
 	import type { ContractPrefill } from '$lib/contract/host.svelte';
-	import { onMutationError } from '$lib/mutation';
+	import { onMutationError } from '$lib/mutation/ui';
 	import { useCreateContract, useFetchContract, useUpdateContract } from '$lib/contract/query';
 	import { useRenewContract } from '$lib/contract/renewal/query';
 	import { fieldOfFailure, toRefusalText } from '$lib/error/refusal';

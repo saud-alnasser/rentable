@@ -3,7 +3,7 @@ import * as s from '$lib/platform/database/schema';
 import { PaymentSchema } from '$lib/platform/database/schema';
 import { newId } from '$lib/platform/database/identity';
 import { formatDateInput, fromIsoDay } from '$lib/date';
-import { ensureContractIsNotTerminated } from '$lib/contract/contract';
+import { ensureContractIsNotTerminated } from '$lib/contract';
 import { defineSheet, toContractReference, toStatedNumber } from '$lib/transfer';
 import { asc, eq } from 'drizzle-orm';
 import z from 'zod';

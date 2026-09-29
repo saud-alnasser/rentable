@@ -13,7 +13,7 @@
 //   route    route -> file      a `src/routes/` file importing past a component and the root
 //
 // The last is the routes' own rule (criterion 17): a route composes and holds no wiring, so it
-// imports only a home's components (`$lib/<home>/.../component/...`), a capability's `ui.ts`
+// imports only a home's components (`$lib/<home>/.../component/...`), a home's `ui.ts`
 // (`$lib/<home>/ui`) and the composition root (`$lib/app/...`), besides `$app/*`, third-party
 // code, its own files and the stylesheet. Anything else it needs is a component's to reach. A
 // route is labelled from `src/`, so its line reads `routes/... -> <library label> : route`.
@@ -22,10 +22,11 @@
 // (requirement 2). A feature may import another feature's entry, since requirement 4 has
 // features talk through their public APIs; one reaching past that entry is a `deep` line, and
 // is not counted again as `import`. A deep import is judged against features and capabilities,
-// the homes requirement 4 gives a public API. A home's entry is its `index.ts`, and a capability
-// has a second one, `ui.ts`, which re-exports by name the components other concepts render; its
-// `component/` stays private, so reaching into it from outside is `deep`. A feature shares no
-// component, so a feature's `ui.ts` is no entry. `app/` may also read a feature's `feature.ts`
+// the homes requirement 4 gives a public API. A home's entry is its `index.ts`, which loads under
+// Node, and it has a second one, `ui.ts`, which re-exports by name what of it only the window
+// loads: the query hooks, rune state and components other concepts use (plan, *A feature has the
+// same two entries*). Its `component/` stays private, so reaching into it from outside is `deep`,
+// as is reaching any other file past the two. `app/` may also read a feature's `feature.ts`
 // and `surface.ts`, which is how it lists them, and its `tauri.ts`, which is how `app/host.ts`
 // binds the feature's host port to its adapter. `import type` is erased at runtime and is not
 // counted by any kind.
@@ -35,6 +36,19 @@
 // router reads of the contracts naming it (plan, *A feature's reverse needs are contributions*).
 // That is one place per feature, read only by `app/`, and a kind spelled in any other module of
 // it is still a `literal` line.
+//
+// Two spellings of a kind's word are not a kind at all, and count as no line: an option handed to
+// an `Intl` constructor (`new Intl.ListFormat(locale, { type: 'unit' })`, where `unit` is the list's
+// style), and the value of a `data-` attribute (`data-receipt-label="tenant"`), which names a part
+// of the markup for a test to find. `kindSpelled` is the one judge, and a test below holds it to
+// both sides.
+//
+// Two homes name the kinds by design, outside any feature, and a kind spelled there is no `literal`
+// line either: the ones criterion 2 of effort 840 lists among what adding a kind edits. The schema
+// (`platform/database/schema.ts`) names a table for each kind, and those names are stored, so they
+// keep their spelling. The locale (`i18n/<locale>/index.ts`, and `i18n/i18n-types.ts` generated
+// from the base one) carries a kind's word as a label and names the values a sentence is built
+// from, a tenant among them.
 //
 // A locale is the other place that reads every concept: `i18n/<locale>/index.ts` composes each
 // concept's `i18n/<locale>.ts` back at its key path (plan, *Integration*). Such a piece is data
@@ -127,6 +141,13 @@ function isDeclaration(label: string, layer: Layer) {
 	const name = label.split('/').at(-1) ?? '';
 	return (layer === 'feature' || layer === 'capability') && CONTRIBUTING.includes(name);
 }
+
+// The files that name the kinds by design, as the header says: the schema and the locale.
+const NAMES_KINDS = [
+	/^platform\/database\/schema\.ts$/,
+	/^i18n\/[a-z]+\/index\.ts$/,
+	/^i18n\/i18n-types\.ts$/
+];
 
 // A concept's strings for one locale, and the locale index that composes them.
 const LOCALE_PIECE = /^(?!i18n\/)(?:[^/]+\/)+i18n\/([a-z]+)\.ts$/;
@@ -276,12 +297,23 @@ function resolve(fromFile: string, specifier: string) {
 	return found ? toPosix(relative(LIB_ROOT, found)) : label;
 }
 
-// Whether a label is its home's entry: the home's `index.ts`, or for a capability its `ui.ts`.
-function isEntry(label: string, layer: Layer) {
+// Whether a label is its home's entry: the home's `index.ts`, or its `ui.ts`.
+function isEntry(label: string) {
 	const parts = label.split('/');
 	if (parts.length === 1) return true;
 	if (parts.length !== 2) return false;
-	return /^index\.(ts|js)$/.test(parts[1]) || (layer === 'capability' && parts[1] === 'ui.ts');
+	return /^index\.(ts|js)$/.test(parts[1]) || parts[1] === 'ui.ts';
+}
+
+// Whether `code` spells `kind` as a literal: a quoted string that is the kind's word, other than
+// an option handed to an `Intl` constructor or a `data-` attribute's value, as the header says.
+function kindSpelled(code: string, kind: string) {
+	const quoted = `(['"\`])${kind}\\1`;
+	const kept = code
+		.replace(/new\s+Intl\.\w+\([^()]*\)/g, '')
+		.replace(new RegExp(`\\bdata-[\\w-]+=\\{?\\s*${quoted}\\s*\\}?`, 'g'), '');
+
+	return new RegExp(quoted).test(kept);
 }
 
 // Every edge of the module graph that lies on a cycle: `a -> b` where `b` reaches `a`. Removing
@@ -364,11 +396,7 @@ function violations() {
 
 			const declaration =
 				from === COMPOSITION_ROOT && DECLARATIONS.includes(target.slice(to.length + 1));
-			if (
-				(toLayer === 'feature' || toLayer === 'capability') &&
-				!isEntry(target, toLayer) &&
-				!declaration
-			) {
+			if ((toLayer === 'feature' || toLayer === 'capability') && !isEntry(target) && !declaration) {
 				found.add(`${label} -> ${target} : deep`);
 			}
 
@@ -377,9 +405,15 @@ function violations() {
 			}
 		}
 
-		if (from === COMPOSITION_ROOT || isDeclaration(label, fromLayer)) continue;
+		if (
+			from === COMPOSITION_ROOT ||
+			isDeclaration(label, fromLayer) ||
+			NAMES_KINDS.some((names) => names.test(label))
+		) {
+			continue;
+		}
 		for (const { kind, owner } of kinds) {
-			if (from !== owner && new RegExp(`(['"\`])${kind}\\1`).test(all)) {
+			if (from !== owner && kindSpelled(all, kind)) {
 				found.add(`${label} -> ${kind} : literal`);
 			}
 		}
@@ -423,6 +457,22 @@ test('a locale piece imports nothing at runtime', () => {
 		.map(({ label }) => label);
 
 	assert.deepEqual(importing, [], 'a locale piece is data; import only types into it');
+});
+
+test('a kind is spelled as a string, but not as an Intl option or a data attribute', () => {
+	assert.equal(kindSpelled("memberPermissions.views('unit')", 'unit'), true);
+	assert.equal(kindSpelled('const kind = "tenant";', 'tenant'), true);
+	assert.equal(kindSpelled("{ kind: 'unit' }", 'unit'), true);
+	assert.equal(
+		kindSpelled("new Intl.ListFormat(locale, { type: 'unit' }).format(x)", 'unit'),
+		false
+	);
+	assert.equal(kindSpelled('<dt data-receipt-label="tenant">', 'tenant'), false);
+	assert.equal(kindSpelled("<dt data-receipt-label={'tenant'}>", 'tenant'), false);
+	assert.equal(
+		kindSpelled("new Intl.ListFormat(locale, { type: 'unit' }); views('unit')", 'unit'),
+		true
+	);
 });
 
 test('the baseline is sorted and holds each violation once', () => {

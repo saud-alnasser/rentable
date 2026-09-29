@@ -11,10 +11,10 @@ import {
 	fakeOrganizationWorkspace
 } from '$lib/organization/tests/testing';
 import { fakeSyncState, fakeWorkspace } from '$lib/sync/tests/testing';
-import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
-import WorkspaceImportDialog from '$lib/workspace/component/import-dialog.svelte';
+import DirectoryImportDialog from '$lib/transfer/component/directory-import-dialog.svelte';
+import WorkspaceImportDialog from '$lib/transfer/component/import-dialog.svelte';
 import WorkspacePermissions from '$lib/workspace/component/permissions.svelte';
-import WorkspaceTransfer from '$lib/workspace/component/transfer.svelte';
+import WorkspaceTransfer from '$lib/organization/workspace/component/transfer.svelte';
 import { memberPermissions } from '$lib/permission';
 import QueryProviders from '#tests/query-providers.svelte';
 import { describedBy, forgetReader, holdEveryFlagBut, holdReadOnly } from '#tests/permission.ts';

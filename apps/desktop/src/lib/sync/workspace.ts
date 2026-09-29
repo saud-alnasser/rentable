@@ -3,7 +3,7 @@ import type { QueryClient } from '@tanstack/svelte-query';
 import api from '$lib/api/caller';
 // the cache policy's own module rather than `$lib/mutation`, whose mutation handlers carry a
 // toaster this module's tests cannot load under Node.
-import { invalidateRoot } from '$lib/mutation/cache';
+import { invalidateRoot } from '$lib/mutation';
 import type { RemoteSyncState, ReplicationRefusal, SessionStanding } from '$lib/sync/host';
 import { tauri } from '$lib/sync/tauri';
 

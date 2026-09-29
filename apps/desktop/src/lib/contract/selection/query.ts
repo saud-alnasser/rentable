@@ -1,6 +1,6 @@
 import api from '$lib/api/caller';
 import { toContractName } from '$lib/contract/query';
-import { declareMutation, describeOutcomeChange } from '$lib/mutation';
+import { declareMutation, describeOutcomeChange } from '$lib/mutation/ui';
 import type { SelectionCall } from '@rentable/design/selection.js';
 import type { HistoryEntry } from '$lib/history';
 import { LL } from '$lib/i18n/i18n-svelte';

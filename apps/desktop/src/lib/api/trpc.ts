@@ -1,4 +1,3 @@
-import { requestWorkspaceSync } from '$lib/sync/event';
 import { FAMILIES, permits, type Flag } from '@rentable/workspace-permission';
 import { TRPCError, initTRPC } from '@trpc/server';
 import { ZodError, type z } from 'zod';
@@ -83,6 +82,22 @@ export type Meta = {
 	/** a call with nobody to name: `procedure.public`'s. */
 	public?: true;
 };
+
+/**
+ * What a write that landed asks for once it has: the workspace pushed to its replica, which is
+ * sync's to do.
+ *
+ * **Bound in, never imported**, for the reason the root router is in `./caller`: sync is a feature,
+ * and this home sits below the features. `$lib/app/caller` binds sync's request as the root layout
+ * loads, before anything can call a procedure. Unbound, as under a test's own router, a write asks
+ * for nothing, which is what the request itself does wherever there is no window to say it on.
+ */
+let requestSync: () => void = () => {};
+
+/** Bind what a landed write asks for. Called once, by `$lib/app/caller`. */
+export function bindSyncRequest(request: () => void) {
+	requestSync = request;
+}
 
 /**
  * INITIALIZER
@@ -244,7 +259,7 @@ export const middleware = {
 		const result = await next();
 
 		if (result.ok) {
-			requestWorkspaceSync();
+			requestSync();
 		}
 
 		return result;

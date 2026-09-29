@@ -6,10 +6,9 @@
 	import * as Sidebar from '@rentable/design/primitive/sidebar/index.js';
 	import { useSidebar } from '@rentable/design/primitive/sidebar/index.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
-	import { localesMetadata } from '$lib/i18n/i18n-translations-util';
-	import { THE_SETTINGS_AREA } from '$lib/settings/section';
-	import { accountInitials } from '$lib/sync/account';
-	import { requestSignOut } from '$lib/sync/sign-out';
+	import { localesMetadata } from '$lib/platform/locale';
+	import { THE_SETTINGS_AREA } from '$lib/settings';
+	import { accountInitials, requestSignOut } from '$lib/sync';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';

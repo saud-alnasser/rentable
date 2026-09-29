@@ -17,7 +17,7 @@
 	import { roleLine, roleNameOf } from '$lib/organization/role/role';
 	import type { OrganizationMember, OrganizationRole } from '$lib/organization/host';
 	import { getIntlLocale } from '$lib/platform/locale';
-	import { recordOf, ROLE_PARAM, withSection } from '$lib/settings/section';
+	import { recordOf, ROLE_PARAM, withSection } from '$lib/settings';
 	import XIcon from '@lucide/svelte/icons/x';
 
 	/**

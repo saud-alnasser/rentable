@@ -1,5 +1,5 @@
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
-import { WORKSPACE_NAME_LIMIT } from '$lib/workspace/workspace';
+import { WORKSPACE_NAME_LIMIT } from '$lib/sync';
 import z from 'zod';
 
 /**

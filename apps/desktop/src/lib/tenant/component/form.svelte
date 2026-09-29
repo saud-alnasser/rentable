@@ -7,7 +7,7 @@
 	import { Input } from '@rentable/design/primitive/input/index.js';
 	import * as Select from '@rentable/design/primitive/select/index.js';
 	import { cn } from '@rentable/design/tailwind.js';
-	import { onMutationError } from '$lib/mutation';
+	import { onMutationError } from '$lib/mutation/ui';
 	import { fieldOfFailure, toRefusalText } from '$lib/error/refusal';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useCreateTenant, useUpdateTenant } from '$lib/tenant/query';

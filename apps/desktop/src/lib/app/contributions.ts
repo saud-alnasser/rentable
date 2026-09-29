@@ -5,6 +5,7 @@ import type {
 } from '$lib/complex';
 import type { ContractContributions, ContractSurfaceContributions } from '$lib/contract';
 import { contributionsOf } from '$lib/feature/feature';
+import type { SettingsSurfaceContributions } from '$lib/settings/settings';
 import type { TenantContributions, TenantSurfaceContributions } from '$lib/tenant';
 import type { WorkspaceSurfaceContributions } from '$lib/workspace/workspace';
 import { features } from './features';
@@ -28,9 +29,10 @@ export type Contributions = {
 };
 
 /**
- * What each kind needs in the window: its pages, its host and its acts. The workspace is the one
- * feature here that holds no kind of record: its rail row and its permissions read the session of
- * the organization, which depends on it.
+ * What each kind needs in the window: its pages, its host and its acts. The workspace and the
+ * settings hold no kind of record: the workspace's rail row and its permissions read the session of
+ * the organization, which depends on it, and the settings refresh what the dashboard ranks by the
+ * figure they set.
  */
 export type SurfaceContributions = {
 	tenant: TenantSurfaceContributions;
@@ -38,6 +40,7 @@ export type SurfaceContributions = {
 	unit: UnitSurfaceContributions;
 	contract: ContractSurfaceContributions;
 	workspace: WorkspaceSurfaceContributions;
+	settings: SettingsSurfaceContributions;
 };
 
 /**

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { contributionsTo, type ShellSlotProps } from '$lib/feature/surface';
-	import { useFetchRemoteSyncState } from '$lib/sync/query';
+	import { useFetchRemoteSyncState } from '$lib/sync/ui';
 	import WorkspaceLocked from '$lib/workspace/component/locked.svelte';
 	import WorkspaceMenu from '$lib/workspace/component/menu.svelte';
 

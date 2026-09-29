@@ -13,14 +13,14 @@
 	import { toCardActions } from '$lib/act';
 	import type { ListSort } from '@rentable/design/sort.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import { accountInitials } from '$lib/sync/account';
+	import { accountInitials } from '$lib/sync';
 	import { lacking } from '$lib/organization/role/acts';
 	import { toMemberActContext, type MemberActRecord } from '$lib/organization/member/acts';
 	import DirectoryTray from '$lib/organization/component/directory-tray.svelte';
 	import { toMemberDirectory } from '$lib/organization/directory';
 	import { memberActs, memberHost, memberPending } from '$lib/organization/host.svelte';
 	import { memberRoleName } from '$lib/organization/role/role';
-	import { RECORD_PARAM, recordOf, withSection } from '$lib/settings/section';
+	import { RECORD_PARAM, recordOf, withSection } from '$lib/settings';
 	import XIcon from '@lucide/svelte/icons/x';
 
 	/**

@@ -9,7 +9,7 @@
 	import { useDeleteWorkspace } from '$lib/organization/workspace/query';
 	import { organizationHostState } from '$lib/organization/host.svelte';
 	import type { OrganizationMember, OrganizationSession } from '$lib/organization/host';
-	import WorkspaceRenameForm from '$lib/workspace/component/rename-form.svelte';
+	import WorkspaceRenameForm from './rename-form.svelte';
 
 	/**
 	 * Every surface a workspace act opens: its name, who holds it, and deleting it. Mounted by the

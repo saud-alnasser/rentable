@@ -1,11 +1,11 @@
 import type { DateLike } from '$lib/date';
-import type { ContractLike } from '$lib/contract/contract';
-import { getContractTotalCost } from '$lib/contract/schedule/cycle';
 import {
+	type ContractLike,
+	getContractTotalCost,
 	compareByAllocationOrder,
 	scheduleContract,
 	type SchedulePaymentLike
-} from '$lib/contract/schedule/schedule';
+} from '$lib/contract';
 
 /**
  * RECEIPT

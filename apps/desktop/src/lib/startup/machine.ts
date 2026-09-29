@@ -1,5 +1,5 @@
 import type { Recovery } from '$lib/update/host';
-import { organizationAdmission } from '$lib/sync/admission';
+import { organizationAdmission } from '$lib/sync';
 import type { StartupPorts } from './ports';
 import { Reconciliation } from './reconcile';
 import { hasRecoveryData, INITIAL, type SignInReason, type StartupSnapshot } from './snapshot';

@@ -1,4 +1,4 @@
-import { hasSatisfiedContractPaymentRequirement } from '$lib/contract/contract';
+import { hasSatisfiedContractPaymentRequirement } from '$lib/contract';
 import type { RecordAct } from '$lib/act';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 import type { Contract, Payment } from '$lib/platform/database/schema';

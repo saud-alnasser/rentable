@@ -1,6 +1,5 @@
-import type { RemoteSyncState } from './host';
+import { WORKSPACE_NAME_LIMIT, type RemoteSyncState } from './host';
 import { procedure, router } from '$lib/api/trpc';
-import { WORKSPACE_NAME_LIMIT } from '$lib/workspace/workspace';
 import z from 'zod';
 
 /**

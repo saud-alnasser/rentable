@@ -2,8 +2,8 @@
 	import StandaloneSurface from '@rentable/design/block/standalone-surface.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import WorkspaceFields from '$lib/workspace/component/fields.svelte';
-	import { workspaceFormSchema } from '$lib/workspace/form';
+	import { WorkspaceFields } from '$lib/workspace/ui';
+	import { workspaceFormSchema } from '$lib/workspace';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import { defaults, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';

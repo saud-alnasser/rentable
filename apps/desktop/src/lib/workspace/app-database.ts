@@ -1,8 +1,8 @@
 import api from '$lib/api/caller';
 import { recordDiagnosticWarning } from '$lib/platform/diagnostics';
-import type { EarlierRecords } from '$lib/workspace/host';
+import type { EarlierRead, EarlierRecords } from '$lib/workspace/host';
 import { tauri } from '$lib/workspace/tauri';
-import { keys as settingsKeys } from '$lib/settings/query';
+import { settingsKeys } from '$lib/settings/ui';
 import { createQuery, useQueryClient, type QueryClient } from '@tanstack/svelte-query';
 
 /**
@@ -47,6 +47,16 @@ export async function findEarlierRecords(): Promise<EarlierRecords | null> {
 
 		return null;
 	}
+}
+
+/**
+ * Read those records as the whole-workspace export, and write them as its workbook under
+ * `backups/app/`: what the organization's workspaces section brings in through the workspace
+ * import, reviewed first. The host's own read, reached here because the section drawing the offer
+ * is the organization's and the host adapter is this feature's.
+ */
+export function readEarlierRecords(): Promise<EarlierRead> {
+	return tauri.earlier.read();
 }
 
 /**

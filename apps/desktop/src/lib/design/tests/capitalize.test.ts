@@ -32,7 +32,11 @@ const ALLOWED: readonly { label: string; most: number; reason: string }[] = [
 	{ label: 'lib/complex/unit/component/form.svelte', most: 1, reason: 'the submit verb' },
 	{ label: 'lib/tenant/component/form.svelte', most: 1, reason: 'the submit verb' },
 	{ label: 'lib/payment/component/form.svelte', most: 1, reason: 'the submit verb' },
-	{ label: 'lib/workspace/component/rename-form.svelte', most: 1, reason: 'the submit verb' },
+	{
+		label: 'lib/organization/workspace/component/rename-form.svelte',
+		most: 1,
+		reason: 'the submit verb'
+	},
 	{ label: 'lib/contract/component/form.svelte', most: 1, reason: 'the submit verb' },
 	{
 		label: 'lib/contract/component/interval-field.svelte',
@@ -98,7 +102,7 @@ const ALLOWED: readonly { label: string; most: number; reason: string }[] = [
 		reason: 'the language names, which are the locale metadata’s'
 	},
 	{
-		label: 'lib/workspace/component/import-dialog.svelte',
+		label: 'lib/transfer/component/import-dialog.svelte',
 		most: 1,
 		reason: 'a concept’s name, "tenants" or "contracts"'
 	}

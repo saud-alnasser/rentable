@@ -1,7 +1,7 @@
 import api from '$lib/api/caller';
-import { declareMutation } from '$lib/mutation';
-import { keys as settingsKeys } from '$lib/settings/query';
-import { keys as syncKeys } from '$lib/sync/query';
+import { declareMutation } from '$lib/mutation/ui';
+import { settingsKeys } from '$lib/settings/ui';
+import { syncKeys } from '$lib/sync/ui';
 import { LL } from '$lib/i18n/i18n-svelte';
 import { get } from 'svelte/store';
 

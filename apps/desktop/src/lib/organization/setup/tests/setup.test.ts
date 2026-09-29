@@ -31,7 +31,7 @@ import {
 	usernameSchema
 } from '$lib/organization/member/username-form.ts';
 import { workspaceFormSchema } from '$lib/workspace/form.ts';
-import { WORKSPACE_NAME_LIMIT } from '$lib/workspace/workspace.ts';
+import { WORKSPACE_NAME_LIMIT } from '$lib/sync/host.ts';
 
 /**
  * the first run's Rust as one text: `tauri/src/organization/setup/` less its commands, which is

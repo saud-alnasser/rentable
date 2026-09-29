@@ -1,14 +1,15 @@
-import { ensureIdFree, newId } from '$lib/platform/database/identity';
+import { ensureIdFree } from '$lib/api/refusal';
+import { newId } from '$lib/platform/database/identity';
 import * as s from '$lib/platform/database/schema';
 import { PaymentSchema } from '$lib/platform/database/schema';
 import { refuse } from '$lib/api/refusal';
 import { autosync, procedure, router } from '$lib/api/trpc';
 import {
 	ensureContractIsNotTerminated,
-	ensureContractPaymentsCreatable
-} from '$lib/contract/contract';
+	ensureContractPaymentsCreatable,
+	reconcileTouched
+} from '$lib/contract';
 import type { Database } from '$lib/api/context';
-import { reconcileTouched } from '$lib/contract/reconcile';
 import {
 	ensurePaymentIsNotInTheFuture,
 	ensureValidPaymentAmount,

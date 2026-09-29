@@ -3,7 +3,6 @@ import type { UnitRefusalCode } from '$lib/complex/unit/refusal';
 import type { ContractRefusalCode } from '$lib/contract/refusal';
 import type { HostRefusalCode } from '$lib/error/tauri';
 import type { PaymentRefusalCode } from '$lib/payment/refusal';
-import type { RecordRefusalCode } from '$lib/platform/database/identity';
 import type { TenantRefusalCode } from '$lib/tenant/refusal';
 import type { TransferRefusalCode } from '$lib/transfer/refusal';
 import { TRPCError } from '@trpc/server';
@@ -90,4 +89,40 @@ function refusalIn(holder: unknown): Refusal | null {
 		code: code as RefusalCode,
 		params: typeof params === 'object' && params !== null ? (params as RefusalParams) : {}
 	};
+}
+
+/**
+ * The refusals of a stated identity, by code. Any concept's record can meet them, so they are
+ * named for the record rather than for a concept, and sit here beside the union rather than in a
+ * concept's `refusal.ts`.
+ */
+export type RecordRefusalCode = 'record.idTaken' | 'record.idTakenNamed';
+
+/**
+ * A STATED IDENTITY
+ *
+ * the creating client mints a row's identity, and a caller may state one instead, which is
+ * how undoing a deletion puts a row back as the record it was rather than as a copy of it
+ * (ADR 0026).
+ *
+ * A stated identity has to be free, and that is not a formality: an undo replays an id that
+ * was deleted, and nothing stops the same id being stated twice. Without this the collision
+ * arrives as a constraint failure the user is shown as an unexpected error, rather than as the
+ * refusal it is.
+ *
+ * *It used to say the engine hands out the next id above the highest in use, which was the
+ * reason a freed id could be taken. That rule is gone (`newId` in
+ * `$lib/platform/database/identity` is where identities come from now), and the check it justified
+ * is not, because a stated id is still a stated id. It sat beside `newId` until effort 840, when
+ * the refusal it raises kept the database transport importing this wiring.*
+ *
+ * @param existing whatever row the caller's lookup found; any row means the id is taken.
+ * @param named how the offending record is referred to, where the caller is acting on a set and
+ * has to say which member of it was refused. A caller acting on one record omits it: the record
+ * is the one it was asked about.
+ */
+export function ensureIdFree(existing: unknown, named?: string) {
+	if (existing) {
+		throw named ? refuse('record.idTakenNamed', { named }) : refuse('record.idTaken');
+	}
 }

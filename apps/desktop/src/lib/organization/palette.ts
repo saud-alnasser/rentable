@@ -25,7 +25,7 @@ import {
 } from '$lib/organization/host.svelte';
 import { useFetchMemberStandings, useFetchMembers } from '$lib/organization/member/query';
 import { useFetchOrganizationState } from '$lib/organization/query';
-import { useFetchRemoteSyncState } from '$lib/sync/query';
+import { useFetchRemoteSyncState } from '$lib/sync/ui';
 import { usesAppleKeyboard } from '@rentable/design/shortcut.js';
 import { getContext, hasContext, setContext } from 'svelte';
 import { get } from 'svelte/store';

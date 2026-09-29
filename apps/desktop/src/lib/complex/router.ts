@@ -4,7 +4,8 @@ import {
 	RecordSearchSchema,
 	type RecordMatch
 } from '$lib/platform/database/search';
-import { ensureIdFree, newId } from '$lib/platform/database/identity';
+import { ensureIdFree } from '$lib/api/refusal';
+import { newId } from '$lib/platform/database/identity';
 import * as s from '$lib/platform/database/schema';
 import { ComplexSchema, UnitSchema } from '$lib/platform/database/schema';
 import { planSelection } from '$lib/api/selection';

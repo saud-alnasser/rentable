@@ -92,7 +92,8 @@ export default defineSurface({
 					() => ({ unitId: unitId() }),
 					enabled
 				),
-			newContract: (unitId) => contractHost.create({ unitIds: [unitId] })
+			newContract: (unitId) => contractHost.create({ unitIds: [unitId] }),
+			viewsTenants: () => memberPermissions.views('tenant')
 		},
 		complex: {
 			// narrowed to the complex in the procedure: loading every contract to keep one building's

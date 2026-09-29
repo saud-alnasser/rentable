@@ -2,13 +2,10 @@ import * as s from '$lib/platform/database/schema';
 import { type Contract } from '$lib/platform/database/schema';
 import { FILTER_PERIODS, isWithinPeriod, toPeriodRange } from '$lib/date';
 import { procedure, router } from '$lib/api/trpc';
-import { getExpectedAmountBy, getExpectedAmountInRange } from '$lib/contract/schedule/cycle';
-import { serializeContract } from '$lib/contract/serialize';
 import {
-	isContractIncludedInDashboardPortfolio,
-	takeEntriesShownPerRank
-} from '$lib/dashboard/dashboard';
-import {
+	getExpectedAmountBy,
+	getExpectedAmountInRange,
+	serializeContract,
 	compareContractsByRank,
 	getContractRank,
 	getDueSoonCycle,
@@ -16,7 +13,11 @@ import {
 	summarizeContractRanks,
 	type ContractRank,
 	type ContractRankSummary
-} from '$lib/contract/rank/rank';
+} from '$lib/contract';
+import {
+	isContractIncludedInDashboardPortfolio,
+	takeEntriesShownPerRank
+} from '$lib/dashboard/dashboard';
 import { permits, type Flag } from '@rentable/workspace-permission';
 import { eq, sql } from 'drizzle-orm';
 import z from 'zod';

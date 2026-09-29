@@ -6,8 +6,7 @@
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { memberRoleName } from '$lib/organization/role/role';
-	import { accountInitials } from '$lib/sync/account';
-	import { requestSignOut } from '$lib/sync/sign-out';
+	import { accountInitials, requestSignOut } from '$lib/sync';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
 
 	/**

@@ -1,6 +1,9 @@
 import { fireEvent, render, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest';
 
+// what the other features contribute to the directory, composed and provided as the frame does by
+// importing them (`contributionsTo` in `$lib/feature/surface`).
+import '$lib/app/surfaces';
 import ContractDirectory from '$lib/contract/component/directory.svelte';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import en from '$lib/i18n/en';

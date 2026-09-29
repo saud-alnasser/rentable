@@ -6,7 +6,7 @@
 	import { workspaceContextOf } from '$lib/organization/workspace/acts';
 	import { useFetchMembers } from '$lib/organization/member/query';
 	import { useFetchOrganizationState } from '$lib/organization/query';
-	import { useFetchRemoteSyncState } from '$lib/sync/query';
+	import { useFetchRemoteSyncState } from '$lib/sync/ui';
 
 	/**
 	 * The settings area's workspaces section: the directory of the workspaces this member holds,

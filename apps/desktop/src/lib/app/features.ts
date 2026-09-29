@@ -10,6 +10,7 @@ import sync from '$lib/sync/feature';
 import tenant from '$lib/tenant/feature';
 import transfer from '$lib/transfer/feature';
 import update from '$lib/update/feature';
+import workspace from '$lib/workspace/feature';
 
 /**
  * THE FEATURES
@@ -34,6 +35,7 @@ const declared = [
 	unit,
 	dashboard,
 	history,
+	workspace,
 	organization,
 	settings,
 	sync,

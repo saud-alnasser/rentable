@@ -6,10 +6,11 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import type { Locales } from '$lib/i18n/i18n-types';
 	import { i18nObject } from '$lib/i18n/i18n-util';
-	import { PrintPreview } from '$lib/print/ui';
-	import { sendPage, surfacesSettled } from '$lib/print/sheet.svelte';
-	import { useReadOrganizationMark, useReadOrganizationName } from '$lib/organization/query';
-	import { useReadTenant } from '$lib/tenant/query';
+	import { PrintPreview, sendPage, surfacesSettled } from '$lib/print/ui';
+	import { useReadOrganizationMark, useReadOrganizationName } from '$lib/organization/ui';
+	import { UNIT_KIND } from '$lib/complex';
+	import { TENANT_KIND } from '$lib/tenant';
+	import { useReadTenant } from '$lib/tenant/ui';
 	import { memberPermissions } from '$lib/permission';
 	import { untrack } from 'svelte';
 	import PrintedSchedule, { type PrintedScheduleValue } from './printed-schedule.svelte';
@@ -45,8 +46,8 @@
 	 * read itself.
 	 */
 	async function previewSchedule(contract: ContractActRecord) {
-		const viewsTenant = memberPermissions.views('tenant');
-		const viewsUnit = memberPermissions.views('unit');
+		const viewsTenant = memberPermissions.views(TENANT_KIND);
+		const viewsUnit = memberPermissions.views(UNIT_KIND);
 
 		try {
 			const [cycles, units, tenant, issuer, mark] = await Promise.all([

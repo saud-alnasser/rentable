@@ -38,15 +38,12 @@ export { RECORD_KINDS, type RecordKind };
  *
  * **The owner's family is not one of them.** No role and no override can carry an owner-only flag
  * (requirement 2), so an editor offering one would be offering a box nothing could tick; the
- * owner's own role lists it, because that role is the one that carries it.
+ * owner's own role lists it, because that role is the one that carries it. The record kinds follow
+ * the organization's own in the package's order, read off its list rather than spelled again.
  */
 export const EDITABLE_FAMILIES = [
 	'administration',
-	'complex',
-	'unit',
-	'tenant',
-	'contract',
-	'payment'
+	...RECORD_KINDS
 ] as const satisfies readonly Family[];
 
 /** every family, in the package's order. */

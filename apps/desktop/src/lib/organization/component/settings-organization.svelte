@@ -5,7 +5,7 @@
 	} from '$lib/organization/member/query';
 	import { useFetchOrganizationState as startState } from '$lib/organization/query';
 	import { useFetchRoles as startRoles } from '$lib/organization/role/query';
-	import { useFetchRemoteSyncState as startSync } from '$lib/sync/query';
+	import { useFetchRemoteSyncState as startSync } from '$lib/sync/ui';
 
 	/**
 	 * What the organization's settings sections read, started as the area opens (its `load`):
@@ -47,7 +47,7 @@
 	import { useFetchMemberStandings, useFetchMembers } from '$lib/organization/member/query';
 	import { useFetchRoles } from '$lib/organization/role/query';
 	import { administersMembers } from '$lib/organization/member/member';
-	import { useFetchRemoteSyncState } from '$lib/sync/query';
+	import { useFetchRemoteSyncState } from '$lib/sync/ui';
 	import { permits } from '@rentable/workspace-permission';
 
 	/**

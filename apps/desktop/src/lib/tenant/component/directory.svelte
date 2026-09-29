@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
+	import { DirectoryImportDialog } from '$lib/transfer/ui';
 	import { List } from '$lib/list/ui';
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
 	import RecordCard from '@rentable/design/block/record-card.svelte';
@@ -24,7 +24,7 @@
 		type TenantRefusalReason
 	} from '$lib/tenant/query';
 	import { TENANT_SORT_COLUMN_IDS, type TenantSortColumnId } from '$lib/tenant/tenant';
-	import { useImportRecords } from '$lib/workspace/query';
+	import { useImportRecords } from '$lib/workspace/ui';
 	import { toTransferInput } from '$lib/transfer';
 	import { IMPORT_FLAGS, memberPermissions } from '$lib/permission';
 	import { contributionsTo } from '$lib/feature/surface';

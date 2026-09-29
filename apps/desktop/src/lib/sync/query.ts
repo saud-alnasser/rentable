@@ -1,7 +1,7 @@
 import { emitSessionEnded } from '$lib/sync/event';
 import api from '$lib/api/caller';
 import { announceReceivedRows, syncWorkspaceNow } from '$lib/sync/workspace';
-import { declareMutation } from '$lib/mutation';
+import { declareMutation } from '$lib/mutation/ui';
 import { LL } from '$lib/i18n/i18n-svelte';
 import { createQuery } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';

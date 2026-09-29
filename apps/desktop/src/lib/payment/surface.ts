@@ -59,7 +59,8 @@ export default defineSurface({
 	// against arrive from here rather than by its importing them.
 	contributes: {
 		contract: {
-			useHeldPayments: (contractId, enabled) => useFetchContractPayments(contractId, enabled)
+			useHeldPayments: (contractId, enabled) => useFetchContractPayments(contractId, enabled),
+			viewsPayments: () => memberPermissions.views('payment')
 		}
 	}
 });

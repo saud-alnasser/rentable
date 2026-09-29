@@ -2,9 +2,9 @@ import api from '$lib/api/caller';
 import { tauri } from '$lib/platform/tauri';
 import type { RemoteSyncState } from '$lib/sync/host';
 import { tauri as update } from '$lib/update/tauri';
-import { syncWorkspaceBeforeExit } from '$lib/sync/workspace';
-import { keys as syncKeys } from '$lib/sync/query';
-import { declareMutation } from '$lib/mutation';
+import { syncWorkspaceBeforeExit } from '$lib/sync';
+import { syncKeys } from '$lib/sync/ui';
+import { declareMutation } from '$lib/mutation/ui';
 
 /**
  * THE UPDATER'S HOOKS

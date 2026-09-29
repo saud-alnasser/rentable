@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { shortcuts } from '$lib/shortcut';
+	import { shortcuts } from '$lib/shortcut/ui';
 	import { toUndoShortcuts } from '$lib/undo/key';
 	import { applyRedo, applyUndo } from '$lib/undo/move';
 	import { inverseStack } from '$lib/undo/undo';

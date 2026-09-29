@@ -95,7 +95,11 @@
 
 	<dl class="grid grid-cols-[auto_1fr] items-baseline gap-x-8 gap-y-3">
 		{#if value.tenant}
-			{@render fact(t.contracts.payments.receipt.receivedFrom(), 'tenant')}
+			<!-- written out rather than through `fact`, so the name the test finds it by is the data
+			     attribute's own value rather than a kind's word handed around. -->
+			<dt class="text-muted-foreground first-letter:uppercase" data-receipt-label="tenant">
+				{t.contracts.payments.receipt.receivedFrom()}
+			</dt>
 			<dd class="font-medium"><bdi>{value.tenant.name}</bdi></dd>
 
 			{@render fact(t.common.labels.nationalId(), 'nationalId')}

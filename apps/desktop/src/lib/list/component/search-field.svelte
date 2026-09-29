@@ -11,7 +11,7 @@
 <script lang="ts">
 	import { Input } from '@rentable/design/primitive/input/index.js';
 	import { cn } from '@rentable/design/tailwind.js';
-	import { shortcuts } from '$lib/shortcut';
+	import { shortcuts } from '$lib/shortcut/ui';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import { untrack } from 'svelte';

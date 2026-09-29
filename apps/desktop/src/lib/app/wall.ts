@@ -1,7 +1,7 @@
 import { goto } from '$app/navigation';
 import { resolve } from '$app/paths';
 import { page } from '$app/state';
-import { useFetchOrganizationState } from '$lib/organization';
+import { useFetchOrganizationState } from '$lib/organization/ui';
 import { addressAfterSignOut, useStartup } from '$lib/startup';
 
 export { THE_WAY_IN, useStartup } from '$lib/startup';

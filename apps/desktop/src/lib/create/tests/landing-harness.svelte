@@ -9,7 +9,7 @@
 	 * refetch would.
 	 */
 	import { List } from '$lib/list/ui';
-	import { dropLandingOnNavigation } from '$lib/create';
+	import { dropLandingOnNavigation } from '$lib/create/ui';
 	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import { DesignProvider } from '@rentable/design/strings.js';
 	import { placeholderStrings as strings } from '$lib/design/tests/strings';

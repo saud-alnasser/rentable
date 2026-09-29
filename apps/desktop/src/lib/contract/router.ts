@@ -1,4 +1,5 @@
-import { ensureIdFree, newId } from '$lib/platform/database/identity';
+import { ensureIdFree } from '$lib/api/refusal';
+import { newId } from '$lib/platform/database/identity';
 import * as s from '$lib/platform/database/schema';
 import { ContractSchema } from '$lib/platform/database/schema';
 import { refuse } from '$lib/api/refusal';

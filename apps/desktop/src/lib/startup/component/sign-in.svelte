@@ -8,7 +8,7 @@
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
 	import DetailDisclosure from '$lib/error/component/detail-disclosure.svelte';
-	import DisconnectDialog from '$lib/organization/component/disconnect-dialog.svelte';
+	import { DisconnectDialog } from '$lib/organization/ui';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import BuildingIcon from '@lucide/svelte/icons/building';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';

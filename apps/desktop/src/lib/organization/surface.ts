@@ -1,7 +1,7 @@
 import { resolve } from '$app/paths';
 import type { ResolvedPathname } from '$app/types';
 import { defineSurface } from '$lib/feature/surface';
-import { RECORD_PARAM, WORKSPACE_PARAM, withSection } from '$lib/settings/section';
+import { RECORD_PARAM, WORKSPACE_PARAM, withSection } from '$lib/settings';
 import dialogs from './component/dialogs.svelte';
 import host from './component/host.svelte';
 import railRow from './component/rail-row.svelte';

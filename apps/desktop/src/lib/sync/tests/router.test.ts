@@ -6,7 +6,7 @@ import { BUILT_IN, maskOf } from '@rentable/workspace-permission';
 import { createApi, fakeIdentity } from '$lib/app/tests/testing.ts';
 import { fakeHost } from '$lib/app/tests/host.ts';
 import { fakeSyncState, fakeWorkspace } from '$lib/sync/tests/testing.ts';
-import { WORKSPACE_NAME_LIMIT } from '$lib/workspace/workspace.ts';
+import { WORKSPACE_NAME_LIMIT } from '$lib/sync/host.ts';
 
 /**
  * RENAMING A WORKSPACE, THROUGH THE PROCEDURE

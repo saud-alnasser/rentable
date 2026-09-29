@@ -1,5 +1,6 @@
 import { FILTER_PERIODS, isWithinPeriod } from '$lib/date';
-import { ensureIdFree, newId } from '$lib/platform/database/identity';
+import { ensureIdFree } from '$lib/api/refusal';
+import { newId } from '$lib/platform/database/identity';
 import {
 	matchesAnySearch,
 	RecordSearchSchema,
@@ -11,9 +12,9 @@ import { refuse } from '$lib/api/refusal';
 import { autosync, procedure, router } from '$lib/api/trpc';
 import {
 	ensureContractIsNotTerminated,
-	ensureContractPaymentsCreatable
-} from '$lib/contract/contract';
-import { reconcileTouched } from '$lib/contract/reconcile';
+	ensureContractPaymentsCreatable,
+	reconcileTouched
+} from '$lib/contract';
 import { allocateReceipt, toReceiptReference } from '$lib/payment/receipt';
 import {
 	ensurePaymentIsNotInTheFuture,

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { accessIn, workspacePermissionsIn } from '$lib/api/context';
 	import { contributionsTo } from '$lib/feature/surface';
-	import { useFetchRemoteSyncState } from '$lib/sync/query';
+	import { useFetchRemoteSyncState } from '$lib/sync/ui';
 	import { memberPermissions } from '$lib/permission';
 
 	/**

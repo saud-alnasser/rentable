@@ -7,7 +7,7 @@
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as DropdownMenu from '@rentable/design/primitive/dropdown-menu/index.js';
 	import Empty from '@rentable/design/block/empty.svelte';
-	import { isMoneyRank } from '$lib/contract/rank/rank';
+	import { isMoneyRank } from '$lib/contract';
 	import { toDashboardSections } from '$lib/dashboard/dashboard';
 	import { useFetchContractWorkQueue } from '$lib/dashboard/query';
 	import DashboardSectionCard from '$lib/dashboard/component/section.svelte';

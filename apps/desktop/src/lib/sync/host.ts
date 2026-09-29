@@ -1,8 +1,8 @@
 /**
  * SYNC HOST
  *
- * what remote sync asks of the shell it runs in, and the payload types it speaks in: the sync
- * feature's port. `./tauri` is its Tauri adapter, and `$lib/app/host` composes it into the
+ * what remote sync asks of the shell it runs in, the payload types it speaks in, and the bound on
+ * the name its rename takes: the sync feature's port. `./tauri` is its Tauri adapter, and `$lib/app/host` composes it into the
  * application's `Host` under `sync`.
  *
  * Nothing in this file imports a `@tauri-apps` package, for the reason `$lib/platform/host`
@@ -130,3 +130,21 @@ export type SyncHost = {
 	 */
 	renameWorkspace: (name: string) => Promise<RemoteSyncState>;
 };
+
+/**
+ * How long a workspace's name may be.
+ *
+ * **The organization store is the authority and this is a copy of its number**, which is worth stating
+ * because a copy across a boundary is a thing that drifts. It is here so a name too long to store
+ * is refused before a round trip rather than after one, and so the form can say so beside the
+ * field the reader typed in. The service still decides what it stores; nothing here can make it
+ * accept a name it would not.
+ *
+ * *The column itself has no length on it (`workspace.name` is SQLite `TEXT`), so what this bounds
+ * is a name no surface can draw rather than one the row cannot hold.*
+ *
+ * Here beside the port that renames, whose router refuses a name over it, since effort 840: it sat
+ * in `$lib/workspace/workspace` until then, and the router importing it from there kept sync and
+ * the workspace importing each other.
+ */
+export const WORKSPACE_NAME_LIMIT = 120;

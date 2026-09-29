@@ -176,7 +176,7 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   to its kind, and the settings area the sections contributed to it (the organization's account,
   organization and workspaces), each handed them by its route, so no feature renders another
   feature's components. A route composes and holds no wiring: it imports only a home's
-  components, a capability's `ui.ts` and `app/`, which `lib/tests/layers.test.ts` holds it to.
+  components, a home's `ui.ts` and `app/`, which `lib/tests/layers.test.ts` holds it to.
   The root layout hands the shell's window (`shell/component/window.svelte`) to startup's root
   (`startup/component/root.svelte`) to draw its state in, and the three addresses that open
   signed out take the startup unit and the way in from `app/wall.ts` (effort 840, ticket 34). Record features depend one way, the contract on the tenant and the unit
@@ -191,6 +191,10 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   the feature's own shape, rather than behind filename prefixes: `complex/unit/`, and
   `organization/`'s `member/`, `role/`, `access/`, `workspace/`, `setup/` and `session/` (effort 840,
   ticket 37).
+  Every feature and capability has one shape and is entered through its `index.ts`, which loads
+  under Node, and its window half (query hooks, rune state, a shared component) through its `ui.ts`;
+  [[rules/module-layout]] states the shape, the four layers and where a concept departs from them
+  (effort 840, ticket 41).
   What `platform` holds of the desktop shell is only
   what is no feature's (the window, the opener, the dialogs and diagnostics): a feature or
   capability that crosses to Rust declares its own port and Tauri adapter (`host.ts`,

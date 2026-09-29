@@ -9,13 +9,9 @@ import type { Locales } from '$lib/i18n/i18n-types';
 import { browserAppearance } from '$lib/platform/appearance';
 import { recordDiagnosticError } from '$lib/platform/diagnostics';
 import { tauri } from '$lib/platform/tauri';
-import { keys as organizationKeys } from '$lib/organization/query';
-import { keys as syncKeys } from '$lib/sync/query';
-import {
-	announceReceivedRows,
-	syncWorkspaceBeforeExit,
-	syncWorkspaceNow
-} from '$lib/sync/workspace';
+import { organizationKeys } from '$lib/organization/ui';
+import { announceReceivedRows, syncWorkspaceBeforeExit, syncWorkspaceNow } from '$lib/sync';
+import { syncKeys } from '$lib/sync/ui';
 import type { OrganizationHost } from '$lib/organization/host';
 import type { SettingsHost } from '$lib/settings/host';
 import type { SyncHost } from '$lib/sync/host';

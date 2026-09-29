@@ -20,7 +20,7 @@
 	import type { SearchEntry } from '$lib/feature/surface';
 	import { Kbd, KbdGroup } from '@rentable/design/primitive/kbd/index.js';
 	import * as Command from '@rentable/design/primitive/command/index.js';
-	import { shortcuts } from '$lib/shortcut';
+	import { shortcuts } from '$lib/shortcut/ui';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { toOfferedCreates } from '../create';
 	import {
