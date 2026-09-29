@@ -35,7 +35,16 @@ mod tests {
     fn each_plugin_allows_exactly_what_its_handler_answers() {
         let modules: Vec<&str> = FEATURE_PLUGINS.iter().map(|plugin| plugin.module).collect();
 
-        for expected in ["diagnostics", "settings", "window"] {
+        for expected in [
+            "database",
+            "diagnostics",
+            "print",
+            "settings",
+            "startup",
+            "transfer",
+            "update",
+            "window",
+        ] {
             assert!(
                 modules.contains(&expected),
                 "build.rs found no plugin in {expected}/; it found {modules:?}"

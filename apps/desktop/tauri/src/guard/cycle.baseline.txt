@@ -33,17 +33,21 @@
 # ticket and are now `organization -> upgrade` and `upgrade -> organization`; and
 # `upgrade -> state` is the startup check's and the old records' reach for the application state,
 # which was `organization -> state` and `earlier -> state` before it. Seven modules remain.
+#
+# Ticket 54 (2026-09-29) made `bootstrap` the `startup` plugin. Its four lines moved with it and
+# are rewritten at the new name: `startup -> database`, `startup -> state`, `startup -> update` and
+# `organization -> startup`. Nothing was added or removed.
 
-cycle bootstrap -> database
-cycle bootstrap -> state
-cycle bootstrap -> update
 cycle database -> settings
 cycle database -> state
-cycle organization -> bootstrap
 cycle organization -> database
+cycle organization -> startup
 cycle organization -> state
 cycle organization -> upgrade
 cycle settings -> state
+cycle startup -> database
+cycle startup -> state
+cycle startup -> update
 cycle state -> database
 cycle state -> organization
 cycle state -> settings

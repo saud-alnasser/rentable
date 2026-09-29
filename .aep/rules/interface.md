@@ -584,7 +584,7 @@ paper and back again on every pass, and flickers), shows the sheet alone under `
 asks the host to print it: on Windows the host prints it from a print window behind the
 application, so the application never shows its paper layout, and a PDF is written with no dialog
 and paper goes through the operating system's dialog, never the webview's browser preview;
-on macOS and Linux both open the system's print panel (`tauri/src/print.rs`).
+on macOS and Linux both open the system's print panel (`tauri/src/print/`).
 
 The page is paper: light whatever the window's appearance (`.paper` in the token layer), in the one
 language chosen, set out as a document with the organization that issued it at its head and its

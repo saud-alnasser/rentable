@@ -1,9 +1,12 @@
 pub mod command;
 pub(crate) mod corrupt;
+mod plugin;
 pub mod proxy;
 #[cfg(test)]
 pub(crate) mod test;
 pub mod version;
+
+pub use plugin::plugin;
 
 use sqlx::{
     Pool, Sqlite,
@@ -167,7 +170,7 @@ impl Database {
 
     /// Open this machine's replica through the sync engine.
     ///
-    /// **The startup path calls this.** `bootstrap.rs` reaches it with the workspace's URL and
+    /// **The startup path calls this.** `startup` reaches it with the workspace's URL and
     /// the credential the member's vault unsealed for it.
     ///
     /// **`bootstrap_if_empty(false)`, and it is measured rather than preferred.** Left true, an

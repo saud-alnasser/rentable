@@ -23,7 +23,7 @@ function mapUpdate(update: TauriUpdate): AvailableUpdate {
  * port.
  */
 export const tauri = {
-	prepare: (targetVersion: string) => invoke<Recovery>('update_prepare', { targetVersion }),
+	prepare: (targetVersion: string) => invoke<Recovery>('plugin:update|prepare', { targetVersion }),
 	check: async () => {
 		const update = await check();
 

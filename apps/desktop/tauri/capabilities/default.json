@@ -11,6 +11,11 @@
 		"dialog:default",
 		"diagnostics:default",
 		"window:default",
-		"settings:default"
+		"settings:default",
+		"database:default",
+		"print:default",
+		"update:default",
+		"transfer:default",
+		"startup:default"
 	]
 }

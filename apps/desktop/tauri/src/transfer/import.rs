@@ -302,7 +302,7 @@ mod tests {
 
         for (column, header) in headers.iter().enumerate() {
             worksheet
-                .write_string(0, column as u16, crate::export::to_cell(header))
+                .write_string(0, column as u16, crate::transfer::export::to_cell(header))
                 .unwrap();
         }
 
@@ -312,7 +312,7 @@ mod tests {
                     .write_string(
                         index as u32 + 1,
                         column as u16,
-                        crate::export::to_cell(value),
+                        crate::transfer::export::to_cell(value),
                     )
                     .unwrap();
             }

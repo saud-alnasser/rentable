@@ -248,7 +248,7 @@ pub(crate) async fn workspace_open(
         )?;
     }
 
-    if let Some(error) = crate::bootstrap::open_database(&app_state, clock.as_ref()).await {
+    if let Some(error) = crate::startup::open_database(&app_state, clock.as_ref()).await {
         return Err(error);
     }
 

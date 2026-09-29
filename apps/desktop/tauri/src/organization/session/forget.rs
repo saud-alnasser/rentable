@@ -11,7 +11,7 @@
 //! **The files are deleted after everything holding them is let go of.** On Windows a file the
 //! process still has open cannot be deleted, so the vault is closed, the organization replica is
 //! dropped and the workspace engine is released through the same paths a sign-out and
-//! `bootstrap::open_database` use, and only then is the directory swept. A file that still will
+//! `startup::open_database` use, and only then is the directory swept. A file that still will
 //! not go is reported by name rather than pretended away; the record is emptied regardless, so
 //! the machine does not go on naming an organization whose replica it half holds.
 //!

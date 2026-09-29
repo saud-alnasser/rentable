@@ -9,7 +9,7 @@
 //!
 //! **Logical, because the engine will not copy a replica's file.** A replica is a Turso database
 //! with change data and a sync journal beside it, and the engine refused to copy one out, which
-//! is why `update.rs` lost its snapshot (#569). So a copy is made of what the database answers:
+//! is why `update` lost its snapshot (#569). So a copy is made of what the database answers:
 //! every table, index, view and trigger but what the engine owns ([`NOT_THE_ENGINES`]), each
 //! created with the statement that created it, into a plain SQLite file written through `sqlx` as
 //! every other plain file here is. The tables are created and filled first and everything else

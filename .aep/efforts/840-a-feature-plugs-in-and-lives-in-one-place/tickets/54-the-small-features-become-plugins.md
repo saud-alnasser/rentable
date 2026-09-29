@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [53]
 ---
 # refactor(tauri): database, print, update, transfer and startup become plugins
@@ -14,8 +14,8 @@ The five become plugins the same way; `export.rs` and `import.rs` become `transf
 
 Traces requirement 9 of [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]], and criterion 9.
 
-- [ ] Each is a plugin with a derived list; `lib.rs` names none of their commands (criterion 9).
-- [ ] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19).
+- [x] Each is a plugin with a derived list; `lib.rs` names none of their commands (criterion 9). Verified: `database`, `print`, `update`, `transfer` and `startup` each have a `plugin.rs` whose list `build.rs` derives; a search of `lib.rs` for their command names finds only the five `.plugin(x::plugin())` lines and `use crate::update::Update`; a search of the frontend's invoke strings finds none of the old names (`db_execute_*`, `print_page`, `update_prepare`, `bootstrap`, `export_*`, `import_*`), now `plugin:database|execute_single_sql` and the like; `guard::acl` expects all eight plugins.
+- [x] The integration gate passes on this commit; no test assertion changes except where it names a moved path (criterion 19). Verified: in the run's tree: `cargo fmt --check` 0, `cargo build` finished, `cargo test --lib` `645 passed; 0 failed; 11 ignored`, check 0, eslint 0, vitest 0 (run on its own), build:web 0, validate 0; node tests fail only the date-dependent receipt test. No assertion changed; four cycle-baseline lines name `startup` for `bootstrap`. Running-app checks (startup to ready, a print, an export and import, an update) are held for the human at the close.
 
 ## Relevant areas
 

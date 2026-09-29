@@ -605,7 +605,7 @@ mod tests {
     }
 
     /// a window or a webview the shell could not reach reads as the shell's own failure, with its
-    /// words as they were: what `window/` and `print.rs` each wrote out by hand until effort 840
+    /// words as they were: what `window/` and `print/` each wrote out by hand until effort 840
     /// (ticket 47).
     #[test]
     fn shell_errors_become_internal_with_the_underlying_message() {

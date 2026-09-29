@@ -45,9 +45,11 @@ use crate::{
     backup,
     diagnostics::{self, DiagnosticRecord},
     error::Error,
-    export::{self, Cell, Sheet},
-    import::{self, Table},
     state::AppState,
+    transfer::{
+        export::{self, Cell, Sheet},
+        import::{self, Table},
+    },
 };
 
 /// What the copies of `app.db` are filed under, beside the organization's and the workspaces'.
@@ -1045,7 +1047,7 @@ mod tests {
             "2234567891 @ 2026-03-01"
         );
         assert_eq!(unit_reference("Al Nakheel ", " A1"), "Al Nakheel / A1");
-        // 2026-01-31 is serial 46053, the figure `import.rs` pins its reader to.
+        // 2026-01-31 is serial 46053, the figure `transfer/import.rs` pins its reader to.
         assert!(matches!(day(at(2026, 1, 31)), Cell::Date { value } if value == 46_053.0));
     }
 }

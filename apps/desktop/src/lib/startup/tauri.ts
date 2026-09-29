@@ -11,5 +11,5 @@ import type { StartupHost } from './host';
  * where it sat until effort 840 gave startup its own port.
  */
 export const tauri = {
-	bootstrap: () => invoke<Recovery>('bootstrap')
+	bootstrap: () => invoke<Recovery>('plugin:startup|bootstrap')
 } satisfies StartupHost;

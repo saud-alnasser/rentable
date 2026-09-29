@@ -1,5 +1,4 @@
 pub mod backup;
-pub mod bootstrap;
 pub mod clock;
 // private, and it stays that way: what it hands back is a credential, so its callers are in
 // this crate and nowhere else ([[rules/credentials]], *Client boundary*).
@@ -7,23 +6,23 @@ mod credential;
 pub mod database;
 pub mod diagnostics;
 pub mod error;
-pub mod export;
 // test-only: the structural guards, which hold the tree to rules/module-layout and ship nothing.
 #[cfg(test)]
 mod guard;
 pub mod http;
-mod import;
 pub mod machine;
 pub mod organization;
 pub mod persisted;
 pub mod print;
 pub mod schema;
 pub mod settings;
+pub mod startup;
 pub mod state;
 pub mod sync;
 // test-only: the scaffolding every test in the crate shares.
 #[cfg(test)]
 mod test;
+pub mod transfer;
 pub mod turso;
 pub mod update;
 pub mod upgrade;
@@ -106,6 +105,11 @@ pub fn run() {
         .plugin(diagnostics::plugin())
         .plugin(window::plugin())
         .plugin(settings::plugin())
+        .plugin(database::plugin())
+        .plugin(print::plugin())
+        .plugin(update::plugin())
+        .plugin(transfer::plugin())
+        .plugin(startup::plugin())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -236,8 +240,6 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            database::command::db_execute_single_sql,
-            database::command::db_execute_batch_sql,
             sync::remote_sync_state_get,
             organization::workspace::remote_sync_rename_workspace,
             organization::session::remote_sync_replicate,
@@ -292,15 +294,8 @@ pub fn run() {
             organization::invitation::organization_link_take,
             organization::invitation::organization_link_read,
             organization::setup::organization_reconnect_authority,
-            export::export_write,
-            export::export_write_workbook,
-            print::print_page,
-            import::import_read,
-            import::import_read_book,
             upgrade::record::earlier_find,
             upgrade::record::earlier_read,
-            update::update_prepare,
-            bootstrap::bootstrap,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

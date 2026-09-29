@@ -16,9 +16,13 @@
 //! macOS this repository cannot compile off a Mac, and WebKitGTK has no reliable way to at all
 //! (the effort's printing research, F3.2 and F3.3).
 
+mod plugin;
+
 use serde::Deserialize;
 
 use crate::error::Error;
+
+pub use plugin::plugin;
 
 /// What the reader asked of the page.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -71,8 +75,8 @@ pub struct PrintedPage {
 /// printed from there, so the application never changes on screen.
 ///
 /// Answers once the file is written, for a PDF, and once the dialog is done with the page, for
-/// paper.
-#[tauri::command]
+/// paper. Invoked as `plugin:print|page`.
+#[tauri::command(rename = "page")]
 pub async fn print_page<R: tauri::Runtime>(
     app: tauri::AppHandle<R>,
     webview: tauri::Webview<R>,

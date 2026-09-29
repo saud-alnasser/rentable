@@ -1,3 +1,5 @@
+mod plugin;
+
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -8,6 +10,8 @@ use crate::{
     settings::Settings,
     state::AppState,
 };
+
+pub use plugin::plugin;
 
 const BASE_RELEASE_URL: &str = "https://github.com/saud-alnasser/rentable/releases";
 
@@ -195,7 +199,8 @@ impl Update {
     }
 }
 
-#[tauri::command]
+/// Invoked as `plugin:update|prepare`.
+#[tauri::command(rename = "prepare")]
 pub async fn update_prepare(
     app_state: tauri::State<'_, AppState>,
     target_version: String,

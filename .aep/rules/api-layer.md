@@ -262,9 +262,9 @@ through that seam".
 batch)`, against a live database, and it went through unchanged. **That is not the client this
 application ships**, and this paragraph leads with the fact because the sentence it replaces did
 not: it read as though the shipping client had been driven through the seam. The sync engine runs
-in the Rust layer behind `db_execute_single_sql` and `db_execute_batch_sql`, so the two functions
-the shipping client hands the factory still call `invoke`, and what changed is the engine behind
-the command.
+in the Rust layer behind `plugin:database|execute_single_sql` and `execute_batch_sql`, so the two
+functions the shipping client hands the factory still call `invoke`, and what changed is the
+engine behind the command.
 
 **The conclusion the gate bought still holds, and the count is two.** `createDatabase` has two
 callers in the tree: `client.ts` with Tauri's `invoke`, and `memory.ts` with the in-memory

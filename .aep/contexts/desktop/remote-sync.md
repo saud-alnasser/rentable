@@ -155,7 +155,7 @@ sentence from both.
 - **Nothing here writes a workspace file but the copy before a migration.** The old backup's
   retirement is why `Database::create_backup` and `Database::restore_backup` are gone rather than
   merely refused on a replica. What an update leaves behind is a version number and a release
-  URL, in `update.rs`. The member holding a workspace's migration lease writes a copy of it, read
+  URL, in `update/`. The member holding a workspace's migration lease writes a copy of it, read
   over the pipeline in one transaction, to `backups/ws-<id>/` before the first statement
   (`organization/lease/`, `backup.rs`), and one on the owner's account where that machine is
   the owner's; a copy that cannot be taken releases the lease and applies nothing.

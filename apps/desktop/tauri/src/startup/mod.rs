@@ -1,3 +1,5 @@
+mod plugin;
+
 use crate::{
     clock::{self, Clock},
     diagnostics,
@@ -6,6 +8,9 @@ use crate::{
     update::{Recovery, RecoveryStatus},
 };
 
+pub use plugin::plugin;
+
+/// Invoked as `plugin:startup|bootstrap`.
 #[tauri::command]
 pub async fn bootstrap(
     app_state: tauri::State<'_, AppState>,

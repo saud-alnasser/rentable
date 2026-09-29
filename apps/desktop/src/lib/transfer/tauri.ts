@@ -18,7 +18,8 @@ export const tauri = {
 		 * which is handed one from the open dialog. Where a file may go stopped being this
 		 * layer's question, and Rust's, the moment the reader was asked.
 		 */
-		write: (path: string, contents: string) => invoke<string>('export_write', { path, contents }),
+		write: (path: string, contents: string) =>
+			invoke<string>('plugin:transfer|export_write', { path, contents }),
 		/**
 		 * Write a workbook to the path the user chose, and answer with where it landed.
 		 *
@@ -32,7 +33,7 @@ export const tauri = {
 		 * would corrupt.
 		 */
 		writeWorkbook: (path: string, sheets: ExportSheet[]) =>
-			invoke<string>('export_write_workbook', { path, sheets })
+			invoke<string>('plugin:transfer|export_write_workbook', { path, sheets })
 	},
 	import: {
 		/**
@@ -45,7 +46,7 @@ export const tauri = {
 		 * What comes back is strings. Which column means what, and whether a row is a record, are
 		 * questions about tenants and contracts that the reader does not answer.
 		 */
-		read: (path: string) => invoke<ImportTable>('import_read', { path }),
+		read: (path: string) => invoke<ImportTable>('plugin:transfer|import_read', { path }),
 		/**
 		 * Read every sheet of a file the user chose.
 		 *
@@ -53,6 +54,6 @@ export const tauri = {
 		 * says which sheet it is — the caller matches them by that name and never by position,
 		 * because a reader who dragged the tabs about handed over the same workspace.
 		 */
-		readBook: (path: string) => invoke<ImportTable[]>('import_read_book', { path })
+		readBook: (path: string) => invoke<ImportTable[]>('plugin:transfer|import_read_book', { path })
 	}
 } satisfies TransferHost;

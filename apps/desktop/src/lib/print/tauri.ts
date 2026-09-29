@@ -17,5 +17,5 @@ export const tauri = {
 		request: ({ mode: 'print' } | { mode: 'pdf'; path: string }) & {
 			page?: { head: string; lang: string; dir: string; body: string };
 		}
-	) => invoke<void>('print_page', request)
+	) => invoke<void>('plugin:print|page', request)
 } satisfies PrintHost;
