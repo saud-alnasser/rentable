@@ -1,5 +1,5 @@
 ---
-status: draft
+status: accepted
 ---
 
 # Problem
@@ -45,8 +45,10 @@ held workspaces as a "switch to" radio group marked by a filled circle, and ends
 button, System Settings' sidebar head) show the current context by name and symbol with no count,
 mark the chosen item with a checkmark, and put the choices at the top and the one management
 command at the bottom. And choosing another workspace runs the whole startup loading screen
-(`startup/switch.ts`), so the rail, the titlebar and the page all vanish for a switch between two
-places the person already holds.
+(`startup/switch.ts`): the rail and the titlebar stay, but the page is replaced by the startup
+surface, the mark and the stage bar, as if the application were launching, for a switch between
+two places the person already holds. *Corrected 2026-09-30 by the plan, which read the frame: this
+said the rail and titlebar vanished too.*
 
 *Raised by the human on 2026-09-30: "let's redesign the onboarding ui, make it more elegant; get
 inspiration from Apple style; also the workspace dropdown on the shell top side; after we finish
@@ -87,7 +89,8 @@ checked, and switches in place.
 1. **The way in is one surface that changes step, not a sequence of cards.** The welcome, both
    first-run steps, the join's steps, the password choice, the wall and the no-workspace screen
    share one layout: the application's mark, one title, at most one line under it, the step's own
-   controls, and its actions. Moving between steps keeps that layout on screen and changes its
+   controls, and its actions. The mark is on every step, the wall included (*the human, 2026-09-30,
+   having taken it off the wall on 2026-08-20*). Moving between steps keeps that layout on screen and changes its
    contents with a short directional transition, mirrored in Arabic and absent under reduced
    motion.
 2. **The welcome introduces rentable.** It shows the mark and the application's name and one line
@@ -113,7 +116,9 @@ checked, and switches in place.
    window shows the way in and the window's own controls; the rail, the workspace control, the
    breadcrumb, search and the shortcut sheet are not drawn. What the signed-out rail reached that
    still applies (the settings a machine has before sign-in: language and appearance) stays
-   reachable from the way in through one quiet control.
+   reachable from the way in through one quiet control. *Decided by the human on 2026-09-30, over
+   the disabled rail they chose on 2026-08-20 so that signing in would not look like arriving
+   somewhere else.*
 8. **The first field of a step is focused on arrival, Enter submits the step, and a field's
    error appears at the field.** No password field is ever filled for the person; a link and a
    code can be pasted.
@@ -130,7 +135,8 @@ checked, and switches in place.
     member who holds one workspace sees it checked and the command; the menu never shows a
     "switch to" group of one without saying it is the only one.
 12. **Switching keeps the window.** Choosing another workspace keeps the rail and the titlebar on
-    screen, shows progress where the page is, and lands on the same destination in the other
+    screen, shows progress where the page is as a page loads rather than as the application
+    starts, and lands on the same destination in the other
     workspace, or its home where that destination does not exist there. *Decided by the human on
     2026-09-30, over keeping the full loading screen for a switch.*
 13. **The control is keyboard-reachable and speaks its state**: it opens from the keyboard, arrow
