@@ -10,6 +10,7 @@
 	import { useCreateWorkspace } from '$lib/organization/ui';
 	import type { OrganizationHost } from '$lib/organization';
 	import { listenForWindowCloseRequests } from '$lib/platform/window';
+	import type { PlaceAddress } from '$lib/feature/surface';
 	import type { SettingsHost } from '$lib/settings';
 	import { listenForSessionEnded, listenForSignOut, startWorkspaceSyncManager } from '$lib/sync';
 	import type { SyncHost } from '$lib/sync';
@@ -25,8 +26,10 @@
 		THE_FIRST_RUN,
 		THE_JOIN,
 		addressAfterSignOut,
+		addressAfterSwitch,
 		startupScreen,
-		wayInFrom
+		wayInFrom,
+		type SwitchCrumb
 	} from '../screen';
 	import { createStartup } from '../startup';
 	import StartupError from './error.svelte';
@@ -34,6 +37,7 @@
 	import StartupNoWorkspace from './no-workspace.svelte';
 	import StartupRecovery from './recovery.svelte';
 	import StartupSignIn from './sign-in.svelte';
+	import StartupSwitching from './switching.svelte';
 	import StartupUnreadable from './unreadable.svelte';
 
 	/** what the window is handed to draw a running application's state in. */
@@ -42,7 +46,11 @@
 		currentDirection: 'ltr' | 'rtl';
 		shell: 'bare' | 'signed-out' | 'full';
 		onWayIn: () => void;
-		onSwitchWorkspace: (workspaceId: string) => void;
+		/** another workspace was chosen, with the shell's trail of places to move a record's page by. */
+		onSwitchWorkspace: (
+			workspaceId: string,
+			trailOf: (routeId: string) => readonly SwitchCrumb<PlaceAddress>[]
+		) => void;
 		dialogs: boolean;
 		children: Snippet;
 	};
@@ -298,6 +306,29 @@
 	const screen = $derived(startupScreen(shellState, page.url.pathname));
 
 	/**
+	 * what choosing another workspace does: open it, moving the address off a record first.
+	 *
+	 * The move is handed to the switch as `arrive`, so it happens under the loading page and before
+	 * the open, and the directory it lands on is first drawn from the workspace just opened. Where
+	 * it lands is `addressAfterSwitch`'s, in `../screen.ts`, for the reason every decision here is
+	 * there, read off the trail the shell's window hands in with the choice: the trail is built from
+	 * every feature's pages, and startup reads none of them.
+	 */
+	const switchWorkspace = (
+		workspaceId: string,
+		trailOf: (routeId: string) => readonly SwitchCrumb<PlaceAddress>[]
+	) =>
+		void startup.switchWorkspace(workspaceId, {
+			arrive: async () => {
+				const destination = addressAfterSwitch(page.route.id, trailOf);
+
+				if (destination) {
+					await goto(resolve(destination));
+				}
+			}
+		});
+
+	/**
 	 * what the rail's account row does, which is put the sign-in card on screen.
 	 *
 	 * The decision is `wayInFrom`'s, in `../screen.ts`, for the reason the screen itself
@@ -316,6 +347,9 @@
 {#snippet inside()}
 	{#if screen === 'loading'}
 		<StartupLoading />
+	{:else if screen === 'switching'}
+		<!-- a switch keeps the window: the rail and the titlebar are up, and only the page loads. -->
+		<StartupSwitching name={shellState.switching ?? ''} />
 	{:else if screen === 'sign-in'}
 		<StartupSignIn
 			situation={shellState.signInReason}
@@ -360,7 +394,7 @@
 		currentDirection,
 		shell,
 		onWayIn: goToTheWayIn,
-		onSwitchWorkspace: (id) => void startup.switchWorkspace(id),
+		onSwitchWorkspace: switchWorkspace,
 		dialogs: shellState.railIsUp && Boolean(shellState.organization?.session),
 		children: inside
 	})}

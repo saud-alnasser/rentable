@@ -64,6 +64,15 @@ export type StartupSnapshot = {
 	hasFailedUnreadable: boolean;
 	/** a password is being tried, which is a key derivation a person is waiting on. */
 	isSigningIn: boolean;
+	/**
+	 * the name of the workspace a switch is opening, from before the open until the pass ends,
+	 * and `null` otherwise.
+	 *
+	 * **It is what tells a switch's loading from a launch's.** Both are `loading`, and a switch is
+	 * the one load with a person in and the rail already up, so it draws inside the page rather than
+	 * as the application starting (effort 843, requirement 12).
+	 */
+	switching: string | null;
 };
 
 export const INITIAL: StartupSnapshot = {
@@ -77,7 +86,8 @@ export const INITIAL: StartupSnapshot = {
 	railIsUp: false,
 	isI18nReady: false,
 	hasFailedUnreadable: false,
-	isSigningIn: false
+	isSigningIn: false,
+	switching: null
 };
 
 /**

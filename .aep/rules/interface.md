@@ -940,6 +940,14 @@ stays as it is**, because it reports the stages of starting rather than waiting 
 spinner inside a control that is working (a pressed submit, the toaster's own) is a control's state
 and is not what this governs.
 
+**A switch between workspaces is a load, and draws the loading block.** The rail and the titlebar
+stay up, and where the page was, the page frame draws a page's shape with one line naming the
+workspace being opened (`startup/component/switching.svelte`). The startup bar is for a launch;
+drawn for a switch, it made choosing a workspace look like the application starting over. Nothing
+of either workspace is drawn meanwhile, and a record's page moves to its directory before the open,
+since the record belongs to the workspace being left
+([[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/spec]], requirement 12).
+
 *Why: loading had several treatments and no two agreed, and a spinner says only that something is
 happening. A shape says what is coming and where it will be, and the delay and the hold keep a
 fast local read from flashing a skeleton for a frame.*

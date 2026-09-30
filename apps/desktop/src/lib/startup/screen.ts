@@ -22,7 +22,8 @@ import type { StartupSnapshot } from './snapshot';
  */
 
 /** the screen startup has the frame draw in place of its children, or `route` for the children. */
-export type StartupScreen = 'loading' | 'sign-in' | 'no-workspace' | 'recovery' | 'error' | 'route';
+export type StartupScreen =
+	'loading' | 'switching' | 'sign-in' | 'no-workspace' | 'recovery' | 'error' | 'route';
 
 /**
  * Where an organization is created: the first run's own address.
@@ -118,6 +119,53 @@ export function addressAfterSignOut(pathname: string): typeof THE_WAY_IN | null 
 }
 
 /**
+ * One crumb of a page's trail, as far as a switch reads it: a place the trail names, or the record
+ * the page is (and the record it is reached through).
+ *
+ * **Handed in rather than imported.** The trail is the shell's (`shell/navigation`), built from
+ * every feature's pages, and startup is a feature: it reads no page table and imports nothing
+ * above it, so the shell's window hands its trail in with the choice, and the root passes it here.
+ */
+export type SwitchCrumb<Place extends string = string> =
+	{ kind: 'place'; route: Place } | { kind: 'parent' | 'record'; route: string };
+
+/**
+ * Where a switch between workspaces moves the address before it opens the other one, or `null`
+ * where the page stays where it is.
+ *
+ * **A place stays, and a record goes to its concept's directory** (effort 843, requirement 12).
+ * A directory, the dashboard and the settings area exist in every workspace, so the other
+ * workspace's copy of the same page is where the reader lands. A record does not: the one on
+ * screen belongs to the workspace being left, and its page in the other would be a not-found. So a
+ * record's page goes to the last place its trail names, the directory it is listed in, and to home
+ * where the trail names none.
+ *
+ * Read off the trail rather than the address, for the reason the trail gives: a path segment is not
+ * a place, and a unit or a payment is listed under a directory whose own name is not in its route.
+ * `null` is SvelteKit's route id for an address no route matched, which stays as it is.
+ */
+export function addressAfterSwitch<Place extends string>(
+	routeId: string | null,
+	trailOf: (routeId: string) => readonly SwitchCrumb<Place>[]
+): Place | typeof THE_WAY_IN | null {
+	if (!routeId) {
+		return null;
+	}
+
+	const trail = trailOf(routeId);
+
+	if (trail.at(-1)?.kind !== 'record') {
+		return null;
+	}
+
+	const directory = trail.findLast(
+		(crumb): crumb is Extract<SwitchCrumb<Place>, { kind: 'place' }> => crumb.kind === 'place'
+	);
+
+	return directory?.route ?? THE_WAY_IN;
+}
+
+/**
  * What the frame has to draw, given where the application has got to and where the reader is.
  *
  * **Only the sign-in card reads the address**, and that is the whole of the change. A route
@@ -133,8 +181,10 @@ export function addressAfterSignOut(pathname: string): typeof THE_WAY_IN | null 
  */
 export function startupScreen(snapshot: StartupSnapshot, pathname: string): StartupScreen {
 	switch (snapshot.state) {
+		// a switch's loading is drawn inside the page, with the rail up, and a launch's is the
+		// application starting (effort 843, requirement 12).
 		case 'loading':
-			return 'loading';
+			return snapshot.switching === null ? 'loading' : 'switching';
 		case 'sign-in':
 			return opensSignedOut(pathname) ? 'route' : 'sign-in';
 		// over every address, the first run's included: a person is in, and there is no workspace

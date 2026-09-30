@@ -2129,6 +2129,11 @@ type RootTranslation = {
 			 * o​p​e​n​i​n​g​ ​y​o​u​r​ ​w​o​r​k​s​p​a​c​e
 			 */
 			stageWorkspace: string
+			/**
+			 * o​p​e​n​i​n​g​ ​{​n​a​m​e​}
+			 * @param {string} name
+			 */
+			switching: RequiredParams<'name'>
 		}
 	}
 	dashboard: {
@@ -6656,6 +6661,10 @@ export type TranslationFunctions = {
 			 * opening your workspace
 			 */
 			stageWorkspace: () => LocalizedString
+			/**
+			 * opening {name}
+			 */
+			switching: (arg: { name: string }) => LocalizedString
 		}
 	}
 	dashboard: {

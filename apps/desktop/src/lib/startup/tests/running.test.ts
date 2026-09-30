@@ -13,6 +13,8 @@ import {
 import { fakeSyncState, fakeWorkspace } from '$lib/sync/tests/testing.ts';
 import { maskOf } from '@rentable/workspace-permission';
 
+import { startupScreen } from '$lib/startup/screen.ts';
+
 import { A_DAY, AT, harness, locked, unlocked } from './harness.ts';
 
 /**
@@ -241,6 +243,105 @@ test('switching workspaces drops what was drawn, opens the chosen one, and runs 
 	// the member is who they were, and what they may do is not: the context is dropped once, since
 	// a read-only grant on the workspace now open clears writes the one before allowed (effort 838).
 	assert.equal(journal.contextsForgotten, forgottenBefore + 1);
+});
+
+// criterion 12 of effort 843: a switch keeps the window. What the page draws in the meantime is
+// named by `switching`, set before the open and cleared once the pass ends, and the address has
+// moved off a record before the open, under the loading page.
+test('a switch names the workspace it is opening from before the open until the pass ends', async () => {
+	const during: { switching: string | null; screen: string }[] = [];
+	const order: string[] = [];
+	const at: { harness: ReturnType<typeof harness> | null } = { harness: null };
+	const onScreen = (label: string) => {
+		const snapshot = at.harness!.startup.snapshot;
+
+		order.push(label);
+		during.push({ switching: snapshot.switching, screen: startupScreen(snapshot, '/contracts') });
+	};
+
+	at.harness = harness({
+		organization: fakeOrganizationState({
+			session: fakeOrganizationSession({
+				workspaces: [
+					fakeOrganizationWorkspace({ id: 'north' }),
+					fakeOrganizationWorkspace({ id: 'south', name: 'South' })
+				]
+			})
+		}),
+		openWorkspace: async (workspaceId) => {
+			if (workspaceId === 'south') onScreen('open');
+		},
+		dropUndrawn: () => onScreen('drop')
+	});
+
+	const { startup, seen } = at.harness;
+
+	await startup.start();
+	assert.equal(startup.snapshot.switching, null, 'a launch is not a switch');
+
+	const seenBefore = seen.length;
+	await startup.switchWorkspace('south', { arrive: async () => onScreen('arrive') });
+
+	// set with the loading state, in the same change, so no frame draws the startup bar first.
+	assert.equal(seen[seenBefore]?.state, 'loading');
+	assert.equal(seen[seenBefore]?.switching, 'South');
+	// the address moved first, then the open, then what the page drew was dropped; and all three
+	// happened with the page's screen as the switch's rather than the route's.
+	assert.deepEqual(order, ['arrive', 'open', 'drop']);
+	assert.deepEqual(
+		during,
+		['arrive', 'open', 'drop'].map(() => ({ switching: 'South', screen: 'switching' }))
+	);
+	// cleared once the pass is over, with the application ready on the other workspace.
+	assert.equal(startup.snapshot.switching, null);
+	assert.equal(startup.snapshot.state, 'ready');
+	assert.equal(startupScreen(startup.snapshot, '/contracts'), 'route');
+	// and no route was drawn from the moment the switch began until the other workspace was ready.
+	const passing = seen.slice(seenBefore);
+	const readyAt = passing.findIndex((snapshot) => snapshot.state === 'ready');
+	assert.ok(readyAt > 0);
+	assert.ok(
+		passing
+			.slice(0, readyAt)
+			.every((snapshot) => startupScreen(snapshot, '/contracts') === 'switching')
+	);
+});
+
+test('and a switch that fails clears it too, leaving the ordinary failure on screen', async () => {
+	const { startup } = harness({
+		organization: fakeOrganizationState({
+			session: fakeOrganizationSession({
+				workspaces: [
+					fakeOrganizationWorkspace({ id: 'north' }),
+					fakeOrganizationWorkspace({ id: 'south', name: 'South' })
+				]
+			})
+		}),
+		openWorkspace: async (workspaceId) => {
+			if (workspaceId === 'south') throw new Error('the replica would not open');
+		}
+	});
+
+	await startup.start();
+	await startup.switchWorkspace('south');
+
+	assert.equal(startup.snapshot.switching, null);
+	assert.equal(startupScreen(startup.snapshot, '/contracts'), 'error');
+});
+
+test('and an address that would not move is no reason to stop the switch', async () => {
+	const { startup, journal } = holdingTwo();
+
+	await startup.start();
+	await startup.switchWorkspace('south', {
+		arrive: async () => {
+			throw new Error('navigation refused');
+		}
+	});
+
+	assert.deepEqual(journal.workspacesOpened, ['north', 'south']);
+	assert.equal(startup.snapshot.state, 'ready');
+	assert.equal(startup.snapshot.switching, null);
 });
 
 test('and a workspace the shell would not open is the ordinary failure, with nothing dropped', async () => {

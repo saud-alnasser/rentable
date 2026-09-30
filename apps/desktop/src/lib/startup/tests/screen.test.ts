@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { PAGE_ROUTES, toBreadcrumbTrail } from '$lib/shell/navigation.ts';
 import {
 	addressAfterSignOut,
+	addressAfterSwitch,
 	opensSignedOut,
 	startupScreen,
 	THE_FIRST_RUN,
@@ -259,4 +261,57 @@ test('the join screen opens signed out, and draws as a route rather than the car
 	assert.equal(startup.snapshot.state, 'sign-in');
 	assert.equal(startupScreen(startup.snapshot, THE_JOIN), 'route');
 	assert.equal(wayInFrom(THE_JOIN), THE_WAY_IN);
+});
+
+// --- Where a switch between workspaces leaves the reader ------------------------------------
+//
+// Criterion 12 of effort 843, asked of the application's own route table and the shell's own
+// trail, which is what the root layout hands the root: a place stays, and a record's page goes to
+// its concept's directory, because the record on screen belongs to the workspace being left.
+
+/** where a switch sends the reader from `route`, through the trail the shell draws. */
+const afterSwitch = (route: string | null) => addressAfterSwitch(route, toBreadcrumbTrail);
+
+test('a switch leaves a directory, the dashboard and the settings area where they are', () => {
+	for (const route of ['/', '/tenants', '/complexes', '/contracts', '/settings']) {
+		assert.ok(PAGE_ROUTES.includes(route as never), `${route} is a page`);
+		assert.equal(afterSwitch(route), null, route);
+	}
+});
+
+test('and every page with no record in its address stays, the first run and the join included', () => {
+	for (const route of PAGE_ROUTES.filter((route) => !route.includes('['))) {
+		assert.equal(afterSwitch(route), null, route);
+	}
+});
+
+test('and a record page goes to the directory its concept is listed in', () => {
+	const expected: Record<string, string> = {
+		'/tenants/[id]': '/tenants',
+		'/complexes/[id]': '/complexes',
+		'/complexes/units/[id]': '/complexes',
+		'/contracts/[id]': '/contracts',
+		'/contracts/units/[id]': '/contracts',
+		'/contracts/payments/[id]': '/contracts'
+	};
+	const records = PAGE_ROUTES.filter((route) => route.includes('['));
+
+	// the table is every record page the application has, so a new one has to be placed here.
+	assert.deepEqual([...records].sort(), Object.keys(expected).sort());
+
+	for (const route of records) {
+		const destination = afterSwitch(route);
+
+		assert.equal(destination, expected[route], route);
+		// and it lands on a page, one with nothing of the workspace left behind in its address.
+		assert.ok(PAGE_ROUTES.includes(destination as never), `${route} lands on ${destination}`);
+	}
+});
+
+test('and an address no route matched stays, as does a record listed under no place, which goes home', () => {
+	assert.equal(afterSwitch(null), null);
+	assert.equal(
+		addressAfterSwitch('/somewhere/[id]', () => [{ kind: 'record', route: '/somewhere/[id]' }]),
+		THE_WAY_IN
+	);
 });
