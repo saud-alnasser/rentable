@@ -5,22 +5,25 @@
 	import FormSurface, { insetControl } from '@rentable/design/block/form-surface.svelte';
 	import * as Form from '@rentable/design/primitive/form/index.js';
 	import { Input } from '@rentable/design/primitive/input/index.js';
-	import { onMutationError } from '$lib/design/mutation';
+	import { onMutationError } from '$lib/mutation/ui';
 	import { fieldOfFailure, toRefusalText } from '$lib/error/refusal';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useCreateComplex, useUpdateComplex } from '$lib/complex/query';
-	import { memberPermissions } from '$lib/workspace/permission';
+	import { memberPermissions } from '$lib/permission';
 	import type { DraftUnit } from '$lib/complex/unit/name';
 	import UnitEntry from '$lib/complex/unit/component/entry.svelte';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import SaveIcon from '@lucide/svelte/icons/save';
 	import { TRPCError } from '@trpc/server';
-	import { surfaceForm } from '$lib/design/form';
+	import { surfaceForm } from '$lib/form';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import z from 'zod';
 
-	const ComplexFormSchema = ComplexSchema.partial({ id: true });
+	// a complex is found by its name, so it is not written without one.
+	const ComplexFormSchema = ComplexSchema.partial({ id: true }).extend({
+		name: z.string().trim().min(1, $LL.complexes.form.nameRequired())
+	});
 	const CreateMutation = useCreateComplex();
 	const UpdateMutation = useUpdateComplex();
 
@@ -79,9 +82,9 @@
 					if (form.data.id) {
 						await UpdateMutation.mutateAsync(form.data as Complex);
 					} else {
-						// the list is what goes down. A line still in the entry joins the list on
-						// this press rather than being created with it, so nothing is written that
-						// the reader has not seen and had the chance to correct.
+						// the list is what goes down. A line still in the entry stops the press, and the
+						// entry asks for it to be added with + first, so nothing is written that the
+						// reader has not seen and had the chance to correct.
 						const names = addsUnits ? unitEntry?.collect() : [];
 
 						if (names === undefined) return;

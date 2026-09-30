@@ -1,12 +1,15 @@
 import { fireEvent, render, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest';
 
+// what the other features contribute to the directory, composed and provided as the frame does by
+// importing them (`contributionsTo` in `$lib/feature/surface`).
+import '$lib/app/surfaces';
 import UnitDirectory from '$lib/complex/unit/component/directory.svelte';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import QueryProviders from '#tests/query-providers.svelte';
+import Providers from '#tests/providers.svelte';
 import { forgetReader, holdEveryFlagBut } from '#tests/permission.ts';
 import type { ListSort } from '@rentable/design/sort.js';
 
@@ -34,8 +37,8 @@ const { reads } = vi.hoisted(() => ({
 	reads: { sort: null as null | (() => ListSort | null), rows: [] as object[] }
 }));
 
-vi.mock('$lib/complex/query', async (importOriginal) => ({
-	...(await importOriginal<typeof import('$lib/complex/query')>()),
+vi.mock('$lib/complex/unit/query', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/complex/unit/query')>()),
 	useListUnits: (_complexId: () => string, _search: () => string, sort: () => ListSort | null) => {
 		reads.sort = sort;
 
@@ -80,7 +83,7 @@ const directory = () =>
 	render(
 		UnitDirectory,
 		{ complexId: 'complex-1', complexName: 'Palm Court' },
-		{ wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' as const } }
+		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' as const } }
 	);
 
 const offeredOrders = () =>

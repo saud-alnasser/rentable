@@ -5,14 +5,14 @@
 	import { back } from '@rentable/design/back.svelte.js';
 	import DeleteDialog from '@rentable/design/block/delete-dialog.svelte';
 	import { usesAppleKeyboard } from '@rentable/design/shortcut.js';
-	import { toDeleteStep, toPaletteVerbs } from '$lib/design/acts';
-	import { onMutationError, onMutationSuccess } from '$lib/design/mutation';
+	import { toDeleteStep, toPaletteVerbs } from '$lib/act';
+	import { onMutationError, onMutationSuccess } from '$lib/mutation/ui';
 	import {
 		showErrorSentence,
 		showErrorToast,
 		showRefusal,
 		showSuccessToast
-	} from '$lib/error/toast';
+	} from '$lib/notification';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { i18nObject } from '$lib/i18n/i18n-util';
 	import { toPaymentCreateUnavailable, type PaymentActRecord } from '$lib/payment/acts';
@@ -24,15 +24,14 @@
 		paymentHostState,
 		resetPaymentHost
 	} from '$lib/payment/host.svelte';
-	import { useReadContract } from '$lib/contract/query';
+	import { useReadContract } from '$lib/contract/ui';
 	import { useDeletePayment, useReadPayment, useReadPaymentReceipt } from '$lib/payment/query';
-	import PrintPreview from '$lib/print/component/preview.svelte';
-	import { sendPage, surfacesSettled } from '$lib/print/sheet.svelte';
+	import { PrintPreview, sendPage, surfacesSettled } from '$lib/print/ui';
 	import type { Locales } from '$lib/i18n/i18n-types';
-	import { useReadOrganizationMark, useReadOrganizationName } from '$lib/organization/query';
+	import { useReadOrganizationMark, useReadOrganizationName } from '$lib/organization/ui';
 	import { writeDetailsToClipboard } from '$lib/platform/clipboard';
 	import { formatLocaleMoney } from '$lib/platform/locale';
-	import { landing } from '$lib/design/landing.svelte';
+	import { landing } from '$lib/create/ui';
 	import { onDestroy, untrack } from 'svelte';
 	import PaymentForm from './form.svelte';
 	import PrintedReceipt, { type PrintedReceiptValue } from './receipt.svelte';

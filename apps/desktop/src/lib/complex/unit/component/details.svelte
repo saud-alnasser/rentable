@@ -4,14 +4,20 @@
 	import RecordSurface from '@rentable/design/block/record-surface.svelte';
 	import Specification from '@rentable/design/block/specification.svelte';
 	import * as Cell from '$lib/design/cell';
-	import { useFetchUnit } from '$lib/complex/query';
+	import { useFetchUnit } from '$lib/complex/unit/query';
 	import { unitActs } from '$lib/complex/unit/host.svelte';
-	import { toPageActions } from '$lib/design/acts';
+	import { toPageActions } from '$lib/act';
+	import type { Section } from '$lib/feature/surface';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import { memberPermissions } from '$lib/workspace/permission';
-	import UnitContracts from './contracts.svelte';
 
-	let { unitId }: { unitId: string } = $props();
+	let {
+		unitId,
+		sections = []
+	}: {
+		unitId: string;
+		/** what other features contribute to a unit's page, handed over by the route. */
+		sections?: Section<'unit'>[];
+	} = $props();
 
 	const unitQuery = useFetchUnit(() => unitId);
 	const unit = $derived(unitQuery.data);
@@ -30,6 +36,14 @@
 					href: resolve(`/complexes/${unit.complexId}`)
 				}
 			: undefined
+	);
+
+	// what hangs off a unit is what other features contribute, a section the reader may not see
+	// left out whole.
+	const collections = $derived(
+		sections
+			.filter((section) => section.shows?.() ?? true)
+			.map((section) => ({ value: section.value, label: section.label($LL), content: contributed }))
 	);
 </script>
 
@@ -67,8 +81,11 @@
 	/>
 {/snippet}
 
-{#snippet contracts()}
-	<UnitContracts {unitId} />
+{#snippet contributed(value: string)}
+	{@const contribution = sections.find((section) => section.value === value)}
+	{#if contribution}
+		<contribution.component kind="unit" recordId={unitId} />
+	{/if}
 {/snippet}
 
 <RecordSurface
@@ -81,7 +98,5 @@
 	{parent}
 	{actions}
 	{fields}
-	collections={memberPermissions.views('contract')
-		? [{ value: 'contracts', label: $LL.common.nav.contracts(), content: contracts }]
-		: []}
+	{collections}
 />

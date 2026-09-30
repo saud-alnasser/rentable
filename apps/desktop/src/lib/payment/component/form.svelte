@@ -16,13 +16,13 @@
 		parseCalendarDate,
 		parseDateInput,
 		toCalendarDate
-	} from '$lib/design/date';
+	} from '$lib/date';
 	import { formatLocaleMoney, getIntlLocale, RIYAL } from '$lib/platform/locale';
 	import { isWholeHalalas } from '@rentable/design/money.js';
 	import { cn } from '@rentable/design/tailwind.js';
-	import { getAmountDueThisCycle, getRemainingContractBalance } from '$lib/contract/contract';
-	import { useFetchContract } from '$lib/contract/query';
-	import { onMutationError } from '$lib/design/mutation';
+	import { getAmountDueThisCycle, getRemainingContractBalance } from '$lib/contract';
+	import { useFetchContract } from '$lib/contract/ui';
+	import { onMutationError } from '$lib/mutation/ui';
 	import { fieldOfFailure, toRefusalText } from '$lib/error/refusal';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { useCreatePayment, useUpdatePayment } from '$lib/payment/query';
@@ -31,7 +31,7 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import SaveIcon from '@lucide/svelte/icons/save';
 	import { TRPCError } from '@trpc/server';
-	import { surfaceForm } from '$lib/design/form';
+	import { surfaceForm } from '$lib/form';
 	import { untrack } from 'svelte';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';

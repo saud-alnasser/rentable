@@ -8,7 +8,7 @@ import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import type { PaymentActRecord } from '$lib/payment/acts';
 import PaymentHost from '$lib/payment/component/host.svelte';
 import { paymentHost } from '$lib/payment/host.svelte';
-import QueryProviders from '#tests/query-providers.svelte';
+import Providers from '#tests/providers.svelte';
 
 /**
  * A RECEIPT, FROM THE ACT TO THE PREVIEW
@@ -28,21 +28,23 @@ const hooks = vi.hoisted(() => ({
 	sentences: [] as string[]
 }));
 
-vi.mock('$lib/platform/tauri', () => ({
+vi.mock('$lib/organization/tauri', () => ({
 	tauri: {
-		organization: {
-			getState: async () => ({ session: { organizationName: 'Al Nakheel Estates' } })
-		},
-		print: { page: hooks.page },
-		dialog: { saveFile: vi.fn() }
+		getState: async () => ({ session: { organizationName: 'Al Nakheel Estates' } })
 	}
 }));
 
-vi.mock('$lib/api/caller', () => ({
-	default: { contract: { payments: { receipt: hooks.receipt } } }
+vi.mock('$lib/platform/tauri', () => ({
+	tauri: { dialog: { saveFile: vi.fn() } }
 }));
 
-vi.mock('$lib/error/toast', async (original) => ({
+vi.mock('$lib/print/tauri', () => ({ tauri: { page: hooks.page } }));
+
+vi.mock('$lib/api/caller', () => ({
+	default: { payment: { receipt: hooks.receipt } }
+}));
+
+vi.mock('$lib/notification', async (original) => ({
 	...(await original<Record<string, unknown>>()),
 	showErrorSentence: (sentence: string) => hooks.sentences.push(sentence)
 }));
@@ -95,7 +97,7 @@ afterEach(() => {
 });
 
 const renderHost = () =>
-	render(PaymentHost, {}, { wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' } });
+	render(PaymentHost, {}, { wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } });
 
 const page = () => document.querySelector<HTMLElement>('[data-print-preview] [data-receipt]');
 

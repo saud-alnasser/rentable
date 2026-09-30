@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import type { ContractRank, ContractRankSummary } from '$lib/contract/rank.ts';
+import type { ContractRank, ContractRankSummary } from '$lib/contract/rank/rank.ts';
 
 import {
 	DASHBOARD_ENTRIES_PER_RANK,

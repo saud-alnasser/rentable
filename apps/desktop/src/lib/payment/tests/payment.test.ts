@@ -1,24 +1,12 @@
 import assert from 'node:assert/strict';
-import { refusedWith } from '$lib/api/tests/testing.ts';
+import { refusedWith } from '$lib/app/tests/testing.ts';
 import test from 'node:test';
 import {
 	ensureValidPaymentAmount,
-	getPaidAmount,
 	groupPaymentsByContractId,
 	hasValidPaymentAmount,
 	isPaymentInTheFuture
 } from '../payment.ts';
-
-test('getPaidAmount sums every payment received', () => {
-	assert.equal(
-		getPaidAmount([
-			{ amount: 250, date: 0 },
-			{ amount: 750, date: 0 }
-		]),
-		1000
-	);
-	assert.equal(getPaidAmount([]), 0);
-});
 
 test('groupPaymentsByContractId keeps row order within each contract', () => {
 	const grouped = groupPaymentsByContractId([

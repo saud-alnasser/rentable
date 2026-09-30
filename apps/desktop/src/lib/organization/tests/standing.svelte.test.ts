@@ -7,9 +7,10 @@ import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import Standing from '$lib/organization/component/standing.svelte';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
-import { fakeOrganizationSession, fakeSyncState, fakeWorkspace } from '$lib/platform/tests/testing';
+import { fakeOrganizationSession } from '$lib/organization/tests/testing';
+import { fakeSyncState, fakeWorkspace } from '$lib/sync/tests/testing';
 
-import QueryProviders from '#tests/query-providers.svelte';
+import Providers from '#tests/providers.svelte';
 
 /**
  * THE STANDING BLOCK, RENDERED
@@ -17,7 +18,7 @@ import QueryProviders from '#tests/query-providers.svelte';
  * Criterion 25 of [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]]: one
  * sentence per standing, the moment where there is one, one control named "sync", no badge, and
  * the word "sync" on nothing but that control, which the human named so on 2026-09-17. Which
- * standing a state is in is decided in `workspace/sync-status.ts` and read in its own test; what
+ * standing a state is in is decided in `sync/status.ts` and read in its own test; what
  * is read here is what the block draws for each answer, in both locales.
  *
  * **The replication is stood in for**, because the control runs the sync mutation and the
@@ -63,7 +64,7 @@ const block = (
 			...overrides
 		},
 		{
-			wrapper: QueryProviders,
+			wrapper: Providers,
 			wrapperProps: { strings, direction: locale === 'ar' ? 'rtl' : 'ltr' }
 		}
 	);

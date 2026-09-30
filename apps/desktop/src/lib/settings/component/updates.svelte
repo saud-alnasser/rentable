@@ -6,8 +6,8 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { recordDiagnosticError } from '$lib/platform/diagnostics';
 	import { formatLocaleDate } from '$lib/platform/locale';
-	import { type AvailableUpdate, type UpdaterDownloadEvent } from '$lib/platform/tauri';
-	import { useCheckForUpdate, usePrepareUpdate, useRestartApp } from '$lib/settings/query';
+	import type { AvailableUpdate, UpdaterDownloadEvent } from '$lib/update';
+	import { useCheckForUpdate, usePrepareUpdate, useRestartApp } from '$lib/update/ui';
 	import { announceUpdateOutcome } from '$lib/settings/update-announcement';
 	import DownloadIcon from '@lucide/svelte/icons/download';
 	import PowerIcon from '@lucide/svelte/icons/power';
@@ -268,7 +268,7 @@
 	</Field.Field>
 
 	<!-- the two figures the reader is comparing, in one treatment, which is the treatment
-	     `layout/component/startup-recovery.svelte` gives its own pair. That screen keeps its
+	     `startup/component/recovery.svelte` gives its own pair. That screen keeps its
 	     figures for the reason these are kept: a version number is a fact somebody reads off the
 	     screen and repeats. -->
 	<dl class="grid gap-2 sm:grid-cols-2">

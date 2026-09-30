@@ -49,7 +49,7 @@ export type SelectionPlan<TReason extends string = string> = {
  * **`foreseen` is not an input to the procedure and never reaches it.** It is there so the
  * declaration behind the call can say when what the mutation actually refused differs from what
  * the confirmation showed, which is a comparison between two things and so cannot be made from
- * the result alone. `design/mutation.ts` is where it is read, under `notice`.
+ * the result alone. `mutation/mutation.ts` is where it is read, under `notice`.
  */
 export type SelectionCall = {
 	/** the records the reader picked out. */

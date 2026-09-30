@@ -1,0 +1,151 @@
+import type { StartupSnapshot } from './snapshot';
+
+/**
+ * WHAT THE FRAME DRAWS INSIDE ITSELF
+ *
+ * Startup's other decision about the frame, and the counterpart of `./gate`: that one answers what the window
+ * draws before a locale exists, this one answers what goes inside the frame once one does. Both
+ * are here rather than in `./component/root.svelte`, which draws them, for the reason that
+ * component states in its own comment: a runes file cannot be imported by a `node:test` at all,
+ * so a decision left inline in one is a decision nothing can drive.
+ *
+ * **Startup's rather than the shell's, though the frame is what it fills**, because what it reads
+ * is where startup has got to, and startup's root is what reads it (effort 840, ticket 34). The
+ * addresses beside the wall reach the way in and the sign-out's landing through `./ui`.
+ *
+ * **It is the address that made this worth extracting.** Until 2026-08-21 the answer was the
+ * startup state alone, and a chain of four branches in the route said it. Requirement 1 of
+ * `[[efforts/settings-and-the-workspace-finish-what-they-offer]]` adds a second axis: the sign-in
+ * card is drawn over every address, and the account menu offers a settings row that changes the
+ * address and leaves the same card on screen. That row has been offered since #646 and has never
+ * worked, because the requirement's API half landed and its layout half did not.
+ */
+
+/** the screen startup has the frame draw in place of its children, or `route` for the children. */
+export type StartupScreen = 'loading' | 'sign-in' | 'no-workspace' | 'recovery' | 'error' | 'route';
+
+/**
+ * Where an organization is created: the first run's own address.
+ *
+ * Reached from the sign-in card, and it opens with nobody signed in because it is how a person
+ * comes to be somebody here: an organization has no members until the walk on this address has
+ * made its owner. Every procedure behind it is public and reaches no database, which is the test
+ * `/settings` passed to be the first.
+ */
+export const THE_FIRST_RUN = '/organization/new';
+
+/** the connect screen: the organization's link, read and recorded on this machine. */
+export const THE_JOIN = '/organization/join';
+
+/**
+ * The addresses that draw with nobody signed in.
+ *
+ * **One, and it stays one**, said 2026-08-21, and it is two since 2026-09-11 for the reason the
+ * constant above gives; the first run is the one address that cannot be behind the wall it
+ * exists to get a person past. What follows is otherwise unchanged. Criterion 7 of [[efforts/capabilities-only-one-surface-got]] settled
+ * that the four destinations, the search, the workspace control and the shortcut sheet go on
+ * refusing, and this does not reopen it: those refuse in the frame and the rail, on the shell
+ * state, and none of them consults an address. What is different about settings is that every
+ * procedure behind it is already public and building the request context signed out reaches no
+ * database, so the page works rather than merely rendering.
+ *
+ * The language control is the reason it is this page and not another: it is the setting somebody
+ * is most likely to want before they can read anything else on the way in.
+ */
+const OPENS_SIGNED_OUT: readonly string[] = ['/settings', THE_FIRST_RUN, THE_JOIN];
+
+/**
+ * Where the rail's way in sends a reader.
+ *
+ * **The row in the account menu navigates rather than signing anybody in**, and this is what it
+ * navigates to. The sign-in card is a shell surface rather than a route, so there is no address
+ * that *is* the card and the only way to reach one is to stand somewhere the card draws over.
+ * Home is that somewhere; any address `OPENS_SIGNED_OUT` does not hold would serve.
+ *
+ * Here rather than in `./component/root.svelte` for the reason the rest of this module is here: a runes
+ * file cannot be imported by a `node:test` at all, so a destination left inline in one is a
+ * destination nothing can drive. #735 is where the row went to the consent screen instead, and
+ * `/settings` is where that was visible, being the one address that opens signed out and so the
+ * one place the card was not already on screen to make the difference invisible.
+ */
+export const THE_WAY_IN = '/';
+
+/**
+ * Whether this address draws while the shell is waiting for somebody to sign in.
+ *
+ * Exact rather than prefixed: nothing nests under either address, and a prefix would silently
+ * admit anything that ever did.
+ */
+export function opensSignedOut(pathname: string) {
+	return OPENS_SIGNED_OUT.includes(pathname);
+}
+
+/**
+ * Where the way in has to go from here, or `null` where the card is already drawn over it.
+ *
+ * **Navigating off an address the card already covers would cost the reader their place for
+ * nothing.** Signing out on a record leaves the card over that record, and the route underneath is
+ * what draws again on the way back in, which `and signing back in returns the reader to the address
+ * they were on` asserts. The way in exists to put the card on screen, so where the card is on
+ * screen it has nowhere to go.
+ *
+ * Only meaningful while the shell is signed out, which is the only state the row offering it is
+ * drawn in.
+ */
+export function wayInFrom(pathname: string): typeof THE_WAY_IN | null {
+	return opensSignedOut(pathname) ? THE_WAY_IN : null;
+}
+
+/**
+ * Where a sign-out has to land, or `null` where the card will draw over the address already.
+ *
+ * **Signing out puts the wall up, and an address that opens signed out never gets one** (effort
+ * 826, requirement 11 as corrected on 2026-09-15). Every other address is covered by the card the
+ * moment the standing changes, so nothing needs to move and the reader keeps their place; the
+ * three addresses `OPENS_SIGNED_OUT` holds go on drawing, and a person who signs out from
+ * `/settings` is left reading the settings of a machine nobody is signed in on. The human met
+ * exactly that on their first run of the build. So the sign-out leaves those three, and the one
+ * place to leave for is the same address the rail's way in uses.
+ *
+ * **Its own function rather than a second caller of `wayInFrom`, and the two bodies agreeing is
+ * not the same as the two questions agreeing.** That one answers *where does the rail's row send
+ * somebody who wants the card*, this one answers *where does a sign-out land*. An address added to
+ * `OPENS_SIGNED_OUT` that should keep a reader in place on the way out would move one and not the
+ * other, and a shared helper would make that a change to both.
+ */
+export function addressAfterSignOut(pathname: string): typeof THE_WAY_IN | null {
+	return opensSignedOut(pathname) ? THE_WAY_IN : null;
+}
+
+/**
+ * What the frame has to draw, given where the application has got to and where the reader is.
+ *
+ * **Only the sign-in card reads the address**, and that is the whole of the change. A route
+ * drawing during `loading` would be a route drawn before anybody has signed in, which is the
+ * failure the risk section of the spec names; a route drawing over a failed startup would be a
+ * page with no data behind it. Those states are the application not running, and an address
+ * cannot make one running.
+ *
+ * `recovery` without a recovery to describe falls through to the children, which is what the
+ * route did before this module existed. It is preserved rather than corrected here: nothing in
+ * this ticket is about that state, and changing it would be a second change hiding inside a
+ * refactor.
+ */
+export function startupScreen(snapshot: StartupSnapshot, pathname: string): StartupScreen {
+	switch (snapshot.state) {
+		case 'loading':
+			return 'loading';
+		case 'sign-in':
+			return opensSignedOut(pathname) ? 'route' : 'sign-in';
+		// over every address, the first run's included: a person is in, and there is no workspace
+		// for any address to draw from, so no address changes the answer.
+		case 'no-workspace':
+			return 'no-workspace';
+		case 'recovery':
+			return snapshot.recovery ? 'recovery' : 'route';
+		case 'error':
+			return 'error';
+		case 'ready':
+			return 'route';
+	}
+}

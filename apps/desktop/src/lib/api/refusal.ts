@@ -1,10 +1,4 @@
-import type { ComplexRefusalCode, UnitRefusalCode } from '$lib/complex/complex';
-import type { ContractRefusalCode } from '$lib/contract/contract';
-import type { HostRefusalCode } from '$lib/error/tauri';
-import type { PaymentRefusalCode } from '$lib/payment/payment';
-import type { RecordRefusalCode } from '$lib/platform/database/identity';
-import type { TenantRefusalCode } from '$lib/tenant/tenant';
-import type { WorkspaceRefusalCode } from '$lib/workspace/workspace';
+import type { RefusalCode } from '$lib/app/refusal';
 import { TRPCError } from '@trpc/server';
 
 /**
@@ -19,21 +13,16 @@ import { TRPCError } from '@trpc/server';
  * that places it has to match its words, and a reader who switches language holds sentences
  * cached in the one they left. Effort 832, requirement 23.*
  *
- * Each concept names its own refusals beside the rules that raise them, and this is their union.
- * `host` is the shell's: a Rust refusal carries its reason, and the reason is named here the way a
- * router's code is, so one lookup finds either sentence. A procedure raises one only as the earlier
- * of two refusals of the same thing: the organization router refuses a role or an override that
- * writes a kind of record without viewing it with the code Rust refuses it with.
+ * Each concept and capability names its own refusals in its own `refusal.ts`, and their union is
+ * the composition root's (`$lib/app/refusal`), the one place that names every feature. It is
+ * imported here as a type alone, erased before anything runs, so the plumbing a feature raises
+ * through never loads a feature. `host` is the shell's: a Rust refusal carries its reason, and the
+ * reason is named the way a router's code is, so one lookup finds either sentence. A procedure
+ * raises one only as the earlier of two refusals of the same thing: the organization router
+ * refuses a role or an override that writes a kind of record without viewing it with the code
+ * Rust refuses it with.
  */
-export type RefusalCode =
-	| ComplexRefusalCode
-	| ContractRefusalCode
-	| HostRefusalCode
-	| PaymentRefusalCode
-	| RecordRefusalCode
-	| TenantRefusalCode
-	| UnitRefusalCode
-	| WorkspaceRefusalCode;
+export type { RefusalCode };
 
 /** the values a refusal's sentence is built from: a name, an id, a count of days. */
 export type RefusalParams = Record<string, string | number>;
@@ -88,4 +77,40 @@ function refusalIn(holder: unknown): Refusal | null {
 		code: code as RefusalCode,
 		params: typeof params === 'object' && params !== null ? (params as RefusalParams) : {}
 	};
+}
+
+/**
+ * The refusals of a stated identity, by code. Any concept's record can meet them, so they are
+ * named for the record rather than for a concept, and sit here beside the union rather than in a
+ * concept's `refusal.ts`.
+ */
+export type RecordRefusalCode = 'record.idTaken' | 'record.idTakenNamed';
+
+/**
+ * A STATED IDENTITY
+ *
+ * the creating client mints a row's identity, and a caller may state one instead, which is
+ * how undoing a deletion puts a row back as the record it was rather than as a copy of it
+ * (ADR 0026).
+ *
+ * A stated identity has to be free, and that is not a formality: an undo replays an id that
+ * was deleted, and nothing stops the same id being stated twice. Without this the collision
+ * arrives as a constraint failure the user is shown as an unexpected error, rather than as the
+ * refusal it is.
+ *
+ * *It used to say the engine hands out the next id above the highest in use, which was the
+ * reason a freed id could be taken. That rule is gone (`newId` in
+ * `$lib/platform/database/identity` is where identities come from now), and the check it justified
+ * is not, because a stated id is still a stated id. It sat beside `newId` until effort 840, when
+ * the refusal it raises kept the database transport importing this wiring.*
+ *
+ * @param existing whatever row the caller's lookup found; any row means the id is taken.
+ * @param named how the offending record is referred to, where the caller is acting on a set and
+ * has to say which member of it was refused. A caller acting on one record omits it: the record
+ * is the one it was asked about.
+ */
+export function ensureIdFree(existing: unknown, named?: string) {
+	if (existing) {
+		throw named ? refuse('record.idTakenNamed', { named }) : refuse('record.idTaken');
+	}
 }

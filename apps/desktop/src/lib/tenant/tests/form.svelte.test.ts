@@ -6,7 +6,7 @@ import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import TenantForm from '$lib/tenant/component/form.svelte';
-import QueryProviders from '#tests/query-providers.svelte';
+import Providers from '#tests/providers.svelte';
 
 /**
  * THE TENANT FORM, SUBMITTED INVALID
@@ -15,7 +15,7 @@ import QueryProviders from '#tests/query-providers.svelte';
  * field, so the reader lands on what to fix instead of hunting for the mark.
  *
  * The submit is a real one. Every form on the shared surface submits through superforms with
- * `applyAction` off (`design/form.ts`, `surfaceForm`), so a refused submit settles in the form
+ * `applyAction` off (`form/form.ts`, `surfaceForm`), so a refused submit settles in the form
  * itself and never reaches SvelteKit's router, which this runner has none of.
  */
 
@@ -34,7 +34,7 @@ test('submitting an invalid tenant form focuses its first invalid field', async 
 	render(
 		TenantForm,
 		{ open: true, onOpenChange: noop },
-		{ wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' } }
+		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } }
 	);
 
 	const form = document.querySelector<HTMLFormElement>('[data-slot=form-surface] form')!;

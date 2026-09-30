@@ -1,4 +1,4 @@
-import { tauri } from '$lib/platform/tauri';
+import { tauri } from '$lib/sync/tauri';
 import {
 	emitWorkspaceSyncResult,
 	listenForWorkspaceSyncRequests,
@@ -136,7 +136,7 @@ export function startWorkspaceSyncManager(input: {
 			retryDelayMs = INITIAL_RETRY_MS;
 		} catch (error) {
 			const message = toErrorText(error, get(LL));
-			const state = await tauri.remoteSync.getState().catch(() => null);
+			const state = await tauri.getState().catch(() => null);
 			await handleResult({
 				action: 'error',
 				errorMessage: message,

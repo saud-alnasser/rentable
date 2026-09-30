@@ -1,3 +1,5 @@
+import { RECORD_KINDS, type RecordKind } from '@rentable/workspace-permission';
+
 /**
  * the error shape every fallible tauri command rejects with, and the reads that
  * classify one. rust serialises its error enum as `{ code, message }`, so a
@@ -29,6 +31,13 @@ export const TAURI_ERROR_CODES = [
 export type TauriErrorCode = (typeof TAURI_ERROR_CODES)[number];
 
 /**
+ * the word a kind of record's refusal of a write without its view crosses as: the kind's name, then
+ * `NeedsViewing` (`complexNeedsViewing`). Rust's `RefusalReason::NeedsViewing` spells it from the
+ * same name, so a kind added to the package has its word on both sides without one written here.
+ */
+const needsViewing = <K extends RecordKind>(kind: K) => `${kind}NeedsViewing` as const;
+
+/**
  * why a `refused` refused: one word from Rust's `RefusalReason`, spelled the same, and the one
  * thing besides the code a caller is allowed to branch on.
  *
@@ -39,7 +48,8 @@ export type TauriErrorCode = (typeof TAURI_ERROR_CODES)[number];
  *
  * The first four are a link's standing after its code was right (effort 828), and the connect
  * screen routes on them by name. The rest were added by effort 832, when every refusal a person
- * can cause in the shell began to carry one.
+ * can cause in the shell began to carry one, and the last are one per kind of record, read off the
+ * package's list of kinds as Rust reads its families.
  */
 export const TAURI_REFUSAL_REASONS = [
 	'lapsed',
@@ -82,11 +92,6 @@ export const TAURI_REFUSAL_REASONS = [
 	'roleOutOfPlace',
 	'noRankBelow',
 	'ownerRoleNotAssigned',
-	'complexNeedsViewing',
-	'unitNeedsViewing',
-	'tenantNeedsViewing',
-	'contractNeedsViewing',
-	'paymentNeedsViewing',
 	'recordFlagsOnly',
 	'alreadyOwner',
 	'accountNotSetUp',
@@ -124,14 +129,15 @@ export const TAURI_REFUSAL_REASONS = [
 	'tursoRefused',
 	'tursoAccountRefused',
 	'markTooLarge',
-	'markNotAnImage'
+	'markNotAnImage',
+	...RECORD_KINDS.map(needsViewing)
 ] as const;
 
 export type TauriRefusalReason = (typeof TAURI_REFUSAL_REASONS)[number];
 
 /**
  * a shell refusal named as a router's refusal is: the concept `host` and the reason. It joins
- * `RefusalCode` (`$lib/api/refusal`), so the sentence is found the same way and the type check in
+ * `RefusalCode` (`$lib/app/refusal`), so the sentence is found the same way and the type check in
  * `error/refusal.ts` holds the list and the locale together.
  */
 export type HostRefusalCode = `host.${TauriRefusalReason}`;

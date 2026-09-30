@@ -11,7 +11,7 @@ import {
 	unusedId,
 	withStatementLog,
 	refusedWith
-} from '$lib/api/tests/testing.ts';
+} from '$lib/app/tests/testing.ts';
 import { isRecordId } from '$lib/platform/database/identity.ts';
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import type { ListSort } from '@rentable/design/sort.ts';
@@ -611,7 +611,7 @@ test('a row carries one figure per status, and each counts only its own', async 
 	await seedContract(api, tenant.id);
 
 	const fulfilled = await seedContract(api, tenant.id);
-	await api.contract.payments.create({
+	await api.payment.create({
 		contractId: fulfilled.id,
 		date: monthsFromNow(0),
 		amount: 1_000_000
@@ -623,7 +623,7 @@ test('a row carries one figure per status, and each counts only its own', async 
 		start: monthsFromNow(-14),
 		end: monthsFromNow(-2)
 	});
-	await api.contract.payments.create({
+	await api.payment.create({
 		contractId: expired.id,
 		date: monthsFromNow(-8),
 		amount: 1_000_000
@@ -663,7 +663,7 @@ test('ordering by contracts counts the ones in force, not every contract held', 
 	// and an order over the contracts in force will not.
 	await seedContract(api, inForce.id);
 	const fulfilled = await seedContract(api, inForce.id);
-	await api.contract.payments.create({
+	await api.payment.create({
 		contractId: fulfilled.id,
 		date: monthsFromNow(0),
 		amount: 1_000_000

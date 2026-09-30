@@ -1,12 +1,15 @@
 import { render, waitFor } from '@testing-library/svelte';
 import { expect, test, vi } from 'vitest';
 
+// what one feature reads of another in the window is provided as the surfaces are composed, as
+// the frame does by importing them (`contributionsTo` in `$lib/feature/surface`).
+import '$lib/app/surfaces';
 import ContractHost from '$lib/contract/component/host.svelte';
 import { contractHost } from '$lib/contract/host.svelte';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import QueryProviders from '#tests/query-providers.svelte';
+import Providers from '#tests/providers.svelte';
 
 /**
  * WHERE A NEW CONTRACT LANDS
@@ -40,11 +43,7 @@ loadLocale('en');
 setLocale('en');
 
 test('creating a contract opens its record', async () => {
-	render(
-		ContractHost,
-		{},
-		{ wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' } }
-	);
+	render(ContractHost, {}, { wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } });
 
 	contractHost.create();
 

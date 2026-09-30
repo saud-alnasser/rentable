@@ -60,6 +60,7 @@ export function createDatabase(single: SingleTransport, batch: BatchTransport) {
 
 export const db = createDatabase(
 	// tauri command called directly for fast queries instead of wrapped in the tauri facade
-	async (sql, params) => invoke<Row[]>('db_execute_single_sql', { query: { sql, params } }),
-	async (queries) => invoke<Row[][]>('db_execute_batch_sql', { queries })
+	async (sql, params) =>
+		invoke<Row[]>('plugin:database|execute_single_sql', { query: { sql, params } }),
+	async (queries) => invoke<Row[][]>('plugin:database|execute_batch_sql', { queries })
 );

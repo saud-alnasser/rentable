@@ -20,14 +20,16 @@ sync retired (#554) and the record of truth moved.*
 
 **There is one application, and four packages beside it.** `packages/workspace-migrations` is
 the SQL a workspace database is built from, `packages/workspace-permission` names what a member
-may do, `packages/design` is the design system, and `packages/turso-platform` is Turso's
-Platform API and the migration runner in TypeScript, imported by nothing. *`apps/control-plane/`
+may do, `packages/design` is the design system, and `packages/testing` is the test scaffolding the
+application and the design package share (effort 840, ticket 42). *`apps/control-plane/`
 stood beside the desktop from 2026-08-18 (#549) to 2026-09-12: the always-online tier holding
 accounts, workspaces and membership, deployed nowhere. It retired with
 [[efforts/819-an-organization-hosts-its-own-workspaces/spec]], requirement 19, when an
 organization on the customer's own Turso account took over everything it answered for, and its
-two Turso modules became the fourth package.* Everything below in this file describes the
-desktop application.
+two Turso modules became a fourth package, `packages/turso-platform`.* *That package was removed
+with effort 840 (requirement 16, 2026-09-28) because nothing in the desktop imported it:
+replication and the Platform API run in the Rust crate, `tauri/src/turso/`, against the
+owner's own Turso account.* Everything below in this file describes the desktop application.
 
 **Every `src/…` and `tauri/…` path in the rest of this file, and in the rules and contexts
 beside it, is relative to `apps/desktop/`** unless it is written out in full. That is the one
@@ -100,9 +102,9 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   is a server, it holds the record, and it is still not in the data path.** The API layer is a
   direct caller executing in the webview, and that part is unchanged: a read or a write reaches a
   local file over Tauri's IPC into Rust, never over HTTP. The replica syncs on its own, and the
-  one service it reaches is the customer's own Turso account. `platform/database/hosted.ts` is the one
-  transport in the tree that would read over the wire from the webview, and nothing imports it —
-  [[rules/api-layer]], under *One database client type*, is where that is recorded.
+  one service it reaches is the customer's own Turso account. No transport in the tree
+  reads over the wire from the webview; [[rules/api-layer]], under *One database client type*,
+  counts the callers that build a client.
 
   The property the old boundary was protecting therefore survives the premise that stated it, which
   is why this is superseded in place rather than footnoted: a reader who takes "never HTTP" at
@@ -133,40 +135,53 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
 - **Domain rules live in their concept's own module.** Routers validate, call the domain,
   persist, and reconcile — they hold no rules. There is no repository layer; routers reach
   the database directly (#107, #108).
-- **Modules are organised by concept, not by layer.** A concept owns its rules, its
-  queries, and its components together, under one singular directory named for it:
-  `contract`, `payment`, `tenant`, `complex`, `dashboard`, `settings`, `sync`. A unit is
-  reached only through the complex holding it, so it lives inside that concept rather than
-  beside it. Three homes own no concept, and a domain rule lives in none of them —
-  **`design`**, what is left of the frontend machinery once the shareable half became a
-  package — the four composites that reach past the design system, in `block/`: `list.svelte`,
-  the `list-toolbar` and `search-field` every set draws above its records, and the
-  `create-control` that is each set's one way to add to it (`record-actions` retired with effort
-  832, when copy details became a record act); the record acts' shape and projections in
-  `acts.ts`, the cells, the toast provider that configures the packaged `Toaster`, and the
-  cross-concept helpers beside them: mutation handling, the workspace query-cache policy, undo,
-  the shortcut registry and what builds the list's registrations, the list's motion
-  (`list-motion`), the create key and what it answers (`create-key`, `create-target`,
-  `create-intent`), where a create lands (`landing`), and the filter, date and import helpers.
-  *It holds 80 files, counted on 2026-09-25. It held 459 until 2026-08-23 and 34 just after,
-  and the count read 34 until 2026-09-25 while the home grew. The 425 that left are 387
-  primitives, thirteen of the fifteen composites, fifteen root modules with the class merging and `csv.ts`
-  among them, and the ten tests that moved with those; all of them are in `@rentable/design` now,
-  whose last move landed at #784 ([[efforts/773-the-design-system-becomes-a-package/spec]]). This read
-  "the frontend machinery every concept shares" until then, and what shares is exactly what
-  left.*;
-  **`platform`**, capabilities that cross a process boundary or are
-  nondeterministic (the desktop shell, the database, diagnostics, locale); and **`api`**,
-  the in-webview caller itself: the request context, the tRPC wiring, and the root router
-  that assembles every concept's procedures. The clock is the one capability `platform`
-  does not hold, because it is read nowhere but the context that supplies it. The
-  application shell is neither primitive nor concept, so it is its own home, `layout`.
-  `src/routes/` stays layer-first, as the framework requires. **The tree is this shape
-  throughout** (#123–#126). Three directories sit outside it: `i18n`, whose path the locale
-  generator fixes; `error`, which decodes failures crossing the IPC boundary and has
-  not been placed; and `prototype`, the repository's own prototype machinery —
-  `switcher.svelte`, driven by `pnpm prototype` (`apps/desktop/scripts/prototype.mjs`). It is where
-  throwaway prototype code is written; [[rules/module-layout]], under *Prototype code*, is what binds a change.
+- **Modules are organised by concept, not by layer.** A concept owns its rules, its queries, its
+  strings and its components together, under one singular directory named for it, and is entered
+  through its `index.ts` (what loads under Node) and its `ui.ts` (what only the window loads).
+  [[rules/module-layout]] states that shape, the layer rule, where a concept departs from them, and
+  what adding a feature touches. The homes of `src/lib/`, in their four layers (effort 840), as
+  `lib/tests/layers.test.ts` places them; imports point down, or sideways through an entry, never
+  up and never in a cycle:
+
+  | Layer | Home | What it holds |
+  | --- | --- | --- |
+  | 4 composition | `app/` | the composition root, the one place that names every feature: `features.ts` and `surfaces.ts` list the declarations, and `router.ts`, `host.ts`, `caller.ts`, `cache.ts`, `transfer.ts`, `contributions.ts` and `refusal.ts` build from them what the shell and the capabilities are handed |
+  | | `shell/` | the window around the pages: the frame, the rail, the breadcrumb, the window controls, the error boundaries and the shortcut sheet, drawn from the surfaces and their `slots`; it names no feature. It was `layout/` until effort 840 |
+  | | `prototype/` | the repository's prototype machinery, `switcher.svelte`, driven by `pnpm prototype` (`apps/desktop/scripts/prototype.mjs`), where throwaway prototype code is written ([[rules/module-layout]], under *Prototype code*) |
+  | | `src/routes/` | the pages, layer-first as SvelteKit requires; a route composes and holds no wiring, importing only a home's components, a home's `ui.ts` and `app/` |
+  | 3 features | `tenant/`, `complex/` (with `unit/`, a kind of its own, inside it), `contract/`, `payment/`, `dashboard/` | the record features and the landing screen. A unit is reached only through the complex holding it |
+  | | `workspace/`, `organization/`, `settings/`, `sync/`, `update/`, `startup/` | the workspace, the organization with its sub-concepts `member/`, `role/`, `access/`, `workspace/`, `setup/` and `session/`, the settings area, replication, the updater, and the startup lifecycle with its screens |
+  | 2 capabilities | `permission/`, `mutation/`, `undo/`, `history/`, `shortcut/`, `notification/`, `palette/`, `create/`, `act/`, `list/`, `form/`, `transfer/`, `print/`, `date/` | the mechanisms every feature shares, each one directory with its own API; a capability imports no feature, and one that needs what features declare is handed it by `app/` |
+  | 1 foundation | `feature/` | the contract a feature declares against: `defineFeature`, `defineSurface`, sections, slots and contributions |
+  | | `design/` | presentation only: the cells and the language choice, what is left once the design system became `@rentable/design` |
+  | | `platform/` | what crosses a process boundary and is no feature's: the window, the opener, the dialogs, diagnostics, locale, appearance and the database transport and schema |
+  | | `api/` | the in-webview caller, the request context, the tRPC wiring and the refusal plumbing |
+  | | `i18n/` | the generated runtime, and each locale's `index.ts` composing every concept's strings at their key; its path is the generator's |
+  | | `error/` | decoding the failures that cross the IPC boundary into what a reader is shown |
+
+  A feature or capability that crosses to Rust declares its own port and adapter (`host.ts`,
+  `tauri.ts`), and `app/host.ts` composes them with the platform's part into the host the caller
+  is bound with. Every feature's router mounts at the root under its name and none mounts
+  another's, so a procedure's path is its feature and then the procedure: `payment.get`,
+  `sync.getState`, `startup.bootstrap`. Features never render each other's components: a page draws
+  the sections contributed to it, the shell draws the slots contributed to its places, and where a
+  depended-on feature needs something of the one depending on it (the contracts that refuse a
+  tenant's deletion, the payments a contract's settlement reads), that feature declares it under
+  `contributes`, which `app/contributions.ts` names and `feature/feature.ts` explains.
+
+  **The Rust crate, `tauri/src/`, is a set of inline Tauri plugins** that `lib.rs` composes, one
+  line each, and nothing else: `diagnostics/`, `window/`, `settings/`, `database/`, `sync/`,
+  `update/`, `print/`, `transfer/`, `startup/`, `upgrade/` (everything that brings a 0.12 to 0.15
+  install forward) and `organization/` (one subdirectory per sub-concept, with `act.rs` running the
+  signed-in check, the pull and the machine lock once). Beside them, holding no commands: the ports
+  `clock/` and `credential/`, `turso/` (the Turso adapter), `machine/` (this machine's record),
+  `schema/`, `backup.rs`, `error.rs`, `http.rs`, `persisted.rs`, the shared test scaffolding in
+  `test/`, and `guard/`, the tests holding the crate to its module graph, its names and its ACL.
+
+  *This bullet grew by accretion through effort 840 and was rewritten against the finished tree on
+  2026-09-29 (ticket 58). It read "three homes own no concept", `design`, `platform` and `api`, and
+  counted `design` at 80 files; the record acts, the list, the create control, transfer, mutation
+  and undo that `design` held are capabilities now, and it holds 30.*
 - **Reconciliation owns the derived columns** — contract status, the contract payment
   aggregates, and unit status. Any mutation touching contracts, payments, or unit
   assignments must reconcile, or the stored values go stale. A mutation may seed the
@@ -180,7 +195,7 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   dependency of ordinary use."* Both halves of that stopped being true when the record of truth
   moved: replication is how the workspace exists rather than an addition to it, and **the
   sign-in wall is built** — `sync/admission.ts` refuses a workspace to a machine with no
-  organization or with a locked vault, and `+layout.svelte` raises it before anything renders.
+  organization or with a locked vault, and `startup/component/root.svelte`, which the root layout draws, raises it before anything renders.
 
   **A first run needs a network and an account, and every launch after it needs neither.** The
   first run grants the application authority over the owner's Turso account in the browser and
@@ -214,6 +229,7 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
 | Area | Context |
 | --- | --- |
 | contracts, payments, unit assignments, derived status | [[contexts/desktop/contract]] |
+| declaring, composing, adding or removing a feature or a capability, on both sides of the IPC boundary | [[contexts/desktop/feature]] |
 | schema, migrations, how queries reach SQLite | [[contexts/desktop/persistence]] |
 | complexes and units | [[contexts/desktop/property]] |
 | an organization, its members, their vaults, and the account it lives on | [[contexts/desktop/organization]] |

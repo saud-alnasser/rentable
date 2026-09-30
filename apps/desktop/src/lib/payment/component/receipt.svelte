@@ -1,9 +1,9 @@
 <script lang="ts" module>
 	import type { PaymentReceipt } from '$lib/payment/query';
-	import type { OrganizationMark } from '$lib/platform/tauri';
+	import type { OrganizationMark } from '$lib/organization';
 
 	/**
-	 * Everything a printed receipt carries: what `contract.payments.receipt` answered, and who
+	 * Everything a printed receipt carries: what `payment.receipt` answered, and who
 	 * issued it.
 	 */
 	export type PrintedReceiptValue = PaymentReceipt & {
@@ -15,7 +15,7 @@
 </script>
 
 <script lang="ts">
-	import { formatRecordDate, formatRecordDateRange } from '$lib/design/date';
+	import { formatRecordDate, formatRecordDateRange } from '$lib/date';
 	import type { Locales, TranslationFunctions } from '$lib/i18n/i18n-types';
 	import { i18nObject } from '$lib/i18n/i18n-util';
 	import type { PaymentMethod } from '$lib/platform/database/schema';
@@ -44,7 +44,7 @@
 	 */
 	let { value, locale }: { value: PrintedReceiptValue; locale: Locales } = $props();
 
-	// every locale is in memory from startup on (`layout/startup.ts`), whichever one is showing.
+	// every locale is in memory from startup on (`startup/startup.ts`), whichever one is showing.
 	const t = $derived<TranslationFunctions>(i18nObject(locale));
 	const dir = $derived(locale === 'ar' ? 'rtl' : 'ltr');
 
@@ -95,7 +95,11 @@
 
 	<dl class="grid grid-cols-[auto_1fr] items-baseline gap-x-8 gap-y-3">
 		{#if value.tenant}
-			{@render fact(t.contracts.payments.receipt.receivedFrom(), 'tenant')}
+			<!-- written out rather than through `fact`, so the name the test finds it by is the data
+			     attribute's own value rather than a kind's word handed around. -->
+			<dt class="text-muted-foreground first-letter:uppercase" data-receipt-label="tenant">
+				{t.contracts.payments.receipt.receivedFrom()}
+			</dt>
 			<dd class="font-medium"><bdi>{value.tenant.name}</bdi></dd>
 
 			{@render fact(t.common.labels.nationalId(), 'nationalId')}

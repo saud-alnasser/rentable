@@ -3,9 +3,9 @@ import { beforeEach, describe, it, mock } from 'node:test';
 
 import type { CreateMutationResult } from '@tanstack/svelte-query';
 
-import { type Api, createApi, monthsFromNow, seedTenant } from '$lib/api/tests/testing.ts';
-import { bindingOf } from '$lib/design/tests/testing.ts';
-import { fakeSyncState } from '$lib/platform/tests/testing.ts';
+import { type Api, createApi, monthsFromNow, seedTenant } from '$lib/app/tests/testing.ts';
+import { bindingOf } from '#tests/mutation.ts';
+import { fakeSyncState } from '$lib/sync/tests/testing.ts';
 
 /**
  * A PAYMENT KEEPS A HISTORY
@@ -64,21 +64,24 @@ mock.module('svelte-sonner', {
 	exports: { toast: { success: () => {}, error: () => {}, dismiss: () => {} } }
 });
 
-mock.module('$lib/platform/tauri', {
-	exports: {
-		tauri: {
-			remoteSync: { getState: async () => fakeSyncState() },
-			diagnostics: { write: async () => {} }
-		}
-	}
+mock.module('$lib/sync/tauri', {
+	exports: { tauri: { getState: async () => fakeSyncState() } }
 });
 
-const { inverseStack } = await import('$lib/design/inverse');
-const { applyUndo } = await import('$lib/design/mutation');
+mock.module('$lib/platform/tauri', {
+	exports: { tauri: { diagnostics: { write: async () => {} } } }
+});
+
+const { inverseStack } = await import('$lib/undo/undo');
+const { applyUndo } = await import('$lib/undo');
 const { useQueryClient } = await import('@tanstack/svelte-query');
 const { useCreatePayment, useUpdatePayment, useDeletePayment } = await import('$lib/payment/query');
 const { loadLocale } = await import('$lib/i18n/i18n-util.sync');
 const { setLocale } = await import('$lib/i18n/i18n-svelte');
+
+// the cache policy the root layout provides, built from the features' declarations: a settled
+// mutation invalidates by it.
+await import('$lib/app/cache');
 
 // the entry names the payment by its amount in the reader's locale, so one is loaded.
 loadLocale('en');
@@ -140,7 +143,7 @@ describe("a payment's history", () => {
 
 	it('records an edit, and taking the edit back as another', async () => {
 		const contract = await seedContract();
-		const payment = await caller.contract.payments.create({
+		const payment = await caller.payment.create({
 			contractId: contract.id,
 			date: monthsFromNow(0),
 			amount: 1000
@@ -151,7 +154,7 @@ describe("a payment's history", () => {
 
 		await applyUndo(useQueryClient());
 
-		assert.equal((await caller.contract.payments.get({ id: payment.id }))?.amount, 1000);
+		assert.equal((await caller.payment.get({ id: payment.id }))?.amount, 1000);
 		// both directions are an edit, each named by the amount the payment holds after it.
 		assert.deepEqual(await settled(), [
 			[['payment', payment.id, 'edited', '1,500']],
@@ -163,7 +166,7 @@ describe("a payment's history", () => {
 	// the edit is on its account through the same declaration.
 	it('takes back an edit to the method, the reference and the note', async () => {
 		const contract = await seedContract();
-		const payment = await caller.contract.payments.create({
+		const payment = await caller.payment.create({
 			contractId: contract.id,
 			date: monthsFromNow(0),
 			amount: 1000,
@@ -182,7 +185,7 @@ describe("a payment's history", () => {
 		});
 
 		const fields = async () => {
-			const read = await caller.contract.payments.get({ id: payment.id });
+			const read = await caller.payment.get({ id: payment.id });
 
 			return [read?.method, read?.reference, read?.note];
 		};
@@ -201,7 +204,7 @@ describe("a payment's history", () => {
 
 	it('takes back filling in the three on a payment that had none', async () => {
 		const contract = await seedContract();
-		const payment = await caller.contract.payments.create({
+		const payment = await caller.payment.create({
 			contractId: contract.id,
 			date: monthsFromNow(0),
 			amount: 1000
@@ -217,7 +220,7 @@ describe("a payment's history", () => {
 		});
 		await applyUndo(useQueryClient());
 
-		const read = await caller.contract.payments.get({ id: payment.id });
+		const read = await caller.payment.get({ id: payment.id });
 
 		assert.deepEqual([read?.method, read?.reference, read?.note], [null, null, null]);
 	});
@@ -225,7 +228,7 @@ describe("a payment's history", () => {
 	// criterion 4(c): one payment deleted is one entry, and one append.
 	it('records deleting one payment as exactly one entry', async () => {
 		const contract = await seedContract();
-		const payment = await caller.contract.payments.create({
+		const payment = await caller.payment.create({
 			contractId: contract.id,
 			date: monthsFromNow(0),
 			amount: 1000

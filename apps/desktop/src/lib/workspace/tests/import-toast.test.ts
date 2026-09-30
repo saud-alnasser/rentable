@@ -4,7 +4,7 @@ import { beforeEach, it, mock } from 'node:test';
 import { TRPCError } from '@trpc/server';
 
 import { refuse } from '$lib/api/refusal.ts';
-import { bindingOf } from '$lib/design/tests/testing.ts';
+import { bindingOf } from '#tests/mutation.ts';
 
 /**
  * AN IMPORT FAILURE IS SAID ONCE
@@ -35,7 +35,10 @@ mock.module('svelte-sonner', {
 mock.module('@tanstack/svelte-query', {
 	exports: {
 		useQueryClient: () => ({ invalidateQueries: async () => {} }),
-		createMutation: (options: () => unknown) => options()
+		createMutation: (options: () => unknown) => options(),
+		// the workspace's query module reads the settings' and the replica's keys, whose modules
+		// hold queries as well; none of them is created here.
+		createQuery: () => ({})
 	}
 });
 
@@ -48,7 +51,7 @@ mock.module('$lib/platform/tauri', {
 });
 
 const { useImportRecords } = await import('$lib/workspace/query');
-const { showErrorToast } = await import('$lib/error/toast');
+const { showErrorToast } = await import('$lib/notification');
 const { loadLocale } = await import('$lib/i18n/i18n-util.sync');
 const { LL, setLocale } = await import('$lib/i18n/i18n-svelte');
 const { get } = await import('svelte/store');

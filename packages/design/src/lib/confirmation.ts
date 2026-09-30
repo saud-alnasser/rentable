@@ -96,3 +96,28 @@ export function toRefusal(
 
 	return read(failure) || unexpected;
 }
+
+/**
+ * What a confirmation surface shows, held while it closes.
+ *
+ * A caller closes a surface by forgetting what it asked about, so the record and what blocks it
+ * empty in the same moment the surface is told to close. The surface is still on screen while it
+ * leaves, and redrawn from those emptied props it turns into the question it never asked: a
+ * refused delete became the delete form, with no record named and its destructive control
+ * offered, for the length of the closing. So what is shown is read afresh only while the surface
+ * is open, and the last of it is kept once it is not.
+ *
+ * Read inside a `$derived`, the reading tracks what `read` touches only while open, so props
+ * that change behind a closing surface do not reach it.
+ */
+export function heldWhileOpen<T>(isOpen: () => boolean, read: () => T): () => T {
+	let shown = read();
+
+	return () => {
+		if (isOpen()) {
+			shown = read();
+		}
+
+		return shown;
+	};
+}

@@ -30,7 +30,7 @@
 </script>
 
 <script lang="ts">
-	import List from '$lib/design/block/list.svelte';
+	import { List } from '$lib/list/ui';
 	import { recordCard } from '@rentable/design/block/record-card.svelte';
 	import { cn } from '@rentable/design/tailwind.js';
 	import type { HistoryConcept } from '$lib/history/history';
@@ -49,7 +49,7 @@
 	 * records beside it: the same search, the same empty state, and the same virtualization once
 	 * a long-lived record has more entries than a screen.
 	 */
-	let { concept, recordId }: { concept: HistoryConcept; recordId: string } = $props();
+	let { kind: concept, recordId }: { kind: HistoryConcept; recordId: string } = $props();
 
 	// two lines of text and the breathing room around them, like every other record row here.
 	const ROW_HEIGHT = 64;

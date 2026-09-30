@@ -1,0 +1,287 @@
+[
+	{
+		"name": "Tenants",
+		"headers": ["Name", "National ID", "Phone"],
+		"rows": [
+			[
+				{
+					"kind": "text",
+					"value": "Abby Kris"
+				},
+				{
+					"kind": "text",
+					"value": "1234567890"
+				},
+				{
+					"kind": "text",
+					"value": "+966512345678"
+				}
+			],
+			[
+				{
+					"kind": "text",
+					"value": "Sara Idle"
+				},
+				{
+					"kind": "text",
+					"value": "1334567892"
+				},
+				{
+					"kind": "text",
+					"value": "+966554567890"
+				}
+			],
+			[
+				{
+					"kind": "text",
+					"value": "عمر الحربي"
+				},
+				{
+					"kind": "text",
+					"value": "2234567891"
+				},
+				{
+					"kind": "text",
+					"value": "+966553456789"
+				}
+			]
+		]
+	},
+	{
+		"name": "Complexes",
+		"headers": ["Name", "Location"],
+		"rows": [
+			[
+				{
+					"kind": "text",
+					"value": "Al Nakheel"
+				},
+				{
+					"kind": "text",
+					"value": "Riyadh"
+				}
+			],
+			[
+				{
+					"kind": "text",
+					"value": "برج الياسمين"
+				},
+				{
+					"kind": "text",
+					"value": "جدة"
+				}
+			]
+		]
+	},
+	{
+		"name": "Units",
+		"headers": ["Complex", "Unit", "Status"],
+		"rows": [
+			[
+				{
+					"kind": "text",
+					"value": "Al Nakheel"
+				},
+				{
+					"kind": "text",
+					"value": "A1"
+				},
+				{
+					"kind": "text",
+					"value": "vacant"
+				}
+			],
+			[
+				{
+					"kind": "text",
+					"value": "Al Nakheel"
+				},
+				{
+					"kind": "text",
+					"value": "A2"
+				},
+				{
+					"kind": "text",
+					"value": "vacant"
+				}
+			],
+			[
+				{
+					"kind": "text",
+					"value": "Al Nakheel"
+				},
+				{
+					"kind": "text",
+					"value": "A3"
+				},
+				{
+					"kind": "text",
+					"value": "vacant"
+				}
+			],
+			[
+				{
+					"kind": "text",
+					"value": "برج الياسمين"
+				},
+				{
+					"kind": "text",
+					"value": "101"
+				},
+				{
+					"kind": "text",
+					"value": "vacant"
+				}
+			]
+		]
+	},
+	{
+		"name": "Contracts",
+		"headers": [
+			"Contract",
+			"Tenant",
+			"Units",
+			"Start",
+			"End",
+			"Interval",
+			"Cost",
+			"Status",
+			"Paid",
+			"Expected"
+		],
+		"rows": [
+			[
+				{
+					"kind": "text",
+					"value": "GOV-1"
+				},
+				{
+					"kind": "text",
+					"value": "1234567890"
+				},
+				{
+					"kind": "text",
+					"value": "Al Nakheel / A1; Al Nakheel / A2"
+				},
+				{
+					"kind": "date",
+					"value": 45658
+				},
+				{
+					"kind": "date",
+					"value": 46023
+				},
+				{
+					"kind": "text",
+					"value": "12m"
+				},
+				{
+					"kind": "money",
+					"value": 18000
+				},
+				{
+					"kind": "text",
+					"value": "expired"
+				},
+				{
+					"kind": "money",
+					"value": 18000
+				},
+				{
+					"kind": "money",
+					"value": 18000
+				}
+			],
+			[
+				{
+					"kind": "text",
+					"value": "2234567891 @ 2025-03-01"
+				},
+				{
+					"kind": "text",
+					"value": "2234567891"
+				},
+				{
+					"kind": "text",
+					"value": "برج الياسمين / 101"
+				},
+				{
+					"kind": "date",
+					"value": 45717
+				},
+				{
+					"kind": "date",
+					"value": 45901
+				},
+				{
+					"kind": "text",
+					"value": "1m"
+				},
+				{
+					"kind": "money",
+					"value": 1500.5
+				},
+				{
+					"kind": "text",
+					"value": "defaulted"
+				},
+				{
+					"kind": "money",
+					"value": 3001
+				},
+				{
+					"kind": "money",
+					"value": 9003
+				}
+			]
+		]
+	},
+	{
+		"name": "Payments",
+		"headers": ["Contract", "Date", "Amount"],
+		"rows": [
+			[
+				{
+					"kind": "text",
+					"value": "GOV-1"
+				},
+				{
+					"kind": "date",
+					"value": 45658
+				},
+				{
+					"kind": "money",
+					"value": 18000
+				}
+			],
+			[
+				{
+					"kind": "text",
+					"value": "2234567891 @ 2025-03-01"
+				},
+				{
+					"kind": "date",
+					"value": 45717
+				},
+				{
+					"kind": "money",
+					"value": 1500.5
+				}
+			],
+			[
+				{
+					"kind": "text",
+					"value": "2234567891 @ 2025-03-01"
+				},
+				{
+					"kind": "date",
+					"value": 45748
+				},
+				{
+					"kind": "money",
+					"value": 1500.5
+				}
+			]
+		]
+	}
+]

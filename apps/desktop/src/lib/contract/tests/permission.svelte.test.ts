@@ -1,15 +1,16 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest';
 
+import { sectionsOn } from '$lib/app/surfaces';
 import ContractDetails from '$lib/contract/component/details.svelte';
+import TenantContracts from '$lib/contract/component/tenant-contracts.svelte';
 import ContractDirectory from '$lib/contract/component/directory.svelte';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import { newId } from '$lib/platform/database/identity';
-import TenantContracts from '$lib/tenant/component/contracts.svelte';
-import QueryProviders from '#tests/query-providers.svelte';
+import Providers from '#tests/providers.svelte';
 import {
 	describedBy,
 	forgetReader,
@@ -95,9 +96,10 @@ afterEach(() => {
 	document.body.innerHTML = '';
 });
 
-const providers = { wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' as const } };
+const providers = { wrapper: Providers, wrapperProps: { strings, direction: 'ltr' as const } };
 
-const page = () => render(ContractDetails, { contractId: CONTRACT.id }, providers);
+const page = () =>
+	render(ContractDetails, { contractId: CONTRACT.id, sections: sectionsOn('contract') }, providers);
 
 test("the contract's page refuses the acts whose flags the reader lacks, naming each flag", () => {
 	holdEveryFlagBut('editContract', 'deleteContract', 'createContract');
@@ -169,7 +171,7 @@ test("the actions on a selection of a tenant's contracts are refused for the fla
 	vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(600);
 
 	holdEveryFlagBut('editContract', 'deleteContract', 'createContract');
-	render(TenantContracts, { tenantId: TENANT_ID }, providers);
+	render(TenantContracts, { recordId: TENANT_ID }, providers);
 
 	// the pane's own create, which makes a contract, is refused for the create.
 	const create = document.querySelector('[data-create-control]');

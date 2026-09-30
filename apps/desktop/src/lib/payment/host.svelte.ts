@@ -1,4 +1,4 @@
-import { mayRun } from '$lib/design/acts';
+import { mayRun } from '$lib/act';
 import { declarePaymentActs, type PaymentActId, type PaymentActRecord } from '$lib/payment/acts';
 
 /**

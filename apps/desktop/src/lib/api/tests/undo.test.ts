@@ -10,9 +10,9 @@ import {
 	monthsFromNow,
 	seedTenant,
 	refusedWith
-} from '$lib/api/tests/testing.ts';
-import { bindingOf } from '$lib/design/tests/testing.ts';
-import { fakeSyncState } from '$lib/platform/tests/testing.ts';
+} from '$lib/app/tests/testing.ts';
+import { bindingOf } from '#tests/mutation.ts';
+import { fakeSyncState } from '$lib/sync/tests/testing.ts';
 
 // The declarations live beside the query hooks, which reach `.svelte` files this harness
 // cannot load. Substituting the three dependencies leaves the declaration itself real: the
@@ -51,45 +51,48 @@ mock.module('svelte-sonner', {
 // reports is all the sync path reads.
 const remoteState = { state: fakeSyncState() };
 
+mock.module('$lib/sync/tauri', {
+	exports: {
+		tauri: {
+			getState: async () => remoteState.state
+		}
+	}
+});
+
 mock.module('$lib/platform/tauri', {
 	exports: {
 		tauri: {
-			remoteSync: {
-				getState: async () => remoteState.state
-			},
 			// a failed undo is recorded for diagnostics; what it records is not asserted here.
 			diagnostics: { write: async () => {} }
 		}
 	}
 });
 
-const { inverseStack } = await import('$lib/design/inverse');
-const { applyUndo } = await import('$lib/design/mutation');
-const { workspacePrefixes } = await import('$lib/design/query');
+const { inverseStack } = await import('$lib/undo/undo');
+const { applyUndo } = await import('$lib/undo');
+const { prefixOf } = await import('$lib/mutation');
 const { useQueryClient } = await import('@tanstack/svelte-query');
 const { useCreateTenant, useUpdateTenant, useDeleteTenant } = await import('$lib/tenant/query');
-const {
-	useCreateComplex,
-	useUpdateComplex,
-	useDeleteComplex,
-	useCreateUnit,
-	useCreateManyUnits,
-	useUpdateUnit,
-	useDeleteUnit
-} = await import('$lib/complex/query');
+const { useCreateComplex, useUpdateComplex, useDeleteComplex } = await import('$lib/complex/query');
+const { useCreateUnit, useCreateManyUnits, useUpdateUnit, useDeleteUnit } =
+	await import('$lib/complex/unit/query');
 const {
 	useCreateContract,
 	useDeleteContract,
 	useUpdateContract,
-	useRenewContract,
 	useSetContractUnits,
 	useTerminateContract,
 	useUnterminateContract
 } = await import('$lib/contract/query');
-const { getContractRenewalTerm } = await import('$lib/contract/renewal');
+const { useRenewContract } = await import('$lib/contract/renewal/query');
+const { getContractRenewalTerm } = await import('$lib/contract/renewal/renewal');
 const { useCreatePayment, useDeletePayment } = await import('$lib/payment/query');
 const { loadLocale } = await import('$lib/i18n/i18n-util.sync');
 const { LL, setLocale } = await import('$lib/i18n/i18n-svelte');
+
+// the cache policy the root layout provides, built from the features' declarations: a settled
+// mutation invalidates by it.
+await import('$lib/app/cache');
 
 // an inverse names itself in the reader's language, so what a control would offer is only
 // assertable once a locale is loaded — the same two calls the application makes at startup.
@@ -259,7 +262,7 @@ describe('undoing a record change', () => {
 
 		await run(useDeletePayment, payment.id);
 		await inverseStack.undo();
-		assert.equal((await caller.contract.payments.get({ id: payment.id }))?.amount, 1000);
+		assert.equal((await caller.payment.get({ id: payment.id }))?.amount, 1000);
 
 		await run(useUpdateUnit, { id: unit.id, complexId: complex.id, name: 'A2' });
 		await inverseStack.undo();
@@ -482,7 +485,7 @@ describe('undoing a record change', () => {
 			caller = real;
 		}
 
-		for (const prefix of [workspacePrefixes.contracts, workspacePrefixes.units]) {
+		for (const prefix of [prefixOf('contract'), prefixOf('unit')]) {
 			assert.ok(
 				refreshed.some((key) => JSON.stringify(key) === JSON.stringify(prefix)),
 				`${JSON.stringify(prefix)} was not refreshed after the undo failed`
@@ -613,7 +616,7 @@ describe('undoing a record change', () => {
 	});
 
 	// a complex created with its units is the one creation whose inverse is not a single
-	// delete: a complex still holding units refuses to be deleted.
+	// delete: the units it made go first, each through its own delete.
 	it('takes back a complex created with its units, and puts them all back', async () => {
 		const complex = await run(useCreateComplex, {
 			name: 'Palm Court',

@@ -1,6 +1,5 @@
 <script lang="ts">
-	import { TenantSchema, type Tenant } from '$lib/platform/database/schema';
-	import { identityField, phone } from '$lib/tenant/tenant';
+	import { identityField, phone, TenantSchema, type Tenant } from '$lib/tenant/tenant';
 	import FieldError from '@rentable/design/block/field-error.svelte';
 	import FormSurface, { insetControl } from '@rentable/design/block/form-surface.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
@@ -8,14 +7,14 @@
 	import { Input } from '@rentable/design/primitive/input/index.js';
 	import * as Select from '@rentable/design/primitive/select/index.js';
 	import { cn } from '@rentable/design/tailwind.js';
-	import { onMutationError } from '$lib/design/mutation';
+	import { onMutationError } from '$lib/mutation/ui';
 	import { fieldOfFailure, toRefusalText } from '$lib/error/refusal';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useCreateTenant, useUpdateTenant } from '$lib/tenant/query';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import SaveIcon from '@lucide/svelte/icons/save';
 	import { TRPCError } from '@trpc/server';
-	import { surfaceForm } from '$lib/design/form';
+	import { surfaceForm } from '$lib/form';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import { z } from 'zod';

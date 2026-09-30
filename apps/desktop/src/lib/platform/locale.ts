@@ -1,5 +1,27 @@
-import { localesMetadata } from '$lib/i18n/i18n-translations-util';
 import type { Locales } from '$lib/i18n/i18n-types';
+
+export type LocaleMetadata = {
+	label: string;
+	direction: 'ltr' | 'rtl';
+};
+
+/**
+ * Each of this application's locales as a language chooser names it, and the direction it
+ * reads in.
+ *
+ * *It sat in `i18n/i18n-translations-util.ts` until effort 840, and the number formatter the
+ * generated runtime reads from here made the two homes import each other.*
+ */
+export const localesMetadata: Record<Locales, LocaleMetadata> = {
+	ar: {
+		label: 'العربية',
+		direction: 'rtl'
+	},
+	en: {
+		label: 'English',
+		direction: 'ltr'
+	}
+};
 
 /**
  * The `Intl` locale each of this application's locales formats in.
@@ -39,6 +61,19 @@ export function formatLocaleDate(
 
 	return new Intl.DateTimeFormat(getIntlLocale(locale), options).format(date);
 }
+
+/**
+ * A date as every surface here renders one.
+ *
+ * Medium style, so a month reads as a word and no locale's numeric order can be mistaken for
+ * another's, and UTC, because the domain's days are whole UTC days. It is a function rather
+ * than only the cell that shows it, so a file written from a list reads the way the list does.
+ *
+ * It sits here rather than in `date/` because the date cell in `design/` renders with it, and
+ * the foundation imports no capability. `date/` re-exports it, so a concept reaches it there.
+ */
+export const formatRecordDate = (locale: Locales, value: number | string | Date) =>
+	formatLocaleDate(locale, value, { dateStyle: 'medium', timeZone: 'UTC' });
 
 const SECOND = 1_000;
 const MINUTE = 60 * SECOND;

@@ -1,4 +1,4 @@
-import type { RecordAct } from '$lib/design/acts';
+import type { ConfirmationPolicy, RecordAct } from '$lib/act';
 import type { Complex } from '$lib/platform/database/schema';
 import CopyIcon from '@lucide/svelte/icons/copy';
 import SquarePenIcon from '@lucide/svelte/icons/square-pen';
@@ -9,7 +9,7 @@ import Trash2Icon from '@lucide/svelte/icons/trash-2';
  *
  * Everything a person can do to one complex, in the order every surface offers it: the card's menu
  * and its context menu, the complex's page, and the command menu. Each of those is a projection of
- * this list (`design/acts.ts`), so none of them can offer an act another does not.
+ * this list (`act/act.ts`), so none of them can offer an act another does not.
  *
  * **No duplicate.** A complex is its name and its location, both unique to it, so the copy would
  * carry nothing. A unit's acts are the unit's own, in `complex/unit/acts.ts`.
@@ -30,7 +30,10 @@ export type ComplexHostRequests = {
 	copyDetails: (complex: ComplexActRecord) => void;
 	/** open the form on this complex. */
 	edit: (complex: ComplexActRecord) => void;
-	/** delete this complex: at once where nothing refuses it, as its policy says; the host decides. */
+	/**
+	 * delete this complex: at once where nothing refuses it and no unit goes with it, asking first
+	 * where units do, as its policy says; the host decides.
+	 */
 	confirmDelete: (complex: ComplexActRecord) => void;
 };
 
@@ -59,17 +62,33 @@ export function declareComplexActs(host: ComplexHostRequests): ComplexAct[] {
 			run: host.edit
 		},
 		{
-			// always offered: what a deletion is refused for (units held) is read when it is asked, and
-			// the delete dialog says it.
+			// always offered: what a deletion is refused for (a unit a contract holds) is read when it
+			// is asked, and the delete dialog says it.
 			id: 'complex.delete',
 			label: (t) => t.common.actions.delete(),
 			icon: Trash2Icon,
 			tone: 'error',
 			group: 'destructive',
 			flag: 'deleteComplex',
-			// the record is all it removes, so it runs at once and offers undo.
+			// a complex with no units is all it removes, so it runs at once and offers undo. One whose
+			// units go with it is a cascade, which the host reads per record through
+			// `toComplexDeleteConfirmation`.
 			confirmation: 'none',
 			run: host.confirmDelete
 		}
 	];
 }
+
+/**
+ * What deleting one complex asks, given how many units would go with it: the act's own policy
+ * where none would, and `cascade` where some would, because the delete then removes more than
+ * the record (effort 840, requirement 22).
+ *
+ * The act declares what a complex alone costs, since how many units a complex has is not on the
+ * record any surface holds; the host, which reads what the deletion would take, asks this for the
+ * complex in front of it and hands the answer to `toDeleteStep`.
+ */
+export const toComplexDeleteConfirmation = (
+	declared: ConfirmationPolicy | undefined,
+	unitsGoing: number
+): ConfirmationPolicy | undefined => (unitsGoing > 0 ? 'cascade' : declared);

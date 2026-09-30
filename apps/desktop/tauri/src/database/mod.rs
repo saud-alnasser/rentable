@@ -1,9 +1,12 @@
-pub mod commands;
+pub mod command;
 pub(crate) mod corrupt;
+mod plugin;
 pub mod proxy;
 #[cfg(test)]
 pub(crate) mod test;
 pub mod version;
+
+pub use plugin::plugin;
 
 use sqlx::{
     Pool, Sqlite,
@@ -16,11 +19,12 @@ use std::{
 use tokio::sync::RwLock;
 
 use crate::{
+    clock::{self, Clock},
     database::proxy::{SQLQuery, SQLRow},
     error::Error,
     persisted::Persisted,
     settings::Settings,
-    sync::turso::platform::{SyncRefusal, read_sync_refusal},
+    turso::platform::read_sync_refusal,
 };
 
 /// what one replication did, and why it did not where it did not.
@@ -28,7 +32,7 @@ use crate::{
 pub struct Replicated {
     pub pushed: bool,
     pub received: bool,
-    pub refusal: SyncRefusal,
+    pub refusal: Option<Error>,
     /// whether either half went through: the remote took the push, or answered the pull, whether
     /// or not it had anything to bring.
     ///
@@ -57,7 +61,7 @@ pub(crate) async fn replicate_engine(
     database: &turso::sync::Database,
     watch: &corrupt::Watch,
 ) -> Replicated {
-    let mut refusal = SyncRefusal::None;
+    let mut refusal = None;
     let pushed = match watch.note(database.push().await) {
         Ok(()) => true,
         Err(error) => {
@@ -68,7 +72,7 @@ pub(crate) async fn replicate_engine(
     let pulled = match watch.note(database.pull().await) {
         Ok(brought) => Some(brought),
         Err(error) => {
-            if refusal == SyncRefusal::None {
+            if refusal.is_none() {
                 refusal = read_sync_refusal(&error);
             }
             None
@@ -105,22 +109,30 @@ pub enum Engine {
     Workspace(turso::sync::Database),
 }
 
+/// the database as the plugin manages it, made in its setup: one engine behind one lock, which the
+/// commands, the startup and the organization's opening of a workspace all take.
+pub type Shared = Arc<RwLock<Database>>;
+
 pub struct Database {
     engine: Option<Engine>,
     /// where the replica the `Workspace` arm holds lies, so damage met on it after it opened is
     /// recorded beside it (`corrupt.rs`). Empty on the `Local` arm and with no engine.
     watch: corrupt::Watch,
     settings: Arc<RwLock<Persisted<Settings>>>,
+    /// what says when a damaged replica was set aside, in the name it is set aside under.
+    clock: clock::Shared,
 }
 
 impl Database {
-    pub const FILENAME: &'static str = "app.db";
+    /// the file's name, which the settings hold, since it is their setup that says where it is.
+    pub const FILENAME: &'static str = Settings::DATABASE_FILENAME;
 
-    pub fn new(settings: Arc<RwLock<Persisted<Settings>>>) -> Self {
+    pub fn new(settings: Arc<RwLock<Persisted<Settings>>>, clock: clock::Shared) -> Self {
         Database {
             engine: None,
             watch: corrupt::Watch::default(),
             settings,
+            clock,
         }
     }
 
@@ -128,12 +140,13 @@ impl Database {
     ///
     /// **It applies no migrations, and that is requirement 11 rather than an omission.** A
     /// workspace's schema is applied to its database over the wire, at creation and under a
-    /// lease (`organization/migrate.rs`); the replica receives it as replicated pages. A client that applied DDL of its own would not merely
-    /// duplicate that work — DDL issued through the sync connection is captured as CDC and
-    /// replicates, so one client's migration would reach every other replica.
+    /// lease (`organization/lease/apply.rs`); the replica receives it as replicated pages. A client
+    /// that applied DDL of its own would not merely duplicate that work: DDL issued through the
+    /// sync connection is captured as CDC and replicates, so one client's migration would reach
+    /// every other replica.
     ///
-    /// `tauri/migrations/` stays in the tree as the input `build.rs` counts to produce
-    /// `WORKSPACE_SCHEMA_VERSION`, which is the number this client sends to the mint. Nothing
+    /// `tauri/migrations/` stays in the tree as what `build.rs` embeds for
+    /// `organization/lease/apply.rs` and counts to produce `WORKSPACE_SCHEMA_VERSION`. Nothing
     /// reads it at launch.
     pub async fn connect(&mut self) -> Result<(), Error> {
         let settings = self.settings.read().await;
@@ -162,10 +175,8 @@ impl Database {
 
     /// Open this machine's replica through the sync engine.
     ///
-    /// **The startup path calls this.** *It said nothing did, and that stopped being true when the
-    /// mint landed: `bootstrap.rs` reaches it with the workspace's URL and a token from the control
-    /// plane.* Corrected 2026-08-20, having misled a reader working out what renaming the replica
-    /// file would do to an installed build.
+    /// **The startup path calls this.** `startup` reaches it with the workspace's URL and
+    /// the credential the member's vault unsealed for it.
     ///
     /// **`bootstrap_if_empty(false)`, and it is measured rather than preferred.** Left true, an
     /// engine pointed at a remote it cannot reach leaves no usable local database at all — the
@@ -176,7 +187,7 @@ impl Database {
     /// model rests on that being a first-class API, and it is one.
     ///
     /// `remote_url` is absent until a workspace is known. An engine built without one serves the
-    /// local file and reaches nothing, which is what a machine that has minted nothing should do.
+    /// local file and reaches nothing, which is what a machine that holds no workspace should do.
     ///
     /// **The file is named for the workspace, not for the machine.** One person signing out and
     /// another signing in on the same computer would otherwise open the second account's replica
@@ -184,8 +195,8 @@ impl Database {
     /// be reading somebody else's ledger and pushing against a revision that is not theirs. A path
     /// derived from the workspace makes the binding structural rather than something a sign-out has
     /// to remember to clean up. *What it leaves behind is the previous workspace's file, and
-    /// membership is what ends that: [`Self::remove_replica`] is reached only where the control
-    /// plane says the account holding it is no longer a member.*
+    /// membership is what ends that: [`Self::remove_replica`] is reached only where the
+    /// organization says the account holding it is no longer a member.*
     pub async fn connect_workspace<F, Fut>(
         &mut self,
         workspace_id: &str,
@@ -209,7 +220,7 @@ impl Database {
         }
 
         self.engine = Some(Engine::Workspace(
-            Self::open_replica(&db_path, remote_url, auth_token).await?,
+            Self::open_replica(self.clock.as_ref(), &db_path, remote_url, auth_token).await?,
         ));
         self.watch = corrupt::Watch::over(&db_path);
 
@@ -222,7 +233,7 @@ impl Database {
     /// to it. Two workspaces on one machine therefore never meet, and neither meets `app.db`.
     ///
     /// **`ws-` is the organization's own name for the database, not a local abbreviation.**
-    /// `create_workspace` in `organization/workspace.rs` builds `ws-<id>`, and
+    /// `create_workspace` in `organization/workspace/` builds `ws-<id>`, and
     /// that is what Turso holds and what the remote URL says. A local file named anything else
     /// makes a person reading a directory listing translate before they can match it against the
     /// dashboard, for no gain. *It was `workspace-<id>.db` until 2026-08-20.*
@@ -362,7 +373,7 @@ impl Database {
     /// what they cannot say is that the remote was reached and said no, which is a different
     /// sentence for the person reading it (requirement 25) and a different act for the shell (a
     /// refused credential is collected again). The refusal is read at the response by
-    /// `sync::turso::platform::read_sync_refusal`, and the first refusal of the two halves is
+    /// `turso::platform::read_sync_refusal`, and the first refusal of the two halves is
     /// the one reported, because both are about the same database and the same credential.
     pub async fn replicate(&self) -> Replicated {
         match self.engine.as_ref() {
@@ -370,7 +381,7 @@ impl Database {
             Some(Engine::Local(_)) | None => Replicated {
                 pushed: false,
                 received: false,
-                refusal: SyncRefusal::None,
+                refusal: None,
                 completed: false,
             },
         }
@@ -391,6 +402,7 @@ impl Database {
     /// has answered is recorded beside the replica by the reads that meet it, and set aside here at
     /// the next open.
     pub async fn open_replica<F, Fut>(
+        clock: &dyn Clock,
         db_path: &Path,
         remote_url: Option<String>,
         auth_token: F,
@@ -416,7 +428,7 @@ impl Database {
         // requirement 17), which `corrupt.rs` says the whole of. The first read is part of the
         // open because that is where the engine reports a damaged page it did not meet opening
         // the file; any other answer to it is left for the caller's own reads, as it was.
-        Ok(corrupt::opened_once_more(db_path, || {
+        Ok(corrupt::opened_once_more(clock, db_path, || {
             let auth_token = Arc::clone(&auth_token);
             let remote_url = remote_url.clone();
 
@@ -623,20 +635,18 @@ mod tests {
         LiveWorkspace, apply_schema, concepts, count, distinct, run, shipped_migration_count, text,
     };
     use super::{Database, Engine};
+    use crate::test::scratch;
 
     /// A replica engine over a file of its own, with no remote to reach.
     async fn replica(name: &str) -> (std::path::PathBuf, turso::sync::Database) {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|elapsed| elapsed.as_nanos())
-            .unwrap_or_default();
+        let directory = scratch(name);
 
-        let directory = std::env::temp_dir().join(format!("rentable-{name}-{nanos}"));
-        std::fs::create_dir_all(&directory).expect("scratch directory");
-
-        let database = Database::open_replica(&directory.join("app.db"), None, || async {
-            Ok::<String, turso::Error>(String::new())
-        })
+        let database = Database::open_replica(
+            &crate::clock::System,
+            &directory.join("app.db"),
+            None,
+            || async { Ok::<String, turso::Error>(String::new()) },
+        )
         .await
         .expect("replica engine");
 
@@ -695,9 +705,9 @@ mod tests {
     /// distinction the requirement exists to keep.
     #[tokio::test]
     async fn a_refusal_for_the_account_is_read_as_the_accounts_and_the_replica_goes_on_serving() {
-        use crate::sync::{
-            test::server::{ScriptedResponse, ScriptedServer},
-            turso::platform::SyncRefusal,
+        use crate::{
+            error::{Error, RefusalReason},
+            sync::test::server::{ScriptedResponse, ScriptedServer},
         };
 
         // every request Turso would get is answered as a blocked account.
@@ -712,13 +722,9 @@ mod tests {
                 .collect(),
         )
         .await;
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|elapsed| elapsed.as_nanos())
-            .unwrap_or_default();
-        let directory = std::env::temp_dir().join(format!("rentable-refused-{nanos}"));
-        std::fs::create_dir_all(&directory).expect("scratch directory");
+        let directory = scratch("refused");
         let database = Database::open_replica(
+            &crate::clock::System,
             &directory.join("app.db"),
             Some(refusing.url("")),
             || async { Ok::<String, turso::Error>("a-credential".to_string()) },
@@ -732,9 +738,10 @@ mod tests {
         assert!(!replicated.received);
         assert_eq!(
             replicated.refusal,
-            SyncRefusal::Account {
-                detail: "BLOCKED: quota exceeded, upgrade the plan or enable overages".to_string()
-            }
+            Some(Error::refused(
+                RefusalReason::TursoAccountRefused,
+                "BLOCKED: quota exceeded, upgrade the plan or enable overages"
+            ))
         );
 
         // and the replica serves a write and a read while it stands.
@@ -767,6 +774,7 @@ mod tests {
         let unreachable =
             ScriptedServer::start((0..8).map(|_| ScriptedResponse::hangup()).collect()).await;
         let offline = Database::open_replica(
+            &crate::clock::System,
             &directory.join("offline.db"),
             Some(unreachable.url("")),
             || async { Ok::<String, turso::Error>("a-credential".to_string()) },
@@ -776,7 +784,7 @@ mod tests {
 
         let unreached = super::replicate_engine(&offline, &Default::default()).await;
 
-        assert_eq!(unreached.refusal, SyncRefusal::None);
+        assert_eq!(unreached.refusal, None);
 
         // and neither a refusal nor being offline is a replication that went through, so neither
         // moves the moment the standing block says (effort 828, requirement 25).
@@ -829,20 +837,16 @@ mod tests {
         use std::sync::Arc;
         use tokio::sync::RwLock;
 
-        let directory = std::env::temp_dir().join(format!(
-            "rentable-readiness-local-{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|elapsed| elapsed.as_nanos())
-                .unwrap_or_default()
-        ));
-        std::fs::create_dir_all(&directory).expect("scratch directory");
+        let directory = scratch("readiness-local");
 
         let mut settings =
             Persisted::<Settings>::load(directory.join("settings.json")).expect("settings");
         settings.database_path = directory.join("app.db");
 
-        let mut database = Database::new(Arc::new(RwLock::new(settings)));
+        let mut database = Database::new(
+            Arc::new(RwLock::new(settings)),
+            crate::clock::System::shared(),
+        );
         database.connect().await.expect("the database should open");
 
         assert!(
@@ -884,7 +888,10 @@ mod tests {
             Persisted::<Settings>::load(directory.join("settings.json")).expect("settings");
         settings.database_path = directory.join("app.db");
 
-        let mut database = Database::new(Arc::new(RwLock::new(settings)));
+        let mut database = Database::new(
+            Arc::new(RwLock::new(settings)),
+            crate::clock::System::shared(),
+        );
         database.engine = Some(Engine::Workspace(engine));
 
         let refusal = database.reconnect().await;

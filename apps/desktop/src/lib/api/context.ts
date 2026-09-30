@@ -5,7 +5,7 @@ import {
 } from '@rentable/workspace-permission';
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy';
 
-import type { Host, OrganizationSession } from '$lib/platform/host';
+import type { Host } from '$lib/app/host';
 
 /**
  * DATABASE
@@ -28,11 +28,20 @@ export type Clock = {
 /**
  * HOST
  *
- * what the API may ask of the shell it runs in. Declared in `$lib/platform/host` and
- * satisfied by the Tauri facade, rather than read off that facade with `typeof` — so there
- * is an interface for a client that is not the desktop shell to implement.
+ * what the API may ask of the shell it runs in. Composed in `$lib/app/host` from the ports that
+ * declare it and satisfied by their Tauri adapters, rather than read off an adapter with `typeof`,
+ * so there is an interface for a client that is not the desktop shell to implement. Named here by
+ * type alone, so the wiring loads no feature.
  */
 export type { Host };
+
+/**
+ * who is signed in on this machine, as the organization's port answers it: read off the composed
+ * host rather than off the port, so the wiring names no feature.
+ */
+type OrganizationSession = NonNullable<
+	Awaited<ReturnType<Host['organization']['getState']>>['session']
+>;
 
 /**
  * IDENTITY
@@ -89,7 +98,7 @@ export type Identity = {
 	 *
 	 * **Never read as a number.** `permits` from `@rentable/workspace-permission` answers a
 	 * question about it by the name of an act; that package names the bits on this side, and
-	 * `permission.rs` carries the same bits under the same names on the Rust side.
+	 * `role/permission.rs` carries the same bits under the same names on the Rust side.
 	 *
 	 * Where the shell could not be reached or nobody is signed in there is no identity at all,
 	 * and so nothing to read this off.
@@ -168,7 +177,7 @@ async function actingIdentity(host: Host): Promise<Identity | null> {
  */
 async function openWorkspace(host: Host): Promise<string | null> {
 	try {
-		return (await host.remoteSync.getState()).workspace.remoteId;
+		return (await host.sync.getState()).workspace.remoteId;
 	} catch {
 		// said above: no workspace that can be named is read-only.
 		return null;
@@ -228,11 +237,12 @@ export function accessIn(
 }
 
 /**
- * builds the context with its dependencies supplied. each defaults to the real capability, so
- * `context()` with no arguments answers as it always has for existing callers — it asks the
- * shell who is acting on the way.
- * the database and host singletons pull in the Tauri runtime, so they are imported
- * lazily and only when not supplied — importing this module stays free of it.
+ * builds the context with its dependencies supplied. each but the host defaults to the real
+ * capability, and it asks the shell who is acting on the way.
+ * the database singleton pulls in the Tauri runtime, so it is imported lazily and only when not
+ * supplied, and importing this module stays free of it. **The host is always supplied**: it is
+ * composed from the features' ports, which this home sits below, so the composition root binds
+ * it in with the root router (`bindCaller` in `./caller`) and a test hands in its own.
  *
  * `identity` is read by value now, like every other member. It was read by key while it was
  * optional, because absent and `undefined` said different things then; with no way to want a
@@ -248,9 +258,11 @@ export function accessIn(
  * available at all: a context built at module load could only fail `$lib/api/caller` itself,
  * and with it every surface importing it, on the clean install every user starts from.
  */
-export const context = async (overrides: Partial<Context> = {}): Promise<Context> => {
+export const context = async (
+	overrides: Partial<Context> & Pick<Context, 'host'>
+): Promise<Context> => {
 	const db = overrides.db ?? (await import('$lib/platform/database/client')).db;
-	const host = overrides.host ?? (await import('$lib/platform/tauri')).tauri;
+	const host = overrides.host;
 	const clock = overrides.clock ?? systemClock;
 	const identity = overrides.identity ?? (await actingIdentity(host));
 

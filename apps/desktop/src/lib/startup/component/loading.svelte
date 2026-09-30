@@ -1,0 +1,118 @@
+<script lang="ts">
+	import { Progress } from '@rentable/design/primitive/progress/index.js';
+	import { LL, locale } from '$lib/i18n/i18n-svelte';
+	import { formatLocaleDate } from '$lib/platform/locale';
+	import { migrationNotice } from '$lib/startup/migration-notice.svelte';
+	import { startupProgressWithin, startupStage } from '$lib/startup/stage.svelte';
+	import MarkIcon from '@lucide/svelte/icons/eclipse';
+
+	/**
+	 * What the application shows while it is starting.
+	 *
+	 * **Not the standalone surface, and it is the one screen that is not.** A card is for something
+	 * you read or act on, and this asks nothing. The five other screens on that block came to it
+	 * because they present the application's own state to a reader who has to take it in; this one
+	 * came along for the ride, and wearing the same bordered, ring-lit panel as a failed startup
+	 * gave a non-event the weight of an event.
+	 *
+	 * **A bar, not a spinner.** Chosen by looking, out of seven presentations
+	 * ([[efforts/capabilities-only-one-surface-got/evidence/prototypes/what-the-loading-screen-should-be]]).
+	 * A spinner and a pulsing mark are both indefinite: they look the same at half a second and at
+	 * forty, so watching one teaches nothing and eventually reads as a hang. A bar that has moved
+	 * since the reader last looked cannot be mistaken for one.
+	 *
+	 * **The stages are real**, which is what makes the bar a report — see
+	 * `$lib/startup/stage.svelte`. The counter beside the stage says which of the pass's steps
+	 * this is, five on a launch and four on the pass that readies the first workspace, and it is the
+	 * exact figure on the screen: the bar's position is an estimate eased from
+	 * measured stage durations, so the two are deliberately different kinds of claim and the precise
+	 * one is spelled out rather than left to a length.
+	 *
+	 * **No product name**, per [[efforts/the-shell-says-whose-workspace-this-is]] requirement 5:
+	 * the window title, the taskbar and the installer have all said it before this screen gets a
+	 * turn.
+	 */
+
+	/** often enough to read as motion, rarely enough to be nothing on a machine that is busy. */
+	const TICK_MS = 120;
+
+	const labels = $derived({
+		prepare: $LL.layout.startup.stagePrepare(),
+		settings: $LL.layout.startup.stageSettings(),
+		account: $LL.layout.startup.stageAccount(),
+		workspace: $LL.layout.startup.stageWorkspace(),
+		changes: $LL.layout.startup.stageChanges(),
+		records: $LL.layout.startup.stageRecords()
+	});
+
+	const position = $derived(startupStage.stages.indexOf(startupStage.current) + 1);
+
+	/**
+	 * **The bar is weighted and the counter is not**, and the difference is what each one claims.
+	 * The bar claims *how much of the wait is behind you*, which only measurement can answer; the
+	 * counter claims *which of the steps this is*, which is a fact about the list. Driving both
+	 * off the position would put the bar at four fifths while the longest stage was still running.
+	 *
+	 * **It ticks inside a stage as well as at the boundaries**, because two of the five stages take
+	 * almost all of a launch: left to the boundaries alone the bar moves twice in six seconds and
+	 * stands still between, and a reader who looks away and back sees exactly what a spinner would
+	 * have shown them. `startupProgressWithin` eases toward the next boundary without reaching it,
+	 * so the motion never claims a stage is finished before the startup path says it is.
+	 */
+	let now = $state(Date.now());
+
+	$effect(() => {
+		const ticking = setInterval(() => (now = Date.now()), TICK_MS);
+
+		return () => clearInterval(ticking);
+	});
+
+	const progress = $derived(
+		startupProgressWithin(startupStage.current, now - startupStage.since, startupStage.stages)
+	);
+
+	/**
+	 * the one moment the bar is not the whole story: a workspace being brought up to this build's
+	 * schema on open, by this client or by another member whose lease this one waits on. Said
+	 * under the stage, because a migration over the wire takes longer than the stage it runs in
+	 * and a bar that stops moving reads as a hang.
+	 */
+	const upgrading = $derived.by(() => {
+		const notice = migrationNotice.current;
+
+		if (!notice || notice.phase === 'done') return null;
+
+		return notice.phase === 'applying'
+			? $LL.layout.startup.migrationApplying()
+			: $LL.layout.startup.migrationWaiting({
+					until: formatLocaleDate($locale, notice.until, { timeStyle: 'medium' })
+				});
+	});
+</script>
+
+<div class="flex min-h-full flex-1 flex-col items-center justify-center gap-6 p-4">
+	<!-- the mark holds still. The bar is the motion, and two moving things on an otherwise empty
+	     window compete for the same job. The tile and the glyph are the ones the workspace menu's
+	     header draws the mark at, so the mark has one large size wherever it appears. -->
+	<div
+		class="flex size-10 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground"
+	>
+		<MarkIcon class="size-5" />
+	</div>
+
+	<div class="flex w-full max-w-xs flex-col gap-2.5" role="status">
+		<Progress value={progress} class="h-1" />
+
+		<div class="flex items-baseline justify-between gap-3 text-xs">
+			<span class="min-w-0 truncate text-foreground">{labels[startupStage.current]}</span>
+			<!-- a count is not prose, and it reads left to right in every locale. -->
+			<span dir="ltr" class="shrink-0 text-muted-foreground tabular-nums">
+				{position}/{startupStage.stages.length}
+			</span>
+		</div>
+
+		{#if upgrading}
+			<p class="text-xs text-muted-foreground" data-startup-migration>{upgrading}</p>
+		{/if}
+	</div>
+</div>

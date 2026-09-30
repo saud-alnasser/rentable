@@ -1,10 +1,14 @@
 ---
 paths:
   - apps/desktop/src/lib/api/**
+  - apps/desktop/src/lib/app/**
+  - apps/desktop/src/lib/feature/**
   - apps/desktop/src/lib/*/router.ts
+  - apps/desktop/src/lib/*/*/router.ts
+  - apps/desktop/src/lib/contract/row.ts
   - apps/desktop/src/lib/*/reconcile.ts
-  - apps/desktop/src/lib/platform/host.ts
-  - apps/desktop/src/lib/platform/tauri.ts
+  - apps/desktop/src/lib/*/host.ts
+  - apps/desktop/src/lib/*/tauri.ts
   - apps/desktop/src/lib/platform/database/**
 use-when: "adding or changing a router, a domain module, a database client or transport, or anything crossing the Tauri IPC boundary"
 ---
@@ -17,10 +21,13 @@ use-when: "adding or changing a router, a domain module, a database client or tr
 
   The layer is no longer one directory. A concept that has relocated (#123-#126)
   keeps its router under its own name, so the globs follow it there; without them
-  the router rules below stop loading for exactly the routers they govern. The two
-  `platform` globs are there for the same reason in the other direction: the facade
-  and the database transport left the layer, and the `invoke` rule below is the one
-  that governs them.
+  the router rules below stop loading for exactly the routers they govern. A router
+  split along its concept's sub-concepts keeps a `router.ts` in each of them
+  (`contract/renewal/router.ts`), which the second glob follows, and `contract/row.ts`
+  holds the reads those routers share. The
+  `host.ts`, `tauri.ts` and `platform/database` globs are there for the same reason in
+  the other direction: the ports, their Tauri adapters and the database transport left
+  the layer, and the `invoke` rule below is the one that governs them.
 
   *One database client type* was merged in here on 2026-08-17, from its own file.
   It was ADR 0001, it governs the same boundary these globs already cover, and
@@ -38,11 +45,56 @@ use-when: "adding or changing a router, a domain module, a database client or tr
   is deliberate — recorded originally as ADR 0002.
 - **Input shapes derive from the schema**, by narrowing it. Do not restate fields a router
   is about to persist.
-- **Every `invoke` belongs in the Tauri facade**, with the two hot database commands as the
-  only exception. A component or router calling `invoke` directly is a defect.
+- **Every `invoke` belongs in its concept's `tauri.ts` adapter**, with the two hot database
+  commands as the only exception. A component or router calling `invoke` directly is a defect.
+  A concept that crosses to Rust declares its port in its own `host.ts` and satisfies it in its
+  `tauri.ts`: the organization, sync, update, settings, startup and the workspace (its records of
+  an earlier version) among the features, print and transfer among the capabilities. What is no
+  feature's, the window, the opener, the dialogs and diagnostics, is `platform/host.ts` and
+  `platform/tauri.ts`, and `platform` imports no feature. `app/host.ts` composes the `Host` the
+  request context carries from the platform's part and each port under its concept's name
+  (`ctx.host.sync`, `ctx.host.startup`), and `app/caller.ts` binds it into the caller with the
+  root router. A concept's own code imports its adapter; another concept reaches a capability's
+  through its entry (`transferHost` from `$lib/transfer`), and the shell is handed a feature's
+  port by the root layout. *It read "belongs in the Tauri facade" until ticket 23 of effort 840
+  gave the organization its own port, and ticket 24 gave every other crossing concept its own.*
+- **Every `invoke` names a command of one of the application's own feature plugins, as
+  `plugin:<name>|<command>`.** Each Rust feature that answers the frontend registers an inline
+  plugin in its own `tauri/src/<feature>/plugin.rs`, whose `Builder::new("<name>")` gives the
+  `<name>` and whose one `generate_handler!` lists its commands. A command's function is named
+  `<feature>_<act>` and answers to `<act>` through `#[tauri::command(rename = "<act>")]`, so
+  `settings_get` is invoked as `plugin:settings|get` and `organization_role_list` as
+  `plugin:organization|role_list`. A function that does not carry its feature's prefix answers to
+  its own name with no rename (transfer's `export_write` and `import_read`, startup's
+  `bootstrap`). `build.rs` reads each `plugin.rs` and derives the plugin's command list from its
+  handler, taking the `<feature>_` prefix off, and registers each plugin with a `default`
+  permission allowing exactly those commands; `capabilities/default.json` grants
+  `"<name>:default"`. The test in `guard/acl.rs` holds each derived list to what the handler
+  answers, so a renamed or added command needs no second list, only the handler entry and the
+  capability line for a new plugin.
+- **No feature plugin takes the name of one of Tauri's core plugins**: `path`, `event`,
+  `window`, `webview`, `app`, `resources`, `image`, `menu` and `tray`. Tauri registers its core
+  plugins after the application's, and a later plugin of the same name replaces the earlier one,
+  so a feature plugin named `window` is dropped at build time while the ACL still allows its
+  commands, which then reach Tauri's own plugin instead. The application's window plugin is
+  therefore `frame` (`tauri/src/window/plugin.rs`), not `window`. `guard/acl.rs` holds the list
+  (`no_plugin_takes_the_name_of_a_core_plugin`), and a new plugin is named against it. *Stated
+  here on 2026-09-29 by ticket 69 of effort 840, after review round one found the guard enforcing
+  a rule no rule stated.*
 - **Ambient capabilities only in the request context** — the things that cross the process
   boundary or are nondeterministic. Business configuration is not one of them and does not
   belong there.
+- **A router reads another feature only as a contribution, and never by importing it.** Record
+  features depend one way (the contract on the tenant and the unit, the payment on the contract),
+  so what a depended-on feature's procedures need of a dependent one arrives as
+  `ctx.contributions.<its kind>`, declared under `contributes` in the dependent feature's
+  `feature.ts` and typed in `app/contributions.ts`. The `contribute` middleware every procedure in
+  `api/trpc.ts` starts with adds it beside the context rather than in it: `context()` still builds
+  the four ambient members, and `app/router.ts` binds the merged contributions as it builds the
+  root router (`api/contribution.ts`). A domain helper a procedure hands its context to, such as
+  `reconcile` and `reconcileTouched`, takes the context rather than the bare database, so it can
+  read them too. *Added by ticket 62 of effort 840, carrying out the human's decision of
+  2026-09-28 (the effort's plan, "A feature's reverse needs are contributions").*
 
 ## Who may call
 
@@ -72,19 +124,20 @@ use-when: "adding or changing a router, a domain module, a database client or tr
   `public: true`. `api/tests/flags.test.ts` walks `appRouter._def.procedures`, which holds one
   entry per procedure under its dotted path, and fails on a procedure that names no flag and is
   neither `member` nor `public`, on a record procedure that names no flag other than the two open
-  reads below, and on a record procedure whose flag is not the one the plan maps it to. A
-  procedure declared any other way records nothing, so the walk names it.
+  reads below and `contract.reconcile`, and on a record procedure whose flag is not the one the
+  plan maps it to. A procedure declared any other way records nothing, so the walk names it.
 - **A flag where there is one, and `member` only where there is none.** Every record procedure
-  names its flag but two reads open to every member, `contract.dashboard` and `workspace.held`,
+  names its flag but two reads open to every member, `dashboard.get` and `transfer.held`,
   whose answers leave out a kind the member may not view. What else is `member` is one of two
   things. A member's own act: their password, their other sessions, accepting an ownership offer
   made to them, opening a workspace they hold a grant on, and this machine's bootstrap and
   reconcile. And a read open to every member: the member list and its standings, the roles, and
   the mark. The owner's acts and the mark's writes name the flag their Rust command checks, which
   `organization/tests/router.test.ts` holds each organization mutation to by reading the `GATES`
-  table in `tauri/src/organization/command.rs`. Of the ways to write a procedure that needs
-  somebody, `member` is still the one to reach for by habit over `public`: a procedure written
-  without thinking about who calls it should be the safe one.
+  table in `tauri/src/organization/mod.rs`, which every sub-concept's `command.rs` is held to. Of
+  the ways to write a procedure that needs somebody, `member` is still the one to reach for by
+  habit over `public`: a procedure written without thinking about who calls it should be the safe
+  one.
 
   **Counted 2026-09-28 the way the walk counts:** every entry of `appRouter._def.procedures`,
   sorted by its `meta`. There are 113: 83 `permitted`, 1 `permittedAny`, 3 `permittedBy`, 12
@@ -150,8 +203,11 @@ have made and the domain turns away is thrown as `refuse(code, params?)` from
 person.
 
 - **The code is named by its concept**, `contract.endBeforeStart`, from the `RefusalCode` union
-  that concept declares beside the rules that raise it. `RefusalCode` in `api/refusal.ts` is their
-  union. A refusal naming a value carries it in `params`, never spliced into the code.
+  that concept declares in its own `refusal.ts` and exports from its `index.ts`. `RefusalCode` in
+  `app/refusal.ts`, the composition root, is their union; `api/refusal.ts` imports it as a type,
+  under the one exemption for a type read up from `app/` ([[rules/module-layout]]), so the plumbing
+  loads no feature and names none. A refusal naming a value carries it in `params`, never spliced
+  into the code.
 - **The sentence is the interface's.** `common.refusals.<concept>.<name>` holds one per code in
   both locales, written for the reader in lower case and saying what they must do.
   `error/refusal.ts` turns an error into that sentence (`toRefusalText`), and a type check there
@@ -174,9 +230,9 @@ message.** `FORBIDDEN` and `UNAUTHORIZED` are not refusals: the middlewares rais
 who reached a procedure the interface would not have drawn. Each reads as a sentence of its own,
 `common.failures.forbidden` and `common.failures.signedOut`, through `toRouterFailureText` in
 `error/refusal.ts`. Any other code reads as the declaration's unexpected sentence or the generic
-`common.messages.unexpectedError`. The message stays a developer's: `design/mutation.ts` records it
-in diagnostics, and a screen that already offers a details disclosure may show it there, never in
-visible text. *Revised 2026-09-25 by ticket 35 of the same effort: this read "they keep surfacing as
+`common.messages.unexpectedError`. The message stays a developer's: `mutation/announcement.ts`
+records it in diagnostics, and a screen that already offers a details disclosure may show it there,
+never in visible text. *Revised 2026-09-25 by ticket 35 of the same effort: this read "they keep surfacing as
 a generic failure", and the mutation handler, `toErrorMessage` and `toRefusalText` showed their
 English message instead.*
 
@@ -201,7 +257,7 @@ procedure's refusals are its concept's codes, with one exception: where a router
 what the shell refuses anyway, it throws the shell's own code rather than a second one for the
 same thing. The organization router refuses a role mask, or a role and an override, that adds,
 edits or deletes a kind of record without viewing it with `host.<kind>NeedsViewing`
-(`refuseWriteWithoutView` in `organization/router.ts`), the reason Rust's
+(`refuseWriteWithoutView` in `organization/role/router.ts`), the reason Rust's
 `refuse_write_without_view` gives. *Why: it is one rule, the package's `firstWriteWithoutView`,
 asked twice; two codes would be two sentences for it in each locale, and a reader would read one
 or the other depending on which side refused first. Added 2026-09-27 by ticket 46 of
@@ -231,28 +287,20 @@ through that seam".
 batch)`, against a live database, and it went through unchanged. **That is not the client this
 application ships**, and this paragraph leads with the fact because the sentence it replaces did
 not: it read as though the shipping client had been driven through the seam. The sync engine runs
-in the Rust layer behind `db_execute_single_sql` and `db_execute_batch_sql`, so the two functions
-the shipping client hands the factory still call `invoke`, and what changed is the engine behind
-the command.
+in the Rust layer behind `plugin:database|execute_single_sql` and `execute_batch_sql`, so the two
+functions the shipping client hands the factory still call `invoke`, and what changed is the
+engine behind the command.
 
-**The conclusion the gate bought still holds, and the count is three.** `createDatabase` has three
-callers in the tree: `client.ts` with Tauri's `invoke`, `memory.ts` with the in-memory engine, and
-`hosted.ts`, which carries a statement to a `@tursodatabase/sync` replica in the webview. **All
-three return the same `SqliteRemoteDatabase<typeof schema>`**, which is the property this rule
-protects: a transport is a caller at this factory, never a second kind of client. What the move
-into Rust costs is a second row mapping, in `tauri/src/database/proxy.rs`, held to the first by a
-Rust test rather than by this rule.
+**The conclusion the gate bought still holds, and the count is two.** `createDatabase` has two
+callers in the tree: `client.ts` with Tauri's `invoke`, and `memory.ts` with the in-memory
+engine. **Both return the same `SqliteRemoteDatabase<typeof schema>`**, which is the property
+this rule protects: a transport is a caller at this factory, never a second kind of client. What
+the move into Rust costs is a second row mapping, in `tauri/src/database/proxy.rs`, held to the
+first by a Rust test rather than by this rule.
 
-> **`hosted.ts` is imported by nothing but its own test** — checked 2026-08-20 while rewriting
-> this section. #565 moved the engine into Rust and left the web-layer transport, its test and the
-> `@tursodatabase/sync` dependency standing. It is counted above because it is in the tree and
-> because its own doc comment cites this rule by name; whether it should still be there is not
-> this rule's question, and it is raised rather than answered here.
-
-*The word that went on 2026-08-20 is "hosted": this read "**A hosted workspace is a third caller
-at this factory**". There is one kind of workspace, so the qualifier picked it out from nothing.
-**The count it carried was right and is kept**, which is the half worth saying out loud: the
-qualifier and the count came off the same sentence and only one of them was wrong.*
+*The count was three until #840 removed the third: a web-layer transport to a
+`@tursodatabase/sync` replica, left standing by #565 when it moved the engine into Rust and
+imported by nothing but its own test. The dependency stays for the development scripts below.*
 
 ### Development tooling is excluded, deliberately
 

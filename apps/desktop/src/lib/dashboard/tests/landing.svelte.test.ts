@@ -2,15 +2,15 @@ import { render, screen, within } from '@testing-library/svelte';
 import { beforeEach, expect, test, vi } from 'vitest';
 
 import type api from '$lib/api/caller';
-import type { ContractRankSummary } from '$lib/contract/rank';
+import type { ContractRankSummary } from '$lib/contract/rank/rank';
 import Landing from '$lib/dashboard/component/landing.svelte';
-import { formatRecordDate } from '$lib/design/date';
+import { formatRecordDate } from '$lib/date';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import { formatLocaleMoney } from '$lib/platform/locale';
 import en from '$lib/i18n/en';
-import QueryProviders from '#tests/query-providers.svelte';
+import Providers from '#tests/providers.svelte';
 
 /**
  * WHAT FALLS DUE THIS WEEK IS ON THE LANDING SCREEN
@@ -23,7 +23,7 @@ import QueryProviders from '#tests/query-providers.svelte';
  * (`dashboard/tests/router.test.ts` holds the read itself).
  */
 
-type Dashboard = Awaited<ReturnType<typeof api.contract.dashboard>>;
+type Dashboard = Awaited<ReturnType<typeof api.dashboard.get>>;
 type QueueEntry = Dashboard['queue'][number];
 
 const DUE = Date.UTC(2026, 0, 18);
@@ -75,7 +75,7 @@ beforeEach(() => {
 });
 
 const renderLanding = () =>
-	render(Landing, {}, { wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' } });
+	render(Landing, {}, { wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } });
 
 /** the band's outstanding figure, found under its own label. */
 const outstandingFigure = () =>

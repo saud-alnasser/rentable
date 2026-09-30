@@ -1,14 +1,15 @@
 <script lang="ts">
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import type { ListSort } from '@rentable/design/sort.js';
-	import ListToolbar, { type ListSortOption } from '$lib/design/block/list-toolbar.svelte';
+	import { ListToolbar } from '$lib/list/ui';
+	import type { ListSortOption } from '$lib/list';
 	import type { Snippet } from 'svelte';
 
 	/**
 	 * What a settings directory opens with: what the section is, and the list shell's own bar.
 	 *
 	 * **The list shell's toolbar, on a section that has no list shell** (effort 828, requirements
-	 * 19 and 21; effort 832, requirement 7). The bar is `design/block/list-toolbar.svelte`, the
+	 * 19 and 21; effort 832, requirement 7). The bar is `list/component/list-toolbar.svelte`, the
 	 * one the list shell draws above its records, so a directory is searched with the same field,
 	 * the same wait and the same `/`, and ordered with the same control, as every other set
 	 * ([[rules/interface]], *Search*). What the settings sections still do not take from the shell

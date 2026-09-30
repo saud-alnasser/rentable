@@ -4,7 +4,8 @@ import { beforeEach, expect, test, vi } from 'vitest';
 import UnitDetails from '$lib/complex/unit/component/details.svelte';
 import unitDirectory from '$lib/complex/unit/component/directory.svelte?raw';
 import * as Cell from '$lib/design/cell/index.ts';
-import Providers from '$lib/design/cell/tests/providers.svelte';
+import Providers from '#tests/providers.svelte';
+import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 
@@ -34,14 +35,10 @@ const { unit } = vi.hoisted(() => ({
 	}
 }));
 
-vi.mock('$lib/complex/query', async (importOriginal) => ({
-	...(await importOriginal<typeof import('$lib/complex/query')>()),
+vi.mock('$lib/complex/unit/query', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/complex/unit/query')>()),
 	useFetchUnit: () => ({ data: unit, isLoading: false })
 }));
-
-// the unit's contracts are a directory of their own, with a query client and a selection of
-// their own; none of it is what is asked here.
-vi.mock('$lib/complex/unit/component/contracts.svelte', () => ({ default: () => {} }));
 
 beforeEach(() => {
 	loadLocale('en');
@@ -66,7 +63,11 @@ for (const [status, word, description] of [
 	test(`a unit's page names its status, ${status}, and says what it means on focus`, async () => {
 		unit.status = status;
 
-		render(UnitDetails, { unitId: unit.id }, { wrapper: Providers });
+		render(
+			UnitDetails,
+			{ unitId: unit.id },
+			{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } }
+		);
 
 		const trigger = statusNamed(word);
 
@@ -85,7 +86,11 @@ for (const [status, word, description] of [
 	});
 
 	test(`a unit row's status, ${status}, is named by its word`, () => {
-		render(Cell.Status, { status }, { wrapper: Providers });
+		render(
+			Cell.Status,
+			{ status },
+			{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } }
+		);
 
 		const trigger = statusNamed(word);
 
@@ -103,7 +108,11 @@ test('the unit rows draw the status through the one status cell', () => {
 // every other status is, so the two read apart with the colour taken away.
 test("a unit's two statuses are two shapes, and neither is a lone dot", () => {
 	const drawn = (['occupied', 'vacant'] as const).map((status) => {
-		const { container, unmount } = render(Cell.Status, { status }, { wrapper: Providers });
+		const { container, unmount } = render(
+			Cell.Status,
+			{ status },
+			{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } }
+		);
 		const glyph = container.querySelector('svg')!;
 		const shape = {
 			marks: glyph.querySelectorAll('circle, path, line, rect, polyline').length,

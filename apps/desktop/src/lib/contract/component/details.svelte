@@ -1,30 +1,33 @@
 <script lang="ts">
 	import type { ContractSection } from '$lib/contract/section';
-	import RecordHistory from '$lib/history/component/record-history.svelte';
+	import type { Section } from '$lib/feature/surface';
 	import { resolve } from '$app/paths';
 	import type { Contract } from '$lib/platform/database/schema';
 	import RecordSurface from '@rentable/design/block/record-surface.svelte';
 	import Specification from '@rentable/design/block/specification.svelte';
 	import * as Cell from '$lib/design/cell';
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
-	import { formatRecordDateRange } from '$lib/design/date';
+	import { formatRecordDateRange } from '$lib/date';
 	import { contractActs } from '$lib/contract/host.svelte';
 	import { useFetchContract } from '$lib/contract/query';
-	import { toPageActions } from '$lib/design/acts';
+	import { toPageActions } from '$lib/act';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
-	import PaymentLedger from '$lib/payment/component/ledger.svelte';
-	import { useFetchTenant } from '$lib/tenant/query';
-	import { memberPermissions } from '$lib/workspace/permission';
-	import ContractSchedule from './schedule.svelte';
-	import ContractUnits from './units.svelte';
+	import { UNIT_KIND } from '$lib/complex';
+	import { useFetchTenant } from '$lib/tenant/ui';
+	import { memberPermissions } from '$lib/permission';
+	import ContractSchedule from '$lib/contract/schedule/component/schedule.svelte';
+	import ContractUnits from '$lib/contract/assignment/component/units.svelte';
 
 	let {
 		contractId,
-		section
+		section,
+		sections = []
 	}: {
 		contractId: string;
 		/** the section the address names. */
 		section?: ContractSection;
+		/** what is contributed to a contract's page, handed over by the route. */
+		sections?: Section<'contract'>[];
 	} = $props();
 
 	const intervalLabels: Record<Contract['interval'], () => string> = {
@@ -60,6 +63,27 @@
 	// offers what they offer, in their order and under their names. What each act opens is the
 	// contract host's, mounted once in the frame, so this page mounts no form and no dialog.
 	const pageActions = $derived(actedOn ? toPageActions(contractActs, actedOn, $LL) : []);
+
+	// the contract's own collections, placed by `order` among what is contributed to its page: the
+	// payments lead, because a contract exists to be paid and the units collection is a writing
+	// surface with two search panes, which is not where a reader should land; the schedule follows
+	// them, then the units, then the history. A section the reader may not see is left out whole.
+	const collections = $derived(
+		[
+			...sections
+				.filter((contribution) => contribution.shows?.() ?? true)
+				.map((contribution) => ({
+					order: contribution.order,
+					value: contribution.value,
+					label: contribution.label($LL),
+					content: contributed
+				})),
+			{ order: 20, value: 'schedule', label: $LL.contracts.schedule.title(), content: schedule },
+			...(memberPermissions.views(UNIT_KIND)
+				? [{ order: 30, value: 'units', label: $LL.common.nav.units(), content: units }]
+				: [])
+		].sort((a, b) => a.order - b.order)
+	);
 </script>
 
 {#snippet identity()}
@@ -113,8 +137,11 @@
 	/>
 {/snippet}
 
-{#snippet payments()}
-	<PaymentLedger {contractId} />
+{#snippet contributed(value: string)}
+	{@const contribution = sections.find((entry) => entry.value === value)}
+	{#if contribution}
+		<contribution.component kind="contract" recordId={contractId} />
+	{/if}
 {/snippet}
 
 {#snippet schedule()}
@@ -123,12 +150,6 @@
 
 {#snippet units()}
 	<ContractUnits {contractId} />
-{/snippet}
-
-<!-- payments leads: a contract exists to be paid, and the units collection is a writing
-     surface with two search panes, which is not where a reader should land. -->
-{#snippet history()}
-	<RecordHistory concept="contract" recordId={contractId} />
 {/snippet}
 
 <RecordSurface
@@ -142,14 +163,5 @@
 	{actions}
 	{fields}
 	{section}
-	collections={[
-		...(memberPermissions.views('payment')
-			? [{ value: 'payments', label: $LL.common.nav.payments(), content: payments }]
-			: []),
-		{ value: 'schedule', label: $LL.contracts.schedule.title(), content: schedule },
-		...(memberPermissions.views('unit')
-			? [{ value: 'units', label: $LL.common.nav.units(), content: units }]
-			: []),
-		{ value: 'history', label: $LL.common.history.title(), content: history }
-	]}
+	{collections}
 />

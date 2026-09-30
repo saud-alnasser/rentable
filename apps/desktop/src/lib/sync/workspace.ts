@@ -1,14 +1,11 @@
 import type { QueryClient } from '@tanstack/svelte-query';
 
 import api from '$lib/api/caller';
-import { invalidateRoot } from '$lib/design/query';
-import {
-	tauri,
-	type RemoteSyncState,
-	type RemoteSyncWorkspace,
-	type ReplicationRefusal,
-	type SessionStanding
-} from '$lib/platform/tauri';
+// the cache policy's own module rather than `$lib/mutation`, whose mutation handlers carry a
+// toaster this module's tests cannot load under Node.
+import { invalidateRoot } from '$lib/mutation';
+import type { RemoteSyncState, ReplicationRefusal, SessionStanding } from '$lib/sync/host';
+import { tauri } from '$lib/sync/tauri';
 
 /**
  * what a dispatch did, or declined to do.
@@ -73,17 +70,11 @@ export type WorkspaceSyncResult = {
  * day's reconcile should not run a second one.
  */
 export async function announceReceivedRows(client: QueryClient): Promise<number> {
-	const { reconciledAt } = await api.app.state.reconcile();
+	const { reconciledAt } = await api.contract.reconcile();
 
 	await invalidateRoot(client);
 
 	return reconciledAt;
-}
-
-export function getWorkspaceFromSyncState(
-	syncState?: RemoteSyncState | null
-): RemoteSyncWorkspace | null {
-	return syncState?.workspace ?? null;
 }
 
 /**
@@ -100,7 +91,7 @@ export function getWorkspaceFromSyncState(
  * **Nothing stands in front of the replication any more.** A control plane's window was renewed
  * on every dispatch until the retirement; the credential the replica syncs with is the one the
  * member's vault unsealed, and what refuses it is Turso, which the shell reads at the response
- * and collects a fresh one on (`organization/removal.rs`). Offline is the ordinary case, so a
+ * and collects a fresh one on (`organization/member/removal.rs`). Offline is the ordinary case, so a
  * replication that could not happen is reported rather than thrown, and what the caller does
  * with it is arm a retry, which is why the two halves are answered separately.
  *
@@ -110,8 +101,8 @@ export function getWorkspaceFromSyncState(
 export async function syncWorkspaceNow(
 	providedState?: RemoteSyncState | null
 ): Promise<WorkspaceSyncResult> {
-	const state = providedState ?? (await tauri.remoteSync.getState());
-	const replication = await tauri.remoteSync.replicate().catch(() => ({
+	const state = providedState ?? (await tauri.getState());
+	const replication = await tauri.replicate().catch(() => ({
 		pushed: false,
 		received: false,
 		refusal: 'none' as const,
@@ -135,8 +126,8 @@ export async function syncWorkspaceNow(
 export async function syncWorkspaceBeforeExit(
 	providedState?: RemoteSyncState | null
 ): Promise<WorkspaceSyncResult> {
-	const state = providedState ?? (await tauri.remoteSync.getState());
-	const pushed = await tauri.remoteSync.push().catch(() => false);
+	const state = providedState ?? (await tauri.getState());
+	const pushed = await tauri.push().catch(() => false);
 
 	// the last call of a session reads no standing: it pushes and does not pull, so there is
 	// nothing newer to read the row against, and the window is closing either way.

@@ -1,8 +1,10 @@
 ---
 paths:
   - apps/desktop/tauri/src/organization/**
+  - apps/desktop/tauri/src/upgrade/**
   - apps/desktop/src/lib/organization/**
-  - apps/desktop/src/lib/layout/startup.ts
+  - apps/desktop/src/lib/startup/machine.ts
+  - apps/desktop/src/lib/startup/wall.ts
 use-when: "the request touches an organization, its members, their roles and permissions, their vaults, or the account it lives on"
 ---
 
@@ -39,15 +41,19 @@ The one `format` row, version 3, written when an organization is made. An organi
 effort 838 has no `format` table, which is format 1, and its owner's machine upgrades it in place at
 their sign-in, their resume or their connect on the Turso account: every row is judged under the
 old rules, carried into this format signed from the root, and the row is written last. The runner
-is `organization/upgrade.rs`; each change of format is a file under `organization/transition/`
-(format 1 to 2 is `two.rs`; 2 to 3, which adds the `workspace_override` table and nothing else, is
-`three.rs`), listed in order in `transition/mod.rs` with the readers that find the
-owner in the format it starts from, and the version this build ships is counted from that list.
+is `upgrade/format/runner/`; each change of format is a file or a directory under `upgrade/format/`
+and is named for what it does (format 1 to 2, which roots every row in the chain of certificates,
+is `chain/`; 2 to 3, which adds the `workspace_override` table and nothing else, is
+`overriding.rs`), listed in order in `upgrade/format/mod.rs` with the readers that find the owner
+in the format it starts from, and the version this build ships is the one after that list's
+last change, which a test there holds `store::FORMAT_VERSION` to. What format 1 signed, and how it
+judged a row, is `upgrade/format/signature.rs`. Nothing names `upgrade` but the organization's
+session (effort 840, requirement 15).
 Before the change the owner's machine writes a copy of the organization to
 `backups/org-<id>/`, and to their Turso account where it holds it; a copy that cannot be taken
 refuses the upgrade with `CopyNotTaken` and nothing is changed (838, requirements 13 and 14).
 Every change due then runs in one transaction with the `format` row last, and **the organization is
-checked before that transaction commits** (`upgrade.rs`'s `checked`, over `schema.rs`; 838,
+checked before that transaction commits** (`upgrade/format/runner/walk.rs`'s `checked`, over `schema/`; 838,
 requirement 15): `PRAGMA quick_check` answers `ok`, and the schema is what a fresh organization of
 the format it arrives at is built with, which the last change's `Transition::built` makes on an
 empty in-memory database, less the tables any change of the walk names in `Transition::kept`
@@ -61,7 +67,7 @@ to a fresh one with nothing declared for it. `PRAGMA foreign_key_check` is not i
 fails rolls the whole walk back, writes nothing, and refuses with `ShapeNotAsBuilt`, whose sentence
 says to update the application and try again and that the diagnostics log says why, which it does:
 `schema.notAsBuilt` names every difference. A workspace migration is checked the same way
-(`organization/migrate.rs`).
+(`organization/lease/apply.rs`).
 A `format` row below 2, or none, where nothing of format 1 is left reads as 2 where the
 `workspace_override` table is missing and as the shipped format where it stands, and the owner's
 next sign-in finishes it. The owner
@@ -98,7 +104,7 @@ retired the declaration.*
 **Flag**:
 One act the application performs for a member, on one bit of one mask. The vocabulary lives in
 `packages/workspace-permission` (`FLAGS`, grouped by `FAMILIES`) and is mirrored in
-`organization/permission.rs`, held equal by a test that reads the package source: the
+`organization/role/permission.rs`, held equal by a test that reads the package source: the
 organization's administration on bits 0 to 9 (`inviteMember`, `removeMember`, `assignRole`,
 `renameWorkspace`, `resetPassword`, `renameMember`, `grantWorkspace`, `manageRoles`,
 `overrideMember`, `manageMark`), the owner's acts on 10 to 17 (`createWorkspace`,
@@ -119,7 +125,7 @@ editing records; both are rows written with the organization and signed by the o
 their masks are editable. **Custom** roles rank strictly between member (0) and manager
 (1,000,000), strictly ordered among themselves, and are made, renamed, re-masked, moved and deleted
 from the settings area's organization section. Deleting one moves its holders to member and clears
-their override, so they hold the member role exactly (`role.rs`, 838 requirements 3, 4 and 6 as
+their override, so they hold the member role exactly (`role/`, 838 requirements 3, 4 and 6 as
 amended 2026-09-27).
 _Avoid_: "administrator", which the manager replaced.
 
@@ -148,11 +154,11 @@ does not hold) and with the grant (a withdrawal, a removal, a deleted workspace)
 the members list carry each workspace's pins and permissions, and the tRPC context answers a
 record procedure by the open workspace's (`api/context.ts`, `permissionsIn`). A member's card
 sets it beneath each workspace the member is in, as that workspace's permissions
-(`workspace-tailoring.svelte`, the record groups of the shared switch list, folded): **what is
+(`access/component/tailoring.svelte`, the record groups of the shared switch list, folded): **what is
 pinned is exactly what the switches differ on from what the member holds across the organization
 when the card is saved**, so a switch turned back is unpinned, and each switch that differs is
 marked. The card writes both masks through `organization.member.setWorkspaceOverride`; the
-arithmetic of what the switches come to is `organization/role.ts` (`tailoredTo`). *Effort 838,
+arithmetic of what the switches come to is `organization/access/access.ts` (`tailoredTo`). *Effort 838,
 requirement 12 as amended a third time, tickets 53 and 54; pinned rather than switched at review
 round one (ticket 55), since a switch over the layers beneath inverted when they moved. A switch
 turned stayed pinned when turned back, beside a reset and a read only preset, until the fourth
@@ -198,9 +204,9 @@ withdrawn by anybody who may withdraw (`withdraw_grant`, `grant_workspace`). *Bo
 owner's alone until review round one of ticket 54, when the rule went with the lock.* A member's
 card and the sheet that adds
 one draw each workspace as a switch, in (a full-access grant) or out (none)
-(`member-workspaces.svelte`, ticket 48 of effort 838), the card with the workspace's
+(`member/component/workspaces.svelte`, ticket 48 of effort 838), the card with the workspace's
 permissions folded beneath one that is in; a workspace's own dialog draws each member the same way, from the same list
-(`access-switches.svelte`, ticket 49), marking one tailored there *custom here*. *The owner's lock
+(`access/component/switches.svelte`, ticket 49), marking one tailored there *custom here*. *The owner's lock
 to read only sat beneath a workspace that was in until ticket 54.*
 
 **Chain**:
@@ -254,7 +260,7 @@ member's row grants nothing**, so nothing the member role
 carries refuses a removal. **The owner's own row is the owner's machine's to repair**: where it
 reads as anything but the owner's role, demoted or removed from below, the machine whose vault
 derives the pinned key writes it again under the root at sign-in, at resume and on the heartbeat
-(`role::repair_owner_row`), taking the signing key and the vault's public half from what the owner's
+(`ownership::repair_owner_row`), taking the signing key and the vault's public half from what the owner's
 own secret derives and opens, never from the row; no other machine writes anything. The store
 refuses to write a row its signer's certificate does not cover, naming what it needs, and every
 command refuses such an act by name before it writes, so no command of ours writes a row every
@@ -275,7 +281,7 @@ founder's own among them as a manager's. The new owner's earlier certificate has
 under the root and is revoked, so they hold one live certificate, the root. **A machine follows a succession rather than being told the key**: the
 `succession` row carries the key being left and the key replacing it, signed by the key being left,
 so a machine holding the old key checks the change against what it already pinned, pins the new one
-and re-reads (`role::follow_succession`).
+and re-reads (`ownership::follow_succession`).
 
 **Link**:
 `rentable://join/...`, the organization's locator: its id, name, remote and verifying key, a sealed
@@ -299,10 +305,10 @@ consented and not the ownership, so an owner who was handed the organization hol
 grant the consent on their own machine.
 
 **A handover is two acts, and the organization key becomes the new owner's own derivation.** The
-owner offers from the account's card with their own password (`role::offer_ownership`), which seals
+owner offers from the account's card with their own password (`ownership::offer_ownership`), which seals
 the outgoing key's seed to the offered member's public key and writes a `succession` row signed by
-the key in force; `role::withdraw_offer` takes both back. The offered member accepts on a machine
-they are signed in on, with their own password (`role::accept_ownership`): the seal is opened and
+the key in force; `ownership::withdraw_offer` takes both back. The offered member accepts on a machine
+they are signed in on, with their own password (`ownership::accept_ownership`): the seal is opened and
 refused unless what it yields is the key this machine pinned, and the directory is re-keyed as the
 *Chain* entry says. A founder who handed over is a manager from then on.
 
@@ -366,8 +372,8 @@ refused unless what it yields is the key this machine pinned, and the directory 
 - **A migration reaches a workspace under a lease taken at the primary**, by whichever member
   opens it, and an older build refuses a newer workspace before reading anything. The lease holder
   copies the workspace first (`backup.rs`), and a copy not taken applies nothing. The tail, a check
-  of what it made (`schema.rs`) and the workspace's own version row commit in one transaction or
-  not at all (`migrate.rs`); the organization's record is written after the commit, and where the
+  of what it made (`schema/`) and the workspace's own version row commit in one transaction or
+  not at all (`lease/apply.rs`); the organization's record is written after the commit, and where the
   workspace's row is already at the shipped version only the record is brought up.
 - **A damaged organization replica is rebuilt from the remote, not repaired.** `org-<id>.db` opens
   through the workspace's own `Database::open_replica`, so one the engine finds corrupt, not a

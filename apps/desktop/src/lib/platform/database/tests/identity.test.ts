@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { type Api, createApi, monthsFromNow, seedTenant } from '$lib/api/tests/testing.ts';
+import { type Api, createApi, monthsFromNow, seedTenant } from '$lib/app/tests/testing.ts';
 import { isRecordId, newId } from '../identity.ts';
 
 // IDENTITY
@@ -44,7 +44,7 @@ async function seedEveryConcept(api: Api, label: string) {
 
 	await api.contract.units.set({ contractId: contract.id, unitIds: [unit.id] });
 
-	const payment = await api.contract.payments.create({
+	const payment = await api.payment.create({
 		contractId: contract.id,
 		date: monthsFromNow(0),
 		amount: 1000

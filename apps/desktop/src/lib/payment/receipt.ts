@@ -1,10 +1,11 @@
-import type { DateLike } from '$lib/api/date';
-import { getContractTotalCost, type ContractLike } from '$lib/contract/contract';
+import type { DateLike } from '$lib/date';
 import {
+	type ContractLike,
+	getContractTotalCost,
 	compareByAllocationOrder,
 	scheduleContract,
 	type SchedulePaymentLike
-} from '$lib/contract/schedule';
+} from '$lib/contract';
 
 /**
  * RECEIPT
@@ -73,7 +74,7 @@ export type ReceiptAllocation = {
  * Where one payment stands in its contract's allocation: the cycles it covers and what remains of
  * the total cost once it and every payment before it are taken.
  *
- * "Before" is the allocation's own order (`contract/schedule.ts`), by date and then by the order
+ * "Before" is the allocation's own order (`contract/schedule/schedule.ts`), by date and then by the order
  * the payments were recorded, so a receipt and the schedule never disagree about which cycles a
  * payment paid. A payment recorded later but dated earlier is counted before this one, as the
  * schedule counts it.

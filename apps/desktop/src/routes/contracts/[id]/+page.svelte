@@ -1,13 +1,9 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import ContractDetails from '$lib/contract/component/details.svelte';
-	import { contractSectionOf } from '$lib/contract/section';
+	import { sectionsOn } from '$lib/app/surfaces';
+	import ContractPage from '$lib/contract/component/page.svelte';
 
 	const contractId = page.params.id ?? '';
-
-	// every section the page has is read from the address, so each one, history included, is a
-	// place a link can open.
-	const section = $derived(contractSectionOf(page.url));
 </script>
 
-<ContractDetails {contractId} {section} />
+<ContractPage {contractId} sections={sectionsOn('contract')} />

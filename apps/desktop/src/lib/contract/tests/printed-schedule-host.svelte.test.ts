@@ -8,7 +8,7 @@ import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import type { ContractActRecord } from '$lib/contract/acts';
 import ContractHost from '$lib/contract/component/host.svelte';
 import { contractHost } from '$lib/contract/host.svelte';
-import QueryProviders from '#tests/query-providers.svelte';
+import Providers from '#tests/providers.svelte';
 import { forgetReader, holdEveryFlagBut, layOutLists } from '#tests/permission.ts';
 
 /**
@@ -30,22 +30,26 @@ const reads = vi.hoisted(() => ({
 	mark: vi.fn()
 }));
 
+vi.mock('$lib/organization/tauri', () => ({
+	tauri: {
+		getState: async () => ({ session: { organizationName: 'Al Nakheel Estates' } })
+	}
+}));
+
 vi.mock('$lib/platform/tauri', () => ({
 	tauri: {
-		organization: {
-			getState: async () => ({ session: { organizationName: 'Al Nakheel Estates' } })
-		},
-		print: { page: vi.fn() },
 		dialog: { saveFile: vi.fn() },
 		opener: { openUrl: vi.fn() }
 	}
 }));
 
+vi.mock('$lib/print/tauri', () => ({ tauri: { page: vi.fn() } }));
+
 vi.mock('$lib/api/caller', () => ({
 	default: {
 		contract: { schedule: reads.schedule, units: { getMany: reads.units } },
 		tenant: { get: reads.tenant },
-		app: { organization: { mark: { get: reads.mark } } }
+		organization: { mark: { get: reads.mark } }
 	}
 }));
 
@@ -88,7 +92,7 @@ const previewed = async () => {
 	render(
 		ContractHost,
 		{},
-		{ wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' as const } }
+		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' as const } }
 	);
 
 	expect(contractHost.run('contract.print', CONTRACT)).toBe(true);

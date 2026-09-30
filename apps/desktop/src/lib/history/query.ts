@@ -1,5 +1,5 @@
 import api from '$lib/api/caller';
-import { historyKeys, type HistoryConcept } from '$lib/history/history';
+import { historyKeys, historyPrefix, type HistoryConcept } from '$lib/history/history';
 import { isRecordId } from '$lib/platform/database/identity';
 import { createQuery } from '@tanstack/svelte-query';
 
@@ -15,7 +15,7 @@ export function useListHistory(
 		const trimmed = search().trim();
 
 		return {
-			queryKey: historyKeys.getMany(kind, id, trimmed),
+			queryKey: historyKeys.getMany(historyPrefix(), kind, id, trimmed),
 			enabled: isRecordId(id),
 			queryFn: () =>
 				api.history.getMany({ concept: kind, recordId: id, search: trimmed || undefined }),

@@ -1,6 +1,6 @@
-import { toUtcDay } from '$lib/api/date';
+import { toUtcDay } from '$lib/date';
 import type { Locales } from '$lib/i18n/i18n-types';
-import type { PaymentLike } from '$lib/payment/payment';
+import type { PaymentLike } from '$lib/contract';
 import { formatLocaleDate } from '$lib/platform/locale';
 
 /**

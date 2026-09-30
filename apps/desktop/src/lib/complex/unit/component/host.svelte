@@ -7,7 +7,7 @@
 	import { AWAITING_BLOCKERS } from '@rentable/design/confirmation.js';
 	import { usesAppleKeyboard } from '@rentable/design/shortcut.js';
 	import { isUnitDeletable } from '$lib/complex/complex';
-	import { useDeleteUnit, useReadUnit } from '$lib/complex/query';
+	import { useDeleteUnit, useReadUnit } from '$lib/complex/unit/query';
 	import type { UnitActRecord } from '$lib/complex/unit/acts';
 	import {
 		closeUnitConfirmation,
@@ -16,12 +16,12 @@
 		unitActs,
 		unitHostState
 	} from '$lib/complex/unit/host.svelte';
-	import { useListContracts } from '$lib/contract/query';
-	import { toDeleteStep, toPaletteVerbs } from '$lib/design/acts';
-	import { onMutationError, onMutationSuccess } from '$lib/design/mutation';
-	import { showErrorSentence, showErrorToast, showRefusal } from '$lib/error/toast';
+	import { toDeleteStep, toPaletteVerbs } from '$lib/act';
+	import { onMutationError, onMutationSuccess } from '$lib/mutation/ui';
+	import { showErrorSentence, showErrorToast, showRefusal } from '$lib/notification';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { writeDetailsToClipboard } from '$lib/platform/clipboard';
+	import { contributionsTo } from '$lib/feature/surface';
 	import { onDestroy, untrack } from 'svelte';
 	import UnitForm from './form.svelte';
 
@@ -48,10 +48,9 @@
 
 	// what a deletion would be refused for, read for the record being acted on and only while it is
 	// being acted on: every contract that ever named the unit, not only the one holding it today.
-	const holdingContractsQuery = useListContracts(
-		() => '',
-		() => null,
-		() => ({ unitId: deleting?.id }),
+	// The contracts are the contract's to read, and it contributes the read.
+	const holdingContractsQuery = contributionsTo('unit').useHeldContracts(
+		() => deleting?.id,
 		() => deleting !== null
 	);
 	const deleteBlockers = $derived.by(() => {

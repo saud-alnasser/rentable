@@ -1,5 +1,6 @@
 <script lang="ts">
-	import type { OrganizationSession, RemoteSyncState } from '$lib/platform/host';
+	import type { RemoteSyncState } from '$lib/sync';
+	import type { OrganizationSession } from '$lib/organization/host';
 	import { tauri } from '$lib/platform/tauri';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
@@ -7,10 +8,10 @@
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { useAccountRefusalDetail } from '$lib/organization/query';
-	import { TURSO_DASHBOARD_URL } from '$lib/organization/setup';
-	import { useSyncWorkspace } from '$lib/settings/query';
-	import { accountRefusalSentence } from '$lib/sync/refusal';
-	import { syncFaultOf, syncStandingSentence, syncStatusOf } from '$lib/workspace/sync-status';
+	import { TURSO_DASHBOARD_URL } from '$lib/organization/setup/setup';
+	import { useSyncWorkspace } from '$lib/sync/ui';
+	import { accountRefusalSentence } from '$lib/error/refusal';
+	import { syncFaultOf, syncStandingSentence, syncStatusOf } from '$lib/sync';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 
 	/**
@@ -24,7 +25,7 @@
 	 * organization and could not tell what the block was for.*
 	 *
 	 * **One sentence, built from the standing and the moment** (effort 828, requirement 25).
-	 * `sync-status.ts` decides the standing and the order its answers are read in; this draws
+	 * `sync/status.ts` decides the standing and the order its answers are read in; this draws
 	 * what it decided. Up to date says when this machine last reached Turso, relative within a
 	 * day and as a date beyond it; a machine that never reached Turso says so rather than
 	 * claiming to be up to date; a standing that needs something says what needs doing, and

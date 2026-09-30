@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import type { ContractLike } from '$lib/contract/contract.ts';
-import type { SchedulePaymentLike } from '$lib/contract/schedule.ts';
+import type { SchedulePaymentLike } from '$lib/contract/schedule/schedule.ts';
 import { newId } from '$lib/platform/database/identity.ts';
 import { allocateReceipt, toReceiptReference } from '$lib/payment/receipt.ts';
 

@@ -8,7 +8,7 @@ import { expect } from 'vitest';
 
 import PaletteHarness from './palette-harness.svelte';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
-import { memberPermissions, type RecordFlag } from '$lib/workspace/permission';
+import { memberPermissions, type RecordFlag } from '$lib/permission';
 import { usesAppleKeyboard } from '@rentable/design/shortcut.js';
 import { EVERY_FLAG, maskOf } from '@rentable/workspace-permission';
 

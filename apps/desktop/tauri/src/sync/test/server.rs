@@ -4,12 +4,9 @@
 //! parts that break, and a mock asserts against the description of a request rather than
 //! against the request.
 //!
-//! **It outlived what it was built for, twice.** This was the Drive transport's harness, and
-//! [[rules/credentials]]'s *Transport testing* is the section that argued for it; the transport
-//! retired with Drive sync (decision 07), the Google sign-in it then served retired with the
-//! control plane, and the reasoning did not. Every request this application issues to Turso, the
-//! consent, the Platform API, the MCP lookup, a workspace's pipeline and the sync engine's own,
-//! is tested here rather than mocked.
+//! [[rules/credentials]]'s *Transport testing* holds the reasoning it rests on. Every request
+//! this application issues to Turso, the consent, the Platform API, the MCP lookup, a
+//! workspace's pipeline and the sync engine's own, is tested here rather than mocked.
 
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};

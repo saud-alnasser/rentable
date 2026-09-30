@@ -26,11 +26,16 @@ statements, no `export let`.
 Components never call the API directly. A concept's `query.ts` wraps it in TanStack Query,
 and components use those hooks. Query v6 takes a thunk, not an object.
 
-Each domain's query module composes its key set from the workspace prefixes in
-`design/query.ts` and exports it. Every data mutation invalidates through the shared
-helper there, and a full pass with no touch-set — a sync pull, a day crossing — through
-the root helper beside it; an invalidation that spells a key out inline drifts the moment
-the key changes. Settings and remote-sync keep their own keys and invalidations.
+Each record feature declares its workspace cache prefix once, in its own `feature.ts`;
+`$lib/app/cache` builds the cache policy from the list and provides it to `$lib/mutation`. Each
+domain's query module composes its key set from `prefixOf` in `$lib/mutation`, read when a key is
+asked for and never while the module loads, and exports it, and declares each data mutation
+through `declareMutation` from the same entry. Every data mutation invalidates through the shared helper there, and a full
+pass with no touch-set — a sync pull, a day crossing — through the root helper beside it; an
+invalidation that spells a key out inline drifts the moment the key changes. Settings,
+the replica's state, the organization and the updater keep their own keys and invalidations, and
+are declared the same way: `touches: 'none'`, with the keys each sets and invalidates named in
+its declaration. No `createMutation` is called outside `$lib/mutation`.
 
 Toast behaviour on a mutation goes through the shared success and error handlers, never
 through direct toast calls in a component — that is what keeps a refusal reaching the user
@@ -65,23 +70,36 @@ as the sentence its code stands for, in their language (`error/refusal.ts`, and
   had deleted, so `add` would have re-created the tree from nothing, outside the package and
   reachable by no import.*
 - **App-level composites go in a `block/`**, never in a `primitive/`. App-level means shared
-  by concepts; the application shell's own components are not, and live in `layout` (#257).
+  by concepts; the application shell's own components are not, and live in `shell` (#257;
+  it was `layout` until effort 840). The shell holds only the shell: a row or a dialog a feature
+  draws in it is that feature's component, declared as a `slot` in its `surface.ts` and drawn at
+  the place it names (`ShellSlot` in `feature/surface.ts`).
   **Which `block/` is decided by what the composite reaches**, and #781 sorted the fifteen that
   existed: `packages/design/src/lib/block/` holds the eleven that reach nothing but the design
   system and what the package is already allowed (`$app/*`, which `back` navigates
-  with), and `design/block/` here holds the ones that reach past it (four then, five since
-  `language-choice.svelte`, below). A new composite that
+  with), and `design/block/` here holds the ones that reach past it. Four did then; #802 moved
+  `export-dialog` and `record-card` into the package once their reach was inverted, effort 832
+  retired `record-actions`, effort 840 moved the list, its bar and its search field to the
+  `list/` capability, and what is left is `language-choice.svelte` (below). A new composite that
   reaches `$lib/api`, `$lib/platform`, `$lib/error` or a concept belongs in this application; one
   that reaches none of them belongs in the package, where a second client can draw it.
 
-  **Read the whole reach, not the import list.** Two of the four that stayed import nothing from
-  that list themselves: `export-dialog` reaches `$lib/platform` through `design/csv`, and
-  `record-card` reaches both `$lib/platform` and `$lib/error` through the class list it borrows
-  from `list.svelte`. A test applied to the first line of imports would have moved them both.
-  **A type-only import is a reach.** `csv.ts` names `$lib/platform/tauri` for two types and
-  nothing else, and the bar is not what survives the build but what resolves: `$lib` has no
-  meaning inside the package, so `svelte-check` fails there on an erased import as readily as on
-  a live one.
+  **Read the whole reach, not the import list.** Two of the four that stayed at #781 imported
+  nothing from that list themselves: `export-dialog` reached `$lib/platform` through
+  `design/csv`, and `record-card` reached both `$lib/platform` and `$lib/error` through the class
+  list it borrowed from `list.svelte`. A test applied to the first line of imports would have
+  moved them both. **A type-only import is a reach.** `csv.ts` named `$lib/platform/tauri` for two
+  types and nothing else, and the bar is not what survives the build but what resolves: `$lib` has
+  no meaning inside the package, so `svelte-check` fails there on an erased import as readily as
+  on a live one. *#802 then moved all three into the package, each once its reach was inverted:
+  `csv.ts` (now `packages/design/src/lib/csv.ts`) takes an `ExportWriter` from its consumer,
+  and `record-card` took the class list with it.*
+
+  **Inside the application it is a reach too**, and the layers hold it to the entry rule as they
+  hold a live import ([[rules/module-layout]], under *A concept has one shape*): it goes through a
+  concept's `index.ts` or `ui.ts` and never points up. The one exemption is an upward type import
+  of the composition root, `app/`, which is how the client, the feature contract and the
+  capabilities are typed from the list; it is written in that rule's departures, with its reason.
 
   **`$lib/i18n` is not on that list, and it is the reach most likely to be mistaken for one.**
   A `$LL` read is a cost rather than a bar, because the contract is what it inverts onto: #781
@@ -427,12 +445,14 @@ effort 810, which formatted Arabic in Arabic-Indic digits.*
 shows is a direction along the line of text:
 
 - **back and next**: `arrow-left` and `arrow-right` on a back or a forward control;
-- **sequence chevrons**: `chevron-left`/`-right` and `chevrons-left`/`-right` on pagination, a
-  calendar's months, a carousel, a sub-menu, and the breadcrumb's separator;
+- **sequence chevrons**: `chevron-left`/`-right` and `chevrons-left`/`-right` on a calendar's
+  months, a sub-menu, and the breadcrumb's separator (pagination and a carousel carried them too,
+  until effort 840 removed the primitive families nothing imported);
 - **progress**: a bar fills from the start edge, which is why `primitive/progress` sets a width
   rather than a translate;
-- **sliders**: the slider's range fills from the start edge, which is why `primitive/slider`
-  hands bits-ui `contract.direction`;
+- **sliders**: a slider's range fills from the start edge, so one added to the package hands
+  bits-ui `contract.direction` (`primitive/slider` did, until effort 840 removed the primitive
+  families nothing imported);
 - **switches**: the thumb rests at the start edge and slides toward the end when on, which is why
   `primitive/switch` runs its translate the other way under `rtl:` (effort 838, ticket 43).
 
@@ -448,6 +468,30 @@ The type definitions and utility files are **generated**. Edit the locale files,
 regenerate — see [[references/pnpm]]. Components read translations from the store,
 never from a locale module directly.
 
+**A feature's strings live with the feature** (effort 840, requirement 8). A concept's namespace
+and its `common.refusals.<concept>` entries sit in `<concept>/i18n/en.ts` and `ar.ts`, and
+`i18n/en/index.ts` and `i18n/ar/index.ts` compose them back at the same key path. A piece is a
+plain object that imports nothing but types, because the generator transpiles it with the locale;
+the locale imports it by a relative path with a `.js` extension, which the generator needs and
+bundler resolution maps to `.ts`. An english piece `satisfies BaseTranslation`, as `en/index.ts`
+does; an arabic piece satisfies its own slice of the generated `Translation`, because an imported
+object escapes the excess-key check `ar/index.ts` would otherwise give it. A key missing from the
+arabic piece, or left there after the english one lost it and the types were regenerated, fails
+`pnpm check` at the piece. `lib/tests/layers.test.ts` holds a piece to importing nothing at
+runtime.
+
+A capability's strings and the shell's sit the same way, in `<home>/i18n/`, and so does a block of
+`common` or `layout` that is one concept's: `common.undo` is the undo capability's,
+`layout.signIn` the organization's. A concept's piece exports its whole namespace under the
+namespace's name, and the blocks it adds under another path in one object named for their parent
+(`layout`, `common`, `refusals`, `ui`). What stays written in the index is the **shared
+vocabulary**, the words every concept speaks rather than one: `app`, and under `common` the
+actions, labels, nav, statuses, messages, errors, failures, formats, time, the generic `ui`
+chrome, the delete dialog, and the refusals the shell's own reasons become (`refusals.host`,
+`refusals.record`). `lib/i18n/tests/composition.test.ts` holds each index to its imports, that
+list, and the composed object, so a new string for one concept goes in its piece, and a word
+added to the shared list is added to the test's list too.
+
 **One exception: text handed to a tenant in the language chosen for it.** The printed schedule, the
 receipt, the name a saved one is offered under, and the WhatsApp reminder are written in the
 language picked in their preview, which need not be the one the application shows, so they read it
@@ -458,20 +502,22 @@ through `i18nObject(locale)`, which startup has already loaded, and a page sets 
 **A packaged component reads neither the store nor the locale metadata**, and this rule stops at
 the package boundary. `@rentable/design` imports nothing that names this application, so its
 words and its reading direction are supplied from outside: one typed object and one direction,
-handed to `DesignProvider` once in `src/routes/+layout.svelte`. `@rentable/design/strings.js` is
+handed to `DesignProvider` once in `src/lib/shell/component/window.svelte`, the window the root layout draws. `@rentable/design/strings.js` is
 the contract, and it holds what enforces it and why the direction travels with the words.
-
 *Everything above is unchanged for a component that lives in this application, and that is every
-cell, every component under a concept or under `layout`, and the five blocks under `design/block/`:
-`list.svelte`, the three that effort 832 added around it, `create-control.svelte`,
-`list-toolbar.svelte` and `search-field.svelte`, and `language-choice.svelte`, which effort 835
+cell, every component under a concept, a capability or `shell`, the list and two of the three
+that effort 832 added around it under `list/component/` (`list.svelte`, `list-toolbar.svelte`
+and `search-field.svelte`), and the one block left under `design/block/`,
+`language-choice.svelte`, which effort 835
 added for the language a printed page or a reminder is written in and which reads this
-application's own list of languages (`localesMetadata`). **They stay because each reads a module of this
-application, not a contract the package could be handed.** `create-control` reads the create key
-(`design/create-key.ts`) and registers with what answers it (`design/create-target.svelte.ts`),
+application's own list of languages (`localesMetadata`), and the third of effort 832's,
+the create control, which has been the create capability's own `create/component/control.svelte`
+since effort 840. **They stay because each reads a module of this
+application, not a contract the package could be handed.** The create control reads the create key
+(`create/key.ts`) and registers with what answers it (`create/target.svelte.ts`),
 which is what makes it the one control [[rules/interface]] *Create* says draws a create and the one
-the key finds. `search-field` registers the list's search shortcut (`design/list-keyboard.ts`) in
-this application's shortcut registry, which reaches `$lib/platform` to record a collision, and
+the key finds. `search-field` registers the list's search shortcut (`list/keyboard.ts`) in
+this application's shortcut capability (`$lib/shortcut`), which reaches `$lib/platform` to record a collision, and
 `list-toolbar` draws `search-field`, so both are on the application's side of the reach test under
 *Components* above. `$lib` names nothing inside the package, so none of the three could move without
 the create key, its targets and the list's keyboard moving with it. (`block/record-actions.svelte`
@@ -520,20 +566,21 @@ itself out of `TranslationFunctions`, which is this application's generated type
 declared inside the package would be naming keys in a dictionary the package has no way to
 reach. #780 found the only instance and is where the rule comes from: `SidebarState` registered
 `sidebar.toggle` from its own constructor, and the registration moved to
-`layout/component/sidebar.svelte` while the key it answers stayed with the primitive as
+`shell/component/sidebar.svelte` while the key it answers stayed with the primitive as
 `SIDEBAR_KEYBOARD_SHORTCUT`. **A packaged component that wants a key states the key and lets its
 consumer register it**, which keeps one place the key is written down and puts the description
 where the dictionary is.
 
 **This rule decides where a component lives, not only how it is written**, and #782 is where that
-turned out to matter. `block/list.svelte` registers three shortcuts, each naming a key under
+turned out to matter. The list (`list/component/list.svelte`, `block/list.svelte` until effort
+840) registers three shortcuts, each naming a key under
 `common.table`, and no amount of inverting its other couplings would have made those
 registrations legal in the package. So the block stays with this application, and
-`design/list-keyboard.ts` and `design/shortcut-registry.{ts,svelte.ts}` stay with it: the first
-builds the registrations and the second two hold them. *Since effort 832 the search key is
-registered by `design/block/search-field.svelte` (`toSearchShortcut`) and the other two by the
+`list/keyboard.ts` and the registry stay with it: the first builds the registrations and
+the second holds them, in the `shortcut/` capability since effort 840. *Since effort 832 the search key is
+registered by `list/component/search-field.svelte` (`toSearchShortcut`) and the other two by the
 list (`toListShortcuts`), so the field stays with this application for the same reason, and every
 set that draws it answers `/`.* **Nothing in the package holds a registry or wants one**:
-`shortcut.ts` says so in its own header, and every other caller is under `layout/` or
-`design/block/`. Read the placement rule as the rule's consequence rather than as a second rule; the
+`shortcut.ts` says so in its own header, and every other caller is under `shell/`, `list/` or
+`create/`. Read the placement rule as the rule's consequence rather than as a second rule; the
 effort's spec carries the full argument under `# Open Questions`.

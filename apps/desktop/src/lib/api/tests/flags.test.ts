@@ -6,18 +6,17 @@ import { BUILT_IN, FAMILIES, WRITE_FLAGS, maskOf, type Flag } from '@rentable/wo
 import type { AnyProcedure } from '@trpc/server';
 
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
-import type { Host } from '$lib/platform/host.ts';
+import type { Host } from '$lib/app/host.ts';
+import { fakeHost } from '$lib/app/tests/host.ts';
 import {
-	fakeHost,
 	fakeOrganizationSession,
 	fakeOrganizationState,
-	fakeOrganizationWorkspace,
-	fakeSyncState,
-	fakeWorkspace
-} from '$lib/platform/tests/testing.ts';
-import { appRouter } from '../router.ts';
+	fakeOrganizationWorkspace
+} from '$lib/organization/tests/testing.ts';
+import { fakeSyncState, fakeWorkspace } from '$lib/sync/tests/testing.ts';
+import { appRouter } from '$lib/app/router.ts';
 import { caller, context, type Meta } from '../trpc.ts';
-import { createApi, fakeIdentity, NOW, unusedId } from './testing.ts';
+import { createApi, fakeIdentity, NOW, unusedId } from '$lib/app/tests/testing.ts';
 
 /**
  * EVERY PROCEDURE NAMES WHO MAY CALL IT
@@ -48,15 +47,17 @@ test('every procedure names a flag, or says it is a member procedure or public',
 });
 
 /** The record routers, whose every procedure is a record act. */
-const RECORD_ROUTERS = ['complex.', 'tenant.', 'contract.', 'history.', 'workspace.'];
+const RECORD_ROUTERS = ['complex.', 'tenant.', 'contract.', 'payment.', 'history.', 'transfer.'];
 
 /**
- * The two reads under them open to every member, each answering with nothing of a kind the member
- * may not view rather than refusing: the landing screen, and what an import compares a file with.
+ * The two reads open to every member, each answering with nothing of a kind the member may not
+ * view rather than refusing: the landing screen, and what an import compares a file with. And this
+ * machine's reconcile, a member's own act that moved under the contract router with the flat tree
+ * (effort 840) and is no record act.
  */
-const OPEN_TO_EVERY_MEMBER = ['contract.dashboard', 'workspace.held'];
+const OPEN_TO_EVERY_MEMBER = ['dashboard.get', 'transfer.held', 'contract.reconcile'];
 
-test('every record procedure names its flag, the two open reads aside', () => {
+test('every record procedure names its flag, the open reads and the reconcile aside', () => {
 	const unnamed = procedures
 		.filter(({ path }) => RECORD_ROUTERS.some((prefix) => path.startsWith(prefix)))
 		.filter(({ path, meta }) => !namesAFlag(meta) && !OPEN_TO_EVERY_MEMBER.includes(path))
@@ -130,18 +131,18 @@ const PLANNED: Record<string, readonly Flag[]> = {
 	'contract.units.getAssignableMany': ['viewUnit'],
 	'contract.units.getAssignableForTerm': ['viewUnit'],
 	'contract.units.set': ['editContract'],
-	'contract.payments.get': ['viewPayment'],
-	'contract.payments.search': ['viewPayment'],
-	'contract.payments.getMany': ['viewPayment'],
-	'contract.payments.receipt': ['viewPayment'],
-	'contract.payments.create': ['createPayment'],
-	'contract.payments.createMany': ['createPayment'],
-	'contract.payments.planMany': ['viewPayment'],
-	'contract.payments.update': ['editPayment'],
-	'contract.payments.delete': ['deletePayment'],
-	'contract.payments.deleteMany': ['deletePayment'],
-	'workspace.get': VIEW,
-	'workspace.importWhole': CREATE
+	'payment.get': ['viewPayment'],
+	'payment.search': ['viewPayment'],
+	'payment.getMany': ['viewPayment'],
+	'payment.receipt': ['viewPayment'],
+	'payment.create': ['createPayment'],
+	'payment.createMany': ['createPayment'],
+	'payment.planMany': ['viewPayment'],
+	'payment.update': ['editPayment'],
+	'payment.delete': ['deletePayment'],
+	'payment.deleteMany': ['deletePayment'],
+	'transfer.get': VIEW,
+	'transfer.importWhole': CREATE
 };
 
 test('each record procedure names the flag the plan maps it to', () => {
@@ -309,8 +310,8 @@ function managerOnReadOnly(): Host {
 
 	return fakeHost({
 		organization: { ...fakeHost().organization, getState: async () => state },
-		remoteSync: {
-			...fakeHost().remoteSync,
+		sync: {
+			...fakeHost().sync,
 			getState: async () => fakeSyncState({ workspace: fakeWorkspace({ remoteId: 'north' }) })
 		}
 	});
@@ -379,8 +380,8 @@ function managerTailoredIn(open: string): Host {
 
 	return fakeHost({
 		organization: { ...fakeHost().organization, getState: async () => state },
-		remoteSync: {
-			...fakeHost().remoteSync,
+		sync: {
+			...fakeHost().sync,
 			getState: async () => fakeSyncState({ workspace: fakeWorkspace({ remoteId: open }) })
 		}
 	});

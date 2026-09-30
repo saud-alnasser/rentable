@@ -59,7 +59,7 @@ test('the guard fails a flag at bit 53, and at a bit two flags share', () => {
  * Every flag on the bit the plan of effort 838 gives it, and nothing else.
  *
  * **The bits are written out rather than derived**, because Rust holds a copy of this table and
- * reads the package as text to prove the two agree (`organization/permission.rs`). A bit that
+ * reads the package as text to prove the two agree (`organization/role/permission.rs`). A bit that
  * moved here and not there is a member whose stored permissions mean something else on the other
  * side of the boundary, which is the one failure neither language can catch on its own.
  */

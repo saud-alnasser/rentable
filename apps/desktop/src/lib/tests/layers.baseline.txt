@@ -1,0 +1,8 @@
+# The violations of the four-layer rule that the tree carries today. layers.test.ts reads this
+# file and fails on a violation it does not list, and on a line here that no longer occurs.
+#
+# So it only shrinks: a move that removes a violation deletes its line in the same commit, and no
+# new dependency is ever added. A violation that moves with its code is rewritten at its new
+# address (an existing cycle running through a new home is still that cycle). One line per
+# violation, sorted, as `from -> to : kind`, where kind is upward, cycle, deep, import, literal or route;
+# the test's header says what each means.

@@ -1,6 +1,9 @@
 import { render, waitFor } from '@testing-library/svelte';
 import { beforeEach, expect, test, vi } from 'vitest';
 
+// what one feature reads of another in the window is provided as the surfaces are composed, as
+// the frame does by importing them (`contributionsTo` in `$lib/feature/surface`).
+import '$lib/app/surfaces';
 import ComplexHost from '$lib/complex/component/host.svelte';
 import UnitHost from '$lib/complex/unit/component/host.svelte';
 import { complexHost } from '$lib/complex/host.svelte';
@@ -11,11 +14,12 @@ import type { ContractActRecord } from '$lib/contract/acts';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import QueryProviders from '#tests/query-providers.svelte';
+import Providers from '#tests/providers.svelte';
 import PaymentHost from '$lib/payment/component/host.svelte';
 import { paymentHost } from '$lib/payment/host.svelte';
 import TenantHost from '$lib/tenant/component/host.svelte';
 import { tenantHost } from '$lib/tenant/host.svelte';
+import { complexPlan } from './plan.svelte';
 
 /**
  * WHAT A HOST DOES WITH A DELETE
@@ -29,7 +33,7 @@ import { tenantHost } from '$lib/tenant/host.svelte';
  * **The hooks are stood in for**, through partial mocks of each concept's query module: what the
  * blockers read answers is the test's to set (`held`), and every delete or terminate the host
  * asks for is noted (`asked`). The forms the hosts also mount keep their real hooks, under the
- * query client `query-providers.svelte` supplies, and stay closed.
+ * query client `providers.svelte` supplies, and stay closed.
  *
  * The delete dialog and the confirm dialog are told apart by the attribute the confirm dialog
  * carries, `data-confirm-dialog`, so nothing here reads a word that changes with the locale.
@@ -37,7 +41,11 @@ import { tenantHost } from '$lib/tenant/host.svelte';
 
 const { held, asked, address, noting, settled } = vi.hoisted(() => {
 	/** what the blocker reads answer with, by what they read. */
-	const held = { contracts: [] as unknown[], units: [] as unknown[], payments: [] as unknown[] };
+	const held = {
+		contracts: [] as unknown[],
+		units: [] as unknown[],
+		payments: [] as unknown[]
+	};
 	/** every write the hosts asked for, as `hook:id`. */
 	const asked: string[] = [];
 
@@ -53,7 +61,7 @@ const { held, asked, address, noting, settled } = vi.hoisted(() => {
 			}
 		}),
 		/** a read that has settled on what the test said it holds. */
-		settled: (read: () => unknown[]) => () => ({
+		settled: (read: () => unknown) => () => ({
 			isPending: false,
 			isPlaceholderData: false,
 			get data() {
@@ -69,11 +77,43 @@ vi.mock('$lib/tenant/query', async (importOriginal) => ({
 	useReadTenant: () => async () => undefined
 }));
 
-vi.mock('$lib/complex/query', async (importOriginal) => ({
-	...(await importOriginal<typeof import('$lib/complex/query')>()),
-	useDeleteComplex: noting('deleteComplex'),
+vi.mock('$lib/complex/query', async (importOriginal) => {
+	const { complexPlan } = await import('./plan.svelte');
+
+	return {
+		...(await importOriginal<typeof import('$lib/complex/query')>()),
+		// a delete that moves the plan the way the workspace does once the complex is gone, and
+		// settles a moment later, so what the host reads in between is read.
+		useDeleteComplex: () => ({
+			isPending: false,
+			mutateAsync: async (id: string) => {
+				asked.push(`deleteComplex:${id}`);
+				complexPlan.plan = {
+					eligible: [],
+					refused: [{ id, name: '', reason: 'missing' }],
+					units: 0
+				};
+				await new Promise((resolve) => setTimeout(resolve, 30));
+			}
+		}),
+		useReadComplex: () => async () => undefined,
+		// the plan, which a test can leave refetching over what it cached before.
+		usePlanManyComplexes: () => ({
+			isPending: false,
+			isPlaceholderData: false,
+			get isFetching() {
+				return complexPlan.fetching;
+			},
+			get data() {
+				return complexPlan.plan;
+			}
+		})
+	};
+});
+
+vi.mock('$lib/complex/unit/query', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/complex/unit/query')>()),
 	useDeleteUnit: noting('deleteUnit'),
-	useReadComplex: () => async () => undefined,
 	useReadUnit: () => async () => undefined,
 	useFetchUnits: settled(() => held.units)
 }));
@@ -115,11 +155,13 @@ beforeEach(() => {
 	held.contracts = [];
 	held.units = [];
 	held.payments = [];
+	complexPlan.plan = { eligible: [], refused: [], units: 0 };
+	complexPlan.fetching = false;
 	asked.length = 0;
 });
 
 const mount = (Host: Parameters<typeof render>[0]) =>
-	render(Host, {}, { wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' } });
+	render(Host, {}, { wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } });
 
 const dialog = () => document.querySelector('[data-slot="dialog-content"]');
 
@@ -195,15 +237,71 @@ test('a contract with no payments is deleted at once, with no dialog', async () 
 	expect(dialog()).toBeNull();
 });
 
-test('a complex with contracts asks first, and deletes nothing until it is answered', async () => {
-	// a contract holds a unit, and a unit is what a complex's delete is weighed on.
-	held.units = [{ id: 'unit-1' }];
+const complex = { id: 'c-1', name: 'Tower', location: 'Riyadh' };
+
+// effort 840, requirement 22, on the host: what a complex's delete does turns on its units.
+test('a complex with no units is deleted at once, with no dialog', async () => {
+	complexPlan.plan = { eligible: ['c-1'], refused: [], units: 0 };
 	mount(ComplexHost);
 
-	complexHost.run('complex.delete', { id: 'c-1', name: 'Tower', location: 'Riyadh' });
+	complexHost.run('complex.delete', complex);
+
+	await waitFor(() => expect(asked).toEqual(['deleteComplex:c-1']));
+	expect(dialog()).toBeNull();
+});
+
+// a plan cached before the workspace moved says no units go; until the fresh one lands, the delete
+// neither runs nor asks.
+test('a complex whose plan is being fetched again waits, and deletes nothing', async () => {
+	complexPlan.plan = { eligible: ['c-1'], refused: [], units: 0 };
+	complexPlan.fetching = true;
+	mount(ComplexHost);
+
+	complexHost.run('complex.delete', complex);
+
+	await new Promise((resolve) => setTimeout(resolve, 50));
+	expect(asked).toEqual([]);
+	expect(dialog()).toBeNull();
+});
+
+test('a complex whose units go with it asks first, naming them, and deletes once answered', async () => {
+	complexPlan.plan = { eligible: ['c-1'], refused: [], units: 3 };
+	mount(ComplexHost);
+
+	complexHost.run('complex.delete', complex);
 
 	await waitFor(() => expect(dialog()).not.toBeNull());
 	expect(confirmDialog()).toBeNull();
+	expect(dialog()?.textContent).toContain('its 3 units will be deleted with it.');
+	expect(asked).toEqual([]);
+
+	// the destructive control, by the placeholder its word stands in as.
+	const destructive = [...(dialog()?.querySelectorAll('button') ?? [])].find(
+		(button) => button.textContent?.trim() === '{delete}'
+	);
+
+	expect(destructive).toBeDefined();
+	destructive?.click();
+
+	await waitFor(() => expect(asked).toEqual(['deleteComplex:c-1']));
+	// its own write leaves the plan saying no units go; that is no second delete behind the dialog.
+	await new Promise((resolve) => setTimeout(resolve, 80));
+	expect(asked).toEqual(['deleteComplex:c-1']);
+});
+
+test('a complex a contract holds a unit of is refused with what holds it, and nothing is deleted', async () => {
+	complexPlan.plan = {
+		eligible: [],
+		refused: [{ id: 'c-1', name: 'Tower', reason: 'units-under-contract' }],
+		units: 0
+	};
+	mount(ComplexHost);
+
+	complexHost.run('complex.delete', complex);
+
+	await waitFor(() => expect(dialog()).not.toBeNull());
+	expect(confirmDialog()).toBeNull();
+	expect(dialog()?.textContent).toContain('a contract mentions one or more of its units');
 	expect(asked).toEqual([]);
 });
 

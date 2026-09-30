@@ -18,7 +18,7 @@ import {
 /**
  * The shared table of cases (criteria 6 and 8 of effort 838).
  *
- * **Read by this test and by Rust's**, `organization/permission.rs`, which opens the same file by
+ * **Read by this test and by Rust's**, `organization/role/permission.rs`, which opens the same file by
  * path. The numbers were computed once, outside either routine, and checked in, so each language
  * is held to the table rather than to the other: a routine that drifts fails on its own side.
  */

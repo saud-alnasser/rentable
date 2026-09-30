@@ -93,7 +93,7 @@ test('neither locale tells somebody that forgetting revoked anything', () => {
 // effort 828, requirement 19: a card carries one line of standing, and the three lines are two
 // facts about the account read as sentences. They gate nothing. What is read here is that both
 // locales carry all three in their own words and tell them apart; the card itself is rendered in
-// `organization/tests/members.svelte.test.ts`. *Both locales marked a pending member and dated
+// `organization/member/tests/directory.svelte.test.ts`. *Both locales marked a pending member and dated
 // their link until the cards replaced the rows; the standing says the same thing about the
 // account rather than about an invitation.*
 test('both locales say where an account stands, in three lines that differ', () => {
@@ -319,7 +319,8 @@ const TERMS = [
 ] as const;
 
 // requirement 24 of effort 828: the area's four sections, each named for what it holds, in both
-// locales. The names themselves are read here; which blocks sit under each is `area.svelte.test.ts`.
+// locales. The names themselves are read here; which blocks sit under each is
+// `app/tests/settings-area.svelte.test.ts`.
 const SECTIONS = ['general', 'account', 'organization', 'workspaces'] as const;
 
 test('both locales name the four sections of the settings area', () => {

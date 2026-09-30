@@ -1,11 +1,13 @@
 import { render, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest';
 
-import Providers from '$lib/design/cell/tests/providers.svelte';
+import { sectionsOn } from '$lib/app/surfaces';
+import Providers from '#tests/providers.svelte';
+import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import Breadcrumb from '$lib/layout/component/breadcrumb.svelte';
+import Breadcrumb from '$lib/shell/component/breadcrumb.svelte';
 import PaymentDetails from '$lib/payment/component/details.svelte';
 
 /**
@@ -112,7 +114,12 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
-const page = () => render(PaymentDetails, { paymentId: payment.id }, { wrapper: Providers });
+const page = () =>
+	render(
+		PaymentDetails,
+		{ paymentId: payment.id, sections: sectionsOn('payment') },
+		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } }
+	);
 
 /** what an element's `aria-describedby` names, as assistive technology hears it. */
 const describedBy = (element: Element | null) =>
@@ -129,7 +136,7 @@ test("the eyebrow is the payments' own name, as a contract's is the contracts'",
 
 test('the trail runs through the contract the payment belongs to, and links to it', () => {
 	page();
-	render(Breadcrumb, {}, { wrapper: Providers });
+	render(Breadcrumb, {}, { wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } });
 
 	const trail = [...document.querySelectorAll('[data-slot="breadcrumb-item"]')].map((crumb) =>
 		crumb.textContent?.trim()

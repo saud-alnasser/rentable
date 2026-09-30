@@ -5,7 +5,7 @@ import ar from '$lib/i18n/ar';
 import en from '$lib/i18n/en';
 import type { Locales } from '$lib/i18n/i18n-types';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import { formatRecordDate, formatRecordDateRange } from '$lib/design/date';
+import { formatRecordDate, formatRecordDateRange } from '$lib/date';
 import { formatLocaleMoney } from '$lib/platform/locale';
 import PrintedReceipt, { type PrintedReceiptValue } from '$lib/payment/component/receipt.svelte';
 

@@ -6,13 +6,13 @@
 	import DeleteDialog from '@rentable/design/block/delete-dialog.svelte';
 	import { AWAITING_BLOCKERS } from '@rentable/design/confirmation.js';
 	import { usesAppleKeyboard } from '@rentable/design/shortcut.js';
-	import { useListContracts } from '$lib/contract/query';
-	import { toDeleteStep, toPaletteVerbs } from '$lib/design/acts';
-	import { consumeCreateIntent } from '$lib/design/create-intent.svelte';
-	import { onMutationError, onMutationSuccess } from '$lib/design/mutation';
-	import { showErrorSentence, showErrorToast, showRefusal } from '$lib/error/toast';
+	import { consumeCreateIntent, landing } from '$lib/create/ui';
+	import { toDeleteStep, toPaletteVerbs } from '$lib/act';
+	import { onMutationError, onMutationSuccess } from '$lib/mutation/ui';
+	import { showErrorSentence, showErrorToast, showRefusal } from '$lib/notification';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { writeDetailsToClipboard } from '$lib/platform/clipboard';
+	import { contributionsTo } from '$lib/feature/surface';
 	import type { TenantActRecord } from '$lib/tenant/acts';
 	import {
 		closeTenantConfirmation,
@@ -24,7 +24,6 @@
 	} from '$lib/tenant/host.svelte';
 	import { useDeleteTenant, useReadTenant } from '$lib/tenant/query';
 	import { isTenantDeletable } from '$lib/tenant/tenant';
-	import { landing } from '$lib/design/landing.svelte';
 	import { onDestroy, untrack } from 'svelte';
 	import TenantForm from './form.svelte';
 
@@ -49,11 +48,9 @@
 	const deleting = $derived(tenantHostState.deleting);
 
 	// what a deletion would be refused for, read for the record being acted on and only while it is
-	// being acted on.
-	const heldContractsQuery = useListContracts(
-		() => '',
-		() => null,
-		() => ({ tenantId: deleting?.id }),
+	// being acted on. The contracts are the contract's to read, and it contributes the read.
+	const heldContractsQuery = contributionsTo('tenant').useHeldContracts(
+		() => deleting?.id,
 		() => deleting !== null
 	);
 	const deleteBlockers = $derived.by(() => {

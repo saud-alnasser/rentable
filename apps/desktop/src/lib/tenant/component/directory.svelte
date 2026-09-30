@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
-	import List from '$lib/design/block/list.svelte';
+	import { DirectoryImportDialog } from '$lib/transfer/ui';
+	import { List } from '$lib/list/ui';
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
 	import RecordCard from '@rentable/design/block/record-card.svelte';
 	import SelectionDialog from '@rentable/design/block/selection-dialog.svelte';
@@ -15,7 +15,7 @@
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import type api from '$lib/api/caller';
 	import { toNarrowedName } from '@rentable/design/csv.js';
-	import { toCardActions } from '$lib/design/acts';
+	import { toCardActions } from '$lib/act';
 	import { tenantActs, tenantHost } from '$lib/tenant/host.svelte';
 	import {
 		useDeleteManyTenants,
@@ -24,10 +24,10 @@
 		type TenantRefusalReason
 	} from '$lib/tenant/query';
 	import { TENANT_SORT_COLUMN_IDS, type TenantSortColumnId } from '$lib/tenant/tenant';
-	import { useImportRecords } from '$lib/workspace/query';
-	import { toTransferInput } from '$lib/workspace/workspace';
-	import { IMPORT_FLAGS, memberPermissions } from '$lib/workspace/permission';
-	import { CONTRACT_ATTENTION_ORDER } from '$lib/contract/contract';
+	import { useImportRecords } from '$lib/workspace/ui';
+	import { toTransferInput } from '$lib/transfer';
+	import { IMPORT_FLAGS, memberPermissions } from '$lib/permission';
+	import { contributionsTo } from '$lib/feature/surface';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 
 	type TenantRecord = Awaited<ReturnType<typeof api.tenant.getMany>>[number];
@@ -56,8 +56,12 @@
 					terminated: tenant.contractsTerminated ?? 0
 				};
 
+	// what the row says of the contracts naming the tenant is the contract's to decide, and it
+	// contributes it: the order the six figures stand in, and whether the reader may see them.
+	const contracts = contributionsTo('tenant');
+
 	// the counts are offered as an order and a column of the file only to a reader shown them.
-	const viewsContract = $derived(memberPermissions.views('contract'));
+	const viewsContract = $derived(contracts.viewsContracts());
 
 	let search = $state('');
 	let sort = $state<ListSort | null>(null);
@@ -173,7 +177,7 @@
 			// The counts cross as counts. Rendered through the locale they were text, and a column
 			// of text is a column nothing can total — which is the first thing anyone does to a
 			// directory of tenants in a spreadsheet.
-			...(viewsContract ? CONTRACT_ATTENTION_ORDER : []).map((status) => ({
+			...(viewsContract ? contracts.attentionOrder : []).map((status) => ({
 				header: $LL.common.status[status](),
 				value: (tenant: TenantRecord) => contractCounts(tenant)?.[status] ?? 0
 			}))
@@ -212,7 +216,7 @@
 				     hold would work against exactly that. -->
 				{#if counts}
 					<span class="pointer-events-none relative flex shrink-0 items-center gap-3">
-						{#each CONTRACT_ATTENTION_ORDER as status (status)}
+						{#each contracts.attentionOrder as status (status)}
 							<Cell.StatusCount {status} count={counts[status]} />
 						{/each}
 					</span>

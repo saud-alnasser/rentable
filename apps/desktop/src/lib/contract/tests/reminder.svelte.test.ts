@@ -1,16 +1,19 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
+// what one feature reads of another in the window is provided as the surfaces are composed, as
+// the frame does by importing them (`contributionsTo` in `$lib/feature/surface`).
+import '$lib/app/surfaces';
 import ContractHost from '$lib/contract/component/host.svelte';
 import { contractHost, contractHostState } from '$lib/contract/host.svelte';
 import type { ContractActRecord } from '$lib/contract/acts';
-import type { ContractReminder } from '$lib/contract/reminder';
+import type { ContractReminder } from '$lib/contract/schedule/reminder';
 import Section from '$lib/dashboard/component/section.svelte';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { i18nObject } from '$lib/i18n/i18n-util';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import QueryProviders from '#tests/query-providers.svelte';
+import Providers from '#tests/providers.svelte';
 
 /**
  * A TENANT IS REMINDED ON WHATSAPP
@@ -91,11 +94,7 @@ afterEach(() => {
 });
 
 const renderHost = () =>
-	render(
-		ContractHost,
-		{},
-		{ wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' } }
-	);
+	render(ContractHost, {}, { wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } });
 
 /** the message a WhatsApp address carries, decoded as WhatsApp decodes it. */
 const textOf = (url: string) => new URL(url).searchParams.get('text');
@@ -191,7 +190,7 @@ test('a landing row in a money rank or due soon offers the reminder as a renewal
 		],
 		hiddenCount: 0
 	});
-	const wrap = { wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' as const } };
+	const wrap = { wrapper: Providers, wrapperProps: { strings, direction: 'ltr' as const } };
 
 	for (const rank of ['owing', 'due-soon'] as const) {
 		const { unmount } = render(Section, { section: sectionFor(rank) }, wrap);

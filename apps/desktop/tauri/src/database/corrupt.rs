@@ -61,6 +61,7 @@ use std::{
     sync::Arc,
 };
 
+use crate::clock::Clock;
 use crate::diagnostics::{self, DiagnosticRecord};
 
 /// The words turso_core gives `LimboError::NotADB`, which are all that reach the caller when the
@@ -369,7 +370,11 @@ pub(crate) fn record(replica: &Path, damage: &Damage, kept: &[PathBuf]) -> Diagn
 /// `open` builds the engine over `replica` and makes its first read; a damaged file answers there,
 /// or before it: in [`marked`], where damage was met on it after an earlier open, or in
 /// [`truncated`]. The second open's failure, whatever it is, is the answer.
-pub(crate) async fn opened_once_more<T, F, Fut>(replica: &Path, open: F) -> Result<T, turso::Error>
+pub(crate) async fn opened_once_more<T, F, Fut>(
+    clock: &dyn Clock,
+    replica: &Path,
+    open: F,
+) -> Result<T, turso::Error>
 where
     F: Fn() -> Fut,
     Fut: Future<Output = Result<T, turso::Error>>,
@@ -385,7 +390,7 @@ where
         },
     };
 
-    let kept = set_aside(replica, crate::timestamp::now());
+    let kept = set_aside(replica, clock.now());
     record(replica, &damage, &kept).write();
 
     open().await
@@ -397,21 +402,11 @@ mod tests {
         Damage, MAGIC, MARKER, Watch, marked, met, opened_once_more, record, reported, truncated,
     };
     use crate::database::Database;
+    use crate::test::scratch;
     use std::{
         path::{Path, PathBuf},
         sync::atomic::{AtomicUsize, Ordering},
     };
-
-    fn scratch(name: &str) -> PathBuf {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|elapsed| elapsed.as_nanos())
-            .unwrap_or_default();
-        let directory = std::env::temp_dir().join(format!("rentable-corrupt-{name}-{nanos}"));
-        std::fs::create_dir_all(&directory).expect("scratch directory");
-
-        directory
-    }
 
     fn names_in(directory: &Path) -> Vec<String> {
         let mut names: Vec<String> = std::fs::read_dir(directory)
@@ -440,7 +435,7 @@ mod tests {
 
     /// A replica holding a table of rows, closed with everything in the main file.
     async fn written(replica: &Path) {
-        let database = Database::open_replica(replica, None, || async {
+        let database = Database::open_replica(&crate::clock::System, replica, None, || async {
             Ok::<String, turso::Error>(String::new())
         })
         .await
@@ -495,9 +490,12 @@ mod tests {
 
         let remote =
             ScriptedServer::start((0..8).map(|_| ScriptedResponse::hangup()).collect()).await;
-        let database = Database::open_replica(replica, Some(remote.url("")), || async {
-            Ok::<String, turso::Error>("a-credential".to_string())
-        })
+        let database = Database::open_replica(
+            &crate::clock::System,
+            replica,
+            Some(remote.url("")),
+            || async { Ok::<String, turso::Error>("a-credential".to_string()) },
+        )
         .await
         .expect("the replica was not opened again");
 
@@ -604,7 +602,7 @@ mod tests {
 
         written(&replica).await;
 
-        let database = Database::open_replica(&replica, None, || async {
+        let database = Database::open_replica(&crate::clock::System, &replica, None, || async {
             Ok::<String, turso::Error>(String::new())
         })
         .await
@@ -793,7 +791,7 @@ mod tests {
         }
         std::fs::write(&replica, &bytes).expect("the damage");
 
-        let database = Database::open_replica(&replica, None, || async {
+        let database = Database::open_replica(&crate::clock::System, &replica, None, || async {
             Ok::<String, turso::Error>(String::new())
         })
         .await
@@ -841,12 +839,13 @@ mod tests {
         std::fs::write(&replica, b"not a database, twice").expect("the file");
         let opens = AtomicUsize::new(0);
 
-        let answer: Result<(), turso::Error> = opened_once_more(&replica, || {
-            opens.fetch_add(1, Ordering::SeqCst);
+        let answer: Result<(), turso::Error> =
+            opened_once_more(&crate::clock::System, &replica, || {
+                opens.fetch_add(1, Ordering::SeqCst);
 
-            async { Err(turso::Error::NotAdb("file is not a database".to_string())) }
-        })
-        .await;
+                async { Err(turso::Error::NotAdb("file is not a database".to_string())) }
+            })
+            .await;
 
         assert!(matches!(answer, Err(turso::Error::NotAdb(_))), "{answer:?}");
         assert_eq!(

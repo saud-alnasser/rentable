@@ -1,4 +1,4 @@
-import type { ContractRank } from '$lib/contract/rank';
+import { getContractRank, type ContractRank } from '$lib/contract/rank/rank';
 import * as s from '$lib/platform/database/schema';
 import { type Contract } from '$lib/platform/database/schema';
 
@@ -53,4 +53,19 @@ export function serializeContract(
 	}
 
 	return serializedContract;
+}
+
+/**
+ * A serialized contract with the rank it is filed under today, where it has one: what its acts
+ * gate on, so a read that hands a contract to its acts carries it. Left off rather than written as
+ * `undefined` on a contract in no rank, as the serialized shape leaves off what it does not know.
+ */
+export function withRank<T extends SerializedContract>(
+	contract: T,
+	now: number,
+	endingSoonNoticeDays: number
+): T {
+	const rank = getContractRank(contract, contract.paidAmount, now, endingSoonNoticeDays);
+
+	return rank ? { ...contract, rank } : contract;
 }

@@ -1,5 +1,6 @@
+import type { Host } from '$lib/app/host';
+import type { AppRouter } from '$lib/app/router';
 import type { Context } from './context';
-import { appRouter } from './router';
 import { caller, context } from './trpc';
 
 /**
@@ -30,12 +31,13 @@ import { caller, context } from './trpc';
 let held: Promise<Context> | null = null;
 
 /**
- * the context this process is running under, built the first time something asks for it.
+ * the context this process is running under, built over `host` the first time something asks for
+ * it.
  *
  * The promise is held rather than the value, so two calls racing the first build share it instead
  * of each starting one.
  */
-const heldContext = () => (held ??= context());
+const heldContext = (host: Host) => (held ??= context({ host }));
 
 /**
  * Forget the context, so the next call builds one under whoever is signed in now.
@@ -51,4 +53,39 @@ export function forgetContext() {
 	held = null;
 }
 
-export default caller(appRouter)(heldContext);
+/** Every procedure in the application, as the caller the composition root binds hands them over. */
+export type Api = ReturnType<ReturnType<typeof caller<AppRouter['_def']['record']>>>;
+
+/** What the composition root binds: the caller factory of the root router. */
+type CallerFactory = (context: () => Promise<Context>) => Api;
+
+/**
+ * **The router is bound in, never imported.** Every procedure is a feature's, and this home sits
+ * below the features, so importing the root router here would have the wiring depend on every
+ * feature it wires. `$lib/app/caller` binds the root router's caller factory once, as the root
+ * layout loads and before anything has rendered; this module knows the router only by its type.
+ */
+let bound: Api | null = null;
+
+/**
+ * Bind the root router's caller, and the host its context is built over. Called once, by
+ * `$lib/app/caller`. The host is composed from the features' ports, so it is bound in for the
+ * reason the router is, and known here by its type alone.
+ */
+export function bindCaller(factory: CallerFactory, host: Host) {
+	bound = factory(() => heldContext(host));
+}
+
+function boundCaller(): Api {
+	if (bound === null) {
+		throw new Error(
+			'a procedure was called before the root router was bound: import `$lib/app/caller` first'
+		);
+	}
+
+	return bound;
+}
+
+export default new Proxy({} as Api, {
+	get: (_, key) => Reflect.get(boundCaller(), key)
+});

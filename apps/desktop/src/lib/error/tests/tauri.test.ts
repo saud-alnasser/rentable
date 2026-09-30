@@ -10,12 +10,13 @@ import {
 	toTauriErrorCode,
 	toTauriRefusalReason
 } from '$lib/error/tauri';
-import { appRouter } from '$lib/api/router.ts';
+import { appRouter } from '$lib/app/router.ts';
 import { caller, context } from '$lib/api/trpc.ts';
-import { PASSWORD_FLOOR, refusalAfterFailedConnect } from '$lib/organization/setup.ts';
+import { PASSWORD_FLOOR, refusalAfterFailedConnect } from '$lib/organization/setup/setup.ts';
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
-import { fakeHost } from '$lib/platform/tests/testing.ts';
+import { fakeHost } from '$lib/app/tests/host.ts';
 import { TRPCError } from '@trpc/server';
+import { RECORD_KINDS } from '@rentable/workspace-permission';
 
 test('a rejected command payload is recognised by its code and message', () => {
 	assert.equal(isTauriError({ code: 'busy', message: 'a sync is already running' }), true);
@@ -64,11 +65,18 @@ test('the reasons this side knows are exactly the ones rust declares', async () 
 
 	assert.ok(body, 'error.rs no longer declares RefusalReason');
 
+	// a word per variant, and the one variant holding a kind of record a word per kind, which is
+	// how it serialises: the kind's name, then `NeedsViewing`, read off the one list of kinds.
 	const declared = body
 		.split('\n')
 		.map((line) => line.trim())
-		.filter((line) => /^[A-Z][A-Za-z]*,$/.test(line))
-		.map((line) => line[0]!.toLowerCase() + line.slice(1, -1));
+		.flatMap((line) =>
+			/^[A-Z][A-Za-z]*,$/.test(line)
+				? [line[0]!.toLowerCase() + line.slice(1, -1)]
+				: /^NeedsViewing\(/.test(line)
+					? RECORD_KINDS.map((kind) => `${kind}NeedsViewing`)
+					: []
+		);
 
 	assert.deepEqual(declared, [...TAURI_REFUSAL_REASONS]);
 });
@@ -114,7 +122,7 @@ test('a rejection from the host survives a procedure, and its code is read off t
 		await context({ db: createMemoryDatabase(), clock: { now: () => 0 }, host, identity: null })
 	);
 
-	const failure = await api.app.organization
+	const failure = await api.organization
 		.connectExisting({ username: 'owner', password: 'x'.repeat(PASSWORD_FLOOR) })
 		.then(
 			() => assert.fail('the procedure should have been refused'),

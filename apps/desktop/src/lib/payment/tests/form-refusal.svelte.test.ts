@@ -2,11 +2,13 @@ import { fireEvent, render, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest';
 
 import { refuse } from '$lib/api/refusal';
+import { refusalFields } from '$lib/app/refusal';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
+import { bindRefusalFields } from '$lib/error/refusal';
 import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import QueryProviders from '#tests/query-providers.svelte';
+import Providers from '#tests/providers.svelte';
 import PaymentForm from '$lib/payment/component/form.svelte';
 
 /**
@@ -68,6 +70,10 @@ vi.mock('$lib/payment/query', async (importOriginal) => ({
 loadLocale('en');
 setLocale('en');
 
+// the fields each refusal belongs under, which the composition root binds as it builds the root
+// router; this test renders the form without it, so it binds them as the application does.
+bindRefusalFields(refusalFields);
+
 // jsdom lays nothing out and has no `scrollIntoView`, which a refused submit calls to bring the
 // field into view. A no-op stands in; where the field lands is not what is asserted.
 beforeAll(() => {
@@ -90,7 +96,7 @@ async function submit() {
 	render(
 		PaymentForm,
 		{ contractId: 'contract-1', open: true, onOpenChange: () => {} },
-		{ wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' } }
+		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } }
 	);
 
 	const amount = () => document.querySelector<HTMLInputElement>('input[inputmode=decimal]');

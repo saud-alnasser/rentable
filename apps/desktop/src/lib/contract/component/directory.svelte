@@ -3,7 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import type api from '$lib/api/caller';
-	import List from '$lib/design/block/list.svelte';
+	import { List } from '$lib/list/ui';
 	import type { ListSort } from '@rentable/design/sort.js';
 	import { CONTRACT_SORT_COLUMN_IDS, type ContractSortColumnId } from '$lib/contract/contract';
 	import {
@@ -11,15 +11,17 @@
 		readContractRank,
 		toChosenRank,
 		toRankArrivalSelection
-	} from '$lib/contract/rank-filter';
+	} from '$lib/contract/rank/filter';
 	import { useListContracts } from '$lib/contract/query';
-	import { toChosenLabel, type FilterSelection } from '$lib/design/filter';
+	import { toChosenLabel, type FilterSelection } from '$lib/list';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { toNarrowedName } from '@rentable/design/csv.js';
-	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
-	import { useImportRecords } from '$lib/workspace/query';
-	import { toTransferInput } from '$lib/workspace/workspace';
-	import { IMPORT_FLAGS, memberPermissions } from '$lib/workspace/permission';
+	import { DirectoryImportDialog } from '$lib/transfer/ui';
+	import { useImportRecords } from '$lib/workspace/ui';
+	import { toTransferInput } from '$lib/transfer';
+	import { contributionsTo } from '$lib/feature/surface';
+	import { TENANT_KIND } from '$lib/tenant';
+	import { IMPORT_FLAGS, memberPermissions } from '$lib/permission';
 	import { contractHost } from '$lib/contract/host.svelte';
 	import ContractRecord from './record.svelte';
 	import ContractSelectionActions from './selection-actions.svelte';
@@ -70,14 +72,14 @@
 		// a reader who may not view tenants is not offered an order by them: the list answers
 		// them with no tenant to order by (effort 838, requirement 10).
 		return CONTRACT_SORT_COLUMN_IDS.filter(
-			(id) => id !== 'tenantName' || memberPermissions.views('tenant')
+			(id) => id !== 'tenantName' || memberPermissions.views(TENANT_KIND)
 		).map((id) => ({ id, label: labels[id] }));
 	});
 
 	// the file carries the tenant and the count of payments only where the rows do (effort 838,
 	// requirement 10): a column of blanks would be a column naming what the reader may not see.
-	const viewsTenant = $derived(memberPermissions.views('tenant'));
-	const viewsPayment = $derived(memberPermissions.views('payment'));
+	const viewsTenant = $derived(memberPermissions.views(TENANT_KIND));
+	const viewsPayment = $derived(contributionsTo('contract').viewsPayments());
 
 	// the rank the list opened on is then cleared from the URL, so a reload does not put back a
 	// narrowing the reader has since cleared, the way the contract host consumes and clears a create

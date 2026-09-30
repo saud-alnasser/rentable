@@ -5,8 +5,8 @@
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
 	import RecordCard from '@rentable/design/block/record-card.svelte';
 	import SelectionDialog from '@rentable/design/block/selection-dialog.svelte';
-	import { toCardActions } from '$lib/design/acts';
-	import List from '$lib/design/block/list.svelte';
+	import { toCardActions } from '$lib/act';
+	import { List } from '$lib/list/ui';
 	import * as Cell from '$lib/design/cell';
 	import { toNarrowedName } from '@rentable/design/csv.js';
 	import {
@@ -14,10 +14,10 @@
 		foreseenRefusals,
 		type SelectionPlan
 	} from '@rentable/design/selection.js';
-	import { PERIOD_FILTER, toChosenLabel, type FilterSelection } from '$lib/design/filter';
-	import { isFilterPeriod } from '$lib/api/period';
-	import { getRemainingContractBalance, toContractName } from '$lib/contract/contract';
-	import { useFetchContract } from '$lib/contract/query';
+	import { PERIOD_FILTER, toChosenLabel, type FilterSelection } from '$lib/list';
+	import { isFilterPeriod } from '$lib/date';
+	import { getRemainingContractBalance, toContractName } from '$lib/contract';
+	import { useFetchContract } from '$lib/contract/ui';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import {
 		formatPaymentLedgerMonth,
@@ -35,14 +35,14 @@
 		type PaymentRefusalReason
 	} from '$lib/payment/query';
 	import { formatLocaleMoney, formatLocaleMoneyRange } from '$lib/platform/locale';
-	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
-	import { useImportRecords } from '$lib/workspace/query';
-	import { toTransferInput } from '$lib/workspace/workspace';
-	import { IMPORT_FLAGS, memberPermissions } from '$lib/workspace/permission';
+	import { DirectoryImportDialog } from '$lib/transfer/ui';
+	import { useImportRecords } from '$lib/workspace/ui';
+	import { toTransferInput } from '$lib/transfer';
+	import { IMPORT_FLAGS, memberPermissions } from '$lib/permission';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 
 	/** The contract whose payments this statement lists. */
-	let { contractId }: { contractId: string } = $props();
+	let { recordId: contractId }: { recordId: string } = $props();
 
 	// one line of text and the breathing room around it; the shell lays rows out at this
 	// height rather than measuring them.

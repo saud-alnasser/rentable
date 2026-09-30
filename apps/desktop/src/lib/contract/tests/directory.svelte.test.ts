@@ -1,12 +1,15 @@
 import { fireEvent, render, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest';
 
+// what the other features contribute to the directory, composed and provided as the frame does by
+// importing them (`contributionsTo` in `$lib/feature/surface`).
+import '$lib/app/surfaces';
 import ContractDirectory from '$lib/contract/component/directory.svelte';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import QueryProviders from '#tests/query-providers.svelte';
+import Providers from '#tests/providers.svelte';
 import { forgetReader, holdEveryFlagBut, layOutLists } from '#tests/permission.ts';
 
 /**
@@ -66,7 +69,7 @@ const directory = () =>
 	render(
 		ContractDirectory,
 		{},
-		{ wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' as const } }
+		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' as const } }
 	);
 
 /** the card's link, whose name is what the card leads with. */

@@ -55,12 +55,12 @@ function fewOptionSelects(source: string) {
  */
 const DRAWN_ALLOWED = [
 	{
-		label: 'lib/organization/component/offer-ownership.svelte',
+		label: 'lib/organization/member/component/offer-ownership.svelte',
 		drawnFrom: 'accounts',
 		why: 'another record: every account the organization could be handed to'
 	},
 	{
-		label: 'lib/organization/component/member-role.svelte',
+		label: 'lib/organization/member/component/role.svelte',
 		drawnFrom: 'offered',
 		why: 'another record: the roles the organization has, which it adds to itself'
 	},

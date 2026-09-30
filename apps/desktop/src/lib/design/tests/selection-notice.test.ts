@@ -4,13 +4,13 @@ import { describe, it, mock } from 'node:test';
 import type { CreateMutationResult } from '@tanstack/svelte-query';
 
 import type { SelectionCall } from '@rentable/design/selection.ts';
-import { bindingOf } from '$lib/design/tests/testing.ts';
+import { bindingOf } from '#tests/mutation.ts';
 
 /**
  * Every list that plans an action declares what to say when the workspace moved under the open
  * confirmation, and this is the one place that checks all of them at once.
  *
- * **It covers the declarations rather than the mechanism.** `design/tests/mutation.test.ts` drives
+ * **It covers the declarations rather than the mechanism.** `mutation/tests/mutation.test.ts` drives
  * the mechanism, so what is left to get wrong is a list that quietly declares nothing, which is
  * exactly the state four of the five lists were in before. A file per concept would repeat this
  * harness four times to assert one line each.
@@ -43,12 +43,17 @@ mock.module('@tanstack/svelte-query', {
 	}
 });
 
-const contract = await import('$lib/contract/query');
+const contract = await import('$lib/contract/selection/query');
 const tenant = await import('$lib/tenant/query');
 const complex = await import('$lib/complex/query');
+const unit = await import('$lib/complex/unit/query');
 const payment = await import('$lib/payment/query');
 const { loadLocale } = await import('$lib/i18n/i18n-util.sync');
 const { setLocale } = await import('$lib/i18n/i18n-svelte');
+
+// the cache policy the root layout provides, built from the features' declarations: a settled
+// mutation invalidates by it.
+await import('$lib/app/cache');
 
 // the notice names itself in the reader's language, so it is only assertable once a locale is
 // loaded: the same two calls the application makes at startup.
@@ -152,7 +157,7 @@ const DECLARATIONS = [
 				complex.useDeleteManyComplexes,
 				{
 					deleted: [],
-					refused: [{ id: UNFORESEEN, name: 'Abraj', reason: 'holds-units' as const }]
+					refused: [{ id: UNFORESEEN, name: 'Abraj', reason: 'units-under-contract' as const }]
 				},
 				foreseen
 			)
@@ -162,7 +167,7 @@ const DECLARATIONS = [
 		named: 'A12',
 		notice: (foreseen?: readonly string[]) =>
 			noticeFor(
-				complex.useDeleteManyUnits,
+				unit.useDeleteManyUnits,
 				{
 					deleted: [],
 					refused: [{ id: UNFORESEEN, name: 'A12', reason: 'holds-contracts' as const }]
@@ -240,7 +245,7 @@ describe('and says it in a form a reader can act on', () => {
 		const named = Array.from({ length: 6 }, (_unused, index) => ({
 			id: `named-${index}`,
 			name: `Tower ${index}`,
-			reason: 'holds-units' as const
+			reason: 'units-under-contract' as const
 		}));
 		const warnings = await noticeFor(complex.useDeleteManyComplexes, {
 			deleted: [],

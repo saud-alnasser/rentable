@@ -1,5 +1,5 @@
-import { mayRun } from '$lib/design/acts';
-import { contractHost } from '$lib/contract/host.svelte';
+import { mayRun } from '$lib/act';
+import { contributionsTo } from '$lib/feature/surface';
 import { declareTenantActs, type TenantActId, type TenantActRecord } from '$lib/tenant/acts';
 
 /**
@@ -53,7 +53,8 @@ export const tenantActs = declareTenantActs({
 		tenantHostState.copying = tenant;
 	},
 	edit: (tenant) => openForm(tenant),
-	newContract: (tenant) => contractHost.create({ tenantId: tenant.id }),
+	// the contract's form, which the contract contributes: it depends on the tenant.
+	newContract: (tenant) => contributionsTo('tenant').newContract(tenant.id),
 	confirmDelete: (tenant) => {
 		tenantHostState.deleting = tenant;
 	}

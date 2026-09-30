@@ -22,8 +22,8 @@ function occurrences(pattern: RegExp) {
  * would space out Arabic letters that are meant to join.
  */
 const TRACKING_ALLOWED = [
-	{ label: 'lib/organization/component/connect-screen.svelte', token: 'tracking-[0.3em]' },
-	{ label: 'lib/organization/component/link-handover.svelte', token: 'tracking-[0.3em]' }
+	{ label: 'lib/organization/setup/component/connect-screen.svelte', token: 'tracking-[0.3em]' },
+	{ label: 'lib/organization/member/component/link-handover.svelte', token: 'tracking-[0.3em]' }
 ];
 
 describe('the type scale', () => {

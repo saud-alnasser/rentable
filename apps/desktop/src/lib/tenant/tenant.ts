@@ -1,3 +1,6 @@
+import type { ContributedRead } from '$lib/feature/surface';
+import type { RecordKind } from '$lib/permission';
+import type { Contract } from '$lib/platform/database/schema';
 import { refuse } from '$lib/api/refusal';
 import z from 'zod';
 
@@ -10,6 +13,12 @@ import z from 'zod';
  * distinguished by leading digit — `identity` names the broader concept, never one of its
  * two forms.
  */
+
+/**
+ * The kind of record a tenant is, as its declaration names it: what a feature depending on the
+ * tenant asks the reader's permissions about, rather than spelling the kind itself.
+ */
+export const TENANT_KIND = 'tenant' satisfies RecordKind;
 
 export const identity = /^[12]\d{9}$/;
 export const phone = /^(\+9665)(5|0|3|6|4|9|1|8|7)([0-9]{7})$/;
@@ -37,17 +46,21 @@ export type TenantSortColumnId = (typeof TENANT_SORT_COLUMN_IDS)[number];
 export const identityField = (message: string) => z.string().trim().regex(identity, message);
 
 /**
- * Every refusal a tenant rule or procedure raises, by code. The sentences are the interface's,
- * under `common.refusals.tenant`; see `$lib/api/refusal`.
+ * A tenant as the routers take it in. The table is `tenant` in `$lib/platform/database/schema`;
+ * this is kept here because it is built from the validators above, and the platform imports no
+ * feature. `ASCII_ONLY_COLUMNS` in that schema holds only while these two fields refuse an
+ * Arabic-Indic digit.
  */
-export type TenantRefusalCode =
-	| 'tenant.nationalIdTaken'
-	| 'tenant.nationalIdTakenNamed'
-	| 'tenant.phoneTaken'
-	| 'tenant.phoneTakenNamed'
-	| 'tenant.gone'
-	| 'tenant.holdsContracts'
-	| 'tenant.repeatedInSet';
+export const TenantSchema = z.object({
+	id: z.string(),
+	name: z.string(),
+	nationalId: identityField(
+		'national identity number must start with 1 or 2; and be 10 digits long'
+	),
+	phone: z.string().regex(phone, 'phone must start with +966; and be 10 digits long')
+});
+
+export type Tenant = z.infer<typeof TenantSchema>;
 
 /**
  * the router passes whatever row its uniqueness query found; any row is a conflict.
@@ -130,3 +143,37 @@ export type TenantRefusalReason = 'holds-contracts' | 'missing';
  */
 export const whatRefusesTenantDeletion = (contracts: unknown[]) =>
 	isTenantDeletable(contracts) ? undefined : ('holds-contracts' as const);
+
+/**
+ * What the tenant's router needs of the contracts naming it, contributed by the contract, which
+ * depends on the tenant rather than the other way round (`$lib/feature/feature`, under *What a
+ * feature contributes*).
+ */
+export type TenantContributions = {
+	/**
+	 * the statuses of a contract in force, which is what the reader means by a tenant's contracts
+	 * when they order the directory by them.
+	 */
+	inForceStatuses: readonly Contract['status'][];
+};
+
+/** What the tenant's pages, host and acts need of the contracts naming it, in the window. */
+export type TenantSurfaceContributions = {
+	/**
+	 * every status a contract can hold, in the order the contracts directory ranks them: the order
+	 * a directory row draws its six figures in.
+	 */
+	attentionOrder: readonly Contract['status'][];
+	/** whether the reader may see contracts at all, and so the counts a row carries of them. */
+	viewsContracts: () => boolean;
+	/**
+	 * every contract naming the tenant, read only while `enabled` says so: what refuses its
+	 * deletion ({@link isTenantDeletable}).
+	 */
+	useHeldContracts: (
+		tenantId: () => string | undefined,
+		enabled: () => boolean
+	) => ContributedRead<unknown[]>;
+	/** open a new contract on the tenant. */
+	newContract: (tenantId: string) => void;
+};

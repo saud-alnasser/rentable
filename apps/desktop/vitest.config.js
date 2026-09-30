@@ -27,7 +27,9 @@ export default defineConfig({
 		// what calls its `setup()`. Tests still import `test` and `expect` explicitly.
 		globals: true,
 		environment: 'jsdom',
-		setupFiles: ['./src/tests/setup.ts'],
+		// the one the package loads: bits-ui's deferred body-scroll restore, let run before jsdom is
+		// torn down. `@rentable/testing/setup` says which timer and why.
+		setupFiles: ['@rentable/testing/setup'],
 		// **`.svelte.test.ts`, and the segment is what keeps the two runners apart.** The `test`
 		// script hands `node:test` an extglob that excludes exactly this shape. A `node:test` file
 		// collected here does not fail cleanly: it reports `No test suite found in file` and a

@@ -3,8 +3,8 @@ import { beforeEach, describe, it, mock } from 'node:test';
 
 import type { CreateMutationResult } from '@tanstack/svelte-query';
 
-import { type Api, createApi, monthsFromNow, seedTenant } from '$lib/api/tests/testing.ts';
-import { bindingOf } from '$lib/design/tests/testing.ts';
+import { type Api, createApi, monthsFromNow, seedTenant } from '$lib/app/tests/testing.ts';
+import { bindingOf } from '#tests/mutation.ts';
 import { AWAITING_BLOCKERS } from '@rentable/design/confirmation.js';
 
 /**
@@ -15,7 +15,7 @@ import { AWAITING_BLOCKERS } from '@rentable/design/confirmation.js';
  * the announcement and the control on it, rather than through the undo stack underneath: the
  * toast is substituted to keep what it was asked to render, and its control is pressed.
  *
- * The procedures are real, over the in-memory database `api/tests/testing.ts` builds, the way
+ * The procedures are real, over the in-memory database `app/tests/testing.ts` builds, the way
  * `api/tests/undo.test.ts` drives them. Nothing here reaches a workspace on disk or a remote.
  *
  * What a host does with a delete is read here too, as the pure step every host asks
@@ -64,8 +64,8 @@ mock.module('svelte-sonner', {
 	}
 });
 
-mock.module('$lib/platform/tauri', {
-	exports: { tauri: { remoteSync: { getState: async () => ({}) } } }
+mock.module('$lib/sync/tauri', {
+	exports: { tauri: { getState: async () => ({}) } }
 });
 
 // the acts' glyphs are Svelte components, which this runner cannot load. Only what an act
@@ -94,22 +94,28 @@ for (const glyph of [
 	mock.module(`@lucide/svelte/icons/${glyph}`, { exports: { default: () => {} } });
 }
 
-const { inverseStack } = await import('$lib/design/inverse');
-const { toDeleteStep } = await import('$lib/design/acts');
+const { inverseStack } = await import('$lib/undo/undo');
+const { toDeleteStep } = await import('$lib/act');
 const { useDeleteTenant } = await import('$lib/tenant/query');
-const { useCreateComplex, useCreateUnit, useDeleteUnit } = await import('$lib/complex/query');
+const { useCreateComplex, useDeleteComplex } = await import('$lib/complex/query');
+const { useCreateUnit, useDeleteUnit } = await import('$lib/complex/unit/query');
 const { useCreateContract, useDeleteContract } = await import('$lib/contract/query');
 const { useCreatePayment, useDeletePayment } = await import('$lib/payment/query');
 const { declareTenantActs } = await import('$lib/tenant/acts');
-const { declareComplexActs } = await import('$lib/complex/acts');
+const { declareComplexActs, toComplexDeleteConfirmation } = await import('$lib/complex/acts');
 const { declareUnitActs } = await import('$lib/complex/unit/acts');
 const { declarePaymentActs } = await import('$lib/payment/acts');
 const { declareContractActs } = await import('$lib/contract/acts');
-const { declareMemberActs, declareRoleActs, declareWorkspaceActs } =
-	await import('$lib/organization/acts');
+const { declareMemberActs } = await import('$lib/organization/member/acts');
+const { declareRoleActs } = await import('$lib/organization/role/acts');
+const { declareWorkspaceActs } = await import('$lib/organization/workspace/acts');
 const { loadLocale } = await import('$lib/i18n/i18n-util.sync');
 const { LL, setLocale } = await import('$lib/i18n/i18n-svelte');
 const { get } = await import('svelte/store');
+
+// the cache policy the root layout provides, built from the features' declarations: a settled
+// mutation invalidates by it.
+await import('$lib/app/cache');
 
 loadLocale('en');
 setLocale('en');
@@ -188,10 +194,10 @@ describe('an ordinary delete runs at once and offers undo', () => {
 		});
 
 		await run(useDeletePayment, payment.id);
-		assert.equal(await caller.contract.payments.get({ id: payment.id }), undefined);
+		assert.equal(await caller.payment.get({ id: payment.id }), undefined);
 
 		await pressUndo(deleteAnnouncement());
-		assert.equal((await caller.contract.payments.get({ id: payment.id }))?.amount, 1000);
+		assert.equal((await caller.payment.get({ id: payment.id }))?.amount, 1000);
 	});
 
 	it('puts back a contract with no payments', async () => {
@@ -237,6 +243,68 @@ describe('an ordinary delete runs at once and offers undo', () => {
 			[unit.id]
 		);
 		assert.equal((await caller.complex.units.get({ id: unit.id }))?.status, 'occupied');
+	});
+
+	// effort 840, requirement 22: it asks first, and is undone whole all the same.
+	it('puts back a complex deleted with its units, each unit as it was', async () => {
+		const complex = await run(useCreateComplex, {
+			name: 'Tower',
+			location: 'Riyadh',
+			units: [{ name: 'A1' }, { name: 'A2' }]
+		});
+		const units = await caller.complex.units.getMany({ complexId: complex.id });
+
+		await run(useDeleteComplex, complex.id);
+		assert.equal(await caller.complex.get({ id: complex.id }), undefined);
+		assert.deepEqual(await caller.complex.units.getMany({ complexId: complex.id }), []);
+
+		await pressUndo(deleteAnnouncement());
+		assert.equal((await caller.complex.get({ id: complex.id }))?.name, 'Tower');
+		assert.deepEqual(await caller.complex.units.getMany({ complexId: complex.id }), units);
+	});
+
+	// a unit another device added is taken by the next deletion and put back by the next undo, so
+	// neither direction loses it.
+	it('takes back and puts back a unit added after a complex was deleted and restored', async () => {
+		const complex = await run(useCreateComplex, {
+			name: 'Tower',
+			location: 'Riyadh',
+			units: [{ name: 'A1' }, { name: 'A2' }]
+		});
+
+		await run(useDeleteComplex, complex.id);
+		await inverseStack.undo();
+		await caller.complex.units.create({ name: 'A3', complexId: complex.id });
+
+		const units = await caller.complex.units.getMany({ complexId: complex.id });
+
+		assert.equal(units.length, 3);
+
+		await inverseStack.redo();
+		assert.deepEqual(await caller.complex.units.getMany({ complexId: complex.id }), []);
+
+		await inverseStack.undo();
+		assert.deepEqual(await caller.complex.units.getMany({ complexId: complex.id }), units);
+	});
+
+	it('undoes a creation whole, and redoing it brings back every unit it took', async () => {
+		const complex = await run(useCreateComplex, {
+			name: 'Tower',
+			location: 'Riyadh',
+			units: [{ name: 'A1' }]
+		});
+
+		// another device adds a unit before the creation is taken back.
+		await caller.complex.units.create({ name: 'A2', complexId: complex.id });
+		const units = await caller.complex.units.getMany({ complexId: complex.id });
+
+		await inverseStack.undo();
+		assert.equal(await caller.complex.get({ id: complex.id }), undefined);
+		assert.deepEqual(await caller.complex.units.getMany({ complexId: complex.id }), []);
+
+		await inverseStack.redo();
+		assert.equal((await caller.complex.get({ id: complex.id }))?.name, 'Tower');
+		assert.deepEqual(await caller.complex.units.getMany({ complexId: complex.id }), units);
 	});
 
 	it('still refuses a tenant with contracts, and deletes nothing', async () => {
@@ -314,6 +382,17 @@ describe('what each concept declares about asking', () => {
 		assert.equal(policyOf(declared.unit, 'unit.delete'), 'none');
 		assert.equal(policyOf(declared.payment, 'payment.delete'), 'none');
 		assert.equal(policyOf(declared.contract, 'contract.delete'), 'none');
+	});
+
+	// effort 840, requirement 22: its units go with it, so it removes more than the record.
+	it('a complex whose units go with it cascades, and one with none does not', () => {
+		const declaredPolicy = declared.complex.find(
+			(act) => act.id === 'complex.delete'
+		)?.confirmation;
+
+		assert.equal(toComplexDeleteConfirmation(declaredPolicy, 0), 'none');
+		assert.equal(toComplexDeleteConfirmation(declaredPolicy, 3), 'cascade');
+		assert.equal(toDeleteStep(toComplexDeleteConfirmation(declaredPolicy, 3), []), 'ask');
 	});
 
 	it('what nothing puts back asks first: a workspace, a member removed, and a role deleted', () => {

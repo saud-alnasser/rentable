@@ -6,7 +6,7 @@ import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import OrganizationMark from '$lib/organization/component/mark.svelte';
-import QueryProviders from '#tests/query-providers.svelte';
+import Providers from '#tests/providers.svelte';
 
 /**
  * THE ORGANIZATION'S SIGNATURE OR SEAL, IN SETTINGS
@@ -34,22 +34,30 @@ vi.mock('$lib/platform/tauri', () => ({
 // the mark goes through the router's procedures gated on `manageMark`, which hand it to the host.
 vi.mock('$lib/api/caller', () => ({
 	default: {
-		app: {
-			organization: {
-				mark: {
-					get: () => host.markGet(),
-					set: ({ path }: { path: string }) => host.markSet(path),
-					clear: () => host.markClear()
-				}
+		organization: {
+			mark: {
+				get: () => host.markGet(),
+				set: ({ path }: { path: string }) => host.markSet(path),
+				clear: () => host.markClear()
 			}
 		}
 	}
 }));
 
-vi.mock('$lib/design/mutation', async (original) => ({
-	...(await original<Record<string, unknown>>()),
-	onMutationError: (_: unknown, error: unknown) => host.errors.push(error)
-}));
+// the refusal reaches the mutation capability's shared handler, which turns it into the reader's
+// sentence here; what it was handed is what is read.
+vi.mock('$lib/error/refusal', async (original) => {
+	const refusal = await original<typeof import('$lib/error/refusal')>();
+
+	return {
+		...refusal,
+		toRefusalText: (...args: Parameters<typeof refusal.toRefusalText>) => {
+			host.errors.push(args[0]);
+
+			return refusal.toRefusalText(...args);
+		}
+	};
+});
 
 const MARK = { mediaType: 'image/png', data: 'iVBORw0K' };
 
@@ -68,7 +76,7 @@ const shown = (setsMark: boolean) =>
 	render(
 		OrganizationMark,
 		{ setsMark },
-		{ wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' } }
+		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } }
 	);
 
 const image = () =>

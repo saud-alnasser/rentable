@@ -1,7 +1,11 @@
 ---
 paths:
+  - apps/desktop/tauri/src/credential/**
+  - apps/desktop/tauri/src/machine/**
   - apps/desktop/tauri/src/sync/**
+  - apps/desktop/tauri/src/turso/**
   - apps/desktop/tauri/src/organization/**
+  - apps/desktop/tauri/src/upgrade/**
   - apps/desktop/src/lib/sync/**
   - apps/desktop/src/lib/organization/**
 use-when: "a credential this application holds is being stored, refreshed, or handed to somebody"
@@ -29,7 +33,7 @@ had.*
 >
 > **One section of it is still a rule.** *Client
 > boundary* was never Drive's alone — decision 09 widened it to every credential this application
-> holds — and `sync/oauth/` still holds the protocol half, which the Turso consent drives.
+> holds — and `turso/oauth/` (`sync/oauth/` until effort 840) still holds the protocol half, which the Turso consent drives.
 > *`sync/google/` held Google's until Google sign-in retired with the control plane on 2026-09-12.*
 > The other two sections describe code that no longer exists and are marked as retired where they
 > stand.
@@ -46,6 +50,16 @@ token until both retired on 2026-09-12.*
 
 *Why: the credential boundary and the network boundary have to be the same boundary — where they
 differ, the gap is exactly what an incident occupies.*
+
+**Where a credential is kept, it is kept through `credential/`, and that module is private to the
+crate.** `credential::CredentialStore` is a port with two adapters: `Os`, the operating system's
+store, which `lib.rs` manages at launch before any plugin, and `Memory`, which each test builds
+for itself. A command that files, reads or forgets a credential takes the store as managed state
+(`tauri::State<Credentials>`) and hands it down; it never hands back what the store answered. The
+trait is `pub(crate)`, so a command that takes it is `pub(crate)` too, and nothing outside the
+crate can name it. Service names, account names and what is filed under them are data on installed
+machines and do not change with the code that reaches them. *It was `keyring.rs`, with a
+process-wide fake swapped in by `cfg(test)`, until effort 840 (ticket 44).*
 
 **Widened 2026-08-18** ([[efforts/a-workspace-follows-its-user/spec]], decision 09): this is the rule for **every**
 credential this application holds, not Drive's alone. The workspace's sync token is a credential
@@ -104,7 +118,8 @@ invitation code crossed out of `invitation_code` until 2026-09-15; there is one 
 so it crosses out of `member_invite`, `member_reset` and `invitation_link`, and a fresh code means
 a fresh link. Corrected 2026-09-16 (requirements 19 and 20): those three commands are gone, and a
 code crosses out of `member_link_make` alone, which is the one act that makes a link. Nothing hands
-a link over a second time, so nothing reads a code back out of a row.*
+a link over a second time, so nothing reads a code back out of a row. Renamed 2026-09-29 (effort
+840): that act is `invitation_link_make` on the organization plugin, and nothing else changed.*
 
 *Corrected 2026-09-16 ([[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]],
 requirement 16, which supersedes requirement 4): **no link carries a legible credential, and the

@@ -1,4 +1,4 @@
-import { identityField, phone } from '$lib/tenant/tenant';
+import { RECORD_KINDS } from '@rentable/workspace-permission';
 import { relations, type AnyColumn } from 'drizzle-orm';
 import { index, integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import z from 'zod';
@@ -12,21 +12,10 @@ export const tenant = sqliteTable('tenant', {
 	phone: text('phone').unique().notNull()
 });
 
-export const TenantSchema = z.object({
-	id: z.string(),
-	name: z.string(),
-	nationalId: identityField(
-		'national identity number must start with 1 or 2; and be 10 digits long'
-	),
-	phone: z.string().regex(phone, 'phone must start with +966; and be 10 digits long')
-});
-
-export type Tenant = z.infer<typeof TenantSchema>;
-
 /**
  * The text columns whose stored side cannot hold a character search folding would change,
- * declared here because only the schema knows — and placed beside the schema above, which is
- * what makes it true: `identityField` anchors to `[12]\d{9}` and the phone pattern to
+ * declared here because only the schema knows. What makes it true is `TenantSchema`, in
+ * `$lib/tenant/tenant`: `identityField` anchors to `[12]\d{9}` and the phone pattern to
  * `\+9665…[0-9]{7}`, and neither `\d` nor `[0-9]` matches an Arabic-Indic digit. A value that
  * would fold differently is refused on the way in, so folding these on read compares a column
  * against itself.
@@ -218,12 +207,26 @@ export const paymentRelations = relations(payment, ({ one }) => ({
  * *is* frozen, deliberately — it is what the record was called when the thing happened, and it
  * is the only way a deletion still reads afterwards.
  */
+/**
+ * The values the `concept` column holds: the permission package's `RECORD_KINDS`, read off that
+ * list rather than spelled again, so `HistoryConcept` and the column name the same kinds.
+ *
+ * **Data at rest.** The stored strings are those five and never change spelling; their order in
+ * this tuple is stored nowhere (the column is plain text, with no check constraint), so it is only
+ * the order of the TypeScript union. The cast is the one place a list typed as an array is made
+ * the non-empty tuple drizzle and zod take an enum as.
+ */
+const HISTORY_CONCEPTS = RECORD_KINDS as [
+	(typeof RECORD_KINDS)[number],
+	...(typeof RECORD_KINDS)[number][]
+];
+
 export const history = sqliteTable('history', {
 	id: text('id').primaryKey().unique(),
 	at: integer('at', { mode: 'timestamp_ms' }).notNull(),
 	/** which kind of record it happened to, so a surface can ask for its own. */
 	concept: text('concept', {
-		enum: ['tenant', 'complex', 'unit', 'contract', 'payment']
+		enum: HISTORY_CONCEPTS
 	}).notNull(),
 	recordId: text('record_id').notNull(),
 	/** the key the entry renders under, from the vocabulary undo already names changes with. */
@@ -235,7 +238,7 @@ export const history = sqliteTable('history', {
 export const HistorySchema = z.object({
 	id: z.string(),
 	at: z.number(),
-	concept: z.enum(['tenant', 'complex', 'unit', 'contract', 'payment']),
+	concept: z.enum(HISTORY_CONCEPTS),
 	recordId: z.string(),
 	action: z.string(),
 	record: z.string()

@@ -32,11 +32,16 @@ const ALLOWED: readonly { label: string; most: number; reason: string }[] = [
 	{ label: 'lib/complex/unit/component/form.svelte', most: 1, reason: 'the submit verb' },
 	{ label: 'lib/tenant/component/form.svelte', most: 1, reason: 'the submit verb' },
 	{ label: 'lib/payment/component/form.svelte', most: 1, reason: 'the submit verb' },
-	{ label: 'lib/workspace/component/rename-form.svelte', most: 1, reason: 'the submit verb' },
 	{
-		label: 'lib/contract/component/form.svelte',
-		most: 2,
-		reason: 'the interval names ("monthly", "semi-annual") and the submit verb'
+		label: 'lib/organization/workspace/component/rename-form.svelte',
+		most: 1,
+		reason: 'the submit verb'
+	},
+	{ label: 'lib/contract/component/form.svelte', most: 1, reason: 'the submit verb' },
+	{
+		label: 'lib/contract/component/interval-field.svelte',
+		most: 1,
+		reason: 'the interval names ("monthly", "semi-annual")'
 	},
 	{
 		label: 'lib/dashboard/component/landing.svelte',
@@ -48,11 +53,6 @@ const ALLOWED: readonly { label: string; most: number; reason: string }[] = [
 		most: 1,
 		reason: 'a rank heading: "overdue", "owing" or "ending soon"'
 	},
-	{
-		label: 'lib/design/block/list.svelte',
-		most: 4,
-		reason: 'a filter’s name and options (rank and period), and the "export" and "import" rows'
-	},
 	{ label: 'lib/design/cell/status.svelte', most: 1, reason: 'a status name, one word' },
 	{
 		label: 'lib/history/component/record-history.svelte',
@@ -60,27 +60,37 @@ const ALLOWED: readonly { label: string; most: number; reason: string }[] = [
 		reason: 'what happened to the record: "created", "units changed", "restored"'
 	},
 	{
-		label: 'lib/layout/component/account-menu.svelte',
+		label: 'lib/list/component/filter-menu.svelte',
+		most: 2,
+		reason: 'a filter’s name and options (rank and period)'
+	},
+	{
+		label: 'lib/list/component/transfer-menu.svelte',
+		most: 2,
+		reason: 'the "export" and "import" rows'
+	},
+	{
+		label: 'lib/organization/session/component/account-menu.svelte',
 		most: 2,
 		reason: '"settings" and "sign out"'
 	},
 	{
-		label: 'lib/layout/component/account-signed-out.svelte',
+		label: 'lib/organization/session/component/account-signed-out.svelte',
 		most: 2,
 		reason: '"sign in" and "settings"'
 	},
 	{
-		label: 'lib/layout/component/breadcrumb.svelte',
+		label: 'lib/shell/component/breadcrumb.svelte',
 		most: 2,
 		reason: 'a place’s name from the route, never a record’s'
 	},
-	{ label: 'lib/layout/component/frame.svelte', most: 1, reason: '"search"' },
+	{ label: 'lib/shell/component/frame.svelte', most: 1, reason: '"search"' },
 	{
-		label: 'lib/layout/component/sidebar.svelte',
+		label: 'lib/shell/component/sidebar.svelte',
 		most: 2,
 		reason: 'the navigation’s place names, one word each'
 	},
-	{ label: 'lib/layout/component/workspace-menu.svelte', most: 1, reason: '"workspaces"' },
+	{ label: 'lib/workspace/component/menu.svelte', most: 1, reason: '"workspaces"' },
 	{
 		label: 'lib/settings/component/appearance.svelte',
 		most: 1,
@@ -92,7 +102,7 @@ const ALLOWED: readonly { label: string; most: number; reason: string }[] = [
 		reason: 'the language names, which are the locale metadata’s'
 	},
 	{
-		label: 'lib/workspace/component/import-dialog.svelte',
+		label: 'lib/transfer/component/import-dialog.svelte',
 		most: 1,
 		reason: 'a concept’s name, "tenants" or "contracts"'
 	}

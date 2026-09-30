@@ -61,7 +61,9 @@ pub enum Error {
     Network { message: String },
     /// a database operation failed.
     Database { message: String },
-    /// a credential-store (keyring) operation failed.
+    /// a credential failed: the credential store (the keyring) would not keep or give one, or the
+    /// remote no longer accepts the one this machine holds, which is how a replication refused over
+    /// its credential is read (`turso::platform::read_sync_refusal`).
     Credential { message: String },
     /// an internal invariant broke; not actionable by the user.
     Internal { message: String },
@@ -76,6 +78,8 @@ pub enum Error {
 ///
 /// **A word, and no values.** A sentence that needs a name says it without one: the reader is
 /// looking at what they tried to act on, and the name sits in `message` for whoever reads a log.
+/// The one variant holding anything is [`RefusalReason::NeedsViewing`], whose kind of record is
+/// part of its word rather than a value beside it, so it crosses as one word like the rest.
 ///
 /// The first four are a link's standing after its code was right (effort 828): an invitation is
 /// `Lapsed`, `Consumed` or `Revoked`, and a machine link is `Lapsed`, `Consumed` or `Replaced`.
@@ -181,18 +185,6 @@ pub enum RefusalReason {
     NoRankBelow,
     /// the owner's role is not assigned; the owner hands the organization over.
     OwnerRoleNotAssigned,
-    /// a role or a member's permissions would add, edit or delete complexes without viewing them
-    /// (effort 838, requirement 6 as amended 2026-09-27). One word per kind of record, so the
-    /// sentence names the kind in the reader's language.
-    ComplexNeedsViewing,
-    /// the same, for units.
-    UnitNeedsViewing,
-    /// the same, for tenants.
-    TenantNeedsViewing,
-    /// the same, for contracts.
-    ContractNeedsViewing,
-    /// the same, for payments.
-    PaymentNeedsViewing,
     /// a member's override for one workspace names a flag that is not a record flag: a workspace
     /// changes only what may be done to its records (effort 838, requirement 12 as amended a third
     /// time).
@@ -294,6 +286,27 @@ pub enum RefusalReason {
     MarkTooLarge,
     /// the file is not a PNG, JPEG or WebP image.
     MarkNotAnImage,
+
+    // roles, per kind of record (effort 838, requirement 6 as amended 2026-09-27).
+    /// a role or a member's permissions would add, edit or delete one kind of record without
+    /// viewing it. One word per kind, so the sentence names the kind in the reader's language:
+    /// `complexNeedsViewing`, `unitNeedsViewing` and so on, spelled from the kind's name as
+    /// `Family::name` gives it (`organization::role::permission`), so a kind added there has its
+    /// word without one added here. `TAURI_REFUSAL_REASONS` spells it from the package's
+    /// `RECORD_KINDS` the same way.
+    ///
+    /// **Untagged, and so last**: serde writes it through [`needs_viewing`] as the one word the
+    /// rest are, rather than as an object naming the variant.
+    #[serde(untagged, serialize_with = "needs_viewing")]
+    NeedsViewing(&'static str),
+}
+
+/// the word [`RefusalReason::NeedsViewing`] crosses as: the kind's name, then `NeedsViewing`.
+fn needs_viewing<S: serde::Serializer>(
+    kind: &&'static str,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    serializer.collect_str(&format_args!("{kind}NeedsViewing"))
 }
 
 impl Error {
@@ -304,36 +317,6 @@ impl Error {
             reason,
             message: message.into(),
         }
-    }
-
-    /// extend the rendering, keeping the discriminant. A failure met while
-    /// recovering from another one is context on the original — the caller
-    /// still has to branch on what went wrong first.
-    pub fn with_context(mut self, addition: &str) -> Self {
-        let message = self.message_mut();
-        *message = format!("{}; additionally {}", message, addition);
-
-        self
-    }
-
-    fn message_mut(&mut self) -> &mut String {
-        let (Self::NotConfigured { message }
-        | Self::InvalidInput { message }
-        | Self::NotFound { message }
-        | Self::Forbidden { message }
-        | Self::Refused { message, .. }
-        | Self::PreconditionFailed { message }
-        | Self::Busy { message }
-        | Self::TimedOut { message }
-        | Self::Cancelled { message }
-        | Self::Integrity { message }
-        | Self::Io { message }
-        | Self::Network { message }
-        | Self::Database { message }
-        | Self::Credential { message }
-        | Self::Internal { message }) = self;
-
-        message
     }
 }
 
@@ -372,6 +355,17 @@ impl From<std::io::Error> for Error {
 impl From<sqlx::Error> for Error {
     fn from(error: sqlx::Error) -> Self {
         Self::Database {
+            message: error.to_string(),
+        }
+    }
+}
+
+/// **A shell operation failing is never something the user can act on**: a window shown, moved or
+/// closed, a print window built, a webview reached. The shell either honoured the request or it did
+/// not.
+impl From<tauri::Error> for Error {
+    fn from(error: tauri::Error) -> Self {
+        Self::Internal {
             message: error.to_string(),
         }
     }
@@ -510,6 +504,37 @@ mod tests {
         }
     }
 
+    /// a kind of record's refusal of a write without its view crosses as the one word it did when
+    /// each kind was a variant of its own (effort 840, ticket 63): the kind's name, then
+    /// `NeedsViewing`.
+    #[test]
+    fn a_kind_needing_viewing_is_one_word_spelled_from_the_kind() {
+        let reasons = [
+            ("complex", "complexNeedsViewing"),
+            ("unit", "unitNeedsViewing"),
+            ("tenant", "tenantNeedsViewing"),
+            ("contract", "contractNeedsViewing"),
+            ("payment", "paymentNeedsViewing"),
+        ];
+
+        for (kind, spelling) in reasons {
+            let error = Error::refused(
+                RefusalReason::NeedsViewing(kind),
+                "a developer's description",
+            );
+
+            assert_eq!(
+                serde_json::to_value(&error).expect("failed to serialize error"),
+                serde_json::json!({
+                    "code": "refused",
+                    "reason": spelling,
+                    "message": "a developer's description"
+                }),
+                "unexpected wire shape for {spelling}"
+            );
+        }
+    }
+
     /// The four variants a refusal used to cross as, before it carried a reason.
     const REASONLESS_REFUSALS: [&str; 4] = [
         "Error::Forbidden",
@@ -598,22 +623,6 @@ mod tests {
     }
 
     #[test]
-    fn context_extends_the_message_and_keeps_the_discriminant() {
-        let error = Error::Io {
-            message: "permission denied".to_string(),
-        }
-        .with_context("failed to write the recovery record");
-
-        assert_eq!(
-            error,
-            Error::Io {
-                message: "permission denied; additionally failed to write the recovery record"
-                    .to_string()
-            }
-        );
-    }
-
-    #[test]
     fn io_errors_become_io_with_the_underlying_message() {
         let source = std::io::Error::new(std::io::ErrorKind::NotFound, "no such file");
 
@@ -633,6 +642,19 @@ mod tests {
             Error::from(source),
             Error::Database {
                 message: sqlx::Error::RowNotFound.to_string()
+            }
+        );
+    }
+
+    /// a window or a webview the shell could not reach reads as the shell's own failure, with its
+    /// words as they were: what `window/` and `print/` each wrote out by hand until effort 840
+    /// (ticket 47).
+    #[test]
+    fn shell_errors_become_internal_with_the_underlying_message() {
+        assert_eq!(
+            Error::from(tauri::Error::WindowNotFound),
+            Error::Internal {
+                message: tauri::Error::WindowNotFound.to_string()
             }
         );
     }

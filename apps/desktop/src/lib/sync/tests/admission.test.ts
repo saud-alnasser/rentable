@@ -5,7 +5,7 @@ import {
 	fakeHeldOrganization,
 	fakeOrganizationSession,
 	fakeOrganizationState
-} from '$lib/platform/tests/testing.ts';
+} from '$lib/organization/tests/testing.ts';
 import { organizationAdmission } from '$lib/sync/admission';
 
 /**

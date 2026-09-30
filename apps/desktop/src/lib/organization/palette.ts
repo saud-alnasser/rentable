@@ -1,19 +1,21 @@
-import { toPaletteActs, toPaletteVerbs, type PaletteAct, type RecordAct } from '$lib/design/acts';
-import { showErrorSentence } from '$lib/error/toast';
+import { toPaletteActs, toPaletteVerbs, type PaletteAct, type RecordAct } from '$lib/act';
+import { showErrorSentence } from '$lib/notification';
 import { LL } from '$lib/i18n/i18n-svelte';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
-import type { PaletteMatch, RecordSearch } from '$lib/layout/palette';
+import type { PaletteMatch, RecordSearch } from '$lib/palette';
 import {
 	memberReaderOf,
 	toMemberActContext,
-	workspaceContextOf,
 	type MemberActId,
-	type MemberActRecord,
+	type MemberActRecord
+} from '$lib/organization/member/acts';
+import {
+	workspaceContextOf,
 	type WorkspaceActId,
 	type WorkspaceActRecord
-} from '$lib/organization/acts';
+} from '$lib/organization/workspace/acts';
 import { toMemberDirectory, toWorkspaceDirectory } from '$lib/organization/directory';
-import { memberRoleName } from '$lib/organization/role';
+import { memberRoleName } from '$lib/organization/role/role';
 import {
 	memberActs,
 	memberHost,
@@ -21,13 +23,11 @@ import {
 	workspaceActs,
 	workspaceHost
 } from '$lib/organization/host.svelte';
-import {
-	useFetchMemberStandings,
-	useFetchMembers,
-	useFetchOrganizationState
-} from '$lib/organization/query';
-import { useFetchRemoteSyncState } from '$lib/settings/query';
+import { useFetchMemberStandings, useFetchMembers } from '$lib/organization/member/query';
+import { useFetchOrganizationState } from '$lib/organization/query';
+import { useFetchRemoteSyncState } from '$lib/sync/ui';
 import { usesAppleKeyboard } from '@rentable/design/shortcut.js';
+import { getContext, hasContext, setContext } from 'svelte';
 import { get } from 'svelte/store';
 
 /**
@@ -35,10 +35,11 @@ import { get } from 'svelte/store';
  *
  * What the command menu offers of a member's and a workspace's acts, and how it runs one on the
  * record the reader names. The acts are the lists the settings directories draw
- * (`organization/acts.ts`); what is here is where the menu reads the facts they are gated on.
+ * (`member/acts.ts` and `workspace/acts.ts`); what is here is where the menu reads the facts they
+ * are gated on.
  *
  * **The gates are read by the builders the directories read them by** (`memberReaderOf`,
- * `toMemberActContext`, `workspaceContextOf`), from the same queries the settings route reads, so
+ * `toMemberActContext`, `workspaceContextOf`), from the same queries the settings sections read, so
  * the menu cannot offer an act a card does not. Every gate is today's, and Rust refuses each act
  * again on the signed row. An act a card draws refused on every record, as *who is in a workspace*
  * is to a reader without `grantWorkspace`, is not offered: it could never run from here, and
@@ -74,7 +75,7 @@ type Described<T> = {
 	run: (actId: string, record: T) => boolean;
 };
 
-/** whether an act applies to a record, as every projection in `design/acts.ts` reads it. */
+/** whether an act applies to a record, as every projection in `act/act.ts` reads it. */
 const applies = <T>(act: RecordAct<T>, record: T) => act.appliesTo?.(record) ?? true;
 
 /**
@@ -165,14 +166,32 @@ function offering<T>(
 	};
 }
 
+/** where the menu holds the offerings it read, for the rest of its declarations to share. */
+const OFFERINGS = Symbol('organization offerings');
+
 /**
  * The member and workspace acts, as the command menu offers them.
  *
  * A hook: it reads the session, the members, where each stands and the workspace open here, and
  * the three that only an act needs are read only while `enabled` says so, which is while the menu
- * is open. They are the settings route's own queries, so an open menu reads their cache.
+ * is open. They are the settings sections' own queries, so an open menu reads their cache.
+ *
+ * **Read once per menu.** The organization's search entries and act entries are each a hook the
+ * menu calls as it mounts (`organization/surface.ts`), and all four answer from these reads, so
+ * the first call holds them in the menu's context and every later one is handed the same.
  */
-export function useOrganizationOfferings(enabled: () => boolean) {
+export function useOrganizationOfferings(enabled: () => boolean): OrganizationOfferings {
+	if (hasContext(OFFERINGS)) {
+		return getContext<OrganizationOfferings>(OFFERINGS);
+	}
+
+	return setContext(OFFERINGS, readOrganizationOfferings(enabled));
+}
+
+/** what the menu offers of the two, by which one. */
+type OrganizationOfferings = { member: OrganizationOffering; workspace: OrganizationOffering };
+
+function readOrganizationOfferings(enabled: () => boolean): OrganizationOfferings {
 	const stateQuery = useFetchOrganizationState();
 	const membersQuery = useFetchMembers(enabled);
 	const standingsQuery = useFetchMemberStandings(enabled);

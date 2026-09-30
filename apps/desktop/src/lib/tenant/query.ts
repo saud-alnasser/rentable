@@ -1,8 +1,8 @@
 import api from '$lib/api/caller';
-import { declareMutation, describeOutcomeChange } from '$lib/design/mutation';
+import { prefixOf } from '$lib/mutation';
+import { declareMutation, describeOutcomeChange } from '$lib/mutation/ui';
 import type { SelectionCall } from '@rentable/design/selection.js';
-import type { HistoryEntry } from '$lib/history/history';
-import { workspacePrefixes } from '$lib/design/query';
+import type { HistoryEntry } from '$lib/history';
 import type { ListSort } from '@rentable/design/sort.js';
 import { TENANT_SORT_COLUMN_IDS, type TenantSortColumnId } from '$lib/tenant/tenant';
 import { LL } from '$lib/i18n/i18n-svelte';
@@ -21,28 +21,26 @@ type FetchTenantParams = {
 };
 
 export const keys = {
-	all: workspacePrefixes.tenants,
-	get: (id: string) => [...workspacePrefixes.tenants, 'detail', id],
+	get all() {
+		return prefixOf('tenant');
+	},
+	get: (id: string) => [...prefixOf('tenant'), 'detail', id],
 	getMany: (search?: string, limit?: number) => [
-		...workspacePrefixes.tenants,
+		...prefixOf('tenant'),
 		'list',
 		search ?? '',
 		limit ?? 'all'
 	],
 	list: (search: string, sort: ListSort | null) => [
-		...workspacePrefixes.tenants,
+		...prefixOf('tenant'),
 		'list',
 		search,
 		sort ? `${sort.columnId}:${sort.direction}` : 'default'
 	],
 	// the selection itself, sorted: the same set assembled in a different order is the same
 	// question, and two cache entries for it would ask the workspace twice.
-	plan: (ids: readonly string[]) => [
-		...workspacePrefixes.tenants,
-		'plan',
-		[...ids].sort().join(',')
-	],
-	search: (term: string) => [...workspacePrefixes.tenants, 'search', term]
+	plan: (ids: readonly string[]) => [...prefixOf('tenant'), 'plan', [...ids].sort().join(',')],
+	search: (term: string) => [...prefixOf('tenant'), 'search', term]
 } as const;
 
 /** Why a tenant in a selection would be turned away, read off the procedure rather than restated. */

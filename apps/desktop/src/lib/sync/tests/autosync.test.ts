@@ -90,8 +90,8 @@ mock.module('$lib/sync/event', {
 	}
 });
 
-mock.module('$lib/platform/tauri', {
-	exports: { tauri: { remoteSync: { getState: async () => dispatched.state } } }
+mock.module('$lib/sync/tauri', {
+	exports: { tauri: { getState: async () => dispatched.state } }
 });
 
 const { startWorkspaceSyncManager } = await import('$lib/sync/autosync');

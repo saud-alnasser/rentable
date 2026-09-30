@@ -1,0 +1,47 @@
+# What the crate's top-level modules break today, read by the test at the foot of lib.rs
+# (`the_crate_modules_form_no_new_cycle_and_break_no_rule`). It only shrinks: a change that
+# removes a violation takes its line out in the same commit, and the test fails until it does.
+# A change that adds one fails, and is not answered by adding a line here.
+#
+# `cycle a -> b`       a names b, and b reaches a back: the edge lies on a cycle.
+# `forbidden a -> b`   a breaks one of the test's `RULES`, cycle or not.
+#
+# Kept sorted, one line each.
+#
+# Written 2026-09-28 (effort 840, ticket 02). The cycles are one tangle of nine modules: backup,
+# bootstrap, database, organization, schema, settings, state, sync and update. The survey's four
+# are all in it (organization and sync, state and every feature, database and sync, organization
+# through bootstrap to sync), and one more it did not name: organization through backup, and
+# through schema to backup, back round by sync.
+#
+# Ticket 45 (2026-09-28) made the Turso adapter the top-level `turso` module, which reaches none
+# of the tangle. Everything that named it through `sync` names it directly now, so backup and
+# schema left the tangle and seven modules remain: bootstrap, database, organization, settings,
+# state, sync and update.
+#
+# Ticket 46 (2026-09-28) made this machine's record the top-level `machine` module, which reaches
+# none of the tangle (it reads the database path through a port the settings answer), and moved
+# `sync`'s commands that called into `organization` into `organization`. Nothing names `sync` now
+# but the composition root, and it names no `organization`, so it left the tangle and six modules
+# remain: bootstrap, database, organization, settings, state and update.
+#
+# Ticket 48 (2026-09-28) made the upgrade paths for older installs the top-level `upgrade` module,
+# out of `organization` (its format transitions, the owner's upgrade, format 1's signatures and the
+# startup check of the old shape) and out of the top-level `earlier`. It joins the tangle through
+# what moved with it and adds nothing new: `upgrade` reads the organization's store, chain and
+# vaults, and the organization's session runs it, both of which were one module's own until this
+# ticket and are now `organization -> upgrade` and `upgrade -> organization`; and
+# `upgrade -> state` is the startup check's and the old records' reach for the application state,
+# which was `organization -> state` and `earlier -> state` before it. Seven modules remain.
+#
+# Ticket 54 (2026-09-29) made `bootstrap` the `startup` plugin. Its four lines moved with it and
+# are rewritten at the new name: `startup -> database`, `startup -> state`, `startup -> update` and
+# `organization -> startup`. Nothing was added or removed.
+#
+# Ticket 57 (2026-09-29) took `state` out: each plugin manages its own state, and a command reads
+# another plugin's by type. The settings fill in where the database and the route back live from
+# names they hold, so `settings` names neither; the opening of the workspace database, which reads
+# the member's grant, moved from `startup` into `organization/workspace/open.rs`, so nothing in
+# `organization` names `startup`; and the session reaches the upgrade through a port it defines
+# (`organization::session::Upgrade`), which the `upgrade` plugin implements and manages, so nothing
+# names `upgrade` but the composition root. Every line is gone.

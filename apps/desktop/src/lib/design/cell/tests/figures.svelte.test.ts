@@ -1,5 +1,6 @@
 import { render } from '@testing-library/svelte';
-import Providers from './providers.svelte';
+import Providers from '#tests/providers.svelte';
+import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import UsersIcon from '@lucide/svelte/icons/users';
 import { beforeEach, expect, test } from 'vitest';
 import * as Cell from '$lib/design/cell/index.ts';
@@ -39,7 +40,7 @@ test('a count asks for tabular numerals', () => {
 	const { container } = render(
 		Cell.Count,
 		{ icon: UsersIcon, count: 1234, label: 'tenants' },
-		{ wrapper: Providers }
+		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } }
 	);
 
 	expect(figureHolding(container, '1,234')?.classList).toContain('tabular-nums');
@@ -49,7 +50,7 @@ test('a count by status asks for tabular numerals', () => {
 	const { container } = render(
 		Cell.StatusCount,
 		{ status: 'active', count: 42 },
-		{ wrapper: Providers }
+		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } }
 	);
 
 	expect(figureHolding(container, '42')?.classList).toContain('tabular-nums');

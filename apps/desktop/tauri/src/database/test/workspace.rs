@@ -3,7 +3,7 @@
 //! Two sets of tests go through this scaffolding. The four at the foot of `database/mod.rs`,
 //! beside the `open_replica` they go through, measure what a losing writer loses when two replicas
 //! of one workspace diverge (#552, acceptance criteria 9 and 17). The one at the foot of
-//! `organization/migrate.rs` measures whether the server takes every shipped migration in one
+//! `organization/lease/apply.rs` measures whether the server takes every shipped migration in one
 //! explicit transaction (effort 838, ticket 32). This is the part that provisions a database for
 //! them, which is the Turso-side counterpart of `sync/test/server.rs`.
 //!
@@ -147,11 +147,11 @@ impl LiveWorkspace {
         &self,
         name: &str,
     ) -> (std::path::PathBuf, turso::sync::Database) {
-        let directory = std::env::temp_dir().join(format!("rentable-{name}-{}", short_nonce()));
-        std::fs::create_dir_all(&directory).expect("scratch directory");
+        let directory = crate::test::scratch(name);
 
         let token = self.token.clone();
         let database = Database::open_replica(
+            &crate::clock::System,
             &directory.join("app.db"),
             Some(self.url.clone()),
             move || {
@@ -165,11 +165,11 @@ impl LiveWorkspace {
         (directory, database)
     }
 
-    /// Apply the first `up_to` migrations to the **remote** database, as `organization/migrate.rs` does.
+    /// Apply the first `up_to` migrations to the **remote** database, as `organization/lease/apply.rs` does.
     ///
     /// **Promoted, not duplicated.** This posted the statements to `/v2/pipeline` itself until
     /// the migration ticket of [[efforts/819-an-organization-hosts-its-own-workspaces/spec]], and
-    /// it was the proof that the wire path works; `organization/migrate.rs` is that path in
+    /// it was the proof that the wire path works; `organization/lease/apply.rs` is that path in
     /// shipping code, and this now goes through it, so the runner the tests rely on is the runner
     /// the application ships. A sync connection cannot carry `0003`'s drops and renames, measured
     /// on 2026-08-20 by #552, which is why it was ever over the wire.
@@ -182,8 +182,8 @@ impl LiveWorkspace {
             .strip_prefix("libsql://")
             .expect("a libsql:// workspace url");
 
-        crate::organization::migrate::apply(
-            &crate::organization::migrate::Pipeline::of(host),
+        crate::organization::lease::apply::apply(
+            &crate::organization::lease::apply::Pipeline::of(host),
             &self.token,
             up_to,
         )
@@ -196,7 +196,7 @@ impl LiveWorkspace {
     /// It is known to fail on some accounts, and this repository already measured why: Turso
     /// will not delete any database inside a delete-protected group, and answers `403 group
     /// <name> is delete-protected and cannot be deleted` even though the database itself is
-    /// not protected. `packages/turso-platform/index.ts` records the same finding.
+    /// not protected. `.aep/references/turso.md` records the same finding.
     ///
     /// **The first draft of this checked only whether the request was sent**, so a 403 read as
     /// a successful cleanup and four databases were left in the account with nothing said.
@@ -280,7 +280,7 @@ pub(in crate::database) fn migration_statements(up_to: usize) -> Vec<String> {
         .collect()
 }
 
-/// How many migrations ship, which is what the client sends to the mint.
+/// How many migrations ship, which is what `WORKSPACE_SCHEMA_VERSION` counts.
 pub(in crate::database) fn shipped_migration_count() -> usize {
     std::fs::read_dir(std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("migrations"))
         .expect("the migrations directory is missing")
@@ -304,7 +304,7 @@ pub(in crate::database) fn shipped_migration_count() -> usize {
 /// remote, and so did rows written in the new shape. The one failure was a row change captured
 /// under a column that a later statement in the same push dropped, which fails that push with
 /// `Number of arguments mismatch` and leaves the remote with part of it. The reading, and the
-/// order the upgrade keeps because of it, are at `organization/store.rs`,
+/// order the upgrade keeps because of it, are at `organization/store/format.rs`,
 /// `OrganizationStore::format_one_reshape`.
 ///
 /// So the shipped schema goes on through [`LiveWorkspace::apply_schema_remotely`] instead, which
@@ -329,7 +329,7 @@ pub(in crate::database) async fn concepts(connection: &turso::Connection) -> Vec
                 "SELECT name FROM sqlite_master WHERE type = 'table' \
                  AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'turso_%' \
                  AND name NOT LIKE '\\_\\_%' ESCAPE '\\' AND name != '{}' ORDER BY name",
-                crate::organization::migrate::VERSION_TABLE
+                crate::organization::lease::apply::VERSION_TABLE
             ),
             (),
         )

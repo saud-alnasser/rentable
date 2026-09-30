@@ -1,20 +1,25 @@
 import * as s from '$lib/platform/database/schema';
 import type { Database } from '$lib/api/context';
-import { RecordSearchSchema, type RecordMatch } from '$lib/api/search';
-import { matchesAnySearch } from '$lib/platform/database/search';
-import { ensureIdFree, newId } from '$lib/platform/database/identity';
-import { TenantSchema, type Contract } from '$lib/platform/database/schema';
+import {
+	matchesAnySearch,
+	RecordSearchSchema,
+	type RecordMatch
+} from '$lib/platform/database/search';
+import { ensureIdFree } from '$lib/api/refusal';
+import { newId } from '$lib/platform/database/identity';
+import type { Contract } from '$lib/platform/database/schema';
 import { planSelection } from '$lib/api/selection';
 import { refuse } from '$lib/api/refusal';
 import { autosync, procedure, router } from '$lib/api/trpc';
-import { CONTRACT_IN_FORCE_STATUSES } from '$lib/contract/contract';
 import {
 	TENANT_SORT_COLUMN_IDS,
 	ensureIdentityAvailable,
 	ensurePhoneAvailable,
 	ensureTenantDeletable,
 	ensureTenantStillExists,
+	TenantSchema,
 	whatRefusesTenantDeletion,
+	type TenantContributions,
 	type TenantSortColumnId
 } from '$lib/tenant/tenant';
 import { permits } from '@rentable/workspace-permission';
@@ -35,11 +40,13 @@ const contractsInStatus = (status: Contract['status']) =>
 
 // what the reader means by "the tenant's contracts" when they order the directory by them:
 // the ones in force, which is a pair of statuses rather than one, so it cannot be read off a
-// single conditional count above.
+// single conditional count above. Which statuses those are is the contract's to say, and it
+// contributes them (`TenantContributions`), so they are read when a procedure runs.
 //
 // One expression, selected nowhere and ordered by directly: written twice, the column the
 // list sorts on could come to differ from what it claims to sort by.
-const inForceContracts = sql<number>`count(case when ${inArray(s.contract.status, CONTRACT_IN_FORCE_STATUSES)} then 1 end)`;
+const inForceContracts = (inForce: TenantContributions['inForceStatuses']) =>
+	sql<number>`count(case when ${inArray(s.contract.status, inForce)} then 1 end)`;
 
 /**
  * The figure per status a directory row carries, as the list query selects them.
@@ -66,11 +73,13 @@ const TENANT_SEARCH_COLUMNS: readonly (SQL | AnyColumn)[] = [
 	s.tenant.phone
 ];
 
-const TENANT_SORT_COLUMNS: Record<TenantSortColumnId, SQL | AnyColumn> = {
+const tenantSortColumns = (
+	inForce: TenantContributions['inForceStatuses']
+): Record<TenantSortColumnId, SQL | AnyColumn> => ({
 	name: s.tenant.name,
 	nationalId: s.tenant.nationalId,
-	activeContractCount: inForceContracts
-};
+	activeContractCount: inForceContracts(inForce)
+});
 
 /**
  * What deleting a whole selection would do, from one read of the workspace.
@@ -121,7 +130,8 @@ const TenantSortSchema = z.object({
  */
 function tenantOrderBy(
 	chosenSort: z.infer<typeof TenantSortSchema> | undefined,
-	viewsContract: boolean
+	viewsContract: boolean,
+	inForce: TenantContributions['inForceStatuses']
 ): SQL[] {
 	const directoryOrder = [asc(s.tenant.name), asc(s.tenant.id)];
 	// a member who may not view contracts is not ordered by how many a tenant holds, which would be
@@ -133,7 +143,7 @@ function tenantOrderBy(
 		return directoryOrder;
 	}
 
-	const column = TENANT_SORT_COLUMNS[sort.columnId];
+	const column = tenantSortColumns(inForce)[sort.columnId];
 	const chosen = sort.direction === 'asc' ? asc(column) : desc(column);
 
 	return sort.columnId === 'name' ? [chosen, asc(s.tenant.id)] : [chosen, ...directoryOrder];
@@ -424,7 +434,9 @@ export default router({
 				.leftJoin(s.contract, eq(s.contract.tenantId, s.tenant.id))
 				.where(search ? matchesAnySearch(TENANT_SEARCH_COLUMNS, search) : undefined)
 				.groupBy(s.tenant.id)
-				.orderBy(...tenantOrderBy(input.sort, viewsContract));
+				.orderBy(
+					...tenantOrderBy(input.sort, viewsContract, ctx.contributions.tenant.inForceStatuses)
+				);
 
 			const tenants = input.limit ? await query.limit(input.limit) : await query;
 

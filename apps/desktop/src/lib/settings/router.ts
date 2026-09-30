@@ -1,4 +1,4 @@
-import type { Settings, SettingsChangeset } from '$lib/platform/tauri';
+import type { Settings, SettingsChangeset } from './host';
 import { procedure, router } from '$lib/api/trpc';
 import { APPEARANCES } from '$lib/platform/appearance';
 import z from 'zod';
@@ -6,7 +6,7 @@ import z from 'zod';
 /**
  * SETTINGS ROUTER
  *
- * the user's own preferences, mounted by the app router at `app.settings`. Every
+ * the user's own preferences, mounted at the root at `settings`. Every
  * procedure forwards to the host: settings live with the desktop shell, not in the
  * database, so there is nothing here to reconcile.
  *

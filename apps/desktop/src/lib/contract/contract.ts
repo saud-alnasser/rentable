@@ -1,16 +1,64 @@
-import type { Contract, Unit } from '$lib/platform/database/schema';
-import { addUtcDays, addUtcMonths, toUtcDay, type DateLike } from '$lib/api/date';
-import { getPaidAmount, type PaymentLike } from '$lib/payment/payment';
+import type { Database } from '$lib/api/context';
+import type { ContributedRead } from '$lib/feature/surface';
+import type { Contract, Payment, payment } from '$lib/platform/database/schema';
+import { toUtcDay, type DateLike } from '$lib/date';
 import { refuse } from '$lib/api/refusal';
+import {
+	CONTRACT_END_DATE_TOLERANCE_DAYS,
+	getContractTotalCost,
+	getExpectedAmountBy,
+	hasValidContractPeriodForInterval
+} from '$lib/contract/schedule/cycle';
 
 /**
  * CONTRACT
  *
- * the contract domain module: status derivation, period and cost invariants, cycle and
- * expected-amount arithmetic, and the rules routers assert before persisting. Routers
- * fetch rows and call in. What a payment is worth on its own is `$lib/payment/payment`;
- * everything that weighs payments against a contract is here.
+ * the contract domain module: status derivation, period and cost invariants, what a contract
+ * owes, and the rules routers assert before persisting. Routers fetch rows and call in. The cycle
+ * arithmetic those read is `./schedule/cycle`, and the units a contract holds are
+ * `./assignment/assignment`. What a payment is worth on its own is `$lib/payment/payment`;
+ * everything that weighs payments against a contract is here, what they add up to included: the
+ * payment depends on the contract, never the other way round, so the payments a contract is weighed
+ * against arrive as rows its caller hands in, or through what the payment contributes
+ * ({@link ContractContributions}).
  */
+
+/** a payment as a caller holds it, with the date in whichever form it arrived. */
+export type PaymentLike = Omit<Pick<Payment, 'amount' | 'date'>, 'date'> & {
+	date: DateLike;
+};
+
+/** what a set of payments made against a contract adds up to. */
+export function getPaidAmount(payments: PaymentLike[]) {
+	return payments.reduce((sum, payment) => sum + payment.amount, 0);
+}
+
+/**
+ * What the contract's procedures need of the payments made against it, contributed by the payment,
+ * which depends on the contract rather than the other way round (`$lib/feature/feature`, under
+ * *What a feature contributes*).
+ */
+export type ContractContributions = {
+	/**
+	 * every payment made against each of the contracts named, by the contract's id, in the order the
+	 * rows are read; a contract nobody paid against is absent. No contract named reads nothing.
+	 */
+	paymentsOf: (
+		db: Database,
+		contractIds: readonly string[]
+	) => Promise<Map<string, (typeof payment.$inferSelect)[]>>;
+};
+
+/** What the contract's host needs of the payments made against it, in the window. */
+export type ContractSurfaceContributions = {
+	/**
+	 * every payment made against the contract, read only while `enabled` says so: what refuses its
+	 * deletion ({@link isContractDeletable}).
+	 */
+	useHeldPayments: (contractId: () => string, enabled: () => boolean) => ContributedRead<unknown[]>;
+	/** whether the reader may see payments at all, and so the figures a row carries of them. */
+	viewsPayments: () => boolean;
+};
 
 export type ContractLike = Omit<
 	Pick<Contract, 'status' | 'start' | 'end' | 'interval' | 'cost'>,
@@ -20,172 +68,8 @@ export type ContractLike = Omit<
 	end: DateLike;
 };
 
-type ContractRangeLike = Pick<ContractLike, 'start' | 'end'>;
-
-type UnitAssignmentLike = {
-	unitId: string;
-	contractId: string;
-	status: Contract['status'];
-	start: DateLike;
-	end: DateLike;
-};
-
-/** an assignment row joined with its contract, as routers select it. */
-export type ContractAssignment = UnitAssignmentLike & {
-	interval: Contract['interval'];
-	cost: Contract['cost'];
-};
-
 /** the tolerance every comparison of money in this domain allows, so float dust is never a debt. */
 export const EPSILON = 0.0001;
-const UTC_DAY_MS = 24 * 60 * 60 * 1000;
-
-export const CONTRACT_END_DATE_TOLERANCE_DAYS = 5;
-
-const INTERVAL_MONTHS: Record<Contract['interval'], number> = {
-	'1m': 1,
-	'3m': 3,
-	'6m': 6,
-	'12m': 12
-};
-
-export function getIntervalMonths(interval: Contract['interval']) {
-	return INTERVAL_MONTHS[interval];
-}
-
-export function getContractCycleStartDate(
-	start: DateLike,
-	interval: Contract['interval'],
-	cycleOffset: number
-) {
-	return addUtcMonths(start, getIntervalMonths(interval) * cycleOffset);
-}
-
-export function getContractEndDateForCycles(
-	start: DateLike,
-	interval: Contract['interval'],
-	cycleCount: number
-) {
-	if (!Number.isInteger(cycleCount) || cycleCount <= 0) {
-		return undefined;
-	}
-
-	return addUtcDays(getContractCycleStartDate(start, interval, cycleCount), -1);
-}
-
-export function getContractEndDateWindow(
-	start: DateLike,
-	interval: Contract['interval'],
-	cycleCount: number,
-	toleranceDays = CONTRACT_END_DATE_TOLERANCE_DAYS
-) {
-	const calculatedEnd = getContractEndDateForCycles(start, interval, cycleCount);
-
-	if (!calculatedEnd) {
-		return undefined;
-	}
-
-	return {
-		start: addUtcDays(calculatedEnd, -toleranceDays),
-		end: addUtcDays(calculatedEnd, toleranceDays),
-		calculatedEnd
-	};
-}
-
-export function getContractCycleCountForPeriod(
-	contract: Pick<ContractLike, 'start' | 'end' | 'interval'>,
-	toleranceDays = CONTRACT_END_DATE_TOLERANCE_DAYS
-) {
-	const start = toUtcDay(contract.start);
-	const end = toUtcDay(contract.end);
-
-	if (end.getTime() < start.getTime()) {
-		return undefined;
-	}
-
-	const maxExpectedEnd = end.getTime() + toleranceDays * UTC_DAY_MS;
-
-	for (let cycleCount = 1; ; cycleCount += 1) {
-		const calculatedEnd = getContractEndDateForCycles(start, contract.interval, cycleCount);
-
-		if (!calculatedEnd) {
-			return undefined;
-		}
-
-		const differenceInDays = (end.getTime() - calculatedEnd.getTime()) / UTC_DAY_MS;
-
-		if (Math.abs(differenceInDays) <= toleranceDays) {
-			return cycleCount;
-		}
-
-		if (calculatedEnd.getTime() > maxExpectedEnd) {
-			return undefined;
-		}
-	}
-}
-
-export function countExpectedPayments(contract: ContractLike, now: DateLike) {
-	const start = toUtcDay(contract.start);
-	const end = toUtcDay(contract.end);
-	const today = toUtcDay(now);
-	const totalCycleCount = getContractCycleCountForPeriod(contract);
-
-	if (today.getTime() < start.getTime()) {
-		return 0;
-	}
-
-	const dueUntil = today.getTime() < end.getTime() ? today : end;
-	const maxExpectedPayments = totalCycleCount ?? Number.MAX_SAFE_INTEGER;
-
-	let expectedPayments = 1;
-	let nextDueDate = getContractCycleStartDate(start, contract.interval, 1);
-
-	while (expectedPayments < maxExpectedPayments && nextDueDate.getTime() <= dueUntil.getTime()) {
-		expectedPayments += 1;
-		nextDueDate = getContractCycleStartDate(start, contract.interval, expectedPayments);
-	}
-
-	return expectedPayments;
-}
-
-export function countExpectedPaymentsInRange(
-	contract: ContractLike,
-	rangeStart: DateLike,
-	rangeEnd: DateLike
-) {
-	const normalizedStart = toUtcDay(rangeStart);
-	const normalizedEnd = toUtcDay(rangeEnd);
-
-	if (normalizedEnd.getTime() < normalizedStart.getTime()) {
-		return 0;
-	}
-
-	const beforeRangeStart = addUtcDays(normalizedStart, -1);
-
-	return Math.max(
-		countExpectedPayments(contract, normalizedEnd) -
-			countExpectedPayments(contract, beforeRangeStart),
-		0
-	);
-}
-
-export function getExpectedAmountBy(contract: ContractLike, now: DateLike) {
-	return countExpectedPayments(contract, now) * contract.cost;
-}
-
-export function getExpectedAmountInRange(
-	contract: ContractLike,
-	rangeStart: DateLike,
-	rangeEnd: DateLike
-) {
-	return countExpectedPaymentsInRange(contract, rangeStart, rangeEnd) * contract.cost;
-}
-
-export function getContractTotalCost(contract: ContractLike) {
-	const cycleCount = getContractCycleCountForPeriod(contract);
-
-	return (cycleCount ?? countExpectedPayments(contract, contract.end)) * contract.cost;
-}
 
 export function getContractPaymentSummary(contract: ContractLike, payments: PaymentLike[]) {
 	return {
@@ -254,12 +138,6 @@ export function getOutstandingExpectedAmount(
 	return Math.max(getExpectedAmountBy(contract, now) - getPaidAmount(payments), 0);
 }
 
-export function hasValidContractPeriodForInterval(
-	contract: Pick<ContractLike, 'start' | 'end' | 'interval'>
-) {
-	return getContractCycleCountForPeriod(contract) !== undefined;
-}
-
 /**
  * Whether an amount is one a contract may cost.
  *
@@ -267,11 +145,11 @@ export function hasValidContractPeriodForInterval(
  * nothing, which every payment requirement is satisfied by, so it reconciles to `fulfilled` having
  * taken no money. That is a contract the status model cannot describe rather than a cheap one.
  *
- * Exported beside {@link hasValidContractPeriodForInterval} because this rule's two callers have
+ * Exported as {@link hasValidContractPeriodForInterval} is, because this rule's two callers have
  * to agree:
  * {@link ensureValidContractInput} refuses a write with it, and the workspace transfer's planning
  * pass answers the same question about a file before the write is attempted. The copy it replaces
- * there admitted zero. `contract/component/form.svelte` still states the rule a third time, in its
+ * there admitted zero. `contract/form.ts` still states the rule a third time, in the form's
  * own schema, and folding that in is not this change's.
  */
 export function hasValidContractCost(cost: number) {
@@ -390,134 +268,10 @@ export function canUnterminateContractStatus(status: Contract['status']) {
 	return status === 'terminated';
 }
 
-export function rangesOverlap(startA: DateLike, endA: DateLike, startB: DateLike, endB: DateLike) {
-	const normalizedStartA = toUtcDay(startA).getTime();
-	const normalizedEndA = toUtcDay(endA).getTime();
-	const normalizedStartB = toUtcDay(startB).getTime();
-	const normalizedEndB = toUtcDay(endB).getTime();
-
-	return normalizedStartA <= normalizedEndB && normalizedStartB <= normalizedEndA;
-}
-
-export function hasSameUtcDateRange(
-	startA: DateLike,
-	endA: DateLike,
-	startB: DateLike,
-	endB: DateLike
-) {
-	return (
-		toUtcDay(startA).getTime() === toUtcDay(startB).getTime() &&
-		toUtcDay(endA).getTime() === toUtcDay(endB).getTime()
-	);
-}
-
-export function getConflictingAssignedUnitIds(
-	assignments: UnitAssignmentLike[],
-	contract: ContractRangeLike,
-	currentContractId: string
-) {
-	return new Set(
-		assignments
-			.filter(
-				(assignment) =>
-					assignment.contractId !== currentContractId &&
-					assignment.status !== 'terminated' &&
-					rangesOverlap(assignment.start, assignment.end, contract.start, contract.end)
-			)
-			.map((assignment) => assignment.unitId)
-	);
-}
-
-export function deriveUnitStatus(
-	assignments: Array<{ contract: ContractLike; payments: PaymentLike[] }>,
-	now: DateLike
-): Unit['status'] {
-	const today = toUtcDay(now).getTime();
-
-	const isOccupied = assignments.some(({ contract, payments }) => {
-		const start = toUtcDay(contract.start).getTime();
-		const end = toUtcDay(contract.end).getTime();
-
-		if (today < start || today > end) {
-			return false;
-		}
-
-		const status = deriveContractStatus(contract, payments, now);
-
-		return (CONTRACT_OCCUPYING_STATUSES as readonly Contract['status'][]).includes(status);
-	});
-
-	return isOccupied ? 'occupied' : 'vacant';
-}
-
-/** derives the status of each unit from its assignments and their payments. */
-export function deriveUnitStatuses(
-	unitIds: string[],
-	assignments: ContractAssignment[],
-	paymentsByContractId: Map<string, PaymentLike[]>,
-	now: DateLike
-) {
-	const assignmentsByUnitId = new Map<
-		string,
-		Array<{ contract: ContractLike; payments: PaymentLike[] }>
-	>();
-
-	for (const assignment of assignments) {
-		assignmentsByUnitId.set(assignment.unitId, [
-			...(assignmentsByUnitId.get(assignment.unitId) ?? []),
-			{
-				contract: {
-					status: assignment.status,
-					start: assignment.start,
-					end: assignment.end,
-					interval: assignment.interval,
-					cost: assignment.cost
-				},
-				payments: paymentsByContractId.get(assignment.contractId) ?? []
-			}
-		]);
-	}
-
-	return new Map(
-		unitIds.map((unitId) => [unitId, deriveUnitStatus(assignmentsByUnitId.get(unitId) ?? [], now)])
-	);
-}
-
 // --- Rules asserted before persisting -------------------------------------------------
 //
 // Each throws the refusal the routers previously raised inline. Routers fetch the rows a rule
 // needs and call in; the condition and its code live here.
-
-/**
- * Every refusal a contract rule or procedure raises, by code. The sentence each stands for is the
- * interface's, under `common.refusals.contract`, and `error/refusal.ts` is where a form learns
- * which field one belongs under.
- *
- * The `...Named` codes carry the value a set-wide call has to say back, because a reader told that
- * one of several records was refused has nothing to act on.
- */
-export type ContractRefusalCode =
-	| 'contract.endBeforeStart'
-	| 'contract.periodOffCycle'
-	| 'contract.costNotPositive'
-	| 'contract.govIdTaken'
-	| 'contract.govIdTakenNamed'
-	| 'contract.terminatedLocked'
-	| 'contract.notTerminable'
-	| 'contract.notUnterminable'
-	| 'contract.nothingToRemind'
-	| 'contract.unitsLockedByPayments'
-	| 'contract.paidInFull'
-	| 'contract.holdsPayments'
-	| 'contract.periodOverlapsUnits'
-	| 'contract.unitsUnavailable'
-	| 'contract.unitsTaken'
-	| 'contract.renewalBeforeEnd'
-	| 'contract.missing'
-	| 'contract.tenantMissing'
-	| 'contract.tenantMissingNamed'
-	| 'contract.repeatedInSet'
-	| 'contract.unitsMissing';
 
 export function ensureValidContractInput(
 	input: Pick<Contract, 'start' | 'end' | 'interval' | 'cost'>
@@ -652,35 +406,6 @@ export function whatRefusesContractAction(
 			return canUnterminateContractStatus(contract.status) ? undefined : 'not-restorable';
 		case 'delete':
 			return whatBlocksContractDeletion(payments);
-	}
-}
-
-export function ensurePeriodDoesNotOverlapAssignments(
-	assignments: UnitAssignmentLike[],
-	range: ContractRangeLike,
-	contractId: string
-) {
-	if (getConflictingAssignedUnitIds(assignments, range, contractId).size > 0) {
-		throw refuse('contract.periodOverlapsUnits');
-	}
-}
-
-/**
- * Refuses where another contract holds one of these units over this contract's term.
- *
- * The refusal names what the reader would change. Where the units are the ones they chose, as a
- * new contract's are, it is `contract.unitsTaken` and belongs under the units; where the units
- * come with the contract and only the term was theirs, as a renewal's do, it is the default and
- * belongs under the term.
- */
-export function ensureUnitsAssignable(
-	assignments: UnitAssignmentLike[],
-	contract: ContractRangeLike,
-	contractId: string,
-	code: 'contract.unitsUnavailable' | 'contract.unitsTaken' = 'contract.unitsUnavailable'
-) {
-	if (getConflictingAssignedUnitIds(assignments, contract, contractId).size > 0) {
-		throw refuse(code);
 	}
 }
 

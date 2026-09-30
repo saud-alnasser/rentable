@@ -3,20 +3,23 @@
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { Input } from '@rentable/design/primitive/input/index.js';
-	import { showErrorSentence } from '$lib/error/toast';
+	import { showErrorSentence } from '$lib/notification';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useSetEndingSoonNoticeDays } from '$lib/settings/query';
 
-	type AppSettings = Awaited<ReturnType<typeof api.app.settings.get>>;
+	type AppSettings = Awaited<ReturnType<typeof api.settings.get>>;
 
 	let { settings }: { settings: AppSettings } = $props();
 
 	const setEndingSoonNoticeDaysMutation = useSetEndingSoonNoticeDays();
 
-	let value = $state<number | ''>('');
+	// a number field reads `null` while it holds no number: emptied, or partway through an edit.
+	let value = $state<number | '' | null>('');
 
 	const isPending = $derived(setEndingSoonNoticeDaysMutation.isPending);
-	const enteredValue = $derived(typeof value === 'number' ? String(value) : value.trim());
+	const enteredValue = $derived(
+		value === null ? '' : typeof value === 'number' ? String(value) : value.trim()
+	);
 	const hasChange = $derived(enteredValue !== String(settings.endingSoonNoticeDays));
 
 	$effect(() => {

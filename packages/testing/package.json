@@ -1,0 +1,29 @@
+{
+	"private": true,
+	"name": "@rentable/testing",
+	"version": "0.0.0",
+	"description": "the test scaffolding the application and the design package share",
+	"type": "module",
+	"exports": {
+		"./source": {
+			"types": "./source.ts",
+			"default": "./source.ts"
+		},
+		"./setup": {
+			"types": "./setup.ts",
+			"default": "./setup.ts"
+		}
+	},
+	"files": [
+		"source.ts",
+		"setup.ts"
+	],
+	"scripts": {
+		"check": "tsc -p ./tsconfig.json"
+	},
+	"devDependencies": {
+		"@types/node": "^24.13.3",
+		"typescript": "^6.0.3",
+		"vitest": "^5.0.0"
+	}
+}

@@ -33,7 +33,7 @@ tauri-build = { version = "2.6.3", features = [] }
 [dependencies]
 tauri = { version = "2.11.5", features = [] }
 tauri-plugin-opener = { version = "2.5.4" }
-# receiving a `rentable://` join link from the operating system. `organization/join.rs` records
+# receiving a `rentable://` join link from the operating system. `organization/invitation/join.rs` records
 # how a link reaches the application on each platform; the scheme is in `tauri.conf.json`.
 tauri-plugin-deep-link = { version = "2.4.10" }
 # one running instance, so a link opened while the application runs reaches it rather than
@@ -80,7 +80,7 @@ rustls = { version = "0.23.43", default-features = false, features = ["ring", "s
 keyring = { version = "4.1.6", default-features = false, features = ["v1"] }
 turso = { version = "0.8.0-pre.7", default-features = false, features = ["sync"] }
 # the four below are the organization vault's key schedule and nothing else uses them.
-# `src/organization/vault.rs` is where each one is called, and the module is pure functions
+# `src/organization/member/vault.rs` is where each one is called, and the module is pure functions
 # over bytes, so none of them reaches a database, a socket, or the IPC boundary.
 #
 # turning a member's password into a key, which is the whole defence the vault has. There is
@@ -109,7 +109,7 @@ hkdf = "0.13.0"
 # secret half to be held as bytes at all, which is what there is to seal; the default features
 # are kept for `zeroize`, which scrubs that half when it drops.
 x25519-dalek = { version = "3.0.0", features = ["static_secrets"] }
-# the one crypto dependency here that is not the vault's. `src/organization/authority.rs` is
+# the one crypto dependency here that is not the vault's. `src/organization/authority/` is
 # where it is called, and that module is pure functions over bytes in the same way: no database,
 # no socket, no IPC boundary, and no idea what a password is.
 #
@@ -140,12 +140,12 @@ bytes = { version = "1.12.1" }
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-updater = "2.10.0"
 
-# printing without the webview's browser preview (`print.rs`): WebView2's own `PrintToPdf` and the
+# printing without the webview's browser preview (`src/print/`): WebView2's own `PrintToPdf` and the
 # system print dialog, reached through the controller Tauri hands over. The versions are the ones
 # wry already links, so nothing new is compiled.
 [target.'cfg(windows)'.dependencies]
-webview2-com = "0.38.2"
-windows = "0.61.3"
+webview2-com = "0.39.1"
+windows = "0.62.2"
 
 # Argon2id is memory-hard on purpose, and an unoptimized build of it is several times
 # slower than the one that ships. Left alone, that difference lands in two places: a

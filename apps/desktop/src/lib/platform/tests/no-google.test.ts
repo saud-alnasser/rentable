@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
  *
  * What is looked for is the client, not the word: the environment names the client shipped
  * under, Google's authorization host, and Google's scope URLs. A test that mentions Google as an
- * example of a server's behaviour is not a client, and the protocol tests under `sync/oauth/`
+ * example of a server's behaviour is not a client, and the protocol tests under `tauri/src/turso/oauth/`
  * do.
  */
 

@@ -1,0 +1,108 @@
+<script lang="ts">
+	import StandaloneSurface from '@rentable/design/block/standalone-surface.svelte';
+	import { LL } from '$lib/i18n/i18n-svelte';
+	import DetailDisclosure from '$lib/error/component/detail-disclosure.svelte';
+	import SurfaceAction from '@rentable/design/block/surface-action.svelte';
+	import { tauri } from '$lib/platform/tauri';
+	import type { Recovery } from '$lib/update';
+	import DownloadIcon from '@lucide/svelte/icons/download';
+	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
+	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
+
+	/**
+	 * An update did not finish, and the application is back on the version before it.
+	 *
+	 * **It keeps its figures where the startup-failure screen lost its body**, and the difference
+	 * is what the reader does with them: a version number is a fact somebody reads off the screen
+	 * and repeats — into a support message, a release page, a note to themselves. A stack trace is
+	 * not. So two plates, **the previous version first and the one it was upgrading to second**,
+	 * which is the order asked for on 2026-08-20: the reader is standing on the first and was
+	 * heading for the second.
+	 *
+	 * See `error.svelte` for why these two are the only screens on this block that declare
+	 * a tone, and why they do not declare the same one.
+	 */
+	let {
+		recovery,
+		onRetry
+	}: {
+		recovery: Recovery;
+		onRetry: () => void;
+	} = $props();
+
+	const previousReleaseUrl = $derived(recovery.previousReleaseUrl);
+</script>
+
+{#snippet plate(label: string, value: string, isFigure: boolean)}
+	<div class="rounded-xl bg-muted p-3">
+		<dt class="text-xs text-muted-foreground uppercase">{label}</dt>
+		<!-- a version is the machine's and reads left to right in both locales; the words that
+		     stand in for one while there is no version are the reader's. -->
+		<dd class="mt-1 text-sm font-medium break-words" dir={isFigure ? 'ltr' : undefined}>
+			{value}
+		</dd>
+	</div>
+{/snippet}
+
+<!-- `info` in tone and a download in subject: the tone decides the colour, the glyph decides the
+     picture. An information circle here would say *here is a fact* where this says *an update was
+     being installed*. -->
+<StandaloneSurface
+	tone="info"
+	icon={DownloadIcon}
+	title={$LL.layout.startup.recoveryRequiredTitle()}
+>
+	{#snippet corner()}
+		{#if previousReleaseUrl}
+			<SurfaceAction
+				label={$LL.common.actions.openPreviousRelease()}
+				icon={ExternalLinkIcon}
+				onclick={() => void tauri.opener.openUrl(previousReleaseUrl)}
+			/>
+		{/if}
+
+		<!-- the glyph turns under the pointer, which previews what pressing it does. -->
+		<SurfaceAction
+			label={$LL.common.actions.retryStartup()}
+			icon={RefreshCwIcon}
+			emphasis="primary"
+			spins
+			onclick={onRetry}
+		/>
+	{/snippet}
+
+	<div class="space-y-4">
+		<dl class="grid gap-2 sm:grid-cols-2">
+			<!-- both fields are `string` rather than `string | null`, so empty is what *there is no
+			     version* looks like here, and it is the state the fallback beside it already reads. -->
+			{@render plate(
+				$LL.layout.startup.previousVersion(),
+				recovery.previousVersion || $LL.common.messages.unknown(),
+				recovery.previousVersion !== ''
+			)}
+			{@render plate(
+				$LL.layout.startup.factUpdatingTo(),
+				recovery.targetVersion || $LL.common.messages.unknown(),
+				recovery.targetVersion !== ''
+			)}
+		</dl>
+
+		<!-- **The sentence names no version, and the plate above is why.** It read *reinstall
+		     v{previousVersion}* and printed the same number the first plate already carries, which
+		     is the figure stated twice that requirement 13 exists to remove. The plate is the
+		     figure's home, so the sentence points at it rather than repeating it. -->
+		<p class="text-sm text-muted-foreground">
+			{$LL.layout.startup.recoveryDetails()}
+		</p>
+
+		<!-- what the updater said is plain words with no code to read a sentence from, so the
+		     generic sentence is the reader's and the words stay behind details, closed
+		     ([[rules/interface]], *Error*). -->
+		{#if recovery.updateError}
+			<p class="text-sm text-destructive" data-update-error>
+				{$LL.common.messages.unexpectedError()}
+			</p>
+			<DetailDisclosure detail={recovery.updateError} name="update" />
+		{/if}
+	</div>
+</StandaloneSurface>

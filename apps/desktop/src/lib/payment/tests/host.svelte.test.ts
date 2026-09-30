@@ -12,7 +12,7 @@ import { closePaymentForm, paymentHost, paymentHostState } from '$lib/payment/ho
  * round 1. The command menu checked an act's `unavailable` before running it, and each concept
  * host's `run` checked only `appliesTo`, so a caller asking the host directly could open the form
  * on a payment whose contract is terminated, which the payment's page shows refused. The payment
- * host stands for all of them: each one's `run` reads the same `mayRun` in `design/acts.ts`.
+ * host stands for all of them: each one's `run` reads the same `mayRun` in `act/act.ts`.
  */
 
 const payment: PaymentActRecord = {

@@ -2,7 +2,7 @@
 	"private": true,
 	"name": "@rentable/workspace-migrations",
 	"version": "0.0.0",
-	"description": "the migrations a workspace database is built from, local or hosted",
+	"description": "the migrations a workspace database is built from",
 	"type": "module",
 	"exports": {
 		".": {

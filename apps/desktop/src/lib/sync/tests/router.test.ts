@@ -3,9 +3,10 @@ import test from 'node:test';
 
 import { BUILT_IN, maskOf } from '@rentable/workspace-permission';
 
-import { createApi, fakeIdentity } from '$lib/api/tests/testing.ts';
-import { fakeHost, fakeSyncState, fakeWorkspace } from '$lib/platform/tests/testing.ts';
-import { WORKSPACE_NAME_LIMIT } from '$lib/workspace/workspace.ts';
+import { createApi, fakeIdentity } from '$lib/app/tests/testing.ts';
+import { fakeHost } from '$lib/app/tests/host.ts';
+import { fakeSyncState, fakeWorkspace } from '$lib/sync/tests/testing.ts';
+import { WORKSPACE_NAME_LIMIT } from '$lib/sync/host.ts';
 
 /**
  * RENAMING A WORKSPACE, THROUGH THE PROCEDURE
@@ -31,7 +32,7 @@ function hostRecordingRenames(asked: string[]) {
 	const state = fakeSyncState({ workspace: fakeWorkspace() });
 
 	return fakeHost({
-		remoteSync: {
+		sync: {
 			getState: async () => state,
 			replicate: async () => ({
 				pushed: false,
@@ -53,7 +54,7 @@ test('a rename reaches the host and answers with what the workspace is now calle
 	const asked: string[] = [];
 	const api = await renamingApi(hostRecordingRenames(asked));
 
-	const state = await api.app.remoteSync.rename({ name: 'دار السلام' });
+	const state = await api.sync.rename({ name: 'دار السلام' });
 
 	assert.deepEqual(asked, ['دار السلام']);
 	assert.equal(state.workspace.name, 'دار السلام');
@@ -65,7 +66,7 @@ test('and what reaches the host is trimmed', async () => {
 	const asked: string[] = [];
 	const api = await renamingApi(hostRecordingRenames(asked));
 
-	await api.app.remoteSync.rename({ name: '  Jeddah  ' });
+	await api.sync.rename({ name: '  Jeddah  ' });
 
 	assert.deepEqual(asked, ['Jeddah']);
 });
@@ -75,7 +76,7 @@ test('a name with nothing in it is refused, and the host is never reached', asyn
 		const asked: string[] = [];
 		const api = await renamingApi(hostRecordingRenames(asked));
 
-		const refusal = await api.app.remoteSync.rename({ name }).then(
+		const refusal = await api.sync.rename({ name }).then(
 			() => null,
 			(error: unknown) => error as { code?: string }
 		);
@@ -89,12 +90,10 @@ test('a name past what the organization will store is refused here too, at the s
 	const asked: string[] = [];
 	const api = await renamingApi(hostRecordingRenames(asked));
 
-	const refusal = await api.app.remoteSync
-		.rename({ name: 'n'.repeat(WORKSPACE_NAME_LIMIT + 1) })
-		.then(
-			() => null,
-			(error: unknown) => error as { code?: string }
-		);
+	const refusal = await api.sync.rename({ name: 'n'.repeat(WORKSPACE_NAME_LIMIT + 1) }).then(
+		() => null,
+		(error: unknown) => error as { code?: string }
+	);
 
 	assert.equal(refusal?.code, 'BAD_REQUEST');
 	assert.deepEqual(asked, []);
@@ -105,7 +104,7 @@ test('and a name at the bound goes through', async () => {
 	const api = await renamingApi(hostRecordingRenames(asked));
 	const atTheBound = 'n'.repeat(WORKSPACE_NAME_LIMIT);
 
-	await api.app.remoteSync.rename({ name: atTheBound });
+	await api.sync.rename({ name: atTheBound });
 
 	assert.deepEqual(asked, [atTheBound]);
 });
@@ -124,7 +123,7 @@ test('a member the workspace does not permit to rename it is refused, and the ho
 		identity: fakeIdentity({ permissions: BUILT_IN.member.mask })
 	});
 
-	const refusal = await api.app.remoteSync.rename({ name: 'not theirs to change' }).then(
+	const refusal = await api.sync.rename({ name: 'not theirs to change' }).then(
 		() => null,
 		(error: unknown) => error as { code?: string }
 	);
@@ -154,7 +153,7 @@ test('and so is a member holding every act except that one', async () => {
 		})
 	});
 
-	const refusal = await api.app.remoteSync.rename({ name: 'still not theirs' }).then(
+	const refusal = await api.sync.rename({ name: 'still not theirs' }).then(
 		() => null,
 		(error: unknown) => error as { code?: string }
 	);

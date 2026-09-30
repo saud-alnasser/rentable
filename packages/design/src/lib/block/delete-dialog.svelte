@@ -1,5 +1,10 @@
 <script lang="ts">
-	import { isConfirmable, toConfirmation, type Blockers } from '#lib/confirmation.js';
+	import {
+		heldWhileOpen,
+		isConfirmable,
+		toConfirmation,
+		type Blockers
+	} from '#lib/confirmation.js';
 	import { ConfirmationSubmission } from '#lib/confirmation.svelte.js';
 	import type { ButtonVariant } from '#lib/primitive/button/index.js';
 	import { Button } from '#lib/primitive/button/index.js';
@@ -65,7 +70,15 @@
 		confirmVariant?: ButtonVariant;
 	} = $props();
 
-	const confirmation = $derived(toConfirmation(blockers));
+	// what the dialog asks about and what it says that costs, kept while it closes: its caller
+	// forgets the record as it closes it, and a refused delete redrawn from the emptied props is the
+	// delete form, as a cost the caller read off the record is the default one.
+	const readShown = heldWhileOpen(
+		() => open,
+		() => ({ record, blockers, description })
+	);
+	const shown = $derived(readShown());
+	const confirmation = $derived(toConfirmation(shown.blockers));
 	const isBlocked = $derived(confirmation.state === 'blocked');
 
 	const submission = new ConfirmationSubmission({
@@ -90,10 +103,10 @@
 			     reads as that sentence's subject rather than as the record. -->
 			<div class="space-y-1">
 				<p class="text-sm leading-6 font-medium break-words">
-					{record || contract.strings.unnamedRecord}
+					{shown.record || contract.strings.unnamedRecord}
 				</p>
 				<p class="text-sm leading-6 text-muted-foreground">
-					{isBlocked ? contract.strings.deleteBlockedDescription : description}
+					{isBlocked ? contract.strings.deleteBlockedDescription : shown.description}
 				</p>
 			</div>
 

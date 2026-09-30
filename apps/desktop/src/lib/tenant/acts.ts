@@ -1,5 +1,5 @@
-import type { RecordAct } from '$lib/design/acts';
-import type { Tenant } from '$lib/platform/database/schema';
+import type { RecordAct } from '$lib/act';
+import type { Tenant } from '$lib/tenant/tenant';
 import CopyIcon from '@lucide/svelte/icons/copy';
 import FilePlusIcon from '@lucide/svelte/icons/file-plus';
 import SquarePenIcon from '@lucide/svelte/icons/square-pen';
@@ -10,7 +10,7 @@ import Trash2Icon from '@lucide/svelte/icons/trash-2';
  *
  * Everything a person can do to one tenant, in the order every surface offers it: the card's menu
  * and its context menu, the tenant's page, and the command menu. Each of those is a projection of
- * this list (`design/acts.ts`), so none of them can offer an act another does not.
+ * this list (`act/act.ts`), so none of them can offer an act another does not.
  *
  * **No duplicate.** A tenant is identified by fields that are unique to it, so a copy would open
  * the form with nothing a new tenant could keep.

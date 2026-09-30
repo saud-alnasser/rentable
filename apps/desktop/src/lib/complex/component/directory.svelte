@@ -9,12 +9,12 @@
 		usePlanManyComplexes,
 		type ComplexRefusalReason
 	} from '$lib/complex/query';
-	import List from '$lib/design/block/list.svelte';
+	import { List } from '$lib/list/ui';
 	import { toNarrowedName } from '@rentable/design/csv.js';
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
 	import RecordCard from '@rentable/design/block/record-card.svelte';
 	import SelectionDialog from '@rentable/design/block/selection-dialog.svelte';
-	import { toCardActions } from '$lib/design/acts';
+	import { toCardActions } from '$lib/act';
 	import * as Cell from '$lib/design/cell';
 	import {
 		describeRefusals,
@@ -23,10 +23,10 @@
 	} from '@rentable/design/selection.js';
 	import type { ListSort } from '@rentable/design/sort.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
-	import { useImportRecords } from '$lib/workspace/query';
-	import { toTransferInput } from '$lib/workspace/workspace';
-	import { IMPORT_FLAGS, memberPermissions } from '$lib/workspace/permission';
+	import { DirectoryImportDialog } from '$lib/transfer/ui';
+	import { useImportRecords } from '$lib/workspace/ui';
+	import { toTransferInput } from '$lib/transfer';
+	import { IMPORT_FLAGS, memberPermissions } from '$lib/permission';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	// the counts of occupied and vacant units wear the glyphs the unit's own status wears, so a
 	// count and the status it counts read as the same mark.
@@ -66,11 +66,16 @@
 		confirming && planQuery.data ? planQuery.data : null
 	);
 
+	// how many units go with the complexes the deletion would take, which the summary names beside
+	// them, since they are deleted too.
+	const unitsGoing = $derived(confirming && planQuery.data ? planQuery.data.units : 0);
+
 	// the reasons a deletion can turn a complex away for, in the order they are worth reading: the
 	// rule the action is about first, and *gone from under you* last, because it is the one
 	// nothing the reader did caused.
 	const REFUSAL_ORDER = [
-		'holds-units',
+		'units-under-contract',
+		'deletes-units',
 		'missing'
 	] as const satisfies readonly ComplexRefusalReason[];
 
@@ -79,7 +84,9 @@
 	// is shown under somebody else's words. The lookup around it is `describeRefusals`.
 	const describeReason = $derived(
 		describeRefusals({
-			'holds-units': (count: number) => $LL.complexes.selection.refusedHoldsUnits({ count }),
+			'units-under-contract': (count: number) =>
+				$LL.complexes.selection.refusedUnitsUnderContract({ count }),
+			'deletes-units': (count: number) => $LL.complexes.selection.refusedDeletesUnits({ count }),
 			missing: (count: number) => $LL.complexes.selection.refusedMissing({ count })
 		} satisfies Record<ComplexRefusalReason, (count: number) => string>)
 	);
@@ -239,7 +246,10 @@
 		{plan}
 		reasons={REFUSAL_ORDER}
 		{describeReason}
-		summarize={(eligible) => $LL.complexes.selection.deleteSummary({ count: eligible })}
+		summarize={(eligible) =>
+			unitsGoing > 0
+				? $LL.complexes.selection.deleteSummaryWithUnits({ count: eligible, units: unitsGoing })
+				: $LL.complexes.selection.deleteSummary({ count: eligible })}
 		confirmLabel={$LL.common.actions.delete()}
 		confirmLoadingLabel={$LL.common.actions.deleting()}
 		onSubmit={deleteSelected}

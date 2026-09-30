@@ -1,6 +1,8 @@
 ---
 paths:
+  - apps/desktop/tauri/src/machine/**
   - apps/desktop/tauri/src/sync/**
+  - apps/desktop/tauri/src/turso/**
   - apps/desktop/tauri/src/http.rs
   - apps/desktop/src/lib/sync/**
 use-when: "the request touches signing in, or the credential a workspace replicates under"
@@ -26,9 +28,10 @@ organization on the customer's own Turso account answers everything the two answ
 > organization effort, and last on purpose: until everything above it landed, the control plane
 > was the only thing that signed anybody in. `sync/google/`, `sync/sign_in.rs`, `sync/session.rs`
 > and `sync/control.rs` are deleted, with the keyring services they filed under left to age out;
-> the provider-neutral OAuth core in `sync/oauth/` survived, because the Turso consent drives it.
-> What the control plane knew about Turso survives as `packages/turso-platform`, imported by
-> nothing.
+> the provider-neutral OAuth core in `sync/oauth/` survived, because the Turso consent drives it,
+> and effort 840 moved it into the Turso adapter as `turso/oauth/`.
+> What the control plane knew about Turso survived as `packages/turso-platform`, imported by
+> nothing, until effort 840 removed it on 2026-09-28.
 
 > **Local backup is gone** (#569, 2026-08-19). Requirement 17 of
 > [[efforts/a-workspace-follows-its-user/spec]], directed by the human: Turso holds the record and
@@ -69,7 +72,7 @@ does and what the sync manager schedules, and since the retirement nothing stand
 _Avoid_: calling the last dispatch of a session a replication: it pushes and does not pull.
 
 **Refusal**:
-Turso saying no to a dispatch, read at the response (`sync/turso/platform.rs::read_sync_refusal`).
+Turso saying no to a dispatch, read at the response (`turso/platform/mod.rs::read_sync_refusal`).
 The account's, for quota or billing, is said to the owner in Turso's own words and to everybody
 else as the account needing attention; the credential's, a `401` or `403`, is what the reconnect
 collects a fresh credential on. A machine that reached nothing is neither, and needs a different
@@ -101,7 +104,10 @@ sentence from both.
 - **What this machine holds is tracked, and the tracking is reconciled at startup.** Each replica
   records the workspace and the member whose grant keeps it, because a machine can hold replicas
   for several members and a replica is only checkable while that member's vault is open. The
-  startup pass drops entries whose files are gone; it deletes nothing.
+  startup pass drops entries whose files are gone; it deletes nothing. The tracking is this
+  machine's record, `remote-sync.json`, kept by `tauri/src/machine/` (`sync/store.rs` until effort
+  840, when the record left `sync`, and the replication, the rename and the Turso consent's
+  commands moved to `organization` under the same command names).
 - **A replica that has never pulled has no schema, and the application says so rather than failing
   on the next statement.** Opening does not block on a pull, which is requirement 7, but a first
   run has nothing to read until one succeeds, so the startup path pulls once and then asks whether
@@ -149,7 +155,7 @@ sentence from both.
 - **Nothing here writes a workspace file but the copy before a migration.** The old backup's
   retirement is why `Database::create_backup` and `Database::restore_backup` are gone rather than
   merely refused on a replica. What an update leaves behind is a version number and a release
-  URL, in `update.rs`. The member holding a workspace's migration lease writes a copy of it, read
+  URL, in `update/`. The member holding a workspace's migration lease writes a copy of it, read
   over the pipeline in one transaction, to `backups/ws-<id>/` before the first statement
-  (`organization/migration.rs`, `backup.rs`), and one on the owner's account where that machine is
+  (`organization/lease/`, `backup.rs`), and one on the owner's account where that machine is
   the owner's; a copy that cannot be taken releases the lease and applies nothing.

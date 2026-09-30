@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest';
 
+import { sectionsOn } from '$lib/app/surfaces';
 import UnitDetails from '$lib/complex/unit/component/details.svelte';
 import UnitDirectory from '$lib/complex/unit/component/directory.svelte';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
@@ -8,7 +9,7 @@ import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import { newId } from '$lib/platform/database/identity';
-import QueryProviders from '#tests/query-providers.svelte';
+import Providers from '#tests/providers.svelte';
 import {
 	describedBy,
 	forgetReader,
@@ -40,8 +41,8 @@ const UNIT = {
 	status: 'vacant' as const
 };
 
-vi.mock('$lib/complex/query', async (importOriginal) => ({
-	...(await importOriginal<typeof import('$lib/complex/query')>()),
+vi.mock('$lib/complex/unit/query', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/complex/unit/query')>()),
 	useFetchUnit: () => ({ data: UNIT, isLoading: false }),
 	useListUnits: () => ({
 		isLoading: false,
@@ -75,9 +76,10 @@ afterEach(() => {
 	document.body.innerHTML = '';
 });
 
-const providers = { wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' as const } };
+const providers = { wrapper: Providers, wrapperProps: { strings, direction: 'ltr' as const } };
 
-const page = () => render(UnitDetails, { unitId: UNIT.id }, providers);
+const page = () =>
+	render(UnitDetails, { unitId: UNIT.id, sections: sectionsOn('unit') }, providers);
 
 const directory = () =>
 	render(UnitDirectory, { complexId: UNIT.complexId, complexName: UNIT.complexName }, providers);

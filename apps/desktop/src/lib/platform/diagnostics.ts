@@ -68,10 +68,10 @@ export const recordDiagnosticError = (event: string, fields?: DiagnosticFields) 
  */
 export const revealDiagnostics = async () => {
 	try {
-		const settings = await tauri.settings.get();
+		const directory = await tauri.diagnostics.directory();
 
-		if (settings.diagnosticsDir) {
-			await tauri.opener.revealItemInDir(settings.diagnosticsDir);
+		if (directory) {
+			await tauri.opener.revealItemInDir(directory);
 		}
 	} catch {
 		/* the screen this was pressed on is already reporting a failure */

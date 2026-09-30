@@ -171,34 +171,20 @@ export function fieldOfFailure(error: unknown): RefusalField | null {
  * there if the field is one of its own.
  */
 export function fieldOfRefusal(code: RefusalCode | null | undefined): RefusalField | null {
-	return (code && FIELDS[code]) ?? null;
+	return (code && fields[code]) ?? null;
 }
 
-const FIELDS: Partial<Record<RefusalCode, RefusalField>> = {
-	'complex.nameTaken': 'name',
-	'complex.nameTakenNamed': 'name',
-	'contract.costNotPositive': 'cost',
-	'contract.endBeforeStart': 'end',
-	'contract.govIdTaken': 'govId',
-	'contract.govIdTakenNamed': 'govId',
-	'contract.periodOffCycle': 'end',
-	'contract.renewalBeforeEnd': 'start',
-	'contract.tenantMissing': 'tenantId',
-	'contract.tenantMissingNamed': 'tenantId',
-	// both renewal refusals are about the term, so each marks the end of it the reader has to move.
-	'contract.unitsUnavailable': 'end',
-	// a new contract's units are the reader's choice, so a unit already held marks that choice.
-	'contract.unitsTaken': 'unitIds',
-	'payment.amountNotPositive': 'amount',
-	'tenant.nationalIdTaken': 'nationalId',
-	'tenant.nationalIdTakenNamed': 'nationalId',
-	'tenant.phoneTaken': 'phoneNumber',
-	'tenant.phoneTakenNamed': 'phoneNumber',
-	// a collision within the submitted list belongs to the list rather than to one name field.
-	'unit.nameRepeated': 'units',
-	'unit.nameTaken': 'name',
-	'unit.nameTakenNamed': 'name'
-};
+/**
+ * Each feature's refusals, by the field of its form they belong under. A feature names its own in
+ * its `refusal.ts`, beside the codes, and the composition root hands them over as it builds the
+ * root router (`$lib/app/refusal`), so nothing here spells a feature's code.
+ */
+let fields: Partial<Record<RefusalCode, RefusalField>> = {};
+
+/** hand over every feature's refusal fields; called once, by the composition root. */
+export function bindRefusalFields(bound: Partial<Record<RefusalCode, RefusalField>>) {
+	fields = bound;
+}
 
 /** every field a refusal can belong under, across the forms that place one. */
 const REFUSAL_FIELDS = [
@@ -219,4 +205,39 @@ export type RefusalField = (typeof REFUSAL_FIELDS)[number];
 
 function isRefusalField(name: string): name is RefusalField {
 	return (REFUSAL_FIELDS as readonly string[]).includes(name);
+}
+
+/**
+ * WHAT A PERSON IS TOLD WHEN THE ACCOUNT IS REFUSED
+ *
+ * Requirement 25, as two sentences. A member who is not the owner is told that the organization's
+ * Turso account needs attention and whom to tell, and nothing about quotas, plans or usage: their
+ * employer's billing state is not theirs to see. The owner is told enough to act on: Turso's own
+ * sentence about which limit, and where on Turso to go, without having to know what a group is.
+ *
+ * Plain rather than a component, so a `node:test` pins the leak the requirement forbids: the
+ * member's sentence carries no word of the detail, in either locale, whatever the detail says.
+ *
+ * The account's refusal arrives as a sync standing rather than as a code, and its sentence is here
+ * all the same: this module is the one place a refusal becomes words.
+ */
+export type AccountRefusalReader = {
+	/** whether the reader is the owner, which is who sees the detail. */
+	isOwner: boolean;
+	/** the owner's username, for the member's sentence. */
+	ownerUsername: string;
+	/** Turso's own sentence, read by the owner's machine alone; `null` for everybody else. */
+	detail: string | null;
+};
+
+export function accountRefusalSentence(reader: AccountRefusalReader, LL: TranslationFunctions) {
+	if (!reader.isOwner) {
+		return LL.workspace.accountRefusedMember({
+			owner: reader.ownerUsername || LL.layout.signIn.roleOwner()
+		});
+	}
+
+	return reader.detail
+		? LL.workspace.accountRefusedOwner({ detail: reader.detail })
+		: LL.workspace.accountRefusedOwnerNoDetail();
 }

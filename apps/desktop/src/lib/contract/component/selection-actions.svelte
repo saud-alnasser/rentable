@@ -10,15 +10,17 @@
 		type SelectionPlan
 	} from '@rentable/design/selection.js';
 	import {
-		useDeleteManyContracts,
 		usePlanManyContracts,
-		useRestoreManyContracts,
-		useTerminateManyContracts,
 		type ContractRefusalReason,
 		type ContractSelectionAction
 	} from '$lib/contract/query';
+	import {
+		useDeleteManyContracts,
+		useRestoreManyContracts,
+		useTerminateManyContracts
+	} from '$lib/contract/selection/query';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import { memberPermissions } from '$lib/workspace/permission';
+	import { memberPermissions } from '$lib/permission';
 	import BanIcon from '@lucide/svelte/icons/ban';
 	import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';

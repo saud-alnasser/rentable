@@ -173,7 +173,7 @@ Recorded originally as ADR 0013, *Each list gets the presentation its data is sh
 
 ### Search
 
-**Every set a person can search searches one way: `design/block/search-field.svelte`.** A leading
+**Every set a person can search searches one way: `list/component/search-field.svelte`.** A leading
 search glass, a wait of 250 ms after the last keystroke before the term becomes the search, and
 `/` to put the cursor in the field from anywhere on the surface. The list shell draws it, the
 contract's unit panes draw it, and the settings members, roles and workspaces directories draw it,
@@ -188,7 +188,7 @@ until ticket 19 of [[efforts/838-permissions-are-a-role-and-an-override/spec]] g
 block the bar and put two sets on one section.*
 
 **A set drawn as a directory opens with the list shell's own bar,
-`design/block/list-toolbar.svelte`**: the field at one end, and at the other the count, what
+`list/component/list-toolbar.svelte`**: the field at one end, and at the other the count, what
 narrows the set, the order, and what acts on it, in that order. The list shell draws it above its
 records and the settings directories above their cards. What a directory does not want it leaves
 out: the settings directories offer no export, since a dozen accounts are not a file anybody
@@ -219,7 +219,7 @@ Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], re
 ### Filter
 
 **A list narrows by what its concept declares, and the list shell draws every narrowing the same
-way.** The concept hands the shell `filterOptions`, declared in `design/filter.ts`: a choice over
+way.** The concept hands the shell `filterOptions`, declared in `list/filter.ts`: a choice over
 the concept's own values (a contract's attention rank), or the one period filter,
 `PERIOD_FILTER`, which every surface asking about a span of time offers rather than naming a
 period of its own. The shell draws each as a funnel control in the bar, after the count. Its menu
@@ -249,7 +249,7 @@ Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], re
 ### Sort
 
 **Every list offers an order, through the bar's one sort control**
-(`design/block/list-toolbar.svelte`). The concept names its orders as `sortOptions`, built from the
+(`list/component/list-toolbar.svelte`). The concept names its orders as `sortOptions`, built from the
 column ids its read orders by, so the control cannot offer an order the query would refuse. The
 control is an icon after what narrows, filled while an order is chosen, and its menu marks the
 chosen order's direction. Choosing an order starts it ascending, choosing it again reverses it,
@@ -286,14 +286,16 @@ human accepted it at that effort's review round two on 2026-09-17.*
 *The deviation named the members and workspaces directories alone until ticket 19 of
 [[efforts/838-permissions-are-a-role-and-an-override/spec]] added the roles directory beside them,
 for the same reason: a role became a record of the organization's own with that effort, and what
-opening it means is its editor (`organization/component/roles.svelte`).*
+opening it means is its editor (`organization/role/component/directory.svelte`).*
 
 *Kept by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 8: the two
-directories declare their acts in `organization/acts.ts` like every concept (*Record card actions*,
+directories declare their acts in `organization/member/acts.ts` and `organization/workspace/acts.ts`
+like every concept (*Record card actions*,
 below), and the sheet a card opens is the organization host's, mounted in the frame. A member's or a
 workspace's acts are gated on who is reading as much as on the record, so the record an act is given
 carries the reader's facts beside the member or the workspace. Those facts are read in one place
-(`memberReaderOf`, `toMemberActContext` and `workspaceContextOf` in `organization/acts.ts`), by the
+(`memberReaderOf` and `toMemberActContext` in `organization/member/acts.ts`, `workspaceContextOf` in
+`organization/workspace/acts.ts`), by the
 settings area for its directories and by the command menu for its own offer, so neither can gate an
 act the other does not. A member's name is part of its one edit, so the card offers *edit* and never
 *rename* beside it.*
@@ -302,7 +304,7 @@ act the other does not. A member's name is part of its one edit, so the card off
 
 **A record's acts are declared once per concept, and every surface offering them is a projection
 of that declaration.** The concept writes one ordered list in `apps/desktop/src/lib/<concept>/acts.ts`,
-of the `RecordAct` shape in `design/acts.ts`: each act's id, label, icon, tone, group, shortcut, the
+of the `RecordAct` shape in `act/act.ts`: each act's id, label, icon, tone, group, shortcut, the
 flag a member needs to take it, and the concept's own rules for whether it applies to a record
 (hidden where it does not) and whether it is unavailable (shown, refused, with the reason). Three
 surfaces and the command menu read it:
@@ -314,12 +316,12 @@ surfaces and the command menu read it:
 | the command menu, before and after the record is named | `toPaletteActs`, `toPaletteVerbs` |
 
 So label, icon, order, tone, shortcut and availability cannot differ between them, and a card offers
-what its page offers, copy details and duplicate included. `design/tests/acts.test.ts` holds every
+what its page offers, copy details and duplicate included. `act/tests/act.test.ts` holds every
 declared concept to it, for a record in each state it can be in.
 
 **An act's `flag` is the flag its procedure names**, one of a record kind's view, create, edit and
 delete. It is read against what the reader may do in the workspace open, held once for the window
-by `workspace/component/permissions.svelte` in `workspace/permission.ts`, off the same facts the
+by `workspace/component/permissions.svelte` in the `permission/` capability, off the same facts the
 tRPC context folds: the session's permissions, what is pinned for the reader in the workspace open
 (the workspace layer, `effectiveInWorkspace`), and the grant on it. Where the reader
 lacks the flag, the act is shown refused on every record, and the reason names the flag, or the
@@ -331,10 +333,10 @@ on the same terms (`mayRun`). *Added by ticket 16 of
 [[efforts/838-permissions-are-a-role-and-an-override/spec]], requirement 10: the act carried its
 flag since ticket 10 of that effort, and this section did not name it.*
 
-**An act never opens a form or a dialog itself.** Its `run` asks the concept's host, mounted once in
-`layout/component/frame.svelte`, which owns every form and confirmation the concept's acts open and
-exposes `run(actId, record)` and `create(prefill?)` through a module store
-(`contract/host.svelte.ts` is the first). A surface mounts none of them, so there is one form per
+**An act never opens a form or a dialog itself.** Its `run` asks the concept's host, declared in its
+`surface.ts` and mounted once by `shell/component/frame.svelte`, which owns every form and
+confirmation the concept's acts open and exposes `run(actId, record)` and `create(prefill?)` through a
+module store (`contract/host.svelte.ts` is the first). A surface mounts none of them, so there is one form per
 concept in the tree, and the command menu reaches every act from any screen: choosing one asks for the
 record, and the host reads it and refuses, with a sentence, an act that record does not admit.
 
@@ -369,11 +371,11 @@ and 8: contract is the first concept declared this way, and the others follow it
 **An ordinary delete happens at once and offers undo.** A record whose delete removes the record
 and nothing else is gone the moment the act is chosen, and the announcement it raises carries the
 undo control and the line saying the undo lasts while the application is open (the declaration's
-`toast.detail` in `design/mutation.ts`). Ctrl/Cmd+Z takes it back as well. There is no dialog in
+`toast.detail` in `mutation/announcement.ts`). Ctrl/Cmd+Z takes it back as well. There is no dialog in
 front of it.
 
 **A confirmation appears only where a delete removes more than the record, or cannot be undone.**
-Each act declares which, as its `confirmation` in `design/acts.ts`: `none`, `cascade` or
+Each act declares which, as its `confirmation` in `act/act.ts`: `none`, `cascade` or
 `irreversible`, and every act in the `destructive` group declares one
 (`design/tests/delete-and-confirm.test.ts` holds each concept to it). The host reads it through
 `toDeleteStep` and opens `packages/design/src/lib/block/delete-dialog.svelte` only when the policy
@@ -381,11 +383,21 @@ asks. A record's own parts are the record: a contract's unit assignments go with
 with its undo, so releasing its units is not a cascade. Today the tenant, complex, unit, payment
 and contract deletes are `none`; deleting a
 workspace, removing a member and locking one out are `irreversible`, which keeps the organization
-host's deletes in the delete dialog. The delete dialog's button names the verb (*delete*, *remove*),
+host's deletes in the delete dialog.
+
+**A delete whose cost turns on the record declares what the record alone costs, and its host
+resolves the rest.** A complex's units are records of their own and go with it, so deleting a
+complex that has units is a cascade, and one with none is still `none`
+([[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]], requirement 22). How many units
+a complex has is on no record a surface holds, so the act declares `none` and the complex host,
+which reads the deletion's plan, hands `toDeleteStep` the policy `toComplexDeleteConfirmation`
+gives for the complex in front of it (`complex/acts.ts`). The dialog it opens names the units that
+go, and the delete is undone whole, the units included. The delete dialog's button names the verb (*delete*, *remove*),
 never *confirm* or *OK*.
 
 **A refused delete is still refused, and says why.** A delete declared `none` waits on what might
-refuse it before it runs; where something does (a tenant with contracts, a complex with units), the
+refuse it before it runs; where something does (a tenant with contracts, a complex one of whose
+units a contract holds), the
 host opens the delete dialog in its blocked state, which names what stands in the way and offers no
 destructive control. The procedure refuses it either way.
 
@@ -420,11 +432,12 @@ Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], re
 
 **A change to a workspace's records can be taken back while the application is open, by the
 announcement or by the key, and the two do one thing.** A mutation that declares an `inverse` in
-`design/mutation.ts` leaves it on the session's stack (`design/inverse.ts`), and its announcement
-carries *undo*. Ctrl/Cmd+Z takes back the change on top of the stack, and Ctrl/Cmd+Shift+Z or
-Ctrl+Y applies it again (`design/undo-shortcut.ts`). Both are application shortcuts that stand down
-in a text field, where those keys are the field's own, and the command menu offers both by name,
-saying why where there is nothing to move.
+`mutation/mutation.ts` leaves it on the session's stack, and its announcement carries *undo*.
+Ctrl/Cmd+Z takes back the change on top of the stack, and Ctrl/Cmd+Shift+Z or Ctrl+Y applies it
+again. The stack, the offer and the key pair are the `undo/` capability's, and nothing outside it
+knows how undo works. Both are application shortcuts that stand down in a text field, where those
+keys are the field's own, and the command menu offers both by name, saying why where there is
+nothing to move.
 
 - **What was taken back is announced, with the offer to apply it again**, so undo and redo answer
   each other from the same toast.
@@ -432,8 +445,13 @@ saying why where there is nothing to move.
   the one before it rather than leaving a control over somebody else's change.
 - **An offer stays eight seconds**, longer than an announcement that only has to be read, because
   it also has to be decided on and reached for.
-- **Switching workspace empties the stack**, and any offer on screen goes with it: an inverse is a
-  statement about one database.
+- **Switching workspace does not empty the stack today.** `InverseStack.clear()` in `undo/undo.ts`
+  forgets both directions and withdraws any offer on screen (`undo/move.ts` dismisses it when the
+  stack has nothing left to move), but nothing in production calls it: `startup/switch.ts` drops
+  the cached queries and the held context and leaves the stack as it was, and so does the sign-in
+  wall. An inverse is a statement about one database, so one replayed after a switch reaches the
+  wrong workspace: emptying the stack on a switch is what the capability is built for, not yet what
+  the application does.
 
 Every create, edit and delete of a tenant, complex, unit, contract or payment is inside undo, as
 are a contract's renewal, termination, restoration and units, and every action on a selection
@@ -453,25 +471,26 @@ Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], re
 
 **Every set a person can add to offers one create control, in one place, and one key.**
 
-- **The control** is `design/block/create-control.svelte`, and nothing else draws a create: a
+- **The control** is `create/component/control.svelte`, and nothing else draws a create: a
   quiet plus, its words in the tooltip and on the control, with the key beside them. It stands
-  **last at the end of the bar above the records**: `design/block/list-toolbar.svelte`, which the
+  **last at the end of the bar above the records**: `list/component/list-toolbar.svelte`, which the
   list shell draws and the settings directories' tray (`organization/component/directory-tray.svelte`)
   draws too. A set
   that may not be added to right now keeps its control, refused, with its reason on hover and focus
   (*Guidance*, below); the workspaces tray puts its refusal in that place instead.
 - **The key** is Ctrl or Cmd with N, an application shortcut in the registry
-  (`design/create-key.ts`, registered by `layout/component/create-shortcut.svelte`). It is answered
-  by the set on screen: a drawn control holds its place (`design/create-target.svelte.ts`) and the
+  (`create/key.ts`, registered by `create/component/shortcut.svelte`). It is answered
+  by the set on screen: a drawn control holds its place (`create/target.svelte.ts`) and the
   last one drawn answers. Where no set is on screen the key is unavailable and says why, and it is
   still taken from the webview, which would otherwise open a window. A form or confirmation standing
   over the set takes the key and opens nothing a second time.
-- **The command menu** creates every concept a person can (`layout/create.ts`): tenants, complexes
-  and contracts in their directory, and a unit or a payment after asking, in the menu's asking
-  mode, for the complex or the contract it cannot be without.
+- **The command menu** creates every concept a person can (each record's `create` in its
+  `surface.ts`, which `palette/` offers): tenants, complexes and contracts in their directory,
+  and a unit or a payment after asking, in the menu's asking mode, for the complex or the
+  contract it cannot be without.
 - **Every route reaches the concept host's `create`**, and nothing else opens a create form. The
   command menu's `?create` on a directory is consumed by the host, which owns the form
-  (`design/create-intent.svelte.ts`), and never by the directory.
+  (`create/intent.svelte.ts`), and never by the directory.
 
 *Why: a create drawn per surface came from two icon families and was reached by a link the
 directory itself had to answer. A reader who has added a tenant knows where to add a payment,
@@ -537,20 +556,20 @@ the order and before the create, holding *export* and *import* and nothing else.
   cannot export, and its entry stays in the menu, refused, saying so (*Guidance*). With a selection, the selection bar's *export selection* writes only the
   selection, under a name that says so.
 - **Import** reads a file into the directory it was opened from, through
-  `workspace/component/directory-import-dialog.svelte`: choose the file, see what it would do, then
+  `transfer/component/directory-import-dialog.svelte`: choose the file, see what it would do, then
   agree. **Nothing is written before the last step.** The dialog says how many rows go in, how many
   do not and why, and which rows to go and look at. A row wrong on its own is turned away and the
   rest goes in; a file whose rows contradict each other is refused whole and offers no import
-  (`design/import.ts`). An import is outside undo (*Undo*).
+  (`transfer/import.ts`). An import is outside undo (*Undo*).
 
 Tenants, complexes, units, contracts and payments offer both. A contract that takes no new payment
 refuses the import on its ledger, with the reason its create is refused (`importUnavailable` on
 the list shell), since an import only adds payments. The settings directories offer neither (*Search*).
 
 **A whole workspace is one file, and it moves from the settings area**, beside sync
-(`workspace/component/transfer.svelte`), never from a directory: a directory's control writes that
+(`organization/workspace/component/transfer.svelte`), never from a directory: a directory's control writes that
 directory's records and nothing else. Its import shows a line per sheet
-(`workspace/component/import-dialog.svelte`), and a reference nothing in the file answers refuses
+(`transfer/component/import-dialog.svelte`), and a reference nothing in the file answers refuses
 the whole file.
 
 *Why: the export was an icon that could say export and nothing else, so a second format had nowhere
@@ -560,7 +579,7 @@ Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], re
 
 **A stated exception: the earlier records skip choosing a file.** Where this machine still holds the
 records of 0.12.0 or 0.13.0, a callout in the settings workspace group, above the transfer controls
-(`workspace/component/earlier-records.svelte`), opens the same workspace import review over those
+(`organization/workspace/component/app-database-records.svelte`), opens the same workspace import review over those
 records as the shell reads them from the earlier version's database, rather than over a file the
 person chose. There is no file for the person to choose, since the records sit in the earlier
 version's own data, and nothing the pattern protects is lost: the plan is still shown, sheet by
@@ -580,7 +599,7 @@ paper and back again on every pass, and flickers), shows the sheet alone under `
 asks the host to print it: on Windows the host prints it from a print window behind the
 application, so the application never shows its paper layout, and a PDF is written with no dialog
 and paper goes through the operating system's dialog, never the webview's browser preview;
-on macOS and Linux both open the system's print panel (`tauri/src/print.rs`).
+on macOS and Linux both open the system's print panel (`tauri/src/print/`).
 
 The page is paper: light whatever the window's appearance (`.paper` in the token layer), in the one
 language chosen, set out as a document with the organization that issued it at its head and its
@@ -614,19 +633,19 @@ Recorded originally as ADR 0017, *A form surface is one component that presents 
 form chooses other records or writes more than one record (contract, complex with its units, tenant
 with its phone composite, member, role), and **light** otherwise (payment, unit, rename, password).
 So a complex is heavy for both create and edit, and a concept never opens on two presentations.
-**A role is heavy although its form holds one name and one set of flags** (`role-editor.svelte`):
+**A role is heavy although its form holds one name and one set of flags** (`role/component/editor.svelte`):
 a new mask moves the permissions of everybody holding the role, so its save issues every
 holder's certificate again in the same act, and the form writes as many records as the role has
 holders. *The editor declared the weight before this paragraph named it; ticket 19 of
 [[efforts/838-permissions-are-a-role-and-an-override/spec]] wrote down why.*
 
 **A member's two sheets share one layout.** The sheet that adds a member
-(`organization/component/account-form.svelte`) and the sheet that edits one (`member-sheet.svelte`)
+(`organization/member/component/account-form.svelte`) and the sheet that edits one (`member/component/sheet.svelte`)
 draw the same sections, in the same order, with the same legends and control shapes, from the same
-pieces: the username under its head, the role picker in its tray (`member-role.svelte`), the
-switch list under it (`member-override.svelte`, which draws `permission-switches.svelte` with
+pieces: the username under its head, the role picker in its tray (`member/component/role.svelte`), the
+switch list under it (`member/component/override.svelte`, which draws `role/component/permission-switches.svelte` with
 the role to compare against and the reset), and a switch per workspace
-(`member-workspaces.svelte`), where off is what not granting it is. Only the sentences that
+(`member/component/workspaces.svelte`), where off is what not granting it is. Only the sentences that
 belong to the moment differ, and the permissions beneath a workspace that is in, which the edit
 sheet alone draws, since what a person may do in a workspace is set once they are in it. Who may
 hand out what is decided in the shared pieces, so the two sheets cannot gate differently. *Settled
@@ -639,7 +658,7 @@ per workspace, and asked for it to read like the edit sheet.*
 the member ends up with.** The picker is a select over every role but the owner's, highest rank
 first, with the sentence a built-in role means under it; a role at or above the reader's own rank
 is drawn refused in the list, and the tray says why. Under it is the switch list the role editor
-draws (`permission-switches.svelte`), set to the role's mask exclusive-or'd with the override; a
+draws (`role/component/permission-switches.svelte`), set to the role's mask exclusive-or'd with the override; a
 switch turned writes the override that makes the member end up with what the switches say, and the
 override itself is never shown. A switch that differs from the role carries a dot naming it; where
 any does, the role's name reads *custom* in the tray and the switches' head offers *reset to* the
@@ -667,7 +686,7 @@ workspace the reader holds is a switch headed by the workspaces' building glyph:
 full-access grant, off is none. Beneath one that is in, on the member's card, one folded row,
 *permissions*, reads *custom* beside it where what the member may do there differs from what they
 may do across the organization, and opens the record groups of the switch list
-(`workspace-tailoring.svelte`, drawing `permission-switches.svelte` with `records`), each folding
+(`access/component/tailoring.svelte`, drawing `role/component/permission-switches.svelte` with `records`), each folding
 in turn, set to what they end up with there. **What is set there is what differs**: a switch
 turned away from what the member holds across the organization is pinned for that workspace at
 its new value when the card is saved, and holds it however the organization moves; a switch turned
@@ -692,7 +711,7 @@ acts are the grants that exist (`useChangeAccess`), sent only for the workspaces
 one workspace override per workspace whose pins changed, carrying what is pinned there and which
 of it is on (`useSetWorkspaceOverride`). **A workspace's own dialog draws its
 people the same way**, a switch per member, in or out, with the same refusals at the same
-controls, from the one list both surfaces share (`access-switches.svelte`), so the two cannot
+controls, from the one list both surfaces share (`access/component/switches.svelte`), so the two cannot
 refuse differently; a person tailored there is marked *custom here* beside their name, and the
 tailoring itself is the card's. A member is drawn with the member's glyph (`organization/glyph.ts`,
 `circle-user`, the account's), never the tenant's person, and the owner and the reader are not
@@ -718,7 +737,7 @@ carried theirs.
 
 **A refused submit moves focus to the first invalid field**, in the order the reader meets them,
 and scrolls it into view inside the surface's own body. Enter submits. Every schema form spreads
-`surfaceForm` from `apps/desktop/src/lib/design/form.ts` into its `superForm` call, which is where
+`surfaceForm` from `apps/desktop/src/lib/form/form.ts` into its `superForm` call, which is where
 both are set; `tenant/tests/form.svelte.test.ts` holds the focus.
 
 Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 10: complex
@@ -744,7 +763,7 @@ organization's did.
 | a count | the count cell |
 
 **A permission is a switch, although it takes effect when its editor is saved.** The role editor
-and a member's card draw one list of them (`organization/component/permission-switches.svelte`):
+and a member's card draw one list of them (`organization/role/component/permission-switches.svelte`):
 each kind of record, and the organization, is a group that folds to its glyph, its name, how many
 of its permissions are on and a chevron, and a folded head carries a dot where a switch inside
 differs and a lock where one is not the reader's to turn. Opened, a group is one row per
@@ -782,7 +801,7 @@ application can dial, and grows as they are added.
 
 **A member's role is a choice among the organization's roles**, which are records the organization
 adds to itself, so it takes the control another record does: a select over them, the owner's left
-out, highest rank first (`member-role.svelte`, on the allowlist for that reason). How many there are
+out, highest rank first (`member/component/role.svelte`, on the allowlist for that reason). How many there are
 is the organization's to say. The same two conventions hold for it: the sentence of a built-in role
 chosen, *who it is for*, stands under the control, and a role the reader may not give is drawn
 refused in the list, never removed. *It was a toggle group of the two roles there were until effort
@@ -881,7 +900,7 @@ Recorded originally as ADR 0031, *A contract's attention rank is the contract's 
 owes nothing today and whose next cycle falls due within the next seven days without being covered
 in full; its landing row states that cycle's amount and due date. It is not a money rank: what falls
 due this week is not owed yet, so the landing screen's outstanding figure sums *overdue* and
-*owing* alone (`isMoneyRank` in `contract/rank.ts`), and a due-soon heading carries no total. Every
+*owing* alone (`isMoneyRank` in `contract/rank/rank.ts`), and a due-soon heading carries no total. Every
 list that filters by rank offers it. Settled by
 [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]], requirement 11.
 
@@ -955,7 +974,7 @@ Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], re
 failure** (*Not found*, under *Empty*, above).
 
 - **An act refused or failed** is an error toast, raised by the mutation's declaration or through
-  `error/toast.ts` (*Feedback*, below). Its title is the reader's sentence, read from the refusal's
+  `$lib/notification` (*Feedback*, below). Its title is the reader's sentence, read from the refusal's
   code (`error/refusal.ts`), never the words a procedure or the shell wrote. A confirmation holds
   the refusal its act earned in the dialog, and a refusal that belongs to a form's field marks that
   field (*Validation errors*).
@@ -971,7 +990,7 @@ failure** (*Not found*, under *Empty*, above).
   the sentence.
 - **A screen that could not be drawn takes the shared application surface** (*Application
   surfaces*), neutral in tone, since the application around it is still running
-  (`layout/component/caught-error.svelte`). It offers *retry*, which draws the screen again, and
+  (`shell/component/caught-error.svelte`). It offers *retry*, which draws the screen again, and
   *go home* where the frame around it still works; where the frame itself failed, retry alone,
   since every screen would draw the same broken frame. A route that failed to load draws the same
   surface from the routes' `+error.svelte` and offers the same two: *retry*, which loads the route
@@ -987,10 +1006,11 @@ Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], re
 ### Feedback
 
 **Every toast goes through the shared handlers.** A mutation announces through its declaration and
-the handlers in `design/mutation.ts`; anything else, a failure raised outside a mutation or a
-success nothing declared, goes through `error/toast.ts`. Those two modules are the only importers
-of `toast`, and `error/tests/toast-reach.test.ts` fails on a third. [[rules/frontend]] states the
-same line for mutations under *Data access*.
+the handlers in `mutation/announcement.ts`; anything else, a failure raised outside a mutation or a
+success nothing declared, goes through `$lib/notification`. The handlers raise through
+`$lib/notification` too, so `notification/notification.ts` is the only importer of `toast` and
+`notification/` the only home that mounts the packaged `Toaster`; `notification/tests/reach.test.ts`
+fails on a second. [[rules/frontend]] states the same line for mutations under *Data access*.
 
 **A notice that stands on a surface is a callout**, drawn with the callout primitive in the tone
 vocabulary above, never a hand-coloured box. The contract units lock notice is the worked example:
@@ -1007,17 +1027,20 @@ Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], re
 
 ### The breadcrumb
 
-**The trail is built from the page's route id, and every crumb is a page.** `layout/navigation.ts`
-lists the pages and the places the trail names (the four directories and the settings area); a
-prefix of the route id is a crumb only where it is one of those places. An address segment is not a
+**The trail is built from the page's route id, and every crumb is a page.** Each feature declares
+its pages in its `feature.ts` (`pages`), saying which the trail names (the directories and the
+settings area), and `shell/navigation.ts` reads them off the list in `app/`; a prefix of the route
+id is a crumb only where it is one of those places. A place's name is its surface's (`places` in
+its `surface.ts`, in the order `app/surfaces.ts` gives them), which is also where the rail and the
+command menu read their places. An address segment is not a
 place: a unit's address passes through `/complexes/units`, and no page lives there.
-`layout/tests/navigation.test.ts` asks every page's trail against the routes directory itself.
+`shell/tests/navigation.test.ts` asks every page's trail against the routes directory itself.
 
 **A record's page ends the trail on the record, by name.** The record surface says what the record
 it shows is called (`shown-record.svelte.ts` in the design package), because only the concept
 knows: a contract is named by its tenant. A record reached through another runs its trail through
 that one: a payment's trail is its directory, its contract, then the payment
-(`RECORD_PARENTS` in `layout/navigation.ts`), and the record surface names and addresses the
+(the page's `parent` in `payment/feature.ts`, read into `RECORD_PARENTS` in `shell/navigation.ts`), and the record surface names and addresses the
 contract as its `parent`. Until the record is read the trail ends on the directory
 above it, and a record that is not there is named as unknown. The dashboard and the way in carry no
 trail: the first is where the application opens, and the second is a walk whose card says which
@@ -1076,22 +1099,22 @@ what it wrote to its host through `onCreated`, and the host decides where the re
 - **a contract opens its own page**, since its units, payments and term are all read and changed
   there (`contract/tests/landing.svelte.test.ts`);
 - **a tenant, a complex or a payment is brought into view in the set that lists it**, with the
-  focus on its card, through `design/landing.svelte.ts`. The host names the record and the list
+  focus on its card, through `create/landing.svelte.ts`. The host names the record and the list
   block answers where it shows it: it scrolls the record into view and puts the focus on it once
   the form has gone, through the same request an arrow key raises, so the keyboard carries on from
   the new record. Each list on screen answers the request once, from the set it holds, and the next
   navigation drops it, so a set opened later or a filter cleared later never moves the focus
-  (`design/tests/landing.svelte.test.ts`).
+  (`create/tests/landing.svelte.test.ts`).
 
 ### An act that cannot run says why at the control
 
 **An act that does not apply to a record is hidden; an act that applies and cannot run now is
 shown, dimmed, refused, and says why in one line on hover and focus.** The reason is the refusal
 of the act's `flag` where the reader lacks it, and otherwise the act's `unavailable`
-(`design/acts.ts`, read as *Record card actions* says; *this read "the act's `unavailable`" until
+(`act/act.ts`, read as *Record card actions* says; *this read "the act's `unavailable`" until
 ticket 16 of effort 838*), and every surface draws it from the one declaration: the card's
 two menus (`record-card.svelte`), the record page's cluster (`record-action-control.svelte`), and
-the create control (`create-control.svelte`, given the set's reason by the list's
+the create control (`create/component/control.svelte`, given the set's reason by the list's
 `createUnavailable`), whose key answers with the same reason, and the create an empty list offers
 under its title. The command menu puts it beside the
 row, where its keys would be, because its rows are chosen from the search field and never take the

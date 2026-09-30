@@ -1,13 +1,12 @@
-import type { RemoteSyncState } from '$lib/platform/tauri';
+import { WORKSPACE_NAME_LIMIT, type RemoteSyncState } from './host';
 import { procedure, router } from '$lib/api/trpc';
-import { WORKSPACE_NAME_LIMIT } from '$lib/workspace/workspace';
 import z from 'zod';
 
 /**
  * SYNC ROUTER
  *
- * getting a workspace off this machine and back onto it, mounted by the app router at
- * `app.remoteSync`.
+ * getting a workspace off this machine and back onto it, mounted at the root at `sync` (it was
+ * `app.remoteSync` until effort 840 flattened the router tree).
  *
  * *It carried a `backup` router beside this one, because backup and sync produced the same
  * snapshots. The backup surface retired with #569 and Turso holds the record, so there are no
@@ -18,9 +17,9 @@ import z from 'zod';
  * would make it answerable only to the machines whose answer is already known.
  */
 
-export const remoteSync = router({
+export default router({
 	getState: procedure.public.query(async ({ ctx }): Promise<RemoteSyncState> => {
-		return ctx.host.remoteSync.getState();
+		return ctx.host.sync.getState();
 	}),
 	/**
 	 * Call this machine's workspace something else.
@@ -51,6 +50,6 @@ export const remoteSync = router({
 		.permitted('renameWorkspace')
 		.input(z.object({ name: z.string().trim().min(1).max(WORKSPACE_NAME_LIMIT) }))
 		.mutation(async ({ input, ctx }): Promise<RemoteSyncState> => {
-			return ctx.host.remoteSync.renameWorkspace(input.name);
+			return ctx.host.sync.renameWorkspace(input.name);
 		})
 });

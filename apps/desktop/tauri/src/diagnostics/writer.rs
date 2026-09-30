@@ -140,17 +140,7 @@ mod tests {
 
     use super::{DiagnosticLog, RotationLimits};
     use crate::diagnostics::{DiagnosticLevel, DiagnosticRecord, REDACTED};
-
-    fn unique_dir(name: &str) -> PathBuf {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("system time before unix epoch")
-            .as_nanos();
-
-        std::env::temp_dir()
-            .join("rentable-tests")
-            .join(format!("diagnostics-{name}-{nanos}"))
-    }
+    use crate::test::scratch;
 
     fn event(name: &str) -> DiagnosticRecord {
         DiagnosticRecord::new(DiagnosticLevel::Info, name)
@@ -171,22 +161,22 @@ mod tests {
     /// record that arrives unredacted arrives unredacted for every caller.
     #[test]
     fn a_secret_never_reaches_the_file_by_any_route() {
-        let directory = unique_dir("redaction");
+        let directory = scratch("redaction");
         let log = DiagnosticLog::new(directory.clone(), RotationLimits::DEFAULT)
             .expect("failed to open the log");
 
         let leaks = [
-            event("account.linked").with("refreshToken", "1//04dXmSecret"),
-            event("sync.push.failed").with("error", "denied for Bearer ya29.leaked"),
+            event("account.linked").with("refreshToken", "r3freshSecret"),
+            event("sync.push.failed").with("error", "denied for Bearer eyJleaked"),
             // the shape a token exchange fails in: a form body quoted whole, under
             // a field name that says nothing about what it carries.
             event("sync.token.refreshFailed").with(
                 "error",
-                "POST /token failed: grant_type=refresh_token&client_secret=GOCSPX-3fLeaked",
+                "POST /token failed: grant_type=refresh_token&client_secret=s3cretLeaked",
             ),
             // arriving from the webview, where the event name is not a literal
             // this crate wrote.
-            event("failed for ya29.leaked").with("stage", "upload"),
+            event("failed for Bearer eyJfromTheWebview").with("stage", "upload"),
         ];
 
         for leak in leaks {
@@ -197,7 +187,12 @@ mod tests {
         let contents = std::fs::read_to_string(directory.join("rentable.log"))
             .expect("failed to read the log");
 
-        for secret in ["1//04dXmSecret", "ya29.leaked", "GOCSPX-3fLeaked"] {
+        for secret in [
+            "r3freshSecret",
+            "eyJleaked",
+            "s3cretLeaked",
+            "eyJfromTheWebview",
+        ] {
             assert!(!contents.contains(secret), "{secret} reached the file");
         }
 
@@ -212,7 +207,7 @@ mod tests {
 
     #[test]
     fn the_log_stays_within_its_limits_however_much_is_written() {
-        let directory = unique_dir("rotation");
+        let directory = scratch("rotation");
         let limits = RotationLimits {
             max_file_bytes: 512,
             max_files: 3,
@@ -252,7 +247,7 @@ mod tests {
     /// event. It is pinned so that the overshoot stays one line's worth.
     #[test]
     fn one_event_larger_than_a_file_is_written_whole() {
-        let directory = unique_dir("oversized");
+        let directory = scratch("oversized");
         let limits = RotationLimits {
             max_file_bytes: 128,
             max_files: 2,
@@ -280,7 +275,7 @@ mod tests {
 
     #[test]
     fn rotation_discards_the_oldest_events_and_keeps_the_newest() {
-        let directory = unique_dir("recency");
+        let directory = scratch("recency");
         let log = DiagnosticLog::new(
             directory.clone(),
             RotationLimits {

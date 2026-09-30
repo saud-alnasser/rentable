@@ -1,17 +1,21 @@
 import {
 	declareMemberActs,
-	declareRoleActs,
-	declareWorkspaceActs,
 	type MemberActId,
 	type MemberActRecord,
-	type MemberPending,
+	type MemberPending
+} from '$lib/organization/member/acts';
+import {
+	declareRoleActs,
 	type RoleActId,
 	type RoleActRecord,
-	type RolePending,
+	type RolePending
+} from '$lib/organization/role/acts';
+import {
+	declareWorkspaceActs,
 	type WorkspaceActId,
 	type WorkspaceActRecord
-} from '$lib/organization/acts';
-import { mayRun, type RecordAct } from '$lib/design/acts';
+} from '$lib/organization/workspace/acts';
+import { mayRun, type RecordAct } from '$lib/act';
 import { openOrganizationDialog } from '$lib/organization/dialogs.svelte';
 
 /**

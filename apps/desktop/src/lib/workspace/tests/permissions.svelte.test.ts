@@ -5,19 +5,18 @@ import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import type { OrganizationSession } from '$lib/platform/host';
+import type { OrganizationSession } from '$lib/organization/host';
 import {
 	fakeOrganizationSession,
-	fakeOrganizationWorkspace,
-	fakeSyncState,
-	fakeWorkspace
-} from '$lib/platform/tests/testing';
-import DirectoryImportDialog from '$lib/workspace/component/directory-import-dialog.svelte';
-import WorkspaceImportDialog from '$lib/workspace/component/import-dialog.svelte';
+	fakeOrganizationWorkspace
+} from '$lib/organization/tests/testing';
+import { fakeSyncState, fakeWorkspace } from '$lib/sync/tests/testing';
+import DirectoryImportDialog from '$lib/transfer/component/directory-import-dialog.svelte';
+import WorkspaceImportDialog from '$lib/transfer/component/import-dialog.svelte';
 import WorkspacePermissions from '$lib/workspace/component/permissions.svelte';
-import WorkspaceTransfer from '$lib/workspace/component/transfer.svelte';
-import { memberPermissions } from '$lib/workspace/permission';
-import QueryProviders from '#tests/query-providers.svelte';
+import WorkspaceTransfer from '$lib/organization/workspace/component/transfer.svelte';
+import { memberPermissions } from '$lib/permission';
+import Providers from '#tests/providers.svelte';
 import { describedBy, forgetReader, holdEveryFlagBut, holdReadOnly } from '#tests/permission.ts';
 import { EVERY_FLAG, maskOf } from '@rentable/workspace-permission';
 
@@ -51,8 +50,8 @@ vi.mock('$lib/organization/query', async (importOriginal) => ({
 	})
 }));
 
-vi.mock('$lib/settings/query', async (importOriginal) => ({
-	...(await importOriginal<typeof import('$lib/settings/query')>()),
+vi.mock('$lib/sync/query', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/sync/query')>()),
 	useFetchRemoteSyncState: () => ({
 		get data() {
 			return fakeSyncState({ workspace: fakeWorkspace({ remoteId: reads.openWorkspace }) });
@@ -64,8 +63,8 @@ vi.mock('$lib/platform/tauri', () => ({
 	tauri: { dialog: { openFile: shell.openFile, saveFile: vi.fn() } }
 }));
 
-vi.mock('$lib/error/toast', async (importOriginal) => ({
-	...(await importOriginal<typeof import('$lib/error/toast')>()),
+vi.mock('$lib/notification', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/notification')>()),
 	showErrorSentence: (sentence: string) => shell.refused.push(sentence)
 }));
 
@@ -88,7 +87,7 @@ afterEach(() => {
 	document.body.innerHTML = '';
 });
 
-const providers = { wrapper: QueryProviders, wrapperProps: { strings, direction: 'ltr' as const } };
+const providers = { wrapper: Providers, wrapperProps: { strings, direction: 'ltr' as const } };
 
 /** a member holding every flag, with a full grant on one workspace and a read-only one on another. */
 const everyFlagOnTwoWorkspaces = () =>

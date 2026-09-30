@@ -4,16 +4,14 @@ import test from 'node:test';
 import { BUILT_IN, maskOf } from '@rentable/workspace-permission';
 
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
-import type { Host, OrganizationSession } from '$lib/platform/host.ts';
-import {
-	fakeHost,
-	fakeOrganizationSession,
-	fakeOrganizationState,
-	fakeSyncState
-} from '$lib/platform/tests/testing.ts';
-import { appRouter } from '../router.ts';
+import type { Host } from '$lib/app/host.ts';
+import type { OrganizationSession } from '$lib/organization/host.ts';
+import { fakeHost } from '$lib/app/tests/host.ts';
+import { fakeOrganizationSession, fakeOrganizationState } from '$lib/organization/tests/testing.ts';
+import { fakeSyncState } from '$lib/sync/tests/testing.ts';
+import { appRouter } from '$lib/app/router.ts';
 import { caller, context, middleware, procedure, router } from '../trpc.ts';
-import { fakeIdentity, NOW } from './testing.ts';
+import { fakeIdentity, NOW } from '$lib/app/tests/testing.ts';
 
 /**
  * WHO MAY CALL WHAT
@@ -40,7 +38,7 @@ async function signedOutApi() {
 				},
 				check: async () => null
 			},
-			remoteSync: {
+			sync: {
 				getState: async () => fakeSyncState(),
 				replicate: async () => ({
 					pushed: false,
@@ -92,7 +90,7 @@ test('reading is refused as firmly as writing', async () => {
 test('the bootstrap is behind the same refusal', async () => {
 	const api = await signedOutApi();
 
-	const refusal = await refusalFrom(api.app.bootstrap());
+	const refusal = await refusalFrom(api.startup.bootstrap());
 
 	assert.equal(refusal?.code, 'UNAUTHORIZED');
 });
@@ -102,11 +100,11 @@ test('the bootstrap is behind the same refusal', async () => {
 test('this machine reads and writes its own settings with nobody signed in', async () => {
 	const api = await signedOutApi();
 
-	const settings = await api.app.settings.get();
+	const settings = await api.settings.get();
 
 	assert.ok(settings, 'the settings page could not read its settings');
 
-	const changed = await api.app.settings.set({ endingSoonNoticeDays: 45 });
+	const changed = await api.settings.set({ endingSoonNoticeDays: 45 });
 
 	assert.ok(changed, 'the settings page could not write its settings');
 });
@@ -116,16 +114,14 @@ test('this machine reads and writes its own settings with nobody signed in', asy
 test('the appearance is written through settings, and nothing but its three settings is taken', async () => {
 	const api = await signedOutApi();
 
-	assert.equal((await api.app.settings.get()).appearance, 'system');
+	assert.equal((await api.settings.get()).appearance, 'system');
 
-	const changed = await api.app.settings.set({ appearance: 'dark' });
+	const changed = await api.settings.set({ appearance: 'dark' });
 
 	assert.equal(changed.appearance, 'dark');
 	assert.equal(changed.locale, 'en', 'a changeset naming the appearance leaves the locale alone');
 
-	const refusal = await refusalFrom(
-		api.app.settings.set({ appearance: 'sepia' as unknown as 'dark' })
-	);
+	const refusal = await refusalFrom(api.settings.set({ appearance: 'sepia' as unknown as 'dark' }));
 
 	assert.equal(refusal?.code, 'BAD_REQUEST');
 });
@@ -135,7 +131,7 @@ test('the appearance is written through settings, and nothing but its three sett
 test('the updater answers a machine nobody has signed in on', async () => {
 	const api = await signedOutApi();
 
-	await api.app.update.check();
+	await api.update.check();
 });
 
 // The one public procedure that is not on the settings page. It reads the shell's own record of
@@ -144,18 +140,18 @@ test('the updater answers a machine nobody has signed in on', async () => {
 test('what the shell knows about syncing is readable either way', async () => {
 	const api = await signedOutApi();
 
-	await api.app.remoteSync.getState();
+	await api.sync.getState();
 });
 
 // **And the one beside it that is not.** Reading what this machine has synced is a fact about the
 // machine; renaming the workspace is a write against a row the organization guards with a
 // permission, so it needs an acting user however small the change looks. The fake host refuses
-// `remoteSync.renameWorkspace` by name, so a procedure that let this through would fail with that
+// `sync.renameWorkspace` by name, so a procedure that let this through would fail with that
 // refusal rather than this one, which is what makes the assertion say something.
 test('renaming the workspace is not, however small the write looks', async () => {
 	const api = await signedOutApi();
 
-	const refusal = await refusalFrom(api.app.remoteSync.rename({ name: 'somewhere else' }));
+	const refusal = await refusalFrom(api.sync.rename({ name: 'somewhere else' }));
 
 	assert.equal(refusal?.code, 'UNAUTHORIZED');
 });
@@ -183,7 +179,7 @@ const permittedRouter = router({
 /**
  * A shell answering with one state, and refusing everything else by name.
  *
- * `Host['remoteSync']` is a whole object, so an override supplies all of it or none — a partial
+ * `Host['sync']` is a whole object, so an override supplies all of it or none; a partial
  * would not type-check. Written once here rather than twice below.
  */
 /** a shell answering whose vault is open, which is what a resolved identity is read off. */

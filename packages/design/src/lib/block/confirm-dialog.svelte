@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { heldWhileOpen } from '#lib/confirmation.js';
 	import { ConfirmationSubmission } from '#lib/confirmation.svelte.js';
 	import { Button } from '#lib/primitive/button/index.js';
 	import { Callout } from '#lib/primitive/callout/index.js';
@@ -52,6 +53,13 @@
 		tone?: 'neutral' | 'error';
 	} = $props();
 
+	// what the dialog asks about, kept while it closes, as the delete dialog keeps it.
+	const readShown = heldWhileOpen(
+		() => open,
+		() => ({ record, description })
+	);
+	const shown = $derived(readShown());
+
 	const submission = new ConfirmationSubmission({
 		isOpen: () => open,
 		perform: () => onSubmit(),
@@ -68,13 +76,13 @@
 		</Dialog.Header>
 
 		<div class="flex flex-col gap-4 px-6 py-5">
-			{#if record || description}
+			{#if shown.record || shown.description}
 				<div class="space-y-1">
-					{#if record}
-						<p class="text-sm leading-6 font-medium break-words">{record}</p>
+					{#if shown.record}
+						<p class="text-sm leading-6 font-medium break-words">{shown.record}</p>
 					{/if}
-					{#if description}
-						<p class="text-sm leading-6 text-muted-foreground">{description}</p>
+					{#if shown.description}
+						<p class="text-sm leading-6 text-muted-foreground">{shown.description}</p>
 					{/if}
 				</div>
 			{/if}

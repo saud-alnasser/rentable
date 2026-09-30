@@ -1,5 +1,5 @@
 <script lang="ts" module>
-	import type { ContractRank } from '$lib/contract/rank';
+	import type { ContractRank } from '$lib/contract';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import CalendarClockIcon from '@lucide/svelte/icons/calendar-clock';
 	import ClockIcon from '@lucide/svelte/icons/clock';
@@ -27,15 +27,12 @@
 	import * as Cell from '$lib/design/cell';
 	import { Badge } from '@rentable/design/primitive/badge/index.js';
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
-	import { contractActs, contractHost } from '$lib/contract/host.svelte';
-	import { isMoneyRank } from '$lib/contract/rank';
-	import { isReminderRank } from '$lib/contract/reminder';
-	import { withContractRank } from '$lib/contract/rank-filter';
-	import { toContractName } from '$lib/contract/contract';
+	import { contractActs, contractHost } from '$lib/contract/ui';
+	import { isMoneyRank, isReminderRank, withContractRank, toContractName } from '$lib/contract';
 	import type { DashboardSection } from '$lib/dashboard/dashboard';
 	import { LL } from '$lib/i18n/i18n-svelte';
 
-	type QueueEntry = Awaited<ReturnType<typeof api.contract.dashboard>>['queue'][number];
+	type QueueEntry = Awaited<ReturnType<typeof api.dashboard.get>>['queue'][number];
 
 	/**
 	 * One rank of contracts, as a card: what the rank is, how many it holds, what they owe, a few

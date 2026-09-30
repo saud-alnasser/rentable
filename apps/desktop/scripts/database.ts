@@ -61,7 +61,7 @@ const FALLBACK_URL = process.env.DATABASE_URL?.replace('file:', '') ?? './tauri/
 
 /**
  * **`ws-<id>.db`, which is the organization's own name for the database.** `create_workspace` in
- * `tauri/src/organization/workspace.rs` builds `ws-<id>`, that is what Turso holds, and
+ * `tauri/src/organization/workspace/` builds `ws-<id>`, that is what Turso holds, and
  * it is what the remote URL says — so a directory listing matches the dashboard without anybody
  * translating. `replica_path` in `database/mod.rs` is the other half of this and must agree.
  */
@@ -231,9 +231,9 @@ const TOKEN_LIFETIME = '3d';
  * organisation, which is why it lives in `.env` and why nothing shipped goes anywhere near this
  * function.
  *
- * The call is `packages/turso-platform`'s `mintToken`, deliberately not imported: that module
- * builds a client around configuration this script does not have, and copying one URL is smaller
- * than reaching across a package boundary for it.
+ * The call is the Platform API's token mint, the one `tauri/src/turso/platform/` makes,
+ * written out here because a script cannot reach the crate and copying one URL is smaller than
+ * building a client for it.
  */
 async function mintWorkspaceToken(workspaceId: string) {
 	const token = process.env.TURSO_API_TOKEN;

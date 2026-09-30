@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { type Api, createApi, monthsFromNow, NOW } from '$lib/api/tests/testing.ts';
+import { type Api, createApi, monthsFromNow, NOW } from '$lib/app/tests/testing.ts';
 import { formatLocaleNumber } from '$lib/platform/locale.ts';
 import { SQLiteSyncDialect } from 'drizzle-orm/sqlite-core';
 import type { AnyColumn, SQL } from 'drizzle-orm';
 
 import { foldSearchText, matchesSearch, SEARCH_FOLDINGS } from '$lib/platform/database/search.ts';
 import * as s from '$lib/platform/database/schema.ts';
+import { TenantSchema } from '$lib/tenant/tenant.ts';
 import type { ZodString } from 'zod';
 
 const PHONE = '+966551234567';
@@ -102,16 +103,15 @@ test('a number is found as either locale renders it', async () => {
 test('a payment is found by an amount written in Arabic-Indic digits', async () => {
 	const api = await createApi();
 	const contract = await seedContract(api, { cost: 1500, govId: 'P-1' });
-	const payment = await api.contract.payments.create({
+	const payment = await api.payment.create({
 		contractId: contract.id,
 		date: NOW,
 		amount: 1500
 	});
 
-	assert.deepEqual(
-		ids(await api.contract.payments.getMany({ contractId: contract.id, search: '١٥٠٠' })),
-		[payment.id]
-	);
+	assert.deepEqual(ids(await api.payment.getMany({ contractId: contract.id, search: '١٥٠٠' })), [
+		payment.id
+	]);
 });
 
 test('a tenant is found by an identity written in Arabic-Indic digits', async () => {
@@ -274,21 +274,20 @@ test('a wildcard is still escaped by the contract and payment searches', async (
 
 	assert.deepEqual(ids(await api.contract.getMany({ search: '50%' })), [contract.id]);
 
-	const payment = await api.contract.payments.create({
+	const payment = await api.payment.create({
 		contractId: contract.id,
 		date: NOW,
 		amount: 1500
 	});
 
 	assert.deepEqual(
-		ids(await api.contract.payments.getMany({ contractId: contract.id, search: '%' })),
+		ids(await api.payment.getMany({ contractId: contract.id, search: '%' })),
 		[],
 		'a bare percent matched every payment instead of the text it stands for'
 	);
-	assert.deepEqual(
-		ids(await api.contract.payments.getMany({ contractId: contract.id, search: '1500' })),
-		[payment.id]
-	);
+	assert.deepEqual(ids(await api.payment.getMany({ contractId: contract.id, search: '1500' })), [
+		payment.id
+	]);
 });
 
 test('a search ignores case in both directions', async () => {
@@ -312,17 +311,17 @@ test('a ledger search stays inside the contract it is reading', async () => {
 	const read = await seedContract(api, { cost: 1500, govId: 'READ' });
 	const other = await seedContract(api, { cost: 2500, govId: 'OTHER' });
 
-	const mine = await api.contract.payments.create({
+	const mine = await api.payment.create({
 		contractId: read.id,
 		date: NOW,
 		amount: 1500
 	});
-	await api.contract.payments.create({ contractId: other.id, date: NOW, amount: 2500 });
+	await api.payment.create({ contractId: other.id, date: NOW, amount: 2500 });
 
 	const month = new Date(NOW).toISOString().slice(0, 7);
 
 	assert.deepEqual(
-		ids(await api.contract.payments.getMany({ contractId: read.id, search: month })),
+		ids(await api.payment.getMany({ contractId: read.id, search: month })),
 		[mine.id],
 		'the search reached payments belonging to another contract'
 	);
@@ -371,8 +370,8 @@ test('every column declared ASCII-only has a validator that refuses a foldable c
 	// The declaration is safe *because* the write path enforces it. If a validator is ever
 	// loosened, this fails here rather than as a record nobody can find months later.
 	const refusals: [name: string, field: ZodString, arabicIndic: string][] = [
-		['nationalId', s.TenantSchema.shape.nationalId, '١٢٣٤٥٦٧٨٩٠'],
-		['phone', s.TenantSchema.shape.phone, '+٩٦٦٥٠١٢٣٤٥٦٧']
+		['nationalId', TenantSchema.shape.nationalId, '١٢٣٤٥٦٧٨٩٠'],
+		['phone', TenantSchema.shape.phone, '+٩٦٦٥٠١٢٣٤٥٦٧']
 	];
 
 	assert.equal(

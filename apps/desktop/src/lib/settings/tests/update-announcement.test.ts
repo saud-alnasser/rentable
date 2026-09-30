@@ -5,7 +5,7 @@ import { i18nObject } from '$lib/i18n/i18n-util.ts';
 import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
 
 // svelte-sonner reaches a `.svelte` file, which this harness cannot load. the substitute is also
-// the assertion: what the toast was asked to render. Same shape as `error/tests/toast.test.ts`,
+// the assertion: what the toast was asked to render. Same shape as `notification/tests/notification.test.ts`,
 // which is where this pattern is from.
 type RaisedToast = { tone: 'success' | 'error'; title: string; description: string | undefined };
 

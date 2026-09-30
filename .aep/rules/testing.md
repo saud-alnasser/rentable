@@ -3,19 +3,21 @@ paths:
   - apps/desktop/src/**
   - apps/desktop/tauri/src/**
   - packages/design/src/**
-  - packages/turso-platform/**
+  - packages/testing/**
 use-when: "writing or changing a test, or deciding what a change must be tested at"
 ---
 
 <!--
   Path-scoped: the `paths:` frontmatter above is the authority, and the harness
-  enforces it — this rule loads when source under any of the four paths listed
-  there is read, and costs nothing otherwise.
+  enforces it — this rule loads when source under any of the paths listed there
+  is read, and costs nothing otherwise. `packages/testing/**` joined them with
+  ticket 42 of effort 840, when that package became the scaffolding both
+  packages with tests share.
 
   The control plane was on that list from 2026-08-18 (#549) until it retired on
   2026-09-12 with [[efforts/819-an-organization-hosts-its-own-workspaces/spec]];
-  what it knew about Turso survives as `packages/turso-platform`, and **the
-  TypeScript section applies to that package word for word.**
+  what it knew about Turso survived as `packages/turso-platform`, on this list
+  too, until effort 840 removed that package, imported by nothing, on 2026-09-28.
 
   `packages/design/src/**` was added on 2026-08-23 with #775, and it is the one
   path here the TypeScript section does **not** describe word for word. Read
@@ -36,7 +38,7 @@ collected by a different runner and is covered under *Component tests* below. No
 section covers moved when that runner arrived, and nothing is meant to.
 
 A test is `<name>.test.ts`, in a `tests/` directory under the directory it covers:
-`src/lib/api/period.ts` is covered by `src/lib/api/tests/period.test.ts`. It uses `node:test`
+`src/lib/date/period.ts` is covered by `src/lib/date/tests/period.test.ts`. It uses `node:test`
 and `node:assert/strict` and imports the `.ts` source directly. Tests run under `tsx`, which is
 what resolves the `$lib` alias and the `.ts` imports.
 
@@ -45,8 +47,34 @@ lists the concept, and what covers it is one listing instead of a filter over an
 one.*
 
 **Shared scaffolding sits in the same `tests/` directory and is not a test.**
-`src/lib/api/tests/testing.ts` builds the caller a dozen router tests need; it carries no
+`src/lib/app/tests/testing.ts` builds the caller a dozen router tests need; it carries no
 `.test` in its name, which is what keeps the runner from collecting it.
+
+**Where each runner's harness lives.** A runner's scaffolding, what a test needs because of the
+runner it runs under rather than the concept it covers, is one copy per runner, and a concept's
+fake of its own port stays beside the port.
+
+- **`node:test` in the application**: `apps/desktop/src/tests/`, reached as `#tests/<name>`.
+  `source.ts` is the lint tests' source scanner, bound to this `src/`, and `mutation.ts` reads what
+  a declared mutation handed the substituted query library, which this runner cannot load. The
+  router tests' harness is the composition root's: `app/tests/testing.ts` the caller and
+  `app/tests/host.ts` the composed fake host, where
+  [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/plan]] places them.
+- **Vitest in the application**: the same `src/tests/`. `providers.svelte` is the one set of
+  providers every component test renders under; `palette-harness.svelte` beside it renders inside
+  it rather than nesting them again.
+- **`node:test` and Vitest in the design package**: `packages/design/src/tests/`, reached as
+  `#tests/<name>`. It keeps a copy of its own only where it cannot import the application's, and
+  it cannot import any of it, since the package may not import the application. So its
+  `providers.svelte` is the package's own: the design and tooltip providers, without the
+  application's query client and cache policy.
+- **What both packages share**: `packages/testing/`, `@rentable/testing`, a development dependency
+  of each. `source.ts` is the one source scanner, which each package's `src/tests/source.ts` binds
+  to its own tree, and `setup.ts` is the one Vitest setup file both `vitest.config.js` name. It is
+  a package of its own because neither of the other two can hold it for both: the design package
+  may not import the application, and the package's `exports` map covers `src/lib/` alone, which
+  is what keeps its scaffolding out of every consumer. *Added by ticket 42 of effort 840 (criterion
+  13), which also folded the application's four sets of providers into one.*
 
 Two levels are covered, and they are not interchangeable:
 
@@ -62,12 +90,16 @@ cleared them and took the exclusion back out of `apps/desktop/tsconfig.json` (20
 **So write a new test as though the compiler reads it, because it does** — annotations rather
 than `any`, and a fixture in the shape production actually produces.
 
-**A fixture for a declared interface is shared, not written out per file.** Five scaffolding
-modules hold them: `platform/tests/testing.ts` builds a whole `Host` and the remote-sync
-payloads it speaks in, `api/tests/testing.ts` the router caller, `design/tests/testing.ts` the
-binding a declared mutation hands the query library, `design/tests/strings.ts` the string
-contract a packaged block reads from its provider, and `workspace/tests/file.ts` the file a
-workspace transfer crosses as. **A hand-written partial of any of them is a shape nothing
+**A fixture for a declared interface is shared, not written out per file.** Scaffolding
+modules hold them: `app/tests/host.ts` composes a whole `Host` from each port's fake,
+`platform/tests/testing.ts` builds the platform's part and the `refuse` every fake port is built
+from, and each crossing concept's `tests/testing.ts` its own port and its payloads (the
+organization's, `sync/tests/testing.ts` with the remote-sync state and workspace,
+`settings/tests/testing.ts` with the settings file, and print's, transfer's, update's,
+startup's and the workspace's). `app/tests/testing.ts` holds the router caller,
+`src/tests/mutation.ts` the binding a declared mutation hands the query library,
+`design/tests/strings.ts` the string contract a packaged block reads from its provider, and
+`transfer/tests/file.ts` the file a workspace transfer crosses as. **A hand-written partial of any of them is a shape nothing
 produces** — a two-key `Settings`, a `TranslationFunctions` with three of its hundreds, a
 `RemoteSyncState` with a field the type does not have — and correcting those was most of what
 #561 turned out to be. A test needing the real translations loads the locale
@@ -91,14 +123,14 @@ The two configurations are deliberately the same file with one difference, and t
 forced. `packages/design/vitest.config.js` uses `svelte()`: the package names its own files with
 subpath imports and wants the compiler and nothing else. `apps/desktop/vitest.config.js` uses
 `sveltekit()`, because a component here reaches `$lib/...` and `$app/...` and the framework plugin
-is what resolves both. Everything else is copied on purpose: `jsdom`, `globals`, a `setupFiles`
-holding the same bits-ui scroll-restore wait, and the same `include`. **A change to one is a
-question about the other.**
+is what resolves both. Everything else is copied on purpose: `jsdom`, `globals`, the same
+`include`, and one `setupFiles`, `@rentable/testing/setup`, holding the bits-ui scroll-restore wait.
+**A change to one is a question about the other.**
 
-*The setup file is duplicated rather than imported, and that is the export map's doing: the
-package's `exports` covers `src/lib/` alone, which is what keeps its fixtures out of every
-consumer, so `src/tests/setup.ts` is not something the desktop can reach. The copy says so in its
-own header and points at the original for the measurement.*
+*The setup file was duplicated rather than imported until ticket 42 of effort 840, and that was the
+export map's doing: the package's `exports` covers `src/lib/` alone, which is what keeps its
+fixtures out of every consumer, so the package's `src/tests/setup.ts` was not something the desktop
+could reach. `packages/testing/` is what both can, and it holds the one copy.*
 
 *Why there are two runners rather than one: `node:test` works through `tsx`, and `tsx` fails on a
 `.svelte` import with `ERR_UNKNOWN_FILE_EXTENSION`. No flag fixes that — compiling a component
@@ -140,34 +172,38 @@ Three things bind a component test, and each of them is a way of passing while m
   component that reads its strings from context is rendered under test at all. A test file still
   imports `test` and `expect` explicitly; nothing here relies on a global being in scope.
 - **A fixture is scaffolding**, and carries no `.test` in its name for the same reason
-  `api/tests/testing.ts` does not. **The package's own live in `packages/design/src/tests/`**,
+  `app/tests/testing.ts` does not. **The package's own live in `packages/design/src/tests/`**,
   whatever they cover and wherever the test that uses them sits: `probe.svelte` is the runner's,
   `contract.svelte` and `contract-harness.svelte` are the string contract's, and each
   `<family>-harness.svelte` is a subject that cannot be rendered on its own. **An application's
   fixture lives in the `tests/` directory of the module it serves**, as the TypeScript
-  scaffolding above does: `organization/tests/providers.svelte` wraps a surface that needs the
-  design and tooltip providers, `layout/tests/rail-providers.svelte` the rail's. *This said every
-  fixture lives in the package; that was true while the package held the only rendered tests,
-  and effort 824 wrote the desktop's first.*
+  scaffolding above does: `organization/tests/host-providers.svelte` puts the organization's host
+  beside a directory, `shell/tests/rail-providers.svelte` the rail's providers above a rail
+  component. *This said every fixture lives in the package; that was true while the package held
+  the only rendered tests, and effort 824 wrote the desktop's first.*
 
   **A fixture the tests of several modules render under lives in `apps/desktop/src/tests/`**,
   the application's shared `tests/` directory, and no module keeps a copy of it.
-  `query-providers.svelte` is this: complex, contract, design, layout, organization, payment and
-  tenant tests all render under it. A test reaches it through `#tests/<name>`, the same
-  `imports` entry the package declares, since a relative path from four directories down reads
-  as badly here as it did there. The lint tests' source scanner, `source.ts`, sits beside it for
-  the same reason, and the package keeps its own in `packages/design/src/tests/`: each package's
-  lint tests scan their own tree through their own scanner. *Added by ticket 40 of effort 832,
-  when `query-providers.svelte` had grown seven modules of callers from `organization/tests/`
-  and `tenant/tests/` had copied it.*
+  `providers.svelte` is this: the design contract, the query client and the tooltip provider,
+  with the workspace cache policy loaded, which every module's component tests render under. A
+  test reaches it through `#tests/<name>`, the same `imports` entry the package declares, since a
+  relative path from four directories down reads as badly here as it did there. A fixture that
+  puts a tree beside the subject renders inside it rather than nesting the providers again. The
+  lint tests' source scanner, `source.ts`, sits beside it for the same reason, and the package
+  binds the same scanner in `packages/design/src/tests/`: each package's lint tests scan their own
+  tree, through the one scanner in `packages/testing/`. *Added by ticket 40 of effort 832, when
+  `query-providers.svelte` had grown seven modules of callers from `organization/tests/` and
+  `tenant/tests/` had copied it; renamed `providers.svelte` by ticket 42 of effort 840, when the
+  three copies with a provider fewer in `organization/tests/`, `settings/tests/` and
+  `design/cell/tests/` folded into it.*
 
   `palette-harness.svelte` is the second: the command menu and the application's one keyboard
-  listener beside a screen, which the layout tests render directly and the complex, contract,
+  listener beside a screen, which the palette's own tests render directly and the complex, contract,
   payment and tenant permission tests render through `permission.ts`'s `openPalette`. So is the
   one `ResizeObserver` a component test needs where a tooltip or a list measures itself: jsdom
   implements none, and `permission.ts`'s `layOutLists` stands one in, so a test reaching a
   tooltip calls it rather than writing its own. *Both lived in module tests until ticket 19 of
-  [[efforts/838-permissions-are-a-role-and-an-override/spec]]: the harness in `layout/tests/`,
+  [[efforts/838-permissions-are-a-role-and-an-override/spec]]: the harness in `shell/tests/`,
   and a stub apiece in the new tests beside the shared one.*
 
   The package's directory is outside `src/lib/`, which is what keeps its fixtures out of the package: the
@@ -262,10 +298,17 @@ A helper that is genuinely shared scaffolding rather than a fixture — the loop
 `sync/test/server.rs`, say — is a module of its own under a `test/` directory, not a test
 module.
 
+What every module's tests share lives in the crate's own `test/` directory, `src/test/mod.rs`, and
+the one thing there is the scratch directory: a directory of a test's own under the system's
+temporary directory is `test::scratch`, and `guard/error.rs` fails on `temp_dir` named anywhere
+else. *Added 2026-09-28 (effort 840, requirement 13, ticket 47): the helper was written out in each
+module that needed one, twenty-eight times, which is the drift the cost above does not buy. A
+fixture is still written out per module.*
+
 *Admitted 2026-09-27, the human's call (effort 838, ticket 31): a builder that stands in for a
 database an older build wrote, which nothing in this build writes any more, is scaffolding of that
 kind, not a fixture, when it is too large to write out twice. The format 1 organization under
-`organization/transition/test/older.rs`, some eleven hundred lines, is the case; a fix to the old
+`upgrade/format/test/older.rs`, some eleven hundred lines, is the case; a fix to the old
 shape made in two copies is the drift the rule's cost does not buy. Anything cheaper beside it is
 still written out in each module.*
 
@@ -314,8 +357,8 @@ are **three properties, not four**, and the ticket that built each is named so a
 the file. All four are Rust.
 
 **A fourth property: whether the Platform API takes what a Rust port sends.** Ticket 05 moved the
-client that was `control-plane/src/workspace/turso.ts` (kept as `packages/turso-platform`) into
-`tauri/src/sync/turso/platform.rs`, and its live half creates a database in a group the consent named, mints a credential against that
+client that was `control-plane/src/workspace/turso.ts` (kept as `packages/turso-platform` until effort 840 removed it) into
+`tauri/src/turso/platform/` (`sync/turso/platform.rs` until effort 840), and its live half, `live.rs` beside the in-memory `memory.rs`, creates a database in a group the consent named, mints a credential against that
 database, asserts delete protection is on, and deletes the database it just made once that
 protection has been lifted. **No group is created.** Nothing available to the application can make
 one: the consent screen selects a group and offers no way to create one, and the token cannot
@@ -356,7 +399,7 @@ answer means anything.
 
 **A sixth property: whether the organization lives on the remote rather than on the machine that
 made it. Two instances.** The first is ticket 08's, `organization_live_a_second_machine_reads_what_the_first_wrote`
-in `tauri/src/organization/store.rs`: machine A writes the organization's rows through a replica,
+in `tauri/src/organization/store/mod.rs`: machine A writes the organization's rows through a replica,
 machine B opens a second replica of the same database and reads them back verified. The second is
 ticket 18's, for criterion 6: machine A provisions, machine A goes offline, and machine B
 restores the organization from the link, the email, the password and one consent. *The first
@@ -393,7 +436,7 @@ and answers the check before it commits.** Admitted by the human's call of 2026-
 requirement 15), taken at the effort's review round one
 ([[efforts/838-permissions-are-a-role-and-an-override/spec]]): ticket 32 wrote the test and ticket
 38 armed it and moved it here. `migration_live_every_shipped_migration_commits_in_one_transaction`,
-at the foot of `tauri/src/organization/migrate.rs`, provisions a database through
+at the foot of `tauri/src/organization/lease/apply.rs`, provisions a database through
 `database/test/workspace.rs`, applies every shipped migration, `0003`'s drops and renames among
 them, inside one explicit transaction over the pipeline with the check's reads and the version row,
 commits, and runs again to find the version row and apply nothing. The check reads

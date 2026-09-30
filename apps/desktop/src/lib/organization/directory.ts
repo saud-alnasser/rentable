@@ -1,11 +1,11 @@
 import type { ListSort } from '@rentable/design/sort.js';
-import { matchesTerm } from '$lib/layout/palette';
-import { byRank } from '$lib/organization/role';
+import { matchesTerm } from '$lib/palette';
+import { byRank } from '$lib/organization/role/role';
 import type {
 	OrganizationMember,
 	OrganizationRole,
 	OrganizationWorkspace
-} from '$lib/platform/host';
+} from '$lib/organization/host';
 
 /**
  * THE SETTINGS DIRECTORIES, SEARCHED AND ORDERED

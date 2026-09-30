@@ -1,0 +1,27 @@
+<script lang="ts">
+	import { shortcuts } from '$lib/shortcut/ui';
+	import { toUndoShortcuts } from '$lib/undo/key';
+	import { applyRedo, applyUndo } from '$lib/undo/move';
+	import { inverseStack } from '$lib/undo/undo';
+	import { undoable } from '$lib/undo/undo.svelte';
+	import { useQueryClient } from '@tanstack/svelte-query';
+
+	const client = useQueryClient();
+
+	// registered rather than listened for: the keydown reaches the application's one listener,
+	// and the sheet reads what is registered here without being told about it.
+	$effect(() =>
+		shortcuts.register(
+			...toUndoShortcuts(
+				(intent) => {
+					void (intent === 'undo' ? applyUndo(client) : applyRedo(client));
+				},
+				// read through the mirror rather than the stack, so a surface offering these by name
+				// re-reads when a change lands rather than answering once, when it was mounted.
+				(intent) => (intent === 'undo' ? undoable.canUndo : undoable.canRedo),
+				// what the reader may not move says so on the key's row, as a record's act does.
+				(intent, translations) => inverseStack.refusal(intent, translations)
+			)
+		)
+	);
+</script>

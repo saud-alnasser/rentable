@@ -3,17 +3,13 @@
 //! **One number, and the build produces it**: `build.rs` counts the migrations in
 //! `tauri/migrations/` and writes the constant below, so adding a migration moves it and nothing
 //! else can. A version somebody remembers to bump is a version that is wrong on the release
-//! where somebody forgot, and this one is sent to a service that decides from it whether to
-//! migrate a hosted workspace database, to mint a token, or to refuse.
+//! where somebody forgot.
 //!
-//! **Nothing on this side applies a migration any more**, so this number is the only thing the
-//! directory is still counted for, and for what `organization/migrate.rs` embeds. A workspace's
-//! schema is applied to its database over the wire and arrives at a replica as replicated pages,
-//! and this number is what the version a workspace is recorded at is compared with on every open.
-//!
-//! Where it is sent is the request for a workspace token, which is a later ticket's — this is the
-//! number that request carries, and it is derived here because the derivation is what had to be
-//! settled rather than the call.
+//! **Nothing on this side applies a migration**: a workspace's schema is applied to its database
+//! over the wire by `organization/lease/apply.rs`, from the files `build.rs` embeds, and arrives at
+//! a replica as replicated pages. That module counts its own shipped version from what it embeds,
+//! and its tests hold that count equal to this one, so the two ways of counting the directory
+//! cannot drift apart unnoticed.
 
 include!(concat!(env!("OUT_DIR"), "/workspace-schema-version.rs"));
 
@@ -33,8 +29,8 @@ mod tests {
     ///
     /// It is not a tautology dressed as a test: the constant is written at build time and read at
     /// compile time, so the failure this catches is a build that did not re-run when a migration
-    /// was added — which is silent, and which would have the application tell the control plane it
-    /// was built against a schema it was not.
+    /// was added, which is silent, and which would have the build claim a schema it was not
+    /// built against.
     #[test]
     fn the_version_is_the_count_of_migrations_shipped() {
         let shipped = fs::read_dir(shipped_migrations())

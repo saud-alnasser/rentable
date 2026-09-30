@@ -10,7 +10,7 @@ import { describe, it, mock } from 'node:test';
  * is the same shape for a different reason, and the access loops are the shape that had no hook
  * at all and announced themselves from the route.
  *
- * The three dependencies are substituted for the reason `design/tests/mutation.test.ts` gives:
+ * The three dependencies are substituted for the reason `mutation/tests/mutation.test.ts` gives:
  * two of them reach a `.svelte` file this runner cannot load, and the substitutes are also the
  * assertions. `createMutation` answers a hook with the very options it was handed, which is what
  * lets a test call `onSuccess` with an answer and read what was announced.
@@ -53,15 +53,13 @@ const asked: string[] = [];
 mock.module('$lib/api/caller', {
 	exports: {
 		default: {
-			app: {
-				organization: {
-					workspace: {
-						grant: async (input: { workspaceId: string; memberId: string; access: string }) => {
-							asked.push(`grant:${input.workspaceId}:${input.memberId}:${input.access}`);
-						},
-						withdraw: async (input: { workspaceId: string; memberId: string }) => {
-							asked.push(`withdraw:${input.workspaceId}:${input.memberId}`);
-						}
+			organization: {
+				workspace: {
+					grant: async (input: { workspaceId: string; memberId: string; access: string }) => {
+						asked.push(`grant:${input.workspaceId}:${input.memberId}:${input.access}`);
+					},
+					withdraw: async (input: { workspaceId: string; memberId: string }) => {
+						asked.push(`withdraw:${input.workspaceId}:${input.memberId}`);
 					}
 				}
 			}
@@ -70,9 +68,10 @@ mock.module('$lib/api/caller', {
 	}
 });
 
-const { useChangeAccess, useEndMemberSessions, useEndOtherSessions, useRemoveMember } =
-	await import('$lib/organization/query');
-const { bindingOf } = await import('$lib/design/tests/testing.ts');
+const { useChangeAccess } = await import('$lib/organization/access/query');
+const { useEndMemberSessions, useRemoveMember } = await import('$lib/organization/member/query');
+const { useEndOtherSessions } = await import('$lib/organization/session/query');
+const { bindingOf } = await import('#tests/mutation.ts');
 const { loadLocale } = await import('$lib/i18n/i18n-util.sync');
 const { i18nObject } = await import('$lib/i18n/i18n-util');
 const { setLocale } = await import('$lib/i18n/i18n-svelte');
