@@ -193,7 +193,9 @@ checked, and switches in place.
 - **The look is judged on screen before it is built across the way in**
   ([[rules/module-layout]], *Prototype code*): the shared layout, the welcome, one step with
   fields, and the workspace menu are prototyped against the developer database and judged by the
-  human before build tickets are cut. *Why: a mock chooses the wrong winner.*
+  human before any build ticket is started. *Why: a mock chooses the wrong winner.* *Corrected
+  2026-09-30: this said before build tickets are cut; the human asked for the tickets first, so
+  ticket 01 is the judgement and every build ticket waits on it by edge.*
 - **Apple's guidance first where a behaviour or look is decided**, with the page cited in the rule
   or commit; where it conflicts with what Windows expects (button order, capitalisation) and the
   application runs on both, the plan names the conflict and the choice. *Why: the human's

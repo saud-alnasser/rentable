@@ -154,8 +154,8 @@ The order, and the reason for each step's place:
 
 1. **The look, judged on screen** (the spec's constraint). The way-in surface, the welcome, the
    name step and the workspace menu are built on `src/lib/prototype/switcher.svelte` against the
-   developer database, in both locales and both appearances, and the human judges them. Nothing
-   is cut into build tickets until they have.
+   developer database, in both locales and both appearances, and the human judges them. Ticket 01
+   is that judgement, and every build ticket is blocked by it.
 2. **The design package**: the way-in surface, the position, the radio item's check. First,
    because every later step draws through them.
 3. **The frame and the chrome table**: `way-in`, and removing `signed-out`. Before the screens,
