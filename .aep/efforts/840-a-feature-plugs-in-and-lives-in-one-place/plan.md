@@ -80,6 +80,8 @@ not be both Node-loadable and the home of the query hooks other features read.*
 | **Rust: one store type per organization sub-concept** | Cross-sub-concept writes (re-signing every row after a standing changes) run in one transaction over one connection; separate stores make that awkward and add risk to a change that must preserve behaviour. The store stays one type; its implementation is partitioned (below) |
 | **Schema split per concept** | Drizzle-kit reads one file today and the tables are one database. Splitting it buys little locality (a new kind still needs its table and a migration) against a real risk of a spurious migration. The tables stay in `platform/database/schema.ts`; what is concept-specific about them (the zod input schemas that use a concept's validators) moves to the concept, which is what removes `platform → tenant` |
 
+*Human decision, 2026-09-30 (requirement 22, from the running app):* a complex whose units no contract holds is deleted with its units. The one behaviour this effort changes on purpose; it goes in 840 at the human's call rather than an effort of its own. A delete that takes units needs `deleteUnit` too, and asks (`cascade`), since it removes more than the record.
+
 # Components
 
 ## TypeScript, `apps/desktop/src/lib/`

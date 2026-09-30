@@ -1,5 +1,5 @@
 ---
-status: implemented
+status: accepted
 ---
 
 # Problem
@@ -114,7 +114,14 @@ the `.aep/` rules and contexts that describe the layout.
     registered, added and removed on both sides of the IPC boundary, with the layer rule and the
     worked examples as the tree then holds them.
 19. **Behaviour does not change.** Every screen, command, stored format, permission and message
-    behaves as it does on `1aa8d6a5`.
+    behaves as it does on `1aa8d6a5`, except where requirement 22 changes it.
+22. **A complex whose units no contract holds can be deleted, with its units.** *Added by the
+    human on 2026-09-30, from the running app.* A complex may be deleted if and only if no
+    contract, of any status, holds any of its units. Deleting a complex that has units deletes the
+    units with it, needs the delete-unit permission as well as the delete-complex one, asks before
+    it runs because it removes more than the record, and is undone whole, units included. A
+    complex with no units deletes as before. What refuses a deletion is named as the units a
+    contract holds, not as the units the complex has.
 20. **Every mechanism is one module.** A mechanical concern the application applies across
     features (undo and redo, mutation and the query cache, history, shortcuts, notifications, the
     command menu and its search and create, record acts, lists and their filters, forms, import
@@ -177,7 +184,14 @@ the `.aep/` rules and contexts that describe the layout.
     exists; [[contexts/repository]] links it.
 19. The integration gate passes on every commit of the effort's branch; no workspace migration is
     added; no persisted file, table or column changes shape; the existing tests' assertions are
-    unchanged except where they name a moved path.
+    unchanged except where they name a moved path or
+    requirement 22 changes what they assert.
+22. A complex whose units no contract holds deletes, one at a time and in a selection, with its
+    units, and undo puts the complex and every unit back; a complex any of whose units a contract
+    holds (terminated and expired included) is refused, before the dialog offers anything and at
+    the procedure; a member without the delete-unit permission is refused a complex that has units
+    and not one that has none; the delete asks, naming the units that go with it, where the
+    complex has units, and runs at once with undo where it has none.
 20. Each mechanism named in requirement 20 is one directory with an entry; a search finds its
     implementation nowhere else; no feature imports a mechanism's private module; a mechanism that
     needs what features declare receives it from the composition root rather than importing them.
