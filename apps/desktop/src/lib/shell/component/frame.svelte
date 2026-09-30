@@ -29,17 +29,22 @@
 	/**
 	 * The window, and how much of the application is in it.
 	 *
-	 * **Three states, and only one of them has no rail.** *Settled 2026-08-20 by looking at four
-	 * alternatives.* An application that is loading, that failed to start, or that needs an update
-	 * finished is not running, and chrome around those screens is chrome belonging to an
-	 * application that is not there: they get the bare frame. An application waiting for a person
-	 * to sign in **is** running, so it gets the rail — the same rail, with its contents saying what
-	 * is true of a machine nobody has signed in on.
+	 * **Three states, and only one of them has a rail.** An application that failed to start, or
+	 * that needs an update finished, is not running, and chrome around those screens is chrome
+	 * belonging to an application that is not there: they get the bare frame. The way in (signing
+	 * in, the first run, the join, a machine with no workspace yet) gets the titlebar and its window
+	 * controls around the way-in surface and nothing else, and the rail is drawn only once a person
+	 * is in and a workspace is open.
+	 *
+	 * *Changed 2026-09-30 by the human (effort 843, requirement 7).* It said the way in drew the
+	 * rail, the same one, with its destinations present and refusing, *settled 2026-08-20 by looking
+	 * at four alternatives* so that signing in would not look like arriving somewhere else. On
+	 * screen that read as a disabled application behind a form; a control that does not apply is not
+	 * drawn, as the sign-in window of an Apple application draws none.
 	 */
 	let {
 		currentDirection,
 		shell,
-		onWayIn = () => {},
 		onSwitchWorkspace = () => {},
 		children
 	}: {
@@ -48,22 +53,16 @@
 		 * how much of the shell this state draws.
 		 *
 		 * `bare` is the titlebar and nothing else, for the states where the application is not
-		 * running. `signed-out` and `full` are the same rail with different contents.
+		 * running. `way-in` is the titlebar too, around the way in, whose surface places itself in the
+		 * window. `full` is the rail.
 		 */
-		shell: 'bare' | 'signed-out' | 'full';
-		/**
-		 * the way in, offered by the rail's account row. **It reaches the sign-in card rather than
-		 * signing anybody in**, which is `sidebar.svelte`'s note at length. Only read while
-		 * `signed-out`.
-		 */
-		onWayIn?: () => void;
+		shell: 'bare' | 'way-in' | 'full';
 		/** a switch to another workspace, chosen on the rail's workspace row. */
 		onSwitchWorkspace?: (workspaceId: string) => void;
 		children: Snippet;
 	} = $props();
 
-	const hasRail = $derived(shell !== 'bare');
-	const isSignedOut = $derived(shell === 'signed-out');
+	const hasRail = $derived(shell === 'full');
 
 	const hasBreadcrumb = $derived(toBreadcrumbTrail(page.route.id).length > 0);
 
@@ -76,19 +75,6 @@
 		destinations: () =>
 			toViewablePlaces([...primaryDestinations, ...secondaryDestinations], memberPermissions.views)
 	});
-
-	/**
-	 * what the search and the shortcut sheet do before anybody has signed in, which is nothing.
-	 *
-	 * Present and refusing rather than absent, for the reason the destinations are: chrome that
-	 * appears on signing in makes signing in look like arriving somewhere else. *This is a reading
-	 * of "other things are disabled" rather than a decision stated in those words, and it is the
-	 * cheapest thing on this screen to change.*
-	 *
-	 * The button dims itself once it is marked `aria-disabled`, in the colour its primitive holds
-	 * to 3:1; half opacity on top of that took it under.
-	 */
-	const unavailable = 'pointer-events-none';
 
 	function startDragging(event: MouseEvent) {
 		if (event.button !== 0) {
@@ -145,8 +131,6 @@
 
 		{#if hasRail}
 			<div class="relative flex min-w-0 items-center gap-2 [-webkit-app-region:no-drag]">
-				<!-- live in both states, and the only chrome control that is: folding is a preference
-				     about the window rather than something an account grants. -->
 				<Sidebar.Trigger />
 				{#if hasBreadcrumb}
 					<Separator orientation="vertical" class="data-[orientation=vertical]:h-4" />
@@ -156,9 +140,8 @@
 					variant="outline"
 					size="sm"
 					aria-label={$LL.common.ui.commandPalette()}
-					aria-disabled={isSignedOut || undefined}
-					onclick={() => !isSignedOut && openPalette()}
-					class="ms-2 gap-2 text-muted-foreground {isSignedOut ? unavailable : ''}"
+					onclick={() => openPalette()}
+					class="ms-2 gap-2 text-muted-foreground"
 				>
 					<SearchIcon />
 					<span class="capitalize">{$LL.common.ui.search()}</span>
@@ -173,9 +156,8 @@
 					variant="ghost"
 					size="icon"
 					aria-label={$LL.common.ui.keyboardShortcuts()}
-					aria-disabled={isSignedOut || undefined}
-					onclick={() => !isSignedOut && (isShortcutSheetOpen = true)}
-					class="text-muted-foreground {isSignedOut ? unavailable : ''}"
+					onclick={() => (isShortcutSheetOpen = true)}
+					class="text-muted-foreground"
 				>
 					<KeyboardIcon />
 				</Button>
@@ -205,23 +187,21 @@
 	class="h-screen w-screen overflow-hidden border print:hidden"
 >
 	{#if hasRail}
-		{#if !isSignedOut}
-			<!-- every host a surface declares, once each and in the list's order, which is
+		<!-- every host a surface declares, once each and in the list's order, which is
 			     load-bearing (`app/surfaces.ts`): first what the reader may do to the records of the
 			     workspace open, so what is drawn below is drawn off it, then the command menu the
 			     search button above opens, then every record form and confirmation, and every member
 			     and workspace surface. A card, a record page, the dashboard, the palette and the
 			     settings directories each ask a host for what an act opens, and what it opens has to
 			     outlive the palette closing and the reader moving between screens. -->
-			{#each surfaces as surface (surface.name)}
-				{#if surface.host}
-					<surface.host />
-				{/if}
-			{/each}
-			<ShellShortcutSheet bind:open={isShortcutSheetOpen} />
-		{/if}
+		{#each surfaces as surface (surface.name)}
+			{#if surface.host}
+				<surface.host />
+			{/if}
+		{/each}
+		<ShellShortcutSheet bind:open={isShortcutSheetOpen} />
 		<Sidebar.Provider class="h-full min-h-0 overflow-hidden">
-			<ShellSidebar signedOut={isSignedOut} {onWayIn} {onSwitchWorkspace} />
+			<ShellSidebar {onSwitchWorkspace} />
 			<Sidebar.Inset>
 				{@render titlebar()}
 				<div class="@container/main flex min-h-0 flex-1 flex-col overflow-y-auto">
@@ -229,6 +209,15 @@
 				</div>
 			</Sidebar.Inset>
 		</Sidebar.Provider>
+	{:else if shell === 'way-in'}
+		<!-- no padding: the way-in surface places its own column and puts back in this area's
+		     corner, so the area is the whole window under the titlebar. -->
+		<div class="flex h-full min-h-0 flex-col bg-background">
+			{@render titlebar()}
+			<main class="relative flex min-h-0 flex-1 flex-col overflow-y-auto">
+				{@render content()}
+			</main>
+		</div>
 	{:else}
 		<div class="flex h-full min-h-0 flex-col bg-background">
 			{@render titlebar()}

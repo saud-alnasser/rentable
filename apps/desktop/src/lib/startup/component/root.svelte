@@ -27,8 +27,8 @@
 		THE_JOIN,
 		addressAfterSignOut,
 		addressAfterSwitch,
+		shellFor,
 		startupScreen,
-		wayInFrom,
 		type SwitchCrumb
 	} from '../screen';
 	import { createStartup } from '../startup';
@@ -44,8 +44,7 @@
 	type WindowProps = {
 		queryClient: QueryClient;
 		currentDirection: 'ltr' | 'rtl';
-		shell: 'bare' | 'signed-out' | 'full';
-		onWayIn: () => void;
+		shell: 'bare' | 'way-in' | 'full';
 		/** another workspace was chosen, with the shell's trail of places to move a record's page by. */
 		onSwitchWorkspace: (
 			workspaceId: string,
@@ -252,47 +251,10 @@
 	});
 
 	/**
-	 * how much of the shell this state draws, which is requirement 6's line in one place.
-	 *
-	 * Loading, failing to start and recovering from an update are an application that is not
-	 * running, and get the bare frame. Signing in is an application waiting for a person, which is
-	 * an application that is running, so it gets the rail.
-	 *
-	 * **Loading is two different states and the table has one row for it.** Requirement 6 says so
-	 * itself: the table is derived from the line rather than being the requirement, so a state it
-	 * does not list looks its own answer up. Loading on a fresh launch is *not known yet* and takes
-	 * the bare frame. Loading straight after somebody signed in is an application that is running
-	 * with a person in it, and taking the rail away for those two seconds is criterion 7a failing:
-	 * the rail disappearing and coming back is exactly what makes signing in look like arriving at
-	 * a different application.
-	 *
-	 * So the rail latches: once it is up it does not come down for a load. What it *says* still
-	 * follows the account, because a rail offering the way in to somebody who has just come in
-	 * would be worse than no rail at all.
+	 * how much of the shell this state draws: `shellFor`'s, in `../screen.ts`, for the reason the
+	 * screen below is there. It was a chain of branches here until effort 843's ticket 03.
 	 */
-	const shell = $derived.by(() => {
-		if (shellState.state === 'ready') {
-			return 'full';
-		}
-
-		if (shellState.state === 'sign-in') {
-			return 'signed-out';
-		}
-
-		// a person is in and there is no workspace: the rail is up, and it has no workspace to
-		// name, which is the shape the signed-out rail already draws. What the rail says for this
-		// state is the workspace ticket's to decide when there is a workspace to create.
-		if (shellState.state === 'no-workspace') {
-			return 'signed-out';
-		}
-
-		if (shellState.state === 'loading' && shellState.railIsUp) {
-			// what the rail says still follows who is in, and who is in is whose vault is open.
-			return shellState.organization?.session ? 'full' : 'signed-out';
-		}
-
-		return 'bare';
-	});
+	const shell = $derived(shellFor(shellState));
 
 	/**
 	 * what goes inside the frame, which is startup's other decision about the frame and lives beside
@@ -327,21 +289,6 @@
 				}
 			}
 		});
-
-	/**
-	 * what the rail's account row does, which is put the sign-in card on screen.
-	 *
-	 * The decision is `wayInFrom`'s, in `../screen.ts`, for the reason the screen itself
-	 * is: a runes file cannot be imported by a `node:test`, so a rule written here is a rule nothing
-	 * can drive.
-	 */
-	const goToTheWayIn = () => {
-		const destination = wayInFrom(page.url.pathname);
-
-		if (destination) {
-			void goto(resolve(destination));
-		}
-	};
 </script>
 
 {#snippet inside()}
@@ -393,7 +340,6 @@
 		queryClient,
 		currentDirection,
 		shell,
-		onWayIn: goToTheWayIn,
 		onSwitchWorkspace: switchWorkspace,
 		dialogs: shellState.railIsUp && Boolean(shellState.organization?.session),
 		children: inside

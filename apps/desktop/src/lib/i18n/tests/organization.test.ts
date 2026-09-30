@@ -197,6 +197,10 @@ const RETIRED = [
 	'account',
 	'layout.changePassword',
 	'layout.accountMenu.label',
+	// the rail drawn signed out (effort 843, requirement 7)
+	'layout.accountMenu.signedOutHint',
+	'layout.accountMenu.signedOutName',
+	'layout.workspaceMenu.locked',
 	'common.nav.organization',
 	// the control plane's leftovers
 	'layout.startup.accountChoiceEmpty',

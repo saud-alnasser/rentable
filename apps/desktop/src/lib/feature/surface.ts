@@ -273,8 +273,9 @@ export type AnySection = { [On in SectionTarget]: Section<On> }[SectionTarget];
 
 /**
  * The places the shell draws what a feature contributes to it, and what the shell hands the
- * component drawn at each. The shell owns the frame: which state it is in and what a switch or the
- * way in runs, so those arrive as props; what the component shows, it reads for itself.
+ * component drawn at each. The shell owns the frame, and what a switch runs is the frame's, so it
+ * arrives as a prop; what the component shows, it reads for itself. Both rows are drawn only once a
+ * person is in, since the rail is (effort 843, requirement 7).
  *
  * - **`workspace-menu`** is the top of the rail, the row naming the workspace that is open.
  * - **`account-menu`** is the foot of the rail, the row naming who is signed in.
@@ -283,17 +284,10 @@ export type AnySection = { [On in SectionTarget]: Section<On> }[SectionTarget];
  */
 export type ShellSlotProps = {
 	'workspace-menu': {
-		/** whether this is the rail before anybody has signed in, or with no workspace open. */
-		signedOut: boolean;
 		/** a workspace other than the open one was chosen: open it, by the path a sign-in takes. */
 		onSwitch: (workspaceId: string) => void;
 	};
-	'account-menu': {
-		/** whether this is the rail before anybody has signed in. */
-		signedOut: boolean;
-		/** the way in, which reaches the sign-in card. Only read while `signedOut`. */
-		onWayIn: () => void;
-	};
+	'account-menu': Record<string, never>;
 	dialogs: Record<string, never>;
 };
 

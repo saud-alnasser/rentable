@@ -1926,25 +1926,11 @@ type RootTranslation = {
 			 */
 			title: string
 		}
-		accountMenu: {
-			/**
-			 * n​o​t​ ​s​i​g​n​e​d​ ​i​n
-			 */
-			signedOutHint: string
-			/**
-			 * u​s​e​r
-			 */
-			signedOutName: string
-		}
 		workspaceMenu: {
 			/**
 			 * n​e​w​ ​w​o​r​k​s​p​a​c​e
 			 */
 			create: string
-			/**
-			 * n​o​t​ ​a​v​a​i​l​a​b​l​e
-			 */
-			locked: string
 			/**
 			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​m​e​m​b​e​r​|​m​e​m​b​e​r​s​}​}
 			 * @param {string | number | boolean} count
@@ -6460,25 +6446,11 @@ export type TranslationFunctions = {
 			 */
 			title: () => LocalizedString
 		}
-		accountMenu: {
-			/**
-			 * not signed in
-			 */
-			signedOutHint: () => LocalizedString
-			/**
-			 * user
-			 */
-			signedOutName: () => LocalizedString
-		}
 		workspaceMenu: {
 			/**
 			 * new workspace
 			 */
 			create: () => LocalizedString
-			/**
-			 * not available
-			 */
-			locked: () => LocalizedString
 			/**
 			 * {count|number} {{member|members}}
 			 */

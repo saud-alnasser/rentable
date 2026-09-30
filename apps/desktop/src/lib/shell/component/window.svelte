@@ -31,7 +31,6 @@
 		queryClient,
 		currentDirection,
 		shell,
-		onWayIn,
 		onSwitchWorkspace,
 		dialogs,
 		children
@@ -41,7 +40,6 @@
 		currentDirection: DesignDirection;
 		/** how much of the frame this state draws. */
 		shell: ComponentProps<typeof ShellFrame>['shell'];
-		onWayIn: () => void;
 		/**
 		 * another workspace was chosen in the rail. Handed the shell's trail with it, which is where
 		 * a switch reads the directory a record's page moves to: startup, which runs the switch, is
@@ -165,16 +163,9 @@
 		<QueryClientProvider client={queryClient}>
 			<NotificationProvider>
 				<TooltipProvider>
-					<!-- the rail's way in navigates, and that is the whole mechanism: signed out,
-					     `startupScreen` draws the card over every address but the ones `OPENS_SIGNED_OUT`
-					     holds, so leaving one of those is what puts the card on screen. From anywhere else
-					     the card is already drawn and `wayInFrom` answers nothing, which is what keeps the
-					     reader's place. Starting the flow stays with the card, the one surface that
-					     names the provider. -->
 					<ShellFrame
 						{currentDirection}
 						{shell}
-						{onWayIn}
 						onSwitchWorkspace={(workspaceId) => onSwitchWorkspace(workspaceId, toBreadcrumbTrail)}
 					>
 						{@render children()}

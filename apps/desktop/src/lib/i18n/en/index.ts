@@ -268,7 +268,6 @@ const en = {
 	layout: {
 		notFound: shell.layout.notFound,
 		error: shell.layout.error,
-		accountMenu: organizationSession.layout.accountMenu,
 		workspaceMenu: workspace.layout.workspaceMenu,
 		noWorkspace: workspace.layout.noWorkspace,
 		signIn: organizationSession.layout.signIn,

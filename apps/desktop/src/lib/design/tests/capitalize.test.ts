@@ -75,11 +75,6 @@ const ALLOWED: readonly { label: string; most: number; reason: string }[] = [
 		reason: '"settings" and "sign out"'
 	},
 	{
-		label: 'lib/organization/session/component/account-signed-out.svelte',
-		most: 2,
-		reason: '"sign in" and "settings"'
-	},
-	{
 		label: 'lib/shell/component/breadcrumb.svelte',
 		most: 2,
 		reason: 'a place’s name from the route, never a record’s'

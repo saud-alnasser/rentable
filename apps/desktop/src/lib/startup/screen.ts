@@ -56,18 +56,13 @@ export const THE_JOIN = '/organization/join';
 const OPENS_SIGNED_OUT: readonly string[] = ['/settings', THE_FIRST_RUN, THE_JOIN];
 
 /**
- * Where the rail's way in sends a reader.
+ * The way in's own address: home, which the sign-in card is drawn over.
  *
- * **The row in the account menu navigates rather than signing anybody in**, and this is what it
- * navigates to. The sign-in card is a shell surface rather than a route, so there is no address
- * that *is* the card and the only way to reach one is to stand somewhere the card draws over.
- * Home is that somewhere; any address `OPENS_SIGNED_OUT` does not hold would serve.
- *
- * Here rather than in `./component/root.svelte` for the reason the rest of this module is here: a runes
- * file cannot be imported by a `node:test` at all, so a destination left inline in one is a
- * destination nothing can drive. #735 is where the row went to the consent screen instead, and
- * `/settings` is where that was visible, being the one address that opens signed out and so the
- * one place the card was not already on screen to make the difference invisible.
+ * The sign-in card is a shell surface rather than a route, so there is no address that *is* the
+ * card, and the only way to reach one is to stand somewhere the card draws over. Home is that
+ * somewhere; any address `OPENS_SIGNED_OUT` does not hold would serve. A sign-out and a machine
+ * letting go of its organization land here from the three addresses that open signed out, and the
+ * settings opened signed out go back to it.
  */
 export const THE_WAY_IN = '/';
 
@@ -82,22 +77,6 @@ export function opensSignedOut(pathname: string) {
 }
 
 /**
- * Where the way in has to go from here, or `null` where the card is already drawn over it.
- *
- * **Navigating off an address the card already covers would cost the reader their place for
- * nothing.** Signing out on a record leaves the card over that record, and the route underneath is
- * what draws again on the way back in, which `and signing back in returns the reader to the address
- * they were on` asserts. The way in exists to put the card on screen, so where the card is on
- * screen it has nowhere to go.
- *
- * Only meaningful while the shell is signed out, which is the only state the row offering it is
- * drawn in.
- */
-export function wayInFrom(pathname: string): typeof THE_WAY_IN | null {
-	return opensSignedOut(pathname) ? THE_WAY_IN : null;
-}
-
-/**
  * Where a sign-out has to land, or `null` where the card will draw over the address already.
  *
  * **Signing out puts the wall up, and an address that opens signed out never gets one** (effort
@@ -106,16 +85,52 @@ export function wayInFrom(pathname: string): typeof THE_WAY_IN | null {
  * three addresses `OPENS_SIGNED_OUT` holds go on drawing, and a person who signs out from
  * `/settings` is left reading the settings of a machine nobody is signed in on. The human met
  * exactly that on their first run of the build. So the sign-out leaves those three, and the one
- * place to leave for is the same address the rail's way in uses.
- *
- * **Its own function rather than a second caller of `wayInFrom`, and the two bodies agreeing is
- * not the same as the two questions agreeing.** That one answers *where does the rail's row send
- * somebody who wants the card*, this one answers *where does a sign-out land*. An address added to
- * `OPENS_SIGNED_OUT` that should keep a reader in place on the way out would move one and not the
- * other, and a shared helper would make that a change to both.
+ * place to leave for is the way in's own address.
  */
 export function addressAfterSignOut(pathname: string): typeof THE_WAY_IN | null {
 	return opensSignedOut(pathname) ? THE_WAY_IN : null;
+}
+
+/** How much of the shell the frame draws: the titlebar alone, around the way in, or the rail. */
+export type ShellChrome = 'bare' | 'way-in' | 'full';
+
+/**
+ * How much of the shell a state draws.
+ *
+ * **The rail is drawn only once a person is in** (effort 843, requirement 7, decided by the human
+ * on 2026-09-30). Signing in, a machine with no workspace yet, and a load with nobody in are the
+ * way in, and get the titlebar and its window controls around it and nothing else: a control that
+ * does not apply is not drawn. Failing to start and recovering from an update are an application
+ * that is not running, and get the bare frame.
+ *
+ * **Loading is several states and the table reads which.** A switch between workspaces keeps the
+ * rail, since only the page loads (requirement 12). So does a load with a person in once the rail
+ * latched, which is the load straight after signing in: taking the rail away and bringing it back
+ * a second later would be the window changing shape twice. A load with nobody in, a launch's among
+ * them, is the way in's.
+ *
+ * It was a chain of branches in `./component/root.svelte`, with a fourth answer that drew the rail
+ * signed out, until effort 843's ticket 03 moved it here for a `node:test` to drive.
+ */
+export function shellFor(
+	snapshot: Pick<StartupSnapshot, 'state' | 'switching' | 'railIsUp' | 'organization'>
+): ShellChrome {
+	switch (snapshot.state) {
+		case 'ready':
+			return 'full';
+		case 'sign-in':
+		case 'no-workspace':
+			return 'way-in';
+		case 'loading':
+			if (snapshot.switching !== null) {
+				return 'full';
+			}
+
+			return snapshot.railIsUp && snapshot.organization?.session ? 'full' : 'way-in';
+		case 'recovery':
+		case 'error':
+			return 'bare';
+	}
 }
 
 /**

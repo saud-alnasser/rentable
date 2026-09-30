@@ -5,7 +5,6 @@ import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import AccountMenu from '$lib/organization/session/component/account-menu.svelte';
-import AccountSignedOut from '$lib/organization/session/component/account-signed-out.svelte';
 import WorkspaceMenu from '$lib/workspace/component/menu.svelte';
 import RailProviders from '$lib/shell/tests/rail-providers.svelte';
 import {
@@ -114,18 +113,9 @@ test("the list's transfer menu", async () => {
 	expectAllOrNone(rowsOfTheOpenMenu());
 });
 
-test('the account menu, signed in', async () => {
+test('the account menu', async () => {
 	inEnglish();
 	render(AccountMenu, { session: fakeOrganizationSession({ username: 'ada.lovelace' }) }, rail);
-
-	await fireEvent.click(screen.getByRole('button', { expanded: false }));
-
-	expectAllOrNone(rowsOfTheOpenMenu());
-});
-
-test('the account menu, signed out', async () => {
-	inEnglish();
-	render(AccountSignedOut, { onWayIn: () => {} }, rail);
 
 	await fireEvent.click(screen.getByRole('button', { expanded: false }));
 

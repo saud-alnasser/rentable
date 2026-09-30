@@ -10,7 +10,7 @@ import {
 	THE_FIRST_RUN,
 	THE_JOIN,
 	THE_WAY_IN,
-	wayInFrom
+	shellFor
 } from '$lib/startup/screen.ts';
 import {
 	fakeRecovery,
@@ -65,28 +65,17 @@ test('and every other address draws the card', async () => {
 	}
 });
 
-test('and the way in from the rail lands on an address the card draws over', async () => {
-	// the row in the account menu navigates rather than signing anybody in, so the whole of what
-	// makes it work is that its destination is not one of the addresses that open signed out. On
-	// `/settings` the card is not drawn, and the row reached the consent screen from there without
-	// the surface that names the provider ever appearing.
+test('and the way in is an address the card draws over', async () => {
+	// a sign-out from an address that opens signed out, and back from the settings opened signed
+	// out, land on the way in's own address, so the whole of what makes those work is that it is not
+	// one of the addresses that open signed out.
 	const { startup } = harness({ organization: locked() });
 
 	await startup.start();
 
 	assert.equal(startup.snapshot.state, 'sign-in');
-	assert.equal(wayInFrom('/settings'), THE_WAY_IN);
 	assert.equal(opensSignedOut(THE_WAY_IN), false);
 	assert.equal(startupScreen(startup.snapshot, THE_WAY_IN), 'sign-in');
-});
-
-test('and it goes nowhere from an address the card is already drawn over', () => {
-	// the reader keeps their place. Signing out on a record leaves the card over that record, and
-	// navigating away from it to reach a card already on screen would lose the address the route
-	// underneath draws from on the way back in.
-	for (const address of ADDRESSES) {
-		assert.equal(wayInFrom(address), null, address);
-	}
 });
 
 test('and the surface alone would leave the settings page drawn over a signed-out machine', async () => {
@@ -245,7 +234,6 @@ test('the first run opens signed out, and draws as a route rather than the card'
 
 	assert.equal(startup.snapshot.state, 'sign-in');
 	assert.equal(startupScreen(startup.snapshot, THE_FIRST_RUN), 'route');
-	assert.equal(wayInFrom(THE_FIRST_RUN), THE_WAY_IN);
 });
 
 // and the join screen is the other: a link opens the application on a machine that has joined
@@ -260,7 +248,6 @@ test('the join screen opens signed out, and draws as a route rather than the car
 
 	assert.equal(startup.snapshot.state, 'sign-in');
 	assert.equal(startupScreen(startup.snapshot, THE_JOIN), 'route');
-	assert.equal(wayInFrom(THE_JOIN), THE_WAY_IN);
 });
 
 // --- Where a switch between workspaces leaves the reader ------------------------------------
@@ -314,4 +301,62 @@ test('and an address no route matched stays, as does a record listed under no pl
 		addressAfterSwitch('/somewhere/[id]', () => [{ kind: 'record', route: '/somewhere/[id]' }]),
 		THE_WAY_IN
 	);
+});
+
+// --- How much of the shell each state draws -------------------------------------------------
+//
+// Criterion 7 of effort 843, the half about what is drawn: no state with nobody in draws the
+// rail, a switch keeps it, and a startup that stopped draws the bare frame.
+
+test('the way in is drawn on the titlebar alone: signing in, no workspace, and a load with nobody in', async () => {
+	const signingIn = harness({ organization: locked() });
+	await signingIn.startup.start();
+	assert.equal(signingIn.startup.snapshot.state, 'sign-in');
+	assert.equal(shellFor(signingIn.startup.snapshot), 'way-in');
+
+	const noWorkspace = harness({ organization: withoutWorkspace() });
+	await noWorkspace.startup.start();
+	assert.equal(noWorkspace.startup.snapshot.state, 'no-workspace');
+	assert.equal(shellFor(noWorkspace.startup.snapshot), 'way-in');
+
+	// a launch, before anything is known, and a load once the wall has been up with nobody in.
+	const launching = harness().startup.snapshot;
+	assert.equal(launching.state, 'loading');
+	assert.equal(shellFor(launching), 'way-in');
+	assert.equal(
+		shellFor({ ...signingIn.startup.snapshot, state: 'loading', switching: null }),
+		'way-in'
+	);
+});
+
+test('the rail is drawn once a person is in, and a switch keeps it', async () => {
+	const { startup } = harness();
+	await startup.start();
+	assert.equal(startup.snapshot.state, 'ready');
+	assert.equal(shellFor(startup.snapshot), 'full');
+
+	// a switch's load, and the load straight after signing in, with the rail latched and a person in.
+	assert.equal(shellFor({ ...startup.snapshot, state: 'loading', switching: 'South' }), 'full');
+	assert.equal(shellFor({ ...startup.snapshot, state: 'loading', switching: null }), 'full');
+});
+
+test('a startup that stopped draws the bare frame', () => {
+	const base = harness().startup.snapshot;
+
+	assert.equal(shellFor({ ...base, state: 'error' }), 'bare');
+	assert.equal(shellFor({ ...base, state: 'recovery' }), 'bare');
+});
+
+test('no state with nobody in draws the rail', () => {
+	const base = harness({ organization: locked() }).startup.snapshot;
+
+	for (const state of ['loading', 'sign-in', 'no-workspace', 'recovery', 'error'] as const) {
+		for (const railIsUp of [false, true]) {
+			assert.notEqual(
+				shellFor({ ...base, state, railIsUp, switching: null, organization: locked() }),
+				'full',
+				`${state}, rail latched: ${railIsUp}`
+			);
+		}
+	}
 });

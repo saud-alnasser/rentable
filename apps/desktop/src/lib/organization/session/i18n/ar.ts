@@ -1,17 +1,11 @@
-// The organization session's strings in arabic: the account menu at the foot of the rail and the
-// sign-in card, composed back into `i18n/ar/index.ts` at `layout.accountMenu`, `layout.signIn` and
-// `common.actions`. It imports nothing but types, because the typesafe-i18n generator transpiles it
+// The organization session's strings in arabic: the sign-in card and the account menu's sign-out,
+// composed back into `i18n/ar/index.ts` at `layout.signIn` and `common.actions`. It imports nothing but types, because the typesafe-i18n generator transpiles it
 // along with the locale. It satisfies its own slice of the generated types, so a key missing, left
 // over or without its placeholder fails here.
 
 import type { Translation } from '../../../i18n/i18n-types';
 
 export const layout = {
-	accountMenu: {
-		signedOutHint: 'غير مسجل الدخول',
-		signedOutName: 'مستخدم'
-	},
-
 	signIn: {
 		noOrganizationTitle: 'مرحبًا',
 		noOrganizationSubtitle: 'لا مؤسسة على هذا الجهاز بعد.',
@@ -33,7 +27,7 @@ export const layout = {
 		disconnectDescription:
 			'يحذف هذا الجهاز نسخته من المؤسسة ومساحات عملها، وينسى حساب Turso. لا يتغير شيء على Turso. يعيد المالك الربط بحساب Turso الخاص به، ويحتاج غيره إلى رابط جديد.'
 	}
-} satisfies Pick<Translation['layout'], 'accountMenu' | 'signIn'>;
+} satisfies Pick<Translation['layout'], 'signIn'>;
 
 // the account menu's sign-out, composed back at `common.actions`.
 export const common = {

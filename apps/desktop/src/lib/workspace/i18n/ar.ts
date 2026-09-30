@@ -37,7 +37,6 @@ export const earlier = {
 export const layout = {
 	workspaceMenu: {
 		create: 'مساحة عمل جديدة',
-		locked: 'غير متاح',
 		members: '{count|number} عضو',
 		open: 'مفتوحة',
 		manage: 'إدارة مساحات العمل…',

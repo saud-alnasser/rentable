@@ -18,12 +18,10 @@
 	 * They replaced a static mark with the product's name and a link called settings, which spent
 	 * the two rows that are on screen at every moment on a logo and a route.
 	 *
-	 * **It is drawn with nobody signed in too, and it is the same rail.** *Settled 2026-08-20 by
-	 * looking at four alternatives.* Signing in is not a screen the application shows before
-	 * itself: an application waiting for a person is running. So the rail is here, the two rows
-	 * hold their places with what they can say, the destinations are present and refuse, and the
-	 * account row is the way in. What changes between the two states is the contents, never the
-	 * shape.
+	 * **It is drawn only once a person is in.** *Changed 2026-09-30 by the human (effort 843,
+	 * requirement 7)*: it was drawn signed out too, the same rail with its destinations refusing and
+	 * the account row as the way in, and the way in now has the window to itself
+	 * (`frame.svelte`).
 	 *
 	 * **Neither row can be empty once signed in, and neither carries a loading state.**
 	 * `startup/component/root.svelte` renders the full rail only at `startupState === 'ready'`, which is past
@@ -34,26 +32,14 @@
 	 * **The two rows are the features' own, drawn at the shell's two places** (`workspace-menu` and
 	 * `account-menu`, in `$lib/feature/surface`): the workspace's at the top and the account's at
 	 * the foot, each read off `app/surfaces` in the list's order. The rail hands each what only the
-	 * frame knows, which state it is in and what a switch or the way in runs, and each reads what it
-	 * shows for itself.
+	 * frame knows, which is what a switch runs, and each reads what it shows for itself.
 	 */
 	let {
 		ref = $bindable(null),
 		collapsible = 'icon',
-		signedOut = false,
-		onWayIn = () => {},
 		onSwitchWorkspace = () => {},
 		...restProps
 	}: ComponentProps<typeof Sidebar.Root> & {
-		/** whether this is the rail before anybody has signed in. */
-		signedOut?: boolean;
-		/**
-		 * the way in, offered by the account row. **It reaches the sign-in card rather than signing
-		 * anybody in**: the card is where the provider is named, and a row that went straight to the
-		 * consent screen would be the way in past the one surface that says what it is. Only read
-		 * while `signedOut`.
-		 */
-		onWayIn?: () => void;
 		/**
 		 * a switch to another workspace, handed down by the root layout, which holds the startup
 		 * unit. A switch is the sign-in path run again past the wall, under the loading surface, and
@@ -99,27 +85,17 @@
 	<Sidebar.Menu>
 		{#each items as item (item.url)}
 			<Sidebar.MenuItem>
-				{#if signedOut}
-					<!-- present and refusing, rather than absent. A destination that is missing while
-					     signed out and appears afterwards makes signing in look like arriving at a
-					     different application. -->
-					<Sidebar.MenuButton aria-disabled="true" tooltipContent={item.label($LL)}>
-						<item.icon />
-						<span class="capitalize">{item.label($LL)}</span>
-					</Sidebar.MenuButton>
-				{:else}
-					<Sidebar.MenuButton
-						isActive={isActiveRoute(page.url.pathname, item.url)}
-						tooltipContent={item.label($LL)}
-					>
-						{#snippet child({ props })}
-							<a href={resolve(item.url)} {...props}>
-								<item.icon />
-								<span class="capitalize">{item.label($LL)}</span>
-							</a>
-						{/snippet}
-					</Sidebar.MenuButton>
-				{/if}
+				<Sidebar.MenuButton
+					isActive={isActiveRoute(page.url.pathname, item.url)}
+					tooltipContent={item.label($LL)}
+				>
+					{#snippet child({ props })}
+						<a href={resolve(item.url)} {...props}>
+							<item.icon />
+							<span class="capitalize">{item.label($LL)}</span>
+						</a>
+					{/snippet}
+				</Sidebar.MenuButton>
 			</Sidebar.MenuItem>
 		{/each}
 	</Sidebar.Menu>
@@ -128,7 +104,7 @@
 <Sidebar.Root bind:ref {collapsible} variant="inset" {...restProps}>
 	<Sidebar.Header>
 		{#each workspaceRows as WorkspaceRow, index (index)}
-			<WorkspaceRow {signedOut} onSwitch={onSwitchWorkspace} />
+			<WorkspaceRow onSwitch={onSwitchWorkspace} />
 		{/each}
 	</Sidebar.Header>
 
@@ -140,7 +116,7 @@
 
 	<Sidebar.Footer>
 		{#each accountRows as AccountRow, index (index)}
-			<AccountRow {signedOut} {onWayIn} />
+			<AccountRow />
 		{/each}
 	</Sidebar.Footer>
 </Sidebar.Root>

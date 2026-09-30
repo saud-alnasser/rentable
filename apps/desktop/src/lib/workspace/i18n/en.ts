@@ -38,7 +38,6 @@ export const earlier = {
 export const layout = {
 	workspaceMenu: {
 		create: 'new workspace',
-		locked: 'not available',
 		members: '{count|number} {{member|members}}',
 		open: 'open',
 		manage: 'manage workspaces…',

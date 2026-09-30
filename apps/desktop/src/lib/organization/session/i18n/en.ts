@@ -1,16 +1,10 @@
-// The organization session's strings in english: the account menu at the foot of the rail and the
-// sign-in card, composed back into `i18n/en/index.ts` at `layout.accountMenu`, `layout.signIn` and
-// `common.actions`. It imports nothing but types, because the typesafe-i18n generator transpiles it
+// The organization session's strings in english: the sign-in card and the account menu's sign-out,
+// composed back into `i18n/en/index.ts` at `layout.signIn` and `common.actions`. It imports nothing but types, because the typesafe-i18n generator transpiles it
 // along with the locale.
 
 import type { BaseTranslation } from '../../../i18n/i18n-types';
 
 export const layout = {
-	accountMenu: {
-		signedOutHint: 'not signed in',
-		signedOutName: 'user'
-	},
-
 	signIn: {
 		noOrganizationTitle: 'welcome',
 		noOrganizationSubtitle: 'no organization on this machine yet.',
