@@ -3,7 +3,13 @@ import test from 'node:test';
 
 import { TRPCError } from '@trpc/server';
 
-import { AWAITING_BLOCKERS, isConfirmable, toConfirmation, toRefusal } from '../confirmation.ts';
+import {
+	AWAITING_BLOCKERS,
+	heldWhileOpen,
+	isConfirmable,
+	toConfirmation,
+	toRefusal
+} from '../confirmation.ts';
 
 test('a caller with nothing to read gets the confirmation offered', () => {
 	assert.equal(toConfirmation(undefined).state, 'offered');
@@ -81,4 +87,30 @@ test("a refusal is worded by the consumer's reader, where one is given", () => {
 		toRefusal(new Error('the database is gone'), 'oops', () => 'never read'),
 		null
 	);
+});
+
+test('a closing surface keeps showing what it asked, whatever its caller forgets', () => {
+	let open = true;
+	let asked: { record?: string; blockers: string[] } = {
+		record: 'Aisha',
+		blockers: ['2 contracts']
+	};
+	const shown = heldWhileOpen(
+		() => open,
+		() => asked
+	);
+
+	assert.deepEqual(shown(), { record: 'Aisha', blockers: ['2 contracts'] });
+
+	// the caller closes it by forgetting the record, in the same moment.
+	open = false;
+	asked = { record: undefined, blockers: [] };
+
+	assert.deepEqual(shown(), { record: 'Aisha', blockers: ['2 contracts'] });
+
+	// opened again, on another record, it shows that one.
+	open = true;
+	asked = { record: 'Omar', blockers: [] };
+
+	assert.deepEqual(shown(), { record: 'Omar', blockers: [] });
 });
