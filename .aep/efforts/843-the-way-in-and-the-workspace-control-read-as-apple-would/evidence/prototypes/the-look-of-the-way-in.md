@@ -63,6 +63,8 @@ organization.
   contents change height.
 - **Back is in the content area's corner, not the column's**: at 640 wide a column-corner arrow
   floats in the middle of the window.
+- **The mark is a 3.5rem tile with a 1rem radius (`rounded-2xl`) and a 1.75rem glyph**, larger than the rail's,
+  because on the way in it is the only picture on the screen.
 - **Fields are 2.25rem high, labels above, hints in extra-small muted text.**
 - **Disconnect and "use a link" leave the wall's disclosure for the foot control's popover**, shown
   only on the wall, because the human made "can't sign in?" a sentence and 824 requirement 20 still

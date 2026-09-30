@@ -233,7 +233,7 @@ of them:
 | `text-base` | 16 | what is typed into an input, a card's title                          |
 | `text-lg`   | 18 | a dialog, sheet or standalone surface's title                        |
 | `text-xl`   | 20 | a figure the dashboard leads with                                    |
-| `text-2xl`  | 24 | a record's title, on a narrow window                                 |
+| `text-2xl`  | 24 | a record's title, on a narrow window; a step's title on the way in   |
 | `text-3xl`  | 30 | a record's or an area's title, and the link code                     |
 
 | Weight          | For                                           |

@@ -82,16 +82,35 @@ Recorded originally as ADR 0020, *Surfaces diverge by kind, not by operation*.
 
 ### Application surfaces
 
-**The application's own surfaces converge on one shared surface.**
+**The application's own surfaces converge, on two shared surfaces, one for each kind of screen.**
 
-Starting, failing, recovering, asking which workspace to open, and reporting an unanticipated
-error all take the shared surface in the design system.
+- **The steps before the application take the way-in surface**,
+  `packages/design/src/lib/block/way-in-surface.svelte`: the welcome, the first run's steps, the
+  join's steps, the wall, the no-workspace screen, and the loading that follows the way in. It is
+  the window's content area laid out as a setup pane, not a card: the mark, the title and one line
+  under it, the step's controls, and its actions, in one column placed from the top, with back in
+  the content area's top-start corner and the step's position, where it has one, drawn by
+  `block/way-in-position.svelte` as a small line above the title. A change of step runs a view
+  transition in the reading direction.
+- **The application failing takes the standalone surface**,
+  `packages/design/src/lib/block/standalone-surface.svelte`: failing to start, recovering an
+  unfinished update, settings failing to load, and an unanticipated route error. It is a card, and
+  the toned ones carry the band that says at a glance what kind of event this is.
+
+A screen that is neither a step of the way in nor the application failing takes neither, and
+this section is where the question of a third is answered.
 
 *Why: these surfaces have no data of their own to take a shape from, so the reasoning that
 makes the concept lists diverge does not reach them — what they have in common is the whole of
-what they are.*
+what they are. They converge on two rather than one because the way in is a sequence a person
+walks and a failure is an event they are told about, and one block carrying both strained at the
+seam: a welcome drawn as a failure card reads as nothing yet, and a failure drawn as a setup pane
+reads as nothing wrong.*
 
 Recorded originally as ADR 0015, *The application's own surfaces converge, where its concepts' surfaces diverge*.
+*Narrowed on 2026-10-01 by
+[[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/spec]], requirement 1,
+from one shared surface to two, at the human's choice of 2026-09-30.*
 
 ### Record surface
 
