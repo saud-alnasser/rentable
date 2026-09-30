@@ -66,11 +66,16 @@
 		confirming && planQuery.data ? planQuery.data : null
 	);
 
+	// how many units go with the complexes the deletion would take, which the summary names beside
+	// them, since they are deleted too.
+	const unitsGoing = $derived(confirming && planQuery.data ? planQuery.data.units : 0);
+
 	// the reasons a deletion can turn a complex away for, in the order they are worth reading: the
 	// rule the action is about first, and *gone from under you* last, because it is the one
 	// nothing the reader did caused.
 	const REFUSAL_ORDER = [
-		'holds-units',
+		'units-under-contract',
+		'deletes-units',
 		'missing'
 	] as const satisfies readonly ComplexRefusalReason[];
 
@@ -79,7 +84,9 @@
 	// is shown under somebody else's words. The lookup around it is `describeRefusals`.
 	const describeReason = $derived(
 		describeRefusals({
-			'holds-units': (count: number) => $LL.complexes.selection.refusedHoldsUnits({ count }),
+			'units-under-contract': (count: number) =>
+				$LL.complexes.selection.refusedUnitsUnderContract({ count }),
+			'deletes-units': (count: number) => $LL.complexes.selection.refusedDeletesUnits({ count }),
 			missing: (count: number) => $LL.complexes.selection.refusedMissing({ count })
 		} satisfies Record<ComplexRefusalReason, (count: number) => string>)
 	);
@@ -239,7 +246,10 @@
 		{plan}
 		reasons={REFUSAL_ORDER}
 		{describeReason}
-		summarize={(eligible) => $LL.complexes.selection.deleteSummary({ count: eligible })}
+		summarize={(eligible) =>
+			unitsGoing > 0
+				? $LL.complexes.selection.deleteSummaryWithUnits({ count: eligible, units: unitsGoing })
+				: $LL.complexes.selection.deleteSummary({ count: eligible })}
 		confirmLabel={$LL.common.actions.delete()}
 		confirmLoadingLabel={$LL.common.actions.deleting()}
 		onSubmit={deleteSelected}

@@ -383,11 +383,21 @@ asks. A record's own parts are the record: a contract's unit assignments go with
 with its undo, so releasing its units is not a cascade. Today the tenant, complex, unit, payment
 and contract deletes are `none`; deleting a
 workspace, removing a member and locking one out are `irreversible`, which keeps the organization
-host's deletes in the delete dialog. The delete dialog's button names the verb (*delete*, *remove*),
+host's deletes in the delete dialog.
+
+**A delete whose cost turns on the record declares what the record alone costs, and its host
+resolves the rest.** A complex's units are records of their own and go with it, so deleting a
+complex that has units is a cascade, and one with none is still `none`
+([[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]], requirement 22). How many units
+a complex has is on no record a surface holds, so the act declares `none` and the complex host,
+which reads the deletion's plan, hands `toDeleteStep` the policy `toComplexDeleteConfirmation`
+gives for the complex in front of it (`complex/acts.ts`). The dialog it opens names the units that
+go, and the delete is undone whole, the units included. The delete dialog's button names the verb (*delete*, *remove*),
 never *confirm* or *OK*.
 
 **A refused delete is still refused, and says why.** A delete declared `none` waits on what might
-refuse it before it runs; where something does (a tenant with contracts, a complex with units), the
+refuse it before it runs; where something does (a tenant with contracts, a complex one of whose
+units a contract holds), the
 host opens the delete dialog in its blocked state, which names what stands in the way and offers no
 destructive control. The procedure refuses it either way.
 

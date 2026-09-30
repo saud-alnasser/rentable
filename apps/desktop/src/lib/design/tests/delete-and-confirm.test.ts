@@ -97,12 +97,12 @@ for (const glyph of [
 const { inverseStack } = await import('$lib/undo/undo');
 const { toDeleteStep } = await import('$lib/act');
 const { useDeleteTenant } = await import('$lib/tenant/query');
-const { useCreateComplex } = await import('$lib/complex/query');
+const { useCreateComplex, useDeleteComplex } = await import('$lib/complex/query');
 const { useCreateUnit, useDeleteUnit } = await import('$lib/complex/unit/query');
 const { useCreateContract, useDeleteContract } = await import('$lib/contract/query');
 const { useCreatePayment, useDeletePayment } = await import('$lib/payment/query');
 const { declareTenantActs } = await import('$lib/tenant/acts');
-const { declareComplexActs } = await import('$lib/complex/acts');
+const { declareComplexActs, toComplexDeleteConfirmation } = await import('$lib/complex/acts');
 const { declareUnitActs } = await import('$lib/complex/unit/acts');
 const { declarePaymentActs } = await import('$lib/payment/acts');
 const { declareContractActs } = await import('$lib/contract/acts');
@@ -245,6 +245,24 @@ describe('an ordinary delete runs at once and offers undo', () => {
 		assert.equal((await caller.complex.units.get({ id: unit.id }))?.status, 'occupied');
 	});
 
+	// effort 840, requirement 22: it asks first, and is undone whole all the same.
+	it('puts back a complex deleted with its units, each unit as it was', async () => {
+		const complex = await run(useCreateComplex, {
+			name: 'Tower',
+			location: 'Riyadh',
+			units: [{ name: 'A1' }, { name: 'A2' }]
+		});
+		const units = await caller.complex.units.getMany({ complexId: complex.id });
+
+		await run(useDeleteComplex, complex.id);
+		assert.equal(await caller.complex.get({ id: complex.id }), undefined);
+		assert.deepEqual(await caller.complex.units.getMany({ complexId: complex.id }), []);
+
+		await pressUndo(deleteAnnouncement());
+		assert.equal((await caller.complex.get({ id: complex.id }))?.name, 'Tower');
+		assert.deepEqual(await caller.complex.units.getMany({ complexId: complex.id }), units);
+	});
+
 	it('still refuses a tenant with contracts, and deletes nothing', async () => {
 		const tenant = await seedTenant(caller);
 
@@ -320,6 +338,17 @@ describe('what each concept declares about asking', () => {
 		assert.equal(policyOf(declared.unit, 'unit.delete'), 'none');
 		assert.equal(policyOf(declared.payment, 'payment.delete'), 'none');
 		assert.equal(policyOf(declared.contract, 'contract.delete'), 'none');
+	});
+
+	// effort 840, requirement 22: its units go with it, so it removes more than the record.
+	it('a complex whose units go with it cascades, and one with none does not', () => {
+		const declaredPolicy = declared.complex.find(
+			(act) => act.id === 'complex.delete'
+		)?.confirmation;
+
+		assert.equal(toComplexDeleteConfirmation(declaredPolicy, 0), 'none');
+		assert.equal(toComplexDeleteConfirmation(declaredPolicy, 3), 'cascade');
+		assert.equal(toDeleteStep(toComplexDeleteConfirmation(declaredPolicy, 3), []), 'ask');
 	});
 
 	it('what nothing puts back asks first: a workspace, a member removed, and a role deleted', () => {

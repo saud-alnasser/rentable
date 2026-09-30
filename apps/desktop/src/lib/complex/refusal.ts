@@ -6,7 +6,7 @@ import type { RefusalField } from '$lib/error/refusal';
  * `$lib/api/refusal`.
  */
 export type ComplexRefusalCode =
-	| 'complex.holdsUnits'
+	| 'complex.unitsUnderContract'
 	| 'complex.nameTaken'
 	| 'complex.nameTakenNamed'
 	| 'complex.gone'

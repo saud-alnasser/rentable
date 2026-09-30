@@ -5,6 +5,14 @@
 import type { BaseTranslation } from '../../i18n/i18n-types';
 
 export const complexes = {
+	// what the delete dialog says of a complex: the units that go with it, or that a contract
+	// holding one stands in the way. Every contract that ever mentioned a unit counts, as it does
+	// for the unit's own delete.
+	deleteDialog: {
+		blockedUnitsUnderContract: 'a contract mentions one or more of its units',
+		unitsGoWithIt: 'its {count|number} {{unit|units}} will be deleted with it.'
+	},
+
 	empty: {
 		description: 'complexes you add, with their units, will be listed here.',
 		title: 'no complexes yet'
@@ -34,9 +42,12 @@ export const complexes = {
 
 	selection: {
 		deleteSummary: '{count|number} complex(es) will be deleted',
+		deleteSummaryWithUnits:
+			'{count|number} complex(es) will be deleted, with {units|number} {{unit|units}}',
 		deleteTitle: 'delete complexes',
-		refusedHoldsUnits: '{count|number} still hold units',
+		refusedDeletesUnits: '{count|number} have units you may not delete',
 		refusedMissing: '{count|number} are no longer in the workspace',
+		refusedUnitsUnderContract: '{count|number} have units a contract mentions',
 		unitDeleteSummary: '{count|number} {{unit|units}} will be deleted',
 		unitDeleteTitle: 'delete units',
 		// every contract that ever mentioned it, not the one holding it today: a unit reading
@@ -57,10 +68,11 @@ export const complexes = {
 export const refusals = {
 	complex: {
 		gone: 'this complex is no longer in the workspace. reload to see what changed.',
-		holdsUnits: 'this complex still holds units. delete them before deleting it.',
 		nameTaken: 'name is associated with a previously registered complex.',
 		nameTakenNamed: 'the name {named:string} is associated with a previously registered complex.',
-		repeatedInSet: 'two complexes in this set claim {value:string}.'
+		repeatedInSet: 'two complexes in this set claim {value:string}.',
+		unitsUnderContract:
+			'a contract mentions one or more of its units, so this complex cannot be deleted.'
 	}
 } satisfies BaseTranslation;
 

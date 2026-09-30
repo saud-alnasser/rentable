@@ -6,8 +6,7 @@
 	import DeleteDialog from '@rentable/design/block/delete-dialog.svelte';
 	import { AWAITING_BLOCKERS } from '@rentable/design/confirmation.js';
 	import { usesAppleKeyboard } from '@rentable/design/shortcut.js';
-	import type { ComplexActRecord } from '$lib/complex/acts';
-	import { isComplexDeletable } from '$lib/complex/complex';
+	import { toComplexDeleteConfirmation, type ComplexActRecord } from '$lib/complex/acts';
 	import {
 		closeComplexConfirmation,
 		closeComplexForm,
@@ -16,8 +15,7 @@
 		complexHostState,
 		resetComplexHost
 	} from '$lib/complex/host.svelte';
-	import { useDeleteComplex, useReadComplex } from '$lib/complex/query';
-	import { useFetchUnits } from '$lib/complex/unit/query';
+	import { useDeleteComplex, usePlanManyComplexes, useReadComplex } from '$lib/complex/query';
 	import { consumeCreateIntent, landing } from '$lib/create/ui';
 	import { toDeleteStep, toPaletteVerbs } from '$lib/act';
 	import { onMutationError, onMutationSuccess } from '$lib/mutation/ui';
@@ -29,8 +27,9 @@
 
 	/**
 	 * The complex form and the complex's delete, mounted once for the whole shell. A delete runs at
-	 * once and offers undo, as its act declares; the dialog is drawn only where something refuses
-	 * it, to say what ([[rules/interface]], *Delete and confirm*).
+	 * once and offers undo, as its act declares, where the complex has no units; one whose units go
+	 * with it asks first, naming them, and is undone whole all the same. The dialog is also drawn
+	 * where something refuses the delete, to say what ([[rules/interface]], *Delete and confirm*).
 	 *
 	 * A complex's acts are one list (`complex/acts.ts`), and every surface offering them is a
 	 * projection of it; what those acts open is here, so there is one `ComplexForm` in the tree.
@@ -47,31 +46,40 @@
 
 	const deleting = $derived(complexHostState.deleting);
 
-	// what a deletion would be refused for, read for the record being acted on and only while it is
-	// being acted on. The rule is the domain's to apply, on the units themselves rather than on a
-	// figure a row carries.
-	const heldUnitsQuery = useFetchUnits(
-		() => deleting?.id ?? '',
-		() => deleting !== null
-	);
+	// what the deletion would do, read for the record being acted on and only while it is being
+	// acted on: the plan a selection reads, asked of one complex, so the dialog says what the
+	// deletion will decide rather than a second opinion drawn from a figure a row carries.
+	const deletionPlanQuery = usePlanManyComplexes(() => (deleting ? [deleting.id] : []));
 	const deleteBlockers = $derived.by(() => {
 		if (!deleting) {
 			return [];
 		}
 
-		if (heldUnitsQuery.isPending) {
+		if (deletionPlanQuery.isPending) {
 			return AWAITING_BLOCKERS;
 		}
 
-		const held = heldUnitsQuery.data ?? [];
+		const refusal = deletionPlanQuery.data?.refused.find((refused) => refused.id === deleting.id);
 
-		return isComplexDeletable(held)
-			? []
-			: [$LL.common.deleteDialog.blockedUnits({ count: held.length })];
+		switch (refusal?.reason) {
+			case 'units-under-contract':
+				return [$LL.complexes.deleteDialog.blockedUnitsUnderContract()];
+			case 'deletes-units':
+				return [$LL.common.permission.missing.deleteUnit()];
+			// a complex already gone is the procedure's to answer, as it always was.
+			case 'missing':
+			case undefined:
+				return [];
+		}
 	});
 
-	// whether the delete asks, waits on what refuses it, or runs now, by the act's own policy.
-	const deletePolicy = complexActs.find((act) => act.id === 'complex.delete')?.confirmation;
+	// how many units go with it, which is what makes the delete ask, and what the dialog names.
+	const unitsGoing = $derived(deleting ? (deletionPlanQuery.data?.units ?? 0) : 0);
+
+	// whether the delete asks, waits on what refuses it, or runs now: the act's own policy, which
+	// is a cascade for a complex whose units go with it.
+	const declaredPolicy = complexActs.find((act) => act.id === 'complex.delete')?.confirmation;
+	const deletePolicy = $derived(toComplexDeleteConfirmation(declaredPolicy, unitsGoing));
 	const deleteStep = $derived(deleting ? toDeleteStep(deletePolicy, deleteBlockers) : 'wait');
 
 	async function deleteConfirmed() {
@@ -246,5 +254,8 @@
 	}}
 	record={deleting?.name}
 	blockers={deleteBlockers}
+	description={unitsGoing > 0
+		? $LL.complexes.deleteDialog.unitsGoWithIt({ count: unitsGoing })
+		: undefined}
 	onSubmit={deleteConfirmed}
 />

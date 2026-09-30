@@ -616,7 +616,7 @@ describe('undoing a record change', () => {
 	});
 
 	// a complex created with its units is the one creation whose inverse is not a single
-	// delete: a complex still holding units refuses to be deleted.
+	// delete: the units it made go first, each through its own delete.
 	it('takes back a complex created with its units, and puts them all back', async () => {
 		const complex = await run(useCreateComplex, {
 			name: 'Palm Court',

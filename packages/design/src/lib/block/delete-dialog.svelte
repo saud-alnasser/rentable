@@ -70,11 +70,12 @@
 		confirmVariant?: ButtonVariant;
 	} = $props();
 
-	// what the dialog asks about, kept while it closes: its caller forgets the record as it closes
-	// it, and a refused delete redrawn from the emptied props is the delete form.
+	// what the dialog asks about and what it says that costs, kept while it closes: its caller
+	// forgets the record as it closes it, and a refused delete redrawn from the emptied props is the
+	// delete form, as a cost the caller read off the record is the default one.
 	const readShown = heldWhileOpen(
 		() => open,
-		() => ({ record, blockers })
+		() => ({ record, blockers, description })
 	);
 	const shown = $derived(readShown());
 	const confirmation = $derived(toConfirmation(shown.blockers));
@@ -105,7 +106,7 @@
 					{shown.record || contract.strings.unnamedRecord}
 				</p>
 				<p class="text-sm leading-6 text-muted-foreground">
-					{isBlocked ? contract.strings.deleteBlockedDescription : description}
+					{isBlocked ? contract.strings.deleteBlockedDescription : shown.description}
 				</p>
 			</div>
 

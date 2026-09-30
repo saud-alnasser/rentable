@@ -1,5 +1,6 @@
 import api from '$lib/api/caller';
 import { COMPLEX_SORT_COLUMN_IDS, type ComplexSortColumnId } from '$lib/complex/complex';
+import type { RecordFlag } from '$lib/permission';
 import { prefixOf } from '$lib/mutation';
 import { declareMutation, describeOutcomeChange } from '$lib/mutation/ui';
 import type { SelectionCall } from '@rentable/design/selection.js';
@@ -50,6 +51,17 @@ export type ComplexRefusalReason = Awaited<
 >['refused'][number]['reason'];
 
 const toIds = (records: readonly { id: string }[]) => records.map((record) => record.id);
+
+/**
+ * What undoing a complex's deletion, and doing it again, ask of the reader: the complex's own
+ * flags, and the unit's where units went with it.
+ */
+const flagsToPutBack = (
+	units: readonly unknown[]
+): { undo: readonly RecordFlag[]; redo: readonly RecordFlag[] } =>
+	units.length === 0
+		? { undo: ['createComplex'], redo: ['deleteComplex'] }
+		: { undo: ['createComplex', 'createUnit'], redo: ['deleteComplex', 'deleteUnit'] };
 
 /**
  * One line on one record's own account.
@@ -162,8 +174,8 @@ export const useCreateComplex = declareMutation({
 	inverse: ({ result }) => ({
 		describe: (t) => t.common.undo.created({ record: t.common.labels.complex() }),
 		flags: { undo: ['deleteUnit', 'deleteComplex'], redo: ['createComplex'] },
-		// the units go first: a complex still holding units refuses to be deleted, which is the
-		// rule that lets an inverse be a single insert everywhere else.
+		// the units this creation made go first, each through its own delete, so an undo a contract
+		// holding one of them refuses is refused on that unit, before the complex is touched.
 		undo: async () => {
 			for (const unit of result.units) {
 				await api.complex.units.delete({ id: unit.id });
@@ -200,17 +212,23 @@ export const useUpdateComplex = declareMutation({
 
 export const useDeleteComplex = declareMutation({
 	mutate: (id: string) => api.complex.delete({ id }),
-	touches: ['complexes'],
+	touches: ['complexes', 'units'],
 	inverse: ({ result }) =>
 		result && {
 			describe: (t) => t.common.undo.deleted({ record: t.common.labels.complex() }),
-			flags: { undo: ['createComplex'], redo: ['deleteComplex'] },
-			undo: () => api.complex.create(result),
+			flags: flagsToPutBack(result.units),
+			// a complex that took units with it comes back through the restore, which puts each unit
+			// back as the row it was; one that took none comes back as it always has.
+			undo: () =>
+				result.units.length === 0
+					? api.complex.create(result)
+					: api.complex.createMany({ complexes: [result] }),
 			redo: () => api.complex.delete({ id: result.id })
 		},
 	toast: {
 		success: () => get(LL).complexes.hooks.deleteSuccess(),
-		// no dialog asked first, so the announcement says how long it can be taken back.
+		// the announcement says how long it can be taken back, whether or not a dialog asked first:
+		// a complex that took its units with it is undone whole, as one with none is.
 		detail: () => get(LL).common.undo.lasts(),
 		error: false,
 		unexpected: () => get(LL).common.messages.unexpectedError()
@@ -218,7 +236,8 @@ export const useDeleteComplex = declareMutation({
 });
 
 /**
- * Delete every complex in the selection that holds no unit, as one change.
+ * Delete every complex in the selection that no contract's hold on a unit refuses, with its
+ * units, as one change.
  *
  * **Taking it back is all or nothing.** The inverse creates the whole set in one batch and throws
  * where any one of them cannot be put back, rather than restoring what it can and naming the
@@ -226,12 +245,13 @@ export const useDeleteComplex = declareMutation({
  * An inverse that throws stays on the stack, so the reader can deal with whatever refused it and
  * press undo again.
  *
- * The rows themselves are what the procedure answers with, because putting a record back means
- * putting it back as itself, by the identity it had (ADR 0026).
+ * The rows themselves are what the procedure answers with, each complex with the units that went
+ * with it, because putting a record back means putting it back as itself, by the identity it had
+ * (ADR 0026).
  */
 export const useDeleteManyComplexes = declareMutation({
 	mutate: ({ ids }: SelectionCall) => api.complex.deleteMany({ ids }),
-	touches: ['complexes'],
+	touches: ['complexes', 'units'],
 	inverse: ({ result }) =>
 		// nothing changed, so there is nothing to offer taking back. An undo entry for a no-op is a
 		// control that appears to have done something.
@@ -239,7 +259,7 @@ export const useDeleteManyComplexes = declareMutation({
 			? undefined
 			: {
 					describe: (t) => t.common.undo.deletedMany({ count: result.deleted.length }),
-					flags: { undo: ['createComplex'], redo: ['deleteComplex'] },
+					flags: flagsToPutBack(result.deleted.flatMap((complex) => complex.units)),
 					undo: () => api.complex.createMany({ complexes: result.deleted }),
 					redo: () => api.complex.deleteMany({ ids: toIds(result.deleted) }),
 					records: (direction) =>

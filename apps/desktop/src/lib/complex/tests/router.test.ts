@@ -124,15 +124,171 @@ test('deleting an empty complex removes it', async () => {
 	assert.equal(found, undefined);
 });
 
-test('deleting a complex that still has units is rejected', async () => {
-	const api = await createApi();
-	const complex = await api.complex.create({ name: 'Palm Court', location: 'Riyadh' });
-	await api.complex.units.create({ name: 'A1', complexId: complex.id });
+// --- Deleting a complex with its units -----------------------------------------------
+//
+// Effort 840, requirement 22: a complex is deleted with its units where no contract, of any
+// status, holds one of them, is refused where one does, and asks the delete-unit flag as well
+// where it has units.
 
-	await assert.rejects(
-		() => api.complex.delete({ id: complex.id }),
-		refusedWith('complex.holdsUnits')
+/** A contract holding the unit, in the status named: every one of them keeps the complex. */
+async function holdUnder(api: Api, unitId: string, status: 'active' | 'terminated' | 'expired') {
+	const tenant = await seedTenant(api);
+	const past = status === 'expired';
+	const contract = await api.contract.create({
+		tenantId: tenant.id,
+		start: past ? monthsFromNow(-14) : monthsFromNow(-1),
+		end: past ? monthsFromNow(-2) : monthsFromNow(11),
+		interval: '12m',
+		cost: 1000
+	});
+
+	await api.contract.units.set({ contractId: contract.id, unitIds: [unitId] });
+
+	if (status === 'terminated') {
+		await api.contract.terminate({ id: contract.id });
+	}
+
+	if (past) {
+		// paid in full, so its period ending reads as expired rather than defaulted.
+		await api.payment.create({ contractId: contract.id, date: monthsFromNow(-8), amount: 1000 });
+	}
+
+	assert.equal((await api.contract.get({ id: contract.id }))?.status, status);
+}
+
+test('a complex whose units no contract holds is deleted with them, and put back whole', async () => {
+	const api = await createApi();
+	const complex = await api.complex.create({
+		name: 'Palm Court',
+		location: 'Riyadh',
+		units: [{ name: 'A1' }, { name: 'A2' }]
+	});
+	const before = await api.complex.units.getMany({ complexId: complex.id });
+
+	const deleted = await api.complex.delete({ id: complex.id });
+
+	assert.equal(await api.complex.get({ id: complex.id }), undefined);
+
+	for (const unit of complex.units) {
+		assert.equal(await api.complex.units.get({ id: unit.id }), undefined);
+	}
+
+	assert.ok(deleted);
+	assert.deepEqual(
+		deleted.units.map((unit) => unit.id).sort(),
+		complex.units.map((unit) => unit.id).sort()
 	);
+
+	// what undoing it calls: the complex and every unit, under the identities and with every
+	// column they had.
+	await api.complex.createMany({ complexes: [deleted] });
+
+	assert.deepEqual(await api.complex.get({ id: complex.id }), {
+		id: complex.id,
+		name: complex.name,
+		location: complex.location
+	});
+	assert.deepEqual(await api.complex.units.getMany({ complexId: complex.id }), before);
+
+	for (const unit of deleted.units) {
+		assert.deepEqual(await api.complex.units.get({ id: unit.id }), {
+			...unit,
+			complexName: complex.name
+		});
+	}
+});
+
+test('the complex and its units go as one write, so nothing is left of either', async () => {
+	const statements = await withStatementLog(async (api, drain) => {
+		const complex = await api.complex.create({
+			name: 'Palm Court',
+			location: 'Riyadh',
+			units: [{ name: 'A1' }, { name: 'A2' }]
+		});
+
+		drain();
+
+		await api.complex.delete({ id: complex.id });
+	});
+
+	assert.equal(countMatching(statements, /^\s*delete from "complex"/i), 1);
+	assert.equal(countMatching(statements, /^\s*delete from "unit"/i), 1);
+});
+
+for (const status of ['active', 'terminated', 'expired'] as const) {
+	test(`a complex one of whose units an ${status} contract holds is refused, and nothing goes`, async () => {
+		const api = await createApi();
+		const complex = await api.complex.create({
+			name: 'Palm Court',
+			location: 'Riyadh',
+			units: [{ name: 'A1' }, { name: 'A2' }]
+		});
+
+		await holdUnder(api, complex.units[0].id, status);
+
+		await assert.rejects(
+			() => api.complex.delete({ id: complex.id }),
+			refusedWith('complex.unitsUnderContract')
+		);
+
+		assert.ok(await api.complex.get({ id: complex.id }));
+		assert.equal((await api.complex.units.getMany({ complexId: complex.id })).length, 2);
+
+		const plan = await api.complex.planMany({ ids: [complex.id] });
+
+		assert.deepEqual(plan.eligible, []);
+		assert.deepEqual(plan.refused, [
+			{ id: complex.id, name: complex.name, reason: 'units-under-contract' }
+		]);
+	});
+}
+
+test('a member who may not delete units is refused a complex with units, not one with none', async () => {
+	const db = createMemoryDatabase();
+	const api = await createApi({ db });
+	const lacking = await createApi({ db, identity: identityWithout('deleteUnit') });
+	const withUnits = await api.complex.create({
+		name: 'Palm Court',
+		location: 'Riyadh',
+		units: [{ name: 'A1' }]
+	});
+	const empty = await api.complex.create({ name: 'Cedar Court', location: 'Jeddah' });
+
+	await assert.rejects(() => lacking.complex.delete({ id: withUnits.id }), {
+		code: 'FORBIDDEN',
+		message: /deleteUnit/
+	});
+	assert.ok(await api.complex.get({ id: withUnits.id }));
+	assert.ok(await api.complex.units.get({ id: withUnits.units[0].id }));
+
+	await lacking.complex.delete({ id: empty.id });
+	assert.equal(await api.complex.get({ id: empty.id }), undefined);
+});
+
+test('a selection refuses a member who may not delete units the complexes that have some', async () => {
+	const db = createMemoryDatabase();
+	const api = await createApi({ db });
+	const lacking = await createApi({ db, identity: identityWithout('deleteUnit') });
+	const withUnits = await api.complex.create({
+		name: 'Palm Court',
+		location: 'Riyadh',
+		units: [{ name: 'A1' }]
+	});
+	const empty = await api.complex.create({ name: 'Cedar Court', location: 'Jeddah' });
+	const ids = [withUnits.id, empty.id];
+	const refused = [{ id: withUnits.id, name: withUnits.name, reason: 'deletes-units' }];
+
+	const plan = await lacking.complex.planMany({ ids });
+
+	assert.deepEqual(plan.eligible, [empty.id]);
+	assert.deepEqual(plan.refused, refused);
+	assert.equal(plan.units, 0);
+
+	const result = await lacking.complex.deleteMany({ ids });
+
+	assert.deepEqual(toIds(result.deleted), [empty.id]);
+	assert.deepEqual(result.refused, refused);
+	assert.ok(await api.complex.units.get({ id: withUnits.units[0].id }));
 });
 
 // --- The complexes directory ---------------------------------------------------------
@@ -339,10 +495,12 @@ async function seedComplex(api: Api) {
 	return api.complex.create({ name: `Complex ${complexSequence}`, location: 'Riyadh' });
 }
 
-async function seedComplexHoldingAUnit(api: Api) {
+/** A complex with a unit a contract holds, which is what keeps a complex from being deleted. */
+async function seedComplexWithAHeldUnit(api: Api) {
 	const complex = await seedComplex(api);
+	const unit = await api.complex.units.create({ name: 'A1', complexId: complex.id });
 
-	await api.complex.units.create({ name: 'A1', complexId: complex.id });
+	await holdUnder(api, unit.id, 'active');
 
 	return complex;
 }
@@ -350,14 +508,14 @@ async function seedComplexHoldingAUnit(api: Api) {
 test('a plan says which complexes in a selection would go through and which would not', async () => {
 	const api = await createApi();
 	const empty = await seedComplex(api);
-	const held = await seedComplexHoldingAUnit(api);
+	const held = await seedComplexWithAHeldUnit(api);
 	const gone = newId();
 
 	const plan = await api.complex.planMany({ ids: [empty.id, held.id, gone] });
 
 	assert.deepEqual(plan.eligible, [empty.id]);
 	assert.deepEqual(plan.refused, [
-		{ id: held.id, name: held.name, reason: 'holds-units' },
+		{ id: held.id, name: held.name, reason: 'units-under-contract' },
 		// nothing survived to name it by, so the count against the reason is what carries it.
 		{ id: gone, name: '', reason: 'missing' }
 	]);
@@ -366,7 +524,7 @@ test('a plan says which complexes in a selection would go through and which woul
 test('asking what a deletion would do writes nothing', async () => {
 	const api = await createApi();
 	const empty = await seedComplex(api);
-	const held = await seedComplexHoldingAUnit(api);
+	const held = await seedComplexWithAHeldUnit(api);
 
 	await api.complex.planMany({ ids: [empty.id, held.id] });
 	await api.complex.units.planMany({
@@ -383,7 +541,7 @@ test('asking what a deletion would do writes nothing', async () => {
 test('a plan and the deletion it precedes refuse exactly the same complexes', async () => {
 	const api = await createApi();
 	const empty = await seedComplex(api);
-	const held = await seedComplexHoldingAUnit(api);
+	const held = await seedComplexWithAHeldUnit(api);
 	const gone = newId();
 	const ids = [empty.id, held.id, gone];
 
@@ -406,30 +564,36 @@ test('what the deletion refuses is what happened, not what the plan showed', asy
 	const api = await createApi();
 	const first = await seedComplex(api);
 	const second = await seedComplex(api);
+	const unit = await api.complex.units.create({ name: 'A1', complexId: second.id });
 	const ids = [first.id, second.id];
 
 	const plan = await api.complex.planMany({ ids });
 	assert.deepEqual([...plan.eligible].sort(), [...ids].sort());
+	assert.equal(plan.units, 1);
 
-	// somebody else puts a unit in the second complex while the confirmation is open.
-	await api.complex.units.create({ name: 'A1', complexId: second.id });
+	// somebody else puts a contract on the second complex's unit while the confirmation is open.
+	await holdUnder(api, unit.id, 'active');
 
 	const result = await api.complex.deleteMany({ ids });
 
 	assert.deepEqual(toIds(result.deleted), [first.id]);
-	assert.deepEqual(result.refused, [{ id: second.id, name: second.name, reason: 'holds-units' }]);
+	assert.deepEqual(result.refused, [
+		{ id: second.id, name: second.name, reason: 'units-under-contract' }
+	]);
 });
 
 test('several complexes are deleted by one action, and the rest are named', async () => {
 	const api = await createApi();
 	const first = await seedComplex(api);
 	const second = await seedComplex(api);
-	const held = await seedComplexHoldingAUnit(api);
+	const held = await seedComplexWithAHeldUnit(api);
 
 	const result = await api.complex.deleteMany({ ids: [first.id, second.id, held.id] });
 
 	assert.deepEqual(toIds(result.deleted).sort(), [first.id, second.id].sort());
-	assert.deepEqual(result.refused, [{ id: held.id, name: held.name, reason: 'holds-units' }]);
+	assert.deepEqual(result.refused, [
+		{ id: held.id, name: held.name, reason: 'units-under-contract' }
+	]);
 
 	for (const id of [first.id, second.id]) {
 		assert.equal(await api.complex.get({ id }), undefined);
@@ -476,6 +640,56 @@ test('a deleted selection of complexes is put back whole, each with the identity
 		assert.equal(back.name, original.name);
 		assert.equal(back.location, original.location);
 	}
+});
+
+test('a selection deletes the units of the complexes it takes, and puts each back as it was', async () => {
+	const api = await createApi();
+	const empty = await seedComplex(api);
+	const withUnits = await api.complex.create({
+		name: 'Palm Court',
+		location: 'Riyadh',
+		units: [{ name: 'A1' }, { name: 'A2' }]
+	});
+	const ids = [empty.id, withUnits.id];
+	const units = await api.complex.units.getMany({ complexId: withUnits.id });
+
+	assert.equal((await api.complex.planMany({ ids })).units, 2);
+
+	const deleted = await api.complex.deleteMany({ ids });
+
+	assert.deepEqual(toIds(deleted.deleted).sort(), [...ids].sort());
+	assert.deepEqual(deleted.refused, []);
+
+	for (const unit of withUnits.units) {
+		assert.equal(await api.complex.units.get({ id: unit.id }), undefined);
+	}
+
+	await api.complex.createMany({ complexes: deleted.deleted });
+
+	assert.ok(await api.complex.get({ id: empty.id }));
+	assert.deepEqual(await api.complex.units.getMany({ complexId: withUnits.id }), units);
+});
+
+test('a set whose units cannot be put back puts back none of it', async () => {
+	const api = await createApi();
+	const complex = await api.complex.create({
+		name: 'Palm Court',
+		location: 'Riyadh',
+		units: [{ name: 'A1' }]
+	});
+	const deleted = await api.complex.deleteMany({ ids: [complex.id] });
+	const [unit] = deleted.deleted[0].units;
+
+	// somebody takes the unit's identity while the deletion sits on the undo stack.
+	const other = await api.complex.create({ name: 'Cedar Court', location: 'Jeddah' });
+
+	await api.complex.units.createMany({ units: [{ ...unit, complexId: other.id }] });
+
+	await assert.rejects(
+		() => api.complex.createMany({ complexes: deleted.deleted }),
+		refusedWith('record.idTakenNamed', { named: unit.id })
+	);
+	assert.equal(await api.complex.get({ id: complex.id }), undefined);
 });
 
 // all or nothing, and the reason: a set half restored is a workspace in a shape neither the

@@ -40,7 +40,17 @@ import { tenantHost } from '$lib/tenant/host.svelte';
 
 const { held, asked, address, noting, settled } = vi.hoisted(() => {
 	/** what the blocker reads answer with, by what they read. */
-	const held = { contracts: [] as unknown[], units: [] as unknown[], payments: [] as unknown[] };
+	const held = {
+		contracts: [] as unknown[],
+		units: [] as unknown[],
+		payments: [] as unknown[],
+		// what deleting the complex asked about would do, as its plan answers.
+		complexPlan: {
+			eligible: [] as string[],
+			refused: [] as { id: string; name: string; reason: string }[],
+			units: 0
+		}
+	};
 	/** every write the hosts asked for, as `hook:id`. */
 	const asked: string[] = [];
 
@@ -56,7 +66,7 @@ const { held, asked, address, noting, settled } = vi.hoisted(() => {
 			}
 		}),
 		/** a read that has settled on what the test said it holds. */
-		settled: (read: () => unknown[]) => () => ({
+		settled: (read: () => unknown) => () => ({
 			isPending: false,
 			isPlaceholderData: false,
 			get data() {
@@ -75,7 +85,8 @@ vi.mock('$lib/tenant/query', async (importOriginal) => ({
 vi.mock('$lib/complex/query', async (importOriginal) => ({
 	...(await importOriginal<typeof import('$lib/complex/query')>()),
 	useDeleteComplex: noting('deleteComplex'),
-	useReadComplex: () => async () => undefined
+	useReadComplex: () => async () => undefined,
+	usePlanManyComplexes: settled(() => held.complexPlan)
 }));
 
 vi.mock('$lib/complex/unit/query', async (importOriginal) => ({
@@ -122,6 +133,7 @@ beforeEach(() => {
 	held.contracts = [];
 	held.units = [];
 	held.payments = [];
+	held.complexPlan = { eligible: [], refused: [], units: 0 };
 	asked.length = 0;
 });
 
@@ -202,15 +214,54 @@ test('a contract with no payments is deleted at once, with no dialog', async () 
 	expect(dialog()).toBeNull();
 });
 
-test('a complex with contracts asks first, and deletes nothing until it is answered', async () => {
-	// a contract holds a unit, and a unit is what a complex's delete is weighed on.
-	held.units = [{ id: 'unit-1' }];
+const complex = { id: 'c-1', name: 'Tower', location: 'Riyadh' };
+
+// effort 840, requirement 22, on the host: what a complex's delete does turns on its units.
+test('a complex with no units is deleted at once, with no dialog', async () => {
+	held.complexPlan = { eligible: ['c-1'], refused: [], units: 0 };
 	mount(ComplexHost);
 
-	complexHost.run('complex.delete', { id: 'c-1', name: 'Tower', location: 'Riyadh' });
+	complexHost.run('complex.delete', complex);
+
+	await waitFor(() => expect(asked).toEqual(['deleteComplex:c-1']));
+	expect(dialog()).toBeNull();
+});
+
+test('a complex whose units go with it asks first, naming them, and deletes once answered', async () => {
+	held.complexPlan = { eligible: ['c-1'], refused: [], units: 3 };
+	mount(ComplexHost);
+
+	complexHost.run('complex.delete', complex);
 
 	await waitFor(() => expect(dialog()).not.toBeNull());
 	expect(confirmDialog()).toBeNull();
+	expect(dialog()?.textContent).toContain('its 3 units will be deleted with it.');
+	expect(asked).toEqual([]);
+
+	// the destructive control, by the placeholder its word stands in as.
+	const destructive = [...(dialog()?.querySelectorAll('button') ?? [])].find(
+		(button) => button.textContent?.trim() === '{delete}'
+	);
+
+	expect(destructive).toBeDefined();
+	destructive?.click();
+
+	await waitFor(() => expect(asked).toEqual(['deleteComplex:c-1']));
+});
+
+test('a complex a contract holds a unit of is refused with what holds it, and nothing is deleted', async () => {
+	held.complexPlan = {
+		eligible: [],
+		refused: [{ id: 'c-1', name: 'Tower', reason: 'units-under-contract' }],
+		units: 0
+	};
+	mount(ComplexHost);
+
+	complexHost.run('complex.delete', complex);
+
+	await waitFor(() => expect(dialog()).not.toBeNull());
+	expect(confirmDialog()).toBeNull();
+	expect(dialog()?.textContent).toContain('a contract mentions one or more of its units');
 	expect(asked).toEqual([]);
 });
 

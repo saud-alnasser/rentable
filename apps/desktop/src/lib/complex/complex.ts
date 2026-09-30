@@ -1,7 +1,7 @@
 import type { Contributed } from '$lib/api/contribution';
 import type { Context } from '$lib/api/context';
 import type { ContributedRead } from '$lib/feature/surface';
-import type { RecordKind } from '$lib/permission';
+import type { RecordFlag, RecordKind } from '$lib/permission';
 import type { Contract, Unit } from '$lib/platform/database/schema';
 import { refuse } from '$lib/api/refusal';
 
@@ -14,12 +14,23 @@ import { refuse } from '$lib/api/refusal';
  */
 
 /**
- * Whether a complex may be deleted: no unit may belong to it.
+ * Whether a complex may be deleted: no contract, of any status, may hold any of its units. The
+ * units themselves do not refuse it; they are deleted with it (effort 840, requirement 22).
+ *
+ * @param assignments every contract's hold on any of the complex's units, counted the way
+ * {@link isUnitDeletable} counts one unit's: a contract that ended years ago still holds.
  *
  * Exported beside the router that enforces it so a surface can say what blocks a deletion
  * before offering one, rather than restating the threshold in its own words.
  */
-export const isComplexDeletable = (units: unknown[]) => units.length === 0;
+export const isComplexDeletable = (assignments: unknown[]) => assignments.length === 0;
+
+/**
+ * The flags deleting a complex needs besides its own: its units go with it, so deleting one that
+ * has any deletes units too, and one that has none needs nothing more.
+ */
+export const flagsToDeleteUnitsOf = (units: unknown[]): RecordFlag[] =>
+	units.length > 0 ? ['deleteUnit'] : [];
 
 /** Whether a unit may be deleted: no contract may hold it. The same shape, one level down. */
 export const isUnitDeletable = (assignments: unknown[]) => assignments.length === 0;
@@ -32,9 +43,9 @@ export const isUnitDeletable = (assignments: unknown[]) => assignments.length ==
  * each of these now, one record at a time and a selection at a time, and two copies of a
  * refusal are two refusals waiting to disagree.
  */
-export function ensureComplexDeletable(units: unknown[]) {
-	if (!isComplexDeletable(units)) {
-		throw refuse('complex.holdsUnits');
+export function ensureComplexDeletable(assignments: unknown[]) {
+	if (!isComplexDeletable(assignments)) {
+		throw refuse('complex.unitsUnderContract');
 	}
 }
 
@@ -73,21 +84,34 @@ export function ensureUnitNameAvailable(conflicting: unknown, named?: string) {
  * workspace, which every selection can meet because another device may delete a record between
  * the reader picking it out and asking for the action.
  */
-export type ComplexRefusalReason = 'holds-units' | 'missing';
+export type ComplexRefusalReason = 'units-under-contract' | 'deletes-units' | 'missing';
 export type UnitRefusalReason = 'holds-contracts' | 'missing';
 
 /**
- * Why deleting this complex would be refused, or `undefined` where it would go through.
+ * Why deleting this complex would be refused, or `undefined` where it would go through: a
+ * contract holding one of its units first, then a reader who may not delete the units that would
+ * go with it.
  *
- * The predicate above called rather than restated, so what a reader is shown before the deletion
+ * The predicates above called rather than restated, so what a reader is shown before the deletion
  * and what the deletion decides cannot come to be two rules.
  *
  * Neither takes an action, where the contract's equivalent takes one of three: a selection of
  * complexes, and a selection of units, each admit deleting and nothing else, and a parameter with
  * one legal value is not a choice.
+ *
+ * @param permitted whether the reader holds a flag.
  */
-export const whatRefusesComplexDeletion = (units: unknown[]) =>
-	isComplexDeletable(units) ? undefined : ('holds-units' as const);
+export function whatRefusesComplexDeletion(
+	units: unknown[],
+	assignments: unknown[],
+	permitted: (flag: RecordFlag) => boolean
+) {
+	if (!isComplexDeletable(assignments)) {
+		return 'units-under-contract' as const;
+	}
+
+	return flagsToDeleteUnitsOf(units).every(permitted) ? undefined : ('deletes-units' as const);
+}
 
 /**
  * Why deleting this unit would be refused, or `undefined` where it would go through.

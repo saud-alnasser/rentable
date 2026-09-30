@@ -927,10 +927,6 @@ type RootTranslation = {
 				 */
 				gone: string
 				/**
-				 * t​h​i​s​ ​c​o​m​p​l​e​x​ ​s​t​i​l​l​ ​h​o​l​d​s​ ​u​n​i​t​s​.​ ​d​e​l​e​t​e​ ​t​h​e​m​ ​b​e​f​o​r​e​ ​d​e​l​e​t​i​n​g​ ​i​t​.
-				 */
-				holdsUnits: string
-				/**
 				 * n​a​m​e​ ​i​s​ ​a​s​s​o​c​i​a​t​e​d​ ​w​i​t​h​ ​a​ ​p​r​e​v​i​o​u​s​l​y​ ​r​e​g​i​s​t​e​r​e​d​ ​c​o​m​p​l​e​x​.
 				 */
 				nameTaken: string
@@ -944,6 +940,10 @@ type RootTranslation = {
 				 * @param {string} value
 				 */
 				repeatedInSet: RequiredParams<'value'>
+				/**
+				 * a​ ​c​o​n​t​r​a​c​t​ ​m​e​n​t​i​o​n​s​ ​o​n​e​ ​o​r​ ​m​o​r​e​ ​o​f​ ​i​t​s​ ​u​n​i​t​s​,​ ​s​o​ ​t​h​i​s​ ​c​o​m​p​l​e​x​ ​c​a​n​n​o​t​ ​b​e​ ​d​e​l​e​t​e​d​.
+				 */
+				unitsUnderContract: string
 			}
 			contract: {
 				/**
@@ -2383,6 +2383,17 @@ type RootTranslation = {
 		}
 	}
 	complexes: {
+		deleteDialog: {
+			/**
+			 * a​ ​c​o​n​t​r​a​c​t​ ​m​e​n​t​i​o​n​s​ ​o​n​e​ ​o​r​ ​m​o​r​e​ ​o​f​ ​i​t​s​ ​u​n​i​t​s
+			 */
+			blockedUnitsUnderContract: string
+			/**
+			 * i​t​s​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​u​n​i​t​|​u​n​i​t​s​}​}​ ​w​i​l​l​ ​b​e​ ​d​e​l​e​t​e​d​ ​w​i​t​h​ ​i​t​.
+			 * @param {string | number | boolean} count
+			 */
+			unitsGoWithIt: RequiredParams<'count|number'>
+		}
 		empty: {
 			/**
 			 * c​o​m​p​l​e​x​e​s​ ​y​o​u​ ​a​d​d​,​ ​w​i​t​h​ ​t​h​e​i​r​ ​u​n​i​t​s​,​ ​w​i​l​l​ ​b​e​ ​l​i​s​t​e​d​ ​h​e​r​e​.
@@ -2473,19 +2484,30 @@ type RootTranslation = {
 			 */
 			deleteSummary: RequiredParams<'count|number'>
 			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​m​p​l​e​x​(​e​s​)​ ​w​i​l​l​ ​b​e​ ​d​e​l​e​t​e​d​,​ ​w​i​t​h​ ​{​u​n​i​t​s​|​n​u​m​b​e​r​}​ ​{​{​u​n​i​t​|​u​n​i​t​s​}​}
+			 * @param {unknown} count
+			 * @param {string | number | boolean} units
+			 */
+			deleteSummaryWithUnits: RequiredParams<'count|number' | 'units|number'>
+			/**
 			 * d​e​l​e​t​e​ ​c​o​m​p​l​e​x​e​s
 			 */
 			deleteTitle: string
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​s​t​i​l​l​ ​h​o​l​d​ ​u​n​i​t​s
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​h​a​v​e​ ​u​n​i​t​s​ ​y​o​u​ ​m​a​y​ ​n​o​t​ ​d​e​l​e​t​e
 			 * @param {unknown} count
 			 */
-			refusedHoldsUnits: RequiredParams<'count|number'>
+			refusedDeletesUnits: RequiredParams<'count|number'>
 			/**
 			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​a​r​e​ ​n​o​ ​l​o​n​g​e​r​ ​i​n​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e
 			 * @param {unknown} count
 			 */
 			refusedMissing: RequiredParams<'count|number'>
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​h​a​v​e​ ​u​n​i​t​s​ ​a​ ​c​o​n​t​r​a​c​t​ ​m​e​n​t​i​o​n​s
+			 * @param {unknown} count
+			 */
+			refusedUnitsUnderContract: RequiredParams<'count|number'>
 			/**
 			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​u​n​i​t​|​u​n​i​t​s​}​}​ ​w​i​l​l​ ​b​e​ ​d​e​l​e​t​e​d
 			 * @param {string | number | boolean} count
@@ -5474,10 +5496,6 @@ export type TranslationFunctions = {
 				 */
 				gone: () => LocalizedString
 				/**
-				 * this complex still holds units. delete them before deleting it.
-				 */
-				holdsUnits: () => LocalizedString
-				/**
 				 * name is associated with a previously registered complex.
 				 */
 				nameTaken: () => LocalizedString
@@ -5489,6 +5507,10 @@ export type TranslationFunctions = {
 				 * two complexes in this set claim {value}.
 				 */
 				repeatedInSet: (arg: { value: string }) => LocalizedString
+				/**
+				 * a contract mentions one or more of its units, so this complex cannot be deleted.
+				 */
+				unitsUnderContract: () => LocalizedString
 			}
 			contract: {
 				/**
@@ -6875,6 +6897,16 @@ export type TranslationFunctions = {
 		}
 	}
 	complexes: {
+		deleteDialog: {
+			/**
+			 * a contract mentions one or more of its units
+			 */
+			blockedUnitsUnderContract: () => LocalizedString
+			/**
+			 * its {count|number} {{unit|units}} will be deleted with it.
+			 */
+			unitsGoWithIt: (arg: { count: string | number | boolean }) => LocalizedString
+		}
 		empty: {
 			/**
 			 * complexes you add, with their units, will be listed here.
@@ -6959,17 +6991,25 @@ export type TranslationFunctions = {
 			 */
 			deleteSummary: (arg: { count: unknown }) => LocalizedString
 			/**
+			 * {count|number} complex(es) will be deleted, with {units|number} {{unit|units}}
+			 */
+			deleteSummaryWithUnits: (arg: { count: unknown, units: string | number | boolean }) => LocalizedString
+			/**
 			 * delete complexes
 			 */
 			deleteTitle: () => LocalizedString
 			/**
-			 * {count|number} still hold units
+			 * {count|number} have units you may not delete
 			 */
-			refusedHoldsUnits: (arg: { count: unknown }) => LocalizedString
+			refusedDeletesUnits: (arg: { count: unknown }) => LocalizedString
 			/**
 			 * {count|number} are no longer in the workspace
 			 */
 			refusedMissing: (arg: { count: unknown }) => LocalizedString
+			/**
+			 * {count|number} have units a contract mentions
+			 */
+			refusedUnitsUnderContract: (arg: { count: unknown }) => LocalizedString
 			/**
 			 * {count|number} {{unit|units}} will be deleted
 			 */

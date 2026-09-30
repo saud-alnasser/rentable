@@ -17,9 +17,11 @@ import {
 	ensureComplexNameAvailable,
 	ensureComplexStillExists,
 	ensureUnitNamesDistinct,
+	flagsToDeleteUnitsOf,
 	whatRefusesComplexDeletion,
 	type ComplexSortColumnId
 } from '$lib/complex/complex';
+import type { RecordFlag } from '$lib/permission';
 import { permits } from '@rentable/workspace-permission';
 import { asc, desc, eq, inArray, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 import z from 'zod';
@@ -51,6 +53,12 @@ const COMPLEX_SORT_COLUMNS: Record<ComplexSortColumnId, SQL | AnyColumn> = {
 // a unit is derived or is the complex being created.
 const ComplexCreateSchema = ComplexSchema.partial({ id: true }).extend({
 	units: z.array(UnitSchema.pick({ name: true }).extend({ id: z.string().optional() })).optional()
+});
+
+// a complex being put back, with the units it was deleted with as the rows they were. The unit's
+// complex is the one it arrives under, so it is not given twice.
+const ComplexRestoreSchema = ComplexSchema.partial({ id: true }).extend({
+	units: z.array(UnitSchema.omit({ complexId: true })).optional()
 });
 
 const ComplexSortSchema = z.object({
@@ -98,27 +106,71 @@ function complexOrderBy(
  *
  * One read per table for the whole selection, never one per record. Everything after the two
  * reads is `planSelection`'s, which is where the tenant's and the unit's plans go too.
+ *
+ * @param permitted whether the reader holds a flag: a complex with units is refused to one who may
+ * not delete units, and one with none is not.
+ * @returns the plan, and how many units go with the complexes it would delete, which is what the
+ * confirmation names beside them.
  */
-async function planComplexSelection(db: Database, ids: readonly string[]) {
+async function planComplexSelection(
+	db: Database,
+	ids: readonly string[],
+	permitted: (flag: RecordFlag) => boolean
+) {
 	const named = [...new Set(ids)];
 
 	const records = await db.select().from(s.complex).where(inArray(s.complex.id, named));
+	const held = await readUnitHolds(db, named);
 
-	// the complex each unit belongs to and nothing else: the rule asks whether any unit belongs
-	// to the complex, so a directory of five hundred selected complexes never carries their units.
-	const held = await db
-		.select({ complexId: s.unit.complexId })
-		.from(s.unit)
-		.where(inArray(s.unit.complexId, named));
-
-	return planSelection({
+	const plan = planSelection({
 		ids: named,
 		records,
 		dependants: held,
-		ownerOf: (unit) => unit.complexId,
+		ownerOf: (hold) => hold.complexId,
 		nameOf: (complex) => complex.name,
-		whatRefuses: whatRefusesComplexDeletion
+		whatRefuses: (complexHeld) => refusalFromHolds(complexHeld, permitted)
 	});
+	const eligibleIds = new Set(plan.eligible.map((complex) => complex.id));
+	const units = new Set(
+		held.filter((hold) => eligibleIds.has(hold.complexId)).map((hold) => hold.unitId)
+	);
+
+	return { ...plan, units: units.size };
+}
+
+/**
+ * The units of the complexes named, one row for each contract holding one and one with no
+ * contract for a unit nothing holds: the one read every question about deleting a complex turns
+ * on. A left join, so a unit no contract ever named still arrives, and no more than the three
+ * identities, so a directory of five hundred selected complexes never carries their units.
+ */
+async function readUnitHolds(db: Database, complexIds: readonly string[]) {
+	return await db
+		.select({
+			complexId: s.unit.complexId,
+			unitId: s.unit.id,
+			contractId: s.contractUnit.contractId
+		})
+		.from(s.unit)
+		.leftJoin(s.contractUnit, eq(s.contractUnit.unitId, s.unit.id))
+		.where(inArray(s.unit.complexId, [...complexIds]));
+}
+
+type UnitHold = Awaited<ReturnType<typeof readUnitHolds>>[number];
+
+/** One complex's units, and every contract's hold on them, out of its rows of {@link readUnitHolds}. */
+function toUnitsAndAssignments(held: readonly UnitHold[]) {
+	return {
+		units: [...new Set(held.map((hold) => hold.unitId))],
+		assignments: held.filter((hold) => hold.contractId !== null)
+	};
+}
+
+/** Why deleting one complex would be refused, from its rows of {@link readUnitHolds}. */
+function refusalFromHolds(held: UnitHold[], permitted: (flag: RecordFlag) => boolean) {
+	const { units, assignments } = toUnitsAndAssignments(held);
+
+	return whatRefusesComplexDeletion(units, assignments, permitted);
 }
 
 export default router({
@@ -236,22 +288,41 @@ export default router({
 			return ensureComplexStillExists(updated);
 		}),
 
+	/**
+	 * Delete a complex, and the units it has, in one write.
+	 *
+	 * Refused where any contract, of any status, holds one of its units, and, where it has units,
+	 * to a reader who may not delete them. Where it has some, the complex and its units go as one
+	 * batch, so a refusal anywhere removes nothing (ADR 0027). It answers with every row it
+	 * removed, so undoing it can put each back as it was (ADR 0026).
+	 */
 	delete: procedure
 		.permitted('deleteComplex')
 		.use(autosync())
 		.input(ComplexSchema.pick({ id: true }))
 		.mutation(async ({ input, ctx }) => {
-			ensureComplexDeletable(
-				await ctx.db.select().from(s.unit).where(eq(s.unit.complexId, input.id))
-			);
+			const { units, assignments } = toUnitsAndAssignments(await readUnitHolds(ctx.db, [input.id]));
 
-			const deleted = await ctx.db
-				.delete(s.complex)
-				.where(eq(s.complex.id, input.id))
-				.returning()
-				.get();
+			ensureComplexDeletable(assignments);
+			// the units go with it, so a complex that has any is deleting units too.
+			refuseMissing(ctx.identity, flagsToDeleteUnitsOf(units));
 
-			return deleted;
+			if (units.length === 0) {
+				const deleted = await ctx.db
+					.delete(s.complex)
+					.where(eq(s.complex.id, input.id))
+					.returning()
+					.get();
+
+				return deleted && { ...deleted, units: [] as (typeof s.unit.$inferSelect)[] };
+			}
+
+			const [[deleted], deletedUnits] = await ctx.db.batch([
+				ctx.db.delete(s.complex).where(eq(s.complex.id, input.id)).returning(),
+				ctx.db.delete(s.unit).where(eq(s.unit.complexId, input.id)).returning()
+			]);
+
+			return deleted && { ...deleted, units: deletedUnits };
 		}),
 
 	/**
@@ -262,41 +333,66 @@ export default router({
 	 * the rest from a query has two answers to one question, which is what the effort behind this
 	 * exists to remove.
 	 *
-	 * A query rather than a mutation: it reads and writes nothing.
+	 * A query rather than a mutation: it reads and writes nothing. The complex's host asks it of one
+	 * complex too, so its delete dialog says what the deletion will decide.
+	 *
+	 * `units` counts those that would go with the complexes it would delete. Only a reader who may
+	 * delete units is let delete a complex that has any, and deleting them needs viewing them, so
+	 * the count is never one of units the reader may not view.
 	 */
 	planMany: procedure
 		.permitted('viewComplex')
 		.input(z.object({ ids: z.array(ComplexSchema.shape.id).min(1) }))
 		.query(async ({ input, ctx }) => {
-			const plan = await planComplexSelection(ctx.db, input.ids);
+			const plan = await planComplexSelection(ctx.db, input.ids, (flag) =>
+				permits(ctx.identity.permissions, flag)
+			);
 
-			return { eligible: plan.eligible.map((complex) => complex.id), refused: plan.refused };
+			return {
+				eligible: plan.eligible.map((complex) => complex.id),
+				refused: plan.refused,
+				units: plan.units
+			};
 		}),
 
 	/**
-	 * Delete every complex named that holds no unit, and say which of them could not be.
+	 * Delete every complex named that no contract's hold on a unit refuses, with its units, and say
+	 * which of them could not be.
 	 *
-	 * **One delete over the whole set, not one per record.** A selection is one thing the reader
-	 * asked for, and issuing it as N calls costs a round trip and a sync pass per record for work
-	 * one statement does.
+	 * **One delete over the whole set, not one per record**, and one over their units, in one
+	 * batch. A selection is one thing the reader asked for, and issuing it as N calls costs a round
+	 * trip and a sync pass per record for work one statement does.
 	 *
-	 * **No reconcile pass.** A complex carries nothing derived, and one that may be deleted at all
-	 * holds no unit, so nothing derived was resting on it either. That is the same reason the
-	 * single-record deletion above runs none.
+	 * **No reconcile pass.** A complex carries nothing derived, and the units that go with it are
+	 * held by no contract, so no contract's derived state named them and nothing derived was
+	 * resting on either. That is the same reason the single-record deletion above runs none.
 	 */
 	deleteMany: procedure
 		.permitted('deleteComplex')
 		.use(autosync())
 		.input(z.object({ ids: z.array(ComplexSchema.shape.id).min(1) }))
 		.mutation(async ({ input, ctx }) => {
-			const plan = await planComplexSelection(ctx.db, input.ids);
+			const plan = await planComplexSelection(ctx.db, input.ids, (flag) =>
+				permits(ctx.identity.permissions, flag)
+			);
 			const deletableIds = plan.eligible.map((complex) => complex.id);
 
-			if (deletableIds.length) {
-				await ctx.db.delete(s.complex).where(inArray(s.complex.id, deletableIds));
+			if (deletableIds.length === 0) {
+				return { deleted: [], refused: plan.refused };
 			}
 
-			return { deleted: plan.eligible, refused: plan.refused };
+			const [, deletedUnits] = await ctx.db.batch([
+				ctx.db.delete(s.complex).where(inArray(s.complex.id, deletableIds)),
+				ctx.db.delete(s.unit).where(inArray(s.unit.complexId, deletableIds)).returning()
+			]);
+
+			return {
+				deleted: plan.eligible.map((complex) => ({
+					...complex,
+					units: deletedUnits.filter((unit) => unit.complexId === complex.id)
+				})),
+				refused: plan.refused
+			};
 		}),
 
 	/**
@@ -311,17 +407,28 @@ export default router({
 	 * inverse that threw did not move the workspace, so the reader can deal with whatever refused
 	 * it and press undo again. Every refusal names the complex it is about.
 	 *
-	 * No units, unlike {@link create}: a complex that could be deleted held none, so a complex
-	 * this puts back has none to put back with it.
+	 * **The units a deletion took go back with their complex, as they were**: every column the row
+	 * had, its status included, rather than what {@link create} would derive for a new one. It is
+	 * also what undoing {@link delete} calls for a complex that took units with it.
 	 */
 	createMany: procedure
 		.permitted('createComplex')
 		.use(autosync())
-		.input(z.object({ complexes: z.array(ComplexSchema.partial({ id: true })).min(1) }))
+		.input(z.object({ complexes: z.array(ComplexRestoreSchema).min(1) }))
 		.mutation(async ({ input, ctx }) => {
-			const named = input.complexes.map((complex) => ({ ...complex, id: complex.id ?? newId() }));
-			const ids = named.map((complex) => complex.id);
-			const names = named.map((complex) => complex.name);
+			const named = input.complexes.map(({ units = [], ...complex }) => ({
+				complex: { ...complex, id: complex.id ?? newId() },
+				units
+			}));
+			const ids = named.map(({ complex }) => complex.id);
+			const names = named.map(({ complex }) => complex.name);
+			const units = named.flatMap(({ complex, units }) =>
+				units.map((unit) => ({ ...unit, complexId: complex.id }))
+			);
+			const unitIds = units.map((unit) => unit.id);
+
+			// the units go back as units, so a set putting any back is adding units too.
+			if (units.length > 0) refuseMissing(ctx.identity, ['createUnit']);
 
 			// the set against itself, on both things a complex is unique by, before it is weighed
 			// against the workspace at all. A set that contradicts itself is a contradiction the
@@ -335,6 +442,12 @@ export default router({
 				throw refuse('complex.repeatedInSet', { value: repeated });
 			}
 
+			const repeatedUnit = unitIds.find((id, index) => unitIds.indexOf(id) !== index);
+
+			if (repeatedUnit) {
+				throw refuse('unit.repeatedInSet', { value: repeatedUnit });
+			}
+
 			const held = await ctx.db.select().from(s.complex).where(inArray(s.complex.id, ids));
 
 			ensureIdFree(held[0], held[0]?.id);
@@ -343,12 +456,22 @@ export default router({
 
 			ensureComplexNameAvailable(taken[0], taken[0]?.name);
 
-			const [first, ...rest] = named.map((complex) =>
-				ctx.db.insert(s.complex).values(complex).returning()
-			);
+			const heldUnits =
+				unitIds.length > 0
+					? await ctx.db.select().from(s.unit).where(inArray(s.unit.id, unitIds))
+					: [];
+
+			ensureIdFree(heldUnits[0], heldUnits[0]?.id);
+
+			const [first, ...rest] = [
+				...named.map(({ complex }) => ctx.db.insert(s.complex).values(complex).returning()),
+				...units.map((unit) => ctx.db.insert(s.unit).values(unit).returning())
+			];
 			const created = await ctx.db.batch([first, ...rest]);
 
-			return created.map(([complex]) => complex);
+			// the complexes first, in the order they were named; the units after them are what went
+			// back with them.
+			return created.slice(0, named.length).map(([complex]) => complex);
 		}),
 
 	get: procedure

@@ -7,6 +7,11 @@
 import type { Translation } from '../../i18n/i18n-types';
 
 export const complexes = {
+	deleteDialog: {
+		blockedUnitsUnderContract: 'وحدة أو أكثر من وحداته مذكورة في عقد',
+		unitsGoWithIt: 'ستُحذف معه وحداته الـ {count|number}.'
+	},
+
 	empty: {
 		description: 'ستظهر هنا المجمعات التي تضيفها مع وحداتها.',
 		title: 'لا توجد مجمعات بعد'
@@ -36,9 +41,11 @@ export const complexes = {
 
 	selection: {
 		deleteSummary: 'سيتم حذف {count|number} مجمع',
+		deleteSummaryWithUnits: 'سيتم حذف {count|number} مجمع ومعها {units|number} وحدة',
 		deleteTitle: 'حذف المجمعات',
-		refusedHoldsUnits: '{count|number} ما زالت تحمل وحدات',
+		refusedDeletesUnits: '{count|number} فيها وحدات لا يمكنك حذفها',
 		refusedMissing: '{count|number} لم تعد موجودة في مساحة العمل',
+		refusedUnitsUnderContract: '{count|number} فيها وحدات مذكورة في عقد',
 		unitDeleteSummary: 'سيتم حذف {count|number} وحدة',
 		unitDeleteTitle: 'حذف الوحدات',
 		unitRefusedHoldsContracts: '{count|number} مذكورة في عقد',
@@ -57,10 +64,10 @@ export const complexes = {
 export const refusals = {
 	complex: {
 		gone: 'لم يعد هذا المجمع موجوداً في مساحة العمل. أعد التحميل لترى ما تغيّر.',
-		holdsUnits: 'ما زال هذا المجمع يضم وحدات. احذفها قبل حذفه.',
 		nameTaken: 'الاسم مرتبط بمجمع مسجل مسبقاً.',
 		nameTakenNamed: 'الاسم {named} مرتبط بمجمع مسجل مسبقاً.',
-		repeatedInSet: 'مجمعان في هذه المجموعة يطالبان بـ {value}.'
+		repeatedInSet: 'مجمعان في هذه المجموعة يطالبان بـ {value}.',
+		unitsUnderContract: 'وحدة أو أكثر من وحداته مذكورة في عقد، لذا لا يمكن حذف هذا المجمع.'
 	}
 } satisfies Pick<Translation['common']['refusals'], 'complex'>;
 

@@ -157,7 +157,7 @@ const DECLARATIONS = [
 				complex.useDeleteManyComplexes,
 				{
 					deleted: [],
-					refused: [{ id: UNFORESEEN, name: 'Abraj', reason: 'holds-units' as const }]
+					refused: [{ id: UNFORESEEN, name: 'Abraj', reason: 'units-under-contract' as const }]
 				},
 				foreseen
 			)
@@ -245,7 +245,7 @@ describe('and says it in a form a reader can act on', () => {
 		const named = Array.from({ length: 6 }, (_unused, index) => ({
 			id: `named-${index}`,
 			name: `Tower ${index}`,
-			reason: 'holds-units' as const
+			reason: 'units-under-contract' as const
 		}));
 		const warnings = await noticeFor(complex.useDeleteManyComplexes, {
 			deleted: [],
