@@ -82,9 +82,9 @@
 					if (form.data.id) {
 						await UpdateMutation.mutateAsync(form.data as Complex);
 					} else {
-						// the list is what goes down. A line still in the entry joins the list on
-						// this press rather than being created with it, so nothing is written that
-						// the reader has not seen and had the chance to correct.
+						// the list is what goes down. A line still in the entry stops the press, and the
+						// entry asks for it to be added with + first, so nothing is written that the
+						// reader has not seen and had the chance to correct.
 						const names = addsUnits ? unitEntry?.collect() : [];
 
 						if (names === undefined) return;

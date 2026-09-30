@@ -2468,6 +2468,10 @@ type RootTranslation = {
 			 */
 			unitName: string
 			/**
+			 * a​d​d​ ​t​h​i​s​ ​u​n​i​t​ ​w​i​t​h​ ​+​ ​f​i​r​s​t​,​ ​o​r​ ​c​l​e​a​r​ ​i​t​.
+			 */
+			unitNotAdded: string
+			/**
 			 * t​h​e​ ​l​a​s​t​ ​n​u​m​b​e​r​ ​m​u​s​t​ ​n​o​t​ ​b​e​ ​b​e​l​o​w​ ​t​h​e​ ​f​i​r​s​t​.
 			 */
 			unitRangeEndBeforeStart: string
@@ -6980,6 +6984,10 @@ export type TranslationFunctions = {
 			 * unit name
 			 */
 			unitName: () => LocalizedString
+			/**
+			 * add this unit with + first, or clear it.
+			 */
+			unitNotAdded: () => LocalizedString
 			/**
 			 * the last number must not be below the first.
 			 */

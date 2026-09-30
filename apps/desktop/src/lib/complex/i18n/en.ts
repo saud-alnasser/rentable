@@ -36,6 +36,7 @@ export const complexes = {
 		noUnitNamed: 'name at least one unit.',
 		noUnitsYet: 'no units yet. add them here, or later from the complex itself.',
 		unitName: 'unit name',
+		unitNotAdded: 'add this unit with + first, or clear it.',
 		unitRangeEndBeforeStart: 'the last number must not be below the first.',
 		unitRangeHint: 'one name, or a run — "a 1-18" adds a 1 through a 18.',
 		unitRangeTooLarge: 'a run adds at most {max:number} units at a time.'

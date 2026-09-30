@@ -47,6 +47,10 @@
 
 	let nextKey = 0;
 	let draft = $state('');
+	let entry = $state<HTMLInputElement | null>(null);
+	// whether the line under the entry is the one asking for + to be pressed, which clearing the
+	// entry answers as well as pressing it.
+	let askedToAdd = $state(false);
 
 	const named = $derived(parseUnitRun(draft));
 
@@ -87,6 +91,7 @@
 		units = [...units, ...named.names.map((name) => ({ key: nextKey++, name }))];
 		draft = '';
 		error = undefined;
+		askedToAdd = false;
 	}
 
 	function removeUnit(key: number) {
@@ -109,10 +114,10 @@
 	 * **What is written is what the list shows.** The reader names units, they join the list, and
 	 * the create button persists the list; nothing is ever created that was not on screen first.
 	 *
-	 * So a line still sitting in the entry is added to the list by this press rather than
-	 * submitted with it. It is neither discarded, which would throw away typing, nor created
-	 * unseen, which would write a run the reader never got to correct. The next press creates
-	 * what they can now see.
+	 * So a line still sitting in the entry stops the press, and the entry says to add it with +
+	 * or clear it. It is neither discarded, which would throw away typing, nor created unseen,
+	 * which would write a run the reader never got to correct, nor moved onto the list by a
+	 * button that says create: every control does the one thing it names.
 	 *
 	 * The whole list is checked again rather than trusted: every expanded name stays editable,
 	 * and renaming after expansion can collide as readily as expanding can.
@@ -122,7 +127,9 @@
 	 */
 	export function collect(): string[] | undefined {
 		if (draft.trim()) {
-			addUnits();
+			error = $LL.complexes.form.unitNotAdded();
+			askedToAdd = true;
+			entry?.focus();
 
 			return undefined;
 		}
@@ -143,6 +150,15 @@
 			units = [];
 			draft = '';
 			error = undefined;
+			askedToAdd = false;
+		}
+	});
+
+	// an entry cleared by hand has nothing left to add, so the line asking for + goes with it.
+	$effect(() => {
+		if (askedToAdd && !draft.trim()) {
+			error = undefined;
+			askedToAdd = false;
 		}
 	});
 </script>
@@ -152,6 +168,7 @@
 	     eighteen rounds of typing and pressing. -->
 	<div class="flex items-center gap-2">
 		<Input
+			bind:ref={entry}
 			bind:value={draft}
 			placeholder={$LL.complexes.form.unitName()}
 			class={insetControl}

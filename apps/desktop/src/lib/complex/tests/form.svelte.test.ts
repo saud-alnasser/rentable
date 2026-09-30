@@ -11,9 +11,9 @@ import Providers from '#tests/providers.svelte';
 /**
  * THE COMPLEX FORM, SUBMITTED
  *
- * A unit name still in the entry when Create is pressed joins the list rather than being written,
- * so the reader sees it first. That press writes nothing, and what was typed into the complex's
- * own fields stays where it was. A complex is not written without a name.
+ * A unit name still in the entry when Create is pressed stops the press: the entry asks for it to
+ * be added with + first, and nothing is written or moved. What was typed into the complex's own
+ * fields stays where it was. A complex is not written without a name.
  *
  * The submit is a real one, through superforms with `applyAction` off, as the tenant form's test
  * explains.
@@ -39,7 +39,7 @@ const open = () =>
 
 const surface = () => document.querySelector<HTMLFormElement>('[data-slot=form-surface] form')!;
 
-test('a unit still in the entry joins the list on Create, and the name and location stay', async () => {
+test('a unit still in the entry stops Create and asks for +, and nothing moves', async () => {
 	open();
 
 	const name = screen.getByPlaceholderText(en.common.labels.name);
@@ -52,10 +52,32 @@ test('a unit still in the entry joins the list on Create, and the name and locat
 
 	await fireEvent.submit(surface());
 
-	await waitFor(() => expect(entry).toHaveProperty('value', ''));
-	expect([...document.querySelectorAll('input')].some((input) => input.value === 'A1')).toBe(true);
+	await waitFor(() => expect(document.body.textContent).toContain(en.complexes.form.unitNotAdded));
+	expect(document.activeElement).toBe(entry);
+	expect(entry).toHaveProperty('value', 'A1');
+	expect(document.body.textContent).toContain(en.complexes.form.noUnitsYet);
 	expect(name).toHaveProperty('value', 'Tower');
 	expect(location).toHaveProperty('value', 'Riyadh');
+
+	// clearing the entry answers it as well as + does.
+	await fireEvent.input(entry, { target: { value: '' } });
+
+	await waitFor(() =>
+		expect(document.body.textContent).not.toContain(en.complexes.form.unitNotAdded)
+	);
+});
+
+test('a unit added with + is listed, and the entry is ready for the next', async () => {
+	open();
+
+	const entry = screen.getByPlaceholderText(en.complexes.form.unitName);
+
+	await fireEvent.input(entry, { target: { value: 'A1' } });
+	await fireEvent.click(screen.getByRole('button', { name: en.common.actions.add }));
+
+	await waitFor(() => expect(entry).toHaveProperty('value', ''));
+	expect([...document.querySelectorAll('input')].some((input) => input.value === 'A1')).toBe(true);
+	expect(document.body.textContent).not.toContain(en.complexes.form.unitNotAdded);
 });
 
 test('a complex with units and no name is refused on its name', async () => {
