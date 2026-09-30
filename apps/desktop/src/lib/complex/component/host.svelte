@@ -55,7 +55,10 @@
 			return [];
 		}
 
-		if (deletionPlanQuery.isPending) {
+		// a plan cached from before the workspace last moved is refetched on reading, and until the
+		// fresh one lands it may say no units go where some now do: the delete would run without
+		// asking. So it waits on the fetch, not only on the first one.
+		if (deletionPlanQuery.isPending || deletionPlanQuery.isFetching) {
 			return AWAITING_BLOCKERS;
 		}
 
@@ -82,6 +85,11 @@
 	const deletePolicy = $derived(toComplexDeleteConfirmation(declaredPolicy, unitsGoing));
 	const deleteStep = $derived(deleting ? toDeleteStep(deletePolicy, deleteBlockers) : 'wait');
 
+	// the complex whose confirmed delete is in flight. Its own write moves the plan it was asked on:
+	// the complex is gone, so the plan says no units go, and a delete with none runs at once. Read
+	// then, the step would delete it a second time behind the dialog, with a second announcement.
+	let confirming = $state<string | null>(null);
+
 	async function deleteConfirmed() {
 		if (!deleting) {
 			return;
@@ -89,9 +97,15 @@
 
 		const id = deleting.id;
 
-		await deleteMutation.mutateAsync(id);
-		closeComplexConfirmation();
-		await leaveDeleted(id);
+		confirming = id;
+
+		try {
+			await deleteMutation.mutateAsync(id);
+			closeComplexConfirmation();
+			await leaveDeleted(id);
+		} finally {
+			confirming = null;
+		}
 	}
 
 	/** A delete nothing asked about: its refusal, where it earns one, is raised rather than held. */
@@ -215,7 +229,7 @@
 
 	// the request is answered once and cleared first, as the two above are.
 	$effect(() => {
-		if (deleteStep !== 'run' || !deleting) {
+		if (deleteStep !== 'run' || !deleting || deleting.id === confirming) {
 			return;
 		}
 

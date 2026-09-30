@@ -263,6 +263,50 @@ describe('an ordinary delete runs at once and offers undo', () => {
 		assert.deepEqual(await caller.complex.units.getMany({ complexId: complex.id }), units);
 	});
 
+	// a unit another device added is taken by the next deletion and put back by the next undo, so
+	// neither direction loses it.
+	it('takes back and puts back a unit added after a complex was deleted and restored', async () => {
+		const complex = await run(useCreateComplex, {
+			name: 'Tower',
+			location: 'Riyadh',
+			units: [{ name: 'A1' }, { name: 'A2' }]
+		});
+
+		await run(useDeleteComplex, complex.id);
+		await inverseStack.undo();
+		await caller.complex.units.create({ name: 'A3', complexId: complex.id });
+
+		const units = await caller.complex.units.getMany({ complexId: complex.id });
+
+		assert.equal(units.length, 3);
+
+		await inverseStack.redo();
+		assert.deepEqual(await caller.complex.units.getMany({ complexId: complex.id }), []);
+
+		await inverseStack.undo();
+		assert.deepEqual(await caller.complex.units.getMany({ complexId: complex.id }), units);
+	});
+
+	it('undoes a creation whole, and redoing it brings back every unit it took', async () => {
+		const complex = await run(useCreateComplex, {
+			name: 'Tower',
+			location: 'Riyadh',
+			units: [{ name: 'A1' }]
+		});
+
+		// another device adds a unit before the creation is taken back.
+		await caller.complex.units.create({ name: 'A2', complexId: complex.id });
+		const units = await caller.complex.units.getMany({ complexId: complex.id });
+
+		await inverseStack.undo();
+		assert.equal(await caller.complex.get({ id: complex.id }), undefined);
+		assert.deepEqual(await caller.complex.units.getMany({ complexId: complex.id }), []);
+
+		await inverseStack.redo();
+		assert.equal((await caller.complex.get({ id: complex.id }))?.name, 'Tower');
+		assert.deepEqual(await caller.complex.units.getMany({ complexId: complex.id }), units);
+	});
+
 	it('still refuses a tenant with contracts, and deletes nothing', async () => {
 		const tenant = await seedTenant(caller);
 

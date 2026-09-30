@@ -171,20 +171,27 @@ export function useReadComplex() {
 export const useCreateComplex = declareMutation({
 	mutate: (data: Parameters<typeof api.complex.create>[0]) => api.complex.create(data),
 	touches: ['complexes', 'units'],
-	inverse: ({ result }) => ({
-		describe: (t) => t.common.undo.created({ record: t.common.labels.complex() }),
-		flags: { undo: ['deleteUnit', 'deleteComplex'], redo: ['createComplex'] },
-		// the units this creation made go first, each through its own delete, so an undo a contract
-		// holding one of them refuses is refused on that unit, before the complex is touched.
-		undo: async () => {
-			for (const unit of result.units) {
-				await api.complex.units.delete({ id: unit.id });
-			}
+	inverse: ({ result }) => {
+		// what the undo took away, which the redo puts back: the complex with whatever units it had
+		// by then, the ones another device added included, so undoing and redoing loses none of them.
+		let removed: Awaited<ReturnType<typeof api.complex.delete>> | undefined;
 
-			await api.complex.delete({ id: result.id });
-		},
-		redo: () => api.complex.create(result)
-	}),
+		return {
+			describe: (t) => t.common.undo.created({ record: t.common.labels.complex() }),
+			flags: {
+				undo: ['deleteUnit', 'deleteComplex'],
+				redo: result.units.length === 0 ? ['createComplex'] : ['createComplex', 'createUnit']
+			},
+			// one delete, the units with it, refused where a contract has come to hold one of them.
+			undo: async () => {
+				removed = await api.complex.delete({ id: result.id });
+			},
+			redo: () =>
+				removed && removed.units.length > 0
+					? api.complex.createMany({ complexes: [removed] })
+					: api.complex.create(result)
+		};
+	},
 	toast: {
 		success: () => get(LL).complexes.hooks.createSuccess(),
 		error: false,
@@ -213,18 +220,29 @@ export const useUpdateComplex = declareMutation({
 export const useDeleteComplex = declareMutation({
 	mutate: (id: string) => api.complex.delete({ id }),
 	touches: ['complexes', 'units'],
-	inverse: ({ result }) =>
-		result && {
+	inverse: ({ result }) => {
+		if (!result) {
+			return undefined;
+		}
+
+		// what the last deletion took, which the next undo puts back: a redo deletes again, and takes
+		// whatever units the complex had come to have by then.
+		let removed = result;
+
+		return {
 			describe: (t) => t.common.undo.deleted({ record: t.common.labels.complex() }),
 			flags: flagsToPutBack(result.units),
 			// a complex that took units with it comes back through the restore, which puts each unit
 			// back as the row it was; one that took none comes back as it always has.
 			undo: () =>
-				result.units.length === 0
-					? api.complex.create(result)
-					: api.complex.createMany({ complexes: [result] }),
-			redo: () => api.complex.delete({ id: result.id })
-		},
+				removed.units.length === 0
+					? api.complex.create(removed)
+					: api.complex.createMany({ complexes: [removed] }),
+			redo: async () => {
+				removed = (await api.complex.delete({ id: result.id })) ?? removed;
+			}
+		};
+	},
 	toast: {
 		success: () => get(LL).complexes.hooks.deleteSuccess(),
 		// the announcement says how long it can be taken back, whether or not a dialog asked first:
@@ -257,16 +275,23 @@ export const useDeleteManyComplexes = declareMutation({
 		// control that appears to have done something.
 		result.deleted.length === 0
 			? undefined
-			: {
-					describe: (t) => t.common.undo.deletedMany({ count: result.deleted.length }),
-					flags: flagsToPutBack(result.deleted.flatMap((complex) => complex.units)),
-					undo: () => api.complex.createMany({ complexes: result.deleted }),
-					redo: () => api.complex.deleteMany({ ids: toIds(result.deleted) }),
-					records: (direction) =>
-						result.deleted.map((complex) =>
-							toHistoryEntry('complex', complex, direction === 'undo' ? 'created' : 'deleted')
-						)
-				},
+			: (() => {
+					// what the last deletion took, which the next undo puts back, as for one complex.
+					let removed = result.deleted;
+
+					return {
+						describe: (t) => t.common.undo.deletedMany({ count: result.deleted.length }),
+						flags: flagsToPutBack(result.deleted.flatMap((complex) => complex.units)),
+						undo: () => api.complex.createMany({ complexes: removed }),
+						redo: async () => {
+							removed = (await api.complex.deleteMany({ ids: toIds(result.deleted) })).deleted;
+						},
+						records: (direction) =>
+							result.deleted.map((complex) =>
+								toHistoryEntry('complex', complex, direction === 'undo' ? 'created' : 'deleted')
+							)
+					};
+				})(),
 	// the names are frozen here for the reason the whole entry is: a moment later the records are
 	// gone, and an account that could only name what still exists could not report a deletion.
 	records: ({ result }) =>
