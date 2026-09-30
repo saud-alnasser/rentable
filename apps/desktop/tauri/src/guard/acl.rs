@@ -188,6 +188,67 @@ mod tests {
         }
     }
 
+    /// **Criterion 19.** No feature plugin's command that reaches a window runs synchronously.
+    ///
+    /// Tauri runs a plugin's synchronous command on the event loop's thread while it holds the
+    /// plugin store's lock. A window call made there (`show`, `hide`, a move) sends the window a
+    /// message at once, the event loop's handler for it asks for the same lock, and the thread
+    /// waits on itself: the application stops answering and a hidden window never shows. An
+    /// `async` command runs after the handler returns and the lock is released, as Tauri's own
+    /// window plugin's commands all do. A command that takes a window or the app handle is held to
+    /// it.
+    #[test]
+    fn no_plugin_command_that_reaches_a_window_is_synchronous() {
+        fn sources(directory: &Path, found: &mut Vec<std::path::PathBuf>) {
+            for entry in std::fs::read_dir(directory).into_iter().flatten().flatten() {
+                let path = entry.path();
+
+                if path.is_dir() {
+                    sources(&path, found);
+                } else if path.extension().is_some_and(|extension| extension == "rs") {
+                    found.push(path);
+                }
+            }
+        }
+
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut offending = Vec::new();
+
+        for plugin in FEATURE_PLUGINS {
+            let mut files = Vec::new();
+
+            sources(&root.join(plugin.module), &mut files);
+
+            for file in files {
+                let text = std::fs::read_to_string(&file).unwrap_or_default();
+                let mut rest = text.as_str();
+
+                while let Some(at) = rest.find("#[tauri::command") {
+                    rest = &rest[at..];
+                    let signature_end = rest.find('{').unwrap_or(rest.len());
+                    let signature = &rest[..signature_end];
+                    let reaches_a_window = ["Window", "AppHandle"]
+                        .iter()
+                        .any(|kind| signature.contains(&format!("tauri::{kind}")))
+                        || signature.contains("WebviewWindow");
+
+                    if reaches_a_window && !signature.contains("async fn") {
+                        offending.push(format!("{}: {}", file.display(), signature.trim()));
+                    }
+
+                    rest = &rest["#[tauri::command".len()..];
+                }
+            }
+        }
+
+        assert!(
+            offending.is_empty(),
+            "a plugin command that reaches a window must be `async`, or it deadlocks the event \
+             loop on the plugin store's lock:\n{}",
+            offending.join("\n")
+        );
+    }
+
     /// **Criterion 9.** `lib.rs` registers every feature plugin, `diagnostics` first of them, and
     /// manages the state they share before it registers any plugin at all.
     #[test]
