@@ -143,7 +143,6 @@ test('the workspace menu, whose switch rows are radio rows', async () => {
 				fakeOrganizationWorkspace({ id: 'south', name: 'South Properties' })
 			],
 			openId: 'north',
-			memberCount: 3,
 			onSwitch: () => {}
 		},
 		rail

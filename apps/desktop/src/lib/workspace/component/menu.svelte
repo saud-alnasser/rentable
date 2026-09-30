@@ -20,23 +20,30 @@
 	 * so the shell still says which application it is; the product's name does not, because a
 	 * desktop window carries it in its title bar and its taskbar already.
 	 *
-	 * **The menu is the workspace and the switch** (requirement 9 of
-	 * [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]]): its header names the
-	 * workspace that is open, the rows under it are the workspaces the member holds with the open
-	 * one marked, and one row at the foot leads to the workspaces section of the settings area.
-	 * Nothing here invites anybody and nothing here makes a workspace, so the menu carries no
-	 * permission and refuses nobody: a reader who came to switch is offered the switch, and a reader
-	 * who came to do something to a workspace is handed the section where every act on one lives.
+	 * **The trigger names where you are, and nothing else** (requirement 10 of
+	 * [[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/spec]]): the mark's tile
+	 * and the open workspace's name on one line, with the up-down chevron that says it opens a
+	 * choice. It counted members on a second line until effort 843, which was what the menu said
+	 * again under its own header; a switcher names the place and leaves the rest to the menu, as
+	 * Xcode's scheme menu and Safari's profiles do.
 	 *
-	 * **The workspaces the member holds are listed under the header, and the open one is marked.**
-	 * An organization holds several and a member holds a grant on some of them
+	 * **The menu is the switch, then one command** (requirement 11): the workspaces the member
+	 * holds, the open one checked, a separator, and "manage workspaces…", which leads to the
+	 * workspaces section of the settings area and carries the ellipsis because it opens more rather
+	 * than acting at once. There is no header and no heading: the header repeated the trigger, and a
+	 * "switch to" heading over a list of one promised a switch the list could not make. Nothing here
+	 * invites anybody and nothing here makes a workspace, so the menu carries no permission and
+	 * refuses nobody.
+	 *
+	 * **The workspaces the member holds are the rows, and the open one is checked.** An organization
+	 * holds several and a member holds a grant on some of them
 	 * ([[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/spec]], requirement 9),
 	 * so the list is `workspaces` as the session reads it, and choosing another row opens that
 	 * workspace by the path a sign-in takes past the wall. A member holding one sees the one row,
-	 * marked: the list says where they are even when there is nowhere else to go.
+	 * checked: the list says where they are even when there is nowhere else to go.
 	 *
-	 * **The open row is named by `openId` and the header by `workspace`, and both come off the one
-	 * remote-sync query** the rail reads, so the marker and the name cannot disagree. The menu
+	 * **The checked row is named by `openId` and the trigger by `workspace`, and both come off the
+	 * one remote-sync query** the rail reads, so the check and the name cannot disagree. The menu
 	 * draws and never decides: it is handed the rows and a callback, and reads no query itself.
 	 *
 	 * *Until 2026-09-15 the menu also carried two acts that are not the workspace's. It took its
@@ -54,16 +61,14 @@
 		workspace,
 		workspaces,
 		openId,
-		memberCount,
 		onSwitch
 	}: {
-		/** the workspace this machine has open, as the sync record names it: the header. */
+		/** the workspace this machine has open, as the sync record names it: the trigger. */
 		workspace: RemoteSyncWorkspace;
 		/** every workspace the signed-in member holds a grant on, as the session lists them. */
 		workspaces: OrganizationWorkspace[];
-		/** which of `workspaces` is open, marked in the list; `null` where none is named yet. */
+		/** which of `workspaces` is open, checked in the list; `null` where none is named yet. */
 		openId: string | null;
-		memberCount: number;
 		/** a row other than the open one was chosen: open that workspace. */
 		onSwitch: (id: string) => void;
 	} = $props();
@@ -102,16 +107,7 @@
 						>
 							<MarkIcon class="size-4" />
 						</div>
-						<div class="grid flex-1 text-start text-sm leading-tight">
-							<span class="truncate font-medium"><bdi>{workspace.name}</bdi></span>
-							<!-- the second line tells this row from the account row under it, which carries
-							     the same name on an account whose workspace is named after them. It says
-							     something true about the workspace rather than repeating what it is
-							     called. -->
-							<span class="truncate text-xs text-muted-foreground">
-								{$LL.layout.workspaceMenu.members({ count: memberCount })}
-							</span>
-						</div>
+						<span class="flex-1 truncate text-start font-medium"><bdi>{workspace.name}</bdi></span>
 						<ChevronsUpDownIcon class="ms-auto size-4" />
 					</Sidebar.MenuButton>
 				{/snippet}
@@ -123,27 +119,10 @@
 				{side}
 				sideOffset={4}
 			>
-				<DropdownMenu.Label class="p-0 font-normal">
-					<div class="flex items-center gap-2 px-1 py-1.5 text-start text-sm">
-						<div
-							class="flex aspect-square size-10 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground"
-						>
-							<MarkIcon class="size-5" />
-						</div>
-						<div class="grid min-w-0 flex-1 leading-tight">
-							<span class="truncate font-medium"><bdi>{workspace.name}</bdi></span>
-							<span class="truncate text-xs text-muted-foreground">
-								{$LL.layout.workspaceMenu.members({ count: memberCount })}
-							</span>
-						</div>
-					</div>
-				</DropdownMenu.Label>
-
-				<DropdownMenu.Separator />
-
-				<!-- the workspaces the member holds, one row each, with the open one marked. Radio
-				     items rather than plain ones, because that is what the rows are: exactly one is
-				     open, and the primitive draws the marker and answers arrow keys for it. The row
+				<!-- the workspaces the member holds, one row each, with the open one checked. Radio
+				     items rather than plain or checkbox ones, because that is what the rows are:
+				     exactly one is open, and `menuitemradio` with `aria-checked` is what announces it
+				     as current. The primitive draws the check and answers arrow keys for it. The row
 				     already open selects nothing, since there is nothing to switch to. -->
 				<DropdownMenu.RadioGroup
 					value={openId ?? undefined}
@@ -153,11 +132,8 @@
 						}
 					}}
 				>
-					<DropdownMenu.GroupHeading class="text-xs font-normal text-muted-foreground">
-						{$LL.layout.workspaceMenu.switchTo()}
-					</DropdownMenu.GroupHeading>
 					{#each workspaces as held (held.id)}
-						<DropdownMenu.RadioItem value={held.id}>
+						<DropdownMenu.RadioItem value={held.id} indicator="check">
 							{#snippet children({ checked })}
 								<span class="truncate"><bdi>{held.name}</bdi></span>
 								{#if checked}
@@ -170,8 +146,10 @@
 
 				<DropdownMenu.Separator />
 
-				<!-- the workspaces section of the settings area, at the foot and across the menu's
-				     width, since it is the one thing the menu offers besides the switch. It opened the
+				<!-- "manage workspaces…": the workspaces section of the settings area, at the foot,
+				     since it is the one thing the menu offers besides the switch. It read "workspaces"
+				     until effort 843, the section's own name, which said where it went but not that
+				     it opens more; the ellipsis says that (Apple's HIG, *Menus*). It opened the
 				     workspace page until 2026-09-14, which was one workspace; the section is the list
 				     of the ones this member holds, which is what a menu about workspaces should reach.
 				     **A menu item rather than a plain link**, for a reason that is invisible until
@@ -179,9 +157,9 @@
 				     laid inside it looks reachable and is not. -->
 				<DropdownMenu.Item class="gap-2">
 					{#snippet child({ props })}
-						<a href={resolve(withSection('workspaces'))} data-workspace-menu-workspaces {...props}>
+						<a href={resolve(withSection('workspaces'))} data-workspace-menu-manage {...props}>
 							<BuildingIcon class="size-4 shrink-0" />
-							<span class="truncate capitalize">{$LL.settings.section.workspaces()}</span>
+							<span class="truncate capitalize">{$LL.layout.workspaceMenu.manage()}</span>
 						</a>
 					{/snippet}
 				</DropdownMenu.Item>

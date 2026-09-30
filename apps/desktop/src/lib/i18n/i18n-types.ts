@@ -1951,13 +1951,13 @@ type RootTranslation = {
 			 */
 			members: RequiredParams<'count|number'>
 			/**
-			 * s​w​i​t​c​h​ ​t​o
-			 */
-			switchTo: string
-			/**
 			 * o​p​e​n
 			 */
 			open: string
+			/**
+			 * m​a​n​a​g​e​ ​w​o​r​k​s​p​a​c​e​s​…
+			 */
+			manage: string
 			/**
 			 * c​r​e​a​t​i​n​g​ ​a​ ​w​o​r​k​s​p​a​c​e​ ​n​e​e​d​s​ ​t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​.​ ​r​e​c​o​n​n​e​c​t​ ​i​t​ ​i​n​ ​s​e​t​t​i​n​g​s​,​ ​u​n​d​e​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
 			 */
@@ -6479,13 +6479,13 @@ export type TranslationFunctions = {
 			 */
 			members: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
-			 * switch to
-			 */
-			switchTo: () => LocalizedString
-			/**
 			 * open
 			 */
 			open: () => LocalizedString
+			/**
+			 * manage workspaces…
+			 */
+			manage: () => LocalizedString
 			/**
 			 * creating a workspace needs the Turso account. reconnect it in settings, under organization.
 			 */

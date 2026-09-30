@@ -28,27 +28,15 @@
 	const remoteSyncQuery = useFetchRemoteSyncState(() => !signedOut);
 	const organization = contributionsTo('workspace');
 	const organizationQuery = organization.useOrganizationState();
-	// gated the same way, and for the same reason: the rail is one instance across the wall and
-	// the application, a refused read is kept as an error that nothing retries, and a menu drawn
-	// off it would say the workspace has no members for the run of the process.
-	const membersQuery = organization.useMembers(() => !signedOut);
 
 	const workspace = $derived(remoteSyncQuery.data?.workspace);
 	// the workspaces the member holds a grant on, which is what the menu lists; the one that is
-	// open is named by the same sync record the header takes its name from.
+	// open is named by the same sync record the trigger takes its name from.
 	const workspaces = $derived(organizationQuery.data?.session?.workspaces ?? []);
-	// how many members hold a grant on the workspace that is open.
-	const memberCount = $derived(
-		(membersQuery.data ?? []).filter((member) =>
-			workspace?.remoteId ? member.workspaces.some((held) => held.id === workspace.remoteId) : false
-		).length
-	);
 </script>
 
 {#if signedOut}
 	<WorkspaceLocked />
 {:else if workspace}
-	<!-- the members who hold a grant on this workspace, counted from the same list the
-	     organization page draws. -->
-	<WorkspaceMenu {workspace} {workspaces} openId={workspace.remoteId} {memberCount} {onSwitch} />
+	<WorkspaceMenu {workspace} {workspaces} openId={workspace.remoteId} {onSwitch} />
 {/if}
