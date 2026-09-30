@@ -22,10 +22,12 @@ and its criteria 1, 4 and 5.
       after the change as before.
 - [ ] A component test stubs `document.startViewTransition` and asserts it is called on a step
       change. Without the stub, the change is committed directly with no error.
-- [ ] Back is the shared `block/back-control.svelte`, drawn only when `back` is handed in, in the
-      column's top corner. Its arrow mirrors in Arabic.
-- [ ] The position renders "step n of m" from `position`, in one treatment, and renders nothing
-      without it.
+- [ ] Back is the shared `block/back-control.svelte`, drawn only when `back` is handed in, 1rem in
+      from the content area's top-start corner. Its arrow mirrors in Arabic.
+- [ ] The column is placed from the top at `max(5rem, 20vh)`, not centred, so the mark and the
+      title stay put when a step's contents change height.
+- [ ] The position renders "step n of m" from `position`, in one treatment, as a small muted line
+      above the title, and renders nothing without it.
 - [ ] Under reduced motion no transition runs. A node test over `tokens.css` checks that the token
       layer's `::view-transition-*` gate covers the names the surface uses.
 - [ ] Durations and easings are named tokens, and the package's `motion.test.ts` passes.
@@ -44,3 +46,7 @@ and its criteria 1, 4 and 5.
   and *Interfaces*. The look is what ticket 01 recorded.
 - The surface is not a card: no `bg-card`, shadow or ring around the column.
 - No new dependency; the transition is feature-detected.
+
+## Notes
+
+*Corrected 2026-10-01 by ticket 01 ([[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/evidence/prototypes/the-look-of-the-way-in]]): back moved to the content area's corner, the position above the title, and the column placed from the top.*

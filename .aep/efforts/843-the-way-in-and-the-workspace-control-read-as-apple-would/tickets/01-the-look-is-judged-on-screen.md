@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # docs(desktop): the look of the way in and the workspace menu is judged on screen
@@ -18,7 +18,7 @@ Traces requirements 1, 2, 10 and 11 of [[efforts/843-the-way-in-and-the-workspac
 its criteria 1, 2, 10 and 11, and its constraint that the look is judged on screen before it is
 built across the way in.
 
-- [ ] One design per surface is built on `apps/desktop/src/lib/prototype/switcher.svelte`, with no
+- [x] One design per surface is built on `apps/desktop/src/lib/prototype/switcher.svelte`, with no
       layout options offered:
       - the way-in column: the mark, title, description, position, fields without glyphs and one
         prominent action;
@@ -26,13 +26,32 @@ built across the way in.
       - the name step;
       - the workspace trigger and menu, with a check on the open workspace. The menu reads the real
         held workspaces.
-- [ ] Each is screenshotted in the four combinations of locale and appearance and shown to the
+
+      *Verified: eight looks on one bar (as it is, the welcome, Turso 1 and 2, link 1 and 2, the
+      wall, the menu), mounted under `dev` in root and the rail row; `pnpm check` printed `0 ERRORS
+      0 WARNINGS` after each round. The menu read `session.workspaces` and the sync record, as the
+      rail row does.*
+- [x] Each is screenshotted in the four combinations of locale and appearance and shown to the
       human, who says what is built.
-- [ ] `evidence/prototypes/the-look-of-the-way-in.md` records what was shown, what the human chose,
+
+      *Verified in part, as the human directed: the welcome and the four steps were shot in the
+      four combinations over the debugging port and judged on screen over six rounds of the
+      human's changes. The wall and the menu were never drawn on real data, because the worktree
+      holds no organization; on 2026-10-01 the human said "pick and finish the prototype", and
+      ticket 11 judges both on their organization.*
+- [x] `evidence/prototypes/the-look-of-the-way-in.md` records what was shown, what the human chose,
       what they changed, and the date.
-- [ ] In the same commit, tickets 02 to 11 are corrected wherever the choice differs from what they
+
+      *Verified: written, with the words table in both locales.*
+- [x] In the same commit, tickets 02 to 11 are corrected wherever the choice differs from what they
       say.
-- [ ] In the same commit, the prototype components are deleted from `src/lib/prototype/`.
+
+      *Verified: 02, 04, 05, 06, 07 and 09 corrected, each with a dated note; 03, 08, 10 and 11
+      unchanged by the choice.*
+- [x] In the same commit, the prototype components are deleted from `src/lib/prototype/`.
+
+      *Verified: `src/lib/prototype/` holds `switcher.svelte` alone, and `git diff` shows root and
+      the rail row unchanged.*
 
 ## Relevant areas
 

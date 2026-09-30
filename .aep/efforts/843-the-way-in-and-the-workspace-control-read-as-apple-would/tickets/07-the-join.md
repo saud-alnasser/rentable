@@ -21,6 +21,11 @@ and its criteria 1, 3, 4, 5, 6 and 8.
 - [ ] The route change from the welcome or the wall into `/organization/join` runs the transition, as
       ticket 06 does for the first run.
 - [ ] A component test per step counts exactly one prominent button.
+- [ ] Paste is step 1 of 2 and the password choice step 2 of 2. Paste reads "join with a link",
+      "paste the link and enter the code you were given.", fields "link" and "code" ("6
+      characters."), and "continue". The password choice reads "choose a password", "you'll use it
+      to sign in. it can't be recovered.", fields "password" and "confirm password", and "join".
+      Nothing on the path names Turso.
 - [ ] No `InputGroup.Addon` renders. The link and code fields keep `dir="ltr"` and accept a paste.
 - [ ] The link field is focused on arrival at paste, and the password field at the password choice.
       Enter submits.
@@ -34,3 +39,7 @@ and its criteria 1, 3, 4, 5, 6 and 8.
 ## Constraints
 
 - Behaviour and step order are unchanged (spec, *Constraints*).
+
+## Notes
+
+*Corrected 2026-10-01 by ticket 01 ([[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/evidence/prototypes/the-look-of-the-way-in]]): the human asked for the link path to read like the first run, in plain words.*

@@ -9,7 +9,7 @@ blocked-by: [01]
 
 The trigger at the head of the rail draws the mark and the open workspace's name on one line. The
 menu lists the held workspaces with a check on the open one, then a separator, then "manage
-workspaces". The radio item primitive gains a `check` indicator. The member count, the menu header
+workspaces…", with the ellipsis because it opens more. The radio item primitive gains a `check` indicator. The member count, the menu header
 and the "switch to" heading are gone.
 
 ## Acceptance Criteria
@@ -39,3 +39,7 @@ and its criteria 10, 11 and 13.
 - Primitives are edited by hand, never regenerated ([[rules/frontend]], *Components*).
 - The manage item goes to the same place the current "workspaces" item does; the settings area is not
   changed.
+
+## Notes
+
+*Corrected 2026-10-01 by ticket 01 ([[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/evidence/prototypes/the-look-of-the-way-in]]): the menu was built but not drawn on real data; ticket 11's walk judges it on the human's organization.*

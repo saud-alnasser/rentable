@@ -24,6 +24,8 @@ and the half of its criterion 7 about what stays reachable.
 - [ ] The link to all settings goes to `/settings`, which ticket 03 draws on the way-in frame.
 - [ ] Every way-in screen passes this control to the surface's `foot`, and nothing else goes in the
       foot.
+- [ ] On the wall only, the popover also holds "use a link" and "disconnect this machine", which
+      leave the wall's "can't sign in?" disclosure (ticket 05).
 
 ## Relevant areas
 
@@ -34,3 +36,7 @@ and the half of its criterion 7 about what stays reachable.
 ## Constraints
 
 - The settings area itself is not changed (spec, *Out of Scope*).
+
+## Notes
+
+*Corrected 2026-10-01 by ticket 01 ([[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/evidence/prototypes/the-look-of-the-way-in]]): the wall's two ways out of a jam move into this popover.*

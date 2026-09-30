@@ -134,7 +134,7 @@ Start at [[protocol]].
 | 835-the-rent-is-receipted-scheduled-and-chased | implemented | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]] | 1 | 0 | 19 |
 | 838-permissions-are-a-role-and-an-override | implemented | [[efforts/838-permissions-are-a-role-and-an-override/spec]] | 2 | 0 | 60 |
 | 840-a-feature-plugs-in-and-lives-in-one-place | implemented | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]] | 2 | 0 | 77 |
-| 843-the-way-in-and-the-workspace-control-read-as-apple-would | accepted | [[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/spec]] | 1 | 0 | 11 |
+| 843-the-way-in-and-the-workspace-control-read-as-apple-would | accepted | [[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/spec]] | 1 | 1 | 11 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -478,7 +478,7 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/75-a-complex-is-deleted-once]] fix(desktop): a complex is deleted once, and asked about on what it has now | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | — |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/76-a-complex-form-keeps-what-was-typed]] fix(desktop): a complex's form keeps what was typed, and needs a name | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | — |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/77-create-asks-for-plus]] fix(desktop): create asks for + where a unit is still in the entry | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | — |
-| [[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/tickets/01-the-look-is-judged-on-screen]] docs(desktop): the look of the way in and the workspace menu is judged on screen | 843-the-way-in-and-the-workspace-control-read-as-apple-would | open | — |
+| [[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/tickets/01-the-look-is-judged-on-screen]] docs(desktop): the look of the way in and the workspace menu is judged on screen | 843-the-way-in-and-the-workspace-control-read-as-apple-would | resolved | — |
 | [[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/tickets/02-the-way-in-surface]] feat(design): the way in has a surface of its own | 843-the-way-in-and-the-workspace-control-read-as-apple-would | open | 01 |
 | [[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/tickets/03-the-way-in-fills-the-window]] feat(desktop): the way in fills the window | 843-the-way-in-and-the-workspace-control-read-as-apple-would | open | 02 |
 | [[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/tickets/04-language-and-appearance-on-the-way-in]] feat(desktop): language and appearance are one quiet control on the way in | 843-the-way-in-and-the-workspace-control-read-as-apple-would | open | 03 |
