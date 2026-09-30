@@ -1,5 +1,19 @@
 # rentable
 
+## 0.17.0
+
+### Minor Changes
+
+- [#841](https://github.com/saud-alnasser/rentable/pull/841) [`0d4caf1`](https://github.com/saud-alnasser/rentable/commit/0d4caf11ed2326bb04567eab6e78bcad95a8a57c) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - a complex that still has units can now be deleted, as long as no contract mentions any of them; its units are deleted with it, the delete asks first and says how many units go, and undo puts the complex and every unit back. deleting several complexes at once works the same way, and a complex a contract still mentions a unit of is kept and says why.
+
+### Patch Changes
+
+- [#841](https://github.com/saud-alnasser/rentable/pull/841) [`0d4caf1`](https://github.com/saud-alnasser/rentable/commit/0d4caf11ed2326bb04567eab6e78bcad95a8a57c) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - pressing create on a new complex, or on units being added to one, while a unit name is still typed in the entry now stops and asks for it to be added with + first or cleared, keeping everything typed, rather than emptying the form; a complex is no longer created without a name. a form that is refused no longer empties what was typed into it.
+
+- [#841](https://github.com/saud-alnasser/rentable/pull/841) [`0d4caf1`](https://github.com/saud-alnasser/rentable/commit/0d4caf11ed2326bb04567eab6e78bcad95a8a57c) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - closing a delete that cannot go ahead, because something still depends on the record, no longer shows the delete form for a moment as the dialog leaves; the dialog keeps saying what it said until it is gone, and the same holds for every confirmation.
+
+- [#841](https://github.com/saud-alnasser/rentable/pull/841) [`0d4caf1`](https://github.com/saud-alnasser/rentable/commit/0d4caf11ed2326bb04567eab6e78bcad95a8a57c) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - emptying the ending soon notice in settings, or typing something that is not a number into it, no longer replaces the settings page with an error; the field stays, and saving it without a number says a notice needs one.
+
 ## 0.16.0
 
 ### Minor Changes
