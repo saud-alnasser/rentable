@@ -133,7 +133,7 @@ Start at [[protocol]].
 | 832-the-interface-speaks-one-language-and-guides | accepted | [[efforts/832-the-interface-speaks-one-language-and-guides/spec]] | 3 | 4 | 43 |
 | 835-the-rent-is-receipted-scheduled-and-chased | implemented | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]] | 1 | 0 | 19 |
 | 838-permissions-are-a-role-and-an-override | implemented | [[efforts/838-permissions-are-a-role-and-an-override/spec]] | 2 | 0 | 60 |
-| 840-a-feature-plugs-in-and-lives-in-one-place | implemented | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]] | 2 | 0 | 71 |
+| 840-a-feature-plugs-in-and-lives-in-one-place | implemented | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]] | 2 | 0 | 72 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -471,3 +471,4 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/69-names-and-comments-say-what-the-code-is]] refactor(desktop): names and comments say what the code is | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | 66, 67, 68 |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/70-what-review-two-found-is-fixed]] fix(desktop): what review round two found is fixed | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | — |
 | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/71-the-window-shows]] fix(tauri): the window shows, and its controls answer | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | — |
+| [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/tickets/72-the-ending-soon-field-can-be-emptied]] fix(desktop): the ending-soon field can be emptied | 840-a-feature-plugs-in-and-lives-in-one-place | resolved | — |

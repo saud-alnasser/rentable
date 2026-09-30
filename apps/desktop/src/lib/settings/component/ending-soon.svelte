@@ -13,10 +13,13 @@
 
 	const setEndingSoonNoticeDaysMutation = useSetEndingSoonNoticeDays();
 
-	let value = $state<number | ''>('');
+	// a number field reads `null` while it holds no number: emptied, or partway through an edit.
+	let value = $state<number | '' | null>('');
 
 	const isPending = $derived(setEndingSoonNoticeDaysMutation.isPending);
-	const enteredValue = $derived(typeof value === 'number' ? String(value) : value.trim());
+	const enteredValue = $derived(
+		value === null ? '' : typeof value === 'number' ? String(value) : value.trim()
+	);
 	const hasChange = $derived(enteredValue !== String(settings.endingSoonNoticeDays));
 
 	$effect(() => {
