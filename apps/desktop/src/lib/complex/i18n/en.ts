@@ -32,6 +32,7 @@ export const complexes = {
 
 	form: {
 		duplicateUnitName: '{name:string} is already in the list.',
+		nameRequired: 'give the complex a name.',
 		noUnitNamed: 'name at least one unit.',
 		noUnitsYet: 'no units yet. add them here, or later from the complex itself.',
 		unitName: 'unit name',

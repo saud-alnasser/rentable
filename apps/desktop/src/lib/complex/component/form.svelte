@@ -20,7 +20,10 @@
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import z from 'zod';
 
-	const ComplexFormSchema = ComplexSchema.partial({ id: true });
+	// a complex is found by its name, so it is not written without one.
+	const ComplexFormSchema = ComplexSchema.partial({ id: true }).extend({
+		name: z.string().trim().min(1, $LL.complexes.form.nameRequired())
+	});
 	const CreateMutation = useCreateComplex();
 	const UpdateMutation = useUpdateComplex();
 

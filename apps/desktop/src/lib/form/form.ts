@@ -46,10 +46,15 @@ export const onSubmit =
  * - **`scrollToError`**: an options object, which superforms hands to `scrollIntoView`. Its
  *   default scrolls the window, and the field sits in the surface's own scrolling body, so a
  *   field below the fold would take focus out of sight.
+ * - **`resetForm: false`**: what was typed stays until the surface closes. Every form here loads
+ *   or resets its fields when it opens, so superforms' own reset after a valid submit only ever
+ *   emptied a form that stayed open: one whose refusal came back as an announcement, or the
+ *   complex's, whose press moves a unit still in the entry onto the list without writing.
  */
 export const surfaceForm = {
 	SPA: true,
 	applyAction: false,
+	resetForm: false,
 	autoFocusOnError: true,
 	scrollToError: { block: 'nearest' }
 } as const;

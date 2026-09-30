@@ -31,6 +31,7 @@ export const complexes = {
 
 	form: {
 		duplicateUnitName: '{name} موجود في القائمة بالفعل.',
+		nameRequired: 'سمِّ المجمع.',
 		noUnitNamed: 'سمِّ وحدة واحدة على الأقل.',
 		noUnitsYet: 'لا توجد وحدات بعد. أضفها هنا أو لاحقاً من المجمع نفسه.',
 		unitName: 'اسم الوحدة',

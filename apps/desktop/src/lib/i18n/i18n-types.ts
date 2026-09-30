@@ -2452,6 +2452,10 @@ type RootTranslation = {
 			 */
 			duplicateUnitName: RequiredParams<'name'>
 			/**
+			 * g​i​v​e​ ​t​h​e​ ​c​o​m​p​l​e​x​ ​a​ ​n​a​m​e​.
+			 */
+			nameRequired: string
+			/**
 			 * n​a​m​e​ ​a​t​ ​l​e​a​s​t​ ​o​n​e​ ​u​n​i​t​.
 			 */
 			noUnitNamed: string
@@ -6960,6 +6964,10 @@ export type TranslationFunctions = {
 			 * {name} is already in the list.
 			 */
 			duplicateUnitName: (arg: { name: string }) => LocalizedString
+			/**
+			 * give the complex a name.
+			 */
+			nameRequired: () => LocalizedString
 			/**
 			 * name at least one unit.
 			 */

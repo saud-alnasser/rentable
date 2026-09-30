@@ -128,7 +128,6 @@
 		defaults(zod4(ContractFormSchema)),
 		{
 			...surfaceForm,
-			resetForm: false,
 			validators: zod4(ContractFormSchema),
 			onUpdate: async ({ form }) => {
 				if (!form.valid) return;
