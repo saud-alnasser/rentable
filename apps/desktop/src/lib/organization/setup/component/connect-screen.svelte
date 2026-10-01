@@ -1,20 +1,15 @@
 <script lang="ts">
 	import { CODE_LENGTH, normalizeCode, type JoinStep } from '$lib/organization/setup/connect';
-	import StandaloneSurface from '@rentable/design/block/standalone-surface.svelte';
-	import BackControl from '@rentable/design/block/back-control.svelte';
+	import WayInSurface from '@rentable/design/block/way-in-surface.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
 	import DetailDisclosure from '$lib/error/component/detail-disclosure.svelte';
 	import * as Field from '@rentable/design/primitive/field/index.js';
-	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
+	import { Input } from '@rentable/design/primitive/input/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { PASSWORD_FLOOR } from '$lib/organization/setup/setup';
-	import HashIcon from '@lucide/svelte/icons/hash';
-	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
-	import LinkIcon from '@lucide/svelte/icons/link';
-	import LogInIcon from '@lucide/svelte/icons/log-in';
-	import PlugIcon from '@lucide/svelte/icons/plug';
-	import { untrack } from 'svelte';
+	import { WayInPreferences } from '$lib/settings/ui';
+	import { tick, untrack } from 'svelte';
 
 	/**
 	 * The connect screen: one form of a link and its code, and what the link leads to.
@@ -57,26 +52,28 @@
 	 * twice. It is the alert pattern of Apple's Human Interface Guidelines: a short statement of
 	 * what happened, and the act that answers it as the control beneath.
 	 *
-	 * **Every step can be left from the card's corner, and only from there.** The surface's
-	 * `corner` slot is where a reader looks for the way past a screen, and the one control in it
-	 * fires `onBack`; where that leads is the route's to decide, since the screen does not know
-	 * whether the step before it was the wall or the field.
+	 * **One surface that changes step, read like the first run** (effort 843, requirements 1, 3, 4
+	 * and 5, at the human's word on 2026-10-01). The screen hands the way-in surface the step's key,
+	 * where it sits ("step 1 of 2" for the link and its code, "step 2 of 2" for the password), and
+	 * the way back, which the surface draws in the content area's corner and which fires `onBack`;
+	 * where that leads is the route's to decide, since the screen does not know whether the step
+	 * before it was the wall or the field. Nothing on the way names Turso: a person holding a link
+	 * is joining an organization, and where it is kept is not theirs to know.
 	 *
-	 * **The field's glyph is its subject and never its error, and a primary carries its verb.** The
-	 * leading addon is muted so it does not outweigh the label beside it (*Balance weight and
-	 * contrast*, Refactoring UI p.56); a field the person can fix marks its own line with
-	 * `Field.Error`, which is the interface rule's treatment, and no callout stands over the form
-	 * saying the same thing. The callout is left for what no field answers for: a refusal the read
-	 * came back with, and the shell's own message where the standing changed while somebody was
-	 * typing. *The two field refusals were drawn in that callout until ticket 21, which is the
-	 * summary the rule names.*
+	 * **A field is its label and its input, and every step has one prominent action** (requirements
+	 * 5 and 8). A field the person can fix marks its own line with `Field.Error`, which is the
+	 * interface rule's treatment, and no callout stands over the form saying the same thing. The
+	 * callout is left for what no field answers for: a refusal the read came back with, and the
+	 * shell's own message where the standing changed while somebody was typing. *The two field
+	 * refusals were drawn in that callout until ticket 21, which is the summary the rule names.*
 	 *
 	 * **The password is two fields and no meter**, the shape `change-password-form.svelte` carries
 	 * and for the reason written there: there is no server to slow a guess down, so the floor is
 	 * said as a sentence and the confirmation is what catches a typo.
 	 *
-	 * On the application surface rather than in the frame, because it is drawn with nobody signed
-	 * in, which `startup/screen.ts` allows for this one address and the first run's.
+	 * On the way-in surface, which [[rules/interface]] under *Application surfaces* gives every step
+	 * before the application; it is drawn with nobody signed in, which `startup/screen.ts` allows for
+	 * this one address and the first run's.
 	 */
 	let {
 		step,
@@ -199,6 +196,37 @@
 			? $LL.organization.join.passwordDescription()
 			: $LL.organization.join.description()
 	);
+
+	// two steps: the link and its code, and the password. Reading the link, and a refusal of it,
+	// are still the first; only the password is the second.
+	const position = $derived.by(() => {
+		const at = step.kind === 'password' ? 2 : 1;
+
+		return { at, of: 2, label: $LL.organization.setup.position({ step: at, total: 2 }) };
+	});
+
+	// the form handed back with a refusal on it is a return to it, out of the wait it was submitted
+	// into, though nothing was pressed and the position did not move, so the surface runs the change
+	// back (effort 843, ticket 14). Every refusal the form carries comes from a read, and a fresh
+	// link carries none, so this is the step and nothing else to remember.
+	const returning = $derived(
+		step.kind === 'paste' &&
+			(step.isUnreadable || step.codeRefusal !== null || step.errorMessage !== null)
+	);
+
+	// arriving at a step that asks for typing puts the cursor in its first field (requirement 8):
+	// the link at the form, the password at the password. Each is drawn afresh on arrival, so this
+	// runs once per visit.
+	let linkField = $state<HTMLInputElement | null>(null);
+	let passwordField = $state<HTMLInputElement | null>(null);
+
+	$effect(() => {
+		const field = linkField ?? passwordField;
+
+		if (!field) return;
+
+		void tick().then(() => field.focus());
+	});
 </script>
 
 <!-- a refusal no field says, in one line, and what the shell said behind a closed disclosure. A
@@ -230,26 +258,21 @@
 {#snippet codeField()}
 	<Field.Field>
 		<Field.Label for="join-code">{$LL.organization.join.codeLabel()}</Field.Label>
-		<InputGroup.Root data-disabled={busy ? 'true' : undefined}>
-			<InputGroup.Addon>
-				<HashIcon />
-			</InputGroup.Addon>
-			<InputGroup.Input
-				id="join-code"
-				name="code"
-				dir="ltr"
-				autocomplete="one-time-code"
-				autocapitalize="characters"
-				spellcheck={false}
-				inputmode="text"
-				maxlength={CODE_LENGTH}
-				class="font-mono tracking-[0.3em] uppercase"
-				value={code}
-				oninput={(event) => typeCode(event.currentTarget.value)}
-				disabled={busy}
-				aria-invalid={codeRefused}
-			/>
-		</InputGroup.Root>
+		<Input
+			id="join-code"
+			name="code"
+			dir="ltr"
+			autocomplete="one-time-code"
+			autocapitalize="characters"
+			spellcheck={false}
+			inputmode="text"
+			maxlength={CODE_LENGTH}
+			class="h-9 font-mono tracking-[0.3em] uppercase"
+			value={code}
+			oninput={(event) => typeCode(event.currentTarget.value)}
+			disabled={busy}
+			aria-invalid={codeRefused}
+		/>
 		<Field.Description>{$LL.organization.join.codeDescription()}</Field.Description>
 		{#if codeRefusalMessage}
 			<Field.Error>{codeRefusalMessage}</Field.Error>
@@ -257,19 +280,23 @@
 	</Field.Field>
 {/snippet}
 
-<StandaloneSurface tone="neutral" {title} {description} {busy}>
-	{#snippet corner()}
-		<!-- always available, busy or not: the way past a screen that is disabled is a trap, and a
-		     link still being read costs nothing to walk away from. -->
-		<BackControl label={$LL.organization.join.back()} onclick={onBack} />
-	{/snippet}
-
-	<div class="space-y-4 pt-2" data-join-step={step.kind}>
+<!-- back is always available, busy or not: the way past a screen that is disabled is a trap, and a
+     link still being read costs nothing to walk away from. -->
+<WayInSurface
+	step={step.kind}
+	{title}
+	{description}
+	{position}
+	back={{ label: $LL.organization.join.back(), onclick: onBack }}
+	{returning}
+	{busy}
+>
+	<div class="flex flex-col gap-4 text-start" data-join-step={step.kind}>
 		{#if step.kind === 'paste'}
 			<!-- the two halves of one link, asked for together: the link a person was handed and the
 			     six characters read out with it. Neither opens anything alone. -->
 			<form
-				class="space-y-4"
+				class="flex flex-col gap-4"
 				onsubmit={(event) => {
 					event.preventDefault();
 
@@ -284,22 +311,19 @@
 
 				<Field.Field>
 					<Field.Label for="join-link">{$LL.organization.join.linkLabel()}</Field.Label>
-					<InputGroup.Root data-disabled={busy ? 'true' : undefined}>
-						<InputGroup.Addon>
-							<LinkIcon />
-						</InputGroup.Addon>
-						<!-- a machine string, typed left to right in both locales ([[rules/frontend]], *i18n*). -->
-						<InputGroup.Input
-							id="join-link"
-							name="link"
-							dir="ltr"
-							autocomplete="off"
-							spellcheck={false}
-							bind:value={pasted}
-							disabled={busy}
-							aria-invalid={isUnreadable}
-						/>
-					</InputGroup.Root>
+					<!-- a machine string, typed left to right in both locales ([[rules/frontend]], *i18n*). -->
+					<Input
+						id="join-link"
+						name="link"
+						dir="ltr"
+						autocomplete="off"
+						spellcheck={false}
+						class="h-9"
+						bind:ref={linkField}
+						bind:value={pasted}
+						disabled={busy}
+						aria-invalid={isUnreadable}
+					/>
 					{#if linkRefusal}
 						<Field.Error>{linkRefusal}</Field.Error>
 					{/if}
@@ -311,18 +335,16 @@
 					<DetailDisclosure detail={step.detail} name="join" />
 				{/if}
 
-				<!-- the same glyph the walk's connect carries: one vocabulary for joining a machine to something. -->
-				<Button type="submit" class="w-full justify-center" disabled={!canConnect}>
-					<PlugIcon class="size-4" />
-					{$LL.common.actions.connect()}
+				<Button type="submit" size="lg" class="w-full" disabled={!canConnect}>
+					<span class="first-letter:uppercase">{$LL.organization.join.continue()}</span>
 				</Button>
 			</form>
 		{:else if step.kind === 'reading'}
 			<p class="text-center text-sm text-muted-foreground">{$LL.organization.join.reading()}</p>
 		{:else if step.kind === 'unreachable'}
 			{@render shellRefusal($LL.organization.join.unreachable(), step.detail)}
-			<Button class="w-full justify-center" onclick={() => onConnect(step.link, step.code)}>
-				{$LL.organization.join.tryAgain()}
+			<Button size="lg" class="w-full" onclick={() => onConnect(step.link, step.code)}>
+				<span class="first-letter:uppercase">{$LL.organization.join.tryAgain()}</span>
 			</Button>
 		{:else if step.kind === 'refused'}
 			{@render shellRefusal(refusal, step.detail)}
@@ -332,16 +354,15 @@
 				     recorded the organization first: the machine is connected, so the wall is the way
 				     on, and it is the wall that asks for the password this person chose. A machine
 				     link refuses before it records anything, so there is no wall to offer. -->
-				<Button class="w-full justify-center" onclick={onSignIn}>
-					<LogInIcon class="size-4" />
-					{$LL.organization.join.toSignIn()}
+				<Button size="lg" class="w-full" onclick={onSignIn}>
+					<span class="first-letter:uppercase">{$LL.organization.join.toSignIn()}</span>
 				</Button>
 			{/if}
 		{:else if step.kind === 'password'}
 			<!-- the one thing a link cannot carry: the password this person is choosing. The code
 			     was given on the form that took the link, and is held with it. -->
 			<form
-				class="space-y-4"
+				class="flex flex-col gap-4"
 				onsubmit={(event) => {
 					event.preventDefault();
 
@@ -355,20 +376,17 @@
 					<Field.Label for="join-password">
 						{$LL.organization.setup.passwordLabel()}
 					</Field.Label>
-					<InputGroup.Root data-disabled={isJoining ? 'true' : undefined}>
-						<InputGroup.Addon>
-							<KeyRoundIcon />
-						</InputGroup.Addon>
-						<InputGroup.Input
-							id="join-password"
-							name="password"
-							type="password"
-							autocomplete="new-password"
-							bind:value={password}
-							disabled={isJoining}
-							aria-invalid={tooShort}
-						/>
-					</InputGroup.Root>
+					<Input
+						id="join-password"
+						name="password"
+						type="password"
+						autocomplete="new-password"
+						class="h-9"
+						bind:ref={passwordField}
+						bind:value={password}
+						disabled={isJoining}
+						aria-invalid={tooShort}
+					/>
 					<Field.Description>{$LL.organization.setup.passwordFloor()}</Field.Description>
 					{#if tooShort}
 						<Field.Error>{$LL.organization.setup.passwordTooShort()}</Field.Error>
@@ -377,30 +395,31 @@
 
 				<Field.Field>
 					<Field.Label for="join-confirmation">{$LL.organization.join.confirmLabel()}</Field.Label>
-					<InputGroup.Root data-disabled={isJoining ? 'true' : undefined}>
-						<InputGroup.Addon>
-							<KeyRoundIcon />
-						</InputGroup.Addon>
-						<InputGroup.Input
-							id="join-confirmation"
-							name="confirmation"
-							type="password"
-							autocomplete="new-password"
-							bind:value={confirmation}
-							disabled={isJoining}
-							aria-invalid={mismatch}
-						/>
-					</InputGroup.Root>
+					<Input
+						id="join-confirmation"
+						name="confirmation"
+						type="password"
+						autocomplete="new-password"
+						class="h-9"
+						bind:value={confirmation}
+						disabled={isJoining}
+						aria-invalid={mismatch}
+					/>
 					{#if mismatch}
 						<Field.Error>{$LL.organization.join.mismatch()}</Field.Error>
 					{/if}
 				</Field.Field>
 
-				<Button type="submit" class="w-full justify-center" disabled={!canJoin}>
-					<LogInIcon class="size-4" />
-					{isJoining ? $LL.common.actions.working() : $LL.common.actions.join()}
+				<Button type="submit" size="lg" class="w-full" disabled={!canJoin}>
+					<span class="first-letter:uppercase">
+						{isJoining ? $LL.common.actions.working() : $LL.common.actions.join()}
+					</span>
 				</Button>
 			</form>
 		{/if}
 	</div>
-</StandaloneSurface>
+
+	{#snippet foot()}
+		<WayInPreferences />
+	{/snippet}
+</WayInSurface>

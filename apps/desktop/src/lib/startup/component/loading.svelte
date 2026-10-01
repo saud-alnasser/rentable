@@ -1,19 +1,23 @@
 <script lang="ts">
+	import WayInSurface from '@rentable/design/block/way-in-surface.svelte';
 	import { Progress } from '@rentable/design/primitive/progress/index.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { formatLocaleDate } from '$lib/platform/locale';
 	import { migrationNotice } from '$lib/startup/migration-notice.svelte';
 	import { startupProgressWithin, startupStage } from '$lib/startup/stage.svelte';
-	import MarkIcon from '@lucide/svelte/icons/eclipse';
 
 	/**
 	 * What the application shows while it is starting.
 	 *
-	 * **Not the standalone surface, and it is the one screen that is not.** A card is for something
-	 * you read or act on, and this asks nothing. The five other screens on that block came to it
-	 * because they present the application's own state to a reader who has to take it in; this one
-	 * came along for the ride, and wearing the same bordered, ring-lit panel as a failed startup
-	 * gave a non-event the weight of an event.
+	 * **The last step of the way in, on its surface** (effort 843, requirement 9). After a first
+	 * run, a join or a sign-in, and on a launch before anybody is in, the loading keeps the way in's
+	 * mark and column, with the bar in the column where a step's controls go, so arriving reads as
+	 * the last step of the same sequence rather than a new screen; the rail comes with the
+	 * application. **In the middle of the window, not from the top** (at the human's word on
+	 * 2026-10-01): a step is placed from the top so it holds still as it changes, and the loading
+	 * changes nothing, so the bar sits where a wait is looked for. It has no title: it asks nothing. *It was a mark and a bar of its own, centred
+	 * in the window, until then, and before that the standalone surface's card, which gave a
+	 * non-event the weight of an event.*
 	 *
 	 * **A bar, not a spinner.** Chosen by looking, out of seven presentations
 	 * ([[efforts/capabilities-only-one-surface-got/evidence/prototypes/what-the-loading-screen-should-be]]).
@@ -90,17 +94,10 @@
 	});
 </script>
 
-<div class="flex min-h-full flex-1 flex-col items-center justify-center gap-6 p-4">
-	<!-- the mark holds still. The bar is the motion, and two moving things on an otherwise empty
-	     window compete for the same job. The tile and the glyph are the ones the workspace menu's
-	     header draws the mark at, so the mark has one large size wherever it appears. -->
-	<div
-		class="flex size-10 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground"
-	>
-		<MarkIcon class="size-5" />
-	</div>
-
-	<div class="flex w-full max-w-xs flex-col gap-2.5" role="status">
+<!-- the mark holds still, as on every step of the way in. The bar is the motion, and two moving
+     things on an otherwise empty window compete for the same job. -->
+<WayInSurface step="loading" centred>
+	<div class="flex w-full flex-col gap-2" role="status" data-startup-loading>
 		<Progress value={progress} class="h-1" />
 
 		<div class="flex items-baseline justify-between gap-3 text-xs">
@@ -115,4 +112,4 @@
 			<p class="text-xs text-muted-foreground" data-startup-migration>{upgrading}</p>
 		{/if}
 	</div>
-</div>
+</WayInSurface>

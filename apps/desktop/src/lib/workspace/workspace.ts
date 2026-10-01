@@ -1,4 +1,4 @@
-import type { OrganizationMember, OrganizationSession } from '$lib/organization';
+import type { OrganizationSession } from '$lib/organization';
 
 /**
  * What the workspace's row at the top of the rail and its permissions in the frame need of the
@@ -14,6 +14,4 @@ export type WorkspaceSurfaceContributions = {
 	useOrganizationState: () => {
 		readonly data: { session: OrganizationSession | null } | undefined;
 	};
-	/** every member, read only while `enabled` says so: the rail counts who holds a workspace. */
-	useMembers: (enabled: () => boolean) => { readonly data: OrganizationMember[] | undefined };
 };

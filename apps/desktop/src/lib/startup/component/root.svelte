@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
+	import { goto, onNavigate } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { dropLandingOnNavigation } from '$lib/create/ui';
@@ -10,11 +10,13 @@
 	import { useCreateWorkspace } from '$lib/organization/ui';
 	import type { OrganizationHost } from '$lib/organization';
 	import { listenForWindowCloseRequests } from '$lib/platform/window';
+	import type { PlaceAddress } from '$lib/feature/surface';
 	import type { SettingsHost } from '$lib/settings';
 	import { listenForSessionEnded, listenForSignOut, startWorkspaceSyncManager } from '$lib/sync';
 	import type { SyncHost } from '$lib/sync';
 	import { useEarlierRecords } from '$lib/workspace/ui';
 	import { QueryClient, QueryClientProvider } from '@tanstack/svelte-query';
+	import { crossWayIn } from '@rentable/design/way-in-transition.js';
 	import { getCurrentWindow } from '@tauri-apps/api/window';
 	import { onMount, untrack, type Snippet } from 'svelte';
 	import { browserStartupPorts } from '../browser';
@@ -25,8 +27,11 @@
 		THE_FIRST_RUN,
 		THE_JOIN,
 		addressAfterSignOut,
+		addressAfterSwitch,
+		navigationCrossing,
+		shellFor,
 		startupScreen,
-		wayInFrom
+		type SwitchCrumb
 	} from '../screen';
 	import { createStartup } from '../startup';
 	import StartupError from './error.svelte';
@@ -34,15 +39,19 @@
 	import StartupNoWorkspace from './no-workspace.svelte';
 	import StartupRecovery from './recovery.svelte';
 	import StartupSignIn from './sign-in.svelte';
+	import StartupSwitching from './switching.svelte';
 	import StartupUnreadable from './unreadable.svelte';
 
 	/** what the window is handed to draw a running application's state in. */
 	type WindowProps = {
 		queryClient: QueryClient;
 		currentDirection: 'ltr' | 'rtl';
-		shell: 'bare' | 'signed-out' | 'full';
-		onWayIn: () => void;
-		onSwitchWorkspace: (workspaceId: string) => void;
+		shell: 'bare' | 'way-in' | 'full';
+		/** another workspace was chosen, with the shell's trail of places to move a record's page by. */
+		onSwitchWorkspace: (
+			workspaceId: string,
+			trailOf: (routeId: string) => readonly SwitchCrumb<PlaceAddress>[]
+		) => void;
 		dialogs: boolean;
 		children: Snippet;
 	};
@@ -244,46 +253,20 @@
 	});
 
 	/**
-	 * how much of the shell this state draws, which is requirement 6's line in one place.
-	 *
-	 * Loading, failing to start and recovering from an update are an application that is not
-	 * running, and get the bare frame. Signing in is an application waiting for a person, which is
-	 * an application that is running, so it gets the rail.
-	 *
-	 * **Loading is two different states and the table has one row for it.** Requirement 6 says so
-	 * itself: the table is derived from the line rather than being the requirement, so a state it
-	 * does not list looks its own answer up. Loading on a fresh launch is *not known yet* and takes
-	 * the bare frame. Loading straight after somebody signed in is an application that is running
-	 * with a person in it, and taking the rail away for those two seconds is criterion 7a failing:
-	 * the rail disappearing and coming back is exactly what makes signing in look like arriving at
-	 * a different application.
-	 *
-	 * So the rail latches: once it is up it does not come down for a load. What it *says* still
-	 * follows the account, because a rail offering the way in to somebody who has just come in
-	 * would be worse than no rail at all.
+	 * how much of the shell this state draws: `shellFor`'s, in `../screen.ts`, for the reason the
+	 * screen below is there. It was a chain of branches here until effort 843's ticket 03.
 	 */
-	const shell = $derived.by(() => {
-		if (shellState.state === 'ready') {
-			return 'full';
-		}
+	const shell = $derived(shellFor(shellState));
 
-		if (shellState.state === 'sign-in') {
-			return 'signed-out';
-		}
+	// a move between the welcome and a walk is one surface changing step, so it runs the way-in
+	// surface's one transition in the reading direction (effort 843, requirement 4). Only on the
+	// way in and never under a startup pass, which `navigationCrossing` in `../screen.ts` decides.
+	onNavigate((navigation) => {
+		const from = navigation.from?.url.pathname;
+		const to = navigation.to?.url.pathname;
+		const crossing = from && to ? navigationCrossing(shellState, from, to) : null;
 
-		// a person is in and there is no workspace: the rail is up, and it has no workspace to
-		// name, which is the shape the signed-out rail already draws. What the rail says for this
-		// state is the workspace ticket's to decide when there is a workspace to create.
-		if (shellState.state === 'no-workspace') {
-			return 'signed-out';
-		}
-
-		if (shellState.state === 'loading' && shellState.railIsUp) {
-			// what the rail says still follows who is in, and who is in is whose vault is open.
-			return shellState.organization?.session ? 'full' : 'signed-out';
-		}
-
-		return 'bare';
+		return crossing ? crossWayIn(crossing, currentDirection, navigation.complete) : undefined;
 	});
 
 	/**
@@ -298,24 +281,35 @@
 	const screen = $derived(startupScreen(shellState, page.url.pathname));
 
 	/**
-	 * what the rail's account row does, which is put the sign-in card on screen.
+	 * what choosing another workspace does: open it, moving the address off a record first.
 	 *
-	 * The decision is `wayInFrom`'s, in `../screen.ts`, for the reason the screen itself
-	 * is: a runes file cannot be imported by a `node:test`, so a rule written here is a rule nothing
-	 * can drive.
+	 * The move is handed to the switch as `arrive`, so it happens under the loading page and before
+	 * the open, and the directory it lands on is first drawn from the workspace just opened. Where
+	 * it lands is `addressAfterSwitch`'s, in `../screen.ts`, for the reason every decision here is
+	 * there, read off the trail the shell's window hands in with the choice: the trail is built from
+	 * every feature's pages, and startup reads none of them.
 	 */
-	const goToTheWayIn = () => {
-		const destination = wayInFrom(page.url.pathname);
+	const switchWorkspace = (
+		workspaceId: string,
+		trailOf: (routeId: string) => readonly SwitchCrumb<PlaceAddress>[]
+	) =>
+		void startup.switchWorkspace(workspaceId, {
+			arrive: async () => {
+				const destination = addressAfterSwitch(page.route.id, trailOf);
 
-		if (destination) {
-			void goto(resolve(destination));
-		}
-	};
+				if (destination) {
+					await goto(resolve(destination));
+				}
+			}
+		});
 </script>
 
 {#snippet inside()}
 	{#if screen === 'loading'}
 		<StartupLoading />
+	{:else if screen === 'switching'}
+		<!-- a switch keeps the window: the rail and the titlebar are up, and only the page loads. -->
+		<StartupSwitching name={shellState.switching ?? ''} />
 	{:else if screen === 'sign-in'}
 		<StartupSignIn
 			situation={shellState.signInReason}
@@ -359,8 +353,7 @@
 		queryClient,
 		currentDirection,
 		shell,
-		onWayIn: goToTheWayIn,
-		onSwitchWorkspace: (id) => void startup.switchWorkspace(id),
+		onSwitchWorkspace: switchWorkspace,
 		dialogs: shellState.railIsUp && Boolean(shellState.organization?.session),
 		children: inside
 	})}

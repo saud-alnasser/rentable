@@ -27,13 +27,13 @@ mock.module('$lib/workspace/tauri', {
 	}
 });
 
-// svelte-query and what the settings query reaches load `.svelte` files, which this harness
-// cannot, and the query around the read is not what is under test here.
+// svelte-query loads `.svelte` files, which this harness cannot, and the caller composes every
+// router; the query around the read is not what is under test here. The settings' keys come from
+// `$lib/settings`, whose entry loads under Node as it is.
 mock.module('@tanstack/svelte-query', {
 	exports: { createQuery: () => ({}), useQueryClient: () => ({}) }
 });
 mock.module('$lib/api/caller', { defaultExport: {} });
-mock.module('$lib/settings/query', { exports: { keys: { settings: ['settings'] } } });
 
 const { findEarlierRecords } = await import('../app-database.ts');
 

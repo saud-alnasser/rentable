@@ -24,7 +24,8 @@ export const layout = {
 			'عضو آخر يرفع مساحة العمل إلى هذا الإصدار من rentable. ننتظره، حتى {until} على أبعد تقدير.',
 		stagePrepare: 'إنشاء مساحة عملك الأولى',
 		stageSettings: 'قراءة إعداداتك',
-		stageWorkspace: 'فتح مساحة عملك'
+		stageWorkspace: 'فتح مساحة عملك',
+		switching: 'جارٍ فتح {name}'
 	}
 } satisfies Pick<Translation['layout'], 'startup'>;
 

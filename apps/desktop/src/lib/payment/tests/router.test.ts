@@ -334,6 +334,10 @@ test('a payment cannot be moved into the future by an edit', async () => {
  * The days a period covers, computed from the harness's fixed clock the same way the router
  * computes them — so a test says *the first of last month* rather than a literal date that is
  * only correct on the day it was written.
+ *
+ * **A day of the current month is the first**, never a later one: a payment cannot be dated after
+ * today, and on the first of a month every later day of it is. The tests that dated one on the
+ * second or fourth failed on every first of the month.
  */
 function dayOf(monthOffset: number, day: number) {
 	const base = new Date(NOW);
@@ -415,7 +419,7 @@ test('a period and a search narrow together rather than one replacing the other'
 		amount: 777
 	});
 	await api.payment.create({ contractId: contract.id, date: dayOf(-1, 3), amount: 888 });
-	await api.payment.create({ contractId: contract.id, date: dayOf(0, 2), amount: 777 });
+	await api.payment.create({ contractId: contract.id, date: dayOf(0, 1), amount: 777 });
 
 	const narrowed = await api.payment.getMany({
 		contractId: contract.id,
@@ -434,7 +438,7 @@ test('no period returns the whole ledger, so an unset filter narrows nothing', a
 	const contract = await seedContract(api, { cost: 100000 });
 
 	await api.payment.create({ contractId: contract.id, date: dayOf(-1, 4), amount: 100 });
-	await api.payment.create({ contractId: contract.id, date: dayOf(0, 4), amount: 200 });
+	await api.payment.create({ contractId: contract.id, date: dayOf(0, 1), amount: 200 });
 
 	const ledger = await api.payment.getMany({ contractId: contract.id });
 

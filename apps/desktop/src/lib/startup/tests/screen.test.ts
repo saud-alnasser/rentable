@@ -2,13 +2,22 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+	fakeOrganizationSession,
+	fakeOrganizationState,
+	fakeOrganizationWorkspace
+} from '$lib/organization/tests/testing.ts';
+import { PAGE_ROUTES, toBreadcrumbTrail } from '$lib/shell/navigation.ts';
+import {
 	addressAfterSignOut,
+	addressAfterSwitch,
+	navigationCrossing,
 	opensSignedOut,
 	startupScreen,
 	THE_FIRST_RUN,
 	THE_JOIN,
 	THE_WAY_IN,
-	wayInFrom
+	shellFor,
+	wayInCrossing
 } from '$lib/startup/screen.ts';
 import {
 	fakeRecovery,
@@ -63,28 +72,17 @@ test('and every other address draws the card', async () => {
 	}
 });
 
-test('and the way in from the rail lands on an address the card draws over', async () => {
-	// the row in the account menu navigates rather than signing anybody in, so the whole of what
-	// makes it work is that its destination is not one of the addresses that open signed out. On
-	// `/settings` the card is not drawn, and the row reached the consent screen from there without
-	// the surface that names the provider ever appearing.
+test('and the way in is an address the card draws over', async () => {
+	// a sign-out from an address that opens signed out, and back from the settings opened signed
+	// out, land on the way in's own address, so the whole of what makes those work is that it is not
+	// one of the addresses that open signed out.
 	const { startup } = harness({ organization: locked() });
 
 	await startup.start();
 
 	assert.equal(startup.snapshot.state, 'sign-in');
-	assert.equal(wayInFrom('/settings'), THE_WAY_IN);
 	assert.equal(opensSignedOut(THE_WAY_IN), false);
 	assert.equal(startupScreen(startup.snapshot, THE_WAY_IN), 'sign-in');
-});
-
-test('and it goes nowhere from an address the card is already drawn over', () => {
-	// the reader keeps their place. Signing out on a record leaves the card over that record, and
-	// navigating away from it to reach a card already on screen would lose the address the route
-	// underneath draws from on the way back in.
-	for (const address of ADDRESSES) {
-		assert.equal(wayInFrom(address), null, address);
-	}
 });
 
 test('and the surface alone would leave the settings page drawn over a signed-out machine', async () => {
@@ -243,7 +241,6 @@ test('the first run opens signed out, and draws as a route rather than the card'
 
 	assert.equal(startup.snapshot.state, 'sign-in');
 	assert.equal(startupScreen(startup.snapshot, THE_FIRST_RUN), 'route');
-	assert.equal(wayInFrom(THE_FIRST_RUN), THE_WAY_IN);
 });
 
 // and the join screen is the other: a link opens the application on a machine that has joined
@@ -258,5 +255,239 @@ test('the join screen opens signed out, and draws as a route rather than the car
 
 	assert.equal(startup.snapshot.state, 'sign-in');
 	assert.equal(startupScreen(startup.snapshot, THE_JOIN), 'route');
-	assert.equal(wayInFrom(THE_JOIN), THE_WAY_IN);
+});
+
+// --- Where a switch between workspaces leaves the reader ------------------------------------
+//
+// Criterion 12 of effort 843, asked of the application's own route table and the shell's own
+// trail, which is what the root layout hands the root: a place stays, and a record's page goes to
+// its concept's directory, because the record on screen belongs to the workspace being left.
+
+/** where a switch sends the reader from `route`, through the trail the shell draws. */
+const afterSwitch = (route: string | null) => addressAfterSwitch(route, toBreadcrumbTrail);
+
+test('a switch leaves a directory, the dashboard and the settings area where they are', () => {
+	for (const route of ['/', '/tenants', '/complexes', '/contracts', '/settings']) {
+		assert.ok(PAGE_ROUTES.includes(route as never), `${route} is a page`);
+		assert.equal(afterSwitch(route), null, route);
+	}
+});
+
+test('and every page with no record in its address stays, the first run and the join included', () => {
+	for (const route of PAGE_ROUTES.filter((route) => !route.includes('['))) {
+		assert.equal(afterSwitch(route), null, route);
+	}
+});
+
+test('and a record page goes to the directory its concept is listed in', () => {
+	const expected: Record<string, string> = {
+		'/tenants/[id]': '/tenants',
+		'/complexes/[id]': '/complexes',
+		'/complexes/units/[id]': '/complexes',
+		'/contracts/[id]': '/contracts',
+		'/contracts/units/[id]': '/contracts',
+		'/contracts/payments/[id]': '/contracts'
+	};
+	const records = PAGE_ROUTES.filter((route) => route.includes('['));
+
+	// the table is every record page the application has, so a new one has to be placed here.
+	assert.deepEqual([...records].sort(), Object.keys(expected).sort());
+
+	for (const route of records) {
+		const destination = afterSwitch(route);
+
+		assert.equal(destination, expected[route], route);
+		// and it lands on a page, one with nothing of the workspace left behind in its address.
+		assert.ok(PAGE_ROUTES.includes(destination as never), `${route} lands on ${destination}`);
+	}
+});
+
+test('and an address no route matched stays, as does a record listed under no place, which goes home', () => {
+	assert.equal(afterSwitch(null), null);
+	assert.equal(
+		addressAfterSwitch('/somewhere/[id]', () => [{ kind: 'record', route: '/somewhere/[id]' }]),
+		THE_WAY_IN
+	);
+});
+
+// --- How much of the shell each state draws -------------------------------------------------
+//
+// Criterion 7 of effort 843, the half about what is drawn: no state with nobody in draws the
+// rail, a switch keeps it, and a startup that stopped draws the bare frame.
+
+test('the way in is drawn on the titlebar alone: signing in, no workspace, and a load with nobody in', async () => {
+	const signingIn = harness({ organization: locked() });
+	await signingIn.startup.start();
+	assert.equal(signingIn.startup.snapshot.state, 'sign-in');
+	assert.equal(shellFor(signingIn.startup.snapshot), 'way-in');
+
+	const noWorkspace = harness({ organization: withoutWorkspace() });
+	await noWorkspace.startup.start();
+	assert.equal(noWorkspace.startup.snapshot.state, 'no-workspace');
+	assert.equal(shellFor(noWorkspace.startup.snapshot), 'way-in');
+
+	// a launch, before anything is known, and a load once the wall has been up with nobody in.
+	const launching = harness().startup.snapshot;
+	assert.equal(launching.state, 'loading');
+	assert.equal(shellFor(launching), 'way-in');
+	assert.equal(
+		shellFor({ ...signingIn.startup.snapshot, state: 'loading', switching: null }),
+		'way-in'
+	);
+});
+
+test('the rail is drawn once a person is in, and a switch keeps it', async () => {
+	const { startup } = harness();
+	await startup.start();
+	assert.equal(startup.snapshot.state, 'ready');
+	assert.equal(shellFor(startup.snapshot), 'full');
+
+	// a switch's load keeps the rail: only the page loads.
+	assert.equal(shellFor({ ...startup.snapshot, state: 'loading', switching: 'South' }), 'full');
+});
+
+// requirement 9 (ticket 08): the load after a first run, a join or a sign-in is the way in's last
+// step, so the rail arrives with the application rather than with the load.
+test('the load after signing in stays on the way in, with a person in and the rail latched', async () => {
+	const { startup } = harness();
+	await startup.start();
+
+	assert.equal(shellFor({ ...startup.snapshot, state: 'loading', switching: null }), 'way-in');
+});
+
+test('a startup that stopped draws the bare frame', () => {
+	const base = harness().startup.snapshot;
+
+	assert.equal(shellFor({ ...base, state: 'error' }), 'bare');
+	assert.equal(shellFor({ ...base, state: 'recovery' }), 'bare');
+});
+
+test('no state with nobody in draws the rail', () => {
+	const base = harness({ organization: locked() }).startup.snapshot;
+
+	for (const state of ['loading', 'sign-in', 'no-workspace', 'recovery', 'error'] as const) {
+		for (const railIsUp of [false, true]) {
+			const snapshot = { ...base, state, railIsUp, switching: null, organization: locked() };
+
+			assert.notEqual(shellFor(snapshot), 'full', `${state}, rail latched: ${railIsUp}`);
+		}
+	}
+});
+
+// --- Which way a move between the welcome and a walk runs ------------------------------------
+//
+// Ticket 06 of effort 843: the welcome and the first run, and the welcome and the join, are one
+// surface changing step, so the route change between them runs forward in and back out.
+
+test('a move from the welcome into a walk runs forward, and back out runs back', () => {
+	assert.equal(wayInCrossing(THE_WAY_IN, THE_FIRST_RUN), 'forward');
+	assert.equal(wayInCrossing(THE_WAY_IN, THE_JOIN), 'forward');
+	assert.equal(wayInCrossing(THE_FIRST_RUN, THE_WAY_IN), 'back');
+	assert.equal(wayInCrossing(THE_JOIN, THE_WAY_IN), 'back');
+});
+
+// the wall is the card drawn over whatever address the person was on, and "use a link" leaves it
+// for the join from there.
+test('a move from the wall over any address into the join runs forward too', () => {
+	assert.equal(wayInCrossing('/tenants', THE_JOIN), 'forward');
+	assert.equal(wayInCrossing('/contracts/[id]', THE_JOIN), 'forward');
+});
+
+test('any other move is not a step of the way in', () => {
+	assert.equal(wayInCrossing(THE_WAY_IN, '/settings'), null);
+	assert.equal(wayInCrossing('/settings', THE_WAY_IN), null);
+	assert.equal(wayInCrossing(THE_FIRST_RUN, THE_JOIN), null);
+	assert.equal(wayInCrossing('/tenants', '/contracts'), null);
+});
+
+// --- Which navigations take a crossing at all -------------------------------------------------
+//
+// Ticket 14 of effort 843: since ticket 08 the load after a first run or a join is drawn in the
+// way-in frame, and the move to the way in each of them makes under it ran a back crossing over the
+// loading screen. The arrival is not a step back out of the walk.
+
+/** a machine at the wall with nothing on it, whose standing, once read again, is a person in. */
+async function atTheWall() {
+	const joined = fakeOrganizationState({
+		session: fakeOrganizationSession({
+			workspaces: [fakeOrganizationWorkspace({ id: 'acme', name: 'Acme Rentals' })]
+		})
+	});
+	const driven = harness({ organization: nowhereToGo(), afterBootstrap: joined });
+
+	await driven.startup.start();
+
+	return driven.startup;
+}
+
+test('back out of a walk to the welcome, before any pass, still crosses', async () => {
+	const startup = await atTheWall();
+
+	assert.equal(startup.snapshot.state, 'sign-in');
+	assert.equal(navigationCrossing(startup.snapshot, THE_JOIN, THE_WAY_IN), 'back');
+	assert.equal(navigationCrossing(startup.snapshot, THE_FIRST_RUN, THE_WAY_IN), 'back');
+	assert.equal(navigationCrossing(startup.snapshot, THE_WAY_IN, THE_JOIN), 'forward');
+});
+
+test("the join's arrival, made under the loading surface, takes no crossing", async () => {
+	const startup = await atTheWall();
+	const crossings: (string | null)[] = [];
+
+	// as `join.svelte` hands it in: the move to the way in is the pass's `arrive`.
+	await startup.standingChanged({
+		arrive: async () => {
+			crossings.push(navigationCrossing(startup.snapshot, THE_JOIN, THE_WAY_IN));
+		}
+	});
+
+	assert.deepEqual(crossings, [null]);
+	assert.equal(startup.snapshot.state, 'ready');
+});
+
+test("the first run's arrivals, after a create and after a connect, take no crossing", async () => {
+	const created = await atTheWall();
+	const crossings: (string | null)[] = [];
+
+	// the create: the move is half of the pass's `prepare`, beside the first workspace.
+	await created.standingChanged({
+		prepare: async () => {
+			crossings.push(navigationCrossing(created.snapshot, THE_FIRST_RUN, THE_WAY_IN));
+		}
+	});
+
+	// the connect to an organization that already exists: the move is the pass's `arrive`.
+	const connected = await atTheWall();
+
+	await connected.standingChanged({
+		arrive: async () => {
+			crossings.push(navigationCrossing(connected.snapshot, THE_FIRST_RUN, THE_WAY_IN));
+		}
+	});
+
+	assert.deepEqual(crossings, [null, null]);
+});
+
+test('no navigation with somebody in, or during a switch, crosses', async () => {
+	const { startup } = harness();
+
+	await startup.start();
+
+	assert.equal(startup.snapshot.state, 'ready');
+	assert.equal(navigationCrossing(startup.snapshot, THE_FIRST_RUN, THE_WAY_IN), null);
+	assert.equal(
+		navigationCrossing({ state: 'loading', switching: 'South' }, THE_WAY_IN, THE_JOIN),
+		null
+	);
+});
+
+// review round two: the no-workspace screen is drawn over every address, so a link the system
+// hands over there moves the address to the join under the same screen, and nothing crosses.
+test('a link arriving on the no-workspace screen takes no crossing', async () => {
+	const { startup } = harness({ organization: withoutWorkspace() });
+
+	await startup.start();
+
+	assert.equal(startup.snapshot.state, 'no-workspace');
+	assert.equal(navigationCrossing(startup.snapshot, THE_WAY_IN, THE_JOIN), null);
+	assert.equal(navigationCrossing(startup.snapshot, '/tenants', THE_JOIN), null);
 });

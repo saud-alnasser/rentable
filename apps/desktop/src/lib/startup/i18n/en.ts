@@ -24,7 +24,9 @@ export const layout = {
 			'another member is bringing the workspace up to this version of rentable. waiting on them, until {until} at the latest.',
 		stagePrepare: 'creating your first workspace',
 		stageSettings: 'reading your settings',
-		stageWorkspace: 'opening your workspace'
+		stageWorkspace: 'opening your workspace',
+		// the loading page a switch between workspaces draws, naming the one being opened.
+		switching: 'opening {name:string}'
 	}
 } satisfies BaseTranslation;
 

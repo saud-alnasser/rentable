@@ -38,10 +38,9 @@ export const earlier = {
 export const layout = {
 	workspaceMenu: {
 		create: 'new workspace',
-		locked: 'not available',
 		members: '{count|number} {{member|members}}',
-		switchTo: 'switch to',
 		open: 'open',
+		manage: 'manage workspaces…',
 		workspaceRefusedAuthority:
 			'creating a workspace needs the Turso account. reconnect it in settings, under organization.'
 	},

@@ -3,6 +3,7 @@
 	import api from '$lib/api/caller';
 	import type { Section } from '$lib/feature/surface';
 	import { tauri } from '$lib/platform/tauri';
+	import BackControl from '@rentable/design/block/back-control.svelte';
 	import Loading from '@rentable/design/block/loading.svelte';
 	import PageFrame from '@rentable/design/block/page-frame.svelte';
 	import StandaloneSurface from '@rentable/design/block/standalone-surface.svelte';
@@ -37,6 +38,11 @@
 	 * **Whether anybody is signed in and the way to the wall are the route's to hand over**, from
 	 * `$lib/organization/ui` and `$lib/startup/ui`: the one is the organization's and the other
 	 * startup's, and settings reaches neither. *This was the route itself until effort 840's ticket 34.*
+	 * The way in's address is handed over too, for the same reason: it is startup's.
+	 *
+	 * **Signed out, this draws back in the corner of the way-in frame, and it returns to the way
+	 * in.** That frame has no rail to leave the settings by, so back sits where it sits on each step
+	 * of the way in (effort 843, requirement 7). *The route drew it until effort 843's ticket 16.*
 	 *
 	 * **The section is `?section=` on this pathname, and the pathname is load-bearing.** This is
 	 * the one address that draws with nobody signed in (`startup/screen.ts`), matched
@@ -51,7 +57,8 @@
 	let {
 		signedIn,
 		sections,
-		leaveForTheWall
+		leaveForTheWall,
+		wayIn
 	}: {
 		/** whether anybody is signed in on this machine. */
 		signedIn: boolean;
@@ -61,6 +68,8 @@
 		 * a contributed section let go of the organization, and the machine leaves for the wall.
 		 */
 		leaveForTheWall: () => Promise<void>;
+		/** the way in's address, where back goes signed out. */
+		wayIn: string;
 	} = $props();
 
 	const settingsQuery = useFetchSettings();
@@ -110,6 +119,12 @@
 		}
 	}
 </script>
+
+{#if !signedIn}
+	<div class="absolute start-4 top-4 z-10">
+		<BackControl fallback={wayIn} />
+	</div>
+{/if}
 
 <Loading loading={isLoading} label={$LL.common.messages.loadingSettings()}>
 	<!-- the shape of the area: the title, the rail of sections under it, and a section's fields. -->

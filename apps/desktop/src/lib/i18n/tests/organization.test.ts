@@ -151,33 +151,6 @@ test('both locales say the link is handed over by hand, and neither mentions a p
 	assert.match(ar.organization.dashboard.memberDescription, /اسم المستخدم/);
 });
 
-// effort 826, requirement 21: one Turso group holds one organization, and the connect step says
-// so before the consent rather than leaving it to the refusal. Written in each language rather
-// than translated word for word, and each says the rule and what happens to a group that
-// already holds one. *Effort 828, requirement 14: what happens to one that does is that this
-// machine is connected to what is there, so the sentence no longer says it is refused.*
-test('both locales say a group holds one organization, and what that means for one that does', () => {
-	assert.match(en.organization.setup.oneOrganization, /a group holds one organization/);
-	assert.match(en.organization.setup.oneOrganization, /already holds one is connected to/);
-	assert.doesNotMatch(en.organization.setup.oneOrganization, /already holds one is refused/);
-	assert.match(ar.organization.setup.oneOrganization, /مؤسسة واحدة/);
-	assert.match(ar.organization.setup.oneOrganization, /الاتصال بها/);
-	assert.notEqual(ar.organization.setup.oneOrganization, en.organization.setup.oneOrganization);
-});
-
-// effort 826, requirement 13's fourth correction: the one group the application cannot name on
-// its own is one holding nothing yet, and the connect step says so before the consent rather
-// than leaving the field on the next step to be the first news of it. Each locale says that the
-// name is asked once, and where.
-test('both locales say a group holding nothing yet is asked its name once, on the next step', () => {
-	assert.match(en.organization.setup.groupAskedOnce, /holding nothing yet/);
-	assert.match(en.organization.setup.groupAskedOnce, /once/);
-	assert.match(en.organization.setup.groupAskedOnce, /next step/);
-	assert.match(ar.organization.setup.groupAskedOnce, /مرة واحدة/);
-	assert.match(ar.organization.setup.groupAskedOnce, /الخطوة التالية/);
-	assert.notEqual(ar.organization.setup.groupAskedOnce, en.organization.setup.groupAskedOnce);
-});
-
 // the same correction, on the field itself: the sentence over it is what to type rather than
 // what went wrong, and the description under it is where the name reads.
 test('both locales ask for the group as a step, and say where its name is read', () => {
@@ -197,6 +170,21 @@ const RETIRED = [
 	'account',
 	'layout.changePassword',
 	'layout.accountMenu.label',
+	// the rail drawn signed out (effort 843, requirement 7)
+	'layout.accountMenu.signedOutHint',
+	'layout.accountMenu.signedOutName',
+	'layout.workspaceMenu.locked',
+	// the workspace menu's "switch to" heading (effort 843, requirement 11)
+	'layout.workspaceMenu.switchTo',
+	// the way in's link to all settings, until the human's walk (effort 843, requirement 7)
+	'settings.wayIn.allSettings',
+	// the connect step's "before you connect" facts (effort 843, requirement 3)
+	'organization.setup.connectDetails',
+	'organization.setup.groupCoverage',
+	'organization.setup.oneOrganization',
+	'organization.setup.accountCreation',
+	'organization.setup.succession',
+	'organization.setup.groupAskedOnce',
 	'common.nav.organization',
 	// the control plane's leftovers
 	'layout.startup.accountChoiceEmpty',
@@ -310,7 +298,8 @@ test('both locales have let go of every string the retired pages read', () => {
 const TERMS = [
 	['sign in', 'common.actions.signIn'],
 	['sign out', 'common.actions.signOut'],
-	['connect Turso account', 'organization.setup.connect'],
+	// the connect step's title since effort 843, whose button says "connect" under it.
+	['connect Turso', 'organization.setup.connectTitle'],
 	['forget Turso account', 'organization.dashboard.forgetAccount'],
 	['link and code', 'organization.dashboard.linkTitle'],
 	['full access', 'organization.dashboard.accessFull'],

@@ -37,7 +37,11 @@ const hooks = vi.hoisted(() => ({
 	events: [] as string[],
 	createOrganization: vi.fn(),
 	createWorkspace: vi.fn(),
-	goto: vi.fn()
+	goto: vi.fn(),
+	holdsTursoAuthority: true,
+	groupKind: 'empty' as 'empty' | 'held',
+	connectExisting: vi.fn(),
+	consentSession: null as (() => string | null) | null
 }));
 
 vi.mock('$app/forms', async (original) => ({
@@ -62,7 +66,7 @@ vi.mock('$lib/organization/query', async (original) => ({
 		data: {
 			organization: null,
 			session: null,
-			holdsTursoAuthority: true,
+			holdsTursoAuthority: hooks.holdsTursoAuthority,
 			signedOutElsewhere: false
 		},
 		refetch: async () => ({ data: { holdsTursoAuthority: true } })
@@ -74,11 +78,25 @@ vi.mock('$lib/organization/setup/query', async (original) => {
 
 	return {
 		...(await original<Record<string, unknown>>()),
-		useBeginConsent: () => idle,
-		useConsentResult: () => ({ data: undefined }),
+		useBeginConsent: () => ({
+			isPending: false,
+			mutateAsync: async () => ({
+				sessionId: 'consent-1',
+				authorizationUrl: 'https://turso.example/consent'
+			})
+		}),
+		// the poll, recorded by the session it asks after: `null` is a poll that has stopped.
+		useConsentResult: (sessionId: () => string | null) => {
+			hooks.consentSession = sessionId;
+
+			return { data: undefined };
+		},
 		useDisconnect: () => idle,
-		useConnectExisting: () => idle,
-		useInspectGroup: () => ({ isPending: false, mutateAsync: async () => ({ kind: 'empty' }) }),
+		useConnectExisting: () => ({ isPending: false, mutateAsync: hooks.connectExisting }),
+		useInspectGroup: () => ({
+			isPending: false,
+			mutateAsync: async () => ({ kind: hooks.groupKind })
+		}),
 		useCreateOrganization: () => ({ isPending: false, mutateAsync: hooks.createOrganization })
 	};
 });
@@ -93,6 +111,10 @@ afterEach(() => {
 	hooks.createOrganization.mockReset();
 	hooks.createWorkspace.mockReset();
 	hooks.goto.mockReset();
+	hooks.holdsTursoAuthority = true;
+	hooks.groupKind = 'empty';
+	hooks.connectExisting.mockReset();
+	hooks.consentSession = null;
 });
 
 /** a startup at the wall with nothing on the machine, which is where the first run starts. */
@@ -125,7 +147,7 @@ async function walkToCreate() {
 	);
 
 	// the consent is already granted, so the way on is one press.
-	expect(document.querySelector('[data-setup-position]')?.textContent?.trim()).toBe(
+	expect(document.querySelector('[data-way-in-position]')?.textContent?.trim()).toBe(
 		i18nObject('en').organization.setup.position({ step: 1, total: 2 })
 	);
 	await fireEvent.click(screen.getByRole('button', { name: en.organization.setup.continue }));
@@ -134,7 +156,7 @@ async function walkToCreate() {
 			'name'
 		);
 	});
-	expect(document.querySelector('[data-setup-position]')?.textContent?.trim()).toBe(
+	expect(document.querySelector('[data-way-in-position]')?.textContent?.trim()).toBe(
 		i18nObject('en').organization.setup.position({ step: 2, total: 2 })
 	);
 
@@ -261,4 +283,79 @@ test('a first workspace that could not be made lands on the no-workspace surface
 	expect(hooks.createWorkspace).toHaveBeenCalledWith({ name: 'Acme Rentals' });
 	expect(startup.snapshot.error).toBeNull();
 	expect(startup.snapshot.railIsUp).toBe(true);
+});
+
+// effort 824, requirement 2, held through effort 843's transitions: back from a consent still open
+// in the browser lets the poll go at once, before the address moves, so a navigation held inside
+// a view transition does not keep it asking.
+test('back while a consent is pending stops the poll at once, even with the navigation still running', async () => {
+	hooks.holdsTursoAuthority = false;
+	// a navigation that never completes, as one held open by a transition is while it runs.
+	hooks.goto.mockImplementation(() => new Promise(() => {}));
+	await atTheWall();
+
+	render(
+		FirstRun,
+		{ startup: hooks.startup!, wayIn: '/' },
+		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } }
+	);
+
+	await fireEvent.click(screen.getByRole('button', { name: en.organization.setup.connect }));
+	await waitFor(() => expect(hooks.consentSession?.()).toBe('consent-1'));
+
+	await fireEvent.click(screen.getByRole('button', { name: en.organization.setup.back }));
+
+	expect(hooks.consentSession?.()).toBeNull();
+	expect(hooks.goto).toHaveBeenCalledWith('/');
+});
+
+// review round two: the connect to an existing organization refetches where the machine stands
+// before it answers, and the session it brings would send the walk's resume to the way in on the
+// walk's own surface. So the walk holds the address as a create does, from the press until the
+// loading surface is up, and lets go on a refusal.
+test('connecting to an existing organization holds the walk until the loading, and lets go on a refusal', async () => {
+	hooks.groupKind = 'held';
+
+	let refuse: (reason: unknown) => void = () => {};
+
+	hooks.connectExisting.mockImplementation(() => new Promise((_, reject) => (refuse = reject)));
+	await atTheWall();
+
+	render(
+		FirstRun,
+		{ startup: hooks.startup!, wayIn: '/' },
+		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } }
+	);
+
+	await fireEvent.click(screen.getByRole('button', { name: en.organization.setup.continue }));
+	await waitFor(() =>
+		expect(document.querySelector('[data-setup-step]')?.getAttribute('data-setup-step')).toBe(
+			'existing'
+		)
+	);
+
+	for (const [name, value] of [
+		['username', 'olivia.owner'],
+		['password', 'her own password']
+	]) {
+		await fireEvent.input(document.querySelector(`input[name="${name}"]`)!, {
+			target: { value }
+		});
+	}
+
+	await fireEvent.submit(document.querySelector('form')!);
+	await waitFor(() => expect(hooks.connectExisting).toHaveBeenCalledTimes(1));
+
+	// held: the step is working, as it is through a create, and nothing has moved the address.
+	expect(screen.getByRole('button', { name: en.common.actions.working })).toBeDefined();
+	expect(hooks.goto).not.toHaveBeenCalled();
+
+	refuse(new Error('the pair opened nothing'));
+
+	await waitFor(() =>
+		expect(
+			screen.getByRole('button', { name: en.organization.setup.existingConnect })
+		).toBeDefined()
+	);
+	expect(hooks.goto).not.toHaveBeenCalled();
 });

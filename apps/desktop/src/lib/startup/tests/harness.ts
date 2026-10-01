@@ -132,6 +132,8 @@ export function harness(
 		reconcile?: () => Promise<void>;
 		/** what else forgetting the held context does, for a test holding a real one. */
 		forgetContext?: () => void;
+		/** what else dropping the undrawn queries does, for a test asking what was on screen. */
+		dropUndrawn?: () => void;
 	} = {}
 ): Harness {
 	const journal: Journal = {
@@ -284,7 +286,10 @@ export function harness(
 		},
 		cache: {
 			clear: () => void journal.cacheCleared++,
-			dropUndrawn: () => void journal.undrawnDropped++,
+			dropUndrawn: () => {
+				journal.undrawnDropped += 1;
+				overrides.dropUndrawn?.();
+			},
 			rememberRemoteSync: (remembered) => void journal.remembered.push(remembered),
 			invalidateRemoteSync: async () => void journal.remoteSyncInvalidated++,
 			invalidateAll: async () => void journal.invalidatedAll++,

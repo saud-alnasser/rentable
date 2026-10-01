@@ -82,9 +82,12 @@ export class Startup {
 		return this.#machine.standingChanged(passing);
 	}
 
-	/** Open another of the workspaces the member holds, from inside the application (`./switch`). */
-	switchWorkspace(workspaceId: string) {
-		return switchWorkspace(this.#machine, workspaceId);
+	/**
+	 * Open another of the workspaces the member holds, from inside the application (`./switch`).
+	 * `arrive` moves the address first, under the loading page.
+	 */
+	switchWorkspace(workspaceId: string, passing?: { arrive?: () => Promise<unknown> }) {
+		return switchWorkspace(this.#machine, workspaceId, passing);
 	}
 
 	/** Somebody signed out, here or on another window (`./wall`). */

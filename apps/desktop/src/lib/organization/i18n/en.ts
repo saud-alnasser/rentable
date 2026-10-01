@@ -20,22 +20,12 @@ export const organization = {
 		title: 'signature or seal'
 	},
 	setup: {
-		connectTitle: 'connect your Turso account',
-		connectDescription: 'your organization lives on your own Turso account.',
-		connectDetails: 'before you connect',
+		connectTitle: 'connect Turso',
+		connectDescription: 'your organization is stored in your Turso account.',
 		position: 'step {step|number} of {total|number}',
-		groupCoverage:
-			'the consent covers every database in the group you choose, and nothing outside it.',
-		oneOrganization:
-			'a group holds one organization. a group that already holds one is connected to, not refused.',
-		accountCreation:
-			'a free or developer Turso account holds one group, so keep one for rentable alone. on a paid one, pick an empty group.',
-		succession:
-			"only you, or a Turso organization's admin, can grant access again, and Turso can move a group. rentable does neither.",
-		groupAskedOnce:
-			'a group holding nothing yet is asked its name once, on the next step; Turso names it nowhere.',
 		openDashboard: 'open Turso dashboard',
-		connect: 'connect Turso account',
+		connect: 'connect',
+		connectHint: 'your browser opens so you can allow access.',
 		connecting: 'finish the consent in the browser window that just opened.',
 		connected: 'Turso account connected.',
 		consentAbandoned: 'the consent was not granted. nothing was created.',
@@ -46,15 +36,13 @@ export const organization = {
 		existingConnect: 'connect this machine',
 		existingConnecting: 'connecting this machine...',
 		nameTitle: 'name your organization',
-		nameDescription:
-			'choose a name for the organization, your username, and a password. the password unlocks your place in it.',
+		nameDescription: "you'll sign in with this username and password.",
 		nameLabel: 'organization name',
-		usernameLabel: 'your username',
+		usernameLabel: 'username',
 		nameRequired: 'give the organization a name.',
 		nameTooLong: 'that name is too long.',
-		passwordLabel: 'your password',
-		passwordFloor:
-			'use at least 12 characters. this password is all that stands between the records and anyone who holds a copy.',
+		passwordLabel: 'password',
+		passwordFloor: 'at least 12 characters.',
 		passwordTooShort: 'use at least 12 characters.',
 		groupNeeded:
 			'Turso could not tell rentable which group you picked, so type its name here once.',
@@ -70,8 +58,8 @@ export const organization = {
 		back: 'back'
 	},
 	join: {
-		title: 'connect with a link',
-		description: 'paste the link and type the code that came with it.',
+		title: 'join with a link',
+		description: 'paste the link and enter the code you were given.',
 		linkLabel: 'link',
 		reading: 'reading the link...',
 		unreadable:
@@ -87,16 +75,16 @@ export const organization = {
 		anotherOrganization:
 			'this machine holds another organization. disconnect it at the sign-in first.',
 		toSignIn: 'go to the sign-in',
-		passwordTitle: 'choose your password',
-		passwordDescription:
-			'signs you in on any machine. nobody can recover it; only a new link gets you back in.',
+		passwordTitle: 'choose a password',
+		passwordDescription: "you'll use it to sign in. it can't be recovered.",
 		organizationLabel: 'organization',
 		codeLabel: 'code',
-		codeDescription: 'the six characters read out to you with the link.',
+		codeDescription: '6 characters.',
 		codeWrong: 'the code is wrong. ask whoever sent you the link to read it out again.',
 		codeMissing: 'type the six characters that came with the link.',
-		confirmLabel: 'your password, again',
+		confirmLabel: 'confirm password',
 		mismatch: 'the two do not match.',
+		continue: 'continue',
 		tryAgain: 'try again',
 		back: 'back'
 	},

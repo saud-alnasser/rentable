@@ -7,6 +7,7 @@
 	import { CAUGHT_ERROR_EVENT, toCaughtErrorFields } from '$lib/shell/boundary';
 	import ShellCaughtError from '$lib/shell/component/caught-error.svelte';
 	import ShellFrame from '$lib/shell/component/frame.svelte';
+	import { toBreadcrumbTrail } from '$lib/shell/navigation';
 	import { TooltipProvider } from '@rentable/design/primitive/tooltip/index.js';
 	import {
 		DesignProvider,
@@ -30,7 +31,6 @@
 		queryClient,
 		currentDirection,
 		shell,
-		onWayIn,
 		onSwitchWorkspace,
 		dialogs,
 		children
@@ -40,8 +40,12 @@
 		currentDirection: DesignDirection;
 		/** how much of the frame this state draws. */
 		shell: ComponentProps<typeof ShellFrame>['shell'];
-		onWayIn: () => void;
-		onSwitchWorkspace: (workspaceId: string) => void;
+		/**
+		 * another workspace was chosen in the rail. Handed the shell's trail with it, which is where
+		 * a switch reads the directory a record's page moves to: startup, which runs the switch, is
+		 * a feature and reads no page table.
+		 */
+		onSwitchWorkspace: (workspaceId: string, trailOf: typeof toBreadcrumbTrail) => void;
 		/** whether the dialogs beside the frame are drawn: the rail is up and a session is held. */
 		dialogs: boolean;
 		/** what goes inside the frame. */
@@ -159,13 +163,11 @@
 		<QueryClientProvider client={queryClient}>
 			<NotificationProvider>
 				<TooltipProvider>
-					<!-- the rail's way in navigates, and that is the whole mechanism: signed out,
-					     `startupScreen` draws the card over every address but the ones `OPENS_SIGNED_OUT`
-					     holds, so leaving one of those is what puts the card on screen. From anywhere else
-					     the card is already drawn and `wayInFrom` answers nothing, which is what keeps the
-					     reader's place. Starting the flow stays with the card, the one surface that
-					     names the provider. -->
-					<ShellFrame {currentDirection} {shell} {onWayIn} {onSwitchWorkspace}>
+					<ShellFrame
+						{currentDirection}
+						{shell}
+						onSwitchWorkspace={(workspaceId) => onSwitchWorkspace(workspaceId, toBreadcrumbTrail)}
+					>
 						{@render children()}
 					</ShellFrame>
 

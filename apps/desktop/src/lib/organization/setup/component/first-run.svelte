@@ -15,7 +15,6 @@
 	import { useFetchOrganizationState } from '$lib/organization/query';
 	import {
 		SETUP_STEPS,
-		TURSO_DASHBOARD_URL,
 		refusalAfterFailedConnect,
 		refusalAfterFailedCreate,
 		stepAfterConsent,
@@ -197,9 +196,17 @@
 	};
 
 	const connectToExisting = async (username: string, password: string) => {
+		// held from the press until the loading surface is up, as a create is: the connect refetches
+		// where the machine stands before it answers, and the session it brings would otherwise send
+		// the resume above to the way in on the walk's own surface, crossing back to the welcome
+		// before the loading (effort 843, review round two).
+		isHandingOver = true;
+
 		try {
 			await connectExisting.mutateAsync({ username, password });
 		} catch (error) {
+			isHandingOver = false;
+
 			// read off what was refused rather than off where this machine stands: a refusal about
 			// the consented account itself carries a reason nothing typed on this step answers, so
 			// they go back to the consent. Everything else is said against the password on the step
@@ -223,9 +230,11 @@
 		}
 
 		// the owner is in, on a machine that now holds the organization: the startup unit reads
-		// where it stands from the way in, which is the path a sign-in takes past the wall.
-		await goto(resolve(wayIn));
-		void startup.standingChanged();
+		// where it stands from the way in, which is the path a sign-in takes past the wall. The move
+		// is the pass's `arrive`, under the loading surface, as the join's is: made first, on the
+		// walk's own surface, it crossed back to the wall as if the owner had left the walk, and
+		// the wall stood there until the pass put the loading surface up (effort 843, ticket 14).
+		void startup.standingChanged({ arrive: () => goto(resolve(wayIn)) });
 	};
 
 	const create = async (name: string, username: string, password: string, group: string | null) => {
@@ -281,6 +290,11 @@
 	 * the corner control: the wall from the first step, the step before from every other. Leaving
 	 * with a consent still open in the browser abandons the poll and nothing else, since a consent
 	 * creates nothing on the account.
+	 *
+	 * **The poll is let go of before the address moves** (effort 824, requirement 2, held through
+	 * effort 843). A route change between the walk and the welcome now runs inside a view
+	 * transition, and the page leaves only once the navigation completes; a poll left to stop with
+	 * the page would go on asking for that long. Forgetting the consent first stops it at once.
 	 */
 	const back = () => {
 		// the second step of the other way in, whose one step behind is the consent.
@@ -294,6 +308,7 @@
 		const index = SETUP_STEPS.indexOf(step);
 
 		if (index <= 0) {
+			sessionId = null;
 			void goto(resolve(wayIn));
 
 			return;
@@ -313,7 +328,6 @@
 	holdsTursoAuthority={stateQuery.data?.holdsTursoAuthority ?? false}
 	isConnecting={beginConsent.isPending || inspectGroup.isPending}
 	isCreating={createOrganization.isPending || connectExisting.isPending || isHandingOver}
-	onOpenDashboard={() => void tauri.opener.openUrl(TURSO_DASHBOARD_URL)}
 	onConnect={() => void connect()}
 	onDisconnect={() => void forget()}
 	onContinue={next}

@@ -107,6 +107,46 @@ test('reduced motion stops the animation of every view transition pseudo-element
 	assert.match(block, /::view-transition-new\(\*\)\s*\{\s*animation: none !important;/);
 });
 
+/**
+ * The way-in surface names its own view transition groups, and the reduced-motion block has to
+ * reach every one of them. It does today by `(*)`; this is what fails if that block is ever
+ * narrowed to named groups and the way in's are left out, or if the surface's own names change
+ * while the block names the old ones.
+ */
+test('the reduced-motion gate covers every view transition name the way-in surface uses', () => {
+	const tokens = readFileSync(TOKENS, 'utf8');
+	const block = tokens.slice(tokens.indexOf('@media (prefers-reduced-motion: reduce)'));
+	const surface = readFileSync(
+		fileURLToPath(new URL('../block/way-in-surface.svelte', import.meta.url)),
+		'utf8'
+	);
+
+	const names = new Set([
+		...[...surface.matchAll(/view-transition-name:\s*([a-z][\w-]*)/g)].map(([, name]) => name!),
+		...[
+			...surface.matchAll(/::view-transition-(?:group|image-pair|old|new)\(([a-z][\w-]*)\)/g)
+		].map(([, name]) => name!)
+	]);
+
+	// the two the look was judged with, so a pass is not a pass over nothing.
+	assert.ok(names.has('way-in-content'), 'way-in-content');
+	assert.ok(names.has('way-in-mark'), 'way-in-mark');
+
+	const gated =
+		/(::view-transition-(?:group|image-pair|old|new)\([^)]*\)(?:\s*,\s*)?)+\s*\{\s*animation:\s*none !important;/;
+	const selectors = block.match(gated)?.[0] ?? '';
+
+	for (const name of names) {
+		for (const pseudo of ['group', 'image-pair', 'old', 'new']) {
+			assert.ok(
+				selectors.includes(`::view-transition-${pseudo}(*)`) ||
+					selectors.includes(`::view-transition-${pseudo}(${name})`),
+				`::view-transition-${pseudo}(${name}) is not stopped under reduced motion`
+			);
+		}
+	}
+});
+
 /** the files a surface is written in. */
 const DRAWN = /\.(svelte|ts|js|css)$/;
 

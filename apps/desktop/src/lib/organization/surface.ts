@@ -5,7 +5,6 @@ import { RECORD_PARAM, WORKSPACE_PARAM, withSection } from '$lib/settings';
 import dialogs from './component/dialogs.svelte';
 import host from './component/host.svelte';
 import railRow from './component/rail-row.svelte';
-import { useFetchMembers } from './member/query';
 import { useOrganizationOfferings } from './palette';
 import { useFetchOrganizationState } from './query';
 import SettingsAccount from './component/settings-account.svelte';
@@ -92,8 +91,7 @@ export default defineSurface({
 	],
 	contributes: {
 		workspace: {
-			useOrganizationState: () => useFetchOrganizationState(),
-			useMembers: (enabled) => useFetchMembers(enabled)
+			useOrganizationState: () => useFetchOrganizationState()
 		}
 	}
 });

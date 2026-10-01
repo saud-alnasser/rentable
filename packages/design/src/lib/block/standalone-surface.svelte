@@ -7,18 +7,22 @@
 	/**
 	 * The surface the application shows when it cannot yet show the application.
 	 *
-	 * Six screens render through it — signing in, failing to start, failing to start before a locale
-	 * could be loaded, recovering, settings failing to load, and an unhandled route error — because
-	 * none of them presents a concept's records: they
-	 * present the application's own state, which converges where a concept's surfaces diverge
-	 * (ADR 0015). It owns the centring, the one width and the geometry, so no screen can come to
-	 * disagree with another about any of them the way the hand-rolled copies already had.
+	 * Five screens render through it, all of them the application failing: failing to start, failing
+	 * to start before a locale could be loaded, recovering an unfinished update, settings failing to
+	 * load, and an unhandled route error. None of them presents a concept's records: they present the
+	 * application's own state, which converges where a concept's surfaces diverge (ADR 0015). It owns
+	 * the centring, the one width and the geometry, so no screen can come to disagree with another
+	 * about any of them the way the hand-rolled copies already had. The steps before the application
+	 * take `way-in-surface.svelte` instead ([[rules/interface]], *Application surfaces*).
+	 *
+	 * *Corrected 2026-10-01, effort 843: this named six screens, signing in among them. The way in,
+	 * the sign-in wall with it, went to `way-in-surface.svelte` in that effort.*
 	 *
 	 * *Two have left. Choosing a workspace went with Google Drive sync (decision 07). Starting left
 	 * on 2026-08-20: a card is for something you read or act on, and loading asks nothing — it was
 	 * here because six others needed a block, which is convergence reaching one screen too far.*
 	 *
-	 * The seam is the body: everything around it is identical for all six, and what crosses it
+	 * The seam is the body: everything around it is identical for all five, and what crosses it
 	 * is whatever that screen has to say.
 	 *
 	 * *It grew a `lead` snippet on 2026-08-20 so the sign-in wall could carry the application's
@@ -40,10 +44,11 @@
 		 * What this screen is, in a few words.
 		 *
 		 * **Sentence case rather than the title case every other title in this application wears.**
-		 * Five of the seven screens rendering through here are titled with a sentence rather than a
-		 * name: *rentable could not finish starting*, *the application could not be drawn*, *sign in
-		 * again to continue*. `capitalize` sets every word, and a sentence in title case reads as a
-		 * headline about the failure rather than as the application saying what happened.
+		 * The screens rendering through here are titled with a sentence rather than a name:
+		 * *rentable could not finish starting*, *the application could not be drawn*. `capitalize`
+		 * sets every word, and a sentence in title case reads as a headline about the failure rather
+		 * than as the application saying what happened. *Corrected 2026-10-01, effort 843: this said
+		 * five of seven, with signing in among them, until the way in left for its own surface.*
 		 */
 		title: string;
 		/** Optional line under the title, where the title alone does not explain the state. */
@@ -68,7 +73,8 @@
 		 * present identically leave a person unable to tell at a glance whether the application is
 		 * working or broken — and the two that are not working are not the same event as each other
 		 * either. `neutral` is byte-for-byte what this block has always drawn, so declaring it
-		 * changes nothing for the three screens that do.
+		 * changes nothing for the two screens that do, a settings page that will not load and a
+		 * crashed route. *Corrected 2026-10-01, effort 843: three, until signing in left.*
 		 *
 		 * **The line is the application, not the screen.** A failed startup and an unfinished
 		 * update stop everything; a settings page that will not load and a crashed route are
@@ -105,7 +111,8 @@
 {/snippet}
 
 <div class="flex min-h-full flex-1 items-center justify-center p-4">
-	<!-- one width for all seven. The three that disagreed did so because each chose its own. -->
+	<!-- one width for all five. The three that disagreed did so because each chose its own.
+	     (Seven until effort 843 took the way in to its own surface.) -->
 	<div
 		class={cn(
 			'w-full max-w-lg rounded-3xl bg-card text-start shadow-overlay ring-1 ring-foreground/10',

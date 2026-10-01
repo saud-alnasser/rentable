@@ -61,7 +61,7 @@ afterEach(() => {
 
 const children = createRawSnippet(() => ({ render: () => '<p data-route>a screen</p>' }));
 
-const SHELLS = ['bare', 'signed-out', 'full'] as const;
+const SHELLS = ['bare', 'way-in', 'full'] as const;
 
 for (const shell of SHELLS) {
 	test(`the ${shell} frame draws the sheet once, and every other region it draws is hidden on paper`, () => {

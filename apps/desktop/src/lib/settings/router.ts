@@ -10,10 +10,14 @@ import z from 'zod';
  * procedure forwards to the host: settings live with the desktop shell, not in the
  * database, so there is nothing here to reconcile.
  *
- * **Both are `public`, which is requirement 9a.** Nothing here has an acting user to name — these
- * are the settings of this copy of the application, not of a person — and the shell now draws a
- * signed-out rail whose account row offers this page. A procedure that refused for want of an
- * identity would put a broken row in that menu.
+ * **Both are `public`, which is requirement 9a.** Nothing here has an acting user to name, since
+ * these are the settings of this copy of the application and not of a person, and the settings
+ * open with nobody signed in: the way in's foot control offers all settings, and `/settings`
+ * draws on the way-in frame. A procedure that refused for want of an identity would break that
+ * page signed out.
+ *
+ * *Corrected 2026-10-01, effort 843: this named the signed-out rail's account row, and the effort
+ * removed that rail.*
  */
 
 export default router({

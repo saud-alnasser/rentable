@@ -3,10 +3,10 @@
  *
  * what another concept may import of the settings area: how one of its sections, and a record in
  * one, is addressed, which is how a feature contributing a section links to it, its host port, and
- * what the composition root hands a settings section it draws. The keys of this
- * machine's settings, which a write elsewhere that changes them refreshes, are the window's, in
- * `./ui`.
+ * what the composition root hands a settings section it draws, and the keys of this machine's
+ * settings, which a write elsewhere that changes them refreshes.
  */
+export { keys as settingsKeys } from './keys';
 export {
 	RECORD_PARAM,
 	recordOf,
