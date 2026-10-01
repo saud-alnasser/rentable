@@ -387,6 +387,10 @@ test('the read never loads payment rows', () => {
  * The days a period covers, computed from the harness's fixed clock the same way the routers
  * compute them — so a test says *the first of last month* rather than a literal date that is
  * only correct on the day it was written.
+ *
+ * **A day of the current month is the first**, never a later one: a payment cannot be dated after
+ * today, and on the first of a month every later day of it is. The tests that dated one on the
+ * second, third or fourth failed on every first of the month.
  */
 function dayOf(monthOffset: number, day: number) {
 	const base = new Date(NOW);
@@ -412,7 +416,7 @@ test('the money figures can be asked about a period other than the current month
 	const contract = await seedPayableContract(api);
 
 	await api.payment.create({ contractId: contract.id, date: dayOf(-1, 2), amount: 300 });
-	await api.payment.create({ contractId: contract.id, date: dayOf(0, 2), amount: 500 });
+	await api.payment.create({ contractId: contract.id, date: dayOf(0, 1), amount: 500 });
 
 	const thisMonth = await api.dashboard.get({ period: 'this-month' });
 	const lastMonth = await api.dashboard.get({ period: 'last-month' });
@@ -426,7 +430,7 @@ test('asking for nothing is asking about the current month, as it always was', a
 	const contract = await seedPayableContract(api);
 
 	await api.payment.create({ contractId: contract.id, date: dayOf(-1, 3), amount: 300 });
-	await api.payment.create({ contractId: contract.id, date: dayOf(0, 3), amount: 500 });
+	await api.payment.create({ contractId: contract.id, date: dayOf(0, 1), amount: 500 });
 
 	const unasked = await api.dashboard.get();
 	const asked = await api.dashboard.get({ period: 'this-month' });
@@ -445,7 +449,7 @@ test('the landing figure and the ledger report the same money over one period', 
 	// everything that exists.
 	await api.payment.create({ contractId: contract.id, date: dayOf(-1, 4), amount: 120 });
 	await api.payment.create({ contractId: contract.id, date: dayOf(-1, 19), amount: 380 });
-	await api.payment.create({ contractId: contract.id, date: dayOf(0, 4), amount: 999 });
+	await api.payment.create({ contractId: contract.id, date: dayOf(0, 1), amount: 999 });
 
 	for (const period of ['this-month', 'last-month', 'this-year', 'last-year'] as const) {
 		const { summary } = await api.dashboard.get({ period });

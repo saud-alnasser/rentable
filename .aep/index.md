@@ -134,7 +134,7 @@ Start at [[protocol]].
 | 835-the-rent-is-receipted-scheduled-and-chased | implemented | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]] | 1 | 0 | 19 |
 | 838-permissions-are-a-role-and-an-override | implemented | [[efforts/838-permissions-are-a-role-and-an-override/spec]] | 2 | 0 | 60 |
 | 840-a-feature-plugs-in-and-lives-in-one-place | implemented | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]] | 2 | 0 | 77 |
-| 843-the-way-in-and-the-workspace-control-read-as-apple-would | implemented | [[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/spec]] | 1 | 1 | 21 |
+| 843-the-way-in-and-the-workspace-control-read-as-apple-would | implemented | [[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/spec]] | 1 | 1 | 22 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -499,3 +499,4 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/tickets/19-human-calls]] fix(desktop): the password is selected after a failed sign-in, and an unknown switch is refused | 843-the-way-in-and-the-workspace-control-read-as-apple-would | resolved | — |
 | [[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/tickets/20-walk-fixes]] fix(desktop): what the human's walk found is fixed | 843-the-way-in-and-the-workspace-control-read-as-apple-would | resolved | — |
 | [[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/tickets/21-centred]] fix(desktop): the loading and the way in's lone sentences sit in the middle | 843-the-way-in-and-the-workspace-control-read-as-apple-would | resolved | — |
+| [[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/tickets/22-first-of-month]] test(desktop): the period tests pass on the first of a month | 843-the-way-in-and-the-workspace-control-read-as-apple-would | resolved | — |
