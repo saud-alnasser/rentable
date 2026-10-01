@@ -1,6 +1,6 @@
 // The organization session's strings in english: the sign-in card and the account menu's sign-out,
-// composed back into `i18n/en/index.ts` at `layout.signIn` and `common.actions`. It imports nothing but types, because the typesafe-i18n generator transpiles it
-// along with the locale.
+// composed back into `i18n/en/index.ts` at `layout.signIn` and `common.actions`. It imports nothing
+// but types, because the typesafe-i18n generator transpiles it along with the locale.
 
 import type { BaseTranslation } from '../../../i18n/i18n-types';
 

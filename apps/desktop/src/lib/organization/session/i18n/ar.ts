@@ -1,7 +1,8 @@
 // The organization session's strings in arabic: the sign-in card and the account menu's sign-out,
-// composed back into `i18n/ar/index.ts` at `layout.signIn` and `common.actions`. It imports nothing but types, because the typesafe-i18n generator transpiles it
-// along with the locale. It satisfies its own slice of the generated types, so a key missing, left
-// over or without its placeholder fails here.
+// composed back into `i18n/ar/index.ts` at `layout.signIn` and `common.actions`. It imports nothing
+// but types, because the typesafe-i18n generator transpiles it along with the locale. It satisfies
+// its own slice of the generated types, so a key missing, left over or without its placeholder
+// fails here.
 
 import type { Translation } from '../../../i18n/i18n-types';
 

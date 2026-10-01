@@ -17,8 +17,6 @@ import { keys } from './keys';
  * settling the earlier records' offer to `workspace/`.
  */
 
-export { keys };
-
 export function useFetchSettings() {
 	return createQuery(() => ({
 		queryKey: keys.settings,

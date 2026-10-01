@@ -1,5 +1,5 @@
 import { render } from '@testing-library/svelte';
-import { expect, test, vi } from 'vitest';
+import { afterEach, expect, test, vi } from 'vitest';
 
 import type { Section, SettingsSectionProps } from '$lib/feature/surface';
 import { setLocale } from '$lib/i18n/i18n-svelte';
@@ -26,6 +26,14 @@ import Providers from '#tests/providers.svelte';
  * handed one it names nothing of, whose component is never drawn.
  *
  * *This read the area until ticket 67 of effort 840, which moved the loads to the page.*
+ *
+ * THE SETTINGS OPENED SIGNED OUT
+ *
+ * Criterion 7 of effort 843: signed out there is no rail to leave the settings by, so the page
+ * draws back in the corner of the way-in frame, and it goes back to the way in. The frame it draws
+ * on is `startup/screen.ts`'s `shellFor`, driven by `startup/tests/screen.test.ts`; what is
+ * asserted here is the page's half. *The route drew back, and was read for it, until effort 843's
+ * ticket 16.*
  */
 
 /** what the settings query answers: its data, whether it is still asking, and why it failed. */
@@ -59,13 +67,17 @@ const contribution = () => {
 	return { load, hidden };
 };
 
-const page = (sections: Section<'settings'>[]) => {
+afterEach(() => {
+	document.body.innerHTML = '';
+});
+
+const page = (sections: Section<'settings'>[], signedIn = true) => {
 	loadLocale('en');
 	setLocale('en');
 
 	render(
 		SettingsPage,
-		{ signedIn: true, sections, leaveForTheWall: async () => {} },
+		{ signedIn, sections, leaveForTheWall: async () => {}, wayIn: '/' },
 		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } }
 	);
 };
@@ -102,4 +114,24 @@ test('a contributed section starts what it reads where the settings failed to lo
 
 	expect(document.querySelector('[data-general]')).toBeNull();
 	expect(load).toHaveBeenCalledTimes(1);
+});
+
+test('signed out, the settings draw back in the corner of the frame', () => {
+	reading.current = { isLoading: false, data: fakeSettings(), error: null };
+
+	page([], false);
+
+	const back = document.querySelector('[data-back-control]');
+
+	expect(back).not.toBeNull();
+	expect(back?.closest('.absolute')?.className).toContain('start-4');
+	expect(back?.closest('.absolute')?.className).toContain('top-4');
+});
+
+test('signed in, the rail is the way out and the settings draw no back of their own', () => {
+	reading.current = { isLoading: false, data: fakeSettings(), error: null };
+
+	page([]);
+
+	expect(document.querySelector('[data-back-control]')).toBeNull();
 });

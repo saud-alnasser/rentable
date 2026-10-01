@@ -174,6 +174,8 @@ const RETIRED = [
 	'layout.accountMenu.signedOutHint',
 	'layout.accountMenu.signedOutName',
 	'layout.workspaceMenu.locked',
+	// the workspace menu's "switch to" heading (effort 843, requirement 11)
+	'layout.workspaceMenu.switchTo',
 	// the connect step's "before you connect" facts (effort 843, requirement 3)
 	'organization.setup.connectDetails',
 	'organization.setup.groupCoverage',
