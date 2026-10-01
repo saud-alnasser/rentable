@@ -336,9 +336,17 @@ test('the rail is drawn once a person is in, and a switch keeps it', async () =>
 	assert.equal(startup.snapshot.state, 'ready');
 	assert.equal(shellFor(startup.snapshot), 'full');
 
-	// a switch's load, and the load straight after signing in, with the rail latched and a person in.
+	// a switch's load keeps the rail: only the page loads.
 	assert.equal(shellFor({ ...startup.snapshot, state: 'loading', switching: 'South' }), 'full');
-	assert.equal(shellFor({ ...startup.snapshot, state: 'loading', switching: null }), 'full');
+});
+
+// requirement 9 (ticket 08): the load after a first run, a join or a sign-in is the way in's last
+// step, so the rail arrives with the application rather than with the load.
+test('the load after signing in stays on the way in, with a person in and the rail latched', async () => {
+	const { startup } = harness();
+	await startup.start();
+
+	assert.equal(shellFor({ ...startup.snapshot, state: 'loading', switching: null }), 'way-in');
 });
 
 test('a startup that stopped draws the bare frame', () => {
@@ -353,11 +361,9 @@ test('no state with nobody in draws the rail', () => {
 
 	for (const state of ['loading', 'sign-in', 'no-workspace', 'recovery', 'error'] as const) {
 		for (const railIsUp of [false, true]) {
-			assert.notEqual(
-				shellFor({ ...base, state, railIsUp, switching: null, organization: locked() }),
-				'full',
-				`${state}, rail latched: ${railIsUp}`
-			);
+			const snapshot = { ...base, state, railIsUp, switching: null, organization: locked() };
+
+			assert.notEqual(shellFor(snapshot), 'full', `${state}, rail latched: ${railIsUp}`);
 		}
 	}
 });

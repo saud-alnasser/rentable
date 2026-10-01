@@ -122,18 +122,17 @@ export type ShellChrome = 'bare' | 'way-in' | 'full';
  * does not apply is not drawn. Failing to start and recovering from an update are an application
  * that is not running, and get the bare frame.
  *
- * **Loading is several states and the table reads which.** A switch between workspaces keeps the
- * rail, since only the page loads (requirement 12). So does a load with a person in once the rail
- * latched, which is the load straight after signing in: taking the rail away and bringing it back
- * a second later would be the window changing shape twice. A load with nobody in, a launch's among
- * them, is the way in's.
+ * **Loading is two states and the table reads which.** A switch between workspaces keeps the
+ * rail, since only the page loads (requirement 12). Every other load is the way in's last step
+ * (requirement 9): a launch, and the load after a first run, a join or a sign-in, draw the way-in
+ * frame, and the rail arrives with the application, once and at the moment it is true. *Ticket 03
+ * kept the rail for a load with a person in once it had latched; ticket 08 gave that load to the
+ * way in, as the plan's Architecture says.*
  *
  * It was a chain of branches in `./component/root.svelte`, with a fourth answer that drew the rail
  * signed out, until effort 843's ticket 03 moved it here for a `node:test` to drive.
  */
-export function shellFor(
-	snapshot: Pick<StartupSnapshot, 'state' | 'switching' | 'railIsUp' | 'organization'>
-): ShellChrome {
+export function shellFor(snapshot: Pick<StartupSnapshot, 'state' | 'switching'>): ShellChrome {
 	switch (snapshot.state) {
 		case 'ready':
 			return 'full';
@@ -141,11 +140,7 @@ export function shellFor(
 		case 'no-workspace':
 			return 'way-in';
 		case 'loading':
-			if (snapshot.switching !== null) {
-				return 'full';
-			}
-
-			return snapshot.railIsUp && snapshot.organization?.session ? 'full' : 'way-in';
+			return snapshot.switching === null ? 'way-in' : 'full';
 		case 'recovery':
 		case 'error':
 			return 'bare';

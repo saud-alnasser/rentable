@@ -15,7 +15,7 @@ import { afterEach, expect, test } from 'vitest';
  * is the screenshot walk's, at the effort's close.
  */
 
-type Harness = { step: string; at?: number; back?: boolean; onback?: () => void };
+type Harness = { step: string; at?: number; back?: boolean; named?: boolean; onback?: () => void };
 
 const draw = (props: Harness, direction: DesignDirection = 'ltr') =>
 	render(WayInHarness, props, {

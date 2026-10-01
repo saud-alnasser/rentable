@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/svelte';
+import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import { beforeAll, expect, test, vi } from 'vitest';
 
@@ -28,6 +28,13 @@ import Providers from '#tests/providers.svelte';
  * Rendered under the shared providers: the foot control reads the settings through a query, and
  * the disconnect's confirm is the design package's delete dialog, which reads the string contract.
  */
+
+// the one piece of SvelteKit a superforms submit reaches that this runner cannot supply, as the
+// walk's tests mock it: the no-workspace form is a superform.
+vi.mock('$app/forms', async (original) => ({
+	...(await original<Record<string, unknown>>()),
+	applyAction: async () => {}
+}));
 
 // the settings the foot control reads, which a test has no shell to ask.
 vi.mock('$lib/api/caller', () => ({
@@ -442,55 +449,85 @@ test('and leaving the question runs nothing', async () => {
 	expect(disconnected).toBe(0);
 });
 
-test('a member with no workspace is told so, by organization name', () => {
+/** the no-workspace screen, under the providers its foot control and surface read. */
+const noWorkspace = (
+	props: Partial<Parameters<typeof render<typeof StartupNoWorkspace>>[1]> = {}
+) =>
+	render(
+		StartupNoWorkspace,
+		{
+			organizationName: 'Acme Rentals',
+			canCreate: true,
+			isCreating: false,
+			onCreate: () => {},
+			...props
+		},
+		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } }
+	);
+
+// effort 843, ticket 08: the no-workspace screen is the way in's last step, on its surface, with
+// one prominent create for the owner and the field with no glyph.
+test('a member with no workspace is told so, by organization name, on the way-in surface', () => {
 	loadLocale('en');
 	setLocale('en');
-	render(StartupNoWorkspace, {
-		organizationName: 'Acme Rentals',
-		canCreate: true,
-		isCreating: false,
-		onCreate: () => {}
-	});
+	noWorkspace();
 
-	expect(screen.getByText(en.layout.noWorkspace.title)).toBeDefined();
+	expect(document.querySelector('[data-way-in-surface]')).not.toBeNull();
+	expect(screen.getByRole('heading').textContent?.trim()).toBe(en.layout.noWorkspace.title);
 	expect(screen.getByText(en.layout.noWorkspace.description)).toBeDefined();
 	expect(screen.getByText('Acme Rentals')).toBeDefined();
 	// the owner is offered the one way past it: a name, and a create.
 	expect(inputsOnScreen().map((input) => input.getAttribute('name'))).toEqual(['name']);
+	expect(document.querySelector('[data-slot=input-group-addon]')).toBeNull();
 
-	// requirement 15 of the redesign: the field leads with its subject's glyph inside the input
-	// group, and the glyph is muted rather than as dark as the label.
-	const addon = document.querySelector('[data-slot=input-group-addon]');
-
-	expect(addon).not.toBeNull();
-	expect(addon?.querySelector('svg')).not.toBeNull();
-	expect(addon?.className).toContain('text-muted-foreground');
-	expect(addon?.parentElement?.getAttribute('data-slot')).toBe('input-group');
-	expect(addon?.parentElement?.querySelector('input[name=name]')).not.toBeNull();
-
-	// requirement 14: the create carries its verb's glyph before its label.
 	const create = screen.getByRole('button', { name: en.layout.noWorkspace.create });
 
-	expect(create.querySelector('svg')).not.toBeNull();
+	expect(create.querySelector('svg')).toBeNull();
+	expect(stepButtons().filter(isProminent)).toEqual([create]);
 });
 
-test('and in arabic', () => {
+test('and in arabic, a member who is not the owner is told whose act it is', () => {
 	loadLocale('ar');
 	setLocale('ar');
-	render(StartupNoWorkspace, {
-		organizationName: 'شركة',
-		canCreate: false,
-		isCreating: false,
-		onCreate: () => {}
-	});
+	noWorkspace({ organizationName: 'شركة', canCreate: false });
 
-	expect(screen.getByText(ar.layout.noWorkspace.title)).toBeDefined();
+	expect(screen.getByRole('heading').textContent?.trim()).toBe(ar.layout.noWorkspace.title);
 	expect(screen.getByText('شركة')).toBeDefined();
-	// and a member who is not the owner is told whose act it is, with nothing to press.
 	expect(inputsOnScreen()).toEqual([]);
 	expect(screen.getByText(ar.layout.noWorkspace.ownerOnly)).toBeDefined();
+	expect(stepButtons()).toEqual([]);
 
 	setLocale('en');
+});
+
+// requirement 8: arriving puts the owner's cursor in the name, and Enter creates.
+test('for the owner, the name is focused on arrival and Enter creates', async () => {
+	loadLocale('en');
+	setLocale('en');
+
+	const created: string[] = [];
+
+	noWorkspace({ onCreate: (name) => void created.push(name) });
+
+	const name = document.querySelector<HTMLInputElement>('input[name="name"]')!;
+
+	await waitFor(() => expect(document.activeElement).toBe(name));
+
+	await fireEvent.input(name, { target: { value: 'North Properties' } });
+	await fireEvent.submit(document.querySelector('form')!);
+
+	await waitFor(() => expect(created).toEqual(['North Properties']));
+});
+
+test('the no-workspace screen carries the preferences control at its foot, and nothing else there', () => {
+	loadLocale('en');
+	setLocale('en');
+	noWorkspace();
+
+	const foot = document.querySelector('[data-way-in-foot]');
+
+	expect(foot?.querySelectorAll('button')).toHaveLength(1);
+	expect(foot?.querySelector('[data-way-in-preferences]')).not.toBeNull();
 });
 
 // effort 838, criterion 18: where this machine's `app.db` holds the records of an earlier version,

@@ -57,8 +57,11 @@
 	}: {
 		/** which step this is. A change runs the transition. */
 		step: string;
-		/** what this step is, in a few words. */
-		title: string;
+		/**
+		 * what this step is, in a few words. Every step has one; the loading that follows the way in
+		 * has none, since it asks nothing, and draws only the mark over its body.
+		 */
+		title?: string;
 		/**
 		 * whether the title is a name, the product's on the welcome or the organization's on the
 		 * wall, drawn as it is written rather than raised to sentence case.
@@ -257,25 +260,27 @@
 
 		<div bind:this={content} class="way-in-content relative mt-6" data-way-in-content>
 			<div bind:this={live}>
-				<div class="flex flex-col items-center gap-2 text-center">
-					{#if position}
-						<WayInPosition at={position.at} of={position.of} label={position.label} />
-					{/if}
-					<!-- isolated, because on the wall the title is the organization's name, which is the
-					     reader's own words and keeps its own order in the other direction. -->
-					<h1
-						class="text-2xl font-semibold {named ? '' : 'first-letter:uppercase'}"
-						data-way-in-title
-					>
-						<bdi>{title}</bdi>
-					</h1>
-					{#if description}
-						<p class="text-sm text-muted-foreground" data-way-in-description>{description}</p>
-					{/if}
-				</div>
+				{#if title}
+					<div class="flex flex-col items-center gap-2 text-center">
+						{#if position}
+							<WayInPosition at={position.at} of={position.of} label={position.label} />
+						{/if}
+						<!-- isolated, because on the wall the title is the organization's name, which is the
+						     reader's own words and keeps its own order in the other direction. -->
+						<h1
+							class="text-2xl font-semibold {named ? '' : 'first-letter:uppercase'}"
+							data-way-in-title
+						>
+							<bdi>{title}</bdi>
+						</h1>
+						{#if description}
+							<p class="text-sm text-muted-foreground" data-way-in-description>{description}</p>
+						{/if}
+					</div>
+				{/if}
 
 				{#if children}
-					<div class="mt-8 text-start" data-way-in-body>
+					<div class="{title ? 'mt-8' : ''} text-start" data-way-in-body>
 						{@render children()}
 					</div>
 				{/if}

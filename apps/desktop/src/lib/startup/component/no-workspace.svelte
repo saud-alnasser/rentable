@@ -1,10 +1,11 @@
 <script lang="ts">
-	import StandaloneSurface from '@rentable/design/block/standalone-surface.svelte';
+	import WayInSurface from '@rentable/design/block/way-in-surface.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
+	import { WayInPreferences } from '$lib/settings/ui';
 	import { WorkspaceFields } from '$lib/workspace/ui';
 	import { workspaceFormSchema } from '$lib/workspace';
-	import PlusIcon from '@lucide/svelte/icons/plus';
+	import { tick } from 'svelte';
 	import { defaults, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 
@@ -25,8 +26,10 @@
 	 * and nothing else: the mutation stays in the root layout, which hands the result of a create
 	 * back through `onCreate`, and that is what keeps this renderable in a test with no provider.
 	 *
-	 * On the application surface rather than a route, because it presents the application's own
-	 * state, and over every address, because there is no workspace for any address to draw from.
+	 * **The last step of the way in** (effort 843, requirements 1, 3 and 8): on the way-in surface,
+	 * under the mark, with one prominent "create workspace" for the owner, the field with no glyph
+	 * and the cursor in it on arrival, and the language and appearance control at the foot. Over
+	 * every address, because there is no workspace for any address to draw from.
 	 */
 	let {
 		organizationName,
@@ -57,34 +60,55 @@
 	});
 
 	const superform = { form, constraints, errors, enhance, ...rest };
+
+	// arriving puts the owner's cursor in the name (requirement 8); the field is drawn once per
+	// arrival, so this runs once.
+	let nameField = $state<HTMLInputElement | null>(null);
+
+	$effect(() => {
+		if (!nameField) return;
+
+		void tick().then(() => nameField?.focus());
+	});
 </script>
 
-<StandaloneSurface
-	tone="neutral"
+<WayInSurface
+	step="no-workspace"
 	title={$LL.layout.noWorkspace.title()}
 	description={$LL.layout.noWorkspace.description()}
 	busy={isCreating}
 >
-	<div class="space-y-4 pt-2">
-		<p class="text-sm font-medium" data-no-workspace-organization>{organizationName}</p>
+	<div class="flex flex-col gap-4">
+		<p class="text-center text-sm font-medium" data-no-workspace-organization>
+			<bdi>{organizationName}</bdi>
+		</p>
 
 		{#if canCreate}
-			<form method="POST" use:enhance class="space-y-4">
-				<WorkspaceFields {superform} disabled={isCreating} />
+			<form method="POST" use:enhance class="flex flex-col gap-4">
+				<WorkspaceFields
+					{superform}
+					disabled={isCreating}
+					glyph={false}
+					class="h-9"
+					bind:input={nameField}
+				/>
 
-				<Button type="submit" class="w-full justify-center" disabled={isCreating}>
-					<PlusIcon class="size-4" />
-					{isCreating ? $LL.common.actions.working() : $LL.layout.noWorkspace.create()}
+				<Button type="submit" size="lg" class="w-full" disabled={isCreating}>
+					<span class="first-letter:uppercase">
+						{isCreating ? $LL.common.actions.working() : $LL.layout.noWorkspace.create()}
+					</span>
 				</Button>
 			</form>
 
 			{#if isCreating}
-				<p class="text-center text-sm text-muted-foreground">
-					{$LL.layout.noWorkspace.creating()}
-				</p>
+				<p class="text-sm text-muted-foreground">{$LL.layout.noWorkspace.creating()}</p>
 			{/if}
 		{:else}
 			<p class="text-sm text-muted-foreground">{$LL.layout.noWorkspace.ownerOnly()}</p>
 		{/if}
 	</div>
-</StandaloneSurface>
+
+	{#snippet foot()}
+		<WayInPreferences />
+	{/snippet}
+</WayInSurface>
