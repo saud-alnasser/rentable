@@ -171,6 +171,29 @@ test('the keyboard opens the menu, moves through it, and closes it back onto the
 	await waitFor(() => expect(document.activeElement).toBe(trigger()));
 });
 
+// criterion 13 of effort 843 names Enter or Space, and the test above presses Enter. Space opens
+// the same menu, with the open workspace announced as the checked row, and Escape hands focus
+// back to the trigger.
+test('Space opens the menu with the open workspace checked, and Escape closes it back onto the trigger', async () => {
+	menu();
+
+	trigger().focus();
+	expect(document.activeElement).toBe(trigger());
+
+	await fireEvent.keyDown(trigger(), { key: ' ', code: 'Space' });
+	await waitFor(() => expect(document.activeElement?.closest('[role="menu"]')).not.toBeNull());
+
+	const checked = document.querySelectorAll<HTMLElement>(
+		'[role="menu"] [role="menuitemradio"][aria-checked="true"]'
+	);
+	expect(checked).toHaveLength(1);
+	expect(checked[0]?.querySelector('span.truncate')?.textContent).toBe('North Properties');
+
+	await fireEvent.keyDown(document.activeElement as HTMLElement, { key: 'Escape' });
+	await waitFor(() => expect(document.querySelector('[role="menu"]')).toBeNull());
+	await waitFor(() => expect(document.activeElement).toBe(trigger()));
+});
+
 test('choosing another row hands back its id, and choosing the open one hands back nothing', async () => {
 	const chosen: string[] = [];
 	menu({ onSwitch: (id) => chosen.push(id) });
