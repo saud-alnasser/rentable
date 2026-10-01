@@ -56,8 +56,8 @@ export const organization = {
 		back: 'رجوع'
 	},
 	join: {
-		title: 'الربط برابط',
-		description: 'الصق الرابط واكتب الرمز الذي رافقه.',
+		title: 'انضم برابط',
+		description: 'الصق الرابط وأدخل الرمز الذي وصلك.',
 		linkLabel: 'الرابط',
 		reading: 'تجري قراءة الرابط...',
 		unreadable: 'هذا ليس رابطًا من rentable. الصق الرابط كاملاً كما سُلّم إليك تمامًا.',
@@ -69,16 +69,16 @@ export const organization = {
 		replaced: 'حلّ رابط أحدث محل هذا الرابط. اطلب الرابط الجديد ممن أرسله إليك.',
 		anotherOrganization: 'هذا الجهاز مرتبط بمؤسسة أخرى. افصله عنها من شاشة تسجيل الدخول أولًا.',
 		toSignIn: 'انتقل إلى تسجيل الدخول',
-		passwordTitle: 'اختر كلمة مرورك',
-		passwordDescription:
-			'تسجّل بها دخولك على أي جهاز. لا أحد يستطيع استعادتها، والرابط الجديد وحده يعيدك.',
+		passwordTitle: 'اختر كلمة مرور',
+		passwordDescription: 'ستسجّل الدخول بها، ولا يمكن استعادتها.',
 		organizationLabel: 'المؤسسة',
 		codeLabel: 'الرمز',
-		codeDescription: 'الأحرف الستة التي أُمليت عليك مع الرابط.',
+		codeDescription: '6 أحرف.',
 		codeWrong: 'الرمز خاطئ. اطلب ممن أرسل إليك الرابط أن يمليه عليك مجددًا.',
 		codeMissing: 'اكتب الأحرف الستة التي رافقت الرابط.',
-		confirmLabel: 'كلمة مرورك مجددًا',
+		confirmLabel: 'أكّد كلمة المرور',
 		mismatch: 'الكلمتان غير متطابقتين.',
+		continue: 'متابعة',
 		tryAgain: 'حاول مجددًا',
 		back: 'رجوع'
 	},

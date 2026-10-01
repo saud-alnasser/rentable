@@ -374,6 +374,13 @@ test('a move from the welcome into a walk runs forward, and back out runs back',
 	assert.equal(wayInCrossing(THE_JOIN, THE_WAY_IN), 'back');
 });
 
+// the wall is the card drawn over whatever address the person was on, and "use a link" leaves it
+// for the join from there.
+test('a move from the wall over any address into the join runs forward too', () => {
+	assert.equal(wayInCrossing('/tenants', THE_JOIN), 'forward');
+	assert.equal(wayInCrossing('/contracts/[id]', THE_JOIN), 'forward');
+});
+
 test('any other move is not a step of the way in', () => {
 	assert.equal(wayInCrossing(THE_WAY_IN, '/settings'), null);
 	assert.equal(wayInCrossing('/settings', THE_WAY_IN), null);

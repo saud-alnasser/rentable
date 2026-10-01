@@ -58,8 +58,8 @@ export const organization = {
 		back: 'back'
 	},
 	join: {
-		title: 'connect with a link',
-		description: 'paste the link and type the code that came with it.',
+		title: 'join with a link',
+		description: 'paste the link and enter the code you were given.',
 		linkLabel: 'link',
 		reading: 'reading the link...',
 		unreadable:
@@ -75,16 +75,16 @@ export const organization = {
 		anotherOrganization:
 			'this machine holds another organization. disconnect it at the sign-in first.',
 		toSignIn: 'go to the sign-in',
-		passwordTitle: 'choose your password',
-		passwordDescription:
-			'signs you in on any machine. nobody can recover it; only a new link gets you back in.',
+		passwordTitle: 'choose a password',
+		passwordDescription: "you'll use it to sign in. it can't be recovered.",
 		organizationLabel: 'organization',
 		codeLabel: 'code',
-		codeDescription: 'the six characters read out to you with the link.',
+		codeDescription: '6 characters.',
 		codeWrong: 'the code is wrong. ask whoever sent you the link to read it out again.',
 		codeMissing: 'type the six characters that came with the link.',
-		confirmLabel: 'your password, again',
+		confirmLabel: 'confirm password',
 		mismatch: 'the two do not match.',
+		continue: 'continue',
 		tryAgain: 'try again',
 		back: 'back'
 	},

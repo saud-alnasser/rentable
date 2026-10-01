@@ -3520,11 +3520,11 @@ type RootTranslation = {
 		}
 		join: {
 			/**
-			 * c​o​n​n​e​c​t​ ​w​i​t​h​ ​a​ ​l​i​n​k
+			 * j​o​i​n​ ​w​i​t​h​ ​a​ ​l​i​n​k
 			 */
 			title: string
 			/**
-			 * p​a​s​t​e​ ​t​h​e​ ​l​i​n​k​ ​a​n​d​ ​t​y​p​e​ ​t​h​e​ ​c​o​d​e​ ​t​h​a​t​ ​c​a​m​e​ ​w​i​t​h​ ​i​t​.
+			 * p​a​s​t​e​ ​t​h​e​ ​l​i​n​k​ ​a​n​d​ ​e​n​t​e​r​ ​t​h​e​ ​c​o​d​e​ ​y​o​u​ ​w​e​r​e​ ​g​i​v​e​n​.
 			 */
 			description: string
 			/**
@@ -3572,11 +3572,11 @@ type RootTranslation = {
 			 */
 			toSignIn: string
 			/**
-			 * c​h​o​o​s​e​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d
+			 * c​h​o​o​s​e​ ​a​ ​p​a​s​s​w​o​r​d
 			 */
 			passwordTitle: string
 			/**
-			 * s​i​g​n​s​ ​y​o​u​ ​i​n​ ​o​n​ ​a​n​y​ ​m​a​c​h​i​n​e​.​ ​n​o​b​o​d​y​ ​c​a​n​ ​r​e​c​o​v​e​r​ ​i​t​;​ ​o​n​l​y​ ​a​ ​n​e​w​ ​l​i​n​k​ ​g​e​t​s​ ​y​o​u​ ​b​a​c​k​ ​i​n​.
+			 * y​o​u​'​l​l​ ​u​s​e​ ​i​t​ ​t​o​ ​s​i​g​n​ ​i​n​.​ ​i​t​ ​c​a​n​'​t​ ​b​e​ ​r​e​c​o​v​e​r​e​d​.
 			 */
 			passwordDescription: string
 			/**
@@ -3588,7 +3588,7 @@ type RootTranslation = {
 			 */
 			codeLabel: string
 			/**
-			 * t​h​e​ ​s​i​x​ ​c​h​a​r​a​c​t​e​r​s​ ​r​e​a​d​ ​o​u​t​ ​t​o​ ​y​o​u​ ​w​i​t​h​ ​t​h​e​ ​l​i​n​k​.
+			 * 6​ ​c​h​a​r​a​c​t​e​r​s​.
 			 */
 			codeDescription: string
 			/**
@@ -3600,13 +3600,17 @@ type RootTranslation = {
 			 */
 			codeMissing: string
 			/**
-			 * y​o​u​r​ ​p​a​s​s​w​o​r​d​,​ ​a​g​a​i​n
+			 * c​o​n​f​i​r​m​ ​p​a​s​s​w​o​r​d
 			 */
 			confirmLabel: string
 			/**
 			 * t​h​e​ ​t​w​o​ ​d​o​ ​n​o​t​ ​m​a​t​c​h​.
 			 */
 			mismatch: string
+			/**
+			 * c​o​n​t​i​n​u​e
+			 */
+			'continue': string
 			/**
 			 * t​r​y​ ​a​g​a​i​n
 			 */
@@ -7964,11 +7968,11 @@ export type TranslationFunctions = {
 		}
 		join: {
 			/**
-			 * connect with a link
+			 * join with a link
 			 */
 			title: () => LocalizedString
 			/**
-			 * paste the link and type the code that came with it.
+			 * paste the link and enter the code you were given.
 			 */
 			description: () => LocalizedString
 			/**
@@ -8016,11 +8020,11 @@ export type TranslationFunctions = {
 			 */
 			toSignIn: () => LocalizedString
 			/**
-			 * choose your password
+			 * choose a password
 			 */
 			passwordTitle: () => LocalizedString
 			/**
-			 * signs you in on any machine. nobody can recover it; only a new link gets you back in.
+			 * you'll use it to sign in. it can't be recovered.
 			 */
 			passwordDescription: () => LocalizedString
 			/**
@@ -8032,7 +8036,7 @@ export type TranslationFunctions = {
 			 */
 			codeLabel: () => LocalizedString
 			/**
-			 * the six characters read out to you with the link.
+			 * 6 characters.
 			 */
 			codeDescription: () => LocalizedString
 			/**
@@ -8044,13 +8048,17 @@ export type TranslationFunctions = {
 			 */
 			codeMissing: () => LocalizedString
 			/**
-			 * your password, again
+			 * confirm password
 			 */
 			confirmLabel: () => LocalizedString
 			/**
 			 * the two do not match.
 			 */
 			mismatch: () => LocalizedString
+			/**
+			 * continue
+			 */
+			'continue': () => LocalizedString
 			/**
 			 * try again
 			 */

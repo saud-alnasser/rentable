@@ -69,16 +69,18 @@ export const THE_WAY_IN = '/';
 /**
  * Which way a route change between two screens of the way in runs, or `null` where it is not one.
  *
- * **The welcome and a walk are two addresses and one surface changing step** (effort 843,
- * requirement 4), so a move from the way in's own address into the first run or the join runs
- * forward, and the move back runs back; the design package's `crossWayIn` draws it. Any other
- * pair of addresses is not a step of the way in and takes no transition of its own.
+ * **The welcome or the wall and a walk are two addresses and one surface changing step** (effort
+ * 843, requirement 4). The welcome and the wall are the sign-in card, drawn over every address but
+ * the ones that open signed out, so a move from any address the card covers into the first run or
+ * the join runs forward, and the move back out to one runs back; the design package's `crossWayIn`
+ * draws it. Between two addresses that open signed out, `/settings` among them, it is not a step
+ * of the way in and takes no transition of its own.
  */
 export function wayInCrossing(from: string, to: string): 'forward' | 'back' | null {
 	const walks = [THE_FIRST_RUN, THE_JOIN];
 
-	if (from === THE_WAY_IN && walks.includes(to)) return 'forward';
-	if (walks.includes(from) && to === THE_WAY_IN) return 'back';
+	if (walks.includes(to) && !opensSignedOut(from)) return 'forward';
+	if (walks.includes(from) && !opensSignedOut(to)) return 'back';
 
 	return null;
 }

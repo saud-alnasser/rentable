@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/svelte';
+import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { expect, test, vi } from 'vitest';
 
 import { setLocale } from '$lib/i18n/i18n-svelte';
@@ -80,16 +80,12 @@ const joinScreen = (
 const inputsOnScreen = () =>
 	Array.from(document.querySelectorAll<HTMLInputElement>('input, textarea, select'));
 
-/** the leading addon of the input with this name, as the group draws it ahead of the control. */
-const addonBefore = (name: string) => {
-	const input = document.querySelector<HTMLInputElement>(`input[name="${name}"]`);
-	const addon = input?.previousElementSibling;
+/** the buttons a step draws, which leaves out back, the foot control and what it opens. */
+const stepButtons = () =>
+	Array.from(document.querySelectorAll<HTMLButtonElement>('[data-join-step] button'));
 
-	expect(input, name).not.toBeNull();
-	expect(addon?.getAttribute('data-slot'), name).toBe('input-group-addon');
-
-	return addon as HTMLElement;
-};
+/** whether a button is drawn prominent: the filled primary variant. */
+const isProminent = (button: HTMLElement) => button.className.includes('bg-primary');
 
 const LINK = 'rentable://join/abc';
 
@@ -140,7 +136,7 @@ test('before any link is read the form takes the link and the code, both typed l
 	expect(inputs.map((input) => input.getAttribute('dir'))).toEqual(['ltr', 'ltr']);
 	expect(screen.getByText(en.organization.join.linkLabel)).toBeDefined();
 	expect(screen.getByText(en.organization.join.codeLabel)).toBeDefined();
-	expect(screen.getByRole('button', { name: en.common.actions.connect })).toBeDefined();
+	expect(screen.getByRole('button', { name: en.organization.join.continue })).toBeDefined();
 	expect(screen.queryByText(en.organization.join.unreadable)).toBeNull();
 });
 
@@ -165,7 +161,7 @@ test('submitting the form calls onConnect with the link and the code, and an emp
 
 	joinScreen(pasting(), { onConnect });
 
-	const connect = screen.getByRole('button', { name: en.common.actions.connect });
+	const connect = screen.getByRole('button', { name: en.organization.join.continue });
 	const form = connect.closest('form')!;
 
 	expect(connect.hasAttribute('disabled')).toBe(true);
@@ -204,7 +200,7 @@ test('a link with no code does not continue, and the six characters are what rel
 
 	joinScreen(pasting(), { onConnect });
 
-	const connect = screen.getByRole('button', { name: en.common.actions.connect });
+	const connect = screen.getByRole('button', { name: en.organization.join.continue });
 
 	await fireEvent.input(document.querySelector('input[name=link]')!, { target: { value: LINK } });
 
@@ -373,23 +369,20 @@ test('the password step holds the floor and the confirmation, and only a matchin
 	expect(onJoin).toHaveBeenCalledWith(LINK, CODE, A_CHOSEN_PASSWORD);
 });
 
-// effort 826, requirement 14 of effort 824 still: the primary carries its verb, and the two
-// password fields carry their subject.
-test('the join carries a glyph and both password fields a muted leading one', () => {
+// effort 843, requirement 8: the password step's fields are labels and inputs, with no glyph.
+test('the password step draws its two fields and its join with no glyph', () => {
 	loadLocale('en');
 	setLocale('en');
 	joinScreen(stepOf({ kind: 'invitation', expiresAt: 1 }));
 
 	expect(
 		screen.getByRole('button', { name: en.common.actions.join }).querySelector('svg')
-	).not.toBeNull();
-
-	for (const name of ['password', 'confirmation']) {
-		const addon = addonBefore(name);
-
-		expect(addon.querySelector('svg'), name).not.toBeNull();
-		expect(addon.getAttribute('class'), name).toContain('text-muted-foreground');
-	}
+	).toBeNull();
+	expect(document.querySelector('[data-slot=input-group-addon]')).toBeNull();
+	expect(inputsOnScreen().map((input) => input.getAttribute('name'))).toEqual([
+		'password',
+		'confirmation'
+	]);
 });
 
 test('while the accept is out the fields are held and the wait is said on the primary', () => {
@@ -538,7 +531,7 @@ test('a link already opened offers the wall, and pressing it hands the shell bac
 
 	const toSignIn = screen.getByRole('button', { name: en.organization.join.toSignIn });
 
-	expect(toSignIn.querySelector('svg')).not.toBeNull();
+	expect(isProminent(toSignIn)).toBe(true);
 	await fireEvent.click(toSignIn);
 
 	expect(onSignIn).toHaveBeenCalledTimes(1);
@@ -704,35 +697,154 @@ test('only the password step takes a password, and only the form takes the link 
 	}
 });
 
-// effort 824, requirement 14: the primary carries its verb.
-test('the connect button carries a glyph before its label', () => {
-	loadLocale('en');
-	setLocale('en');
-	joinScreen(pasting());
-
-	expect(
-		screen.getByRole('button', { name: en.common.actions.connect }).querySelector('svg')
-	).not.toBeNull();
-});
-
-// effort 824, requirement 15: the field carries its subject ahead of the input, muted so it does
-// not outweigh the label (*Balance weight and contrast*, Refactoring UI p.56).
-test('the link field carries a muted leading glyph through the input group', () => {
+// effort 843, requirement 5: every step that offers an act offers one prominent one.
+test('every step with an act draws exactly one prominent button', () => {
 	loadLocale('en');
 	setLocale('en');
 
-	for (const step of [pasting(), { ...pasting('nope', CODE), isUnreadable: true }] as JoinStep[]) {
+	const steps: [string, JoinStep][] = [
+		['paste', pasting(LINK, CODE)],
+		['unreachable', { kind: 'unreachable', link: LINK, code: CODE, detail: null }],
+		[
+			'refused, consumed here',
+			{ kind: 'refused', link: LINK, refusal: 'consumed', detail: null, wasConnecting: true }
+		],
+		['password', stepOf({ kind: 'invitation', expiresAt: 1 })]
+	];
+
+	for (const [label, step] of steps) {
 		const rendered = joinScreen(step);
 
-		for (const name of ['link', 'code']) {
-			const addon = addonBefore(name);
-
-			expect(addon.querySelector('svg'), name).not.toBeNull();
-			expect(addon.getAttribute('class'), name).toContain('text-muted-foreground');
-		}
-
+		expect(stepButtons().filter(isProminent), label).toHaveLength(1);
 		rendered.unmount();
 	}
+});
+
+// effort 843, requirement 4: the join counts its steps as the first run does, in the small line
+// above the title: the link and its code are the first, the password the second.
+test('the link is step 1 of 2 and the password step 2 of 2, above the title', () => {
+	loadLocale('en');
+	setLocale('en');
+
+	for (const [step, at] of [
+		[pasting(), 1],
+		[{ kind: 'reading', link: LINK, code: CODE }, 1],
+		[stepOf({ kind: 'invitation', expiresAt: 1 }), 2]
+	] as [JoinStep, number][]) {
+		const rendered = joinScreen(step);
+		const lines = document.querySelectorAll('[data-way-in-position]');
+
+		expect(lines, step.kind).toHaveLength(1);
+		expect(lines[0]?.textContent?.trim(), step.kind).toBe(`step ${at} of 2`);
+		rendered.unmount();
+	}
+});
+
+// effort 843, ticket 07: the words the human accepted on screen, and nothing on the way names Turso.
+test('the join reads in the plain words, and names no Turso on any step', () => {
+	for (const [locale, strings] of [
+		['en', en],
+		['ar', ar]
+	] as const) {
+		loadLocale(locale);
+		setLocale(locale);
+
+		const paste = joinScreen(pasting(), { direction: locale === 'ar' ? 'rtl' : 'ltr' });
+
+		expect(screen.getByRole('heading').textContent?.trim(), locale).toBe(
+			strings.organization.join.title
+		);
+		expect(screen.getByText(strings.organization.join.description), locale).toBeDefined();
+		expect(screen.getByText(strings.organization.join.codeDescription), locale).toBeDefined();
+		expect(
+			screen.getByRole('button', { name: strings.organization.join.continue }),
+			locale
+		).toBeDefined();
+		expect(document.body.textContent, locale).not.toMatch(/turso/i);
+		paste.unmount();
+
+		const choosing = joinScreen(stepOf({ kind: 'invitation', expiresAt: 1 }));
+
+		expect(screen.getByRole('heading').textContent?.trim(), locale).toBe(
+			strings.organization.join.passwordTitle
+		);
+		expect(screen.getByText(strings.organization.join.passwordDescription), locale).toBeDefined();
+		expect(screen.getByText(strings.organization.join.confirmLabel), locale).toBeDefined();
+		expect(document.body.textContent, locale).not.toMatch(/turso/i);
+		choosing.unmount();
+	}
+
+	loadLocale('en');
+	setLocale('en');
+	expect(en.organization.join.title).toBe('join with a link');
+	expect(en.organization.join.description).toBe(
+		'paste the link and enter the code you were given.'
+	);
+	expect(en.organization.join.codeDescription).toBe('6 characters.');
+	expect(en.organization.join.passwordTitle).toBe('choose a password');
+	expect(en.organization.join.passwordDescription).toBe(
+		"you'll use it to sign in. it can't be recovered."
+	);
+	expect(en.organization.join.confirmLabel).toBe('confirm password');
+});
+
+// requirement 8: arriving at a step that asks for typing puts the cursor in its first field.
+test('arriving at the form focuses the link, and at the password step the password', async () => {
+	loadLocale('en');
+	setLocale('en');
+
+	for (const [step, first] of [
+		[pasting(), 'link'],
+		[stepOf({ kind: 'invitation', expiresAt: 1 }), 'password']
+	] as [JoinStep, string][]) {
+		const rendered = joinScreen(step);
+
+		await waitFor(() => expect(document.activeElement?.getAttribute('name'), first).toBe(first));
+		rendered.unmount();
+	}
+});
+
+// ticket 07, its last criterion: the foot of both steps is the language and appearance control,
+// with no acts of its own.
+test('both steps carry the preferences control at their foot, and nothing else there', () => {
+	loadLocale('en');
+	setLocale('en');
+
+	for (const step of [pasting(), stepOf({ kind: 'invitation', expiresAt: 1 })] as JoinStep[]) {
+		const rendered = joinScreen(step);
+		const foot = document.querySelector('[data-way-in-foot]');
+
+		expect(foot?.querySelectorAll('button'), step.kind).toHaveLength(1);
+		expect(foot?.querySelector('[data-way-in-preferences]'), step.kind).not.toBeNull();
+		rendered.unmount();
+	}
+});
+
+// effort 843, requirement 8: the link and the code are labels and inputs with no glyph, typed left
+// to right in both locales, and they take a paste.
+test('the link and code fields draw no glyph, stay left to right, and take a paste', async () => {
+	loadLocale('ar');
+	setLocale('ar');
+
+	joinScreen(pasting(), { direction: 'rtl' });
+
+	expect(document.querySelector('[data-slot=input-group-addon]')).toBeNull();
+
+	const link = document.querySelector<HTMLInputElement>('input[name="link"]')!;
+	const code = document.querySelector<HTMLInputElement>('input[name="code"]')!;
+
+	expect(link.getAttribute('dir')).toBe('ltr');
+	expect(code.getAttribute('dir')).toBe('ltr');
+
+	// a paste lands as input does: the field holds what was pasted.
+	await fireEvent.input(link, { target: { value: LINK } });
+	await fireEvent.input(code, { target: { value: '7k4-m9q' } });
+
+	expect(link.value).toBe(LINK);
+	expect(code.value).toBe(CODE);
+
+	loadLocale('en');
+	setLocale('en');
 });
 
 test('the screen renders in arabic with the same one form, the same refusals and the password step', () => {
@@ -747,7 +859,7 @@ test('the screen renders in arabic with the same one form, the same refusals and
 	expect(ar.organization.join.codeLabel).not.toBe(en.organization.join.codeLabel);
 	// a machine string, read left to right whatever the sentence around it does.
 	expect(document.querySelector('input[name=code]')?.getAttribute('dir')).toBe('ltr');
-	expect(screen.getByRole('button', { name: ar.common.actions.connect })).toBeDefined();
+	expect(screen.getByRole('button', { name: ar.organization.join.continue })).toBeDefined();
 	expect(screen.getAllByRole('button', { name: ar.organization.join.back })).toHaveLength(1);
 	paste.unmount();
 

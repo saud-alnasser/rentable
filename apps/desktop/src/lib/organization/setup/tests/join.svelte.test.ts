@@ -15,6 +15,7 @@ import {
 import type { OrganizationHost } from '$lib/organization/host';
 import type { Startup } from '$lib/startup';
 import Join from '../component/join.svelte';
+import { linkArrived } from '../connect';
 
 /**
  * JOINING, FROM THE PRESS OF JOIN TO THE LOADING PASS
@@ -243,4 +244,31 @@ test('an accept refused as lapsed stays on the screen, in one line, with no load
 	expect(document.body.textContent?.split(en.organization.join.lapsed).length).toBe(2);
 	expect(document.querySelectorAll('[data-slot=callout]')).toHaveLength(1);
 	expect(document.querySelector('[data-error-detail="join"]')).not.toBeNull();
+});
+
+// effort 843, ticket 07: a `rentable://` link the operating system hands the running application
+// while the join is open lands on the form, step 1 of 2, with the link filled and the code to type.
+test('a link that arrives while the join is open lands on the form with the link filled', async () => {
+	loadLocale('en');
+	setLocale('en');
+	await atTheWall();
+
+	render(
+		Join,
+		{ startup: hooks.startup!, host, wayIn: '/' },
+		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } }
+	);
+
+	expect(document.querySelector<HTMLInputElement>('input[name="link"]')?.value).toBe('');
+
+	linkArrived('rentable://join/handed-over');
+
+	await waitFor(() =>
+		expect(document.querySelector<HTMLInputElement>('input[name="link"]')?.value).toBe(
+			'rentable://join/handed-over'
+		)
+	);
+	expect(document.querySelector('[data-join-step]')?.getAttribute('data-join-step')).toBe('paste');
+	expect(document.querySelector('[data-way-in-position]')?.textContent?.trim()).toBe('step 1 of 2');
+	expect(document.querySelector<HTMLInputElement>('input[name="code"]')?.value).toBe('');
 });
