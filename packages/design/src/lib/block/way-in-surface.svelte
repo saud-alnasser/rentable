@@ -1,7 +1,9 @@
 <script lang="ts">
 	import BackControl from '#lib/block/back-control.svelte';
 	import WayInPosition from '#lib/block/way-in-position.svelte';
+	import { reducesMotion } from '#lib/reduces-motion.js';
 	import { useDesignContract } from '#lib/strings.js';
+	import { holdWayInMotion } from '#lib/way-in-transition.js';
 	import MarkIcon from '@lucide/svelte/icons/eclipse';
 	import { tick, untrack, type Snippet } from 'svelte';
 
@@ -34,7 +36,12 @@
 	 * only the contents cross: the outgoing slide toward where reading starts and fade, the incoming
 	 * arrive from where it ends, and back runs it the other way. It is the *pane swap carries its
 	 * direction* row of [[rules/frontend]] *Motion*. The transition is feature-detected, and where it
-	 * is missing, or reduced motion is on, the new step is simply drawn.
+	 * is missing, or reduced motion is on, the new step is simply drawn. A step the caller hands back
+	 * to, where neither back nor the position says so, is marked `returning` and runs back too.
+	 *
+	 * **The direction on the root is this block's only while its own transition runs.** A route
+	 * crossing writes the same two things, and the screen being left unmounts its surface in the
+	 * middle of one, so an unmount takes off only what this surface's transition put there.
 	 *
 	 * **The old step is frozen before it is replaced**, because the step's contents belong to the
 	 * caller. A caller changes its own state and hands in a new `step`; by the time the browser takes
@@ -50,6 +57,7 @@
 		description,
 		position,
 		back,
+		returning = false,
 		busy = false,
 		children,
 		actions,
@@ -76,6 +84,12 @@
 		position?: { at: number; of: number; label: string };
 		/** the way to the step before, drawn as the shared back control. None without it. */
 		back?: { label: string; onclick: () => void };
+		/**
+		 * whether this step is one the reader is handed back to rather than one they moved on to,
+		 * where neither the back control nor the position says so: a form handed back with a
+		 * refusal on it, after the wait it was submitted into. The change into it runs back.
+		 */
+		returning?: boolean;
 		/** whether the application is working rather than waiting for the reader. */
 		busy?: boolean;
 		/** the step's own controls. */
@@ -98,21 +112,8 @@
 	let shown = untrack(() => step);
 	let shownAt = untrack(() => position?.at);
 	let goingBack = false;
-	let running: { frozen: HTMLElement; transition: ViewTransition } | null = null;
-
-	/**
-	 * whether the reader asked for less motion, read at the moment of the change.
-	 *
-	 * Not `prefersReducedMotion` from `svelte/motion`: that is a `MediaQuery` built when the module
-	 * loads, and it calls `matchMedia` there, which jsdom does not have. Every screen of the way in
-	 * draws through this block, so importing it would break each of their component tests before
-	 * the first assertion. Nothing here draws from the answer, so it needs no subscription.
-	 */
-	function reducesMotion() {
-		return (
-			typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
-		);
-	}
+	let running: { frozen: HTMLElement; transition: ViewTransition; release: () => void } | null =
+		null;
 
 	/** a copy of the outgoing step that looks the same and cannot be reached. */
 	function freeze(node: HTMLElement) {
@@ -145,11 +146,13 @@
 		return frozen;
 	}
 
+	/** end this surface's own transition, if one is running, and nothing anybody else started. */
 	function settle() {
-		running?.frozen.remove();
+		if (!running) return;
+
+		running.frozen.remove();
+		running.release();
 		running = null;
-		document.documentElement.style.removeProperty('--way-in-shift');
-		delete document.documentElement.dataset.wayInMotion;
 	}
 
 	/**
@@ -159,7 +162,7 @@
 	 * contents at once and the browser snapshots it at the next frame; the update takes it away, and
 	 * the new snapshot is the live step underneath.
 	 */
-	function change(next: string, at: number | undefined) {
+	function change(next: string, at: number | undefined, handedBack: boolean) {
 		const from = shownAt;
 
 		shownAt = at;
@@ -170,7 +173,8 @@
 
 		shown = next;
 
-		const backwards = goingBack || (at !== undefined && from !== undefined && at < from);
+		const backwards =
+			goingBack || handedBack || (at !== undefined && from !== undefined && at < from);
 
 		goingBack = false;
 
@@ -197,29 +201,31 @@
 		// and this is a copy of what the caller drew, so no template could draw it.
 		// eslint-disable-next-line svelte/no-dom-manipulating
 		content.append(frozen);
-		document.documentElement.style.setProperty('--way-in-shift', String(shift));
-		document.documentElement.dataset.wayInMotion = '';
 
+		const release = holdWayInMotion(shift);
 		const transition = document.startViewTransition(() => {
 			frozen.remove();
 		});
-		const current = { frozen, transition };
+		const current = { frozen, transition, release };
 
 		running = current;
 
-		void transition.finished.finally(() => {
+		const done = () => {
 			if (running === current) {
 				settle();
 			}
-		});
+		};
+
+		void transition.finished.then(done, done);
 	}
 
 	// `pre`, so it runs before the caller's contents are redrawn for the new step.
 	$effect.pre(() => {
 		const next = step;
 		const at = position?.at;
+		const handedBack = returning;
 
-		untrack(() => change(next, at));
+		untrack(() => change(next, at, handedBack));
 	});
 
 	$effect(() => () => {

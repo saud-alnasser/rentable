@@ -1,3 +1,5 @@
+import { reducesMotion } from '#lib/reduces-motion.js';
+
 /**
  * A route change between two screens of the way in, run as the way-in surface runs a step change.
  *
@@ -17,9 +19,35 @@
 /** which way a crossing runs: into a walk, or back out of one. */
 export type WayInCrossing = 'forward' | 'back';
 
-/** whether the reader asked for less motion, read at the moment of the crossing. */
-function reducesMotion() {
-	return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+/** which transition last put its direction on the root, so an earlier one does not take it off. */
+let holder = 0;
+
+/**
+ * Put a transition's direction on the root, and answer what takes it off again.
+ *
+ * **Only the transition that put it there takes it off.** A route crossing and a step change both
+ * write the same two things, and the outgoing screen's surface is unmounted at the navigation's
+ * `complete`, in the middle of the crossing. A surface that cleared the root then left the
+ * keyframes on their fallback, and Arabic and back slid the wrong way. So each hold is numbered,
+ * the number is what `data-way-in-motion` holds, and a release whose number is no longer there
+ * does nothing.
+ *
+ * `shift` is 1 for forward in a left-to-right reading, the outgoing leaving toward the start and
+ * the incoming arriving from the end; Arabic and back each turn it round.
+ */
+export function holdWayInMotion(shift: number): () => void {
+	const root = document.documentElement;
+	const mine = String(++holder);
+
+	root.style.setProperty('--way-in-shift', String(shift));
+	root.dataset.wayInMotion = mine;
+
+	return () => {
+		if (root.dataset.wayInMotion !== mine) return;
+
+		root.style.removeProperty('--way-in-shift');
+		delete root.dataset.wayInMotion;
+	};
 }
 
 /**
@@ -28,7 +56,10 @@ function reducesMotion() {
  * the transition. `undefined` where nothing is run, which `onNavigate` reads as go on at once.
  *
  * `complete` is the navigation's own `complete`, which the transition's update waits on so the
- * new screen is what the browser snapshots next.
+ * new screen is what the browser snapshots next. **A navigation that is cancelled or fails
+ * rejects it**, and the update with it, so the browser skips the animation and `finished` and
+ * `updateCallbackDone` reject. Both are taken here: the root is cleared either way, and nothing is
+ * left to surface as an unhandled rejection. Saying the navigation failed is SvelteKit's.
  */
 export function crossWayIn(
 	crossing: WayInCrossing,
@@ -43,13 +74,8 @@ export function crossWayIn(
 		return undefined;
 	}
 
-	// forward in a left-to-right reading is 1, as on the surface: the outgoing leave toward the
-	// start and the incoming arrive from the end. Arabic and back each turn it round.
-	const shift = (direction === 'rtl' ? -1 : 1) * (crossing === 'back' ? -1 : 1);
-	const root = document.documentElement;
-
-	root.style.setProperty('--way-in-shift', String(shift));
-	root.dataset.wayInMotion = '';
+	// forward in a left-to-right reading is 1, as on the surface.
+	const release = holdWayInMotion((direction === 'rtl' ? -1 : 1) * (crossing === 'back' ? -1 : 1));
 
 	return new Promise((resolve) => {
 		const transition = document.startViewTransition(async () => {
@@ -57,9 +83,7 @@ export function crossWayIn(
 			await complete;
 		});
 
-		void transition.finished.finally(() => {
-			root.style.removeProperty('--way-in-shift');
-			delete root.dataset.wayInMotion;
-		});
+		void transition.finished.then(release, release);
+		void transition.updateCallbackDone.catch(() => undefined);
 	});
 }

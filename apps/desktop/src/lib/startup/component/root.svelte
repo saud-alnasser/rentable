@@ -28,9 +28,9 @@
 		THE_JOIN,
 		addressAfterSignOut,
 		addressAfterSwitch,
+		navigationCrossing,
 		shellFor,
 		startupScreen,
-		wayInCrossing,
 		type SwitchCrumb
 	} from '../screen';
 	import { createStartup } from '../startup';
@@ -260,11 +260,11 @@
 
 	// a move between the welcome and a walk is one surface changing step, so it runs the way-in
 	// surface's one transition in the reading direction (effort 843, requirement 4). Only on the
-	// way in: the same two addresses with somebody in are not a step of it.
+	// way in and never under a startup pass, which `navigationCrossing` in `../screen.ts` decides.
 	onNavigate((navigation) => {
 		const from = navigation.from?.url.pathname;
 		const to = navigation.to?.url.pathname;
-		const crossing = shell === 'way-in' && from && to ? wayInCrossing(from, to) : null;
+		const crossing = from && to ? navigationCrossing(shellState, from, to) : null;
 
 		return crossing ? crossWayIn(crossing, currentDirection, navigation.complete) : undefined;
 	});

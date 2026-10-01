@@ -433,6 +433,39 @@ test('while the link is read the fields are gone and the wait is said', () => {
 	expect(screen.getByText(en.organization.join.reading)).toBeDefined();
 });
 
+// effort 843, ticket 14: a refused read hands the form back with no back pressed and the position
+// unchanged, and the surface is told it is a return, so the change runs back rather than forward.
+test.each([
+	['text that was not a link', { ...pasting('nope', CODE), isUnreadable: true }],
+	['a wrong code', { ...pasting(LINK, CODE), codeRefusal: 'wrong' as const }]
+])('the form handed back after a refused read runs back: %s', async (_, handedBack) => {
+	loadLocale('en');
+	setLocale('en');
+
+	const shifts: string[] = [];
+
+	document.startViewTransition = ((update: () => void) => {
+		shifts.push(document.documentElement.style.getPropertyValue('--way-in-shift'));
+		update();
+
+		const finished = Promise.resolve();
+
+		return { finished, ready: finished, updateCallbackDone: finished, skipTransition: noop };
+	}) as unknown as typeof document.startViewTransition;
+
+	try {
+		const { rerender } = joinScreen(pasting(LINK, CODE));
+
+		await rerender({ step: { kind: 'reading', link: LINK, code: CODE } });
+		await rerender({ step: handedBack });
+
+		// into the wait is forward, and out of it to the form it was submitted from is back.
+		expect(shifts).toEqual(['1', '-1']);
+	} finally {
+		delete (document as { startViewTransition?: unknown }).startViewTransition;
+	}
+});
+
 test('an organization that could not be reached says so, shows what the shell said, and offers the same link again', async () => {
 	loadLocale('en');
 	setLocale('en');

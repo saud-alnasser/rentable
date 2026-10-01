@@ -86,6 +86,27 @@ export function wayInCrossing(from: string, to: string): 'forward' | 'back' | nu
 }
 
 /**
+ * Which way a navigation runs across the way in where startup has got to, or `null` for none.
+ *
+ * **Only on the way in, and only while it waits on the reader.** The same two addresses with
+ * somebody in are not a step of it, which is `shellFor`'s answer. **A navigation made under
+ * `loading` is the arrival, and takes no crossing** (effort 843, ticket 14): the join's `arrive`,
+ * the first run's `prepare` and its connect to an existing organization each move the address to
+ * the way in under the loading surface, and since ticket 08 gave that load the way-in frame, each
+ * ran a back crossing over the loading screen, as if the reader had left the walk for the welcome.
+ * Nothing on screen changes with the address there: the loading surface is drawn over it.
+ */
+export function navigationCrossing(
+	snapshot: Pick<StartupSnapshot, 'state' | 'switching'>,
+	from: string,
+	to: string
+): 'forward' | 'back' | null {
+	if (shellFor(snapshot) !== 'way-in' || snapshot.state === 'loading') return null;
+
+	return wayInCrossing(from, to);
+}
+
+/**
  * Whether this address draws while the shell is waiting for somebody to sign in.
  *
  * Exact rather than prefixed: nothing nests under either address, and a prefix would silently

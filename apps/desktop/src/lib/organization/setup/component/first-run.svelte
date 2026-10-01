@@ -222,9 +222,11 @@
 		}
 
 		// the owner is in, on a machine that now holds the organization: the startup unit reads
-		// where it stands from the way in, which is the path a sign-in takes past the wall.
-		await goto(resolve(wayIn));
-		void startup.standingChanged();
+		// where it stands from the way in, which is the path a sign-in takes past the wall. The move
+		// is the pass's `arrive`, under the loading surface, as the join's is: made first, on the
+		// walk's own surface, it crossed back to the wall as if the owner had left the walk, and
+		// the wall stood there until the pass put the loading surface up (effort 843, ticket 14).
+		void startup.standingChanged({ arrive: () => goto(resolve(wayIn)) });
 	};
 
 	const create = async (name: string, username: string, password: string, group: string | null) => {

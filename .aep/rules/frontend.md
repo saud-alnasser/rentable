@@ -209,6 +209,14 @@ composed here; a **size** — `size-4`, `h-8`, `max-w-*` — is a component's ow
 not on this ladder, and the packaged `primitive/` keeps the geometry it was ported with
 (ADR 0007).
 
+**One offset is not a step, and it is a measure of the window rather than of the content**: the
+way-in column's distance from the top, `pt-[max(5rem,20vh)]` in `block/way-in-surface.svelte`.
+The column is placed from the top so the mark and the title hold still as a step's controls
+change height, and the room above it grows with the window, never under `5rem` (80px, beyond
+the ladder's top step). The ladder spaces content from content, and no step of it can follow the
+window's height. It is the one arbitrary spacing value allowed, and only there. *The human judged
+the way in at this offset on screen and asked for the room twice (2026-10-01, effort 843).*
+
 **Review enforces this, and no spacing token is added to the stylesheet for it.** A semantic
 scale beside the framework's own would make every component read in a dialect, and the token
 layer is deliberately kept to what is genuinely global.
@@ -242,6 +250,10 @@ of them:
 | `font-medium`   | emphasis inside a line, a row's primary value |
 | `font-semibold` | titles, labels, and the one figure a surface leads with |
 
+*The `text-2xl` row gained a step's title on the way in on 2026-10-01 (effort 843): with no card
+around it, the step's title heads the window's content area as a record's title heads its page,
+and the look was judged on screen at that size.*
+
 No arbitrary size (`text-[...]`) and no other weight. A node test in each package fails on
 `text-[`: `packages/design/src/lib/tests/typography.test.ts` and
 `apps/desktop/src/lib/design/tests/typography.test.ts`. A size that seems to be missing is a
@@ -261,7 +273,7 @@ strings, which are held `ltr` and never render Arabic: the link code and the key
 `:root:lang(ar)`. Arabic ink reaches half an em below the baseline, and at the scale's English
 line heights a line that truncates cuts it off. The token layer holds the measurement.
 
-**Every icon is lucide (`@lucide/svelte`), at lucide's own stroke, and sized from three steps.**
+**Every icon is lucide (`@lucide/svelte`), at lucide's own stroke, and sized from four steps.**
 A glyph is matched to the text beside it, so the step is read off the text rather than chosen,
 and a glyph with no text beside it takes the step of the role it plays:
 
@@ -270,6 +282,11 @@ and a glyph with no text beside it takes the step of the role it plays:
 | `size-3.5` | beside `text-xs`, the title bar's window controls, and a state trailing a label (a check)  |
 | `size-4`   | the default: beside `text-sm`, in a button, a menu row, a cell, a status                   |
 | `size-5`   | the mark in its tile, and a glyph that heads a block: the summary leading a dialog's panel |
+| `size-7`   | the mark on the way in, in its `size-14` tile, and nowhere else                           |
+
+*`size-7` was added on 2026-10-01 (effort 843): on the way in the mark is the only picture on
+the screen, with no text beside it, and the human judged it on screen at that size. It was three
+steps until then.*
 
 A glyph inside a `primitive/` keeps the size it was ported with, for the reason spacing does
 (ADR 0007): a radio row's dot and a resize grip are the primitive's geometry, not a size chosen
@@ -363,12 +380,21 @@ off.
 | an element leaving on a data change | Svelte `out:` — CSS cannot, the node is gone first |
 | a value changing (a count, a ring filling) | `svelte/motion` (`Tween`, `Spring`)     |
 | an element moving position among siblings on screen | `svelte/animate` (`animate:flip`) |
-| a record created, deleted, restored or re-sorted in a directory; a pane swap | a same-document view transition (`document.startViewTransition`) |
+| a record created, deleted, restored or re-sorted in a directory; a pane swap; a step of the way in changing, on its screen or across two of its addresses | a same-document view transition (`document.startViewTransition`) |
 
 **A view transition is feature-detected, and its fallback is no animation.** Where
 `startViewTransition` is missing (macOS below 15, an old WebKitGTK) the change is committed
-directly and simply appears. Only a change caused by a mutation, an undo or a sort transitions; a
-search keystroke does not. `animate:flip` moves only rows already on screen, which is why a
+directly and simply appears. Only a change caused by a mutation, an undo or a sort transitions, and
+the way in's step changes; a search keystroke does not.
+
+**The way in's step change and its route crossing are one transition.** The way-in surface runs
+it when the key of its step changes, and `crossWayIn` (`way-in-transition.ts`) runs it around a
+navigation between two of the way in's addresses, from the application's `onNavigate`. Both
+name the same two groups, `way-in-mark` and `way-in-content`, so the mark holds still and only
+the contents cross, in the reading direction, and back the other way. Each puts its direction on
+the root for its own length and takes off only what it put there (`holdWayInMotion`). A
+navigation made under a startup pass's loading surface is the arrival, not a step, and takes no
+crossing. *Added 2026-10-01, effort 843, for what the human approved on screen.* `animate:flip` moves only rows already on screen, which is why a
 virtualised directory uses a view transition rather than it.
 
 Prefer a transition defined through `css` over one through `tick`: the first runs off the main
@@ -377,6 +403,14 @@ thread, the second does not.
 **Reduced motion is not automatic in either mechanism, so a surface that omits it is
 unfinished.** Tailwind's `motion-safe:` gates CSS motion; `prefersReducedMotion` from
 `svelte/motion` gates anything JavaScript-driven.
+
+**A decision made once, at the moment of a change, reads `reducesMotion`** from
+`@rentable/design/reduces-motion.js`: whether to ask for a view transition at all. It reads
+`matchMedia` when it is called, and answers no where there is none. `prefersReducedMotion` is a
+`MediaQuery` that calls `matchMedia` when its module loads, which jsdom does not have, so a
+block every screen of a flow draws through cannot import it without failing each of their
+component tests. It is the one reader: no surface writes its own. *Added 2026-10-01, effort 843:
+the way-in surface and `crossWayIn` each carried a copy until then.*
 
 The token layer carries the three cases a surface cannot reach for itself: every CSS transition,
 the keyframe animation on anything bits-ui marks with `data-state` or `data-motion`, and every

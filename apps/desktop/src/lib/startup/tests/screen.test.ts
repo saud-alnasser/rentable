@@ -1,10 +1,16 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import {
+	fakeOrganizationSession,
+	fakeOrganizationState,
+	fakeOrganizationWorkspace
+} from '$lib/organization/tests/testing.ts';
 import { PAGE_ROUTES, toBreadcrumbTrail } from '$lib/shell/navigation.ts';
 import {
 	addressAfterSignOut,
 	addressAfterSwitch,
+	navigationCrossing,
 	opensSignedOut,
 	startupScreen,
 	THE_FIRST_RUN,
@@ -392,4 +398,84 @@ test('any other move is not a step of the way in', () => {
 	assert.equal(wayInCrossing('/settings', THE_WAY_IN), null);
 	assert.equal(wayInCrossing(THE_FIRST_RUN, THE_JOIN), null);
 	assert.equal(wayInCrossing('/tenants', '/contracts'), null);
+});
+
+// --- Which navigations take a crossing at all -------------------------------------------------
+//
+// Ticket 14 of effort 843: since ticket 08 the load after a first run or a join is drawn in the
+// way-in frame, and the move to the way in each of them makes under it ran a back crossing over the
+// loading screen. The arrival is not a step back out of the walk.
+
+/** a machine at the wall with nothing on it, whose standing, once read again, is a person in. */
+async function atTheWall() {
+	const joined = fakeOrganizationState({
+		session: fakeOrganizationSession({
+			workspaces: [fakeOrganizationWorkspace({ id: 'acme', name: 'Acme Rentals' })]
+		})
+	});
+	const driven = harness({ organization: nowhereToGo(), afterBootstrap: joined });
+
+	await driven.startup.start();
+
+	return driven.startup;
+}
+
+test('back out of a walk to the welcome, before any pass, still crosses', async () => {
+	const startup = await atTheWall();
+
+	assert.equal(startup.snapshot.state, 'sign-in');
+	assert.equal(navigationCrossing(startup.snapshot, THE_JOIN, THE_WAY_IN), 'back');
+	assert.equal(navigationCrossing(startup.snapshot, THE_FIRST_RUN, THE_WAY_IN), 'back');
+	assert.equal(navigationCrossing(startup.snapshot, THE_WAY_IN, THE_JOIN), 'forward');
+});
+
+test("the join's arrival, made under the loading surface, takes no crossing", async () => {
+	const startup = await atTheWall();
+	const crossings: (string | null)[] = [];
+
+	// as `join.svelte` hands it in: the move to the way in is the pass's `arrive`.
+	await startup.standingChanged({
+		arrive: async () => {
+			crossings.push(navigationCrossing(startup.snapshot, THE_JOIN, THE_WAY_IN));
+		}
+	});
+
+	assert.deepEqual(crossings, [null]);
+	assert.equal(startup.snapshot.state, 'ready');
+});
+
+test("the first run's arrivals, after a create and after a connect, take no crossing", async () => {
+	const created = await atTheWall();
+	const crossings: (string | null)[] = [];
+
+	// the create: the move is half of the pass's `prepare`, beside the first workspace.
+	await created.standingChanged({
+		prepare: async () => {
+			crossings.push(navigationCrossing(created.snapshot, THE_FIRST_RUN, THE_WAY_IN));
+		}
+	});
+
+	// the connect to an organization that already exists: the move is the pass's `arrive`.
+	const connected = await atTheWall();
+
+	await connected.standingChanged({
+		arrive: async () => {
+			crossings.push(navigationCrossing(connected.snapshot, THE_FIRST_RUN, THE_WAY_IN));
+		}
+	});
+
+	assert.deepEqual(crossings, [null, null]);
+});
+
+test('no navigation with somebody in, or during a switch, crosses', async () => {
+	const { startup } = harness();
+
+	await startup.start();
+
+	assert.equal(startup.snapshot.state, 'ready');
+	assert.equal(navigationCrossing(startup.snapshot, THE_FIRST_RUN, THE_WAY_IN), null);
+	assert.equal(
+		navigationCrossing({ state: 'loading', switching: 'South' }, THE_WAY_IN, THE_JOIN),
+		null
+	);
 });

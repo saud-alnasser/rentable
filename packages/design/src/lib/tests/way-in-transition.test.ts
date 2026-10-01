@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
 
-import { crossWayIn } from '#lib/way-in-transition.ts';
+import { crossWayIn, holdWayInMotion } from '#lib/way-in-transition.ts';
 
 /**
  * THE WAY IN, CROSSING AN ADDRESS
@@ -40,9 +40,13 @@ function stubBrowser({ transitions = true, reduces = false } = {}): Stub {
 
 					const finished = new Promise<void>((resolve) => (finish = resolve));
 
-					void update().then(() => (stub.updated = true));
+					const updateCallbackDone = update().then(() => void (stub.updated = true));
 
-					return { finished };
+					// as in a browser: an update that rejects rejects both of these.
+					return {
+						finished: Promise.all([finished, updateCallbackDone]).then(() => undefined),
+						updateCallbackDone
+					};
 				}
 			: undefined
 	} as unknown as Document;
@@ -109,4 +113,50 @@ test('without view transitions, or under reduced motion, nothing is asked for', 
 
 	assert.equal(crossWayIn('forward', 'ltr', Promise.resolve()), undefined);
 	assert.equal(reduced.started, 0);
+});
+
+// ticket 14: a navigation that is cancelled or fails rejects its `complete`, which rejects the
+// transition's update, and with it `finished` and `updateCallbackDone`.
+test('a navigation that fails clears the root, and leaves no rejection unhandled', async () => {
+	const escaped: unknown[] = [];
+	const listen = (reason: unknown) => void escaped.push(reason);
+
+	process.on('unhandledRejection', listen);
+
+	try {
+		const browser = stubBrowser();
+		const complete = Promise.reject(new Error('navigation cancelled'));
+
+		// SvelteKit handles its own `complete`; only what the crossing hangs off it is asked about.
+		complete.catch(() => undefined);
+
+		await crossWayIn('back', 'rtl', complete);
+
+		browser.finish();
+		await new Promise((resolve) => setTimeout(resolve, 10));
+
+		assert.equal(browser.root.style.has('--way-in-shift'), false);
+		assert.equal('wayInMotion' in browser.root.dataset, false);
+		assert.deepEqual(escaped, []);
+	} finally {
+		process.off('unhandledRejection', listen);
+	}
+});
+
+// ticket 14: a step change and a route crossing write the same two things on the root, and the
+// one that ends first must not take off what the other put there.
+test('only the transition that put the direction on the root takes it off', () => {
+	const browser = stubBrowser();
+	const surface = holdWayInMotion(1);
+	const crossing = holdWayInMotion(-1);
+
+	surface();
+
+	assert.equal(browser.root.style.get('--way-in-shift'), '-1');
+	assert.equal('wayInMotion' in browser.root.dataset, true);
+
+	crossing();
+
+	assert.equal(browser.root.style.has('--way-in-shift'), false);
+	assert.equal('wayInMotion' in browser.root.dataset, false);
 });

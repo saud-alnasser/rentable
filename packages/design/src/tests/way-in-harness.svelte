@@ -13,12 +13,14 @@
 		at,
 		back = false,
 		named = false,
+		returning = false,
 		onback = () => undefined
 	}: {
 		step: string;
 		at?: number;
 		back?: boolean;
 		named?: boolean;
+		returning?: boolean;
 		onback?: () => void;
 	} = $props();
 </script>
@@ -30,6 +32,7 @@
 	description="line {step}"
 	position={at === undefined ? undefined : { at, of: 2, label: `step ${at} of 2` }}
 	back={back ? { label: 'the way back', onclick: onback } : undefined}
+	{returning}
 >
 	<input data-field aria-label="field {step}" value="typed {step}" />
 

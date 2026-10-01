@@ -205,6 +205,15 @@
 		return { at, of: 2, label: $LL.organization.setup.position({ step: at, total: 2 }) };
 	});
 
+	// the form handed back with a refusal on it is a return to it, out of the wait it was submitted
+	// into, though nothing was pressed and the position did not move, so the surface runs the change
+	// back (effort 843, ticket 14). Every refusal the form carries comes from a read, and a fresh
+	// link carries none, so this is the step and nothing else to remember.
+	const returning = $derived(
+		step.kind === 'paste' &&
+			(step.isUnreadable || step.codeRefusal !== null || step.errorMessage !== null)
+	);
+
 	// arriving at a step that asks for typing puts the cursor in its first field (requirement 8):
 	// the link at the form, the password at the password. Each is drawn afresh on arrival, so this
 	// runs once per visit.
@@ -279,6 +288,7 @@
 	{description}
 	{position}
 	back={{ label: $LL.organization.join.back(), onclick: onBack }}
+	{returning}
 	{busy}
 >
 	<div class="flex flex-col gap-4 text-start" data-join-step={step.kind}>

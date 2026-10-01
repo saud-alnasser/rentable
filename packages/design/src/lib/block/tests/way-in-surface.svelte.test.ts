@@ -1,4 +1,5 @@
 import { type DesignDirection } from '#lib/strings.js';
+import { crossWayIn } from '#lib/way-in-transition.js';
 import { suppliedStrings } from '#tests/contract-strings.js';
 import Providers from '#tests/providers.svelte';
 import WayInHarness from '#tests/way-in-harness.svelte';
@@ -15,7 +16,14 @@ import { afterEach, expect, test } from 'vitest';
  * is the screenshot walk's, at the effort's close.
  */
 
-type Harness = { step: string; at?: number; back?: boolean; named?: boolean; onback?: () => void };
+type Harness = {
+	step: string;
+	at?: number;
+	back?: boolean;
+	named?: boolean;
+	returning?: boolean;
+	onback?: () => void;
+};
 
 const draw = (props: Harness, direction: DesignDirection = 'ltr') =>
 	render(WayInHarness, props, {
@@ -189,6 +197,73 @@ test('back runs the change the other way, and only the change it caused', async 
 	await drawn.rerender({ step: 'three', back: false });
 
 	expect(started[1]?.shift).toBe('1');
+});
+
+// ticket 14: a form handed back with a refusal on it, after the wait it was submitted into, is a
+// return to it, though nothing was pressed and the position did not move.
+test.each([
+	['left to right', 'ltr', '-1'],
+	['right to left', 'rtl', '1']
+] as const)('a step handed back runs back: %s', async (_, direction, shift) => {
+	const started = stubViewTransitions();
+	const { rerender } = draw({ step: 'waiting', at: 1 }, direction);
+
+	await rerender({ step: 'form', at: 1, returning: true });
+
+	expect(started[0]?.shift).toBe(shift);
+
+	// and moving on from it is forward again.
+	await started[0]!.update();
+	await rerender({ step: 'waiting', at: 1, returning: false });
+
+	expect(started[1]?.shift).toBe(direction === 'ltr' ? '1' : '-1');
+});
+
+// ticket 14: the screen being left unmounts its surface at the navigation's `complete`, in the
+// middle of the route crossing, and the crossing's direction has to outlive it.
+test('a surface unmounted while a route crossing runs leaves the crossing its direction', async () => {
+	const started = stubViewTransitions();
+	const root = document.documentElement;
+	const { unmount } = draw({ step: 'one' });
+
+	let arrive = () => undefined as void;
+	const complete = new Promise<void>((resolve) => (arrive = resolve));
+	const waiting = crossWayIn('back', 'rtl', complete);
+
+	expect(waiting).toBeDefined();
+	expect(started).toHaveLength(1);
+
+	unmount();
+
+	expect(root.style.getPropertyValue('--way-in-shift')).toBe('1');
+	expect(root.dataset.wayInMotion).toBeDefined();
+
+	// the crossing ends, and takes off what it put there.
+	const updated = started[0]!.update();
+
+	arrive();
+	await updated;
+	await tick();
+	await Promise.resolve();
+
+	expect(root.style.getPropertyValue('--way-in-shift')).toBe('');
+	expect(root.dataset.wayInMotion).toBeUndefined();
+});
+
+test('a surface unmounted in the middle of its own step change takes its direction off', async () => {
+	stubViewTransitions();
+
+	const root = document.documentElement;
+	const { rerender, unmount } = draw({ step: 'one' });
+
+	await rerender({ step: 'two' });
+
+	expect(root.dataset.wayInMotion).toBeDefined();
+
+	unmount();
+
+	expect(root.style.getPropertyValue('--way-in-shift')).toBe('');
+	expect(root.dataset.wayInMotion).toBeUndefined();
 });
 
 test('the direction is cleared once the transition has finished', async () => {
