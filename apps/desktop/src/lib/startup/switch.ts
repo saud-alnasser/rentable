@@ -41,12 +41,19 @@ export async function switchWorkspace(
 		return;
 	}
 
-	// the menu offers the workspaces the session holds, so the chosen one is named there.
+	// the menu offers the workspaces the session holds, so the chosen one is named there. One the
+	// session does not hold is refused here rather than opened under a loading line naming nothing:
+	// it can only come from somewhere other than the menu, and what it would open is not this
+	// member's (effort 843, at the human's word on 2026-10-01).
 	const chosen = machine.current.organization?.session?.workspaces.find(
 		(workspace) => workspace.id === workspaceId
 	);
 
-	machine.set({ state: 'loading', error: null, recovery: null, switching: chosen?.name ?? '' });
+	if (!chosen) {
+		return;
+	}
+
+	machine.set({ state: 'loading', error: null, recovery: null, switching: chosen.name });
 
 	try {
 		if (arrive) {

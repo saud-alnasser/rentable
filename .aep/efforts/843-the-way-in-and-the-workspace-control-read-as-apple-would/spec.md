@@ -158,7 +158,9 @@ checked, and switches in place.
 2. The welcome shows the mark, "rentable", one line saying what it is for, and two equal-sized
    choices; no line on it runs past one line at the default window width.
 3. Every step has exactly one prominent button; every other way on or out is a disclosure or a
-   text control.
+   text control. *Read 2026-10-01 at the human's word: at most one. A step with nothing to do, the
+   join's refusals that end the way and the no-workspace screen of a member who is not the owner,
+   offers nothing prominent.*
 4. The first run and the join show their position in the same component; the welcome, the wall
    and the no-workspace screen show none.
 5. Every step with somewhere to go has the one back control, in the same place, pointing left in

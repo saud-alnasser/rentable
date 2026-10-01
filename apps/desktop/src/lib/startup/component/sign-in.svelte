@@ -136,8 +136,10 @@
 		void tick().then(() => usernameField?.focus());
 	});
 
-	// a sign-in that fails puts the cursor back in the password. Both fields are disabled while it
-	// runs, which drops the focus, and the password is what a person who mistyped tries again.
+	// a sign-in that fails puts the cursor back in the password, with what was typed selected, so
+	// the next keystroke replaces it as a Mac's own sign-in does (at the human's word on 2026-10-01).
+	// Both fields are disabled while it runs, which drops the focus, and the password is what a
+	// person who mistyped tries again.
 	$effect(() => {
 		if (isSigningIn) {
 			isAnswerAwaited = true;
@@ -147,7 +149,10 @@
 		if (!isAnswerAwaited || errorMessage === null) return;
 
 		isAnswerAwaited = false;
-		void tick().then(() => passwordField?.focus());
+		void tick().then(() => {
+			passwordField?.focus();
+			passwordField?.select();
+		});
 	});
 
 	// the wall's two ways out of a jam, in the foot control's popover; the welcome hands in none.

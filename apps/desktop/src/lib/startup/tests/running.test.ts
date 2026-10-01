@@ -451,3 +451,19 @@ test('and a dispatch that reported for the workspace open before the switch is d
 
 	assert.equal(journal.announced, before.journal.announced + 1);
 });
+
+// at the human's word on 2026-10-01 (effort 843): a workspace the session does not hold is refused
+// rather than opened under a loading line that names nothing.
+test('a switch to a workspace the session does not hold does nothing', async () => {
+	const { startup, journal } = holdingTwo();
+
+	await startup.start();
+
+	const before = [...journal.workspacesOpened];
+
+	await startup.switchWorkspace('nowhere');
+
+	assert.deepEqual(journal.workspacesOpened, before);
+	assert.equal(startup.snapshot.state, 'ready');
+	assert.equal(startup.snapshot.switching, null);
+});

@@ -380,7 +380,7 @@ test('while a sign-in runs, the foot offers the link and disconnect disabled', a
 
 // review round 1 of effort 843: both fields are disabled while a sign-in runs, which drops the
 // focus, so a failure puts the cursor back in the password rather than at the top of the window.
-test('a sign-in that fails puts the cursor back in the password', async () => {
+test('a sign-in that fails puts the cursor back in the password, with what was typed selected', async () => {
 	loadLocale('en');
 	setLocale('en');
 	document.body.innerHTML = '';
@@ -392,9 +392,12 @@ test('a sign-in that fails puts the cursor back in the password', async () => {
 
 	expect(document.activeElement).not.toBe(password);
 
+	await fireEvent.input(password, { target: { value: 'a mistyped password' } });
 	await rendered.rerender({ isSigningIn: false, errorMessage: 'that password did not open it' });
 
 	await waitFor(() => expect(document.activeElement).toBe(password));
+	expect(password.value).toBe('a mistyped password');
+	expect([password.selectionStart, password.selectionEnd]).toEqual([0, password.value.length]);
 });
 
 test('a pair that did not open is said on the wall, with the one sentence allowed', () => {
