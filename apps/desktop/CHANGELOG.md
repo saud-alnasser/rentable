@@ -1,5 +1,15 @@
 # rentable
 
+## 0.18.0
+
+### Minor Changes
+
+- [#844](https://github.com/saud-alnasser/rentable/pull/844) [`366e3b2`](https://github.com/saud-alnasser/rentable/commit/366e3b27c1ff9e36f8d0209f908763260ec0970f) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - choosing another workspace no longer looks like the app starting over. the rail and the title bar stay up, and the page shows a loading placeholder with "opening {name}" while the workspace opens. a record's page moves to its directory first, since that record belongs to the workspace you left; a directory, the dashboard and settings stay where they are.
+
+- [#844](https://github.com/saud-alnasser/rentable/pull/844) [`366e3b2`](https://github.com/saud-alnasser/rentable/commit/366e3b27c1ff9e36f8d0209f908763260ec0970f) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - signed out, the window shows the way in and its own controls and nothing else: the rail, the workspace control, the breadcrumb, search and the shortcut button are no longer drawn until somebody is in. the welcome now introduces rentable and offers two ways in, set up with Turso or join with a link, each saying whose it is. setting up is one surface that changes step: connect Turso, with one line saying the browser opens, then name your organization, each step saying where it is. joining with a link reads the same way: paste the link and its code, then choose a password. the sign-in asks for a username and a password and nothing else, and "can't sign in?" says who can help. a member with no workspace yet, and the loading after the way in, keep the same mark and column, so the rail arrives with the application. the language and light or dark are one quiet control at the foot of the way in, which on the sign-in also holds "use a link" and "disconnect this machine".
+
+- [#844](https://github.com/saud-alnasser/rentable/pull/844) [`366e3b2`](https://github.com/saud-alnasser/rentable/commit/366e3b27c1ff9e36f8d0209f908763260ec0970f) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - the workspace control at the top of the rail now names only the open workspace. its menu lists the workspaces you hold with a check on the open one, then "manage workspaces…", which opens the workspaces section of settings. the member count, the menu's header and the "switch to" heading are gone.
+
 ## 0.17.0
 
 ### Minor Changes

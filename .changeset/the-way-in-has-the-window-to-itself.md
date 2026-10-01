@@ -1,5 +1,0 @@
----
-'@rentable/desktop': minor
----
-
-signed out, the window shows the way in and its own controls and nothing else: the rail, the workspace control, the breadcrumb, search and the shortcut button are no longer drawn until somebody is in. the welcome now introduces rentable and offers two ways in, set up with Turso or join with a link, each saying whose it is. setting up is one surface that changes step: connect Turso, with one line saying the browser opens, then name your organization, each step saying where it is. joining with a link reads the same way: paste the link and its code, then choose a password. the sign-in asks for a username and a password and nothing else, and "can't sign in?" says who can help. a member with no workspace yet, and the loading after the way in, keep the same mark and column, so the rail arrives with the application. the language and light or dark are one quiet control at the foot of the way in, which on the sign-in also holds "use a link" and "disconnect this machine".
