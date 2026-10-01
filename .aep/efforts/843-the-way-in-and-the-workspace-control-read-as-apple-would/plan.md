@@ -20,6 +20,13 @@ title under it. *Decided by the human on 2026-09-30; they had taken the mark off
 2026-08-20, when the wall was a card of its own and the mark stood alone on it.* It owns every one of those slots, so no step can place them differently. A step hands
 in its title, description, body, actions, whether it has a back and where it is in its sequence.
 
+*Built 2026-10-01 by ticket 02, as ticket 01 judged it on screen
+([[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/evidence/prototypes/the-look-of-the-way-in]]):
+the column is placed from the top (`pt-[max(5rem,20vh)]`), not centred, so the mark and the title
+hold still when a step changes height; back sits in the content area's top-start corner, not the
+column's; and the position is a small line above the title, not between the description and the
+controls.*
+
 **One surface, and the step is a key.** The walk (`organization/setup/component/walk.svelte`)
 and the connect screen (`connect-screen.svelte`) already draw every step inside one component;
 they keep doing so, and hand the way-in surface a `step` key. When the key changes, the surface
@@ -44,12 +51,22 @@ the loading after a switch, which is the one load with a person in and a rail al
 `organization/session/component/account-signed-out.svelte` have no caller left and are deleted.
 *Decided by the human on 2026-09-30, over keeping the disabled rail they chose on 2026-08-20.*
 
+*Built 2026-10-01 by ticket 08: the latch is kept for a switch alone. `shellFor` in
+`startup/screen.ts` answers `full` for `loading` only while `switching` is set, so the load after a
+sign-in, a first run or a join draws the way-in frame; ticket 03 had kept the rail for any load
+once it had latched.*
+
 **Language and appearance on the way in are one quiet control at the column's foot.** A text
 button reading the current language, opening a popover that holds the existing
 `lib/design/block/language-choice.svelte`, the appearance choice the settings area already draws,
 and a link to all settings. `/settings` still opens signed out (`OPENS_SIGNED_OUT`), now on the
 `way-in` frame with the back control returning to the way in, since the rail's row that used to
 lead there is gone.
+
+*Built 2026-10-01 by ticket 04: the control lives in the settings feature, as
+`settings/component/way-in-preferences.svelte`, exported from `$lib/settings/ui` as
+`WayInPreferences`, because `lib/design` is layer 1 and cannot import the settings area's
+appearance control.*
 
 **The workspace control keeps its primitive and loses its duplication.** `workspace/component/menu.svelte`
 stays a `Sidebar.MenuButton` opening a `DropdownMenu`. The trigger draws the mark tile and the
@@ -115,10 +132,10 @@ as long as the reads take.
 | `startup/switch.ts`, `startup/machine.ts`, `startup/snapshot.ts` | `switching` set and cleared; the address moved before the open |
 | `startup/component/{sign-in,no-workspace,loading}.svelte` | drawn on the way-in surface; the welcome's two choices as an equal pair |
 | `organization/setup/component/{walk,connect-step,name-step,existing-step,connect-screen}.svelte` | drawn on the way-in surface with a step key; field addons removed; icons kept only on back, link and external-page buttons |
-| `lib/design/block/way-in-preferences.svelte` (new) | the foot control and its popover (language, appearance, all settings) |
+| `settings/component/way-in-preferences.svelte` (new; planned in `lib/design/block`, moved by ticket 04 on 2026-10-01) | the foot control and its popover (language, appearance, all settings) |
 | `workspace/component/{menu,rail-row}.svelte` | the one-line trigger; the list, separator and manage item; no member count read |
 | `workspace/component/locked.svelte`, `organization/session/component/account-signed-out.svelte` | deleted |
-| locale files | the welcome's line, "manage workspaces", "opening {name}", the preferences control; unused strings (`workspaceMenu.members`, `switchTo`, `create`, the locked row's) removed |
+| locale files | the welcome's line, "manage workspaces", "opening {name}", the preferences control; unused strings (`switchTo`, the locked row's) removed. *Built 2026-10-01 by ticket 09: `workspaceMenu.members` and `create` stayed, because the settings area's workspace directory and dialog read them.* |
 | `.aep/rules/interface.md` | *Application surfaces* names the two surfaces; *Loading* says a switch draws the loading block |
 
 # Interfaces
@@ -143,6 +160,40 @@ switching: string | null;               // the workspace name being opened
 // startup/screen.ts
 type StartupScreen = ... | 'switching';
 export function addressAfterSwitch(routeId: string | null): string | null;
+```
+
+*Built 2026-10-01: the interfaces above departed in five places.*
+
+- *Ticket 02: `position` is `{ at: number; of: number; label: string }`, the label handed in by
+  the caller.*
+- *Ticket 05: the surface gained `named?: boolean`, for a title drawn as written (the welcome's
+  "rentable", the wall's organization) rather than with its first letter raised.*
+- *Ticket 08: the surface's `title` is optional, for the loading, which asks nothing.*
+- *Ticket 10: `addressAfterSwitch(routeId, trailOf)` takes the shell's trail as a function from
+  route id to crumbs, because startup may not import the shell.*
+- *Ticket 06: the route crossing between the welcome and a walk is run from root's `onNavigate` by
+  `crossWayIn` in `@rentable/design/way-in-transition.js`, given the direction `wayInCrossing` in
+  `startup/screen.ts` reads off the two addresses.*
+
+```ts
+// packages/design/src/lib/block/way-in-surface.svelte, as built
+title?: string;
+named?: boolean;
+position?: { at: number; of: number; label: string };
+
+// startup/screen.ts, as built
+export function addressAfterSwitch<Place extends string>(
+  routeId: string | null,
+  trailOf: (routeId: string) => readonly SwitchCrumb<Place>[]
+): Place | typeof THE_WAY_IN | null;
+export function wayInCrossing(from: string, to: string): 'forward' | 'back' | null;
+
+// packages/design/src/lib/way-in-transition.ts, as built
+export function crossWayIn(
+  crossing: WayInCrossing,
+  direction: 'ltr' | 'rtl',
+  complete: Promise<unknown>
+): Promise<void> | undefined;
 ```
 
 Callers of `ShellFrame`'s `shell` prop pass `way-in` where they passed `signed-out`; there are two,
