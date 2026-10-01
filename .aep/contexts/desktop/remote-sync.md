@@ -52,9 +52,12 @@ are the two things a person is signed in as.
 requirements 12, 18 and 22): a password signs a member in once per machine; the derived key is
 then remembered in the keyring and every later launch resumes on it, until the member signs out
 here, is signed out from another machine, or the machine is disconnected. `sign in` and `sign
-out` are the member; `connect` and `disconnect` are the machine and the organization; `connect
-Turso account` and `forget Turso account` are the owner's consent, and the Turso account is the
-only thing called an account.*
+out` are the member; `connect` and `disconnect` are the machine and the organization; the owner's
+consent is named below, and the Turso account is the only thing called an account.*
+*Corrected 2026-10-01 ([[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/spec]],
+requirement 3): the owner's consent is `connect Turso`, the title of the step that asks for it,
+and the one button under that title says connect. `forget Turso account` is still how the owner
+gives the authority back.*
 
 **Credential**:
 The Turso token a replica syncs with. Sealed to the member's public key on a `grant` row in the
