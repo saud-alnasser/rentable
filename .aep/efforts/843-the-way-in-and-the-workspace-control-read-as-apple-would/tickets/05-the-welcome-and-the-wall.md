@@ -37,6 +37,9 @@ and its criteria 2, 3, 5, 6 and 8.
       control's popover.
 - [ ] Pressing "can't sign in?" replaces it with the one sentence, announced as a status.
 - [ ] New and changed strings exist in both locales, in lower case, and the casing test passes.
+- [ ] The welcome and the wall pass `WayInPreferences` (`$lib/settings/ui`) to the surface's `foot`,
+      and nothing else goes there; the wall alone hands it "use a link" and "disconnect this
+      machine" as its extras.
 
 ## Relevant areas
 
@@ -51,3 +54,6 @@ and its criteria 2, 3, 5, 6 and 8.
 ## Notes
 
 *Corrected 2026-10-01 by ticket 01 ([[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/evidence/prototypes/the-look-of-the-way-in]]): the human chose the welcome's look and asked for plain words and for "can't sign in?" to answer with a sentence.*
+
+*Corrected 2026-10-01 while building ticket 04: the foot control is built there, and each way-in
+screen passes it as it moves onto the surface, so the wiring is this ticket's criterion.*

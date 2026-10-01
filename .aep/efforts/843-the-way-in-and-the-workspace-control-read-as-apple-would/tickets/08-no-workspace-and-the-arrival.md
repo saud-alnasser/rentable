@@ -23,6 +23,7 @@ and its criteria 3, 8 and 9.
       step.
 - [ ] For the owner, the workspace name field is focused on arrival, and Enter creates.
 - [ ] The launch loading, before anybody is in, uses the same layout.
+- [ ] The no-workspace screen passes `WayInPreferences` to the surface's `foot`, with no extras.
 
 ## Relevant areas
 
@@ -32,3 +33,8 @@ and its criteria 3, 8 and 9.
 ## Constraints
 
 - [[rules/interface]] *Loading*: the startup bar reports stages, so it stays a bar.
+
+## Notes
+
+*Corrected 2026-10-01 while building ticket 04: the foot control is built there, and each way-in
+screen passes it as it moves onto the surface, so the wiring is this ticket's criterion.*

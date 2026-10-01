@@ -30,6 +30,7 @@ and its criteria 1, 3, 4, 5, 6 and 8.
 - [ ] The link field is focused on arrival at paste, and the password field at the password choice.
       Enter submits.
 - [ ] A `rentable://` link that arrives while the app runs still lands on paste with the link filled.
+- [ ] Both steps of the join pass `WayInPreferences` to the surface's `foot`, with no extras.
 
 ## Relevant areas
 
@@ -43,3 +44,6 @@ and its criteria 1, 3, 4, 5, 6 and 8.
 ## Notes
 
 *Corrected 2026-10-01 by ticket 01 ([[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/evidence/prototypes/the-look-of-the-way-in]]): the human asked for the link path to read like the first run, in plain words.*
+
+*Corrected 2026-10-01 while building ticket 04: the foot control is built there, and each way-in
+screen passes it as it moves onto the surface, so the wiring is this ticket's criterion.*

@@ -36,6 +36,7 @@ and its criteria 1, 3, 4, 5, 6 and 8.
       no password field carries a value.
 - [ ] A test holds 824 requirement 2: pressing back while a consent is pending abandons the poll at
       once, whether or not a transition is running.
+- [ ] Every step of the first run passes `WayInPreferences` to the surface's `foot`, with no extras.
 
 ## Relevant areas
 
@@ -50,3 +51,6 @@ and its criteria 1, 3, 4, 5, 6 and 8.
 ## Notes
 
 *Corrected 2026-10-01 by ticket 01 ([[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/evidence/prototypes/the-look-of-the-way-in]]): the human found "before you connect" odd and asked for plain words; the consent's facts leave the way in.*
+
+*Corrected 2026-10-01 while building ticket 04: the foot control is built there, and each way-in
+screen passes it as it moves onto the surface, so the wiring is this ticket's criterion.*

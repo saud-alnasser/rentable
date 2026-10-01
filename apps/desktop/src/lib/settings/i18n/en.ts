@@ -53,6 +53,12 @@ export const settings = {
 		'check for a newer version and install it. if the app then fails to start, it offers the version you were on.',
 	updatesTitle: 'updates',
 
+	// the one quiet control at the foot of every step of the way in (effort 843, requirement 7).
+	wayIn: {
+		preferences: 'language and appearance',
+		allSettings: 'all settings'
+	},
+
 	you: {
 		signedInAs: 'signed in as',
 		password: {

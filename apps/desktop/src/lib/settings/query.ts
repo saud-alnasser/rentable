@@ -2,9 +2,12 @@ import api from '$lib/api/caller';
 import { browserAppearance, type AppearanceSetting } from '$lib/platform/appearance';
 import { declareMutation } from '$lib/mutation/ui';
 import { contributionsTo } from '$lib/feature/surface';
-import { LL } from '$lib/i18n/i18n-svelte';
+import { LL, locale, setLocale } from '$lib/i18n/i18n-svelte';
+import type { Locales } from '$lib/i18n/i18n-types';
 import { createQuery } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
+
+import { keys } from './keys';
 
 /**
  * SETTINGS QUERIES
@@ -14,10 +17,7 @@ import { get } from 'svelte/store';
  * settling the earlier records' offer to `workspace/`.
  */
 
-export const keys = {
-	all: ['settings'],
-	settings: ['settings', 'data']
-} as const;
+export { keys };
 
 export function useFetchSettings() {
 	return createQuery(() => ({
@@ -42,6 +42,35 @@ export const useSetEndingSoonNoticeDays = declareMutation({
 			together: [keys.settings, contributionsTo('settings').endingSoonReaders()]
 		}
 	]
+});
+
+/**
+ * Choose the application's language, drawn at once and then written.
+ *
+ * **Optimistic, as the appearance below is**, and for the same reason: the words change the moment
+ * a language is pressed, and a write the shell refuses puts the language back and says so. The
+ * settings page writes its own the same way; this is the one the way in's control uses (effort
+ * 843, requirement 7).
+ */
+export const useSetLocale = declareMutation({
+	mutate: ({ locale: next }: { locale: Locales }) => api.settings.set({ locale: next }),
+	touches: 'none',
+	toast: {
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
+	},
+	capture: ({ locale: next }) => {
+		const previous = get(locale);
+
+		setLocale(next);
+
+		return { previous };
+	},
+	sets: ({ result }) => [{ key: keys.settings, data: result }],
+	invalidates: [keys.settings],
+	failed: ({ captured }) => {
+		if (captured) setLocale(captured.previous);
+	}
 });
 
 /**

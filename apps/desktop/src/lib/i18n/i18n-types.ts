@@ -2295,6 +2295,16 @@ type RootTranslation = {
 		 * u​p​d​a​t​e​s
 		 */
 		updatesTitle: string
+		wayIn: {
+			/**
+			 * l​a​n​g​u​a​g​e​ ​a​n​d​ ​a​p​p​e​a​r​a​n​c​e
+			 */
+			preferences: string
+			/**
+			 * a​l​l​ ​s​e​t​t​i​n​g​s
+			 */
+			allSettings: string
+		}
 		you: {
 			/**
 			 * s​i​g​n​e​d​ ​i​n​ ​a​s
@@ -6808,6 +6818,16 @@ export type TranslationFunctions = {
 		 * updates
 		 */
 		updatesTitle: () => LocalizedString
+		wayIn: {
+			/**
+			 * language and appearance
+			 */
+			preferences: () => LocalizedString
+			/**
+			 * all settings
+			 */
+			allSettings: () => LocalizedString
+		}
 		you: {
 			/**
 			 * signed in as

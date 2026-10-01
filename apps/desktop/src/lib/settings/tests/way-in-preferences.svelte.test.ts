@@ -1,0 +1,133 @@
+import { fireEvent, render, screen } from '@testing-library/svelte';
+import { afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest';
+
+import { placeholderStrings as strings } from '$lib/design/tests/strings';
+import { setLocale } from '$lib/i18n/i18n-svelte';
+import { loadLocale } from '$lib/i18n/i18n-util.sync';
+import en from '$lib/i18n/en';
+import ar from '$lib/i18n/ar';
+import { fakeSettingsHost } from '$lib/settings/tests/testing.ts';
+import Harness from '$lib/settings/tests/way-in-preferences-harness.svelte';
+import Providers from '#tests/providers.svelte';
+
+/**
+ * LANGUAGE AND APPEARANCE ON THE WAY IN
+ *
+ * Criterion 7 of effort 843, the half about what stays reachable (ticket 04): the foot of a step
+ * opens the language, the appearance and all the settings, and a change shows at once on the step
+ * the person is on.
+ */
+
+const host = vi.hoisted(() => ({ settings: null as ReturnType<typeof fakeSettingsHost> | null }));
+
+vi.mock('$lib/api/caller', () => ({
+	default: {
+		settings: {
+			get: () => host.settings!.get(),
+			set: (changeset: Parameters<ReturnType<typeof fakeSettingsHost>['set']>[0]) =>
+				host.settings!.set(changeset)
+		}
+	}
+}));
+
+beforeAll(() => {
+	loadLocale('en');
+	loadLocale('ar');
+	// the system's appearance, read through `matchMedia`, which jsdom has none of; the popover's
+	// floating-ui measures with a `ResizeObserver`, which it also lacks.
+	window.matchMedia = ((query: string) => ({
+		matches: false,
+		media: query,
+		addEventListener: () => {},
+		removeEventListener: () => {}
+	})) as unknown as typeof window.matchMedia;
+	window.ResizeObserver = class {
+		observe() {}
+		unobserve() {}
+		disconnect() {}
+	} as unknown as typeof ResizeObserver;
+});
+
+beforeEach(() => {
+	host.settings = fakeSettingsHost();
+	setLocale('en');
+});
+
+afterEach(() => {
+	document.body.innerHTML = '';
+	document.documentElement.classList.remove('dark');
+});
+
+const draw = (props: Record<string, unknown> = {}) =>
+	render(Harness, props, { wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } });
+
+const openThePreferences = async () => {
+	await fireEvent.click(document.querySelector<HTMLElement>('[data-way-in-preferences]')!);
+};
+
+const title = () => document.querySelector('h1')?.textContent?.trim();
+
+test('the foot names the language, and opens the language, the appearance and all settings', async () => {
+	draw();
+
+	const trigger = document.querySelector<HTMLElement>(
+		'[data-way-in-foot] [data-way-in-preferences]'
+	);
+
+	expect(trigger?.textContent?.trim()).toBe('English');
+
+	await openThePreferences();
+
+	expect(document.querySelector('[data-language-choice]')).not.toBeNull();
+	expect(document.querySelector('[data-appearance="dark"]')).not.toBeNull();
+	expect(document.querySelector('[data-way-in-all-settings]')?.getAttribute('href')).toBe(
+		'/settings'
+	);
+});
+
+test('choosing another language redraws the step in it, and turns the reading direction', async () => {
+	draw();
+
+	expect(title()).toBe(en.settings.title);
+	expect(document.querySelector('[data-harness-root]')?.getAttribute('dir')).toBe('ltr');
+
+	await openThePreferences();
+	await fireEvent.click(
+		document.querySelector<HTMLElement>('[data-language-choice] [data-locale="ar"]')!
+	);
+
+	expect(title()).toBe(ar.settings.title);
+	expect(document.querySelector('[data-harness-root]')?.getAttribute('dir')).toBe('rtl');
+	expect((await host.settings!.get()).locale).toBe('ar');
+});
+
+test('choosing dark draws dark at once', async () => {
+	draw();
+
+	expect(document.documentElement.classList.contains('dark')).toBe(false);
+
+	await openThePreferences();
+	await fireEvent.click(document.querySelector<HTMLElement>('[data-appearance="dark"]')!);
+
+	expect(document.documentElement.classList.contains('dark')).toBe(true);
+});
+
+test('a step with acts of its own lists them below the choices, and nothing else does', async () => {
+	const chosen: string[] = [];
+
+	draw({
+		extras: [
+			{ label: 'use a link', onSelect: () => chosen.push('link') },
+			{
+				label: 'disconnect this machine',
+				onSelect: () => chosen.push('disconnect'),
+				destructive: true
+			}
+		]
+	});
+
+	await openThePreferences();
+	await fireEvent.click(screen.getByRole('button', { name: 'disconnect this machine' }));
+
+	expect(chosen).toEqual(['disconnect']);
+});
