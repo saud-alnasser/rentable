@@ -16,7 +16,6 @@ import {
 	isTheGroupNeeded,
 	refusalAfterFailedConnect,
 	refusalAfterFailedCreate,
-	statementsBeforeCreation,
 	stepAfterConsent,
 	stepFor,
 	stepsOf
@@ -77,24 +76,10 @@ test('the only fields the walk presents are the name, a username and a password'
 	assert.deepEqual(fieldsPresented(), ['name', 'username', 'password']);
 });
 
-// requirement 13: what the consent covers is explained, and no group is asked for. requirement 22
-// of effort 819: succession is stated before anything is created, in every case, because the
-// application cannot tell which case it is in.
-test('what the consent covers and what succession costs are said before the organization is created', () => {
-	const statements = statementsBeforeCreation();
-
-	assert.deepEqual(statements, [
-		'groupCoverage',
-		'oneOrganization',
-		'accountCreation',
-		'succession',
-		'groupAskedOnce'
-	]);
-
-	// and said on a step that asks for nothing, so explaining never becomes asking.
-	const explaining = SETUP_WALK.find((step) => step.statements.includes('groupCoverage'));
-
-	assert.deepEqual(explaining?.fields, []);
+// effort 843, requirement 3: the consent is one line and asks for nothing. The facts it carried
+// behind "before you connect" left the way in at the human's word on 2026-10-01.
+test('the connect step asks for nothing', () => {
+	assert.deepEqual(SETUP_WALK.find((step) => step.step === 'connect')?.fields, []);
 });
 
 // effort 832, requirement 18 and its criterion (a): the walk is two cards before the application,
@@ -106,7 +91,6 @@ test('the walk is two steps: the consent, then the name', () => {
 		SETUP_WALK.map((step) => step.step),
 		['connect', 'name']
 	);
-	assert.deepEqual(SETUP_WALK.at(-1)?.statements, []);
 });
 
 // effort 824, requirement 21: the owner sets their own username on the step that creates the
@@ -134,60 +118,40 @@ const PARAGRAPHS_REPLACED = [
 	'the organization will live in whichever turso organization holds the group you pick. if that is a personal account, only you can grant rentable authority over it again. a second administrator on a turso organization can do the same, and turso can move a group to another organization from its own dashboard. rentable does neither for you.'
 ];
 
-/** the four that replaced those paragraphs, and the four the word count above is about. */
-const REPLACING_KEYS = [
-	'groupCoverage',
-	'oneOrganization',
-	'accountCreation',
-	'succession'
-] as const;
-
-/**
- * What the fifth statement replaced, which was never a paragraph on this step.
- *
- * Requirement 13's fourth correction: the one case the application cannot name the group in is
- * an empty group not called `default`, and until this ticket the first a person heard of it was
- * a create that had already failed, whose whole sentence arrived as a toast. The step now says
- * beforehand that the name will be asked for, so what the sentence has to beat is that refusal
- * rather than a paragraph. Rust's half of it is what is pinned, without Turso's own reason
- * after the colon: the reason varies with whatever Turso last said, and a budget that counted
- * it would grow whenever Turso got wordier.
- */
-const REFUSAL_REPLACED =
-	"the turso group's name is needed. turso refused every group this application could name on its own, and said:";
-
-/** the statements the connect step draws, in the order a person meets them. */
-const STATEMENT_KEYS = [...REPLACING_KEYS, 'groupAskedOnce'] as const;
+/** the words the connect step says, in the order a person reads them (effort 843). */
+const CONNECT_KEYS = ['connectTitle', 'connectDescription', 'connect', 'connectHint'] as const;
 
 /** what the Arabic connect step said while it still asked for a group, kept for the guard. */
 const AR_WAS = 'في لوحة تحكم Turso، أنشئ مجموعة فارغة لـ rentable ثم اخترها في شاشة الموافقة.';
 
-const words = (sentences: readonly string[]) =>
-	sentences.reduce((count, sentence) => count + sentence.trim().split(/\s+/).length, 0);
+/**
+ * The connect step's words, pinned as literals in both locales rather than read out of the
+ * locale and compared with themselves: what the step says is the requirement, and the locale file
+ * is only where it is kept. They are the words the human accepted on screen (effort 843, ticket
+ * 01's evidence).
+ */
+const CONNECT_WORDS = {
+	en: {
+		connectTitle: 'connect Turso',
+		connectDescription: 'your organization is stored in your Turso account.',
+		connect: 'connect',
+		connectHint: 'your browser opens so you can allow access.'
+	},
+	ar: {
+		connectTitle: 'اربط Turso',
+		connectDescription: 'تُحفظ مؤسستك في حساب Turso الخاص بك.',
+		connect: 'اربط',
+		connectHint: 'يفتح المتصفح لتسمح بالوصول.'
+	}
+} as const;
 
-test('the connect items together are shorter than the three paragraphs they replaced', () => {
-	const items = REPLACING_KEYS.map((key) => en.organization.setup[key]);
+test('the connect step says these things, and says them in both locales', () => {
+	for (const locale of ['en', 'ar'] as const) {
+		const setup = { en, ar }[locale].organization.setup;
 
-	assert.ok(
-		words(items) < words(PARAGRAPHS_REPLACED),
-		`${words(items)} words against ${words(PARAGRAPHS_REPLACED)}`
-	);
-
-	// and the fifth, which replaced no paragraph, is shorter than the refusal it replaced. The
-	// property is the same one: every sentence on this step is shorter than what a person read
-	// before it existed.
-	const asked = [en.organization.setup.groupAskedOnce];
-
-	assert.ok(
-		words(asked) < words([REFUSAL_REPLACED]),
-		`${words(asked)} words against ${words([REFUSAL_REPLACED])}`
-	);
-
-	// and each still says something, in both locales, written rather than copied.
-	for (const key of STATEMENT_KEYS) {
-		assert.ok(en.organization.setup[key].length > 0, key);
-		assert.ok(ar.organization.setup[key].length > 0, key);
-		assert.notEqual(ar.organization.setup[key], en.organization.setup[key], key);
+		for (const key of CONNECT_KEYS) {
+			assert.equal(setup[key], CONNECT_WORDS[locale][key], `${locale}: ${key}`);
+		}
 	}
 });
 
@@ -205,70 +169,6 @@ test('the password floor is the same number in Rust, on the form, and in both lo
 	assert.match(en.organization.setup.passwordTooShort, new RegExp(`\\b${PASSWORD_FLOOR}\\b`));
 	assert.match(ar.organization.setup.passwordFloor, new RegExp(`${PASSWORD_FLOOR}`));
 	assert.match(ar.organization.setup.passwordTooShort, new RegExp(`${PASSWORD_FLOOR}`));
-});
-
-// requirement 22 of effort 819: the statement names group transfer as the customer's, performed
-// in Turso, and offers it nowhere here. Shorter again since the redesign, and it still says so.
-test('the succession item names turso as where a group moves, in both locales', () => {
-	assert.match(en.organization.setup.succession, /turso/i);
-	assert.match(en.organization.setup.succession, /move a group|transfer/i);
-	assert.match(en.organization.setup.succession, /rentable does neither/i);
-	assert.match(ar.organization.setup.succession, /Turso/);
-	assert.match(ar.organization.setup.succession, /نقل/);
-});
-
-/**
- * Requirement 13 of the redesign, requirement 21 for the fourth, and requirement 13's fourth
- * correction for the fifth: the sentences a person reads before the consent, pinned as literals
- * in both locales rather than read out of the locale and compared with themselves. A rewrite of any of them is then a deliberate edit here
- * as well, which is the point: what this step says is the requirement, and the locale file is
- * only where it is kept.
- *
- * The one-group fact in `accountCreation` is Turso's own plan limit rather than a preference,
- * and it comes from
- * [[efforts/826-the-organization-and-the-way-in-are-rethought/evidence/research/what-an-organization-with-members-costs-on-turso]]
- * and
- * [[efforts/826-the-organization-and-the-way-in-are-rethought/evidence/research/what-a-turso-member-can-do-through-the-consent]].
- */
-const STATEMENTS = {
-	en: {
-		groupCoverage:
-			'the consent covers every database in the group you choose, and nothing outside it.',
-		oneOrganization:
-			'a group holds one organization. a group that already holds one is connected to, not refused.',
-		accountCreation:
-			'a free or developer Turso account holds one group, so keep one for rentable alone. on a paid one, pick an empty group.',
-		succession:
-			"only you, or a Turso organization's admin, can grant access again, and Turso can move a group. rentable does neither.",
-		groupAskedOnce:
-			'a group holding nothing yet is asked its name once, on the next step; Turso names it nowhere.'
-	},
-	ar: {
-		groupCoverage: 'تشمل الموافقة كل قاعدة بيانات في المجموعة التي تختارها، ولا شيء خارجها.',
-		oneOrganization:
-			'تحمل المجموعة الواحدة مؤسسة واحدة، وإن كانت تحمل واحدة بالفعل فالاتصال بها هو ما يحدث، لا الرفض.',
-		accountCreation:
-			'حساب Turso المجاني أو Developer يحمل مجموعة واحدة، فخصّص حسابًا لـ rentable وحده. وفي الحساب المدفوع اختر مجموعة فارغة.',
-		succession:
-			'لا يمنح الصلاحية مجددًا إلا أنت أو مدير منظمة Turso، وتستطيع Turso نقل المجموعة. لا يفعل rentable أيًا منهما.',
-		groupAskedOnce:
-			'المجموعة التي لا تحمل شيئاً بعد يطلب rentable اسمها مرة واحدة في الخطوة التالية، فـ Turso لا تذكر هذا الاسم في أي مكان يصل إليه.'
-	}
-} as const;
-
-test('the connect step says these things, and says them in both locales', () => {
-	for (const locale of ['en', 'ar'] as const) {
-		const setup = { en, ar }[locale].organization.setup;
-
-		for (const key of STATEMENT_KEYS) {
-			assert.equal(setup[key], STATEMENTS[locale][key], `${locale}: ${key}`);
-		}
-	}
-
-	// the connect step draws these and no others, in this order.
-	assert.deepEqual(SETUP_WALK.find((step) => step.step === 'connect')?.statements, [
-		...STATEMENT_KEYS
-	]);
 });
 
 /**
@@ -476,18 +376,13 @@ test('where the walk goes for a machine that is already somebody', () => {
  *
  * **An instruction puts its verb first, and that is the whole of the distinction.** "pick an
  * empty group" tells somebody to do something; "the group you chose" tells them which one is
- * meant. The connect statements keep the older, narrower reading of the same rule, because
- * requirement 13 has them say in so many words that an empty group is the one to pick on a paid
- * account: they may point at a group somebody already has to choose between, and they still may
- * not tell anybody to make one. The field is held to the wider reading, since it has no business
- * instructing anybody at all.
+ * meant. The connect step's words keep the older, narrower reading of the same rule: they may
+ * point at a group somebody already has to choose between, and they still may not tell anybody to
+ * make one. The field is held to the wider reading, since it has no business instructing anybody
+ * at all.
  *
  * A match is kept inside one sentence, which is what stops a statement that names a group in one
  * sentence and an account in the next from reading as an instruction about a group.
- *
- * **`groupAskedOnce` is a statement and is held to the statements' reading**, which is what lets
- * it say that a group holding nothing yet is asked its name: it describes the field the next
- * step may draw, and it tells nobody to make a group or to go and find one.
  */
 
 /** every sentence the last-resort field shows, including the one that says why it is there. */
@@ -534,14 +429,14 @@ test('nothing the walk presents asks for a slug, a group, a token, a URL, a host
 	for (const locale of ['en', 'ar'] as const) {
 		const setup = { en, ar }[locale].organization.setup;
 
-		for (const key of [...STATEMENT_KEYS, ...GROUP_FIELD_KEYS]) {
+		for (const key of [...CONNECT_KEYS, ...GROUP_FIELD_KEYS]) {
 			assert.doesNotMatch(setup[key], TURSO_VOCABULARY, `${locale}: ${key}`);
 		}
 	}
 });
 
 test('neither locale tells the owner to create a group', () => {
-	for (const key of STATEMENT_KEYS) {
+	for (const key of CONNECT_KEYS) {
 		assert.doesNotMatch(en.organization.setup[key], MAKE_A_GROUP.en, `en: ${key}`);
 		assert.doesNotMatch(ar.organization.setup[key], MAKE_A_GROUP.ar, `ar: ${key}`);
 	}
@@ -790,15 +685,15 @@ test('the existing step says whose account it is and who signs in, in both local
 });
 
 /**
- * Effort 832, requirements 17 and 18: **the connect card carries one line and a disclosure.** The
- * line is the card's description, and it is one sentence, short, in both locales, written in each
- * rather than copied. The facts sit behind the disclosure, whose label is short too.
+ * Effort 832, requirements 17 and 18, as effort 843 left them: **the connect step carries one line,
+ * and one line under its button.** Each is one sentence, short, in both locales, written in each
+ * rather than copied. The facts that sat behind a disclosure are gone (requirement 3).
  */
-test('the connect step says one short line, and the facts are behind a short disclosure', () => {
+test('the connect step says one short line, and one under its button', () => {
 	for (const locale of ['en', 'ar'] as const) {
 		const setup = { en, ar }[locale].organization.setup;
 
-		for (const key of ['connectDescription', 'connectDetails'] as const) {
+		for (const key of ['connectDescription', 'connectHint'] as const) {
 			assert.ok(setup[key].length > 0, `${locale}: ${key}`);
 			assert.ok(setup[key].length <= 60, `${locale}: ${key} is ${setup[key].length} characters`);
 		}
@@ -811,10 +706,10 @@ test('the connect step says one short line, and the facts are behind a short dis
 		ar.organization.setup.connectDescription,
 		en.organization.setup.connectDescription
 	);
-	assert.notEqual(ar.organization.setup.connectDetails, en.organization.setup.connectDetails);
+	assert.notEqual(ar.organization.setup.connectHint, en.organization.setup.connectHint);
 
 	// the Arabic is Arabic: written in its own script, with Turso the only Latin word in it.
-	for (const key of ['connectDescription', 'connectDetails'] as const) {
+	for (const key of ['connectDescription', 'connectHint'] as const) {
 		const latin = ar.organization.setup[key].match(/[A-Za-z]+/g) ?? [];
 
 		assert.ok(

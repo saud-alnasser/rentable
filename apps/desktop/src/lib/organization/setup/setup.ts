@@ -64,84 +64,35 @@ export function stepsOf(step: SetupStep): readonly SetupStep[] {
  * own default, then with the group uuid the consent token carries, and a group that already
  * holds anything named itself in the listing. The field exists for the one case where all of
  * that was refused, and it is drawn outside this description because it is not a step's field.
- * It is the last resort, and [`refusalAfterFailedCreate`] is what puts it on screen. The connect
- * step says beforehand that it is coming, under `groupAskedOnce`, so the person who meets it is
- * meeting a step they were told about rather than a create that went wrong.
+ * It is the last resort, and [`refusalAfterFailedCreate`] is what puts it on screen, with a
+ * sentence over it saying what to type. *The connect step said beforehand that it was coming,
+ * under `groupAskedOnce`, until effort 843 took the consent's facts off the way in.*
  */
 export type SetupField = 'name' | 'username' | 'password';
 
 /**
- * what a step tells the person before it asks anything of them.
+ * what each step of the walk asks for.
  *
- * `groupCoverage` says how far the consent reaches: every database in the group the person
- * picks, and nothing outside it. `oneOrganization` says what that group may hold: one
- * organization, and that a group already holding one is connected to rather than refused, which
- * is effort 828's requirement 14 correcting what this sentence said while the only outcome was a
- * create (826, requirement 21). `accountCreation` says why a Turso account kept for rentable
- * alone is the clean choice, which is the one-group fact rather than a preference: a Free or
- * Developer account has exactly one group and the consent screen offers no way to make a
- * second, so on those plans the only group there is to pick is the one already holding
- * everything else, and only a paid account can offer an empty one. `succession` states what it
- * costs that the organization lives in whichever Turso organization holds the group, before
- * anything is created, in every case, because a group-scoped credential cannot tell a personal
- * account from a team one (requirement 22 of effort 819).
- *
- * `groupAskedOnce` is the one this ticket added, and it is here rather than left to the moment
- * it happens: a group holding nothing yet is the one case the application cannot name on its
- * own, so the next step asks for the name, once. Said beforehand it is a step; met for the first
- * time after a create was refused it reads as a failure, and it is neither.
- *
- * **Nothing here asks for a group to be made.** The walk used to, and the plan limit is why it
- * no longer does.
- *
- * The screen draws them as one list, a glyph to each, in this order, with the dashboard action
- * on the first; the sentences themselves are the locale's, under these names. **The list is behind
- * a disclosure** (effort 832, requirements 17 and 18): the step says one line and offers the
- * consent, and a person who wants the facts first opens them. They are the same facts, still
- * there before anything is created, and no longer standing between the reader and the button.
+ * **The consent says nothing before it is given, beyond one line.** Until effort 843 the connect
+ * step carried five facts behind a "before you connect" disclosure (how far the consent reaches,
+ * what one group may hold, which account to grant it on, what succession costs, and that an empty
+ * group is asked its name once). The human found the disclosure odd on screen on 2026-10-01 and
+ * asked for plain words, so the step is its title, one line, the button and one line under it
+ * (requirement 3); where any of the facts belongs instead is not decided there.
  */
-export type SetupStatement =
-	'groupCoverage' | 'oneOrganization' | 'accountCreation' | 'succession' | 'groupAskedOnce';
-
 export type SetupStepDescription = {
 	step: SetupStep;
 	fields: readonly SetupField[];
-	statements: readonly SetupStatement[];
 };
 
 export const SETUP_WALK: readonly SetupStepDescription[] = [
-	{
-		step: 'connect',
-		fields: [],
-		statements: [
-			'groupCoverage',
-			'oneOrganization',
-			'accountCreation',
-			'succession',
-			'groupAskedOnce'
-		]
-	},
-	{
-		step: 'name',
-		fields: ['name', 'username', 'password'],
-		statements: []
-	}
+	{ step: 'connect', fields: [] },
+	{ step: 'name', fields: ['name', 'username', 'password'] }
 ];
 
 /** every field the whole walk presents, in order. */
 export function fieldsPresented(walk: readonly SetupStepDescription[] = SETUP_WALK): SetupField[] {
 	return walk.flatMap((step) => step.fields);
-}
-
-/** the statements shown before the step that creates anything. */
-export function statementsBeforeCreation(
-	walk: readonly SetupStepDescription[] = SETUP_WALK
-): SetupStatement[] {
-	const creating = walk.findIndex((step) => step.fields.includes('password'));
-
-	return walk
-		.slice(0, creating < 0 ? walk.length : creating + 1)
-		.flatMap((step) => step.statements);
 }
 
 /**

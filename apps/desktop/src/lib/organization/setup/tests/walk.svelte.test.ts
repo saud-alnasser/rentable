@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
-import { expect, test, vi } from 'vitest';
+import { beforeAll, expect, test, vi } from 'vitest';
 
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { i18nObject } from '$lib/i18n/i18n-util';
@@ -9,6 +9,7 @@ import { SETUP_STEPS, type SetupStep } from '$lib/organization/setup/setup';
 import en from '$lib/i18n/en';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
+import { fakeSettings } from '$lib/settings/tests/testing.ts';
 import Providers from '#tests/providers.svelte';
 
 /**
@@ -19,12 +20,13 @@ import Providers from '#tests/providers.svelte';
  * field that reached the DOM without going through the description would pass there and fail
  * here.
  *
- * And since effort 824: every step carries exactly one way back, in the card's corner, whose
- * arrow mirrors for a reader going right to left; every step says where it is; a machine that
- * already holds the authority opens the connect step granted; the name step asks for the
- * owner's username beside the name and the password, refused under the one rule every username
- * field reads; the primaries carry their verb and the fields their subject. And since effort 832:
- * the walk is two steps, and the connect step says one line with its facts behind a disclosure.
+ * And since effort 824: every step carries exactly one way back, whose arrow mirrors for a reader
+ * going right to left; every step says where it is; a machine that already holds the authority
+ * opens the connect step granted; the name step asks for the owner's username beside the name and
+ * the password, refused under the one rule every username field reads. Since effort 832 the walk
+ * is two steps. And since effort 843 it is on the way-in surface: one prominent action a step,
+ * fields with no glyphs, the cursor in the first field on arrival, the connect step one line with
+ * no facts, and the language and appearance control at the foot.
  *
  * **The subject needs two providers above it**, which is why `./providers.svelte` is the wrapper:
  * the corner control draws a tooltip, and the surface's spinner reads the string contract.
@@ -48,6 +50,27 @@ vi.mock('$app/forms', async (original) => ({
 	applyAction: async () => {}
 }));
 
+// the settings the foot control reads, which a test has no shell to ask.
+vi.mock('$lib/api/caller', () => ({
+	default: { settings: { get: async () => fakeSettings(), set: async () => fakeSettings() } }
+}));
+
+beforeAll(() => {
+	// the foot control's appearance reads the system's through `matchMedia`, and a popover measures
+	// with a `ResizeObserver`; jsdom has neither.
+	window.matchMedia = ((query: string) => ({
+		matches: false,
+		media: query,
+		addEventListener: () => {},
+		removeEventListener: () => {}
+	})) as unknown as typeof window.matchMedia;
+	window.ResizeObserver = class {
+		observe() {}
+		unobserve() {}
+		disconnect() {}
+	} as unknown as typeof ResizeObserver;
+});
+
 const noop = () => {};
 
 type WalkProps = Parameters<typeof render<typeof SetupWalk>>[1];
@@ -66,7 +89,6 @@ const walk = (
 			holdsTursoAuthority: false,
 			isConnecting: false,
 			isCreating: false,
-			onOpenDashboard: noop,
 			onConnect: noop,
 			onDisconnect: noop,
 			onContinue: noop,
@@ -81,16 +103,12 @@ const walk = (
 const inputsOnScreen = () =>
 	Array.from(document.querySelectorAll<HTMLInputElement>('input, textarea, select'));
 
-/** the leading addon of the input with this name, as the group draws it ahead of the control. */
-const addonBefore = (name: string) => {
-	const input = document.querySelector<HTMLInputElement>(`input[name="${name}"]`);
-	const addon = input?.previousElementSibling;
+/** the buttons a step draws, which leaves out back, the foot control and what it opens. */
+const stepButtons = () =>
+	Array.from(document.querySelectorAll<HTMLButtonElement>('[data-setup-step] button'));
 
-	expect(input, name).not.toBeNull();
-	expect(addon?.getAttribute('data-slot'), name).toBe('input-group-addon');
-
-	return addon as HTMLElement;
-};
+/** whether a button is drawn prominent: the filled primary variant. */
+const isProminent = (button: HTMLElement) => button.className.includes('bg-primary');
 
 test('the naming step presents exactly three fields: the name, a username and a password', () => {
 	loadLocale('en');
@@ -307,171 +325,46 @@ test('an empty group is refused on a step that asked for one, and nothing is cre
 });
 
 /**
- * Effort 826's correction to requirement 13: a group that is not the one the consent is over is
- * refused by Rust before anything is created, by both names, and the consent is untouched. So it
- * reaches the walk the way every ordinary failed create does: the shared handler shows the
- * sentence, `refusalAfterFailedCreate` keeps the walk where it is, and what the person typed is
- * still in the fields for them to correct the one word that was wrong. This is that last half,
- * which is the only half this component owns; the sentence is Rust's and `setup.test.ts` pins it
- * to what `setup/` formats, both group names included, and pins the walk staying put.
+ * Effort 843, requirement 3: **the connect step is its title, one line, one "connect" and one line
+ * under it.** The five facts that sat behind "before you connect" are gone, with the dashboard
+ * action that sat in the first of them.
  */
-test('a create refused over the group leaves the name step filled in, so the group can be corrected', async () => {
-	loadLocale('en');
-	setLocale('en');
-
-	// what the route hands in after a refused create: it caught the refusal, the shared handler
-	// said it, and the walk was left on the step it was on with the field still asked for.
-	const onCreate = vi.fn(async () => {});
-
-	walk('name', { askGroup: true, onCreate });
-	await fillAndCreate('rentabel');
-
-	await waitFor(() => {
-		expect(onCreate).toHaveBeenCalledWith(
-			'Acme Rentals',
-			'olivia.owner',
-			'a long enough password',
-			'rentabel'
-		);
-	});
-
-	// the step is still the name step, with all four values where the person left them, so the
-	// one word that was wrong is the only one they retype.
-	expect(inputsOnScreen().map((input) => [input.getAttribute('name'), input.value])).toEqual([
-		['name', 'Acme Rentals'],
-		['username', 'olivia.owner'],
-		['password', 'a long enough password'],
-		['group', 'rentabel']
-	]);
-});
-
-// criterion 21: the owner's username is refused on the field with the one sentence the invite
-// dialog and the member's sheet refuse with, since all three read
-// `organization/member/username-form.ts`.
-test('a username outside the rules is refused on the name step with the one sentence every form reads', async () => {
-	loadLocale('en');
-	setLocale('en');
-	walk('name');
-
-	const input = document.querySelector<HTMLInputElement>('input[name="username"]')!;
-
-	await fireEvent.input(input, { target: { value: 'sa' } });
-	await fireEvent.focusOut(input);
-
-	await waitFor(() => {
-		expect(screen.getByRole('alert').textContent).toBe(en.organization.dashboard.usernameRules);
-	});
-	expect(input.getAttribute('aria-invalid')).toBe('true');
-
-	await fireEvent.input(input, { target: { value: 'sami staff' } });
-	await fireEvent.focusOut(input);
-
-	await waitFor(() => {
-		expect(screen.getByRole('alert').textContent).toBe(en.organization.dashboard.usernameRules);
-	});
-});
-
-/**
- * Effort 832, requirements 17 and 18: **the connect card carries one line and a disclosure in place
- * of its five statements.** The line is the card's description; before the button the step body
- * says nothing but where the person is, and the facts are behind a quiet disclosure under the
- * button, closed until asked for.
- */
-test('the connect step says one line before its button, and the facts are behind a disclosure', async () => {
-	loadLocale('en');
-	setLocale('en');
-	walk('connect');
-
-	expect(inputsOnScreen()).toEqual([]);
-	expect(screen.getByText(en.organization.setup.connectDescription)).toBeDefined();
-
-	const connect = screen.getByRole('button', { name: en.organization.setup.connect });
-	const body = document.querySelector('[data-setup-step="connect"]')!;
-
-	// before the button, the step body holds the position line and no sentence.
-	const before = Array.from(body.querySelectorAll('*')).filter(
-		(element) =>
-			element.children.length === 0 &&
-			(element.textContent?.trim() ?? '') !== '' &&
-			element.compareDocumentPosition(connect) & Node.DOCUMENT_POSITION_FOLLOWING
-	);
-
-	expect(before.map((element) => element.hasAttribute('data-setup-position'))).toEqual([true]);
-
-	// the five facts are not on screen until the disclosure is opened.
-	for (const key of [
-		'groupCoverage',
-		'oneOrganization',
-		'accountCreation',
-		'succession',
-		'groupAskedOnce'
+test('the connect step says one line, one connect, and one line under it, and no facts', () => {
+	for (const [locale, strings] of [
+		['en', en],
+		['ar', ar]
 	] as const) {
-		expect(screen.queryByText(en.organization.setup[key], { exact: false }), key).toBeNull();
+		loadLocale(locale);
+		setLocale(locale);
+
+		const rendered = walk('connect', {}, locale === 'ar' ? 'rtl' : 'ltr');
+
+		expect(inputsOnScreen(), locale).toEqual([]);
+		expect(screen.getByRole('heading').textContent?.trim(), locale).toBe(
+			strings.organization.setup.connectTitle
+		);
+		expect(screen.getByText(strings.organization.setup.connectDescription), locale).toBeDefined();
+
+		const connect = screen.getByRole('button', { name: strings.organization.setup.connect });
+		const hint = document.querySelector('[data-setup-connect-hint]');
+
+		expect(hint?.textContent?.trim(), locale).toBe(strings.organization.setup.connectHint);
+		expect(
+			connect.compareDocumentPosition(hint!) & Node.DOCUMENT_POSITION_FOLLOWING,
+			locale
+		).toBeTruthy();
+		expect(stepButtons(), locale).toEqual([connect]);
+		expect(
+			screen.queryByRole('button', { name: strings.organization.setup.openDashboard }),
+			locale
+		).toBeNull();
+		expect(document.querySelector('[data-setup-facts]'), locale).toBeNull();
+
+		rendered.unmount();
 	}
 
-	const disclosure = screen.getByRole('button', { name: en.organization.setup.connectDetails });
-
-	expect(
-		connect.compareDocumentPosition(disclosure) & Node.DOCUMENT_POSITION_FOLLOWING
-	).toBeTruthy();
-	expect(disclosure.getAttribute('class')).toContain('text-muted-foreground');
-
-	await fireEvent.click(disclosure);
-
-	await waitFor(() => {
-		expect(screen.getByText(en.organization.setup.oneOrganization)).toBeDefined();
-	});
-	expect(screen.getByText(en.organization.setup.groupCoverage, { exact: false })).toBeDefined();
-	expect(screen.getByText(en.organization.setup.accountCreation)).toBeDefined();
-	expect(screen.getByText(en.organization.setup.succession)).toBeDefined();
-	expect(screen.getByText(en.organization.setup.groupAskedOnce)).toBeDefined();
-	expect(screen.getByRole('button', { name: en.organization.setup.openDashboard })).toBeDefined();
-});
-
-// effort 824, requirement 5: the facts as a list, a glyph to each, the dashboard action inside
-// the first, and no paragraph left outside the list (*Supercharge the defaults*, p.220). The
-// fourth fact is effort 826's requirement 21: one group holds one organization. The fifth is
-// requirement 13's fourth correction: a group holding nothing yet is asked its name once, said
-// here so that the field on the next step is a step rather than the first news of a failure.
-// Since effort 832 the list is what the disclosure opens onto.
-test('the connect step is a list of glyphed facts with the dashboard action in the first', async () => {
 	loadLocale('en');
 	setLocale('en');
-
-	const rendered = walk('connect');
-	const body = document.querySelector('[data-setup-step="connect"]')!;
-
-	await fireEvent.click(screen.getByRole('button', { name: en.organization.setup.connectDetails }));
-	await waitFor(() => expect(body.querySelectorAll('ul > li').length).toBeGreaterThan(0));
-
-	const items = Array.from(body.querySelectorAll('ul > li'));
-
-	expect(items).toHaveLength(5);
-	expect(items.map((item) => item.getAttribute('data-setup-statement'))).toEqual([
-		'groupCoverage',
-		'oneOrganization',
-		'accountCreation',
-		'succession',
-		'groupAskedOnce'
-	]);
-
-	for (const item of items) {
-		expect(item.querySelector('svg'), item.getAttribute('data-setup-statement')!).not.toBeNull();
-	}
-
-	const dashboard = screen.getByRole('button', { name: en.organization.setup.openDashboard });
-
-	expect(items[0]!.contains(dashboard)).toBe(true);
-	// the facts are the list and nothing else on the step is a paragraph, granted or not: the
-	// position line and the working line are lines, and the callout is the primitive's own box.
-	expect(body.querySelectorAll('p')).toHaveLength(0);
-	rendered.unmount();
-
-	walk('connect', { consent: { status: 'pending', error: null }, holdsTursoAuthority: true });
-
-	expect(document.querySelector('[data-setup-step="connect"]')!.querySelectorAll('p')).toHaveLength(
-		0
-	);
 });
 
 // effort 826, requirement 21: a run refused because the group already holds an organization
@@ -529,7 +422,8 @@ test('a granted consent offers the way on and the way to give the authority back
 	const disconnect = screen.getByRole('button', { name: en.organization.dashboard.forgetAccount });
 
 	expect(disconnect).toBeDefined();
-	expect(disconnect.querySelector('svg')).not.toBeNull();
+	// a word and no glyph, quiet under the way on (effort 843, requirement 5).
+	expect(disconnect.querySelector('svg')).toBeNull();
 	expect(screen.queryByRole('button', { name: en.organization.setup.connect })).toBeNull();
 });
 
@@ -576,7 +470,7 @@ test('the walk is two steps, and the name step is the last, with no workspace as
 
 	walk('name');
 
-	expect(document.querySelector('[data-setup-position]')?.textContent?.trim()).toBe(
+	expect(document.querySelector('[data-way-in-position]')?.textContent?.trim()).toBe(
 		i18nObject('en').organization.setup.position({ step: 2, total: 2 })
 	);
 	expect(document.querySelector('[data-setup-fields]')?.getAttribute('data-setup-fields')).toBe(
@@ -598,7 +492,8 @@ test('while the organization is created, the step says so and draws no workspace
 	expect(screen.queryByText(en.layout.noWorkspace.nameLabel)).toBeNull();
 });
 
-// effort 824, requirement 1: one way back on every step, in the corner, and it is the only one.
+// effort 824, requirement 1, on the way-in surface: one way back on every step, in the corner of
+// the content area rather than in the step, and it is the only one.
 test('the steps before the organization exists carry exactly one back control in the corner, and pressing it calls onBack', () => {
 	loadLocale('en');
 	setLocale('en');
@@ -609,7 +504,7 @@ test('the steps before the organization exists carry exactly one back control in
 		const backs = screen.getAllByRole('button', { name: en.organization.setup.back });
 
 		expect(backs, step).toHaveLength(1);
-		// in the corner rather than in the body: the body is the one element that names the step.
+		expect(backs[0]!.closest('[data-back-control]') ?? backs[0], step).not.toBeNull();
 		expect(document.querySelector('[data-setup-step]')?.contains(backs[0]!), step).toBe(false);
 		expect(backs[0]!.querySelector('svg')?.getAttribute('class'), step).toContain('rtl:rotate-180');
 
@@ -620,7 +515,8 @@ test('the steps before the organization exists carry exactly one back control in
 	}
 });
 
-// effort 824, requirement 4: each step says where it is, muted, with its own number.
+// effort 824, requirement 4, on the way-in surface: each step says where it is, in the small muted
+// line above its title, with its own number.
 test('every step renders the position line with its own number and the total, in both locales', () => {
 	for (const locale of ['en', 'ar'] as const) {
 		loadLocale(locale);
@@ -630,12 +526,13 @@ test('every step renders the position line with its own number and the total, in
 
 		SETUP_STEPS.forEach((step, index) => {
 			const rendered = walk(step, {}, locale === 'ar' ? 'rtl' : 'ltr');
-			const line = document.querySelector('[data-setup-position]');
+			const lines = document.querySelectorAll('[data-way-in-position]');
 
-			expect(line?.textContent?.trim(), `${locale} ${step}`).toBe(
+			expect(lines, `${locale} ${step}`).toHaveLength(1);
+			expect(lines[0]?.textContent?.trim(), `${locale} ${step}`).toBe(
 				translations.organization.setup.position({ step: index + 1, total: SETUP_STEPS.length })
 			);
-			expect(line?.getAttribute('class'), `${locale} ${step}`).toContain('text-muted-foreground');
+			expect(document.querySelector('[data-setup-position]'), `${locale} ${step}`).toBeNull();
 			rendered.unmount();
 		});
 	}
@@ -643,47 +540,91 @@ test('every step renders the position line with its own number and the total, in
 	setLocale('en');
 });
 
-// effort 824, requirement 14: each primary carries its verb, and the arrow mirrors.
-test('the connect, continue and create buttons carry a glyph before their label', () => {
+// effort 843, requirement 5: each step has one prominent action, and "forget account" is quiet.
+test('every step draws exactly one prominent button, and forgetting the account is quiet', () => {
 	loadLocale('en');
 	setLocale('en');
 
-	const idle = walk('connect');
+	const cases: [string, Parameters<typeof walk>][] = [
+		['connect', ['connect']],
+		['connect, granted', ['connect', { consent: { status: 'granted', error: null } }]],
+		['name', ['name']],
+		['existing', ['existing']]
+	];
 
-	expect(
-		screen.getByRole('button', { name: en.organization.setup.connect }).querySelector('svg')
-	).not.toBeNull();
-	idle.unmount();
+	for (const [label, args] of cases) {
+		const rendered = walk(...args);
 
-	const granted = walk('connect', { consent: { status: 'granted', error: null } });
-	const arrow = screen
-		.getByRole('button', { name: en.organization.setup.continue })
-		.querySelector('svg');
+		expect(stepButtons().filter(isProminent), label).toHaveLength(1);
+		rendered.unmount();
+	}
 
-	expect(arrow).not.toBeNull();
-	expect(arrow?.getAttribute('class')).toContain('rtl:rotate-180');
-	granted.unmount();
+	walk('connect', { consent: { status: 'granted', error: null } });
 
-	const naming = walk('name');
+	const forget = screen.getByRole('button', { name: en.organization.dashboard.forgetAccount });
 
-	expect(
-		screen.getByRole('button', { name: en.organization.setup.create }).querySelector('svg')
-	).not.toBeNull();
-	naming.unmount();
+	expect(isProminent(forget)).toBe(false);
+	expect(forget.className).not.toContain('border-input');
+	expect(isProminent(screen.getByRole('button', { name: en.organization.setup.continue }))).toBe(
+		true
+	);
 });
 
-// effort 824, requirement 15: each field carries its subject ahead of the input, muted so it does
-// not outweigh the label (*Balance weight and contrast*, Refactoring UI p.56).
-test('the name, username, password and group fields carry a muted leading glyph through the input group', () => {
+// effort 843, requirement 8: a field is its label and its input, with no glyph inside it, and no
+// step's button carries one either.
+test('no step draws a glyph in a field or on its buttons', () => {
 	loadLocale('en');
 	setLocale('en');
-	walk('name', { askGroup: true });
 
-	for (const name of ['name', 'username', 'password', 'group']) {
-		const addon = addonBefore(name);
+	const cases: Parameters<typeof walk>[] = [
+		['connect'],
+		['connect', { consent: { status: 'granted', error: null } }],
+		['name', { askGroup: true }],
+		['existing']
+	];
 
-		expect(addon.querySelector('svg'), name).not.toBeNull();
-		expect(addon.getAttribute('class'), name).toContain('text-muted-foreground');
+	for (const args of cases) {
+		const rendered = walk(...args);
+
+		expect(document.querySelector('[data-slot=input-group-addon]'), args[0]).toBeNull();
+		expect(document.querySelector('[data-setup-step] button svg'), args[0]).toBeNull();
+		rendered.unmount();
+	}
+});
+
+// requirement 8: arriving at a step that asks for typing puts the cursor in its first field, and
+// no password is filled in for the person.
+test('arriving at the name and existing steps puts focus in the first field, with no password filled', async () => {
+	loadLocale('en');
+	setLocale('en');
+
+	for (const [step, first] of [
+		['name', 'name'],
+		['existing', 'username']
+	] as const) {
+		const rendered = walk(step);
+
+		await waitFor(() => expect(document.activeElement?.getAttribute('name'), step).toBe(first));
+		expect(document.querySelector<HTMLInputElement>('input[name="password"]')?.value, step).toBe(
+			''
+		);
+		rendered.unmount();
+	}
+});
+
+// ticket 06, its last criterion: the foot of every step is the language and appearance control,
+// with no acts of its own.
+test('every step carries the preferences control at its foot, and nothing else there', () => {
+	loadLocale('en');
+	setLocale('en');
+
+	for (const step of [...SETUP_STEPS, 'existing'] as const) {
+		const rendered = walk(step);
+		const foot = document.querySelector('[data-way-in-foot]');
+
+		expect(foot?.querySelectorAll('button'), step).toHaveLength(1);
+		expect(foot?.querySelector('[data-way-in-preferences]'), step).not.toBeNull();
+		rendered.unmount();
 	}
 });
 
@@ -730,12 +671,11 @@ test('the walk renders in arabic with the same fields on each step', () => {
 	expect(screen.getAllByRole('button', { name: ar.organization.setup.back })).toHaveLength(1);
 	naming.unmount();
 
-	// and the connect step's one line and its disclosure, in Arabic.
+	// and the connect step's one line and the line under its button, in Arabic.
 	walk('connect', {}, 'rtl');
 
 	expect(screen.getByText(ar.organization.setup.connectDescription)).toBeDefined();
-	expect(screen.getByRole('button', { name: ar.organization.setup.connectDetails })).toBeDefined();
-	expect(screen.queryByText(ar.organization.setup.succession)).toBeNull();
+	expect(screen.getByText(ar.organization.setup.connectHint)).toBeDefined();
 
 	setLocale('en');
 });
@@ -767,7 +707,7 @@ test('the existing step says one sentence and asks for the username and the pass
 	expect(document.querySelector('[data-setup-group]')).toBeNull();
 
 	// and it is the second of the two steps that way in has, said where every step says it.
-	expect(document.querySelector('[data-setup-position]')?.textContent?.trim()).toBe(
+	expect(document.querySelector('[data-way-in-position]')?.textContent?.trim()).toBe(
 		i18nObject('en').organization.setup.position({ step: 2, total: 2 })
 	);
 });

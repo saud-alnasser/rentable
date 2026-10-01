@@ -10,7 +10,8 @@ import {
 	THE_FIRST_RUN,
 	THE_JOIN,
 	THE_WAY_IN,
-	shellFor
+	shellFor,
+	wayInCrossing
 } from '$lib/startup/screen.ts';
 import {
 	fakeRecovery,
@@ -359,4 +360,23 @@ test('no state with nobody in draws the rail', () => {
 			);
 		}
 	}
+});
+
+// --- Which way a move between the welcome and a walk runs ------------------------------------
+//
+// Ticket 06 of effort 843: the welcome and the first run, and the welcome and the join, are one
+// surface changing step, so the route change between them runs forward in and back out.
+
+test('a move from the welcome into a walk runs forward, and back out runs back', () => {
+	assert.equal(wayInCrossing(THE_WAY_IN, THE_FIRST_RUN), 'forward');
+	assert.equal(wayInCrossing(THE_WAY_IN, THE_JOIN), 'forward');
+	assert.equal(wayInCrossing(THE_FIRST_RUN, THE_WAY_IN), 'back');
+	assert.equal(wayInCrossing(THE_JOIN, THE_WAY_IN), 'back');
+});
+
+test('any other move is not a step of the way in', () => {
+	assert.equal(wayInCrossing(THE_WAY_IN, '/settings'), null);
+	assert.equal(wayInCrossing('/settings', THE_WAY_IN), null);
+	assert.equal(wayInCrossing(THE_FIRST_RUN, THE_JOIN), null);
+	assert.equal(wayInCrossing('/tenants', '/contracts'), null);
 });

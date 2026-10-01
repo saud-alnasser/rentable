@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
+	import { goto, onNavigate } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { dropLandingOnNavigation } from '$lib/create/ui';
@@ -16,6 +16,7 @@
 	import type { SyncHost } from '$lib/sync';
 	import { useEarlierRecords } from '$lib/workspace/ui';
 	import { QueryClient, QueryClientProvider } from '@tanstack/svelte-query';
+	import { crossWayIn } from '@rentable/design/way-in-transition.js';
 	import { getCurrentWindow } from '@tauri-apps/api/window';
 	import { onMount, untrack, type Snippet } from 'svelte';
 	import { browserStartupPorts } from '../browser';
@@ -29,6 +30,7 @@
 		addressAfterSwitch,
 		shellFor,
 		startupScreen,
+		wayInCrossing,
 		type SwitchCrumb
 	} from '../screen';
 	import { createStartup } from '../startup';
@@ -255,6 +257,17 @@
 	 * screen below is there. It was a chain of branches here until effort 843's ticket 03.
 	 */
 	const shell = $derived(shellFor(shellState));
+
+	// a move between the welcome and a walk is one surface changing step, so it runs the way-in
+	// surface's one transition in the reading direction (effort 843, requirement 4). Only on the
+	// way in: the same two addresses with somebody in are not a step of it.
+	onNavigate((navigation) => {
+		const from = navigation.from?.url.pathname;
+		const to = navigation.to?.url.pathname;
+		const crossing = shell === 'way-in' && from && to ? wayInCrossing(from, to) : null;
+
+		return crossing ? crossWayIn(crossing, currentDirection, navigation.complete) : undefined;
+	});
 
 	/**
 	 * what goes inside the frame, which is startup's other decision about the frame and lives beside

@@ -20,21 +20,12 @@ export const organization = {
 		title: 'التوقيع أو الختم'
 	},
 	setup: {
-		connectTitle: 'اربط حساب Turso الخاص بك',
-		connectDescription: 'تقيم مؤسستك على حساب Turso الخاص بك.',
-		connectDetails: 'قبل أن تربط',
+		connectTitle: 'اربط Turso',
+		connectDescription: 'تُحفظ مؤسستك في حساب Turso الخاص بك.',
 		position: 'الخطوة {step|number} من {total|number}',
-		groupCoverage: 'تشمل الموافقة كل قاعدة بيانات في المجموعة التي تختارها، ولا شيء خارجها.',
-		oneOrganization:
-			'تحمل المجموعة الواحدة مؤسسة واحدة، وإن كانت تحمل واحدة بالفعل فالاتصال بها هو ما يحدث، لا الرفض.',
-		accountCreation:
-			'حساب Turso المجاني أو Developer يحمل مجموعة واحدة، فخصّص حسابًا لـ rentable وحده. وفي الحساب المدفوع اختر مجموعة فارغة.',
-		succession:
-			'لا يمنح الصلاحية مجددًا إلا أنت أو مدير منظمة Turso، وتستطيع Turso نقل المجموعة. لا يفعل rentable أيًا منهما.',
-		groupAskedOnce:
-			'المجموعة التي لا تحمل شيئاً بعد يطلب rentable اسمها مرة واحدة في الخطوة التالية، فـ Turso لا تذكر هذا الاسم في أي مكان يصل إليه.',
 		openDashboard: 'افتح لوحة تحكم Turso',
-		connect: 'اربط حساب Turso',
+		connect: 'اربط',
+		connectHint: 'يفتح المتصفح لتسمح بالوصول.',
 		connecting: 'أكمل الموافقة في نافذة المتصفح التي فُتحت للتو.',
 		connected: 'تم ربط حساب Turso.',
 		consentAbandoned: 'لم تُمنح الموافقة. لم يُنشأ شيء.',
@@ -45,15 +36,13 @@ export const organization = {
 		existingConnect: 'اربط هذا الجهاز',
 		existingConnecting: 'يجري ربط هذا الجهاز...',
 		nameTitle: 'سمِّ مؤسستك',
-		nameDescription:
-			'اختر اسماً للمؤسسة، واسم المستخدم الخاص بك، وكلمة مرور. كلمة المرور تفتح مكانك فيها.',
+		nameDescription: 'ستسجّل الدخول باسم المستخدم وكلمة المرور هذين.',
 		nameLabel: 'اسم المؤسسة',
-		usernameLabel: 'اسم المستخدم الخاص بك',
+		usernameLabel: 'اسم المستخدم',
 		nameRequired: 'أعطِ المؤسسة اسماً.',
 		nameTooLong: 'هذا الاسم طويل جداً.',
-		passwordLabel: 'كلمة مرورك',
-		passwordFloor:
-			'استخدم 12 حرفاً على الأقل. كلمة المرور هذه هي كل ما يقف بين السجلات وأي شخص يحمل نسخة منها.',
+		passwordLabel: 'كلمة المرور',
+		passwordFloor: '12 حرفاً على الأقل.',
 		passwordTooShort: 'استخدم 12 حرفاً على الأقل.',
 		groupNeeded: 'لم تعرف rentable من Turso أي مجموعة تقصد، فاكتب اسمها هنا مرة واحدة.',
 		groupLabel: 'مجموعة Turso',

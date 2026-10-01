@@ -1,7 +1,7 @@
 <script lang="ts">
-	import StandaloneSurface from '@rentable/design/block/standalone-surface.svelte';
-	import BackControl from '@rentable/design/block/back-control.svelte';
+	import WayInSurface from '@rentable/design/block/way-in-surface.svelte';
 	import { LL } from '$lib/i18n/i18n-svelte';
+	import { WayInPreferences } from '$lib/settings/ui';
 	import { defaults, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import z from 'zod';
@@ -12,7 +12,6 @@
 		SETUP_WALK,
 		stepsOf,
 		type SetupField,
-		type SetupStatement,
 		type SetupStep,
 		type WalkRefusal
 	} from '../setup';
@@ -22,7 +21,7 @@
 	import NameStep from './name-step.svelte';
 
 	/**
-	 * The first run, on the shared application surface.
+	 * The first run, on the way-in surface.
 	 *
 	 * **Two steps and three fields.** Connecting the Turso account, which is a consent in the
 	 * browser and nothing typed here; and naming the organization, the owner's own username and
@@ -48,28 +47,25 @@
 	 * a group field with a sentence above it. It is deliberately not in `SETUP_WALK`: a field the
 	 * walk presents is one everybody types into, and this is one almost nobody ever sees.
 	 *
-	 * **The sentence is a step rather than a refusal, and the connect step said so first.** The
-	 * fifth fact there (`groupAskedOnce`) says that a group holding nothing yet is asked its name
-	 * once, so the field is expected by the time it appears; the sentence over it says what to
+	 * **The sentence is a step rather than a refusal.** The sentence over the field says what to
 	 * type and the field's own description says where the name reads. Turso's account of why sits
 	 * under both, muted, as `groupDetail`: it is the machine's words behind a step rather than
-	 * the headline of a failure, which is the whole of what this ticket moved.
+	 * the headline of a failure.
 	 *
-	 * **Every step says where it is, and every step can be left from the card's corner.** The
-	 * position is a quiet line under the title, no bar and no dots; the way back is the shared
-	 * `back-control` in the surface's `corner` slot, which is where a reader looks for the way past
-	 * a screen, and where it leads is the route's to decide.
+	 * **One surface that changes step** (effort 843, requirements 1, 4 and 5). The walk hands the
+	 * way-in surface the step's key, where it sits in its way ("step 1 of 2", a small line above
+	 * the title) and the way back, which the surface draws in the content area's corner and which
+	 * leads where the route decides. A change of step runs the surface's one transition in the
+	 * reading direction, the mark and the title holding still. Every step carries one prominent
+	 * action, its fields are labels and inputs with no glyphs, and the language and appearance
+	 * control is at the foot of each.
 	 *
 	 * **The connect step says one line and offers the consent** (effort 832, requirements 17 and
-	 * 18). The line is the card's description; the facts that used to stand between it and the
-	 * button are behind a disclosure under the button, closed, the way the sign-in card keeps its
-	 * help. Apple's onboarding guidance, which the human asked design calls here to follow, is to
-	 * ask for as little as possible and get people in fast: a person who wants the facts first
-	 * opens them, and one who does not is one press from the consent. Opened, they are the list
-	 * they were, a glyph to each fact, the way *Supercharge the defaults* (Refactoring UI p.220)
-	 * lifts a plain list, with the action that helps with the first fact inside that fact. The
-	 * glyphs are muted so they do not outweigh the sentence beside them (*Balance weight and
-	 * contrast*, p.56).
+	 * 18, as effort 843 left them): "connect Turso", where the organization is stored, one
+	 * "connect", and one line under it saying the browser opens. The five facts that sat behind a
+	 * "before you connect" disclosure left the way in at the human's word on 2026-10-01; Apple's
+	 * onboarding guidance, which the human asked design calls here to follow, is to ask for as
+	 * little as possible and get people in fast.
 	 *
 	 * **A machine that already holds Turso authority is not asked again.** The route reads whether
 	 * it does and the connect step opens as granted, with the way on and the way to give the
@@ -82,12 +78,11 @@
 	 * makes.
 	 *
 	 * **Each step is drawn by a component of its own** (`connect-step.svelte`, `existing-step.svelte`
-	 * and `name-step.svelte`); the walk holds the forms and the open disclosure, so what a person
-	 * typed or opened outlives a visit to another step, as it did when the walk drew all three.
+	 * and `name-step.svelte`); the walk holds the forms, so what a person typed outlives a visit to
+	 * another step, as it did when the walk drew all three.
 	 *
-	 * On the application surface rather than a page of its own, because it presents the
-	 * application's own state, an organization that does not exist yet, and [[rules/interface]]
-	 * under *Application surfaces* puts every such screen on the one block.
+	 * On the way-in surface, which [[rules/interface]] under *Application surfaces* gives every step
+	 * before the application.
 	 */
 	let {
 		step,
@@ -99,7 +94,6 @@
 		holdsTursoAuthority,
 		isConnecting,
 		isCreating,
-		onOpenDashboard,
 		onConnect,
 		onDisconnect,
 		onContinue,
@@ -150,7 +144,6 @@
 		 * one it holds, and after either, until the loading surface takes over.
 		 */
 		isCreating: boolean;
-		onOpenDashboard: () => void;
 		onConnect: () => void;
 		onDisconnect: () => void;
 		onContinue: () => void;
@@ -170,7 +163,6 @@
 
 	const description = $derived(SETUP_WALK.find((candidate) => candidate.step === step));
 	const fields = $derived<readonly SetupField[]>(description?.fields ?? []);
-	const statements = $derived<readonly SetupStatement[]>(description?.statements ?? []);
 
 	const title = $derived(
 		{
@@ -195,11 +187,13 @@
 	 */
 	const position = $derived.by(() => {
 		const steps = stepsOf(step);
+		const at = steps.indexOf(step) + 1;
 
-		return $LL.organization.setup.position({
-			step: steps.indexOf(step) + 1,
-			total: steps.length
-		});
+		return {
+			at,
+			of: steps.length,
+			label: $LL.organization.setup.position({ step: at, total: steps.length })
+		};
 	});
 
 	// **Built here rather than at module load**, for the reason `workspace/component/rename-form`
@@ -300,9 +294,6 @@
 
 	const isBusy = $derived(isConnecting || isCreating || consent.status === 'pending');
 
-	/** whether the connect step's facts are open. Closed on every visit, until asked for. */
-	let isFactsOpen = $state(false);
-
 	/** what the shell is doing, said only while it is doing it, and named for the step doing it. */
 	const working = $derived(
 		isCreating
@@ -315,29 +306,26 @@
 	);
 </script>
 
-<StandaloneSurface tone="neutral" {title} description={subtitle} busy={isBusy}>
-	{#snippet corner()}
-		<!-- always available, busy or not: a consent left open in the browser creates nothing on
-		     the account, so walking away from it costs nothing, and the way past a screen that is
-		     disabled is a trap. Once the organization is created the loading surface is drawn over
-		     this one, so it is never pressed with a created organization behind it. -->
-		<BackControl label={$LL.organization.setup.back()} onclick={onBack} />
-	{/snippet}
-
-	<div class="space-y-4" data-setup-step={step}>
-		<!-- where the person is, said quietly under the title: no bar and no dots. -->
-		<div class="text-xs text-muted-foreground" data-setup-position>{position}</div>
-
+<!-- back is always available, busy or not: a consent left open in the browser creates nothing on
+     the account, so walking away from it costs nothing, and the way past a screen that is disabled
+     is a trap. Once the organization is created the loading surface is drawn over this one, so it
+     is never pressed with a created organization behind it. -->
+<WayInSurface
+	{step}
+	{title}
+	description={subtitle}
+	{position}
+	back={{ label: $LL.organization.setup.back(), onclick: onBack }}
+	busy={isBusy}
+>
+	<div class="flex flex-col gap-4" data-setup-step={step}>
 		{#if step === 'connect'}
 			<ConnectStep
 				{consent}
 				{refusal}
 				{holdsTursoAuthority}
-				{statements}
 				{isBusy}
 				{isConnecting}
-				bind:factsOpen={isFactsOpen}
-				{onOpenDashboard}
 				{onConnect}
 				{onDisconnect}
 				{onContinue}
@@ -349,7 +337,11 @@
 		{/if}
 
 		{#if working}
-			<div class="text-center text-sm text-muted-foreground">{working}</div>
+			<p class="text-sm text-muted-foreground">{working}</p>
 		{/if}
 	</div>
-</StandaloneSurface>
+
+	{#snippet foot()}
+		<WayInPreferences />
+	{/snippet}
+</WayInSurface>

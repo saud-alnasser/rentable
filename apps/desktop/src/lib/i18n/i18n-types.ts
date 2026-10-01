@@ -3384,17 +3384,13 @@ type RootTranslation = {
 		}
 		setup: {
 			/**
-			 * c​o​n​n​e​c​t​ ​y​o​u​r​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t
+			 * c​o​n​n​e​c​t​ ​T​u​r​s​o
 			 */
 			connectTitle: string
 			/**
-			 * y​o​u​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​l​i​v​e​s​ ​o​n​ ​y​o​u​r​ ​o​w​n​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​.
+			 * y​o​u​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​i​s​ ​s​t​o​r​e​d​ ​i​n​ ​y​o​u​r​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​.
 			 */
 			connectDescription: string
-			/**
-			 * b​e​f​o​r​e​ ​y​o​u​ ​c​o​n​n​e​c​t
-			 */
-			connectDetails: string
 			/**
 			 * s​t​e​p​ ​{​s​t​e​p​|​n​u​m​b​e​r​}​ ​o​f​ ​{​t​o​t​a​l​|​n​u​m​b​e​r​}
 			 * @param {unknown} step
@@ -3402,33 +3398,17 @@ type RootTranslation = {
 			 */
 			position: RequiredParams<'step|number' | 'total|number'>
 			/**
-			 * t​h​e​ ​c​o​n​s​e​n​t​ ​c​o​v​e​r​s​ ​e​v​e​r​y​ ​d​a​t​a​b​a​s​e​ ​i​n​ ​t​h​e​ ​g​r​o​u​p​ ​y​o​u​ ​c​h​o​o​s​e​,​ ​a​n​d​ ​n​o​t​h​i​n​g​ ​o​u​t​s​i​d​e​ ​i​t​.
-			 */
-			groupCoverage: string
-			/**
-			 * a​ ​g​r​o​u​p​ ​h​o​l​d​s​ ​o​n​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​a​ ​g​r​o​u​p​ ​t​h​a​t​ ​a​l​r​e​a​d​y​ ​h​o​l​d​s​ ​o​n​e​ ​i​s​ ​c​o​n​n​e​c​t​e​d​ ​t​o​,​ ​n​o​t​ ​r​e​f​u​s​e​d​.
-			 */
-			oneOrganization: string
-			/**
-			 * a​ ​f​r​e​e​ ​o​r​ ​d​e​v​e​l​o​p​e​r​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​ ​h​o​l​d​s​ ​o​n​e​ ​g​r​o​u​p​,​ ​s​o​ ​k​e​e​p​ ​o​n​e​ ​f​o​r​ ​r​e​n​t​a​b​l​e​ ​a​l​o​n​e​.​ ​o​n​ ​a​ ​p​a​i​d​ ​o​n​e​,​ ​p​i​c​k​ ​a​n​ ​e​m​p​t​y​ ​g​r​o​u​p​.
-			 */
-			accountCreation: string
-			/**
-			 * o​n​l​y​ ​y​o​u​,​ ​o​r​ ​a​ ​T​u​r​s​o​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​a​d​m​i​n​,​ ​c​a​n​ ​g​r​a​n​t​ ​a​c​c​e​s​s​ ​a​g​a​i​n​,​ ​a​n​d​ ​T​u​r​s​o​ ​c​a​n​ ​m​o​v​e​ ​a​ ​g​r​o​u​p​.​ ​r​e​n​t​a​b​l​e​ ​d​o​e​s​ ​n​e​i​t​h​e​r​.
-			 */
-			succession: string
-			/**
-			 * a​ ​g​r​o​u​p​ ​h​o​l​d​i​n​g​ ​n​o​t​h​i​n​g​ ​y​e​t​ ​i​s​ ​a​s​k​e​d​ ​i​t​s​ ​n​a​m​e​ ​o​n​c​e​,​ ​o​n​ ​t​h​e​ ​n​e​x​t​ ​s​t​e​p​;​ ​T​u​r​s​o​ ​n​a​m​e​s​ ​i​t​ ​n​o​w​h​e​r​e​.
-			 */
-			groupAskedOnce: string
-			/**
 			 * o​p​e​n​ ​T​u​r​s​o​ ​d​a​s​h​b​o​a​r​d
 			 */
 			openDashboard: string
 			/**
-			 * c​o​n​n​e​c​t​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t
+			 * c​o​n​n​e​c​t
 			 */
 			connect: string
+			/**
+			 * y​o​u​r​ ​b​r​o​w​s​e​r​ ​o​p​e​n​s​ ​s​o​ ​y​o​u​ ​c​a​n​ ​a​l​l​o​w​ ​a​c​c​e​s​s​.
+			 */
+			connectHint: string
 			/**
 			 * f​i​n​i​s​h​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​i​n​ ​t​h​e​ ​b​r​o​w​s​e​r​ ​w​i​n​d​o​w​ ​t​h​a​t​ ​j​u​s​t​ ​o​p​e​n​e​d​.
 			 */
@@ -3466,7 +3446,7 @@ type RootTranslation = {
 			 */
 			nameTitle: string
 			/**
-			 * c​h​o​o​s​e​ ​a​ ​n​a​m​e​ ​f​o​r​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​,​ ​y​o​u​r​ ​u​s​e​r​n​a​m​e​,​ ​a​n​d​ ​a​ ​p​a​s​s​w​o​r​d​.​ ​t​h​e​ ​p​a​s​s​w​o​r​d​ ​u​n​l​o​c​k​s​ ​y​o​u​r​ ​p​l​a​c​e​ ​i​n​ ​i​t​.
+			 * y​o​u​'​l​l​ ​s​i​g​n​ ​i​n​ ​w​i​t​h​ ​t​h​i​s​ ​u​s​e​r​n​a​m​e​ ​a​n​d​ ​p​a​s​s​w​o​r​d​.
 			 */
 			nameDescription: string
 			/**
@@ -3474,7 +3454,7 @@ type RootTranslation = {
 			 */
 			nameLabel: string
 			/**
-			 * y​o​u​r​ ​u​s​e​r​n​a​m​e
+			 * u​s​e​r​n​a​m​e
 			 */
 			usernameLabel: string
 			/**
@@ -3486,11 +3466,11 @@ type RootTranslation = {
 			 */
 			nameTooLong: string
 			/**
-			 * y​o​u​r​ ​p​a​s​s​w​o​r​d
+			 * p​a​s​s​w​o​r​d
 			 */
 			passwordLabel: string
 			/**
-			 * u​s​e​ ​a​t​ ​l​e​a​s​t​ ​1​2​ ​c​h​a​r​a​c​t​e​r​s​.​ ​t​h​i​s​ ​p​a​s​s​w​o​r​d​ ​i​s​ ​a​l​l​ ​t​h​a​t​ ​s​t​a​n​d​s​ ​b​e​t​w​e​e​n​ ​t​h​e​ ​r​e​c​o​r​d​s​ ​a​n​d​ ​a​n​y​o​n​e​ ​w​h​o​ ​h​o​l​d​s​ ​a​ ​c​o​p​y​.
+			 * a​t​ ​l​e​a​s​t​ ​1​2​ ​c​h​a​r​a​c​t​e​r​s​.
 			 */
 			passwordFloor: string
 			/**
@@ -7850,49 +7830,29 @@ export type TranslationFunctions = {
 		}
 		setup: {
 			/**
-			 * connect your Turso account
+			 * connect Turso
 			 */
 			connectTitle: () => LocalizedString
 			/**
-			 * your organization lives on your own Turso account.
+			 * your organization is stored in your Turso account.
 			 */
 			connectDescription: () => LocalizedString
-			/**
-			 * before you connect
-			 */
-			connectDetails: () => LocalizedString
 			/**
 			 * step {step|number} of {total|number}
 			 */
 			position: (arg: { step: unknown, total: unknown }) => LocalizedString
 			/**
-			 * the consent covers every database in the group you choose, and nothing outside it.
-			 */
-			groupCoverage: () => LocalizedString
-			/**
-			 * a group holds one organization. a group that already holds one is connected to, not refused.
-			 */
-			oneOrganization: () => LocalizedString
-			/**
-			 * a free or developer Turso account holds one group, so keep one for rentable alone. on a paid one, pick an empty group.
-			 */
-			accountCreation: () => LocalizedString
-			/**
-			 * only you, or a Turso organization's admin, can grant access again, and Turso can move a group. rentable does neither.
-			 */
-			succession: () => LocalizedString
-			/**
-			 * a group holding nothing yet is asked its name once, on the next step; Turso names it nowhere.
-			 */
-			groupAskedOnce: () => LocalizedString
-			/**
 			 * open Turso dashboard
 			 */
 			openDashboard: () => LocalizedString
 			/**
-			 * connect Turso account
+			 * connect
 			 */
 			connect: () => LocalizedString
+			/**
+			 * your browser opens so you can allow access.
+			 */
+			connectHint: () => LocalizedString
 			/**
 			 * finish the consent in the browser window that just opened.
 			 */
@@ -7930,7 +7890,7 @@ export type TranslationFunctions = {
 			 */
 			nameTitle: () => LocalizedString
 			/**
-			 * choose a name for the organization, your username, and a password. the password unlocks your place in it.
+			 * you'll sign in with this username and password.
 			 */
 			nameDescription: () => LocalizedString
 			/**
@@ -7938,7 +7898,7 @@ export type TranslationFunctions = {
 			 */
 			nameLabel: () => LocalizedString
 			/**
-			 * your username
+			 * username
 			 */
 			usernameLabel: () => LocalizedString
 			/**
@@ -7950,11 +7910,11 @@ export type TranslationFunctions = {
 			 */
 			nameTooLong: () => LocalizedString
 			/**
-			 * your password
+			 * password
 			 */
 			passwordLabel: () => LocalizedString
 			/**
-			 * use at least 12 characters. this password is all that stands between the records and anyone who holds a copy.
+			 * at least 12 characters.
 			 */
 			passwordFloor: () => LocalizedString
 			/**

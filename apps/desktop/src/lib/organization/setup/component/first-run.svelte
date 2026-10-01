@@ -15,7 +15,6 @@
 	import { useFetchOrganizationState } from '$lib/organization/query';
 	import {
 		SETUP_STEPS,
-		TURSO_DASHBOARD_URL,
 		refusalAfterFailedConnect,
 		refusalAfterFailedCreate,
 		stepAfterConsent,
@@ -281,6 +280,11 @@
 	 * the corner control: the wall from the first step, the step before from every other. Leaving
 	 * with a consent still open in the browser abandons the poll and nothing else, since a consent
 	 * creates nothing on the account.
+	 *
+	 * **The poll is let go of before the address moves** (effort 824, requirement 2, held through
+	 * effort 843). A route change between the walk and the welcome now runs inside a view
+	 * transition, and the page leaves only once the navigation completes; a poll left to stop with
+	 * the page would go on asking for that long. Forgetting the consent first stops it at once.
 	 */
 	const back = () => {
 		// the second step of the other way in, whose one step behind is the consent.
@@ -294,6 +298,7 @@
 		const index = SETUP_STEPS.indexOf(step);
 
 		if (index <= 0) {
+			sessionId = null;
 			void goto(resolve(wayIn));
 
 			return;
@@ -313,7 +318,6 @@
 	holdsTursoAuthority={stateQuery.data?.holdsTursoAuthority ?? false}
 	isConnecting={beginConsent.isPending || inspectGroup.isPending}
 	isCreating={createOrganization.isPending || connectExisting.isPending || isHandingOver}
-	onOpenDashboard={() => void tauri.opener.openUrl(TURSO_DASHBOARD_URL)}
 	onConnect={() => void connect()}
 	onDisconnect={() => void forget()}
 	onContinue={next}

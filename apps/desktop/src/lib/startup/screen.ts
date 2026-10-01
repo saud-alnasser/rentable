@@ -67,6 +67,23 @@ const OPENS_SIGNED_OUT: readonly string[] = ['/settings', THE_FIRST_RUN, THE_JOI
 export const THE_WAY_IN = '/';
 
 /**
+ * Which way a route change between two screens of the way in runs, or `null` where it is not one.
+ *
+ * **The welcome and a walk are two addresses and one surface changing step** (effort 843,
+ * requirement 4), so a move from the way in's own address into the first run or the join runs
+ * forward, and the move back runs back; the design package's `crossWayIn` draws it. Any other
+ * pair of addresses is not a step of the way in and takes no transition of its own.
+ */
+export function wayInCrossing(from: string, to: string): 'forward' | 'back' | null {
+	const walks = [THE_FIRST_RUN, THE_JOIN];
+
+	if (from === THE_WAY_IN && walks.includes(to)) return 'forward';
+	if (walks.includes(from) && to === THE_WAY_IN) return 'back';
+
+	return null;
+}
+
+/**
  * Whether this address draws while the shell is waiting for somebody to sign in.
  *
  * Exact rather than prefixed: nothing nests under either address, and a prefix would silently
