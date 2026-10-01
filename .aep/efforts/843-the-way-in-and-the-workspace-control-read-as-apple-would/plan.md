@@ -136,6 +136,9 @@ as long as the reads take.
 | `workspace/component/{menu,rail-row}.svelte` | the one-line trigger; the list, separator and manage item; no member count read |
 | `workspace/component/locked.svelte`, `organization/session/component/account-signed-out.svelte` | deleted |
 | locale files | the welcome's line, "manage workspaces", "opening {name}", the preferences control; unused strings (`switchTo`, the locked row's) removed. *Built 2026-10-01 by ticket 09: `workspaceMenu.members` and `create` stayed, because the settings area's workspace directory and dialog read them.* |
+| `packages/design/src/lib/way-in-transition.ts` (new, ticket 06) | the route crossing and `holdWayInMotion`, the one place a way-in transition puts its direction on the root |
+| `packages/design/src/lib/reduces-motion.ts` (new, ticket 14) | the one reduced-motion reader the way in's transitions consult |
+| `settings/component/page.svelte`, `routes/settings/+page.svelte` (ticket 16) | the page draws the signed-out back control to the way in; the route hands `wayIn` over and only composes |
 | `.aep/rules/interface.md` | *Application surfaces* names the two surfaces; *Loading* says a switch draws the loading block |
 
 # Interfaces
@@ -162,7 +165,7 @@ type StartupScreen = ... | 'switching';
 export function addressAfterSwitch(routeId: string | null): string | null;
 ```
 
-*Built 2026-10-01: the interfaces above departed in five places.*
+*Built 2026-10-01: the interfaces above departed in eight places.*
 
 - *Ticket 02: `position` is `{ at: number; of: number; label: string }`, the label handed in by
   the caller.*
@@ -174,11 +177,23 @@ export function addressAfterSwitch(routeId: string | null): string | null;
 - *Ticket 06: the route crossing between the welcome and a walk is run from root's `onNavigate` by
   `crossWayIn` in `@rentable/design/way-in-transition.js`, given the direction `wayInCrossing` in
   `startup/screen.ts` reads off the two addresses.*
+- *Ticket 14: `navigationCrossing(snapshot, from, to)` in `startup/screen.ts` decides whether a
+  navigation crosses at all: none under `loading`, which is the arrival, none on the no-workspace
+  screen (review round two), and `wayInCrossing` otherwise. The first run's connect to an existing
+  organization arrives through `standingChanged({ arrive })`, as the join does, and holds the walk
+  from the press as a create does.*
+- *Ticket 14: `holdWayInMotion(shift)` in `way-in-transition.ts` puts a transition's direction on
+  the root and answers its release, which takes off only what that transition put there; the
+  surface gained `returning?: boolean`, for a step handed back with no back pressed; and
+  `reducesMotion()` lives once, in `packages/design/src/lib/reduces-motion.ts`.*
+- *Ticket 16: the settings page takes `wayIn: string` and draws the signed-out back control itself;
+  the route hands it over and only composes.*
 
 ```ts
 // packages/design/src/lib/block/way-in-surface.svelte, as built
 title?: string;
 named?: boolean;
+returning?: boolean;
 position?: { at: number; of: number; label: string };
 
 // startup/screen.ts, as built
@@ -187,6 +202,11 @@ export function addressAfterSwitch<Place extends string>(
   trailOf: (routeId: string) => readonly SwitchCrumb<Place>[]
 ): Place | typeof THE_WAY_IN | null;
 export function wayInCrossing(from: string, to: string): 'forward' | 'back' | null;
+export function navigationCrossing(
+  snapshot: Pick<StartupSnapshot, 'state' | 'switching'>,
+  from: string,
+  to: string
+): 'forward' | 'back' | null;
 
 // packages/design/src/lib/way-in-transition.ts, as built
 export function crossWayIn(
@@ -194,6 +214,13 @@ export function crossWayIn(
   direction: 'ltr' | 'rtl',
   complete: Promise<unknown>
 ): Promise<void> | undefined;
+export function holdWayInMotion(shift: number): () => void;
+
+// packages/design/src/lib/reduces-motion.ts, as built
+export function reducesMotion(): boolean;
+
+// settings/component/page.svelte, as built
+wayIn: string; // where the signed-out back control returns to, handed over by the route
 ```
 
 Callers of `ShellFrame`'s `shell` prop pass `way-in` where they passed `signed-out`; there are two,

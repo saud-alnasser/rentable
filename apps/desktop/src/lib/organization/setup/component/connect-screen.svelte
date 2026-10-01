@@ -62,10 +62,10 @@
 	 *
 	 * **A field is its label and its input, and every step has one prominent action** (requirements
 	 * 5 and 8). A field the person can fix marks its own line with `Field.Error`, which is the
-	 * interface rule's treatment, and no callout stands over the form saying the same thing. The callout is left for what no field answers for: a refusal the read
-	 * came back with, and the shell's own message where the standing changed while somebody was
-	 * typing. *The two field refusals were drawn in that callout until ticket 21, which is the
-	 * summary the rule names.*
+	 * interface rule's treatment, and no callout stands over the form saying the same thing. The
+	 * callout is left for what no field answers for: a refusal the read came back with, and the
+	 * shell's own message where the standing changed while somebody was typing. *The two field
+	 * refusals were drawn in that callout until ticket 21, which is the summary the rule names.*
 	 *
 	 * **The password is two fields and no meter**, the shape `change-password-form.svelte` carries
 	 * and for the reason written there: there is no server to slow a guess down, so the floor is

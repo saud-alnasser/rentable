@@ -196,9 +196,17 @@
 	};
 
 	const connectToExisting = async (username: string, password: string) => {
+		// held from the press until the loading surface is up, as a create is: the connect refetches
+		// where the machine stands before it answers, and the session it brings would otherwise send
+		// the resume above to the way in on the walk's own surface, crossing back to the welcome
+		// before the loading (effort 843, review round two).
+		isHandingOver = true;
+
 		try {
 			await connectExisting.mutateAsync({ username, password });
 		} catch (error) {
+			isHandingOver = false;
+
 			// read off what was refused rather than off where this machine stands: a refusal about
 			// the consented account itself carries a reason nothing typed on this step answers, so
 			// they go back to the consent. Everything else is said against the password on the step

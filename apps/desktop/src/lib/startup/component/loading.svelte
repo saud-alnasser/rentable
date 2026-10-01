@@ -95,7 +95,7 @@
 <!-- the mark holds still, as on every step of the way in. The bar is the motion, and two moving
      things on an otherwise empty window compete for the same job. -->
 <WayInSurface step="loading">
-	<div class="flex w-full flex-col gap-2.5" role="status" data-startup-loading>
+	<div class="flex w-full flex-col gap-2" role="status" data-startup-loading>
 		<Progress value={progress} class="h-1" />
 
 		<div class="flex items-baseline justify-between gap-3 text-xs">

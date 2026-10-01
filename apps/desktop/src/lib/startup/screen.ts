@@ -94,14 +94,17 @@ export function wayInCrossing(from: string, to: string): 'forward' | 'back' | nu
  * the first run's `prepare` and its connect to an existing organization each move the address to
  * the way in under the loading surface, and since ticket 08 gave that load the way-in frame, each
  * ran a back crossing over the loading screen, as if the reader had left the walk for the welcome.
- * Nothing on screen changes with the address there: the loading surface is drawn over it.
+ * Nothing on screen changes with the address there: the loading surface is drawn over it. **Nor
+ * does the no-workspace screen**, which is drawn over every address: a link the system hands over
+ * there moves the address to the join under the same screen (review round two).
  */
 export function navigationCrossing(
 	snapshot: Pick<StartupSnapshot, 'state' | 'switching'>,
 	from: string,
 	to: string
 ): 'forward' | 'back' | null {
-	if (shellFor(snapshot) !== 'way-in' || snapshot.state === 'loading') return null;
+	if (shellFor(snapshot) !== 'way-in') return null;
+	if (snapshot.state === 'loading' || snapshot.state === 'no-workspace') return null;
 
 	return wayInCrossing(from, to);
 }

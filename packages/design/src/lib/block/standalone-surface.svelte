@@ -44,10 +44,11 @@
 		 * What this screen is, in a few words.
 		 *
 		 * **Sentence case rather than the title case every other title in this application wears.**
-		 * Five of the seven screens rendering through here are titled with a sentence rather than a
-		 * name: *rentable could not finish starting*, *the application could not be drawn*, *sign in
-		 * again to continue*. `capitalize` sets every word, and a sentence in title case reads as a
-		 * headline about the failure rather than as the application saying what happened.
+		 * The screens rendering through here are titled with a sentence rather than a name:
+		 * *rentable could not finish starting*, *the application could not be drawn*. `capitalize`
+		 * sets every word, and a sentence in title case reads as a headline about the failure rather
+		 * than as the application saying what happened. *Corrected 2026-10-01, effort 843: this said
+		 * five of seven, with signing in among them, until the way in left for its own surface.*
 		 */
 		title: string;
 		/** Optional line under the title, where the title alone does not explain the state. */
@@ -72,7 +73,8 @@
 		 * present identically leave a person unable to tell at a glance whether the application is
 		 * working or broken — and the two that are not working are not the same event as each other
 		 * either. `neutral` is byte-for-byte what this block has always drawn, so declaring it
-		 * changes nothing for the three screens that do.
+		 * changes nothing for the two screens that do, a settings page that will not load and a
+		 * crashed route. *Corrected 2026-10-01, effort 843: three, until signing in left.*
 		 *
 		 * **The line is the application, not the screen.** A failed startup and an unfinished
 		 * update stop everything; a settings page that will not load and a crashed route are
@@ -109,7 +111,8 @@
 {/snippet}
 
 <div class="flex min-h-full flex-1 items-center justify-center p-4">
-	<!-- one width for all seven. The three that disagreed did so because each chose its own. -->
+	<!-- one width for all five. The three that disagreed did so because each chose its own.
+	     (Seven until effort 843 took the way in to its own surface.) -->
 	<div
 		class={cn(
 			'w-full max-w-lg rounded-3xl bg-card text-start shadow-overlay ring-1 ring-foreground/10',

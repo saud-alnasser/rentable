@@ -39,6 +39,8 @@ const hooks = vi.hoisted(() => ({
 	createWorkspace: vi.fn(),
 	goto: vi.fn(),
 	holdsTursoAuthority: true,
+	groupKind: 'empty' as 'empty' | 'held',
+	connectExisting: vi.fn(),
 	consentSession: null as (() => string | null) | null
 }));
 
@@ -90,8 +92,11 @@ vi.mock('$lib/organization/setup/query', async (original) => {
 			return { data: undefined };
 		},
 		useDisconnect: () => idle,
-		useConnectExisting: () => idle,
-		useInspectGroup: () => ({ isPending: false, mutateAsync: async () => ({ kind: 'empty' }) }),
+		useConnectExisting: () => ({ isPending: false, mutateAsync: hooks.connectExisting }),
+		useInspectGroup: () => ({
+			isPending: false,
+			mutateAsync: async () => ({ kind: hooks.groupKind })
+		}),
 		useCreateOrganization: () => ({ isPending: false, mutateAsync: hooks.createOrganization })
 	};
 });
@@ -107,6 +112,8 @@ afterEach(() => {
 	hooks.createWorkspace.mockReset();
 	hooks.goto.mockReset();
 	hooks.holdsTursoAuthority = true;
+	hooks.groupKind = 'empty';
+	hooks.connectExisting.mockReset();
 	hooks.consentSession = null;
 });
 
@@ -300,4 +307,55 @@ test('back while a consent is pending stops the poll at once, even with the navi
 
 	expect(hooks.consentSession?.()).toBeNull();
 	expect(hooks.goto).toHaveBeenCalledWith('/');
+});
+
+// review round two: the connect to an existing organization refetches where the machine stands
+// before it answers, and the session it brings would send the walk's resume to the way in on the
+// walk's own surface. So the walk holds the address as a create does, from the press until the
+// loading surface is up, and lets go on a refusal.
+test('connecting to an existing organization holds the walk until the loading, and lets go on a refusal', async () => {
+	hooks.groupKind = 'held';
+
+	let refuse: (reason: unknown) => void = () => {};
+
+	hooks.connectExisting.mockImplementation(() => new Promise((_, reject) => (refuse = reject)));
+	await atTheWall();
+
+	render(
+		FirstRun,
+		{ startup: hooks.startup!, wayIn: '/' },
+		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } }
+	);
+
+	await fireEvent.click(screen.getByRole('button', { name: en.organization.setup.continue }));
+	await waitFor(() =>
+		expect(document.querySelector('[data-setup-step]')?.getAttribute('data-setup-step')).toBe(
+			'existing'
+		)
+	);
+
+	for (const [name, value] of [
+		['username', 'olivia.owner'],
+		['password', 'her own password']
+	]) {
+		await fireEvent.input(document.querySelector(`input[name="${name}"]`)!, {
+			target: { value }
+		});
+	}
+
+	await fireEvent.submit(document.querySelector('form')!);
+	await waitFor(() => expect(hooks.connectExisting).toHaveBeenCalledTimes(1));
+
+	// held: the step is working, as it is through a create, and nothing has moved the address.
+	expect(screen.getByRole('button', { name: en.common.actions.working })).toBeDefined();
+	expect(hooks.goto).not.toHaveBeenCalled();
+
+	refuse(new Error('the pair opened nothing'));
+
+	await waitFor(() =>
+		expect(
+			screen.getByRole('button', { name: en.organization.setup.existingConnect })
+		).toBeDefined()
+	);
+	expect(hooks.goto).not.toHaveBeenCalled();
 });

@@ -282,7 +282,7 @@ and a glyph with no text beside it takes the step of the role it plays:
 | `size-3.5` | beside `text-xs`, the title bar's window controls, and a state trailing a label (a check)  |
 | `size-4`   | the default: beside `text-sm`, in a button, a menu row, a cell, a status                   |
 | `size-5`   | the mark in its tile, and a glyph that heads a block: the summary leading a dialog's panel |
-| `size-7`   | the mark on the way in, in its `size-14` tile, and nowhere else                           |
+| `size-7`   | the mark on the way in, in its `size-14` tile, and nowhere else                            |
 
 *`size-7` was added on 2026-10-01 (effort 843): on the way in the mark is the only picture on
 the screen, with no text beside it, and the human judged it on screen at that size. It was three
@@ -385,7 +385,8 @@ off.
 **A view transition is feature-detected, and its fallback is no animation.** Where
 `startViewTransition` is missing (macOS below 15, an old WebKitGTK) the change is committed
 directly and simply appears. Only a change caused by a mutation, an undo or a sort transitions, and
-the way in's step changes; a search keystroke does not.
+the way in's step changes; a search keystroke does not. `animate:flip` moves only rows already on
+screen, which is why a virtualised directory uses a view transition rather than it.
 
 **The way in's step change and its route crossing are one transition.** The way-in surface runs
 it when the key of its step changes, and `crossWayIn` (`way-in-transition.ts`) runs it around a
@@ -394,8 +395,7 @@ name the same two groups, `way-in-mark` and `way-in-content`, so the mark holds 
 the contents cross, in the reading direction, and back the other way. Each puts its direction on
 the root for its own length and takes off only what it put there (`holdWayInMotion`). A
 navigation made under a startup pass's loading surface is the arrival, not a step, and takes no
-crossing. *Added 2026-10-01, effort 843, for what the human approved on screen.* `animate:flip` moves only rows already on screen, which is why a
-virtualised directory uses a view transition rather than it.
+crossing. *Added 2026-10-01, effort 843, for what the human approved on screen.*
 
 Prefer a transition defined through `css` over one through `tick`: the first runs off the main
 thread, the second does not.
@@ -404,13 +404,15 @@ thread, the second does not.
 unfinished.** Tailwind's `motion-safe:` gates CSS motion; `prefersReducedMotion` from
 `svelte/motion` gates anything JavaScript-driven.
 
-**A decision made once, at the moment of a change, reads `reducesMotion`** from
-`@rentable/design/reduces-motion.js`: whether to ask for a view transition at all. It reads
+**The way in's transitions read `reducesMotion`** from `@rentable/design/reduces-motion.js`,
+once, at the moment of a change: whether to ask for a view transition at all. It reads
 `matchMedia` when it is called, and answers no where there is none. `prefersReducedMotion` is a
 `MediaQuery` that calls `matchMedia` when its module loads, which jsdom does not have, so a
 block every screen of a flow draws through cannot import it without failing each of their
-component tests. It is the one reader: no surface writes its own. *Added 2026-10-01, effort 843:
-the way-in surface and `crossWayIn` each carried a copy until then.*
+component tests. It is the way in's one reader. A directory's commit (`list/commit.svelte.ts`)
+asks for its transition without reading it, and leaves the reduced-motion case to the token
+layer's `::view-transition-*` gate below, which collapses the animation. *Added 2026-10-01, effort
+843: the way-in surface and `crossWayIn` each carried a copy until then.*
 
 The token layer carries the three cases a surface cannot reach for itself: every CSS transition,
 the keyframe animation on anything bits-ui marks with `data-state` or `data-motion`, and every

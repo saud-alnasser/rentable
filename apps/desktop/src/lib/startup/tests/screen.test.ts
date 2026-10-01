@@ -479,3 +479,15 @@ test('no navigation with somebody in, or during a switch, crosses', async () => 
 		null
 	);
 });
+
+// review round two: the no-workspace screen is drawn over every address, so a link the system
+// hands over there moves the address to the join under the same screen, and nothing crosses.
+test('a link arriving on the no-workspace screen takes no crossing', async () => {
+	const { startup } = harness({ organization: withoutWorkspace() });
+
+	await startup.start();
+
+	assert.equal(startup.snapshot.state, 'no-workspace');
+	assert.equal(navigationCrossing(startup.snapshot, THE_WAY_IN, THE_JOIN), null);
+	assert.equal(navigationCrossing(startup.snapshot, '/tenants', THE_JOIN), null);
+});

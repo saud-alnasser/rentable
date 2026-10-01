@@ -134,7 +134,7 @@ Start at [[protocol]].
 | 835-the-rent-is-receipted-scheduled-and-chased | implemented | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]] | 1 | 0 | 19 |
 | 838-permissions-are-a-role-and-an-override | implemented | [[efforts/838-permissions-are-a-role-and-an-override/spec]] | 2 | 0 | 60 |
 | 840-a-feature-plugs-in-and-lives-in-one-place | implemented | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]] | 2 | 0 | 77 |
-| 843-the-way-in-and-the-workspace-control-read-as-apple-would | accepted | [[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/spec]] | 1 | 1 | 17 |
+| 843-the-way-in-and-the-workspace-control-read-as-apple-would | accepted | [[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/spec]] | 1 | 1 | 18 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -495,3 +495,4 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/tickets/15-foot-applies]] fix(desktop): the foot control offers only what applies, and the wall keeps its focus | 843-the-way-in-and-the-workspace-control-read-as-apple-would | resolved | — |
 | [[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/tickets/16-stale-words]] refactor(desktop): what this effort retired leaves no word or wiring behind | 843-the-way-in-and-the-workspace-control-read-as-apple-would | resolved | — |
 | [[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/tickets/17-plan-records]] docs(desktop): the plan records what was built where the build departed from it | 843-the-way-in-and-the-workspace-control-read-as-apple-would | resolved | — |
+| [[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/tickets/18-round-two]] fix(desktop): what review round two found is closed | 843-the-way-in-and-the-workspace-control-read-as-apple-would | resolved | — |
