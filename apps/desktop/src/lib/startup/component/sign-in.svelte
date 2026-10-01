@@ -292,7 +292,7 @@
 				     machine, longer on a slow one, and the screen says so rather than sitting still.
 				     Effort 826's ticket 06 measured it, and the measurement is why this is a sentence
 				     and not a bar. -->
-				<p class="text-sm text-muted-foreground">{$LL.layout.signIn.unlocking()}</p>
+				<p class="text-center text-sm text-muted-foreground">{$LL.layout.signIn.unlocking()}</p>
 			{/if}
 
 			{@render earlierLine()}
@@ -301,7 +301,7 @@
 			     place, said as a status so a screen reader hears it arrive. -->
 			{#if isHelpAnswered}
 				<p
-					class="text-sm text-balance text-muted-foreground"
+					class="text-center text-sm text-balance text-muted-foreground"
 					role="status"
 					data-sign-in-help-answer
 				>

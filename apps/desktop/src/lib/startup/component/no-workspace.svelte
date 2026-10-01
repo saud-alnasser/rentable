@@ -101,10 +101,10 @@
 			</form>
 
 			{#if isCreating}
-				<p class="text-sm text-muted-foreground">{$LL.layout.noWorkspace.creating()}</p>
+				<p class="text-center text-sm text-muted-foreground">{$LL.layout.noWorkspace.creating()}</p>
 			{/if}
 		{:else}
-			<p class="text-sm text-muted-foreground">{$LL.layout.noWorkspace.ownerOnly()}</p>
+			<p class="text-center text-sm text-muted-foreground">{$LL.layout.noWorkspace.ownerOnly()}</p>
 		{/if}
 	</div>
 

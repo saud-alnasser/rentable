@@ -75,7 +75,7 @@ test('and in arabic', () => {
 // effort 843, requirement 9 (ticket 08): the loading is the way in's last step. Its mark is the
 // way-in surface's, in the same column, and the bar is in the column where a step's controls go;
 // it asks nothing, so it has no title.
-test('the loading draws the mark and the bar in the column of the way-in surface', () => {
+test('the loading draws the mark and the bar in the way-in column, in the middle of the window', () => {
 	loadLocale('en');
 	setLocale('en');
 
@@ -105,5 +105,17 @@ test('the loading draws the mark and the bar in the column of the way-in surface
 	const stepMark = step.container.querySelector('[data-way-in-mark]');
 
 	expect(stepMark?.className).toBe(markClass);
-	expect(stepMark?.parentElement?.className).toBe(columnClass);
+
+	// the same column, one measure wide, which the loading sits in the middle of the window and a
+	// step places from the top (at the human's word on 2026-10-01).
+	const stepColumn = stepMark?.parentElement?.className ?? '';
+
+	for (const shared of ['mx-auto', 'max-w-sm', 'px-4']) {
+		expect(columnClass, shared).toContain(shared);
+		expect(stepColumn, shared).toContain(shared);
+	}
+
+	expect(columnClass).toContain('justify-center');
+	expect(columnClass).not.toContain('pt-[max(5rem,20vh)]');
+	expect(stepColumn).toContain('pt-[max(5rem,20vh)]');
 });

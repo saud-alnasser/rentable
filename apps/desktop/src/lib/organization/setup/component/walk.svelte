@@ -337,7 +337,7 @@
 		{/if}
 
 		{#if working}
-			<p class="text-sm text-muted-foreground">{working}</p>
+			<p class="text-center text-sm text-muted-foreground">{working}</p>
 		{/if}
 	</div>
 

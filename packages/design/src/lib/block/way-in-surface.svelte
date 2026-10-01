@@ -53,6 +53,7 @@
 	let {
 		step,
 		title,
+		centred = false,
 		named = false,
 		description,
 		position,
@@ -75,6 +76,12 @@
 		 * wall, drawn as it is written rather than raised to sentence case.
 		 */
 		named?: boolean;
+		/**
+		 * whether the column sits in the middle of the window rather than from the top: the loading,
+		 * which asks nothing and changes no step, so nothing has to hold still for it (at the human's
+		 * word on 2026-10-01, who found the bar after the way in sitting high).
+		 */
+		centred?: boolean;
 		/** one line under the title. */
 		description?: string;
 		/**
@@ -249,9 +256,12 @@
 		</div>
 	{/if}
 
-	<!-- placed from the top so the mark and the title hold still when a step changes height. -->
+	<!-- placed from the top so the mark and the title hold still when a step changes height; the
+	     loading, which has no steps, sits in the middle. -->
 	<div
-		class="mx-auto flex w-full max-w-sm flex-1 flex-col px-4 pt-[max(5rem,20vh)] pb-8"
+		class="mx-auto flex w-full max-w-sm flex-1 flex-col px-4 {centred
+			? 'justify-center py-8'
+			: 'pt-[max(5rem,20vh)] pb-8'}"
 		role={busy ? 'status' : undefined}
 		aria-busy={busy || undefined}
 	>

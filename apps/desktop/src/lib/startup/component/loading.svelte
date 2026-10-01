@@ -13,7 +13,9 @@
 	 * run, a join or a sign-in, and on a launch before anybody is in, the loading keeps the way in's
 	 * mark and column, with the bar in the column where a step's controls go, so arriving reads as
 	 * the last step of the same sequence rather than a new screen; the rail comes with the
-	 * application. It has no title: it asks nothing. *It was a mark and a bar of its own, centred
+	 * application. **In the middle of the window, not from the top** (at the human's word on
+	 * 2026-10-01): a step is placed from the top so it holds still as it changes, and the loading
+	 * changes nothing, so the bar sits where a wait is looked for. It has no title: it asks nothing. *It was a mark and a bar of its own, centred
 	 * in the window, until then, and before that the standalone surface's card, which gave a
 	 * non-event the weight of an event.*
 	 *
@@ -94,7 +96,7 @@
 
 <!-- the mark holds still, as on every step of the way in. The bar is the motion, and two moving
      things on an otherwise empty window compete for the same job. -->
-<WayInSurface step="loading">
+<WayInSurface step="loading" centred>
 	<div class="flex w-full flex-col gap-2" role="status" data-startup-loading>
 		<Progress value={progress} class="h-1" />
 

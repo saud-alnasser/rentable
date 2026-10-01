@@ -310,6 +310,8 @@ test("pressing can't sign in? replaces it with the one sentence, said as a statu
 
 		expect(help(), locale).toBeNull();
 		expect(answer?.getAttribute('role'), locale).toBe('status');
+		// centred under the fields, with the column (at the human's word on 2026-10-01).
+		expect(answer?.className, locale).toContain('text-center');
 		expect(answer?.textContent?.trim(), locale).toBe(strings.layout.signIn.helpAnswer);
 
 		rendered.unmount();

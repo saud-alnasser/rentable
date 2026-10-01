@@ -340,7 +340,7 @@
 				</Button>
 			</form>
 		{:else if step.kind === 'reading'}
-			<p class="text-sm text-muted-foreground">{$LL.organization.join.reading()}</p>
+			<p class="text-center text-sm text-muted-foreground">{$LL.organization.join.reading()}</p>
 		{:else if step.kind === 'unreachable'}
 			{@render shellRefusal($LL.organization.join.unreachable(), step.detail)}
 			<Button size="lg" class="w-full" onclick={() => onConnect(step.link, step.code)}>
