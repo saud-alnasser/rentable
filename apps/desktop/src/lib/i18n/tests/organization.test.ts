@@ -176,6 +176,8 @@ const RETIRED = [
 	'layout.workspaceMenu.locked',
 	// the workspace menu's "switch to" heading (effort 843, requirement 11)
 	'layout.workspaceMenu.switchTo',
+	// the way in's link to all settings, until the human's walk (effort 843, requirement 7)
+	'settings.wayIn.allSettings',
 	// the connect step's "before you connect" facts (effort 843, requirement 3)
 	'organization.setup.connectDetails',
 	'organization.setup.groupCoverage',

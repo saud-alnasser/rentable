@@ -1,12 +1,10 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
 	import LanguageChoice from '$lib/design/block/language-choice.svelte';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/platform/locale';
 	import { toAppearanceSetting } from '$lib/platform/appearance';
 	import SettingsAppearance from '$lib/settings/component/appearance.svelte';
 	import { useFetchSettings, useSetLocale } from '$lib/settings/query';
-	import { THE_SETTINGS_AREA } from '$lib/settings/section';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Popover from '@rentable/design/primitive/popover/index.js';
 	import { Separator } from '@rentable/design/primitive/separator/index.js';
@@ -29,18 +27,17 @@
 	 * other step hands in none. An act the step cannot take right now, as the wall's two cannot while
 	 * a sign-in runs, is drawn disabled rather than left to race the step.
 	 *
-	 * **"All settings" is drawn wherever `/settings` can draw past the step**, which is every step
-	 * but the last: the no-workspace screen is drawn over every address, so a link to the settings
-	 * would redraw the same screen and leave the address behind it.
+	 * **Only the language and the appearance, and no way to all the settings** (at the human's word
+	 * on 2026-10-01). The settings a machine has before anybody is in are those two; everything else
+	 * on the settings page is about a workspace, and reached from the rail once somebody is. The
+	 * appearance is its three buttons with nothing above them. *It carried a link to all settings
+	 * from ticket 04 until the human's walk.*
 	 */
 	let {
-		extras = [],
-		allSettings = true
+		extras = []
 	}: {
 		/** acts only the step drawing this has, below the choices; `disabled` while it cannot take one. */
 		extras?: { label: string; onSelect: () => void; destructive?: boolean; disabled?: boolean }[];
-		/** whether the way to all the settings is offered; the step that draws over every address says no. */
-		allSettings?: boolean;
 	} = $props();
 
 	let open = $state(false);
@@ -79,25 +76,12 @@
 			}
 		/>
 
-		<SettingsAppearance {stored} />
+		<SettingsAppearance {stored} bare />
 
-		{#if allSettings || extras.length > 0}
+		{#if extras.length > 0}
 			<Separator />
 
 			<div class="flex flex-col gap-1">
-				{#if allSettings}
-					<Button
-						variant="ghost"
-						size="sm"
-						class="justify-start"
-						href={resolve(THE_SETTINGS_AREA)}
-						onclick={() => (open = false)}
-						data-way-in-all-settings
-					>
-						<span class="first-letter:uppercase">{$LL.settings.wayIn.allSettings()}</span>
-					</Button>
-				{/if}
-
 				{#each extras as extra (extra.label)}
 					<Button
 						variant="ghost"

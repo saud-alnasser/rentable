@@ -67,7 +67,7 @@ const openThePreferences = async () => {
 
 const title = () => document.querySelector('h1')?.textContent?.trim();
 
-test('the foot names the language, and opens the language, the appearance and all settings', async () => {
+test('the foot names the language, and opens the language and the appearance alone', async () => {
 	draw();
 
 	const trigger = document.querySelector<HTMLElement>(
@@ -80,9 +80,17 @@ test('the foot names the language, and opens the language, the appearance and al
 
 	expect(document.querySelector('[data-language-choice]')).not.toBeNull();
 	expect(document.querySelector('[data-appearance="dark"]')).not.toBeNull();
-	expect(document.querySelector('[data-way-in-all-settings]')?.getAttribute('href')).toBe(
-		'/settings'
-	);
+	// the appearance is its three buttons with nothing above them, named for a screen reader, and
+	// there is no way to all the settings (at the human's word on 2026-10-01).
+	expect(document.querySelector('#app-appearance-label')).toBeNull();
+	expect(
+		document
+			.querySelector('[data-appearance="dark"]')
+			?.closest('[aria-label]')
+			?.getAttribute('aria-label')
+	).toBe('appearance');
+	expect(document.querySelector('a[href="/settings"]')).toBeNull();
+	expect(document.querySelector('[data-slot=separator]')).toBeNull();
 });
 
 test('choosing another language redraws the step in it, and turns the reading direction', async () => {

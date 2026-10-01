@@ -56,8 +56,7 @@ export const settings = {
 
 	// الأداة الهادئة الوحيدة أسفل كل خطوة من خطوات الدخول (الجهد 843، المتطلب 7).
 	wayIn: {
-		preferences: 'اللغة والمظهر',
-		allSettings: 'كل الإعدادات'
+		preferences: 'اللغة والمظهر'
 	},
 
 	you: {

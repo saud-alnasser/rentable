@@ -569,9 +569,8 @@ test('the no-workspace screen carries the preferences control at its foot, and n
 	expect(foot?.querySelector('[data-way-in-preferences]')).not.toBeNull();
 });
 
-// review round 1 of effort 843: the no-workspace screen is drawn over every address, `/settings`
-// included, so its foot offers no way to all the settings; the welcome's still does.
-test('the foot offers all settings on the welcome, and not on the no-workspace screen', async () => {
+// at the human's word on 2026-10-01: neither screen's foot offers a way to all the settings.
+test('the foot offers no way to all settings, on the welcome or the no-workspace screen', async () => {
 	loadLocale('en');
 	setLocale('en');
 	document.body.innerHTML = '';
@@ -579,7 +578,8 @@ test('the foot offers all settings on the welcome, and not on the no-workspace s
 	const welcome = card('noOrganization', { organization: null });
 	await openTheFoot();
 
-	expect(document.querySelector('[data-way-in-all-settings]')).not.toBeNull();
+	expect(document.querySelector('[data-language-choice]')).not.toBeNull();
+	expect(document.querySelector('a[href="/settings"]')).toBeNull();
 	welcome.unmount();
 	document.body.innerHTML = '';
 
@@ -587,7 +587,7 @@ test('the foot offers all settings on the welcome, and not on the no-workspace s
 	await openTheFoot();
 
 	expect(document.querySelector('[data-language-choice]')).not.toBeNull();
-	expect(document.querySelector('[data-way-in-all-settings]')).toBeNull();
+	expect(document.querySelector('a[href="/settings"]')).toBeNull();
 });
 
 // effort 838, criterion 18: where this machine's `app.db` holds the records of an earlier version,

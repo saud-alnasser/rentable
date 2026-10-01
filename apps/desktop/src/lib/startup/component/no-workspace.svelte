@@ -109,8 +109,6 @@
 	</div>
 
 	{#snippet foot()}
-		<!-- no "all settings": this screen is drawn over every address, `/settings` included, so the
-		     link would redraw it and leave the settings address behind for a later create. -->
-		<WayInPreferences allSettings={false} />
+		<WayInPreferences />
 	{/snippet}
 </WayInSurface>

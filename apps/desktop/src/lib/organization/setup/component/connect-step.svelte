@@ -124,7 +124,7 @@
 			</span>
 		</Button>
 		<!-- what pressing it does, in the one line the step has under its button. -->
-		<p class="text-xs text-muted-foreground" data-setup-connect-hint>
+		<p class="text-center text-xs text-muted-foreground" data-setup-connect-hint>
 			{$LL.organization.setup.connectHint()}
 		</p>
 	{/if}

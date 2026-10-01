@@ -19,7 +19,18 @@
 	 * them side by side. What is shown pressed is the choice being written while it is, so the
 	 * group does not jump back to the old one for the length of the round trip.
 	 */
-	let { stored }: { stored: AppearanceSetting } = $props();
+	let {
+		stored,
+		bare = false
+	}: {
+		stored: AppearanceSetting;
+		/**
+		 * the three buttons alone, named for a screen reader and not on screen: the way in's foot
+		 * control draws them under the language with nothing above them (effort 843, at the human's
+		 * word on 2026-10-01, who found the title and its sentence too much there).
+		 */
+		bare?: boolean;
+	} = $props();
 
 	const setAppearance = useSetAppearance();
 
@@ -30,18 +41,12 @@
 	const icons = { system: MonitorIcon, light: SunIcon, dark: MoonIcon };
 </script>
 
-<Field.Field orientation="responsive">
-	<Field.Content>
-		<Field.Label id="app-appearance-label">
-			<span class="first-letter:uppercase">{$LL.settings.appearanceTitle()}</span>
-		</Field.Label>
-		<Field.Description>{$LL.settings.appearanceDescription()}</Field.Description>
-	</Field.Content>
+{#snippet choice(labelled: Record<string, string>, className: string)}
 	<ToggleGroup.Root
 		type="single"
 		variant="outline"
-		aria-labelledby="app-appearance-label"
-		class="w-full sm:w-56"
+		{...labelled}
+		class={className}
 		value={current}
 		onValueChange={(value) => {
 			// pressing the one already chosen would unset a single group; there is always a choice.
@@ -58,4 +63,18 @@
 			</ToggleGroup.Item>
 		{/each}
 	</ToggleGroup.Root>
-</Field.Field>
+{/snippet}
+
+{#if bare}
+	{@render choice({ 'aria-label': $LL.settings.appearanceTitle() }, 'w-full')}
+{:else}
+	<Field.Field orientation="responsive">
+		<Field.Content>
+			<Field.Label id="app-appearance-label">
+				<span class="first-letter:uppercase">{$LL.settings.appearanceTitle()}</span>
+			</Field.Label>
+			<Field.Description>{$LL.settings.appearanceDescription()}</Field.Description>
+		</Field.Content>
+		{@render choice({ 'aria-labelledby': 'app-appearance-label' }, 'w-full sm:w-56')}
+	</Field.Field>
+{/if}

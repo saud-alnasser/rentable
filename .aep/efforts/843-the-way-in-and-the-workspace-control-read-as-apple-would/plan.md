@@ -63,6 +63,11 @@ and a link to all settings. `/settings` still opens signed out (`OPENS_SIGNED_OU
 `way-in` frame with the back control returning to the way in, since the rail's row that used to
 lead there is gone.
 
+*Built 2026-10-01 by ticket 20, at the human's word on their walk: the popover holds the language
+and the appearance's three buttons alone, with no link to all settings, since everything else on
+the settings page is a workspace's. `/settings` still opens signed out, but nothing on the way in
+leads there.*
+
 *Built 2026-10-01 by ticket 04: the control lives in the settings feature, as
 `settings/component/way-in-preferences.svelte`, exported from `$lib/settings/ui` as
 `WayInPreferences`, because `lib/design` is layer 1 and cannot import the settings area's
@@ -132,7 +137,7 @@ as long as the reads take.
 | `startup/switch.ts`, `startup/machine.ts`, `startup/snapshot.ts` | `switching` set and cleared; the address moved before the open |
 | `startup/component/{sign-in,no-workspace,loading}.svelte` | drawn on the way-in surface; the welcome's two choices as an equal pair |
 | `organization/setup/component/{walk,connect-step,name-step,existing-step,connect-screen}.svelte` | drawn on the way-in surface with a step key; field addons removed; icons kept only on back, link and external-page buttons |
-| `settings/component/way-in-preferences.svelte` (new; planned in `lib/design/block`, moved by ticket 04 on 2026-10-01) | the foot control and its popover (language, appearance, all settings) |
+| `settings/component/way-in-preferences.svelte` (new; planned in `lib/design/block`, moved by ticket 04 on 2026-10-01) | the foot control and its popover (language and appearance; the link to all settings was dropped by ticket 20) |
 | `workspace/component/{menu,rail-row}.svelte` | the one-line trigger; the list, separator and manage item; no member count read |
 | `workspace/component/locked.svelte`, `organization/session/component/account-signed-out.svelte` | deleted |
 | locale files | the welcome's line, "manage workspaces", "opening {name}", the preferences control; unused strings (`switchTo`, the locked row's) removed. *Built 2026-10-01 by ticket 09: `workspaceMenu.members` and `create` stayed, because the settings area's workspace directory and dialog read them.* |

@@ -55,8 +55,7 @@ export const settings = {
 
 	// the one quiet control at the foot of every step of the way in (effort 843, requirement 7).
 	wayIn: {
-		preferences: 'language and appearance',
-		allSettings: 'all settings'
+		preferences: 'language and appearance'
 	},
 
 	you: {
