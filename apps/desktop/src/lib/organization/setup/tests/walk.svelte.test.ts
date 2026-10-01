@@ -628,6 +628,18 @@ test('every step carries the preferences control at its foot, and nothing else t
 	}
 });
 
+// review round 1 of effort 843: the walk draws before any workspace, and `/settings` draws past
+// it, so its foot still offers the way to all the settings.
+test('the foot of the walk offers all settings', async () => {
+	loadLocale('en');
+	setLocale('en');
+
+	walk(SETUP_STEPS[0]);
+	await fireEvent.click(document.querySelector<HTMLElement>('[data-way-in-preferences]')!);
+
+	await waitFor(() => expect(document.querySelector('[data-way-in-all-settings]')).not.toBeNull());
+});
+
 test('no step carries the outline back button the corner control replaced', () => {
 	loadLocale('en');
 	setLocale('en');

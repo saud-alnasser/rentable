@@ -101,6 +101,9 @@
 	 */
 	let isHelpAnswered = $state(false);
 	let usernameField = $state<HTMLInputElement | null>(null);
+	let passwordField = $state<HTMLInputElement | null>(null);
+	/** a sign-in has been tried and has not yet answered; plain, since nothing draws from it. */
+	let isAnswerAwaited = false;
 
 	/**
 	 * a machine offered the first run has nothing to name, and one behind the wall names what it
@@ -126,22 +129,39 @@
 	};
 
 	// arriving at the wall puts the cursor in its first field (requirement 8), and only on arriving:
-	// the field is drawn once per wall, so a sign-in that fails leaves the cursor where it was.
+	// the field is drawn once per wall.
 	$effect(() => {
 		if (!usernameField) return;
 
 		void tick().then(() => usernameField?.focus());
 	});
 
+	// a sign-in that fails puts the cursor back in the password. Both fields are disabled while it
+	// runs, which drops the focus, and the password is what a person who mistyped tries again.
+	$effect(() => {
+		if (isSigningIn) {
+			isAnswerAwaited = true;
+			return;
+		}
+
+		if (!isAnswerAwaited || errorMessage === null) return;
+
+		isAnswerAwaited = false;
+		void tick().then(() => passwordField?.focus());
+	});
+
 	// the wall's two ways out of a jam, in the foot control's popover; the welcome hands in none.
+	// Neither can be taken while a sign-in runs: a link would leave the step under a sign-in that
+	// carries on, and the startup unit ignores a disconnect until it answers.
 	const extras = $derived(
 		held
 			? [
-					{ label: $LL.layout.signIn.useALink(), onSelect: onJoinByLink },
+					{ label: $LL.layout.signIn.useALink(), onSelect: onJoinByLink, disabled: isSigningIn },
 					{
 						label: $LL.layout.signIn.disconnect(),
 						onSelect: () => (isDisconnectOpen = true),
-						destructive: true
+						destructive: true,
+						disabled: isSigningIn
 					}
 				]
 			: []
@@ -195,7 +215,7 @@
 			<div class="flex flex-col gap-3">
 				<Button
 					size="lg"
-					class="h-auto w-full flex-col gap-0.5 py-3"
+					class="h-auto w-full flex-col gap-1 py-3"
 					onclick={onSetUpOrganization}
 					data-sign-in-set-up
 				>
@@ -208,7 +228,7 @@
 				<Button
 					size="lg"
 					variant="outline"
-					class="h-auto w-full flex-col gap-0.5 py-3"
+					class="h-auto w-full flex-col gap-1 py-3"
 					onclick={onJoinByLink}
 					data-sign-in-join
 				>
@@ -249,6 +269,7 @@
 						type="password"
 						autocomplete="current-password"
 						class="h-9"
+						bind:ref={passwordField}
 						bind:value={password}
 						disabled={isSigningIn}
 					/>

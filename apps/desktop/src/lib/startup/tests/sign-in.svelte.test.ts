@@ -361,6 +361,42 @@ test('the foot is the preferences control, and only the wall hands it the link a
 	expect(joined).toBe(1);
 });
 
+// review round 1 of effort 843: a sign-in is a key derivation and then a workspace open, which
+// take seconds, and neither way out of a jam may race it.
+test('while a sign-in runs, the foot offers the link and disconnect disabled', async () => {
+	loadLocale('en');
+	setLocale('en');
+	document.body.innerHTML = '';
+
+	card('locked', { isSigningIn: true });
+	await openTheFoot();
+
+	const link = screen.getByRole('button', { name: en.layout.signIn.useALink });
+	const disconnect = screen.getByRole('button', { name: en.layout.signIn.disconnect });
+
+	expect((link as HTMLButtonElement).disabled).toBe(true);
+	expect((disconnect as HTMLButtonElement).disabled).toBe(true);
+});
+
+// review round 1 of effort 843: both fields are disabled while a sign-in runs, which drops the
+// focus, so a failure puts the cursor back in the password rather than at the top of the window.
+test('a sign-in that fails puts the cursor back in the password', async () => {
+	loadLocale('en');
+	setLocale('en');
+	document.body.innerHTML = '';
+
+	const rendered = card('locked', { isSigningIn: true });
+	await tick();
+
+	const password = document.querySelector<HTMLInputElement>('input[name="password"]')!;
+
+	expect(document.activeElement).not.toBe(password);
+
+	await rendered.rerender({ isSigningIn: false, errorMessage: 'that password did not open it' });
+
+	await waitFor(() => expect(document.activeElement).toBe(password));
+});
+
 test('a pair that did not open is said on the wall, with the one sentence allowed', () => {
 	loadLocale('en');
 	setLocale('en');
@@ -528,6 +564,27 @@ test('the no-workspace screen carries the preferences control at its foot, and n
 
 	expect(foot?.querySelectorAll('button')).toHaveLength(1);
 	expect(foot?.querySelector('[data-way-in-preferences]')).not.toBeNull();
+});
+
+// review round 1 of effort 843: the no-workspace screen is drawn over every address, `/settings`
+// included, so its foot offers no way to all the settings; the welcome's still does.
+test('the foot offers all settings on the welcome, and not on the no-workspace screen', async () => {
+	loadLocale('en');
+	setLocale('en');
+	document.body.innerHTML = '';
+
+	const welcome = card('noOrganization', { organization: null });
+	await openTheFoot();
+
+	expect(document.querySelector('[data-way-in-all-settings]')).not.toBeNull();
+	welcome.unmount();
+	document.body.innerHTML = '';
+
+	noWorkspace();
+	await openTheFoot();
+
+	expect(document.querySelector('[data-language-choice]')).not.toBeNull();
+	expect(document.querySelector('[data-way-in-all-settings]')).toBeNull();
 });
 
 // effort 838, criterion 18: where this machine's `app.db` holds the records of an earlier version,
