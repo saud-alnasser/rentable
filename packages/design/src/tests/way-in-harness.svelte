@@ -12,11 +12,13 @@
 		step,
 		at,
 		back = false,
+		named = false,
 		onback = () => undefined
 	}: {
 		step: string;
 		at?: number;
 		back?: boolean;
+		named?: boolean;
 		onback?: () => void;
 	} = $props();
 </script>
@@ -24,6 +26,7 @@
 <WayInSurface
 	{step}
 	title="title {step}"
+	{named}
 	description="line {step}"
 	position={at === undefined ? undefined : { at, of: 2, label: `step ${at} of 2` }}
 	back={back ? { label: 'the way back', onclick: onback } : undefined}

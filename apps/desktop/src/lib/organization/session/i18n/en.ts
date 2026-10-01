@@ -6,20 +6,22 @@ import type { BaseTranslation } from '../../../i18n/i18n-types';
 
 export const layout = {
 	signIn: {
-		noOrganizationTitle: 'welcome',
-		noOrganizationSubtitle: 'no organization on this machine yet.',
-		subtitle: 'sign in to continue',
-		help: 'trouble signing in?',
+		// the product's own name, which the welcome draws as it is written.
+		noOrganizationTitle: 'rentable',
+		noOrganizationSubtitle: 'track rent, receipts and reminders.',
+		subtitle: 'sign in to continue.',
+		help: "can't sign in?",
+		helpAnswer: 'ask a manager or the owner of your organization for help.',
 		username: 'username',
 		password: 'password',
 		unlocking: 'signing you in. this takes a moment on purpose.',
 		roleOwner: 'owner',
 		roleManager: 'manager',
 		roleMember: 'member',
-		setUp: 'use your Turso account',
-		setUpDescription: 'you own the organization.',
-		connectByLink: 'use a link and code',
-		connectByLinkDescription: 'you were given a link and a code.',
+		setUp: 'set up with Turso',
+		setUpDescription: 'for the owner of the organization.',
+		connectByLink: 'join with a link',
+		connectByLinkDescription: 'for anyone who was sent a link.',
 		signedOutElsewhere:
 			'you were signed out of this machine from another one. sign in again to carry on.',
 		useALink: 'use a link',

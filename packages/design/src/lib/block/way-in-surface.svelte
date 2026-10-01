@@ -46,6 +46,7 @@
 	let {
 		step,
 		title,
+		named = false,
 		description,
 		position,
 		back,
@@ -58,6 +59,11 @@
 		step: string;
 		/** what this step is, in a few words. */
 		title: string;
+		/**
+		 * whether the title is a name, the product's on the welcome or the organization's on the
+		 * wall, drawn as it is written rather than raised to sentence case.
+		 */
+		named?: boolean;
 		/** one line under the title. */
 		description?: string;
 		/**
@@ -257,7 +263,10 @@
 					{/if}
 					<!-- isolated, because on the wall the title is the organization's name, which is the
 					     reader's own words and keeps its own order in the other direction. -->
-					<h1 class="text-2xl font-semibold first-letter:uppercase" data-way-in-title>
+					<h1
+						class="text-2xl font-semibold {named ? '' : 'first-letter:uppercase'}"
+						data-way-in-title
+					>
 						<bdi>{title}</bdi>
 					</h1>
 					{#if description}

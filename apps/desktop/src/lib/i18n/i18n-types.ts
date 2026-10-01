@@ -1981,21 +1981,25 @@ type RootTranslation = {
 		}
 		signIn: {
 			/**
-			 * w​e​l​c​o​m​e
+			 * r​e​n​t​a​b​l​e
 			 */
 			noOrganizationTitle: string
 			/**
-			 * n​o​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​y​e​t​.
+			 * t​r​a​c​k​ ​r​e​n​t​,​ ​r​e​c​e​i​p​t​s​ ​a​n​d​ ​r​e​m​i​n​d​e​r​s​.
 			 */
 			noOrganizationSubtitle: string
 			/**
-			 * s​i​g​n​ ​i​n​ ​t​o​ ​c​o​n​t​i​n​u​e
+			 * s​i​g​n​ ​i​n​ ​t​o​ ​c​o​n​t​i​n​u​e​.
 			 */
 			subtitle: string
 			/**
-			 * t​r​o​u​b​l​e​ ​s​i​g​n​i​n​g​ ​i​n​?
+			 * c​a​n​'​t​ ​s​i​g​n​ ​i​n​?
 			 */
 			help: string
+			/**
+			 * a​s​k​ ​a​ ​m​a​n​a​g​e​r​ ​o​r​ ​t​h​e​ ​o​w​n​e​r​ ​o​f​ ​y​o​u​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​f​o​r​ ​h​e​l​p​.
+			 */
+			helpAnswer: string
 			/**
 			 * u​s​e​r​n​a​m​e
 			 */
@@ -2021,19 +2025,19 @@ type RootTranslation = {
 			 */
 			roleMember: string
 			/**
-			 * u​s​e​ ​y​o​u​r​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t
+			 * s​e​t​ ​u​p​ ​w​i​t​h​ ​T​u​r​s​o
 			 */
 			setUp: string
 			/**
-			 * y​o​u​ ​o​w​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
+			 * f​o​r​ ​t​h​e​ ​o​w​n​e​r​ ​o​f​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
 			 */
 			setUpDescription: string
 			/**
-			 * u​s​e​ ​a​ ​l​i​n​k​ ​a​n​d​ ​c​o​d​e
+			 * j​o​i​n​ ​w​i​t​h​ ​a​ ​l​i​n​k
 			 */
 			connectByLink: string
 			/**
-			 * y​o​u​ ​w​e​r​e​ ​g​i​v​e​n​ ​a​ ​l​i​n​k​ ​a​n​d​ ​a​ ​c​o​d​e​.
+			 * f​o​r​ ​a​n​y​o​n​e​ ​w​h​o​ ​w​a​s​ ​s​e​n​t​ ​a​ ​l​i​n​k​.
 			 */
 			connectByLinkDescription: string
 			/**
@@ -6510,21 +6514,25 @@ export type TranslationFunctions = {
 		}
 		signIn: {
 			/**
-			 * welcome
+			 * rentable
 			 */
 			noOrganizationTitle: () => LocalizedString
 			/**
-			 * no organization on this machine yet.
+			 * track rent, receipts and reminders.
 			 */
 			noOrganizationSubtitle: () => LocalizedString
 			/**
-			 * sign in to continue
+			 * sign in to continue.
 			 */
 			subtitle: () => LocalizedString
 			/**
-			 * trouble signing in?
+			 * can't sign in?
 			 */
 			help: () => LocalizedString
+			/**
+			 * ask a manager or the owner of your organization for help.
+			 */
+			helpAnswer: () => LocalizedString
 			/**
 			 * username
 			 */
@@ -6550,19 +6558,19 @@ export type TranslationFunctions = {
 			 */
 			roleMember: () => LocalizedString
 			/**
-			 * use your Turso account
+			 * set up with Turso
 			 */
 			setUp: () => LocalizedString
 			/**
-			 * you own the organization.
+			 * for the owner of the organization.
 			 */
 			setUpDescription: () => LocalizedString
 			/**
-			 * use a link and code
+			 * join with a link
 			 */
 			connectByLink: () => LocalizedString
 			/**
-			 * you were given a link and a code.
+			 * for anyone who was sent a link.
 			 */
 			connectByLinkDescription: () => LocalizedString
 			/**

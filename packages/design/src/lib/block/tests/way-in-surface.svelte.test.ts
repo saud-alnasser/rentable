@@ -271,6 +271,21 @@ test('without a position nothing is drawn for one', () => {
 	expect(container.textContent).not.toMatch(/step \d of/);
 });
 
+test('a title is raised to sentence case, and a name is drawn as it is written', () => {
+	const { container, unmount } = draw({ step: 'one' });
+
+	expect(container.querySelector('[data-way-in-title]')?.classList).toContain(
+		'first-letter:uppercase'
+	);
+	unmount();
+
+	const named = draw({ step: 'one', named: true });
+
+	expect(named.container.querySelector('[data-way-in-title]')?.classList).not.toContain(
+		'first-letter:uppercase'
+	);
+});
+
 test('the step, its actions and the foot are each in their place', () => {
 	const { container } = draw({ step: 'one' });
 
