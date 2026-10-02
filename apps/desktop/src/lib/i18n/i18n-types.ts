@@ -2770,6 +2770,10 @@ type RootTranslation = {
 			 * n​o​ ​c​o​n​t​r​a​c​t​s
 			 */
 			noContracts: string
+			/**
+			 * c​o​n​t​r​a​c​t​s
+			 */
+			contractsName: string
 		}
 		contracts: {
 			/**
@@ -7652,6 +7656,10 @@ export type TranslationFunctions = {
 			 * no contracts
 			 */
 			noContracts: () => LocalizedString
+			/**
+			 * contracts
+			 */
+			contractsName: () => LocalizedString
 		}
 		contracts: {
 			/**

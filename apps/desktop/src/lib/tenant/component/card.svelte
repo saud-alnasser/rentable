@@ -10,12 +10,15 @@
 	/**
 	 * The height a tenant's tile is laid at, which the list reads rather than measuring the tile.
 	 *
-	 * Measured on the development workspace in both locales (effort 846, the cards on real data):
-	 * the padding, the heading line at the control's height, then three lines at the facts' fixed
-	 * 20 px leading, four pixels apart. It holds only because every line sets that leading, so a
-	 * line added to the tile, or one drawn without it, changes this figure too.
+	 * Counted the way the member's tile is (effort 846, ticket 42): the padding (32), the heading
+	 * line at the control's height (32), then 12 px to the fields, two rows of fields 8 px apart,
+	 * each field 8 px of padding above and below a name and a value at a fixed 20 px leading
+	 * (8 + 20 + 20 + 8 = 56). 32 + 32 + 12 + (56 + 8 + 56) = 196. The contracts row is counted
+	 * whether or not it draws, so every tile in the directory stands at one height. It holds in
+	 * Arabic only because every line sets its own leading, so a line added to the tile, or one
+	 * drawn without it, changes this figure too.
 	 */
-	export const TENANT_TILE_HEIGHT = 144;
+	export const TENANT_TILE_HEIGHT = 196;
 
 	/**
 	 * The tenant's six counts, keyed by the status each counts.
@@ -44,7 +47,6 @@
 	import { resolve } from '$app/paths';
 	import RecordCard, { type RecordCardAction } from '@rentable/design/block/record-card.svelte';
 	import * as Cell from '$lib/design/cell';
-	import { factLeading } from '$lib/design/cell/fact.svelte';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import FileTextIcon from '@lucide/svelte/icons/file-text';
 	import IdCardIcon from '@lucide/svelte/icons/id-card';
@@ -54,12 +56,21 @@
 	 * A tenant, as the tenants directory lays one in its grid: the name, the two facts a reader
 	 * finds a tenant by, and what the contracts naming the tenant stand at.
 	 *
-	 * The name is the one strong line (_Size isn't everything_, 38). The national id and the phone
-	 * follow, each with its glyph and held left to right, since a number reads that way in both
-	 * locales. The contracts close the tile, pushed to its foot so the two facts above read as
-	 * one group: a chip for each status holding any, its glyph, figure and word in the status's
-	 * tone, or *no contracts* where every count is zero. A count of zero is not drawn, so a tenant
-	 * with one active contract reads as exactly that and not as six figures, five of them nothing.
+	 * **The heading is the name**, the one strong line (_Size isn't everything_, 38).
+	 *
+	 * **Then the fields, in the member card's family** (the human's word of 2026-10-03, "follow
+	 * the tinted files and things like that in the reocrds cards of domain data"): each a softly
+	 * tinted `Cell.Field`, its glyph and name small and muted over the value, in a grid two
+	 * across. The national id and the phone fill the first row, each held left to right, since a
+	 * number reads that way in both locales.
+	 *
+	 * **The contracts take the second row whole**, since a tenant's statuses are several short
+	 * values on one line and half a row would cut the second of them. The value is a chip for
+	 * each status holding any, its glyph, figure and word in the status's tone, or *no contracts*
+	 * drawn muted where every count is zero (_Emphasize by de-emphasizing_, 46). A count of zero
+	 * is not drawn, so a tenant with one active contract reads as exactly that and not as six
+	 * figures, five of them nothing. A reader who may not view contracts gets no contracts field
+	 * at all, rather than one claiming there are none.
 	 */
 	let {
 		tenant,
@@ -82,39 +93,53 @@
 	label={tenant.name}
 	{actions}
 	layout="tile"
-	class="gap-1"
+	class="gap-3"
 >
 	{#snippet heading()}
 		<Cell.Text class="truncate text-sm font-semibold" text={tenant.name} />
 	{/snippet}
 
 	{#snippet content()}
-		<Cell.Fact icon={IdCardIcon} class="mt-1">
-			<span dir="ltr" class="truncate tabular-nums">{tenant.nationalId}</span>
-		</Cell.Fact>
-		<Cell.Fact icon={PhoneIcon}>
-			<Cell.Phone phone={tenant.phone} />
-		</Cell.Fact>
+		<div data-tenant-fields class="pointer-events-none relative grid grid-cols-2 gap-2">
+			<Cell.Field hook="tenant-field" icon={IdCardIcon} name={$LL.common.labels.nationalId()}>
+				<span dir="ltr" data-tenant-national-id class="tabular-nums">{tenant.nationalId}</span>
+			</Cell.Field>
 
-		{#if counts}
-			{#if held.length > 0}
-				<span
-					data-tenant-contracts
-					class="pointer-events-none relative mt-auto flex min-w-0 items-center gap-3 overflow-hidden {factLeading}"
-				>
-					{#each held as status (status)}
-						<Cell.StatusCount
-							{status}
-							count={counts[status]}
-							label={$LL.tenants.card.contracts[status]({ count: counts[status] })}
-						/>
-					{/each}
-				</span>
-			{:else}
-				<Cell.Fact icon={FileTextIcon} class="mt-auto">
-					<span data-tenant-contracts class="truncate">{$LL.tenants.card.noContracts()}</span>
-				</Cell.Fact>
+			<Cell.Field hook="tenant-field" icon={PhoneIcon} name={$LL.common.labels.phone()}>
+				<Cell.Phone phone={tenant.phone} />
+			</Cell.Field>
+
+			{#if counts}
+				{#if held.length > 0}
+					<Cell.Field
+						hook="tenant-field"
+						icon={FileTextIcon}
+						name={$LL.tenants.card.contractsName()}
+						class="col-span-2"
+						valueAttributes={{ 'data-tenant-contracts': held.length }}
+					>
+						<span class="flex min-w-0 items-center gap-3 overflow-hidden">
+							{#each held as status (status)}
+								<Cell.StatusCount
+									{status}
+									count={counts[status]}
+									label={$LL.tenants.card.contracts[status]({ count: counts[status] })}
+								/>
+							{/each}
+						</span>
+					</Cell.Field>
+				{:else}
+					<Cell.Field
+						hook="tenant-field"
+						icon={FileTextIcon}
+						name={$LL.tenants.card.contractsName()}
+						value={$LL.tenants.card.noContracts()}
+						empty
+						class="col-span-2"
+						valueAttributes={{ 'data-tenant-contracts': 0 }}
+					/>
+				{/if}
 			{/if}
-		{/if}
+		</div>
 	{/snippet}
 </RecordCard>

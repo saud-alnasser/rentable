@@ -20,7 +20,8 @@ export const tenants = {
 			expired: '{count|number} منتهي',
 			terminated: '{count|number} منتهي'
 		},
-		noContracts: 'لا توجد عقود'
+		noContracts: 'لا توجد عقود',
+		contractsName: 'العقود'
 	},
 
 	contracts: {

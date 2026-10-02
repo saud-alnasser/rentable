@@ -22,7 +22,9 @@ export const tenants = {
 			expired: '{count|number} expired',
 			terminated: '{count|number} terminated'
 		},
-		noContracts: 'no contracts'
+		noContracts: 'no contracts',
+		// the name over the contracts field, beside the national id and the phone.
+		contractsName: 'contracts'
 	},
 
 	contracts: {

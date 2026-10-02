@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [41]
 ---
 
@@ -15,8 +15,8 @@ The human's word of 2026-10-03: "follow the tinted files and things like that in
 
 Traces requirement 1 as revised 2026-10-03, and requirements 18 and 19.
 
-- [ ] The tenant card test finds its fields as `Cell.Field`s with a glyph, a name and a value, in both locales, with no zero drawn as a figure.
-- [ ] The directory passes the recomputed height, and its list tests (search, filter, sort, keyboard, selection, acts) pass.
+- [x] The tenant card test finds its fields as `Cell.Field`s with a glyph, a name and a value, in both locales, with no zero drawn as a figure. *Verified: `vitest run src/lib/tenant` passes: `card.svelte.test.ts` (9) finds national id (ltr), phone and contracts as `Cell.Field`s with glyph, name and value in en and ar, the tint and fixed leading, a chip per non-zero status with its word or a muted *no contracts*, and no zero figure.*
+- [x] The directory passes the recomputed height, and its list tests (search, filter, sort, keyboard, selection, acts) pass. *Verified: the same run: the directory's grid lays rows at `TENANT_TILE_HEIGHT` (196); the builder's full run printed node 1484 and vitest 827 passed; check 0 errors.*
 
 ## Relevant areas
 
