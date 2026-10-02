@@ -34,6 +34,14 @@ Every rule governing what a surface **is** and how it **presents**. How the code
 draws it is written is [[rules/frontend]]'s; what it reads and writes is
 [[rules/data]]'s.
 
+**A component is chosen by [[contexts/desktop/components]].** Before a surface draws a primitive, a
+block or a cell to show data, show a status, take an action, choose a value, disclose detail,
+interrupt or guide, that context is read and its decision table followed; a need it does not name
+is raised rather than answered with a component chosen by habit. Where a section below names the
+component for a case, the section wins and the context is corrected. *Added by ticket 22 of
+[[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], at the human's word of
+2026-10-02.*
+
 ## The catalogue of acts
 
 **Each act a person repeats has one pattern, and its section is where that pattern is written.**

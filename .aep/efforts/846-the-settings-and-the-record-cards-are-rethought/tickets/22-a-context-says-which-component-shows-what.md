@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # docs(aep): a context says which component shows what
@@ -16,10 +16,10 @@ Every primitive in `packages/design/src/lib/primitive/` and every block in `pack
 
 Traces the human's request of 2026-10-02 (requirement 1 as widened that day, and requirement 22).
 
-- [ ] `evidence/research/what-each-kind-of-component-is-for.md` cites primary sources (at least Apple's HIG, Material 3, Microsoft Fluent 2, shadcn/ui and Radix docs, and two of IBM Carbon, Shopify Polaris, Atlassian, GOV.UK) for each kind of component the package holds.
-- [ ] `.aep/contexts/desktop/components.md` exists with `paths` over the design package, the cells and every `.svelte` file in the app, and a `use-when` naming the choice of a component to show data or take an action; it names every primitive and block in the package (a check script or test lists the folders and finds each named), each with its category, when to use, when not to, and the alternative.
-- [ ] It carries a decision table from need to component (a value to set, a status to read, a list of records, detail few need, an act that ends something, a short choice of two to five, and so on), and each row names the component this repository already uses for it, with one file where it is used.
-- [ ] [[rules/interface]] says a component is chosen by that context, and the context points back to the rule for look and placement; `node .aep/scripts/validate.mjs` passes and the index is regenerated.
+- [x] `evidence/research/what-each-kind-of-component-is-for.md` cites primary sources (at least Apple's HIG, Material 3, Microsoft Fluent 2, shadcn/ui and Radix docs, and two of IBM Carbon, Shopify Polaris, Atlassian, GOV.UK) for each kind of component the package holds. *Verified: read `evidence/research/what-each-kind-of-component-is-for.md`: Apple HIG (28 pages), Material 3, Fluent 2, shadcn/ui and shadcn-svelte, Radix and bits-ui, Carbon, GOV.UK and Atlassian, each kind of component with a finding; Polaris recorded as not checked (its component pages redirect).*
+- [x] `.aep/contexts/desktop/components.md` exists with `paths` over the design package, the cells and every `.svelte` file in the app, and a `use-when` naming the choice of a component to show data or take an action; it names every primitive and block in the package (a check script or test lists the folders and finds each named), each with its category, when to use, when not to, and the alternative. *Verified: `.aep/contexts/desktop/components.md` carries the briefed `paths` and `use-when`; `node --test src/tests/components-context.test.ts src/tests/governance.test.ts` printed pass 6, fail 0, the first listing the primitive and block folders and finding every one named (34 primitives, 22 blocks, 11 cells).*
+- [x] It carries a decision table from need to component (a value to set, a status to read, a list of records, detail few need, an act that ends something, a short choice of two to five, and so on), and each row names the component this repository already uses for it, with one file where it is used. *Verified: read the decision table: 27 rows from need to component, each naming the component in use and one file.*
+- [x] [[rules/interface]] says a component is chosen by that context, and the context points back to the rule for look and placement; `node .aep/scripts/validate.mjs` passes and the index is regenerated. *Verified: `grep` finds the binding paragraph at rules/interface line 37, the context points back to the rule for look and placement; `validate.mjs` printed 562 artifacts checked, no failures, after `index.mjs`.*
 
 ## Relevant areas
 
