@@ -88,31 +88,35 @@ export const organization = {
 		tryAgain: 'try again',
 		back: 'back'
 	},
-	// the block at the top of the organization section: where this machine stands with the
-	// organization on Turso, in one sentence (effort 828, requirement 25). A standing that
-	// needs something says what needs doing; synced says when this machine last reached
-	// Turso. No status word stands alone here, and the only one of these that says "sync" is
-	// the control, which the human named so on 2026-09-17.
+	// the sync group at the top of the organization section: where this machine stands with the
+	// organization on Turso, as one of five named states each in a tone of its own (effort 846,
+	// requirement 12, which brings back the coloured word effort 828 retired), and when it last
+	// reached Turso on a line of its own. The control is named "sync", as the human named it on
+	// 2026-09-17.
 	standing: {
-		// the legend and the sentence of purpose, the same whatever the standing: what the block
-		// is about, before the line that changes.
+		// the group's title and its one line, the same whatever the state: what the group is
+		// about.
 		title: 'this machine and Turso',
 		purpose:
 			'the organization lives on Turso and reaches this machine on its own. what you write goes out when Turso is reachable.',
-		// a machine that has never reached Turso: a fresh machine opened offline, which is not
-		// up to date and has no moment to say. *It read "up to date" until review round two of
-		// effort 828.*
-		notYetReached: 'this machine has not reached Turso yet',
-		upToDateChecked: 'up to date, checked {moment:string}',
+		// the five states, a word or two each, read at a glance; the explanation, where one is
+		// owed, is a callout beneath.
+		state: {
+			upToDate: 'up to date',
+			syncing: 'syncing',
+			// a machine that has never reached Turso: a fresh machine opened offline, which is
+			// not up to date. *It read "up to date" until review round two of effort 828.*
+			notYetReached: 'not yet reached',
+			needsAttention: 'needs attention',
+			needsReconnecting: 'needs reconnecting'
+		},
+		// the moment of the last reach: relative within a day, the date and the time beyond it.
+		lastReachedRecently: 'last reached Turso {moment:string}',
 		lastReached: 'last reached Turso on {moment:string}',
-		accountNeedsAttention: 'the Turso account needs attention',
-		accessNeedsAttention: "this machine's access needs attention",
-		needsReconnecting: 'this machine needs reconnecting',
-		// an owner whose machine holds no authority: the reconnect is the block below, and the
-		// standing block points at it rather than drawing a second consent.
+		// an owner whose machine holds no authority: the reconnect is the Turso account's, below,
+		// and the sync group points at it rather than drawing a second consent.
 		reconnectBelow: 'the Turso account is reconnected in the block below.',
-		checkNow: 'sync',
-		checking: 'syncing...'
+		checkNow: 'sync'
 	},
 	dashboard: {
 		// the sentence the members section opens with: who is listed, and what this section is

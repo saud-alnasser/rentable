@@ -475,12 +475,12 @@ test('the organization section is ordered: standing, account, people, leaving', 
 	expect(leaving.querySelector('[data-delete-organization]')).not.toBeNull();
 });
 
-// criterion 25 of effort 828, from the area's side: the block at the top of the organization
-// section states one sentence built from the standing and the moment, offers one control named
-// "sync", draws no badge and carries the word "sync" on that control alone. Each standing's
-// sentence is read in `organization/tests/standing.svelte.test.ts`; what is read here is that
-// the section draws that block, first, with the moment the machine holds.
-test('the organization section opens with one sentence on where this machine stands, and one check', () => {
+// criterion 12 of effort 846, from the area's side: the section opens with the sync group, a
+// settings group whose one row names the state and says when this machine last reached Turso,
+// with the control named "sync". Each state is read in
+// `organization/tests/standing.svelte.test.ts`; what is read here is that the section draws that
+// group, first, with the moment the machine holds.
+test('the organization section opens with the sync group: the state, the last reach, and sync', () => {
 	at('?section=organization');
 	area({
 		section: 'organization',
@@ -490,24 +490,22 @@ test('the organization section opens with one sentence on where this machine sta
 	const block = document.querySelector<HTMLElement>('[data-standing-block]')!;
 
 	expect(block).not.toBeNull();
-	// the legend and the sentence of purpose first, the shape every block here has.
-	expect(block.querySelector('legend')?.textContent?.trim()).toBe(en.organization.standing.title);
-	expect(block.querySelector('[data-standing-purpose]')?.textContent?.trim()).toBe(
-		en.organization.standing.purpose
+	// the group's title, and its one line.
+	expect(block.querySelector('[data-settings-group] h2')?.textContent?.trim()).toBe(
+		en.organization.standing.title
 	);
-	expect(block.querySelector('[data-standing-sentence]')?.textContent?.trim()).toBe(
-		en.organization.standing.upToDateChecked.replace('{moment:string}', '2 minutes ago')
+	expect(block.textContent).toContain(en.organization.standing.purpose);
+	expect(block.querySelectorAll('[data-standing]')).toHaveLength(1);
+	expect(block.querySelector('[data-standing-word]')?.textContent?.trim()).toBe(
+		en.organization.standing.state.upToDate
 	);
-	expect(block.querySelectorAll('[data-standing-sentence]')).toHaveLength(1);
+	expect(block.querySelector('[data-last-reached]')?.textContent?.trim()).toBe(
+		en.organization.standing.lastReachedRecently.replace('{moment:string}', '2 minutes ago')
+	);
 	expect(block.querySelector('[data-check-now]')?.textContent?.trim()).toBe(
 		en.organization.standing.checkNow
 	);
 	expect(block.querySelector('[data-slot="badge"]')).toBeNull();
-	expect(
-		(block.textContent ?? '')
-			.replace(block.querySelector('[data-check-now]')?.textContent ?? '', '')
-			.toLowerCase()
-	).not.toContain('sync');
 	// and it is the first block of the section.
 	expect(
 		orderOf('data-standing-block', 'data-forget-account', 'data-members', 'data-leaving')[0]
@@ -602,7 +600,7 @@ test('the owner is given the turso account and the disconnect, and no link', () 
 	expect(document.querySelector('[data-forget-account]')).not.toBeNull();
 	expect(document.querySelector('[data-reconnect-authority]')).toBeNull();
 	expect(document.querySelector('[data-disconnect]')).not.toBeNull();
-	expect(screen.getByText(en.organization.standing.notYetReached)).toBeDefined();
+	expect(screen.getByText(en.organization.standing.state.notYetReached)).toBeDefined();
 	expect(document.querySelector('[data-organization-link]')).toBeNull();
 	expect(document.querySelector('[data-link-description]')).toBeNull();
 });
@@ -694,7 +692,7 @@ test('a plain member reads the standing and the disconnect, and no directory or 
 		holdsTursoAuthority: false
 	});
 
-	expect(screen.getByText(en.organization.standing.notYetReached)).toBeDefined();
+	expect(screen.getByText(en.organization.standing.state.notYetReached)).toBeDefined();
 	expect(document.querySelector('[data-disconnect]')).not.toBeNull();
 	expect(document.querySelector('[data-members]')).toBeNull();
 	expect(screen.queryByText(en.organization.dashboard.membersTitle)).toBeNull();

@@ -144,9 +144,10 @@
 		     first until the human read the four sections and asked for the elements in each to be
 		     ordered.* -->
 		{#if syncQuery.data}
-			<Field.Set data-standing-block>
+			<!-- the sync group: a settings group of its own, titled, so it takes no legend. -->
+			<div data-standing-block>
 				<OrganizationStanding syncState={syncQuery.data} {session} {needsAuthority} />
-			</Field.Set>
+			</div>
 
 			<Separator />
 		{/if}

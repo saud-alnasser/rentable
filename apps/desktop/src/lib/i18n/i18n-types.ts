@@ -3629,32 +3629,38 @@ type RootTranslation = {
 			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​l​i​v​e​s​ ​o​n​ ​T​u​r​s​o​ ​a​n​d​ ​r​e​a​c​h​e​s​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​o​n​ ​i​t​s​ ​o​w​n​.​ ​w​h​a​t​ ​y​o​u​ ​w​r​i​t​e​ ​g​o​e​s​ ​o​u​t​ ​w​h​e​n​ ​T​u​r​s​o​ ​i​s​ ​r​e​a​c​h​a​b​l​e​.
 			 */
 			purpose: string
+			state: {
+				/**
+				 * u​p​ ​t​o​ ​d​a​t​e
+				 */
+				upToDate: string
+				/**
+				 * s​y​n​c​i​n​g
+				 */
+				syncing: string
+				/**
+				 * n​o​t​ ​y​e​t​ ​r​e​a​c​h​e​d
+				 */
+				notYetReached: string
+				/**
+				 * n​e​e​d​s​ ​a​t​t​e​n​t​i​o​n
+				 */
+				needsAttention: string
+				/**
+				 * n​e​e​d​s​ ​r​e​c​o​n​n​e​c​t​i​n​g
+				 */
+				needsReconnecting: string
+			}
 			/**
-			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​h​a​s​ ​n​o​t​ ​r​e​a​c​h​e​d​ ​T​u​r​s​o​ ​y​e​t
-			 */
-			notYetReached: string
-			/**
-			 * u​p​ ​t​o​ ​d​a​t​e​,​ ​c​h​e​c​k​e​d​ ​{​m​o​m​e​n​t​}
+			 * l​a​s​t​ ​r​e​a​c​h​e​d​ ​T​u​r​s​o​ ​{​m​o​m​e​n​t​}
 			 * @param {string} moment
 			 */
-			upToDateChecked: RequiredParams<'moment'>
+			lastReachedRecently: RequiredParams<'moment'>
 			/**
 			 * l​a​s​t​ ​r​e​a​c​h​e​d​ ​T​u​r​s​o​ ​o​n​ ​{​m​o​m​e​n​t​}
 			 * @param {string} moment
 			 */
 			lastReached: RequiredParams<'moment'>
-			/**
-			 * t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​ ​n​e​e​d​s​ ​a​t​t​e​n​t​i​o​n
-			 */
-			accountNeedsAttention: string
-			/**
-			 * t​h​i​s​ ​m​a​c​h​i​n​e​'​s​ ​a​c​c​e​s​s​ ​n​e​e​d​s​ ​a​t​t​e​n​t​i​o​n
-			 */
-			accessNeedsAttention: string
-			/**
-			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​n​e​e​d​s​ ​r​e​c​o​n​n​e​c​t​i​n​g
-			 */
-			needsReconnecting: string
 			/**
 			 * t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​ ​i​s​ ​r​e​c​o​n​n​e​c​t​e​d​ ​i​n​ ​t​h​e​ ​b​l​o​c​k​ ​b​e​l​o​w​.
 			 */
@@ -3663,10 +3669,6 @@ type RootTranslation = {
 			 * s​y​n​c
 			 */
 			checkNow: string
-			/**
-			 * s​y​n​c​i​n​g​.​.​.
-			 */
-			checking: string
 		}
 		dashboard: {
 			/**
@@ -8097,30 +8099,36 @@ export type TranslationFunctions = {
 			 * the organization lives on Turso and reaches this machine on its own. what you write goes out when Turso is reachable.
 			 */
 			purpose: () => LocalizedString
+			state: {
+				/**
+				 * up to date
+				 */
+				upToDate: () => LocalizedString
+				/**
+				 * syncing
+				 */
+				syncing: () => LocalizedString
+				/**
+				 * not yet reached
+				 */
+				notYetReached: () => LocalizedString
+				/**
+				 * needs attention
+				 */
+				needsAttention: () => LocalizedString
+				/**
+				 * needs reconnecting
+				 */
+				needsReconnecting: () => LocalizedString
+			}
 			/**
-			 * this machine has not reached Turso yet
+			 * last reached Turso {moment}
 			 */
-			notYetReached: () => LocalizedString
-			/**
-			 * up to date, checked {moment}
-			 */
-			upToDateChecked: (arg: { moment: string }) => LocalizedString
+			lastReachedRecently: (arg: { moment: string }) => LocalizedString
 			/**
 			 * last reached Turso on {moment}
 			 */
 			lastReached: (arg: { moment: string }) => LocalizedString
-			/**
-			 * the Turso account needs attention
-			 */
-			accountNeedsAttention: () => LocalizedString
-			/**
-			 * this machine's access needs attention
-			 */
-			accessNeedsAttention: () => LocalizedString
-			/**
-			 * this machine needs reconnecting
-			 */
-			needsReconnecting: () => LocalizedString
 			/**
 			 * the Turso account is reconnected in the block below.
 			 */
@@ -8129,10 +8137,6 @@ export type TranslationFunctions = {
 			 * sync
 			 */
 			checkNow: () => LocalizedString
-			/**
-			 * syncing...
-			 */
-			checking: () => LocalizedString
 		}
 		dashboard: {
 			/**

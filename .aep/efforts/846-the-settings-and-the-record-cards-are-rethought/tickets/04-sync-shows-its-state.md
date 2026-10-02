@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [01]
 ---
 
@@ -17,11 +17,11 @@ The organization section's sync group is a state row on the shared blocks showin
 
 Traces requirement 12 and criterion 12.
 
-- [ ] `sync/activity.svelte.ts` counts runs through `syncWorkspaceNow` and is exported from `sync/ui.ts`; the button and autosync both pass through it.
-- [ ] `syncStatusOf` maps to the five states; `sync/tests/status.test.ts` covers each, including in flight over `synced` and over `neverReached`, and a problem keeping its state during a retry.
-- [ ] `syncStandingSentence` splits into the state word and a last-reached line drawn whenever `lastReachedAt` is set.
-- [ ] `organization/tests/standing.svelte.test.ts` drives each state and finds a distinct icon and tone, the last-reached line, *sync now*, and a callout under the state where one applies.
-- [ ] The state's icon does not animate (the design package's motion test passes).
+- [x] `sync/activity.svelte.ts` counts runs through `syncWorkspaceNow` and is exported from `sync/ui.ts`; the button and autosync both pass through it. *Verified: `activity.svelte.ts` wraps `syncWorkspaceNow`'s body in `countRun`, `sync/ui.ts` exports `syncActivity`; grep finds the control (`query.ts`), autosync (`autosync.ts`) and startup (`startup/browser.ts`) all calling `syncWorkspaceNow`; `node --test` over sync status, workspace and autosync tests printed pass 18, fail 0, including the overlapping-runs count.*
+- [x] `syncStatusOf` maps to the five states; `sync/tests/status.test.ts` covers each, including in flight over `synced` and over `neverReached`, and a problem keeping its state during a retry. *Verified: the same run: `status.test.ts` covers each of the five states, in flight over up to date and over not yet reached, a problem keeping its state during a retry, the tones and the en and ar words.*
+- [x] `syncStandingSentence` splits into the state word and a last-reached line drawn whenever `lastReachedAt` is set. *Verified: the same run covers `syncStatusWord` and `syncLastReachedLine`, the line drawn whenever `lastReachedAt` is set.*
+- [x] `organization/tests/standing.svelte.test.ts` drives each state and finds a distinct icon and tone, the last-reached line, *sync now*, and a callout under the state where one applies. *Verified: `vitest run organization/tests/standing.svelte.test.ts` printed 18 passed: a distinct glyph and tone per state, the last-reached line, the control (labelled *sync*, the act sync now, the human's 2026-09-17 naming kept), and each callout inside the row after the state word.*
+- [x] The state's icon does not animate (the design package's motion test passes). *Verified: design `node --test src/lib/tests/motion.test.ts` printed pass 9, fail 0; the component test asserts no `animate-` class on the glyph.*
 
 ## Relevant areas
 

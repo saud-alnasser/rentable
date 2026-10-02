@@ -86,15 +86,17 @@ export const organization = {
 		title: 'هذا الجهاز وTurso',
 		purpose:
 			'المؤسسة محفوظة على Turso وتصل إلى هذا الجهاز تلقائيًا. ما تكتبه يُرسل حين يمكن الوصول إلى Turso.',
-		notYetReached: 'لم يصل هذا الجهاز إلى Turso بعد',
-		upToDateChecked: 'كل شيء محدّث، آخر فحص {moment}',
+		state: {
+			upToDate: 'محدّث',
+			syncing: 'جارية المزامنة',
+			notYetReached: 'لم يصل بعد',
+			needsAttention: 'يحتاج إلى عناية',
+			needsReconnecting: 'يحتاج إلى إعادة ربط'
+		},
+		lastReachedRecently: 'آخر وصول إلى Turso {moment}',
 		lastReached: 'آخر وصول إلى Turso في {moment}',
-		accountNeedsAttention: 'حساب Turso يحتاج إلى عناية',
-		accessNeedsAttention: 'صلاحية وصول هذا الجهاز تحتاج إلى عناية',
-		needsReconnecting: 'هذا الجهاز يحتاج إلى إعادة ربط',
 		reconnectBelow: 'يُعاد ربط حساب Turso من القسم أدناه.',
-		checkNow: 'زامن',
-		checking: 'جارية المزامنة...'
+		checkNow: 'زامن'
 	},
 	dashboard: {
 		membersTitle: 'الأعضاء',

@@ -4,33 +4,57 @@ import test from 'node:test';
 import { i18nObject } from '$lib/i18n/i18n-util';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import { fakeSyncState, fakeWorkspace } from '$lib/sync/tests/testing';
-import { syncStandingSentence, syncStatusOf } from '$lib/sync/status';
+import {
+	SYNC_STATUS_TONE,
+	syncLastReachedLine,
+	syncProblemOf,
+	syncStatusOf,
+	syncStatusWord,
+	type SyncStatus
+} from '$lib/sync/status';
 
 /**
- * THE STANDING'S ORDER, AND ITS SENTENCE
+ * THE STATE'S ORDER, ITS WORD AND ITS MOMENT
  *
- * Four answers, in an order that is a decision. *There were six until the control plane
- * retired, and four of them described a service.* Each answer was a badge's word until effort
- * 828, requirement 25, and is a sentence now; the order did not move.
+ * Five named states, each in a tone of its own (effort 846, requirement 12), read from the
+ * problems in an order that is a decision, and from whether a run is out. *There were six answers
+ * until the control plane retired, and four of them described a service; each was a badge's word
+ * until effort 828, requirement 25, made it a sentence, and effort 846 gave it back its word and
+ * tone.* The order did not move.
  */
 
-test('a machine reaching its workspace reads as synced', () => {
-	assert.equal(syncStatusOf(fakeSyncState({ lastReachedAt: 1 })), 'synced');
+const STATUSES: SyncStatus[] = [
+	'upToDate',
+	'syncing',
+	'notYetReached',
+	'needsAttention',
+	'needsReconnecting'
+];
+
+const accountRefused = () => fakeSyncState({ lastReachedAt: 1, accountRefusal: { since: 1 } });
+const credentialRefused = () =>
+	fakeSyncState({ lastReachedAt: 1, credentialRefusal: { since: 2 } });
+const faulted = () =>
+	fakeSyncState({
+		lastReachedAt: 1,
+		workspace: fakeWorkspace({ lastError: 'the replica refused' })
+	});
+
+test('a machine that reached turso and has nothing wrong is up to date', () => {
+	assert.equal(syncStatusOf(fakeSyncState({ lastReachedAt: 1 })), 'upToDate');
 });
 
-// effort 828, requirement 25, at review round two: a fresh machine opened offline has reached
-// nothing, and "up to date" was what it said. Its own standing, after the three that need
-// something, since each of those is a definite answer about why nothing goes.
-test('a machine that never reached turso is not up to date, and says so after the refusals', () => {
-	assert.equal(syncStatusOf(fakeSyncState()), 'neverReached');
-	assert.equal(syncStatusOf(fakeSyncState({ lastReachedAt: null })), 'neverReached');
+// a fresh machine opened offline has reached nothing, and "up to date" was what it said until
+// review round two of effort 828.
+test('a machine that never reached turso is not yet reached, after the problems', () => {
+	assert.equal(syncStatusOf(fakeSyncState()), 'notYetReached');
 	assert.equal(
 		syncStatusOf(fakeSyncState({ lastReachedAt: null, accountRefusal: { since: 1 } })),
-		'accountRefused'
+		'needsAttention'
 	);
 	assert.equal(
 		syncStatusOf(fakeSyncState({ lastReachedAt: null, credentialRefusal: { since: 2 } })),
-		'credentialRefused'
+		'needsAttention'
 	);
 	assert.equal(
 		syncStatusOf(
@@ -39,125 +63,94 @@ test('a machine that never reached turso is not up to date, and says so after th
 				workspace: fakeWorkspace({ lastError: 'the replica refused' })
 			})
 		),
-		'needsReconnect'
+		'needsReconnecting'
 	);
 });
 
-test('a fault on the workspace needs reconnecting', () => {
-	const state = fakeSyncState({
-		lastReachedAt: 1,
-		workspace: fakeWorkspace({ lastError: 'the replica refused' })
-	});
-
-	assert.equal(syncStatusOf(state), 'needsReconnect');
+test('a refused account or credential needs attention, and a fault needs reconnecting', () => {
+	assert.equal(syncStatusOf(accountRefused()), 'needsAttention');
+	assert.equal(syncStatusOf(credentialRefused()), 'needsAttention');
+	assert.equal(syncStatusOf(faulted()), 'needsReconnecting');
 });
 
-// requirement 25: the account's refusal is read before a fault, because it is the thing the
-// owner has to see to first, and it is its own answer rather than a reconnect.
-test('the account being refused reads first, and apart from a fault', () => {
-	const refused = fakeSyncState({
+test('a run in flight is syncing, over up to date and over not yet reached', () => {
+	assert.equal(syncStatusOf(fakeSyncState({ lastReachedAt: 1 }), true), 'syncing');
+	assert.equal(syncStatusOf(fakeSyncState(), true), 'syncing');
+});
+
+// a machine over quota is still over quota while the next attempt is out.
+test('a problem keeps its state while a retry runs', () => {
+	assert.equal(syncStatusOf(accountRefused(), true), 'needsAttention');
+	assert.equal(syncStatusOf(credentialRefused(), true), 'needsAttention');
+	assert.equal(syncStatusOf(faulted(), true), 'needsReconnecting');
+});
+
+// requirement 25 of effort 819: the account is read first, then the credential, then a fault,
+// so the block explains the thing the owner has to see to first.
+test('the problems are read account first, then the credential, then a fault', () => {
+	const everything = fakeSyncState({
 		accountRefusal: { since: 1 },
-		workspace: fakeWorkspace({ lastError: 'something stale' })
-	});
-
-	assert.equal(syncStatusOf(refused), 'accountRefused');
-	assert.notEqual(syncStatusOf(refused), syncStatusOf(fakeSyncState({ lastReachedAt: 1 })));
-});
-
-// F5: a credential Turso refused and a reconnect did not settle is its own answer, read before a
-// fault (a definite reason nothing syncs, where a fault is a stale report) and after the account's
-// (which is the owner's to see to first).
-test('a refused credential reads as its own status, after the account and before a fault', () => {
-	const state = fakeSyncState({
 		credentialRefusal: { since: 2 },
 		workspace: fakeWorkspace({ lastError: 'something stale' })
 	});
 
-	assert.equal(syncStatusOf(state), 'credentialRefused');
+	assert.equal(syncProblemOf(everything), 'accountRefused');
+	assert.equal(syncProblemOf({ ...everything, accountRefusal: null }), 'credentialRefused');
+	assert.equal(
+		syncProblemOf({ ...everything, accountRefusal: null, credentialRefusal: null }),
+		'needsReconnect'
+	);
+	assert.equal(syncProblemOf(fakeSyncState({ lastReachedAt: 1 })), null);
+});
 
-	const account = fakeSyncState({
-		accountRefusal: { since: 1 },
-		credentialRefusal: { since: 2 }
+test('each state has a tone of its own', () => {
+	assert.deepEqual(SYNC_STATUS_TONE, {
+		upToDate: 'success',
+		syncing: 'info',
+		notYetReached: 'neutral',
+		needsAttention: 'warning',
+		needsReconnecting: 'error'
 	});
-	assert.equal(syncStatusOf(account), 'accountRefused');
+	assert.equal(new Set(Object.values(SYNC_STATUS_TONE)).size, STATUSES.length);
 });
 
-// effort 828, requirement 25: synced says the moment, relative within a day and as a date
-// beyond it; a machine that never reached turso says that, and so does synced with no moment,
-// since there is no moment to be up to date at; a standing that needs something says what needs
-// doing and nothing about a moment.
-test('synced says when this machine last reached turso, and how depends on how far back', () => {
-	loadLocale('en');
-	const LL = i18nObject('en');
-	const now = Date.UTC(2026, 8, 15, 14, 0, 0);
-
-	assert.equal(
-		syncStandingSentence('neverReached', null, 'en', now, LL),
-		'this machine has not reached Turso yet'
-	);
-	assert.equal(
-		syncStandingSentence('synced', null, 'en', now, LL),
-		'this machine has not reached Turso yet'
-	);
-	assert.equal(
-		syncStandingSentence('synced', now - 2 * 60_000, 'en', now, LL),
-		'up to date, checked 2 minutes ago'
-	);
-	assert.equal(
-		syncStandingSentence('synced', now - 23 * 3_600_000, 'en', now, LL),
-		'up to date, checked 23 hours ago'
-	);
-
-	const old = syncStandingSentence('synced', now - 3 * 86_400_000, 'en', now, LL);
-
-	assert.ok(old.startsWith('last reached Turso on '), old);
-	assert.ok(!old.includes('up to date'), old);
-	assert.ok(old.includes('2026'), old);
-});
-
-test('a standing that needs something says what needs doing, whatever the moment', () => {
-	loadLocale('en');
-	const LL = i18nObject('en');
-	const now = Date.UTC(2026, 8, 15, 14, 0, 0);
-
-	for (const moment of [null, now - 60_000, now - 3 * 86_400_000]) {
-		assert.equal(
-			syncStandingSentence('accountRefused', moment, 'en', now, LL),
-			'the Turso account needs attention'
-		);
-		assert.equal(
-			syncStandingSentence('credentialRefused', moment, 'en', now, LL),
-			"this machine's access needs attention"
-		);
-		assert.equal(
-			syncStandingSentence('needsReconnect', moment, 'en', now, LL),
-			'this machine needs reconnecting'
-		);
-	}
-});
-
-// none of the sentences carries the word, in either locale: the block is read by somebody
-// asking whether their machine is reaching the organization, and "sync" answers nothing.
-test('no sentence says sync, in either locale', () => {
-	const now = Date.UTC(2026, 8, 15, 14, 0, 0);
-
+test('each state has a word of its own, in both locales', () => {
 	for (const locale of ['en', 'ar'] as const) {
 		loadLocale(locale);
 		const LL = i18nObject(locale);
+		const words = STATUSES.map((status) => syncStatusWord(status, LL));
 
-		for (const status of [
-			'accountRefused',
-			'credentialRefused',
-			'needsReconnect',
-			'neverReached',
-			'synced'
-		] as const) {
-			for (const moment of [null, now - 60_000, now - 3 * 86_400_000]) {
-				const sentence = syncStandingSentence(status, moment, locale, now, LL);
-
-				assert.ok(!/sync/i.test(sentence), `${locale} ${status}: ${sentence}`);
-				assert.ok(!sentence.includes('مزامن'), `${locale} ${status}: ${sentence}`);
-			}
-		}
+		assert.equal(new Set(words).size, STATUSES.length, `${locale}: ${words.join(', ')}`);
 	}
+
+	loadLocale('en');
+	const LL = i18nObject('en');
+
+	assert.deepEqual(
+		STATUSES.map((status) => syncStatusWord(status, LL)),
+		['up to date', 'syncing', 'not yet reached', 'needs attention', 'needs reconnecting']
+	);
+});
+
+// the moment is a line of its own, drawn whenever there is one: relative within a day and the
+// date and the time beyond it, and absent before anything reached Turso.
+test('the last-reached line says the moment, and how depends on how far back', () => {
+	loadLocale('en');
+	const LL = i18nObject('en');
+	const now = Date.UTC(2026, 8, 15, 14, 0, 0);
+
+	assert.equal(syncLastReachedLine(null, 'en', now, LL), null);
+	assert.equal(
+		syncLastReachedLine(now - 2 * 60_000, 'en', now, LL),
+		'last reached Turso 2 minutes ago'
+	);
+	assert.equal(
+		syncLastReachedLine(now - 23 * 3_600_000, 'en', now, LL),
+		'last reached Turso 23 hours ago'
+	);
+
+	const old = syncLastReachedLine(now - 3 * 86_400_000, 'en', now, LL);
+
+	assert.ok(old?.startsWith('last reached Turso on '), old ?? 'null');
+	assert.ok(old?.includes('2026'), old ?? 'null');
 });
