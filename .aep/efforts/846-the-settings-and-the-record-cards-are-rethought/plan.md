@@ -178,6 +178,20 @@ order. The look is judged on screenshots of the running app on real data, both l
 appearances, one and two columns. Rejected: a masonry layout, which reorders what a keyboard and a
 screen reader meet against what the eye sees.
 
+**Detail that few readers need folds under its row** (*added 2026-10-02*, after the human asked why
+the collapsible primitive went unused; evidence: [[efforts/846-the-settings-and-the-record-cards-are-rethought/evidence/research/how-production-apps-organize-a-settings-section]]).
+`settings-row.svelte` gains `details?` (a snippet): the row becomes an expander in the manner of
+Fluent's SettingsExpander, built on the `collapsible` primitive. Its header keeps the icon, name,
+value and control in view, a chevron after them opens the detail beneath, one level only, closed
+by default and remembered for the session. Used where the detail is long and the header already
+says what matters: updates' release notes under the available version; diagnostics' log path
+under the folder row; sync's last-reached line and the machine detail under the state row;
+the Turso connection's database and organization names under its row. **Never folded**: a
+status word or its problem callout, a download in progress, the ownership offer, the machines
+list, the earlier-records callout, and every act in a group's `end`. The grid's pairs, from the
+evidence: general's preferences beside updates, diagnostics after; account's identity beside
+password; organization's sync beside Turso (owner) or the mark (member).
+
 **Hand over ownership in the leaving group** projects the reader's own member record through
 `toPageActions` over `memberActs`, filtered to `member.offerOwnership` and `member.withdrawOffer`,
 and runs `memberHost.run(act.id, record)`, so label, icon and refusal come from the one declaration.
