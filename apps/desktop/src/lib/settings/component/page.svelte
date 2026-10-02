@@ -127,7 +127,8 @@
 {/if}
 
 <Loading loading={isLoading} label={$LL.common.messages.loadingSettings()}>
-	<!-- the shape of the area: the title, the rail of sections under it, and a section's fields. -->
+	<!-- the shape of the area: the title, the rail of sections under it, and a section's groups of
+	     rows, each a short title over a card of rows with a glyph, a name and a control. -->
 	{#snippet skeleton()}
 		<PageFrame>
 			<Skeleton class="h-9 w-40" />
@@ -136,12 +137,22 @@
 					<Skeleton class="h-4 w-20" />
 				{/each}
 			</div>
-			{#each { length: 3 }, index (index)}
-				<div class="flex flex-col gap-2">
-					<Skeleton class="h-4 w-32" />
-					<Skeleton class="h-9 w-full max-w-md" />
-				</div>
-			{/each}
+			<div class="flex flex-col gap-8">
+				{#each [2, 2, 1] as rows, group (group)}
+					<div data-skeleton-group class="flex flex-col gap-2">
+						<Skeleton class="mx-3 h-4 w-24" />
+						<div class="flex flex-col rounded-2xl border bg-card">
+							{#each { length: rows }, row (row)}
+								<div data-skeleton-row class="flex items-center gap-3 px-3 py-2.5">
+									<Skeleton class="size-4 rounded-sm" />
+									<Skeleton class="h-4 w-28" />
+									<Skeleton class="ms-auto h-8 w-40" />
+								</div>
+							{/each}
+						</div>
+					</div>
+				{/each}
+			</div>
 		</PageFrame>
 	{/snippet}
 

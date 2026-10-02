@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/svelte';
+import { fireEvent, render, screen, within } from '@testing-library/svelte';
 import { beforeEach, expect, test, vi } from 'vitest';
 
 import { sectionsOn } from '$lib/app/surfaces';
@@ -176,6 +176,15 @@ const orderOf = (...marks: string[]) =>
 		.map((element) => marks.find((mark) => element.hasAttribute(mark)))
 		.filter((mark) => mark !== undefined);
 
+/** the general section's groups of rows, in order. */
+const generalGroups = () => [...document.querySelectorAll<HTMLElement>('[data-settings-group]')];
+
+/** the general section's rows, in order. */
+const generalRows = () => [...document.querySelectorAll<HTMLElement>('[data-settings-row]')];
+
+const rowName = (row: HTMLElement) =>
+	row.querySelector('[data-slot=item-title]')?.textContent?.trim();
+
 // criterion 14(c) of effort 832: the settings sections switch with the one control a record's
 // sections switch with, the design package's section switch, rather than a row of their own.
 test('the sections switch with the shared section switch, named for the area', () => {
@@ -293,9 +302,11 @@ test('and the body is that section rather than the first one', () => {
 	expect(screen.queryByText(en.settings.localeTitle)).toBeNull();
 });
 
-// requirement 24: general carries what it always did, then updates and diagnostics under their
-// own legends, and nothing that belongs to one of the other three.
-test('the general section carries the general blocks, then updates, then diagnostics', () => {
+// requirement 24 of effort 828 and requirements 1 and 3 of effort 846: general is three groups of
+// rows, the language and the appearance, then updates, then diagnostics, each with its one line
+// under it, and nothing that belongs to one of the other three sections. Ending soon stands beside
+// the first group until the dashboard's control takes it (ticket 10).
+test('the general section is three groups of rows: preferences, then updates, then diagnostics', () => {
 	at('?section=general');
 	area({ section: 'general' });
 
@@ -305,18 +316,84 @@ test('the general section carries the general blocks, then updates, then diagnos
 		'data-diagnostics'
 	]);
 
-	expect(screen.getByText(en.settings.localeTitle)).toBeDefined();
-	expect(screen.getByText(en.settings.endingSoonTitle)).toBeDefined();
+	expect(
+		generalGroups().map((group) => group.querySelectorAll('[data-settings-row]').length)
+	).toEqual([2, 2, 1]);
+	expect(generalRows().map(rowName)).toEqual([
+		en.settings.localeTitle,
+		en.settings.appearanceTitle,
+		en.common.labels.currentVersion,
+		en.common.labels.availableVersion,
+		en.settings.diagnosticsFolder
+	]);
+
+	expect(screen.getByText(en.settings.preferencesFooter)).toBeDefined();
 	expect(screen.getByText(en.settings.updatesTitle)).toBeDefined();
 	expect(screen.getByText(en.settings.updatesDescription)).toBeDefined();
 	expect(screen.getByText(en.settings.diagnosticsTitle)).toBeDefined();
 	expect(screen.getByText(en.settings.diagnosticsDescription)).toBeDefined();
+	expect(screen.getByText(en.settings.endingSoonTitle)).toBeDefined();
 
 	// and none of the other three sections' blocks.
 	expect(document.querySelector('[data-members]')).toBeNull();
 	expect(document.querySelector('[data-identity]')).toBeNull();
 	expect(document.querySelector('[data-disconnect]')).toBeNull();
 	expect(document.querySelector('[data-workspace]')).toBeNull();
+});
+
+// criterion 1 of effort 846, for general: every row leads with its glyph and says what it is.
+test('every row in general has an icon and a name', () => {
+	at('?section=general');
+	area({ section: 'general' });
+
+	expect(generalRows()).toHaveLength(5);
+
+	for (const row of generalRows()) {
+		expect(row.querySelector('[data-slot=item-media] svg')).not.toBeNull();
+		expect(rowName(row)).toBeTruthy();
+	}
+});
+
+// criterion 5 of effort 846, for general: a button among labelled, glyph-bearing neighbours with no
+// glyph of its own is the odd one out. A segmented choice's segments are radios, not buttons, and
+// are not counted.
+test('within each group in general, every button carries an svg or none does', () => {
+	at('?section=general');
+	area({ section: 'general' });
+
+	const withGlyph = generalGroups().map((group) =>
+		within(group)
+			.queryAllByRole('button')
+			.map((button) => button.querySelector('svg') !== null)
+	);
+
+	for (const group of withGlyph) {
+		expect(group.every(Boolean) || group.every((has) => !has)).toBe(true);
+	}
+
+	// updates' check and diagnostics' reveal are labelled buttons with their glyph.
+	expect(withGlyph.slice(1)).toEqual([[true], [true]]);
+	expect(screen.getByRole('button', { name: en.common.actions.checkForUpdates })).toBeDefined();
+	expect(screen.getByRole('button', { name: en.settings.diagnosticsReveal })).toBeDefined();
+});
+
+// criterion 4 of effort 846, for general: nothing in it waits on a save but ending soon, whose
+// save goes when ticket 10 moves the figure to the dashboard.
+test("no button in general is named save other than ending soon's", () => {
+	at('?section=general');
+	area({ section: 'general' });
+
+	const saves = screen
+		.queryAllByRole('button')
+		.filter((button) => button.textContent?.trim() === en.common.actions.save);
+
+	expect(saves.length).toBeLessThanOrEqual(1);
+
+	for (const save of saves) {
+		expect(
+			save.closest('[data-slot=field]')?.querySelector('#ending-soon-notice-days')
+		).not.toBeNull();
+	}
 });
 
 // requirement 24: the account section is what the you section held, and nothing else.

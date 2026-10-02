@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [01]
 ---
 
@@ -17,11 +17,11 @@ General is drawn as three groups on the shared blocks: language and appearance, 
 
 Traces requirements 1, 4 and 5, and criteria 1, 4 and 5 for the general section.
 
-- [ ] Every row in general has an icon and a name (`app/tests/settings-area.svelte.test.ts`).
-- [ ] Within each group in general, every button carries an svg or none does.
-- [ ] With `api.settings.set` rejected, choosing another language or appearance puts the old one back and the shared handler says why.
-- [ ] No button in general is named *save* other than ending soon's, which ticket 10 removes.
-- [ ] `settings/component/page.svelte`'s skeleton draws grouped rows.
+- [x] Every row in general has an icon and a name (`app/tests/settings-area.svelte.test.ts`). *Verified: integrated on 07, `vitest run app/tests/settings-area.svelte.test.ts src/lib/settings src/lib/organization/workspace` printed 9 files, 103 tests passed; the area test finds five rows in general, each with an svg and a name.*
+- [x] Within each group in general, every button carries an svg or none does. *Verified: the same area test: every button-role element in each general group carries an svg or none does (the language and appearance radios are segments, not buttons).*
+- [x] With `api.settings.set` rejected, choosing another language or appearance puts the old one back and the shared handler says why. *Verified: two tests in `settings/tests/page.svelte.test.ts` (in the 103): the toast reads `common.errors.io`, the language returns to `en`, the dark class is gone and light is pressed again.*
+- [x] No button in general is named *save* other than ending soon's, which ticket 10 removes. *Verified: the area test (in the 103) finds no button named save in general other than ending soon's.*
+- [x] `settings/component/page.svelte`'s skeleton draws grouped rows. *Verified: the page test with fake timers (in the 103) finds the skeleton drawn as groups of rows; desktop `pnpm run check` over the integrated tree printed 0 errors, 0 warnings.*
 
 ## Relevant areas
 

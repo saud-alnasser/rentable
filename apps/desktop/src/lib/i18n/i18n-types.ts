@@ -2196,6 +2196,10 @@ type RootTranslation = {
 		 */
 		diagnosticsDescription: string
 		/**
+		 * l​o​g​ ​f​o​l​d​e​r
+		 */
+		diagnosticsFolder: string
+		/**
 		 * o​p​e​n​ ​l​o​g​ ​f​o​l​d​e​r
 		 */
 		diagnosticsReveal: string
@@ -2240,9 +2244,9 @@ type RootTranslation = {
 		 */
 		restartNotice: string
 		/**
-		 * t​h​e​ ​i​n​t​e​r​f​a​c​e​ ​c​h​a​n​g​e​s​ ​a​s​ ​s​o​o​n​ ​a​s​ ​y​o​u​ ​p​i​c​k​ ​o​n​e​.
+		 * e​a​c​h​ ​a​p​p​l​i​e​s​ ​t​h​e​ ​m​o​m​e​n​t​ ​y​o​u​ ​p​i​c​k​ ​i​t​,​ ​a​n​d​ ​s​y​s​t​e​m​ ​f​o​l​l​o​w​s​ ​y​o​u​r​ ​c​o​m​p​u​t​e​r​ ​a​s​ ​i​t​ ​t​u​r​n​s​ ​l​i​g​h​t​ ​o​r​ ​d​a​r​k​.
 		 */
-		localeDescription: string
+		preferencesFooter: string
 		/**
 		 * l​a​n​g​u​a​g​e
 		 */
@@ -2251,10 +2255,6 @@ type RootTranslation = {
 		 * a​p​p​e​a​r​a​n​c​e
 		 */
 		appearanceTitle: string
-		/**
-		 * l​i​g​h​t​ ​o​r​ ​d​a​r​k​,​ ​o​r​ ​f​o​l​l​o​w​ ​y​o​u​r​ ​s​y​s​t​e​m​ ​a​s​ ​i​t​ ​c​h​a​n​g​e​s​.
-		 */
-		appearanceDescription: string
 		appearance: {
 			/**
 			 * s​y​s​t​e​m
@@ -6727,6 +6727,10 @@ export type TranslationFunctions = {
 		 */
 		diagnosticsDescription: () => LocalizedString
 		/**
+		 * log folder
+		 */
+		diagnosticsFolder: () => LocalizedString
+		/**
 		 * open log folder
 		 */
 		diagnosticsReveal: () => LocalizedString
@@ -6771,9 +6775,9 @@ export type TranslationFunctions = {
 		 */
 		restartNotice: () => LocalizedString
 		/**
-		 * the interface changes as soon as you pick one.
+		 * each applies the moment you pick it, and system follows your computer as it turns light or dark.
 		 */
-		localeDescription: () => LocalizedString
+		preferencesFooter: () => LocalizedString
 		/**
 		 * language
 		 */
@@ -6782,10 +6786,6 @@ export type TranslationFunctions = {
 		 * appearance
 		 */
 		appearanceTitle: () => LocalizedString
-		/**
-		 * light or dark, or follow your system as it changes.
-		 */
-		appearanceDescription: () => LocalizedString
 		appearance: {
 			/**
 			 * system

@@ -8,6 +8,7 @@ import type { Translation } from '../../i18n/i18n-types';
 export const settings = {
 	diagnosticsDescription:
 		'سجل بما يفعله رينتابل لتتبع الأعطال. يبقى هنا، ولا تُكتب فيه كلمات المرور ولا الرموز.',
+	diagnosticsFolder: 'مجلد السجل',
 	diagnosticsReveal: 'فتح مجلد السجل',
 	diagnosticsTitle: 'التشخيص',
 
@@ -27,11 +28,12 @@ export const settings = {
 
 	restartNotice: 'تم تثبيت التحديث. أعد تشغيل رينتابل لإكماله.',
 
-	localeDescription: 'تتغير الواجهة بمجرد اختيارك.',
+	// the one line under the language and appearance group, for both of its rows (effort 846).
+	preferencesFooter:
+		'يُطبَّق كل اختيار فور تحديده، ويتبع خيار النظام جهازك كلما تحوّل بين الفاتح والداكن.',
 	localeTitle: 'اللغة',
 
 	appearanceTitle: 'المظهر',
-	appearanceDescription: 'فاتح أو داكن، أو يتبع نظامك كلما تغيّر.',
 	appearance: {
 		system: 'النظام',
 		light: 'فاتح',

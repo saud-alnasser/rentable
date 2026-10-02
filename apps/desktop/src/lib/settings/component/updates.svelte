@@ -1,6 +1,7 @@
 <script lang="ts">
-	import SurfaceAction from '@rentable/design/block/surface-action.svelte';
-	import * as Field from '@rentable/design/primitive/field/index.js';
+	import SettingsGroup from '@rentable/design/block/settings-group.svelte';
+	import SettingsRow from '@rentable/design/block/settings-row.svelte';
+	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { toErrorDetail } from '$lib/error/message';
 	import { toTauriErrorCode } from '$lib/error/tauri';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
@@ -10,6 +11,7 @@
 	import { useCheckForUpdate, usePrepareUpdate, useRestartApp } from '$lib/update/ui';
 	import { announceUpdateOutcome } from '$lib/settings/update-announcement';
 	import DownloadIcon from '@lucide/svelte/icons/download';
+	import PackageIcon from '@lucide/svelte/icons/package';
 	import PowerIcon from '@lucide/svelte/icons/power';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import { onDestroy } from 'svelte';
@@ -17,29 +19,28 @@
 	/**
 	 * What this installation is running, and how it gets the next one.
 	 *
-	 * **A row like every other row on this page, and the arrangement was settled by building it.**
-	 * `[[efforts/settings-and-the-workspace-finish-what-they-offer]]`, requirement 2, and the
-	 * prototype under its `evidence/prototypes/`. Three presentations were put up on the real page:
-	 * this one, one that consolidated everything into a single pressable tile, and one that kept a
-	 * single glyph here and moved the whole conversation into a dialog. Both of the others argued
-	 * the section is too large rather than badly arranged, and both lost — so the section staying a
-	 * section, at roughly this height, is a tested decision rather than a default.
+	 * **A group of the general section, drawn on the shared settings group and row** (effort 846,
+	 * requirement 1): the version this installation runs, and the one it could move to with the act
+	 * that gets there. What a check does is said once, under the group; the release's date and notes
+	 * and the download's progress stand beneath it while there is one.
 	 *
-	 * **What it replaced was a stack that grew as a check progressed**: two solid buttons, one of
-	 * four callouts, a bordered panel of four figures, a progress bar, a second callout and a
-	 * fourth button. The two figures the reader is actually comparing sat in different typographic
-	 * registers, and the answer to a check that found nothing stayed on screen until the page was
-	 * left.
+	 * **Its acts are labelled buttons with a glyph**, as every row control in the area is, rather
+	 * than the glyph-only chips they were (requirement 5): a chip here beside a labelled button in
+	 * the next group was the odd one out. The way forward, install or restart, sits on the start and
+	 * the check on the end, so the control that changes this installation never moves under the
+	 * pointer of somebody who meant to press check.
 	 *
 	 * **The outcome is announced rather than deposited.** A check that finds nothing, a check that
-	 * fails and an install that finished each raise a toast and leave this section as it was, which
-	 * is the one behaviour the version this replaces did not have. What stands here is only what is
-	 * true independently of anybody having pressed anything: the version, and a release when there
-	 * is one.
+	 * fails and an install that finished each raise a toast and leave this group as it was. What
+	 * stands here is only what is true independently of anybody having pressed anything: the
+	 * version, and a release when there is one. What each of those says is
+	 * `settings/update-announcement.ts`'s rather than written out here four times. A runes file
+	 * cannot be imported by the test harness, so a decision left in one is a decision nothing can
+	 * drive.
 	 *
-	 * **What each of those says is `settings/update-announcement.ts`'s** rather than written out
-	 * here four times. A runes file cannot be imported by the test harness, so a decision left in
-	 * one is a decision nothing can drive.
+	 * *The section was arranged by a prototype in
+	 * `[[efforts/settings-and-the-workspace-finish-what-they-offer]]`, requirement 2, which kept it
+	 * a section of its own at about this height; this keeps that and draws it as rows.*
 	 */
 	let { version }: { version: string } = $props();
 
@@ -191,9 +192,9 @@
 	}
 
 	/**
-	 * what fills the second plate, which is a figure only once there is one.
+	 * what the available row shows, which is a figure only once there is one.
 	 *
-	 * Three of its four answers are not versions, and that is deliberate: the plate is the place a
+	 * Three of its four answers are not versions, and that is deliberate: the row is the place a
 	 * reader looks for *is there a newer one*, so it answers that question in every state rather
 	 * than appearing when the answer is yes and leaving a hole when it is no.
 	 */
@@ -206,78 +207,68 @@
 	);
 </script>
 
-{#snippet plate(label: string, value: string, isFigure: boolean)}
-	<div class="rounded-xl bg-muted p-3">
-		<dt class="text-xs text-muted-foreground uppercase">{label}</dt>
-		<!-- a version is the machine's and reads left to right in both locales; the words that
-		     stand in for one while there is no version are the reader's. -->
-		<dd
-			class="mt-1 text-sm break-words {isFigure
-				? 'font-medium tabular-nums'
-				: 'text-muted-foreground'}"
-			dir={isFigure ? 'ltr' : undefined}
-		>
-			{value}
-		</dd>
-	</div>
+<!-- a version is the machine's and reads left to right in both locales; the words that stand in
+     for one while there is no version are the reader's. -->
+{#snippet figure(value: string, isFigure: boolean)}
+	<span class={isFigure ? 'tabular-nums' : undefined} dir={isFigure ? 'ltr' : undefined}>
+		{value}
+	</span>
 {/snippet}
 
-<div class="space-y-4">
-	<Field.Field orientation="responsive">
-		<Field.Content>
-			<!-- no title of its own: the group above is already called updates, and a row title
-			     repeating its own section is the label the section had already given it. -->
-			<Field.Description>{$LL.settings.updatesDescription()}</Field.Description>
-		</Field.Content>
+<div data-updates class="flex flex-col gap-3">
+	<SettingsGroup title={$LL.settings.updatesTitle()} footer={$LL.settings.updatesDescription()}>
+		{#snippet rows()}
+			<SettingsRow icon={PackageIcon} name={$LL.common.labels.currentVersion()}>
+				{#snippet value()}
+					{@render figure(version, true)}
+				{/snippet}
+			</SettingsRow>
 
-		<!-- the way forward on the start, the way to look again on the end, so the control that
-		     changes this installation never moves under the pointer of somebody who meant to
-		     press check. -->
-		<div class="flex shrink-0 items-center gap-2">
-			{#if availableUpdate}
-				<SurfaceAction
-					label={isInstallingUpdate
-						? $LL.common.actions.installingUpdate()
-						: $LL.common.actions.downloadAndInstall()}
-					icon={DownloadIcon}
-					emphasis="primary"
-					disabled={isInstallingUpdate || isCheckingForUpdate}
-					onclick={() => void installUpdate()}
-				/>
-			{:else if isInstalled}
-				<SurfaceAction
-					label={$LL.common.actions.restartApp()}
-					icon={PowerIcon}
-					emphasis="primary"
-					onclick={() => void restartApp()}
-				/>
-			{/if}
+			<SettingsRow icon={DownloadIcon} name={$LL.common.labels.availableVersion()}>
+				{#snippet value()}
+					{@render figure(availableValue, release !== null)}
+				{/snippet}
 
-			<!-- the glyph turns under the pointer, which previews what pressing it does. -->
-			<SurfaceAction
-				label={isCheckingForUpdate
-					? $LL.common.actions.checkingForUpdates()
-					: $LL.common.actions.checkForUpdates()}
-				icon={RefreshCwIcon}
-				spins
-				emphasis={availableUpdate || isInstalled ? 'secondary' : 'primary'}
-				disabled={isCheckingForUpdate || isInstallingUpdate}
-				onclick={() => void checkForUpdates()}
-			/>
-		</div>
-	</Field.Field>
+				{#snippet control()}
+					<div class="flex items-center gap-2">
+						{#if availableUpdate}
+							<Button
+								variant="outline"
+								size="sm"
+								disabled={isInstallingUpdate || isCheckingForUpdate}
+								onclick={() => void installUpdate()}
+							>
+								<DownloadIcon class="size-4" />
+								{isInstallingUpdate
+									? $LL.common.actions.installingUpdate()
+									: $LL.common.actions.downloadAndInstall()}
+							</Button>
+						{:else if isInstalled}
+							<Button variant="outline" size="sm" onclick={() => void restartApp()}>
+								<PowerIcon class="size-4" />
+								{$LL.common.actions.restartApp()}
+							</Button>
+						{/if}
 
-	<!-- the two figures the reader is comparing, in one treatment, which is the treatment
-	     `startup/component/recovery.svelte` gives its own pair. That screen keeps its
-	     figures for the reason these are kept: a version number is a fact somebody reads off the
-	     screen and repeats. -->
-	<dl class="grid gap-2 sm:grid-cols-2">
-		{@render plate($LL.common.labels.currentVersion(), version, true)}
-		{@render plate($LL.common.labels.availableVersion(), availableValue, release !== null)}
-	</dl>
+						<Button
+							variant="outline"
+							size="sm"
+							disabled={isCheckingForUpdate || isInstallingUpdate}
+							onclick={() => void checkForUpdates()}
+						>
+							<RefreshCwIcon class="size-4" />
+							{isCheckingForUpdate
+								? $LL.common.actions.checkingForUpdates()
+								: $LL.common.actions.checkForUpdates()}
+						</Button>
+					</div>
+				{/snippet}
+			</SettingsRow>
+		{/snippet}
+	</SettingsGroup>
 
 	{#if release}
-		<div class="space-y-3 rounded-xl border bg-muted p-3 text-start">
+		<div class="space-y-3 rounded-2xl border bg-card p-3 text-start">
 			<div>
 				<p class="text-xs text-muted-foreground uppercase">
 					{$LL.common.labels.releaseDate()}
@@ -297,7 +288,7 @@
 	{/if}
 
 	{#if isInstallingUpdate}
-		<div class="space-y-1">
+		<div class="space-y-1 px-3">
 			<p class="text-xs text-muted-foreground tabular-nums">
 				{$LL.settings.downloadingUpdate()}{#if percent !== null}
 					&nbsp;·&nbsp;{percent}%{/if}

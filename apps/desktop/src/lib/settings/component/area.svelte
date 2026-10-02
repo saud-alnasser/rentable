@@ -5,8 +5,7 @@
 	import type { Locales } from '$lib/i18n/i18n-types';
 	import PageFrame from '@rentable/design/block/page-frame.svelte';
 	import SectionSwitch from '@rentable/design/block/section-switch.svelte';
-	import * as Field from '@rentable/design/primitive/field/index.js';
-	import { Separator } from '@rentable/design/primitive/separator/index.js';
+	import SettingsGroup from '@rentable/design/block/settings-group.svelte';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import SettingsAppearance from '$lib/settings/component/appearance.svelte';
 	import SettingsDiagnostics from '$lib/settings/component/diagnostics.svelte';
@@ -35,7 +34,9 @@
 	 *
 	 * **Four sections, each named for what it holds** (requirement 24 of effort 828). There were
 	 * seven, and a person looking for one thing had to guess which of them it was under. General
-	 * carries the general blocks, then updates and diagnostics under their own legends; account
+	 * carries the language and the appearance, then updates and diagnostics under their own titles,
+	 * each a group of rows on the design package's settings group and row (effort 846, requirement
+	 * 1); account
 	 * carries what a person reads about themselves; organization carries where this machine stands
 	 * with it on Turso, the Turso account, the members directory and the two acts that end
 	 * something; workspaces carries the directory and the transfer beneath it. Nothing moved
@@ -123,32 +124,27 @@
 	<SectionSwitch sections={switchable} current={shown} label={$LL.settings.title()} />
 
 	{#if shown === 'general'}
-		<Field.Group>
-			<!-- what the section is named for goes first and takes no legend of its own: the rail
-			     above already says general, and a legend repeating it is the tab said twice. The two
-			     below carry one each, because they are things of their own under that name. -->
-			<Field.Set data-general>
-				<SettingsLocale currentLocale={$locale} onChange={onChangeLocale} />
-				<Field.Separator />
-				<SettingsAppearance stored={settings.appearance} />
-				<Field.Separator />
+		<div class="flex flex-col gap-8">
+			<!-- the language and the appearance take no title of their own: the rail above already
+			     says general, and a title repeating it is the tab said twice. Updates and
+			     diagnostics carry theirs, because they are things of their own under that name. -->
+			<div data-general class="flex flex-col gap-6">
+				<SettingsGroup footer={$LL.settings.preferencesFooter()}>
+					{#snippet rows()}
+						<SettingsLocale currentLocale={$locale} onChange={onChangeLocale} />
+						<SettingsAppearance stored={settings.appearance} />
+					{/snippet}
+				</SettingsGroup>
+
+				<!-- ending soon stays here, as it was, until the dashboard's own control takes it
+				     (effort 846, ticket 10), so the figure is never out of reach in between. -->
 				<SettingsEndingSoon {settings} />
-			</Field.Set>
+			</div>
 
-			<Separator />
+			<SettingsUpdates version={settings.version} />
 
-			<Field.Set data-updates>
-				<Field.Legend>{$LL.settings.updatesTitle()}</Field.Legend>
-				<SettingsUpdates version={settings.version} />
-			</Field.Set>
-
-			<Separator />
-
-			<Field.Set data-diagnostics>
-				<Field.Legend>{$LL.settings.diagnosticsTitle()}</Field.Legend>
-				<SettingsDiagnostics diagnosticsDir={settings.diagnosticsDir} {onRevealDiagnostics} />
-			</Field.Set>
-		</Field.Group>
+			<SettingsDiagnostics diagnosticsDir={settings.diagnosticsDir} {onRevealDiagnostics} />
+		</div>
 	{:else if contribution}
 		<contribution.component {leaveForTheWall} />
 	{/if}

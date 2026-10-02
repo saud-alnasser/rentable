@@ -7,6 +7,7 @@ import type { BaseTranslation } from '../../i18n/i18n-types';
 export const settings = {
 	diagnosticsDescription:
 		'a record of what rentable does, for looking into failures. it stays here, and passwords and tokens are left out.',
+	diagnosticsFolder: 'log folder',
 	diagnosticsReveal: 'open log folder',
 	diagnosticsTitle: 'diagnostics',
 
@@ -26,11 +27,12 @@ export const settings = {
 
 	restartNotice: 'update installed. restart rentable to finish.',
 
-	localeDescription: 'the interface changes as soon as you pick one.',
+	// the one line under the language and appearance group, for both of its rows (effort 846).
+	preferencesFooter:
+		'each applies the moment you pick it, and system follows your computer as it turns light or dark.',
 	localeTitle: 'language',
 
 	appearanceTitle: 'appearance',
-	appearanceDescription: 'light or dark, or follow your system as it changes.',
 	appearance: {
 		system: 'system',
 		light: 'light',

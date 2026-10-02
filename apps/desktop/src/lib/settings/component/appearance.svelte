@@ -1,5 +1,5 @@
 <script lang="ts">
-	import * as Field from '@rentable/design/primitive/field/index.js';
+	import SettingsRow from '@rentable/design/block/settings-row.svelte';
 	import * as ToggleGroup from '@rentable/design/primitive/toggle-group/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import {
@@ -11,12 +11,15 @@
 	import MonitorIcon from '@lucide/svelte/icons/monitor';
 	import MoonIcon from '@lucide/svelte/icons/moon';
 	import SunIcon from '@lucide/svelte/icons/sun';
+	import SunMoonIcon from '@lucide/svelte/icons/sun-moon';
 
 	/**
 	 * Light, dark, or the system's, as three buttons that apply the moment one is pressed.
 	 *
 	 * Three and not a menu, because all three fit and a reader choosing between them wants to see
-	 * them side by side. What is shown pressed is the choice being written while it is, so the
+	 * them side by side. In the settings it is a row of the general section, labelled by the row's
+	 * name, and what a choice does is said once under the group rather than under the row (effort
+	 * 846, requirement 1). What is shown pressed is the choice being written while it is, so the
 	 * group does not jump back to the old one for the length of the round trip.
 	 */
 	let {
@@ -68,13 +71,9 @@
 {#if bare}
 	{@render choice({ 'aria-label': $LL.settings.appearanceTitle() }, 'w-full')}
 {:else}
-	<Field.Field orientation="responsive">
-		<Field.Content>
-			<Field.Label id="app-appearance-label">
-				<span class="first-letter:uppercase">{$LL.settings.appearanceTitle()}</span>
-			</Field.Label>
-			<Field.Description>{$LL.settings.appearanceDescription()}</Field.Description>
-		</Field.Content>
-		{@render choice({ 'aria-labelledby': 'app-appearance-label' }, 'w-full sm:w-56')}
-	</Field.Field>
+	<SettingsRow icon={SunMoonIcon} name={$LL.settings.appearanceTitle()}>
+		{#snippet control({ labelId })}
+			{@render choice({ 'aria-labelledby': labelId }, 'w-56 sm:w-72')}
+		{/snippet}
+	</SettingsRow>
 {/if}
