@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [41]
 ---
 
@@ -15,8 +15,8 @@ The human's word of 2026-10-03: "follow the tinted files and things like that in
 
 Traces requirement 1 as revised 2026-10-03, and requirements 18 and 19.
 
-- [ ] The contract card test finds its fields as `Cell.Field`s with a glyph, a name and a value, in both locales, with no zero drawn as a figure.
-- [ ] The directory passes the recomputed height, and its list tests (search, filter, sort, keyboard, selection, acts) pass.
+- [x] The contract card test finds its fields as `Cell.Field`s with a glyph, a name and a value, in both locales, with no zero drawn as a figure. *Verified: integrated on 42, 43 and 45, desktop `vitest run` printed 95 files, 831 passed; the contract directory test finds period (across the row), number, units, cost (its cycle in the name) and payments as `Cell.Field`s with glyph, name and value in en and ar, a muted none for no units or payments, no zero figure, fields hidden without view, and the Arabic separator between unit names.*
+- [x] The directory passes the recomputed height, and its list tests (search, filter, sort, keyboard, selection, acts) pass. *Verified: the same run: each tile at `CONTRACT_TILE_HEIGHT` (328), every line at leading-5, the ring at the foot beside paid of expected; the three surfaces' lists and rank filters pass; node 1484 passed; check 0 errors.*
 
 ## Relevant areas
 

@@ -5,7 +5,9 @@ import { afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest';
 // importing them (`contributionsTo` in `$lib/feature/surface`).
 import '$lib/app/surfaces';
 import ContractDirectory from '$lib/contract/component/directory.svelte';
+import { CONTRACT_TILE_HEIGHT } from '$lib/contract/component/record.svelte';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
+import ar from '$lib/i18n/ar';
 import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
@@ -75,7 +77,7 @@ const directory = () =>
 /** the card's link, whose name is what the card leads with. */
 const card = () => document.querySelector<HTMLAnchorElement>('a[href$="/contracts/contract-1"]');
 
-/** the card's count of payments, which is drawn only above zero. */
+/** the card's count of payments, which is drawn as a figure only above zero. */
 const paymentCount = () => document.querySelector<HTMLElement>('[data-payment-count]');
 
 const offeredOrders = async () => {
@@ -97,7 +99,7 @@ test('a row carrying its tenant and its payments leads with the tenant and count
 
 	expect(card()?.getAttribute('aria-label') ?? card()?.textContent).toContain('Noura');
 	expect(document.body.textContent).toContain('4471');
-	expect(paymentCount()?.textContent?.trim()).toBe('2 payments');
+	expect(paymentCount()?.textContent?.trim()).toBe('2');
 	expect(await offeredOrders()).toContain(en.common.labels.tenant);
 });
 
@@ -116,19 +118,58 @@ test('without viewing tenants or payments, a row leads with its reference, names
 	expect(said).not.toContain('Noura');
 	expect(said.toLowerCase()).not.toContain(en.common.labels.tenant);
 	expect(paymentCount()).toBeNull();
+	expect(said).not.toContain(en.common.nav.payments);
 	expect(await offeredOrders()).not.toContain(en.common.labels.tenant);
 });
 
-// --- The tile (effort 846, requirements 18 and 19) ----------------------------------------
+// --- The tile (effort 846, requirements 18 and 19, ticket 44) -----------------------------
 
-test('a contract is a tile: its status carries its word, every fact its icon, and it names its units', async () => {
+/** the glyph a lucide icon draws, by its own class past the one every lucide icon carries. */
+const glyphOf = (svg: Element | null) =>
+	[...(svg?.classList ?? [])]
+		.find((name) => name.startsWith('lucide-') && name !== 'lucide-icon')
+		?.slice('lucide-'.length);
+
+/** each field the tile draws, as its glyph, its name, its value and whether it says nothing. */
+const fields = () =>
+	[...document.querySelectorAll<HTMLElement>('[data-contract-field]')].map((field) => {
+		const svg = field.querySelector('svg');
+		const value = field.querySelector<HTMLElement>('[data-contract-field-value]');
+
+		expect(field.hasAttribute('data-field')).toBe(true);
+		expect(svg?.getAttribute('aria-hidden')).toBe('true');
+
+		return {
+			glyph: glyphOf(svg),
+			name: field.querySelector('[data-contract-field-name]')?.textContent?.trim(),
+			value: value?.textContent?.trim(),
+			empty: value?.hasAttribute('data-empty') ?? false
+		};
+	});
+
+const drawIn = (language: 'en' | 'ar') => {
+	loadLocale(language);
+	setLocale(language);
+
+	return render(
+		ContractDirectory,
+		{},
+		{
+			wrapper: Providers,
+			wrapperProps: { strings, direction: language === 'ar' ? ('rtl' as const) : ('ltr' as const) }
+		}
+	);
+};
+
+test('a contract is a tile: the tenant and the status with its word lead, then its facts as tinted fields two across', async () => {
 	holdEveryFlagBut();
 	rows.current = [
 		{
 			...CONTRACT,
+			paidAmount: 1500,
 			tenantName: 'Noura',
 			tenantPhone: '+966500000001',
-			paymentCount: 0,
+			paymentCount: 1,
 			unitNames: ['Room 2', 'Room 10']
 		}
 	];
@@ -144,31 +185,136 @@ test('a contract is a tile: its status carries its word, every fact its icon, an
 	expect(status?.textContent?.trim()).toBe(en.common.status.active);
 	expect(status?.querySelector('svg')).not.toBeNull();
 
-	// the reference, the dates and the units, each a line under its own icon.
-	const facts = [...tile!.querySelectorAll<HTMLElement>('[data-fact]')];
-	expect(facts.map((fact) => fact.textContent?.trim())).toEqual([
-		'4471',
-		expect.any(String),
-		'Room 2, Room 10'
-	]);
-	for (const fact of facts) {
-		expect(fact.querySelector('svg')).not.toBeNull();
-	}
+	const grid = tile!.querySelector<HTMLElement>('[data-contract-fields]')!;
+	expect(grid.classList).toContain('grid');
+	expect(grid.classList).toContain('grid-cols-2');
+	// the old fact lines are gone: every fact is a field.
+	expect(tile!.querySelectorAll('[data-fact]')).toHaveLength(0);
 
-	// the money is read rather than hovered, and a count of nothing is not drawn.
-	expect(tile!.textContent).toContain('1,500');
-	expect(paymentCount()).toBeNull();
+	expect(fields()).toEqual([
+		{
+			glyph: 'calendar-range',
+			name: en.common.labels.contractPeriod,
+			value: expect.stringContaining('2026'),
+			empty: false
+		},
+		{ glyph: 'hash', name: en.common.labels.contractNumber, value: '4471', empty: false },
+		{ glyph: 'layout-grid', name: en.common.labels.units, value: 'Room 2, Room 10', empty: false },
+		{
+			glyph: 'repeat',
+			name: 'cost · monthly',
+			value: expect.stringContaining('1,500'),
+			empty: false
+		},
+		{ glyph: 'banknote', name: en.common.nav.payments, value: '1', empty: false },
+		{
+			glyph: 'wallet',
+			name: en.contracts.card.paidOfExpected,
+			value: expect.stringMatching(/1,500 \/ 18,000/),
+			empty: false
+		}
+	]);
+
+	// the ring stands beside the paid field, with the figures it is drawn from.
+	const paid = tile!.querySelector<HTMLElement>('[data-contract-paid]')!;
+	expect(paid.querySelector('svg circle')).not.toBeNull();
+	expect(paid.querySelector('[data-contract-field]')).not.toBeNull();
 });
 
-test('a tile counts its payments with their word, one in the singular', async () => {
+test('a tile with no payments and no units says none, muted, and draws no zero', async () => {
 	holdEveryFlagBut();
-	rows.current = [{ ...CONTRACT, tenantName: 'Noura', paymentCount: 1, unitNames: [] }];
+	rows.current = [{ ...CONTRACT, tenantName: 'Noura', paymentCount: 0, unitNames: [] }];
 	directory();
 
 	await waitFor(() => expect(card()).not.toBeNull());
 
-	expect(paymentCount()?.textContent?.trim()).toBe('1 payment');
-	expect(paymentCount()?.querySelector('svg')).not.toBeNull();
-	// a contract holding no units, or answered without them, draws no units line.
-	expect(document.querySelectorAll('[data-fact]')).toHaveLength(2);
+	const byName = Object.fromEntries(fields().map((field) => [field.name, field]));
+
+	expect(byName[en.common.nav.payments]).toMatchObject({ value: 'none', empty: true });
+	expect(byName[en.common.labels.units]).toMatchObject({ value: 'none', empty: true });
+	expect(paymentCount()).toBeNull();
+	for (const field of fields()) {
+		expect(field.value).not.toBe('0');
+	}
+});
+
+test('without viewing units or payments, the tile draws neither field', async () => {
+	holdEveryFlagBut('viewPayment');
+	rows.current = [{ ...CONTRACT, tenantName: 'Noura' }];
+	directory();
+
+	await waitFor(() => expect(card()).not.toBeNull());
+
+	expect(fields().map((field) => field.glyph)).toEqual([
+		'calendar-range',
+		'hash',
+		'repeat',
+		'wallet'
+	]);
+});
+
+test('in Arabic, the fields are named in Arabic, the units joined by its separator, and none is a word', async () => {
+	holdEveryFlagBut();
+	rows.current = [
+		{ ...CONTRACT, tenantName: 'نورة', paymentCount: 0, unitNames: ['Room 2', 'Room 10'] }
+	];
+	drawIn('ar');
+
+	await waitFor(() => expect(card()).not.toBeNull());
+
+	const said = fields();
+
+	expect(said.map((field) => [field.glyph, field.name])).toEqual([
+		['calendar-range', ar.common.labels.contractPeriod],
+		['hash', ar.common.labels.contractNumber],
+		['layout-grid', ar.common.labels.units],
+		['repeat', `التكلفة · ${ar.contracts.intervals.monthly}`],
+		['banknote', ar.common.nav.payments],
+		['wallet', ar.contracts.card.paidOfExpected]
+	]);
+
+	// the locale's separator alone, with no "و" glued to a Latin name, each name isolated.
+	const units = document.querySelector<HTMLElement>('[data-contract-units]')!;
+	expect(units.textContent?.trim()).toBe('Room 2، Room 10');
+	expect(units.querySelectorAll('bdi')).toHaveLength(2);
+
+	expect(said.find((field) => field.glyph === 'banknote')).toMatchObject({
+		value: ar.contracts.card.none,
+		empty: true
+	});
+	for (const field of said) {
+		expect(field.value).not.toMatch(/^[0٠]$/);
+	}
+});
+
+// the list lays the tiles at a declared height rather than measuring them, so the figure is the
+// count of the tile's lines at their fixed leading: the padding, the heading, the gap to the
+// fields, three rows of fields (padding, a name and a value), the gap to the foot, and the paid
+// field the ring stands beside.
+test('the directory lays its tiles at the declared height, the count of their lines', async () => {
+	const field = 8 + 20 + 20 + 8;
+
+	expect(CONTRACT_TILE_HEIGHT).toBe(32 + 32 + 12 + (field + 8 + field + 8 + field) + 12 + field);
+
+	holdEveryFlagBut();
+	rows.current = [{ ...CONTRACT, tenantName: 'Noura', paymentCount: 2, unitNames: ['Room 2'] }];
+	directory();
+
+	await waitFor(() => expect(card()).not.toBeNull());
+
+	const tile = card()!.closest<HTMLElement>('[data-layout="tile"]')!;
+	expect(tile.classList).toContain('gap-3');
+
+	// every line of every field sets the fixed leading, so the height holds in Arabic.
+	for (const line of tile.querySelectorAll(
+		'[data-contract-field-name], [data-contract-field-value]'
+	)) {
+		expect(line.classList).toContain('leading-5');
+	}
+
+	// the list's row is the declared height and the gap under it, which it leaves as padding.
+	const row = tile.parentElement!.closest<HTMLElement>('[style*="height"]')!;
+	expect(Number.parseFloat(row.style.height) - Number.parseFloat(row.style.paddingBottom)).toBe(
+		CONTRACT_TILE_HEIGHT
+	);
 });

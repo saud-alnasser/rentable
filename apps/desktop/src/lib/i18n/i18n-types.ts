@@ -2852,10 +2852,27 @@ type RootTranslation = {
 	contracts: {
 		card: {
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​p​a​y​m​e​n​t​|​p​a​y​m​e​n​t​s​}​}
-			 * @param {string | number | boolean} count
+			 * c​o​s​t​ ​·​ ​{​i​n​t​e​r​v​a​l​}
+			 * @param {string} interval
 			 */
-			payments: RequiredParams<'count|number'>
+			cost: RequiredParams<'interval'>
+			/**
+			 * n​o​n​e
+			 */
+			none: string
+			/**
+			 * p​a​i​d​ ​o​f​ ​e​x​p​e​c​t​e​d
+			 */
+			paidOfExpected: string
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}
+			 * @param {unknown} count
+			 */
+			paymentCount: RequiredParams<'count|number'>
+			/**
+			 * ,​ 
+			 */
+			unitSeparator: string
 		}
 		empty: {
 			/**
@@ -7747,9 +7764,25 @@ export type TranslationFunctions = {
 	contracts: {
 		card: {
 			/**
-			 * {count|number} {{payment|payments}}
+			 * cost · {interval}
 			 */
-			payments: (arg: { count: string | number | boolean }) => LocalizedString
+			cost: (arg: { interval: string }) => LocalizedString
+			/**
+			 * none
+			 */
+			none: () => LocalizedString
+			/**
+			 * paid of expected
+			 */
+			paidOfExpected: () => LocalizedString
+			/**
+			 * {count|number}
+			 */
+			paymentCount: (arg: { count: unknown }) => LocalizedString
+			/**
+			 * , 
+			 */
+			unitSeparator: () => LocalizedString
 		}
 		empty: {
 			/**

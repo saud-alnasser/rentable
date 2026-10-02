@@ -5,9 +5,16 @@
 import type { BaseTranslation } from '../../i18n/i18n-types';
 
 export const contracts = {
-	// a contract's card in a grid: a count carries its word, so it is never a bare figure.
+	// a contract's card in a grid, whose facts are named fields: a count is the figure under its
+	// field's name, and a field holding nothing says so in a word rather than as a zero.
 	card: {
-		payments: '{count|number} {{payment|payments}}'
+		cost: 'cost · {interval:string}',
+		none: 'none',
+		paidOfExpected: 'paid of expected',
+		paymentCount: '{count|number}',
+		// what stands between two of the units' names: the list's separator alone, since a
+		// conjunction before the last name is noise in a field that only lists.
+		unitSeparator: ', '
 	},
 
 	empty: {

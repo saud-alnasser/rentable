@@ -7,10 +7,17 @@
 import type { Translation } from '../../i18n/i18n-types';
 
 export const contracts = {
-	// with a figure before it, Arabic counts with the singular after one, two and from eleven, and
-	// with the plural from three to ten.
+	// a contract's card in a grid, whose facts are named fields: a count is the figure under its
+	// field's name, so no plural agrees with it, and a field holding nothing says so in a word.
+	// "none" agrees with the units and the payments, both feminine plurals.
 	card: {
-		payments: '{count|number} {{دفعة|دفعة|دفعة|دفعات|دفعة|دفعة}}'
+		cost: 'التكلفة · {interval}',
+		none: 'لا توجد',
+		paidOfExpected: 'المدفوع من المتوقع',
+		paymentCount: '{count|number}',
+		// the Arabic comma and a space, with no "و": the locale's own list format glues "و" to the
+		// last name, which runs into a Latin name ("وRoom 10").
+		unitSeparator: '، '
 	},
 
 	empty: {
