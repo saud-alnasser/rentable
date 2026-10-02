@@ -46,7 +46,11 @@ test('the section says what disconnecting forgets and offers the one control, wi
 	setLocale('en');
 	section();
 
-	expect(screen.getByText(en.organization.dashboard.disconnectForgets)).toBeDefined();
+	// effort 846, requirement 14: a member is told the organization stays on Turso and a new link
+	// brings them back, in the one line under the row.
+	expect(document.querySelector('[data-leaving-consequence]')?.textContent?.trim()).toBe(
+		en.organization.dashboard.disconnectComesBack
+	);
 
 	const opener = document.querySelector('[data-disconnect-open]')!;
 
@@ -55,6 +59,17 @@ test('the section says what disconnecting forgets and offers the one control, wi
 	expect(opener.querySelector('svg')).not.toBeNull();
 	// nothing asks until the control is pressed.
 	expect(dialog()).toBeNull();
+});
+
+// and the owner, whose way back is not a link, is told nothing on Turso changes.
+test('the owner reads that nothing on Turso changes', () => {
+	loadLocale('en');
+	setLocale('en');
+	section({ isOwner: true });
+
+	expect(document.querySelector('[data-leaving-consequence]')?.textContent?.trim()).toBe(
+		en.organization.dashboard.disconnectForgets
+	);
 });
 
 test('pressing the control asks once, naming the organization and what it costs', async () => {
@@ -144,9 +159,10 @@ test('and in arabic, the section and the confirm read in their own words', async
 	setLocale('ar');
 	section({}, 'rtl');
 
-	expect(screen.getByText(ar.organization.dashboard.disconnectForgets)).toBeDefined();
-	expect(ar.organization.dashboard.disconnectForgets).not.toBe(
-		en.organization.dashboard.disconnectForgets
+	expect(screen.getByText(ar.organization.dashboard.disconnectComesBack)).toBeDefined();
+	expect(screen.getByText(ar.organization.dashboard.disconnectThisMachine)).toBeDefined();
+	expect(ar.organization.dashboard.disconnectComesBack).not.toBe(
+		en.organization.dashboard.disconnectComesBack
 	);
 
 	await fireEvent.click(document.querySelector('[data-disconnect-open]')!);

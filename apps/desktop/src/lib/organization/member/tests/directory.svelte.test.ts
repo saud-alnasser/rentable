@@ -630,16 +630,23 @@ test('every account whose password is set is offered on the handover', async () 
 	).toBe('1');
 });
 
-// and a lone owner is offered nothing to hand it to, so the act is absent rather than opening a
-// surface with an empty chooser.
-test('an owner who is the only account meets no handover', async () => {
+// and a lone owner has nobody to hand it to, so the act is shown refused with that reason rather
+// than missing, and pressing it opens no surface with an empty chooser (effort 846, requirement 14).
+test('an owner who is the only account meets the handover refused, saying why', async () => {
 	list({
 		members: [member({ id: 'owner', username: 'olivia', role: 'owner' })],
 		standings: [standing({ memberId: 'owner', machineSignedIn: true })]
 	});
 
-	expect(control('owner')).toBeNull();
-	expect(await actsOn('owner')).toEqual([]);
+	expect(await actsOn('owner')).toEqual(['transfer']);
+
+	const transfer = await openTo('owner', 'transfer');
+
+	expect(transfer?.getAttribute('aria-disabled')).toBe('true');
+	expect(await reasonOf(transfer!)).toContain(en.organization.dashboard.nobodyOfferable);
+	await fireEvent.click(transfer!);
+	expect(organizationHostState.member.offering).toBeNull();
+	expect(surface()).toBeNull();
 });
 
 // [[rules/interface]], *Validation errors*: the shell refuses a password that does not open the

@@ -27,10 +27,7 @@
 	import type { SettingsSectionProps } from '$lib/feature/surface';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { Separator } from '@rentable/design/primitive/separator/index.js';
-	import { toErrorText } from '$lib/error/message';
-	import { LL } from '$lib/i18n/i18n-svelte';
-	import OrganizationDeleteOrganization from '$lib/organization/component/delete-organization.svelte';
-	import OrganizationDisconnect from '$lib/organization/component/disconnect.svelte';
+	import OrganizationLeaving from '$lib/organization/component/leaving.svelte';
 	import OrganizationMark from '$lib/organization/component/mark.svelte';
 	import OrganizationMembers from '$lib/organization/member/component/directory.svelte';
 	import OrganizationRoles from '$lib/organization/role/component/directory.svelte';
@@ -38,11 +35,7 @@
 	import OrganizationTursoAccount from '$lib/organization/setup/component/turso-account.svelte';
 	import { memberReaderOf } from '$lib/organization/member/acts';
 	import { roleReaderOf } from '$lib/organization/role/acts';
-	import {
-		useDeleteOrganization,
-		useDisconnectOrganization,
-		useFetchOrganizationState
-	} from '$lib/organization/query';
+	import { useFetchOrganizationState } from '$lib/organization/query';
 	import { useFetchMemberStandings, useFetchMembers } from '$lib/organization/member/query';
 	import { useFetchRoles } from '$lib/organization/role/query';
 	import { administersMembers } from '$lib/organization/member/member';
@@ -51,8 +44,8 @@
 
 	/**
 	 * The settings area's organization section: where this machine stands with the organization
-	 * on Turso, the mark its pages print, the Turso account, the roles and the people, and the two
-	 * acts that end something. The organization contributes it (`surface.ts`), and the area draws
+	 * on Turso, the mark its pages print, the Turso account, the roles and the people, and the ways
+	 * a reader steps away (`leaving.svelte`). The organization contributes it (`surface.ts`), and the area draws
 	 * it while somebody is signed in.
 	 *
 	 * **What it reads and writes is its own**, the way a record's section reads its records. A
@@ -86,52 +79,12 @@
 
 	const members = $derived(membersQuery.data ?? []);
 
-	const deleteOrganizationMutation = useDeleteOrganization();
-	const disconnectOrganization = useDisconnectOrganization();
-
 	const isOwner = $derived(session?.role === 'owner');
 	// an owner restored on this machine holds no Turso authority until they repeat the consent.
 	const needsAuthority = $derived(isOwner && !holdsTursoAuthority);
 	// the directory is this section's own gate: it was a section of its own, and what admitted a
 	// reader to that section now decides whether the block is drawn.
 	const administers = $derived(administersMembers(session));
-
-	/**
-	 * the disconnect, once confirmed: the shell forgets the organization, and the area leaves for
-	 * the wall. A refusal is said by the shared handler and rethrown so the confirm stays open on
-	 * it.
-	 */
-	const disconnect = async () => {
-		await disconnectOrganization.mutateAsync();
-		await leaveForTheWall();
-	};
-
-	let deletingOrganization = $state(false);
-	/** what the shell refused the last delete with, marked on the surface's password field. */
-	let deleteRefusal = $state<string | null>(null);
-
-	/**
-	 * the organization, deleted with the owner's password: every workspace database and the
-	 * organization's own go from the Turso account, this machine forgets what it held, and the
-	 * area leaves for the wall, exactly as a disconnect leaves it.
-	 *
-	 * The same shape the password change has, and for the same reason: a delete that went through
-	 * closes the surface, which empties the one value on it, and a refusal keeps it open with what
-	 * was typed and puts the sentence on the password, because the password is what the shell
-	 * refuses this with ([[rules/interface]], *Validation errors*). Nothing is drawn afterwards
-	 * either way, since the machine that deleted the organization is a machine holding nothing.
-	 */
-	const deleteOrganization = async (password: string) => {
-		deleteRefusal = null;
-
-		try {
-			await deleteOrganizationMutation.mutateAsync({ password });
-			await leaveForTheWall();
-			deletingOrganization = false;
-		} catch (error) {
-			deleteRefusal = toErrorText(error, $LL);
-		}
-	};
 </script>
 
 {#if session}
@@ -196,34 +149,16 @@
 			<Separator />
 		{/if}
 
-		<!-- and the foot, where both acts end something: leaving with this machine, and leaving
-		     with the organization. One legend over the two, because what they have in common is
-		     the thing a reader needs to know before reading either, and the heavier one is last.
-		     The delete is the owner's and needs the authority the block above is about, so an
-		     owner whose machine holds none meets the disconnect alone, exactly as they did while
-		     the delete sat inside that block. -->
-		<Field.Set data-leaving>
-			<Field.Legend>{$LL.organization.dashboard.leavingTitle()}</Field.Legend>
-			<OrganizationDisconnect
-				organizationName={session.organizationName}
-				onDisconnect={disconnect}
-			/>
-
-			{#if isOwner && !needsAuthority}
-				<Field.Separator />
-
-				<OrganizationDeleteOrganization
-					open={deletingOrganization}
-					onOpenChange={(value) => {
-						deletingOrganization = value;
-
-						if (!value) deleteRefusal = null;
-					}}
-					isDeleting={deleteOrganizationMutation.isPending}
-					errorMessage={deleteRefusal}
-					onDelete={(password) => void deleteOrganization(password)}
-				/>
-			{/if}
-		</Field.Set>
+		<!-- and the foot: the ways a reader steps away, told apart by who is reading (effort 846,
+		     requirement 14). A member meets the disconnect alone; an owner meets the handover first,
+		     then the disconnect, then the delete, last and set apart, which needs the authority the
+		     Turso group is about. -->
+		<OrganizationLeaving
+			{session}
+			{members}
+			standings={standingsQuery.data ?? []}
+			{holdsTursoAuthority}
+			{leaveForTheWall}
+		/>
 	</Field.Group>
 {/if}

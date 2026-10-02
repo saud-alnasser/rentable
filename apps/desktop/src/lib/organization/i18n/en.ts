@@ -259,6 +259,19 @@ export const organization = {
 		leavingTitle: 'leaving',
 		disconnectForgets:
 			"signs you out and deletes the organization's copy on this machine. nothing on Turso changes.",
+		// effort 846, requirement 14: what each act in the leaving group ends, one line apiece, and
+		// the member's says how they come back, since a link is the only way back a member has.
+		disconnectThisMachine: 'disconnect this machine',
+		disconnectComesBack:
+			"signs you out and deletes the organization's copy on this machine. it stays on Turso, and a new link brings you back.",
+		handOver: 'hand over',
+		handOverGoes:
+			'the member you choose becomes the owner once they accept, and you stay on as a manager.',
+		withdraw: 'withdraw',
+		offerStandsGoes: 'an offer stands. nothing changes hands until it is accepted.',
+		// why the handover is refused where nobody could accept it: an account with no password of its
+		// own has no vault for the organization's next key, and the owner's own is not a choice.
+		nobodyOfferable: 'nobody has set a password yet, so nobody can take it.',
 		disconnect: 'disconnect',
 		disconnected: 'this machine no longer holds the organization.',
 		forgetAccountDescription:

@@ -800,6 +800,38 @@ test('a member act waiting on the shell is shown and refused until it lands', ()
 	assert.equal(entry('member.edit')?.unavailable, undefined);
 });
 
+// effort 846, requirement 14: where nobody can take the organization yet, the handover is shown on
+// the owner's own card refused with that reason rather than missing, on every surface alike, and a
+// host asked for it by id does not run it.
+test('the handover with nobody to take it is shown refused, saying nobody has set a password', () => {
+	const host = recordingOrganizationHost();
+	const acts = declareMemberActs(host.member);
+	const record = {
+		member: memberOf('olivia', 'owner'),
+		context: { ...MEMBER_READERS.owner, offerable: [] }
+	};
+	const reason = translations.organization.dashboard.nobodyOfferable();
+
+	const card = toCardActions(acts, record, translations);
+	const page = toPageActions(acts, record, translations);
+
+	assert.deepEqual(
+		card.map((action) => action.attributes?.['data-act']),
+		['member.offerOwnership']
+	);
+	assert.equal(card[0]?.unavailable, reason);
+	assert.equal(page[0]?.unavailable, reason);
+	assert.equal(toPaletteVerbs(acts, record, translations, false)[0]?.unavailable, reason);
+	assert.match(reason, /nobody has set a password yet/);
+
+	// and with somebody to take it, the same act is offered and asks the host.
+	const offerable = { ...record, context: MEMBER_READERS.owner };
+
+	assert.equal(toPageActions(acts, offerable, translations)[0]?.unavailable, undefined);
+	toPageActions(acts, offerable, translations)[0]?.run();
+	assert.deepEqual(host.asked, ['offerOwnership:olivia']);
+});
+
 const workspaceOf = (id: string): OrganizationWorkspace => ({
 	id,
 	name: id,

@@ -12,7 +12,12 @@ import type {
 	OrganizationSession
 } from '$lib/organization/host';
 import { hostAnswers, resetHostAnswers } from '$lib/organization/tests/host-hooks';
-import { fakeOrganizationSession } from '$lib/organization/tests/testing.ts';
+import {
+	fakeOrganizationMember,
+	fakeOrganizationSession
+} from '$lib/organization/tests/testing.ts';
+import OrganizationHost from '$lib/organization/component/host.svelte';
+import { memberHost, organizationHostState } from '$lib/organization/host.svelte';
 import type { RemoteSyncState } from '$lib/sync/host';
 import { fakeSettings } from '$lib/settings/tests/testing.ts';
 import { fakeSyncState } from '$lib/sync/tests/testing.ts';
@@ -467,11 +472,11 @@ test('the organization section is ordered: standing, account, people, leaving', 
 		'data-delete-organization'
 	]);
 
-	// the two at the foot stand under one legend, so a reader knows what the last block is before
-	// reading either description.
+	// the acts at the foot stand under one title, so a reader knows what the last group is before
+	// reading any of its lines.
 	const leaving = document.querySelector('[data-leaving]')!;
 
-	expect(leaving.querySelector('legend')?.textContent?.trim()).toBe(
+	expect(leaving.querySelector('[data-settings-group] h2')?.textContent?.trim()).toBe(
 		en.organization.dashboard.leavingTitle
 	);
 	expect(leaving.querySelector('[data-disconnect]')).not.toBeNull();
@@ -904,6 +909,182 @@ test('a plain member reads the standing and the disconnect, and no directory or 
 		['data-standing-block', 'data-leaving', 'data-disconnect']
 	);
 	expect(document.querySelector('[data-delete-organization]')).toBeNull();
+});
+
+/** the leaving group's rows, in order. */
+const leavingRows = () => [
+	...document.querySelectorAll<HTMLElement>('[data-leaving] [data-settings-row]')
+];
+
+/** the owner, and somebody whose password is set and who could take the organization. */
+const OWNER_AND_ADA = {
+	members: [
+		fakeOrganizationMember({ id: 'member-owner', username: 'olivia', role: 'owner' }),
+		fakeOrganizationMember({ id: 'ada', username: 'ada', role: 'manager' })
+	],
+	standings: [
+		{ memberId: 'member-owner', passwordSet: true, machineSignedIn: true },
+		{ memberId: 'ada', passwordSet: true, machineSignedIn: false }
+	]
+};
+
+// effort 846, criterion 14 with 2: a member's leaving group holds disconnect this machine alone,
+// with its glyph and the line saying the organization stays on Turso and a link brings them back.
+test('a member leaves with the disconnect alone, its glyph and its consequence line', () => {
+	for (const role of ['member', 'manager'] as const) {
+		at('?section=organization');
+		const { unmount } = area({
+			section: 'organization',
+			session: fakeOrganizationSession({ role, permissions: BUILT_IN[role].mask }),
+			holdsTursoAuthority: false,
+			...OWNER_AND_ADA
+		});
+
+		const rows = leavingRows();
+
+		expect(rows.map(rowName), role).toEqual([en.organization.dashboard.disconnectThisMachine]);
+		expect(rows[0].dataset.rowTone).toBe('error');
+		expect(rows[0].querySelector('[data-slot=item-media] svg')).not.toBeNull();
+		expect(rows[0].querySelector('button svg')).not.toBeNull();
+		expect(rows[0].querySelector('[data-leaving-consequence]')?.textContent?.trim()).toBe(
+			en.organization.dashboard.disconnectComesBack
+		);
+		expect(document.querySelector('[data-leaving] [data-act]')).toBeNull();
+
+		unmount();
+	}
+});
+
+// and an owner's holds the handover first, then the disconnect, then the delete, the two that end
+// something as the group's error rows after its separator, the delete last and saying nothing
+// undoes it. No two of the three share a glyph or a line.
+test('an owner leaves by the handover, then the disconnect, then the delete, last', () => {
+	at('?section=organization');
+	area({ section: 'organization', ...OWNER_AND_ADA });
+
+	const rows = leavingRows();
+
+	expect(rows.map(rowName)).toEqual([
+		en.organization.dashboard.transferOwnership,
+		en.organization.dashboard.disconnectThisMachine,
+		en.organization.dashboard.deleteOrganization
+	]);
+	expect(rows.map((row) => row.dataset.rowTone)).toEqual(['neutral', 'error', 'error']);
+
+	// the two error rows are the group's end, after its separator.
+	const group = document.querySelector<HTMLElement>('[data-leaving] [data-settings-group]')!;
+	const separator = group.querySelector('[data-slot=item-separator]')!;
+
+	expect(
+		separator.compareDocumentPosition(rows[1]) & Node.DOCUMENT_POSITION_FOLLOWING
+	).toBeTruthy();
+	expect(
+		rows[0].compareDocumentPosition(separator) & Node.DOCUMENT_POSITION_FOLLOWING
+	).toBeTruthy();
+
+	const lines = rows.map((row) =>
+		row.querySelector('[data-leaving-consequence]')?.textContent?.trim()
+	);
+
+	expect(lines).toEqual([
+		en.organization.dashboard.handOverGoes,
+		en.organization.dashboard.disconnectForgets,
+		en.organization.dashboard.deleteOrganizationDescription
+	]);
+	expect(lines[2]).toContain('nothing puts them back');
+
+	const glyphs = rows.map((row) => row.querySelector('[data-slot=item-media] svg')?.outerHTML);
+
+	expect(glyphs.every((glyph) => glyph !== undefined)).toBe(true);
+	expect(new Set(glyphs).size).toBe(3);
+	expect(rows.every((row) => row.querySelector('button svg') !== null)).toBe(true);
+});
+
+// the handover is the owner's card's own act, run through the member host on the owner's own
+// record, and what it opens is the offer form the card already opens.
+test('pressing the handover runs the card act through the member host and opens the offer', async () => {
+	const run = vi.spyOn(memberHost, 'run');
+
+	at('?section=organization');
+	render(OrganizationHost, {}, { wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } });
+	area({ section: 'organization', ...OWNER_AND_ADA });
+
+	const handover = leavingRows()[0].querySelector<HTMLButtonElement>(
+		'[data-act="member.offerOwnership"]'
+	)!;
+
+	expect(handover.getAttribute('aria-disabled')).toBeNull();
+
+	await fireEvent.click(handover);
+
+	expect(run).toHaveBeenCalledTimes(1);
+	expect(run.mock.calls[0][0]).toBe('member.offerOwnership');
+	expect(run.mock.calls[0][1].member.id).toBe('member-owner');
+	expect(organizationHostState.member.offering?.member.id).toBe('member-owner');
+	expect(await screen.findByText(en.organization.dashboard.transferOwnershipGoes)).toBeDefined();
+	expect(document.querySelector('[data-transfer-ownership-form]')).not.toBeNull();
+
+	run.mockRestore();
+	organizationHostState.member.offering = null;
+});
+
+// where nobody has set a password yet, the handover is still there, refused, saying so, and the
+// press runs nothing.
+test('with nobody to take it, the owner meets the handover refused, saying why', async () => {
+	const run = vi.spyOn(memberHost, 'run');
+
+	at('?section=organization');
+	area({
+		section: 'organization',
+		members: OWNER_AND_ADA.members,
+		standings: [
+			{ memberId: 'member-owner', passwordSet: true, machineSignedIn: true },
+			{ memberId: 'ada', passwordSet: false, machineSignedIn: false }
+		]
+	});
+
+	const handover = leavingRows()[0].querySelector<HTMLButtonElement>(
+		'[data-act="member.offerOwnership"]'
+	)!;
+
+	expect(handover.getAttribute('aria-disabled')).toBe('true');
+	expect(
+		document.getElementById(handover.getAttribute('aria-describedby')!)?.textContent?.trim()
+	).toBe(en.organization.dashboard.nobodyOfferable);
+	expect(en.organization.dashboard.nobodyOfferable).toContain('nobody has set a password yet');
+
+	await fireEvent.click(handover);
+
+	expect(run).not.toHaveBeenCalled();
+	expect(organizationHostState.member.offering).toBeNull();
+
+	run.mockRestore();
+});
+
+// while an offer stands, the handover's place holds its withdrawal, as the card's does.
+test('while an offer stands, the leaving group offers its withdrawal in the handover place', () => {
+	at('?section=organization');
+	area({
+		section: 'organization',
+		members: [
+			OWNER_AND_ADA.members[0],
+			fakeOrganizationMember({
+				id: 'ada',
+				username: 'ada',
+				role: 'manager',
+				offeredOwnership: true
+			})
+		],
+		standings: OWNER_AND_ADA.standings
+	});
+
+	const [first] = leavingRows();
+
+	expect(rowName(first)).toBe(en.organization.dashboard.withdrawOffer);
+	expect(first.querySelector('[data-act="member.withdrawOffer"]')).not.toBeNull();
+	expect(first.querySelector('[data-leaving-consequence]')?.textContent?.trim()).toBe(
+		en.organization.dashboard.offerStandsGoes
+	);
 });
 
 // the organization section draws two directories, the roles and the people, and answers the search

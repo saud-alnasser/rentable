@@ -203,6 +203,14 @@ export const organization = {
 		roleOutOfReach: 'الدور الذي في رتبتك أو فوقها يمنحه من هو أعلى منه.',
 		leavingTitle: 'المغادرة',
 		disconnectForgets: 'يسجّل خروجك ويحذف نسخة المؤسسة من هذا الجهاز. لا يتغير شيء على Turso.',
+		disconnectThisMachine: 'افصل هذا الجهاز',
+		disconnectComesBack:
+			'يسجّل خروجك ويحذف نسخة المؤسسة من هذا الجهاز. تبقى على Turso، ورابط جديد يعيدك إليها.',
+		handOver: 'سلّم',
+		handOverGoes: 'يصبح العضو الذي تختاره المالك حين يقبل، وتبقى أنت مديرًا.',
+		withdraw: 'اسحب',
+		offerStandsGoes: 'هناك عرض قائم. لا ينتقل شيء حتى يُقبل.',
+		nobodyOfferable: 'لم يعيّن أحد كلمة مرور بعد، فلا أحد يستطيع تسلّمها.',
 		disconnect: 'افصل',
 		disconnected: 'لم يعد هذا الجهاز يحتفظ بالمؤسسة.',
 		forgetAccountDescription:

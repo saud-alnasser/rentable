@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [05]
 ---
 
@@ -17,10 +17,10 @@ The leaving group shows a member *disconnect this machine* with its consequence 
 
 Traces requirements 2 and 14, and criterion 14.
 
-- [ ] As a member, the group holds disconnect alone, with its icon and consequence line.
-- [ ] As an owner, the group holds hand over, disconnect, delete, in that order; disconnect and delete are error-tone end rows; delete states nothing undoes it.
-- [ ] Pressing hand over calls `memberHost.run('member.offerOwnership', record)` (a spy), and opens the existing offer form.
-- [ ] `member.offerOwnership` with nobody offerable is shown refused with *nobody has set a password yet* on the owner's card and in the leaving group; `act/tests/act.test.ts` passes.
+- [x] As a member, the group holds disconnect alone, with its icon and consequence line. *Verified: `vitest run app/tests/settings-area.svelte.test.ts organization/member` printed 5 files, 161 passed; as a member and as a manager the leaving group holds disconnect alone, with `unplug` and its consequence line.*
+- [x] As an owner, the group holds hand over, disconnect, delete, in that order; disconnect and delete are error-tone end rows; delete states nothing undoes it. *Verified: the same run: the owner's group holds hand over, disconnect, delete with tones neutral, error, error, the two error rows after the separator, each line its own and delete's saying nothing puts them back.*
+- [x] Pressing hand over calls `memberHost.run('member.offerOwnership', record)` (a spy), and opens the existing offer form. *Verified: the same run: a spy on `memberHost.run` sees `member.offerOwnership` with the owner's record, and with the host mounted the offer form renders.*
+- [x] `member.offerOwnership` with nobody offerable is shown refused with *nobody has set a password yet* on the owner's card and in the leaving group; `act/tests/act.test.ts` passes. *Verified: `node --test src/lib/act/tests/act.test.ts` printed pass 89, fail 0, including the refused offer on the card, the page and the command menu; the member directory test finds the sole owner meeting it refused with the reason.*
 
 ## Relevant areas
 

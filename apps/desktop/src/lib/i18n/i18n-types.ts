@@ -4186,6 +4186,34 @@ type RootTranslation = {
 			 */
 			disconnectForgets: string
 			/**
+			 * d​i​s​c​o​n​n​e​c​t​ ​t​h​i​s​ ​m​a​c​h​i​n​e
+			 */
+			disconnectThisMachine: string
+			/**
+			 * s​i​g​n​s​ ​y​o​u​ ​o​u​t​ ​a​n​d​ ​d​e​l​e​t​e​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​c​o​p​y​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​.​ ​i​t​ ​s​t​a​y​s​ ​o​n​ ​T​u​r​s​o​,​ ​a​n​d​ ​a​ ​n​e​w​ ​l​i​n​k​ ​b​r​i​n​g​s​ ​y​o​u​ ​b​a​c​k​.
+			 */
+			disconnectComesBack: string
+			/**
+			 * h​a​n​d​ ​o​v​e​r
+			 */
+			handOver: string
+			/**
+			 * t​h​e​ ​m​e​m​b​e​r​ ​y​o​u​ ​c​h​o​o​s​e​ ​b​e​c​o​m​e​s​ ​t​h​e​ ​o​w​n​e​r​ ​o​n​c​e​ ​t​h​e​y​ ​a​c​c​e​p​t​,​ ​a​n​d​ ​y​o​u​ ​s​t​a​y​ ​o​n​ ​a​s​ ​a​ ​m​a​n​a​g​e​r​.
+			 */
+			handOverGoes: string
+			/**
+			 * w​i​t​h​d​r​a​w
+			 */
+			withdraw: string
+			/**
+			 * a​n​ ​o​f​f​e​r​ ​s​t​a​n​d​s​.​ ​n​o​t​h​i​n​g​ ​c​h​a​n​g​e​s​ ​h​a​n​d​s​ ​u​n​t​i​l​ ​i​t​ ​i​s​ ​a​c​c​e​p​t​e​d​.
+			 */
+			offerStandsGoes: string
+			/**
+			 * n​o​b​o​d​y​ ​h​a​s​ ​s​e​t​ ​a​ ​p​a​s​s​w​o​r​d​ ​y​e​t​,​ ​s​o​ ​n​o​b​o​d​y​ ​c​a​n​ ​t​a​k​e​ ​i​t​.
+			 */
+			nobodyOfferable: string
+			/**
 			 * d​i​s​c​o​n​n​e​c​t
 			 */
 			disconnect: string
@@ -8795,6 +8823,34 @@ export type TranslationFunctions = {
 			 * signs you out and deletes the organization's copy on this machine. nothing on Turso changes.
 			 */
 			disconnectForgets: () => LocalizedString
+			/**
+			 * disconnect this machine
+			 */
+			disconnectThisMachine: () => LocalizedString
+			/**
+			 * signs you out and deletes the organization's copy on this machine. it stays on Turso, and a new link brings you back.
+			 */
+			disconnectComesBack: () => LocalizedString
+			/**
+			 * hand over
+			 */
+			handOver: () => LocalizedString
+			/**
+			 * the member you choose becomes the owner once they accept, and you stay on as a manager.
+			 */
+			handOverGoes: () => LocalizedString
+			/**
+			 * withdraw
+			 */
+			withdraw: () => LocalizedString
+			/**
+			 * an offer stands. nothing changes hands until it is accepted.
+			 */
+			offerStandsGoes: () => LocalizedString
+			/**
+			 * nobody has set a password yet, so nobody can take it.
+			 */
+			nobodyOfferable: () => LocalizedString
 			/**
 			 * disconnect
 			 */

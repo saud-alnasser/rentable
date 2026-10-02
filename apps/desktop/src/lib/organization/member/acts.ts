@@ -240,14 +240,21 @@ export function declareMemberActs(host: MemberHostRequests): MemberAct[] {
 			run: host.withdrawOffer
 		},
 		{
+			// shown refused rather than missing where nobody can take it yet (effort 846, requirement
+			// 14): an owner looking for how to step away meets the act and the reason it waits, on
+			// their card and in the leaving group alike. Rust refuses an offer to an account with no
+			// password by name; this is the earlier refusal.
 			id: 'member.offerOwnership',
 			label: (t) => t.organization.dashboard.transferOwnership(),
 			icon: CrownIcon,
 			group: 'primary',
-			appliesTo: (record) =>
-				ownersOwn(record) && !record.context.offerStands && record.context.offerable.length > 0,
+			appliesTo: (record) => ownersOwn(record) && !record.context.offerStands,
 			unavailable: (record, t) =>
-				record.context.pending.offering ? t.common.actions.working() : undefined,
+				record.context.offerable.length === 0
+					? t.organization.dashboard.nobodyOfferable()
+					: record.context.pending.offering
+						? t.common.actions.working()
+						: undefined,
 			run: host.offerOwnership
 		},
 		{
