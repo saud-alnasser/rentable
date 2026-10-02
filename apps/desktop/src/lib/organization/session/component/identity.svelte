@@ -20,10 +20,10 @@
 	 * the content key their vault holds; the username is the whole of what names them, with no
 	 * address and no display name beside it (requirement 21 of effort 824).
 	 *
-	 * **Signing out is not here.** It is the last card of the section, on its own, in the error
-	 * tone ([[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirements 2 and
-	 * 8): the account reads as who is signed in first and the way out last. *It was a button beside
-	 * the username until effort 846.*
+	 * **Signing out is not here.** It is in this machine's row menu in the machines card, confirmed
+	 * ([[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirements 2 and 8):
+	 * the account reads as who is signed in first. *It was a button beside the username until
+	 * effort 846, and a card of its own, last, until ticket 46 of it.*
 	 */
 	let { session }: { session: OrganizationSession } = $props();
 

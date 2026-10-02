@@ -1,3 +1,4 @@
+import SettingsGroupActionHarness from '#tests/settings-group-action-harness.svelte';
 import SettingsGroupHarness from '#tests/settings-group-harness.svelte';
 import { fireEvent, render, screen } from '@testing-library/svelte';
 import { expect, test } from 'vitest';
@@ -189,4 +190,34 @@ test('a row in the end takes no details, whatever it is handed', () => {
 	expect(ending.querySelector('[data-row-details-trigger]')).toBeNull();
 	expect(ending.querySelector('[data-full-path]')).toBeNull();
 	expect(document.querySelectorAll('[data-row-details]')).toHaveLength(1);
+});
+
+// effort 846 ticket 46, at the human's word of 2026-10-03 ("a text simple milimst on the right
+// side of the card"): the act on a whole card is a text at its header's trailing edge, after the
+// value, and a card holding nothing else draws no rows and no footer for it.
+test("a card's act sits in its header at the trailing edge, after the value", () => {
+	render(SettingsGroupActionHarness, { value: '4 signed in' });
+
+	const group = document.querySelector<HTMLElement>('[data-settings-group]')!;
+	const header = group.querySelector<HTMLElement>('[data-settings-group-header]')!;
+	const action = header.querySelector<HTMLElement>('[data-settings-group-action]')!;
+
+	expect(action.querySelector('[data-header-act]')?.textContent?.trim()).toBe('change');
+	expect(header.lastElementChild).toBe(action);
+	expect(action.previousElementSibling?.hasAttribute('data-settings-group-value')).toBe(true);
+	expect(screen.getByRole('button', { name: 'change' })).toBeDefined();
+
+	// the header is the whole card: no rows, no footer, no separator.
+	expect(group.children).toHaveLength(1);
+	expect(group.querySelector('[data-settings-group-footer]')).toBeNull();
+	expect(group.querySelector('[data-slot=item-group]')).toBeNull();
+});
+
+test('a card with an act and no value draws the act alone at the end', () => {
+	render(SettingsGroupActionHarness);
+
+	const header = document.querySelector<HTMLElement>('[data-settings-group-header]')!;
+
+	expect(header.querySelector('[data-settings-group-value]')).toBeNull();
+	expect(header.lastElementChild?.hasAttribute('data-settings-group-action')).toBe(true);
 });

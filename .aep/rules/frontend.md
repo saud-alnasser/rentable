@@ -232,10 +232,11 @@ cannot be imported by a consumer, while the token layer still reaches the two fi
 `url()`, which resolves on disk and never through the export map.
 
 **Every text size and weight comes from one scale**, and it is Tailwind's own steps, a subset
-of them:
+of them, and one step under them the token layer adds:
 
 | Size        | px | For                                                                  |
 | ----------- | -- | -------------------------------------------------------------------- |
+| `text-2xs`  | 11 | the figure inside a ring on a record card, and nothing else          |
 | `text-xs`   | 12 | metadata, field and menu labels, eyebrows, counts on a row, shortcuts |
 | `text-sm`   | 14 | the body: list rows, controls, descriptions, menus                   |
 | `text-base` | 16 | what is typed into an input, a card's title                          |
@@ -253,6 +254,11 @@ of them:
 *The `text-2xl` row gained a step's title on the way in on 2026-10-01 (effort 843): with no card
 around it, the step's title heads the window's content area as a record's title heads its page,
 and the look was judged on screen at that size.*
+
+*The `text-2xs` row was added on 2026-10-03 (effort 846, ticket 46), at the human's word that the
+contract card's ring figure "needs to be a little bit smaller": twelve filled the 36 px arc to its
+edge. Tailwind's scale has no step under `text-xs`, so the step is the token layer's
+(`--text-2xs` in `tokens.css`), and it holds that one figure alone.*
 
 No arbitrary size (`text-[...]`) and no other weight. A node test in each package fails on
 `text-[`: `packages/design/src/lib/tests/typography.test.ts` and

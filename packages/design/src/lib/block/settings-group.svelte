@@ -10,11 +10,20 @@
 	 *
 	 * **One anatomy for every card in every tab.** A header inside the card: the card's glyph, its
 	 * title, one muted line saying what the card is for, and at its end an optional value (a count,
-	 * a state, a picture), never an act that ends something. Then the rows, each a `settings-row`,
+	 * a state, a picture) and an optional act (`action`). Then the rows, each a `settings-row`,
 	 * hairlines between them. Then, after a separator, the rows that end something. Then an
 	 * optional footer: one note, a progress bar, or one act. The title and the line sit inside the
 	 * card rather than over and under it, so a card stands on its own in the column.
 	 * *They sat above and below a card of rows until that word.*
+	 *
+	 * **A card's one act on the whole card sits at its header's trailing edge** (`action`), the end
+	 * the value is drawn at, mirrored in Arabic: a quiet text button the caller draws, words with no
+	 * glyph, since the header's glyph already says what the card is about. It is for the act that
+	 * takes the card as a whole (change the password, sign every other machine out), so the card
+	 * needs no row or footer that only holds a button. Where that act ends something its words are
+	 * red and it asks first, as any ending act does; its button is the header's one red. *The header
+	 * held a value and never an act until ticket 46 of effort 846, at the human's word of 2026-10-03:
+	 * "a text simple milimst on the right side of the card".*
 	 *
 	 * **The explanation belongs to the card, not to every row.** A row says what it is and what it
 	 * is set to; the one sentence a card needs is its header's line, so a section reads as names
@@ -44,6 +53,7 @@
 		titleAsWritten = false,
 		description,
 		value,
+		action,
 		rows,
 		end,
 		footer
@@ -61,8 +71,13 @@
 		titleAsWritten?: boolean;
 		/** One line under the title: what the card is for, said once for all of its rows. */
 		description?: string;
-		/** What the header says at its end: a count, a state, a picture. Never an act that ends. */
+		/** What the header says at its end: a count, a state, a picture. Never an act. */
 		value?: string | Snippet;
+		/**
+		 * The card's one act on itself, at the header's trailing edge after the value: a quiet text
+		 * button, red words where it ends something. The caller draws the button.
+		 */
+		action?: Snippet;
 		/** The card's rows, each a `settings-row`. */
 		rows?: Snippet;
 		/** The rows that end something, each a `settings-row` marked `error`: always last. */
@@ -73,7 +88,7 @@
 
 	const titleId = $props.id();
 
-	const hasHeader = $derived(Boolean(title || description || Icon || media || value));
+	const hasHeader = $derived(Boolean(title || description || Icon || media || value || action));
 	const hasBody = $derived(Boolean(rows || end || footer !== undefined));
 </script>
 
@@ -124,6 +139,14 @@
 					{:else}
 						{@render value()}
 					{/if}
+				</div>
+			{/if}
+
+			{#if action}
+				<!-- pulled out by the ghost button's own inset, so its words end where the card's
+				     other text does rather than a step short of the edge. -->
+				<div class="-my-1 -me-3 shrink-0" data-settings-group-action>
+					{@render action()}
 				</div>
 			{/if}
 		</header>

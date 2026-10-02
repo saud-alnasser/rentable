@@ -4,8 +4,9 @@
 	import { requestSignOut } from '$lib/sync';
 
 	/**
-	 * The question signing this machine out asks first, from wherever it is asked for: the account
-	 * section's last card and the account menu at the foot of the rail.
+	 * The question signing this machine out asks first, from wherever it is asked for: this
+	 * machine's row menu in the account section's machines card, and the account menu at the foot
+	 * of the rail.
 	 *
 	 * **It asks, though signing in undoes it** (effort 846, requirement 2 as revised 2026-10-02, at
 	 * the human's word: every dangerous act has a confirmation). It names who is signed out, says

@@ -170,12 +170,18 @@ is source order, so what a keyboard and a screen reader meet is what the eye see
 
 **A card has one anatomy** (`block/settings-group.svelte`): a header inside the card with its glyph,
 its title, one muted line saying what it is for, and at its end an optional value (a count, a
-state, a badge), never an act that ends something; then its rows (`block/settings-row.svelte`), the
+state, a badge), never an act, and after the value an optional **header action** (`action`): the
+card's one act on the card as a whole, a quiet text button at the header's trailing edge (the start
+edge in Arabic), words with no glyph. The password card is its header alone, its *change* there; the
+machines card's header carries *sign out others*, red words since it ends something, confirmed and
+naming the machines it ends, refused with its reason where no other machine is signed in. Then its
+rows (`block/settings-row.svelte`), the
 meta line under a row's name and a badge beside it where one marks the row; then, after a
 separator, the acts that end something, the error tone on the act's button alone, never on the
 row's glyph or name, the card's edge or a band (an ending act on one row of a growing list, such as one machine's sign-out, is an
 entry in that row's record menu instead, confirmed and in the menu's default tone, so the card's
-end keeps one error-tone act); then an optional footer of one note, one progress bar or one act. Every card takes the column's
+red stays on one act: this machine's own sign-out is such an entry in its row's menu, and the
+account has no card for this machine); then an optional footer of one note, one progress bar or one act. Every card takes the column's
 width, and those that end something are written last. The roles, members and workspaces
 directories are not boxed: their heading takes the card's header, the tray sits under it, the
 record cards follow, so no box sits in a box. A notice waiting on the reader, the ownership offer,
@@ -230,11 +236,14 @@ ntitle and descripto in the action button", asked for *transfer ownership* with 
 and red text disconnect and delete, asked that the sync button be "the icon only with tooltip",
 and, finding the Turso account card said what disconnect says, chose to "Fold it into Leaving". Of the stamp's remove row they asked that it "needs to be
 integrated in into the part of the image not a separate thing", named the organization stamp.
+Of the account they asked for the password's act as "a text simple milimst on the right side of
+the card", that the machines and this machine be merged with "simpley an otpoin to login out of
+the mecahine", and found signing out of all "od to be a complete section".
 Every settings pane the research saw is one column. Every
 disclosure guideline read (Apple's disclosure controls, GOV.UK's details, Microsoft's settings
 expander, Android's advanced settings) agrees on the fold's test.* *Added by
 [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirement 1 as widened on
-2026-10-02, ticket 21, and revised the same day, tickets 31, 34, 36 and 38; evidence in its
+2026-10-02, ticket 21, revised the same day, tickets 31, 34, 36 and 38, and on 2026-10-03, ticket 46; evidence in its
 `evidence/research/settings-*-as-cards.md` and `how-production-apps-organize-a-settings-section.md`.*
 
 ## Tone

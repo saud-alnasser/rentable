@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: []
 ---
 
@@ -15,10 +15,10 @@ The human's walk of 2026-10-03, verbatim: "in the contract cards the progress ci
 
 Traces requirement 1 as revised 2026-10-03, and requirements 2, 8 to 10 and 20.
 
-- [ ] The contract card test finds the ring's figure at the smaller size, in both locales.
-- [ ] The password card has no footer and no row button; its header carries a text *change* that opens the password surface.
-- [ ] The account tab has one machines card and no this-machine card; this machine's row menu signs it out after the confirmation; the header's red text *sign out others* confirms, naming the others, and is refused with its reason when there are none; there is no end row.
-- [ ] [[rules/interface]] and [[contexts/desktop/components]] describe the header action; `validate.mjs` passes.
+- [x] The contract card test finds the ring's figure at the smaller size, in both locales. *Verified: integrated, desktop `vitest run` printed 95 files, 835 passed; the contract directory test finds `[data-ring-figure]` at the new `text-2xs` step (11px, added to the type scale and its table as rules/frontend asks) in en and ar, centred.*
+- [x] The password card has no footer and no row button; its header carries a text *change* that opens the password surface. *Verified: the same run: the password card has no footer and no rows; its header's text *change*, named change password, opens the surface.*
+- [x] The account tab has one machines card and no this-machine card; this machine's row menu signs it out after the confirmation; the header's red text *sign out others* confirms, naming the others, and is refused with its reason when there are none; there is no end row. *Verified: the same run: one machines card and no this-machine card or end row; this machine's row menu signs it out after the confirmation; the header's red *sign out others* confirms naming the others and is refused with its tooltip reason when there are none; the dangerous-acts guard passes.*
+- [x] [[rules/interface]] and [[contexts/desktop/components]] describe the header action; `validate.mjs` passes. *Verified: read rules/interface and the components context (the header action); `validate.mjs` printed 586 artifacts checked, no failures; design 162 and 165 passed; check 0 errors.*
 
 ## Relevant areas
 

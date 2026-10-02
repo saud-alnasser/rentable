@@ -1122,7 +1122,7 @@ type RootTranslation = {
 				 */
 				machineMissing: string
 				/**
-				 * t​h​a​t​ ​m​a​c​h​i​n​e​ ​h​a​s​ ​n​o​t​ ​r​u​n​ ​t​h​i​s​ ​v​e​r​s​i​o​n​ ​y​e​t​,​ ​s​o​ ​i​t​ ​i​s​ ​n​o​t​ ​s​i​g​n​e​d​ ​o​u​t​ ​a​l​o​n​e​.​ ​s​i​g​n​ ​o​u​t​ ​a​l​l​ ​o​t​h​e​r​ ​m​a​c​h​i​n​e​s​ ​i​n​s​t​e​a​d​.
+				 * t​h​a​t​ ​m​a​c​h​i​n​e​ ​h​a​s​ ​n​o​t​ ​r​u​n​ ​t​h​i​s​ ​v​e​r​s​i​o​n​ ​y​e​t​,​ ​s​o​ ​i​t​ ​i​s​ ​n​o​t​ ​s​i​g​n​e​d​ ​o​u​t​ ​a​l​o​n​e​.​ ​s​i​g​n​ ​o​u​t​ ​o​t​h​e​r​s​ ​i​n​s​t​e​a​d​.
 				 */
 				machineNotUpdated: string
 				/**
@@ -2418,6 +2418,10 @@ type RootTranslation = {
 				 */
 				change: string
 				/**
+				 * c​h​a​n​g​e
+				 */
+				changeShort: string
+				/**
 				 * y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​w​a​s​ ​c​h​a​n​g​e​d​.
 				 */
 				changed: string
@@ -2427,6 +2431,14 @@ type RootTranslation = {
 				 * s​i​g​n​ ​o​u​t​ ​a​l​l​ ​o​t​h​e​r​ ​m​a​c​h​i​n​e​s
 				 */
 				action: string
+				/**
+				 * s​i​g​n​ ​o​u​t​ ​o​t​h​e​r​s
+				 */
+				short: string
+				/**
+				 * n​o​ ​o​t​h​e​r​ ​m​a​c​h​i​n​e​ ​i​s​ ​s​i​g​n​e​d​ ​i​n​ ​a​s​ ​y​o​u​.
+				 */
+				noOthers: string
 				/**
 				 * e​v​e​r​y​ ​o​t​h​e​r​ ​m​a​c​h​i​n​e​ ​i​s​ ​s​i​g​n​e​d​ ​o​u​t​,​ ​a​n​d​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​s​i​g​n​s​ ​e​a​c​h​ ​o​n​e​ ​i​n​ ​a​g​a​i​n​.​ ​t​h​i​s​ ​o​n​e​ ​s​t​a​y​s​ ​s​i​g​n​e​d​ ​i​n​.
 				 */
@@ -2516,17 +2528,9 @@ type RootTranslation = {
 			}
 			thisMachine: {
 				/**
-				 * t​h​i​s​ ​m​a​c​h​i​n​e
-				 */
-				title: string
-				/**
 				 * s​i​g​n​ ​o​u​t​ ​o​f​ ​t​h​i​s​ ​m​a​c​h​i​n​e
 				 */
 				signOut: string
-				/**
-				 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​s​t​a​y​s​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​.​ ​s​i​g​n​ ​i​n​ ​a​g​a​i​n​ ​t​o​ ​c​a​r​r​y​ ​o​n​.
-				 */
-				description: string
 				/**
 				 * y​o​u​ ​a​r​e​ ​s​i​g​n​e​d​ ​o​u​t​ ​h​e​r​e​,​ ​a​n​d​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​s​t​a​y​s​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​.​ ​s​i​g​n​i​n​g​ ​i​n​ ​a​g​a​i​n​ ​b​r​i​n​g​s​ ​y​o​u​ ​b​a​c​k​.
 				 */
@@ -6119,7 +6123,7 @@ export type TranslationFunctions = {
 				 */
 				machineMissing: () => LocalizedString
 				/**
-				 * that machine has not run this version yet, so it is not signed out alone. sign out all other machines instead.
+				 * that machine has not run this version yet, so it is not signed out alone. sign out others instead.
 				 */
 				machineNotUpdated: () => LocalizedString
 				/**
@@ -7363,6 +7367,10 @@ export type TranslationFunctions = {
 				 */
 				change: () => LocalizedString
 				/**
+				 * change
+				 */
+				changeShort: () => LocalizedString
+				/**
 				 * your password was changed.
 				 */
 				changed: () => LocalizedString
@@ -7372,6 +7380,14 @@ export type TranslationFunctions = {
 				 * sign out all other machines
 				 */
 				action: () => LocalizedString
+				/**
+				 * sign out others
+				 */
+				short: () => LocalizedString
+				/**
+				 * no other machine is signed in as you.
+				 */
+				noOthers: () => LocalizedString
 				/**
 				 * every other machine is signed out, and your password signs each one in again. this one stays signed in.
 				 */
@@ -7455,17 +7471,9 @@ export type TranslationFunctions = {
 			}
 			thisMachine: {
 				/**
-				 * this machine
-				 */
-				title: () => LocalizedString
-				/**
 				 * sign out of this machine
 				 */
 				signOut: () => LocalizedString
-				/**
-				 * the organization stays on this machine. sign in again to carry on.
-				 */
-				description: () => LocalizedString
 				/**
 				 * you are signed out here, and the organization stays on this machine. signing in again brings you back.
 				 */

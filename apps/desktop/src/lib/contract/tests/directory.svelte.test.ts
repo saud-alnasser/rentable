@@ -287,6 +287,29 @@ test('in Arabic, the fields are named in Arabic, the units joined by its separat
 	}
 });
 
+// effort 846 ticket 46, at the human's word of 2026-10-03 ("the num text inside it needs to be a
+// little bit smaller"): the ring's figure is the step under the scale's smallest, in both locales,
+// still the proportion and still centred in the arc.
+test.each(['en', 'ar'] as const)(
+	'in %s, the ring on a tile draws its figure a step smaller, centred',
+	async (language) => {
+		holdEveryFlagBut();
+		rows.current = [{ ...CONTRACT, paidAmount: 1500, tenantName: 'Noura', paymentCount: 1 }];
+		drawIn(language);
+
+		await waitFor(() => expect(card()).not.toBeNull());
+
+		const figure = document.querySelector<HTMLElement>('[data-contract-paid] [data-ring-figure]')!;
+
+		expect(figure.textContent?.trim()).toBe('8');
+		expect(figure.classList).toContain('text-2xs');
+		expect(figure.classList).not.toContain('text-xs');
+		for (const centred of ['absolute', 'inset-0', 'items-center', 'justify-center']) {
+			expect(figure.classList).toContain(centred);
+		}
+	}
+);
+
 // the list lays the tiles at a declared height rather than measuring them, so the figure is the
 // count of the tile's lines at their fixed leading: the padding, the heading, the gap to the
 // fields, three rows of fields (padding, a name and a value), the gap to the foot, and the paid

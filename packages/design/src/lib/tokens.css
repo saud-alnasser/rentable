@@ -349,6 +349,17 @@
 }
 
 /*
+ * the one step under Tailwind's own scale, 11 px: the figure inside a ring on a record card, where
+ * twelve filled the arc to its edge. [[rules/frontend]] *Styling* has the table; a step is added
+ * there and here together, never as an arbitrary size on one class. Added by ticket 46 of effort
+ * 846, at the human's word of 2026-10-03 that the figure "needs to be a little bit smaller".
+ */
+@theme {
+	--text-2xs: 0.6875rem;
+	--text-2xs--line-height: calc(1 / 0.6875);
+}
+
+/*
  * the line height Arabic needs, set on every size in the type scale at once. Readex Pro's line
  * box is 1em above the baseline and 0.25em below it, and Arabic ink goes much further down: a
  * yeh with a kasra reaches 0.5em below the baseline at weight 700. The leading added to a line is
@@ -368,6 +379,7 @@
 :root:lang(ar),
 .paper [lang='ar'] {
 	line-height: 1.8;
+	--text-2xs--line-height: 1.8;
 	--text-xs--line-height: 1.8;
 	--text-sm--line-height: 1.8;
 	--text-base--line-height: 1.8;
@@ -383,6 +395,7 @@
 /* the scale's own lines, for an English page printed from an Arabic window (the block above). */
 .paper [lang='en'] {
 	line-height: 1.5;
+	--text-2xs--line-height: calc(1 / 0.6875);
 	--text-xs--line-height: calc(1 / 0.75);
 	--text-sm--line-height: calc(1.25 / 0.875);
 	--text-base--line-height: calc(1.5 / 1);

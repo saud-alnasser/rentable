@@ -598,7 +598,7 @@ export const refusals = {
 		keyNotInForce: 'the organization was handed over, so only its new owner can do this.',
 		machineMissing: 'that machine is no longer signed in as you. reload to see what changed.',
 		machineNotUpdated:
-			'that machine has not run this version yet, so it is not signed out alone. sign out all other machines instead.',
+			'that machine has not run this version yet, so it is not signed out alone. sign out others instead.',
 		usernameInvalid:
 			'a username is 3 to 32 letters, digits, dots, underscores or hyphens, with no spaces.',
 		usernameTaken: 'that username is already taken in this organization. choose another.',

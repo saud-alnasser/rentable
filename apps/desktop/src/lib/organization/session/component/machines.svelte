@@ -1,9 +1,11 @@
 <script lang="ts">
 	import type { MachineView } from '$lib/organization/host';
 	import ConfirmDialog from '@rentable/design/block/confirm-dialog.svelte';
+	import { unavailableControl } from '@rentable/design/block/record-action-control.svelte';
 	import SettingsGroup from '@rentable/design/block/settings-group.svelte';
 	import SettingsRow, { type SettingsRowMenu } from '@rentable/design/block/settings-row.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
+	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import { tone } from '@rentable/design/tone.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import {
@@ -28,28 +30,33 @@
 	 * never as its id. The list never folds: the machine last seen a month ago is the one a reader
 	 * most needs to find.
 	 *
-	 * **Each other machine is signed out from its row's menu**, and every machine but this one at
-	 * the group's foot, which is the card's one act in the error tone, last (requirement 2). The
-	 * menu is the settings row's own, the record menu a record card draws, as the components
-	 * context's *a secondary act on a row of a growing list* names it: the quiet ellipsis control,
-	 * named for the machine, holding *sign out*; the row draws it from the acts handed to it. *Until
-	 * 2026-10-02 each row carried its own error-tone sign-out button, so the card held a red act
-	 * on every row as well as the one at its foot; the human decided at converge that the one-machine
-	 * sign-out moves off the row ("Move it off the rows").* This machine carries no menu here: the
-	 * section's last group is its sign-out. A machine that has not run this version would not read
-	 * a sign-out of its own, so its entry is shown refused with the reason, which names the act at
-	 * the foot that does reach it ([[rules/interface]], *An act that cannot run says why at the
-	 * control*).
+	 * **Every machine is signed out from its row's menu, this one included.** The menu is the
+	 * settings row's own, the record menu a record card draws, as the components context's *a
+	 * secondary act on a row of a growing list* names it: the quiet ellipsis control, named for the
+	 * machine. Another machine's holds *sign out*; this one's holds *sign out of this machine*,
+	 * which the section asks about and the shell carries out (`onSignOut`). *Until 2026-10-02 each
+	 * row carried its own error-tone sign-out button; the human decided at converge that it moves off
+	 * the row ("Move it off the rows"). Until 2026-10-03 this machine's sign-out was a card of its
+	 * own under this one; the human asked that the two be merged, "simpley an otpoin to login out of
+	 * the mecahine" (ticket 46).* A machine that has not run this version would not read a sign-out
+	 * of its own, so its entry is shown refused with the reason, which names the act in the header
+	 * that does reach it ([[rules/interface]], *An act that cannot run says why at the control*).
 	 *
-	 * **Both ask once before they run**, naming the machines they end, because each reaches another
-	 * machine and nobody there can take it back but by signing in again. The question is the
+	 * **Signing every other machine out is the header's act** (`settings-group`'s `action`): a small
+	 * red text, *sign out others*, at the header's trailing edge after the count, the card's one red.
+	 * Where no other machine is signed in it stays where it is, refused, and says so. *It was the
+	 * card's end row until ticket 46, when the human found it odd "to be a complete section".*
+	 *
+	 * **Both of those ask once before they run**, naming the machines they end, because each reaches
+	 * another machine and nobody there can take it back but by signing in again. The question is the
 	 * confirm dialog named for the act ([[rules/interface]], *Delete and confirm*). What either
 	 * says after it ran, sent or waiting on a connection, is its mutation's announcement.
 	 */
 	let {
 		machines,
 		onEndMachine,
-		onEndOtherSessions
+		onEndOtherSessions,
+		onSignOut
 	}: {
 		/** the reader's machines, this one first, as `organization.session.machines` lists them. */
 		machines: MachineView[];
@@ -57,6 +64,8 @@
 		onEndMachine: (machineId: string) => Promise<void>;
 		/** sign every other machine out; rejects with what the shared handler has said. */
 		onEndOtherSessions: () => Promise<void>;
+		/** ask to sign this machine out: the section asks first, and the shell signs out. */
+		onSignOut: () => void;
 	} = $props();
 
 	// the clock the last-seen moment is read against, moved once a minute, the finest unit it says.
@@ -101,34 +110,79 @@
 	let endingOthers = $state(false);
 
 	/**
-	 * A machine's menu: its sign-out, refused with the reason where the machine has not run this
-	 * version. Not in the error tone: the card's one error-tone act is signing every other machine
-	 * out, last (requirement 2). This machine has none; the section's last group is its sign-out.
+	 * A machine's menu. This one's holds signing it out, which the section confirms. Another's holds
+	 * its sign-out, refused with the reason where the machine has not run this version. Neither is in
+	 * the error tone: the card's one red is signing every other machine out, in its header.
 	 */
-	const menuOf = (machine: MachineView, name: string): SettingsRowMenu | undefined =>
-		machine.isThisMachine
-			? undefined
-			: {
-					label: $LL.settings.you.machines.menu({ machine: name }),
-					attributes: { 'data-machine-menu': machine.id },
-					acts: [
-						{
-							label: $LL.common.actions.signOut(),
-							icon: LogOutIcon,
-							unavailable: machine.mayEndAlone
-								? undefined
-								: $LL.common.refusals.host.machineNotUpdated(),
-							attributes: { 'data-end-machine': machine.id },
-							onSelect: () => {
-								ending = machine;
-							}
+	const menuOf = (machine: MachineView, name: string): SettingsRowMenu => ({
+		label: $LL.settings.you.machines.menu({ machine: name }),
+		attributes: { 'data-machine-menu': machine.id },
+		acts: machine.isThisMachine
+			? [
+					{
+						label: $LL.settings.you.thisMachine.signOut(),
+						icon: LogOutIcon,
+						attributes: { 'data-sign-out-open': '' },
+						onSelect: onSignOut
+					}
+				]
+			: [
+					{
+						label: $LL.common.actions.signOut(),
+						icon: LogOutIcon,
+						unavailable: machine.mayEndAlone
+							? undefined
+							: $LL.common.refusals.host.machineNotUpdated(),
+						attributes: { 'data-end-machine': machine.id },
+						onSelect: () => {
+							ending = machine;
 						}
-					]
-				};
+					}
+				]
+	});
+
+	/** why signing every other machine out cannot run: there is none. */
+	const othersRefused = $derived(
+		others.length === 0 ? $LL.settings.you.sessions.noOthers() : undefined
+	);
+	const othersReasonId = $props.id();
 
 	const errorText = tone({ tone: 'error' }).text();
 	const errorButton = `${errorText} hover:bg-destructive/10 hover:text-destructive`;
 </script>
+
+{#snippet signOutOthers()}
+	<Tooltip.Root disabled={!othersRefused}>
+		<Tooltip.Trigger>
+			{#snippet child({ props })}
+				<!-- refused where there is no other machine, and never the platform's disabled: the
+				     control keeps the keyboard and the pointer, and its reason is its description. -->
+				<Button
+					{...props}
+					type="button"
+					variant="ghost"
+					size="sm"
+					class="{errorButton} {othersRefused ? unavailableControl : ''}"
+					aria-disabled={othersRefused ? 'true' : undefined}
+					aria-describedby={othersRefused ? othersReasonId : undefined}
+					data-end-other-sessions-open
+					data-unavailable={othersRefused ? '' : undefined}
+					onclick={() => {
+						if (!othersRefused) endingOthers = true;
+					}}
+				>
+					{$LL.settings.you.sessions.short()}
+					{#if othersRefused}
+						<span id={othersReasonId} class="sr-only">{othersRefused}</span>
+					{/if}
+				</Button>
+			{/snippet}
+		</Tooltip.Trigger>
+		<Tooltip.Content side="top" sideOffset={8}>
+			<span data-unavailable-reason>{othersRefused}</span>
+		</Tooltip.Content>
+	</Tooltip.Root>
+{/snippet}
 
 <div data-machines class="contents">
 	<SettingsGroup
@@ -138,6 +192,7 @@
 		value={machines.length > 0
 			? $LL.settings.you.machines.signedIn({ count: machines.length })
 			: undefined}
+		action={signOutOthers}
 	>
 		{#snippet rows()}
 			{#each machines as machine (machine.id)}
@@ -163,27 +218,6 @@
 					{/snippet}
 				</SettingsRow>
 			{/each}
-		{/snippet}
-		{#snippet end()}
-			<SettingsRow icon={LogOutIcon} name={$LL.settings.you.sessions.action()} tone="error">
-				{#snippet control({ labelId })}
-					<!-- labelled by the row's name, which holds the act's whole word, so the sign-outs in
-					     one section are told apart by what they end. -->
-					<Button
-						type="button"
-						variant="ghost"
-						size="sm"
-						class={errorButton}
-						aria-labelledby={labelId}
-						data-end-other-sessions-open
-						onclick={() => {
-							endingOthers = true;
-						}}
-					>
-						{$LL.common.actions.signOut()}
-					</Button>
-				{/snippet}
-			</SettingsRow>
 		{/snippet}
 	</SettingsGroup>
 </div>

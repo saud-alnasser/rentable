@@ -426,7 +426,7 @@ test('the account section carries the blocks the you section held, and none of t
 	expect(document.querySelector('[data-machines]')).not.toBeNull();
 
 	// who this reader is, then the one thing they change about themselves, then the machines signed
-	// in as them, then the way out of this one (effort 846, requirement 8). No offer stands
+	// in as them, this one among them (effort 846, requirement 8 and ticket 46). No offer stands
 	// here, so the section opens with the identity.
 	expect(
 		orderOf(
@@ -436,7 +436,7 @@ test('the account section carries the blocks the you section held, and none of t
 			'data-machines',
 			'data-sign-out'
 		)
-	).toEqual(['data-identity', 'data-password', 'data-machines', 'data-sign-out']);
+	).toEqual(['data-identity', 'data-password', 'data-machines']);
 
 	expect(document.querySelector('[data-general]')).toBeNull();
 	expect(document.querySelector('[data-updates]')).toBeNull();
@@ -600,7 +600,7 @@ test('an address naming a retired section opens the section that holds it', () =
 
 // criterion 22 of effort 826 and criteria 9 and 10 of effort 846: the account section lists the
 // machines signed in as the reader, signs one out from its row's menu, and offers signing every
-// other one out at the group's foot, behind one confirm. What the rows hold and ask is `organization/session/tests/machines.svelte.test.ts`'s;
+// other one out in the card's header, behind one confirm (ticket 46). What the rows hold and ask is `organization/session/tests/machines.svelte.test.ts`'s;
 // what is read here is that the section draws them from its own read and writes through its own
 // hooks.
 test('the account section lists your machines and signs one out, or every other one, behind one confirm', async () => {
@@ -636,15 +636,16 @@ test('the account section lists your machines and signs one out, or every other 
 	// nothing has been asked yet, so nothing has been confirmed.
 	expect(screen.queryByText(en.settings.you.sessions.confirmDescription)).toBeNull();
 
-	// signing one out is in that machine's row's menu, so the card's one error-tone act is signing
-	// every other machine out, and it is last (requirement 10 as decided on 2026-10-02, with 2).
-	const machineRows = [...machines.querySelectorAll<HTMLElement>('[data-settings-row]')];
-	const toned = [...machines.querySelectorAll<HTMLElement>('[data-row-tone=error]')];
+	// signing one out is in that machine's row's menu, so the card's one red is signing every other
+	// machine out, a text in its header; there is no end row (requirement 2 as revised 2026-10-03).
+	const header = machines.querySelector<HTMLElement>('[data-settings-group-header]')!;
 
-	expect(toned).toEqual([machineRows.at(-1)]);
-	expect(rowName(toned[0])).toBe(en.settings.you.sessions.action);
+	expect(machines.querySelectorAll('[data-row-tone=error]')).toHaveLength(0);
+	expect(machines.querySelectorAll('[data-settings-row]')).toHaveLength(2);
 	expect(machines.querySelectorAll('button[class*=text-destructive]')).toHaveLength(1);
-	expect(toned[0].querySelector('button[class*=text-destructive]')).not.toBeNull();
+	expect(header.querySelector('button[class*=text-destructive]')?.textContent?.trim()).toBe(
+		en.settings.you.sessions.short
+	);
 
 	await fireEvent.click(machines.querySelector('[data-machine-menu=machine-laptop]')!);
 	await fireEvent.click(
@@ -667,26 +668,63 @@ test('the account section lists your machines and signs one out, or every other 
 /** the settings groups the section drew, in order. */
 const groups = () => [...document.querySelectorAll<HTMLElement>('[data-settings-group]')];
 
-// effort 846, criterion 8 for the account section: the groups stand in the order requirement 8
-// gives, and the last one is signing out of this machine, alone, in the error tone, with its glyph.
-test('the account section ends with signing out of this machine, in the error tone', () => {
+/** this machine and one other, as the machines card lists them. */
+const HERE_AND_LAPTOP = () => [
+	{
+		id: 'machine-here',
+		name: 'Desk',
+		seenAt: Date.now(),
+		createdAt: Date.now(),
+		isThisMachine: true,
+		mayEndAlone: false
+	},
+	{
+		id: 'machine-laptop',
+		name: 'Laptop',
+		seenAt: Date.now(),
+		createdAt: Date.now(),
+		isThisMachine: false,
+		mayEndAlone: true
+	}
+];
+
+// effort 846 ticket 46, at the human's word of 2026-10-03 ("the account sectio machiens and this
+// machine merge them"; "the sinout of all feels od to be a complete section"): the account is three
+// cards, the machines card last, with no card for this machine and no end row; the password card
+// is its header alone, its act a quiet text at the trailing edge.
+test('the account section has one machines card, and the password card acts from its header', () => {
 	at('?section=account');
+	hostAnswers.machines = HERE_AND_LAPTOP();
 	area({
 		section: 'account',
 		session: fakeOrganizationSession({ ownershipOffered: true, ownerUsername: 'olivia.owner' })
 	});
 
-	const last = groups().at(-1)!;
-	const rows = [...last.querySelectorAll<HTMLElement>('[data-settings-row]')];
+	// the offer is a callout across the grid, and the identity, the password and the machines are
+	// its three cards.
+	expect(groups()).toHaveLength(3);
+	expect(groups().at(-1)!.closest('[data-machines]')).not.toBeNull();
+	expect(document.querySelector('[data-sign-out]')).toBeNull();
+	expect(document.querySelectorAll('[data-row-tone=error]')).toHaveLength(0);
 
-	// the offer is a callout across the grid, and the identity, the password, the machines and
-	// this machine are its four cards.
-	expect(groups()).toHaveLength(4);
-	expect(last.closest('[data-sign-out]')).not.toBeNull();
-	expect(rows.map(rowName)).toEqual([en.settings.you.thisMachine.signOut]);
-	expect(rows[0].dataset.rowTone).toBe('error');
-	expect(rows[0].querySelector('[data-slot=item-media] svg')).not.toBeNull();
-	expect(last.textContent).toContain(en.settings.you.thisMachine.description);
+	// the password card: no footer, no rows, and its act in its header, named for the whole act.
+	const password = document.querySelector<HTMLElement>('[data-password] [data-settings-group]')!;
+	const change = password.querySelector<HTMLElement>(
+		'[data-settings-group-header] [data-settings-group-action] [data-change-password-open]'
+	)!;
+
+	expect(password.querySelector('[data-settings-group-footer]')).toBeNull();
+	expect(password.querySelector('[data-settings-row]')).toBeNull();
+	expect(change.textContent?.trim()).toBe(en.settings.you.password.changeShort);
+	expect(change.getAttribute('aria-label')).toBe(en.settings.you.password.change);
+	expect(change.className).not.toMatch(/\btext-destructive\b/);
+	expect(change.querySelector('svg')).toBeNull();
+
+	// this machine is the machines card's first row, marked, with its own menu.
+	const here = document.querySelector<HTMLElement>('[data-machines] [data-settings-row]')!;
+
+	expect(here.querySelector('[data-this-machine]')).not.toBeNull();
+	expect(here.querySelector('[data-machine-menu=machine-here]')).not.toBeNull();
 });
 
 // requirement 2 as revised on 2026-10-02, at the human's word: every dangerous act asks first,
@@ -695,7 +733,16 @@ test('the account section ends with signing out of this machine, in the error to
 // asks the shell, the way the rail's menu does.
 test('signing out of this machine asks first, and asks the shell only once answered', async () => {
 	at('?section=account');
+	hostAnswers.machines = HERE_AND_LAPTOP();
 	area({ section: 'account' });
+
+	// this machine's row menu, and the entry that signs it out (ticket 46).
+	const signOutHere = async () => {
+		await fireEvent.click(document.querySelector('[data-machine-menu=machine-here]')!);
+		await fireEvent.click(
+			document.querySelector('[data-slot=dropdown-menu-item][data-sign-out-open]')!
+		);
+	};
 
 	let asked = 0;
 	const stop = listenForSignOut(() => {
@@ -708,7 +755,7 @@ test('signing out of this machine asks first, and asks the shell only once answe
 			(button) => button.textContent?.trim() === words
 		);
 
-	await fireEvent.click(screen.getByRole('button', { name: en.settings.you.thisMachine.signOut }));
+	await signOutHere();
 	await waitFor(() => expect(question()).not.toBeNull());
 
 	expect(asked).toBe(0);
@@ -718,7 +765,7 @@ test('signing out of this machine asks first, and asks the shell only once answe
 	await waitFor(() => expect(question()).toBeNull());
 	expect(asked).toBe(0);
 
-	await fireEvent.click(screen.getByRole('button', { name: en.settings.you.thisMachine.signOut }));
+	await signOutHere();
 	await waitFor(() => expect(control(en.common.actions.signOut)).toBeDefined());
 	await fireEvent.click(control(en.common.actions.signOut)!);
 
@@ -731,6 +778,7 @@ test('signing out of this machine asks first, and asks the shell only once answe
 // all carry a glyph or none does; the error tone is only on a row that is the last of its group.
 test('every account row has a glyph and a name, and the buttons of a group agree on glyphs', () => {
 	at('?section=account');
+	hostAnswers.machines = HERE_AND_LAPTOP();
 	area({
 		section: 'account',
 		session: fakeOrganizationSession({ ownershipOffered: true, ownerUsername: 'olivia.owner' })
@@ -738,9 +786,9 @@ test('every account row has a glyph and a name, and the buttons of a group agree
 
 	const rows = [...document.querySelectorAll<HTMLElement>('[data-settings-row]')];
 
-	// the identity and the password are a card's header and its act, so the rows are the two
-	// that sign out, and the machines' where there are any.
-	expect(rows.length).toBeGreaterThanOrEqual(2);
+	// the identity and the password are a card's header and its act, so the rows are the
+	// machines'.
+	expect(rows.map(rowName)).toEqual(['Desk', 'Laptop']);
 
 	for (const row of rows) {
 		expect(row.querySelector('[data-slot=item-media] svg')).not.toBeNull();
@@ -748,7 +796,9 @@ test('every account row has a glyph and a name, and the buttons of a group agree
 	}
 
 	for (const group of groups()) {
-		const buttons = [...group.querySelectorAll('button')];
+		// a row's menu control is the record menu's ellipsis, named for its row, and not one of the
+		// group's worded acts.
+		const buttons = [...group.querySelectorAll('button:not([data-machine-menu])')];
 		const withGlyph = buttons.filter((button) => button.querySelector('svg') !== null);
 
 		expect([0, buttons.length]).toContain(withGlyph.length);
@@ -760,10 +810,9 @@ test('every account row has a glyph and a name, and the buttons of a group agree
 		});
 	}
 
-	expect(rows.filter((row) => row.dataset.rowTone === 'error').map(rowName)).toEqual([
-		en.settings.you.sessions.action,
-		en.settings.you.thisMachine.signOut
-	]);
+	// nothing in the account ends something from a row: this machine signs out from its menu and
+	// every other one from the machines card's header (ticket 46).
+	expect(rows.filter((row) => row.dataset.rowTone === 'error')).toEqual([]);
 });
 
 test('the area carries one title, and it is the area rather than the section', () => {
@@ -1336,13 +1385,7 @@ test('the account section draws the offer and its acceptance for the member it s
 			'data-machines',
 			'data-sign-out'
 		)
-	).toEqual([
-		'data-ownership-offer',
-		'data-identity',
-		'data-password',
-		'data-machines',
-		'data-sign-out'
-	]);
+	).toEqual(['data-ownership-offer', 'data-identity', 'data-password', 'data-machines']);
 
 	// nothing about a password is drawn until the act is pressed, the way the change-password row
 	// beside it works (requirement 8).
@@ -1389,7 +1432,6 @@ const SECTION_MARKS = [
 	'data-identity',
 	'data-password',
 	'data-machines',
-	'data-sign-out',
 	'data-standing-block',
 	'data-organization-mark',
 	'data-roles',
@@ -1459,7 +1501,7 @@ test('each section is one column of cards in source order, the ends last', () =>
 		session: fakeOrganizationSession({ ownershipOffered: true, ownerUsername: 'olivia.owner' })
 	});
 
-	expect(laidOut()).toEqual(['data-identity', 'data-password', 'data-machines', 'data-sign-out']);
+	expect(laidOut()).toEqual(['data-identity', 'data-password', 'data-machines']);
 
 	// the offer is a notice in the column, first, ahead of every card.
 	const offer = document.querySelector<HTMLElement>('[data-ownership-offer]')!;
@@ -1659,7 +1701,7 @@ test('the state, a problem, the machines, the offer and every end act stand outs
 
 	const machineRows = [...document.querySelectorAll('[data-machines] [data-settings-row]')];
 
-	expect(machineRows.length).toBe(3);
+	expect(machineRows.length).toBe(2);
 	expect(machineRows.filter(folded)).toEqual([]);
 	expect(folded(document.querySelector('[data-ownership-offer]')!)).toBe(false);
 	expect([...document.querySelectorAll('[data-row-tone=error]')].filter(folded)).toEqual([]);
@@ -1723,15 +1765,14 @@ test("in every ending row of the area, only the act's button is red", () => {
 		drawn.unmount();
 	}
 
-	// signing every other machine out, signing out of this one, and the organization's ends.
+	// the organization's ends. The account has none since ticket 46: this machine signs out from
+	// its row's menu and every other one from the machines card's header.
 	expect(ends.map(rowName)).toEqual(
-		expect.arrayContaining([
-			en.settings.you.sessions.action,
-			en.settings.you.thisMachine.signOut,
-			en.organization.dashboard.forgetAccount
-		])
+		expect.arrayContaining([en.organization.dashboard.forgetAccount])
 	);
-	expect(ends.length).toBeGreaterThanOrEqual(4);
+	expect(ends.map(rowName)).not.toContain(en.settings.you.sessions.action);
+	expect(ends.map(rowName)).not.toContain(en.settings.you.thisMachine.signOut);
+	expect(ends.length).toBeGreaterThanOrEqual(2);
 });
 
 // effort 846 ticket 31 ("whey there's a collapsoable on the diangostics"; "the open log oflder

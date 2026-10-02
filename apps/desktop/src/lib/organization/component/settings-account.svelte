@@ -2,10 +2,8 @@
 	import type { SettingsSectionProps } from '$lib/feature/surface';
 	import SettingsGrid from '@rentable/design/block/settings-grid.svelte';
 	import SettingsGroup from '@rentable/design/block/settings-group.svelte';
-	import SettingsRow from '@rentable/design/block/settings-row.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
-	import { tone } from '@rentable/design/tone.js';
 	import { toErrorText } from '$lib/error/message';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import OrganizationAcceptOwnership from '$lib/organization/member/component/accept-ownership.svelte';
@@ -23,8 +21,6 @@
 	import { useFetchOrganizationState } from '$lib/organization/query';
 	import CrownIcon from '@lucide/svelte/icons/crown';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
-	import LogOutIcon from '@lucide/svelte/icons/log-out';
-	import MonitorIcon from '@lucide/svelte/icons/monitor';
 
 	/**
 	 * The settings area's account section: what a person reads about themselves, and the one
@@ -41,11 +37,12 @@
 	 * waiting on a reply.
 	 *
 	 * **It reads as sign-in and security** (effort 846, requirement 8): who is signed in, the
-	 * password, the machines, and signing out of this one last, each a card one under the next in
-	 * the section's column in the manner of Apple's and Google's account pages (*Everything in a tab
-	 * is a card*; "each card needs to be in a sequeintal order", the human on 2026-10-02). Signing
-	 * out of this machine moved here from beside the username, so the way out is the last thing
-	 * the section holds, and it asks first (effort 846, requirement 2 as revised 2026-10-02).
+	 * password and the machines, each a card one under the next in the section's column in the
+	 * manner of Apple's and Google's account pages (*Everything in a tab is a card*; "each card
+	 * needs to be in a sequeintal order", the human on 2026-10-02). Signing out of this machine is
+	 * an entry in its own row's menu in the machines card, and it asks first (effort 846,
+	 * requirement 2 as revised 2026-10-02). *It was a card of its own, last, until ticket 46, when
+	 * the human asked that the machines and this machine be merged.*
 	 */
 	// what the area hands every section it draws. Nothing this section does lets go of the
 	// organization, so it reads none of it; declared so the section is typed as one.
@@ -113,52 +110,28 @@
 </script>
 
 {#snippet changePasswordAct()}
-	<div>
-		<!-- words alone, since the card's own glyph is the key and a button repeating it says the
-		     card twice (effort 846, ticket 38); outline rather than solid, since the act is offered
-		     and never invited. -->
-		<Button
-			type="button"
-			variant="outline"
-			size="sm"
-			data-change-password-open
-			onclick={() => {
-				passwordRefusal = null;
-				changingPassword = true;
-			}}
-		>
-			{$LL.settings.you.password.change()}
-		</Button>
-	</div>
-{/snippet}
-
-{#snippet signOut()}
-	<SettingsRow icon={LogOutIcon} name={$LL.settings.you.thisMachine.signOut()} tone="error">
-		{#snippet control({ labelId })}
-			<Button
-				type="button"
-				variant="ghost"
-				size="sm"
-				class="{tone({
-					tone: 'error'
-				}).text()} hover:bg-destructive/10 hover:text-destructive"
-				aria-labelledby={labelId}
-				data-sign-out-open
-				onclick={() => {
-					signingOut = true;
-				}}
-			>
-				{$LL.common.actions.signOut()}
-			</Button>
-		{/snippet}
-	</SettingsRow>
+	<!-- a quiet text at the header's end, words alone, since the card's own glyph is the key and a
+	     button repeating it says the card twice (effort 846, tickets 38 and 46). Its name is the
+	     whole act, which holds the word it shows. -->
+	<Button
+		type="button"
+		variant="ghost"
+		size="sm"
+		aria-label={$LL.settings.you.password.change()}
+		data-change-password-open
+		onclick={() => {
+			passwordRefusal = null;
+			changingPassword = true;
+		}}
+	>
+		{$LL.settings.you.password.changeShort()}
+	</Button>
 {/snippet}
 
 {#if session}
 	<!-- the reader's sign-in and security, in the order requirement 8 of effort 846 gives: the
-	     offer where one stands, who is signed in, the password, the machines, and the way out of
-	     this one last. Each is a card in the section's column, and each act that ends
-	     something is drawn at the end of its card, its button in the error tone (requirement 2). -->
+	     offer where one stands, who is signed in, the password and the machines. Each is a card in
+	     the section's column, and each act that ends something asks first (requirement 2). -->
 	<SettingsGrid>
 		<!-- the offer first, and only where one stands: it is the one thing in this section
 		     waiting on the reader, and everything under it is a fact about their account that
@@ -198,19 +171,19 @@
 
 		<!-- the fact, and the control that opens the write: nothing about the password is drawn
 		     until the person asks to change it (requirement 8 of effort 828). The card is its
-		     header and the one act at its foot, since a row named *password* under a card titled
-		     password would say it twice. -->
+		     header alone, the act at its trailing edge, since a row named *password* under a card
+		     titled password would say it twice. -->
 		<div data-password class="contents">
 			<SettingsGroup
 				icon={KeyRoundIcon}
 				title={$LL.settings.you.password.title()}
 				description={$LL.settings.you.password.description()}
-				footer={changePasswordAct}
+				action={changePasswordAct}
 			/>
 		</div>
 
-		<!-- every machine signed in as the reader, this one first, each other one signed out on its
-		     row and all of them at the card's end (requirements 9 to 11). -->
+		<!-- every machine signed in as the reader, this one first, each signed out from its row's
+		     menu and every other one from the header (requirements 2 and 9 to 11). -->
 		<OrganizationMachines
 			machines={machinesQuery.data ?? []}
 			onEndMachine={async (machineId) => {
@@ -219,19 +192,10 @@
 			onEndOtherSessions={async () => {
 				await endOtherSessions.mutateAsync();
 			}}
+			onSignOut={() => {
+				signingOut = true;
+			}}
 		/>
-
-		<!-- the way out of this machine, last and alone. It is not confirmed: signing in again
-		     undoes it, and the organization stays on this machine (requirement 2; HIG, *Alerts*).
-		     The shell owns the wall, so this asks and the shell signs out, as the rail's menu does. -->
-		<div data-sign-out class="contents">
-			<SettingsGroup
-				icon={MonitorIcon}
-				title={$LL.settings.you.thisMachine.title()}
-				description={$LL.settings.you.thisMachine.description()}
-				end={signOut}
-			/>
-		</div>
 	</SettingsGrid>
 
 	<OrganizationChangePasswordDialog

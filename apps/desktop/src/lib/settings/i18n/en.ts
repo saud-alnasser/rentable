@@ -82,10 +82,17 @@ export const settings = {
 			confirmLabel: 'new password, again',
 			mismatch: 'the two do not match.',
 			change: 'change password',
+			// the password card's act, a quiet text at its header's end (effort 846, ticket 46); its
+			// accessible name is `change` above, which holds these words.
+			changeShort: 'change',
 			changed: 'your password was changed.'
 		},
 		sessions: {
 			action: 'sign out all other machines',
+			// the machines card's header act, small and red (effort 846, ticket 46), and why it is
+			// refused where no other machine is signed in.
+			short: 'sign out others',
+			noOthers: 'no other machine is signed in as you.',
 			confirmDescription:
 				'every other machine is signed out, and your password signs each one in again. this one stays signed in.',
 			ended: 'your other machines were signed out.',
@@ -122,9 +129,7 @@ export const settings = {
 		},
 		// effort 846, requirement 8: the last group of the section, and the one way out of it.
 		thisMachine: {
-			title: 'this machine',
 			signOut: 'sign out of this machine',
-			description: 'the organization stays on this machine. sign in again to carry on.',
 			// the question signing out asks first (effort 846, requirement 2 as revised 2026-10-02).
 			asks: 'you are signed out here, and the organization stays on this machine. signing in again brings you back.'
 		}
