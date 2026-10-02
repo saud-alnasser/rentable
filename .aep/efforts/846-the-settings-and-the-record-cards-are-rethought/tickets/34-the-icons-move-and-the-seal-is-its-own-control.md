@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: []
 ---
 
@@ -15,9 +15,9 @@ The human's walk of 2026-10-02, verbatim: "the icon of update check needs to be 
 
 Traces requirement 1 as revised 2026-10-02, and requirements 5 and 21.
 
-- [ ] A test: while a check is pending the check button's glyph carries the spin animation and `aria-busy`, and none once it answers; under reduced motion it carries no animation class.
-- [ ] A test: pressing reveal swaps the closed folder for the open one with its transition, and under reduced motion swaps without one; the design package's motion test passes.
-- [ ] A test: the seal card has no *replace image* button; its preview is a button whose accessible name says it replaces the image and which opens the file picker; with no image the empty preview chooses one; remove is still the confirmed ending act.
+- [x] A test: while a check is pending the check button's glyph carries the spin animation and `aria-busy`, and none once it answers; under reduced motion it carries no animation class. *Verified: `vitest run settings/tests/icon-motion.svelte.test.ts organization/tests/mark.svelte.test.ts`: the check glyph carries the spin and the button `aria-busy` while pending, none once answered, and no animation class under reduced motion.*
+- [x] A test: pressing reveal swaps the closed folder for the open one with its transition, and under reduced motion swaps without one; the design package's motion test passes. *Verified: the same run: pressing reveal crosses the closed folder to the open one with its transition, and under reduced motion swaps with none; the design motion test and the desktop motion scan pass.*
+- [x] A test: the seal card has no *replace image* button; its preview is a button whose accessible name says it replaces the image and which opens the file picker; with no image the empty preview chooses one; remove is still the confirmed ending act. *Verified: the same run: no replace image button; the preview is a button named replace image (choose image when empty) that opens the picker; remove is still the confirmed ending act.*
 
 ## Relevant areas
 

@@ -210,3 +210,77 @@ test('an image the host refuses is answered with its refusal, and nothing change
 	await waitFor(() => expect(host.errors).toEqual([refusal]));
 	expect(image()).toBeUndefined();
 });
+
+// effort 846 ticket 34 ("the replace image button of seal; it should be the preview show if
+// clicked it opens file system to replace it"): there is no replace image button. The preview is
+// the button, named for replacing the image, and pressing it opens the file picker; with no image
+// yet the empty preview chooses one; remove is still the confirmed ending act.
+test('the preview is the control that replaces the image, and there is no replace button', async () => {
+	host.markGet.mockResolvedValue(MARK);
+	host.openImage.mockResolvedValue('C:/new-seal.png');
+	host.markSet.mockResolvedValue({ mediaType: 'image/png', data: 'bmV3' });
+	shown(true);
+
+	await waitFor(() => expect(image()).toBe('data:image/png;base64,iVBORw0K'));
+
+	const card = document.querySelector<HTMLElement>('[data-organization-mark]')!;
+	const named = (name: string) =>
+		within(document.body)
+			.queryAllByRole('button')
+			.filter((button) => button.textContent?.trim().toLowerCase() === name.toLowerCase());
+
+	// no button reads replace image; the one named so is the preview, holding the image.
+	expect(named(en.organization.mark.replace)).toEqual([]);
+
+	const preview = within(card).getByRole('button', { name: en.organization.mark.replace });
+
+	expect(preview.querySelector('[data-organization-mark-image]')).not.toBeNull();
+	expect(preview.closest('[data-row-value]')).not.toBeNull();
+	// the preview and the remove, and nothing beside the preview.
+	expect(card.querySelectorAll('button')).toHaveLength(2);
+
+	await fireEvent.click(preview);
+
+	await waitFor(() => expect(image()).toBe('data:image/png;base64,bmV3'));
+	expect(host.openImage).toHaveBeenCalledOnce();
+	expect(host.markSet).toHaveBeenCalledExactlyOnceWith('C:/new-seal.png');
+
+	// remove is the end row's act still, and asks before it takes anything.
+	await fireEvent.click(
+		within(card).getByRole('button', { name: en.organization.mark.removeTitle })
+	);
+	await screen.findByRole('dialog');
+	expect(host.markClear).not.toHaveBeenCalled();
+});
+
+test('with no image, the empty preview is the control that chooses one', async () => {
+	host.markGet.mockResolvedValue(null);
+	host.openImage.mockResolvedValue(null);
+	shown(true);
+
+	const card = await waitFor(() => {
+		const found = document.querySelector<HTMLElement>('[data-organization-mark]');
+
+		expect(found?.querySelector('[data-organization-mark-none]')).not.toBeNull();
+
+		return found!;
+	});
+	const preview = within(card).getByRole('button', { name: en.organization.mark.choose });
+
+	expect(preview.querySelector('[data-organization-mark-none]')).not.toBeNull();
+
+	await fireEvent.click(preview);
+
+	await waitFor(() => expect(host.openImage).toHaveBeenCalledOnce());
+	// the picker was left without a choice, so nothing was written.
+	expect(host.markSet).not.toHaveBeenCalled();
+});
+
+test('a reader without manageMark meets the preview as a picture, not a button', async () => {
+	host.markGet.mockResolvedValue(MARK);
+	shown(false);
+
+	await waitFor(() => expect(image()).toBe('data:image/png;base64,iVBORw0K'));
+	expect(document.querySelector('[data-organization-mark-image]')?.closest('button')).toBeNull();
+	expect(document.querySelectorAll('[data-organization-mark] button')).toHaveLength(0);
+});

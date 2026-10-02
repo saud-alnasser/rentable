@@ -3,10 +3,12 @@
 	import SettingsRow from '@rentable/design/block/settings-row.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
+	import { reducesMotion } from '@rentable/design/reduces-motion.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import ActivityIcon from '@lucide/svelte/icons/activity';
 	import FolderIcon from '@lucide/svelte/icons/folder';
 	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
+	import { onDestroy } from 'svelte';
 
 	/**
 	 * Where this installation writes down what went wrong, as a card of the general section: the
@@ -26,6 +28,15 @@
 	 * same string), and the string is the control's accessible name as well as its tooltip, so a
 	 * screen reader and a pointer meet the same words.
 	 *
+	 * **The folder opens when it is pressed** (effort 846, ticket 34, at the human's word of
+	 * 2026-10-02: "the open log the folder icon needs to be look like it opend when clicked with
+	 * animtion"). At rest the control is a closed folder; pressing it crosses to the open one, the
+	 * two glyphs fading and scaling through each other on the quick duration and the move easing,
+	 * and it closes again once the system's folder has had time to come up (`OPEN_FOR`). The glyph
+	 * says what was just done rather than what will be: the act's words stay *open log folder*. A
+	 * reader who asked for less motion is asked as they press (`reducesMotion`), and the folder
+	 * changes at once, with no crossing; the media query holds it still as well.
+	 *
 	 * What the record is for is said once, in the card's header, rather than inside the row.
 	 */
 	let {
@@ -35,6 +46,37 @@
 		diagnosticsDir: string;
 		onRevealDiagnostics: () => void;
 	} = $props();
+
+	/**
+	 * how long the folder stands open after a press: about as long as the system takes to bring
+	 * the folder up, so the glyph closes once the reader has met what it opened. A hold, not a
+	 * motion duration; the crossing itself is the tokens'.
+	 */
+	const OPEN_FOR = 1200;
+
+	let opened = $state(false);
+	/** the reader asked for less motion, read at the press, so the glyphs swap without crossing. */
+	let holdsStill = $state(reducesMotion());
+	let closing: ReturnType<typeof setTimeout> | undefined;
+
+	function reveal() {
+		holdsStill = reducesMotion();
+		opened = true;
+		clearTimeout(closing);
+		closing = setTimeout(() => {
+			opened = false;
+		}, OPEN_FOR);
+		onRevealDiagnostics();
+	}
+
+	onDestroy(() => clearTimeout(closing));
+
+	/** the crossing between the two glyphs, or none where the reader asked for less motion. */
+	const crossing = $derived(
+		holdsStill
+			? ''
+			: 'transition-[opacity,scale] duration-quick ease-move motion-reduce:transition-none'
+	);
 </script>
 
 <!-- the path is the machine's, not the reader's language: isolated so an ltr path keeps its own
@@ -68,9 +110,25 @@
 									aria-label={$LL.settings.diagnosticsReveal()}
 									disabled={!diagnosticsDir}
 									data-diagnostics-reveal
-									onclick={onRevealDiagnostics}
+									data-opened={opened}
+									onclick={reveal}
 								>
-									<FolderOpenIcon class="size-4" />
+									<!-- the closed folder and the open one in one cell, one shown at a time, so
+									     the press crosses from one to the other in place. -->
+									<span class="grid size-4 place-items-center" aria-hidden="true">
+										<FolderIcon
+											class="col-start-1 row-start-1 size-4 {crossing} {opened
+												? 'scale-75 opacity-0'
+												: 'scale-100 opacity-100'}"
+											data-diagnostics-reveal-glyph="closed"
+										/>
+										<FolderOpenIcon
+											class="col-start-1 row-start-1 size-4 {crossing} {opened
+												? 'scale-100 opacity-100'
+												: 'scale-75 opacity-0'}"
+											data-diagnostics-reveal-glyph="open"
+										/>
+									</span>
 								</Button>
 							{/snippet}
 						</Tooltip.Trigger>

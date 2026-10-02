@@ -5,6 +5,7 @@
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Progress } from '@rentable/design/primitive/progress/index.js';
 	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
+	import { reducesMotion } from '@rentable/design/reduces-motion.js';
 	import { toErrorDetail } from '$lib/error/message';
 	import { toTauriErrorCode } from '$lib/error/tauri';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
@@ -55,6 +56,14 @@
 	 * cannot be imported by the test harness, so a decision left in one is a decision nothing can
 	 * drive.
 	 *
+	 * **The check's glyph turns while the check runs, and stops when it answers** (effort 846,
+	 * ticket 34, at the human's word of 2026-10-02: "the icon of update check needs to be rotating
+	 * with anitmion while checking"). The turn is the spinner primitive's own, on the glyph the
+	 * control already carries, and the button is `aria-busy` for as long, so a screen reader hears
+	 * what the eye sees. A reader who asked for less motion is asked once, as the check starts
+	 * (`reducesMotion`), and gets the same busy control with a glyph that holds still; the tooltip
+	 * and the header's state say *checking* either way.
+	 *
 	 * *The section was arranged by a prototype in
 	 * `[[efforts/settings-and-the-workspace-finish-what-they-offer]]`, requirement 2, which kept it
 	 * a section of its own at about this height; this keeps that and draws it as rows.*
@@ -66,6 +75,8 @@
 	const restartAppMutation = useRestartApp();
 
 	let isCheckingForUpdate = $state(false);
+	/** the reader asked for less motion, read as the check starts, so the glyph holds still. */
+	let holdsStill = $state(false);
 	let availableUpdate = $state<AvailableUpdate | null>(null);
 	let isInstallingUpdate = $state(false);
 	let isInstalled = $state(false);
@@ -125,6 +136,7 @@
 			return;
 		}
 
+		holdsStill = reducesMotion();
 		isCheckingForUpdate = true;
 		isInstalled = false;
 		downloadedBytes = 0;
@@ -338,11 +350,20 @@
 										variant="outline"
 										size="icon-sm"
 										aria-label={checkLabel}
+										aria-busy={isCheckingForUpdate}
 										disabled={isCheckingForUpdate || isInstallingUpdate}
 										data-check-for-updates
 										onclick={() => void checkForUpdates()}
 									>
-										<RefreshCwIcon class="size-4" />
+										<!-- turning while the check runs, as the spinner turns; still where the reader
+										     asked for less motion, and the media query holds it still as well should
+										     they ask while it turns. -->
+										<RefreshCwIcon
+											class="size-4 {isCheckingForUpdate && !holdsStill
+												? 'animate-spin motion-reduce:animate-none'
+												: ''}"
+											data-check-for-updates-glyph
+										/>
 									</Button>
 								{/snippet}
 							</Tooltip.Trigger>

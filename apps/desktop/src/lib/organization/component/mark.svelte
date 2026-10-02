@@ -3,6 +3,7 @@
 	import SettingsGroup from '@rentable/design/block/settings-group.svelte';
 	import SettingsRow from '@rentable/design/block/settings-row.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
+	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import { tone } from '@rentable/design/tone.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import {
@@ -12,6 +13,7 @@
 	} from '$lib/organization/query';
 	import { tauri } from '$lib/platform/tauri';
 	import ImageIcon from '@lucide/svelte/icons/image';
+	import ImageUpIcon from '@lucide/svelte/icons/image-up';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 
 	/**
@@ -20,8 +22,16 @@
 	 *
 	 * **A card titled for the mark, with one row, the image** (effort 846, requirements 1 and 13,
 	 * and *Everything in a tab is a card*): its preview as the row's value, drawn on paper as it
-	 * prints, and choosing or replacing it as the row's control. What the mark is for is the
-	 * card's one line. *The row was named for the mark itself until the card took that title.*
+	 * prints. What the mark is for is the card's one line. *The row was named for the mark itself
+	 * until the card took that title.*
+	 *
+	 * **The preview is the control** (effort 846, ticket 34, at the human's word of 2026-10-02:
+	 * "the replace image button of seal; it should be the preview show if clicked it opens file
+	 * system to replace it"). For a holder of `manageMark` the preview is a button named *replace
+	 * image*, or *choose image* while it is empty, with the same words in its tooltip, and a small
+	 * glyph on its corner saying it can be changed; pressing it opens the system's file picker.
+	 * The thing changed is the thing pressed, the way a profile picture is. *It sat beside a
+	 * replace image button, the preview only a picture, until ticket 34.*
 	 *
 	 * **Removing it is the card's end row, in the error tone, and asks first** (requirement 2): it
 	 * takes the image off every receipt and schedule on every machine, and nothing brings that image
@@ -58,10 +68,10 @@
 	}
 </script>
 
-{#snippet preview()}
-	<!-- drawn on paper, as it will print: light whatever the window is in. -->
+<!-- drawn on paper, as it will print: light whatever the window is in. -->
+{#snippet paper()}
 	<div
-		class="paper flex h-14 w-28 items-center justify-center rounded-lg border border-border bg-card p-1.5"
+		class="paper flex h-14 w-28 items-center justify-center rounded-lg border border-border bg-card p-1.5 transition-colors group-hover:border-ring"
 	>
 		{#if mark}
 			<img
@@ -78,21 +88,41 @@
 	</div>
 {/snippet}
 
-{#snippet chooseControl()}
-	<!-- outline rather than solid, since the act is offered and never invited. -->
-	<Button
-		type="button"
-		variant="outline"
-		size="sm"
-		disabled={busy}
-		onclick={() => void choose()}
-		data-organization-mark-choose
-	>
-		<ImageIcon class="size-4" />
-		<span class="first-letter:uppercase">
-			{mark ? $LL.organization.mark.replace() : $LL.organization.mark.choose()}
-		</span>
-	</Button>
+<!-- the preview, and for a holder of manageMark the preview as the one control that changes it:
+     named for what a press does, with the same words in its tooltip. -->
+{#snippet preview()}
+	{#if setsMark}
+		{@const label = mark ? $LL.organization.mark.replace() : $LL.organization.mark.choose()}
+		<Tooltip.Root>
+			<Tooltip.Trigger>
+				{#snippet child({ props })}
+					<Button
+						{...props}
+						variant="ghost"
+						class="group relative h-auto rounded-lg p-0 hover:bg-transparent"
+						aria-label={label}
+						disabled={busy}
+						data-organization-mark-choose
+						onclick={() => void choose()}
+					>
+						{@render paper()}
+						<!-- says the picture can be changed; the button's name says how. -->
+						<span
+							class="shadow-xs absolute end-1 bottom-1 grid size-5 place-items-center rounded-full border border-border bg-background text-foreground"
+							aria-hidden="true"
+						>
+							<ImageUpIcon class="size-3" />
+						</span>
+					</Button>
+				{/snippet}
+			</Tooltip.Trigger>
+			<Tooltip.Content side="top" sideOffset={8} data-organization-mark-choose-hint>
+				<span class="first-letter:uppercase">{label}</span>
+			</Tooltip.Content>
+		</Tooltip.Root>
+	{:else}
+		{@render paper()}
+	{/if}
 {/snippet}
 
 {#snippet removeRow()}
@@ -128,12 +158,7 @@
 		end={setsMark && mark ? removeRow : undefined}
 	>
 		{#snippet rows()}
-			<SettingsRow
-				icon={ImageIcon}
-				name={$LL.organization.mark.image()}
-				value={preview}
-				control={setsMark ? chooseControl : undefined}
-			/>
+			<SettingsRow icon={ImageIcon} name={$LL.organization.mark.image()} value={preview} />
 		{/snippet}
 	</SettingsGroup>
 </div>
