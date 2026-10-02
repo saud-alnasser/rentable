@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: []
 ---
 
@@ -15,8 +15,8 @@ The human's walk of 2026-10-02: "the workspaces grid card needs to be more infor
 
 Traces requirements 16 and 19, and criteria 16 and 19.
 
-- [ ] The directory test finds on each card its name, the open badge on the open one only, the member avatar stack with its count, the access word, and every fact with an svg; no count of zero.
-- [ ] The directory passes `recordMinWidth` and its fixed height; acts, export and import still pass their tests.
+- [x] The directory test finds on each card its name, the open badge on the open one only, the member avatar stack with its count, the access word, and every fact with an svg; no count of zero. *Verified: integrated on 31 and 32 (the organization strings merged by hand: 32's member card strings kept, 33's `workspaceMade` added), desktop `vitest run` printed 90 files, 774 passed and node tests 1488 passed; the directory test finds the name, the open badge on the open card only, up to three member initials with the count, the access word, created {date}, every fact with an svg, and no line for a count of zero.*
+- [x] The directory passes `recordMinWidth` and its fixed height; acts, export and import still pass their tests. *Verified: the same run: the directory lays 3, 2 and 1 across at 1000, 620 and 500px at `RECORD_TILE_MIN_WIDTH` and `WORKSPACE_TILE_HEIGHT` (174); acts, export and import tests pass; Rust `cargo test` 674 passed with the session's `created_at`; `pnpm run check` 0 errors.*
 
 ## Relevant areas
 

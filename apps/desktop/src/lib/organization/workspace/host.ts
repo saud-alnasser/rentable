@@ -37,6 +37,13 @@ export type OrganizationWorkspace = {
 	 * folds.
 	 */
 	permissions: number;
+	/**
+	 * when the workspace was made, in milliseconds since the epoch, off its row in the
+	 * organization store (effort 846, ticket 33). The shell always answers it; it is optional
+	 * because a workspace built by hand, as a test builds one, need not say, and the card then
+	 * draws no date rather than a wrong one.
+	 */
+	createdAt?: number;
 };
 
 /** a workspace: created by the owner, opened by whoever holds a grant, granted and taken back. */

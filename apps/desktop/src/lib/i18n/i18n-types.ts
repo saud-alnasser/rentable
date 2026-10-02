@@ -3926,6 +3926,11 @@ type RootTranslation = {
 			 * s​e​t​ ​f​o​r​ ​y​o​u
 			 */
 			workspaceSetForYou: string
+			/**
+			 * c​r​e​a​t​e​d​ ​{​d​a​t​e​}
+			 * @param {string} date
+			 */
+			workspaceMade: RequiredParams<'date'>
 			memberCard: {
 				/**
 				 * p​a​s​s​w​o​r​d​ ​s​e​t
@@ -8679,6 +8684,10 @@ export type TranslationFunctions = {
 			 * set for you
 			 */
 			workspaceSetForYou: () => LocalizedString
+			/**
+			 * created {date}
+			 */
+			workspaceMade: (arg: { date: string }) => LocalizedString
 			memberCard: {
 				/**
 				 * password set

@@ -422,6 +422,9 @@ pub struct WorkspaceFacts {
     /// (`permission::effective_in_workspace`). What the web layer answers a record procedure by,
     /// with a read-only grant's writes cleared.
     pub permissions: i64,
+    /// when the workspace was made, in milliseconds since the epoch, off its row in the
+    /// organization store. The workspace card says it (effort 846, ticket 33).
+    pub created_at: i64,
 }
 
 /// What the web layer is told about a signed-in member.
@@ -680,6 +683,7 @@ pub async fn facts_of(
                     pinned,
                     granted,
                 ),
+                created_at: workspace.created_at,
             })
         })
         .collect::<Result<Vec<_>, Error>>()?;

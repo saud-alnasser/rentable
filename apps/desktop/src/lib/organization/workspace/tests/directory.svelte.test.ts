@@ -1,10 +1,14 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
-import { beforeEach, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { i18nObject } from '$lib/i18n/i18n-util';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import Workspaces from '$lib/organization/workspace/component/directory.svelte';
+import Workspaces, {
+	WORKSPACE_TILE_HEIGHT
+} from '$lib/organization/workspace/component/directory.svelte';
+import { columnsFor, RECORD_TILE_MIN_WIDTH } from '$lib/list';
+import { formatLocaleDate } from '$lib/platform/locale';
 import { organizationDialog, resetOrganizationDialogs } from '$lib/organization/dialogs.svelte';
 import { organizationHostState, resetOrganizationHost } from '$lib/organization/host.svelte';
 import { fakeOrganizationMember, fakeOrganizationSession } from '$lib/organization/tests/testing';
@@ -204,7 +208,8 @@ const workspaces: OrganizationWorkspace[] = [
 		accessLevel: 'full-access',
 		pinned: 0,
 		granted: 0,
-		permissions: 0
+		permissions: 0,
+		createdAt: Date.UTC(2026, 2, 3, 12)
 	},
 	{
 		id: 'ws-2',
@@ -215,7 +220,8 @@ const workspaces: OrganizationWorkspace[] = [
 		accessLevel: 'read-only',
 		pinned: 0,
 		granted: 0,
-		permissions: 0
+		permissions: 0,
+		createdAt: Date.UTC(2026, 8, 20, 12)
 	}
 ];
 
@@ -350,6 +356,16 @@ const dialogParagraphs = () =>
 /** the rail's own sentence for how many people are in a workspace, as the card draws it. */
 const memberCount = (count: number) => i18nObject('en').layout.workspaceMenu.members({ count });
 
+/** the words a card's members fact says, beside the stack of initials it draws. */
+const countOn = (id: string) =>
+	on('members', id)?.querySelector('[data-workspace-count]')?.textContent?.trim();
+
+/** the initials a card's stack draws, in the order it draws them. */
+const avatarsOn = (id: string) =>
+	Array.from(on('members', id)?.querySelectorAll('[data-slot=avatar]') ?? []).map((avatar) =>
+		avatar.textContent?.trim()
+	);
+
 beforeEach(() => {
 	// the tiles are laid in as many columns as the directory's width holds, which it measures.
 	layOutLists();
@@ -388,8 +404,8 @@ test('one card is drawn per workspace, carrying its name and how many hold it', 
 	).toEqual(['Riyadh', 'Jeddah']);
 
 	// three people hold Riyadh and one holds Jeddah, counted off the organization's own list.
-	expect(on('members', 'ws-1')?.textContent?.trim()).toBe(memberCount(3));
-	expect(on('members', 'ws-2')?.textContent?.trim()).toBe(memberCount(1));
+	expect(countOn('ws-1')).toBe(memberCount(3));
+	expect(countOn('ws-2')).toBe(memberCount(1));
 
 	// the hostname is Turso's fact about a database, and not on the card.
 	expect(card('ws-1')?.textContent).not.toContain('turso.io');
@@ -449,9 +465,143 @@ test('every card says how many hold it, after its icon', () => {
 	] as const) {
 		const fact = on('members', id)!;
 
-		expect(fact.textContent?.trim(), id).toBe(memberCount(count));
+		expect(countOn(id), id).toBe(memberCount(count));
 		expect(fact.querySelector('svg'), id).not.toBeNull();
 	}
+});
+
+// ticket 33 of effort 846: who holds a workspace is drawn as their initials, the owner first and
+// then by role and name, with the count in words beside them.
+test('every card stacks the initials of who holds it, the owner first, beside the count', () => {
+	list();
+
+	expect(avatarsOn('ws-1')).toEqual(['OL', 'AD', 'SA']);
+	expect(avatarsOn('ws-2')).toEqual(['OL']);
+	// the stack is the count drawn, so it is not read out a second time.
+	expect(
+		on('members', 'ws-1')!.querySelector('[data-workspace-avatars]')?.getAttribute('aria-hidden')
+	).toBe('true');
+});
+
+test('the stack draws three at most, and the count says the rest', () => {
+	const many = ['ana', 'ben', 'cy', 'dee', 'eli'].map((username) =>
+		member({
+			id: username,
+			username,
+			workspaces: [{ id: 'ws-1', access: 'full-access', pinned: 0, granted: 0, permissions: 0 }]
+		})
+	);
+
+	list({ members: many });
+
+	expect(avatarsOn('ws-1')).toEqual(['AN', 'BE', 'CY']);
+	expect(countOn('ws-1')).toBe(memberCount(5));
+});
+
+// effort 846, requirement 19 and ticket 33: no count of zero.
+test('a workspace nobody is counted in draws no members fact at all', () => {
+	list({ members: [] });
+
+	expect(document.querySelector('[data-workspace-members]')).toBeNull();
+	expect(document.body.textContent).not.toContain(memberCount(0));
+});
+
+// ticket 33 of effort 846: the day it was created, off its row, after its glyph; nothing where the
+// workspace does not say.
+test('every card says the day it was created, after its glyph, and none where it is not known', () => {
+	const drawn = list();
+
+	for (const [id, made] of [
+		['ws-1', workspaces[0].createdAt!],
+		['ws-2', workspaces[1].createdAt!]
+	] as const) {
+		const fact = on('made', id)!;
+		const day = formatLocaleDate('en', made, { dateStyle: 'medium' });
+
+		expect(fact.textContent?.trim(), id).toBe(
+			en.organization.dashboard.workspaceMade.replace('{date:string}', day)
+		);
+		expect(fact.querySelector('svg')?.getAttribute('class'), id).toContain('lucide-calendar-plus');
+	}
+
+	drawn.unmount();
+	list({ workspaces: workspaces.map((workspace) => ({ ...workspace, createdAt: undefined })) });
+
+	expect(document.querySelector('[data-workspace-made]')).toBeNull();
+});
+
+// ticket 33 of effort 846: the card at the record tiles' standard: the glyph tile and the name on
+// the heading, the badge on the open one alone, and every fact a fact line with its glyph.
+test('every fact on a card is a fact line with its glyph, and the open badge is on the open one only', () => {
+	list();
+
+	for (const id of ['ws-1', 'ws-2']) {
+		const facts = Array.from(card(id)!.querySelectorAll('[data-fact]'));
+
+		// members, access and the day it was made.
+		expect(facts, id).toHaveLength(3);
+		for (const fact of facts) expect(fact.querySelector('svg'), id).not.toBeNull();
+
+		expect(card(id)!.querySelector('[data-workspace-glyph] svg')?.getAttribute('class')).toContain(
+			'lucide-building'
+		);
+	}
+
+	expect(card('ws-1')!.querySelector('[data-workspace-open] [data-slot=badge]')).not.toBeNull();
+	expect(card('ws-2')!.querySelector('[data-workspace-open]')).toBeNull();
+});
+
+// ticket 33 of effort 846, as the record tiles are laid ([[rules/interface]], *List presentation*):
+// the tiles are laid at the one fixed height the directory declares, in as many columns as
+// `RECORD_TILE_MIN_WIDTH` fits.
+describe('the tiles are laid at the fixed height, in the record tiles columns', () => {
+	afterEach(() => {
+		delete (HTMLElement.prototype as { clientWidth?: number }).clientWidth;
+	});
+
+	const wide = (width: number) =>
+		Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
+			configurable: true,
+			get: () => width
+		});
+
+	test.each([
+		[1000, 3],
+		[620, 2],
+		[500, 1]
+	])('at %i pixels wide the grid lays %i across', (width, across) => {
+		wide(width);
+		list();
+
+		expect(columnsFor(width, RECORD_TILE_MIN_WIDTH, 12)).toBe(across);
+		expect(document.querySelector<HTMLElement>('[data-workspaces]')!.dataset.columns).toBe(
+			String(across)
+		);
+	});
+
+	test('every tile is the declared height, in both languages', () => {
+		for (const language of ['en', 'ar'] as const) {
+			loadLocale(language);
+			setLocale(language);
+
+			const drawn = list({}, language === 'ar' ? 'rtl' : 'ltr');
+
+			for (const id of ['ws-1', 'ws-2']) {
+				expect((card(id) as HTMLElement).style.height, `${language} ${id}`).toBe(
+					`${WORKSPACE_TILE_HEIGHT}px`
+				);
+			}
+			// every line under the heading sets the facts' fixed leading, which is what lets one
+			// height hold in Arabic.
+			for (const fact of document.querySelectorAll('[data-fact]')) {
+				expect(fact.className).toContain('leading-5');
+			}
+
+			drawn.unmount();
+		}
+
+		setLocale('en');
+	});
 });
 
 /** the access line a card draws, as the kind it is marked with and the words it says. */
@@ -1070,6 +1220,10 @@ test('and in arabic every card reads in its own words, right to left', async () 
 	).toEqual(['Riyadh', 'Jeddah']);
 	expect(on('open', 'ws-1')?.textContent?.trim()).toBe(ar.organization.dashboard.workspaceOpenHere);
 	expect(on('access', 'ws-1')?.textContent?.trim()).toBe(ar.organization.dashboard.workspaceYouOwn);
+	expect(countOn('ws-1')).toBe(i18nObject('ar').layout.workspaceMenu.members({ count: 3 }));
+	expect(on('made', 'ws-1')?.textContent?.trim()).toContain(
+		ar.organization.dashboard.workspaceMade.replace(' {date}', '')
+	);
 	expect(document.querySelector('[data-directory-description]')?.textContent?.trim()).toBe(
 		ar.organization.dashboard.workspacesDescription
 	);

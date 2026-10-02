@@ -1,3 +1,19 @@
+<script lang="ts" module>
+	/**
+	 * How tall a workspace's tile is, which the directory lays every tile at rather than letting
+	 * each find its own (effort 846, ticket 33), so the tiles in a row line up and a card with
+	 * fewer facts keeps its place.
+	 *
+	 * Counted the way the record tiles are (the cards on real data): the padding (32), the heading
+	 * line at the control's height (32), the gap (8), the open badge's line (22: the facts' 20 px
+	 * leading and its border), the gap (8), then the facts four pixels apart: the members' line at
+	 * the avatars' 24 px, and the access and the day at the facts' fixed 20 px (72). Every line sets
+	 * its own height, so Arabic, whose font draws an inherited line near 22 px, holds the same
+	 * figure; a line added to the tile changes it too.
+	 */
+	export const WORKSPACE_TILE_HEIGHT = 174;
+</script>
+
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -6,13 +22,17 @@
 	import type { Standing } from '$lib/permission';
 	import Empty from '@rentable/design/block/empty.svelte';
 	import RecordCard from '@rentable/design/block/record-card.svelte';
+	import * as Avatar from '@rentable/design/primitive/avatar/index.js';
 	import { Badge } from '@rentable/design/primitive/badge/index.js';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { CreateControl } from '$lib/create/ui';
 	import { toCardActions } from '$lib/act';
 	import type { ListSort } from '@rentable/design/sort.js';
-	import { LL } from '$lib/i18n/i18n-svelte';
+	import { LL, locale } from '$lib/i18n/i18n-svelte';
+	import { formatLocaleDate } from '$lib/platform/locale';
+	import { accountInitials } from '$lib/sync';
+	import * as Cell from '$lib/design/cell';
 	import type { WorkspaceActContext, WorkspaceActRecord } from '$lib/organization/workspace/acts';
 	import DirectoryTray from '$lib/organization/component/directory-tray.svelte';
 	import { toWorkspaceDirectory } from '$lib/organization/directory';
@@ -23,6 +43,7 @@
 	import BuildingIcon from '@lucide/svelte/icons/building';
 	import XIcon from '@lucide/svelte/icons/x';
 	import UsersIcon from '@lucide/svelte/icons/users';
+	import CalendarPlusIcon from '@lucide/svelte/icons/calendar-plus';
 	import CrownIcon from '@lucide/svelte/icons/crown';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import EyeIcon from '@lucide/svelte/icons/eye';
@@ -40,20 +61,26 @@
 	 * actions*). *It was a row with a cluster of glyphs revealed on hover until this ticket, which
 	 * is what the human met in the running build and asked to be cards instead.*
 	 *
-	 * **A card is a tile: the workspace's glyph and its name on its heading line, and its facts
-	 * beneath, one to a line, each with its icon** ([[rules/interface]], *List presentation*), and
-	 * the tiles are a grid, two or three to a row where there is room (effort 846, *Everything in a
-	 * tab is a card*). The one open on this machine says so in words, *open on this machine*, in a
-	 * badge after the solid disc this application draws for something live (Linear's worded
-	 * *joined* badge); every card says how many people hold it, after `users`; and every card says
-	 * what the reader may do there, from the session's own entry for that workspace, worded as what
-	 * they may do: *owner*, *you may read* where the grant is read only or nothing the reader holds
-	 * there writes, *set for you* where something is pinned for them there, and *you may edit*
-	 * otherwise. Never *full access* or *no access*, which the member's card does not say either.
-	 * *Effort 843 took the open word and the access line off the card, leaving the disc alone, and
-	 * this reverses it at the human's choice of 2026-10-02 (effort 846, requirement 16): a card
-	 * read on its own has to say which one is here and what it lets the reader do, without the
-	 * shell's header beside it.*
+	 * **A card is a tile at the record tiles' standard: the workspace's glyph in its muted tile and
+	 * its name on the heading line, and its facts beneath as `Cell.Fact` lines, each after its
+	 * glyph** ([[rules/interface]], *List presentation*), and the tiles are a grid, two or three to
+	 * a row where there is room (effort 846, *Everything in a tab is a card*), each at
+	 * `WORKSPACE_TILE_HEIGHT`. The one open on this machine says so in words, *open on this
+	 * machine*, in a badge under its heading after the solid disc this application draws for
+	 * something live (Linear's worded *joined* badge). The facts stand together at the tile's foot,
+	 * so they line up across a row whether or not the badge is drawn above them: who holds the
+	 * workspace, as their initials in a small stack with how many there are; what the reader may
+	 * do there, from the session's own entry for that workspace, worded as what they may do:
+	 * *owner*, *you may read* where the grant is read only or nothing the reader holds there
+	 * writes, *set for you* where something is pinned for them there, and *you may edit*
+	 * otherwise, never *full access* or *no access*, which the member's card does not say either;
+	 * and the day it was created, off its row in the organization store. A count of nobody is not
+	 * drawn. *Effort 843 took the open word and the access line off the card, leaving the disc
+	 * alone, and the human brought both back on 2026-10-02 (effort 846, requirement 16); the same
+	 * day they found the tile sparse ("the workspaces grid card needs to be more informative and
+	 * better looking"), and ticket 33 gave it the glyph tile, the avatars and the date.* Record
+	 * counts are not on it: a workspace not open here would have to be reached over Turso for each
+	 * tile, and the open one's are the dashboard's.
 	 *
 	 * **The heading takes the settings group's treatment, and the tray and the cards stay**
 	 * (effort 846, requirement 1): the directory is not a group of rows, so only its title reads as
@@ -162,6 +189,21 @@
 	/** how many people hold a grant on a workspace, counted off the organization's own list. */
 	const memberCount = (workspaceId: string) =>
 		members.filter((member) => member.workspaces.some((held) => held.id === workspaceId)).length;
+
+	/**
+	 * who holds a grant on a workspace, the highest role first and then by name, so the owner leads
+	 * the stack the way the members directory leads with them.
+	 */
+	const holdersOf = (workspaceId: string) =>
+		members
+			.filter((member) => member.workspaces.some((held) => held.id === workspaceId))
+			.sort((one, other) => other.rank - one.rank || one.username.localeCompare(other.username));
+
+	/** how many holders the stack draws; the count beside it says the rest. */
+	const STACKED = 3;
+
+	/** the day a workspace was made, as the machines list says the day a machine was added. */
+	const madeOn = (moment: number) => formatLocaleDate($locale, moment, { dateStyle: 'medium' });
 
 	const open = $derived(workspaces.find((workspace) => workspace.id === openWorkspaceId) ?? null);
 
@@ -325,7 +367,7 @@
 		{#each shown as workspace (workspace.id)}
 			<!-- the card is the record and takes no mark of its own, so the workspace it stands for is
 			     named on the element that holds it, which is what this section is read by. -->
-			<div data-workspace={workspace.id}>
+			<div data-workspace={workspace.id} style:height="{WORKSPACE_TILE_HEIGHT}px">
 				<RecordCard
 					href={addressOf(workspace.id)}
 					label={workspace.name}
@@ -333,48 +375,82 @@
 					layout="tile"
 				>
 					{#snippet heading()}
-						<span class="flex min-w-0 items-center gap-2">
-							<BuildingIcon class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-							<span class="truncate text-sm font-medium" data-workspace-name>
-								<bdi>{workspace.name}</bdi>
-							</span>
+						<!-- the glyph in the muted tile the directory's own heading wears, so the card and
+						     the section read as one family. -->
+						<span
+							class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"
+							data-workspace-glyph
+						>
+							<BuildingIcon class="size-4" aria-hidden="true" />
+						</span>
+						<span class="flex min-w-0" data-workspace-name>
+							<Cell.Text class="truncate text-sm font-semibold" text={workspace.name} />
 						</span>
 					{/snippet}
 
 					{#snippet content()}
 						{@const access = accessOf(workspace)}
-						<!-- the facts, one to a line and each after its icon, the way a tile reads. The
-						     open one leads, in the disc the rail's switcher marks it with and the words
-						     that say what the disc means, so neither has to be learned. -->
-						<ul class="pointer-events-none relative flex min-w-0 flex-col gap-1 text-xs">
-							{#if workspace.id === openWorkspaceId}
-								<li class="flex min-w-0" data-workspace-open={workspace.id}>
-									<Badge variant="secondary" class="max-w-full">
-										<DiscIcon class="size-3 shrink-0 text-primary" aria-hidden="true" />
-										<span class="truncate">{$LL.organization.dashboard.workspaceOpenHere()}</span>
-									</Badge>
-								</li>
+						{@const holders = holdersOf(workspace.id)}
+						<!-- the open one says so under its heading, in the disc the rail's switcher marks it
+						     with and the words that say what the disc means, so neither has to be learned. -->
+						{#if workspace.id === openWorkspaceId}
+							<span
+								class="pointer-events-none relative flex min-w-0"
+								data-workspace-open={workspace.id}
+							>
+								<Badge variant="secondary" class="max-w-full py-0 leading-5">
+									<DiscIcon class="size-3 shrink-0 text-primary" aria-hidden="true" />
+									<span class="truncate">{$LL.organization.dashboard.workspaceOpenHere()}</span>
+								</Badge>
+							</span>
+						{/if}
+
+						<!-- the facts, together at the foot so they line up across a row, one to a line
+						     after its glyph. -->
+						<span class="pointer-events-none relative mt-auto flex min-w-0 flex-col gap-1">
+							{#if holders.length > 0}
+								<span class="contents" data-workspace-members={workspace.id}>
+									<Cell.Fact icon={UsersIcon}>
+										<!-- the people themselves, by the initials their own cards wear; the count
+										     beside them says it in words, so the stack is not read twice. -->
+										<span
+											class="flex shrink-0 -space-x-1.5"
+											aria-hidden="true"
+											data-workspace-avatars
+										>
+											{#each holders.slice(0, STACKED) as holder (holder.id)}
+												<Avatar.Root class="size-6 ring-2 ring-card">
+													<Avatar.Fallback class="text-xs font-medium text-foreground">
+														{accountInitials(holder.username)}
+													</Avatar.Fallback>
+												</Avatar.Root>
+											{/each}
+										</span>
+										<span class="truncate" data-workspace-count>
+											{$LL.layout.workspaceMenu.members({ count: holders.length })}
+										</span>
+									</Cell.Fact>
+								</span>
 							{/if}
 
-							<li
-								class="flex min-w-0 items-center gap-2 text-muted-foreground"
-								data-workspace-members={workspace.id}
-							>
-								<UsersIcon class="size-3.5 shrink-0" aria-hidden="true" />
-								<span class="truncate">
-									{$LL.layout.workspaceMenu.members({ count: memberCount(workspace.id) })}
-								</span>
-							</li>
+							<span class="contents" data-workspace-access={workspace.id} data-access={access.kind}>
+								<Cell.Fact icon={access.icon}>
+									<span class="truncate">{access.word}</span>
+								</Cell.Fact>
+							</span>
 
-							<li
-								class="flex min-w-0 items-center gap-2 text-muted-foreground"
-								data-workspace-access={workspace.id}
-								data-access={access.kind}
-							>
-								<access.icon class="size-3.5 shrink-0" aria-hidden="true" />
-								<span class="truncate">{access.word}</span>
-							</li>
-						</ul>
+							{#if workspace.createdAt}
+								<span class="contents" data-workspace-made={workspace.id}>
+									<Cell.Fact icon={CalendarPlusIcon}>
+										<span class="truncate">
+											{$LL.organization.dashboard.workspaceMade({
+												date: madeOn(workspace.createdAt)
+											})}
+										</span>
+									</Cell.Fact>
+								</span>
+							{/if}
+						</span>
 					{/snippet}
 				</RecordCard>
 			</div>

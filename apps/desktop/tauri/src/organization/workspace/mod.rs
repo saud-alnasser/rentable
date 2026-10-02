@@ -269,6 +269,7 @@ async fn finish_workspace<P: TursoPlatform>(
         pinned: 0,
         granted: 0,
         permissions: session.permissions,
+        created_at: now,
     })
 }
 
@@ -770,6 +771,7 @@ pub fn openable(
             pinned,
             granted,
             permissions: permission::effective_in_workspace(session.permissions, pinned, granted),
+            created_at: workspace.created_at,
         },
         held.clone(),
     )))

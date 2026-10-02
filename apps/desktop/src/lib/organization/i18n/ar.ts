@@ -115,6 +115,7 @@ export const organization = {
 		workspaceYouEdit: 'يمكنك التعديل',
 		workspaceYouRead: 'يمكنك القراءة',
 		workspaceSetForYou: 'مخصّصة لك',
+		workspaceMade: 'أُنشئت في {date}',
 		memberCard: {
 			passwordSet: 'كلمة المرور معيّنة',
 			noPassword: 'لا كلمة مرور بعد',

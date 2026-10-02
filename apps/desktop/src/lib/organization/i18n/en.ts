@@ -149,6 +149,8 @@ export const organization = {
 		workspaceYouEdit: 'you may edit',
 		workspaceYouRead: 'you may read',
 		workspaceSetForYou: 'set for you',
+		// when a workspace was made, on its card (effort 846, ticket 33).
+		workspaceMade: 'created {date:string}',
 		// what a member's tile says, one fact to a line after its glyph (effort 846, ticket 32).
 		// Where the account stands is a fact about it and nothing follows from it: a link is
 		// offered whatever the password and machine lines say. A count of nothing is said in
