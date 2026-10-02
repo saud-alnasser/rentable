@@ -382,6 +382,7 @@ mod tests {
             role: Some(role.to_string()),
             joined_at: 1_757_000_000_001,
             format: None,
+            machine_signed_out: 0,
         };
 
         sign_in(store, &held, OTHER_PASSWORD, &slot())

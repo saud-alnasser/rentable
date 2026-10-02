@@ -58,10 +58,17 @@ pub async fn ended_elsewhere(
 /// not go leaves the number on this machine's replica alone, which means the other machines are
 /// still open: the caller says so rather than reporting the act done, and the heartbeat's own
 /// push is what carries it out when there is a connection again.
+///
+/// **The epoch stays the mechanism, and the register follows it** (effort 846, requirement 10):
+/// it reaches a machine with no row and a machine older than this version, which signing one
+/// machine out does not, and every other machine of the reader's stops naming them, so their list
+/// stops showing the machines it ended. `machine_id` is this machine's, whose row is kept; an
+/// empty one, a record from before the registry, clears nothing.
 pub(crate) async fn end_elsewhere(
     credentials: &dyn CredentialStore,
     store: &OrganizationStore,
     session: &mut MemberSession,
+    machine_id: &str,
     now: i64,
 ) -> Result<bool, Error> {
     session.settled()?;
@@ -79,6 +86,12 @@ pub(crate) async fn end_elsewhere(
     store
         .set_session_epoch(&session.member_id, epoch, now)
         .await?;
+
+    if !machine_id.is_empty() {
+        store
+            .clear_member_from_other_machines(&session.member_id, machine_id)
+            .await?;
+    }
 
     let sent = store.push().await;
 
@@ -427,7 +440,7 @@ mod tests {
             .await
             .expect("the bump failed");
 
-        let refused = end_elsewhere(&credentials, &store, &mut session, 1_757_000_000_100)
+        let refused = end_elsewhere(&credentials, &store, &mut session, "", 1_757_000_000_100)
             .await
             .expect_err("a session behind its row ended everybody else's");
 
@@ -507,7 +520,7 @@ mod tests {
         .await
         .expect("the second machine's replica");
 
-        end_elsewhere(&credentials, &store, &mut session, 1_757_000_000_100)
+        end_elsewhere(&credentials, &store, &mut session, "", 1_757_000_000_100)
             .await
             .expect("ending the other sessions failed");
 

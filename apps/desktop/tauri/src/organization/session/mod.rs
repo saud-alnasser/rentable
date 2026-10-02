@@ -54,6 +54,10 @@
 //! [`ended_elsewhere`]. [`end_member_sessions`] does the same to somebody else's row, under
 //! `resetPassword`.
 //!
+//! **One machine is signed out by a number of its own** (effort 846, requirement 10), in
+//! `machine_sign_out`, which only the member's other machines write and which the machine compares
+//! with the number its own record last acknowledged ([`end_machine`], `machine.rs`).
+//!
 //! *Why a number and not a moment: two machines' clocks disagree, and a session opened on a
 //! machine running a minute fast would survive a sign-out meant to end it. A number only ever
 //! moves forward, and the comparison is the same on every machine that reads the row.*
@@ -62,6 +66,7 @@ mod command;
 mod epoch;
 pub mod forget;
 mod heartbeat;
+mod machine;
 mod remember;
 mod replica;
 mod signin;
@@ -71,6 +76,10 @@ pub use command::*;
 // reaches is the epoch's.
 pub(crate) use epoch::end_elsewhere;
 pub use epoch::{end_member_sessions, ended_elsewhere};
+pub use machine::{MachineView, SEEN_REFRESH, machines};
+pub(crate) use machine::{
+    end_machine, machine_kept, machine_named, sign_outs_acknowledged, signed_out_here,
+};
 pub(crate) use remember::*;
 pub(crate) use replica::leave_registry;
 pub use signin::*;

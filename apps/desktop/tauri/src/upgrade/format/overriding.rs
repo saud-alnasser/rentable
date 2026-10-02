@@ -49,7 +49,10 @@ fn refused<'a>(_: &'a Upgrading<'a>) -> Pending<'a, Option<&'static str>> {
     Box::pin(async { Ok(None) })
 }
 
-/// The `workspace_override` table, where it does not stand yet, inside the runner's transaction.
+/// The `workspace_override` table, where it does not stand yet, inside the runner's transaction,
+/// and the two tables effort 846 added to this format with no change of its own
+/// (`store::install_format_three`), so the organization the walk arrives at is what a fresh one of
+/// format 3 is built with.
 fn run<'a>(upgrading: &'a Upgrading<'a>) -> Pending<'a, ()> {
     Box::pin(upgrading.store.install_format_three_schema())
 }
@@ -80,15 +83,23 @@ mod tests {
         Arc::new(Mutex::new(None))
     }
 
-    /// Every table but `format` and `workspace_override`, row by row: what format 3 leaves as it
-    /// found it.
+    /// Every table but `format` and what the change creates, row by row: what format 3 leaves as
+    /// it found it. The change creates `workspace_override`, and the two tables effort 846 added
+    /// to this format after it, which a walk arriving here builds with it.
     async fn contents_but_the_change(
         store: &OrganizationStore,
     ) -> Vec<(String, Vec<Vec<turso::Value>>)> {
         let mut contents = Vec::new();
 
         for table in store.tables().await.expect("the tables") {
-            if table == "format" || table == "workspace_override" {
+            if [
+                "format",
+                "workspace_override",
+                "machine_sign_out",
+                "machine_name",
+            ]
+            .contains(&table.as_str())
+            {
                 continue;
             }
 

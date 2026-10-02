@@ -232,6 +232,9 @@ where
             role: None,
             joined_at: now,
             format: Some(FORMAT_VERSION),
+            // a record for the sign-in alone, with no machine yet: `connect::record` below draws
+            // the machine and acknowledges for it.
+            machine_signed_out: 0,
         };
         let mut session =
             sign_in_by_username(
@@ -261,6 +264,10 @@ where
             now,
         )
         .await?;
+
+        // the machine names itself as it signs in (effort 846, requirement 11), carried by the
+        // push below with its row in the registry.
+        session::machine_named(&replica, &held, &session.content_key, now).await;
 
         if !replica.push().await {
             diagnostics::warn("organization.connectedToExisting.notYetSent")

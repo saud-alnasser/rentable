@@ -31,7 +31,9 @@ use crate::organization::{
 ///
 /// What it does when the row has moved on is exactly what a sign-out does, through the same
 /// routine: the keys go, the replica is let go of, the remembered key is deleted. What it adds is
-/// the standing, so the wall says which sign-out this was.
+/// the standing, so the wall says which sign-out this was. **A machine signed out on its own**
+/// (effort 846, requirement 10) takes the same path, its `machine_sign_out` row above what its
+/// record acknowledged; one that was not keeps its name and, hourly, its last seen.
 ///
 /// **And it is where a machine open across a handover follows it** (effort 828, requirement 22).
 /// The pull is what brings the re-keyed rows, so a row that will not read under the session's key
@@ -79,7 +81,40 @@ pub(crate) async fn ended_elsewhere(app_state: &Shared, credentials: &dyn Creden
         };
 
         match standing {
-            Ok(ended) => ended,
+            Ok(true) => true,
+            // and this machine alone, signed out from another of the member's (effort 846,
+            // requirement 10): its row in `machine_sign_out` above the number its record last
+            // acknowledged. Where it was not, the heartbeat keeps the machine's name and its last
+            // seen, which is what the member's list of machines reads.
+            Ok(false) => {
+                let held = {
+                    let mut remote_sync = app_state.remote_sync.write().await;
+
+                    remote_sync.store_mut().organization.clone()
+                };
+
+                match held {
+                    Some(held) => {
+                        match session::signed_out_here(store, &held, &session.member_id).await {
+                            Ok(true) => true,
+                            Ok(false) => {
+                                session::machine_kept(store, &held, session, store.clock().now())
+                                    .await;
+
+                                false
+                            }
+                            Err(refusal) => {
+                                diagnostics::warn("organization.session.standingUnread")
+                                    .with("reason", refusal.to_string())
+                                    .write();
+
+                                false
+                            }
+                        }
+                    }
+                    None => false,
+                }
+            }
             // a row that will not read is not a sign-out: the replica is the offline case and
             // this member goes on working against what it holds (requirement 18).
             Err(refusal) => {
@@ -227,7 +262,6 @@ mod tests {
     use crate::database::Database;
     use crate::error::Error;
     use crate::machine::{RemoteSync, RemoteSyncStore};
-    use crate::organization::Shared;
     use crate::organization::authority::VERIFYING_KEY_BYTES;
     use crate::organization::invitation::link::JoinLink;
     use crate::organization::invitation::{self, join};
@@ -240,6 +274,7 @@ mod tests {
     };
     use crate::organization::setup::{CreateOrganization, Remote, create_organization};
     use crate::organization::store::OrganizationStore;
+    use crate::organization::{HeldOrganization, Shared};
     use crate::persisted::Persisted;
     use crate::settings::Settings;
     use crate::sync::test::server::{ScriptedResponse, ScriptedServer};
@@ -585,6 +620,7 @@ mod tests {
             credentials.as_ref(),
             &elsewhere,
             &mut theirs,
+            "machine-elsewhere",
             CREATED_AT + 1,
         )
         .await
@@ -626,6 +662,182 @@ mod tests {
 
         // and a heartbeat on a machine with nobody in reads nothing and says nothing.
         assert!(!super::ended_elsewhere(&app_state, credentials.as_ref()).await);
+    }
+
+    /// **Criterion 10 of effort 846: one machine signed out on its own.** This machine, B, came
+    /// back signed in and named itself; on another machine, A, the same member signs B out by its
+    /// row, and a third machine, C, is left alone. One heartbeat on B puts the wall up saying it
+    /// was signed out from elsewhere and forgets B's key; A and C are untouched, and so are the
+    /// member's epoch and vault. Signed in again on B with the same password, the next heartbeat
+    /// keeps B in, because the sign-in acknowledged the number.
+    #[tokio::test]
+    async fn a_machine_signed_out_on_its_own_is_gone_after_one_heartbeat_and_back_with_its_password()
+     {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let directory = scratch("heartbeat-one-machine");
+        let app_state = first_run(credentials.as_ref(), &directory).await;
+        let (organization_id, member_id) = recorded(&app_state).await;
+
+        assert!(
+            state_of(&app_state, &credentials, &crate::clock::System::shared())
+                .await
+                .expect("the state")
+                .session
+                .is_some(),
+            "the launch did not resume"
+        );
+
+        let held_b = {
+            let mut remote_sync = app_state.remote_sync.write().await;
+
+            remote_sync
+                .store_mut()
+                .organization
+                .clone()
+                .expect("the record names no organization")
+        };
+        let held_a = HeldOrganization {
+            machine_id: "machine-a".to_string(),
+            ..held_b.clone()
+        };
+        let key = verifying_key_of(&held_b).expect("the pinned key");
+        let machine_a = elsewhere(&directory, &organization_id).await;
+        let a = session::sign_in(&machine_a, &held_a, PASSWORD, &slot())
+            .await
+            .expect("machine A did not sign in");
+
+        // A and C are on this version and signed in as the member; B registered and named itself
+        // at its launch.
+        for machine in ["machine-a", "machine-c"] {
+            machine_a
+                .machine_seen(machine, Some(&member_id), CREATED_AT)
+                .await
+                .expect("the machine row");
+            machine_a
+                .write_machine_name(machine, None, CREATED_AT)
+                .await
+                .expect("the name row");
+        }
+
+        let before = machine_a
+            .member(&key, &member_id)
+            .await
+            .expect("the row reads")
+            .expect("the member's row");
+
+        assert!(
+            session::machines(&machine_a, &a, &held_a)
+                .await
+                .expect("A's list")
+                .iter()
+                .any(|machine| machine.id == held_b.machine_id && machine.may_end_alone),
+            "B is not listed on A as a machine to end alone"
+        );
+
+        session::end_machine(&machine_a, &a, &held_a, &held_b.machine_id, CREATED_AT + 1)
+            .await
+            .expect("A could not sign B out");
+
+        // one heartbeat on B.
+        assert!(
+            super::ended_elsewhere(&app_state, credentials.as_ref()).await,
+            "the heartbeat did not read this machine as signed out"
+        );
+        assert!(app_state.member.read().await.is_none());
+        assert!(app_state.organization.read().await.is_none());
+        assert_eq!(
+            filed(credentials.as_ref(), &organization_id, &member_id),
+            None,
+            "B's remembered key outlived its sign-out"
+        );
+        assert!(
+            state_of(&app_state, &credentials, &crate::clock::System::shared())
+                .await
+                .expect("the state")
+                .signed_out_elsewhere,
+            "the wall was not told which sign-out this was"
+        );
+
+        // A and C untouched, and the member's epoch and vault unmoved.
+        assert!(
+            !session::signed_out_here(&machine_a, &held_a, &member_id)
+                .await
+                .expect("A's standing"),
+            "A was signed out with B"
+        );
+        for machine in ["machine-a", "machine-c"] {
+            assert_eq!(
+                machine_a
+                    .machine(machine)
+                    .await
+                    .expect("the row")
+                    .and_then(|row| row.member_id),
+                Some(member_id.clone()),
+                "{machine} stopped naming the member"
+            );
+            assert_eq!(
+                machine_a
+                    .machine_signed_out(machine, &member_id)
+                    .await
+                    .expect("the number"),
+                0
+            );
+        }
+
+        let after = machine_a
+            .member(&key, &member_id)
+            .await
+            .expect("the row reads")
+            .expect("the member's row");
+
+        assert_eq!(after.session_epoch, before.session_epoch);
+        assert_eq!(after.vault, before.vault, "the password moved");
+
+        // B signed in again with the same password, as the wall's sign-in admits it.
+        let store = elsewhere(&directory, &organization_id).await;
+        let member = {
+            let mut remote_sync = app_state.remote_sync.write().await;
+            let held = remote_sync
+                .store_mut()
+                .organization
+                .clone()
+                .expect("the record");
+
+            join::admit(
+                credentials.as_ref(),
+                &store,
+                remote_sync.store_mut(),
+                &held,
+                USERNAME,
+                PASSWORD,
+                &slot(),
+                CREATED_AT + 2,
+            )
+            .await
+            .expect("B could not sign in again")
+        };
+
+        *app_state.organization.write().await = Some(store);
+        *app_state.member.write().await = Some(member);
+
+        assert!(
+            !super::ended_elsewhere(&app_state, credentials.as_ref()).await,
+            "B was signed out again by the sign-out it signed in past"
+        );
+        assert!(app_state.member.read().await.is_some());
+        assert_eq!(
+            {
+                let mut remote_sync = app_state.remote_sync.write().await;
+
+                remote_sync
+                    .store_mut()
+                    .organization
+                    .as_ref()
+                    .map(|held| held.machine_signed_out)
+            },
+            Some(1),
+            "the sign-in did not acknowledge the number"
+        );
     }
 
     /// **The heartbeat pushes as well as pulls**, which is what carries out a sign-out made

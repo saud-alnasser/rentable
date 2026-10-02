@@ -1048,6 +1048,7 @@ mod tests {
             role: Some(permission::MEMBER.to_string()),
             joined_at: 1_757_000_000_001,
             format: None,
+            machine_signed_out: 0,
         }
     }
 
@@ -1108,6 +1109,7 @@ mod tests {
             role: Some(permission::MANAGER.to_string()),
             joined_at: 1_757_000_000_002,
             format: None,
+            machine_signed_out: 0,
         }
     }
 
@@ -2293,6 +2295,7 @@ mod tests {
             role: Some(permission::OWNER.to_string()),
             joined_at: 0,
             format: None,
+            machine_signed_out: 0,
         }
     }
 

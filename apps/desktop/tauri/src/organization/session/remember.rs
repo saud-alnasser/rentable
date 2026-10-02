@@ -8,8 +8,8 @@ use crate::{
 };
 
 use super::{
-    CredentialSlot, MEMBER_KEY_SERVICE, MemberSession, content_key_of, open_session,
-    signin::owner_row_repaired, verifying_key_of,
+    CredentialSlot, MEMBER_KEY_SERVICE, MemberSession, content_key_of, machine::signed_out_here,
+    open_session, signin::owner_row_repaired, verifying_key_of,
 };
 use crate::organization::{
     HeldOrganization,
@@ -88,7 +88,8 @@ pub(crate) enum Resumption {
     /// the vault opened and this machine is signed in again.
     Opened(Box<MemberSession>),
     /// the entry this machine filed is behind the member's row: somebody ended this member's
-    /// sessions from another machine. The entry is forgotten and the wall goes up saying so.
+    /// sessions from another machine, or this machine alone (effort 846, requirement 10). The
+    /// entry is forgotten and the wall goes up saying so.
     SignedOutElsewhere,
 }
 
@@ -165,6 +166,13 @@ async fn resumed(
     // before the key is spent: the rows this machine already holds may say the sessions ended,
     // which is every machine whose heartbeat saw the bump before it was closed.
     if filed_epoch < member.session_epoch {
+        return Ok(Resumption::SignedOutElsewhere);
+    }
+
+    // and this machine alone, signed out from another of the member's while it was closed
+    // (effort 846, requirement 10): its row above the number its record acknowledged at its last
+    // sign-in. A resume acknowledges nothing, so the next launch asks the same question again.
+    if signed_out_here(store, held, member_id).await? {
         return Ok(Resumption::SignedOutElsewhere);
     }
 

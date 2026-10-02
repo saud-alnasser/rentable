@@ -78,6 +78,10 @@ rustls = { version = "0.23.43", default-features = false, features = ["ring", "s
 # so this needs no per-target block. The alternative is naming `keyring-core` plus each
 # store crate directly, which buys control this crate has no use for.
 keyring = { version = "4.1.6", default-features = false, features = ["v1"] }
+# the name a machine's operating system gives it, which is what a member's list of machines reads
+# as (`src/machine/name.rs`, effort 846). Already in the tree through sqlx with its default
+# features off, which compiles every platform to a stub; `std` is what reads the real name.
+whoami = { version = "2.1.3", default-features = false, features = ["std"] }
 turso = { version = "0.8.0-pre.7", default-features = false, features = ["sync"] }
 # the four below are the organization vault's key schedule and nothing else uses them.
 # `src/organization/member/vault.rs` is where each one is called, and the module is pure functions

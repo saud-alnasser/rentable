@@ -1,9 +1,11 @@
-//! The `machine_link` and `machine` tables: the links that connect a machine to an account, and
-//! the registry of machines holding the organization. Neither carries a signature.
+//! The `machine_link`, `machine`, `machine_sign_out` and `machine_name` tables: the links that
+//! connect a machine to an account, the registry of machines holding the organization, the
+//! sign-outs of one machine another one wrote, and the name each machine gives itself (effort 846,
+//! requirements 9 to 11). None of them carries a signature.
 
 use crate::{error::Error, organization::authority::VERIFYING_KEY_BYTES};
 
-use super::{MemberRecord, OrganizationStore, integer, text};
+use super::{MemberRecord, OrganizationStore, integer, nullable_blob, text};
 
 pub(super) const MACHINE_LINK: &str = "CREATE TABLE IF NOT EXISTS \"machine_link\" (\
         \"id\" TEXT PRIMARY KEY NOT NULL, \
@@ -17,6 +19,32 @@ pub(super) const MACHINE: &str = "CREATE TABLE IF NOT EXISTS \"machine\" (\
         \"member_id\" TEXT, \
         \"seen_at\" INTEGER NOT NULL, \
         \"created_at\" INTEGER NOT NULL)";
+
+/// One row per machine and member that has been signed out on its own: a number only ever moved
+/// on, and only by the member's other machines (effort 846, requirement 10).
+///
+/// **The machine it names never writes it**, which is what makes it hold against a machine that
+/// is offline when it is ended: the replica merges per column with the last push winning, and a
+/// machine that never writes the row cannot overwrite a sign-out it has not seen yet. A table of
+/// its own rather than a column on `machine`, because every machine rewrites its own `machine`
+/// row whole at launch and would erase a sign-out it had not read.
+pub(super) const MACHINE_SIGN_OUT: &str = "CREATE TABLE IF NOT EXISTS \"machine_sign_out\" (\
+        \"id\" TEXT PRIMARY KEY NOT NULL, \
+        \"machine_id\" TEXT NOT NULL, \
+        \"member_id\" TEXT NOT NULL, \
+        \"epoch\" INTEGER NOT NULL, \
+        \"at\" INTEGER NOT NULL)";
+
+/// The name a machine gives itself, sealed under the content key as every name in the
+/// organization is, and written by that machine alone (effort 846, requirement 11).
+///
+/// **The row standing is what says the machine runs a build that reads `machine_sign_out`**, so a
+/// row is written even where the operating system gave no name, with `name` null. A machine with
+/// no row is one that has not run this version, and is not signed out on its own.
+pub(super) const MACHINE_NAME: &str = "CREATE TABLE IF NOT EXISTS \"machine_name\" (\
+        \"id\" TEXT PRIMARY KEY NOT NULL, \
+        \"name\" BLOB, \
+        \"named_at\" INTEGER NOT NULL)";
 
 /// How long a machine counts as connected after it was last seen: seven days (effort 828,
 /// requirement 15).
@@ -88,6 +116,21 @@ pub struct MachineRecord {
     /// when it last said it was here: a connect, a sign-in, a sign-out, or a launch.
     pub seen_at: i64,
     pub created_at: i64,
+}
+
+/// A `machine_name` row: the name one machine gave itself, sealed under the content key, and
+/// when (effort 846, requirement 11).
+///
+/// **Unsigned**, like [`MachineRecord`]: a rewritten name can only make a line in somebody's own
+/// list wrong, and nothing reads it to decide anything but whether that machine reads its own
+/// sign-out, which a deleted row makes the reader refuse rather than allow.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MachineNameRecord {
+    /// the machine's own id, as [`MachineRecord::id`].
+    pub id: String,
+    /// the name, sealed under the content key; `None` where the operating system gave none.
+    pub name_sealed: Option<Vec<u8>>,
+    pub named_at: i64,
 }
 
 impl OrganizationStore {
@@ -300,15 +343,7 @@ impl OrganizationStore {
         let mut machines = Vec::new();
 
         while let Some(row) = rows.next().await? {
-            let machine = MachineRecord {
-                id: text(&row, 0)?,
-                member_id: match row.get_value(1)? {
-                    turso::Value::Text(value) => Some(value),
-                    _ => None,
-                },
-                seen_at: integer(&row, 2)?,
-                created_at: integer(&row, 3)?,
-            };
+            let machine = machine_of(&row)?;
             let member = machine.member_id.as_ref().and_then(|member_id| {
                 members
                     .iter()
@@ -320,6 +355,229 @@ impl OrganizationStore {
         }
 
         Ok(machines)
+    }
+
+    /// One machine's row in the registry, or `None` where it has none: what the heartbeat reads to
+    /// learn when this machine last said it was here (effort 846, requirement 9).
+    pub async fn machine(&self, id: &str) -> Result<Option<MachineRecord>, Error> {
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT \"id\", \"member_id\", \"seen_at\", \"created_at\" FROM \"machine\" \
+                 WHERE \"id\" = ?",
+                vec![turso::Value::Text(id.to_string())],
+            )
+            .await?;
+
+        match rows.next().await? {
+            Some(row) => Ok(Some(machine_of(&row)?)),
+            None => Ok(None),
+        }
+    }
+
+    /// Every machine whose row names `member_id`, the one most lately seen first: the machines a
+    /// member is signed in on, as their account section lists them (effort 846, requirement 9).
+    ///
+    /// **No presence window**, unlike [`OrganizationStore::connected_machines`]: a laptop closed
+    /// for a month still holds a remembered key, and it is the machine its member most needs to
+    /// sign out. A machine somebody signed out of, or that was signed out from elsewhere, names
+    /// nobody and is not listed.
+    pub async fn machines_of(&self, member_id: &str) -> Result<Vec<MachineRecord>, Error> {
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT \"id\", \"member_id\", \"seen_at\", \"created_at\" FROM \"machine\" \
+                 WHERE \"member_id\" = ? ORDER BY \"seen_at\" DESC, \"id\"",
+                vec![turso::Value::Text(member_id.to_string())],
+            )
+            .await?;
+        let mut machines = Vec::new();
+
+        while let Some(row) = rows.next().await? {
+            machines.push(machine_of(&row)?);
+        }
+
+        Ok(machines)
+    }
+
+    /// Take this member's name off one machine in the registry: what signing that machine out on
+    /// its own leaves behind, so it leaves the list at once rather than when it next says it is
+    /// here (effort 846, requirement 10). A row naming somebody else is left alone.
+    pub async fn clear_member_from_machine(
+        &self,
+        machine_id: &str,
+        member_id: &str,
+    ) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "UPDATE \"machine\" SET \"member_id\" = NULL \
+                 WHERE \"id\" = ? AND \"member_id\" = ?",
+                vec![
+                    turso::Value::Text(machine_id.to_string()),
+                    turso::Value::Text(member_id.to_string()),
+                ],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Take this member's name off every machine but `except`: what signing out every other
+    /// machine leaves behind, so the list stops showing the machines it ended (effort 846,
+    /// requirement 10).
+    pub async fn clear_member_from_other_machines(
+        &self,
+        member_id: &str,
+        except: &str,
+    ) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "UPDATE \"machine\" SET \"member_id\" = NULL \
+                 WHERE \"member_id\" = ? AND \"id\" <> ?",
+                vec![
+                    turso::Value::Text(member_id.to_string()),
+                    turso::Value::Text(except.to_string()),
+                ],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// How far one machine has been signed out on its own for one member: the number another
+    /// machine last moved on, or 0 where none ever did (effort 846, requirement 10).
+    ///
+    /// **A replica that does not hold the table yet answers 0**, which is one an earlier build
+    /// pulled and this one has not pulled since: the table arrives with the next pull
+    /// ([`OrganizationStore::pulled`]), and nothing in it can name this machine before then,
+    /// because a machine is signed out on its own only once it has named itself, which needs the
+    /// table on its own replica.
+    pub async fn machine_signed_out(
+        &self,
+        machine_id: &str,
+        member_id: &str,
+    ) -> Result<i64, Error> {
+        if !self.holds("machine_sign_out").await? {
+            return Ok(0);
+        }
+
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT \"epoch\" FROM \"machine_sign_out\" WHERE \"id\" = ?",
+                vec![turso::Value::Text(sign_out_id(machine_id, member_id))],
+            )
+            .await?;
+
+        match rows.next().await? {
+            Some(row) => integer(&row, 0),
+            None => Ok(0),
+        }
+    }
+
+    /// Sign one machine out for one member: the number on its row moved to `epoch`.
+    ///
+    /// **Unsigned**, as the member's `session_epoch` is, and for the same reason: it gates
+    /// availability and never authority. **It moves the number on and never back**, as
+    /// [`OrganizationStore::set_session_epoch`] does: the row keeps the greater of what it holds
+    /// and what it is told, so a caller computing `+ 1` over a replica that has not pulled writes
+    /// a number already reached rather than undoing a sign-out it did not see. Who may call it is
+    /// `session::end_machine`, which is where this machine's own id is refused.
+    pub async fn set_machine_signed_out(
+        &self,
+        machine_id: &str,
+        member_id: &str,
+        epoch: i64,
+        now: i64,
+    ) -> Result<(), Error> {
+        let held = self.machine_signed_out(machine_id, member_id).await?;
+
+        self.connection
+            .execute(
+                "INSERT OR REPLACE INTO \"machine_sign_out\" \
+                 (\"id\", \"machine_id\", \"member_id\", \"epoch\", \"at\") \
+                 VALUES (?, ?, ?, ?, ?)",
+                vec![
+                    turso::Value::Text(sign_out_id(machine_id, member_id)),
+                    turso::Value::Text(machine_id.to_string()),
+                    turso::Value::Text(member_id.to_string()),
+                    turso::Value::Integer(held.max(epoch)),
+                    turso::Value::Integer(now),
+                ],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Every machine's name row: the machines that have run a build that reads
+    /// `machine_sign_out`, each with its name sealed under the content key where it gave one
+    /// (effort 846, requirement 11). A replica without the table yet answers none.
+    pub async fn machine_names(&self) -> Result<Vec<MachineNameRecord>, Error> {
+        if !self.holds("machine_name").await? {
+            return Ok(Vec::new());
+        }
+
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT \"id\", \"name\", \"named_at\" FROM \"machine_name\" ORDER BY \"id\"",
+                (),
+            )
+            .await?;
+        let mut names = Vec::new();
+
+        while let Some(row) = rows.next().await? {
+            names.push(MachineNameRecord {
+                id: text(&row, 0)?,
+                name_sealed: nullable_blob(&row, 1)?,
+                named_at: integer(&row, 2)?,
+            });
+        }
+
+        Ok(names)
+    }
+
+    /// Write the name this machine gives itself, sealed by the caller, or `None` where the
+    /// operating system gave none: the row standing is what says this machine reads its own
+    /// sign-out (effort 846, requirement 10). **Unsigned**, like the rest of the registry. Only the
+    /// machine itself writes its row, and only where the name changed, which is the caller's to
+    /// judge, since a seal draws a fresh nonce and the bytes differ every time.
+    pub async fn write_machine_name(
+        &self,
+        id: &str,
+        name_sealed: Option<&[u8]>,
+        now: i64,
+    ) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "INSERT OR REPLACE INTO \"machine_name\" (\"id\", \"name\", \"named_at\") \
+                 VALUES (?, ?, ?)",
+                vec![
+                    turso::Value::Text(id.to_string()),
+                    name_sealed.map_or(turso::Value::Null, |sealed| {
+                        turso::Value::Blob(sealed.to_vec())
+                    }),
+                    turso::Value::Integer(now),
+                ],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Whether this replica holds `table`: the two tables effort 846 added are read only where
+    /// they stand, since a replica an earlier build pulled gains them at its next pull.
+    async fn holds(&self, table: &str) -> Result<bool, Error> {
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+                vec![turso::Value::Text(table.to_string())],
+            )
+            .await?;
+
+        Ok(rows.next().await?.is_some())
     }
 
     /// The write behind [`OrganizationStore::register_machine`] and
@@ -365,4 +623,23 @@ impl OrganizationStore {
             None => Ok(None),
         }
     }
+}
+
+/// A `machine` row as every read here selects it: the id, who is on it, and the two moments.
+fn machine_of(row: &turso::Row) -> Result<MachineRecord, Error> {
+    Ok(MachineRecord {
+        id: text(row, 0)?,
+        member_id: match row.get_value(1)? {
+            turso::Value::Text(value) => Some(value),
+            _ => None,
+        },
+        seen_at: integer(row, 2)?,
+        created_at: integer(row, 3)?,
+    })
+}
+
+/// What one machine's sign-out for one member is keyed on: both, so a machine a second member
+/// signs in on later is not signed out by what ended the first.
+fn sign_out_id(machine_id: &str, member_id: &str) -> String {
+    format!("{machine_id}:{member_id}")
 }

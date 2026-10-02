@@ -155,6 +155,10 @@ mod tests {
         ("mark_set", Gate::Flag(Flag::ManageMark)),
         ("mark_clear", Gate::Flag(Flag::ManageMark)),
         ("session_end_elsewhere", Gate::Own),
+        // the reader's own machines, and one of them signed out (effort 846, requirements 9 and
+        // 10): the member is the session's, never input.
+        ("session_machines", Gate::Own),
+        ("session_end_machine", Gate::Own),
         ("member_end_sessions", Gate::Flag(Flag::ResetPassword)),
         ("member_lock_out_cost", Gate::Flag(Flag::RemoveMember)),
         ("member_remove", Gate::Flag(Flag::RemoveMember)),

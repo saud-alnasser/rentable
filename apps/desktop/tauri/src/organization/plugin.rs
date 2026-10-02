@@ -39,6 +39,8 @@ pub fn plugin() -> TauriPlugin<tauri::Wry> {
             super::session::organization_session_sign_in,
             super::session::organization_session_sign_out,
             super::session::organization_session_end_elsewhere,
+            super::session::organization_session_machines,
+            super::session::organization_session_end_machine,
             super::invitation::organization_invitation_member_create,
             super::invitation::organization_invitation_link_make,
             super::invitation::organization_invitation_password_unset,

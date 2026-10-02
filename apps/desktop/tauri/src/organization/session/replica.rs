@@ -168,9 +168,18 @@ pub(super) async fn machine_registered(app_state: &Shared) -> Result<(), Error> 
             identified
         }
     };
+    // the member before the replica, the order every act takes them in.
+    let member = app_state.member.read().await;
     let organization = app_state.organization.read().await;
 
     if let Some(store) = organization.as_ref() {
+        // a machine that came back signed in names itself, which is how a machine that signed in
+        // before this build gains a name without anybody typing a password (effort 846,
+        // requirement 11). The registry's push below carries it.
+        if let Some(signed_in) = member.as_ref() {
+            session::machine_named(store, &held, &signed_in.content_key, store.clock().now()).await;
+        }
+
         session::machine_seen(store, &held, held.member_id.as_deref(), store.clock().now()).await;
     }
 

@@ -72,8 +72,8 @@ use crate::organization::{
     },
     member::vault::{KdfParams, open_vault, reseal_vault_with_key},
     session::{
-        CredentialSlot, MemberSession, content_key_of, machine_seen, open_session, refused_by_name,
-        remember, sign_in_by_username,
+        CredentialSlot, MemberSession, content_key_of, machine_named, machine_seen, open_session,
+        refused_by_name, remember, sign_in_by_username, sign_outs_acknowledged,
     },
     setup::MINIMUM_PASSWORD_LENGTH,
     store::{FORMAT_VERSION, InvitationRecord, MemberRecord, OrganizationStore},
@@ -288,15 +288,23 @@ where
     }
 
     // an accepted invitation is a sign-in, so the registry learns who is on this machine (effort
-    // 828, requirement 15): the row `connect::connect` wrote above names nobody yet.
+    // 828, requirement 15): the row `connect::connect` wrote above names nobody yet. The machine
+    // names itself first, so the push the registry makes carries both (effort 846, requirement 11).
+    machine_named(store, &held, &session.content_key, now).await;
     machine_seen(store, &held, Some(&session.member_id), now).await;
 
     session.must_change_password = false;
+
+    // and a sign-in acknowledges whatever signed this machine out on its own before, so the
+    // password the person just chose keeps it in (effort 846, requirement 10).
+    let machine_signed_out =
+        sign_outs_acknowledged(store, &held.machine_id, &session.member_id).await?;
 
     machine.organization = Some(HeldOrganization {
         member_id: Some(session.member_id.clone()),
         role: Some(session.role.clone()),
         format: Some(FORMAT_VERSION),
+        machine_signed_out,
         ..held.clone()
     });
     machine.commit()?;
@@ -337,16 +345,21 @@ pub(crate) async fn admit(
         sign_in_by_username(credentials, store, held, username, password, credential).await?;
 
     // a sign-in reads the organization in this build's format and in no other, so the record keeps
-    // that it has (effort 838, ticket 25).
+    // that it has (effort 838, ticket 25); and it acknowledges whatever signed this machine out on
+    // its own before, so the same password keeps it in (effort 846, requirement 10).
     let filled = HeldOrganization {
         member_id: Some(session.member_id.clone()),
         role: Some(session.role.clone()),
         format: Some(FORMAT_VERSION),
+        machine_signed_out: sign_outs_acknowledged(store, &held.machine_id, &session.member_id)
+            .await?,
         ..held.clone()
     };
 
-    // the registry learns who is on this machine (effort 828, requirement 15). After the sign-in,
-    // because the push it makes goes out under the credential the vault just unsealed.
+    // the registry learns who is on this machine (effort 828, requirement 15), and the machine's
+    // name with it (effort 846, requirement 11). After the sign-in, because the push it makes goes
+    // out under the credential the vault just unsealed.
+    machine_named(store, &filled, &session.content_key, now).await;
     machine_seen(store, &filled, Some(&session.member_id), now).await;
 
     machine.organization = Some(filled);
@@ -2266,6 +2279,8 @@ mod tests {
         for statement in [
             "DROP TABLE \"format\"",
             "DROP TABLE \"workspace_override\"",
+            "DROP TABLE \"machine_sign_out\"",
+            "DROP TABLE \"machine_name\"",
             "DROP TABLE \"role\"",
             "DROP TABLE \"certificate\"",
             "DROP TABLE \"revocation\"",

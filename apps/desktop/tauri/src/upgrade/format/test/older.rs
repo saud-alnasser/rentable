@@ -837,6 +837,7 @@ pub(crate) async fn older(name: &str) -> Older {
         role: Some("owner".to_string()),
         joined_at: EARLIER,
         format: None,
+        machine_signed_out: 0,
     };
     let certificates = [
         ("owner", owners),

@@ -26,11 +26,13 @@ change, the link and the Turso account, keep their history.*
 ## Language
 
 **Organization**:
-One database on the owner's Turso account, `org-<id>`, holding fifteen tables (`store::TABLES`):
+One database on the owner's Turso account, `org-<id>`, holding seventeen tables (`store::TABLES`):
 its format, the organization, the roles, the members, the certificates, the revocations, the
 workspaces, the grants, the invitations, the migration lease, the machine links, the register of
-the machines that hold it, the successions a handover writes, its mark, and the workspace
-overrides. Every username and name
+the machines that hold it, the successions a handover writes, its mark, the workspace
+overrides, the sign-outs of one machine, and each machine's name (the last two by effort 846,
+with no change of format: `complete_schema` creates them after a pull, and the change to format 3
+with `workspace_override`). Every username and name
 in it is sealed under the content key; every authority field is signed along a chain rooted at a
 key the member's machine pinned. Every member's machine keeps a replica.
 _Avoid_: "the control plane" and "the account" for it. There is no service of ours, and the

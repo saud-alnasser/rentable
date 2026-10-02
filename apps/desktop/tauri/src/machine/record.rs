@@ -82,6 +82,18 @@ pub struct HeldOrganization {
     /// an upgraded organization can be made to look older there; a machine that has read it in
     /// this format never transforms it again, whatever the row says (`upgrade/format/runner/`).
     pub format: Option<i64>,
+    /// how far this machine has been signed out on its own, as last acknowledged: the
+    /// `machine_sign_out` number for this machine and its member, read at every sign-in by
+    /// password or by an opened vault and **never at a resume** (effort 846, requirement 10). A
+    /// number above it in the organization database is a sign-out another machine made since, and
+    /// ends this machine's session at its next launch or heartbeat; signing in again takes the
+    /// number, so the same password keeps this machine in. 0 on a record written before the field
+    /// existed and on a machine nobody has signed out.
+    ///
+    /// **Here rather than in the organization database**, after the `format` precedent: the
+    /// database is replicated and this machine would be writing its own acknowledgement where the
+    /// machines that end it write too.
+    pub machine_signed_out: i64,
 }
 
 pub struct RemoteSync {
