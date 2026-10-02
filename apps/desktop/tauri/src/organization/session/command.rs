@@ -267,6 +267,10 @@ pub(crate) async fn organization_session_sign_in(
         }
     };
 
+    // the admission pulls once the vault is open, because the pull needs the credential the vault
+    // held, and before it acknowledges this machine's sign-outs, so the number it takes is the
+    // one Turso holds (effort 846, ticket 30). What a pull that could not go leaves out is the
+    // offline case rather than a failure of signing in.
     let member = {
         let mut remote_sync = app_state.remote_sync.write().await;
 
@@ -282,11 +286,6 @@ pub(crate) async fn organization_session_sign_in(
         )
         .await?
     };
-
-    // best effort, and after the vault is open, because the pull needs the credential the vault
-    // held. What arrives is read on the next question, and what does not arrive is the offline
-    // case rather than a failure of signing in.
-    store.pull().await;
 
     *app_state.organization.write().await = Some(store);
     *app_state.member.write().await = Some(member);

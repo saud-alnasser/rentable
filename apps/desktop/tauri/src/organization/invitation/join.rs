@@ -327,6 +327,13 @@ where
 /// that. `held` is what the record names, which a connect wrote with no member and a first run
 /// or an earlier sign-in wrote with one; either way the person is found by what they typed, and
 /// the record is written back naming them.
+///
+/// **The replica is pulled once the vault is open**, and before the sign-in acknowledges anything
+/// (effort 846, ticket 30). The slot is empty until the vault fills it, so the replica opened for
+/// a password has pulled nothing since the last session on this machine; a sign-out of this
+/// machine alone made in between is on Turso and not here, and a number read before the pull
+/// would open the session under a mark the next pull leaves behind. A pull that could not go is
+/// the offline case, and the replica goes on serving what it holds.
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn admit(
     credentials: &dyn CredentialStore,
@@ -338,21 +345,61 @@ pub(crate) async fn admit(
     credential: &CredentialSlot,
     now: i64,
 ) -> Result<MemberSession, Error> {
+    admitted_after(
+        credentials,
+        store,
+        machine,
+        held,
+        username,
+        password,
+        credential,
+        now,
+        async || {
+            store.pull().await;
+        },
+    )
+    .await
+}
+
+/// [`admit`], with the pull that follows the vault's opening given rather than made: the one step
+/// a test stands in for, since nothing here serves a pull, so what a pull would bring is written
+/// where the pull is made.
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn admitted_after(
+    credentials: &dyn CredentialStore,
+    store: &OrganizationStore,
+    machine: &mut Persisted<RemoteSyncStore>,
+    held: &HeldOrganization,
+    username: &str,
+    password: &str,
+    credential: &CredentialSlot,
+    now: i64,
+    pull: impl AsyncFnOnce(),
+) -> Result<MemberSession, Error> {
     // a row still carrying `must_change_password` is one whose invitation link has not been
     // opened, and the wall refuses it inside the sign-in itself; every session that reaches here
     // has a password of its own, so nothing about the flag is acted on (effort 826, ticket 03).
-    let session =
+    let mut session =
         sign_in_by_username(credentials, store, held, username, password, credential).await?;
+
+    // the credential the vault just unsealed is what the pull goes out under, so this is the
+    // first moment it can; what it brings is what the number below is read from.
+    pull().await;
 
     // a sign-in reads the organization in this build's format and in no other, so the record keeps
     // that it has (effort 838, ticket 25); and it acknowledges whatever signed this machine out on
-    // its own before, so the same password keeps it in (effort 846, requirement 10).
+    // its own before, as Turso holds it, so the same password keeps it in (effort 846,
+    // requirement 10). The session opened under the number the replica held before the pull, and
+    // takes the one after it.
+    let acknowledged = sign_outs_acknowledged(store, &held.machine_id, &session.member_id).await?;
+
+    session.machine_signed_out = session.machine_signed_out.max(acknowledged);
+
     let filled = HeldOrganization {
         member_id: Some(session.member_id.clone()),
         role: Some(session.role.clone()),
         format: Some(FORMAT_VERSION),
-        machine_signed_out: sign_outs_acknowledged(store, &held.machine_id, &session.member_id)
-            .await?,
+        machine_signed_out: acknowledged,
         ..held.clone()
     };
 

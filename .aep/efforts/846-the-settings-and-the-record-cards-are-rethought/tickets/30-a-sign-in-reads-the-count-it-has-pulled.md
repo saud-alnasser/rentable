@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: []
 ---
 
@@ -15,9 +15,9 @@ Review round two, correctness, two low findings the human chose to fix on 2026-1
 
 Traces requirement 10 and criterion 10.
 
-- [ ] A Rust test: X signs out on M by hand, X signs M out alone from A, X signs in on M with the password; X's first act on M runs and M stays signed in across the next heartbeat. It fails without the fix.
-- [ ] A Rust test: a record with an empty `machine_id` resumes, the machine is drawn its id, then it is signed out alone from another machine; its next act is refused and walls before any heartbeat. It fails without the fix.
-- [ ] `cargo test` passes; `cargo fmt --check` clean.
+- [x] A Rust test: X signs out on M by hand, X signs M out alone from A, X signs in on M with the password; X's first act on M runs and M stays signed in across the next heartbeat. It fails without the fix. *Verified: the run tree's `cargo test -- --test-threads=1` over 30 integrated includes `a_sign_in_acknowledges_a_sign_out_alone_its_own_pull_brought` (the session opens under the pulled count; with the read before the pull the builder saw it fail, "the session opened under 0"); `admit` discards a failed pull, so an offline sign-in still opens.*
+- [x] A Rust test: a record with an empty `machine_id` resumes, the machine is drawn its id, then it is signed out alone from another machine; its next act is refused and walls before any heartbeat. It fails without the fix. *Verified: the same run includes `a_session_resumed_before_its_machine_had_an_id_is_refused_once_signed_out_alone` (failing without the replica.rs change, "M acted after it was signed out on its own").*
+- [x] `cargo test` passes; `cargo fmt --check` clean. *Verified: the same run printed 674 passed, 0 failed, 11 ignored; `cargo fmt --check` clean.*
 
 ## Relevant areas
 
