@@ -1,9 +1,11 @@
 <script lang="ts">
 	import ConfirmDialog from '@rentable/design/block/confirm-dialog.svelte';
+	import SettingsGroup from '@rentable/design/block/settings-group.svelte';
+	import SettingsRow from '@rentable/design/block/settings-row.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
-	import * as Field from '@rentable/design/primitive/field/index.js';
+	import { tone } from '@rentable/design/tone.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import LaptopIcon from '@lucide/svelte/icons/laptop';
+	import LogOutIcon from '@lucide/svelte/icons/log-out';
 
 	/**
 	 * Signing yourself out of every other machine, from the account section (effort 826, requirement
@@ -13,19 +15,19 @@
 	 * machines' sessions and the keys they were staying signed in with: one still running meets
 	 * the wall at its next sync heartbeat, one that is closed at its next launch. The password
 	 * itself is untouched, which is what makes this a different act from a reset and why the line
-	 * under the control says so.
+	 * under the group says so.
 	 *
-	 * **It asks once before it runs.** Nothing here is recoverable by the person on the other
-	 * machine except by signing in again, and a lost laptop is the case it is for, so the question
-	 * is the confirm dialog named for this act rather than the delete dialog, since nothing is
-	 * deleted ([[rules/interface]], *Delete and confirm*):
+	 * **A group of its own, whose one row is the act, in the error tone**
+	 * ([[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirement 2): it signs
+	 * somebody out, so it is drawn as the thing that ends something, and it is the last row of its
+	 * group because it is the only one. *Effort 846's ticket 09 puts the list of machines above it.*
+	 *
+	 * **It asks once before it runs**, because it reaches other machines and nobody on them can take
+	 * it back but by signing in again. The question is the confirm dialog named for this act rather
+	 * than the delete dialog, since nothing is deleted ([[rules/interface]], *Delete and confirm*):
 	 * the organization leads as the record, the line says what ends and what does not, and the
 	 * control carries the verb. A refusal the handler throws is shown inside the dialog, so the
 	 * person is still standing at the question when they read it.
-	 *
-	 * It sits beside the change-password form, under a heading of its own, because the two are
-	 * the same subject from opposite ends: one changes what opens the account, the other closes
-	 * what is already open.
 	 */
 	let {
 		organizationName,
@@ -40,27 +42,35 @@
 	let confirming = $state(false);
 </script>
 
-<Field.Field orientation="vertical" data-end-other-sessions>
-	<Field.Content>
-		<Field.Description>{$LL.settings.you.sessions.description()}</Field.Description>
-	</Field.Content>
-
-	<div>
-		<!-- the verb's glyph before its label; outline rather than solid, since the act is offered
-		     and never invited. -->
-		<Button
-			type="button"
-			variant="outline"
-			data-end-other-sessions-open
-			onclick={() => {
-				confirming = true;
-			}}
-		>
-			<LaptopIcon class="size-4" />
-			{$LL.settings.you.sessions.action()}
-		</Button>
-	</div>
-</Field.Field>
+<div data-end-other-sessions>
+	<SettingsGroup
+		title={$LL.settings.you.sessions.title()}
+		footer={$LL.settings.you.sessions.description()}
+	>
+		{#snippet rows()}
+			<SettingsRow icon={LogOutIcon} name={$LL.settings.you.sessions.action()} tone="error">
+				{#snippet control({ labelId })}
+					<!-- labelled by the row's name, which holds the button's own word, so two sign-outs in
+					     one section are told apart by what they end. -->
+					<Button
+						type="button"
+						variant="ghost"
+						size="sm"
+						class="{tone({ tone: 'error' }).text()} hover:bg-destructive/10 hover:text-destructive"
+						aria-labelledby={labelId}
+						data-end-other-sessions-open
+						onclick={() => {
+							confirming = true;
+						}}
+					>
+						<LogOutIcon class="size-4" />
+						{$LL.common.actions.signOut()}
+					</Button>
+				{/snippet}
+			</SettingsRow>
+		{/snippet}
+	</SettingsGroup>
+</div>
 
 <ConfirmDialog
 	open={confirming}

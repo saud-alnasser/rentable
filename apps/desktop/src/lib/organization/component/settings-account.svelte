@@ -1,8 +1,9 @@
 <script lang="ts">
 	import type { SettingsSectionProps } from '$lib/feature/surface';
+	import SettingsGroup from '@rentable/design/block/settings-group.svelte';
+	import SettingsRow from '@rentable/design/block/settings-row.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
-	import * as Field from '@rentable/design/primitive/field/index.js';
-	import { Separator } from '@rentable/design/primitive/separator/index.js';
+	import { tone } from '@rentable/design/tone.js';
 	import { toErrorText } from '$lib/error/message';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import OrganizationAcceptOwnership from '$lib/organization/member/component/accept-ownership.svelte';
@@ -12,8 +13,10 @@
 	import { useAcceptOwnership } from '$lib/organization/member/query';
 	import { useChangePassword, useEndOtherSessions } from '$lib/organization/session/query';
 	import { useFetchOrganizationState } from '$lib/organization/query';
+	import { requestSignOut } from '$lib/sync';
 	import CrownIcon from '@lucide/svelte/icons/crown';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
+	import LogOutIcon from '@lucide/svelte/icons/log-out';
 
 	/**
 	 * The settings area's account section: what a person reads about themselves, and the one
@@ -28,6 +31,11 @@
 	 * **What the section is about, then what it holds.** *Settled by the human on the real
 	 * organization.* It opens with the offer where one stands, because it is the one block here
 	 * waiting on a reply.
+	 *
+	 * **It reads as sign-in and security** (effort 846, requirement 8): who is signed in, the
+	 * password, the other machines, and signing out of this one last, each a settings group of rows
+	 * in the manner of Apple's and Google's account pages. Signing out of this machine moved here
+	 * from beside the username, so the way out is the last thing the section holds.
 	 */
 	// what the area hands every section it draws. Nothing this section does lets go of the
 	// organization, so it reads none of it; declared so the section is typed as one.
@@ -91,91 +99,113 @@
 </script>
 
 {#if session}
-	<Field.Group>
+	<!-- the reader's sign-in and security, in the order requirement 8 of effort 846 gives: the
+	     offer where one stands, who is signed in, the password, the other machines, and the way
+	     out of this one last. Each block is a settings group of rows, and each act that ends
+	     something is drawn in the error tone at the end of its group (requirement 2). -->
+	<div class="flex flex-col gap-8">
 		<!-- the offer first, and only where one stands: it is the one thing in this section
 		     waiting on the reader, and everything under it is a fact about their account that
-		     will read the same tomorrow (requirement 22). *It stood last while it was the block
-		     most often absent; the human read the four sections and asked for what is waiting to
-		     come first.* -->
+		     will read the same tomorrow (requirement 22 of effort 828). *It stood last while it
+		     was the block most often absent; the human read the four sections and asked for what
+		     is waiting to come first.* -->
 		{#if session.ownershipOffered}
-			<Field.Set>
-				<Field.Legend>{$LL.settings.you.ownership.title()}</Field.Legend>
-				<Field.Field orientation="vertical" data-ownership-offer>
-					<Field.Content>
-						<Field.Description>
-							{$LL.settings.you.ownership.offered({ owner: session.ownerUsername })}
-						</Field.Description>
-					</Field.Content>
-
-					<div>
-						<Button
-							type="button"
-							variant="outline"
-							data-accept-ownership-open
-							onclick={() => {
-								acceptRefusal = null;
-								acceptingOwnership = true;
-							}}
+			<div data-ownership-offer>
+				<SettingsGroup
+					title={$LL.settings.you.ownership.title()}
+					footer={$LL.settings.you.ownership.consequence()}
+				>
+					{#snippet rows()}
+						<SettingsRow
+							icon={CrownIcon}
+							name={$LL.settings.you.ownership.offeredBy({ owner: session.ownerUsername })}
 						>
-							<CrownIcon class="size-4" />
-							{$LL.organization.dashboard.acceptOwnership()}
-						</Button>
-					</div>
-				</Field.Field>
-			</Field.Set>
-
-			<Separator />
+							{#snippet control()}
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									data-accept-ownership-open
+									onclick={() => {
+										acceptRefusal = null;
+										acceptingOwnership = true;
+									}}
+								>
+									<CrownIcon class="size-4" />
+									{$LL.organization.dashboard.acceptOwnership()}
+								</Button>
+							{/snippet}
+						</SettingsRow>
+					{/snippet}
+				</SettingsGroup>
+			</div>
 		{/if}
 
-		<!-- then who this reader is, then the one thing they change about themselves, then the
-		     machines they left signed in: the section is about them, so it opens with them. -->
-		<Field.Set>
-			<Field.Legend>{$LL.settings.you.signedInAs()}</Field.Legend>
-			<OrganizationIdentity {session} />
-		</Field.Set>
+		<OrganizationIdentity {session} />
 
-		<Separator />
+		<!-- the fact, and the control that opens the write: nothing about the password is drawn
+		     until the person asks to change it (requirement 8 of effort 828). -->
+		<div data-password>
+			<SettingsGroup footer={$LL.settings.you.password.description()}>
+				{#snippet rows()}
+					<SettingsRow icon={KeyRoundIcon} name={$LL.settings.you.password.title()}>
+						{#snippet control()}
+							<!-- the verb's glyph before its label; outline rather than solid, since the act
+							     is offered and never invited. -->
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								data-change-password-open
+								onclick={() => {
+									passwordRefusal = null;
+									changingPassword = true;
+								}}
+							>
+								<KeyRoundIcon class="size-4" />
+								{$LL.settings.you.password.change()}
+							</Button>
+						{/snippet}
+					</SettingsRow>
+				{/snippet}
+			</SettingsGroup>
+		</div>
 
-		<Field.Set>
-			<Field.Legend>{$LL.settings.you.password.title()}</Field.Legend>
-			<!-- the fact, and the control that opens the write: nothing about the password is
-			     drawn until the person asks to change it (requirement 8). -->
-			<Field.Field orientation="vertical" data-password>
-				<Field.Content>
-					<Field.Description>{$LL.settings.you.password.description()}</Field.Description>
-				</Field.Content>
+		<OrganizationEndOtherSessions
+			organizationName={session.organizationName}
+			onEndOtherSessions={async () => {
+				await endOtherSessions.mutateAsync();
+			}}
+		/>
 
-				<div>
-					<!-- the verb's glyph before its label; outline rather than solid, since the act is
-					     offered and never invited. -->
-					<Button
-						type="button"
-						variant="outline"
-						data-change-password-open
-						onclick={() => {
-							passwordRefusal = null;
-							changingPassword = true;
-						}}
-					>
-						<KeyRoundIcon class="size-4" />
-						{$LL.settings.you.password.change()}
-					</Button>
-				</div>
-			</Field.Field>
-		</Field.Set>
-
-		<Separator />
-
-		<Field.Set>
-			<Field.Legend>{$LL.settings.you.sessions.title()}</Field.Legend>
-			<OrganizationEndOtherSessions
-				organizationName={session.organizationName}
-				onEndOtherSessions={async () => {
-					await endOtherSessions.mutateAsync();
-				}}
-			/>
-		</Field.Set>
-	</Field.Group>
+		<!-- the way out of this machine, last and alone. It is not confirmed: signing in again
+		     undoes it, and the organization stays on this machine (requirement 2; HIG, *Alerts*).
+		     The shell owns the wall, so this asks and the shell signs out, as the rail's menu does. -->
+		<div data-sign-out>
+			<SettingsGroup footer={$LL.settings.you.thisMachine.description()}>
+				{#snippet rows()}
+					<SettingsRow icon={LogOutIcon} name={$LL.settings.you.thisMachine.signOut()} tone="error">
+						{#snippet control({ labelId })}
+							<Button
+								type="button"
+								variant="ghost"
+								size="sm"
+								class="{tone({
+									tone: 'error'
+								}).text()} hover:bg-destructive/10 hover:text-destructive"
+								aria-labelledby={labelId}
+								data-sign-out-open
+								onclick={requestSignOut}
+							>
+								<LogOutIcon class="size-4" />
+								{$LL.common.actions.signOut()}
+							</Button>
+						{/snippet}
+					</SettingsRow>
+				{/snippet}
+			</SettingsGroup>
+		</div>
+	</div>
 
 	<OrganizationChangePasswordDialog
 		open={changingPassword}

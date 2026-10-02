@@ -2380,10 +2380,24 @@ type RootTranslation = {
 				 */
 				title: string
 				/**
-				 * {​o​w​n​e​r​}​ ​h​a​s​ ​o​f​f​e​r​e​d​ ​y​o​u​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​a​c​c​e​p​t​i​n​g​ ​m​a​k​e​s​ ​y​o​u​ ​t​h​e​ ​o​w​n​e​r​ ​a​n​d​ ​m​a​k​e​s​ ​t​h​e​m​ ​a​ ​m​a​n​a​g​e​r​.
+				 * o​f​f​e​r​e​d​ ​b​y​ ​{​o​w​n​e​r​}
 				 * @param {string} owner
 				 */
-				offered: RequiredParams<'owner'>
+				offeredBy: RequiredParams<'owner'>
+				/**
+				 * a​c​c​e​p​t​i​n​g​ ​m​a​k​e​s​ ​y​o​u​ ​t​h​e​ ​o​w​n​e​r​ ​a​n​d​ ​m​a​k​e​s​ ​t​h​e​m​ ​a​ ​m​a​n​a​g​e​r​.
+				 */
+				consequence: string
+			}
+			thisMachine: {
+				/**
+				 * s​i​g​n​ ​o​u​t​ ​o​f​ ​t​h​i​s​ ​m​a​c​h​i​n​e
+				 */
+				signOut: string
+				/**
+				 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​s​t​a​y​s​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​.​ ​s​i​g​n​ ​i​n​ ​a​g​a​i​n​ ​t​o​ ​c​a​r​r​y​ ​o​n​.
+				 */
+				description: string
 			}
 		}
 	}
@@ -6913,9 +6927,23 @@ export type TranslationFunctions = {
 				 */
 				title: () => LocalizedString
 				/**
-				 * {owner} has offered you this organization. accepting makes you the owner and makes them a manager.
+				 * offered by {owner}
 				 */
-				offered: (arg: { owner: string }) => LocalizedString
+				offeredBy: (arg: { owner: string }) => LocalizedString
+				/**
+				 * accepting makes you the owner and makes them a manager.
+				 */
+				consequence: () => LocalizedString
+			}
+			thisMachine: {
+				/**
+				 * sign out of this machine
+				 */
+				signOut: () => LocalizedString
+				/**
+				 * the organization stays on this machine. sign in again to carry on.
+				 */
+				description: () => LocalizedString
 			}
 		}
 	}

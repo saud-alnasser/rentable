@@ -24,6 +24,7 @@ import Providers from '#tests/providers.svelte';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { pressSearchKey } from '$lib/list/tests/search';
 import { BUILT_IN } from '@rentable/workspace-permission';
+import { listenForSignOut } from '$lib/sync';
 
 /**
  * THE SETTINGS AREA, RENDERED
@@ -182,8 +183,8 @@ const generalGroups = () => [...document.querySelectorAll<HTMLElement>('[data-se
 /** the general section's rows, in order. */
 const generalRows = () => [...document.querySelectorAll<HTMLElement>('[data-settings-row]')];
 
-const rowName = (row: HTMLElement) =>
-	row.querySelector('[data-slot=item-title]')?.textContent?.trim();
+/** a settings row's name, as its title draws it. */
+const rowName = (row: Element) => row.querySelector('[data-slot=item-title]')?.textContent?.trim();
 
 // criterion 14(c) of effort 832: the settings sections switch with the one control a record's
 // sections switch with, the design package's section switch, rather than a row of their own.
@@ -406,10 +407,17 @@ test('the account section carries the blocks the you section held, and none of t
 	expect(document.querySelector('[data-end-other-sessions]')).not.toBeNull();
 
 	// who this reader is, then the one thing they change about themselves, then the machines they
-	// left signed in. No offer stands here, so the section opens with the identity.
+	// left signed in, then the way out of this one (effort 846, requirement 8). No offer stands
+	// here, so the section opens with the identity.
 	expect(
-		orderOf('data-ownership-offer', 'data-identity', 'data-password', 'data-end-other-sessions')
-	).toEqual(['data-identity', 'data-password', 'data-end-other-sessions']);
+		orderOf(
+			'data-ownership-offer',
+			'data-identity',
+			'data-password',
+			'data-end-other-sessions',
+			'data-sign-out'
+		)
+	).toEqual(['data-identity', 'data-password', 'data-end-other-sessions', 'data-sign-out']);
 
 	expect(document.querySelector('[data-general]')).toBeNull();
 	expect(document.querySelector('[data-updates]')).toBeNull();
@@ -574,6 +582,86 @@ test('the account section offers signing out of other machines, behind one confi
 	await fireEvent.click(control!);
 
 	expect(await screen.findByText(en.settings.you.sessions.confirmDescription)).toBeDefined();
+});
+
+/** the settings groups the section drew, in order. */
+const groups = () => [...document.querySelectorAll<HTMLElement>('[data-settings-group]')];
+
+// effort 846, criterion 8 for the account section: the groups stand in the order requirement 8
+// gives, and the last one is signing out of this machine, alone, in the error tone, with its glyph.
+test('the account section ends with signing out of this machine, in the error tone', () => {
+	at('?section=account');
+	area({
+		section: 'account',
+		session: fakeOrganizationSession({ ownershipOffered: true, ownerUsername: 'olivia.owner' })
+	});
+
+	const last = groups().at(-1)!;
+	const rows = [...last.querySelectorAll<HTMLElement>('[data-settings-row]')];
+
+	expect(groups()).toHaveLength(5);
+	expect(last.closest('[data-sign-out]')).not.toBeNull();
+	expect(rows.map(rowName)).toEqual([en.settings.you.thisMachine.signOut]);
+	expect(rows[0].dataset.rowTone).toBe('error');
+	expect(rows[0].querySelector('[data-slot=item-media] svg')).not.toBeNull();
+	expect(last.textContent).toContain(en.settings.you.thisMachine.description);
+});
+
+// requirement 2: signing this machine out is undone by signing in, so it asks nothing first and
+// goes straight to the shell, the way the rail's menu does.
+test('signing out of this machine asks the shell at once, with no confirmation', async () => {
+	at('?section=account');
+	area({ section: 'account' });
+
+	let asked = 0;
+	const stop = listenForSignOut(() => {
+		asked += 1;
+	});
+
+	await fireEvent.click(screen.getByRole('button', { name: en.settings.you.thisMachine.signOut }));
+	stop();
+
+	expect(asked).toBe(1);
+	expect(screen.queryByRole('alertdialog')).toBeNull();
+	expect(screen.queryByRole('dialog')).toBeNull();
+});
+
+// requirements 1, 2 and 5, criteria 1, 2 and 5 for the account section, with an offer standing so
+// every group is drawn: every row leads with a glyph and has a name; within a group the buttons
+// all carry a glyph or none does; the error tone is only on a row that is the last of its group.
+test('every account row has a glyph and a name, and the buttons of a group agree on glyphs', () => {
+	at('?section=account');
+	area({
+		section: 'account',
+		session: fakeOrganizationSession({ ownershipOffered: true, ownerUsername: 'olivia.owner' })
+	});
+
+	const rows = [...document.querySelectorAll<HTMLElement>('[data-settings-row]')];
+
+	expect(rows.length).toBeGreaterThanOrEqual(5);
+
+	for (const row of rows) {
+		expect(row.querySelector('[data-slot=item-media] svg')).not.toBeNull();
+		expect(rowName(row)).toBeTruthy();
+	}
+
+	for (const group of groups()) {
+		const buttons = [...group.querySelectorAll('button')];
+		const withGlyph = buttons.filter((button) => button.querySelector('svg') !== null);
+
+		expect([0, buttons.length]).toContain(withGlyph.length);
+
+		const inGroup = [...group.querySelectorAll<HTMLElement>('[data-settings-row]')];
+
+		inGroup.forEach((row, index) => {
+			if (row.dataset.rowTone === 'error') expect(index).toBe(inGroup.length - 1);
+		});
+	}
+
+	expect(rows.filter((row) => row.dataset.rowTone === 'error').map(rowName)).toEqual([
+		en.settings.you.sessions.action,
+		en.settings.you.thisMachine.signOut
+	]);
 });
 
 test('the area carries one title, and it is the area rather than the section', () => {
@@ -820,8 +908,20 @@ test('the account section draws the offer and its acceptance for the member it s
 	// and it opens the section: it is the one block here waiting on a reply, and everything under
 	// it is a fact about this account that reads the same tomorrow.
 	expect(
-		orderOf('data-ownership-offer', 'data-identity', 'data-password', 'data-end-other-sessions')
-	).toEqual(['data-ownership-offer', 'data-identity', 'data-password', 'data-end-other-sessions']);
+		orderOf(
+			'data-ownership-offer',
+			'data-identity',
+			'data-password',
+			'data-end-other-sessions',
+			'data-sign-out'
+		)
+	).toEqual([
+		'data-ownership-offer',
+		'data-identity',
+		'data-password',
+		'data-end-other-sessions',
+		'data-sign-out'
+	]);
 
 	// nothing about a password is drawn until the act is pressed, the way the change-password row
 	// beside it works (requirement 8).

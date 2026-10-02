@@ -15,8 +15,9 @@ import { placeholderStrings as strings } from '$lib/design/tests/strings';
  *
  * Requirement 21 of the redesign: the block on the account page names the person by the one
  * username, with no address and no display name beside it; the role and the organization are
- * the two facts drawn under it, and the avatar is the first two characters of the username
- * upper-cased, as the rail's and the members list's are (requirement 24). Both locales.
+ * the two facts drawn beside it. Since effort 846 it is a settings group of one row, led by a
+ * glyph, and the way out is not in it: signing out is the account section's last group
+ * (requirement 8 of that effort). Both locales.
  *
  * The block is props and a session, no query and no client, so nothing here provides one.
  */
@@ -39,16 +40,17 @@ test('the block names the person by the username, the role and the organization,
 	block('sami.staff');
 
 	const identity = document.querySelector('[data-identity]')!;
+	const rows = identity.querySelectorAll('[data-settings-row]');
 
-	expect(identity.querySelector('[data-identity-username]')?.textContent?.trim()).toBe(
-		'sami.staff'
-	);
+	expect(screen.getByRole('region', { name: en.settings.you.signedInAs })).toBeDefined();
+	expect(rows).toHaveLength(1);
+	expect(rows[0].querySelector('[data-slot=item-title]')?.textContent?.trim()).toBe('sami.staff');
+	expect(rows[0].querySelector('[data-slot=item-media] svg')).not.toBeNull();
 	expect(screen.getByText(en.layout.signIn.roleManager)).toBeDefined();
 	expect(screen.getByText('Acme Rentals')).toBeDefined();
 	expect(identity.textContent).not.toContain('@');
-	expect(identity.querySelectorAll('[data-identity-username]')).toHaveLength(1);
-	expect(document.querySelector('[data-slot="avatar-fallback"]')?.textContent?.trim()).toBe('SA');
-	expect(screen.getByRole('button', { name: en.common.actions.signOut })).toBeDefined();
+	// the way out is the section's last group, not a button beside the name.
+	expect(screen.queryByRole('button')).toBeNull();
 });
 
 test('and in arabic, the same username under the role in its own words', () => {
@@ -56,10 +58,11 @@ test('and in arabic, the same username under the role in its own words', () => {
 	setLocale('ar');
 	block('lina_h', 'rtl');
 
-	expect(document.querySelector('[data-identity-username]')?.textContent?.trim()).toBe('lina_h');
+	expect(
+		document.querySelector('[data-identity] [data-slot=item-title]')?.textContent?.trim()
+	).toBe('lina_h');
 	expect(screen.getByText(ar.layout.signIn.roleManager)).toBeDefined();
-	expect(document.querySelector('[data-slot="avatar-fallback"]')?.textContent?.trim()).toBe('LI');
-	expect(screen.getByRole('button', { name: ar.common.actions.signOut })).toBeDefined();
+	expect(screen.getByRole('region', { name: ar.settings.you.signedInAs })).toBeDefined();
 
 	setLocale('en');
 });

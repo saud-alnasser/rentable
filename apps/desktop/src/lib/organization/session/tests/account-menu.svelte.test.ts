@@ -7,6 +7,7 @@ import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import AccountMenu from '$lib/organization/session/component/account-menu.svelte';
 import { fakeOrganizationSession } from '$lib/organization/tests/testing.ts';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
+import { listenForSignOut } from '$lib/sync';
 
 import RailProviders from '$lib/shell/tests/rail-providers.svelte';
 
@@ -142,4 +143,23 @@ test('the way out is cased like the settings row beside it', async () => {
 
 	expect(settings?.className).toContain('capitalize');
 	expect(label(en.common.actions.signOut)?.className).toBe(settings?.className);
+});
+
+// effort 846, ticket 03: the account section gained its own way out, and the rail's stayed what it
+// was. Choosing it asks the shell to sign out, with nothing in front of it.
+test('the way out asks the shell to sign out, and asks nothing first', async () => {
+	menu('ada.lovelace');
+	await open();
+
+	let asked = 0;
+	const stop = listenForSignOut(() => {
+		asked += 1;
+	});
+
+	await fireEvent.click(screen.getByRole('menuitem', { name: en.common.actions.signOut }));
+	stop();
+
+	expect(asked).toBe(1);
+	expect(screen.queryByRole('alertdialog')).toBeNull();
+	expect(screen.queryByRole('dialog')).toBeNull();
 });

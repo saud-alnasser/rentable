@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [01]
 ---
 
@@ -17,9 +17,9 @@ The account section is drawn on the shared blocks in the order requirement 8 giv
 
 Traces requirements 1, 2 and 8, and criteria 1, 2 and 8 for the account section.
 
-- [ ] Account's groups appear in the order of requirement 8, with sign out of this machine last, in the error tone, with its icon, and opening no confirmation.
-- [ ] Every row has an icon and a name; within each group buttons all carry an svg or none do.
-- [ ] The rail's account menu still signs out, and its behaviour is unchanged.
+- [x] Account's groups appear in the order of requirement 8, with sign out of this machine last, in the error tone, with its icon, and opening no confirmation. *Verified: `vitest run app/tests/settings-area.svelte.test.ts organization/session/tests` printed 4 files, 48 passed: the order assertions end in `data-sign-out`; the last of five groups holds one error-toned row with an svg; its press fires the sign-out once and opens no dialog.*
+- [x] Every row has an icon and a name; within each group buttons all carry an svg or none do. *Verified: the same run: every `[data-settings-row]` has an svg and a name, each group's buttons agree on svgs, and error rows are last in their group.*
+- [x] The rail's account menu still signs out, and its behaviour is unchanged. *Verified: the same run: the unmodified rail account menu's sign-out item fires the event once and opens no dialog.*
 
 ## Relevant areas
 

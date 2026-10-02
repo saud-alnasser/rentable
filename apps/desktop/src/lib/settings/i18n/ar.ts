@@ -84,7 +84,12 @@ export const settings = {
 		},
 		ownership: {
 			title: 'الملكية',
-			offered: 'عرض عليك {owner} هذه المؤسسة. إن قبلتها صرت المالك وصار هو مديرًا.'
+			offeredBy: 'عرضها عليك {owner}',
+			consequence: 'إن قبلتها صرت المالك وصار هو مديرًا.'
+		},
+		thisMachine: {
+			signOut: 'سجّل الخروج من هذا الجهاز',
+			description: 'تبقى المؤسسة على هذا الجهاز. سجّل الدخول مرة أخرى لتكمل.'
 		}
 	}
 } satisfies Translation['settings'];

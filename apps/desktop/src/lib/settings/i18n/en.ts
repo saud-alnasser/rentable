@@ -83,11 +83,16 @@ export const settings = {
 				'this machine is offline; the sign-out reaches the others once it is back online.'
 		},
 		// requirement 22: drawn for the one person an offer stands with, and absent for
-		// everybody else. One sentence naming who offered it, and the act.
+		// everybody else. A row naming who offered it, the act, and what accepting changes.
 		ownership: {
 			title: 'ownership',
-			offered:
-				'{owner:string} has offered you this organization. accepting makes you the owner and makes them a manager.'
+			offeredBy: 'offered by {owner:string}',
+			consequence: 'accepting makes you the owner and makes them a manager.'
+		},
+		// effort 846, requirement 8: the last group of the section, and the one way out of it.
+		thisMachine: {
+			signOut: 'sign out of this machine',
+			description: 'the organization stays on this machine. sign in again to carry on.'
 		}
 	}
 } satisfies BaseTranslation;
