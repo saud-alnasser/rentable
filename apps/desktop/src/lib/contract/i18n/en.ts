@@ -5,6 +5,11 @@
 import type { BaseTranslation } from '../../i18n/i18n-types';
 
 export const contracts = {
+	// a contract's card in a grid: a count carries its word, so it is never a bare figure.
+	card: {
+		payments: '{count|number} {{payment|payments}}'
+	},
+
 	empty: {
 		description: 'contracts you create will be listed here, those needing attention first.',
 		title: 'no contracts yet'

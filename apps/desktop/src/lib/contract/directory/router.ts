@@ -4,6 +4,7 @@ import {
 	type RecordMatch
 } from '$lib/platform/database/search';
 import * as s from '$lib/platform/database/schema';
+import type { Database } from '$lib/api/context';
 import { procedure, router } from '$lib/api/trpc';
 import {
 	CONTRACT_ATTENTION_ORDER,
@@ -77,6 +78,31 @@ const contractStatusOrder = sql.join(
 const contractPaymentCount = sql<number>`(
 	select count(*) from ${s.payment} where ${s.payment.contractId} = ${s.contract.id}
 )`;
+
+// The names of the units each contract holds, as one row per contract the list joins rather than a
+// read per card: grouped before the join, so a contract holding three units is still one row and
+// the list's ordering sees exactly the rows it saw without it. Built per read, because the
+// database handle is the request's.
+//
+// The names leave as a JSON array rather than a joined string, so a comma in a unit's name cannot
+// split it in two; the card joins them with the reader's own list separator.
+const heldUnitNames = (db: Database) =>
+	db
+		.select({
+			contractId: s.contractUnit.contractId,
+			names: sql<string>`json_group_array(${s.unit.name})`.as('unit_names')
+		})
+		.from(s.contractUnit)
+		.innerJoin(s.unit, eq(s.unit.id, s.contractUnit.unitId))
+		.groupBy(s.contractUnit.contractId)
+		.as('held_units');
+
+// the order a reader counts units in: Room 2 before Room 10, which a plain comparison of the
+// text puts the other way round.
+const unitNameOrder = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+
+const toUnitNames = (names: string | null): string[] =>
+	names === null ? [] : (JSON.parse(names) as string[]).sort(unitNameOrder.compare);
 
 // Whether the contract has the given unit assigned to it, as an EXISTS rather than a join:
 // joining the assignment table would multiply a contract holding several units into one row
@@ -284,19 +310,30 @@ export default router({
 				? getContractRankBounds(input.rank, now, endingSoonNoticeDays)
 				: undefined;
 			// a row carries its tenant only to a member who may view tenants, and its count of
-			// payments only to one who may view payments (effort 838, requirement 10).
+			// payments only to one who may view payments (effort 838, requirement 10); the names of
+			// the units it holds only to one who may view units (effort 846, requirement 19).
 			const viewsTenant = permits(ctx.identity.permissions, 'viewTenant');
 			const viewsPayment = permits(ctx.identity.permissions, 'viewPayment');
+			const viewsUnit = permits(ctx.identity.permissions, 'viewUnit');
 
-			const contracts = await ctx.db
+			// a member who may not view units is not read them at all, rather than read them and
+			// have them dropped: what is not selected cannot reach the row by mistake.
+			const held = heldUnitNames(ctx.db);
+			const read = ctx.db
 				.select({
 					contract: s.contract,
 					tenantName: s.tenant.name,
 					tenantPhone: s.tenant.phone,
-					paymentCount: contractPaymentCount.as('paymentCount')
+					paymentCount: contractPaymentCount.as('paymentCount'),
+					unitNames: viewsUnit ? held.names : sql<null>`null`.as('unit_names')
 				})
 				.from(s.contract)
 				.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id))
+				.$dynamic();
+
+			const contracts = await (
+				viewsUnit ? read.leftJoin(held, eq(held.contractId, s.contract.id)) : read
+			)
 				.where(
 					and(
 						input.tenantId !== undefined ? eq(s.contract.tenantId, input.tenantId) : undefined,
@@ -308,17 +345,19 @@ export default router({
 				)
 				.orderBy(...contractOrderBy(input.sort, viewsTenant));
 
-			const listed = contracts.map(({ contract, tenantName, tenantPhone, paymentCount }) =>
-				withRank(
-					{
-						...(viewsTenant
-							? serializeContract(contract, tenantName, tenantPhone)
-							: serializeContract(contract)),
-						...(viewsPayment ? { paymentCount } : {})
-					},
-					now,
-					endingSoonNoticeDays
-				)
+			const listed = contracts.map(
+				({ contract, tenantName, tenantPhone, paymentCount, unitNames }) =>
+					withRank(
+						{
+							...(viewsTenant
+								? serializeContract(contract, tenantName, tenantPhone)
+								: serializeContract(contract)),
+							...(viewsPayment ? { paymentCount } : {}),
+							...(viewsUnit ? { unitNames: toUnitNames(unitNames) } : {})
+						},
+						now,
+						endingSoonNoticeDays
+					)
 			);
 
 			if (!input.rank) {

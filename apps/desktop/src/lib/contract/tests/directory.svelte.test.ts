@@ -75,11 +75,8 @@ const directory = () =>
 /** the card's link, whose name is what the card leads with. */
 const card = () => document.querySelector<HTMLAnchorElement>('a[href$="/contracts/contract-1"]');
 
-/** what a screen reader hears of each count on the rows. */
-const figures = () =>
-	[...document.querySelectorAll('.sr-only')]
-		.map((figure) => figure.textContent?.trim() ?? '')
-		.filter((said) => /: \d+$/.test(said));
+/** the card's count of payments, which is drawn only above zero. */
+const paymentCount = () => document.querySelector<HTMLElement>('[data-payment-count]');
 
 const offeredOrders = async () => {
 	await fireEvent.click(document.querySelector<HTMLElement>('[data-sort-control]')!);
@@ -100,7 +97,7 @@ test('a row carrying its tenant and its payments leads with the tenant and count
 
 	expect(card()?.getAttribute('aria-label') ?? card()?.textContent).toContain('Noura');
 	expect(document.body.textContent).toContain('4471');
-	expect(figures()).toContain(`${en.common.nav.payments}: 2`);
+	expect(paymentCount()?.textContent?.trim()).toBe('2 payments');
 	expect(await offeredOrders()).toContain(en.common.labels.tenant);
 });
 
@@ -118,6 +115,60 @@ test('without viewing tenants or payments, a row leads with its reference, names
 	expect(said.split('4471')).toHaveLength(2);
 	expect(said).not.toContain('Noura');
 	expect(said.toLowerCase()).not.toContain(en.common.labels.tenant);
-	expect(figures()).toEqual([]);
+	expect(paymentCount()).toBeNull();
 	expect(await offeredOrders()).not.toContain(en.common.labels.tenant);
+});
+
+// --- The tile (effort 846, requirements 18 and 19) ----------------------------------------
+
+test('a contract is a tile: its status carries its word, every fact its icon, and it names its units', async () => {
+	holdEveryFlagBut();
+	rows.current = [
+		{
+			...CONTRACT,
+			tenantName: 'Noura',
+			tenantPhone: '+966500000001',
+			paymentCount: 0,
+			unitNames: ['Room 2', 'Room 10']
+		}
+	];
+	directory();
+
+	await waitFor(() => expect(card()).not.toBeNull());
+
+	const tile = card()!.closest<HTMLElement>('[data-layout="tile"]');
+	expect(tile).not.toBeNull();
+
+	// the status reads as its word on a tile, beside its icon.
+	const status = tile!.querySelector<HTMLElement>('[data-status-labelled]');
+	expect(status?.textContent?.trim()).toBe(en.common.status.active);
+	expect(status?.querySelector('svg')).not.toBeNull();
+
+	// the reference, the dates and the units, each a line under its own icon.
+	const facts = [...tile!.querySelectorAll<HTMLElement>('[data-fact]')];
+	expect(facts.map((fact) => fact.textContent?.trim())).toEqual([
+		'4471',
+		expect.any(String),
+		'Room 2, Room 10'
+	]);
+	for (const fact of facts) {
+		expect(fact.querySelector('svg')).not.toBeNull();
+	}
+
+	// the money is read rather than hovered, and a count of nothing is not drawn.
+	expect(tile!.textContent).toContain('1,500');
+	expect(paymentCount()).toBeNull();
+});
+
+test('a tile counts its payments with their word, one in the singular', async () => {
+	holdEveryFlagBut();
+	rows.current = [{ ...CONTRACT, tenantName: 'Noura', paymentCount: 1, unitNames: [] }];
+	directory();
+
+	await waitFor(() => expect(card()).not.toBeNull());
+
+	expect(paymentCount()?.textContent?.trim()).toBe('1 payment');
+	expect(paymentCount()?.querySelector('svg')).not.toBeNull();
+	// a contract holding no units, or answered without them, draws no units line.
+	expect(document.querySelectorAll('[data-fact]')).toHaveLength(2);
 });

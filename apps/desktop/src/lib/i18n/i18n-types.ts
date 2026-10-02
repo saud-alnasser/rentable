@@ -2797,6 +2797,13 @@ type RootTranslation = {
 		}
 	}
 	contracts: {
+		card: {
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​p​a​y​m​e​n​t​|​p​a​y​m​e​n​t​s​}​}
+			 * @param {string | number | boolean} count
+			 */
+			payments: RequiredParams<'count|number'>
+		}
 		empty: {
 			/**
 			 * c​o​n​t​r​a​c​t​s​ ​y​o​u​ ​c​r​e​a​t​e​ ​w​i​l​l​ ​b​e​ ​l​i​s​t​e​d​ ​h​e​r​e​,​ ​t​h​o​s​e​ ​n​e​e​d​i​n​g​ ​a​t​t​e​n​t​i​o​n​ ​f​i​r​s​t​.
@@ -7457,6 +7464,12 @@ export type TranslationFunctions = {
 		}
 	}
 	contracts: {
+		card: {
+			/**
+			 * {count|number} {{payment|payments}}
+			 */
+			payments: (arg: { count: string | number | boolean }) => LocalizedString
+		}
 		empty: {
 			/**
 			 * contracts you create will be listed here, those needing attention first.

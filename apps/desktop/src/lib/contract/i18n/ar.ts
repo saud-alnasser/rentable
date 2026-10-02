@@ -7,6 +7,12 @@
 import type { Translation } from '../../i18n/i18n-types';
 
 export const contracts = {
+	// with a figure before it, Arabic counts with the singular after one, two and from eleven, and
+	// with the plural from three to ten.
+	card: {
+		payments: '{count|number} {{دفعة|دفعة|دفعة|دفعات|دفعة|دفعة}}'
+	},
+
 	empty: {
 		description: 'ستظهر هنا العقود التي تنشئها، وأولها ما يحتاج إلى متابعة.',
 		title: 'لا توجد عقود بعد'
