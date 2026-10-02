@@ -8,7 +8,6 @@
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { Separator } from '@rentable/design/primitive/separator/index.js';
-	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import { CreateControl } from '$lib/create/ui';
 	import { toCardActions } from '$lib/act';
 	import type { ListSort } from '@rentable/design/sort.js';
@@ -22,6 +21,12 @@
 	import EarlierRecords from './app-database-records.svelte';
 	import DiscIcon from '$lib/design/cell/disc.svelte';
 	import XIcon from '@lucide/svelte/icons/x';
+	import UsersIcon from '@lucide/svelte/icons/users';
+	import CrownIcon from '@lucide/svelte/icons/crown';
+	import PencilIcon from '@lucide/svelte/icons/pencil';
+	import EyeIcon from '@lucide/svelte/icons/eye';
+	import UserCogIcon from '@lucide/svelte/icons/user-cog';
+	import { permits, WRITE_FLAGS } from '@rentable/workspace-permission';
 
 	/**
 	 * The workspaces of the organization, as a directory of record cards, and the file that moves
@@ -33,15 +38,22 @@
 	 * actions*). *It was a row with a cluster of glyphs revealed on hover until this ticket, which
 	 * is what the human met in the running build and asked to be cards instead.*
 	 *
-	 * **A card says two things, and marks one**: the name, how many people hold the workspace, and
-	 * a solid disc before the name of the one open on this machine, whose word reaches the reader
-	 * on hover and through its accessible name ([[rules/interface]], *Status presentation*). The
-	 * disc is the mark this application already draws for something live, in the tone the status
-	 * treatment gives that, and the rail's switcher marks its open row the same way round: the mark
-	 * carries no visible text. *The card carried the open word as a badge and this reader's access
-	 * as a line of its own until the human's look at this directory: the shell says which workspace
-	 * is open at the top of every screen, and what each person holds is the surface the card's menu
-	 * opens rather than a fact about the card.*
+	 * **A card is a tile: the name on its heading line, and its facts beneath, one to a line, each
+	 * with its icon** ([[rules/interface]], *List presentation*). The one open on this machine says
+	 * so in words, *open on this machine*, after the solid disc this application draws for
+	 * something live; every card says how many people hold it, after `users`; and every card says
+	 * what the reader may do there, from the session's own entry for that workspace, worded as what
+	 * they may do: *owner*, *you may read* where the grant is read only or nothing the reader holds
+	 * there writes, *set for you* where something is pinned for them there, and *you may edit*
+	 * otherwise. Never *full access* or *no access*, which the member's card does not say either.
+	 * *Effort 843 took the open word and the access line off the card, leaving the disc alone, and
+	 * this reverses it at the human's choice of 2026-10-02 (effort 846, requirement 16): a card
+	 * read on its own has to say which one is here and what it lets the reader do, without the
+	 * shell's header beside it.*
+	 *
+	 * **The heading takes the settings group's treatment, and the tray and the cards stay**
+	 * (effort 846, requirement 1): the directory is not a group of rows, so only its title reads as
+	 * one.
 	 *
 	 * **Activating a card opens its record** ([[rules/interface]], *Row activation*). A workspace
 	 * has no page, so what opening one means is that workspace's edit, and the card's `href` is
@@ -99,6 +111,7 @@
 		canDelete,
 		canRename,
 		canGrantWorkspace,
+		isOwner,
 		refusal
 	}: {
 		/** the workspaces this member holds a grant on, which is what the session carries. */
@@ -115,6 +128,8 @@
 		canRename: boolean;
 		/** whether the reader's row carries `grantWorkspace`. */
 		canGrantWorkspace: boolean;
+		/** whether the reader owns the organization, which is what every card then says they are. */
+		isOwner: boolean;
 		/**
 		 * why there is no create control, for an owner whose machine lost the Turso authority;
 		 * `null` for the owner who holds it and for everybody else, who is offered nothing and
@@ -136,6 +151,29 @@
 		members.filter((member) => member.workspaces.some((held) => held.id === workspaceId)).length;
 
 	const open = $derived(workspaces.find((workspace) => workspace.id === openWorkspaceId) ?? null);
+
+	/**
+	 * what the reader may do in a workspace, read off the session's own entry for it. The owner
+	 * first, since nothing is pinned or withheld from them; then a read-only grant; then anything
+	 * pinned for the reader there; then whether anything they hold there writes at all, so a role
+	 * that only views reads *you may read* under a full grant rather than an edit it cannot make.
+	 */
+	const accessOf = (workspace: OrganizationWorkspace) => {
+		if (isOwner)
+			return { kind: 'owner', word: $LL.organization.dashboard.workspaceYouOwn(), icon: CrownIcon };
+		if (workspace.accessLevel === 'read-only')
+			return { kind: 'read', word: $LL.organization.dashboard.workspaceYouRead(), icon: EyeIcon };
+		if (workspace.pinned !== 0)
+			return {
+				kind: 'pinned',
+				word: $LL.organization.dashboard.workspaceSetForYou(),
+				icon: UserCogIcon
+			};
+		if (!WRITE_FLAGS.some((flag) => permits(workspace.permissions, flag)))
+			return { kind: 'read', word: $LL.organization.dashboard.workspaceYouRead(), icon: EyeIcon };
+
+		return { kind: 'edit', word: $LL.organization.dashboard.workspaceYouEdit(), icon: PencilIcon };
+	};
 
 	let search = $state('');
 	// the empty treatment at a settings section's size: a directory here is one block among
@@ -216,6 +254,7 @@
 	<DirectoryTray
 		legendId="workspaces-legend"
 		legend={$LL.settings.section.workspaces()}
+		grouped
 		description={$LL.organization.dashboard.workspacesDescription()}
 		bind:search
 		count={shown.length}
@@ -254,53 +293,49 @@
 					href={addressOf(workspace.id)}
 					label={workspace.name}
 					actions={toCardActions(workspaceActs, recordOfWorkspace(workspace), $LL)}
-					class="gap-4 py-3"
+					layout="tile"
 				>
+					{#snippet heading()}
+						<span class="truncate text-sm font-medium" data-workspace-name>
+							<bdi>{workspace.name}</bdi>
+						</span>
+					{/snippet}
+
 					{#snippet content()}
-						<div class="pointer-events-none relative flex min-w-0 flex-1 flex-col gap-1 text-start">
-							<div class="flex min-w-0 items-center gap-2">
-								<!-- the one open here, as a disc before its name, in the rail's own word for
-								     it: a reader meets the same word in the switcher and here. It is the
-								     mark and the tone this application gives something live, and it carries
-								     no visible text, so a directory of five workspaces reads as five names
-								     with one of them marked rather than as a column of labels
-								     ([[rules/interface]], *Status presentation*). `pointer-events-auto` for
-								     the reason the count cell carries it: the card lays its link over its
-								     content, and the tooltip has to be reachable through it. -->
-								{#if workspace.id === openWorkspaceId}
-									<Tooltip.Root>
-										<Tooltip.Trigger>
-											{#snippet child({ props })}
-												<span
-													{...props}
-													class="pointer-events-auto flex shrink-0 items-center text-primary"
-													data-workspace-open={workspace.id}
-												>
-													<DiscIcon class="size-4" aria-hidden="true" />
-													<span class="sr-only">{$LL.layout.workspaceMenu.open()}</span>
-												</span>
-											{/snippet}
-										</Tooltip.Trigger>
-										<Tooltip.Content side="top" sideOffset={6}>
-											{$LL.layout.workspaceMenu.open()}
-										</Tooltip.Content>
-									</Tooltip.Root>
-								{/if}
+						{@const access = accessOf(workspace)}
+						<!-- the facts, one to a line and each after its icon, the way a tile reads. The
+						     open one leads, in the disc the rail's switcher marks it with and the words
+						     that say what the disc means, so neither has to be learned. -->
+						<ul class="pointer-events-none relative flex min-w-0 flex-col gap-1 text-xs">
+							{#if workspace.id === openWorkspaceId}
+								<li
+									class="flex min-w-0 items-center gap-2 font-medium text-foreground"
+									data-workspace-open={workspace.id}
+								>
+									<DiscIcon class="size-3.5 shrink-0 text-primary" aria-hidden="true" />
+									<span class="truncate">{$LL.organization.dashboard.workspaceOpenHere()}</span>
+								</li>
+							{/if}
 
-								<span class="truncate text-sm font-medium" data-workspace-name>
-									<bdi>{workspace.name}</bdi>
-								</span>
-							</div>
-
-							<!-- how many people are in it, the one line the rail's own header carries under
-							     the same name. What each of them holds is the surface the menu opens. -->
-							<span
-								class="truncate text-xs text-muted-foreground"
+							<li
+								class="flex min-w-0 items-center gap-2 text-muted-foreground"
 								data-workspace-members={workspace.id}
 							>
-								{$LL.layout.workspaceMenu.members({ count: memberCount(workspace.id) })}
-							</span>
-						</div>
+								<UsersIcon class="size-3.5 shrink-0" aria-hidden="true" />
+								<span class="truncate">
+									{$LL.layout.workspaceMenu.members({ count: memberCount(workspace.id) })}
+								</span>
+							</li>
+
+							<li
+								class="flex min-w-0 items-center gap-2 text-muted-foreground"
+								data-workspace-access={workspace.id}
+								data-access={access.kind}
+							>
+								<access.icon class="size-3.5 shrink-0" aria-hidden="true" />
+								<span class="truncate">{access.word}</span>
+							</li>
+						</ul>
 					{/snippet}
 				</RecordCard>
 			</div>

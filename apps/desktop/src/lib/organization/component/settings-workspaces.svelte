@@ -48,6 +48,7 @@
 			members={membersQuery.data ?? []}
 			{...workspaceContextOf(session, syncQuery.data?.workspace.remoteId ?? null)}
 			canCreate={canCreateWorkspace}
+			{isOwner}
 			refusal={needsAuthority ? $LL.layout.workspaceMenu.workspaceRefusedAuthority() : null}
 		/>
 	</Field.Group>

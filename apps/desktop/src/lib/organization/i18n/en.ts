@@ -123,6 +123,14 @@ export const organization = {
 		// then what this section is for.
 		workspacesDescription:
 			'every workspace in the organization. workspaces are made and changed here.',
+		// what a workspace card says beyond its name (effort 846, requirement 16): that it is the
+		// one open on this machine, and what the reader may do there, as what they may do rather
+		// than as a level of access, which the member's card never names either.
+		workspaceOpenHere: 'open on this machine',
+		workspaceYouOwn: 'owner',
+		workspaceYouEdit: 'you may edit',
+		workspaceYouRead: 'you may read',
+		workspaceSetForYou: 'set for you',
 		// the one line a card carries about where an account stands. It is a fact about the
 		// account and nothing follows from it: a link is offered whichever of the three it says.
 		standingNoPassword: 'no password yet',

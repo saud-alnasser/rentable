@@ -3682,6 +3682,26 @@ type RootTranslation = {
 			 */
 			workspacesDescription: string
 			/**
+			 * o​p​e​n​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e
+			 */
+			workspaceOpenHere: string
+			/**
+			 * o​w​n​e​r
+			 */
+			workspaceYouOwn: string
+			/**
+			 * y​o​u​ ​m​a​y​ ​e​d​i​t
+			 */
+			workspaceYouEdit: string
+			/**
+			 * y​o​u​ ​m​a​y​ ​r​e​a​d
+			 */
+			workspaceYouRead: string
+			/**
+			 * s​e​t​ ​f​o​r​ ​y​o​u
+			 */
+			workspaceSetForYou: string
+			/**
 			 * n​o​ ​p​a​s​s​w​o​r​d​ ​y​e​t
 			 */
 			standingNoPassword: string
@@ -8127,6 +8147,26 @@ export type TranslationFunctions = {
 			 * every workspace in the organization. workspaces are made and changed here.
 			 */
 			workspacesDescription: () => LocalizedString
+			/**
+			 * open on this machine
+			 */
+			workspaceOpenHere: () => LocalizedString
+			/**
+			 * owner
+			 */
+			workspaceYouOwn: () => LocalizedString
+			/**
+			 * you may edit
+			 */
+			workspaceYouEdit: () => LocalizedString
+			/**
+			 * you may read
+			 */
+			workspaceYouRead: () => LocalizedString
+			/**
+			 * set for you
+			 */
+			workspaceSetForYou: () => LocalizedString
 			/**
 			 * no password yet
 			 */

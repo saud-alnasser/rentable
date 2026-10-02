@@ -37,11 +37,11 @@ import HostProviders from '$lib/organization/tests/host-providers.svelte';
  * cards. *It was a row with a cluster of glyphs revealed on hover until this ticket, which is what
  * the human met in the running build.*
  *
- * **What a card carries** is the name and how many people hold the workspace, with a disc before
- * the name of the one open on this machine. The disc carries no visible text, so what is read here
- * is its accessible name, the way every other mark of this kind is read ([[rules/interface]],
- * *Status presentation*). *The card carried the open word as a badge and this reader's access as a
- * line of its own until the human's look at this directory.*
+ * **What a card carries** is the name on its heading line and its facts beneath: *open on this
+ * machine* after the disc on the one open here, how many people hold the workspace, and what the
+ * reader may do there, worded as what they may do (effort 846, requirement 16 and criterion 16).
+ * *Effort 843 took the open word and the access line off the card, leaving the disc alone; the
+ * human brought both back on 2026-10-02.*
  *
  * **What a card offers** is drawn from the props alone, and an act the reader does not hold is
  * absent from the menu rather than disabled in it. Every act is read by opening the card's one
@@ -200,6 +200,7 @@ const list = (
 			canDelete: true,
 			canRename: true,
 			canGrantWorkspace: true,
+			isOwner: true,
 			refusal: null,
 			...overrides
 		},
@@ -296,32 +297,128 @@ test('one card is drawn per workspace, carrying its name and how many hold it', 
 	expect(card('ws-1')?.textContent).not.toContain('turso.io');
 });
 
-// the human's look at this directory: the shell says which workspace is open at the top of every
-// screen, so the card marks it once and quietly, and what somebody holds is the surface the menu
-// opens rather than a line on the card.
-test('the open one is marked by a disc carrying its word, and no card says an access', () => {
-	list();
+// effort 846, criterion 16: the open one says so in words after its disc, on that card alone.
+test('the open one says it is open on this machine, after its disc, and no other card does', () => {
+	const drawn = list();
 
-	// the mark is on the one open here, and on no other card.
 	expect(document.querySelectorAll('[data-workspace-open]')).toHaveLength(1);
 
-	const mark = on('open', 'ws-1')!;
+	const said = on('open', 'ws-1')!;
 
-	// no visible text: a glyph, and the word read out and shown on hover.
-	expect(mark.querySelector('svg')).not.toBeNull();
-	expect(mark.textContent?.trim()).toBe(en.layout.workspaceMenu.open);
-	expect(mark.querySelector('.sr-only')?.textContent?.trim()).toBe(en.layout.workspaceMenu.open);
+	expect(said.textContent?.trim()).toBe(en.organization.dashboard.workspaceOpenHere);
+	expect(said.querySelector('svg')).not.toBeNull();
+	expect(card('ws-1')!.contains(said)).toBe(true);
+	expect(card('ws-2')?.textContent).not.toContain(en.organization.dashboard.workspaceOpenHere);
 
-	// and it stands before the name it marks.
-	const name = card('ws-1')!.querySelector('[data-workspace-name]')!;
+	// nothing open on this machine, and no card says it is.
+	drawn.unmount();
+	list({ openWorkspaceId: null });
 
-	expect(mark.compareDocumentPosition(name) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+	expect(document.querySelector('[data-workspace-open]')).toBeNull();
+	expect(document.body.textContent).not.toContain(en.organization.dashboard.workspaceOpenHere);
+});
 
-	// no access on any card, in either of the words it could be said in.
-	expect(document.querySelector('[data-workspace-access]')).toBeNull();
+// effort 846, criterion 16: every card counts who holds it, after the members' icon.
+test('every card says how many hold it, after its icon', () => {
+	list();
+
+	for (const [id, count] of [
+		['ws-1', 3],
+		['ws-2', 1]
+	] as const) {
+		const fact = on('members', id)!;
+
+		expect(fact.textContent?.trim(), id).toBe(memberCount(count));
+		expect(fact.querySelector('svg'), id).not.toBeNull();
+	}
+});
+
+/** the access line a card draws, as the kind it is marked with and the words it says. */
+const accessOn = (id: string) => {
+	const fact = on('access', id);
+
+	return fact && { kind: fact.getAttribute('data-access'), word: fact.textContent?.trim() };
+};
+
+/** one workspace the reader holds, on the first fixture's facts. */
+const held = (overrides: Partial<OrganizationWorkspace>): OrganizationWorkspace => ({
+	...workspaces[0],
+	...overrides
+});
+
+// effort 846, criterion 16: what the reader may do there, in the words of what they may do, and
+// never the level of a grant.
+test('every card says what the reader may do there: owner, edit, read or set for them', () => {
+	const owner = list();
+
 	for (const id of ['ws-1', 'ws-2']) {
-		expect(card(id)?.textContent, id).not.toContain(en.organization.dashboard.accessFull);
-		expect(card(id)?.textContent, id).not.toContain('read only');
+		expect(accessOn(id), id).toEqual({
+			kind: 'owner',
+			word: en.organization.dashboard.workspaceYouOwn
+		});
+		expect(on('access', id)?.querySelector('svg'), id).not.toBeNull();
+	}
+
+	owner.unmount();
+
+	// a member: a full grant they write under, a read-only one, one with something pinned for
+	// them, and a full grant under a role that writes nothing.
+	list({
+		isOwner: false,
+		workspaces: [
+			held({ id: 'full', name: 'Full', permissions: BUILT_IN.member.mask }),
+			held({
+				id: 'read',
+				name: 'Read',
+				accessLevel: 'read-only',
+				permissions: maskOf('viewTenant')
+			}),
+			held({
+				id: 'pinned',
+				name: 'Pinned',
+				pinned: maskOf('editTenant'),
+				permissions: BUILT_IN.member.mask - maskOf('editTenant')
+			}),
+			held({ id: 'views', name: 'Views', permissions: maskOf('viewTenant', 'viewUnit') })
+		]
+	});
+
+	expect(accessOn('full')).toEqual({
+		kind: 'edit',
+		word: en.organization.dashboard.workspaceYouEdit
+	});
+	expect(accessOn('read')).toEqual({
+		kind: 'read',
+		word: en.organization.dashboard.workspaceYouRead
+	});
+	expect(accessOn('pinned')).toEqual({
+		kind: 'pinned',
+		word: en.organization.dashboard.workspaceSetForYou
+	});
+	expect(accessOn('views')).toEqual({
+		kind: 'read',
+		word: en.organization.dashboard.workspaceYouRead
+	});
+	for (const id of ['full', 'read', 'pinned', 'views']) {
+		expect(on('access', id)?.querySelector('svg'), id).not.toBeNull();
+	}
+});
+
+// effort 846, criterion 16 and the interface rule's member card: the level of a grant is never the
+// words a card says, for any reader.
+test('no card says full access or no access', () => {
+	for (const isOwner of [true, false]) {
+		const drawn = list({ isOwner });
+
+		for (const id of ['ws-1', 'ws-2']) {
+			const said = card(id)?.textContent?.toLowerCase() ?? '';
+
+			expect(said, id).not.toContain('full access');
+			expect(said, id).not.toContain('no access');
+			expect(said, id).not.toContain(en.organization.dashboard.accessFull);
+		}
+
+		drawn.unmount();
 	}
 });
 
@@ -333,6 +430,8 @@ test('the section says what it is for, in the tray above the cards', () => {
 	const tray = document.querySelector('[data-directory-tray]')!;
 
 	expect(tray.querySelector('legend')?.textContent?.trim()).toBe(en.settings.section.workspaces);
+	// effort 846, requirement 1: the heading reads as a settings group's title.
+	expect(tray.querySelector('legend')?.hasAttribute('data-directory-grouped')).toBe(true);
 	expect(tray.querySelector('[data-directory-description]')?.textContent?.trim()).toBe(
 		en.organization.dashboard.workspacesDescription
 	);
@@ -686,7 +785,8 @@ test('and in arabic every card reads in its own words, right to left', async () 
 			node.textContent?.trim()
 		)
 	).toEqual(['Riyadh', 'Jeddah']);
-	expect(on('open', 'ws-1')?.textContent?.trim()).toBe(ar.layout.workspaceMenu.open);
+	expect(on('open', 'ws-1')?.textContent?.trim()).toBe(ar.organization.dashboard.workspaceOpenHere);
+	expect(on('access', 'ws-1')?.textContent?.trim()).toBe(ar.organization.dashboard.workspaceYouOwn);
 	expect(document.querySelector('[data-directory-description]')?.textContent?.trim()).toBe(
 		ar.organization.dashboard.workspacesDescription
 	);

@@ -37,6 +37,12 @@
 	 * a create or the sentence that stands in its place, after the count and the order as the list
 	 * shell puts its own. A create is the one create control, last in the bar, where the list
 	 * shell's toolbar puts it too ([[rules/interface]], *Create*).
+	 *
+	 * **A directory heading may take the settings group's treatment** (`grouped`): the short muted
+	 * title a `settings-group` draws over its rows, with the sentence under it at the group's own
+	 * size, while the bar and the cards stay as they are (effort 846, requirement 1). The
+	 * workspaces directory takes it first, in ticket 7 of that effort; the members and roles
+	 * directories keep the legend until their own change moves them.
 	 */
 	let {
 		legendId,
@@ -48,7 +54,8 @@
 		sortOptions,
 		sort = $bindable(null),
 		narrowing,
-		action
+		action,
+		grouped = false
 	}: {
 		/** what the fieldset around the directory names in `aria-labelledby`. */
 		legendId: string;
@@ -73,12 +80,21 @@
 		narrowing?: Snippet;
 		/** what stands at the end of the bar, where the section has anything to put there. */
 		action?: Snippet;
+		/** whether the heading takes the settings group's title treatment rather than a legend's. */
+		grouped?: boolean;
 	} = $props();
 </script>
 
 <div data-directory-tray class="flex flex-col gap-3">
-	<div class="min-w-0">
-		<Field.Legend id={legendId}>{legend}</Field.Legend>
+	<div class={grouped ? 'flex min-w-0 flex-col gap-1 px-3' : 'min-w-0'}>
+		<!-- grouped, the legend reads as `settings-group`'s title: small, medium, muted. -->
+		<Field.Legend
+			id={legendId}
+			class={grouped
+				? 'mb-0 text-sm text-muted-foreground data-[variant=legend]:text-sm'
+				: undefined}
+			data-directory-grouped={grouped ? '' : undefined}>{legend}</Field.Legend
+		>
 		<Field.Description data-directory-description>{description}</Field.Description>
 	</div>
 
