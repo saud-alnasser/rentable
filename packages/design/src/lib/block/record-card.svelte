@@ -161,12 +161,19 @@
 	 * stays that concept's. **Each of them needs `pointer-events-none relative`**: without the
 	 * first, the content swallows the click that opens the record; without the second it sits
 	 * under the link rather than over it.
+	 *
+	 * **Two layouts.** A `row` is one line, the content then the control, and is what every list
+	 * one record wide draws. A `tile` is a column, for a list laid as a grid: a heading line holding
+	 * the `heading` snippet with the control at its end, then `content` as the facts below it, each
+	 * child a line of its own. The link over the card and both routes are the same in each.
 	 */
 	let {
 		href,
 		label,
 		actions,
 		content,
+		heading,
+		layout = 'row',
 		class: className
 	}: {
 		/** where the card opens, already resolved. */
@@ -175,8 +182,15 @@
 		label: string;
 		/** what the record offers. A card with none shows neither route. */
 		actions: RecordCardAction[];
-		/** the card's own content, as flex children. */
+		/** the card's own content, as flex children: a row's middle, or a tile's facts. */
 		content: Snippet;
+		/**
+		 * what a tile is read by, drawn on its first line before the control: the record's name and
+		 * its status, as the concept draws them. A row has no heading line and ignores it.
+		 */
+		heading?: Snippet;
+		/** a row, one line, or a tile, a heading line over the facts. A row unless a grid asks. */
+		layout?: 'row' | 'tile';
 		/** the card's own spacing, where it differs from the shared rhythm. */
 		class?: string;
 	} = $props();
@@ -193,11 +207,84 @@
 	{/if}
 {/snippet}
 
+{#snippet control()}
+	{#if actions.length > 0}
+		<div class="relative flex size-8 shrink-0 items-center justify-center">
+			<DropdownMenu.Root>
+				<DropdownMenu.Trigger>
+					{#snippet child({ props })}
+						<!-- tertiary, and deliberately quiet: the reader came for the record, so the control
+						     is discoverable without competing with what the card says (_Semantics are
+						     secondary_, 60). This is the only home for the treatment now: the two lists
+						     that carried their own copy of it read this block instead. -->
+						<Button
+							{...props}
+							variant="ghost"
+							size="icon-sm"
+							class="relative rounded-full bg-secondary p-0 transition-[background-color] hover:bg-accent"
+						>
+							<span class="sr-only">{contract.strings.openMenu}</span>
+							<EllipsisIcon class="size-4" />
+						</Button>
+					{/snippet}
+				</DropdownMenu.Trigger>
+
+				<DropdownMenu.Content align="end" class="min-w-[12rem]">
+					{#each actions as action, index (action.label)}
+						{#if opensGroup(actions, index)}
+							<DropdownMenu.Separator />
+						{/if}
+						{#if action.unavailable}
+							<Tooltip.Root>
+								<Tooltip.Trigger>
+									{#snippet child({ props: hint })}
+										<DropdownMenu.Item
+											{...asEntry(hint)}
+											variant={action.tone === 'error' ? 'destructive' : 'default'}
+											onSelect={refuse}
+											{...action.attributes}
+										>
+											{#snippet child({ props })}
+												<div
+													{...props}
+													{...unavailableEntry}
+													class={cn(props.class as string, unavailableLook)}
+												>
+													{@render entry(action)}
+												</div>
+											{/snippet}
+										</DropdownMenu.Item>
+									{/snippet}
+								</Tooltip.Trigger>
+								<Tooltip.Content side={reasonSide} sideOffset={8}>
+									{action.unavailable}
+								</Tooltip.Content>
+							</Tooltip.Root>
+						{:else}
+							<DropdownMenu.Item
+								variant={action.tone === 'error' ? 'destructive' : 'default'}
+								disabled={action.disabled}
+								onSelect={action.onSelect}
+								{...action.attributes}
+							>
+								{@render entry(action)}
+							</DropdownMenu.Item>
+						{/if}
+					{/each}
+				</DropdownMenu.Content>
+			</DropdownMenu.Root>
+		</div>
+	{/if}
+{/snippet}
+
 {#snippet card(triggerProps: Record<string, unknown>)}
 	<div
 		{...triggerProps}
+		data-layout={layout === 'tile' ? 'tile' : undefined}
 		class={cn(
-			'relative flex h-full items-center gap-3 px-4 hover:bg-muted/40',
+			layout === 'tile'
+				? 'relative flex h-full flex-col gap-2 p-4 hover:bg-muted/40'
+				: 'relative flex h-full items-center gap-3 px-4 hover:bg-muted/40',
 			recordCard,
 			className
 		)}
@@ -208,74 +295,22 @@
 			class="absolute inset-0 rounded-inherit focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
 		></a>
 
-		{@render content()}
-
-		{#if actions.length > 0}
-			<div class="relative flex size-8 shrink-0 items-center justify-center">
-				<DropdownMenu.Root>
-					<DropdownMenu.Trigger>
-						{#snippet child({ props })}
-							<!-- tertiary, and deliberately quiet: the reader came for the record, so the control
-							     is discoverable without competing with what the card says (_Semantics are
-							     secondary_, 60). This is the only home for the treatment now — the two lists
-							     that carried their own copy of it read this block instead. -->
-							<Button
-								{...props}
-								variant="ghost"
-								size="icon-sm"
-								class="relative rounded-full bg-secondary p-0 transition-[background-color] hover:bg-accent"
-							>
-								<span class="sr-only">{contract.strings.openMenu}</span>
-								<EllipsisIcon class="size-4" />
-							</Button>
-						{/snippet}
-					</DropdownMenu.Trigger>
-
-					<DropdownMenu.Content align="end" class="min-w-[12rem]">
-						{#each actions as action, index (action.label)}
-							{#if opensGroup(actions, index)}
-								<DropdownMenu.Separator />
-							{/if}
-							{#if action.unavailable}
-								<Tooltip.Root>
-									<Tooltip.Trigger>
-										{#snippet child({ props: hint })}
-											<DropdownMenu.Item
-												{...asEntry(hint)}
-												variant={action.tone === 'error' ? 'destructive' : 'default'}
-												onSelect={refuse}
-												{...action.attributes}
-											>
-												{#snippet child({ props })}
-													<div
-														{...props}
-														{...unavailableEntry}
-														class={cn(props.class as string, unavailableLook)}
-													>
-														{@render entry(action)}
-													</div>
-												{/snippet}
-											</DropdownMenu.Item>
-										{/snippet}
-									</Tooltip.Trigger>
-									<Tooltip.Content side={reasonSide} sideOffset={8}>
-										{action.unavailable}
-									</Tooltip.Content>
-								</Tooltip.Root>
-							{:else}
-								<DropdownMenu.Item
-									variant={action.tone === 'error' ? 'destructive' : 'default'}
-									disabled={action.disabled}
-									onSelect={action.onSelect}
-									{...action.attributes}
-								>
-									{@render entry(action)}
-								</DropdownMenu.Item>
-							{/if}
-						{/each}
-					</DropdownMenu.Content>
-				</DropdownMenu.Root>
+		{#if layout === 'tile'}
+			<!-- the heading line: what the tile is, then what can be done to it, at the end where a
+			     row puts the control too. Its own height is the control's, so a tile with no actions
+			     keeps its heading where a tile with them has it. -->
+			<div class="flex min-h-8 items-center gap-3">
+				<div class="pointer-events-none relative flex min-w-0 flex-1 items-center gap-2">
+					{@render heading?.()}
+				</div>
+				{@render control()}
 			</div>
+
+			{@render content()}
+		{:else}
+			{@render content()}
+
+			{@render control()}
 		{/if}
 	</div>
 {/snippet}

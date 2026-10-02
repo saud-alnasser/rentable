@@ -73,13 +73,19 @@
 
 <script lang="ts">
 	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
+	import { cn } from '@rentable/design/tailwind.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 
 	/**
 	 * A status, as every surface renders one: an icon carrying no visible word, naming itself
 	 * and saying what it means on hover.
+	 *
+	 * `labelled` is the form a tile in a grid draws: the icon and its word beside it, in the
+	 * status's tone. A tile is scanned rather than read along a column, so there is no position
+	 * to recognise the icon by, and the word is what the reader looks for. The description stays
+	 * on hover, as it does for the bare icon.
 	 */
-	let { status }: { status: StatusName } = $props();
+	let { status, labelled = false }: { status: StatusName; labelled?: boolean } = $props();
 
 	const Glyph = $derived(statusGlyphs[status]);
 	const name = $derived($LL.common.status[status]());
@@ -91,10 +97,24 @@
 			<!-- pointer-events-auto because a surface may lay a click target over its content and
 			     disable pointer events beneath it — the work queue's rows do — and a status whose
 			     meaning is only reachable by hovering is unreadable there without this. -->
-			<span {...props} class="pointer-events-auto inline-flex shrink-0">
-				<Glyph class={glyph({ status })} aria-hidden="true" />
-				<span class="sr-only">{name}</span>
-			</span>
+			{#if labelled}
+				<span
+					{...props}
+					data-status-labelled
+					class={cn(
+						'pointer-events-auto inline-flex shrink-0 items-center gap-1.5 text-xs font-medium',
+						statusTones[status]
+					)}
+				>
+					<Glyph class={glyph({ status })} aria-hidden="true" />
+					<span class="capitalize">{name}</span>
+				</span>
+			{:else}
+				<span {...props} class="pointer-events-auto inline-flex shrink-0">
+					<Glyph class={glyph({ status })} aria-hidden="true" />
+					<span class="sr-only">{name}</span>
+				</span>
+			{/if}
 		{/snippet}
 	</Tooltip.Trigger>
 	<Tooltip.Content class="max-w-60" side="top" sideOffset={6}>

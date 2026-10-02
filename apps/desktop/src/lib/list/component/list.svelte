@@ -19,7 +19,7 @@
 	import { hasAnyFilter } from '$lib/list/filter';
 	import { ListFocus } from '$lib/list/focus.svelte';
 	import { toRecordRows } from '$lib/list/keyboard';
-	import type { ListProps } from '$lib/list/list';
+	import { columnsFor, type ListProps } from '$lib/list/list';
 	import { ListSelection } from '$lib/list/selection.svelte';
 	import Empty from './empty.svelte';
 	import FilterMenu from './filter-menu.svelte';
@@ -94,17 +94,22 @@
 	// enough for a card's shadow to fall without being cut: setting one axis of `overflow` makes
 	// the other `auto`, so a shadow at the viewport's edge is clipped rather than drawn.
 	const ROW_INSET = 'px-2';
+	// what that inset takes from the width the records are laid across, both sides counted.
+	const ROW_INSET_WIDTH = 16;
+	// the space between one tile and the next across a row: `gap-3`, which the grid and its
+	// skeleton both carry, and the same measure as the gap down the list.
+	const COLUMN_GAP = 12;
 
 	// the column count is measured rather than declared, because the shape it serves reflows:
 	// the reader's window decides how many records fit, and the query knows nothing about it.
 	const columns = $derived(
-		recordMinWidth ? Math.max(1, Math.floor(viewportWidth / recordMinWidth)) : 1
+		recordMinWidth ? columnsFor(viewportWidth - ROW_INSET_WIDTH, recordMinWidth, COLUMN_GAP) : 1
 	);
 	// the skeleton stands where the viewport will be, before there is a viewport to measure, so it
-	// counts its columns off the frame around both.
+	// counts its columns off the frame around both, by the same rule.
 	let frameWidth = $state(0);
 	const skeletonColumns = $derived(
-		recordMinWidth ? Math.max(1, Math.floor(frameWidth / recordMinWidth)) : 1
+		recordMinWidth ? columnsFor(frameWidth - ROW_INSET_WIDTH, recordMinWidth, COLUMN_GAP) : 1
 	);
 	// grouping without a header snippet would insert rows that render nothing and still take
 	// up a header's height, so the two props only take effect as a pair.
@@ -280,6 +285,7 @@
 			{#snippet skeleton()}
 				{#each { length: SKELETON_ROWS }, index (index)}
 					<div
+						data-skeleton-row
 						class="grid shrink-0 gap-3"
 						style={`height: ${recordHeight}px; margin-top: ${ROW_GAP}px; grid-template-columns: repeat(${skeletonColumns}, minmax(0, 1fr));`}
 					>
@@ -311,6 +317,7 @@
 					{virtualRows}
 					{rows}
 					{columns}
+					isGrid={recordMinWidth !== undefined}
 					rowGap={ROW_GAP}
 					rowInset={ROW_INSET}
 					{listId}

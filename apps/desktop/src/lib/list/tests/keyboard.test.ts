@@ -250,3 +250,84 @@ test('a record is found at its row and its place across it, and nothing where it
 	assert.deepEqual(toPositionOf(grouped, 'e'), { row: 4, column: 0 });
 	assert.equal(toPositionOf(grouped, 'z'), undefined);
 });
+
+// requirement 18 of effort 846: a grid list lays three tiles to a row where the window is wide, and
+// the arrows move across and down them in both reading directions.
+const eight = ['1', '2', '3', '4', '5', '6', '7', '8'].map(record);
+
+test('a grid of three lays three records to a row and leaves the remainder on the last', () => {
+	const rows = listRows(eight, undefined, 3);
+
+	assert.deepEqual(
+		rows.map((row) => (row.kind === 'record' ? row.records.map((item) => item.id) : [])),
+		[
+			['1', '2', '3'],
+			['4', '5', '6'],
+			['7', '8']
+		]
+	);
+	assert.deepEqual(toRecordRows(rows), [
+		{ row: 0, count: 3 },
+		{ row: 1, count: 3 },
+		{ row: 2, count: 2 }
+	]);
+});
+
+/** where a run of arrow presses lands, read in the given direction. */
+function press(
+	keys: string[],
+	direction: 'ltr' | 'rtl',
+	from: { row: number; column: number } | null = null
+) {
+	const recordRows = toRecordRows(listRows(eight, undefined, 3));
+
+	return keys.reduce((focused, key) => {
+		const movement = toListMovement(key, direction);
+
+		assert.ok(movement, `${key} is a move`);
+
+		return nextPosition(recordRows, focused, movement);
+	}, from);
+}
+
+test('across a grid of three, the forward arrow runs a row and wraps to the start of the next', () => {
+	// the first press enters the list on the first record.
+	assert.deepEqual(press(['ArrowRight', 'ArrowRight', 'ArrowRight'], 'ltr'), { row: 0, column: 2 });
+	assert.deepEqual(press(['ArrowRight', 'ArrowRight', 'ArrowRight', 'ArrowRight'], 'ltr'), {
+		row: 1,
+		column: 0
+	});
+	// in arabic the forward arrow is the left one.
+	assert.deepEqual(press(['ArrowLeft', 'ArrowLeft', 'ArrowLeft', 'ArrowLeft'], 'rtl'), {
+		row: 1,
+		column: 0
+	});
+});
+
+test('and the backward arrow runs back into the end of the row above, in both directions', () => {
+	assert.deepEqual(press(['ArrowLeft'], 'ltr', { row: 1, column: 0 }), { row: 0, column: 2 });
+	assert.deepEqual(press(['ArrowRight'], 'rtl', { row: 1, column: 0 }), { row: 0, column: 2 });
+	assert.deepEqual(press(['ArrowLeft', 'ArrowLeft'], 'ltr', { row: 1, column: 2 }), {
+		row: 1,
+		column: 0
+	});
+	assert.deepEqual(press(['ArrowRight', 'ArrowRight'], 'rtl', { row: 1, column: 2 }), {
+		row: 1,
+		column: 0
+	});
+});
+
+test('down and up keep the column across a grid of three, in both directions', () => {
+	for (const direction of ['ltr', 'rtl'] as const) {
+		assert.deepEqual(press(['ArrowDown'], direction, { row: 0, column: 2 }), {
+			row: 1,
+			column: 2
+		});
+		assert.deepEqual(press(['ArrowUp'], direction, { row: 1, column: 1 }), { row: 0, column: 1 });
+		// the last row holds two, so the third column lands on its second record.
+		assert.deepEqual(press(['ArrowDown', 'ArrowDown'], direction, { row: 0, column: 2 }), {
+			row: 2,
+			column: 1
+		});
+	}
+});

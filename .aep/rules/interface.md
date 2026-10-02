@@ -190,6 +190,25 @@ than browsed — and one uniform table fits none of them.*
 
 Recorded originally as ADR 0013, *Each list gets the presentation its data is shaped like, over one shared shell*.
 
+**A list may lay its records as tiles in a grid**, and the shell owns the grid as it owns the rest
+of the geometry. A list turns it on by passing `recordMinWidth`, which for a grid of record cards
+is `RECORD_TILE_MIN_WIDTH` (300 px) from `list/list.ts`; one width for every grid, so the
+directories break at the same window widths. The shell fits as many columns as `columnsFor`
+answers: tiles of at least that width with the gap between them counted, one where the window is
+narrow, two where it is wider, and **never more than three**, since a fourth column makes each
+record a strip again. Tiles are `gap-3` apart across a row, the same measure as down the list, and
+the loading skeleton draws the same columns with the same gap. A selection box stands beside a
+tile, level with its heading line, where a row has it at the row's middle. Keyboard movement runs
+across a row and down the columns in both reading directions, and the rows stay virtualized.
+
+A record in a grid wears `record-card.svelte` with `layout="tile"`: a column whose first line is
+the `heading` snippet (the record's name and its status) with the actions control at its end, and
+whose facts follow, one to a line. The link over the card and both routes to its acts are the
+row's (*Record card actions*, below). A list that does not turn the grid on keeps the row layout,
+one line, unchanged. *Added by ticket 14 of
+[[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirements 18 and 19: the
+shell and the card can draw the grid; each directory turns it on in its own ticket.*
+
 ### Search
 
 **Every set a person can search searches one way: `list/component/search-field.svelte`.** A leading
@@ -861,13 +880,19 @@ Recorded originally as ADR 0018, *A validation error belongs to its field, not t
 **A status renders as an icon carrying no visible text.**
 
 Its name and its description reach the reader through a tooltip and an accessible label. This
-binds every surface showing a status, and every status in the vocabulary of nine carries a
-description.
+binds every surface showing a status except a tile in a grid (below), and every status in the
+vocabulary of nine carries a description.
 
 *Why: the row stops spending width on a word most readers recognise by position, and the reader
 who does not recognise it gets a full sentence rather than a single word.*
 
 Recorded originally as ADR 0023, *A status is an icon, and its word lives in the tooltip*.
+
+**On a tile in a grid, a status carries its word.** `Cell.Status` with `labelled` draws the icon
+and the word beside it, both in the status's tone, and keeps the description in the tooltip. A
+tile is scanned rather than read down a column, so there is no position to recognise the icon by.
+Rows, pages and every other surface keep the bare icon. *Added by ticket 14 of
+[[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirement 19.*
 
 ## Concept surfaces
 
