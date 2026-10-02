@@ -1,5 +1,5 @@
 ---
-status: draft
+status: accepted
 ---
 
 # Problem
@@ -102,11 +102,14 @@ statement read in time order, and each payment row says how it was paid.
    manner of a platform settings pane: a row carries a leading icon, a name, its current value or
    state where it has one, and its control, with at most one line of explanation, under the group
    rather than inside every row. The section switch names each section with an icon beside its
-   word.
+   word. The members and roles directories keep their tray and their cards; only their heading
+   takes the group's treatment.
 2. **Destructive acts are set apart and look destructive.** In every section an act that deletes,
    disconnects, forgets or signs somebody out sits at the end of its group, drawn in the error
-   tone, with an icon, and its confirmation names what ends and whether anything brings it back.
-   A benign act never takes that treatment.
+   tone, with an icon. Where it cannot be undone, or it ends something on another machine, it is
+   confirmed, and the confirmation names what ends and whether anything brings it back; signing
+   this machine out, which signing in undoes, is not confirmed (HIG, *Alerts*: confirm only what
+   cannot be undone). A benign act never takes that treatment.
 3. **General holds application preferences only**: language, appearance, updates and diagnostics.
    Ending soon is not in it.
 4. **Every control in the area that applies a choice applies it at once**, as language and
@@ -119,10 +122,12 @@ statement read in time order, and each payment row says how it was paid.
 6. **Ending soon is set from the dashboard, where it shows.** The ending-soon section of the
    landing screen carries a small icon control in its header that opens the number of days and
    changes it in place; the section and the counts that depend on it update without leaving the
-   screen. The value stays a setting of this machine, as today.
+   screen, and so does every other reading of the rank (the contracts filter, a contract's page,
+   the schedule). The value stays a setting of this machine, as today. The command menu finds it.
 7. **The setting stays reachable when nothing is ending soon.** Where no contract falls in the
-   window, so the section is not drawn, the dashboard still offers the control, so a reader can
-   widen a window that catches nothing.
+   window, the ending-soon section's header is still drawn in its place, saying none end within
+   the window, with the same control, so a reader can widen a window that catches nothing and see
+   the section fill in place.
 
 *The account section*
 
@@ -130,14 +135,18 @@ statement read in time order, and each payment row says how it was paid.
    identity, the role and the organization), the password, and the machines, in that order, with
    sign-out of this machine last.
 9. **The reader sees every machine signed in as them.** Each machine is a row with its name, when
-   it was last seen, and when it was first signed in, and the machine being used is marked as this
-   machine and listed first.
+   it was last seen, and when it was added to the organization, and the machine being used is
+   marked as this machine and listed first. A machine is listed however long ago it was last seen,
+   since a laptop closed for a month is the one a reader most needs to end, and last seen moves
+   while a machine is running, not only when it starts.
 10. **The reader can sign out one machine, or every machine but this one.** Signing out one is an
     act on that machine's row; signing out all others is one act at the foot of the list. Both are
     confirmed, name the machines they end, and leave the password unchanged. A machine that was
     signed out finds itself at the sign-in wall the next time it reaches Turso, as *sign out of
     other machines* does today. Offline, the act says it reaches the others once this machine is
-    back online, as today.
+    back online, as today. A machine that has not yet run this version cannot be signed out on its
+    own, since it would not read the sign-out; its row says so and offers *sign out all other
+    machines*, which reaches every machine.
 11. **A machine has a name a person recognises.** A machine is named when it signs in, by the name
     its operating system gives it, so the list reads as the reader's own computers rather than
     identifiers.
@@ -154,17 +163,22 @@ statement read in time order, and each payment row says how it was paid.
     confirmation says the token is not revoked and where to revoke it, as today.
 14. **Leaving tells owner and member apart.** A member sees *disconnect this machine*, with an icon,
     and one line saying the organization stays on Turso and a new link brings them back. An owner
-    sees the same, then the way to hand over ownership (opening the act their member card already
-    carries), then *delete organization* last, set apart as the one act nothing undoes. Each act
-    states its consequence in a line, and none of them looks like another.
+    sees the way to hand over ownership first (the act their member card already carries, shown
+    refused with its reason where nobody can take it yet), then *disconnect this machine*, then
+    *delete organization* last, set apart as the one act nothing undoes. Each act states its
+    consequence in a line, and none of them looks like another.
 
 *The workspaces section*
 
 15. **A workspace's file moves from its card.** Every workspace card the reader may export from
     offers *export* and *import* among its acts, on that workspace, whether or not it is open on
     this machine. The transfer block below the directory is gone. An act the reader may not take
-    on that workspace is shown refused with the reason, as every act is
-    ([[rules/interface]], *Record card actions*).
+    on that workspace, by their access in that workspace, is shown refused with the reason, as
+    every act is ([[rules/interface]], *Record card actions*). A workspace that is not open is
+    read from and written to Turso directly, so its transfer needs Turso reachable: unreachable,
+    the act says so when pressed, and nothing is written. A workspace not yet brought up to this
+    version refuses with the sentence that opening it once on this machine brings it up to date.
+    The open workspace's transfer works offline, as today.
 16. **A workspace card says more than its name.** It shows that it is open on this machine in words
     as well as the mark, how many members hold it, and the reader's own access to it.
 17. **The earlier records keep a way in.** The callout that brings in the records of 0.12.0 or
@@ -180,7 +194,8 @@ statement read in time order, and each payment row says how it was paid.
 19. **A card shows its record's key facts without a hover.** Each concept's card carries its name,
     the facts a reader scans for, each with an icon, and its status as an icon with its word. A
     count of zero is not drawn. What each card holds is decided per concept, the way
-    [[rules/interface]] already gives each concept its own presentation.
+    [[rules/interface]] already gives each concept its own presentation. A contract card names the
+    units it holds.
 20. **The payment ledger stays a statement, and says how each payment was made.** Payments stay one
     column in time order, grouped by month with the month's total. Each row shows the date, the
     amount, the method with its icon where one was recorded, and the reference and note where
@@ -193,8 +208,9 @@ statement read in time order, and each payment row says how it was paid.
     motion under reduced motion.
 22. **The rules say what was built.** [[rules/interface]] is revised in the same change where this
     effort departs from it: *Export and import* (a workspace's file moves from its card),
-    *Landing screen* (a section may carry the control for the setting that defines it), and *List
-    presentation* (the four directories are grids).
+    *Landing screen* (a section may carry the control for the setting that defines it, and its
+    header stands with no rows), *List presentation* (the four directories are grids), and *Status
+    presentation* (a status on a grid card carries its word).
 
 # Acceptance Criteria
 
@@ -202,25 +218,32 @@ statement read in time order, and each payment row says how it was paid.
    leading icon, a name and a value or control; the section switch shows an icon beside each
    section's name.
 2. Every disconnect, forget, delete and sign-out act in the area is the last item in its group,
-   drawn in the error tone with an icon, and its confirmation states what ends and whether it can
-   be undone; no other act uses that tone.
+   drawn in the error tone with an icon; every one of them that cannot be undone or reaches another
+   machine is confirmed, stating what ends and whether it can be undone; no other act uses that
+   tone.
 3. General shows language, appearance, updates and diagnostics, and no ending-soon control.
 4. No control in the settings area has a separate save step; a failed change reverts and shows the
    reason (checked by forcing the settings write to fail).
 5. Within each group of buttons in the area, either every button has an icon or none does.
 6. On the dashboard, the ending-soon section's header has an icon control; changing the days there
-   updates the section's contracts and the band's counts without a reload or a navigation, and the
-   value survives a restart of the application.
-7. With no contract inside the window, the dashboard still offers the ending-soon control, and
-   widening the window until a contract falls inside it makes the section appear.
+   updates the section's contracts, the band's counts and the contracts list's ending-soon filter
+   without a reload or a navigation, and the value survives a restart of the application. Typing
+   *ending soon* in the command menu opens the control.
+7. With no contract inside the window, the dashboard draws the ending-soon header saying none end
+   within it, with the control, and widening the window until a contract falls inside it fills the
+   section in place.
 8. The account section shows, in order: identity with role and organization, password, machines,
    sign out of this machine.
 9. Signed in as one member on two machines, each machine's account section lists both, with name,
-   last seen and first signed in, and marks itself as this machine, first.
+   last seen and added, and marks itself as this machine, first; a machine last seen 30 days ago is
+   still listed; another member's machines are not.
 10. From machine A, signing out machine B by its row leaves A signed in, sends B to the sign-in wall
     on its next contact with Turso, and leaves the password unchanged; *sign out all other
     machines* does the same for every machine but A. Both confirm first, naming the machines.
-    Offline, the act reports that it reaches the others once back online.
+    Offline, the act reports that it reaches the others once back online. B, closed when it was
+    ended, lands at the wall at its next launch. Signing B in again with the same password keeps it
+    signed in. A machine that has not run this version shows its single sign-out refused, with
+    *sign out all other machines* offered.
 11. A machine signing in after this lands appears in the list under its operating-system name; one
     that signed in before and has no name yet appears with a stated fallback, never a raw id.
 12. The sync group shows each of the five states with a distinct icon and tone (checked by driving
@@ -230,12 +253,15 @@ statement read in time order, and each payment row says how it was paid.
     the group's destructive act and its confirmation naming where to revoke the token; one whose
     machine does not sees it as not held, with an icon-bearing reconnect act.
 14. A member's leaving group shows only *disconnect this machine* with its consequence line; an
-    owner's shows disconnect, *hand over ownership* (opening the existing offer form), and *delete
-    organization* last and destructive.
+    owner's shows *hand over ownership* (opening the existing offer form), then disconnect, then
+    *delete organization* last and destructive.
 15. A workspace card that is not open on this machine offers *export* and *import*; exporting it
     writes that workspace's records (checked against a workspace with known records while another
     is open), and importing writes into it and not into the open one. No transfer block is drawn
-    below the directory. A reader lacking the flags sees both refused with the reason.
+    below the directory, and no file for that workspace is left on the machine. A reader lacking
+    the flags in that workspace sees both refused with the reason while the open card's are
+    offered. With Turso unreachable, exporting a workspace that is not open says so and writes
+    nothing.
 16. Each workspace card shows *open on this machine* in words where it is, the member count, and the
     reader's access to it.
 17. With 0.12.0 or 0.13.0 records left on the machine, the workspaces section still offers the
@@ -245,13 +271,13 @@ statement read in time order, and each payment row says how it was paid.
     keys move across and down, selection selects, and a list of a thousand records scrolls without
     drawing all of them.
 19. On each of the four concepts' cards, status reads as an icon and a word, every fact carries an
-    icon, and no count of zero is drawn.
+    icon, and no count of zero is drawn; a contract card names its units.
 20. The ledger is one column grouped by month with totals; a payment recorded with a method,
     reference and note shows all three, and one recorded without them shows date and amount alone.
 21. Every surface in criteria 1 to 20 is checked in Arabic and English, light and dark, by keyboard
     alone, and with reduced motion on.
-22. [[rules/interface]]'s *Export and import*, *Landing screen* and *List presentation* sections
-    describe what was built, and the index validates.
+22. [[rules/interface]]'s *Export and import*, *Landing screen*, *List presentation* and *Status
+    presentation* sections describe what was built, and the index validates.
 
 # Constraints
 
@@ -265,8 +291,10 @@ statement read in time order, and each payment row says how it was paid.
 - **Ending soon stays a per-machine setting.** *Why: the human chose the dashboard control over
   making it organization-wide on 2026-10-02.*
 - **Exporting a workspace that is not open must not switch the window to it**, and must not leave
-  that workspace's replica on a machine that did not already hold it, unless the plan shows why it
-  must.
+  that workspace's replica on a machine that did not already hold it.
+- **Earlier decisions this reverses, at the human's choice of 2026-10-02**: effort 843 took the
+  *open* word and the access line off the workspace card, and effort 828 (requirement 25) retired a
+  coloured sync status word. Both come back here.
 - **The record card keeps its two routes and one declaration** ([[rules/interface]], *Record card
   actions*): the grid changes how a card is laid out, not where its acts come from.
 - **Strings follow the application's voice** (lower case, short), in English and Arabic.
@@ -299,27 +327,19 @@ statement read in time order, and each payment row says how it was paid.
   in, and the fallback is acceptable to the human.
 - The machine table can hold a name and a per-machine session marker without a workspace
   migration, since it lives in the organization's store rather than a workspace.
-- A workspace that is not open can be read and written by the shell for export and import, either
-  from a replica already on the machine or by fetching it. The plan settles which.
+- A workspace that is not open can be read and written over Turso's pipeline with the credential
+  the member's vault already unsealed for it; no token is minted (the plan, *Architecture*).
 - The list shell's existing column support (`recordMinWidth`, `listRows`, keyboard movement across
   columns) is sound, and the missing column gap is its only visible defect.
-
-# Open Questions
-
-- **How one machine is ended.** The epoch ends all of a member's sessions at once; ending one needs
-  a per-machine marker the machine checks on contact. Technical, for the plan, against
-  [[contexts/desktop/remote-sync]] and [[contexts/desktop/organization]].
-- **Where the ending-soon control sits when its section is not drawn** (requirement 7). A design
-  call for the plan, against the landing screen's rule that a section holds rows.
-- **What each concept's card holds** (requirement 19). Design calls for the plan, prototyped on real
-  data rather than mock data.
 
 # Risks
 
 - **Per-machine sign-out touches the credential path.** A mistake signs out the wrong machine or
   none, and shows up only across two machines, so it needs a two-machine check before merge.
-- **Exporting a workspace that is not open may cost a full fetch from Turso**, slow on a large
-  workspace and impossible offline; the card would then refuse it offline, and that needs saying.
+- **A transfer of a workspace that is not open misses this machine's own writes to it that never
+  reached Turso** (written offline, then switched away); they reach Turso when it is next opened.
+- **Offline cannot be known before the press**, so a transfer of a workspace that is not open is
+  offered and refused when pressed rather than shown refused in advance.
 - **A grid with fixed row heights clips or overlaps a card whose content runs long**, worst in
   Arabic and at large text sizes; each concept's card height has to be checked in both languages.
 - **Moving ending soon off settings hides it from a reader who looked for it there.** The command
