@@ -41,7 +41,9 @@
 	}: { complexId: string; complexName: string } = $props();
 
 	// two lines of text and the breathing room around them; the shell lays rows out at this
-	// height rather than measuring them.
+	// height rather than measuring them. A unit stays a row where the other directories are grids
+	// of tiles (requirement 18 of effort 846, narrowed at the human's word): a unit is reached
+	// through its complex or its contract, and a tile spends room its two facts do not need.
 	const ROW_HEIGHT = 64;
 
 	let search = $state('');
@@ -208,21 +210,21 @@
 					<Cell.Text class="truncate text-sm font-medium" text={record.name} />
 					<!-- who is in it, which is the question the board this replaced existed to answer. A
 					     reader who may not view tenants is answered with no occupant at all, and the line
-					     is left out rather than reading as vacant (effort 838, requirement 10). -->
-					{#if 'tenantName' in record}
+					     is left out rather than reading as vacant (effort 838, requirement 10). A vacant
+					     unit has no occupant to name, and its status already says *vacant* in words. -->
+					{#if 'tenantName' in record && record.tenantName}
 						<span class="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-							{#if record.tenantName}
-								<UserIcon class="size-3.5 shrink-0" aria-hidden="true" />
-								<Cell.Text class="truncate" text={record.tenantName} />
-							{:else}
-								<span class="truncate">{$LL.common.status.vacant()}</span>
-							{/if}
+							<UserIcon class="size-3.5 shrink-0" aria-hidden="true" />
+							<Cell.Text class="truncate" text={record.tenantName} />
 						</span>
 					{/if}
 				</span>
 
+				<!-- the status with its word, as every record card's status reads (requirement 19 of
+				     effort 846): a row of units is scanned for which are free, and the word answers
+				     that without a hover. -->
 				<span class="pointer-events-none relative flex shrink-0 items-center gap-3">
-					<Cell.Status status={record.status} />
+					<Cell.Status status={record.status} labelled />
 				</span>
 			{/snippet}
 		</RecordCard>

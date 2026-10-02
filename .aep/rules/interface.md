@@ -223,6 +223,15 @@ one line, unchanged. *Added by ticket 14 of
 [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirements 18 and 19: the
 shell and the card can draw the grid; each directory turns it on in its own ticket.*
 
+**The complexes directory is a grid; a complex's units are not.** A complex's tile
+(`complex/component/card.svelte`) is 120 px: its name, its location, and at its foot how many
+units it holds, how many are occupied and how many vacant, each count with its word and left out
+at zero. A complex's unit directory stays one column of rows at 64 px, because a unit is reached
+through its complex or its contract and a tile spends room its two facts, its status and its
+occupant, do not need. *Ticket 17 of
+[[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirement 18 as the human
+narrowed it on 2026-10-02.*
+
 ### Search
 
 **Every set a person can search searches one way: `list/component/search-field.svelte`.** A leading
@@ -919,8 +928,11 @@ Recorded originally as ADR 0023, *A status is an icon, and its word lives in the
 **On a tile in a grid, a status carries its word.** `Cell.Status` with `labelled` draws the icon
 and the word beside it, both in the status's tone, and keeps the description in the tooltip. A
 tile is scanned rather than read down a column, so there is no position to recognise the icon by.
-Rows, pages and every other surface keep the bare icon. *Added by ticket 14 of
-[[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirement 19.*
+Rows, pages and every other surface keep the bare icon, but for one row: a complex's unit rows,
+which stand in for the unit's card (requirement 18 keeps units as rows), draw the labelled form,
+since a unit's status is one of the two facts its row is scanned for. *Added by ticket 14 of
+[[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirement 19; the unit
+rows by ticket 17.*
 
 ## Concept surfaces
 

@@ -2480,6 +2480,23 @@ type RootTranslation = {
 		}
 	}
 	complexes: {
+		card: {
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​o​c​c​u​p​i​e​d
+			 * @param {unknown} count
+			 */
+			occupied: RequiredParams<'count|number'>
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​u​n​i​t​|​u​n​i​t​s​}​}
+			 * @param {string | number | boolean} count
+			 */
+			units: RequiredParams<'count|number'>
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​v​a​c​a​n​t
+			 * @param {unknown} count
+			 */
+			vacant: RequiredParams<'count|number'>
+		}
 		deleteDialog: {
 			/**
 			 * a​ ​c​o​n​t​r​a​c​t​ ​m​e​n​t​i​o​n​s​ ​o​n​e​ ​o​r​ ​m​o​r​e​ ​o​f​ ​i​t​s​ ​u​n​i​t​s
@@ -7152,6 +7169,20 @@ export type TranslationFunctions = {
 		}
 	}
 	complexes: {
+		card: {
+			/**
+			 * {count|number} occupied
+			 */
+			occupied: (arg: { count: unknown }) => LocalizedString
+			/**
+			 * {count|number} {{unit|units}}
+			 */
+			units: (arg: { count: string | number | boolean }) => LocalizedString
+			/**
+			 * {count|number} vacant
+			 */
+			vacant: (arg: { count: unknown }) => LocalizedString
+		}
 		deleteDialog: {
 			/**
 			 * a contract mentions one or more of its units

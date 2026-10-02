@@ -9,13 +9,13 @@
 		usePlanManyComplexes,
 		type ComplexRefusalReason
 	} from '$lib/complex/query';
+	import { RECORD_TILE_MIN_WIDTH } from '$lib/list';
 	import { List } from '$lib/list/ui';
+	import ComplexCard, { COMPLEX_TILE_HEIGHT } from '$lib/complex/component/card.svelte';
 	import { toNarrowedName } from '@rentable/design/csv.js';
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
-	import RecordCard from '@rentable/design/block/record-card.svelte';
 	import SelectionDialog from '@rentable/design/block/selection-dialog.svelte';
 	import { toCardActions } from '$lib/act';
-	import * as Cell from '$lib/design/cell';
 	import {
 		describeRefusals,
 		foreseenRefusals,
@@ -28,16 +28,8 @@
 	import { toTransferInput } from '$lib/transfer';
 	import { IMPORT_FLAGS, memberPermissions } from '$lib/permission';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
-	// the counts of occupied and vacant units wear the glyphs the unit's own status wears, so a
-	// count and the status it counts read as the same mark.
-	import { statusGlyphs } from '$lib/design/cell/status.svelte';
-	import LayoutGridIcon from '@lucide/svelte/icons/layout-grid';
 
 	type ComplexRecord = Awaited<ReturnType<typeof api.complex.getMany>>[number];
-
-	// two lines of text and the breathing room around them; the shell lays rows out at this
-	// height rather than measuring them.
-	const ROW_HEIGHT = 64;
 
 	let search = $state('');
 	let sort = $state<ListSort | null>(null);
@@ -151,7 +143,8 @@
 	{selectionActions}
 	isLoading={complexesQuery.isLoading}
 	isFetching={complexesQuery.isFetching}
-	recordHeight={ROW_HEIGHT}
+	recordMinWidth={RECORD_TILE_MIN_WIDTH}
+	recordHeight={COMPLEX_TILE_HEIGHT}
 	exportAs={{
 		name: toNarrowedName($LL.common.nav.complexes(), [search]),
 		columns: [
@@ -188,47 +181,12 @@
 	emptyDescription={$LL.complexes.empty.description()}
 >
 	{#snippet record(complex: ComplexRecord)}
-		<!-- occupancy is not on the query: a unit is occupied or vacant, so the third figure is
-		     the other two. -->
-		{@const occupiedUnitCount = (complex.unitCount ?? 0) - (complex.vacantUnitCount ?? 0)}
-		<RecordCard
+		<!-- a tile in the grid (requirement 18 of effort 846): what it holds is the card's. -->
+		<ComplexCard
+			{complex}
 			href={resolve(`/complexes/${complex.id}`)}
-			label={complex.name}
 			actions={toCardActions(complexActs, complex, $LL)}
-			class="gap-4"
-		>
-			{#snippet content()}
-				<span class="pointer-events-none relative flex min-w-0 flex-1 flex-col gap-0.5 text-start">
-					<Cell.Text class="truncate text-sm font-medium" text={complex.name} />
-					<Cell.Text class="truncate text-xs text-muted-foreground" text={complex.location} />
-				</span>
-
-				<!-- a reader who may not view units is answered with no figures, and the row draws
-				     none rather than three zeroes (effort 838, requirement 10). -->
-				{#if complex.unitCount !== undefined && complex.vacantUnitCount !== undefined}
-					<span class="pointer-events-none relative flex shrink-0 items-center gap-4">
-						<Cell.Count
-							icon={LayoutGridIcon}
-							count={complex.unitCount}
-							label={$LL.common.labels.units()}
-						/>
-
-						<Cell.Count
-							icon={statusGlyphs.occupied}
-							count={occupiedUnitCount}
-							label={$LL.common.labels.occupiedUnits()}
-							tone={occupiedUnitCount > 0 ? 'running' : 'settled'}
-						/>
-
-						<Cell.Count
-							icon={statusGlyphs.vacant}
-							count={complex.vacantUnitCount}
-							label={$LL.common.labels.vacantUnits()}
-						/>
-					</span>
-				{/if}
-			{/snippet}
-		</RecordCard>
+		/>
 	{/snippet}
 </List>
 

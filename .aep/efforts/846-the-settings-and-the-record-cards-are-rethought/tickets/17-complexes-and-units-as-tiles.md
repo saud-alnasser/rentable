@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [15]
 ---
 
@@ -17,8 +17,8 @@ The complex directory draws tiles with the content and height ticket 15 fixed: a
 
 Traces requirements 18 and 19, and criteria 18 and 19 for complexes and units.
 
-- [ ] The complex card has its own test: every fact has an svg, no count of zero.
-- [ ] The complex directory passes `recordMinWidth` and the fixed height; the unit directory passes neither and stays one column of rows, its status showing its word; both lists' behaviour still passes its tests.
+- [x] The complex card has its own test: every fact has an svg, no count of zero. *Verified: integrated on 16 with the card on the shared `Cell.Fact`, `vitest run src/lib/complex src/lib/tenant` printed 12 files, 54 passed; `complex/tests/card.svelte.test.ts` finds an aria-hidden svg on every fact, no count of zero, and the singular and Arabic forms for 1, 2, 3, 11 and 100.*
+- [x] The complex directory passes `recordMinWidth` and the fixed height; the unit directory passes neither and stays one column of rows, its status showing its word; both lists' behaviour still passes its tests. *Verified: the same run: the complex directory test finds `[data-layout=tile]` at `RECORD_TILE_MIN_WIDTH` and 120; the unit directory test at 1200px finds no tile and the words vacant and occupied in `[data-status-labelled]`; desktop `pnpm run check` printed 0 errors.*
 
 ## Relevant areas
 

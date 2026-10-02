@@ -154,3 +154,37 @@ test('without viewing tenants, a unit row names no occupant, reads not as vacant
 
 	expect(offeredOrders()).toEqual([en.common.labels.name, en.common.labels.status]);
 });
+
+/**
+ * Ticket 17 of [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirement 18
+ * as narrowed on 2026-10-02 and criterion 18: the complexes directory is a grid, and a complex's
+ * units are not. They stay one column of rows at the row height they had, and each row's status
+ * carries its word (requirement 19), with the occupant beside the name where there is one.
+ */
+test('a complex units stay rows, each status showing its word', async () => {
+	vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(800);
+	vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(1200);
+
+	holdEveryFlagBut();
+	reads.rows = [
+		VACANT,
+		{ id: 'unit-2', name: 'B1', complexId: 'complex-1', status: 'occupied', tenantName: 'Noura' }
+	];
+	directory();
+
+	await waitFor(() => expect(document.body.textContent).toContain('Noura'));
+
+	expect(document.querySelector('[data-layout=tile]')).toBeNull();
+	expect(
+		[...document.querySelectorAll('[data-status-labelled]')].map((status) =>
+			status.textContent?.trim()
+		)
+	).toEqual([en.common.status.vacant, en.common.status.occupied]);
+
+	// a vacant unit has no occupant, and its word is said once, by its status.
+	const vacant = document.querySelector<HTMLElement>(
+		'a[href$="/complexes/units/unit-1"]'
+	)!.parentElement!;
+
+	expect(vacant.textContent?.match(new RegExp(en.common.status.vacant, 'g'))).toHaveLength(1);
+});

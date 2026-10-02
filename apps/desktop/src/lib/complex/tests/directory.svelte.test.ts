@@ -52,11 +52,11 @@ const directory = () =>
 		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' as const } }
 	);
 
-/** what a screen reader hears of each figure on the rows. */
+/** each count the tiles draw, as its words. */
 const figures = () =>
-	[...document.querySelectorAll('.sr-only')]
-		.map((figure) => figure.textContent?.trim() ?? '')
-		.filter((said) => /: \d+$/.test(said));
+	[...document.querySelectorAll<HTMLElement>('[data-fact]')]
+		.map((fact) => fact.textContent?.replace(/\s+/g, ' ').trim() ?? '')
+		.filter((said) => /^\d+ /.test(said));
 
 const offeredOrders = async () => {
 	await fireEvent.click(document.querySelector<HTMLElement>('[data-sort-control]')!);
@@ -66,30 +66,45 @@ const offeredOrders = async () => {
 	);
 };
 
-test('a row carrying its unit counts draws them', async () => {
+test('a tile carrying its unit counts draws them', async () => {
 	holdEveryFlagBut();
 	rows.current = [{ ...COMPLEX, unitCount: 3, vacantUnitCount: 1 }];
 	directory();
 
 	await waitFor(() => expect(document.body.textContent).toContain('Palm Court'));
 
-	expect(figures()).toEqual([
-		`${en.common.labels.units}: 3`,
-		`${en.common.labels.occupiedUnits}: 2`,
-		`${en.common.labels.vacantUnits}: 1`
-	]);
+	expect(figures()).toEqual(['3 units', '2 occupied', '1 vacant']);
 	expect(await offeredOrders()).toContain(en.common.labels.vacantUnits);
 });
 
-test('without viewing units, a row draws no figure where its counts stood, and offers no order by them', async () => {
+test('without viewing units, a tile draws no figure where its counts stood, and offers no order by them', async () => {
 	holdEveryFlagBut('viewUnit');
 	rows.current = [COMPLEX];
 	directory();
 
 	await waitFor(() => expect(document.body.textContent).toContain('Palm Court'));
 
-	// the complex's own fields are the row, whole.
+	// the complex's own fields are the tile, whole.
 	expect(document.body.textContent).toContain('Riyadh');
 	expect(figures()).toEqual([]);
 	expect(await offeredOrders()).toEqual([en.common.labels.name, en.common.labels.location]);
+});
+
+/**
+ * Ticket 17 of [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirement 18
+ * and criterion 18: the complexes directory lays its records as tiles in the grid, at the tile's
+ * fixed height. The width it is given here is the shell's to divide (`columnsFor`, tested in
+ * `list/`); what this holds is that the directory turned the grid on.
+ */
+test('the complexes directory draws its records as tiles in the grid', async () => {
+	holdEveryFlagBut();
+	rows.current = [
+		{ ...COMPLEX, unitCount: 3, vacantUnitCount: 1 },
+		{ id: 'complex-2', name: 'Olive Yard', location: 'Jeddah', unitCount: 2, vacantUnitCount: 0 }
+	];
+	directory();
+
+	await waitFor(() => expect(document.body.textContent).toContain('Olive Yard'));
+
+	expect(document.querySelectorAll('[data-layout=tile]')).toHaveLength(2);
 });
