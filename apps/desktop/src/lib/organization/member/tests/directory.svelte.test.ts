@@ -5,6 +5,8 @@ import { setLocale } from '$lib/i18n/i18n-svelte';
 import { i18nObject } from '$lib/i18n/i18n-util';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import Members from '$lib/organization/member/component/directory.svelte';
+import { MEMBER_TILE_HEIGHT } from '$lib/organization/member/component/card.svelte';
+import { columnsFor, RECORD_TILE_MIN_WIDTH } from '$lib/list';
 import { organizationDialog, resetOrganizationDialogs } from '$lib/organization/dialogs.svelte';
 import { organizationHostState, resetOrganizationHost } from '$lib/organization/host.svelte';
 import {
@@ -309,6 +311,8 @@ const written = (hook: string) =>
 	hostAnswers.writes.filter((write) => write.hook === hook).map((write) => write.input);
 
 beforeEach(() => {
+	// the tiles are laid in as many columns as the directory's width holds, which it measures.
+	layOutLists();
 	resetOrganizationDialogs();
 	resetOrganizationHost();
 	resetHostAnswers();
@@ -351,28 +355,10 @@ test('a card carries the avatar, the username and the role', () => {
 });
 
 // the human's second look: a chip per workspace, each carrying its own access, read as a second
-// list along the bottom of every card. What a card says now is how many, in one line; which ones
+// list along the bottom of every card. What a card says now is how many, as one fact; which ones
 // and what each is good for is what the menu's workspaces entry opens.
-test('a card says how many workspaces are held, in one line, and names none of them', () => {
-	list({
-		members: [
-			member({ id: 'owner', username: 'olivia', role: 'owner' }),
-			member({
-				id: 'ada',
-				username: 'ada',
-				role: 'manager',
-				workspaces: [
-					{ id: 'ws-1', access: 'full-access', pinned: 0, granted: 0, permissions: 0 },
-					{ id: 'ws-2', access: 'read-only', pinned: 0, granted: 0, permissions: 0 }
-				]
-			}),
-			member({
-				id: 'sami',
-				username: 'sami',
-				workspaces: [{ id: 'ws-1', access: 'full-access', pinned: 0, granted: 0, permissions: 0 }]
-			})
-		]
-	});
+test('a card says how many workspaces are held, as one fact, and names none of them', () => {
+	list();
 
 	const held = (id: string) => {
 		const line = card(id)!.querySelector('[data-member-workspaces]')!;
@@ -380,15 +366,19 @@ test('a card says how many workspaces are held, in one line, and names none of t
 		return [line.getAttribute('data-member-workspaces'), line.textContent?.trim()];
 	};
 
-	// many, one, and none: the three forms, pluralised by the locale layer rather than by a
-	// count printed beside a fixed word.
+	// many, one, and none: the count pluralised by the locale layer rather than by a figure printed
+	// beside a fixed word, and none said in words rather than as a zero.
 	const translations = i18nObject('en');
 
 	expect(held('ada')).toEqual(['2', '2 workspaces']);
 	expect(held('sami')).toEqual(['1', '1 workspace']);
-	expect(held('owner')).toEqual(['0', en.organization.dashboard.noWorkspaces]);
-	expect(translations.organization.dashboard.workspacesHeld({ count: 2 })).toBe('2 workspaces');
-	expect(translations.organization.dashboard.workspacesHeld({ count: 1 })).toBe('1 workspace');
+	expect(held('owner')).toEqual(['0', en.organization.dashboard.memberCard.noWorkspaces]);
+	expect(translations.organization.dashboard.memberCard.workspaces({ count: 2 })).toBe(
+		'2 workspaces'
+	);
+	expect(translations.organization.dashboard.memberCard.workspaces({ count: 1 })).toBe(
+		'1 workspace'
+	);
 
 	// and no workspace is named on a card any more, nor what it is good for.
 	expect(document.querySelector('[data-member-workspace]')).toBeNull();
@@ -396,28 +386,72 @@ test('a card says how many workspaces are held, in one line, and names none of t
 	expect(document.body.textContent).not.toContain('read only');
 });
 
-// criterion 19: the three standings, each said in one line, read from the members query joined to
-// the register on the member's id.
-test('each card says where its account stands, in one of three lines', () => {
+// criterion 19 of effort 828, as ticket 32 of effort 846 draws it: where an account stands is two
+// facts on the tile, its password and its machine, read from the members query joined to the
+// register on the member's id.
+test('each card says where its account stands, its password and its machine', () => {
 	const open = list();
 
-	const lineOf = (id: string) => {
-		const line = card(id)!.querySelector('[data-member-standing]')!;
+	const standingOf = (id: string) => [
+		card(id)!.querySelector('[data-member-password]')?.getAttribute('data-member-password'),
+		card(id)!.querySelector('[data-member-machine]')?.getAttribute('data-member-machine')
+	];
 
-		return [line.getAttribute('data-member-standing'), line.textContent?.trim()];
-	};
-
-	expect(lineOf('sami')).toEqual(['no-password', en.organization.dashboard.standingNoPassword]);
-	expect(lineOf('ada')).toEqual(['no-machine', en.organization.dashboard.standingNoMachine]);
-	expect(lineOf('owner')).toEqual(['signed-in', en.organization.dashboard.standingSignedIn]);
+	expect(standingOf('sami')).toEqual(['unset', 'none']);
+	expect(standingOf('ada')).toEqual(['set', 'none']);
+	expect(standingOf('owner')).toEqual(['set', 'signed-in']);
+	expect(card('sami')!.querySelector('[data-member-password]')?.textContent?.trim()).toBe(
+		en.organization.dashboard.memberCard.noPassword
+	);
+	expect(card('owner')!.querySelector('[data-member-machine]')?.textContent?.trim()).toBe(
+		en.organization.dashboard.memberCard.signedIn
+	);
 	open.unmount();
 
 	// the standings are a second read, so the cards are drawn before they arrive, and a line
 	// guessed from nothing would say something untrue about an account somebody is working on.
 	list({ standings: [] });
 
-	expect(document.querySelectorAll('[data-member-standing]')).toHaveLength(0);
+	expect(document.querySelectorAll('[data-member-password]')).toHaveLength(0);
+	expect(document.querySelectorAll('[data-member-machine]')).toHaveLength(0);
 	expect(document.querySelectorAll('[data-member]')).toHaveLength(3);
+});
+
+// effort 846, ticket 32: the members are tiles in a grid, as many across as the directory's width
+// holds at the list shell's tile width and never more than three, each at the height its component
+// declares.
+test('the members stand in a grid of tiles, at the declared height', () => {
+	list();
+
+	const grid = document.querySelector<HTMLElement>('[data-members]')!;
+
+	expect(grid.classList).toContain('grid');
+	// jsdom lays nothing out, so the width is nothing and the grid is the one column it falls to.
+	expect(grid.dataset.columns).toBe('1');
+
+	for (const id of ['owner', 'ada', 'sami']) {
+		const holder = card(id) as HTMLElement;
+
+		expect(holder.style.height).toBe(`${MEMBER_TILE_HEIGHT}px`);
+		expect(holder.querySelector('[data-layout=tile]')).not.toBeNull();
+	}
+});
+
+test('at a width of a thousand pixels the members are laid three across', async () => {
+	const measured = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1000);
+
+	try {
+		list();
+
+		const grid = document.querySelector<HTMLElement>('[data-members]')!;
+
+		await waitFor(() => expect(grid.dataset.columns).toBe('3'));
+		expect(grid.style.gridTemplateColumns).toBe('repeat(3, minmax(0, 1fr))');
+		// the shell's own rule, at its own tile width.
+		expect(columnsFor(1000, RECORD_TILE_MIN_WIDTH, 12)).toBe(3);
+	} finally {
+		measured.mockRestore();
+	}
 });
 
 // requirement 19: the section says what it is for in the tray above the cards, and the tray is
@@ -820,8 +854,8 @@ test('the link act is offered whatever the standing says, and the line stays a f
 	});
 
 	// a card standing *signed in on a machine* says so and offers the link all the same.
-	expect(card('ada')?.querySelector('[data-member-standing]')?.textContent?.trim()).toBe(
-		en.organization.dashboard.standingSignedIn
+	expect(card('ada')?.querySelector('[data-member-machine]')?.textContent?.trim()).toBe(
+		en.organization.dashboard.memberCard.signedIn
 	);
 	expect(await actsOn('ada')).toContain('link');
 	expect(await actsOn('sami')).toContain('link');
@@ -833,7 +867,8 @@ test('the link act is offered whatever the standing says, and the line stays a f
 	// have been refused by Rust on the gate this stood in for.*
 	const loading = list({ standings: [] });
 
-	expect(card('ada')?.querySelector('[data-member-standing]')).toBeNull();
+	expect(card('ada')?.querySelector('[data-member-password]')).toBeNull();
+	expect(card('ada')?.querySelector('[data-member-machine]')).toBeNull();
 	expect(await actsOn('ada')).toContain('link');
 	expect(await actsOn('sami')).toContain('link');
 	expect(await actsOn('ada')).toContain('edit');
@@ -1396,19 +1431,19 @@ test('and in arabic every card reads in its own words, right to left', async () 
 			node.textContent?.trim()
 		)
 	).toEqual(['olivia', 'ada', 'sami']);
-	expect(card('sami')?.querySelector('[data-member-standing]')?.textContent?.trim()).toBe(
-		ar.organization.dashboard.standingNoPassword
+	expect(card('sami')?.querySelector('[data-member-password]')?.textContent?.trim()).toBe(
+		ar.organization.dashboard.memberCard.noPassword
 	);
 	// the count line too, pluralised and numbered by the Arabic locale rather than by a
 	// substitution this test performs.
 	expect(card('sami')?.querySelector('[data-member-workspaces]')?.textContent?.trim()).toBe(
-		i18nObject('ar').organization.dashboard.workspacesHeld({ count: 1 })
+		i18nObject('ar').organization.dashboard.memberCard.workspaces({ count: 1 })
 	);
-	expect(ar.organization.dashboard.workspacesHeld).not.toBe(
-		en.organization.dashboard.workspacesHeld
+	expect(ar.organization.dashboard.memberCard.workspaces).not.toBe(
+		en.organization.dashboard.memberCard.workspaces
 	);
-	expect(ar.organization.dashboard.standingNoPassword).not.toBe(
-		en.organization.dashboard.standingNoPassword
+	expect(ar.organization.dashboard.memberCard.noPassword).not.toBe(
+		en.organization.dashboard.memberCard.noPassword
 	);
 	expect(document.querySelector('[data-directory-description]')?.textContent?.trim()).toBe(
 		ar.organization.dashboard.membersDescription

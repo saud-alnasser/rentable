@@ -115,9 +115,18 @@ export const organization = {
 		workspaceYouEdit: 'يمكنك التعديل',
 		workspaceYouRead: 'يمكنك القراءة',
 		workspaceSetForYou: 'مخصّصة لك',
-		standingNoPassword: 'لا كلمة مرور بعد',
-		standingNoMachine: 'لا جهاز مسجّل الدخول',
-		standingSignedIn: 'مسجّل الدخول على جهاز',
+		memberCard: {
+			passwordSet: 'كلمة المرور معيّنة',
+			noPassword: 'لا كلمة مرور بعد',
+			signedIn: 'مسجّل الدخول على جهاز',
+			noMachine: 'لا جهاز مسجّل الدخول',
+			workspaces:
+				'{count|number} {{مساحة عمل|مساحة عمل|مساحتا عمل|مساحات عمل|مساحة عمل|مساحة عمل}}',
+			noWorkspaces: 'لا مساحات عمل',
+			joined: 'انضم في {date}',
+			ownPermissions: 'صلاحيات خاصة به',
+			offered: 'عُرضت عليه المؤسسة'
+		},
 
 		memberTitle: 'عضو جديد',
 		memberDescription:
@@ -192,7 +201,6 @@ export const organization = {
 		linkUnreachableWorkspaces:
 			'أنت لا تملك {workspaces}، لذا لم يستطع الرابط نقلها. يمكن لمدير يملكها منحها مجددًا.',
 		noWorkspaces: 'لا مساحة عمل بعد.',
-		workspacesHeld: '{count|number} {{مساحة عمل|مساحات عمل}}',
 		accessFull: 'وصول كامل',
 		memberWorkspacesDescription: 'مساحات العمل التي يستطيع فتحها. شغّل مفتاح أي منها ليدخلها.',
 		accessSaved: 'حُفظت مساحات العمل.',

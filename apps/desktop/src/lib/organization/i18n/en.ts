@@ -149,11 +149,21 @@ export const organization = {
 		workspaceYouEdit: 'you may edit',
 		workspaceYouRead: 'you may read',
 		workspaceSetForYou: 'set for you',
-		// the one line a card carries about where an account stands. It is a fact about the
-		// account and nothing follows from it: a link is offered whichever of the three it says.
-		standingNoPassword: 'no password yet',
-		standingNoMachine: 'no machine signed in',
-		standingSignedIn: 'signed in on a machine',
+		// what a member's tile says, one fact to a line after its glyph (effort 846, ticket 32).
+		// Where the account stands is a fact about it and nothing follows from it: a link is
+		// offered whatever the password and machine lines say. A count of nothing is said in
+		// words, never as a zero.
+		memberCard: {
+			passwordSet: 'password set',
+			noPassword: 'no password yet',
+			signedIn: 'signed in on a machine',
+			noMachine: 'no machine signed in',
+			workspaces: '{count|number} {{workspace|workspaces}}',
+			noWorkspaces: 'no workspaces',
+			joined: 'joined {date:string}',
+			ownPermissions: 'permissions of their own',
+			offered: 'offered the organization'
+		},
 
 		memberTitle: 'a new member',
 		memberDescription:
@@ -244,9 +254,6 @@ export const organization = {
 		linkUnreachableWorkspaces:
 			'you do not hold {workspaces}, so the link could not carry it over. a manager who does can grant it again.',
 		noWorkspaces: 'no workspace yet.',
-		// what a card says about the workspaces somebody holds: how many, and not which. Which
-		// ones, and which of them are locked to read only, is the sheet the card's edit opens.
-		workspacesHeld: '{count|number} {{workspace|workspaces}}',
 		accessFull: 'full access',
 		// the line under the workspaces on the sheet that adds a member.
 		memberWorkspacesDescription: 'the workspaces they can open. switch one on to let them in.',

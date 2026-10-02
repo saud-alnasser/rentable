@@ -3934,18 +3934,46 @@ type RootTranslation = {
 			 * s​e​t​ ​f​o​r​ ​y​o​u
 			 */
 			workspaceSetForYou: string
-			/**
-			 * n​o​ ​p​a​s​s​w​o​r​d​ ​y​e​t
-			 */
-			standingNoPassword: string
-			/**
-			 * n​o​ ​m​a​c​h​i​n​e​ ​s​i​g​n​e​d​ ​i​n
-			 */
-			standingNoMachine: string
-			/**
-			 * s​i​g​n​e​d​ ​i​n​ ​o​n​ ​a​ ​m​a​c​h​i​n​e
-			 */
-			standingSignedIn: string
+			memberCard: {
+				/**
+				 * p​a​s​s​w​o​r​d​ ​s​e​t
+				 */
+				passwordSet: string
+				/**
+				 * n​o​ ​p​a​s​s​w​o​r​d​ ​y​e​t
+				 */
+				noPassword: string
+				/**
+				 * s​i​g​n​e​d​ ​i​n​ ​o​n​ ​a​ ​m​a​c​h​i​n​e
+				 */
+				signedIn: string
+				/**
+				 * n​o​ ​m​a​c​h​i​n​e​ ​s​i​g​n​e​d​ ​i​n
+				 */
+				noMachine: string
+				/**
+				 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​w​o​r​k​s​p​a​c​e​|​w​o​r​k​s​p​a​c​e​s​}​}
+				 * @param {string | number | boolean} count
+				 */
+				workspaces: RequiredParams<'count|number'>
+				/**
+				 * n​o​ ​w​o​r​k​s​p​a​c​e​s
+				 */
+				noWorkspaces: string
+				/**
+				 * j​o​i​n​e​d​ ​{​d​a​t​e​}
+				 * @param {string} date
+				 */
+				joined: RequiredParams<'date'>
+				/**
+				 * p​e​r​m​i​s​s​i​o​n​s​ ​o​f​ ​t​h​e​i​r​ ​o​w​n
+				 */
+				ownPermissions: string
+				/**
+				 * o​f​f​e​r​e​d​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n
+				 */
+				offered: string
+			}
 			/**
 			 * a​ ​n​e​w​ ​m​e​m​b​e​r
 			 */
@@ -4188,11 +4216,6 @@ type RootTranslation = {
 			 * n​o​ ​w​o​r​k​s​p​a​c​e​ ​y​e​t​.
 			 */
 			noWorkspaces: string
-			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​w​o​r​k​s​p​a​c​e​|​w​o​r​k​s​p​a​c​e​s​}​}
-			 * @param {string | number | boolean} count
-			 */
-			workspacesHeld: RequiredParams<'count|number'>
 			/**
 			 * f​u​l​l​ ​a​c​c​e​s​s
 			 */
@@ -8672,18 +8695,44 @@ export type TranslationFunctions = {
 			 * set for you
 			 */
 			workspaceSetForYou: () => LocalizedString
-			/**
-			 * no password yet
-			 */
-			standingNoPassword: () => LocalizedString
-			/**
-			 * no machine signed in
-			 */
-			standingNoMachine: () => LocalizedString
-			/**
-			 * signed in on a machine
-			 */
-			standingSignedIn: () => LocalizedString
+			memberCard: {
+				/**
+				 * password set
+				 */
+				passwordSet: () => LocalizedString
+				/**
+				 * no password yet
+				 */
+				noPassword: () => LocalizedString
+				/**
+				 * signed in on a machine
+				 */
+				signedIn: () => LocalizedString
+				/**
+				 * no machine signed in
+				 */
+				noMachine: () => LocalizedString
+				/**
+				 * {count|number} {{workspace|workspaces}}
+				 */
+				workspaces: (arg: { count: string | number | boolean }) => LocalizedString
+				/**
+				 * no workspaces
+				 */
+				noWorkspaces: () => LocalizedString
+				/**
+				 * joined {date}
+				 */
+				joined: (arg: { date: string }) => LocalizedString
+				/**
+				 * permissions of their own
+				 */
+				ownPermissions: () => LocalizedString
+				/**
+				 * offered the organization
+				 */
+				offered: () => LocalizedString
+			}
 			/**
 			 * a new member
 			 */
@@ -8918,10 +8967,6 @@ export type TranslationFunctions = {
 			 * no workspace yet.
 			 */
 			noWorkspaces: () => LocalizedString
-			/**
-			 * {count|number} {{workspace|workspaces}}
-			 */
-			workspacesHeld: (arg: { count: string | number | boolean }) => LocalizedString
 			/**
 			 * full access
 			 */

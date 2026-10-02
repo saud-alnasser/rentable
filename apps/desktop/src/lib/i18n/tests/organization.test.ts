@@ -119,36 +119,32 @@ test('neither locale tells somebody that forgetting revoked anything', () => {
 	}
 });
 
-// effort 828, requirement 19: a card carries one line of standing, and the three lines are two
-// facts about the account read as sentences. They gate nothing. What is read here is that both
-// locales carry all three in their own words and tell them apart; the card itself is rendered in
-// `organization/member/tests/directory.svelte.test.ts`. *Both locales marked a pending member and dated
-// their link until the cards replaced the rows; the standing says the same thing about the
-// account rather than about an invitation.*
-test('both locales say where an account stands, in three lines that differ', () => {
+// effort 828, requirement 19, as ticket 32 of effort 846 draws it: a member's tile says where the
+// account stands as two facts, its password and its machine, each either way. They gate nothing.
+// What is read here is that both locales carry all four in their own words and tell them apart;
+// the card itself is rendered in `organization/member/tests/card.svelte.test.ts`. *Both locales
+// marked a pending member and dated their link until the cards replaced the rows, and said the
+// standing as one of three sentences until the tiles.*
+test('both locales say where an account stands, in four facts that differ', () => {
 	const lines = [
-		['english', en.organization.dashboard],
-		['arabic', ar.organization.dashboard]
+		['english', en.organization.dashboard.memberCard],
+		['arabic', ar.organization.dashboard.memberCard]
 	] as const;
 
-	for (const [name, dashboard] of lines) {
-		const said = [
-			dashboard.standingNoPassword,
-			dashboard.standingNoMachine,
-			dashboard.standingSignedIn
-		];
+	for (const [name, card] of lines) {
+		const said = [card.passwordSet, card.noPassword, card.signedIn, card.noMachine];
 
-		assert.equal(new Set(said).size, 3, `${name} says two standings with one sentence`);
+		assert.equal(new Set(said).size, 4, `${name} says two standings with one sentence`);
 
 		for (const line of said) {
 			assert.ok(line.length > 0, `${name} leaves a standing unsaid`);
 		}
 	}
 
-	assert.match(en.organization.dashboard.standingNoPassword, /^no password yet$/);
+	assert.match(en.organization.dashboard.memberCard.noPassword, /^no password yet$/);
 	assert.notEqual(
-		ar.organization.dashboard.standingSignedIn,
-		en.organization.dashboard.standingSignedIn
+		ar.organization.dashboard.memberCard.signedIn,
+		en.organization.dashboard.memberCard.signedIn
 	);
 	// the link a handover dates is still dated, in both locales: it is the one place the sentence
 	// is read now.

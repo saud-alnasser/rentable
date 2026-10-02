@@ -63,7 +63,7 @@ block a concept draws instead.
 
 | Primitive | Category | Drawn here for | Not for | Nearest alternative | Where |
 | --- | --- | --- | --- | --- | --- |
-| `primitive/avatar` | showing data | a person's initials beside their name | a record that is not a person; a status | `Cell.Text` | `organization/member/component/directory.svelte` |
+| `primitive/avatar` | showing data | a person's initials beside their name | a record that is not a person; a status | `Cell.Text` | `organization/member/component/card.svelte` |
 | `primitive/badge` | showing status | a short label on a row: a member's role, *also ending* on a landing row | a status of the nine (that is `Cell.Status`); anything pressed (research 6) | `cell/status.svelte` | `dashboard/component/section.svelte` |
 | `primitive/breadcrumb` | navigating | the trail in the titlebar, built from the route ([[rules/interface]], *The breadcrumb*) | going back (that is the back control); switching sections | `block/back-control.svelte` | `shell/component/breadcrumb.svelte` |
 | `primitive/button` | taking an action | one act, named by its verb with its glyph ([[rules/interface]], *Form surface*) | choosing a value; a status; several related commands (research 1, 2) | `primitive/dropdown-menu` | `complex/component/form.svelte` |
