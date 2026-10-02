@@ -24,7 +24,7 @@ import type {
 	WorkspaceGrant
 } from './member/host';
 import type { OrganizationRole, RoleHost } from './role/host';
-import type { OrganizationWorkspace, WorkspaceHost } from './workspace/host';
+import type { OrganizationWorkspace, WorkspaceHost, WorkspaceStatement } from './workspace/host';
 
 /**
  * The payload types a sub-concept's part of the port speaks in, named here as well, where every
@@ -40,7 +40,8 @@ export type {
 	OrganizationRole,
 	OrganizationWorkspace,
 	UnreachableWorkspace,
-	WorkspaceGrant
+	WorkspaceGrant,
+	WorkspaceStatement
 };
 
 /**

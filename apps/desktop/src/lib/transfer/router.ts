@@ -31,6 +31,11 @@ import type {
  *
  * What this does own is the one thing the planning pass cannot know: the identities. A record
  * names another by a name, and the row it becomes names it by an id.
+ *
+ * **Any workspace the member holds a grant on, not only the open one** (effort 846, requirement
+ * 15). Each procedure takes `{ workspaceId }` through `procedure.permittedIn`: naming nothing, or
+ * the open one, reads and writes this machine's replica as it always has, offline included; naming
+ * another reaches it on Turso without opening it, and asks the member's flags there.
  */
 // every kind's view and every kind's create, as `$lib/permission` reads them off the kinds: a file
 // holds every kind. Never an empty list, since there is always a kind, which is what a gate's
@@ -44,10 +49,12 @@ export default function transferRouter<S extends AnySheet>(declared: readonly S[
 	// what a file may ask to be written, and nothing else: each sheet's own. A status, a paid
 	// amount and an expected amount are absent on purpose: they are derived from a contract's term
 	// and its payments, and a file that could assert them could put a workspace into a state its
-	// own rows contradict.
+	// own rows contradict. Typed on the way in as well as out, because it is merged beside the
+	// `{ workspaceId }` that `permittedIn` reads first, and an input left `unknown` would leave a
+	// caller only the workspace to name.
 	const input = z.object(
 		Object.fromEntries(sheets.map((sheet) => [sheet.concept, z.array(sheet.input)]))
-	) as unknown as ZodType<InputFileOf<S>>;
+	) as unknown as ZodType<InputFileOf<S>, InputFileOf<S>>;
 
 	return router({
 		/**
@@ -60,12 +67,19 @@ export default function transferRouter<S extends AnySheet>(declared: readonly S[
 		 *
 		 * **Every kind's view flag**, because the file holds every kind and a sheet left out would be
 		 * an export that cannot be imported back whole (effort 838, requirement 10).
+		 *
+		 * **A workspace that is not open derives as it reads**: nobody may have reconciled it since a
+		 * day passed, and a read-only reader cannot write it, so a status is what the term and the
+		 * payments make it now rather than what was stored (effort 846, requirement 15).
 		 */
-		get: procedure.permitted(...EXPORT_GATE).query(async ({ ctx }): Promise<FileOf<S>> => {
+		get: procedure.permittedIn(...EXPORT_GATE).query(async ({ ctx }): Promise<FileOf<S>> => {
 			const file: Record<string, unknown[]> = {};
+			const deriving = ctx.opened
+				? undefined
+				: { now: ctx.clock.now(), contributions: ctx.contributions };
 
 			for (const sheet of sheets) {
-				file[sheet.concept] = await sheet.read(ctx.db);
+				file[sheet.concept] = await sheet.read(ctx.db, deriving);
 			}
 
 			return file as FileOf<S>;
@@ -82,9 +96,10 @@ export default function transferRouter<S extends AnySheet>(declared: readonly S[
 		 * (effort 838, requirement 10). It serves the import of one directory as well as the whole
 		 * workspace, and a unit's import reads the complexes it names, so asking for every view flag
 		 * would refuse a member the one import they may make. What they cannot view they are not told
-		 * of; a row duplicating it is refused by the write instead of by the plan.
+		 * of; a row duplicating it is refused by the write instead of by the plan. What they may view
+		 * is what they may view in the workspace named, where one is.
 		 */
-		held: procedure.member.query(async ({ ctx }): Promise<HeldOf<S>> => {
+		held: procedure.permittedIn().query(async ({ ctx }): Promise<HeldOf<S>> => {
 			const held: Record<string, HeldName[]> = {};
 
 			for (const sheet of sheets) {
@@ -118,7 +133,7 @@ export default function transferRouter<S extends AnySheet>(declared: readonly S[
 		 * all or none (effort 838, requirement 10).
 		 */
 		importWhole: procedure
-			.permitted(...IMPORT_GATE)
+			.permittedIn(...IMPORT_GATE)
 			.use(autosync())
 			.input(input)
 			.mutation(async ({ input, ctx }): Promise<CountOf<S>> => {

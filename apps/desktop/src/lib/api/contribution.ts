@@ -12,7 +12,7 @@ import type { Contributions } from '$lib/app/contributions';
  * router is built, so whatever builds a caller over that router, the application or a test, has
  * it bound.
  *
- * **Beside the context rather than in it.** `context()` builds the four ambient members a request
+ * **Beside the context rather than in it.** `context()` builds the five ambient members a request
  * runs under, what crosses the process boundary or is nondeterministic; a contribution is neither,
  * but the same composition for every request, so the middleware adds it where a procedure reads it
  * and the context stays what it is.
@@ -44,7 +44,7 @@ export const contributions = new Proxy({} as Contributions, {
 });
 
 /**
- * What a procedure's context carries beside the four ambient members: the contributions, of which
+ * What a procedure's context carries beside the five ambient members: the contributions, of which
  * a feature reads its own kind's. A domain helper a procedure hands its context to takes this.
  */
 export type Contributed = { contributions: Contributions };

@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { sql } from 'drizzle-orm';
+
 import type { Host } from '$lib/app/host.ts';
 import type { OrganizationSession } from '$lib/organization/host.ts';
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
@@ -56,18 +58,19 @@ test('context carries the database, clock, and host it is given', async () => {
 	assert.equal(ctx.host, host);
 });
 
-// **Criterion 11.** Every request carries four ambient members, and the fourth is who is acting.
+// **Criterion 11.** Every request carries its ambient members, and one of them is who is acting.
 // *It said "there is no such request" as a request with no actor — that was #571's premise and
-// requirement 7 deleted it. What survives is the shape: four members, always, and the fourth is
-// either a person or plainly nobody.*
-test('every request carries an identity, and it is one of the four members', async () => {
+// requirement 7 deleted it. What survives is the shape: the same members, always, and the identity
+// is either a person or plainly nobody. There were four until effort 846 (requirement 15) added
+// the database of a workspace that is not open, `databaseOf`.*
+test('every request carries an identity, and it is one of the five members', async () => {
 	const ctx = await context({
 		db: createMemoryDatabase(),
 		clock: { now: () => 0 },
 		host: shellReporting()
 	});
 
-	assert.deepEqual(Object.keys(ctx).sort(), ['clock', 'db', 'host', 'identity']);
+	assert.deepEqual(Object.keys(ctx).sort(), ['clock', 'databaseOf', 'db', 'host', 'identity']);
 	assert.deepEqual(ctx.identity, {
 		accountId: 'member-owner',
 		username: 'person.example',
@@ -87,6 +90,43 @@ test('an omitted clock defaults to the system clock', async () => {
 
 	assert.equal(typeof now, 'number');
 	assert.ok(now >= before && now <= after, 'clock.now() reports the current wall-clock time');
+});
+
+// **A workspace that is not open is reached through the shell's two commands for it**, named by
+// its id, and through the one factory every client is built by: a read is one statement handed to
+// `query`, a batch is handed whole to `batch`, and the rows come back mapped as the replica's do.
+test('the database of a workspace that is not open runs on the shell, by its id', async () => {
+	const asked: { workspaceId: string; sql: string; params: unknown[] }[] = [];
+	const batched: { workspaceId: string; statements: number }[] = [];
+	const host = fakeHost({
+		organization: {
+			...fakeHost().organization,
+			workspace: {
+				...fakeHost().organization.workspace,
+				query: async (workspaceId, { sql, params }) => {
+					asked.push({ workspaceId, sql, params });
+
+					return [{ columns: ['name'], rows: ['North'] }];
+				},
+				batch: async (workspaceId, queries) => {
+					batched.push({ workspaceId, statements: queries.length });
+
+					return queries.map(() => []);
+				}
+			}
+		}
+	});
+	const ctx = await context({ db: createMemoryDatabase(), host, identity: fakeIdentity() });
+	const south = ctx.databaseOf('south');
+
+	assert.deepEqual(await south.all(sql`select name from complex where id = ${'c-1'}`), [['North']]);
+	assert.deepEqual(asked, [
+		{ workspaceId: 'south', sql: 'select name from complex where id = ?', params: ['c-1'] }
+	]);
+
+	await south.batch([south.run(sql`delete from tenant`), south.run(sql`delete from complex`)]);
+
+	assert.deepEqual(batched, [{ workspaceId: 'south', statements: 2 }]);
 });
 
 // **The acting user is whose vault is open**, which is the read the wall admits on. The member's

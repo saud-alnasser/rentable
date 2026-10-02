@@ -2,8 +2,12 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import { FLAGS } from '@rentable/workspace-permission';
+import { FLAGS, maskOf } from '@rentable/workspace-permission';
 
+import type { Database } from '$lib/api/context.ts';
+import { bindSyncRequest, caller, context } from '$lib/api/trpc.ts';
+import { fakeHost } from '$lib/app/tests/host.ts';
+import { appRouter } from '$lib/app/router.ts';
 import {
 	type Api,
 	createApi,
@@ -13,7 +17,15 @@ import {
 	NOW,
 	refusedWith
 } from '$lib/app/tests/testing.ts';
+import type { OrganizationWorkspace } from '$lib/organization/host.ts';
+import {
+	fakeOrganizationSession,
+	fakeOrganizationState,
+	fakeOrganizationWorkspace
+} from '$lib/organization/tests/testing.ts';
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
+import * as s from '$lib/platform/database/schema';
+import { fakeSyncState, fakeWorkspace } from '$lib/sync/tests/testing.ts';
 import { toTables } from './file.ts';
 import {
 	emptyHeld,
@@ -568,4 +580,236 @@ test('payments read into a ledger move the contract they are against', async () 
 	// the write created, of which there were none.
 	assert.equal(after.paidAmount, 4000);
 	assert.equal(after.paymentCount, 2);
+});
+
+/**
+ * A WORKSPACE THAT IS NOT OPEN
+ *
+ * Effort 846, requirement 15 at the router: the transfer procedures take `{ workspaceId }`, and a
+ * workspace that is not the open one is read and written on its own database, with what the member
+ * may do there. Two memory workspaces stand for them: north, open on this machine, and south, which
+ * the context reaches through `databaseOf` as it would reach Turso. The identity is resolved off
+ * the shell's session and the workspace it has open, as the application resolves it, so the flags
+ * asked in south are the context's fold for south and not the test's.
+ */
+async function twoWorkspaces(south: Partial<OrganizationWorkspace> = {}) {
+	const databases = { north: createMemoryDatabase(), south: createMemoryDatabase() };
+	const session = fakeOrganizationSession({
+		permissions: EVERY_RECORD_ACT,
+		workspaces: [
+			fakeOrganizationWorkspace({ id: 'north' }),
+			fakeOrganizationWorkspace({ id: 'south', name: 'South Properties', ...south })
+		]
+	});
+	const state = fakeOrganizationState({ session });
+	const host = fakeHost({
+		organization: { ...fakeHost().organization, getState: async () => state },
+		sync: {
+			...fakeHost().sync,
+			getState: async () => fakeSyncState({ workspace: fakeWorkspace({ remoteId: 'north' }) })
+		}
+	});
+	const reached: string[] = [];
+	const api = caller(appRouter)(
+		await context({
+			db: databases.north,
+			databaseOf: (workspaceId) => {
+				reached.push(workspaceId);
+
+				return (databases as Record<string, Database>)[workspaceId];
+			},
+			clock: { now: () => NOW },
+			host
+		})
+	);
+
+	return {
+		api,
+		/** each workspace on its own, as a caller with it open would read it. */
+		north: await createApi({ db: databases.north }),
+		south: await createApi({ db: databases.south }),
+		databases,
+		/** every workspace the context reached on its own database rather than the open one. */
+		reached
+	};
+}
+
+/** a file holding one tenant, which neither workspace below holds. */
+async function fileOfOneTenant() {
+	const source = await createApi();
+
+	await source.tenant.create({
+		name: 'Omar Saleh',
+		nationalId: '2222222222',
+		phone: '+966551111111'
+	});
+
+	const plan = planWorkspaceImport(toTables(await source.transfer.get()), NOW, emptyHeld());
+
+	assert.ok(isWorkspaceImportable(plan));
+
+	return toInput(plan.transfer);
+}
+
+/** a tenant only north holds, so the two workspaces' files differ. */
+async function seedNorth(north: Api) {
+	await north.tenant.create({
+		name: 'Nora North',
+		nationalId: '1333333333',
+		phone: '+966553333333'
+	});
+}
+
+/** what a refusal for a flag the member lacks in the workspace named says, as a matcher. */
+function forbiddenNaming(flag: string) {
+	return (error: unknown) => {
+		const refusal = error as { code?: string; message?: string };
+
+		assert.equal(refusal.code, 'FORBIDDEN');
+		assert.ok(refusal.message?.endsWith(`${flag} in this workspace`), refusal.message);
+
+		return true;
+	};
+}
+
+test('a workspace that is not open exports its own file, and naming none exports the open one', async () => {
+	const { api, north, south, reached } = await twoWorkspaces();
+
+	await seedWorkspace(south);
+	await seedNorth(north);
+
+	const fromSouth = await api.transfer.get({ workspaceId: 'south' });
+	const fromOpen = await api.transfer.get();
+
+	assert.deepEqual(fromSouth, await south.transfer.get());
+	assert.deepEqual(fromOpen, await north.transfer.get());
+	assert.deepEqual(
+		fromSouth.tenants.map((tenant) => tenant.nationalId),
+		['1234567890']
+	);
+	assert.deepEqual(
+		fromOpen.tenants.map((tenant) => tenant.nationalId),
+		['1333333333']
+	);
+	// naming the open workspace is naming nothing: it is read on the open replica.
+	assert.deepEqual(await api.transfer.get({ workspaceId: 'north' }), fromOpen);
+	assert.deepEqual(reached, ['south']);
+});
+
+test('an import into a workspace that is not open writes there, and the open one is untouched', async () => {
+	const { api, north, south } = await twoWorkspaces();
+
+	await seedWorkspace(south);
+	await seedNorth(north);
+
+	const northBefore = await north.transfer.get();
+	const file = await fileOfOneTenant();
+	let pushes = 0;
+
+	bindSyncRequest(() => (pushes += 1));
+
+	try {
+		const imported = await api.transfer.importWhole({ workspaceId: 'south', ...file });
+
+		assert.equal(imported.tenants, 1);
+	} finally {
+		bindSyncRequest(() => {});
+	}
+
+	// a write to a workspace that is not open asks no push of the open one's replica.
+	assert.equal(pushes, 0);
+	assert.deepEqual((await south.transfer.get()).tenants.map((tenant) => tenant.nationalId).sort(), [
+		'1234567890',
+		'2222222222'
+	]);
+	assert.deepEqual(await north.transfer.get(), northBefore);
+
+	// what south holds is answered for south, and naming nothing still answers the open one.
+	const heldInSouth = await api.transfer.held({ workspaceId: 'south' });
+
+	assert.deepEqual(heldInSouth, await south.transfer.held());
+	assert.deepEqual(heldInSouth.contracts, ['GOV-1']);
+	assert.deepEqual(await api.transfer.held(), await north.transfer.held());
+	assert.deepEqual((await api.transfer.held()).contracts, []);
+});
+
+test('the open workspace still asks for its push once an import lands', async () => {
+	const { api } = await twoWorkspaces();
+	const file = await fileOfOneTenant();
+	let pushes = 0;
+
+	bindSyncRequest(() => (pushes += 1));
+
+	try {
+		await api.transfer.importWhole(file);
+	} finally {
+		bindSyncRequest(() => {});
+	}
+
+	assert.equal(pushes, 1);
+});
+
+test('a read-only grant on the workspace named refuses its import while the open one imports', async () => {
+	const { api, north, south } = await twoWorkspaces({ accessLevel: 'read-only' });
+	const file = await fileOfOneTenant();
+
+	await assert.rejects(
+		api.transfer.importWhole({ workspaceId: 'south', ...file }),
+		forbiddenNaming('createComplex, createUnit, createTenant, createContract, createPayment')
+	);
+	assert.deepEqual((await south.transfer.get()).tenants, []);
+
+	// reading is not a write: the read-only workspace's file is still answered.
+	assert.deepEqual(await api.transfer.get({ workspaceId: 'south' }), await south.transfer.get());
+
+	await api.transfer.importWhole(file);
+
+	assert.equal((await north.transfer.get()).tenants.length, 1);
+});
+
+test('a flag pinned off in the workspace named refuses there and nowhere else', async () => {
+	const { api, north, south } = await twoWorkspaces({
+		pinned: maskOf('createTenant'),
+		granted: 0
+	});
+	const file = await fileOfOneTenant();
+
+	await assert.rejects(
+		api.transfer.importWhole({ workspaceId: 'south', ...file }),
+		forbiddenNaming('createTenant')
+	);
+	assert.deepEqual((await south.transfer.get()).tenants, []);
+
+	await api.transfer.importWhole(file);
+
+	assert.equal((await north.transfer.get()).tenants.length, 1);
+});
+
+test('a workspace the member holds no grant on is refused, and nothing is reached', async () => {
+	const { api, reached } = await twoWorkspaces();
+	const file = await fileOfOneTenant();
+
+	await assert.rejects(api.transfer.get({ workspaceId: 'west' }), refusedWith('host.noGrant'));
+	await assert.rejects(api.transfer.held({ workspaceId: 'west' }), refusedWith('host.noGrant'));
+	await assert.rejects(
+		api.transfer.importWhole({ workspaceId: 'west', ...file }),
+		refusedWith('host.noGrant')
+	);
+	assert.deepEqual(reached, []);
+});
+
+test('a contract whose stored status went stale exports the status it derives now', async () => {
+	const { api, south, databases } = await twoWorkspaces();
+
+	await seedWorkspace(south);
+
+	assert.equal((await south.transfer.get()).contracts[0].status, 'active');
+
+	// what a workspace nobody had open across a day holds: a status its term has moved on from.
+	await databases.south.update(s.contract).set({ status: 'scheduled' });
+
+	assert.equal((await south.transfer.get()).contracts[0].status, 'scheduled');
+	assert.equal((await api.transfer.get({ workspaceId: 'south' })).contracts[0].status, 'active');
+	// derived as it was read, never written: a read-only reader could not have written it.
+	assert.equal((await south.contract.getMany({}))[0].status, 'scheduled');
 });

@@ -53,7 +53,9 @@ export function fakeOrganizationHost(): OrganizationHost {
 			grant: refuse('organization.workspace.grant'),
 			withdraw: refuse('organization.workspace.withdraw'),
 			remove: refuse('organization.workspace.remove'),
-			renewCredentials: refuse('organization.workspace.renewCredentials')
+			renewCredentials: refuse('organization.workspace.renewCredentials'),
+			query: refuse('organization.workspace.query'),
+			batch: refuse('organization.workspace.batch')
 		},
 		member: {
 			list: refuse('organization.member.list'),
