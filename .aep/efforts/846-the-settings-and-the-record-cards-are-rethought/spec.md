@@ -111,7 +111,9 @@ statement read in time order, and each payment row says how it was paid.
    directory is a grid of member cards, two or three across, each saying more; and a workspace
    card says more and is drawn better. Then: "also for the check for updates button needs to be
    just hte icon and the unkown needs to be not their in the update version": check for updates
-   is an icon button, and no *unknown* is drawn for the available version.* *Added 2026-10-02, at the human's word mid-run ("maybe settings in
+   is an icon button, and no *unknown* is drawn for the available version. Then: "the icon of update check needs to be rotating with anitmion while checking and the open log the folder icon needs to be look like it opend when clicked with animtion", and "the replace image button of seal; it should be the preview show if clicked it opens file system to replace it": the update check's glyph turns while a check runs and the log folder's glyph opens when
+   pressed, both still under reduced motion; the seal's preview is itself the control that
+   replaces it.* *Added 2026-10-02, at the human's word mid-run ("maybe settings in
    a section tab does not need to be sequential linear maybe they are cards and section of
    grids"):* a section is not one linear column. Its groups are cards laid out in a grid, two
    columns where the section is wide enough and one where it is not, each card holding its own
