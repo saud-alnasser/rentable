@@ -18,6 +18,13 @@ import type { Contract } from '$lib/platform/database/schema';
 export const DASHBOARD_ENTRIES_PER_RANK = 4;
 
 /**
+ * The parameter on the landing screen's address that opens the ending-soon control, which the
+ * command menu's place for the window carries. The screen opens the control and clears it, so a
+ * reload or a step back does not open it again (effort 846, requirement 6).
+ */
+export const ENDING_SOON_PARAM = 'ending-soon';
+
+/**
  * Whether a contract counts toward the screen's portfolio figures.
  *
  * A terminated contract is excluded: the figures describe the month's live work, and a locked

@@ -8,8 +8,15 @@
 	import * as DropdownMenu from '@rentable/design/primitive/dropdown-menu/index.js';
 	import Empty from '@rentable/design/block/empty.svelte';
 	import { isMoneyRank } from '$lib/contract';
-	import { toDashboardSections } from '$lib/dashboard/dashboard';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
+	import {
+		ENDING_SOON_PARAM,
+		toDashboardSections,
+		type DashboardSection
+	} from '$lib/dashboard/dashboard';
 	import { useFetchContractWorkQueue } from '$lib/dashboard/query';
+	import DashboardEndingSoon from '$lib/dashboard/component/ending-soon.svelte';
 	import DashboardSectionCard from '$lib/dashboard/component/section.svelte';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { formatLocaleRangeWithUnit } from '$lib/platform/locale';
@@ -26,6 +33,11 @@
 	 * and it is the load-bearing half of that decision. ADR 0014 deleted thirteen portfolio figures
 	 * from this screen for going unread; anything added here that neither opens a page nor lists
 	 * records is the beginning of that happening again.
+	 *
+	 * **A section may carry the control for the setting that defines it**, and the ending-soon
+	 * section does: its header holds the window, and stands with no rows where nothing falls in it,
+	 * so a window that catches nothing is widened where it would show (effort 846, requirements 6
+	 * and 7).
 	 */
 	// the period the money figures answer about. It opens on the current month, which is what
 	// this band could say and nothing else before it took one.
@@ -47,6 +59,32 @@
 	const ranks = $derived(workQueue?.ranks ?? []);
 
 	const sections = $derived(toDashboardSections(ranks, workQueue?.queue ?? []));
+
+	// the ending-soon section's header stands whether or not a contract falls in the window, so the
+	// window is always widened from where it shows (effort 846, requirement 7). Where none does, the
+	// header is drawn in the rank's own place, last, saying so, with no rows.
+	const holdsEndingSoon = $derived(
+		sections.some((section) => section.summary.rank === 'ending-soon')
+	);
+	const vacantEndingSoon: DashboardSection<never> = {
+		summary: { rank: 'ending-soon', contractCount: 0, totalAmount: 0 },
+		entries: [],
+		hiddenCount: 0
+	};
+
+	// whether the ending-soon control is showing. The command menu's place for the window opens it
+	// through the address, which is cleared once read, so a reload or a step back does not open it
+	// again.
+	let endingSoonOpen = $state(false);
+
+	$effect(() => {
+		if (!page.url.searchParams.has(ENDING_SOON_PARAM)) {
+			return;
+		}
+
+		endingSoonOpen = true;
+		void goto(resolve('/'), { replaceState: true, noScroll: true, keepFocus: true });
+	});
 
 	// the debt across every rank that carries one, which is the money ranks: what falls due this
 	// week is not owed yet, so it is not outstanding, whatever a rank beside them totals.
@@ -228,8 +266,27 @@
 			/>
 		{:else}
 			{#each sections as section (section.summary.rank)}
-				<DashboardSectionCard {section} />
+				<DashboardSectionCard
+					{section}
+					control={section.summary.rank === 'ending-soon' ? endingSoonControl : undefined}
+				/>
 			{/each}
+		{/if}
+
+		{#if workQueue && !holdsEndingSoon}
+			<DashboardSectionCard
+				section={vacantEndingSoon}
+				control={endingSoonControl}
+				none={$LL.dashboard.endingSoon.none({ days: workQueue.endingSoonNoticeDays })}
+			/>
 		{/if}
 	</Loading>
 </div>
+
+<!-- the control for the window that defines the ending-soon rank, at the end of that
+     section's header and nowhere else on the screen. -->
+{#snippet endingSoonControl()}
+	{#if workQueue}
+		<DashboardEndingSoon days={workQueue.endingSoonNoticeDays} bind:open={endingSoonOpen} />
+	{/if}
+{/snippet}

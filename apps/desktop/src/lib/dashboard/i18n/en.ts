@@ -10,6 +10,19 @@ export const dashboard = {
 		title: 'nothing needs doing today.'
 	},
 
+	// the window that decides which contracts rank as ending soon, set from the section it fills
+	// (effort 846, requirements 6 and 7).
+	endingSoon: {
+		change: 'change when a contract is ending soon',
+		days: 'days',
+		description: 'a contract shows here this many days before it ends.',
+		fewer: 'one day fewer',
+		invalid: 'enter a whole number of days, one or more.',
+		more: 'one day more',
+		none: 'none end within the next {days|number} {{day|days}}',
+		title: 'ending soon'
+	},
+
 	figures: {
 		collected: 'collected',
 		occupiedUnits: 'occupied units',

@@ -1,6 +1,9 @@
 import { expect, test } from 'vitest';
 
 import { places, surfaces } from '$lib/app/surfaces';
+import { i18nObject } from '$lib/i18n/i18n-util';
+import { loadLocale } from '$lib/i18n/i18n-util.sync';
+import { matchesTerm } from '$lib/palette';
 import { primaryDestinations, secondaryDestinations } from '$lib/shell/destination';
 import { PAGE_ROUTES, TRAIL_PLACES } from '$lib/shell/navigation';
 
@@ -39,9 +42,30 @@ test('the rail and the command menu offer the places they offered, in the same o
 		'/contracts'
 	]);
 	expect(secondaryDestinations.map((destination) => destination.url)).toEqual([
+		'/?ending-soon',
 		'/settings?section=general',
 		'/settings?section=account',
 		'/settings?section=organization',
 		'/settings?section=workspaces'
 	]);
+});
+
+// effort 846, requirement 6: the ending-soon window left the settings area for the dashboard, and
+// a reader who looks for it by name in the command menu is offered the place that opens it. The
+// menu narrows its places by this comparison.
+test('typing ending soon in the command menu offers the place that opens its control', () => {
+	loadLocale('en');
+	loadLocale('ar');
+
+	for (const [locale, typed] of [
+		['en', 'ending soon'],
+		['ar', 'قريب الانتهاء']
+	] as const) {
+		const translations = i18nObject(locale);
+		const offered = secondaryDestinations.filter((destination) =>
+			matchesTerm(destination.label(translations), typed)
+		);
+
+		expect(offered.map((destination) => destination.url)).toEqual(['/?ending-soon']);
+	}
 });

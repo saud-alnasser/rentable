@@ -14,11 +14,6 @@ export const settings = {
 
 	downloadingUpdate: 'جاري تنزيل التحديث',
 
-	endingSoonDescription:
-		'يظهر العقد في لوحة التحكم ضمن العقود القريبة من الانتهاء قبل هذا العدد من الأيام من نهايته.',
-	endingSoonInvalid: 'يجب أن يكون عدد الأيام أكبر من صفر',
-	endingSoonTitle: 'قريب من الانتهاء',
-
 	latestRelease: 'أنت تستخدم أحدث إصدار.',
 
 	loadErrorTitle: 'الإعدادات غير متاحة حالياً',
@@ -95,7 +90,6 @@ export const settings = {
 } satisfies Translation['settings'];
 
 export const settingsHooks = {
-	endingSoonUpdated: 'تم تحديث فترة الإشعار!',
 	workspaceUpToDate: 'كل شيء محدّث.'
 } satisfies Translation['settingsHooks'];
 

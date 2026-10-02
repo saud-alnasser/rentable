@@ -13,11 +13,6 @@ export const settings = {
 
 	downloadingUpdate: 'downloading update',
 
-	endingSoonDescription:
-		'a contract starts showing as ending soon on the dashboard this many days before it ends.',
-	endingSoonInvalid: 'the number of days must be greater than zero',
-	endingSoonTitle: 'ending soon',
-
 	latestRelease: "you're already on the latest release.",
 
 	loadErrorTitle: 'settings are unavailable right now',
@@ -98,7 +93,6 @@ export const settings = {
 } satisfies BaseTranslation;
 
 export const settingsHooks = {
-	endingSoonUpdated: 'ending soon notice window updated successfully!',
 	workspaceUpToDate: 'everything is up to date.'
 } satisfies BaseTranslation;
 

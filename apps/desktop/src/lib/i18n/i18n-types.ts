@@ -2141,6 +2141,41 @@ type RootTranslation = {
 			 */
 			title: string
 		}
+		endingSoon: {
+			/**
+			 * c​h​a​n​g​e​ ​w​h​e​n​ ​a​ ​c​o​n​t​r​a​c​t​ ​i​s​ ​e​n​d​i​n​g​ ​s​o​o​n
+			 */
+			change: string
+			/**
+			 * d​a​y​s
+			 */
+			days: string
+			/**
+			 * a​ ​c​o​n​t​r​a​c​t​ ​s​h​o​w​s​ ​h​e​r​e​ ​t​h​i​s​ ​m​a​n​y​ ​d​a​y​s​ ​b​e​f​o​r​e​ ​i​t​ ​e​n​d​s​.
+			 */
+			description: string
+			/**
+			 * o​n​e​ ​d​a​y​ ​f​e​w​e​r
+			 */
+			fewer: string
+			/**
+			 * e​n​t​e​r​ ​a​ ​w​h​o​l​e​ ​n​u​m​b​e​r​ ​o​f​ ​d​a​y​s​,​ ​o​n​e​ ​o​r​ ​m​o​r​e​.
+			 */
+			invalid: string
+			/**
+			 * o​n​e​ ​d​a​y​ ​m​o​r​e
+			 */
+			more: string
+			/**
+			 * n​o​n​e​ ​e​n​d​ ​w​i​t​h​i​n​ ​t​h​e​ ​n​e​x​t​ ​{​d​a​y​s​|​n​u​m​b​e​r​}​ ​{​{​d​a​y​|​d​a​y​s​}​}
+			 * @param {string | number | boolean} days
+			 */
+			none: RequiredParams<'days|number'>
+			/**
+			 * e​n​d​i​n​g​ ​s​o​o​n
+			 */
+			title: string
+		}
 		figures: {
 			/**
 			 * c​o​l​l​e​c​t​e​d
@@ -2211,18 +2246,6 @@ type RootTranslation = {
 		 * d​o​w​n​l​o​a​d​i​n​g​ ​u​p​d​a​t​e
 		 */
 		downloadingUpdate: string
-		/**
-		 * a​ ​c​o​n​t​r​a​c​t​ ​s​t​a​r​t​s​ ​s​h​o​w​i​n​g​ ​a​s​ ​e​n​d​i​n​g​ ​s​o​o​n​ ​o​n​ ​t​h​e​ ​d​a​s​h​b​o​a​r​d​ ​t​h​i​s​ ​m​a​n​y​ ​d​a​y​s​ ​b​e​f​o​r​e​ ​i​t​ ​e​n​d​s​.
-		 */
-		endingSoonDescription: string
-		/**
-		 * t​h​e​ ​n​u​m​b​e​r​ ​o​f​ ​d​a​y​s​ ​m​u​s​t​ ​b​e​ ​g​r​e​a​t​e​r​ ​t​h​a​n​ ​z​e​r​o
-		 */
-		endingSoonInvalid: string
-		/**
-		 * e​n​d​i​n​g​ ​s​o​o​n
-		 */
-		endingSoonTitle: string
 		/**
 		 * y​o​u​'​r​e​ ​a​l​r​e​a​d​y​ ​o​n​ ​t​h​e​ ​l​a​t​e​s​t​ ​r​e​l​e​a​s​e​.
 		 */
@@ -3344,10 +3367,6 @@ type RootTranslation = {
 		saved: string
 	}
 	settingsHooks: {
-		/**
-		 * e​n​d​i​n​g​ ​s​o​o​n​ ​n​o​t​i​c​e​ ​w​i​n​d​o​w​ ​u​p​d​a​t​e​d​ ​s​u​c​c​e​s​s​f​u​l​l​y​!
-		 */
-		endingSoonUpdated: string
 		/**
 		 * e​v​e​r​y​t​h​i​n​g​ ​i​s​ ​u​p​ ​t​o​ ​d​a​t​e​.
 		 */
@@ -6692,6 +6711,40 @@ export type TranslationFunctions = {
 			 */
 			title: () => LocalizedString
 		}
+		endingSoon: {
+			/**
+			 * change when a contract is ending soon
+			 */
+			change: () => LocalizedString
+			/**
+			 * days
+			 */
+			days: () => LocalizedString
+			/**
+			 * a contract shows here this many days before it ends.
+			 */
+			description: () => LocalizedString
+			/**
+			 * one day fewer
+			 */
+			fewer: () => LocalizedString
+			/**
+			 * enter a whole number of days, one or more.
+			 */
+			invalid: () => LocalizedString
+			/**
+			 * one day more
+			 */
+			more: () => LocalizedString
+			/**
+			 * none end within the next {days|number} {{day|days}}
+			 */
+			none: (arg: { days: string | number | boolean }) => LocalizedString
+			/**
+			 * ending soon
+			 */
+			title: () => LocalizedString
+		}
 		figures: {
 			/**
 			 * collected
@@ -6758,18 +6811,6 @@ export type TranslationFunctions = {
 		 * downloading update
 		 */
 		downloadingUpdate: () => LocalizedString
-		/**
-		 * a contract starts showing as ending soon on the dashboard this many days before it ends.
-		 */
-		endingSoonDescription: () => LocalizedString
-		/**
-		 * the number of days must be greater than zero
-		 */
-		endingSoonInvalid: () => LocalizedString
-		/**
-		 * ending soon
-		 */
-		endingSoonTitle: () => LocalizedString
 		/**
 		 * you're already on the latest release.
 		 */
@@ -7830,10 +7871,6 @@ export type TranslationFunctions = {
 		saved: () => LocalizedString
 	}
 	settingsHooks: {
-		/**
-		 * ending soon notice window updated successfully!
-		 */
-		endingSoonUpdated: () => LocalizedString
 		/**
 		 * everything is up to date.
 		 */

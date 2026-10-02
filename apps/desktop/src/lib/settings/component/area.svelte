@@ -9,7 +9,6 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import SettingsAppearance from '$lib/settings/component/appearance.svelte';
 	import SettingsDiagnostics from '$lib/settings/component/diagnostics.svelte';
-	import SettingsEndingSoon from '$lib/settings/component/ending-soon.svelte';
 	import SettingsLocale from '$lib/settings/component/locale.svelte';
 	import SettingsUpdates from '$lib/settings/component/updates.svelte';
 	import { SECTION_GLYPH } from '$lib/settings/glyph';
@@ -128,6 +127,8 @@
 			<!-- the language and the appearance take no title of their own: the rail above already
 			     says general, and a title repeating it is the tab said twice. Updates and
 			     diagnostics carry theirs, because they are things of their own under that name. -->
+			<!-- ending soon is not here: it is set from the dashboard's ending-soon section, where
+			     it shows (effort 846, requirement 6). -->
 			<div data-general class="flex flex-col gap-6">
 				<SettingsGroup footer={$LL.settings.preferencesFooter()}>
 					{#snippet rows()}
@@ -135,10 +136,6 @@
 						<SettingsAppearance stored={settings.appearance} />
 					{/snippet}
 				</SettingsGroup>
-
-				<!-- ending soon stays here, as it was, until the dashboard's own control takes it
-				     (effort 846, ticket 10), so the figure is never out of reach in between. -->
-				<SettingsEndingSoon {settings} />
 			</div>
 
 			<SettingsUpdates version={settings.version} />

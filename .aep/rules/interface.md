@@ -138,6 +138,20 @@ Anything that does neither does not belong on this screen.
 
 Recorded originally as ADR 0030, *The landing screen is figures over sections, and a figure routes or a section holds rows*.
 
+**A section may carry the control for the setting that defines it, and that section's header
+stands with no rows.** The ending-soon section is the one: the window that decides which contracts
+rank as ending soon is a quiet glyph at the end of its header (`dashboard/component/ending-soon.svelte`),
+opening the number of days, applied in place with no save step. Where no contract falls in the
+window the header is still drawn in the rank's own place, saying none end within it, with the same
+control, so a window that catches nothing is widened where it would show; the section fills in place
+when it does. It is the one header the stated test above admits without rows, because a setting with
+its only home on a section that vanishes when the setting catches nothing is a setting that cannot
+be reached. The command menu offers it as a place, `/?ending-soon`, which opens the control.
+
+*Why: the window was a field in the settings area, two screens from the only rows it changes, and
+every neighbour there applied at once while it asked for a save.* *Added by
+[[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirements 6 and 7.*
+
 ## Tone
 
 **What a surface reports, it reports in one vocabulary: `neutral | info | success | warning | error`.**

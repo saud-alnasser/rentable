@@ -273,7 +273,7 @@ test('a plain member is offered the same four', () => {
 });
 
 // the area is the one address that draws with nobody signed in, and general is the only section
-// that needs no organization: the language, the ending-soon figure, updates and diagnostics.
+// that needs no organization: the language and the appearance, updates and diagnostics.
 test('with nobody signed in, the one section that needs no session', () => {
 	at();
 	area({ session: null, syncState: null, holdsTursoAuthority: false });
@@ -305,8 +305,8 @@ test('and the body is that section rather than the first one', () => {
 
 // requirement 24 of effort 828 and requirements 1 and 3 of effort 846: general is three groups of
 // rows, the language and the appearance, then updates, then diagnostics, each with its one line
-// under it, and nothing that belongs to one of the other three sections. Ending soon stands beside
-// the first group until the dashboard's control takes it (ticket 10).
+// under it, and nothing that belongs to one of the other three sections. Ending soon is not among
+// them: it is set from the dashboard (requirement 6, ticket 10).
 test('the general section is three groups of rows: preferences, then updates, then diagnostics', () => {
 	at('?section=general');
 	area({ section: 'general' });
@@ -333,7 +333,8 @@ test('the general section is three groups of rows: preferences, then updates, th
 	expect(screen.getByText(en.settings.updatesDescription)).toBeDefined();
 	expect(screen.getByText(en.settings.diagnosticsTitle)).toBeDefined();
 	expect(screen.getByText(en.settings.diagnosticsDescription)).toBeDefined();
-	expect(screen.getByText(en.settings.endingSoonTitle)).toBeDefined();
+	expect(screen.queryByText(en.dashboard.endingSoon.title)).toBeNull();
+	expect(document.querySelector('input[type=number]')).toBeNull();
 
 	// and none of the other three sections' blocks.
 	expect(document.querySelector('[data-members]')).toBeNull();
@@ -378,9 +379,9 @@ test('within each group in general, every button carries an svg or none does', (
 	expect(screen.getByRole('button', { name: en.settings.diagnosticsReveal })).toBeDefined();
 });
 
-// criterion 4 of effort 846, for general: nothing in it waits on a save but ending soon, whose
-// save goes when ticket 10 moves the figure to the dashboard.
-test("no button in general is named save other than ending soon's", () => {
+// criterion 4 of effort 846, for general: nothing in it waits on a save. Ending soon's was the last,
+// and went with the figure to the dashboard (ticket 10).
+test('no button in general is named save', () => {
 	at('?section=general');
 	area({ section: 'general' });
 
@@ -388,13 +389,7 @@ test("no button in general is named save other than ending soon's", () => {
 		.queryAllByRole('button')
 		.filter((button) => button.textContent?.trim() === en.common.actions.save);
 
-	expect(saves.length).toBeLessThanOrEqual(1);
-
-	for (const save of saves) {
-		expect(
-			save.closest('[data-slot=field]')?.querySelector('#ending-soon-notice-days')
-		).not.toBeNull();
-	}
+	expect(saves).toEqual([]);
 });
 
 // requirement 24: the account section is what the you section held, and nothing else.
