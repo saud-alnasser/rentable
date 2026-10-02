@@ -348,8 +348,10 @@ statement read in time order, and each payment row says how it was paid.
   open workspace and the organization, as today.
 - **Payments as a card grid**, and the history list. The ledger is revisited only as far as
   requirement 20 says.
-- **The member and role directories as grids.** They stay one column of cards; a dozen people read
-  better as a list.
+- ~~**The member and role directories as grids.**~~ *Withdrawn 2026-10-02 at the human's word on
+  the walk ("the members grid record needs to be a grid of 3 columns or 2"; the roles "should
+  match the cards that use icons and badges like the members card"): both are now grids of cards,
+  requirement 1 as revised.*
 - **The contract's unit transfer panes.**
 - **The way in, the wall and the workspace control**, which effort 843 settled.
 

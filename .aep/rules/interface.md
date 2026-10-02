@@ -346,6 +346,12 @@ concept's own component, at the height its list declares:
   second, drawn once the standing has answered. No field takes a tone; a value saying nothing is
   there (*not yet*, *none*) is muted. At its foot, only where they apply, permissions of its own and
   an organization offered to it, each a small outline badge with its glyph.
+- **A role** (`organization/role/component/card.svelte`, `ROLE_TILE_HEIGHT`, 196 px, in the
+  settings' roles directory, in rank order): the `shield` glyph in its muted tile, the role's name
+  and a badge counting who holds it (*nobody yet* when none), then four fields in the member
+  card's look, two across: what it reads, what it changes, the people acts it holds, and the
+  organization acts it holds, each as every one, a count of the whole, or *nothing* / *none*
+  muted. It has no foot.
 - **A workspace** (`organization/workspace/component/directory.svelte`, `WORKSPACE_TILE_HEIGHT`,
   174 px, in the settings' workspaces directory): the `building` glyph in its muted tile and the
   name on the heading line, an *open on this machine* badge under it on the open one, then at its
