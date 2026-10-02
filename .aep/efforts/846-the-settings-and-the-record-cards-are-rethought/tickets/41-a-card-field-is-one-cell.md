@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: []
 ---
 
@@ -15,8 +15,8 @@ The human's word of 2026-10-03: "follow the tinted files and things like that in
 
 Traces requirement 1 as revised 2026-10-03, and requirement 19.
 
-- [ ] `design/cell/field.svelte` exists with a component test (glyph, name, value, muted empty value, RTL); the member and role cards import it and carry no field markup of their own.
-- [ ] The member and role card tests pass unchanged; the components context names `Cell.Field`.
+- [x] `design/cell/field.svelte` exists with a component test (glyph, name, value, muted empty value, RTL); the member and role cards import it and carry no field markup of their own. *Verified: `vitest run design/cell organization/member organization/role` printed 13 files, 183 passed; `field.svelte.test.ts` covers glyph, name, value, the muted empty value, the status tone, the hooks and RTL; both cards import `Cell.Field` and keep no field markup of their own.*
+- [x] The member and role card tests pass unchanged; the components context names `Cell.Field`. *Verified: the same run: the member and role card tests pass unchanged; `node --test src/tests/components-context.test.ts` printed 3 passed with the cell named; `validate.mjs` no failures.*
 
 ## Relevant areas
 

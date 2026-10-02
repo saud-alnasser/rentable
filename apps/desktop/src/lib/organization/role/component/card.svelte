@@ -15,6 +15,7 @@
 <script lang="ts">
 	import RecordCard, { type RecordCardAction } from '@rentable/design/block/record-card.svelte';
 	import { Badge } from '@rentable/design/primitive/badge/index.js';
+	import * as Cell from '$lib/design/cell/index.ts';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import type { OrganizationRole } from '$lib/organization/host';
 	import { roleReach, type Reach } from '$lib/organization/role/role';
@@ -23,8 +24,6 @@
 	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import ShieldIcon from '@lucide/svelte/icons/shield';
 	import UsersIcon from '@lucide/svelte/icons/users';
-
-	type IconComponent = typeof ShieldIcon;
 
 	/**
 	 * A role, as the roles directory lays one in its grid, in rank order (effort 846, ticket 39, the
@@ -76,31 +75,6 @@
 				: $LL.organization.roleCard.actsOf(each);
 </script>
 
-<!-- one field: the glyph and the name on its first line, the value under them, as the member's
-     tile draws its own. Both lines set a 20 px leading of their own, so a field is one height in
-     both locales. -->
-{#snippet field(Icon: IconComponent, kind: string, label: string, value: string, held: boolean)}
-	<div data-role-field={kind} class="flex min-w-0 flex-col rounded-lg bg-muted px-3 py-2">
-		<span
-			data-role-field-name
-			class="flex min-w-0 items-center gap-1.5 text-xs leading-5 text-muted-foreground"
-		>
-			<Icon class="size-3.5 shrink-0 opacity-70" aria-hidden="true" />
-			<span class="truncate">{label}</span>
-		</span>
-		<span
-			data-role-field-value
-			data-held={held ? 'some' : 'none'}
-			class={[
-				'truncate text-sm leading-5 font-medium',
-				held ? 'text-foreground' : 'text-muted-foreground'
-			]}
-		>
-			{value}
-		</span>
-	</div>
-{/snippet}
-
 <RecordCard {href} label={name} {actions} layout="tile" class="gap-3">
 	{#snippet heading()}
 		<!-- the glyph tile, at the heading line's height, where a member's tile holds the person's
@@ -125,34 +99,42 @@
 
 	{#snippet content()}
 		<div data-role-fields class="pointer-events-none relative grid grid-cols-2 gap-2">
-			{@render field(
-				EyeIcon,
-				'reads',
-				$LL.organization.roleCard.fields.reads(),
-				kindsValue(reach.reads),
-				reach.reads.held > 0
-			)}
-			{@render field(
-				PencilIcon,
-				'changes',
-				$LL.organization.roleCard.fields.changes(),
-				kindsValue(reach.changes),
-				reach.changes.held > 0
-			)}
-			{@render field(
-				UsersIcon,
-				'people',
-				$LL.organization.roleCard.fields.people(),
-				actsValue(reach.people),
-				reach.people.held > 0
-			)}
-			{@render field(
-				Building2Icon,
-				'organization',
-				$LL.organization.roleCard.fields.organization(),
-				actsValue(reach.organization),
-				reach.organization.held > 0
-			)}
+			<Cell.Field
+				hook="role-field"
+				data-role-field="reads"
+				icon={EyeIcon}
+				name={$LL.organization.roleCard.fields.reads()}
+				value={kindsValue(reach.reads)}
+				empty={reach.reads.held === 0}
+				valueAttributes={{ 'data-held': reach.reads.held > 0 ? 'some' : 'none' }}
+			/>
+			<Cell.Field
+				hook="role-field"
+				data-role-field="changes"
+				icon={PencilIcon}
+				name={$LL.organization.roleCard.fields.changes()}
+				value={kindsValue(reach.changes)}
+				empty={reach.changes.held === 0}
+				valueAttributes={{ 'data-held': reach.changes.held > 0 ? 'some' : 'none' }}
+			/>
+			<Cell.Field
+				hook="role-field"
+				data-role-field="people"
+				icon={UsersIcon}
+				name={$LL.organization.roleCard.fields.people()}
+				value={actsValue(reach.people)}
+				empty={reach.people.held === 0}
+				valueAttributes={{ 'data-held': reach.people.held > 0 ? 'some' : 'none' }}
+			/>
+			<Cell.Field
+				hook="role-field"
+				data-role-field="organization"
+				icon={Building2Icon}
+				name={$LL.organization.roleCard.fields.organization()}
+				value={actsValue(reach.organization)}
+				empty={reach.organization.held === 0}
+				valueAttributes={{ 'data-held': reach.organization.held > 0 ? 'some' : 'none' }}
+			/>
 		</div>
 	{/snippet}
 </RecordCard>

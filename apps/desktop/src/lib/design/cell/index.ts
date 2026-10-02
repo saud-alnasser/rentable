@@ -1,6 +1,7 @@
 export { default as Count } from './count.svelte';
 export { default as Date } from './date.svelte';
 export { default as Fact } from './fact.svelte';
+export { default as Field } from './field.svelte';
 export { default as Fulfillment } from './fulfillment.svelte';
 export { default as Money } from './money.svelte';
 export { default as Phone } from './phone.svelte';

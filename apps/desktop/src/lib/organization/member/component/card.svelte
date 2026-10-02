@@ -19,6 +19,7 @@
 	import RecordCard, { type RecordCardAction } from '@rentable/design/block/record-card.svelte';
 	import * as Avatar from '@rentable/design/primitive/avatar/index.js';
 	import { Badge } from '@rentable/design/primitive/badge/index.js';
+	import * as Cell from '$lib/design/cell/index.ts';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { formatLocaleDate } from '$lib/platform/locale';
 	import { accountInitials } from '$lib/sync';
@@ -28,8 +29,6 @@
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 	import LaptopIcon from '@lucide/svelte/icons/laptop';
 	import UserCogIcon from '@lucide/svelte/icons/user-cog';
-
-	type IconComponent = typeof BuildingIcon;
 
 	/**
 	 * A member, as the members directory lays one in its grid (effort 846, tickets 32 and 37): who
@@ -92,34 +91,6 @@
 
 <!-- one field: the glyph and the name on its first line, the value under them. Both lines set a
      20 px leading of their own, so a field is one height in both locales. -->
-{#snippet field(
-	Icon: IconComponent,
-	name: string,
-	value: string,
-	present: boolean,
-	data: Record<string, string | number>
-)}
-	<div data-member-field class="flex min-w-0 flex-col rounded-lg bg-muted px-3 py-2">
-		<span
-			data-member-field-name
-			class="flex min-w-0 items-center gap-1.5 text-xs leading-5 text-muted-foreground"
-		>
-			<Icon class="size-3.5 shrink-0 opacity-70" aria-hidden="true" />
-			<span class="truncate">{name}</span>
-		</span>
-		<span
-			data-member-field-value
-			class={[
-				'truncate text-sm leading-5 font-medium',
-				present ? 'text-foreground' : 'text-muted-foreground'
-			]}
-			{...data}
-		>
-			{value}
-		</span>
-	</div>
-{/snippet}
-
 <RecordCard {href} label={member.username} {actions} layout="tile" class="gap-3">
 	{#snippet heading()}
 		<!-- the same disc the rail's account control and the identity card draw, with the same two
@@ -139,40 +110,49 @@
 
 	{#snippet content()}
 		<div data-member-fields class="pointer-events-none relative grid grid-cols-2 gap-2">
-			{@render field(
-				BuildingIcon,
-				$LL.settings.section.workspaces(),
-				workspaceCount === 0
+			<Cell.Field
+				hook="member-field"
+				icon={BuildingIcon}
+				name={$LL.settings.section.workspaces()}
+				value={workspaceCount === 0
 					? $LL.organization.dashboard.memberCard.noWorkspaces()
-					: $LL.organization.dashboard.memberCard.workspaceCount({ count: workspaceCount }),
-				workspaceCount > 0,
-				{ 'data-member-workspaces': workspaceCount }
-			)}
+					: $LL.organization.dashboard.memberCard.workspaceCount({ count: workspaceCount })}
+				empty={workspaceCount === 0}
+				valueAttributes={{ 'data-member-workspaces': workspaceCount }}
+			/>
 
-			{@render field(CalendarIcon, $LL.organization.dashboard.memberCard.joined(), joined, true, {
-				'data-member-joined': ''
-			})}
+			<Cell.Field
+				hook="member-field"
+				icon={CalendarIcon}
+				name={$LL.organization.dashboard.memberCard.joined()}
+				value={joined}
+				valueAttributes={{ 'data-member-joined': '' }}
+			/>
 
 			{#if standing}
-				{@render field(
-					KeyRoundIcon,
-					$LL.organization.dashboard.memberCard.password(),
-					standing.passwordSet
+				<Cell.Field
+					hook="member-field"
+					icon={KeyRoundIcon}
+					name={$LL.organization.dashboard.memberCard.password()}
+					value={standing.passwordSet
 						? $LL.organization.dashboard.memberCard.passwordSet()
-						: $LL.organization.dashboard.memberCard.noPassword(),
-					standing.passwordSet,
-					{ 'data-member-password': standing.passwordSet ? 'set' : 'unset' }
-				)}
+						: $LL.organization.dashboard.memberCard.noPassword()}
+					empty={!standing.passwordSet}
+					valueAttributes={{ 'data-member-password': standing.passwordSet ? 'set' : 'unset' }}
+				/>
 
-				{@render field(
-					LaptopIcon,
-					$LL.organization.dashboard.memberCard.machine(),
-					standing.machineSignedIn
+				<Cell.Field
+					hook="member-field"
+					icon={LaptopIcon}
+					name={$LL.organization.dashboard.memberCard.machine()}
+					value={standing.machineSignedIn
 						? $LL.organization.dashboard.memberCard.signedIn()
-						: $LL.organization.dashboard.memberCard.noMachine(),
-					standing.machineSignedIn,
-					{ 'data-member-machine': standing.machineSignedIn ? 'signed-in' : 'none' }
-				)}
+						: $LL.organization.dashboard.memberCard.noMachine()}
+					empty={!standing.machineSignedIn}
+					valueAttributes={{
+						'data-member-machine': standing.machineSignedIn ? 'signed-in' : 'none'
+					}}
+				/>
 			{/if}
 		</div>
 

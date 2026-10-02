@@ -139,7 +139,8 @@ rather than formatting itself.
 | `cell/count.svelte` | showing data | a figure in the domain's tone (`running`, `settled`, `money`) | a count of one status (status count) | `cell/status-count.svelte` | unused here outside its tests |
 | `cell/date.svelte` | showing data | a date, as `formatRecordDate` renders it | a date being chosen | `primitive/calendar` | `dashboard/component/section.svelte` |
 | `cell/disc.svelte` | showing status | the filled glyph the status and count vocabularies hold | a status on its own (it is a glyph, not a cell of the index) | `cell/status.svelte` | `organization/workspace/component/directory.svelte` |
-| `cell/fact.svelte` | showing data | one line of a tile's facts, at the tile's line height | a record page's fields | `block/specification.svelte` | `tenant/component/card.svelte` |
+| `cell/fact.svelte` | showing data | one line of a tile's facts, at the tile's line height | a fact a reader needs its name to tell apart from its neighbours (a field); a record page's fields | `cell/field.svelte` | `tenant/component/card.svelte` |
+| `cell/field.svelte` | showing data | one of a record card's tinted fields, laid in a grid two across: glyph and name, small and muted, over the value in the stronger weight; `empty` mutes a value saying nothing is there, `status` tones only a value that is a state | a lone line under a tile's heading that its glyph alone labels (a fact); a record page's fields | `cell/fact.svelte` | `organization/member/component/card.svelte` |
 | `cell/fulfillment.svelte` | showing status | how much of an amount is paid, as a ring | a bare proportion | `cell/ring.svelte` | unused here outside its tests |
 | `cell/money.svelte` | showing data | an amount, localized, with the currency | money being entered | `primitive/input-group` | `dashboard/component/section.svelte` |
 | `cell/phone.svelte` | showing data | a phone number, held left to right | a phone being entered | `primitive/select` | `tenant/component/card.svelte` |
@@ -165,6 +166,7 @@ Each row names what this repository already draws for the need, and one file whe
 | a status with a problem to act on | `primitive/callout` with its act, in its tone | `organization/component/standing.svelte` |
 | a list of records | the list shell with `block/record-card.svelte` | `complex/component/card.svelte` |
 | a record's facts | `block/specification.svelte` | `complex/component/details.svelte` |
+| a record card's facts, each named, side by side | `cell/field.svelte` in a grid two across | `organization/role/component/card.svelte` |
 | detail few readers need | `primitive/collapsible` | `error/component/detail-disclosure.svelte` |
 | a small setting beside what it changes | `primitive/popover`, applied in place | `dashboard/component/ending-soon.svelte` |
 | a secondary act on a record | the record card's menu, and `block/record-action-control.svelte` on its page | `complex/component/details.svelte` |
