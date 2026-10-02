@@ -8,22 +8,23 @@ import type { BaseTranslation } from '../../i18n/i18n-types';
 export const organization = {
 	// the one image the organization prints at the foot of its pages (effort 835).
 	mark: {
-		alt: "the organization's signature or seal",
+		alt: 'the organization stamp',
 		choose: 'choose image',
 		description: 'printed at the foot of every receipt and schedule.',
-		// the mark card's one row: the image itself, under the card's title (effort 846).
+		// the stamp card's one row: the image itself, under the card's title (effort 846).
 		image: 'image',
 		none: 'none added yet',
-		readOnly: 'somebody allowed to change the mark can change it.',
+		readOnly: 'somebody allowed to change the organization stamp can change it.',
 		remove: 'remove',
-		// the group's end row and the question before it: what goes, and what brings it back.
+		// the remove on the stamp's corner and the question before it: what goes, and what brings it
+		// back.
 		removeDescription:
 			'receipts and schedules print without it, on every machine. only choosing an image again brings one back.',
-		removeTitle: 'remove signature or seal',
-		removed: 'signature or seal removed',
+		removeTitle: 'remove organization stamp',
+		removed: 'organization stamp removed',
 		replace: 'replace image',
-		saved: 'signature or seal saved',
-		title: 'signature or seal'
+		saved: 'organization stamp saved',
+		title: 'organization stamp'
 	},
 	setup: {
 		connectTitle: 'connect Turso',
@@ -371,7 +372,7 @@ export const organization = {
 		grantWorkspace: 'grant workspaces',
 		manageRoles: 'manage roles',
 		overrideMember: "change one member's permissions",
-		manageMark: "change the organization's mark",
+		manageMark: 'change the organization stamp',
 		createWorkspace: 'create workspaces',
 		deleteWorkspace: 'delete workspaces',
 		mintReadOnly: 'grant read only access',
@@ -455,7 +456,7 @@ export const organization = {
 			grantWorkspace: 'put members in workspaces, or take them out.',
 			manageRoles: 'add, edit, rank and delete roles.',
 			overrideMember: 'give one member more or less than their role does.',
-			manageMark: "set the signature or seal printed on the organization's pages."
+			manageMark: 'set the organization stamp printed on its pages.'
 		},
 		viewFirst: 'turn view on first: adding, editing or deleting a record needs seeing it.',
 		groupRefused: 'some of these are not yours to change',

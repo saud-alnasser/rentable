@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: []
 ---
 
@@ -15,9 +15,9 @@ The human's walk of 2026-10-02, verbatim: "the remove singtaure or seal section 
 
 Traces requirement 1 as revised 2026-10-02, and requirements 2 and 5.
 
-- [ ] The card's title reads organization stamp in English and its Arabic in Arabic, and no string the user meets still says signature or seal; the i18n tests pass.
-- [ ] A test: the card has no remove row; the preview carries a remove icon button named by its tooltip, red on the button alone, opening the confirmation; with no stamp there is none; pressing the preview still opens the picker.
-- [ ] [[rules/interface]] and [[contexts/desktop/components]] say the stamp's remove sits on its picture; `validate.mjs` passes.
+- [x] The card's title reads organization stamp in English and its Arabic in Arabic, and no string the user meets still says signature or seal; the i18n tests pass. *Verified: `node --test src/lib/i18n/tests/*.test.ts` printed pass 29, fail 0; `mark.svelte.test.ts` finds the title organization stamp and ختم المؤسسة, and no card text, label or string saying signature, seal or توقيع.*
+- [x] A test: the card has no remove row; the preview carries a remove icon button named by its tooltip, red on the button alone, opening the confirmation; with no stamp there is none; pressing the preview still opens the picker. *Verified: `vitest run organization/tests/mark.svelte.test.ts app/tests/settings-area.svelte.test.ts` printed 63 passed: no remove row; a round `trash-2` button on the preview's corner, red alone, labelled and tooltipped remove organization stamp, opening the confirmation; none with no stamp; the preview still opens the picker.*
+- [x] [[rules/interface]] and [[contexts/desktop/components]] say the stamp's remove sits on its picture; `validate.mjs` passes. *Verified: read rules/interface (*Settings section*, the stamp's remove as the one ending act that sits on its picture) and the components context's new row; `validate.mjs` printed no failures; desktop check 0 errors.*
 
 ## Relevant areas
 

@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
-import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest';
 
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
+import ar from '$lib/i18n/ar';
 import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
@@ -9,13 +10,14 @@ import OrganizationMark from '$lib/organization/component/mark.svelte';
 import Providers from '#tests/providers.svelte';
 
 /**
- * THE ORGANIZATION'S SIGNATURE OR SEAL, IN SETTINGS
+ * THE ORGANIZATION STAMP, IN SETTINGS
  *
  * Ticket 15 of [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]], criteria 13(b)
  * and 13(d): whoever holds `manageMark` chooses, replaces and removes the mark; a reader without
  * it sees the mark and no control; an image the host refuses is answered with the host's sentence.
- * And ticket 05 of [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]]: the mark
- * is a settings row, and its remove is the group's end row, confirmed.
+ * And tickets 05, 34 and 36 of [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]]:
+ * the mark is a settings row whose preview replaces it, and its remove is an icon button on the
+ * preview's corner, confirmed.
  *
  * **What reaches Rust is stood in for**: the router's three mark procedures at the caller, and the
  * open dialog at `tauri`.
@@ -62,6 +64,15 @@ vi.mock('$lib/error/refusal', async (original) => {
 });
 
 const MARK = { mediaType: 'image/png', data: 'iVBORw0K' };
+
+// the tooltip measures its content once it opens, which jsdom has nothing to do with.
+beforeAll(() => {
+	window.ResizeObserver ??= class {
+		observe() {}
+		unobserve() {}
+		disconnect() {}
+	} as unknown as typeof ResizeObserver;
+});
 
 beforeEach(() => {
 	loadLocale('en');
@@ -144,34 +155,75 @@ test('leaving the question removes nothing', async () => {
 /** the mark group's rows, in order. */
 const rows = () => [...document.querySelectorAll<HTMLElement>('[data-settings-row]')];
 
-// effort 846, criteria 1, 2 and 5 for the mark: one row with the preview as its value, and the
-// remove as the group's end row, in the error tone, with its glyph; every button carries a glyph.
-test('the mark is a row with its preview, and remove is the end row in the error tone', async () => {
+/** the hint a control's tooltip shows once it is focused. */
+const hintOf = async (trigger: HTMLElement, mark: string) => {
+	await fireEvent.focus(trigger);
+
+	return waitFor(() => {
+		const hint = document.querySelector<HTMLElement>(`[${mark}]`);
+
+		expect(hint).not.toBeNull();
+
+		return hint!.textContent?.trim();
+	});
+};
+
+// effort 846 ticket 36, at the human's word of 2026-10-02 ("the remove ... needs to be integrated
+// in into the part of the image not a separate thing maybe a button"): the card is one row and no
+// remove row. The remove is an icon button on the preview's corner, beside the preview and not
+// inside it, named by its label and its tooltip, red on the button alone, and it asks first.
+test('the stamp is removed from its picture, by an icon button on the corner, and no row', async () => {
 	host.markGet.mockResolvedValue(MARK);
 	shown(true);
 
 	await waitFor(() => expect(image()).toBe('data:image/png;base64,iVBORw0K'));
 
-	const [mark, remove] = rows();
+	const [row] = rows();
 
-	expect(rows()).toHaveLength(2);
-	expect(mark.querySelector('[data-row-value] [data-organization-mark-image]')).not.toBeNull();
-	expect(mark.dataset.rowTone).toBe('neutral');
-	expect(remove.dataset.rowTone).toBe('error');
-	expect(remove.querySelector('[data-slot=item-media] svg')).not.toBeNull();
-	expect(remove.querySelector('[data-organization-mark-remove]')).not.toBeNull();
-	// the end row is after the group's separator, so it is last.
-	expect(remove.previousElementSibling?.getAttribute('data-slot')).toBe('item-separator');
+	// one row, the image; no end row, no separator, nothing in the error tone but the one button.
+	expect(rows()).toHaveLength(1);
+	expect(row.dataset.rowTone).toBe('neutral');
+	expect(document.querySelector('[data-row-tone=error]')).toBeNull();
+	expect(document.querySelector('[data-settings-group] [data-slot=item-separator]')).toBeNull();
+	expect(row.querySelector('[data-row-value] [data-organization-mark-image]')).not.toBeNull();
 
-	for (const row of rows()) expect(row.querySelector('[data-slot=item-media] svg')).not.toBeNull();
+	const preview = within(row).getByRole('button', { name: en.organization.mark.replace });
+	const remove = within(row).getByRole('button', { name: en.organization.mark.removeTitle });
 
+	// on the picture: in the row's value with the preview, its sibling, never nested in it.
+	expect(remove.closest('[data-row-value]')).not.toBeNull();
+	expect(remove.parentElement).toBe(preview.parentElement);
+	expect(preview.contains(remove)).toBe(false);
+
+	// a glyph and no words on screen; its name is its label and its tooltip.
+	expect(remove.querySelector('svg')).not.toBeNull();
+	expect(remove.textContent?.trim()).toBe('');
+	expect(await hintOf(remove, 'data-organization-mark-remove-hint')).toBe(
+		en.organization.mark.removeTitle
+	);
+
+	// red on the button alone: the one thing in the card in the error tone.
+	expect(remove.className).toMatch(/text-destructive/);
+	expect([
+		...document.querySelectorAll<HTMLElement>('[data-organization-mark] [class*=text-destructive]')
+	]).toEqual([remove]);
+
+	// every button in the card carries a glyph, and there are the two.
 	const buttons = [...document.querySelectorAll('[data-settings-group] button')];
 
 	expect(buttons).toHaveLength(2);
 	for (const button of buttons) expect(button.querySelector('svg')).not.toBeNull();
+
+	// pressing it asks, and removes nothing yet.
+	await fireEvent.click(remove);
+
+	const dialog = await screen.findByRole('dialog');
+
+	expect(dialog.textContent).toContain(en.organization.mark.removeDescription);
+	expect(host.markClear).not.toHaveBeenCalled();
 });
 
-test('with no mark set there is nothing to remove, and the group has no end row', async () => {
+test('with no stamp set there is nothing to remove, and no remove button', async () => {
 	host.markGet.mockResolvedValue(null);
 	shown(true);
 
@@ -179,7 +231,36 @@ test('with no mark set there is nothing to remove, and the group has no end row'
 		expect(document.querySelector('[data-organization-mark-none]')).not.toBeNull()
 	);
 	expect(rows()).toHaveLength(1);
+	expect(document.querySelector('[data-organization-mark-remove]')).toBeNull();
+	expect(screen.queryByRole('button', { name: en.organization.mark.removeTitle })).toBeNull();
 	expect(document.querySelector('[data-row-tone=error]')).toBeNull();
+});
+
+// the card is named the organization stamp in both languages, and nothing it shows the reader
+// says signature or seal (ticket 36: "it should be named ... organizations stamp").
+test('the card is titled the organization stamp, and says signature or seal nowhere', async () => {
+	host.markGet.mockResolvedValue(MARK);
+	shown(true);
+
+	await waitFor(() => expect(image()).toBe('data:image/png;base64,iVBORw0K'));
+
+	const card = document.querySelector<HTMLElement>('[data-organization-mark]')!;
+
+	expect(card.textContent?.toLowerCase()).toContain('organization stamp');
+	expect(en.organization.mark.title).toBe('organization stamp');
+	expect(ar.organization.mark.title).toBe('ختم المؤسسة');
+
+	const said = [
+		card.textContent ?? '',
+		...[...card.querySelectorAll('[aria-label],[alt]')].map(
+			(element) =>
+				`${element.getAttribute('aria-label') ?? ''} ${element.getAttribute('alt') ?? ''}`
+		),
+		...Object.values(en.organization.mark),
+		...Object.values(ar.organization.mark)
+	].join(' ');
+
+	expect(said).not.toMatch(/signature|seal|توقيع/i);
 });
 
 test('a reader without manageMark sees the mark and is offered no way to change it', async () => {
@@ -214,7 +295,7 @@ test('an image the host refuses is answered with its refusal, and nothing change
 // effort 846 ticket 34 ("the replace image button of seal; it should be the preview show if
 // clicked it opens file system to replace it"): there is no replace image button. The preview is
 // the button, named for replacing the image, and pressing it opens the file picker; with no image
-// yet the empty preview chooses one; remove is still the confirmed ending act.
+// yet the empty preview chooses one; remove is still confirmed.
 test('the preview is the control that replaces the image, and there is no replace button', async () => {
 	host.markGet.mockResolvedValue(MARK);
 	host.openImage.mockResolvedValue('C:/new-seal.png');
@@ -245,7 +326,7 @@ test('the preview is the control that replaces the image, and there is no replac
 	expect(host.openImage).toHaveBeenCalledOnce();
 	expect(host.markSet).toHaveBeenCalledExactlyOnceWith('C:/new-seal.png');
 
-	// remove is the end row's act still, and asks before it takes anything.
+	// remove is on the picture's corner, and asks before it takes anything.
 	await fireEvent.click(
 		within(card).getByRole('button', { name: en.organization.mark.removeTitle })
 	);

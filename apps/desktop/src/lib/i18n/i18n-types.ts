@@ -3539,7 +3539,7 @@ type RootTranslation = {
 	organization: {
 		mark: {
 			/**
-			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​s​i​g​n​a​t​u​r​e​ ​o​r​ ​s​e​a​l
+			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​s​t​a​m​p
 			 */
 			alt: string
 			/**
@@ -3559,7 +3559,7 @@ type RootTranslation = {
 			 */
 			none: string
 			/**
-			 * s​o​m​e​b​o​d​y​ ​a​l​l​o​w​e​d​ ​t​o​ ​c​h​a​n​g​e​ ​t​h​e​ ​m​a​r​k​ ​c​a​n​ ​c​h​a​n​g​e​ ​i​t​.
+			 * s​o​m​e​b​o​d​y​ ​a​l​l​o​w​e​d​ ​t​o​ ​c​h​a​n​g​e​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​s​t​a​m​p​ ​c​a​n​ ​c​h​a​n​g​e​ ​i​t​.
 			 */
 			readOnly: string
 			/**
@@ -3571,11 +3571,11 @@ type RootTranslation = {
 			 */
 			removeDescription: string
 			/**
-			 * r​e​m​o​v​e​ ​s​i​g​n​a​t​u​r​e​ ​o​r​ ​s​e​a​l
+			 * r​e​m​o​v​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​s​t​a​m​p
 			 */
 			removeTitle: string
 			/**
-			 * s​i​g​n​a​t​u​r​e​ ​o​r​ ​s​e​a​l​ ​r​e​m​o​v​e​d
+			 * o​r​g​a​n​i​z​a​t​i​o​n​ ​s​t​a​m​p​ ​r​e​m​o​v​e​d
 			 */
 			removed: string
 			/**
@@ -3583,11 +3583,11 @@ type RootTranslation = {
 			 */
 			replace: string
 			/**
-			 * s​i​g​n​a​t​u​r​e​ ​o​r​ ​s​e​a​l​ ​s​a​v​e​d
+			 * o​r​g​a​n​i​z​a​t​i​o​n​ ​s​t​a​m​p​ ​s​a​v​e​d
 			 */
 			saved: string
 			/**
-			 * s​i​g​n​a​t​u​r​e​ ​o​r​ ​s​e​a​l
+			 * o​r​g​a​n​i​z​a​t​i​o​n​ ​s​t​a​m​p
 			 */
 			title: string
 		}
@@ -4471,7 +4471,7 @@ type RootTranslation = {
 			 */
 			overrideMember: string
 			/**
-			 * c​h​a​n​g​e​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​m​a​r​k
+			 * c​h​a​n​g​e​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​s​t​a​m​p
 			 */
 			manageMark: string
 			/**
@@ -4694,7 +4694,7 @@ type RootTranslation = {
 				 */
 				overrideMember: string
 				/**
-				 * s​e​t​ ​t​h​e​ ​s​i​g​n​a​t​u​r​e​ ​o​r​ ​s​e​a​l​ ​p​r​i​n​t​e​d​ ​o​n​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​p​a​g​e​s​.
+				 * s​e​t​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​s​t​a​m​p​ ​p​r​i​n​t​e​d​ ​o​n​ ​i​t​s​ ​p​a​g​e​s​.
 				 */
 				manageMark: string
 			}
@@ -8301,7 +8301,7 @@ export type TranslationFunctions = {
 	organization: {
 		mark: {
 			/**
-			 * the organization's signature or seal
+			 * the organization stamp
 			 */
 			alt: () => LocalizedString
 			/**
@@ -8321,7 +8321,7 @@ export type TranslationFunctions = {
 			 */
 			none: () => LocalizedString
 			/**
-			 * somebody allowed to change the mark can change it.
+			 * somebody allowed to change the organization stamp can change it.
 			 */
 			readOnly: () => LocalizedString
 			/**
@@ -8333,11 +8333,11 @@ export type TranslationFunctions = {
 			 */
 			removeDescription: () => LocalizedString
 			/**
-			 * remove signature or seal
+			 * remove organization stamp
 			 */
 			removeTitle: () => LocalizedString
 			/**
-			 * signature or seal removed
+			 * organization stamp removed
 			 */
 			removed: () => LocalizedString
 			/**
@@ -8345,11 +8345,11 @@ export type TranslationFunctions = {
 			 */
 			replace: () => LocalizedString
 			/**
-			 * signature or seal saved
+			 * organization stamp saved
 			 */
 			saved: () => LocalizedString
 			/**
-			 * signature or seal
+			 * organization stamp
 			 */
 			title: () => LocalizedString
 		}
@@ -9215,7 +9215,7 @@ export type TranslationFunctions = {
 			 */
 			overrideMember: () => LocalizedString
 			/**
-			 * change the organization's mark
+			 * change the organization stamp
 			 */
 			manageMark: () => LocalizedString
 			/**
@@ -9436,7 +9436,7 @@ export type TranslationFunctions = {
 				 */
 				overrideMember: () => LocalizedString
 				/**
-				 * set the signature or seal printed on the organization's pages.
+				 * set the organization stamp printed on its pages.
 				 */
 				manageMark: () => LocalizedString
 			}

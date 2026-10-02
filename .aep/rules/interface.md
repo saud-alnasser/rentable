@@ -181,7 +181,8 @@ directories are not boxed: their heading takes the card's header, the tray sits 
 record cards follow, so no box sits in a box. A notice waiting on the reader, the ownership offer,
 is a callout in the column rather than a card of one row. A row's control whose words a tooltip
 can carry is an icon control named by one (the log folder's reveal, the check for updates); the
-way forward and every act that ends something keep their words. A choice explains itself, with no
+way forward and every act that ends something keep their words, save the one that sits on a
+picture (below). A choice explains itself, with no
 sentence under it; where one segment's effect is not in its word (appearance's *system*), that
 segment alone says it in a tooltip. A value not yet known is not drawn, never a word standing in
 for one (the available version before a check). An icon control may show what it is doing with its
@@ -190,8 +191,12 @@ for as long, and stops when it answers; the log folder's reveal crosses from a c
 open one when pressed and closes again. Both move on the motion tokens and hold still for a reader
 who asked for less motion ([[rules/frontend]], *Motion*), the state still changing. A
 picture the reader may change is itself the control that changes it, as a profile picture is: the
-seal's preview is a button named *replace image* (*choose image* while empty), with no button
-beside it; a reader who may not change it sees a picture.
+organization stamp's preview is a button named *replace image* (*choose image* while empty), with
+no button beside it; a reader who may not change it sees a picture. Removing such a picture sits on
+the picture, not in a row of its own: a small icon button on the preview's corner, the preview's
+sibling rather than inside it, red on the button alone, named *remove organization stamp* by its
+label and its tooltip, confirmed, and absent while there is no picture to remove. The card then
+has no end row.
 
 **Detail few readers need folds under its row, and nothing else folds.** A row's `details` is an
 expander on the `collapsible` primitive, in the manner of Fluent's settings expander: the glyph,
@@ -208,11 +213,12 @@ reports no condition, it ends nothing, and the row's header still says what matt
 *Why: the human found the settings a linear column of sentences and asked for "cards and section
 of grids", then for everything in a tab to be a card, and then why the collapsible primitive went
 unused. Walking the built two-column grid, they asked for "each card is under the next card" and
-for "only the action button" to be red. Every settings pane the research saw is one column. Every
+for "only the action button" to be red. Of the stamp's remove row they asked that it "needs to be
+integrated in into the part of the image not a separate thing", named the organization stamp. Every settings pane the research saw is one column. Every
 disclosure guideline read (Apple's disclosure controls, GOV.UK's details, Microsoft's settings
 expander, Android's advanced settings) agrees on the fold's test.* *Added by
 [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirement 1 as widened on
-2026-10-02, ticket 21, and revised the same day, tickets 31 and 34; evidence in its
+2026-10-02, ticket 21, and revised the same day, tickets 31, 34 and 36; evidence in its
 `evidence/research/settings-*-as-cards.md` and `how-production-apps-organize-a-settings-section.md`.*
 
 ## Tone
@@ -777,7 +783,7 @@ on macOS and Linux both open the system's print panel (`tauri/src/print/`).
 
 The page is paper: light whatever the window's appearance (`.paper` in the token layer), in the one
 language chosen, set out as a document with the organization that issued it at its head and its
-signature or seal at the foot where one is set (the organization's *mark*, set in its settings),
+organization stamp at the foot where one is set (the code's *mark*, set in its settings),
 with Western digits. Where
 the host refuses, the reader is told in one sentence (`showErrorSentence`); a saved PDF is
 confirmed in a toast. Today the contract prints its schedule and a payment its receipt.

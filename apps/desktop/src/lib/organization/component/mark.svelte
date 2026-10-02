@@ -17,12 +17,14 @@
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 
 	/**
-	 * The organization's signature or seal, the one image printed at the foot of every receipt and
-	 * schedule (effort 835, requirement 13), as a settings group of its own.
+	 * The organization stamp, the one image printed at the foot of every receipt and schedule
+	 * (effort 835, requirement 13), as a settings group of its own. The reader meets it as the
+	 * *organization stamp* wherever it is named; the code keeps calling it the mark. *It was named
+	 * the signature or seal until the human's walk of 2026-10-02 (effort 846, ticket 36).*
 	 *
-	 * **A card titled for the mark, with one row, the image** (effort 846, requirements 1 and 13,
+	 * **A card titled for the stamp, with one row, the image** (effort 846, requirements 1 and 13,
 	 * and *Everything in a tab is a card*): its preview as the row's value, drawn on paper as it
-	 * prints. What the mark is for is the card's one line. *The row was named for the mark itself
+	 * prints. What the stamp is for is the card's one line. *The row was named for the mark itself
 	 * until the card took that title.*
 	 *
 	 * **The preview is the control** (effort 846, ticket 34, at the human's word of 2026-10-02:
@@ -33,10 +35,14 @@
 	 * The thing changed is the thing pressed, the way a profile picture is. *It sat beside a
 	 * replace image button, the preview only a picture, until ticket 34.*
 	 *
-	 * **Removing it is the card's end row, in the error tone, and asks first** (requirement 2): it
-	 * takes the image off every receipt and schedule on every machine, and nothing brings that image
-	 * back but choosing it again, so the question says both. *It was a plain ghost button beside the
-	 * choose, with no glyph and no question, until effort 846.*
+	 * **Removing it sits on the picture, in the error tone, and asks first** (requirement 2, and
+	 * ticket 36 at the human's word of 2026-10-02: "needs to be integrated in into the part of the
+	 * image not a separate thing"). A small icon button on the preview's top corner, beside the
+	 * preview rather than inside it, red on the button alone and named *remove organization stamp*
+	 * by its label and its tooltip; with no stamp there is none. It takes the image off every
+	 * receipt and schedule on every machine, and nothing brings that image back but choosing it
+	 * again, so the question says both. *It was a plain ghost button beside the choose until effort
+	 * 846, then the card's end row until ticket 36.*
 	 *
 	 * **A holder of `manageMark` changes it; everybody sees it.** A member without the flag meets
 	 * the image, or the line saying there is none, and a sentence naming who can change it, and no
@@ -88,64 +94,76 @@
 	</div>
 {/snippet}
 
-<!-- the preview, and for a holder of manageMark the preview as the one control that changes it:
-     named for what a press does, with the same words in its tooltip. -->
+<!-- the preview, and for a holder of manageMark the preview as the one control that changes it,
+     named for what a press does with the same words in its tooltip, and while there is a stamp,
+     the remove on its corner. -->
 {#snippet preview()}
 	{#if setsMark}
 		{@const label = mark ? $LL.organization.mark.replace() : $LL.organization.mark.choose()}
-		<Tooltip.Root>
-			<Tooltip.Trigger>
-				{#snippet child({ props })}
-					<Button
-						{...props}
-						variant="ghost"
-						class="group relative h-auto rounded-lg p-0 hover:bg-transparent"
-						aria-label={label}
-						disabled={busy}
-						data-organization-mark-choose
-						onclick={() => void choose()}
-					>
-						{@render paper()}
-						<!-- says the picture can be changed; the button's name says how. -->
-						<span
-							class="shadow-xs absolute end-1 bottom-1 grid size-5 place-items-center rounded-full border border-border bg-background text-foreground"
-							aria-hidden="true"
+		<div class="relative">
+			<Tooltip.Root>
+				<Tooltip.Trigger>
+					{#snippet child({ props })}
+						<Button
+							{...props}
+							variant="ghost"
+							class="group relative h-auto rounded-lg p-0 hover:bg-transparent"
+							aria-label={label}
+							disabled={busy}
+							data-organization-mark-choose
+							onclick={() => void choose()}
 						>
-							<ImageUpIcon class="size-3" />
-						</span>
-					</Button>
-				{/snippet}
-			</Tooltip.Trigger>
-			<Tooltip.Content side="top" sideOffset={8} data-organization-mark-choose-hint>
-				<span class="first-letter:uppercase">{label}</span>
-			</Tooltip.Content>
-		</Tooltip.Root>
+							{@render paper()}
+							<!-- says the picture can be changed; the button's name says how. -->
+							<span
+								class="shadow-xs absolute end-1 bottom-1 grid size-5 place-items-center rounded-full border border-border bg-background text-foreground"
+								aria-hidden="true"
+							>
+								<ImageUpIcon class="size-3" />
+							</span>
+						</Button>
+					{/snippet}
+				</Tooltip.Trigger>
+				<Tooltip.Content side="top" sideOffset={8} data-organization-mark-choose-hint>
+					<span class="first-letter:uppercase">{label}</span>
+				</Tooltip.Content>
+			</Tooltip.Root>
+			{#if mark}
+				<!-- the remove sits on the picture it takes away, at the top corner across from the
+				     replace glyph: the preview's sibling, never inside it, and red on itself alone. -->
+				<Tooltip.Root>
+					<Tooltip.Trigger>
+						{#snippet child({ props })}
+							<Button
+								{...props}
+								type="button"
+								variant="outline"
+								size="icon-sm"
+								class="shadow-xs absolute -end-2.5 -top-2.5 size-6 rounded-full bg-background {tone(
+									{
+										tone: 'error'
+									}
+								).text()} hover:bg-destructive/10 hover:text-destructive"
+								aria-label={$LL.organization.mark.removeTitle()}
+								disabled={busy}
+								data-organization-mark-remove
+								onclick={() => {
+									confirming = true;
+								}}
+							>
+								<Trash2Icon class="size-3.5" />
+							</Button>
+						{/snippet}
+					</Tooltip.Trigger>
+					<Tooltip.Content side="top" sideOffset={8} data-organization-mark-remove-hint>
+						<span class="first-letter:uppercase">{$LL.organization.mark.removeTitle()}</span>
+					</Tooltip.Content>
+				</Tooltip.Root>
+			{/if}
+		</div>
 	{:else}
 		{@render paper()}
 	{/if}
-{/snippet}
-
-{#snippet removeRow()}
-	<SettingsRow icon={Trash2Icon} name={$LL.organization.mark.removeTitle()} tone="error">
-		{#snippet control({ labelId })}
-			<!-- labelled by the row's name, which says what goes, rather than by its one verb. -->
-			<Button
-				type="button"
-				variant="ghost"
-				size="sm"
-				class="{tone({ tone: 'error' }).text()} hover:bg-destructive/10 hover:text-destructive"
-				aria-labelledby={labelId}
-				disabled={busy}
-				data-organization-mark-remove
-				onclick={() => {
-					confirming = true;
-				}}
-			>
-				<Trash2Icon class="size-4" />
-				{$LL.organization.mark.remove()}
-			</Button>
-		{/snippet}
-	</SettingsRow>
 {/snippet}
 
 <div data-organization-mark class="contents">
@@ -155,7 +173,6 @@
 		description={setsMark
 			? $LL.organization.mark.description()
 			: `${$LL.organization.mark.description()} ${$LL.organization.mark.readOnly()}`}
-		end={setsMark && mark ? removeRow : undefined}
 	>
 		{#snippet rows()}
 			<SettingsRow icon={ImageIcon} name={$LL.organization.mark.image()} value={preview} />

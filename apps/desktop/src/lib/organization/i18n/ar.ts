@@ -8,19 +8,19 @@ import type { Translation } from '../../i18n/i18n-types';
 
 export const organization = {
 	mark: {
-		alt: 'توقيع المؤسسة أو ختمها',
+		alt: 'ختم المؤسسة',
 		choose: 'اختيار صورة',
 		description: 'يُطبع أسفل كل سند قبض وجدول دفعات.',
 		image: 'الصورة',
 		none: 'لم يُضف بعد',
-		readOnly: 'يستطيع تغييره من يُسمح له بتغيير التوقيع.',
+		readOnly: 'يستطيع تغييره من يُسمح له بتغيير ختم المؤسسة.',
 		remove: 'إزالة',
 		removeDescription: 'تُطبع السندات والجداول دونه على كل جهاز. لا يعيده إلا اختيار صورة من جديد.',
-		removeTitle: 'إزالة التوقيع أو الختم',
-		removed: 'أُزيل التوقيع أو الختم',
+		removeTitle: 'إزالة ختم المؤسسة',
+		removed: 'أُزيل ختم المؤسسة',
 		replace: 'استبدال الصورة',
-		saved: 'حُفظ التوقيع أو الختم',
-		title: 'التوقيع أو الختم'
+		saved: 'حُفظ ختم المؤسسة',
+		title: 'ختم المؤسسة'
 	},
 	setup: {
 		connectTitle: 'اربط Turso',
@@ -284,7 +284,7 @@ export const organization = {
 		grantWorkspace: 'منح مساحات العمل',
 		manageRoles: 'إدارة الأدوار',
 		overrideMember: 'تغيير صلاحيات عضو بعينه',
-		manageMark: 'تغيير توقيع المؤسسة أو ختمها',
+		manageMark: 'تغيير ختم المؤسسة',
 		createWorkspace: 'إنشاء مساحات العمل',
 		deleteWorkspace: 'حذف مساحات العمل',
 		mintReadOnly: 'منح وصول القراءة فقط',
@@ -350,7 +350,7 @@ export const organization = {
 			grantWorkspace: 'إدخال الأعضاء إلى مساحات العمل أو إخراجهم منها.',
 			manageRoles: 'إضافة الأدوار وتعديلها وترتيبها وحذفها.',
 			overrideMember: 'منح عضو بعينه أكثر أو أقل مما يمنحه دوره.',
-			manageMark: 'ضبط التوقيع أو الختم المطبوع على صفحات المؤسسة.'
+			manageMark: 'ضبط ختم المؤسسة المطبوع على صفحاتها.'
 		},
 		viewFirst: 'شغّل العرض أولًا، فإضافة السجل أو تعديله أو حذفه تحتاج إلى رؤيته.',
 		groupRefused: 'بعضها ليس لك أن تغيّره',
