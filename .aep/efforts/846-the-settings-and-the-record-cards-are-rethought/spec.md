@@ -140,7 +140,11 @@ statement read in time order, and each payment row says how it was paid.
    the exception above no longer holds. Its glyph and tone are as requirement 1's revisions give
    them (red on the button alone, no repeated glyph).*
    *Revised again 2026-10-03 at the human's word ("follow the tinted files and things like that in the reocrds cards of domain data"): the tenant, complex, contract and
-   workspace cards take the member card's tinted fields, so every record card is one family.*
+   workspace cards take the member card's tinted fields, so every record card is one family. Then: "in the contract cards the progress circle bar the num text inside it needs to be a little bit smaller; the change password button maybe can be a simple icon on the top right of the card i'm not sure or better a text simple milimst on the right side of the card; the account sectio machiens and this machine merge them which is better and simpley an otpoin to login out of the mecahine; also the sinout of all feels od to be a complete section":
+   the contract ring's figure is smaller; the password card's act is a quiet text button at its header's
+   trailing edge; the machines and this machine cards are one card, this machine signed out from its own
+   row's menu; and signing out every other machine is a small red text button in that card's header,
+   confirmed, not a section of its own.*
 3. **General holds application preferences only**: language, appearance, updates and diagnostics.
    Ending soon is not in it.
 4. **Every control in the area that applies a choice applies it at once**, as language and
