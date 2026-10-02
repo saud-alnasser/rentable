@@ -207,6 +207,10 @@ const RETIRED = [
 	'organization.dashboard.resetPassword',
 	'organization.dashboard.standingOpen',
 	'organization.dashboard.standingConsumed',
+	// the block beneath the workspace cards, until a workspace's file moved onto its card (effort
+	// 846, requirement 15)
+	'organization.dashboard.transferTitle',
+	'workspace.transferDescription',
 	// the workspace page's identity and members blocks
 	'workspace.groupIdentity',
 	'workspace.groupMembers',

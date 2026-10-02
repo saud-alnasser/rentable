@@ -22,7 +22,7 @@ import {
 } from '$lib/organization/tests/testing';
 import { fakeSyncState, fakeWorkspace } from '$lib/sync/tests/testing';
 import { usesAppleKeyboard } from '@rentable/design/shortcut.js';
-import { maskOf } from '@rentable/workspace-permission';
+import { EVERY_FLAG, maskOf } from '@rentable/workspace-permission';
 
 import PaletteHarness from '#tests/palette-harness.svelte';
 
@@ -234,13 +234,79 @@ test('a workspace act reaches the organization host with the workspace the reade
 	const [actId, record] = run.mock.calls[0];
 	expect(actId).toBe('workspace.members');
 	expect(record.workspace).toEqual(north);
-	expect(record.context).toEqual({
+	expect(record.context).toMatchObject({
 		openWorkspaceId: 'north',
 		canRename: false,
 		canGrantWorkspace: true,
 		canDelete: true
 	});
 	expect(organizationHostState.workspace.changingAccess?.workspace).toEqual(north);
+});
+
+// effort 846, requirement 15: a workspace's file is offered from the menu as from its card, on a
+// workspace not open here as on the open one, refused by the reader's standing in the one chosen.
+test("a workspace's export and import are offered, and run on the workspace chosen, open or not", async () => {
+	const north = fakeOrganizationWorkspace({ id: 'north', name: 'North Properties' });
+	const south = fakeOrganizationWorkspace({
+		id: 'south',
+		name: 'South Properties',
+		accessLevel: 'read-only'
+	});
+
+	answers.session = fakeOrganizationSession({
+		memberId: 'ada',
+		role: 'manager',
+		permissions: maskOf(...EVERY_FLAG),
+		workspaces: [north, south]
+	});
+	const run = vi.spyOn(workspaceHost, 'run');
+
+	await openPalette();
+
+	await waitFor(() => expect(row('workspace.export')).not.toBeNull());
+	expect(row('workspace.import')).not.toBeNull();
+
+	await fireEvent.click(row('workspace.export')!);
+	await waitFor(() => expect(row('south')).not.toBeNull());
+	await fireEvent.click(row('south')!);
+
+	expect(run).toHaveBeenCalledTimes(1);
+	expect(run.mock.calls[0]![0]).toBe('workspace.export');
+	expect(run.mock.calls[0]![1].workspace).toEqual(south);
+	expect(organizationHostState.workspace.exporting?.workspace).toEqual(south);
+});
+
+test('the import is refused on a workspace held read only, and offered on the open one', async () => {
+	const north = fakeOrganizationWorkspace({ id: 'north', name: 'North Properties' });
+	const south = fakeOrganizationWorkspace({
+		id: 'south',
+		name: 'South Properties',
+		accessLevel: 'read-only'
+	});
+
+	answers.session = fakeOrganizationSession({
+		memberId: 'ada',
+		role: 'manager',
+		permissions: maskOf(...EVERY_FLAG),
+		workspaces: [north, south]
+	});
+	const run = vi.spyOn(workspaceHost, 'run');
+
+	await openPalette();
+
+	await waitFor(() => expect(row('workspace.import')).not.toBeNull());
+	await fireEvent.click(row('workspace.import')!);
+
+	await waitFor(() => expect(row('south')).not.toBeNull());
+	expect(row('south')!.getAttribute('aria-disabled')).toBe('true');
+	expect(row('north')!.getAttribute('aria-disabled')).not.toBe('true');
+
+	await fireEvent.click(row('south')!);
+	expect(run).not.toHaveBeenCalled();
+
+	await fireEvent.click(row('north')!);
+	expect(run).toHaveBeenCalledTimes(1);
+	expect(organizationHostState.workspace.importing?.workspace).toEqual(north);
 });
 
 test('a workspace act the reader may not take is not offered, and who is in one is refused', async () => {

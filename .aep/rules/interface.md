@@ -618,11 +618,23 @@ Tenants, complexes, units, contracts and payments offer both. A contract that ta
 refuses the import on its ledger, with the reason its create is refused (`importUnavailable` on
 the list shell), since an import only adds payments. The settings directories offer neither (*Search*).
 
-**A whole workspace is one file, and it moves from the settings area**, beside sync
-(`organization/workspace/component/transfer.svelte`), never from a directory: a directory's control writes that
-directory's records and nothing else. Its import shows a line per sheet
-(`transfer/component/import-dialog.svelte`), and a reference nothing in the file answers refuses
-the whole file.
+**A whole workspace is one file, and it moves from that workspace's card** in the settings
+area's workspaces directory, never from a record directory: a directory's control writes that
+directory's records and nothing else. *Export* and *import* are acts on every workspace card the
+reader holds, declared with the card's other acts (`organization/workspace/acts.ts`, *Record card
+actions*), so the card's menu, its context menu and the command menu offer the same two, whether
+or not the workspace is open on this machine. Each is refused, with the reason, by what the reader
+may do in that workspace (every kind's view to export, every kind's create to import, a read-only
+grant there refusing the import), not by what they may do in the one open. The organization host
+runs them (`organization/workspace/component/host.svelte`): the export asks where through the
+system's save dialog, reads that workspace, writes the workbook and opens its folder; the import is
+one dialog (`transfer/component/import-dialog.svelte`), named for the workspace it reads into, which
+shows a line per sheet and confirms with that workspace's id, and a reference nothing in the file
+answers refuses the whole file. The open workspace's file moves through this machine's replica,
+offline included; any other is read and written on Turso without being opened here, so it needs
+Turso reachable, and unreachable the act says so when pressed and writes nothing.
+*It moved from a block beneath the directory that moved the open workspace alone, by
+[[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirement 15.*
 
 *Why: the export was an icon that could say export and nothing else, so a second format had nowhere
 to be named and the other direction had nowhere to go.*
@@ -630,10 +642,12 @@ to be named and the other direction had nowhere to go.*
 Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 6.
 
 **A stated exception: the earlier records skip choosing a file.** Where this machine still holds the
-records of 0.12.0 or 0.13.0, a callout in the settings workspace group, above the transfer controls
-(`organization/workspace/component/app-database-records.svelte`), opens the same workspace import review over those
-records as the shell reads them from the earlier version's database, rather than over a file the
-person chose. There is no file for the person to choose, since the records sit in the earlier
+records of 0.12.0 or 0.13.0, a callout above the settings area's workspace cards
+(`organization/workspace/component/app-database-records.svelte`) opens the same workspace import
+review over those records as the shell reads them from the earlier version's database, rather than
+over a file the person chose. It names the workspace open on this machine as the one it fills and
+writes into that workspace by its id; with nothing open it says to open one and offers no act
+(effort 846, requirement 17). There is no file for the person to choose, since the records sit in the earlier
 version's own data, and nothing the pattern protects is lost: the plan is still shown, sheet by
 sheet, before anything is written. Settled by
 [[efforts/838-permissions-are-a-role-and-an-override/spec]], requirement 18.

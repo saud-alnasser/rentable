@@ -17,7 +17,7 @@ export const settings = {
 
 	loadErrorTitle: 'settings are unavailable right now',
 
-	transferImportTitle: 'import a workspace',
+	transferImportTitle: 'import into {workspace:string}',
 	transferImportSuccess: 'the file was imported',
 
 	restartNotice: 'update installed. restart rentable to finish.',

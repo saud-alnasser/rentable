@@ -241,7 +241,6 @@ export const organization = {
 		deleteWorkspaceDescription:
 			'the workspace and every record in it are deleted from Turso and from every machine that syncs it. nothing puts it back.',
 		workspaceDeleted: 'the workspace was deleted.',
-		transferTitle: 'export and import {workspace:string}',
 		forgetAccount: 'forget Turso account',
 		// the end row's button, which its row's name labels.
 		forget: 'forget',

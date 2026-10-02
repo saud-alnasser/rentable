@@ -10,7 +10,7 @@
 
 	/**
 	 * The settings area's workspaces section: the directory of the workspaces this member holds,
-	 * and the transfer beneath it. The organization contributes it (`surface.ts`), and the area
+	 * each card carrying its own file. The organization contributes it (`surface.ts`), and the area
 	 * draws it while somebody is signed in.
 	 *
 	 * **What it reads is its own**, the way a record's section reads its records; a workspace's
@@ -38,7 +38,7 @@
 
 {#if session}
 	<Field.Group>
-		<!-- the list owns its own legend, its rows' surfaces and the transfer beneath it; what is
+		<!-- the list owns its own legend, its rows' surfaces and the earlier records' callout; what is
 		     decided here is what this reader may do. The refusal is the rail's own sentence, and
 		     it is drawn for an owner whose machine lost the authority alone: nobody else ever
 		     had a create to be refused, so a sentence saying whose it is would be

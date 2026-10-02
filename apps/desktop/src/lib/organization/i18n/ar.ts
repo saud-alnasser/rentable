@@ -192,7 +192,6 @@ export const organization = {
 		deleteWorkspaceDescription:
 			'تُحذف مساحة العمل وكل سجل فيها من Turso ومن كل جهاز يزامنها. لا شيء يعيدها.',
 		workspaceDeleted: 'حُذفت مساحة العمل.',
-		transferTitle: 'تصدير واستيراد {workspace}',
 		forgetAccount: 'انسَ حساب Turso',
 		forget: 'انسَ',
 		memberSheetDescription: 'ما يستطيع {username} فعله في هذه المؤسسة.',

@@ -59,6 +59,10 @@ type OrganizationHostState = {
 		changingAccess: WorkspaceActRecord | null;
 		/** the workspace being asked about. */
 		deleting: WorkspaceActRecord | null;
+		/** the workspace whose file was asked for, waiting for the host to write it. */
+		exporting: WorkspaceActRecord | null;
+		/** the workspace a file is being read into, while its import is open. */
+		importing: WorkspaceActRecord | null;
 	};
 	role: {
 		/** the role the editor is open on. */
@@ -88,7 +92,13 @@ const idle = (): OrganizationHostState => ({
 			withdrawing: false
 		}
 	},
-	workspace: { editing: null, changingAccess: null, deleting: null },
+	workspace: {
+		editing: null,
+		changingAccess: null,
+		deleting: null,
+		exporting: null,
+		importing: null
+	},
 	role: { editing: null, creating: false, deleting: null, moving: null, pending: { moving: false } }
 });
 
@@ -138,6 +148,12 @@ export const workspaceActs = declareWorkspaceActs({
 	},
 	confirmDelete: (record) => {
 		organizationHostState.workspace.deleting = record;
+	},
+	exportFile: (record) => {
+		organizationHostState.workspace.exporting = record;
+	},
+	importFile: (record) => {
+		organizationHostState.workspace.importing = record;
 	}
 });
 

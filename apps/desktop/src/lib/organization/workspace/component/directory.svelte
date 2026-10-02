@@ -3,11 +3,11 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import type { OrganizationMember, OrganizationWorkspace } from '$lib/organization/host';
+	import type { Standing } from '$lib/permission';
 	import Empty from '@rentable/design/block/empty.svelte';
 	import RecordCard from '@rentable/design/block/record-card.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
-	import { Separator } from '@rentable/design/primitive/separator/index.js';
 	import { CreateControl } from '$lib/create/ui';
 	import { toCardActions } from '$lib/act';
 	import type { ListSort } from '@rentable/design/sort.js';
@@ -17,7 +17,6 @@
 	import { toWorkspaceDirectory } from '$lib/organization/directory';
 	import { workspaceActs, workspaceHost } from '$lib/organization/host.svelte';
 	import { recordOf, withSection, WORKSPACE_PARAM } from '$lib/settings';
-	import WorkspaceTransfer from './transfer.svelte';
 	import EarlierRecords from './app-database-records.svelte';
 	import DiscIcon from '$lib/design/cell/disc.svelte';
 	import XIcon from '@lucide/svelte/icons/x';
@@ -29,8 +28,8 @@
 	import { permits, WRITE_FLAGS } from '@rentable/workspace-permission';
 
 	/**
-	 * The workspaces of the organization, as a directory of record cards, and the file that moves
-	 * the open one.
+	 * The workspaces of the organization, as a directory of record cards, each carrying its own
+	 * file.
 	 *
 	 * **One card per workspace, the shape the members section takes** (effort 828, requirement
 	 * 21): `design/block/record-card.svelte`, the card is the record, its own quiet control carries
@@ -99,9 +98,15 @@
 	 * control, in its place; everybody else is offered neither, since creating was never theirs to
 	 * be refused.
 	 *
-	 * **The transfer sits beneath the cards, under a legend naming the workspace it acts on.** It
-	 * reads and writes whatever is open on this machine, which is one of the cards above, and the
-	 * legend is what stops that being a guess.
+	 * **A workspace's file moves from its own card** (effort 846, requirement 15): *export* and
+	 * *import* are acts on every card, after members, whether or not the workspace is open here,
+	 * and each is refused, with the reason, by what the reader may do in that workspace rather than
+	 * in the one open (`standingOf`). The organization host runs them, as it runs every act.
+	 * *A block beneath the cards moved the open workspace alone, under a legend naming it, until
+	 * then; a person switched workspaces to export another.*
+	 *
+	 * **The earlier records stand above the cards** (effort 846, requirement 17), naming the
+	 * workspace open here that they would fill, since that is the one they go into.
 	 */
 	let {
 		workspaces,
@@ -112,6 +117,7 @@
 		canRename,
 		canGrantWorkspace,
 		isOwner,
+		standingOf,
 		refusal
 	}: {
 		/** the workspaces this member holds a grant on, which is what the session carries. */
@@ -130,6 +136,8 @@
 		canGrantWorkspace: boolean;
 		/** whether the reader owns the organization, which is what every card then says they are. */
 		isOwner: boolean;
+		/** where the reader stands in a workspace, by its id, which its file's acts are refused by. */
+		standingOf: (workspaceId: string) => Standing | null;
 		/**
 		 * why there is no create control, for an owner whose machine lost the Turso authority;
 		 * `null` for the owner who holds it and for everybody else, who is offered nothing and
@@ -193,7 +201,8 @@
 		openWorkspaceId,
 		canRename,
 		canGrantWorkspace,
-		canDelete
+		canDelete,
+		standingOf
 	});
 
 	const recordOfWorkspace = (workspace: OrganizationWorkspace): WorkspaceActRecord => ({
@@ -262,6 +271,11 @@
 		bind:sort
 		action={canCreate ? newWorkspace : refusal ? authorityRefused : undefined}
 	/>
+
+	<!-- the records an earlier version left on this machine, offered until they are brought in or
+	     dismissed, above the cards and naming the open one they go into (effort 838, requirement
+	     18; effort 846, requirement 17). -->
+	<EarlierRecords workspace={open} />
 
 	<div class="flex flex-col gap-3" data-workspaces>
 		{#if workspaces.length === 0}
@@ -342,21 +356,3 @@
 		{/each}
 	</div>
 </Field.Set>
-
-<!-- beneath the cards, and named for the workspace it acts on: a file is written from what is open
-     on this machine, which is one of the cards above. Drawn only where there is one, since there is
-     nothing to write out of a machine that has opened none. -->
-{#if open}
-	<Separator />
-
-	<Field.Set>
-		<Field.Legend>
-			{$LL.organization.dashboard.transferTitle({ workspace: open.name })}
-		</Field.Legend>
-		<!-- the records an earlier version left on this machine, offered here until they are
-		     brought in or dismissed, above the import they go through (effort 838,
-		     requirement 18). -->
-		<EarlierRecords />
-		<WorkspaceTransfer />
-	</Field.Set>
-{/if}

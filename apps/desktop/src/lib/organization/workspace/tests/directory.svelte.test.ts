@@ -8,7 +8,7 @@ import Workspaces from '$lib/organization/workspace/component/directory.svelte';
 import { organizationDialog, resetOrganizationDialogs } from '$lib/organization/dialogs.svelte';
 import { organizationHostState, resetOrganizationHost } from '$lib/organization/host.svelte';
 import { fakeOrganizationMember, fakeOrganizationSession } from '$lib/organization/tests/testing';
-import { BUILT_IN, maskOf } from '@rentable/workspace-permission';
+import { BUILT_IN, EVERY_FLAG, maskOf } from '@rentable/workspace-permission';
 import type { OrganizationMember, OrganizationWorkspace } from '$lib/organization/host';
 import en from '$lib/i18n/en';
 import { toTitleCase } from '@rentable/design/title-case.js';
@@ -24,8 +24,16 @@ import {
 } from '$lib/list/tests/search';
 import { expectCreateControlLast } from '$lib/create/tests/control';
 import { BAR_CONTROL, expectBarOrder } from '$lib/design/tests/set-bar';
+import { layOutLists } from '#tests/permission.ts';
 
 import { hostAnswers, resetHostAnswers } from '$lib/organization/tests/host-hooks';
+import type { Standing } from '$lib/permission';
+import { EXPORT_FLAGS } from '$lib/permission';
+import { fakeSettings } from '$lib/settings/tests/testing';
+import type { ImportTable } from '$lib/transfer/host';
+import { emptyHeld } from '$lib/transfer';
+import '$lib/app/transfer';
+import earlierTables from '$lib/workspace/tests/app-database.json';
 import HostProviders from '$lib/organization/tests/host-providers.svelte';
 
 /**
@@ -75,7 +83,58 @@ import HostProviders from '$lib/organization/tests/host-providers.svelte';
  * the host's hooks stood in for (`./host-hooks.ts`): the members the dialog lists and the session
  * that says who is reading are what those hooks answer. Each entry is read by the act it projects,
  * `data-act`. The name's entry reads *edit* (effort 832, requirement 6), where it read *rename*.
+ *
+ * **A workspace's file moves from its card** (effort 846, requirement 15 and criterion 15):
+ * *export* and *import* are on every card, refused by the reader's standing in that workspace, and
+ * the host runs them. What reaches Rust is stood in for at `tauri` (the save and open dialogs, the
+ * reveal, the workbook written and read), and the transfer's reads and write at the caller, so
+ * what each act asked for, and of which workspace, is read back. *A block beneath the cards
+ * moved the open workspace alone until then.*
  */
+
+const transfer = vi.hoisted(() => ({
+	saveFile: vi.fn(),
+	openFile: vi.fn(),
+	reveal: vi.fn(),
+	writeWorkbook: vi.fn(),
+	readBook: vi.fn(),
+	get: vi.fn(),
+	held: vi.fn(),
+	importWhole: vi.fn(),
+	failed: [] as unknown[],
+	earlier: null as { version: string } | null
+}));
+
+vi.mock('$lib/platform/tauri', () => ({
+	tauri: {
+		dialog: { saveFile: transfer.saveFile, openFile: transfer.openFile },
+		opener: { revealItemInDir: transfer.reveal },
+		diagnostics: { write: vi.fn(async () => {}) }
+	}
+}));
+
+vi.mock('$lib/transfer/tauri', () => ({
+	tauri: {
+		export: { writeWorkbook: transfer.writeWorkbook },
+		import: { readBook: transfer.readBook }
+	}
+}));
+
+vi.mock('$lib/workspace/tauri', () => ({
+	tauri: { earlier: { find: async () => transfer.earlier, read: vi.fn() } }
+}));
+
+vi.mock('$lib/api/caller', () => ({
+	default: {
+		settings: { get: async () => ({ ...fakeSettings(), earlierRecordsSettled: false }) },
+		transfer: { get: transfer.get, held: transfer.held, importWhole: transfer.importWhole }
+	}
+}));
+
+vi.mock('$lib/notification', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/notification')>()),
+	showErrorToast: (failure: unknown) => transfer.failed.push(failure)
+}));
 
 vi.mock('$lib/organization/query', async (importOriginal) => ({
 	...(await importOriginal<typeof import('$lib/organization/query')>()),
@@ -186,6 +245,12 @@ const members = [
 	})
 ];
 
+/** a reader holding every flag in every workspace, at full access. */
+const holdingEverything = (): Standing => ({
+	permissions: maskOf(...EVERY_FLAG),
+	accessLevel: 'full-access'
+});
+
 const list = (
 	overrides: Partial<Parameters<typeof render<typeof Workspaces>>[1]> = {},
 	direction: 'ltr' | 'rtl' = 'ltr'
@@ -201,6 +266,7 @@ const list = (
 			canRename: true,
 			canGrantWorkspace: true,
 			isOwner: true,
+			standingOf: holdingEverything,
 			refusal: null,
 			...overrides
 		},
@@ -211,6 +277,8 @@ const list = (
 const KINDS = {
 	'workspace.edit': 'edit',
 	'workspace.members': 'grant',
+	'workspace.export': 'export',
+	'workspace.import': 'import',
 	'workspace.delete': 'delete'
 } as const;
 
@@ -257,6 +325,24 @@ const press = async (id: string, kind: string) => {
 };
 
 const surface = () => document.querySelector('[data-slot=form-surface]');
+
+/**
+ * the reason an unavailable entry gives, read the way a person reaches it: the entry takes the
+ * focus and its tooltip says why, as the members directory reads it.
+ */
+const reasonOf = async (entry: Element) => {
+	layOutLists();
+
+	await fireEvent.focus(entry);
+
+	return await waitFor(() => {
+		const drawn = document.querySelector('[data-slot=tooltip-content]');
+
+		expect(drawn).not.toBeNull();
+
+		return drawn?.textContent ?? '';
+	});
+};
 const dialogTitle = () => document.querySelector('[data-slot="dialog-title"]')?.textContent?.trim();
 const dialogParagraphs = () =>
 	Array.from(document.querySelectorAll('[data-slot="dialog-content"] p'));
@@ -274,6 +360,16 @@ beforeEach(() => {
 	setLocale('en');
 	navigations.length = 0;
 	at();
+	transfer.failed.length = 0;
+	transfer.earlier = null;
+	transfer.saveFile.mockReset().mockResolvedValue('C:/files/workspace.xlsx');
+	transfer.openFile.mockReset().mockResolvedValue('C:/files/jeddah.xlsx');
+	transfer.reveal.mockReset().mockResolvedValue(undefined);
+	transfer.writeWorkbook.mockReset().mockImplementation(async (path: string) => path);
+	transfer.readBook.mockReset().mockResolvedValue(earlierTables as ImportTable[]);
+	transfer.get.mockReset().mockResolvedValue({});
+	transfer.held.mockReset().mockResolvedValue(emptyHeld());
+	transfer.importWhole.mockReset().mockResolvedValue({});
 });
 
 // criterion 21: one card per workspace, carrying the name, how many hold it, and the mark on the
@@ -490,27 +586,29 @@ test('an owner whose machine lost the authority reads why in the tray, and every
 });
 
 // criterion 21: rename, members and delete on the card's menu, each behind its gate.
-test('an owner holding every gate is offered members and delete on each card, and edit on the open one', async () => {
+test('an owner holding every gate is offered members, the file and delete on each card, and edit on the open one', async () => {
 	list();
 
-	expect(await actsOn('ws-1')).toEqual(['edit', 'grant', 'delete']);
-	// the name's edit acts on the workspace this machine has open, so it is offered on that card alone.
-	expect(await actsOn('ws-2')).toEqual(['grant', 'delete']);
+	expect(await actsOn('ws-1')).toEqual(['edit', 'grant', 'export', 'import', 'delete']);
+	// the name's edit acts on the workspace this machine has open, so it is offered on that card
+	// alone; its file is on every card (effort 846, requirement 15).
+	expect(await actsOn('ws-2')).toEqual(['grant', 'export', 'import', 'delete']);
 });
 
 // ticket 50 of effort 838: who is in a workspace is offered to every reader and refused, naming
 // the flag, without `grantWorkspace`, as the member's card refuses its workspaces section, so the
 // two ends of a grant refuse the same way. Nothing else is offered, and there is no create.
-test('a member holding no act is offered only who is in each workspace, refused naming the flag', async () => {
+test('a member holding no act is offered who is in each workspace and its file, refused naming the flag', async () => {
 	list({
 		canCreate: false,
 		canDelete: false,
 		canRename: false,
-		canGrantWorkspace: false
+		canGrantWorkspace: false,
+		standingOf: () => ({ permissions: 0, accessLevel: 'full-access' })
 	});
 
 	for (const id of ['ws-1', 'ws-2']) {
-		expect(await actsOn(id), id).toEqual(['grant']);
+		expect(await actsOn(id), id).toEqual(['grant', 'export', 'import']);
 	}
 
 	await fireEvent.click(control('ws-1')!);
@@ -544,13 +642,15 @@ test('each act is drawn by its own gate and by no other', async () => {
 		rendered.unmount();
 	};
 
-	// who is in a workspace is on every card, refused where the reader lacks the flag.
-	await only({ canRename: true }, 'ws-1', ['edit', 'grant']);
-	await only({ canRename: true }, 'ws-2', ['grant']);
-	await only({ canGrantWorkspace: true }, 'ws-1', ['grant']);
-	await only({ canGrantWorkspace: true }, 'ws-2', ['grant']);
-	await only({ canDelete: true }, 'ws-1', ['grant', 'delete']);
-	await only({ canDelete: true }, 'ws-2', ['grant', 'delete']);
+	// who is in a workspace and its file are on every card, refused where the reader lacks the flag.
+	const file = ['export', 'import'];
+
+	await only({ canRename: true }, 'ws-1', ['edit', 'grant', ...file]);
+	await only({ canRename: true }, 'ws-2', ['grant', ...file]);
+	await only({ canGrantWorkspace: true }, 'ws-1', ['grant', ...file]);
+	await only({ canGrantWorkspace: true }, 'ws-2', ['grant', ...file]);
+	await only({ canDelete: true }, 'ws-1', ['grant', ...file, 'delete']);
+	await only({ canDelete: true }, 'ws-2', ['grant', ...file, 'delete']);
 });
 
 // [[rules/interface]], *Row activation*: activating a card opens its record, which for a workspace
@@ -617,20 +717,175 @@ test('the edit a card opens is the one this reader holds, and an unknown name op
 	expect(surface()).toBeNull();
 });
 
-// criterion 21: export and import stay, in this section, acting on the open workspace.
-test('export and import sit beneath the cards, under a legend naming the open workspace', () => {
+// effort 846, criterion 15: no block beneath the cards; the file is on each card.
+test('no transfer block is drawn below the cards, and nothing outside a card exports or imports', () => {
 	list();
 
-	expect(screen.getByRole('button', { name: en.common.actions.export })).toBeDefined();
-	expect(screen.getByRole('button', { name: en.common.actions.import })).toBeDefined();
-
-	const legend = screen.getByText(
-		en.organization.dashboard.transferTitle.replace('{workspace:string}', 'Riyadh')
+	const buttons = [...document.querySelectorAll('button')].filter(
+		(button) => !button.closest('[data-workspace]')
 	);
+	const words = buttons.map((button) => button.textContent?.trim().toLowerCase());
+
+	expect(words).not.toContain(en.common.actions.export);
+	expect(words).not.toContain(en.common.actions.import);
+	expect(document.querySelector('[data-slot="separator"]')).toBeNull();
+
+	// the cards are the section's last block.
 	const last = document.querySelectorAll('[data-workspace]')[1]!;
 
-	expect(legend.compareDocumentPosition(last) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
-	expect(screen.getByText(en.workspace.transferDescription)).toBeDefined();
+	expect(
+		[...document.querySelectorAll('fieldset, [data-slot="field-set"]')].every(
+			(set) => !(last.compareDocumentPosition(set) & Node.DOCUMENT_POSITION_FOLLOWING)
+		)
+	).toBe(true);
+});
+
+// effort 846, criterion 15: a card not open on this machine offers both acts, and its export
+// writes that workspace, asked of it by its id, through the save dialog, then reveals it.
+test('export on a card not open asks where, reads that workspace, writes it and reveals it', async () => {
+	list();
+
+	await press('ws-2', 'export');
+
+	await waitFor(() => expect(transfer.reveal).toHaveBeenCalledOnce());
+	expect(transfer.saveFile).toHaveBeenCalledExactlyOnceWith('workspace.xlsx');
+	expect(transfer.get).toHaveBeenCalledExactlyOnceWith({ workspaceId: 'ws-2' });
+	expect(transfer.writeWorkbook).toHaveBeenCalledOnce();
+	expect(transfer.writeWorkbook.mock.calls[0]![0]).toBe('C:/files/workspace.xlsx');
+	expect(transfer.reveal).toHaveBeenCalledWith('C:/files/workspace.xlsx');
+	expect(transfer.failed).toEqual([]);
+});
+
+// walking away from the save dialog reads nothing and writes nothing.
+test('export walked away from reads and writes nothing', async () => {
+	transfer.saveFile.mockResolvedValue(null);
+	list();
+
+	await press('ws-2', 'export');
+
+	await waitFor(() => expect(transfer.saveFile).toHaveBeenCalledOnce());
+	expect(transfer.get).not.toHaveBeenCalled();
+	expect(transfer.writeWorkbook).not.toHaveBeenCalled();
+});
+
+// effort 846, criterion 15: with Turso unreachable, the procedure refuses with ticket 11's
+// sentence, which is said, and no file is written.
+test('an export of a workspace that cannot be reached says so and writes nothing', async () => {
+	const unreachable = new Error('Jeddah could not be reached on Turso. check the connection.');
+
+	transfer.get.mockRejectedValue(unreachable);
+	list();
+
+	await press('ws-2', 'export');
+
+	await waitFor(() => expect(transfer.failed).toEqual([unreachable]));
+	expect(transfer.get).toHaveBeenCalledExactlyOnceWith({ workspaceId: 'ws-2' });
+	expect(transfer.writeWorkbook).not.toHaveBeenCalled();
+	expect(transfer.reveal).not.toHaveBeenCalled();
+});
+
+// effort 846, criterion 15: the import on a card reads what that workspace holds, opens named for
+// it, and its confirm writes into it by its id, not into the one open.
+test('import on a card not open is named for that workspace and writes into it by its id', async () => {
+	list();
+
+	await press('ws-2', 'import');
+
+	const title = () => document.querySelector('[data-slot="dialog-title"]');
+
+	await waitFor(() => expect(title()?.getAttribute('data-import-workspace')).toBe('ws-2'));
+	expect(title()?.textContent).toContain('Jeddah');
+	expect(transfer.openFile).toHaveBeenCalledOnce();
+	expect(transfer.held).toHaveBeenCalledExactlyOnceWith({ workspaceId: 'ws-2' });
+
+	const confirm = [
+		...document.querySelectorAll<HTMLButtonElement>('[data-slot="dialog-content"] button')
+	].find((button) => button.textContent?.trim() === en.common.actions.import);
+
+	await fireEvent.click(confirm!);
+
+	await waitFor(() => expect(transfer.importWhole).toHaveBeenCalledOnce());
+	expect(transfer.importWhole.mock.calls[0]![0]).toMatchObject({ workspaceId: 'ws-2' });
+});
+
+// effort 846, criterion 15: a read-only grant on the card not open refuses its import, with the
+// reason, while the open card's is offered; its export stands.
+test('a read-only grant refuses import on that card while the open card offers it', async () => {
+	list({
+		standingOf: (workspaceId) => ({
+			permissions: maskOf(...EVERY_FLAG),
+			accessLevel: workspaceId === 'ws-2' ? 'read-only' : 'full-access'
+		})
+	});
+
+	await fireEvent.click(control('ws-2')!);
+
+	expect(on('import', 'ws-2')?.getAttribute('aria-disabled')).toBe('true');
+	expect(await reasonOf(on('import', 'ws-2')!)).toContain(en.common.permission.readOnly);
+	expect(on('export', 'ws-2')?.hasAttribute('data-unavailable')).toBe(false);
+
+	await fireEvent.click(on('import', 'ws-2')!);
+	expect(transfer.openFile).not.toHaveBeenCalled();
+
+	await fireEvent.click(control('ws-2')!);
+	await fireEvent.click(control('ws-1')!);
+
+	expect(on('import', 'ws-1')?.hasAttribute('data-unavailable')).toBe(false);
+	expect(on('export', 'ws-1')?.hasAttribute('data-unavailable')).toBe(false);
+});
+
+// carried from the transfer block (effort 838, requirement 10): the file holds every kind, so the
+// export asks every view flag, and a reader lacking one is refused on the card, naming it.
+test.each(EXPORT_FLAGS)(
+	'without %s in a workspace, its export is refused, naming the flag, and asks for no file',
+	async (flag) => {
+		list({
+			standingOf: () => ({
+				permissions: maskOf(...EVERY_FLAG.filter((held) => held !== flag)),
+				accessLevel: 'full-access'
+			})
+		});
+
+		await fireEvent.click(control('ws-2')!);
+
+		expect(on('export', 'ws-2')?.getAttribute('aria-disabled')).toBe('true');
+		expect(await reasonOf(on('export', 'ws-2')!)).toContain(en.common.permission.missing[flag]);
+
+		await fireEvent.click(on('export', 'ws-2')!);
+
+		expect(transfer.saveFile).not.toHaveBeenCalled();
+		expect(transfer.get).not.toHaveBeenCalled();
+	}
+);
+
+// effort 846, criterion 17: the earlier records stand above the cards, naming the open workspace.
+test('the earlier records stand above the cards, naming the workspace open here', async () => {
+	transfer.earlier = { version: '0.13.0' };
+	list();
+
+	const callout = () => document.querySelector('[data-earlier-records]');
+
+	await waitFor(() => expect(callout()).not.toBeNull());
+
+	const first = document.querySelector('[data-workspace]')!;
+
+	expect(callout()!.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+	expect(callout()!.querySelector('[data-earlier-description]')?.textContent).toContain('Riyadh');
+	expect(callout()!.querySelector('[data-earlier-bring-in]')).not.toBeNull();
+});
+
+test('with nothing open, the earlier records keep their line and offer no act', async () => {
+	transfer.earlier = { version: '0.13.0' };
+	list({ openWorkspaceId: null });
+
+	const callout = () => document.querySelector('[data-earlier-records]');
+
+	await waitFor(() => expect(callout()).not.toBeNull());
+
+	expect(callout()!.querySelector('[data-earlier-description]')?.textContent?.trim()).toBe(
+		en.earlier.openOne
+	);
+	expect(callout()!.querySelectorAll('button')).toHaveLength(0);
 });
 
 test('the members act opens the access dialog on the people who could hold that workspace', async () => {
@@ -794,9 +1049,6 @@ test('and in arabic every card reads in its own words, right to left', async () 
 		en.organization.dashboard.workspacesDescription
 	);
 	expect(screen.getByRole('button', { name: ar.layout.workspaceMenu.create })).toBeDefined();
-	expect(
-		screen.getByText(ar.organization.dashboard.transferTitle.replace('{workspace}', 'Riyadh'))
-	).toBeDefined();
 
 	await fireEvent.click(control('ws-1')!);
 
@@ -890,8 +1142,8 @@ test('the directory is ordered by name, then by how many hold each', async () =>
 	expect(shownWorkspaces()).toEqual(byCount.map((workspace) => workspace.id));
 });
 
-// the settings directories offer nothing to export: the file a workspace becomes is the transfer
-// beneath the cards, not the directory's.
+// the settings directories offer nothing to export from their bar: the file a workspace becomes is
+// on its own card, not the directory's.
 test('the directory offers no transfer of its records', () => {
 	list();
 

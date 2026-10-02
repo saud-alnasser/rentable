@@ -2263,9 +2263,10 @@ type RootTranslation = {
 		 */
 		loadErrorTitle: string
 		/**
-		 * i​m​p​o​r​t​ ​a​ ​w​o​r​k​s​p​a​c​e
+		 * i​m​p​o​r​t​ ​i​n​t​o​ ​{​w​o​r​k​s​p​a​c​e​}
+		 * @param {string} workspace
 		 */
-		transferImportTitle: string
+		transferImportTitle: RequiredParams<'workspace'>
 		/**
 		 * t​h​e​ ​f​i​l​e​ ​w​a​s​ ​i​m​p​o​r​t​e​d
 		 */
@@ -4077,11 +4078,6 @@ type RootTranslation = {
 			 */
 			workspaceDeleted: string
 			/**
-			 * e​x​p​o​r​t​ ​a​n​d​ ​i​m​p​o​r​t​ ​{​w​o​r​k​s​p​a​c​e​}
-			 * @param {string} workspace
-			 */
-			transferTitle: RequiredParams<'workspace'>
-			/**
 			 * f​o​r​g​e​t​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t
 			 */
 			forgetAccount: string
@@ -4706,10 +4702,6 @@ type RootTranslation = {
 		 * T​u​r​s​o​ ​i​s​ ​r​e​f​u​s​i​n​g​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​a​c​c​o​u​n​t​.​ ​w​o​r​k​ ​g​o​e​s​ ​o​n​ ​h​e​r​e​;​ ​f​i​x​ ​i​t​ ​a​t​ ​a​p​p​.​t​u​r​s​o​.​t​e​c​h​ ​t​o​ ​s​e​n​d​ ​i​t​.
 		 */
 		accountRefusedOwnerNoDetail: string
-		/**
-		 * w​r​i​t​e​ ​e​v​e​r​y​ ​r​e​c​o​r​d​ ​t​o​ ​o​n​e​ ​w​o​r​k​b​o​o​k​,​ ​o​r​ ​r​e​a​d​ ​o​n​e​ ​i​n​.​ ​r​e​c​o​r​d​s​ ​n​a​m​e​ ​e​a​c​h​ ​o​t​h​e​r​,​ ​s​o​ ​t​h​e​ ​f​i​l​e​ ​o​p​e​n​s​ ​o​n​ ​a​n​y​ ​m​a​c​h​i​n​e​.
-		 */
-		transferDescription: string
 	}
 	earlier: {
 		/**
@@ -4723,9 +4715,14 @@ type RootTranslation = {
 		 */
 		title: RequiredParams<'version'>
 		/**
-		 * t​h​e​y​ ​a​r​e​ ​s​t​i​l​l​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​.​ ​r​e​v​i​e​w​ ​w​h​a​t​ ​t​h​e​y​ ​w​o​u​l​d​ ​a​d​d​,​ ​t​h​e​n​ ​b​r​i​n​g​ ​t​h​e​m​ ​i​n​t​o​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​.
+		 * t​h​e​y​ ​a​r​e​ ​s​t​i​l​l​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​.​ ​r​e​v​i​e​w​ ​w​h​a​t​ ​t​h​e​y​ ​w​o​u​l​d​ ​a​d​d​,​ ​t​h​e​n​ ​b​r​i​n​g​ ​t​h​e​m​ ​i​n​t​o​ ​{​w​o​r​k​s​p​a​c​e​}​.
+		 * @param {string} workspace
 		 */
-		description: string
+		description: RequiredParams<'workspace'>
+		/**
+		 * t​h​e​y​ ​a​r​e​ ​s​t​i​l​l​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​.​ ​o​p​e​n​ ​a​ ​w​o​r​k​s​p​a​c​e​ ​t​o​ ​b​r​i​n​g​ ​t​h​e​m​ ​i​n​.
+		 */
+		openOne: string
 		/**
 		 * a​ ​c​o​p​y​ ​i​s​ ​k​e​p​t​ ​a​s​ ​a​ ​w​o​r​k​b​o​o​k​:
 		 */
@@ -6906,9 +6903,9 @@ export type TranslationFunctions = {
 		 */
 		loadErrorTitle: () => LocalizedString
 		/**
-		 * import a workspace
+		 * import into {workspace}
 		 */
-		transferImportTitle: () => LocalizedString
+		transferImportTitle: (arg: { workspace: string }) => LocalizedString
 		/**
 		 * the file was imported
 		 */
@@ -8641,10 +8638,6 @@ export type TranslationFunctions = {
 			 */
 			workspaceDeleted: () => LocalizedString
 			/**
-			 * export and import {workspace}
-			 */
-			transferTitle: (arg: { workspace: string }) => LocalizedString
-			/**
 			 * forget Turso account
 			 */
 			forgetAccount: () => LocalizedString
@@ -9251,10 +9244,6 @@ export type TranslationFunctions = {
 		 * Turso is refusing the organization's account. work goes on here; fix it at app.turso.tech to send it.
 		 */
 		accountRefusedOwnerNoDetail: () => LocalizedString
-		/**
-		 * write every record to one workbook, or read one in. records name each other, so the file opens on any machine.
-		 */
-		transferDescription: () => LocalizedString
 	}
 	earlier: {
 		/**
@@ -9266,9 +9255,13 @@ export type TranslationFunctions = {
 		 */
 		title: (arg: { version: string }) => LocalizedString
 		/**
-		 * they are still on this machine. review what they would add, then bring them into this workspace.
+		 * they are still on this machine. review what they would add, then bring them into {workspace}.
 		 */
-		description: () => LocalizedString
+		description: (arg: { workspace: string }) => LocalizedString
+		/**
+		 * they are still on this machine. open a workspace to bring them in.
+		 */
+		openOne: () => LocalizedString
 		/**
 		 * a copy is kept as a workbook:
 		 */

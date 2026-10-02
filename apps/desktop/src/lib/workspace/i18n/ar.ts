@@ -18,9 +18,7 @@ export const workspace = {
 	accountRefusedOwner:
 		'يرفض Turso حساب المؤسسة: {detail}. يستمر العمل هنا؛ أصلِح الأمر على app.turso.tech ليُرسَل.',
 	accountRefusedOwnerNoDetail:
-		'يرفض Turso حساب المؤسسة. يستمر العمل هنا؛ أصلِح الأمر على app.turso.tech ليُرسَل.',
-	transferDescription:
-		'اكتب كل السجلات في ملف واحد، أو اقرأ ملفًا كهذا. تشير السجلات إلى بعضها بالأسماء، فيفتح الملف على أي جهاز.'
+		'يرفض Turso حساب المؤسسة. يستمر العمل هنا؛ أصلِح الأمر على app.turso.tech ليُرسَل.'
 } satisfies Translation['workspace'];
 
 // the records 0.12.0 and 0.13.0 left on this machine, offered on the way in and in the settings
@@ -28,7 +26,8 @@ export const workspace = {
 export const earlier = {
 	wayIn: 'سجلات الإصدار {version} موجودة على هذا الجهاز. انقلها من الإعدادات حين توجد مساحة عمل.',
 	title: 'سجلات الإصدار {version}',
-	description: 'ما زالت على هذا الجهاز. راجع ما ستضيفه، ثم انقلها إلى مساحة العمل هذه.',
+	description: 'ما زالت على هذا الجهاز. راجع ما ستضيفه، ثم انقلها إلى {workspace}.',
+	openOne: 'ما زالت على هذا الجهاز. افتح مساحة عمل لتنقلها إليها.',
 	kept: 'تُحفظ نسخة منها في مصنف:',
 	bringIn: 'انقلها...',
 	dismiss: 'إخفاء'

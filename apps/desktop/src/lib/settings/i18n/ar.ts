@@ -18,7 +18,7 @@ export const settings = {
 
 	loadErrorTitle: 'الإعدادات غير متاحة حالياً',
 
-	transferImportTitle: 'استيراد مساحة عمل',
+	transferImportTitle: 'استيراد إلى {workspace}',
 	transferImportSuccess: 'تم استيراد الملف',
 
 	restartNotice: 'تم تثبيت التحديث. أعد تشغيل رينتابل لإكماله.',
