@@ -26,7 +26,7 @@
 	import DoorOpenIcon from '@lucide/svelte/icons/door-open';
 
 	/**
-	 * The organization section's last card, across both columns: the ways a reader steps away from
+	 * The organization section's last card: the ways a reader steps away from
 	 * the organization, told apart by who is reading (effort 846, requirement 14, and *Everything
 	 * in a tab is a card*).
 	 *
@@ -224,7 +224,7 @@
 	{/if}
 {/snippet}
 
-<!-- the last card of the section, across both columns. A member, or an owner whose row is not
+<!-- the last card of the section. A member, or an owner whose row is not
      answered yet, meets the acts that end something alone, as the card's end after its header. -->
 <div data-leaving class="contents">
 	<SettingsGroup
@@ -233,6 +233,5 @@
 		description={$LL.organization.dashboard.leavingDescription()}
 		rows={isOwner && handover && ownRecord ? handoverRows : undefined}
 		end={ending}
-		span="full"
 	/>
 </div>

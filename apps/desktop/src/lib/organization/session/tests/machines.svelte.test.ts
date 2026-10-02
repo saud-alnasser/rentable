@@ -133,11 +133,10 @@ test('this machine is listed first and marked, with when each machine was seen a
 	expect(laptop.querySelector('[data-row-meta]')?.textContent).toContain('last seen 3 hours ago');
 	expect(laptop.querySelector('[data-row-value]')).toBeNull();
 
-	// the card says how many are signed in, at its header's end, and spans both columns.
+	// the card says how many are signed in, at its header's end.
 	expect(group().querySelector('[data-settings-group-value]')?.textContent?.trim()).toBe(
 		en.settings.you.machines.signedIn.replace('{count:number}', '4')
 	);
-	expect(group().dataset.span).toBe('full');
 
 	// within a day it is said relative to now; further back, as a date, and still listed.
 	expect(laptop.textContent).toContain('last seen 3 hours ago');

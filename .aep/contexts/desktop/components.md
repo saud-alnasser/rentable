@@ -70,7 +70,7 @@ block a concept draws instead.
 | `primitive/calendar` | entering text | a date, inside a popover, given the reader's locale (*Field kinds*) | a span of time chosen from named periods (a menu does that) | `primitive/dropdown-menu` | `contract/component/start-date-field.svelte` |
 | `primitive/callout` | feedback and progress | a notice standing on the surface it is about, in the tone vocabulary (*Feedback*), with its act where it has one | a transient result (toast); a field's error (research 7) | `primitive/sonner` | `organization/component/standing.svelte` |
 | `primitive/checkbox` | choosing a value | picking records in a list's selection mode; a setting that waits for a save (*Field kinds*) | a setting that applies at once, or a permission (both switches) | `primitive/switch` | `list/component/rows.svelte` |
-| `primitive/collapsible` | disclosing detail | detail few readers need: the machine's words behind an error, a permission group, and through `block/settings-row.svelte`'s `details` a settings row's detail | anything most readers need; a status, a problem, an act that ends something (research 9) | `primitive/tooltip` | `error/component/detail-disclosure.svelte` |
+| `primitive/collapsible` | disclosing detail | detail few readers need: the machine's words behind an error, a permission group, and through `block/settings-row.svelte`'s `details` a settings row's detail (a release's notes, not a path) | anything most readers need; a status, a problem, an act that ends something (research 9) | `primitive/tooltip` | `error/component/detail-disclosure.svelte` |
 | `primitive/command` | choosing a value | the command menu, and a combobox over another record's search inside a popover | a choice of a few fixed values | `primitive/select` | `contract/component/tenant-field.svelte` |
 | `primitive/context-menu` | taking an action | the record card's secondary-click route, through a block | anything not also on the visible control (research 2) | `primitive/dropdown-menu` | through `block/record-card.svelte` |
 | `primitive/dialog` | interrupting and confirming | a scoped task that must be answered: import review; beneath every confirming block and the form surface | information with nothing to answer; a repeated task (research 8) | `primitive/popover` | `transfer/component/import-dialog.svelte` |
@@ -96,7 +96,7 @@ block a concept draws instead.
 | `primitive/textarea` | entering text | a longer note: a payment's note | a short value | `primitive/input` | `payment/component/form.svelte` |
 | `primitive/toggle` | choosing a value | one segment of a toggle group, through it | a lone pressable state on its own (unused alone here) | `primitive/toggle-group` | through `primitive/toggle-group` |
 | `primitive/toggle-group` | choosing a value | two to four exclusive values, all shown: the cycle, language, appearance, a payment's method | five or more; several commands (research 3) | `primitive/select` | `settings/component/appearance.svelte` |
-| `primitive/tooltip` | disclosing detail | a short hint on hover and focus: an icon control's words, a status's description, a refusal's reason | anything interactive, essential, or an error (research 9) | `primitive/popover` | `create/component/control.svelte` |
+| `primitive/tooltip` | disclosing detail | a short hint on hover and focus: an icon control's words (the log folder's reveal, the check for updates), a status's description, a refusal's reason, a choice whose word does not say what it does (appearance's *system*) | anything interactive, essential, or an error (research 9) | `primitive/popover` | `create/component/control.svelte` |
 
 ## Blocks
 
@@ -119,9 +119,9 @@ block a concept draws instead.
 | `block/record-surface.svelte` | laying out | the page a record is read on: back, acts, title, fields, collections | a directory; a settings area | `block/page-frame.svelte` | `complex/component/details.svelte` |
 | `block/section-switch.svelte` | navigating | a page's sections, each at its address: settings, a record's collections | places of the application (the rail) | `primitive/sidebar` | `settings/component/area.svelte` |
 | `block/selection-dialog.svelte` | interrupting and confirming | an act on a selection, showing what would go through before it runs | one record's act | `block/delete-dialog.svelte` | `complex/component/directory.svelte` |
-| `block/settings-grid.svelte` | laying out | a settings section's cards, two columns where it is wide enough and one where not, in source order | a list of records (the list shell lays those); a page's frame | `block/page-frame.svelte` | `settings/component/area.svelte` |
-| `block/settings-group.svelte` | laying out | a settings card: its header inside it (glyph, title, one line, a value), its rows, the ending rows last after a separator, an optional footer; half or full width in the grid | a list of records (those are record cards); a box around a directory | `block/record-card.svelte` | `organization/component/settings-account.svelte` |
-| `block/settings-row.svelte` | showing data | one setting: glyph, name with its meta line under it and a badge beside it, value, control; the `error` tone for an act that ends something; `details` folding what few readers need; `menu` holding a row's secondary acts | a record in a directory | `primitive/item` | `organization/component/disconnect.svelte` |
+| `block/settings-grid.svelte` | laying out | a settings section's cards, one under the next in a single column at every width, in source order | a list of records (the list shell lays those); a page's frame; two cards side by side | `block/page-frame.svelte` | `settings/component/area.svelte` |
+| `block/settings-group.svelte` | laying out | a settings card: its header inside it (glyph, title, one line, a value), its rows, the ending rows last after a separator, an optional footer; the column's width | a list of records (those are record cards); a box around a directory | `block/record-card.svelte` | `organization/component/settings-account.svelte` |
+| `block/settings-row.svelte` | showing data | one setting: glyph, name with its meta line under it and a badge beside it, value, control; the `error` mark for an act that ends something, its button alone red and its glyph and name neutral; `details` folding what few readers need; `menu` holding a row's secondary acts | a record in a directory | `primitive/item` | `organization/component/disconnect.svelte` |
 | `block/specification.svelte` | showing data | a record's own fields as label and value | a list of records; tabular data (research 5) | `block/record-card.svelte` | `complex/component/details.svelte` |
 | `block/standalone-surface.svelte` | interrupting and confirming | the application failing: startup, recovery, an unhandled route error | a step of the way in; a not-found | `block/way-in-surface.svelte` | `shell/component/caught-error.svelte` |
 | `block/surface-action.svelte` | taking an action | one of a few acts on a surface that has stopped the application | a record's act | `block/record-action-control.svelte` | `startup/component/error.svelte` |
@@ -169,7 +169,7 @@ Each row names what this repository already draws for the need, and one file whe
 | a small setting beside what it changes | `primitive/popover`, applied in place | `dashboard/component/ending-soon.svelte` |
 | a secondary act on a record | the record card's menu, and `block/record-action-control.svelte` on its page | `complex/component/details.svelte` |
 | a secondary act on a row of a growing list, in settings | `block/settings-row.svelte`'s `menu`, in the menu's default tone even for an act that ends something | `organization/session/component/machines.svelte` |
-| an act that ends something, in settings | `block/settings-row.svelte` in the `error` tone, in the group's `end` | `organization/component/disconnect.svelte` |
+| an act that ends something, in settings | `block/settings-row.svelte` marked `error`, in the group's `end`, its button alone in the error tone | `organization/component/disconnect.svelte` |
 | a confirmation | `block/confirm-dialog.svelte`, or `block/delete-dialog.svelte` for a delete that asks | `contract/component/host.svelte` |
 | an act on a selection | `block/selection-dialog.svelte` | `complex/component/directory.svelte` |
 | a write: create or edit | `block/form-surface.svelte` at the form's weight | `complex/component/form.svelte` |
@@ -178,8 +178,9 @@ Each row names what this repository already draws for the need, and one file whe
 | a long-running task with stages | `primitive/progress` | `startup/component/loading.svelte` |
 | a short hint | `primitive/tooltip` | `create/component/control.svelte` |
 | nothing to show yet | `block/empty.svelte`, kind `nothing-yet`, with the create | `list/component/empty.svelte` |
-| a set of settings | `block/settings-group.svelte` of `block/settings-row.svelte`, in a `block/settings-grid.svelte` | `organization/component/settings-account.svelte` |
-| detail few readers need, under a setting | `block/settings-row.svelte`'s `details` | `settings/component/diagnostics.svelte` |
+| a set of settings | `block/settings-group.svelte` of `block/settings-row.svelte`, one under the next in a `block/settings-grid.svelte` | `organization/component/settings-account.svelte` |
+| detail few readers need, under a setting | `block/settings-row.svelte`'s `details` | `settings/component/updates.svelte` |
+| a row's control whose words a tooltip can carry | `primitive/button` at `icon-sm` with its `aria-label`, in `primitive/tooltip` saying the same | `settings/component/diagnostics.svelte` |
 | a page section switch | `block/section-switch.svelte` | `settings/component/area.svelte` |
 | several commands behind one control | `primitive/dropdown-menu` | `list/component/list-toolbar.svelte` |
 | a field's error | `block/field-error.svelte` | `complex/component/form.svelte` |
@@ -208,7 +209,12 @@ against.
   The window was a field with a *save* step two screens away until effort 846.
 - **A dangerous act that looks benign.** *Disconnect*, *forget Turso account* and *delete
   organization* were outline buttons like their neighbours (effort 846, *Problem*). An act that
-  ends something is last in its group, in the `error` tone, with its glyph.
+  ends something is last in its group, its button in the `error` tone with its glyph; the row's
+  own glyph and name stay neutral, so the colour marks the one thing that acts (effort 846, ticket
+  31).
+- **Two cards side by side in settings.** A two-column grid of settings cards, a card spanning
+  both, made the eye zigzag and the tabs disagree about where a card stood; the human asked for
+  "each card is under the next card" (effort 846, ticket 31). A section is one column.
 - **A select for a few options.** It hides all but one behind a press (*Field kinds*,
   `design/tests/few-options.test.ts`).
 - **A hand-coloured notice box.** A notice is `primitive/callout` in the tone vocabulary

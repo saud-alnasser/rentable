@@ -41,11 +41,11 @@
 	 * waiting on a reply.
 	 *
 	 * **It reads as sign-in and security** (effort 846, requirement 8): who is signed in, the
-	 * password, the machines, and signing out of this one last, each a card in the section's grid
-	 * in the manner of Apple's and Google's account pages (*Everything in a tab is a card*): the
-	 * offer across both columns, who is signed in beside the password, then the machines and this
-	 * machine across both, the list because it grows and the last because it ends something. Signing out of this machine moved here
-	 * from beside the username, so the way out is the last thing the section holds.
+	 * password, the machines, and signing out of this one last, each a card one under the next in
+	 * the section's column in the manner of Apple's and Google's account pages (*Everything in a tab
+	 * is a card*; "each card needs to be in a sequeintal order", the human on 2026-10-02). Signing
+	 * out of this machine moved here from beside the username, so the way out is the last thing
+	 * the section holds.
 	 */
 	// what the area hands every section it draws. Nothing this section does lets go of the
 	// organization, so it reads none of it; declared so the section is typed as one.
@@ -153,18 +153,18 @@
 
 {#if session}
 	<!-- the reader's sign-in and security, in the order requirement 8 of effort 846 gives: the
-	     offer where one stands, who is signed in beside the password, the machines, and the way
-	     out of this one last. Each is a card in the section's grid, and each act that ends
-	     something is drawn in the error tone at the end of its card (requirement 2). -->
+	     offer where one stands, who is signed in, the password, the machines, and the way out of
+	     this one last. Each is a card in the section's column, and each act that ends
+	     something is drawn at the end of its card, its button in the error tone (requirement 2). -->
 	<SettingsGrid>
 		<!-- the offer first, and only where one stands: it is the one thing in this section
 		     waiting on the reader, and everything under it is a fact about their account that
 		     will read the same tomorrow (requirement 22 of effort 828). A notice with its act,
-		     across both columns, in the tone a notice takes, rather than a card of one row: it is
+		     in the tone a notice takes, rather than a card of one row: it is
 		     news, not a setting. *It stood last while it was the block most often absent; the
 		     human read the four sections and asked for what is waiting to come first.* -->
 		{#if session.ownershipOffered}
-			<div data-ownership-offer class="col-span-full">
+			<div data-ownership-offer>
 				<Callout tone="info" class="flex flex-wrap items-center gap-3 rounded-2xl p-4">
 					<CrownIcon class="size-5 shrink-0" />
 					<div class="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -228,7 +228,6 @@
 				title={$LL.settings.you.thisMachine.title()}
 				description={$LL.settings.you.thisMachine.description()}
 				end={signOut}
-				span="full"
 			/>
 		</div>
 	</SettingsGrid>

@@ -8,8 +8,7 @@ export const settings = {
 	diagnosticsDescription:
 		'a record of what rentable does, for looking into failures. it stays here, and passwords and tokens are left out.',
 	diagnosticsFolder: 'log folder',
-	// the chevron that opens the folder's whole path under its row (effort 846).
-	diagnosticsFullPath: 'the whole path',
+	// the icon control that opens the log folder: its accessible name and its tooltip (effort 846).
 	diagnosticsReveal: 'open log folder',
 	diagnosticsTitle: 'diagnostics',
 
@@ -30,12 +29,11 @@ export const settings = {
 		title: 'language and appearance',
 		description: 'how rentable reads and looks on this machine.'
 	},
-	// the note at the foot of the language and appearance card, for both of its rows (effort 846).
-	preferencesFooter:
-		'each applies the moment you pick it, and system follows your computer as it turns light or dark.',
 	localeTitle: 'language',
 
 	appearanceTitle: 'appearance',
+	// the tooltip on the system choice, the one whose word does not say what it does (effort 846).
+	appearanceSystemHint: 'follows your computer as it turns light or dark',
 	appearance: {
 		system: 'system',
 		light: 'light',
@@ -53,7 +51,6 @@ export const settings = {
 
 	title: 'settings',
 
-	updatesChecking: 'checking for updates...',
 	// what the updates card's header says at its end, in words: where this installation stands
 	// (effort 846, *Everything in a tab is a card*).
 	updatesState: {

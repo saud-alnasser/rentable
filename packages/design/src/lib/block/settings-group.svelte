@@ -4,8 +4,8 @@
 	import type { Component, Snippet } from 'svelte';
 
 	/**
-	 * A settings card: everything a settings section shows is one of these, laid in a
-	 * `settings-grid` (effort 846, *Everything in a tab is a card*, at the human's word of
+	 * A settings card: everything a settings section shows is one of these, one under the next in
+	 * a `settings-grid` (effort 846, *Everything in a tab is a card*, at the human's word of
 	 * 2026-10-02: "each section ... everything is a card").
 	 *
 	 * **One anatomy for every card in every tab.** A header inside the card: the card's glyph, its
@@ -13,7 +13,7 @@
 	 * a state, a picture), never an act that ends something. Then the rows, each a `settings-row`,
 	 * hairlines between them. Then, after a separator, the rows that end something. Then an
 	 * optional footer: one note, a progress bar, or one act. The title and the line sit inside the
-	 * card rather than over and under it, so a card stands on its own in the grid beside another.
+	 * card rather than over and under it, so a card stands on its own in the column.
 	 * *They sat above and below a card of rows until that word.*
 	 *
 	 * **The explanation belongs to the card, not to every row.** A row says what it is and what it
@@ -23,12 +23,12 @@
 	 * **The rows that end something are drawn last, after a separator**, so a reader always finds
 	 * the act that deletes, disconnects, forgets or signs somebody out at the end of its card and
 	 * never between two benign ones. They are a slot of their own rather than a row the caller
-	 * remembers to put last, so the order is this block's to keep. The error tone is on those rows
-	 * alone, never on the card's edge or a band across it.
+	 * remembers to put last, so the order is this block's to keep. The error tone is on the act's
+	 * button in those rows alone, never on the row's words, the card's edge or a band across it.
 	 *
-	 * **A card is half the grid's width unless it says `span="full"`**: one whose rows are a list
-	 * that grows (the machines), and one holding the act that ends something (leaving, this
-	 * machine), span both columns, as requirement 1 gives it.
+	 * **Every card takes the column's whole width**: the column is the one width there is, so a card
+	 * says nothing about how wide it is. *A card was half a two-column grid unless it said
+	 * `span="full"` until ticket 31 of effort 846.*
 	 *
 	 * **The card is the record card's surface** (`recordCard`'s radius, hairline ring and raised
 	 * shadow) rather than a bordered box, so a settings tab and a list read as one application, and
@@ -46,8 +46,7 @@
 		value,
 		rows,
 		end,
-		footer,
-		span
+		footer
 	}: {
 		/** The glyph the card's header leads with: what it is about. */
 		icon?: Component<{ class?: string }>;
@@ -66,12 +65,10 @@
 		value?: string | Snippet;
 		/** The card's rows, each a `settings-row`. */
 		rows?: Snippet;
-		/** The rows that end something, each a `settings-row` in the error tone: always last. */
+		/** The rows that end something, each a `settings-row` marked `error`: always last. */
 		end?: Snippet;
 		/** What closes the card: one note, a progress bar, or one act. */
 		footer?: string | Snippet;
-		/** Whether the card spans both of the grid's columns. */
-		span?: 'full';
 	} = $props();
 
 	const titleId = $props.id();
@@ -82,12 +79,8 @@
 
 <section
 	data-settings-group
-	data-span={span}
 	aria-labelledby={title ? titleId : undefined}
-	class={cn(
-		'flex min-w-0 flex-col rounded-2xl bg-card shadow-raised ring-1 ring-foreground/5',
-		span === 'full' && 'col-span-full'
-	)}
+	class="flex min-w-0 flex-col rounded-2xl bg-card shadow-raised ring-1 ring-foreground/5"
 >
 	{#if hasHeader}
 		<header

@@ -3,38 +3,39 @@ import { render } from '@testing-library/svelte';
 import { expect, test } from 'vitest';
 
 /**
- * The settings grid, which lays a section's cards in two columns where the section is wide enough
- * and one where it is not (effort 846, requirement 1).
+ * The settings column, which stands a section's cards one under the next (effort 846, requirement 1
+ * as revised on 2026-10-02: "each card is under the next card").
  *
- * jsdom evaluates no container query, so what is read is what decides it: the grid answers to its
- * own container rather than the window, a spanning card is marked and takes every column, the
- * others take one, and each card holds its title and its footer inside itself.
+ * jsdom lays nothing out, so what is read is what decides it: one flex column with no grid and no
+ * width at which a second column appears, every card its item, in the order it was written.
  */
 const cards = () => [...document.querySelectorAll<HTMLElement>('[data-settings-group]')];
 
-test('the grid is one column, and two from the width two cards of 340 and their gap need', () => {
+test('the cards stand in one column at every width, in source order', () => {
 	render(SettingsGridHarness);
 
-	const grid = document.querySelector<HTMLElement>('[data-settings-grid]')!;
+	const column = document.querySelector<HTMLElement>('[data-settings-grid]')!;
 
-	expect(grid.classList).toContain('grid-cols-1');
-	expect(grid.classList).toContain('@min-[696px]:grid-cols-2');
-	// a short card keeps its own height beside a tall one.
-	expect(grid.classList).toContain('items-start');
-	// the query reads the section's width, so the container is the grid's own parent.
-	expect(grid.parentElement?.classList).toContain('@container');
-	expect(cards().every((card) => card.parentElement === grid)).toBe(true);
+	expect(column.classList).toContain('flex');
+	expect(column.classList).toContain('flex-col');
+	// no grid, and nothing a container or a window could widen into two.
+	expect(column.className).not.toMatch(/grid-cols|@container|@min-|(^|\s)(sm|md|lg|xl):/);
+	expect(column.parentElement?.className ?? '').not.toMatch(/@container/);
+	expect(cards().every((card) => card.parentElement === column)).toBe(true);
+	expect(cards().map((card) => card.querySelector('h2')?.textContent?.trim())).toEqual([
+		'display',
+		'updates',
+		'diagnostics'
+	]);
 });
 
-test('the spanning card is marked to span both columns, and the others are not', () => {
+test('no card spans or is told how wide to be', () => {
 	render(SettingsGridHarness);
 
-	expect(cards().map((card) => card.dataset.span ?? null)).toEqual([null, null, 'full']);
-	expect(cards().map((card) => card.classList.contains('col-span-full'))).toEqual([
-		false,
-		false,
-		true
-	]);
+	for (const card of cards()) {
+		expect(card.dataset.span).toBeUndefined();
+		expect(card.className).not.toMatch(/col-span/);
+	}
 });
 
 test("every card's title and footer are inside it", () => {

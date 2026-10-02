@@ -47,7 +47,7 @@
 	 * that something is happening ([[rules/interface]], *Loading*); the word says it, and the tone
 	 * marks it, and nothing on the page moves for a run the heartbeat starts every five minutes.
 	 *
-	 * **A card across both columns, its state one `settings-row` reporting it** (effort 846,
+	 * **A card, its state one `settings-row` reporting it** (effort 846,
 	 * *Everything in a tab is a card*): the row's glyph and name take the state's tone
 	 * (`reports`), the last reach is the line under its name, *sync* is its control, and a
 	 * problem keeps the explanation and the act it offers beneath it, under the state rather than
@@ -240,7 +240,6 @@
 	icon={CloudIcon}
 	title={$LL.organization.standing.title()}
 	description={$LL.organization.standing.purpose()}
-	span="full"
 >
 	{#snippet rows()}
 		<SettingsRow

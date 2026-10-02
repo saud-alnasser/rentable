@@ -58,7 +58,10 @@
 	{#snippet end()}
 		<SettingsRow icon={LogOutIcon} name="sign out of this machine" tone="error" details={path}>
 			{#snippet control({ labelId })}
-				<button type="button" data-handed={labelId}>sign out</button>
+				<!-- the caller's destructive ghost button, as a section draws one: the row's one red. -->
+				<button type="button" class="text-destructive" data-handed={labelId} data-ending-act>
+					sign out
+				</button>
 			{/snippet}
 		</SettingsRow>
 	{/snippet}

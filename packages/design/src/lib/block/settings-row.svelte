@@ -65,9 +65,12 @@
 	 * the value and the control.
 	 *
 	 * **An error row is the act that ends something**, which a group draws last, after its
-	 * separator. Its glyph and its name take the destructive colour; the button inside it is the
-	 * caller's, a destructive ghost button, and its emphasis is shadcn's vocabulary, which *Tone*
-	 * leaves to the control, rather than this block's.
+	 * separator. Only its button takes the destructive colour: the glyph and the name stay as
+	 * neutral as any row's, so the colour marks the one thing that acts (effort 846, at the human's
+	 * word of 2026-10-02: "only the action button shoud be in red"). The button is the caller's, a
+	 * destructive ghost button, and its emphasis is shadcn's vocabulary, which *Tone* leaves to the
+	 * control, rather than this block's. *The glyph and the name took the colour too until ticket 31
+	 * of effort 846.*
 	 *
 	 * **What the row's state calls for is drawn beneath it, inside the row**, where a row has
 	 * something to add to its value: a line saying what is under way, or a callout and the act it
@@ -93,8 +96,7 @@
 	 * anatomy*).
 	 *
 	 * **A row may report a state** (`reports`): its glyph and its name then take that state's tone,
-	 * as the sync state's five do, the one row in the area whose words carry a tone other than the
-	 * destructive one.
+	 * as the sync state's five do, the one row in the area whose words carry a tone at all.
 	 *
 	 * The words are the caller's, as every block in this package takes them, and are drawn as
 	 * written but for the name's first letter, which is raised as a label's is.
@@ -137,12 +139,15 @@
 		detailsLabel?: string;
 		/** What the opened state is remembered under; the row's name where none is given. */
 		detailsKey?: string;
-		/** Whether this row ends something. Marked on the row, so a test can find it. */
+		/**
+		 * Whether this row ends something. Marked on the row, so a test can find it; the colour is
+		 * on the caller's button alone.
+		 */
 		tone?: SettingsRowTone;
 		/**
 		 * The tone of the state the row reports, drawn on its glyph and its name: the sync state's
 		 * five. A row that names a state in words and colour is read at a glance; it is never the
-		 * destructive treatment, which `tone` keeps for the act that ends something.
+		 * mark of an act that ends something, which `tone` is.
 		 */
 		reports?: Tone;
 		/** The caller's marks for the row, `data-*` attributes a section is read by. */
@@ -151,11 +156,10 @@
 
 	const labelId = $props.id();
 
-	// the error row's glyph and name carry the tone, and a row reporting a state draws them in that
-	// state's tone; a neutral row's glyph is muted beside its name, so the name is what reads first.
-	const coloured = $derived(
-		tone === 'error' ? toneOf({ tone }).text() : reports ? toneOf({ tone: reports }).text() : null
-	);
+	// a row reporting a state draws its glyph and name in that state's tone; every other row, the
+	// one that ends something included, mutes its glyph beside its name, so the name reads first and
+	// an ending row's colour is its button's alone.
+	const coloured = $derived(reports ? toneOf({ tone: reports }).text() : null);
 	const glyph = $derived(coloured ?? 'text-muted-foreground');
 	const words = $derived(coloured ?? undefined);
 

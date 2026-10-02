@@ -36,8 +36,8 @@
 	 * **Four sections, each named for what it holds** (requirement 24 of effort 828). There were
 	 * seven, and a person looking for one thing had to guess which of them it was under. General
 	 * carries the language and the appearance, then updates and diagnostics, each a card on the
-	 * design package's settings group and row, laid in its settings grid (effort 846, requirement 1
-	 * and *Everything in a tab is a card*); account
+	 * design package's settings group and row, one under the next in its settings column (effort
+	 * 846, requirement 1 and *Everything in a tab is a card*); account
 	 * carries what a person reads about themselves; organization carries where this machine stands
 	 * with it on Turso, the Turso account, the members directory and the two acts that end
 	 * something; workspaces carries the directory, each card exporting and importing its own.
@@ -125,19 +125,18 @@
 	<SectionSwitch sections={switchable} current={shown} label={$LL.settings.title()} />
 
 	{#if shown === 'general'}
-		<!-- three cards: the language and the appearance beside updates, two short cards a reader
-		     takes in side by side, then diagnostics across both, so its path has room. Ending soon
-		     is not here: it is set from the dashboard's ending-soon section, where it shows (effort
-		     846, requirement 6). -->
+		<!-- three cards, one under the next: the language and the appearance, then updates, then
+		     diagnostics. Ending soon is not here: it is set from the dashboard's ending-soon
+		     section, where it shows (effort 846, requirement 6). -->
 		<SettingsGrid>
-			<!-- the wrappers stand aside from the grid's layout, so the card is the grid's item and
-			     its span reaches the grid; they stay for what reads a section by its marks. -->
+			<!-- the wrappers stand aside from the column's layout, so the card is the column's item;
+			     they stay for what reads a section by its marks. The card has no footer: each choice
+			     says what it does, and system says what it follows in its own tooltip. -->
 			<div data-general class="contents">
 				<SettingsGroup
 					icon={PaletteIcon}
 					title={$LL.settings.preferences.title()}
 					description={$LL.settings.preferences.description()}
-					footer={$LL.settings.preferencesFooter()}
 				>
 					{#snippet rows()}
 						<SettingsLocale currentLocale={$locale} onChange={onChangeLocale} />

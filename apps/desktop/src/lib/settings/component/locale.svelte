@@ -14,8 +14,8 @@
 	 * Buttons and not a menu, as the appearance beside it is: two choices fit, and a reader
 	 * choosing between them wants to see both ([[rules/interface]], *Field kinds*). Each language
 	 * is named in its own words, so a reader who cannot read the current one still finds theirs.
-	 * The row's name labels the group, and what a choice does is said once under the group the row
-	 * sits in rather than under the row (effort 846, requirement 1).
+	 * The row's name labels the group, and no sentence explains it: a language applies the moment
+	 * it is pressed, which the reader sees (effort 846, requirement 1 as revised on 2026-10-02).
 	 */
 	let {
 		currentLocale,

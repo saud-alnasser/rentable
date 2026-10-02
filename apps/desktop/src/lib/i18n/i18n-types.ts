@@ -2243,10 +2243,6 @@ type RootTranslation = {
 		 */
 		diagnosticsFolder: string
 		/**
-		 * t​h​e​ ​w​h​o​l​e​ ​p​a​t​h
-		 */
-		diagnosticsFullPath: string
-		/**
 		 * o​p​e​n​ ​l​o​g​ ​f​o​l​d​e​r
 		 */
 		diagnosticsReveal: string
@@ -2290,10 +2286,6 @@ type RootTranslation = {
 			description: string
 		}
 		/**
-		 * e​a​c​h​ ​a​p​p​l​i​e​s​ ​t​h​e​ ​m​o​m​e​n​t​ ​y​o​u​ ​p​i​c​k​ ​i​t​,​ ​a​n​d​ ​s​y​s​t​e​m​ ​f​o​l​l​o​w​s​ ​y​o​u​r​ ​c​o​m​p​u​t​e​r​ ​a​s​ ​i​t​ ​t​u​r​n​s​ ​l​i​g​h​t​ ​o​r​ ​d​a​r​k​.
-		 */
-		preferencesFooter: string
-		/**
 		 * l​a​n​g​u​a​g​e
 		 */
 		localeTitle: string
@@ -2301,6 +2293,10 @@ type RootTranslation = {
 		 * a​p​p​e​a​r​a​n​c​e
 		 */
 		appearanceTitle: string
+		/**
+		 * f​o​l​l​o​w​s​ ​y​o​u​r​ ​c​o​m​p​u​t​e​r​ ​a​s​ ​i​t​ ​t​u​r​n​s​ ​l​i​g​h​t​ ​o​r​ ​d​a​r​k
+		 */
+		appearanceSystemHint: string
 		appearance: {
 			/**
 			 * s​y​s​t​e​m
@@ -2337,10 +2333,6 @@ type RootTranslation = {
 		 * s​e​t​t​i​n​g​s
 		 */
 		title: string
-		/**
-		 * c​h​e​c​k​i​n​g​ ​f​o​r​ ​u​p​d​a​t​e​s​.​.​.
-		 */
-		updatesChecking: string
 		updatesState: {
 			/**
 			 * c​h​e​c​k​i​n​g
@@ -7087,10 +7079,6 @@ export type TranslationFunctions = {
 		 */
 		diagnosticsFolder: () => LocalizedString
 		/**
-		 * the whole path
-		 */
-		diagnosticsFullPath: () => LocalizedString
-		/**
 		 * open log folder
 		 */
 		diagnosticsReveal: () => LocalizedString
@@ -7133,10 +7121,6 @@ export type TranslationFunctions = {
 			description: () => LocalizedString
 		}
 		/**
-		 * each applies the moment you pick it, and system follows your computer as it turns light or dark.
-		 */
-		preferencesFooter: () => LocalizedString
-		/**
 		 * language
 		 */
 		localeTitle: () => LocalizedString
@@ -7144,6 +7128,10 @@ export type TranslationFunctions = {
 		 * appearance
 		 */
 		appearanceTitle: () => LocalizedString
+		/**
+		 * follows your computer as it turns light or dark
+		 */
+		appearanceSystemHint: () => LocalizedString
 		appearance: {
 			/**
 			 * system
@@ -7180,10 +7168,6 @@ export type TranslationFunctions = {
 		 * settings
 		 */
 		title: () => LocalizedString
-		/**
-		 * checking for updates...
-		 */
-		updatesChecking: () => LocalizedString
 		updatesState: {
 			/**
 			 * checking

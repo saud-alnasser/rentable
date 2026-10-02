@@ -9,7 +9,6 @@ export const settings = {
 	diagnosticsDescription:
 		'سجل بما يفعله رينتابل لتتبع الأعطال. يبقى هنا، ولا تُكتب فيه كلمات المرور ولا الرموز.',
 	diagnosticsFolder: 'مجلد السجل',
-	diagnosticsFullPath: 'المسار كاملًا',
 	diagnosticsReveal: 'فتح مجلد السجل',
 	diagnosticsTitle: 'التشخيص',
 
@@ -28,12 +27,10 @@ export const settings = {
 		title: 'اللغة والمظهر',
 		description: 'كيف يُقرأ رينتابل ويبدو على هذا الجهاز.'
 	},
-	// the note at the foot of the language and appearance card, for both of its rows (effort 846).
-	preferencesFooter:
-		'يُطبَّق كل اختيار فور تحديده، ويتبع خيار النظام جهازك كلما تحوّل بين الفاتح والداكن.',
 	localeTitle: 'اللغة',
 
 	appearanceTitle: 'المظهر',
+	appearanceSystemHint: 'يتبع جهازك كلما تحوّل بين الفاتح والداكن',
 	appearance: {
 		system: 'النظام',
 		light: 'فاتح',
@@ -51,7 +48,6 @@ export const settings = {
 
 	title: 'الإعدادات',
 
-	updatesChecking: 'جارٍ التحقق من التحديثات...',
 	updatesState: {
 		checking: 'جارٍ التحقق',
 		upToDate: 'محدّث',

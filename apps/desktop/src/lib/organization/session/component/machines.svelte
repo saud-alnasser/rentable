@@ -19,7 +19,7 @@
 	/**
 	 * The reader's machines, from the account section (effort 846, requirements 9 to 11).
 	 *
-	 * **A card across both columns, a row per machine signed in as the reader** (effort 846,
+	 * **A card, a row per machine signed in as the reader** (effort 846,
 	 * *Everything in a tab is a card*): the header says how many are signed in, and each row is
 	 * this one first, marked by a badge beside its name, then the one most lately seen, with when
 	 * it was last seen and when it was added on the line under its name, the way Google lists the
@@ -138,7 +138,6 @@
 		value={machines.length > 0
 			? $LL.settings.you.machines.signedIn({ count: machines.length })
 			: undefined}
-		span="full"
 	>
 		{#snippet rows()}
 			{#each machines as machine (machine.id)}

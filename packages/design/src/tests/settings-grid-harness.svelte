@@ -1,7 +1,6 @@
 <script lang="ts">
 	/**
-	 * A settings section's grid of three cards, the last spanning both columns, as a section draws
-	 * one.
+	 * A settings section's column of three cards, as a section draws one.
 	 *
 	 * Scaffolding rather than a test: the cards are snippets inside the grid, and a snippet holding a
 	 * component is written in a component.
@@ -43,7 +42,6 @@
 		title="diagnostics"
 		description="what went wrong, kept here."
 		footer="nothing leaves this machine."
-		span="full"
 	>
 		{#snippet rows()}
 			<SettingsRow icon={FolderIcon} name="log folder" />

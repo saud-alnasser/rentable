@@ -1,7 +1,9 @@
-import { fireEvent, render, screen, within } from '@testing-library/svelte';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
+import { tick } from 'svelte';
 import { beforeEach, expect, test, vi } from 'vitest';
 
 import { sectionsOn } from '$lib/app/surfaces';
+import ar from '$lib/i18n/ar';
 import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
@@ -351,7 +353,6 @@ test('the general section is three groups of rows: preferences, then updates, th
 		en.settings.diagnosticsFolder
 	]);
 
-	expect(screen.getByText(en.settings.preferencesFooter)).toBeDefined();
 	expect(screen.getByText(en.settings.updatesTitle)).toBeDefined();
 	expect(screen.getByText(en.settings.updatesDescription)).toBeDefined();
 	expect(screen.getByText(en.settings.diagnosticsTitle)).toBeDefined();
@@ -396,9 +397,8 @@ test('within each group in general, every button carries an svg or none does', (
 		expect(group.every(Boolean) || group.every((has) => !has)).toBe(true);
 	}
 
-	// updates' check and diagnostics' reveal are labelled buttons with their glyph, and the
-	// chevron that opens the folder's whole path carries its own.
-	expect(withGlyph.slice(1)).toEqual([[true], [true, true]]);
+	// updates' check and diagnostics' reveal are icon controls, each its glyph alone.
+	expect(withGlyph.slice(1)).toEqual([[true], [true]]);
 	expect(screen.getByRole('button', { name: en.common.actions.checkForUpdates })).toBeDefined();
 	expect(screen.getByRole('button', { name: en.settings.diagnosticsReveal })).toBeDefined();
 });
@@ -1284,7 +1284,7 @@ test('the account section draws no ownership block where no offer stands', () =>
 
 /**
  * the section's cards and directories, in the order the document holds them, each named by the
- * mark its block carries, with whether it spans both of the grid's columns.
+ * mark its block carries.
  */
 const SECTION_MARKS = [
 	'data-general',
@@ -1316,29 +1316,36 @@ const laidOut = () => {
 
 	expect(items.length).toBeGreaterThan(0);
 
-	return items.map((item) => ({
-		mark: SECTION_MARKS.find(
+	// one column: the column is a flex column with no grid and no width that widens it into two,
+	// and nothing in it spans or is told how wide to be.
+	const column = grids[0];
+
+	expect(column.classList).toContain('flex-col');
+	expect(column.className).not.toMatch(/grid-cols|@container|@min-|(^|\s)(sm|md|lg|xl):/);
+
+	for (const item of items) {
+		expect(item.className).not.toMatch(/col-span/);
+		expect(item.dataset.span).toBeUndefined();
+	}
+
+	return items.map((item) =>
+		SECTION_MARKS.find(
 			(mark) =>
 				item.hasAttribute(mark) ||
 				item.closest(`[${mark}]`) !== null ||
 				item.querySelector(`[${mark}]`) !== null
-		),
-		spans: item.dataset.span === 'full' && item.classList.contains('col-span-full')
-	}));
+		)
+	);
 };
 
-// effort 846, criterion 1 as revised and ticket 21: each section's cards stand in one settings grid,
-// the growing lists, the directories and the cards that end something spanning both columns, and
-// the cards that end something last.
-test('each section is one grid of cards, the plan spanning the lists and the ends, the ends last', () => {
+// effort 846, criterion 1 as revised on 2026-10-02 and ticket 31 ("each card is under the next
+// card"): each section's cards stand one under the next in a single column, at every width, in
+// source order, and the cards that end something last.
+test('each section is one column of cards in source order, the ends last', () => {
 	at('?section=general');
 	const general = area({ section: 'general' });
 
-	expect(laidOut()).toEqual([
-		{ mark: 'data-general', spans: false },
-		{ mark: 'data-updates', spans: false },
-		{ mark: 'data-diagnostics', spans: true }
-	]);
+	expect(laidOut()).toEqual(['data-general', 'data-updates', 'data-diagnostics']);
 	general.unmount();
 
 	at('?section=account');
@@ -1357,18 +1364,13 @@ test('each section is one grid of cards, the plan spanning the lists and the end
 		session: fakeOrganizationSession({ ownershipOffered: true, ownerUsername: 'olivia.owner' })
 	});
 
-	expect(laidOut()).toEqual([
-		{ mark: 'data-identity', spans: false },
-		{ mark: 'data-password', spans: false },
-		{ mark: 'data-machines', spans: true },
-		{ mark: 'data-sign-out', spans: true }
-	]);
+	expect(laidOut()).toEqual(['data-identity', 'data-password', 'data-machines', 'data-sign-out']);
 
-	// the offer is a notice across both columns, first, ahead of every card.
+	// the offer is a notice in the column, first, ahead of every card.
 	const offer = document.querySelector<HTMLElement>('[data-ownership-offer]')!;
 
 	expect(offer.closest('[data-settings-grid]')).not.toBeNull();
-	expect(offer.classList).toContain('col-span-full');
+	expect(offer.className).not.toMatch(/col-span/);
 	expect(orderOf('data-ownership-offer', 'data-identity')[0]).toBe('data-ownership-offer');
 	account.unmount();
 
@@ -1376,16 +1378,16 @@ test('each section is one grid of cards, the plan spanning the lists and the end
 	const organization = area({ section: 'organization' });
 
 	expect(laidOut()).toEqual([
-		{ mark: 'data-standing-block', spans: true },
-		{ mark: 'data-turso-account', spans: false },
-		{ mark: 'data-organization-mark', spans: false },
-		{ mark: 'data-roles', spans: true },
-		{ mark: 'data-members', spans: true },
-		{ mark: 'data-leaving', spans: true }
+		'data-standing-block',
+		'data-turso-account',
+		'data-organization-mark',
+		'data-roles',
+		'data-members',
+		'data-leaving'
 	]);
 	organization.unmount();
 
-	// a member meets no Turso card, and the mark stands alone at half, start-aligned.
+	// a member meets no Turso card.
 	at('?section=organization');
 	const member = area({
 		section: 'organization',
@@ -1394,17 +1396,17 @@ test('each section is one grid of cards, the plan spanning the lists and the end
 	});
 
 	expect(laidOut()).toEqual([
-		{ mark: 'data-standing-block', spans: true },
-		{ mark: 'data-organization-mark', spans: false },
-		{ mark: 'data-roles', spans: true },
-		{ mark: 'data-leaving', spans: true }
+		'data-standing-block',
+		'data-organization-mark',
+		'data-roles',
+		'data-leaving'
 	]);
 	member.unmount();
 
 	at('?section=workspaces');
 	area({ section: 'workspaces' });
 
-	expect(laidOut()).toEqual([{ mark: 'data-workspaces', spans: true }]);
+	expect(laidOut()).toEqual(['data-workspaces']);
 });
 
 // effort 846, *Everything in a tab is a card*: every card holds its header inside it, its title and
@@ -1442,10 +1444,10 @@ const foldingRows = () =>
 const folded = (element: Element) =>
 	element.closest('[data-row-details-content], [data-slot=collapsible-content]') !== null;
 
-// effort 846, *Detail that few readers need folds under its row*: exactly four rows fold, the
-// available version's notes, the log folder's path, the sync state's machine detail and the Turso
-// connection's names, each closed until asked.
-test('the four rows the plan names fold their detail, and no other row does', async () => {
+// effort 846, *Detail that few readers need folds under its row*: exactly three rows fold, the
+// available version's notes, the sync state's machine detail and the Turso connection's names,
+// each closed until asked. The log folder's path folded too until ticket 31.
+test('the three rows the rule names fold their detail, and no other row does', async () => {
 	updater.next = {
 		currentVersion: '0.14.0',
 		version: '0.15.0',
@@ -1460,7 +1462,7 @@ test('the four rows the plan names fold their detail, and no other row does', as
 	const general = area({ section: 'general' });
 
 	await fireEvent.click(screen.getByRole('button', { name: en.common.actions.checkForUpdates }));
-	await expect.poll(() => foldingRows()).toHaveLength(2);
+	await expect.poll(() => foldingRows()).toHaveLength(1);
 
 	const fromGeneral = foldingRows();
 
@@ -1509,7 +1511,6 @@ test('the four rows the plan names fold their detail, and no other row does', as
 
 	expect([...fromGeneral, ...fromAccount, ...fromOrganization, ...fromWorkspaces]).toEqual([
 		en.common.labels.availableVersion,
-		en.settings.diagnosticsFolder,
 		en.organization.standing.state.upToDate,
 		en.organization.dashboard.authorityConnected
 	]);
@@ -1568,4 +1569,169 @@ test('the state, a problem, the machines, the offer and every end act stand outs
 	expect(folded(document.querySelector('[data-ownership-offer]')!)).toBe(false);
 	expect([...document.querySelectorAll('[data-row-tone=error]')].filter(folded)).toEqual([]);
 	expect(document.querySelectorAll('[data-row-details]')).toHaveLength(0);
+});
+
+/** a tooltip's words once its trigger has the focus: the content is drawn only while it is open. */
+const hintOf = async (trigger: HTMLElement, mark: string) => {
+	await fireEvent.focus(trigger);
+
+	return waitFor(() => {
+		const hint = document.querySelector<HTMLElement>(`[${mark}]`);
+
+		expect(hint).not.toBeNull();
+
+		return hint!.textContent?.trim();
+	});
+};
+
+// effort 846 ticket 31, at the human's word of 2026-10-02 ("only the action button shoud be in
+// red"): in every row that ends something, in every tab, the glyph and the name are neutral and
+// the act's button is the one thing in the error tone.
+test("in every ending row of the area, only the act's button is red", () => {
+	const ends: HTMLElement[] = [];
+
+	for (const section of ['general', 'account', 'organization', 'workspaces'] as const) {
+		at(`?section=${section}`);
+		hostAnswers.machines = [
+			{
+				id: 'machine-here',
+				name: 'Desk',
+				seenAt: Date.now(),
+				createdAt: Date.now(),
+				isThisMachine: true,
+				mayEndAlone: false
+			},
+			{
+				id: 'machine-laptop',
+				name: 'Laptop',
+				seenAt: Date.now(),
+				createdAt: Date.now(),
+				isThisMachine: false,
+				mayEndAlone: true
+			}
+		];
+		const drawn = area({ section });
+
+		for (const row of document.querySelectorAll<HTMLElement>('[data-row-tone=error]')) {
+			const glyph = row.querySelector('[data-slot=item-media]')!;
+			const name = row.querySelector('[data-slot=item-title]')!;
+			const red = [...row.querySelectorAll<HTMLElement>('[class*=text-destructive]')];
+
+			expect(glyph.className, rowName(row)).not.toMatch(/destructive/);
+			expect(name.className, rowName(row)).not.toMatch(/destructive/);
+			expect(name.querySelector('[class*=destructive]'), rowName(row)).toBeNull();
+			expect(red.length, rowName(row)).toBe(1);
+			expect(red[0].tagName, rowName(row)).toBe('BUTTON');
+			ends.push(row);
+		}
+
+		drawn.unmount();
+	}
+
+	// signing every other machine out, signing out of this one, and the organization's ends.
+	expect(ends.map(rowName)).toEqual(
+		expect.arrayContaining([
+			en.settings.you.sessions.action,
+			en.settings.you.thisMachine.signOut,
+			en.organization.dashboard.forgetAccount
+		])
+	);
+	expect(ends.length).toBeGreaterThanOrEqual(4);
+});
+
+// effort 846 ticket 31 ("whey there's a collapsoable on the diangostics"; "the open log oflder
+// should be just hte icon"): the diagnostics card folds nothing, its whole path is the folder's
+// meta line, and the reveal is an icon control named, and hinted, open log folder.
+test('diagnostics folds nothing, shows the whole path, and reveals by an icon named for it', async () => {
+	at('?section=general');
+	area({ section: 'general' });
+
+	const card = document.querySelector<HTMLElement>('[data-diagnostics] [data-settings-group]')!;
+
+	expect(card.querySelector('[data-row-details], [data-slot=collapsible-content]')).toBeNull();
+	expect(card.querySelector('[data-row-details-trigger]')).toBeNull();
+	expect(card.querySelector('[data-row-meta] [data-diagnostics-path]')?.textContent?.trim()).toBe(
+		fakeSettings().diagnosticsDir
+	);
+
+	const reveal = within(card).getByRole('button', { name: en.settings.diagnosticsReveal });
+
+	expect(reveal.hasAttribute('data-diagnostics-reveal')).toBe(true);
+	// the glyph alone on screen; its words are its name and its tooltip.
+	expect(reveal.querySelector('svg')).not.toBeNull();
+	expect(reveal.textContent?.trim()).toBe('');
+	expect(await hintOf(reveal, 'data-diagnostics-reveal-hint')).toBe(en.settings.diagnosticsReveal);
+});
+
+// effort 846 ticket 31 ("on the appearnce the explaintion on the button feels ood"): no sentence
+// explains language or appearance, and system, the one choice whose word does not say what it
+// does, says what it follows in its tooltip, in both locales.
+test('language and appearance carry no explanation, and system says what it follows in a tooltip', async () => {
+	at('?section=general');
+	area({ section: 'general' });
+
+	const card = document.querySelector<HTMLElement>('[data-general] [data-settings-group]')!;
+
+	expect(card.querySelector('[data-settings-group-footer]')).toBeNull();
+	expect(card.querySelectorAll('[data-row-meta], [data-row-beneath]')).toHaveLength(0);
+	// the header's one line is the card's, saying what it is for; nothing explains a choice.
+	expect(card.querySelectorAll('p')).toHaveLength(1);
+
+	const system = card.querySelector<HTMLElement>('[data-appearance=system]')!;
+
+	// still a segment of the choice, pressed as the stored setting says.
+	expect(system.getAttribute('data-state')).toBe(
+		fakeSettings().appearance === 'system' ? 'on' : 'off'
+	);
+	expect(await hintOf(system, 'data-appearance-hint')).toBe(en.settings.appearanceSystemHint);
+	expect(document.querySelectorAll('[data-appearance-hint]')).toHaveLength(1);
+
+	await fireEvent.blur(system);
+	loadLocale('ar');
+	setLocale('ar');
+	await tick();
+
+	expect(await hintOf(system, 'data-appearance-hint')).toBe(ar.settings.appearanceSystemHint);
+	loadLocale('en');
+	setLocale('en');
+});
+
+// effort 846 ticket 31, the human's addition ("the check for updates button needs to be just hte
+// icon and the unkown needs to be not their in the update version"): the check is an icon control
+// named by its tooltip, and the available version shows nothing until a check finds one.
+test('updates checks by an icon named for it, and shows no available version until there is one', async () => {
+	updater.next = {
+		currentVersion: '0.14.0',
+		version: '0.15.0',
+		date: '2026-10-01T00:00:00Z',
+		body: null,
+		rawJson: {},
+		downloadAndInstall: async () => {},
+		close: async () => {}
+	};
+
+	at('?section=general');
+	area({ section: 'general' });
+
+	// the row is drawn again once it has a release's notes to fold, so it is found afresh.
+	const availableRow = () =>
+		generalRows().find((row) => rowName(row) === en.common.labels.availableVersion)!;
+	const available = availableRow();
+
+	expect(available.querySelector('[data-row-value]')).toBeNull();
+	expect(available.textContent).not.toContain(en.common.messages.unknown);
+
+	const check = within(available).getByRole('button', { name: en.common.actions.checkForUpdates });
+
+	expect(check.hasAttribute('data-check-for-updates')).toBe(true);
+	expect(check.querySelector('svg')).not.toBeNull();
+	expect(check.textContent?.trim()).toBe('');
+	expect(await hintOf(check, 'data-check-for-updates-hint')).toBe(
+		en.common.actions.checkForUpdates
+	);
+
+	await fireEvent.click(check);
+	await expect
+		.poll(() => availableRow().querySelector('[data-row-value]')?.textContent?.trim())
+		.toBe('0.15.0');
 });

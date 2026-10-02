@@ -37,11 +37,11 @@
 </script>
 
 {#if session}
-	<!-- one directory across the grid's width, on the grid every section is laid on, so the tab
+	<!-- one directory in the column every section is laid in, so the tab
 	     starts at the same edge and stops at the same width as its neighbours (effort 846,
 	     *Everything in a tab is a card*). Not boxed: its records are cards already. -->
 	<SettingsGrid>
-		<div class="col-span-full" data-settings-directory data-span="full">
+		<div data-settings-directory>
 			<!-- the list owns its own legend, its rows' surfaces and the earlier records' callout; what is
 		     decided here is what this reader may do. The refusal is the rail's own sentence, and
 		     it is drawn for an owner whose machine lost the authority alone: nobody else ever

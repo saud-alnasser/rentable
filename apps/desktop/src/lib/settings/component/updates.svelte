@@ -4,6 +4,7 @@
 	import { Badge } from '@rentable/design/primitive/badge/index.js';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Progress } from '@rentable/design/primitive/progress/index.js';
+	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import { toErrorDetail } from '$lib/error/message';
 	import { toTauriErrorCode } from '$lib/error/tauri';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
@@ -34,11 +35,17 @@
 	 * runs, never folded. *The notes stood in a second box below the group, and the progress was a
 	 * bar drawn by hand, until then.*
 	 *
-	 * **Its acts are labelled buttons with a glyph**, as every row control in the area is, rather
-	 * than the glyph-only chips they were (requirement 5): a chip here beside a labelled button in
-	 * the next group was the odd one out. The way forward, install or restart, sits on the start and
-	 * the check on the end, so the control that changes this installation never moves under the
-	 * pointer of somebody who meant to press check.
+	 * **The way forward is a labelled button with a glyph, and the check is an icon control named
+	 * by a tooltip** (effort 846, at the human's word of 2026-10-02: "the check for updates button
+	 * needs to be just hte icon"), as the log folder's reveal is: the check is always there and
+	 * asks nothing, while install and restart change this installation and say so in words. The
+	 * way forward sits on the start and the check on the end, so the control that changes this
+	 * installation never moves under the pointer of somebody who meant to press check.
+	 *
+	 * **The available version shows a version or nothing** (the same word: "the unkown needs to be
+	 * not their in the update version"). Before a check has answered there is no version to show,
+	 * and a word standing in for one said nothing the header's state does not; the row stays, since
+	 * it holds the check. *It said unknown, or checking, until ticket 31 of effort 846.*
 	 *
 	 * **The outcome is announced rather than deposited.** A check that finds nothing, a check that
 	 * fails and an install that finished each raise a toast and leave this group as it was. What
@@ -205,13 +212,6 @@
 	}
 
 	/**
-	 * what the available row shows, which is a figure only once there is one.
-	 *
-	 * Three of its four answers are not versions, and that is deliberate: the row is the place a
-	 * reader looks for *is there a newer one*, so it answers that question in every state rather
-	 * than appearing when the answer is yes and leaving a hole when it is no.
-	 */
-	/**
 	 * where the installation stands, for the header's end: the one act under way first, then what
 	 * the last check found. `null` before anything has been asked, which the header leaves blank.
 	 */
@@ -225,21 +225,24 @@
 		return null;
 	});
 
-	const availableValue = $derived(
-		release
-			? release.version
-			: isCheckingForUpdate
-				? $LL.settings.updatesChecking()
-				: $LL.common.messages.unknown()
+	/** the check's name, which says what it is doing while it does it. */
+	const checkLabel = $derived(
+		isCheckingForUpdate
+			? $LL.common.actions.checkingForUpdates()
+			: $LL.common.actions.checkForUpdates()
 	);
 </script>
 
-<!-- a version is the machine's and reads left to right in both locales; the words that stand in
-     for one while there is no version are the reader's. -->
-{#snippet figure(value: string, isFigure: boolean)}
-	<span class={isFigure ? 'tabular-nums' : undefined} dir={isFigure ? 'ltr' : undefined}>
-		{value}
-	</span>
+<!-- a version is the machine's and reads left to right in both locales. -->
+{#snippet figure(value: string)}
+	<span class="tabular-nums" dir="ltr">{value}</span>
+{/snippet}
+
+<!-- the release this installation could move to, where a check found one. -->
+{#snippet availableFigure()}
+	{#if release}
+		{@render figure(release.version)}
+	{/if}
 {/snippet}
 
 <!-- where this installation stands, in words, at the end of the card's header: a badge in the
@@ -293,7 +296,7 @@
 		{#snippet rows()}
 			<SettingsRow icon={PackageIcon} name={$LL.common.labels.currentVersion()}>
 				{#snippet value()}
-					{@render figure(version, true)}
+					{@render figure(version)}
 				{/snippet}
 			</SettingsRow>
 
@@ -303,11 +306,8 @@
 				details={release ? whatsNew : undefined}
 				detailsLabel={release ? $LL.settings.whatsNew({ version: release.version }) : undefined}
 				detailsKey="settings.updates.whats-new"
+				value={release ? availableFigure : undefined}
 			>
-				{#snippet value()}
-					{@render figure(availableValue, release !== null)}
-				{/snippet}
-
 				{#snippet control()}
 					<div class="flex flex-wrap items-center justify-end gap-2">
 						{#if availableUpdate}
@@ -329,17 +329,27 @@
 							</Button>
 						{/if}
 
-						<Button
-							variant="outline"
-							size="sm"
-							disabled={isCheckingForUpdate || isInstallingUpdate}
-							onclick={() => void checkForUpdates()}
-						>
-							<RefreshCwIcon class="size-4" />
-							{isCheckingForUpdate
-								? $LL.common.actions.checkingForUpdates()
-								: $LL.common.actions.checkForUpdates()}
-						</Button>
+						<!-- named by its tooltip and its accessible name alike. -->
+						<Tooltip.Root>
+							<Tooltip.Trigger>
+								{#snippet child({ props })}
+									<Button
+										{...props}
+										variant="outline"
+										size="icon-sm"
+										aria-label={checkLabel}
+										disabled={isCheckingForUpdate || isInstallingUpdate}
+										data-check-for-updates
+										onclick={() => void checkForUpdates()}
+									>
+										<RefreshCwIcon class="size-4" />
+									</Button>
+								{/snippet}
+							</Tooltip.Trigger>
+							<Tooltip.Content side="top" sideOffset={8} data-check-for-updates-hint>
+								{checkLabel}
+							</Tooltip.Content>
+						</Tooltip.Root>
 					</div>
 				{/snippet}
 			</SettingsRow>

@@ -128,9 +128,9 @@
 {/if}
 
 <Loading loading={isLoading} label={$LL.common.messages.loadingSettings()}>
-	<!-- the shape of the area: the title, the rail of sections under it, and a section's cards in
-	     its grid, two side by side and one across both, each a header with its glyph and title over
-	     rows with a glyph, a name and a control. -->
+	<!-- the shape of the area: the title, the rail of sections under it, and a section's cards one
+	     under the next, each a header with its glyph and title over rows with a glyph, a name and a
+	     control. -->
 	{#snippet skeleton()}
 		<PageFrame>
 			<Skeleton class="h-9 w-40" />
@@ -143,10 +143,7 @@
 				{#each [2, 2, 1] as rows, group (group)}
 					<div
 						data-skeleton-group
-						class="flex flex-col gap-1 rounded-2xl bg-card px-4 pt-4 pb-2 shadow-raised ring-1 ring-foreground/5 {group ===
-						2
-							? 'col-span-full'
-							: ''}"
+						class="flex flex-col gap-1 rounded-2xl bg-card px-4 pt-4 pb-2 shadow-raised ring-1 ring-foreground/5"
 					>
 						<div class="flex items-center gap-3 pb-2">
 							<Skeleton class="size-8 rounded-lg" />

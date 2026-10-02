@@ -87,15 +87,15 @@
 </script>
 
 {#if session}
-	<!-- each block is a card in the section's grid (effort 846, *Everything in a tab is a card*):
-	     how this machine stands to the organization first, across both columns, since it is what
-	     the section is about and what a reader who came here worried is looking for; then the Turso
-	     account beside the signature or seal, two short cards side by side, the mark alone at half
-	     for a member, who meets no Turso account; then the roles and the people, two directories
-	     across both columns and never boxed, since their records are cards already; then the ways a
-	     reader steps away, last. *The directory stood first until the human read the four sections
-	     and asked for the elements in each to be ordered; the blocks stood in one column split by
-	     separators until the human asked for cards in a grid.* -->
+	<!-- each block is a card, one under the next in the section's column (effort 846, *Everything
+	     in a tab is a card*, and requirement 1 as revised on 2026-10-02): how this machine stands
+	     to the organization first, since it is what the section is about and what a reader who
+	     came here worried is looking for; then the Turso account, which a member does not meet,
+	     and the signature or seal; then the roles and the people, two directories never boxed,
+	     since their records are cards already; then the ways a reader steps away, last. *The
+	     directory stood first until the human read the four sections and asked for the elements in
+	     each to be ordered; the cards stood two to a row for a day until the human asked for each
+	     under the next.* -->
 	<SettingsGrid>
 		{#if syncQuery.data}
 			<div data-standing-block class="contents">
@@ -123,7 +123,7 @@
 		     everybody and changed by whoever holds the flag to (effort 838, requirement 12). The
 		     section answers the search key once, and where the people are drawn below, it is
 		     theirs, the set a reader searches ([[rules/interface]], *Search*). -->
-		<div class="col-span-full" data-settings-directory data-span="full">
+		<div data-settings-directory>
 			<OrganizationRoles
 				roles={rolesQuery.data ?? []}
 				{members}
@@ -136,7 +136,7 @@
 		     the add in its tray; what is decided here is what this reader may do, and a member
 		     who changes nobody's row meets no directory at all. -->
 		{#if administers}
-			<div class="col-span-full" data-settings-directory data-span="full">
+			<div data-settings-directory>
 				<!-- the reader's gates, read by the one builder the command menu reads them by. -->
 				<OrganizationMembers
 					{members}

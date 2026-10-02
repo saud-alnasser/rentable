@@ -7,8 +7,8 @@ import { expect, test } from 'vitest';
  *
  * Neither reads the string contract, so they render on their own. What they own is the card's
  * anatomy (the header inside it, the footer at its foot), the order (the rows that end something
- * come last), the label a row hands its control, the tone that marks the act that ends something
- * and no other row, and the detail a row folds under it.
+ * come last), the label a row hands its control, the mark on the act that ends something and no
+ * other row, and the detail a row folds under it.
  */
 const rows = () => [...document.querySelectorAll<HTMLElement>('[data-settings-row]')];
 const nameOf = (row: HTMLElement) =>
@@ -61,7 +61,10 @@ test('a row hands its control the id of its name, so the name labels it', () => 
 	expect(screen.getByRole('button', { name: 'language' })).toBeDefined();
 });
 
-test('the error tone is on the row that ends something, and on it alone', () => {
+// effort 846 ticket 31, at the human's word of 2026-10-02 ("only the action button shoud be in
+// red"): the row that ends something is marked, and its glyph and name are as neutral as any row's,
+// so the one red in it is the act's button.
+test('the row that ends something is marked, and only its button is red', () => {
 	render(SettingsGroupHarness);
 
 	expect(rows().map((row) => row.dataset.rowTone)).toEqual([
@@ -72,9 +75,15 @@ test('the error tone is on the row that ends something, and on it alone', () => 
 	]);
 
 	const ending = rows().at(-1)!;
+	const glyph = ending.querySelector('[data-slot=item-media]')!;
+	const name = ending.querySelector('[data-slot=item-title]')!;
 
-	expect(ending.querySelector('[data-slot=item-media]')?.classList).toContain('text-destructive');
-	expect(ending.querySelector('[data-slot=item-title]')?.classList).toContain('text-destructive');
+	expect(glyph.className).not.toMatch(/destructive/);
+	expect(name.className).not.toMatch(/destructive/);
+	// muted beside its name, as every neutral row's glyph is.
+	expect(glyph.classList).toContain('text-muted-foreground');
+	expect(ending.querySelectorAll('.text-destructive')).toHaveLength(1);
+	expect(ending.querySelector('.text-destructive')?.hasAttribute('data-ending-act')).toBe(true);
 
 	for (const row of rows().slice(0, -1)) {
 		expect(row.querySelector('.text-destructive')).toBeNull();
