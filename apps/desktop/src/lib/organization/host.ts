@@ -169,6 +169,33 @@ export type SessionsEnded = {
 };
 
 /**
+ * one machine signed in as the reader, as their account section lists it (effort 846,
+ * requirement 9): facts about a machine and never a credential ([[rules/credentials]], *Client
+ * boundary*).
+ */
+export type MachineView = {
+	/** its id in the organization's registry, which the sign-out names it by. Never drawn. */
+	id: string;
+	/**
+	 * what its operating system calls it, or `null` on a machine that has not named itself yet;
+	 * the interface writes a fallback with the date it was added, never the id.
+	 */
+	name: string | null;
+	/** when it last said it was here: a sign-in, a launch, or the hourly heartbeat. */
+	seenAt: number;
+	/** when it joined the organization. */
+	createdAt: number;
+	/** whether it is the machine this list was read on, which is listed first. */
+	isThisMachine: boolean;
+	/**
+	 * whether it can be signed out on its own: another of the reader's machines that has run this
+	 * version. One that has not would not read the sign-out, and *sign out all other machines* is
+	 * what reaches it (requirement 10).
+	 */
+	mayEndAlone: boolean;
+};
+
+/**
  * what a link says about itself, read from its own text: which organization it names, which kind
  * of link it is, and when it lapses. No credential, no key, no secret, and no network: the link
  * was decoded in Rust and nothing behind it was reached.
@@ -304,6 +331,19 @@ export type OrganizationHost = {
 	 * launch.
 	 */
 	sessionEndElsewhere: () => Promise<SessionsEnded>;
+	/**
+	 * every machine signed in as the reader, this one first and then the one most lately seen,
+	 * however long ago each was seen (effort 846, requirement 9). Another member's are never in it.
+	 */
+	machines: () => Promise<MachineView[]>;
+	/**
+	 * sign one of the reader's other machines out, and stay signed in here (effort 846,
+	 * requirement 10). Refuses this machine (`notYourself`), one not signed in as the reader
+	 * (`machineMissing`) and one that has not run this version (`machineNotUpdated`). What comes
+	 * back is whether the sign-out reached the organization database, as `sessionEndElsewhere`'s
+	 * does.
+	 */
+	endMachine: (machineId: string) => Promise<SessionsEnded>;
 	/**
 	 * a `rentable://` link the operating system handed the process before the shell was
 	 * listening: the one it was launched with, or one opened before the webview existed. Taken

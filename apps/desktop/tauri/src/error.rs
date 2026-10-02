@@ -133,6 +133,12 @@ pub enum RefusalReason {
     SessionsEnded,
     /// the organization key this session derives is not the one in force any more.
     KeyNotInForce,
+    /// the machine acted on is not signed in as the reader, or no longer is (effort 846,
+    /// requirement 10).
+    MachineMissing,
+    /// the machine acted on has not run this version, so it would not read a sign-out of its own;
+    /// signing every other machine out is what reaches it (effort 846, requirement 10).
+    MachineNotUpdated,
 
     // members and what may be done to them.
     /// the username is not three to thirty-two letters, digits, dots, underscores or hyphens.

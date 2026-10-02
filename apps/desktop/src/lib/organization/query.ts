@@ -18,6 +18,7 @@ import { get } from 'svelte/store';
 export const keys = {
 	all: ['organization'],
 	consent: (sessionId: string) => ['organization', 'consent', sessionId],
+	machines: ['organization', 'machines'],
 	mark: ['organization', 'mark'],
 	members: ['organization', 'members'],
 	memberStandings: ['organization', 'members', 'standings'],

@@ -54,6 +54,13 @@ mock.module('$lib/api/caller', {
 	exports: {
 		default: {
 			organization: {
+				session: {
+					machines: async () => {
+						asked.push('machines');
+
+						return [];
+					}
+				},
 				workspace: {
 					grant: async (input: { workspaceId: string; memberId: string; access: string }) => {
 						asked.push(`grant:${input.workspaceId}:${input.memberId}:${input.access}`);
@@ -70,7 +77,8 @@ mock.module('$lib/api/caller', {
 
 const { useChangeAccess } = await import('$lib/organization/access/query');
 const { useEndMemberSessions, useRemoveMember } = await import('$lib/organization/member/query');
-const { useEndOtherSessions } = await import('$lib/organization/session/query');
+const { useEndMachine, useEndOtherSessions, useFetchMachines } =
+	await import('$lib/organization/session/query');
 const { bindingOf } = await import('#tests/mutation.ts');
 const { loadLocale } = await import('$lib/i18n/i18n-util.sync');
 const { i18nObject } = await import('$lib/i18n/i18n-util');
@@ -129,6 +137,74 @@ describe('signing out of your other machines', () => {
 			i18nObject('en').settings.you.sessions.endedPending(),
 			'the pending sentence was copied rather than written'
 		);
+	});
+});
+
+// effort 846, requirements 9 and 10: the machines are read under their own key, and one signed out
+// from its row says which of the two things happened, of that machine, in the reader's language.
+describe('your machines, and signing one out', () => {
+	it('reads the machines under their own key, from the procedure', async () => {
+		reading('en');
+		const query = useFetchMachines() as unknown as {
+			queryKey: readonly unknown[];
+			queryFn: () => Promise<unknown>;
+		};
+
+		assert.deepEqual(query.queryKey, ['organization', 'machines']);
+		assert.deepEqual(await query.queryFn(), []);
+		assert.deepEqual(asked, ['machines']);
+	});
+
+	it('says the machine was signed out once it has gone out, and that it waits otherwise', async () => {
+		const strings = reading('en');
+		const mutation = bindingOf(useEndMachine);
+
+		await mutation.onSuccess({ sent: true }, { machineId: 'machine-laptop' }, undefined);
+		await mutation.onSuccess({ sent: false }, { machineId: 'machine-laptop' }, undefined);
+
+		assert.deepEqual(raised, [
+			{ level: 'success', message: strings.settings.you.machines.ended() },
+			{ level: 'success', message: strings.settings.you.machines.endedPending() }
+		]);
+		assert.notEqual(
+			strings.settings.you.machines.endedPending(),
+			strings.settings.you.sessions.endedPending(),
+			'one machine is told it as every other machine is'
+		);
+		assert.deepEqual(invalidated, [
+			['organization', 'machines'],
+			['organization', 'machines']
+		]);
+	});
+
+	it('says both in the reader own language', async () => {
+		const strings = reading('ar');
+		const mutation = bindingOf(useEndMachine);
+
+		await mutation.onSuccess({ sent: true }, { machineId: 'machine-laptop' }, undefined);
+		await mutation.onSuccess({ sent: false }, { machineId: 'machine-laptop' }, undefined);
+
+		assert.deepEqual(raised, [
+			{ level: 'success', message: strings.settings.you.machines.ended() },
+			{ level: 'success', message: strings.settings.you.machines.endedPending() }
+		]);
+		assert.notEqual(
+			strings.settings.you.machines.endedPending(),
+			i18nObject('en').settings.you.machines.endedPending(),
+			'the pending sentence was copied rather than written'
+		);
+	});
+
+	it('signing every other machine out reads the machines again as well', async () => {
+		reading('en');
+		const mutation = bindingOf(useEndOtherSessions);
+
+		await mutation.onSuccess({ sent: true }, undefined, undefined);
+
+		assert.deepEqual(invalidated, [
+			['organization', 'state'],
+			['organization', 'machines']
+		]);
 	});
 });
 

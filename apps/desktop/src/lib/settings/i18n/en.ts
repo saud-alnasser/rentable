@@ -68,14 +68,30 @@ export const settings = {
 			changed: 'your password was changed.'
 		},
 		sessions: {
-			title: 'other machines',
-			description: 'sign out everywhere but here. your password stays the same.',
-			action: 'sign out of other machines',
+			action: 'sign out all other machines',
 			confirmDescription:
 				'every other machine signed in as you is signed out. this one stays signed in, and your password does not change.',
 			ended: 'your other machines were signed out.',
 			endedPending:
 				'this machine is offline; the sign-out reaches the others once it is back online.'
+		},
+		// effort 846, requirements 9 to 11: every machine signed in as the reader, a row each, this
+		// one first, and each other one signed out on its own.
+		machines: {
+			title: 'machines',
+			description: 'signing a machine out leaves your password as it is.',
+			thisMachine: 'this machine',
+			unnamed: 'a machine added {date:string}',
+			lastSeen: 'last seen {moment:string}',
+			added: 'added {date:string}',
+			notUpdated: 'not on this version yet',
+			signOutOne: 'sign out {machine:string}',
+			confirmTitle: 'sign out a machine',
+			confirmDescription:
+				'it is signed out when it next reaches Turso, and your password signs it in again. your password does not change.',
+			ended: 'the machine was signed out.',
+			endedPending:
+				'this machine is offline; the sign-out reaches that machine once this one is back online.'
 		},
 		// requirement 22: drawn for the one person an offer stands with, and absent for
 		// everybody else. A row naming who offered it, the act, and what accepting changes.

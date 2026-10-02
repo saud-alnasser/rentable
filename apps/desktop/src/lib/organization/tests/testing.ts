@@ -33,6 +33,8 @@ export function fakeOrganizationHost(): OrganizationHost {
 		signIn: refuse('organization.signIn'),
 		signOut: refuse('organization.signOut'),
 		sessionEndElsewhere: refuse('organization.sessionEndElsewhere'),
+		machines: refuse('organization.machines'),
+		endMachine: refuse('organization.endMachine'),
 		linkTake: refuse('organization.linkTake'),
 		onLink: refuse('organization.onLink'),
 		onMigration: refuse('organization.onMigration'),

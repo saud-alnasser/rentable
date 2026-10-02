@@ -1118,6 +1118,14 @@ type RootTranslation = {
 				 */
 				keyNotInForce: string
 				/**
+				 * t​h​a​t​ ​m​a​c​h​i​n​e​ ​i​s​ ​n​o​ ​l​o​n​g​e​r​ ​s​i​g​n​e​d​ ​i​n​ ​a​s​ ​y​o​u​.​ ​r​e​l​o​a​d​ ​t​o​ ​s​e​e​ ​w​h​a​t​ ​c​h​a​n​g​e​d​.
+				 */
+				machineMissing: string
+				/**
+				 * t​h​a​t​ ​m​a​c​h​i​n​e​ ​h​a​s​ ​n​o​t​ ​r​u​n​ ​t​h​i​s​ ​v​e​r​s​i​o​n​ ​y​e​t​,​ ​s​o​ ​i​t​ ​i​s​ ​n​o​t​ ​s​i​g​n​e​d​ ​o​u​t​ ​a​l​o​n​e​.​ ​s​i​g​n​ ​o​u​t​ ​a​l​l​ ​o​t​h​e​r​ ​m​a​c​h​i​n​e​s​ ​i​n​s​t​e​a​d​.
+				 */
+				machineNotUpdated: string
+				/**
 				 * a​ ​u​s​e​r​n​a​m​e​ ​i​s​ ​3​ ​t​o​ ​3​2​ ​l​e​t​t​e​r​s​,​ ​d​i​g​i​t​s​,​ ​d​o​t​s​,​ ​u​n​d​e​r​s​c​o​r​e​s​ ​o​r​ ​h​y​p​h​e​n​s​,​ ​w​i​t​h​ ​n​o​ ​s​p​a​c​e​s​.
 				 */
 				usernameInvalid: string
@@ -2373,15 +2381,7 @@ type RootTranslation = {
 			}
 			sessions: {
 				/**
-				 * o​t​h​e​r​ ​m​a​c​h​i​n​e​s
-				 */
-				title: string
-				/**
-				 * s​i​g​n​ ​o​u​t​ ​e​v​e​r​y​w​h​e​r​e​ ​b​u​t​ ​h​e​r​e​.​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​s​t​a​y​s​ ​t​h​e​ ​s​a​m​e​.
-				 */
-				description: string
-				/**
-				 * s​i​g​n​ ​o​u​t​ ​o​f​ ​o​t​h​e​r​ ​m​a​c​h​i​n​e​s
+				 * s​i​g​n​ ​o​u​t​ ​a​l​l​ ​o​t​h​e​r​ ​m​a​c​h​i​n​e​s
 				 */
 				action: string
 				/**
@@ -2394,6 +2394,60 @@ type RootTranslation = {
 				ended: string
 				/**
 				 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​o​f​f​l​i​n​e​;​ ​t​h​e​ ​s​i​g​n​-​o​u​t​ ​r​e​a​c​h​e​s​ ​t​h​e​ ​o​t​h​e​r​s​ ​o​n​c​e​ ​i​t​ ​i​s​ ​b​a​c​k​ ​o​n​l​i​n​e​.
+				 */
+				endedPending: string
+			}
+			machines: {
+				/**
+				 * m​a​c​h​i​n​e​s
+				 */
+				title: string
+				/**
+				 * s​i​g​n​i​n​g​ ​a​ ​m​a​c​h​i​n​e​ ​o​u​t​ ​l​e​a​v​e​s​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​a​s​ ​i​t​ ​i​s​.
+				 */
+				description: string
+				/**
+				 * t​h​i​s​ ​m​a​c​h​i​n​e
+				 */
+				thisMachine: string
+				/**
+				 * a​ ​m​a​c​h​i​n​e​ ​a​d​d​e​d​ ​{​d​a​t​e​}
+				 * @param {string} date
+				 */
+				unnamed: RequiredParams<'date'>
+				/**
+				 * l​a​s​t​ ​s​e​e​n​ ​{​m​o​m​e​n​t​}
+				 * @param {string} moment
+				 */
+				lastSeen: RequiredParams<'moment'>
+				/**
+				 * a​d​d​e​d​ ​{​d​a​t​e​}
+				 * @param {string} date
+				 */
+				added: RequiredParams<'date'>
+				/**
+				 * n​o​t​ ​o​n​ ​t​h​i​s​ ​v​e​r​s​i​o​n​ ​y​e​t
+				 */
+				notUpdated: string
+				/**
+				 * s​i​g​n​ ​o​u​t​ ​{​m​a​c​h​i​n​e​}
+				 * @param {string} machine
+				 */
+				signOutOne: RequiredParams<'machine'>
+				/**
+				 * s​i​g​n​ ​o​u​t​ ​a​ ​m​a​c​h​i​n​e
+				 */
+				confirmTitle: string
+				/**
+				 * i​t​ ​i​s​ ​s​i​g​n​e​d​ ​o​u​t​ ​w​h​e​n​ ​i​t​ ​n​e​x​t​ ​r​e​a​c​h​e​s​ ​T​u​r​s​o​,​ ​a​n​d​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​s​i​g​n​s​ ​i​t​ ​i​n​ ​a​g​a​i​n​.​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​d​o​e​s​ ​n​o​t​ ​c​h​a​n​g​e​.
+				 */
+				confirmDescription: string
+				/**
+				 * t​h​e​ ​m​a​c​h​i​n​e​ ​w​a​s​ ​s​i​g​n​e​d​ ​o​u​t​.
+				 */
+				ended: string
+				/**
+				 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​o​f​f​l​i​n​e​;​ ​t​h​e​ ​s​i​g​n​-​o​u​t​ ​r​e​a​c​h​e​s​ ​t​h​a​t​ ​m​a​c​h​i​n​e​ ​o​n​c​e​ ​t​h​i​s​ ​o​n​e​ ​i​s​ ​b​a​c​k​ ​o​n​l​i​n​e​.
 				 */
 				endedPending: string
 			}
@@ -5756,6 +5810,14 @@ export type TranslationFunctions = {
 				 */
 				keyNotInForce: () => LocalizedString
 				/**
+				 * that machine is no longer signed in as you. reload to see what changed.
+				 */
+				machineMissing: () => LocalizedString
+				/**
+				 * that machine has not run this version yet, so it is not signed out alone. sign out all other machines instead.
+				 */
+				machineNotUpdated: () => LocalizedString
+				/**
 				 * a username is 3 to 32 letters, digits, dots, underscores or hyphens, with no spaces.
 				 */
 				usernameInvalid: () => LocalizedString
@@ -6962,15 +7024,7 @@ export type TranslationFunctions = {
 			}
 			sessions: {
 				/**
-				 * other machines
-				 */
-				title: () => LocalizedString
-				/**
-				 * sign out everywhere but here. your password stays the same.
-				 */
-				description: () => LocalizedString
-				/**
-				 * sign out of other machines
+				 * sign out all other machines
 				 */
 				action: () => LocalizedString
 				/**
@@ -6983,6 +7037,56 @@ export type TranslationFunctions = {
 				ended: () => LocalizedString
 				/**
 				 * this machine is offline; the sign-out reaches the others once it is back online.
+				 */
+				endedPending: () => LocalizedString
+			}
+			machines: {
+				/**
+				 * machines
+				 */
+				title: () => LocalizedString
+				/**
+				 * signing a machine out leaves your password as it is.
+				 */
+				description: () => LocalizedString
+				/**
+				 * this machine
+				 */
+				thisMachine: () => LocalizedString
+				/**
+				 * a machine added {date}
+				 */
+				unnamed: (arg: { date: string }) => LocalizedString
+				/**
+				 * last seen {moment}
+				 */
+				lastSeen: (arg: { moment: string }) => LocalizedString
+				/**
+				 * added {date}
+				 */
+				added: (arg: { date: string }) => LocalizedString
+				/**
+				 * not on this version yet
+				 */
+				notUpdated: () => LocalizedString
+				/**
+				 * sign out {machine}
+				 */
+				signOutOne: (arg: { machine: string }) => LocalizedString
+				/**
+				 * sign out a machine
+				 */
+				confirmTitle: () => LocalizedString
+				/**
+				 * it is signed out when it next reaches Turso, and your password signs it in again. your password does not change.
+				 */
+				confirmDescription: () => LocalizedString
+				/**
+				 * the machine was signed out.
+				 */
+				ended: () => LocalizedString
+				/**
+				 * this machine is offline; the sign-out reaches that machine once this one is back online.
 				 */
 				endedPending: () => LocalizedString
 			}

@@ -399,20 +399,20 @@ test('the account section carries the blocks the you section held, and none of t
 
 	expect(document.querySelector('[data-identity]')).not.toBeNull();
 	expect(document.querySelector('[data-password]')).not.toBeNull();
-	expect(document.querySelector('[data-end-other-sessions]')).not.toBeNull();
+	expect(document.querySelector('[data-machines]')).not.toBeNull();
 
-	// who this reader is, then the one thing they change about themselves, then the machines they
-	// left signed in, then the way out of this one (effort 846, requirement 8). No offer stands
+	// who this reader is, then the one thing they change about themselves, then the machines signed
+	// in as them, then the way out of this one (effort 846, requirement 8). No offer stands
 	// here, so the section opens with the identity.
 	expect(
 		orderOf(
 			'data-ownership-offer',
 			'data-identity',
 			'data-password',
-			'data-end-other-sessions',
+			'data-machines',
 			'data-sign-out'
 		)
-	).toEqual(['data-identity', 'data-password', 'data-end-other-sessions', 'data-sign-out']);
+	).toEqual(['data-identity', 'data-password', 'data-machines', 'data-sign-out']);
 
 	expect(document.querySelector('[data-general]')).toBeNull();
 	expect(document.querySelector('[data-updates]')).toBeNull();
@@ -559,22 +559,55 @@ test('an address naming a retired section opens the section that holds it', () =
 	expect(document.querySelector('[data-members]')).not.toBeNull();
 });
 
-// criterion 22 of effort 826: the account section offers the reader a way to sign themselves out of
-// every other machine, and asks once before it runs. The act is on the route; what is read here is
-// that the control is there and that the question stands in front of it.
-test('the account section offers signing out of other machines, behind one confirm', async () => {
+// criterion 22 of effort 826 and criteria 9 and 10 of effort 846: the account section lists the
+// machines signed in as the reader, and offers signing every other one out at the group's foot,
+// behind one confirm. What the rows hold and ask is `organization/session/tests/machines.svelte.test.ts`'s;
+// what is read here is that the section draws them from its own read and writes through its own
+// hooks.
+test('the account section lists your machines and signs one out, or every other one, behind one confirm', async () => {
 	at('?section=account');
+	hostAnswers.machines = [
+		{
+			id: 'machine-here',
+			name: "Olivia's Desk",
+			seenAt: Date.now(),
+			createdAt: Date.now(),
+			isThisMachine: true,
+			mayEndAlone: false
+		},
+		{
+			id: 'machine-laptop',
+			name: "Olivia's Laptop",
+			seenAt: Date.now(),
+			createdAt: Date.now(),
+			isThisMachine: false,
+			mayEndAlone: true
+		}
+	];
 	area({ section: 'account' });
 
-	const control = document.querySelector('[data-end-other-sessions-open]');
+	const machines = document.querySelector<HTMLElement>('[data-machines]')!;
 
-	expect(control).not.toBeNull();
-	expect(screen.getByText(en.settings.you.sessions.title)).toBeDefined();
-	expect(screen.getByText(en.settings.you.sessions.description)).toBeDefined();
+	expect([...machines.querySelectorAll('[data-settings-row]')].map(rowName).slice(0, 2)).toEqual([
+		"Olivia's Desk",
+		"Olivia's Laptop"
+	]);
+	expect(screen.getByText(en.settings.you.machines.title)).toBeDefined();
+	expect(screen.getByText(en.settings.you.machines.description)).toBeDefined();
 	// nothing has been asked yet, so nothing has been confirmed.
 	expect(screen.queryByText(en.settings.you.sessions.confirmDescription)).toBeNull();
 
-	await fireEvent.click(control!);
+	await fireEvent.click(machines.querySelector('[data-end-machine=machine-laptop]')!);
+
+	const one = await screen.findByRole('dialog');
+
+	expect(one.textContent).toContain("Olivia's Laptop");
+	await fireEvent.click(within(one).getByRole('button', { name: en.common.actions.signOut }));
+	await expect
+		.poll(() => hostAnswers.writes)
+		.toEqual([{ hook: 'useEndMachine', input: { machineId: 'machine-laptop' } }]);
+
+	await fireEvent.click(machines.querySelector('[data-end-other-sessions-open]')!);
 
 	expect(await screen.findByText(en.settings.you.sessions.confirmDescription)).toBeDefined();
 });
@@ -952,7 +985,7 @@ test('the account section offers no link act, and nothing on it hands a link ove
 
 	expect(document.querySelector('[data-identity]')).not.toBeNull();
 	expect(document.querySelector('[data-password]')).not.toBeNull();
-	expect(document.querySelector('[data-end-other-sessions]')).not.toBeNull();
+	expect(document.querySelector('[data-machines]')).not.toBeNull();
 
 	expect(document.querySelector('[data-another-machine]')).toBeNull();
 	expect(document.querySelector('[data-another-machine-open]')).toBeNull();
@@ -989,14 +1022,14 @@ test('the account section draws the offer and its acceptance for the member it s
 			'data-ownership-offer',
 			'data-identity',
 			'data-password',
-			'data-end-other-sessions',
+			'data-machines',
 			'data-sign-out'
 		)
 	).toEqual([
 		'data-ownership-offer',
 		'data-identity',
 		'data-password',
-		'data-end-other-sessions',
+		'data-machines',
 		'data-sign-out'
 	]);
 

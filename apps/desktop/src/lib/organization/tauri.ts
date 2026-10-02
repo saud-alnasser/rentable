@@ -5,6 +5,7 @@ import type {
 	GroupState,
 	LinkShape,
 	LockOutCost,
+	MachineView,
 	MadeLink,
 	MemberRemoved,
 	MemberStanding,
@@ -67,6 +68,9 @@ export const tauri = {
 		invoke<OrganizationState>('plugin:organization|session_sign_in', { username, password }),
 	signOut: () => invoke<OrganizationState>('plugin:organization|session_sign_out'),
 	sessionEndElsewhere: () => invoke<SessionsEnded>('plugin:organization|session_end_elsewhere'),
+	machines: () => invoke<MachineView[]>('plugin:organization|session_machines'),
+	endMachine: (machineId: string) =>
+		invoke<SessionsEnded>('plugin:organization|session_end_machine', { machineId }),
 	linkTake: () => invoke<string | null>('plugin:organization|invitation_link_take'),
 	onLink: (listener: (link: string) => void) =>
 		listen<string>(LINK_ARRIVED_EVENT, (event) => listener(event.payload)),

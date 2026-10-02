@@ -492,6 +492,8 @@ test('nothing here asks the host to list organizations', () => {
 		'role.rename',
 		'role.setMask',
 		'session.endElsewhere',
+		'session.endMachine',
+		'session.machines',
 		'workspace.create',
 		'workspace.grant',
 		'workspace.open',
@@ -1141,6 +1143,7 @@ const COMMAND_OF: Record<string, string> = {
 	'role.rename': 'plugin:organization|role_rename',
 	'role.setMask': 'plugin:organization|role_set_mask',
 	'session.endElsewhere': 'plugin:organization|session_end_elsewhere',
+	'session.endMachine': 'plugin:organization|session_end_machine',
 	'workspace.create': 'plugin:organization|workspace_create',
 	'workspace.grant': 'plugin:organization|workspace_grant',
 	'workspace.open': 'plugin:organization|workspace_open',
@@ -1225,6 +1228,79 @@ test('every organization mutation names the flag its Rust command is gated on', 
 	);
 
 	assert.deepEqual(named, gated);
+});
+
+// effort 846, requirements 9 and 10: the reader's own machines are listed, and one of them signed
+// out, by any signed-in member, since what either reaches is the caller's own. The machine is
+// handed on as given; what Rust refuses on it (this machine, one not the reader's, one that has
+// not run this version) is Rust's. Both commands are `Gate::Own` in `GATES`, which is `member`
+// here; the mutation is held to it by the walk over every mutation above, and the read here.
+test('your machines are listed and one is signed out by anybody signed in, and nobody else', async () => {
+	const asked: string[] = [];
+	const machines = [
+		{
+			id: 'machine-here',
+			name: "Olivia's Desk",
+			seenAt: 2,
+			createdAt: 1,
+			isThisMachine: true,
+			mayEndAlone: false
+		},
+		{
+			id: 'machine-laptop',
+			name: null,
+			seenAt: 1,
+			createdAt: 1,
+			isThisMachine: false,
+			mayEndAlone: true
+		}
+	];
+	const host = fakeHost({
+		organization: {
+			...fakeHost().organization,
+			machines: async () => {
+				asked.push('machines');
+
+				return machines;
+			},
+			endMachine: async (machineId) => {
+				asked.push(`endMachine:${machineId}`);
+
+				return { sent: false };
+			}
+		}
+	});
+
+	// a member holding no act at all.
+	const member = await permittedApi(host);
+
+	assert.deepEqual(await member.organization.session.machines(), machines);
+	assert.deepEqual(await member.organization.session.endMachine({ machineId: 'machine-laptop' }), {
+		sent: false
+	});
+	await assert.rejects(member.organization.session.endMachine({ machineId: '' }));
+	assert.deepEqual(asked, ['machines', 'endMachine:machine-laptop']);
+
+	const signedOut = await signedOutApi(host);
+
+	await assert.rejects(signedOut.organization.session.machines());
+	await assert.rejects(signedOut.organization.session.endMachine({ machineId: 'machine-laptop' }));
+	assert.deepEqual(asked, ['machines', 'endMachine:machine-laptop']);
+
+	// and both are gated `Own` in Rust, which reads as `member` on this side.
+	const gates = gatesInRust(COMMAND_SOURCE);
+	const procedures = organizationProcedures as Record<string, AnyProcedure>;
+
+	for (const [path, command] of [
+		['session.machines', 'plugin:organization|session_machines'],
+		['session.endMachine', 'plugin:organization|session_end_machine']
+	] as const) {
+		const gate = gates.get(command);
+
+		assert.ok(gate, `${path} calls ${command}, which GATES does not hold`);
+		assert.deepEqual(whoMayCall((procedures[path]._def.meta ?? {}) as Meta), metaFor(path, gate));
+		assert.deepEqual(metaFor(path, gate), { member: true });
+	}
 });
 
 /**

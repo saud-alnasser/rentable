@@ -304,7 +304,7 @@ pub(crate) async fn end_machine(
 
     if !signed_in_as_you {
         return Err(Error::refused(
-            RefusalReason::MemberMissing,
+            RefusalReason::MachineMissing,
             "that machine is not signed in as you any more",
         ));
     }
@@ -316,7 +316,7 @@ pub(crate) async fn end_machine(
         .any(|row| row.id == machine_id)
     {
         return Err(Error::refused(
-            RefusalReason::DatabaseRefused,
+            RefusalReason::MachineNotUpdated,
             "that machine has not run this version of rentable, so it would not read a sign-out of \
              its own. sign out all other machines instead, which reaches it. nothing was changed",
         ));
@@ -726,6 +726,11 @@ mod tests {
             .await
             .expect_err("a machine older than this version was ended alone");
 
+        assert_eq!(
+            refused_for(&old),
+            Some(RefusalReason::MachineNotUpdated),
+            "{old:?}"
+        );
         assert!(
             old.to_string().contains("sign out all other machines"),
             "{old}"
@@ -737,7 +742,7 @@ mod tests {
 
         assert_eq!(
             refused_for(&theirs),
-            Some(RefusalReason::MemberMissing),
+            Some(RefusalReason::MachineMissing),
             "{theirs:?}"
         );
 

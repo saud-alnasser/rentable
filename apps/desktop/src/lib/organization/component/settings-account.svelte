@@ -8,10 +8,15 @@
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import OrganizationAcceptOwnership from '$lib/organization/member/component/accept-ownership.svelte';
 	import OrganizationChangePasswordDialog from '$lib/organization/session/component/change-password-dialog.svelte';
-	import OrganizationEndOtherSessions from '$lib/organization/session/component/end-other-sessions.svelte';
 	import OrganizationIdentity from '$lib/organization/session/component/identity.svelte';
+	import OrganizationMachines from '$lib/organization/session/component/machines.svelte';
 	import { useAcceptOwnership } from '$lib/organization/member/query';
-	import { useChangePassword, useEndOtherSessions } from '$lib/organization/session/query';
+	import {
+		useChangePassword,
+		useEndMachine,
+		useEndOtherSessions,
+		useFetchMachines
+	} from '$lib/organization/session/query';
 	import { useFetchOrganizationState } from '$lib/organization/query';
 	import { requestSignOut } from '$lib/sync';
 	import CrownIcon from '@lucide/svelte/icons/crown';
@@ -24,7 +29,7 @@
 	 * area draws it while somebody is signed in.
 	 *
 	 * **What it reads and writes is its own**, the way a record's section reads its records: the
-	 * session, the password change, the acceptance and signing out of the other machines. *The
+	 * session, the password change, the acceptance, the machines and signing them out. *The
 	 * settings route read them and handed the area a callback per act until effort 840, when the
 	 * area stopped naming the organization.*
 	 *
@@ -33,7 +38,7 @@
 	 * waiting on a reply.
 	 *
 	 * **It reads as sign-in and security** (effort 846, requirement 8): who is signed in, the
-	 * password, the other machines, and signing out of this one last, each a settings group of rows
+	 * password, the machines, and signing out of this one last, each a settings group of rows
 	 * in the manner of Apple's and Google's account pages. Signing out of this machine moved here
 	 * from beside the username, so the way out is the last thing the section holds.
 	 */
@@ -47,6 +52,8 @@
 
 	const changePasswordMutation = useChangePassword();
 	const acceptOwnershipMutation = useAcceptOwnership();
+	const machinesQuery = useFetchMachines();
+	const endMachine = useEndMachine();
 	const endOtherSessions = useEndOtherSessions();
 
 	let changingPassword = $state(false);
@@ -100,7 +107,7 @@
 
 {#if session}
 	<!-- the reader's sign-in and security, in the order requirement 8 of effort 846 gives: the
-	     offer where one stands, who is signed in, the password, the other machines, and the way
+	     offer where one stands, who is signed in, the password, the machines, and the way
 	     out of this one last. Each block is a settings group of rows, and each act that ends
 	     something is drawn in the error tone at the end of its group (requirement 2). -->
 	<div class="flex flex-col gap-8">
@@ -171,8 +178,13 @@
 			</SettingsGroup>
 		</div>
 
-		<OrganizationEndOtherSessions
-			organizationName={session.organizationName}
+		<!-- every machine signed in as the reader, this one first, each other one signed out on its
+		     row and all of them at the group's foot (requirements 9 to 11). -->
+		<OrganizationMachines
+			machines={machinesQuery.data ?? []}
+			onEndMachine={async (machineId) => {
+				await endMachine.mutateAsync({ machineId });
+			}}
 			onEndOtherSessions={async () => {
 				await endOtherSessions.mutateAsync();
 			}}

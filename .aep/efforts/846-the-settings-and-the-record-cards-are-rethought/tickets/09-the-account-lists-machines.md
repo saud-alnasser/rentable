@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [03, 08]
 ---
 
@@ -17,11 +17,11 @@ The machines group replaces *sign out of other machines*: a row per machine with
 
 Traces requirements 9, 10 and 11, and criteria 9, 10 and 11 at the router and interface.
 
-- [ ] `organization.session.machines` and `organization.session.endMachine({ machineId })` exist as `procedure.member`; `organization/tests/router.test.ts` maps them to their commands and gates.
-- [ ] `useFetchMachines` and `useEndMachine` announce sent and pending as `useEndOtherSessions` does, in both locales.
-- [ ] A component test finds this machine first and marked, a nameless machine as *a machine added {date}*, sign out on other rows only, a machine that has not run this version refused with *sign out all other machines* offered, and the confirmation naming the machine or machines.
-- [ ] `end-other-sessions.svelte` is deleted.
-- [ ] [[rules/api-layer]]'s procedure counts include the two procedures.
+- [x] `organization.session.machines` and `organization.session.endMachine({ machineId })` exist as `procedure.member`; `organization/tests/router.test.ts` maps them to their commands and gates. *Verified: `node --test organization/tests/router.test.ts .../sessions.test.ts` printed pass 34, fail 0; the router test maps `session.machines` and `session.endMachine` to their commands and to `Gate::Own`, read as member.*
+- [x] `useFetchMachines` and `useEndMachine` announce sent and pending as `useEndOtherSessions` does, in both locales. *Verified: the same run: `sessions.test.ts` covers `useEndMachine` announcing sent and pending in en and ar beside `useEndOtherSessions`.*
+- [x] A component test finds this machine first and marked, a nameless machine as *a machine added {date}*, sign out on other rows only, a machine that has not run this version refused with *sign out all other machines* offered, and the confirmation naming the machine or machines. *Verified: `vitest run organization/session/tests/machines.svelte.test.ts app/tests/settings-area.svelte.test.ts` printed 44 passed: this machine first and marked, the nameless fallback, sign out on other rows only, a not-updated machine refused (`MachineNotUpdated`, en and ar) with sign out all other machines offered, and both confirmations naming their machines.*
+- [x] `end-other-sessions.svelte` is deleted. *Verified: `ls organization/session/component | grep -c end-other` printed 0.*
+- [x] [[rules/api-layer]]'s procedure counts include the two procedures. *Verified: read rules/api-layer: 115 procedures, 14 member, both new procedures counted.*
 
 ## Relevant areas
 

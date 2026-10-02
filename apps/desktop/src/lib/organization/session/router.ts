@@ -1,4 +1,4 @@
-import type { SessionsEnded } from '$lib/organization/host';
+import type { MachineView, SessionsEnded } from '$lib/organization/host';
 import { procedure } from '$lib/api/trpc';
 import z from 'zod';
 
@@ -21,7 +21,25 @@ export default {
 	session: {
 		endElsewhere: procedure.member.mutation(async ({ ctx }): Promise<SessionsEnded> => {
 			return ctx.host.organization.sessionEndElsewhere();
-		})
+		}),
+		/**
+		 * The reader's own machines, this one first (effort 846, requirement 9). `member` for the
+		 * reason `endElsewhere` is: what it lists is the caller's and nobody else's, since Rust reads
+		 * the member off the session and never off the call.
+		 */
+		machines: procedure.member.query(async ({ ctx }): Promise<MachineView[]> => {
+			return ctx.host.organization.machines();
+		}),
+		/**
+		 * Sign one of the reader's other machines out (effort 846, requirement 10). `member` again:
+		 * the machine is one of the caller's own, which Rust holds it to, and what it refuses on the
+		 * machine itself (this one, one not theirs, one that has not run this version) is Rust's.
+		 */
+		endMachine: procedure.member
+			.input(z.object({ machineId: z.string().min(1) }))
+			.mutation(async ({ input, ctx }): Promise<SessionsEnded> => {
+				return ctx.host.organization.endMachine(input.machineId);
+			})
 	},
 	/**
 	 * The signed-in member's own password. `member`, because it is theirs: the current password

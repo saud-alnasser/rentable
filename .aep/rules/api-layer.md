@@ -142,7 +142,7 @@ use-when: "adding or changing a router, a domain module, a database client or tr
   names its flag but two reads open to every member, `dashboard.get` and `transfer.held` (the
   second declared `permittedIn()`, so in the workspace it names), whose answers leave out a kind
   the member may not view. What else is `member` is one of two
-  things. A member's own act: their password, their other sessions, accepting an ownership offer
+  things. A member's own act: their password, their other sessions, listing their machines and signing one out, accepting an ownership offer
   made to them, opening a workspace they hold a grant on, and this machine's bootstrap and
   reconcile. And a read open to every member: the member list and its standings, the roles, and
   the mark. The owner's acts and the mark's writes name the flag their Rust command checks, which
@@ -153,9 +153,11 @@ use-when: "adding or changing a router, a domain module, a database client or tr
   one.
 
   **Counted 2026-10-02 the way the walk counts:** every entry of `appRouter._def.procedures`,
-  sorted by its `meta`. There are 113: 81 `permitted`, 2 `permittedIn` naming flags, 1
-  `permittedAny`, 3 `permittedBy`, 12 `member` (one of them `permittedIn()`, `transfer.held`) and
-  14 `public`, so 99 need somebody signed in and 87 of those name a flag. *Ticket 12 of effort 846
+  sorted by its `meta`. There are 115: 81 `permitted`, 2 `permittedIn` naming flags, 1
+  `permittedAny`, 3 `permittedBy`, 14 `member` (one of them `permittedIn()`, `transfer.held`) and
+  14 `public`, so 101 need somebody signed in and 87 of those name a flag. *Ticket 09 of effort 846
+  added `organization.session.machines` and `organization.session.endMachine`, both `member`, to
+  the 113 counted before it. Ticket 12 of effort 846
   moved `transfer.get` and `transfer.importWhole` from `permitted` and `transfer.held` from
   `member` onto `permittedIn`; the 2026-09-28 count read 83 `permitted` and 12 `member`. It was 75,
   1, 2, 20 and 14, and a third kind of `member` stood above, an act whose check was Rust's alone:
