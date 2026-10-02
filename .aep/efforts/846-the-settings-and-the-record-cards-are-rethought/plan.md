@@ -192,6 +192,36 @@ list, the earlier-records callout, and every act in a group's `end`. The grid's 
 evidence: general's preferences beside updates, diagnostics after; account's identity beside
 password; organization's sync beside Turso (owner) or the mark (member).
 
+**Everything in a tab is a card** (*added 2026-10-02*, the human's third word on the settings:
+"the tabs remain the same but each section ... everything is a card"; evidence: the four
+`settings-*-as-cards` files in `evidence/research/`, from screenshots of Apple, Windows, Google,
+Linear, Vercel, GitHub, Raycast, Zed, Discord, Notion, Neon, Supabase, Clerk, Tailscale, Turso,
+1Password and Slack). One anatomy for all four tabs, `settings-group` grown into the card:
+
+- **Header inside the card**: the group's glyph, its title, one muted line saying what the card is
+  for, and an optional trailing value (a count, a state, a badge), never a destructive act.
+- **Rows**: icon, name with a muted meta line *under* it (last seen, added, a path), a badge beside
+  the name where one marks it (*this machine*, *open on this machine*), and the control at the
+  trailing edge. Hairlines between rows.
+- **End**: after a separator, the acts that end something, the error tone on the act alone, never
+  on the card's border or a red band.
+- **Footer** (optional): one note, a `progress`, or one act.
+- **Directories** (roles, members, workspaces) are not boxed inside a card: their title takes the
+  card's title style, the tray sits under it, the record cards follow, so no box sits in a box.
+
+The tabs, as the research recommends and the agent decides:
+
+| Tab | Cards, in source order (half = one column of two; full = both) |
+| --- | --- |
+| general | display: language, appearance (half) · updates: the header states the state in words (up to date, available, downloading, restart to finish), version rows, *what's new* in a collapsible, the download as `progress` (half) · diagnostics: the folder, its path as the meta line, reveal (full) |
+| account | the ownership offer as a `callout` with *accept*, only when one stands (full) · identity as the card's header: `avatar` initials, username, role `badge`, organization (half) · password: *change* (half) · machines: header value *n signed in*, this machine first with its badge, meta line *last seen · added*, sign out per row, *sign out all other machines* in the end (full) · this machine: sign out (full, last) |
+| organization | sync: the state as the header's value, the last-reached line, *sync*, the problem callout under it, never folded (full) · Turso account, owner only (half) beside the signature or seal (half; alone for a member, at half, start-aligned) · roles, members (directories) · leaving (full, last) |
+| workspaces | the directory: title and its line, the tray, the earlier-records callout, then the tiles in a grid (`columnsFor`, 300 min, up to 3), each with its `building` glyph, the name, an *open on this machine* badge on the open one, members and access as facts |
+
+The two-column grid rests on the human's request, not on a product picture (every settings pane
+the researchers saw is one column of 750 to 1000 px); it is kept to short, independent cards, in
+source order, content capped near 1100 px, and judged on screenshots of the running app.
+
 **Hand over ownership in the leaving group** projects the reader's own member record through
 `toPageActions` over `memberActs`, filtered to `member.offerOwnership` and `member.withdrawOffer`,
 and runs `memberHost.run(act.id, record)`, so label, icon and refusal come from the one declaration.
