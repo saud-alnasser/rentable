@@ -180,7 +180,6 @@
 							endingOthers = true;
 						}}
 					>
-						<LogOutIcon class="size-4" />
 						{$LL.common.actions.signOut()}
 					</Button>
 				{/snippet}

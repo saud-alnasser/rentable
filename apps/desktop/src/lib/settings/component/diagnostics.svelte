@@ -8,6 +8,7 @@
 	import ActivityIcon from '@lucide/svelte/icons/activity';
 	import FolderIcon from '@lucide/svelte/icons/folder';
 	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
+	import ScrollTextIcon from '@lucide/svelte/icons/scroll-text';
 	import { onDestroy } from 'svelte';
 
 	/**
@@ -26,7 +27,9 @@
 	 * control's words. The glyph is the one the two startup-failure screens put this same action
 	 * behind (`startup/component/error.svelte` and `unreadable.svelte`, `FolderOpenIcon` with this
 	 * same string), and the string is the control's accessible name as well as its tooltip, so a
-	 * screen reader and a pointer meet the same words.
+	 * screen reader and a pointer meet the same words. The row leads with the log's own glyph
+	 * (`scroll-text`) rather than the folder, so the control is the one folder on the row (ticket
+	 * 38: no button repeats its row's glyph).
 	 *
 	 * **The folder opens when it is pressed** (effort 846, ticket 34, at the human's word of
 	 * 2026-10-02: "the open log the folder icon needs to be look like it opend when clicked with
@@ -95,7 +98,7 @@
 	>
 		{#snippet rows()}
 			<SettingsRow
-				icon={FolderIcon}
+				icon={ScrollTextIcon}
 				name={$LL.settings.diagnosticsFolder()}
 				meta={diagnosticsDir ? path : undefined}
 			>

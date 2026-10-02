@@ -17,10 +17,11 @@
 	 * connect, since a machine holds one.
 	 *
 	 * **An act that ends something, so an error row with its glyph, and its consequence as the line
-	 * under its name** (effort 846, requirements 2 and 14). A member is told the organization stays on
-	 * Turso and that a new link brings them back, since a link is the only way back a member has;
-	 * the owner is told nothing on Turso changes. The row's name is the act and labels the button,
-	 * whose own word is the verb alone.
+	 * under its name** (effort 846, requirements 2 and 14). A member is told the organization stays
+	 * on Turso and that a new link brings them back, since a link is the only way back a member
+	 * has; the owner is told nothing on Turso changes. The row's name is the act and labels the
+	 * button, whose own word is the verb alone, red and with no glyph: the row's glyph already says
+	 * what it is about (ticket 38).
 	 *
 	 * **It asks once, through the one confirm the wall also mounts** (`disconnect-dialog.svelte`),
 	 * so the question reads the same on both surfaces. What happens after the confirm is the
@@ -72,7 +73,6 @@
 				confirming = true;
 			}}
 		>
-			<UnplugIcon class="size-4" />
 			{$LL.organization.dashboard.disconnect()}
 		</Button>
 	{/snippet}

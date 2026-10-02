@@ -120,10 +120,10 @@ export const organization = {
 		// the moment of the last reach: relative within a day, the date and the time beyond it.
 		lastReachedRecently: 'last reached Turso {moment:string}',
 		lastReached: 'last reached Turso on {moment:string}',
-		// an owner whose machine holds no authority: the reconnect is the Turso account card's, and
-		// the sync group points at it by name rather than drawing a second consent. It names the card
-		// rather than a place, since the settings grid does not promise where the card sits.
-		reconnectOnAccount: 'reconnect on the Turso account card.',
+		// an owner whose machine holds no authority: the reconnect is the leaving card's Turso account
+		// row, and the sync group points at it by name rather than drawing a second consent (effort
+		// 846, ticket 38).
+		reconnectOnAccount: 'reconnect the Turso account under leaving.',
 		checkNow: 'sync',
 		// what folds under the state: the workspace this machine keeps a copy of, and where the copy
 		// is (effort 846, *Detail that few readers need folds under its row*).
@@ -194,7 +194,7 @@ export const organization = {
 		// requirement 22: the two entries on the owner's own card, one at a time, and the
 		// acceptance the other person meets. Two plain words each, and the sentences that
 		// say what changes belong to the surfaces they open.
-		transferOwnership: 'hand over ownership',
+		transferOwnership: 'transfer ownership',
 		transferOwnershipGoes:
 			'they are offered the organization. once they accept, they become the owner and you become a manager.',
 		transferOwnershipMember: 'who is offered the organization',
@@ -297,8 +297,8 @@ export const organization = {
 		disconnectThisMachine: 'disconnect this machine',
 		disconnectComesBack:
 			"signs you out and deletes the organization's copy on this machine. it stays on Turso, and a new link brings you back.",
-		handOver: 'hand over',
-		handOverGoes:
+		transfer: 'transfer',
+		transferGoes:
 			'the member you choose becomes the owner once they accept, and you stay on as a manager.',
 		withdraw: 'withdraw',
 		offerStandsGoes: 'an offer stands. nothing changes hands until it is accepted.',
@@ -383,7 +383,7 @@ export const organization = {
 		lockOut: 'lock members out',
 		renewCredentials: 'renew credentials',
 		tursoAccount: 'connect the Turso account',
-		transferOwnership: 'hand the organization over',
+		transferOwnership: 'transfer the organization',
 		deleteOrganization: 'delete the organization'
 	},
 

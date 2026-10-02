@@ -466,27 +466,30 @@ test('the organization section carries the directory, the account block and the 
 	expect(document.querySelector('[data-workspace]')).toBeNull();
 });
 
-// how this machine stands to the organization, then the account the databases sit on, then the
-// people, then the two acts that end something, the heavier of them last. Settled by the human on
-// the real organization.
-test('the organization section is ordered: standing, account, people, leaving', () => {
+// how this machine stands to the organization, then the people, then the ways out, the Turso
+// account the databases sit on first among them and the heaviest act last. Settled by the human on
+// the real organization; the Turso account folded into leaving by ticket 38 ("Fold it into
+// Leaving").
+test('the organization section is ordered: standing, people, leaving with the account in it', () => {
 	at('?section=organization');
 	area({ section: 'organization' });
 
 	expect(
 		orderOf(
 			'data-standing-block',
-			'data-turso-account',
 			'data-members',
 			'data-leaving',
+			'data-turso-account',
+			'data-forget-account-open',
 			'data-disconnect',
 			'data-delete-organization'
 		)
 	).toEqual([
 		'data-standing-block',
-		'data-turso-account',
 		'data-members',
 		'data-leaving',
+		'data-turso-account',
+		'data-forget-account-open',
 		'data-disconnect',
 		'data-delete-organization'
 	]);
@@ -498,16 +501,21 @@ test('the organization section is ordered: standing, account, people, leaving', 
 	expect(leaving.querySelector('[data-settings-group] h2')?.textContent?.trim()).toBe(
 		en.organization.dashboard.leavingTitle
 	);
+	expect(leaving.querySelector('[data-turso-account]')).not.toBeNull();
 	expect(leaving.querySelector('[data-disconnect]')).not.toBeNull();
 	expect(leaving.querySelector('[data-delete-organization]')).not.toBeNull();
+	// and no card of its own for the account: the leaving card is the one that holds it.
+	expect(
+		[...document.querySelectorAll('[data-settings-group] h2')].map((h) => h.textContent?.trim())
+	).not.toContain(en.organization.dashboard.authorityTitle);
 });
 
 // criterion 12 of effort 846, from the area's side: the section opens with the sync group, a
 // settings group whose one row names the state and says when this machine last reached Turso,
-// with the control named "sync". Each state is read in
+// with the control an icon named "sync" by its tooltip. Each state is read in
 // `organization/tests/standing.svelte.test.ts`; what is read here is that the section draws that
 // group, first, with the moment the machine holds.
-test('the organization section opens with the sync group: the state, the last reach, and sync', () => {
+test('the organization section opens with the sync group: the state, the last reach, and sync', async () => {
 	at('?section=organization');
 	area({
 		section: 'organization',
@@ -529,26 +537,33 @@ test('the organization section opens with the sync group: the state, the last re
 	expect(block.querySelector('[data-last-reached]')?.textContent?.trim()).toBe(
 		en.organization.standing.lastReachedRecently.replace('{moment:string}', '2 minutes ago')
 	);
-	expect(block.querySelector('[data-check-now]')?.textContent?.trim()).toBe(
-		en.organization.standing.checkNow
-	);
 	expect(block.querySelector('[data-slot="badge"]')).toBeNull();
 	// and it is the first block of the section.
-	expect(
-		orderOf('data-standing-block', 'data-turso-account', 'data-members', 'data-leaving')[0]
-	).toBe('data-standing-block');
+	expect(orderOf('data-standing-block', 'data-members', 'data-leaving')[0]).toBe(
+		'data-standing-block'
+	);
+
+	// ticket 38 ("the sync button should be the icon only with tooltip maybe"): the glyph alone on
+	// screen, its words its accessible name and its tooltip.
+	const sync = within(block).getByRole('button', { name: en.organization.standing.checkNow });
+
+	expect(sync.hasAttribute('data-check-now')).toBe(true);
+	expect(sync.querySelector('svg')).not.toBeNull();
+	expect(sync.textContent?.trim()).toBe('');
+	expect(sync.getAttribute('aria-busy')).toBe('false');
+	expect(await hintOf(sync, 'data-check-now-hint')).toBe(en.organization.standing.checkNow);
 });
 
-// an owner whose machine holds no authority meets the reconnect where the account block is, and
-// no delete: the act needs the authority that block is about, which is the gate it had while it
-// sat inside it.
-test('an owner holding no authority meets the reconnect, and the foot is the disconnect alone', () => {
+// an owner whose machine holds no authority meets the reconnect on the account's row in leaving,
+// and no forget and no delete: both need the authority that row is about.
+test('an owner holding no authority meets the reconnect, then the transfer and the disconnect', () => {
 	at('?section=organization');
 	area({ section: 'organization', holdsTursoAuthority: false });
 
 	expect(
-		orderOf('data-standing-block', 'data-turso-account', 'data-members', 'data-disconnect')
-	).toEqual(['data-standing-block', 'data-turso-account', 'data-members', 'data-disconnect']);
+		orderOf('data-standing-block', 'data-members', 'data-turso-account', 'data-disconnect')
+	).toEqual(['data-standing-block', 'data-members', 'data-turso-account', 'data-disconnect']);
+	expect(document.querySelector('[data-forget-account-open]')).toBeNull();
 	expect(document.querySelector('[data-delete-organization]')).toBeNull();
 	expect(document.querySelector('[data-delete-organization-open]')).toBeNull();
 });
@@ -844,32 +859,38 @@ test('the sentence is absent for an owner who holds the authority', () => {
 	);
 });
 
-/** the Turso account group's rows, in order. */
-const tursoRows = () => [
-	...document.querySelectorAll<HTMLElement>('[data-turso-account] [data-settings-row]')
-];
+/** the leaving card's rows that are about the Turso account: its state, and forgetting it. */
+const tursoRows = () =>
+	[...document.querySelectorAll<HTMLElement>('[data-leaving] [data-settings-row]')].filter(
+		(row) =>
+			row.hasAttribute('data-turso-account') ||
+			row.querySelector('[data-forget-account-open]') !== null
+	);
 
-// effort 846, criterion 13 with 2 and 5, from the area's side: the owner whose machine holds the
-// authority meets the Turso account as a connected row, and forgetting it as the group's last row,
-// in the error tone, with its glyph, asked first with the sentence naming where to revoke the token.
-test('an owner holding the authority reads the turso account as connected, and forget last', async () => {
+// effort 846, criterion 13 with 2 and 5, from the area's side, as ticket 38 folded the account into
+// leaving: the owner whose machine holds the authority meets the Turso account as a row reading
+// connected on this machine, first in the leaving card, and forgetting it as one of the card's
+// ending rows, its button red words alone, asked first with the sentence naming where to revoke the
+// token.
+test('an owner holding the authority reads the turso account as connected, and forget among the ends', async () => {
 	at('?section=organization');
 	area({ section: 'organization', holdsTursoAuthority: true });
 
 	const [account, forget] = tursoRows();
 
-	// the card is titled for the account, and its row names the state on this machine.
-	expect(document.querySelector('[data-turso-account] h2')?.textContent?.trim()).toBe(
-		en.organization.dashboard.authorityTitle
-	);
+	expect(leavingRows()[0]).toBe(account);
 	expect(tursoRows().map(rowName)).toEqual([
-		en.organization.dashboard.authorityConnected,
+		en.organization.dashboard.authorityTitle,
 		en.organization.dashboard.forgetAccount
 	]);
+	expect(account.querySelector('[data-row-value]')?.textContent?.trim()).toBe(
+		en.organization.dashboard.authorityConnected
+	);
 	expect(account.querySelector('[data-slot=item-media] svg')).not.toBeNull();
+	expect(account.dataset.rowTone).toBe('neutral');
 	expect(forget.dataset.rowTone).toBe('error');
 	expect(forget.querySelector('[data-slot=item-media] svg')).not.toBeNull();
-	expect(forget.querySelector('button svg')).not.toBeNull();
+	expect(forget.querySelector('button svg')).toBeNull();
 
 	await fireEvent.click(forget.querySelector('[data-forget-account-open]')!);
 
@@ -879,37 +900,43 @@ test('an owner holding the authority reads the turso account as connected, and f
 	expect(dialog.textContent).toContain(en.organization.dashboard.forgetAccountRevokesAt);
 });
 
-// and the owner whose machine does not: the row reads not held here and carries the reconnect,
-// with its glyph, and nothing in the group is drawn in the error tone, since nothing is held to end.
-test('an owner holding no authority reads the turso account as not held, with an icon on reconnect', () => {
+// and the owner whose machine does not: the row reads not held here and carries the reconnect, in
+// words alone as every button in the card is, and there is no forget, since nothing is held to end.
+test('an owner holding no authority reads the turso account as not held, with a reconnect in words', () => {
 	at('?section=organization');
 	area({ section: 'organization', holdsTursoAuthority: false });
 
 	const [account] = tursoRows();
 
 	expect(tursoRows()).toHaveLength(1);
-	expect(rowName(account)).toBe(en.organization.dashboard.authorityNotHeld);
-	expect(account.querySelector('[data-reconnect-authority-open] svg')).not.toBeNull();
-	expect(document.querySelector('[data-turso-account] [data-row-tone=error]')).toBeNull();
+	expect(rowName(account)).toBe(en.organization.dashboard.authorityTitle);
+	expect(account.querySelector('[data-row-value]')?.textContent?.trim()).toBe(
+		en.organization.dashboard.authorityNotHeld
+	);
+	expect(account.querySelector('[data-reconnect-authority-open]')).not.toBeNull();
+	expect(account.querySelector('[data-reconnect-authority-open] svg')).toBeNull();
+	expect(account.dataset.rowTone).toBe('neutral');
+	expect(document.querySelector('[data-forget-account-open]')).toBeNull();
 });
 
-// effort 846, criterion 5 for the two groups this ticket draws: within each, every button carries
-// a glyph or none does, held or not, and the mark's group with them.
-test('the turso and mark groups agree on glyphs within each group', () => {
+// effort 846, criterion 5 for the leaving card and the mark's: within each, every button carries a
+// glyph or none does, held or not.
+test('the leaving and mark groups agree on glyphs within each group', () => {
 	for (const holdsTursoAuthority of [true, false]) {
 		at('?section=organization');
-		const { unmount } = area({ section: 'organization', holdsTursoAuthority });
+		const { unmount } = area({ section: 'organization', holdsTursoAuthority, ...OWNER_AND_ADA });
 
 		const ours = groups().filter(
 			(group) =>
-				group.closest('[data-turso-account]') !== null ||
+				group.closest('[data-leaving]') !== null ||
 				group.closest('[data-organization-mark]') !== null
 		);
 
 		expect(ours).toHaveLength(2);
 
 		for (const group of ours) {
-			const buttons = [...group.querySelectorAll('button')];
+			// a row's fold is a disclosure rather than an act, and carries its chevron wherever it is.
+			const buttons = [...group.querySelectorAll('button:not([data-row-details-trigger])')];
 			const withGlyph = buttons.filter((button) => button.querySelector('svg') !== null);
 
 			expect([0, buttons.length]).toContain(withGlyph.length);
@@ -963,7 +990,8 @@ const OWNER_AND_ADA = {
 };
 
 // effort 846, criterion 14 with 2: a member's leaving group holds disconnect this machine alone,
-// with its glyph and the line saying the organization stays on Turso and a link brings them back.
+// with its glyph and the line saying the organization stays on Turso and a link brings them back,
+// its button red words alone; no Turso account row and no forget (ticket 38).
 test('a member leaves with the disconnect alone, its glyph and its consequence line', () => {
 	for (const role of ['member', 'manager'] as const) {
 		at('?section=organization');
@@ -979,33 +1007,47 @@ test('a member leaves with the disconnect alone, its glyph and its consequence l
 		expect(rows.map(rowName), role).toEqual([en.organization.dashboard.disconnectThisMachine]);
 		expect(rows[0].dataset.rowTone).toBe('error');
 		expect(rows[0].querySelector('[data-slot=item-media] svg')).not.toBeNull();
-		expect(rows[0].querySelector('button svg')).not.toBeNull();
+		expect(rows[0].querySelector('button svg')).toBeNull();
+		expect(rows[0].querySelector('button')?.className).toContain('text-destructive');
 		expect(rows[0].querySelector('[data-leaving-consequence]')?.textContent?.trim()).toBe(
 			en.organization.dashboard.disconnectComesBack
 		);
 		expect(document.querySelector('[data-leaving] [data-act]')).toBeNull();
+		expect(document.querySelector('[data-turso-account]')).toBeNull();
+		expect(document.querySelector('[data-forget-account-open]')).toBeNull();
 
 		unmount();
 	}
 });
 
-// and an owner's holds the handover first, then the disconnect, then the delete, the two that end
-// something as the group's error rows after its separator, the delete last and saying nothing
-// undoes it. No two of the three share a glyph or a line.
-test('an owner leaves by the handover, then the disconnect, then the delete, last', () => {
+// and an owner's holds the Turso account's row, then the transfer, the forget, the disconnect
+// and the delete, the acts as the group's error rows after its separator, the delete last and
+// saying nothing undoes it. No two share a glyph or a line, and every act's button is red words
+// alone (ticket 38: "hand over owenrhips should be named transfer ownership and the button should
+// be transfer and in red and without icon the same for disconnect and delete").
+test('an owner leaves by the transfer, then the forget and the disconnect, then the delete, last', () => {
 	at('?section=organization');
 	area({ section: 'organization', ...OWNER_AND_ADA });
 
 	const rows = leavingRows();
 
 	expect(rows.map(rowName)).toEqual([
+		en.organization.dashboard.authorityTitle,
 		en.organization.dashboard.transferOwnership,
+		en.organization.dashboard.forgetAccount,
 		en.organization.dashboard.disconnectThisMachine,
 		en.organization.dashboard.deleteOrganization
 	]);
-	expect(rows.map((row) => row.dataset.rowTone)).toEqual(['neutral', 'error', 'error']);
+	expect(en.organization.dashboard.transferOwnership).toBe('transfer ownership');
+	expect(rows.map((row) => row.dataset.rowTone)).toEqual([
+		'neutral',
+		'error',
+		'error',
+		'error',
+		'error'
+	]);
 
-	// the two error rows are the group's end, after its separator.
+	// the acts are the group's end, after its separator.
 	const group = document.querySelector<HTMLElement>('[data-leaving] [data-settings-group]')!;
 	const separator = group.querySelector('[data-slot=item-separator]')!;
 
@@ -1016,22 +1058,58 @@ test('an owner leaves by the handover, then the disconnect, then the delete, las
 		rows[0].compareDocumentPosition(separator) & Node.DOCUMENT_POSITION_FOLLOWING
 	).toBeTruthy();
 
-	const lines = rows.map((row) =>
-		row.querySelector('[data-leaving-consequence]')?.textContent?.trim()
-	);
+	const lines = rows
+		.slice(1)
+		.map((row) => row.querySelector('[data-leaving-consequence]')?.textContent?.trim());
 
 	expect(lines).toEqual([
-		en.organization.dashboard.handOverGoes,
+		en.organization.dashboard.transferGoes,
+		en.organization.dashboard.forgetAccountDescription,
 		en.organization.dashboard.disconnectForgets,
 		en.organization.dashboard.deleteOrganizationDescription
 	]);
-	expect(lines[2]).toContain('nothing puts them back');
+	expect(lines[3]).toContain('nothing puts them back');
 
 	const glyphs = rows.map((row) => row.querySelector('[data-slot=item-media] svg')?.outerHTML);
 
 	expect(glyphs.every((glyph) => glyph !== undefined)).toBe(true);
-	expect(new Set(glyphs).size).toBe(3);
-	expect(rows.every((row) => row.querySelector('button svg') !== null)).toBe(true);
+	expect(new Set(glyphs).size).toBe(rows.length);
+
+	// every act's button: its own word, red, and no glyph.
+	const buttons = rows
+		.slice(1)
+		.map((row) => row.querySelector<HTMLElement>('[data-slot=item-actions] button')!);
+
+	expect(buttons.map((button) => button.textContent?.trim())).toEqual([
+		en.organization.dashboard.transfer,
+		en.organization.dashboard.forget,
+		en.organization.dashboard.disconnect,
+		en.common.actions.delete
+	]);
+	expect(en.organization.dashboard.transfer).toBe('transfer');
+	expect(buttons.every((button) => button.querySelector('svg') === null)).toBe(true);
+	expect(buttons.every((button) => button.className.includes('text-destructive'))).toBe(true);
+});
+
+// and in arabic, the transfer reads as the act names it there.
+test('the transfer reads in arabic', async () => {
+	at('?section=organization');
+	area({ section: 'organization', ...OWNER_AND_ADA });
+	loadLocale('ar');
+	setLocale('ar');
+	await tick();
+
+	const transfer = document.querySelector<HTMLElement>(
+		'[data-leaving] [data-act="member.offerOwnership"]'
+	)!;
+
+	expect(transfer.textContent?.trim()).toBe(ar.organization.dashboard.transfer);
+	expect(rowName(transfer.closest<HTMLElement>('[data-settings-row]')!)).toBe(
+		ar.organization.dashboard.transferOwnership
+	);
+
+	loadLocale('en');
+	setLocale('en');
 });
 
 // the handover is the owner's card's own act, run through the member host on the owner's own
@@ -1043,8 +1121,8 @@ test('pressing the handover runs the card act through the member host and opens 
 	render(OrganizationHost, {}, { wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } });
 	area({ section: 'organization', ...OWNER_AND_ADA });
 
-	const handover = leavingRows()[0].querySelector<HTMLButtonElement>(
-		'[data-act="member.offerOwnership"]'
+	const handover = document.querySelector<HTMLButtonElement>(
+		'[data-leaving] [data-act="member.offerOwnership"]'
 	)!;
 
 	expect(handover.getAttribute('aria-disabled')).toBeNull();
@@ -1077,8 +1155,8 @@ test('with nobody to take it, the owner meets the handover refused, saying why',
 		]
 	});
 
-	const handover = leavingRows()[0].querySelector<HTMLButtonElement>(
-		'[data-act="member.offerOwnership"]'
+	const handover = document.querySelector<HTMLButtonElement>(
+		'[data-leaving] [data-act="member.offerOwnership"]'
 	)!;
 
 	expect(handover.getAttribute('aria-disabled')).toBe('true');
@@ -1112,7 +1190,7 @@ test('while an offer stands, the leaving group offers its withdrawal in the hand
 		standings: OWNER_AND_ADA.standings
 	});
 
-	const [first] = leavingRows();
+	const [, first] = leavingRows();
 
 	expect(rowName(first)).toBe(en.organization.dashboard.withdrawOffer);
 	expect(first.querySelector('[data-act="member.withdrawOffer"]')).not.toBeNull();
@@ -1295,7 +1373,6 @@ const SECTION_MARKS = [
 	'data-machines',
 	'data-sign-out',
 	'data-standing-block',
-	'data-turso-account',
 	'data-organization-mark',
 	'data-roles',
 	'data-members',
@@ -1377,9 +1454,9 @@ test('each section is one column of cards in source order, the ends last', () =>
 	at('?section=organization');
 	const organization = area({ section: 'organization' });
 
+	// the Turso account is a row of leaving, not a card of its own (ticket 38).
 	expect(laidOut()).toEqual([
 		'data-standing-block',
-		'data-turso-account',
 		'data-organization-mark',
 		'data-roles',
 		'data-members',
@@ -1387,7 +1464,7 @@ test('each section is one column of cards in source order, the ends last', () =>
 	]);
 	organization.unmount();
 
-	// a member meets no Turso card.
+	// a member meets no Turso account.
 	at('?section=organization');
 	const member = area({
 		section: 'organization',
@@ -1512,7 +1589,7 @@ test('the three rows the rule names fold their detail, and no other row does', a
 	expect([...fromGeneral, ...fromAccount, ...fromOrganization, ...fromWorkspaces]).toEqual([
 		en.common.labels.availableVersion,
 		en.organization.standing.state.upToDate,
-		en.organization.dashboard.authorityConnected
+		en.organization.dashboard.authorityTitle
 	]);
 });
 
@@ -1734,4 +1811,104 @@ test('updates checks by an icon named for it, and shows no available version unt
 	await expect
 		.poll(() => availableRow().querySelector('[data-row-value]')?.textContent?.trim())
 		.toBe('0.15.0');
+});
+
+/** the lucide names of the glyphs drawn inside an element, `refresh-cw` for `lucide-refresh-cw`. */
+const glyphNamesIn = (element: Element | null) =>
+	[...(element?.querySelectorAll('svg') ?? [])].flatMap((svg) =>
+		[...svg.classList]
+			.filter((name) => name.startsWith('lucide-') && name !== 'lucide-icon')
+			.map((name) => name.replace('lucide-', ''))
+	);
+
+// effort 846 ticket 38, at the human's word of 2026-10-02 ("i find it odd using the same icon of
+// the sectio ntitle and descripto in the action button"): in every tab, for every card and every
+// directory heading, owner and member, the Turso authority held and not, no button carries the
+// glyph its card leads with, and no button on a row carries the glyph its row leads with.
+test("no button in the area repeats its row's or its card's glyph", () => {
+	const walked = { cards: 0, buttons: 0 };
+
+	const sessions = [
+		fakeOrganizationSession({ ownershipOffered: true, ownerUsername: 'olivia.owner' }),
+		fakeOrganizationSession({ role: 'member', permissions: 0 })
+	];
+
+	for (const session of sessions) {
+		for (const holdsTursoAuthority of [true, false]) {
+			for (const section of ['general', 'account', 'organization', 'workspaces'] as const) {
+				at(`?section=${section}`);
+				hostAnswers.machines = [
+					{
+						id: 'machine-here',
+						name: 'Desk',
+						seenAt: Date.now(),
+						createdAt: Date.now(),
+						isThisMachine: true,
+						mayEndAlone: false
+					},
+					{
+						id: 'machine-laptop',
+						name: 'Laptop',
+						seenAt: Date.now(),
+						createdAt: Date.now(),
+						isThisMachine: false,
+						mayEndAlone: true
+					}
+				];
+				const drawn = area({
+					section,
+					session,
+					holdsTursoAuthority,
+					syncState: fakeSyncState({ lastReachedAt: Date.now() - 60_000 }),
+					...OWNER_AND_ADA
+				});
+
+				const cards: { card: Element; glyph: string[]; buttons: Element[] }[] = [
+					...[...document.querySelectorAll('[data-settings-group]')].map((card) => ({
+						card,
+						glyph: glyphNamesIn(card.querySelector('[data-settings-group-glyph]')),
+						buttons: [...card.querySelectorAll('button')]
+					})),
+					// a directory's heading is a card's header, and its tray is what it acts with.
+					...[...document.querySelectorAll('[data-directory-tray]')].map((card) => ({
+						card,
+						glyph: glyphNamesIn(card.querySelector('[data-directory-glyph]')),
+						buttons: [...card.querySelectorAll('button')]
+					})),
+					// the ownership offer, a notice that leads with its own glyph.
+					...[...document.querySelectorAll('[data-ownership-offer]')].map((card) => ({
+						card,
+						glyph: glyphNamesIn(card.querySelector('[data-slot=callout] > svg')),
+						buttons: [...card.querySelectorAll('button')]
+					}))
+				];
+
+				for (const { card, glyph, buttons } of cards) {
+					walked.cards += 1;
+
+					for (const button of buttons) {
+						const row = button.closest('[data-settings-row]');
+						const rowGlyph = row
+							? glyphNamesIn(row.querySelector(':scope > [data-slot=item-media]'))
+							: [];
+						const own = glyphNamesIn(button);
+						const where = `${section}: ${card.querySelector('h2, legend')?.textContent?.trim() ?? 'notice'} / ${button.getAttribute('aria-label') ?? button.textContent?.trim()}`;
+
+						walked.buttons += 1;
+
+						for (const name of own) {
+							expect(glyph, where).not.toContain(name);
+							expect(rowGlyph, where).not.toContain(name);
+						}
+					}
+				}
+
+				drawn.unmount();
+			}
+		}
+	}
+
+	// the walk met the cards it is about, rather than passing on an empty page.
+	expect(walked.cards).toBeGreaterThan(20);
+	expect(walked.buttons).toBeGreaterThan(20);
 });

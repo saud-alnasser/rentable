@@ -26,7 +26,8 @@
 	 * **The last row of the leaving group, set apart from the disconnect before it** (effort 846,
 	 * requirements 2 and 14): an error row with its glyph, and under its name the one line saying the
 	 * organization and every workspace go from the Turso account and nothing puts them back. The
-	 * row's name is the act and labels the button, whose own word is the verb alone.
+	 * row's name is the act and labels the button, whose own word is the verb alone, red and with
+	 * no glyph, since the row's glyph already says what it is about (ticket 38).
 	 *
 	 * **The body says what goes in the plainest words there are**, because this is the one act in
 	 * the application that nothing undoes: every workspace and everything in it, every member's
@@ -99,7 +100,6 @@
 			data-delete-organization-open
 			onclick={() => onOpenChange(true)}
 		>
-			<Trash2Icon class="size-4" />
 			{$LL.common.actions.delete()}
 		</Button>
 	{/snippet}

@@ -112,8 +112,9 @@
 
 {#snippet changePasswordAct()}
 	<div>
-		<!-- the verb's glyph before its label; outline rather than solid, since the act is
-		     offered and never invited. -->
+		<!-- words alone, since the card's own glyph is the key and a button repeating it says the
+		     card twice (effort 846, ticket 38); outline rather than solid, since the act is offered
+		     and never invited. -->
 		<Button
 			type="button"
 			variant="outline"
@@ -124,7 +125,6 @@
 				changingPassword = true;
 			}}
 		>
-			<KeyRoundIcon class="size-4" />
 			{$LL.settings.you.password.change()}
 		</Button>
 	</div>
@@ -144,7 +144,6 @@
 				data-sign-out-open
 				onclick={requestSignOut}
 			>
-				<LogOutIcon class="size-4" />
 				{$LL.common.actions.signOut()}
 			</Button>
 		{/snippet}
@@ -185,7 +184,6 @@
 							acceptingOwnership = true;
 						}}
 					>
-						<CrownIcon class="size-4" />
 						{$LL.organization.dashboard.acceptOwnership()}
 					</Button>
 				</Callout>

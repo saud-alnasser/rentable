@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: []
 ---
 
@@ -15,11 +15,11 @@ The human's walk of 2026-10-02, verbatim: "maybe i find it odd using the same ic
 
 Traces requirement 1 as revised 2026-10-02, and requirements 2, 13 and 14.
 
-- [ ] The area test walks every settings card and finds no button whose glyph is its row's or card's own glyph.
-- [ ] The leaving card reads transfer ownership with a red text *transfer*, and red text disconnect and delete, in both locales; the transfer still opens the offer form, refused with its reason where nobody can take it.
-- [ ] There is no Turso account card; an owner's leaving card holds the Turso row (connected, or not held with reconnect) and forget, confirmed; a member's has neither.
-- [ ] Sync is an icon button named by its tooltip, its glyph spinning with `aria-busy` while a sync runs and not under reduced motion.
-- [ ] [[rules/interface]] and [[contexts/desktop/components]] say all of this; `validate.mjs` passes.
+- [x] The area test walks every settings card and finds no button whose glyph is its row's or card's own glyph. *Verified: integrated on 36, 37 and 39, desktop `vitest run` printed 92 files, 793 passed; the area test "no button in the area repeats its row's or its card's glyph" walks all four tabs, owner and member, and failed when the builder put the unplug glyph back on disconnect.*
+- [x] The leaving card reads transfer ownership with a red text *transfer*, and red text disconnect and delete, in both locales; the transfer still opens the offer form, refused with its reason where nobody can take it. *Verified: the same run: "an owner leaves by the transfer" and "the transfer reads in arabic" pass; the offer form opens, refused with its reason where nobody can take it.*
+- [x] There is no Turso account card; an owner's leaving card holds the Turso row (connected, or not held with reconnect) and forget, confirmed; a member's has neither. *Verified: the same run: no Turso account card; the owner's leaving card holds the Turso row, transfer, forget (confirmed), disconnect, delete; a member's holds disconnect alone (`turso-account.svelte.test.ts` too).*
+- [x] Sync is an icon button named by its tooltip, its glyph spinning with `aria-busy` while a sync runs and not under reduced motion. *Verified: the same run: `standing.svelte.test.ts` finds `aria-busy` and the spin while a sync runs and a still glyph under reduced motion; the area test finds the sync tooltip.*
+- [x] [[rules/interface]] and [[contexts/desktop/components]] say all of this; `validate.mjs` passes. *Verified: read rules/interface *Settings section* (merged by hand with ticket 36's stamp paragraph) and the components context; `validate.mjs` printed 579 artifacts checked, no failures; node tests 1489 passed; check 0 errors.*
 
 ## Relevant areas
 

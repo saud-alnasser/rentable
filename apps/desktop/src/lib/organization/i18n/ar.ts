@@ -98,7 +98,7 @@ export const organization = {
 		},
 		lastReachedRecently: 'آخر وصول إلى Turso {moment}',
 		lastReached: 'آخر وصول إلى Turso في {moment}',
-		reconnectOnAccount: 'أعد الربط من بطاقة حساب Turso.',
+		reconnectOnAccount: 'أعد ربط حساب Turso من المغادرة.',
 		detail: {
 			label: 'ما يحفظه هذا الجهاز',
 			workspace: 'مساحة العمل',
@@ -146,7 +146,7 @@ export const organization = {
 		done: 'تم',
 		invitationExpires: 'تنتهي صلاحية الرابط في {date}',
 		makeLink: 'اصنع رابطًا',
-		transferOwnership: 'سلّم الملكية',
+		transferOwnership: 'انقل الملكية',
 		transferOwnershipGoes: 'يُعرض عليه أخذ المؤسسة. فإذا قبل، صار هو المالك وصرت أنت مديرًا.',
 		transferOwnershipMember: 'من يُعرض عليه',
 		transferOwnershipAuthority:
@@ -228,8 +228,8 @@ export const organization = {
 		disconnectThisMachine: 'افصل هذا الجهاز',
 		disconnectComesBack:
 			'يسجّل خروجك ويحذف نسخة المؤسسة من هذا الجهاز. تبقى على Turso، ورابط جديد يعيدك إليها.',
-		handOver: 'سلّم',
-		handOverGoes: 'يصبح العضو الذي تختاره المالك حين يقبل، وتبقى أنت مديرًا.',
+		transfer: 'انقل',
+		transferGoes: 'يصبح العضو الذي تختاره المالك حين يقبل، وتبقى أنت مديرًا.',
 		withdraw: 'اسحب',
 		offerStandsGoes: 'هناك عرض قائم. لا ينتقل شيء حتى يُقبل.',
 		nobodyOfferable: 'لم يعيّن أحد كلمة مرور بعد، فلا أحد يستطيع تسلّمها.',
@@ -292,7 +292,7 @@ export const organization = {
 		lockOut: 'حظر الأعضاء',
 		renewCredentials: 'تجديد الاعتمادات',
 		tursoAccount: 'وصل حساب Turso',
-		transferOwnership: 'تسليم المؤسسة',
+		transferOwnership: 'نقل المؤسسة',
 		deleteOrganization: 'حذف المؤسسة'
 	},
 

@@ -41,7 +41,7 @@ const paragraphs = () => Array.from(document.querySelectorAll('[data-slot="dialo
 const footer = () =>
 	Array.from(document.querySelectorAll<HTMLButtonElement>('[data-slot="dialog-footer"] button'));
 
-test('the section says what disconnecting forgets and offers the one control, with its verb', () => {
+test('the section says what disconnecting forgets and offers the one control, its verb alone', () => {
 	loadLocale('en');
 	setLocale('en');
 	section();
@@ -55,8 +55,9 @@ test('the section says what disconnecting forgets and offers the one control, wi
 	const opener = document.querySelector('[data-disconnect-open]')!;
 
 	expect(opener.textContent?.trim()).toBe(en.organization.dashboard.disconnect);
-	// requirement 14: the verb's glyph before its label.
-	expect(opener.querySelector('svg')).not.toBeNull();
+	// ticket 38: red words and no glyph, since the row's own glyph already says what it is about.
+	expect(opener.querySelector('svg')).toBeNull();
+	expect(opener.className).toContain('text-destructive');
 	// nothing asks until the control is pressed.
 	expect(dialog()).toBeNull();
 });

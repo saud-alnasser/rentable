@@ -58,7 +58,21 @@ const releaseAll = async () => {
 afterEach(() => {
 	// nothing a test started is left out for the next one to count.
 	for (const release of port.releases.splice(0)) release();
+	vi.unstubAllGlobals();
 });
+
+/** the reader has, or has not, asked for less motion. */
+const reduce = (reduced: boolean) =>
+	vi.stubGlobal('matchMedia', (query: string) => ({
+		matches: reduced && query === '(prefers-reduced-motion: reduce)',
+		media: query,
+		addEventListener: () => {},
+		removeEventListener: () => {},
+		addListener: () => {},
+		removeListener: () => {},
+		onchange: null,
+		dispatchEvent: () => false
+	}));
 
 const MINUTE = 60_000;
 const DAY = 24 * 60 * MINUTE;
@@ -89,6 +103,8 @@ const word = () => row().querySelector('[data-slot=item-title] > span')?.textCon
 const glyph = () => row().querySelector<HTMLElement>('[data-slot=item-media]')!;
 const lastReached = () => row().querySelector('[data-last-reached]')?.textContent?.trim();
 const checkNow = () => document.querySelector<HTMLButtonElement>('[data-check-now]')!;
+/** the classes on the control's own glyph, which turn while a run is out. */
+const turning = () => document.querySelector('[data-check-now-glyph]')!.getAttribute('class') ?? '';
 
 /** the lucide name of the state's glyph, read off its class. */
 const glyphName = () =>
@@ -104,8 +120,9 @@ const toneClass = () =>
 
 /**
  * what every state is read for: one state row in the settings group, its glyph and its word in
- * the same tone, the group's title and its line, the control named "sync", no badge, and a glyph
- * that stands still.
+ * the same tone, the group's title and its line, the control an icon named "sync" (or "syncing"
+ * while a run is out) by its accessible name, its glyph not the state's, no badge, and a state
+ * glyph that stands still.
  */
 const shape = (locale: 'en' | 'ar' = 'en') => {
 	const words = locale === 'ar' ? ar : en;
@@ -116,8 +133,18 @@ const shape = (locale: 'en' | 'ar' = 'en') => {
 	expect(document.querySelectorAll('[data-standing]')).toHaveLength(1);
 	expect(row().hasAttribute('data-settings-row')).toBe(true);
 	expect(row().querySelector('[data-slot="item-title"]')?.className).toContain(toneClass());
-	expect(checkNow().textContent?.trim()).toBe(words.organization.standing.checkNow);
-	expect(checkNow().querySelector('svg')).not.toBeNull();
+	expect(checkNow().getAttribute('aria-label')).toBe(
+		checkNow().getAttribute('aria-busy') === 'true'
+			? words.organization.standing.state.syncing
+			: words.organization.standing.checkNow
+	);
+	// an icon control: no words of its own beside its glyph, which is never the state's.
+	expect(checkNow().textContent?.trim()).toBe('');
+	expect(checkNow().querySelectorAll('svg')).toHaveLength(1);
+	expect(checkNow().querySelector('svg')?.outerHTML).not.toBe(
+		glyph().querySelector('svg')?.outerHTML
+	);
+	expect(checkNow().querySelector('svg')?.getAttribute('class')).toContain('lucide-refresh-cw');
 	expect(document.querySelector('[data-slot="badge"]')).toBeNull();
 	expect(glyph().querySelector('svg')?.getAttribute('class') ?? '').not.toMatch(/animate-/);
 };
@@ -172,20 +199,45 @@ for (const each of STATES) {
 test('syncing, started by the control: its word, its glyph standing still, and its tone', async () => {
 	block({ syncState: fakeSyncState({ lastReachedAt: Date.now() - 2 * MINUTE }) });
 
+	expect(checkNow().getAttribute('aria-busy')).toBe('false');
+	expect(turning()).not.toContain('animate-spin');
+
 	await fireEvent.click(checkNow());
 
 	await waitFor(() => expect(row().dataset.standing).toBe('syncing'));
 	expect(word()).toBe(en.organization.standing.state.syncing);
-	expect(glyphName()).toBe('refresh-cw');
+	expect(glyphName()).toBe('cloud-sync');
 	expect(toneClass()).toBe('text-info');
 	shape();
-	// the control keeps its name, and is not pressed twice while a run is out.
+	// the control is busy and its own glyph turns, and it is not pressed twice while a run is out.
+	expect(checkNow().getAttribute('aria-busy')).toBe('true');
+	expect(turning()).toContain('animate-spin');
+	expect(turning()).toContain('motion-reduce:animate-none');
 	expect(checkNow().disabled).toBe(true);
 
 	await releaseAll();
 
 	await waitFor(() => expect(row().dataset.standing).toBe('upToDate'));
 	expect(checkNow().disabled).toBe(false);
+	expect(checkNow().getAttribute('aria-busy')).toBe('false');
+	expect(turning()).not.toContain('animate-spin');
+});
+
+// ticket 38 of effort 846, as the update check's ticket 34: a reader who asked for less motion
+// meets the same busy control and the same tooltip, and a glyph that holds still.
+test('under reduced motion, the control is busy while a run is out and its glyph holds still', async () => {
+	reduce(true);
+	block({ syncState: fakeSyncState({ lastReachedAt: Date.now() - 2 * MINUTE }) });
+
+	await fireEvent.click(checkNow());
+
+	await waitFor(() => expect(checkNow().getAttribute('aria-busy')).toBe('true'));
+	expect(checkNow().getAttribute('aria-label')).toBe(en.organization.standing.state.syncing);
+	expect(turning()).not.toContain('animate-spin');
+
+	await releaseAll();
+
+	await waitFor(() => expect(checkNow().getAttribute('aria-busy')).toBe('false'));
 });
 
 test('syncing over not yet reached, started by the sync manager rather than the control', async () => {

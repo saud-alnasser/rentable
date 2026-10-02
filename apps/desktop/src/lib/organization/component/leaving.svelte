@@ -5,6 +5,7 @@
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Item from '@rentable/design/primitive/item/index.js';
 	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
+	import { tone } from '@rentable/design/tone.js';
 	import { toPageActions, type PageAction } from '$lib/act';
 	import { toErrorText } from '$lib/error/message';
 	import { LL } from '$lib/i18n/i18n-svelte';
@@ -23,6 +24,8 @@
 		type MemberActRecord
 	} from '$lib/organization/member/acts';
 	import { useDeleteOrganization, useDisconnectOrganization } from '$lib/organization/query';
+	import OrganizationForgetAccount from '$lib/organization/setup/component/forget-account.svelte';
+	import OrganizationTursoAccount from '$lib/organization/setup/component/turso-account.svelte';
 	import DoorOpenIcon from '@lucide/svelte/icons/door-open';
 
 	/**
@@ -34,12 +37,21 @@
 	 * organization stays on Turso and a new link brings them back. Being removed is done by
 	 * somebody above them, so nothing else here is theirs.
 	 *
-	 * **An owner meets three, in the order they would reach for them.** Handing over ownership
-	 * first, since that is how an owner steps away and keeps the organization; then disconnecting
-	 * this machine; then deleting the organization, last and set apart, as the one act nothing
-	 * undoes. The delete needs the Turso authority, so an owner whose machine holds none meets the
-	 * first two. Each act says what it ends in the line under its name, and no two look alike: the
-	 * handover is an ordinary row, and the two that end something are the group's error rows.
+	 * **An owner meets the Turso account first, then the acts, in the order they would reach for
+	 * them** (effort 846, ticket 38: "Fold it into Leaving"). The account is one row stating its
+	 * connection on this machine (`setup/component/turso-account.svelte`): connected, or not held
+	 * here with the reconnect. Then transferring ownership, since that is how an owner steps away
+	 * and keeps the organization; then forgetting the Turso account, where this machine holds it;
+	 * then disconnecting this machine; then deleting the organization, last and set apart, as the
+	 * one act nothing undoes. The forget and the delete need the Turso authority, so an owner whose
+	 * machine holds none meets the transfer and the disconnect. Each act says what it ends in the
+	 * line under its name, and no two share a glyph.
+	 *
+	 * **Every button here is red words and no glyph** (ticket 38, at the human's word of
+	 * 2026-10-02: "hand over owenrhips should be named transfer ownership and the button should be
+	 * transfer and in red and without icon the same for disconnect and delete"). The row's glyph
+	 * says what the row is about, and a button repeating it said it twice; the reconnect, the one
+	 * act that ends nothing, is words alone in the outline a benign act takes.
 	 *
 	 * **The handover is the act the owner's own member card carries, projected from the same
 	 * declaration** (`member/acts.ts`): the reader's own member record through `toPageActions`,
@@ -51,13 +63,14 @@
 	 *
 	 * *The disconnect and the delete stood under one legend as two paragraphs and two outline
 	 * buttons until effort 846, only the delete's label red; the handover lived on the owner's card
-	 * alone.*
+	 * alone. The Turso account was a card of its own above the mark until ticket 38.*
 	 */
 	let {
 		session,
 		members,
 		standings,
 		holdsTursoAuthority,
+		onReconnected,
 		leaveForTheWall
 	}: {
 		/** who is reading. */
@@ -66,8 +79,10 @@
 		members: OrganizationMember[];
 		/** where each account stands, which says who could be offered the organization. */
 		standings: MemberStanding[];
-		/** whether this machine holds the Turso authority the delete needs. */
+		/** whether this machine holds the Turso authority the forget and the delete need. */
 		holdsTursoAuthority: boolean;
+		/** the owner granted the consent again here, and the machine's standing wants reading again. */
+		onReconnected: () => void;
 		/** leave the area for the wall, once this machine lets go of the organization. */
 		leaveForTheWall: () => Promise<void>;
 	} = $props();
@@ -137,20 +152,22 @@
 	};
 
 	const reasonId = $props.id();
+
+	/** every button in the card that ends something: red words, the error tone on the act alone. */
+	const errorButton = `${tone({ tone: 'error' }).text()} hover:bg-destructive/10 hover:text-destructive`;
 </script>
 
 {#snippet handoverRow(act: PageAction, record: MemberActRecord)}
 	{@const offering = act.id === 'member.offerOwnership'}
-	{@const Icon = act.icon}
 	{#snippet consequence()}
 		<span data-leaving-consequence>
 			{offering
-				? $LL.organization.dashboard.handOverGoes()
+				? $LL.organization.dashboard.transferGoes()
 				: $LL.organization.dashboard.offerStandsGoes()}
 		</span>
 	{/snippet}
 
-	<SettingsRow icon={act.icon} name={act.label} meta={consequence}>
+	<SettingsRow icon={act.icon} name={act.label} tone="error" meta={consequence}>
 		{#snippet control({ labelId })}
 			<Tooltip.Root disabled={!act.unavailable}>
 				<Tooltip.Trigger>
@@ -160,9 +177,9 @@
 						<Button
 							{...props}
 							type="button"
-							variant="outline"
+							variant="ghost"
 							size="sm"
-							class={act.unavailable ? unavailableControl : undefined}
+							class="{errorButton} {act.unavailable ? unavailableControl : ''}"
 							aria-labelledby={labelId}
 							aria-disabled={act.unavailable ? 'true' : undefined}
 							aria-describedby={act.unavailable ? reasonId : undefined}
@@ -174,9 +191,8 @@
 								}
 							}}
 						>
-							<Icon class="size-4" />
 							{offering
-								? $LL.organization.dashboard.handOver()
+								? $LL.organization.dashboard.transfer()
 								: $LL.organization.dashboard.withdraw()}
 							{#if act.unavailable}
 								<span id={reasonId} class="sr-only">{act.unavailable}</span>
@@ -193,6 +209,16 @@
 {/snippet}
 
 {#snippet ending()}
+	{#if isOwner && handover && ownRecord}
+		{@render handoverRow(handover, ownRecord)}
+	{/if}
+
+	{#if isOwner && holdsTursoAuthority}
+		<!-- what this machine holds over the Turso account, given back here and confirmed, since the
+		     grant stays standing on Turso's side (effort 846, requirement 13). -->
+		<OrganizationForgetAccount />
+	{/if}
+
 	<OrganizationDisconnect
 		organizationName={session.organizationName}
 		{isOwner}
@@ -218,20 +244,24 @@
 	{/if}
 {/snippet}
 
-{#snippet handoverRows()}
-	{#if handover && ownRecord}
-		{@render handoverRow(handover, ownRecord)}
-	{/if}
+<!-- the owner's Turso account, the one row of the card that is a state rather than an act. -->
+{#snippet tursoAccount()}
+	<OrganizationTursoAccount
+		holdsAuthority={holdsTursoAuthority}
+		organizationId={session.organizationId}
+		organizationName={session.organizationName}
+		{onReconnected}
+	/>
 {/snippet}
 
-<!-- the last card of the section. A member, or an owner whose row is not
-     answered yet, meets the acts that end something alone, as the card's end after its header. -->
+<!-- the last card of the section. A member meets the disconnect alone, as the card's end after
+     its header; an owner meets the Turso account's row, then the acts. -->
 <div data-leaving class="contents">
 	<SettingsGroup
 		icon={DoorOpenIcon}
 		title={$LL.organization.dashboard.leavingTitle()}
 		description={$LL.organization.dashboard.leavingDescription()}
-		rows={isOwner && handover && ownRecord ? handoverRows : undefined}
+		rows={isOwner ? tursoAccount : undefined}
 		end={ending}
 	/>
 </div>

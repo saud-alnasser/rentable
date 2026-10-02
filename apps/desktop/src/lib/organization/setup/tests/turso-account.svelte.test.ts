@@ -5,6 +5,7 @@ import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
+import OrganizationForgetAccount from '$lib/organization/setup/component/forget-account.svelte';
 import OrganizationTursoAccount from '$lib/organization/setup/component/turso-account.svelte';
 import Providers from '#tests/providers.svelte';
 
@@ -12,10 +13,11 @@ import Providers from '#tests/providers.svelte';
  * THE TURSO ACCOUNT, AS A CONNECTION
  *
  * Ticket 05 of [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], criteria 13
- * and 2 for the owner's Turso group: one row naming the account and its state on this machine;
- * where it is held, forgetting it is the group's end row, in the error tone, asked first with the
- * sentence naming where the token is revoked; where it is not, the row carries a reconnect with
- * its glyph, and the consent's pending line and its refusal sit under that row.
+ * and 2, as ticket 38 folded the Turso account into the owner's leaving card: one row named for the
+ * account, its value its state on this machine; where it is held, forgetting it is an ending row,
+ * its button red words alone, asked first with the sentence naming where the token is revoked;
+ * where it is not, the row carries a reconnect in words alone, and the consent's pending line and
+ * its refusal sit under that row. Where the rows stand in the card is the area test's.
  *
  * **What reaches Rust is stood in for** at the way in's hooks, and the browser at `tauri`. How
  * far the consent has got is `answers.consent`, which the stand-in for the poll reads.
@@ -81,34 +83,30 @@ const shown = (holdsAuthority: boolean) =>
 		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } }
 	);
 
-const rows = () => [...document.querySelectorAll<HTMLElement>('[data-settings-row]')];
-const nameOf = (row: Element) => row.querySelector('[data-slot=item-title]')?.textContent?.trim();
+const forgetShown = () =>
+	render(
+		OrganizationForgetAccount,
+		{},
+		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } }
+	);
 
-test('held here: the account reads connected, and forget is the last row, in the error tone', () => {
+const rows = () => [...document.querySelectorAll<HTMLElement>('[data-settings-row]')];
+const nameOf = (row: Element) =>
+	row.querySelector('[data-slot=item-title] > span')?.textContent?.trim();
+const valueOf = (row: Element) => row.querySelector('[data-row-value]')?.textContent?.trim();
+
+test('held here: the row is named for the account and reads connected on this machine', () => {
 	shown(true);
 
-	const [account, forget] = rows();
+	const [account] = rows();
 
-	// the card is titled for the account, and its row names the account's state on this machine.
-	expect(document.querySelector('[data-turso-account] h2')?.textContent?.trim()).toBe(
-		en.organization.dashboard.authorityTitle
-	);
-	expect(rows().map(nameOf)).toEqual([
-		en.organization.dashboard.authorityConnected,
-		en.organization.dashboard.forgetAccount
-	]);
+	expect(rows()).toHaveLength(1);
+	expect(account.getAttribute('data-turso-account')).toBe('held');
+	expect(nameOf(account)).toBe(en.organization.dashboard.authorityTitle);
+	expect(valueOf(account)).toBe(en.organization.dashboard.authorityConnected);
 	expect(account.dataset.rowTone).toBe('neutral');
-	expect(forget.dataset.rowTone).toBe('error');
-	expect(forget.previousElementSibling?.getAttribute('data-slot')).toBe('item-separator');
-	expect(forget.querySelector('[data-slot=item-media] svg')).not.toBeNull();
-	expect(forget.querySelector('button svg')).not.toBeNull();
-	// labelled by its row, so a reader hears what it forgets rather than the verb alone.
-	expect(
-		screen.getByRole('button', { name: en.organization.dashboard.forgetAccount })
-	).toBeDefined();
-	expect(document.querySelector('[data-turso-account]')?.textContent).toContain(
-		en.organization.dashboard.forgetAccountDescription
-	);
+	// a state, and nothing to press but the fold.
+	expect(account.querySelectorAll('button:not([data-row-details-trigger])')).toHaveLength(0);
 });
 
 // effort 846, *Detail that few readers need folds under its row*: what the account holds for this
@@ -131,8 +129,27 @@ test('held here: what the account holds folds under the connected row', async ()
 	expect(detail.textContent).toContain('Acme Rentals');
 });
 
+test('forget is an error row whose button is red words alone, labelled by its row', () => {
+	forgetShown();
+
+	const [forget] = rows();
+
+	expect(nameOf(forget)).toBe(en.organization.dashboard.forgetAccount);
+	expect(forget.dataset.rowTone).toBe('error');
+	expect(forget.querySelector('[data-slot=item-media] svg')).not.toBeNull();
+	expect(forget.querySelector('[data-leaving-consequence]')?.textContent?.trim()).toBe(
+		en.organization.dashboard.forgetAccountDescription
+	);
+
+	const button = screen.getByRole('button', { name: en.organization.dashboard.forgetAccount });
+
+	expect(button.textContent?.trim()).toBe(en.organization.dashboard.forget);
+	expect(button.querySelector('svg')).toBeNull();
+	expect(button.className).toContain('text-destructive');
+});
+
 test('forget asks first, naming where the token is revoked, and forgets once answered', async () => {
-	shown(true);
+	forgetShown();
 
 	await fireEvent.click(document.querySelector('[data-forget-account-open]')!);
 
@@ -149,25 +166,26 @@ test('forget asks first, naming where the token is revoked, and forgets once ans
 	await waitFor(() => expect(answers.forgotten).toBe(1));
 });
 
-test('not held here: the account reads so, with a reconnect carrying its glyph, and no end', () => {
+test('not held here: the row reads so, says why, and reconnects in words alone', () => {
 	shown(false);
 
 	const [account] = rows();
 
 	expect(rows()).toHaveLength(1);
-	expect(document.querySelector('[data-turso-account] h2')?.textContent?.trim()).toBe(
-		en.organization.dashboard.authorityTitle
+	expect(account.getAttribute('data-turso-account')).toBe('not-held');
+	expect(nameOf(account)).toBe(en.organization.dashboard.authorityTitle);
+	expect(valueOf(account)).toBe(en.organization.dashboard.authorityNotHeld);
+	expect(account.querySelector('[data-row-meta]')?.textContent).toContain(
+		en.organization.dashboard.authorityFollowsTheAccount
 	);
-	expect(nameOf(account)).toBe(en.organization.dashboard.authorityNotHeld);
 	// nothing is held here, so nothing folds under it.
 	expect(account.querySelector('[data-row-details-trigger]')).toBeNull();
 
 	const reconnect = account.querySelector<HTMLElement>('[data-reconnect-authority-open]')!;
 
 	expect(reconnect.textContent?.trim()).toBe(en.organization.dashboard.reconnect);
-	expect(reconnect.querySelector('svg')).not.toBeNull();
+	expect(reconnect.querySelector('svg')).toBeNull();
 	expect(document.querySelector('[data-row-tone=error]')).toBeNull();
-	expect(document.querySelector('[data-forget-account-open]')).toBeNull();
 	expect(account.querySelector('[data-row-beneath]')).toBeNull();
 });
 
@@ -203,6 +221,6 @@ for (const [status, sentence] of [
 			).toContain(sentence)
 		);
 		// and the reconnect is still there to try again.
-		expect(account.querySelector('[data-reconnect-authority-open] svg')).not.toBeNull();
+		expect(account.querySelector('[data-reconnect-authority-open]')).not.toBeNull();
 	});
 }

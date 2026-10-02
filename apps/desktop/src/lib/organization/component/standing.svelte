@@ -7,6 +7,8 @@
 	import SettingsRow from '@rentable/design/block/settings-row.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
+	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
+	import { reducesMotion } from '@rentable/design/reduces-motion.js';
 	import DetailDisclosure from '$lib/error/component/detail-disclosure.svelte';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { useAccountRefusalDetail } from '$lib/organization/query';
@@ -24,6 +26,7 @@
 	import CircleCheckIcon from '@lucide/svelte/icons/circle-check';
 	import CloudIcon from '@lucide/svelte/icons/cloud';
 	import CloudOffIcon from '@lucide/svelte/icons/cloud-off';
+	import CloudSyncIcon from '@lucide/svelte/icons/cloud-sync';
 	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
 	import OctagonXIcon from '@lucide/svelte/icons/octagon-x';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
@@ -39,13 +42,19 @@
 	 * reached, needs attention, needs reconnecting. `sync/status.ts` decides which, and the order
 	 * its answers are read in; this draws what it decided. Under the word, on a line of its own,
 	 * when this machine last reached Turso, whenever it has; at the row's end the one control,
-	 * named "sync" since the human's second look on 2026-09-17. *Effort 828, requirement 25, had
+	 * named "sync" since the human's second look on 2026-09-17, an icon control named by its
+	 * tooltip since ticket 38 ("the sync button should be the icon only with tooltip maybe"). *Effort 828, requirement 25, had
 	 * retired the coloured word for one muted sentence, and nothing showed at a glance whether
 	 * sync was healthy; the human brought it back on 2026-10-02.*
 	 *
-	 * **The syncing glyph stands still.** A turning glyph is a spinner, and a spinner says only
-	 * that something is happening ([[rules/interface]], *Loading*); the word says it, and the tone
-	 * marks it, and nothing on the page moves for a run the heartbeat starts every five minutes.
+	 * **The state's glyph stands still, and the control's turns.** The syncing state is a cloud
+	 * with its arrows (`cloud-sync`), which holds still: the word says it, the tone marks it, and a
+	 * state is not a spinner ([[rules/interface]], *Loading*). The control's own glyph, the
+	 * arrows (`refresh-cw`), turns while a run is in flight, whoever started it, and the control is
+	 * `aria-busy` for as long, as the update check's does (ticket 34); a reader who asked for less
+	 * motion gets the same busy control with a glyph that holds still. The state's glyph is never
+	 * the control's: a button repeating its row's glyph says the row twice (ticket 38). *The
+	 * syncing state was the control's `refresh-cw` until then.*
 	 *
 	 * **A card, its state one `settings-row` reporting it** (effort 846,
 	 * *Everything in a tab is a card*): the row's glyph and name take the state's tone
@@ -61,11 +70,12 @@
 	 * the owner's dashboard control, the credential refusal's sentence, or the fault's own
 	 * sentence with what was said behind a disclosure.
 	 *
-	 * **The reconnect stays in the Turso account group below.** "Needs reconnecting" is a replica
-	 * fault, while the authority is the owner's consent, a different fact with a group of its own
-	 * directly under this one. So where both hold, this points at that group in a sentence rather
-	 * than drawing a second consent; where the machine holds no authority and the replica is fine,
-	 * the group below says so and this says up to date, which is true of the replica.
+	 * **The reconnect stays on the Turso account's row, in the leaving card.** "Needs
+	 * reconnecting" is a replica fault, while the authority is the owner's consent, a different
+	 * fact with a row of its own (ticket 38 folded the Turso account card into leaving). So where
+	 * both hold, this points at that row in a sentence rather than drawing a second consent; where
+	 * the machine holds no authority and the replica is fine, that row says so and this says up to
+	 * date, which is true of the replica.
 	 *
 	 * *It was `workspace/component/sync.svelte`, a badge and a button that spoke of the workspace;
 	 * then a bordered inset panel; then a row like every block on the page (2026-08-21); then one
@@ -80,14 +90,14 @@
 		syncState: RemoteSyncState;
 		/** who is reading, for the one sentence that differs by reader (effort 819, requirement 25). */
 		session?: OrganizationSession | null;
-		/** an owner whose machine holds no Turso authority, whose reconnect is the group below. */
+		/** an owner whose machine holds no Turso authority, whose reconnect is in the leaving card. */
 		needsAuthority?: boolean;
 	} = $props();
 
 	/** each state's glyph, beside its tone in `sync/status.ts`: the plan's table, in pictures. */
 	const GLYPH: Record<SyncStatus, Component<{ class?: string }>> = {
 		upToDate: CircleCheckIcon,
-		syncing: RefreshCwIcon,
+		syncing: CloudSyncIcon,
 		notYetReached: CloudOffIcon,
 		needsAttention: TriangleAlertIcon,
 		needsReconnecting: OctagonXIcon
@@ -141,7 +151,17 @@
 			(problem === 'needsReconnect' && (fault !== null || needsAuthority))
 	);
 
+	/** the reader asked for less motion, read as a run is asked for, so the glyph holds still. */
+	let holdsStill = $state(reducesMotion());
+
+	/** the control's name, which says what it is doing while it does it. */
+	const checkLabel = $derived(
+		isChecking ? syncStatusWord('syncing', $LL) : $LL.organization.standing.checkNow()
+	);
+
 	async function checkNow() {
+		holdsStill = reducesMotion();
+
 		try {
 			await syncWorkspaceMutation.mutateAsync();
 		} catch {
@@ -168,19 +188,37 @@
 {/snippet}
 
 {#snippet checkNowControl()}
-	<!-- outline rather than solid, since the act is offered and never invited; the verb's glyph
-	     before its label, as every control here carries one. -->
-	<Button
-		type="button"
-		variant="outline"
-		size="sm"
-		data-check-now
-		onclick={() => void checkNow()}
-		disabled={isChecking}
-	>
-		<RefreshCwIcon class="size-4" />
-		{$LL.organization.standing.checkNow()}
-	</Button>
+	<!-- an icon control named by its tooltip and its accessible name alike, outline since the act
+	     is offered and never invited. Its glyph turns while a run is in flight, as the spinner
+	     turns; still where the reader asked for less motion, and the media query holds it still
+	     should they ask while it turns. -->
+	<Tooltip.Root>
+		<Tooltip.Trigger>
+			{#snippet child({ props })}
+				<Button
+					{...props}
+					type="button"
+					variant="outline"
+					size="icon-sm"
+					aria-label={checkLabel}
+					aria-busy={isChecking}
+					data-check-now
+					onclick={() => void checkNow()}
+					disabled={isChecking}
+				>
+					<RefreshCwIcon
+						class="size-4 {isChecking && !holdsStill
+							? 'animate-spin motion-reduce:animate-none'
+							: ''}"
+						data-check-now-glyph
+					/>
+				</Button>
+			{/snippet}
+		</Tooltip.Trigger>
+		<Tooltip.Content side="top" sideOffset={8} data-check-now-hint>
+			{checkLabel}
+		</Tooltip.Content>
+	</Tooltip.Root>
 {/snippet}
 
 <!-- beneath the state, only what its problem calls for, inside the row it explains, and never

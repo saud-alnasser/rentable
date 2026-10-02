@@ -31,7 +31,6 @@
 	import OrganizationMembers from '$lib/organization/member/component/directory.svelte';
 	import OrganizationRoles from '$lib/organization/role/component/directory.svelte';
 	import OrganizationStanding from '$lib/organization/component/standing.svelte';
-	import OrganizationTursoAccount from '$lib/organization/setup/component/turso-account.svelte';
 	import { memberReaderOf } from '$lib/organization/member/acts';
 	import { roleReaderOf } from '$lib/organization/role/acts';
 	import { useFetchOrganizationState } from '$lib/organization/query';
@@ -43,8 +42,8 @@
 
 	/**
 	 * The settings area's organization section: where this machine stands with the organization
-	 * on Turso, the mark its pages print, the Turso account, the roles and the people, and the ways
-	 * a reader steps away (`leaving.svelte`). The organization contributes it (`surface.ts`), and the area draws
+	 * on Turso, the mark its pages print, the roles and the people, and the ways a reader steps
+	 * away (`leaving.svelte`), which holds an owner's Turso account. The organization contributes it (`surface.ts`), and the area draws
 	 * it while somebody is signed in.
 	 *
 	 * **What it reads and writes is its own**, the way a record's section reads its records. A
@@ -90,29 +89,18 @@
 	<!-- each block is a card, one under the next in the section's column (effort 846, *Everything
 	     in a tab is a card*, and requirement 1 as revised on 2026-10-02): how this machine stands
 	     to the organization first, since it is what the section is about and what a reader who
-	     came here worried is looking for; then the Turso account, which a member does not meet,
-	     and the signature or seal; then the roles and the people, two directories never boxed,
-	     since their records are cards already; then the ways a reader steps away, last. *The
+	     came here worried is looking for; then the signature or seal; then the roles and the
+	     people, two directories never boxed, since their records are cards already; then the
+	     ways a reader steps away, last, which for an owner holds the Turso account. *The
 	     directory stood first until the human read the four sections and asked for the elements in
 	     each to be ordered; the cards stood two to a row for a day until the human asked for each
-	     under the next.* -->
+	     under the next; the Turso account was a card of its own until ticket 38 folded it into
+	     leaving.* -->
 	<SettingsGrid>
 		{#if syncQuery.data}
 			<div data-standing-block class="contents">
 				<OrganizationStanding syncState={syncQuery.data} {session} {needsAuthority} />
 			</div>
-		{/if}
-
-		<!-- the Turso account, which is the owner's alone: one row naming the connection and its
-		     state on this machine, reconnected where this machine holds no authority and given
-		     back, at the card's end, where it does (effort 846, requirement 13). -->
-		{#if isOwner}
-			<OrganizationTursoAccount
-				holdsAuthority={!needsAuthority}
-				organizationId={session.organizationId}
-				organizationName={session.organizationName}
-				onReconnected={() => void stateQuery.refetch()}
-			/>
 		{/if}
 
 		<!-- what the organization prints on its pages: everybody sees it, and whoever holds the
@@ -147,14 +135,16 @@
 		{/if}
 
 		<!-- and the foot: the ways a reader steps away, told apart by who is reading (effort 846,
-		     requirement 14). A member meets the disconnect alone; an owner meets the handover first,
-		     then the disconnect, then the delete, last and set apart, which needs the authority the
-		     Turso card is about. -->
+		     requirement 14). A member meets the disconnect alone; an owner meets the Turso account's
+		     row first, reconnected where this machine holds no authority (requirement 13, folded in
+		     by ticket 38), then the transfer, the forget, the disconnect, and the delete, last and
+		     set apart. -->
 		<OrganizationLeaving
 			{session}
 			{members}
 			standings={standingsQuery.data ?? []}
 			{holdsTursoAuthority}
+			onReconnected={() => void stateQuery.refetch()}
 			{leaveForTheWall}
 		/>
 	</SettingsGrid>

@@ -3871,7 +3871,7 @@ type RootTranslation = {
 			 */
 			lastReached: RequiredParams<'moment'>
 			/**
-			 * r​e​c​o​n​n​e​c​t​ ​o​n​ ​t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​ ​c​a​r​d​.
+			 * r​e​c​o​n​n​e​c​t​ ​t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​ ​u​n​d​e​r​ ​l​e​a​v​i​n​g​.
 			 */
 			reconnectOnAccount: string
 			/**
@@ -4032,7 +4032,7 @@ type RootTranslation = {
 			 */
 			makeLink: string
 			/**
-			 * h​a​n​d​ ​o​v​e​r​ ​o​w​n​e​r​s​h​i​p
+			 * t​r​a​n​s​f​e​r​ ​o​w​n​e​r​s​h​i​p
 			 */
 			transferOwnership: string
 			/**
@@ -4312,13 +4312,13 @@ type RootTranslation = {
 			 */
 			disconnectComesBack: string
 			/**
-			 * h​a​n​d​ ​o​v​e​r
+			 * t​r​a​n​s​f​e​r
 			 */
-			handOver: string
+			transfer: string
 			/**
 			 * t​h​e​ ​m​e​m​b​e​r​ ​y​o​u​ ​c​h​o​o​s​e​ ​b​e​c​o​m​e​s​ ​t​h​e​ ​o​w​n​e​r​ ​o​n​c​e​ ​t​h​e​y​ ​a​c​c​e​p​t​,​ ​a​n​d​ ​y​o​u​ ​s​t​a​y​ ​o​n​ ​a​s​ ​a​ ​m​a​n​a​g​e​r​.
 			 */
-			handOverGoes: string
+			transferGoes: string
 			/**
 			 * w​i​t​h​d​r​a​w
 			 */
@@ -4506,7 +4506,7 @@ type RootTranslation = {
 			 */
 			tursoAccount: string
 			/**
-			 * h​a​n​d​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​o​v​e​r
+			 * t​r​a​n​s​f​e​r​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n
 			 */
 			transferOwnership: string
 			/**
@@ -8687,7 +8687,7 @@ export type TranslationFunctions = {
 			 */
 			lastReached: (arg: { moment: string }) => LocalizedString
 			/**
-			 * reconnect on the Turso account card.
+			 * reconnect the Turso account under leaving.
 			 */
 			reconnectOnAccount: () => LocalizedString
 			/**
@@ -8845,7 +8845,7 @@ export type TranslationFunctions = {
 			 */
 			makeLink: () => LocalizedString
 			/**
-			 * hand over ownership
+			 * transfer ownership
 			 */
 			transferOwnership: () => LocalizedString
 			/**
@@ -9115,13 +9115,13 @@ export type TranslationFunctions = {
 			 */
 			disconnectComesBack: () => LocalizedString
 			/**
-			 * hand over
+			 * transfer
 			 */
-			handOver: () => LocalizedString
+			transfer: () => LocalizedString
 			/**
 			 * the member you choose becomes the owner once they accept, and you stay on as a manager.
 			 */
-			handOverGoes: () => LocalizedString
+			transferGoes: () => LocalizedString
 			/**
 			 * withdraw
 			 */
@@ -9309,7 +9309,7 @@ export type TranslationFunctions = {
 			 */
 			tursoAccount: () => LocalizedString
 			/**
-			 * hand the organization over
+			 * transfer the organization
 			 */
 			transferOwnership: () => LocalizedString
 			/**

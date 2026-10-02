@@ -17,6 +17,7 @@
 	import CircleFadingArrowUpIcon from '@lucide/svelte/icons/circle-fading-arrow-up';
 	import DownloadIcon from '@lucide/svelte/icons/download';
 	import PackageIcon from '@lucide/svelte/icons/package';
+	import PackagePlusIcon from '@lucide/svelte/icons/package-plus';
 	import PowerIcon from '@lucide/svelte/icons/power';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 	import { onDestroy } from 'svelte';
@@ -35,6 +36,10 @@
 	 * and the download's progress stands at the card's foot on the shared progress bar while it
 	 * runs, never folded. *The notes stood in a second box below the group, and the progress was a
 	 * bar drawn by hand, until then.*
+	 *
+	 * **The available version leads with `package-plus`**, beside the current one's `package`, so
+	 * the install's `download` is the one download glyph on its row (ticket 38: no button repeats
+	 * its row's glyph).
 	 *
 	 * **The way forward is a labelled button with a glyph, and the check is an icon control named
 	 * by a tooltip** (effort 846, at the human's word of 2026-10-02: "the check for updates button
@@ -313,7 +318,7 @@
 			</SettingsRow>
 
 			<SettingsRow
-				icon={DownloadIcon}
+				icon={PackagePlusIcon}
 				name={$LL.common.labels.availableVersion()}
 				details={release ? whatsNew : undefined}
 				detailsLabel={release ? $LL.settings.whatsNew({ version: release.version }) : undefined}

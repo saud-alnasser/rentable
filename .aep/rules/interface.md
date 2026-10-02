@@ -180,14 +180,26 @@ width, and those that end something are written last. The roles, members and wor
 directories are not boxed: their heading takes the card's header, the tray sits under it, the
 record cards follow, so no box sits in a box. A notice waiting on the reader, the ownership offer,
 is a callout in the column rather than a card of one row. A row's control whose words a tooltip
-can carry is an icon control named by one (the log folder's reveal, the check for updates); the
-way forward and every act that ends something keep their words, save the one that sits on a
-picture (below). A choice explains itself, with no
+can carry is an icon control named by one (the log folder's reveal, the check for updates, sync);
+the way forward and every act that ends something keep their words, save the one that sits on a
+picture (below). **No button repeats the glyph
+its row or its card already shows**, in any tab: a row's control is words alone, or an icon alone
+named by a tooltip, and never the row's own glyph again, since the glyph already said what the row
+is about (a row whose control must keep a glyph leads with another, as the available version's
+`package-plus` beside the install's `download`). Every act in a card's end is red words with no
+glyph. The organization's leaving card holds, for an owner, the Turso account: one row stating
+its connection on this machine (connected, or not held here with *reconnect* in words), then the
+acts, *transfer ownership* (its button *transfer*, refused with its reason where nobody can take
+it), *forget Turso account* (confirmed, naming where the token is revoked), *disconnect this
+machine*, and *delete organization* last and set apart; a member meets the disconnect alone. There
+is no Turso account card. A choice explains itself, with no
 sentence under it; where one segment's effect is not in its word (appearance's *system*), that
 segment alone says it in a tooltip. A value not yet known is not drawn, never a word standing in
 for one (the available version before a check). An icon control may show what it is doing with its
 own glyph and nothing else: the check for updates turns its glyph while a check runs, `aria-busy`
-for as long, and stops when it answers; the log folder's reveal crosses from a closed folder to an
+for as long, and stops when it answers, and sync turns its glyph the same way while a run is in
+flight, whoever started it, the state row's own glyph (`cloud-sync` while syncing) standing still;
+the log folder's reveal crosses from a closed folder to an
 open one when pressed and closes again. Both move on the motion tokens and hold still for a reader
 who asked for less motion ([[rules/frontend]], *Motion*), the state still changing. A
 picture the reader may change is itself the control that changes it, as a profile picture is: the
@@ -203,7 +215,7 @@ expander on the `collapsible` primitive, in the manner of Fluent's settings expa
 the name, the value and the control stay in view, a chevron after them opens the detail beneath,
 labelled by what it opens, one level only, closed by default and remembered while the application
 runs. Three rows take it: the available version's release notes, the sync state's machine detail (the workspace this machine keeps and where its copy is), and the
-Turso connection's database and organization. **Never folded**: a status word or its problem's
+Turso account row's database and organization, in the leaving card. **Never folded**: a status word or its problem's
 callout, the last time Turso was reached, a download in progress, the ownership offer, the machines
 list, the earlier-records callout, the log folder's path (a line of facts with room to stand whole),
 and every act in a card's end, which `settings-row` refuses to
@@ -213,12 +225,16 @@ reports no condition, it ends nothing, and the row's header still says what matt
 *Why: the human found the settings a linear column of sentences and asked for "cards and section
 of grids", then for everything in a tab to be a card, and then why the collapsible primitive went
 unused. Walking the built two-column grid, they asked for "each card is under the next card" and
-for "only the action button" to be red. Of the stamp's remove row they asked that it "needs to be
-integrated in into the part of the image not a separate thing", named the organization stamp. Every settings pane the research saw is one column. Every
+for "only the action button" to be red. Then they found "odd using the same icon of the sectio
+ntitle and descripto in the action button", asked for *transfer ownership* with a red *transfer*
+and red text disconnect and delete, asked that the sync button be "the icon only with tooltip",
+and, finding the Turso account card said what disconnect says, chose to "Fold it into Leaving". Of the stamp's remove row they asked that it "needs to be
+integrated in into the part of the image not a separate thing", named the organization stamp.
+Every settings pane the research saw is one column. Every
 disclosure guideline read (Apple's disclosure controls, GOV.UK's details, Microsoft's settings
 expander, Android's advanced settings) agrees on the fold's test.* *Added by
 [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirement 1 as widened on
-2026-10-02, ticket 21, and revised the same day, tickets 31, 34 and 36; evidence in its
+2026-10-02, ticket 21, and revised the same day, tickets 31, 34, 36 and 38; evidence in its
 `evidence/research/settings-*-as-cards.md` and `how-production-apps-organize-a-settings-section.md`.*
 
 ## Tone
