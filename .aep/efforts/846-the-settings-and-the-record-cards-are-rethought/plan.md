@@ -277,7 +277,7 @@ the content and both action routes are untouched.
 | --- | --- | --- | --- | --- | --- |
 | tenant | 300 | 144 | name | national id (`id-card`, ltr), phone; a chip per non-zero contract status count, word included; *no contracts* when all are zero | none |
 | complex | 300 | 120 | name | location (`map-pin`); units, occupied, vacant, zeros hidden | none |
-| unit (a complex's units) | 300 | 64, stays a row | name, status with word | occupant (`user`) | none |
+| unit (a complex's units) | none, a row | 64, the row it has | name, status with word | occupant (`user`) | none |
 | contract (all three surfaces) | 300 | 184 | tenant name or reference, status with word | reference (`hash`), dates (`calendar-range`), cost per interval, paid of expected with the ring, payments when above zero, its units | units' names through `contract_unit`, gated on unit view |
 
 The heights are starting values, **prototyped in Arabic on real workspace data before they are
