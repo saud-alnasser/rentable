@@ -1,4 +1,4 @@
-import { fireEvent, render } from '@testing-library/svelte';
+import { fireEvent, render, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest';
 
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
@@ -25,7 +25,15 @@ import type { ListSort } from '@rentable/design/sort.js';
 const { reads, created } = vi.hoisted(() => ({
 	reads: {
 		payments: null as null | (() => { sort?: ListSort | null }),
-		rows: [] as { id: string; date: number; amount: number; contractId: string }[]
+		rows: [] as {
+			id: string;
+			date: number;
+			amount: number;
+			contractId: string;
+			method?: string | null;
+			reference?: string | null;
+			note?: string | null;
+		}[]
 	},
 	created: [] as unknown[]
 }));
@@ -92,6 +100,7 @@ beforeEach(() => {
 
 afterEach(() => {
 	document.body.innerHTML = '';
+	vi.restoreAllMocks();
 });
 
 const ledger = () =>
@@ -165,4 +174,60 @@ test("a terminated contract's ledger shows its import refused, with the create's
 	expect(entry, 'the import is still offered').not.toBeNull();
 	expect(entry?.getAttribute('aria-disabled')).toBe('true');
 	expect(describedBy(entry)).toBe(en.contracts.payments.terminatedNotice);
+});
+
+// ticket 19 of [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirement 20: a
+// row says how the payment was made where that was recorded, and stays the day and the amount alone
+// where it was not. The months and their totals stay over the rows.
+test('a row says how it was paid, and one recorded without it is the day and the amount', async () => {
+	reads.rows = [
+		{
+			id: 'paid-by-cheque',
+			date: Date.UTC(2026, 2, 14),
+			amount: 1500,
+			contractId: 'contract-1',
+			method: 'cheque',
+			reference: 'CHQ-0042',
+			note: 'handed over at the office'
+		},
+		{ id: 'paid-bare', date: Date.UTC(2026, 1, 3), amount: 900, contractId: 'contract-1' }
+	];
+
+	// the list draws only the rows in its viewport, and jsdom measures nothing.
+	vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(800);
+	vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(600);
+
+	ledger();
+
+	/** the card a payment's link sits on. */
+	const row = (id: string) =>
+		document.querySelector(`a[href$="/contracts/payments/${id}"]`)?.parentElement as HTMLElement;
+
+	await waitFor(() => expect(row('paid-by-cheque')).toBeTruthy());
+
+	const described = row('paid-by-cheque');
+	const method = described.querySelector('[data-payment-method]');
+
+	expect(method?.textContent?.trim()).toBe(en.contracts.payments.methods.cheque);
+	// the glyph is beside the word, and silent.
+	expect(method?.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
+	expect(described.querySelector('[data-payment-reference] [dir=ltr]')?.textContent).toBe(
+		'CHQ-0042'
+	);
+	expect(described.querySelector('[data-payment-note]')?.textContent).toContain(
+		'handed over at the office'
+	);
+
+	const bare = row('paid-bare');
+
+	expect(bare.querySelector('[data-payment-how]'), 'no second line, and no empty slot').toBeNull();
+	expect(bare.querySelector('svg.lucide-hand-coins, svg.lucide-landmark')).toBeNull();
+	expect(bare.textContent).toContain('900');
+
+	// a month header with its total over each month's rows, as before: two months, two headers.
+	const totals = [...document.querySelectorAll('.sr-only')].filter((node) =>
+		node.textContent?.includes(en.contracts.payments.monthTotal.replace(' {month}', ''))
+	);
+
+	expect(totals).toHaveLength(2);
 });

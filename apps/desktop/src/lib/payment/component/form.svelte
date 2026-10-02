@@ -25,6 +25,7 @@
 	import { onMutationError } from '$lib/mutation/ui';
 	import { fieldOfFailure, toRefusalText } from '$lib/error/refusal';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
+	import { paymentMethods } from '$lib/payment/method';
 	import { useCreatePayment, useUpdatePayment } from '$lib/payment/query';
 	import { DateFormatter, type CalendarDate } from '@internationalized/date';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
@@ -80,14 +81,8 @@
 		onCreated?: (created: { id: string }) => void;
 	} = $props();
 
-	// the four ways a payment is made, in the order a reader meets them: in hand, by the bank, by a
-	// cheque, through Ejar's SADAD bill.
-	const methods: { value: PaymentMethod; label: () => string }[] = [
-		{ value: 'cash', label: () => $LL.contracts.payments.methods.cash() },
-		{ value: 'bank-transfer', label: () => $LL.contracts.payments.methods.bankTransfer() },
-		{ value: 'cheque', label: () => $LL.contracts.payments.methods.cheque() },
-		{ value: 'ejar', label: () => $LL.contracts.payments.methods.ejar() }
-	];
+	// the four ways a payment is made, worded where every surface reads them.
+	const methods = $derived(paymentMethods($LL));
 
 	let dateFormatter = $derived(new DateFormatter(getIntlLocale($locale), { dateStyle: 'medium' }));
 
@@ -384,7 +379,7 @@
 				>
 					{#each methods as method (method.value)}
 						<ToggleGroup.Item value={method.value} class="flex-1">
-							{method.label()}
+							{method.label}
 						</ToggleGroup.Item>
 					{/each}
 				</ToggleGroup.Root>
