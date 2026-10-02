@@ -103,7 +103,13 @@ statement read in time order, and each payment row says how it was paid.
    state where it has one, and its control, with at most one line of explanation, under the group
    rather than inside every row. The section switch names each section with an icon beside its
    word. The members and roles directories keep their tray and their cards; only their heading
-   takes the group's treatment. *Added 2026-10-02, at the human's word mid-run ("maybe settings in
+   takes the group's treatment. *Revised 2026-10-02 after the human looked at the built cards, in
+   their words: "in general settings what i mean is each card is under the next card; also for logs the open log oflder should be just hte icon; also whey there's a collapsoable on the diangostics; on the appearnce the explaintion on the button feels ood; also the same thing for the account tab each card needs to be in a sequeintal order these cards are looking good; the members grid record needs to be a gird of 3 columns or 2 like the other re cords shows more data better; the workspaces gird card needs to be more informative and better looking; also i've noticed a ting that red dangours actions title and action are in red; only the action button shoud be in red". So: a tab's cards stand one under the next in a single column,
+   in every tab; in a card's ending rows only the act's button takes the error tone, the row's
+   glyph and name stay neutral; the diagnostics card folds nothing and reveals its folder with an
+   icon button; appearance carries no sentence of explanation under its choice; the members
+   directory is a grid of member cards, two or three across, each saying more; and a workspace
+   card says more and is drawn better.* *Added 2026-10-02, at the human's word mid-run ("maybe settings in
    a section tab does not need to be sequential linear maybe they are cards and section of
    grids"):* a section is not one linear column. Its groups are cards laid out in a grid, two
    columns where the section is wide enough and one where it is not, each card holding its own
