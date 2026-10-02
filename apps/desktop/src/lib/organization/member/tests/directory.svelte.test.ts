@@ -366,18 +366,16 @@ test('a card says how many workspaces are held, as one fact, and names none of t
 		return [line.getAttribute('data-member-workspaces'), line.textContent?.trim()];
 	};
 
-	// many, one, and none: the count pluralised by the locale layer rather than by a figure printed
-	// beside a fixed word, and none said in words rather than as a zero.
+	// many, one, and none: the figure under the field's name (effort 846, ticket 37), numbered by
+	// the locale layer, and none said in words rather than as a zero.
 	const translations = i18nObject('en');
 
-	expect(held('ada')).toEqual(['2', '2 workspaces']);
-	expect(held('sami')).toEqual(['1', '1 workspace']);
+	expect(held('ada')).toEqual(['2', '2']);
+	expect(held('sami')).toEqual(['1', '1']);
 	expect(held('owner')).toEqual(['0', en.organization.dashboard.memberCard.noWorkspaces]);
-	expect(translations.organization.dashboard.memberCard.workspaces({ count: 2 })).toBe(
-		'2 workspaces'
-	);
-	expect(translations.organization.dashboard.memberCard.workspaces({ count: 1 })).toBe(
-		'1 workspace'
+	expect(translations.organization.dashboard.memberCard.workspaceCount({ count: 2 })).toBe('2');
+	expect(translations.organization.dashboard.memberCard.workspaceCount({ count: 1000 })).toBe(
+		'1,000'
 	);
 
 	// and no workspace is named on a card any more, nor what it is good for.
@@ -1434,13 +1432,13 @@ test('and in arabic every card reads in its own words, right to left', async () 
 	expect(card('sami')?.querySelector('[data-member-password]')?.textContent?.trim()).toBe(
 		ar.organization.dashboard.memberCard.noPassword
 	);
-	// the count line too, pluralised and numbered by the Arabic locale rather than by a
-	// substitution this test performs.
+	// the count too, numbered by the Arabic locale rather than by a substitution this test
+	// performs, under the field's own name in Arabic.
 	expect(card('sami')?.querySelector('[data-member-workspaces]')?.textContent?.trim()).toBe(
-		i18nObject('ar').organization.dashboard.memberCard.workspaces({ count: 1 })
+		i18nObject('ar').organization.dashboard.memberCard.workspaceCount({ count: 1 })
 	);
-	expect(ar.organization.dashboard.memberCard.workspaces).not.toBe(
-		en.organization.dashboard.memberCard.workspaces
+	expect(ar.organization.dashboard.memberCard.noWorkspaces).not.toBe(
+		en.organization.dashboard.memberCard.noWorkspaces
 	);
 	expect(ar.organization.dashboard.memberCard.noPassword).not.toBe(
 		en.organization.dashboard.memberCard.noPassword

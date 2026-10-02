@@ -3933,35 +3933,42 @@ type RootTranslation = {
 			workspaceMade: RequiredParams<'date'>
 			memberCard: {
 				/**
-				 * p​a​s​s​w​o​r​d​ ​s​e​t
+				 * p​a​s​s​w​o​r​d
+				 */
+				password: string
+				/**
+				 * s​e​t
 				 */
 				passwordSet: string
 				/**
-				 * n​o​ ​p​a​s​s​w​o​r​d​ ​y​e​t
+				 * n​o​t​ ​y​e​t
 				 */
 				noPassword: string
 				/**
-				 * s​i​g​n​e​d​ ​i​n​ ​o​n​ ​a​ ​m​a​c​h​i​n​e
+				 * m​a​c​h​i​n​e
+				 */
+				machine: string
+				/**
+				 * s​i​g​n​e​d​ ​i​n
 				 */
 				signedIn: string
 				/**
-				 * n​o​ ​m​a​c​h​i​n​e​ ​s​i​g​n​e​d​ ​i​n
+				 * n​o​n​e
 				 */
 				noMachine: string
 				/**
-				 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​w​o​r​k​s​p​a​c​e​|​w​o​r​k​s​p​a​c​e​s​}​}
-				 * @param {string | number | boolean} count
+				 * {​c​o​u​n​t​|​n​u​m​b​e​r​}
+				 * @param {unknown} count
 				 */
-				workspaces: RequiredParams<'count|number'>
+				workspaceCount: RequiredParams<'count|number'>
 				/**
-				 * n​o​ ​w​o​r​k​s​p​a​c​e​s
+				 * n​o​n​e
 				 */
 				noWorkspaces: string
 				/**
-				 * j​o​i​n​e​d​ ​{​d​a​t​e​}
-				 * @param {string} date
+				 * j​o​i​n​e​d
 				 */
-				joined: RequiredParams<'date'>
+				joined: string
 				/**
 				 * p​e​r​m​i​s​s​i​o​n​s​ ​o​f​ ​t​h​e​i​r​ ​o​w​n
 				 */
@@ -8690,33 +8697,41 @@ export type TranslationFunctions = {
 			workspaceMade: (arg: { date: string }) => LocalizedString
 			memberCard: {
 				/**
-				 * password set
+				 * password
+				 */
+				password: () => LocalizedString
+				/**
+				 * set
 				 */
 				passwordSet: () => LocalizedString
 				/**
-				 * no password yet
+				 * not yet
 				 */
 				noPassword: () => LocalizedString
 				/**
-				 * signed in on a machine
+				 * machine
+				 */
+				machine: () => LocalizedString
+				/**
+				 * signed in
 				 */
 				signedIn: () => LocalizedString
 				/**
-				 * no machine signed in
+				 * none
 				 */
 				noMachine: () => LocalizedString
 				/**
-				 * {count|number} {{workspace|workspaces}}
+				 * {count|number}
 				 */
-				workspaces: (arg: { count: string | number | boolean }) => LocalizedString
+				workspaceCount: (arg: { count: unknown }) => LocalizedString
 				/**
-				 * no workspaces
+				 * none
 				 */
 				noWorkspaces: () => LocalizedString
 				/**
-				 * joined {date}
+				 * joined
 				 */
-				joined: (arg: { date: string }) => LocalizedString
+				joined: () => LocalizedString
 				/**
 				 * permissions of their own
 				 */

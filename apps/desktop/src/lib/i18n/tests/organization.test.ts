@@ -141,7 +141,8 @@ test('both locales say where an account stands, in four facts that differ', () =
 		}
 	}
 
-	assert.match(en.organization.dashboard.memberCard.noPassword, /^no password yet$/);
+	// said under the field's own name, *password* (effort 846, ticket 37).
+	assert.match(en.organization.dashboard.memberCard.noPassword, /^not yet$/);
 	assert.notEqual(
 		ar.organization.dashboard.memberCard.signedIn,
 		en.organization.dashboard.memberCard.signedIn

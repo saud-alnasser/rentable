@@ -117,14 +117,15 @@ export const organization = {
 		workspaceSetForYou: 'مخصّصة لك',
 		workspaceMade: 'أُنشئت في {date}',
 		memberCard: {
-			passwordSet: 'كلمة المرور معيّنة',
-			noPassword: 'لا كلمة مرور بعد',
-			signedIn: 'مسجّل الدخول على جهاز',
-			noMachine: 'لا جهاز مسجّل الدخول',
-			workspaces:
-				'{count|number} {{مساحة عمل|مساحة عمل|مساحتا عمل|مساحات عمل|مساحة عمل|مساحة عمل}}',
-			noWorkspaces: 'لا مساحات عمل',
-			joined: 'انضم في {date}',
+			password: 'كلمة المرور',
+			passwordSet: 'معيّنة',
+			noPassword: 'ليست بعد',
+			machine: 'الجهاز',
+			signedIn: 'مسجّل الدخول',
+			noMachine: 'لا يوجد',
+			workspaceCount: '{count|number}',
+			noWorkspaces: 'لا توجد',
+			joined: 'انضم',
 			ownPermissions: 'صلاحيات خاصة به',
 			offered: 'عُرضت عليه المؤسسة'
 		},

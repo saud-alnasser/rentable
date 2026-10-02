@@ -298,7 +298,10 @@ what the fact is, then the fact, muted and small, so no label is written beside 
 line sets the same fixed leading, `factLeading`, 20 px in both locales, because the list lays its
 tiles at the height a concept declares rather than measuring them, and a line left to inherit its
 leading is near 22 px in Arabic and overlaps the tile below. A line added to a tile, or one drawn
-without that leading, changes the concept's declared height too.
+without that leading, changes the concept's declared height too. The member tile is the one
+exception, at the human's word of 2026-10-02: its facts are four short values side by side, the
+case where a name is wanted to tell them apart, so each is a tinted field carrying its name small
+above the value, every line still at the same fixed leading.
 
 **The complexes, tenants, contracts, members and workspaces are grids; a complex's units are not.** Each tile is the
 concept's own component, at the height its list declares:
@@ -318,11 +321,15 @@ concept's own component, at the height its list declares:
   in the reader's list style, each a fact; at its foot the ring with the paid and expected amounts
   beside it, the cost with its interval, and how many payments it holds, drawn only above zero.
   Where the reader may not view tenants the reference leads instead and is not repeated.
-- **A member** (`organization/member/component/card.svelte`, `MEMBER_TILE_HEIGHT`, 188 px, in the
+- **A member** (`organization/member/component/card.svelte`, `MEMBER_TILE_HEIGHT`, 228 px, in the
   settings' members directory): the avatar's initials, the username and the role badge on the
-  heading line, then whether the account has a password, whether a machine is signed in on it, how
-  many workspaces it holds (in words when none) and when it joined; at its foot, only where they
-  apply, permissions of its own and an organization offered to it.
+  heading line, then its facts as four fields in a grid two across, each a rounded tile in the
+  muted token with no border, holding its glyph and its name small and muted over the value in
+  the stronger weight: how many workspaces it holds (in words when none) and when it joined in the
+  first row, whether the account has a password and whether a machine is signed in on it in the
+  second, drawn once the standing has answered. No field takes a tone; a value saying nothing is
+  there (*not yet*, *none*) is muted. At its foot, only where they apply, permissions of its own and
+  an organization offered to it, each a small outline badge with its glyph.
 - **A workspace** (`organization/workspace/component/directory.svelte`, `WORKSPACE_TILE_HEIGHT`,
   174 px, in the settings' workspaces directory): the `building` glyph in its muted tile and the
   name on the heading line, an *open on this machine* badge under it on the open one, then at its
@@ -334,7 +341,7 @@ its complex or its contract and a tile spends room its two facts, its status and
 not need. *Tickets 16 to 18 of [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]],
 requirement 18 as the human narrowed it on 2026-10-02 (units keep their rows); the tenant and
 contract tiles recorded by ticket 27; the member and workspace tiles laid out by tickets 32 and 33
-at the human's walk of 2026-10-02 and recorded by ticket 35.*
+at the human's walk of 2026-10-02 and recorded by ticket 35; the member's fields by ticket 37.*
 
 ### Search
 

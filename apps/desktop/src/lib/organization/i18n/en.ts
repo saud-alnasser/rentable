@@ -152,18 +152,22 @@ export const organization = {
 		workspaceSetForYou: 'set for you',
 		// when a workspace was made, on its card (effort 846, ticket 33).
 		workspaceMade: 'created {date:string}',
-		// what a member's tile says, one fact to a line after its glyph (effort 846, ticket 32).
-		// Where the account stands is a fact about it and nothing follows from it: a link is
-		// offered whatever the password and machine lines say. A count of nothing is said in
-		// words, never as a zero.
+		// what a member's tile says, as four fields each with its name small above its value
+		// (effort 846, ticket 37): a name is written because four short values side by side need
+		// one to be told apart. Where the account stands is a fact about it and nothing follows
+		// from it: a link is offered whatever the password and machine fields say. A count of
+		// nothing is said in words, never as a zero.
 		memberCard: {
-			passwordSet: 'password set',
-			noPassword: 'no password yet',
-			signedIn: 'signed in on a machine',
-			noMachine: 'no machine signed in',
-			workspaces: '{count|number} {{workspace|workspaces}}',
-			noWorkspaces: 'no workspaces',
-			joined: 'joined {date:string}',
+			password: 'password',
+			passwordSet: 'set',
+			noPassword: 'not yet',
+			machine: 'machine',
+			signedIn: 'signed in',
+			noMachine: 'none',
+			// the workspaces field is named by the term's one key, `settings.section.workspaces`.
+			workspaceCount: '{count|number}',
+			noWorkspaces: 'none',
+			joined: 'joined',
 			ownPermissions: 'permissions of their own',
 			offered: 'offered the organization'
 		},

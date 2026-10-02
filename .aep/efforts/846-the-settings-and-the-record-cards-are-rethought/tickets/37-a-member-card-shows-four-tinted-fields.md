@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: []
 ---
 
@@ -15,9 +15,9 @@ The human's walk of 2026-10-02, verbatim: "i like the information showen an d th
 
 Traces requirement 1 as revised 2026-10-02, and requirement 19.
 
-- [ ] The member card test finds four fields in a two-column grid, each with an svg, a label and a value, in both locales; the conditional facts as badges only when they apply; no count of zero drawn as a figure.
-- [ ] `MEMBER_TILE_HEIGHT` is recomputed and the directory's grid, search, sort, acts and sheet tests pass.
-- [ ] [[rules/interface]]'s *List presentation* describes the member tile as built; `validate.mjs` passes.
+- [x] The member card test finds four fields in a two-column grid, each with an svg, a label and a value, in both locales; the conditional facts as badges only when they apply; no count of zero drawn as a figure. *Verified: integrated on 36, `vitest run src/lib/organization app/tests/settings-area.svelte.test.ts` printed 24 files, 435 passed; the member card test finds four fields in a two-column grid, each with an svg, a name and a value, in en and ar; the conditional facts as badges only when they apply; a zero drawn as none.*
+- [x] `MEMBER_TILE_HEIGHT` is recomputed and the directory's grid, search, sort, acts and sheet tests pass. *Verified: the same run: `MEMBER_TILE_HEIGHT` 228 and the directory's grid, search, sort, acts and sheet tests pass; i18n tests pass 29; check 0 errors.*
+- [x] [[rules/interface]]'s *List presentation* describes the member tile as built; `validate.mjs` passes. *Verified: read rules/interface *List presentation*: the member tile as built; `validate.mjs` printed no failures.*
 
 ## Relevant areas
 
