@@ -106,6 +106,11 @@ mod tests {
         ("workspace_grant_withdraw", Gate::Flag(Flag::GrantWorkspace)),
         ("workspace_delete", Gate::Owner(Flag::DeleteWorkspace)),
         ("workspace_open", Gate::Own),
+        // the member's own grant, reached on Turso: what may be done to a record there is asked
+        // of the reader's access in that workspace by the procedure that sends the statements,
+        // and a read-only grant's token is read-only at Turso.
+        ("workspace_query", Gate::Own),
+        ("workspace_batch", Gate::Own),
         (
             "workspace_renew_credentials",
             Gate::Owner(Flag::RenewCredentials),

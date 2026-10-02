@@ -121,7 +121,6 @@ mod tests {
     use crate::organization::invitation::{
         AccountAndLink, Invitation, WorkspaceGrant, locator, make_account_and_link,
     };
-    use crate::organization::lease::apply::Pipeline;
     use crate::organization::member::removal;
     use crate::organization::member::vault::KdfParams;
     use crate::organization::role::permission::{self, Flag};
@@ -129,6 +128,7 @@ mod tests {
     use crate::organization::session::{CredentialSlot, MemberSession, sign_in};
     use crate::organization::setup::{CreateOrganization, Remote, create_organization};
     use crate::organization::store::{MemberRecord, OrganizationStore, Signer, TABLES};
+    use crate::organization::workspace::remote::Pipeline;
     use crate::organization::workspace::{create_workspace, signer_of};
     use crate::persisted::Persisted;
     use crate::sync::test::server::{ScriptedResponse, ScriptedServer};

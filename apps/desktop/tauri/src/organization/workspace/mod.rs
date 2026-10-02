@@ -33,9 +33,11 @@
 
 mod command;
 mod open;
+pub mod remote;
 
 pub use command::*;
 pub(crate) use open::open_database;
+pub use remote::Pipeline;
 
 use std::collections::HashMap;
 
@@ -47,7 +49,7 @@ use crate::{
 
 use super::{
     authority::AdministratorKey,
-    lease::apply::{self, Pipeline},
+    lease::apply,
     member::vault::{open_content, seal_content, seal_to_public_key},
     role::permission::{self, Flag},
     session::{MemberSession, WorkspaceCredential, WorkspaceFacts, permissions_on_row},
@@ -844,7 +846,6 @@ mod tests {
         organization::{
             HeldOrganization,
             authority::{AdministratorKey, Issue, certificate_id, issue_certificate},
-            lease::apply::Pipeline,
             member::vault::{
                 KdfParams, MemberSecretKey, create_vault_with_secret, seal_content,
                 seal_to_public_key,
@@ -854,6 +855,7 @@ mod tests {
             session::{CredentialSlot, MemberSession, sign_in},
             setup::{CreateOrganization, Remote, create_organization},
             store::{GrantRecord, MemberRecord, OrganizationStore, Signer, TABLES},
+            workspace::remote::Pipeline,
         },
         persisted::Persisted,
         sync::test::server::{ScriptedResponse, ScriptedServer},

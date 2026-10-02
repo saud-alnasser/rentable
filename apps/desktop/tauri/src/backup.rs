@@ -42,7 +42,7 @@
 //! **What is copied is behind [`Source`]**, because two things are: the organization replica's
 //! connection (`OrganizationStore`, in `organization/store/`), and a workspace over the
 //! `/v2/pipeline` its migration goes over, with the credential the migration is applied under
-//! (`migrate::OverThePipeline`, ticket 28). Each lives beside what it reads, and both answer the
+//! (`organization/workspace/remote.rs`, ticket 28). Each lives beside what it reads, and both answer the
 //! statements written here. A workspace's copies are under `backups/ws-<workspace id>/`, labelled
 //! `schema-<from>-to-<to>`, beside the organization's under `backups/org-<id>/`.
 

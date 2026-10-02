@@ -1274,6 +1274,10 @@ type RootTranslation = {
 				 */
 				workspaceBehind: string
 				/**
+				 * t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​i​s​ ​b​e​h​i​n​d​ ​t​h​i​s​ ​v​e​r​s​i​o​n​ ​o​f​ ​r​e​n​t​a​b​l​e​.​ ​o​p​e​n​ ​i​t​ ​o​n​c​e​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​t​o​ ​b​r​i​n​g​ ​i​t​ ​u​p​ ​t​o​ ​d​a​t​e​.
+				 */
+				workspaceNeedsOpening: string
+				/**
 				 * t​h​e​ ​d​a​t​a​b​a​s​e​ ​r​e​f​u​s​e​d​ ​t​h​e​ ​r​e​q​u​e​s​t​,​ ​a​n​d​ ​n​o​t​h​i​n​g​ ​w​a​s​ ​c​h​a​n​g​e​d​.​ ​t​r​y​ ​a​g​a​i​n​ ​l​a​t​e​r​.
 				 */
 				databaseRefused: string
@@ -5828,6 +5832,10 @@ export type TranslationFunctions = {
 				 * this workspace needs upgrading, and read-only access cannot do it. ask a member with full access to open it once.
 				 */
 				workspaceBehind: () => LocalizedString
+				/**
+				 * this workspace is behind this version of rentable. open it once on this machine to bring it up to date.
+				 */
+				workspaceNeedsOpening: () => LocalizedString
 				/**
 				 * the database refused the request, and nothing was changed. try again later.
 				 */

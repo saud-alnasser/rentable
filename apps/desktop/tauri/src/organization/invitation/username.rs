@@ -231,13 +231,13 @@ mod tests {
         AccountAndLink, Invitation, USERNAME_RULES, USERNAME_TAKEN, WorkspaceGrant, create_account,
         locator, make_account_and_link, make_link, rename_member, validate_username,
     };
-    use crate::organization::lease::apply::Pipeline;
     use crate::organization::member::vault::KdfParams;
     use crate::organization::role::permission;
     use crate::organization::session::{CredentialSlot, MemberSession, sign_in};
     use crate::organization::setup::{CreateOrganization, Remote, create_organization};
     use crate::organization::store::OrganizationStore;
     use crate::organization::workspace::create_workspace;
+    use crate::organization::workspace::remote::Pipeline;
     use crate::persisted::Persisted;
     use crate::sync::test::server::{ScriptedResponse, ScriptedServer};
     use crate::test::scratch;

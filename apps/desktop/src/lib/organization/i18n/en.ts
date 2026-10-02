@@ -548,6 +548,8 @@ export const refusals = {
 			'a newer version of rentable upgraded this workspace. update rentable to open it.',
 		workspaceBehind:
 			'this workspace needs upgrading, and read-only access cannot do it. ask a member with full access to open it once.',
+		workspaceNeedsOpening:
+			'this workspace is behind this version of rentable. open it once on this machine to bring it up to date.',
 		databaseRefused: 'the database refused the request, and nothing was changed. try again later.',
 		organizationOlder:
 			'an older version made this organization. it waits for its owner to open it in this version, which upgrades it.',

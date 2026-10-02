@@ -225,6 +225,10 @@ pub enum RefusalReason {
     WorkspaceNewer,
     /// the workspace is behind this version, and read-only access cannot bring it up.
     WorkspaceBehind,
+    /// the workspace is behind this version, and opening it once on this machine brings it up to
+    /// date: what a workspace that is not open meets when it is reached on Turso (effort 846,
+    /// requirement 15).
+    WorkspaceNeedsOpening,
     /// the database refused a schema or a lease, and nothing was changed.
     DatabaseRefused,
 

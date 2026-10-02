@@ -74,6 +74,8 @@ pub fn plugin() -> TauriPlugin<tauri::Wry> {
             super::workspace::organization_workspace_open,
             super::workspace::organization_workspace_renew_credentials,
             super::workspace::organization_workspace_renew_due,
+            super::workspace::organization_workspace_query,
+            super::workspace::organization_workspace_batch,
             super::mark::organization_mark_get,
             super::mark::organization_mark_set,
             super::mark::organization_mark_clear,

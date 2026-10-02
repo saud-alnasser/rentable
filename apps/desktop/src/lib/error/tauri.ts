@@ -109,6 +109,7 @@ export const TAURI_REFUSAL_REASONS = [
 	'noOrganizationCredential',
 	'workspaceNewer',
 	'workspaceBehind',
+	'workspaceNeedsOpening',
 	'databaseRefused',
 	'organizationOlder',
 	'organizationUpgradeOffline',
