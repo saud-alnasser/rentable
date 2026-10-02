@@ -166,6 +166,18 @@ and the command menu cannot disagree. Not on `settings/section.ts`, which loads 
 | organization | leaving | owner: hand over ownership (`crown`) | disconnect this machine (`unplug`); owner: delete organization (`trash-2`) |
 | workspaces | directory | the earlier-records callout above, then the cards | |
 
+**The section is a grid of group cards** (*added 2026-10-02*, requirement 1 as the human widened
+it mid-run). A third block, `block/settings-grid.svelte`, lays a section's groups out with a
+container query: one column below the width two 340px columns and their gap need, two above it,
+items aligned to their start so a short card does not stretch to its neighbour's height.
+`settings-group.svelte` gains `span?: 'full'` and draws its title and footer inside the card (a
+header and a footer of the card) rather than above and below it, so each group reads as one card
+in the grid. The groups that span: account's machines and this machine, organization's roles and
+members directories and leaving, workspaces' directory; the ending groups stay last in source
+order. The look is judged on screenshots of the running app on real data, both languages and
+appearances, one and two columns. Rejected: a masonry layout, which reorders what a keyboard and a
+screen reader meet against what the eye sees.
+
 **Hand over ownership in the leaving group** projects the reader's own member record through
 `toPageActions` over `memberActs`, filtered to `member.offerOwnership` and `member.withdrawOffer`,
 and runs `memberHost.run(act.id, record)`, so label, icon and refusal come from the one declaration.

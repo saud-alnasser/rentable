@@ -1,11 +1,11 @@
 ---
 status: open
-blocked-by: [06, 09, 10, 13, 16, 17, 18, 19]
+blocked-by: [06, 09, 10, 13, 16, 17, 18, 19, 21]
 ---
 
 # chore(desktop): the human checks
 
-Blocked by: 06, 09, 10, 13, 16, 17, 18, 19
+Blocked by: 06, 09, 10, 13, 16, 17, 18, 19, 21
 
 Authoritative: [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], and [[efforts/846-the-settings-and-the-record-cards-are-rethought/plan]] for the approach.
 

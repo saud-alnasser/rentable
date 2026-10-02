@@ -103,7 +103,13 @@ statement read in time order, and each payment row says how it was paid.
    state where it has one, and its control, with at most one line of explanation, under the group
    rather than inside every row. The section switch names each section with an icon beside its
    word. The members and roles directories keep their tray and their cards; only their heading
-   takes the group's treatment.
+   takes the group's treatment. *Added 2026-10-02, at the human's word mid-run ("maybe settings in
+   a section tab does not need to be sequential linear maybe they are cards and section of
+   grids"):* a section is not one linear column. Its groups are cards laid out in a grid, two
+   columns where the section is wide enough and one where it is not, each card holding its own
+   title and its line of explanation; a group whose rows are a list that grows (machines, a
+   directory) spans the full width, and so does a group holding only an act that ends something,
+   which stays last.
 2. **Destructive acts are set apart and look destructive.** In every section an act that deletes,
    disconnects, forgets or signs somebody out sits at the end of its group, drawn in the error
    tone, with an icon. Where it cannot be undone, or it ends something on another machine, it is
@@ -216,7 +222,9 @@ statement read in time order, and each payment row says how it was paid.
 
 1. Each settings section, opened signed in as the owner, shows its blocks as grouped rows with a
    leading icon, a name and a value or control; the section switch shows an icon beside each
-   section's name.
+   section's name. At a width that fits two columns, a section's groups sit as cards in two
+   columns, the growing lists and the ending groups spanning both and the ending groups last; at
+   a narrow width every group is one column.
 2. Every disconnect, forget, delete and sign-out act in the area is the last item in its group,
    drawn in the error tone with an icon; every one of them that cannot be undone or reaches another
    machine is confirmed, stating what ends and whether it can be undone; no other act uses that
