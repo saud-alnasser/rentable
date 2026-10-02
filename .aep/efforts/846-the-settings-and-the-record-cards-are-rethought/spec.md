@@ -119,7 +119,10 @@ statement read in time order, and each payment row says how it was paid.
    leaving, or stay, the human chose "Fold it into Leaving". So: no button repeats its row's glyph; hand
    over ownership is *transfer ownership* with a red *transfer* button, and disconnect and delete are red
    text buttons; the Turso account card goes, its state, reconnect and forget joining the leaving card;
-   the roles are cards in their order that match the member card; and sync is an icon button with its tooltip.* *Added 2026-10-02, at the human's word mid-run ("maybe settings in
+   the roles are cards in their order that match the member card; and sync is an icon button with its tooltip.
+   Then: "make sure deangours actions have confirmation dialog even in domain records deletes have confirmation dialong and dangours actions": every act that deletes, ends, removes, signs out, disconnects, forgets or hands
+   something over, in the settings and on every record, is confirmed first, signing this machine out
+   included (this replaces requirement 2's exception for it).* *Added 2026-10-02, at the human's word mid-run ("maybe settings in
    a section tab does not need to be sequential linear maybe they are cards and section of
    grids"):* a section is not one linear column. Its groups are cards laid out in a grid, two
    columns where the section is wide enough and one where it is not, each card holding its own
