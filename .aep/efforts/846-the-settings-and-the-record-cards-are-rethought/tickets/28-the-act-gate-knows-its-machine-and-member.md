@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: []
 ---
 
@@ -15,10 +15,10 @@ Review round one, correctness. Two holes in ticket 24's act gate, each open only
 
 Traces requirement 10 and criterion 10 (and 15 for the batch).
 
-- [ ] A Rust test: an owner connected to an existing organization on B, B signed out alone from A, B pulls; B's next act is refused and walls before any heartbeat.
-- [ ] A Rust test: member X signed out alone on M twice, X signs out, Y signs in on M; Y's other machine ends M; M's next act is refused before any heartbeat. The record's mark is used only when it names the signing-in member.
-- [ ] A Rust test: a `workspace_batch` carrying `COMMIT` (or `BEGIN`, `ROLLBACK`) in a step is refused with nothing sent.
-- [ ] `cargo test` passes; `cargo fmt --check` clean.
+- [x] A Rust test: an owner connected to an existing organization on B, B signed out alone from A, B pulls; B's next act is refused and walls before any heartbeat. *Verified: the run tree's `cargo test -- --test-threads=1` over 28 integrated includes `an_owner_connected_on_the_account_is_refused_its_next_act_once_signed_out_alone` (B refused with `SessionsEnded` and walled, A still acts); the builder saw it panic without the fix.*
+- [x] A Rust test: member X signed out alone on M twice, X signs out, Y signs in on M; Y's other machine ends M; M's next act is refused before any heartbeat. The record's mark is used only when it names the signing-in member. *Verified: the same run includes `a_member_signed_in_where_another_was_signed_out_alone_is_refused_after_their_own` (Y's session opens at 0, not X's 2; M refused and walled after Y's machine ends it); it failed without the fix.*
+- [x] A Rust test: a `workspace_batch` carrying `COMMIT` (or `BEGIN`, `ROLLBACK`) in a step is refused with nothing sent. *Verified: the same run includes `a_batch_with_a_step_that_opens_or_closes_a_transaction_is_refused_with_nothing_sent` (COMMIT, begin, ROLLBACK each `InvalidInput`, the request count unchanged).*
+- [x] `cargo test` passes; `cargo fmt --check` clean. *Verified: the same run printed 672 passed, 0 failed, 11 ignored; `cargo fmt --check` clean.*
 
 ## Relevant areas
 

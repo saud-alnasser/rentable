@@ -685,8 +685,14 @@ pub(crate) async fn query(reach: &Reach, query: &SQLQuery) -> Result<Vec<SQLRow>
 /// Run `queries` on the workspace as one transaction and answer each one's rows, as the proxy runs
 /// a batch on a replica: `BEGIN`, each statement only where the one before it went, and `COMMIT`,
 /// or `ROLLBACK` where any of them did not. One request, closed, so the server holds nothing open
-/// after it whatever it answered.
+/// after it whatever it answered. A step that would open or close a transaction of its own is
+/// refused before anything is sent, as [`query`] refuses one: the batch's own `BEGIN` and `COMMIT`
+/// are the only ones it carries.
 pub(crate) async fn batch(reach: &Reach, queries: &[SQLQuery]) -> Result<Vec<Vec<SQLRow>>, Error> {
+    for query in queries {
+        proxy::reject_transaction_control(&query.sql)?;
+    }
+
     let after = |step: usize| json!({ "type": "ok", "step": step });
     let committed = queries.len() + 1;
     let steps: Vec<Value> =
@@ -1139,6 +1145,39 @@ mod tests {
         }
 
         assert_eq!(pipeline.request_count(), requests, "a transaction was sent");
+    }
+
+    /// **Effort 846, ticket 28.** A batch with a step that opens or closes a transaction of its
+    /// own is refused before anything is sent, as a single statement is: a `COMMIT` in a step
+    /// would end the batch's transaction and leave the steps after it running outside one.
+    #[tokio::test]
+    async fn a_batch_with_a_step_that_opens_or_closes_a_transaction_is_refused_with_nothing_sent() {
+        let directory = scratch("remote-batch-control");
+        let pipeline = LocalPipeline::start().await;
+        let (store, owner, workspace_id) = holding_a_workspace(&directory, &pipeline).await;
+        let target = reached_at(&store, &owner, &workspace_id, &pipeline, &Mutex::default())
+            .await
+            .expect("reached");
+        let requests = pipeline.request_count();
+
+        for control in ["COMMIT", "begin", "  ROLLBACK"] {
+            let refused = batch(
+                &target,
+                &[
+                    sql("SELECT 1", vec![]),
+                    sql(control, vec![]),
+                    sql("SELECT 2", vec![]),
+                ],
+            )
+            .await;
+
+            assert!(
+                matches!(refused, Err(Error::InvalidInput { .. })),
+                "{control}: {refused:?}"
+            );
+        }
+
+        assert_eq!(pipeline.request_count(), requests, "a batch was sent");
     }
 
     /// **Ticket 11's fourth criterion, the refusals before anything is sent.** A workspace the

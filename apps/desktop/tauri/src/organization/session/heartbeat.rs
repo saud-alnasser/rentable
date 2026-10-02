@@ -977,6 +977,211 @@ mod tests {
             .expect("C was refused with B");
     }
 
+    /// Sign `username` in on this machine at the wall, as the wall's sign-in admits them, over a
+    /// replica opened afresh, and leave them signed in. Answers the record the sign-in wrote.
+    async fn admitted(
+        app_state: &Shared,
+        credentials: &Credentials,
+        directory: &std::path::Path,
+        username: &str,
+        password: &str,
+        now: i64,
+    ) -> HeldOrganization {
+        let mut remote_sync = app_state.remote_sync.write().await;
+        let held = remote_sync
+            .store_mut()
+            .organization
+            .clone()
+            .expect("the record names no organization");
+        let store = elsewhere(directory, &held.id).await;
+        let member = join::admit(
+            credentials.as_ref(),
+            &store,
+            remote_sync.store_mut(),
+            &held,
+            username,
+            password,
+            &slot(),
+            now,
+        )
+        .await
+        .expect("the sign-in failed");
+        let written = remote_sync
+            .store_mut()
+            .organization
+            .clone()
+            .expect("the record");
+
+        drop(remote_sync);
+        *app_state.organization.write().await = Some(store);
+        *app_state.member.write().await = Some(member);
+
+        written
+    }
+
+    /// **Effort 846, ticket 28: the number a session opens under is its own member's.** Member X
+    /// is signed out of this machine, M, on its own twice and signs in past both, so M's record
+    /// carries X's number, 2; X signs out, and Y signs in on M. Y's own machine signs M out on its
+    /// own, which is Y's first, 1. With no heartbeat run, M's next act is refused and M is at the
+    /// wall: a session that took the record's number while the record still named X would have
+    /// opened under 2, read 1 as nothing new, and acted on.
+    #[tokio::test]
+    async fn a_member_signed_in_where_another_was_signed_out_alone_is_refused_after_their_own() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let directory = scratch("act-next-member");
+        let app_state = first_run(&credentials, &directory).await;
+        let (organization_id, x) = recorded(&app_state).await;
+
+        assert!(
+            state_of(&app_state, &credentials, &crate::clock::System::shared())
+                .await
+                .expect("the state")
+                .session
+                .is_some(),
+            "the launch did not resume"
+        );
+
+        let held_m = {
+            let mut remote_sync = app_state.remote_sync.write().await;
+
+            remote_sync
+                .store_mut()
+                .organization
+                .clone()
+                .expect("the record names no organization")
+        };
+        let held_a = HeldOrganization {
+            machine_id: "machine-a".to_string(),
+            ..held_m.clone()
+        };
+        let other = elsewhere(&directory, &organization_id).await;
+        let a = session::sign_in(&other, &held_a, PASSWORD, &slot())
+            .await
+            .expect("machine A did not sign in");
+
+        // X signed out of M on its own, twice, and signed in again past each.
+        for (round, at) in [(1, CREATED_AT + 10), (2, CREATED_AT + 20)] {
+            session::end_machine(&other, &a, &held_a, &held_m.machine_id, at)
+                .await
+                .expect("A could not sign M out");
+
+            let written = admitted(
+                &app_state,
+                &credentials,
+                &directory,
+                USERNAME,
+                PASSWORD,
+                at + 1,
+            )
+            .await;
+
+            assert_eq!(written.member_id.as_deref(), Some(x.as_str()));
+            assert_eq!(written.machine_signed_out, round);
+        }
+
+        // X signs out here, and the record still names X with their number.
+        session::sign_out(&app_state, credentials.as_ref()).await;
+
+        let left = {
+            let mut remote_sync = app_state.remote_sync.write().await;
+
+            remote_sync
+                .store_mut()
+                .organization
+                .clone()
+                .expect("the record")
+        };
+
+        assert_eq!(left.member_id.as_deref(), Some(x.as_str()));
+        assert_eq!(left.machine_signed_out, 2);
+
+        // Y, settled on a machine of their own, signs in on M.
+        let (y, y_session, y_machine) = a_settled_manager(
+            credentials.as_ref(),
+            &directory,
+            &other,
+            &a,
+            "ada.admin",
+            MANAGERS_PASSWORD,
+        )
+        .await;
+        let held_y = y_machine.organization.clone().expect("Y's record");
+        let written = admitted(
+            &app_state,
+            &credentials,
+            &directory,
+            "ada.admin",
+            MANAGERS_PASSWORD,
+            CREATED_AT + 30,
+        )
+        .await;
+
+        assert_eq!(written.member_id.as_deref(), Some(y.as_str()));
+        assert_eq!(
+            app_state
+                .member
+                .read()
+                .await
+                .as_ref()
+                .map(|session| session.machine_signed_out),
+            Some(0),
+            "Y's session opened under X's number"
+        );
+
+        let act_on_m = async || {
+            let held = written.clone();
+
+            as_member(
+                &app_state,
+                Pull::First,
+                async move |Acting { member, store }| session::machines(store, member, &held).await,
+            )
+            .await
+        };
+
+        act_on_m()
+            .await
+            .expect("Y could not act on M before it was signed out");
+
+        // Y's own machine signs M out on its own.
+        session::end_machine(
+            &other,
+            &y_session,
+            &held_y,
+            &held_m.machine_id,
+            CREATED_AT + 40,
+        )
+        .await
+        .expect("Y's machine could not sign M out");
+
+        let refused = act_on_m()
+            .await
+            .expect_err("M acted after Y signed it out on its own");
+
+        assert!(
+            matches!(
+                refused,
+                Error::Refused {
+                    reason: crate::error::RefusalReason::SessionsEnded,
+                    ..
+                }
+            ),
+            "{refused:?}"
+        );
+        assert!(
+            app_state.member.read().await.is_none(),
+            "M is not at the wall"
+        );
+        assert!(app_state.organization.read().await.is_none());
+        assert!(
+            state_of(&app_state, &credentials, &crate::clock::System::shared())
+                .await
+                .expect("the state")
+                .signed_out_elsewhere,
+            "the wall was not told which sign-out this was"
+        );
+    }
+
     /// **The heartbeat pushes as well as pulls**, which is what carries out a sign-out made
     /// offline.
     ///

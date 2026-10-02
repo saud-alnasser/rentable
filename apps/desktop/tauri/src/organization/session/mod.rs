@@ -540,10 +540,16 @@ pub(crate) async fn open_session(
 
     // the number this machine's sign-outs stand at, which a sign-in acknowledges and a resume has
     // just checked is not past the record's (effort 846, requirement 10). The greater of the two,
-    // so neither path can open a session under a number below what the record already took.
-    let machine_signed_out = sign_outs_acknowledged(store, &held.machine_id, &member.id)
-        .await?
-        .max(held.machine_signed_out);
+    // so neither path can open a session under a number below what the record already took. The
+    // record's only where it names this member: the number is per member, and a record still
+    // naming whoever signed in here before carries theirs, which would let this member act past a
+    // sign-out of their own up to it.
+    let acknowledged = sign_outs_acknowledged(store, &held.machine_id, &member.id).await?;
+    let machine_signed_out = if held.member_id.as_deref() == Some(member.id.as_str()) {
+        acknowledged.max(held.machine_signed_out)
+    } else {
+        acknowledged
+    };
 
     Ok(MemberSession {
         organization_id: held.id.clone(),

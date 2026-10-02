@@ -366,7 +366,8 @@ refused unless what it yields is the key this machine pinned, and the directory 
   `machine_signed_out` in its `remote-sync.json` record, which a sign-in by password or by an
   opened vault takes and **a resume never does**, so the same password signs it back in. The
   comparison is made at the resume, on the heartbeat, and before every act (`acting_row`, against
-  the number the open session took; since ticket 24 an act refused for it puts the wall up rather
+  the number the open session took, which is its own member's and never a mark the record kept for
+  whoever signed in here before (ticket 28); since ticket 24 an act refused for it puts the wall up rather
   than waiting on the heartbeat), and a machine found above its mark takes the signed-out-elsewhere
   path. Refused: this machine itself (`NotYourself`), a machine no longer signed in as the reader
   (`MachineMissing`), and one with no `machine_name` row (`MachineNotUpdated`), which has not run
