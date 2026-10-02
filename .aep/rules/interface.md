@@ -275,14 +275,38 @@ one line, unchanged. *Added by ticket 14 of
 [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirements 18 and 19: the
 shell and the card can draw the grid; each directory turns it on in its own ticket.*
 
-**The complexes directory is a grid; a complex's units are not.** A complex's tile
-(`complex/component/card.svelte`) is 120 px: its name, its location, and at its foot how many
-units it holds, how many are occupied and how many vacant, each count with its word and left out
-at zero. A complex's unit directory stays one column of rows at 64 px, because a unit is reached
-through its complex or its contract and a tile spends room its two facts, its status and its
-occupant, do not need. *Ticket 17 of
-[[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirement 18 as the human
-narrowed it on 2026-10-02.*
+**A tile's facts are `Cell.Fact` lines, and a tile's height is counted, not measured.** Every
+fact on a tile is one `Cell.Fact` (`design/cell/fact.svelte`): a small dimmed glyph standing for
+what the fact is, then the fact, muted and small, so no label is written beside a number. Each
+line sets the same fixed leading, `factLeading`, 20 px in both locales, because the list lays its
+tiles at the height a concept declares rather than measuring them, and a line left to inherit its
+leading is near 22 px in Arabic and overlaps the tile below. A line added to a tile, or one drawn
+without that leading, changes the concept's declared height too.
+
+**The complexes, tenants and contracts are grids; a complex's units are not.** Each tile is the
+concept's own component, at the height its list declares:
+
+- **A complex** (`complex/component/card.svelte`, `COMPLEX_TILE_HEIGHT`, 120 px): its name, its
+  location, and at its foot how many units it holds, how many are occupied and how many vacant,
+  each count with its word and left out at zero.
+- **A tenant** (`tenant/component/card.svelte`, `TENANT_TILE_HEIGHT`, 144 px): the name as the
+  one strong line, the national id and the phone as two facts held left to right, and at its foot
+  what the tenant's contracts stand at: a chip for each status holding any (`Cell.StatusCount`,
+  its glyph, figure and word in the status's tone), in the contracts directory's order, a status
+  at zero left out, and *no contracts* where every count is zero. A reader who may not view
+  contracts is told nothing of them.
+- **A contract** (`contract/component/record.svelte`, `CONTRACT_TILE_HEIGHT`, 184 px, the same
+  tile in the directory, a tenant's contracts and a unit's): the tenant with the status and its
+  word on the heading line, then the reference, the dates as a range, and the names of its units
+  in the reader's list style, each a fact; at its foot the ring with the paid and expected amounts
+  beside it, the cost with its interval, and how many payments it holds, drawn only above zero.
+  Where the reader may not view tenants the reference leads instead and is not repeated.
+
+A complex's unit directory stays one column of rows at 64 px, because a unit is reached through
+its complex or its contract and a tile spends room its two facts, its status and its occupant, do
+not need. *Tickets 16 to 18 of [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]],
+requirement 18 as the human narrowed it on 2026-10-02 (units keep their rows); the tenant and
+contract tiles recorded by ticket 27.*
 
 ### Search
 
@@ -305,7 +329,8 @@ block the bar and put two sets on one section.*
 narrows the set, the order, and what acts on it, in that order. The list shell draws it above its
 records and the settings directories above their cards. What a directory does not want it leaves
 out: the settings directories offer no export, since a dozen accounts are not a file anybody
-wants, and a workspace's own file is the transfer beneath the cards. The contract's unit panes are
+wants, and a workspace's own file is exported and imported from each workspace card's acts
+(*Export and import*), not from the bar. The contract's unit panes are
 two halves of one transfer rather than a directory, so they take the field and not the bar: the
 field on the bar's surface, and their units as the record cards every unit list draws, with the
 unit's acts and the transfer beside them. Every list offers an order, the unit directory and the
@@ -1046,7 +1071,8 @@ list that filters by rank offers it. Settled by
 
 **A surface waiting on its content draws `packages/design/src/lib/block/loading.svelte`, and
 nothing else.** The surface hands in a snippet drawing the shape of what is on its way (a list's
-cards, a record's header, the settings area's rail and fields, the dashboard's sections) from the
+cards, a record's header, the settings area's title, its section switch and a section's grid of
+group cards, the dashboard's sections) from the
 skeleton primitive. The block decides when that shape appears: **not before 200 ms, and once shown,
 for at least 300 ms.** A load that settles inside the delay draws no skeleton at all. Until then the
 region is empty and marked busy, and the skeleton, once it is up, is a status carrying the

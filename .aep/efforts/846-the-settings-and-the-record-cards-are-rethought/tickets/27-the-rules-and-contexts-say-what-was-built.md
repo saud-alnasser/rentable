@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [23, 24, 25, 26]
 ---
 
@@ -15,8 +15,8 @@ Converge round one, gap F: the statements the effort falsified are corrected in 
 
 Traces requirement 22 and criterion 22.
 
-- [ ] Each statement above reads as built, with file and line quoted in the commit body.
-- [ ] `node .aep/scripts/validate.mjs` passes and the index is regenerated.
+- [x] Each statement above reads as built, with file and line quoted in the commit body. *Verified: the commit body quotes each correction with file and line: interface List presentation (278-309, tenant 144, contract 184, complex 120, Cell.Fact, units as rows), Search (332-333), Loading (1074-1075); organization context 157-163 (permittedIn, databaseOf) and 360-377 (one machine's sign-out); remote-sync 150-156; shadcn-svelte reference 7-8, 37-45, 133-138 and frontend 53-54 (34 families, the folder count); plan 160 and 217 (the row menu, dated).*
+- [x] `node .aep/scripts/validate.mjs` passes and the index is regenerated. *Verified: `node .aep/scripts/validate.mjs` printed 567 artifacts checked, no failures; `index.mjs` ran.*
 
 ## Relevant areas
 

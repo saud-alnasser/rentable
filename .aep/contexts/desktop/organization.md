@@ -154,7 +154,13 @@ member stands); nothing pinned deletes the row. It goes with the organization la
 the reset to the role, a deleted role, each refused where a flag pinned anywhere is one the actor
 does not hold) and with the grant (a withdrawal, a removal, a deleted workspace). The session and
 the members list carry each workspace's pins and permissions, and the tRPC context answers a
-record procedure by the open workspace's (`api/context.ts`, `permissionsIn`). A member's card
+record procedure by the open workspace's (`api/context.ts`, `permissionsIn`). A procedure naming a
+workspace answers by that one's instead: the transfer procedures (`transfer/router.ts`) take
+`{ workspaceId }` through `procedure.permittedIn` (`api/trpc.ts`), which refuses with
+`host.noGrant` where the member holds no grant on it, asks the member's flags folded for that
+workspace, and reaches a workspace that is not open on Turso through `Context.databaseOf`, over
+the shell's `workspace_query` and `workspace_batch`, without opening it here. Naming nothing, or
+the open one, is the open replica as before (effort 846, requirement 15). A member's card
 sets it beneath each workspace the member is in, as that workspace's permissions
 (`access/component/tailoring.svelte`, the record groups of the shared switch list, folded): **what is
 pinned is exactly what the switches differ on from what the member holds across the organization
@@ -351,6 +357,24 @@ refused unless what it yields is the key this machine pinned, and the directory 
   epoch is outside the row's signature, and that is an accepted limit (the human, 2026-09-15): a
   member holding the organization credential can write another member's epoch and force them to the
   wall, which is availability rather than authority.*
+- **One machine is signed out on its own by a number only the member's other machines write**
+  (effort 846, requirements 9 to 11; `tauri/src/organization/session/machine.rs`). The epoch above
+  ends every machine but the one moving it; `end_machine` (`session_end_machine`) instead moves
+  that machine's row in `machine_sign_out` to one past the greatest it holds and stops the
+  `machine` row naming the member, so it leaves the list at once, and nothing about the password
+  or the epoch moves. The target compares the row with the mark it last acknowledged,
+  `machine_signed_out` in its `remote-sync.json` record, which a sign-in by password or by an
+  opened vault takes and **a resume never does**, so the same password signs it back in. The
+  comparison is made at the resume, on the heartbeat, and before every act (`acting_row`, against
+  the number the open session took; since ticket 24 an act refused for it puts the wall up rather
+  than waiting on the heartbeat), and a machine found above its mark takes the signed-out-elsewhere
+  path. Refused: this machine itself (`NotYourself`), a machine no longer signed in as the reader
+  (`MachineMissing`), and one with no `machine_name` row (`MachineNotUpdated`), which has not run
+  this version and would not read its row, so *sign out all other machines* is what reaches it.
+  Each machine writes its own `machine_name`, the operating system's name sealed under the content
+  key. The member's list is every `machine` row naming them, with no presence window, this machine
+  first and then by `seen_at`, which the heartbeat refreshes at most hourly (`SEEN_REFRESH`).
+  *Unsigned, as the epoch is, and under the same accepted limit.*
 - **One Turso group holds one organization, and a group that holds one is connected to.** A group
   holding an `org-` database sends the walk to a step where the owner types their username and
   password, and this machine joins the organization that is there. **Only the owner can**, because

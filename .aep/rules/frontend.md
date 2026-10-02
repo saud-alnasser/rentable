@@ -50,8 +50,8 @@ as the sentence its code stands for, in their language (`error/refusal.ts`, and
   files rather than merging, so the flags that make it replace one already here — `add
   --overwrite`, `init --reinstall` — discard whatever this repository put in it. Adding is
   safe; replacing is what there is no way back from. [[references/shadcn-svelte]] has both.
-  What they would discard is load-bearing. Thirty-five of these files, across eighteen of the
-  56 families, read the contract `@rentable/design/strings.js` declares — for a string, or for
+  What they would discard is load-bearing. Twenty-seven of these files, across thirteen of the
+  34 families, read the contract `@rentable/design/strings.js` declares — for a string, or for
   `dir` on the rendered element. A regenerated file carries neither and still compiles and
   renders, so the damage shows up as a silently English, silently LTR primitive rather than as
   an error. *This used to count files reading this application's i18n store, and it fell from

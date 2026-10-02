@@ -4,8 +4,8 @@ use-when: "adding or regenerating a design primitive"
 
 # shadcn-svelte
 
-Generates the design primitives into `packages/design/src/lib/primitive/`. Fifty-five of the
-56 families there came from it and are hand-maintained since. `callout` is the one written here,
+Generates the design primitives into `packages/design/src/lib/primitive/`. Thirty-three of the
+34 families there came from it and are hand-maintained since. `callout` is the one written here,
 and the registry has no such component, so there is nothing to regenerate it from.
 
 **There is no dependency and no `package.json` script** — unlike every other tool here, it is run
@@ -34,8 +34,15 @@ unnecessary. Prefer the flag, because the path is then written down rather than 
 whoever reads the command.
 
 `-y` skips the confirmation prompt. It is needed for any non-interactive run — without it the
-CLI stops at *Ready to install components and dependencies?* and writes nothing. **It is safe
-here only because `--overwrite` is never passed**; see the table below.
+CLI stops at *Ready to install components and dependencies?* and writes nothing. **It does not
+make the run safe on its own.** Leaving out `--overwrite` keeps the CLI from replacing the
+component asked for, but not the families it depends on: at 1.7.0, `add item -y` stopped to ask
+about `separator`, a dependency already here, and that per-file prompt **defaults to overwriting
+it**, so pressing enter discards the hand-maintained copy. Answer no to every prompt over a
+family that already exists, and check `git status` after the run, restoring with
+`git checkout -- packages/design/src/lib/primitive/<family>` any family it rewrote. *Found by
+a builder of [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], ticket 1;
+recorded by ticket 27.*
 
 **Formatting is a second step, not a nicety.** What the CLI writes is not Prettier-clean under
 this repository's configuration, so `pnpm check` and `pnpm lint` both fail on a freshly generated
@@ -123,8 +130,9 @@ no regeneration reproduces. Three are documented:
 | `--reinstall`     | `init` | reinstalls existing components when the style changes            |
 | `-a, --all`       | `add`  | installs every component; harmless alone, total with `--overwrite` |
 
-`add` without `--overwrite` is safe on a component that already exists — the default is
-documented as `false`. **What it does instead, prompt or skip silently, is not documented
-and was not tested here**, and `-y, --yes` suppresses confirmation prompts generally. So the
-default is not a guard to rely on: do not pass `--overwrite`, rather than passing it and
-expecting to be asked.
+`add` without `--overwrite` is not safe on a component that already exists, though the
+default is documented as `false`. **What 1.7.0 does instead is prompt per file, with
+overwriting as the prompt's default**, and `-y, --yes` does not answer that prompt: it was met
+over the `separator` dependency of `add item -y` (above). So the default is not a guard to rely
+on: do not pass `--overwrite`, answer no where the CLI asks to replace a file, and restore from
+git whatever it replaced anyway.

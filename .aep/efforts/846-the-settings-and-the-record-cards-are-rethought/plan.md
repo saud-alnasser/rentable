@@ -157,7 +157,7 @@ and the command menu cannot disagree. Not on `settings/section.ts`, which loads 
 | account | ownership offered, when one stands | the offer (`crown`), offered by; accept (`crown`) | |
 | account | signed in as | avatar, username, role and organization | |
 | account | password | password (`key-round`); change (`key-round`) | |
-| account | machines | one row per machine (`laptop`), this machine first; others carry sign out (`log-out`) | sign out all other machines (`log-out`) |
+| account | machines | one row per machine (`laptop`), this machine first; each other machine's sign out (`log-out`) is in its row's menu, not on the row (*corrected 2026-10-02: the human's "Move it off the rows", built by ticket 23*) | sign out all other machines (`log-out`) |
 | account | this machine | | sign out of this machine (`log-out`), moved out of `identity.svelte`; not confirmed |
 | organization | sync | the state row (below); sync now (`refresh-cw`); callouts and their acts under it; *open Turso dashboard* gains `external-link` | |
 | organization | signature or seal | the mark (`image`), preview as value; choose or replace (`image`) | remove (`trash-2`), confirmed |
@@ -214,7 +214,7 @@ The tabs, as the research recommends and the agent decides:
 | Tab | Cards, in source order (half = one column of two; full = both) |
 | --- | --- |
 | general | display: language, appearance (half) · updates: the header states the state in words (up to date, available, downloading, restart to finish), version rows, *what's new* in a collapsible, the download as `progress` (half) · diagnostics: the folder, its path as the meta line, reveal (full) |
-| account | the ownership offer as a `callout` with *accept*, only when one stands (full) · identity as the card's header: `avatar` initials, username, role `badge`, organization (half) · password: *change* (half) · machines: header value *n signed in*, this machine first with its badge, meta line *last seen · added*, sign out per row, *sign out all other machines* in the end (full) · this machine: sign out (full, last) |
+| account | the ownership offer as a `callout` with *accept*, only when one stands (full) · identity as the card's header: `avatar` initials, username, role `badge`, organization (half) · password: *change* (half) · machines: header value *n signed in*, this machine first with its badge, meta line *last seen · added*, sign out in each other machine's row menu (*corrected 2026-10-02, ticket 23*), *sign out all other machines* in the end (full) · this machine: sign out (full, last) |
 | organization | sync: the state as the header's value, the last-reached line, *sync*, the problem callout under it, never folded (full) · Turso account, owner only (half) beside the signature or seal (half; alone for a member, at half, start-aligned) · roles, members (directories) · leaving (full, last) |
 | workspaces | the directory: title and its line, the tray, the earlier-records callout, then the tiles in a grid (`columnsFor`, 300 min, up to 3), each with its `building` glyph, the name, an *open on this machine* badge on the open one, members and access as facts |
 
