@@ -174,7 +174,9 @@ its title, one muted line saying what it is for, and at its end an optional valu
 state, a badge), never an act that ends something; then its rows (`block/settings-row.svelte`), the
 meta line under a row's name and a badge beside it where one marks the row; then, after a
 separator, the acts that end something, in the error tone on the act alone, never on the card's
-edge or a band; then an optional footer of one note, one progress bar or one act. A card is half
+edge or a band (an ending act on one row of a growing list, such as one machine's sign-out, is an
+entry in that row's record menu instead, confirmed and in the menu's default tone, so the card's
+end keeps one error-tone act); then an optional footer of one note, one progress bar or one act. A card is half
 the grid's width unless it spans: a list that grows (the machines), a status that carries a
 problem (sync), a long path (diagnostics) and every card holding an act that ends something
 (leaving, this machine) span both columns, and those that end something are written last. The

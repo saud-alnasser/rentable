@@ -236,7 +236,9 @@ statement read in time order, and each payment row says how it was paid.
 2. Every disconnect, forget, delete and sign-out act in the area is the last item in its group,
    drawn in the error tone with an icon; every one of them that cannot be undone or reaches another
    machine is confirmed, stating what ends and whether it can be undone; no other act uses that
-   tone.
+   tone. *By the human's decision of 2026-10-02 (requirement 10): one machine's sign-out is an
+   entry in that machine's row menu, confirmed and naming it, in the menu's default tone; it is the
+   one ending act that is neither last in its group nor in the error tone.*
 3. General shows language, appearance, updates and diagnostics, and no ending-soon control.
 4. No control in the settings area has a separate save step; a failed change reverts and shows the
    reason (checked by forcing the settings write to fail).
