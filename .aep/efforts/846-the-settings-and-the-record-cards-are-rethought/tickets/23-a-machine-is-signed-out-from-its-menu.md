@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: []
 ---
 
@@ -15,8 +15,8 @@ Converge round one, gap A, decided by the human on 2026-10-02 ("Move it off the 
 
 Traces requirements 2 and 10 as decided 2026-10-02, and criteria 2 and 10.
 
-- [ ] `machines.svelte.test.ts`: no row carries an error-tone button; each other machine's row has a menu control named for it whose item signs it out after the confirmation naming it; this machine's row has no sign-out; a not-updated machine's item is refused with its reason.
-- [ ] The area test finds *sign out all other machines* the only error-tone act in the machines card, and last.
+- [x] `machines.svelte.test.ts`: no row carries an error-tone button; each other machine's row has a menu control named for it whose item signs it out after the confirmation naming it; this machine's row has no sign-out; a not-updated machine's item is refused with its reason. *Verified: `vitest run organization/session/tests/machines.svelte.test.ts app/tests/settings-area.svelte.test.ts` printed 2 files, 57 passed: no row button in the error tone, a menu named for each other machine whose sign out confirms naming it and ends it, no menu on this machine's row, and a not-updated machine's entry refused with its reason.*
+- [x] The area test finds *sign out all other machines* the only error-tone act in the machines card, and last. *Verified: the same run: the area test finds the only error-tone row in the machines card is the last, *sign out all other machines*, with one destructive button in the card.*
 
 ## Relevant areas
 

@@ -584,8 +584,8 @@ test('an address naming a retired section opens the section that holds it', () =
 });
 
 // criterion 22 of effort 826 and criteria 9 and 10 of effort 846: the account section lists the
-// machines signed in as the reader, and offers signing every other one out at the group's foot,
-// behind one confirm. What the rows hold and ask is `organization/session/tests/machines.svelte.test.ts`'s;
+// machines signed in as the reader, signs one out from its row's menu, and offers signing every
+// other one out at the group's foot, behind one confirm. What the rows hold and ask is `organization/session/tests/machines.svelte.test.ts`'s;
 // what is read here is that the section draws them from its own read and writes through its own
 // hooks.
 test('the account section lists your machines and signs one out, or every other one, behind one confirm', async () => {
@@ -621,7 +621,20 @@ test('the account section lists your machines and signs one out, or every other 
 	// nothing has been asked yet, so nothing has been confirmed.
 	expect(screen.queryByText(en.settings.you.sessions.confirmDescription)).toBeNull();
 
-	await fireEvent.click(machines.querySelector('[data-end-machine=machine-laptop]')!);
+	// signing one out is in that machine's row's menu, so the card's one error-tone act is signing
+	// every other machine out, and it is last (requirement 10 as decided on 2026-10-02, with 2).
+	const machineRows = [...machines.querySelectorAll<HTMLElement>('[data-settings-row]')];
+	const toned = [...machines.querySelectorAll<HTMLElement>('[data-row-tone=error]')];
+
+	expect(toned).toEqual([machineRows.at(-1)]);
+	expect(rowName(toned[0])).toBe(en.settings.you.sessions.action);
+	expect(machines.querySelectorAll('button[class*=text-destructive]')).toHaveLength(1);
+	expect(toned[0].querySelector('button[class*=text-destructive]')).not.toBeNull();
+
+	await fireEvent.click(machines.querySelector('[data-machine-menu=machine-laptop]')!);
+	await fireEvent.click(
+		document.querySelector('[data-slot=dropdown-menu-item][data-end-machine=machine-laptop]')!
+	);
 
 	const one = await screen.findByRole('dialog');
 

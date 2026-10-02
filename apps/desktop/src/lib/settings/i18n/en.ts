@@ -96,7 +96,7 @@ export const settings = {
 				'this machine is offline; the sign-out reaches the others once it is back online.'
 		},
 		// effort 846, requirements 9 to 11: every machine signed in as the reader, a row each, this
-		// one first, and each other one signed out on its own.
+		// one first, and each other one signed out from its row's menu.
 		machines: {
 			title: 'machines',
 			description: 'signing a machine out leaves your password as it is.',
@@ -107,7 +107,8 @@ export const settings = {
 			lastSeen: 'last seen {moment:string}',
 			added: 'added {date:string}',
 			notUpdated: 'not on this version yet',
-			signOutOne: 'sign out {machine:string}',
+			// the row's menu, named for the machine it acts on (ticket 23 of effort 846).
+			menu: 'actions for {machine:string}',
 			confirmTitle: 'sign out a machine',
 			confirmDescription:
 				'it is signed out when it next reaches Turso, and your password signs it in again. your password does not change.',

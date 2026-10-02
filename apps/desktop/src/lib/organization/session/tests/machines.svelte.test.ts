@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/svelte';
-import { expect, test } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
+import { beforeAll, expect, test } from 'vitest';
 
 import ar from '$lib/i18n/ar';
 import en from '$lib/i18n/en';
@@ -16,9 +16,12 @@ import Providers from '#tests/providers.svelte';
  *
  * Criteria 9 to 11 of [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]] at the
  * interface: a row per machine signed in as the reader, this one first and marked, a machine with
- * no name of its own under its fallback and never its id, a sign-out on every other row and on
- * none of this one's, a machine that has not run this version refused alone with the act that
- * reaches it offered, and each confirmation naming the machine or machines it ends. Which machines
+ * no name of its own under its fallback and never its id, a sign-out in every other row's menu and
+ * no menu on this one's, a machine that has not run this version refused alone with the act that
+ * reaches it offered, and each confirmation naming the machine or machines it ends. *Signing one
+ * machine out moved from an error-tone button on its row into the row's menu on 2026-10-02, at
+ * the human's word ("Move it off the rows"), so signing every other machine out is the card's one
+ * error-tone act, last (ticket 23).* Which machines
  * are listed, and in what order, is Rust's (`organization/session/machine.rs`); this draws the
  * list it is given in that order.
  *
@@ -84,6 +87,25 @@ const rows = () => [...group().querySelectorAll<HTMLElement>('[data-settings-row
 const nameOf = (row: Element) =>
 	row.querySelector('[data-slot=item-title] > span:first-child')?.textContent?.trim();
 
+/** the menu control a row carries, and nothing where it carries none. */
+const menuOf = (row: Element) => row.querySelector<HTMLElement>('[data-machine-menu]');
+
+/** open a row's menu and hand back its sign-out entry; the menu is portalled, so it is the document's. */
+const openMenu = async (row: Element) => {
+	await fireEvent.click(menuOf(row)!);
+
+	return document.querySelector<HTMLElement>('[data-slot=dropdown-menu-item][data-end-machine]')!;
+};
+
+// a menu and a tooltip are placed against their trigger, and jsdom implements no ResizeObserver.
+beforeAll(() => {
+	window.ResizeObserver = class {
+		observe() {}
+		unobserve() {}
+		disconnect() {}
+	} as unknown as typeof ResizeObserver;
+});
+
 const added = (locale: 'en' | 'ar') => formatLocaleDate(locale, ADDED, { dateStyle: 'medium' });
 
 test('this machine is listed first and marked, with when each machine was seen and added', () => {
@@ -139,43 +161,67 @@ test('a machine with no name of its own reads as a machine added on its date, ne
 	expect(group().textContent).not.toContain('machine-nameless');
 });
 
-test('every other machine carries its own sign-out, and this one carries none', () => {
+test("every other machine is signed out from its row's menu, and this one carries none", () => {
 	draw();
 
+	// this machine's row offers nothing: its sign-out is the section's last card.
 	expect(rows()[0].querySelector('button')).toBeNull();
+	expect(menuOf(rows()[0])).toBeNull();
 	expect(
-		[...group().querySelectorAll<HTMLElement>('[data-end-machine]')].map(
-			(button) => button.dataset.endMachine
+		[...group().querySelectorAll<HTMLElement>('[data-machine-menu]')].map(
+			(control) => control.dataset.machineMenu
 		)
 	).toEqual(['machine-laptop', 'machine-nameless', 'machine-old']);
 
-	// each is named for the machine it ends, so a screen reader tells three sign-outs apart.
+	// each menu is named for the machine it acts on, so a screen reader tells three apart.
 	expect(
 		screen.getByRole('button', {
-			name: en.settings.you.machines.signOutOne.replace('{machine:string}', "Olivia's Laptop")
+			name: en.settings.you.machines.menu.replace('{machine:string}', "Olivia's Laptop")
 		})
 	).toBeDefined();
 
-	// and signing every other machine out is the group's last row, in the error tone.
+	// no row carries an error-tone act: signing every other machine out is the group's last row,
+	// and the only one in the error tone.
 	const last = rows().at(-1)!;
 
 	expect(last.dataset.rowTone).toBe('error');
-	expect(rows().filter((row) => row.dataset.rowTone === 'error')).toHaveLength(1);
+	expect(rows().filter((row) => row.dataset.rowTone === 'error')).toEqual([last]);
+
+	const errorText = /\btext-destructive\b/;
+
+	for (const row of rows().slice(0, -1)) {
+		for (const button of row.querySelectorAll('button')) {
+			expect(button.className).not.toMatch(errorText);
+		}
+	}
 });
 
 test('a machine that has not run this version is refused alone, and signing every other one out is offered', async () => {
 	const asked = draw();
 
 	const old = rows()[3];
-	const refused = old.querySelector<HTMLElement>('[data-end-machine]')!;
 
 	expect(old.querySelector('[data-not-updated]')?.textContent?.trim()).toBe(
 		en.settings.you.machines.notUpdated
 	);
-	expect(refused.getAttribute('aria-disabled')).toBe('true');
-	expect(refused.hasAttribute('disabled')).toBe(false);
 
-	const reason = document.getElementById(refused.getAttribute('aria-describedby')!);
+	const refused = await openMenu(old);
+
+	expect(refused.textContent?.trim()).toBe(en.common.actions.signOut);
+	expect(refused.getAttribute('aria-disabled')).toBe('true');
+	expect(refused.hasAttribute('data-unavailable')).toBe(true);
+	// reachable: the menu's own disabled mark is what would take it out of the keyboard's path.
+	expect(refused.hasAttribute('data-disabled')).toBe(false);
+
+	await fireEvent.focus(refused);
+
+	const reason = await waitFor(() => {
+		const drawn = document.querySelector('[data-unavailable-reason]');
+
+		expect(drawn).not.toBeNull();
+
+		return drawn;
+	});
 
 	expect(reason?.textContent).toBe(en.common.refusals.host.machineNotUpdated);
 	expect(reason?.textContent).toContain(en.settings.you.sessions.action);
@@ -185,19 +231,27 @@ test('a machine that has not run this version is refused alone, and signing ever
 	expect(screen.queryByRole('dialog')).toBeNull();
 	expect(asked).toEqual([]);
 
+	await fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+
 	// the act its reason names is right there, at the foot of the same group, and offered.
 	const others = group().querySelector<HTMLElement>('[data-end-other-sessions-open]')!;
 
 	expect(others.hasAttribute('aria-disabled')).toBe(false);
-
-	// and a machine that has run it is not refused.
-	expect(rows()[1].querySelector('[data-end-machine]')?.hasAttribute('aria-disabled')).toBe(false);
 });
 
-test('signing one machine out asks first, naming the machine, and then ends that one', async () => {
+test('a machine that has run this version is not refused in its menu', async () => {
+	draw();
+
+	const entry = await openMenu(rows()[1]);
+
+	expect(entry.getAttribute('aria-disabled')).not.toBe('true');
+	expect(entry.hasAttribute('data-unavailable')).toBe(false);
+});
+
+test('signing one machine out from its menu asks first, naming the machine, and then ends that one', async () => {
 	const asked = draw();
 
-	await fireEvent.click(rows()[1].querySelector('[data-end-machine]')!);
+	await fireEvent.click(await openMenu(rows()[1]));
 
 	const dialog = await screen.findByRole('dialog');
 
@@ -217,7 +271,7 @@ test('signing one machine out asks first, naming the machine, and then ends that
 test('a nameless machine is confirmed by its fallback', async () => {
 	draw();
 
-	await fireEvent.click(rows()[2].querySelector('[data-end-machine]')!);
+	await fireEvent.click(await openMenu(rows()[2]));
 
 	const dialog = await screen.findByRole('dialog');
 

@@ -98,7 +98,7 @@ export const settings = {
 			lastSeen: 'آخر ظهور {moment}',
 			added: 'أُضيف في {date}',
 			notUpdated: 'لم يُحدَّث إلى هذا الإصدار بعد',
-			signOutOne: 'سجّل خروج {machine}',
+			menu: 'إجراءات {machine}',
 			confirmTitle: 'سجّل خروج جهاز',
 			confirmDescription:
 				'يُسجَّل خروجه حين يصل إلى Turso في المرة القادمة، وتعيده كلمة مرورك. لا تتغير كلمة مرورك.',

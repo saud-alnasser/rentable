@@ -1,19 +1,28 @@
 <script lang="ts">
 	import type { MachineView } from '$lib/organization/host';
 	import ConfirmDialog from '@rentable/design/block/confirm-dialog.svelte';
-	import { unavailableControl } from '@rentable/design/block/record-action-control.svelte';
+	import {
+		asEntry,
+		recordMenuControl,
+		unavailableEntry,
+		unavailableLook
+	} from '@rentable/design/block/record-card.svelte';
 	import SettingsGroup from '@rentable/design/block/settings-group.svelte';
 	import SettingsRow from '@rentable/design/block/settings-row.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
+	import * as DropdownMenu from '@rentable/design/primitive/dropdown-menu/index.js';
 	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
+	import { cn } from '@rentable/design/tailwind.js';
 	import { tone } from '@rentable/design/tone.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import {
 		DAY,
 		formatLocaleDate,
 		formatLocaleRelativeTime,
-		getIntlLocale
+		getIntlLocale,
+		localesMetadata
 	} from '$lib/platform/locale';
+	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
 	import LaptopIcon from '@lucide/svelte/icons/laptop';
 	import LaptopMinimalIcon from '@lucide/svelte/icons/laptop-minimal';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
@@ -30,11 +39,16 @@
 	 * never as its id. The list never folds: the machine last seen a month ago is the one a reader
 	 * most needs to find.
 	 *
-	 * **Each other machine is signed out on its own row**, and every machine but this one at the
-	 * group's foot, in the error tone (requirement 2). This machine carries no sign-out here: the
-	 * section's last group is that. A machine that has not run this version would not read a
-	 * sign-out of its own, so its act is shown refused with the reason, which names the act at the
-	 * foot that does reach it ([[rules/interface]], *An act that cannot run says why at the
+	 * **Each other machine is signed out from its row's menu**, and every machine but this one at
+	 * the group's foot, which is the card's one act in the error tone, last (requirement 2). The
+	 * menu is the record menu a record card draws, the components context's *a secondary act on a
+	 * record*: the quiet ellipsis control, named for the machine, holding *sign out*. *Until
+	 * 2026-10-02 each row carried its own error-tone sign-out button, so the card held a red act
+	 * on every row as well as the one at its foot; the human decided at converge that the one-machine
+	 * sign-out moves off the row ("Move it off the rows").* This machine carries no menu here: the
+	 * section's last group is its sign-out. A machine that has not run this version would not read
+	 * a sign-out of its own, so its entry is shown refused with the reason, which names the act at
+	 * the foot that does reach it ([[rules/interface]], *An act that cannot run says why at the
 	 * control*).
 	 *
 	 * **Both ask once before they run**, naming the machines they end, because each reaches another
@@ -96,13 +110,17 @@
 	let ending = $state<MachineView | null>(null);
 	let endingOthers = $state(false);
 
-	// what names each refused act's reason to assistive technology, whether or not its tooltip is
-	// drawn: this block's own id and the row's place, never the machine's id.
-	const reasonId = $props.id();
+	// a refusal's reason stands beside the entry, on the side the menu reads towards.
+	const reasonSide = $derived(localesMetadata[$locale].direction === 'rtl' ? 'left' : 'right');
 
 	const errorText = tone({ tone: 'error' }).text();
 	const errorButton = `${errorText} hover:bg-destructive/10 hover:text-destructive`;
 </script>
+
+{#snippet signOut()}
+	<LogOutIcon class="size-4" />
+	<span class="min-w-0 flex-1 truncate">{$LL.common.actions.signOut()}</span>
+{/snippet}
 
 <div data-machines class="contents">
 	<SettingsGroup
@@ -115,7 +133,7 @@
 		span="full"
 	>
 		{#snippet rows()}
-			{#each machines as machine, index (machine.id)}
+			{#each machines as machine (machine.id)}
 				{@const name = nameOf(machine)}
 				<SettingsRow
 					icon={LaptopIcon}
@@ -140,38 +158,66 @@
 							{@const refusal = machine.mayEndAlone
 								? undefined
 								: $LL.common.refusals.host.machineNotUpdated()}
-							<Tooltip.Root>
-								<Tooltip.Trigger>
+							<!-- the record menu, as a record card draws it: a quiet control named for the
+							     machine, holding its sign-out. Not in the error tone: the card's one
+							     error-tone act is signing every other machine out, last (requirement 2). -->
+							<DropdownMenu.Root>
+								<DropdownMenu.Trigger>
 									{#snippet child({ props })}
 										<Button
 											{...props}
 											type="button"
 											variant="ghost"
-											size="sm"
-											class="{errorButton} {refusal ? unavailableControl : ''}"
-											aria-label={$LL.settings.you.machines.signOutOne({ machine: name })}
-											aria-disabled={refusal ? 'true' : undefined}
-											aria-describedby={refusal ? `${reasonId}-${index}` : undefined}
-											data-end-machine={machine.id}
-											data-unavailable={refusal ? '' : undefined}
-											onclick={() => {
-												if (!refusal) ending = machine;
-											}}
+											size="icon-sm"
+											class={recordMenuControl}
+											aria-label={$LL.settings.you.machines.menu({ machine: name })}
+											data-machine-menu={machine.id}
 										>
-											<LogOutIcon class="size-4" />
-											{$LL.common.actions.signOut()}
-											{#if refusal}
-												<span id="{reasonId}-{index}" class="sr-only">{refusal}</span>
-											{/if}
+											<EllipsisIcon class="size-4" />
 										</Button>
 									{/snippet}
-								</Tooltip.Trigger>
-								{#if refusal}
-									<Tooltip.Content side="top" sideOffset={8}>
-										<span class="block max-w-xs" data-unavailable-reason>{refusal}</span>
-									</Tooltip.Content>
-								{/if}
-							</Tooltip.Root>
+								</DropdownMenu.Trigger>
+
+								<DropdownMenu.Content align="end" class="min-w-[12rem]">
+									{#if refusal}
+										<!-- refused here rather than by the menu, which would take a disabled entry
+										     out of the keyboard's path and leave its reason unreachable. -->
+										<Tooltip.Root>
+											<Tooltip.Trigger>
+												{#snippet child({ props: hint })}
+													<DropdownMenu.Item
+														{...asEntry(hint)}
+														onSelect={(event) => event.preventDefault()}
+														data-end-machine={machine.id}
+													>
+														{#snippet child({ props })}
+															<div
+																{...props}
+																{...unavailableEntry}
+																class={cn(props.class as string, unavailableLook)}
+															>
+																{@render signOut()}
+															</div>
+														{/snippet}
+													</DropdownMenu.Item>
+												{/snippet}
+											</Tooltip.Trigger>
+											<Tooltip.Content side={reasonSide} sideOffset={8}>
+												<span class="block max-w-xs" data-unavailable-reason>{refusal}</span>
+											</Tooltip.Content>
+										</Tooltip.Root>
+									{:else}
+										<DropdownMenu.Item
+											onSelect={() => {
+												ending = machine;
+											}}
+											data-end-machine={machine.id}
+										>
+											{@render signOut()}
+										</DropdownMenu.Item>
+									{/if}
+								</DropdownMenu.Content>
+							</DropdownMenu.Root>
 						{/if}
 					{/snippet}
 				</SettingsRow>

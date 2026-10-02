@@ -2482,10 +2482,10 @@ type RootTranslation = {
 				 */
 				notUpdated: string
 				/**
-				 * s​i​g​n​ ​o​u​t​ ​{​m​a​c​h​i​n​e​}
+				 * a​c​t​i​o​n​s​ ​f​o​r​ ​{​m​a​c​h​i​n​e​}
 				 * @param {string} machine
 				 */
-				signOutOne: RequiredParams<'machine'>
+				menu: RequiredParams<'machine'>
 				/**
 				 * s​i​g​n​ ​o​u​t​ ​a​ ​m​a​c​h​i​n​e
 				 */
@@ -7296,9 +7296,9 @@ export type TranslationFunctions = {
 				 */
 				notUpdated: () => LocalizedString
 				/**
-				 * sign out {machine}
+				 * actions for {machine}
 				 */
-				signOutOne: (arg: { machine: string }) => LocalizedString
+				menu: (arg: { machine: string }) => LocalizedString
 				/**
 				 * sign out a machine
 				 */

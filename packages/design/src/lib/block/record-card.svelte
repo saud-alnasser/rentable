@@ -91,7 +91,7 @@
 	 * technology hears it refused. Written after the menu's attributes, because the menu marks
 	 * every entry it was not told to disable as enabled.
 	 */
-	const unavailableEntry = {
+	export const unavailableEntry = {
 		'aria-disabled': 'true',
 		'data-unavailable': ''
 	} as const;
@@ -101,7 +101,7 @@
 	 * slot, which names what the entry is to every surface and test that reads it, and the button
 	 * type a trigger carries, which a menu entry is not.
 	 */
-	const asEntry = (props: Record<string, unknown>) => {
+	export const asEntry = (props: Record<string, unknown>) => {
 		const hint = { ...props };
 
 		delete hint['data-slot'];
@@ -111,7 +111,16 @@
 	};
 
 	/** how an unavailable entry looks: dimmed, as a disabled one is, and not pressable to the eye. */
-	const unavailableLook = 'opacity-50 cursor-not-allowed';
+	export const unavailableLook = 'opacity-50 cursor-not-allowed';
+
+	/**
+	 * The quiet control that opens a record's menu: tertiary, round, on the secondary fill. Declared
+	 * here, where the card draws it, and read by a row that offers a record's secondary acts outside
+	 * a card (the machines in the account settings, effort 846 ticket 23), so the treatment keeps one
+	 * home.
+	 */
+	export const recordMenuControl =
+		'relative rounded-full bg-secondary p-0 transition-[background-color] hover:bg-accent';
 
 	/** whether this entry opens a new group, and so has a separator drawn above it. */
 	const opensGroup = (actions: RecordCardAction[], index: number) =>
@@ -217,12 +226,7 @@
 						     is discoverable without competing with what the card says (_Semantics are
 						     secondary_, 60). This is the only home for the treatment now: the two lists
 						     that carried their own copy of it read this block instead. -->
-						<Button
-							{...props}
-							variant="ghost"
-							size="icon-sm"
-							class="relative rounded-full bg-secondary p-0 transition-[background-color] hover:bg-accent"
-						>
+						<Button {...props} variant="ghost" size="icon-sm" class={recordMenuControl}>
 							<span class="sr-only">{contract.strings.openMenu}</span>
 							<EllipsisIcon class="size-4" />
 						</Button>
