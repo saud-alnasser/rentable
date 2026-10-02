@@ -1,0 +1,326 @@
+---
+status: draft
+---
+
+# Problem
+
+**The settings area does what it should and reads as a long column of legends, sentences and
+outline buttons.** Effort 843 redesigned the way in and the workspace control after Apple; the
+human said then that the settings would be amended after it. On 2026-10-02 they asked for that
+rethink, and for the record lists across the application with it. Read against the code and
+against how Apple and Google present the same things
+([[efforts/846-the-settings-and-the-record-cards-are-rethought/evidence/research/how-apple-and-google-present-account-security-and-membership]]):
+
+- **The area is flat.** `settings/component/area.svelte` draws a title, a row of plain underlined
+  text tabs (`block/section-switch.svelte`, no icons), and each section as `Field.Set` blocks split
+  by separators: a legend, one or two sentences, one outline button. Nothing groups related rows,
+  nothing shows a value at a glance, and dangerous acts look like benign ones (*disconnect*,
+  *forget Turso account* and *delete organization* are all outline buttons; only the last has red
+  text). Four buttons carry no icon where their neighbours do (*connect*, *open Turso dashboard*,
+  the mark's *remove*, ending soon's *save*).
+- **Ending soon sits in general and does not belong there.** General holds application preferences
+  (language, appearance, updates, diagnostics), and ending soon is a rule about contracts: the
+  number of days before its end at which a contract ranks as ending soon on the dashboard, in the
+  contracts filter and in the schedule. It is also the one row in general with a *save* button
+  while its neighbours apply at once. The human: "the ending soon feels odd in the general tab".
+  The HIG puts task options "in the screens they affect" (research, finding 5).
+- **Signing out other machines is blind.** The account section offers one act, *sign out of other
+  machines*, with no list: the reader cannot see which machines are signed in as them, when each
+  was last seen, or end one. Google lists each device with when it was last active and signs out
+  one at a time; Apple lists devices on the account page and removes one (research, finding 1).
+  The backend has a `machine` table with `seen_at` and `created_at` per machine
+  (`tauri/src/organization/store/session.rs`), but no machine name, and sessions end by a
+  per-member epoch, so only *all others* can be ended today.
+- **The Turso account block reads as two paragraphs and a button.** An owner whose machine holds
+  the authority sees a sentence and *forget Turso account*; one whose machine does not sees two
+  sentences and an iconless *connect*. Both vendors show a connection as an item with its state,
+  and put its removal inside it, named for what ends (research, finding 2).
+- **The leaving block does not say who may do what.** Everybody sees *disconnect* (this machine
+  forgets the organization); an owner whose machine holds the authority also sees *delete
+  organization*. Neither is told by an icon or a treatment which act is reversible, and an owner
+  reading *leaving* is not shown that handing over ownership is how an owner steps away (that act
+  lives only on the owner's own member card). Google gives the member *leave* and the manager
+  *delete*, each with its consequence stated (research, finding 3).
+- **Sync standing is a muted sentence.** "this machine and Turso" says "up to date, checked 2
+  minutes ago" in muted text beside an outline *sync* button, and a problem appears as a callout
+  under it. Nothing shows at a glance whether sync is healthy. Apple's iCloud pane marks state with
+  a coloured status and names it (research, finding 4).
+- **A workspace's file moves from beneath the directory, and only for the open workspace.**
+  `organization/workspace/component/transfer.svelte` is drawn below the workspace cards, names the
+  open workspace in its legend, and is not drawn when none is open; `api.transfer.get` takes no
+  input and reads the open workspace. To export another workspace a person switches to it first.
+  The card itself offers edit, members and delete. The HIG keeps commands with the item they act
+  on (research, finding 7).
+- **Record lists are one column of thin rows everywhere.** Tenants, complexes, units and contracts
+  are 64 px horizontal cards in one column however wide the window is; status is an icon whose
+  meaning needs a hover; a tenant row always shows six status counts, zeros included. The
+  payment ledger shows a date and an amount, though a payment carries its method, reference and
+  note. The list shell already lays records in columns (`recordMinWidth` on `list/component/list.svelte`)
+  and no list turns it on.
+
+# Goal
+
+**The settings area reads like a well-made platform settings pane, and the record lists show
+what a person came to see without a hover.**
+
+Settings: each section is groups of rows, each row an icon, a name, its value or state, and its
+control, with the destructive acts set apart and named for what they end. General holds only
+application preferences. The reader's own account shows their machines and ends one or all. The
+Turso account reads as a connection; the leaving block tells owner and member what each act
+does; sync shows its state at a glance. A workspace's card exports and imports that workspace.
+
+Records: tenants, complexes, units and contracts are cards in a grid of two or three columns,
+each card carrying its key facts with icons and its status in words. The payment ledger stays a
+statement read in time order, and each payment row says how it was paid.
+
+# Scope
+
+- **The settings area**: `settings/component/{area,page,ending-soon}.svelte`,
+  `packages/design/src/lib/block/section-switch.svelte`, and every block the organization
+  contributes: `organization/component/{settings-account,settings-organization,settings-workspaces,standing,mark,disconnect,disconnect-dialog,delete-organization}.svelte`,
+  `organization/session/component/*`, `organization/setup/component/{forget-account,reconnect-authority}.svelte`,
+  `organization/workspace/**`.
+- **Machines and sessions**: the machine record and the session model in
+  `tauri/src/organization/**` and `tauri/src/machine/**`, as far as listing a reader's machines,
+  naming one, and ending one requires.
+- **Ending soon**: its control on the dashboard (`dashboard/component/**`), and its removal from
+  general.
+- **Workspace transfer**: `transfer/**` and its router, as far as exporting and importing a
+  workspace that is not open requires.
+- **Record lists**: the list shell (`list/**`), `packages/design/src/lib/block/record-card.svelte`,
+  the cells in `design/cell/**`, and the directories of tenants, complexes, units and contracts,
+  wherever each is drawn (its own route, a tenant's contracts, a unit's contracts, a complex's
+  units); the payment ledger (`payment/component/ledger.svelte`).
+- The English and Arabic strings these read, and [[rules/interface]] where a decision here
+  revises it, in the same change.
+
+# Requirements
+
+*The settings area*
+
+1. **A section is groups of rows.** Each block in every section is drawn as a group of rows in the
+   manner of a platform settings pane: a row carries a leading icon, a name, its current value or
+   state where it has one, and its control, with at most one line of explanation, under the group
+   rather than inside every row. The section switch names each section with an icon beside its
+   word.
+2. **Destructive acts are set apart and look destructive.** In every section an act that deletes,
+   disconnects, forgets or signs somebody out sits at the end of its group, drawn in the error
+   tone, with an icon, and its confirmation names what ends and whether anything brings it back.
+   A benign act never takes that treatment.
+3. **General holds application preferences only**: language, appearance, updates and diagnostics.
+   Ending soon is not in it.
+4. **Every control in the area that applies a choice applies it at once**, as language and
+   appearance do; none asks for a separate save. A choice that fails is put back and says why.
+5. **Every button in the area carries an icon or none in its group does** (843, requirement 6),
+   and the four iconless buttons named in the problem are resolved one way or the other.
+
+*Ending soon*
+
+6. **Ending soon is set from the dashboard, where it shows.** The ending-soon section of the
+   landing screen carries a small icon control in its header that opens the number of days and
+   changes it in place; the section and the counts that depend on it update without leaving the
+   screen. The value stays a setting of this machine, as today.
+7. **The setting stays reachable when nothing is ending soon.** Where no contract falls in the
+   window, so the section is not drawn, the dashboard still offers the control, so a reader can
+   widen a window that catches nothing.
+
+*The account section*
+
+8. **The account section reads as the reader's sign-in and security**: who is signed in (the
+   identity, the role and the organization), the password, and the machines, in that order, with
+   sign-out of this machine last.
+9. **The reader sees every machine signed in as them.** Each machine is a row with its name, when
+   it was last seen, and when it was first signed in, and the machine being used is marked as this
+   machine and listed first.
+10. **The reader can sign out one machine, or every machine but this one.** Signing out one is an
+    act on that machine's row; signing out all others is one act at the foot of the list. Both are
+    confirmed, name the machines they end, and leave the password unchanged. A machine that was
+    signed out finds itself at the sign-in wall the next time it reaches Turso, as *sign out of
+    other machines* does today. Offline, the act says it reaches the others once this machine is
+    back online, as today.
+11. **A machine has a name a person recognises.** A machine is named when it signs in, by the name
+    its operating system gives it, so the list reads as the reader's own computers rather than
+    identifiers.
+
+*The organization section*
+
+12. **Sync shows its state at a glance.** The sync group shows one named state (up to date,
+    syncing, not yet reached, needs attention, needs reconnecting) with an icon and tone of its
+    own, when it last reached Turso, and *sync now*. A problem keeps the explanation and the act
+    it offers today, under the state rather than instead of it.
+13. **The Turso account reads as a connection.** The Turso group is one row naming the
+    connection and its state on this machine: connected, or not held here with the act that
+    reconnects it. Forgetting it is the group's destructive act (requirement 2), and its
+    confirmation says the token is not revoked and where to revoke it, as today.
+14. **Leaving tells owner and member apart.** A member sees *disconnect this machine*, with an icon,
+    and one line saying the organization stays on Turso and a new link brings them back. An owner
+    sees the same, then the way to hand over ownership (opening the act their member card already
+    carries), then *delete organization* last, set apart as the one act nothing undoes. Each act
+    states its consequence in a line, and none of them looks like another.
+
+*The workspaces section*
+
+15. **A workspace's file moves from its card.** Every workspace card the reader may export from
+    offers *export* and *import* among its acts, on that workspace, whether or not it is open on
+    this machine. The transfer block below the directory is gone. An act the reader may not take
+    on that workspace is shown refused with the reason, as every act is
+    ([[rules/interface]], *Record card actions*).
+16. **A workspace card says more than its name.** It shows that it is open on this machine in words
+    as well as the mark, how many members hold it, and the reader's own access to it.
+17. **The earlier records keep a way in.** The callout that brings in the records of 0.12.0 or
+    0.13.0 stays reachable from the workspaces section, and brings them into the workspace it
+    names.
+
+*Record lists*
+
+18. **Tenants, complexes, units and contracts are a grid of cards.** Wherever one of these is listed,
+    its records are cards laid in two columns, or three where the window is wide enough, and one
+    where it is narrow. Search, filter, sort, selection, keyboard movement, the transfer menu, the
+    empty and loading states and virtualization work as they do in one column.
+19. **A card shows its record's key facts without a hover.** Each concept's card carries its name,
+    the facts a reader scans for, each with an icon, and its status as an icon with its word. A
+    count of zero is not drawn. What each card holds is decided per concept, the way
+    [[rules/interface]] already gives each concept its own presentation.
+20. **The payment ledger stays a statement, and says how each payment was made.** Payments stay one
+    column in time order, grouped by month with the month's total. Each row shows the date, the
+    amount, the method with its icon where one was recorded, and the reference and note where
+    there are any.
+
+*Across all of it*
+
+21. **Both directions, both appearances, the keyboard and reduced motion.** Every surface above
+    mirrors in Arabic, reads in light and dark, is reachable and operable by keyboard, and has no
+    motion under reduced motion.
+22. **The rules say what was built.** [[rules/interface]] is revised in the same change where this
+    effort departs from it: *Export and import* (a workspace's file moves from its card),
+    *Landing screen* (a section may carry the control for the setting that defines it), and *List
+    presentation* (the four directories are grids).
+
+# Acceptance Criteria
+
+1. Each settings section, opened signed in as the owner, shows its blocks as grouped rows with a
+   leading icon, a name and a value or control; the section switch shows an icon beside each
+   section's name.
+2. Every disconnect, forget, delete and sign-out act in the area is the last item in its group,
+   drawn in the error tone with an icon, and its confirmation states what ends and whether it can
+   be undone; no other act uses that tone.
+3. General shows language, appearance, updates and diagnostics, and no ending-soon control.
+4. No control in the settings area has a separate save step; a failed change reverts and shows the
+   reason (checked by forcing the settings write to fail).
+5. Within each group of buttons in the area, either every button has an icon or none does.
+6. On the dashboard, the ending-soon section's header has an icon control; changing the days there
+   updates the section's contracts and the band's counts without a reload or a navigation, and the
+   value survives a restart of the application.
+7. With no contract inside the window, the dashboard still offers the ending-soon control, and
+   widening the window until a contract falls inside it makes the section appear.
+8. The account section shows, in order: identity with role and organization, password, machines,
+   sign out of this machine.
+9. Signed in as one member on two machines, each machine's account section lists both, with name,
+   last seen and first signed in, and marks itself as this machine, first.
+10. From machine A, signing out machine B by its row leaves A signed in, sends B to the sign-in wall
+    on its next contact with Turso, and leaves the password unchanged; *sign out all other
+    machines* does the same for every machine but A. Both confirm first, naming the machines.
+    Offline, the act reports that it reaches the others once back online.
+11. A machine signing in after this lands appears in the list under its operating-system name; one
+    that signed in before and has no name yet appears with a stated fallback, never a raw id.
+12. The sync group shows each of the five states with a distinct icon and tone (checked by driving
+    each state through the sync host), the last time Turso was reached, and *sync now*; a problem
+    shows its explanation and act beneath the state.
+13. An owner whose machine holds the authority sees the Turso row as connected, with *forget* as
+    the group's destructive act and its confirmation naming where to revoke the token; one whose
+    machine does not sees it as not held, with an icon-bearing reconnect act.
+14. A member's leaving group shows only *disconnect this machine* with its consequence line; an
+    owner's shows disconnect, *hand over ownership* (opening the existing offer form), and *delete
+    organization* last and destructive.
+15. A workspace card that is not open on this machine offers *export* and *import*; exporting it
+    writes that workspace's records (checked against a workspace with known records while another
+    is open), and importing writes into it and not into the open one. No transfer block is drawn
+    below the directory. A reader lacking the flags sees both refused with the reason.
+16. Each workspace card shows *open on this machine* in words where it is, the member count, and the
+    reader's access to it.
+17. With 0.12.0 or 0.13.0 records left on the machine, the workspaces section still offers the
+    callout, and bringing them in writes into the workspace it names.
+18. With a wide window, the tenants, complexes, contracts and a complex's units lists show three
+    columns; narrowed, two; narrower, one. In each, `/` searches, the filter and sort work, arrow
+    keys move across and down, selection selects, and a list of a thousand records scrolls without
+    drawing all of them.
+19. On each of the four concepts' cards, status reads as an icon and a word, every fact carries an
+    icon, and no count of zero is drawn.
+20. The ledger is one column grouped by month with totals; a payment recorded with a method,
+    reference and note shows all three, and one recorded without them shows date and amount alone.
+21. Every surface in criteria 1 to 20 is checked in Arabic and English, light and dark, by keyboard
+    alone, and with reduced motion on.
+22. [[rules/interface]]'s *Export and import*, *Landing screen* and *List presentation* sections
+    describe what was built, and the index validates.
+
+# Constraints
+
+- **Apple's HIG first, Google second**, for every look and behaviour decided here; a decision that
+  leans on one names it. *Why: the human's standing direction since effort 843.*
+- **Credentials stay in Rust** ([[rules/credentials]], *Client boundary*). Listing machines and
+  ending one hands TypeScript machine names and times, never a token or a session secret.
+- **Ending one machine must hold against a machine that is offline when it is ended**: the machine
+  learns it on its next contact, as the epoch does today. *Why: the application is offline first,
+  and a sign-out that only works while the target is online is no sign-out.*
+- **Ending soon stays a per-machine setting.** *Why: the human chose the dashboard control over
+  making it organization-wide on 2026-10-02.*
+- **Exporting a workspace that is not open must not switch the window to it**, and must not leave
+  that workspace's replica on a machine that did not already hold it, unless the plan shows why it
+  must.
+- **The record card keeps its two routes and one declaration** ([[rules/interface]], *Record card
+  actions*): the grid changes how a card is laid out, not where its acts come from.
+- **Strings follow the application's voice** (lower case, short), in English and Arabic.
+- **No em dashes** in commits, pull requests or source comments ([[policies/reporting]]).
+
+# Out of Scope
+
+- **A setting that is organization-wide.** Ending soon stays per machine; nothing here moves a
+  setting into the organization.
+- **A non-owner leaving the organization on Turso.** A member still has only *disconnect this
+  machine*; being removed is done by somebody above them, as today.
+- **Changing what ownership handover does.** The leaving group opens the existing offer; its
+  behaviour is unchanged.
+- **Renaming a workspace that is not open**, or any workspace act other than export and import
+  gaining reach over a workspace that is not open.
+- **Per-workspace sync standing** for workspaces that are not open. Sync describes this machine's
+  open workspace and the organization, as today.
+- **Payments as a card grid**, and the history list. The ledger is revisited only as far as
+  requirement 20 says.
+- **The member and role directories as grids.** They stay one column of cards; a dozen people read
+  better as a list.
+- **The contract's unit transfer panes.**
+- **The way in, the wall and the workspace control**, which effort 843 settled.
+
+# Assumptions
+
+- A machine's operating-system name is readable from the shell on Windows and macOS without a new
+  permission.
+- Machines that signed in before this lands can be shown with a fallback name until they next sign
+  in, and the fallback is acceptable to the human.
+- The machine table can hold a name and a per-machine session marker without a workspace
+  migration, since it lives in the organization's store rather than a workspace.
+- A workspace that is not open can be read and written by the shell for export and import, either
+  from a replica already on the machine or by fetching it. The plan settles which.
+- The list shell's existing column support (`recordMinWidth`, `listRows`, keyboard movement across
+  columns) is sound, and the missing column gap is its only visible defect.
+
+# Open Questions
+
+- **How one machine is ended.** The epoch ends all of a member's sessions at once; ending one needs
+  a per-machine marker the machine checks on contact. Technical, for the plan, against
+  [[contexts/desktop/remote-sync]] and [[contexts/desktop/organization]].
+- **Where the ending-soon control sits when its section is not drawn** (requirement 7). A design
+  call for the plan, against the landing screen's rule that a section holds rows.
+- **What each concept's card holds** (requirement 19). Design calls for the plan, prototyped on real
+  data rather than mock data.
+
+# Risks
+
+- **Per-machine sign-out touches the credential path.** A mistake signs out the wrong machine or
+  none, and shows up only across two machines, so it needs a two-machine check before merge.
+- **Exporting a workspace that is not open may cost a full fetch from Turso**, slow on a large
+  workspace and impossible offline; the card would then refuse it offline, and that needs saying.
+- **A grid with fixed row heights clips or overlaps a card whose content runs long**, worst in
+  Arabic and at large text sizes; each concept's card height has to be checked in both languages.
+- **Moving ending soon off settings hides it from a reader who looked for it there.** The command
+  menu should still find it.
