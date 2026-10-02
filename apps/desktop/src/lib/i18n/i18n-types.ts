@@ -3932,11 +3932,25 @@ type RootTranslation = {
 			 * s​e​t​ ​f​o​r​ ​y​o​u
 			 */
 			workspaceSetForYou: string
-			/**
-			 * c​r​e​a​t​e​d​ ​{​d​a​t​e​}
-			 * @param {string} date
-			 */
-			workspaceMade: RequiredParams<'date'>
+			workspaceCard: {
+				/**
+				 * {​c​o​u​n​t​|​n​u​m​b​e​r​}
+				 * @param {unknown} count
+				 */
+				memberCount: RequiredParams<'count|number'>
+				/**
+				 * n​o​b​o​d​y
+				 */
+				noMembers: string
+				/**
+				 * y​o​u​r​ ​a​c​c​e​s​s
+				 */
+				access: string
+				/**
+				 * c​r​e​a​t​e​d
+				 */
+				created: string
+			}
 			memberCard: {
 				/**
 				 * p​a​s​s​w​o​r​d
@@ -8768,10 +8782,24 @@ export type TranslationFunctions = {
 			 * set for you
 			 */
 			workspaceSetForYou: () => LocalizedString
-			/**
-			 * created {date}
-			 */
-			workspaceMade: (arg: { date: string }) => LocalizedString
+			workspaceCard: {
+				/**
+				 * {count|number}
+				 */
+				memberCount: (arg: { count: unknown }) => LocalizedString
+				/**
+				 * nobody
+				 */
+				noMembers: () => LocalizedString
+				/**
+				 * your access
+				 */
+				access: () => LocalizedString
+				/**
+				 * created
+				 */
+				created: () => LocalizedString
+			}
 			memberCard: {
 				/**
 				 * password

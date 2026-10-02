@@ -115,7 +115,12 @@ export const organization = {
 		workspaceYouEdit: 'يمكنك التعديل',
 		workspaceYouRead: 'يمكنك القراءة',
 		workspaceSetForYou: 'مخصّصة لك',
-		workspaceMade: 'أُنشئت في {date}',
+		workspaceCard: {
+			memberCount: '{count|number}',
+			noMembers: 'لا أحد',
+			access: 'صلاحيتك',
+			created: 'تاريخ الإنشاء'
+		},
 		memberCard: {
 			password: 'كلمة المرور',
 			passwordSet: 'معيّنة',

@@ -150,8 +150,16 @@ export const organization = {
 		workspaceYouEdit: 'you may edit',
 		workspaceYouRead: 'you may read',
 		workspaceSetForYou: 'set for you',
-		// when a workspace was made, on its card (effort 846, ticket 33).
-		workspaceMade: 'created {date:string}',
+		// what a workspace's tile says under its heading, as fields each with its name small above
+		// its value (effort 846, ticket 45): who holds it, named by the term's one key
+		// `organization.dashboard.membersTitle`, then the reader's access and the day it was made.
+		// Nobody holding it is said in words, never as a zero.
+		workspaceCard: {
+			memberCount: '{count|number}',
+			noMembers: 'nobody',
+			access: 'your access',
+			created: 'created'
+		},
 		// what a member's tile says, as four fields each with its name small above its value
 		// (effort 846, ticket 37): a name is written because four short values side by side need
 		// one to be told apart. Where the account stands is a fact about it and nothing follows

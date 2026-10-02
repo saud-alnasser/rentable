@@ -4,14 +4,16 @@
 	 * each find its own (effort 846, ticket 33), so the tiles in a row line up and a card with
 	 * fewer facts keeps its place.
 	 *
-	 * Counted the way the record tiles are (the cards on real data): the padding (32), the heading
-	 * line at the control's height (32), the gap (8), the open badge's line (22: the facts' 20 px
-	 * leading and its border), the gap (8), then the facts four pixels apart: the members' line at
-	 * the avatars' 24 px, and the access and the day at the facts' fixed 20 px (72). Every line sets
-	 * its own height, so Arabic, whose font draws an inherited line near 22 px, holds the same
-	 * figure; a line added to the tile changes it too.
+	 * Counted the way the member's and the role's tiles are (effort 846, ticket 45): the padding
+	 * (32), the heading line at the glyph tile's and the control's height (32), then 12 px to the
+	 * fields, two rows of fields 8 px apart, each field 8 px of padding above and below a name and
+	 * a value at a fixed 20 px leading (8 + 20 + 20 + 8 = 56). 32 + 32 + 12 + (56 + 8 + 56) = 196.
+	 * The open badge stands on the heading line and adds nothing. Both rows are counted whatever
+	 * they hold, since the members and the access are always drawn. It holds in Arabic only because
+	 * every line sets its own leading, so a line added to the tile, or one drawn without it,
+	 * changes this figure too.
 	 */
-	export const WORKSPACE_TILE_HEIGHT = 174;
+	export const WORKSPACE_TILE_HEIGHT = 196;
 </script>
 
 <script lang="ts">
@@ -44,10 +46,7 @@
 	import XIcon from '@lucide/svelte/icons/x';
 	import UsersIcon from '@lucide/svelte/icons/users';
 	import CalendarPlusIcon from '@lucide/svelte/icons/calendar-plus';
-	import CrownIcon from '@lucide/svelte/icons/crown';
-	import PencilIcon from '@lucide/svelte/icons/pencil';
-	import EyeIcon from '@lucide/svelte/icons/eye';
-	import UserCogIcon from '@lucide/svelte/icons/user-cog';
+	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 	import { permits, WRITE_FLAGS } from '@rentable/workspace-permission';
 	import { columnsFor, RECORD_TILE_MIN_WIDTH } from '$lib/list';
 
@@ -61,21 +60,24 @@
 	 * actions*). *It was a row with a cluster of glyphs revealed on hover until this ticket, which
 	 * is what the human met in the running build and asked to be cards instead.*
 	 *
-	 * **A card is a tile at the record tiles' standard: the workspace's glyph in its muted tile and
-	 * its name on the heading line, and its facts beneath as `Cell.Fact` lines, each after its
-	 * glyph** ([[rules/interface]], *List presentation*), and the tiles are a grid, two or three to
-	 * a row where there is room (effort 846, *Everything in a tab is a card*), each at
-	 * `WORKSPACE_TILE_HEIGHT`. The one open on this machine says so in words, *open on this
-	 * machine*, in a badge under its heading after the solid disc this application draws for
-	 * something live (Linear's worded *joined* badge). The facts stand together at the tile's foot,
-	 * so they line up across a row whether or not the badge is drawn above them: who holds the
-	 * workspace, as their initials in a small stack with how many there are; what the reader may
-	 * do there, from the session's own entry for that workspace, worded as what they may do:
-	 * *owner*, *you may read* where the grant is read only or nothing the reader holds there
-	 * writes, *set for you* where something is pinned for them there, and *you may edit*
-	 * otherwise, never *full access* or *no access*, which the member's card does not say either;
-	 * and the day it was created, off its row in the organization store. A count of nobody is not
-	 * drawn. *Effort 843 took the open word and the access line off the card, leaving the disc
+	 * **A card is a tile in the member card's family: the workspace's glyph in its muted tile, its
+	 * name and, on the one open here, a badge on the heading line; then its facts as tinted
+	 * `Cell.Field`s in a grid two across** (effort 846, ticket 45, at the human's word of
+	 * 2026-10-03: "follow the tinted files and things like that in the reocrds cards of domain
+	 * data"), and the tiles are a grid, two or three to a row where there is room (effort 846,
+	 * *Everything in a tab is a card*), each at `WORKSPACE_TILE_HEIGHT`. The one open on this
+	 * machine says so in words, *open on this machine*, in a badge after the solid disc this
+	 * application draws for something live (Linear's worded *joined* badge), where the member's
+	 * heading carries its role. The fields: who holds the workspace, across both columns since the
+	 * stack wants the room, as their initials with how many there are; then what the reader may do
+	 * there, from the session's own entry for that workspace, worded as what they may do: *owner*,
+	 * *you may read* where the grant is read only or nothing the reader holds there writes, *set
+	 * for you* where something is pinned for them there, and *you may edit* otherwise, never *full
+	 * access* or *no access*, which the member's card does not say either; and the day it was
+	 * created, off its row in the organization store, where the row says. A workspace nobody holds
+	 * says *nobody*, muted, never a zero. There is no fourth field: the rest of what the session
+	 * reads of a workspace is its database's name, host and schema, Turso's facts rather than the
+	 * reader's. *Effort 843 took the open word and the access line off the card, leaving the disc
 	 * alone, and the human brought both back on 2026-10-02 (effort 846, requirement 16); the same
 	 * day they found the tile sparse ("the workspaces grid card needs to be more informative and
 	 * better looking"), and ticket 33 gave it the glyph tile, the avatars and the date.* Record
@@ -214,20 +216,15 @@
 	 * that only views reads *you may read* under a full grant rather than an edit it cannot make.
 	 */
 	const accessOf = (workspace: OrganizationWorkspace) => {
-		if (isOwner)
-			return { kind: 'owner', word: $LL.organization.dashboard.workspaceYouOwn(), icon: CrownIcon };
+		if (isOwner) return { kind: 'owner', word: $LL.organization.dashboard.workspaceYouOwn() };
 		if (workspace.accessLevel === 'read-only')
-			return { kind: 'read', word: $LL.organization.dashboard.workspaceYouRead(), icon: EyeIcon };
+			return { kind: 'read', word: $LL.organization.dashboard.workspaceYouRead() };
 		if (workspace.pinned !== 0)
-			return {
-				kind: 'pinned',
-				word: $LL.organization.dashboard.workspaceSetForYou(),
-				icon: UserCogIcon
-			};
+			return { kind: 'pinned', word: $LL.organization.dashboard.workspaceSetForYou() };
 		if (!WRITE_FLAGS.some((flag) => permits(workspace.permissions, flag)))
-			return { kind: 'read', word: $LL.organization.dashboard.workspaceYouRead(), icon: EyeIcon };
+			return { kind: 'read', word: $LL.organization.dashboard.workspaceYouRead() };
 
-		return { kind: 'edit', word: $LL.organization.dashboard.workspaceYouEdit(), icon: PencilIcon };
+		return { kind: 'edit', word: $LL.organization.dashboard.workspaceYouEdit() };
 	};
 
 	/** the gap between two tiles, the list shell's `gap-3`. */
@@ -373,6 +370,7 @@
 					label={workspace.name}
 					actions={toCardActions(workspaceActs, recordOfWorkspace(workspace), $LL)}
 					layout="tile"
+					class="gap-3"
 				>
 					{#snippet heading()}
 						<!-- the glyph in the muted tile the directory's own heading wears, so the card and
@@ -386,71 +384,82 @@
 						<span class="flex min-w-0" data-workspace-name>
 							<Cell.Text class="truncate text-sm font-semibold" text={workspace.name} />
 						</span>
+						<!-- the open one says so beside its name, where a member's heading carries the role: the
+						     disc the rail's switcher marks it with and the words that say what the disc means,
+						     so neither has to be learned. -->
+						{#if workspace.id === openWorkspaceId}
+							<Badge
+								variant="secondary"
+								class="max-w-full min-w-0 shrink"
+								data-workspace-open={workspace.id}
+							>
+								<DiscIcon class="size-3 shrink-0 text-primary" aria-hidden="true" />
+								<span class="truncate">{$LL.organization.dashboard.workspaceOpenHere()}</span>
+							</Badge>
+						{/if}
 					{/snippet}
 
 					{#snippet content()}
 						{@const access = accessOf(workspace)}
 						{@const holders = holdersOf(workspace.id)}
-						<!-- the open one says so under its heading, in the disc the rail's switcher marks it
-						     with and the words that say what the disc means, so neither has to be learned. -->
-						{#if workspace.id === openWorkspaceId}
-							<span
-								class="pointer-events-none relative flex min-w-0"
-								data-workspace-open={workspace.id}
+						<div data-workspace-fields class="pointer-events-none relative grid grid-cols-2 gap-2">
+							<!-- who holds it, across both columns, since the stack of initials wants the room. -->
+							<Cell.Field
+								hook="workspace-field"
+								data-workspace-members={workspace.id}
+								class="col-span-2"
+								icon={UsersIcon}
+								name={$LL.organization.dashboard.membersTitle()}
+								empty={holders.length === 0}
 							>
-								<Badge variant="secondary" class="max-w-full py-0 leading-5">
-									<DiscIcon class="size-3 shrink-0 text-primary" aria-hidden="true" />
-									<span class="truncate">{$LL.organization.dashboard.workspaceOpenHere()}</span>
-								</Badge>
-							</span>
-						{/if}
-
-						<!-- the facts, together at the foot so they line up across a row, one to a line
-						     after its glyph. -->
-						<span class="pointer-events-none relative mt-auto flex min-w-0 flex-col gap-1">
-							{#if holders.length > 0}
-								<span class="contents" data-workspace-members={workspace.id}>
-									<Cell.Fact icon={UsersIcon}>
-										<!-- the people themselves, by the initials their own cards wear; the count
-										     beside them says it in words, so the stack is not read twice. -->
+								{#if holders.length === 0}
+									{$LL.organization.dashboard.workspaceCard.noMembers()}
+								{:else}
+									<span class="flex min-w-0 items-center gap-2">
+										<!-- the people themselves, by the initials their own cards wear, at the
+										     value's 20 px line; the count beside them says it, so the stack is not
+										     read twice. -->
 										<span
-											class="flex shrink-0 -space-x-1.5"
+											class="flex shrink-0 -space-x-1"
 											aria-hidden="true"
 											data-workspace-avatars
 										>
 											{#each holders.slice(0, STACKED) as holder (holder.id)}
-												<Avatar.Root class="size-6 ring-2 ring-card">
-													<Avatar.Fallback class="text-xs font-medium text-foreground">
+												<Avatar.Root class="size-5 ring-2 ring-muted">
+													<Avatar.Fallback class="text-xs leading-none font-medium text-foreground">
 														{accountInitials(holder.username)}
 													</Avatar.Fallback>
 												</Avatar.Root>
 											{/each}
 										</span>
 										<span class="truncate" data-workspace-count>
-											{$LL.layout.workspaceMenu.members({ count: holders.length })}
-										</span>
-									</Cell.Fact>
-								</span>
-							{/if}
-
-							<span class="contents" data-workspace-access={workspace.id} data-access={access.kind}>
-								<Cell.Fact icon={access.icon}>
-									<span class="truncate">{access.word}</span>
-								</Cell.Fact>
-							</span>
-
-							{#if workspace.createdAt}
-								<span class="contents" data-workspace-made={workspace.id}>
-									<Cell.Fact icon={CalendarPlusIcon}>
-										<span class="truncate">
-											{$LL.organization.dashboard.workspaceMade({
-												date: madeOn(workspace.createdAt)
+											{$LL.organization.dashboard.workspaceCard.memberCount({
+												count: holders.length
 											})}
 										</span>
-									</Cell.Fact>
-								</span>
+									</span>
+								{/if}
+							</Cell.Field>
+
+							<Cell.Field
+								hook="workspace-field"
+								data-workspace-access={workspace.id}
+								data-access={access.kind}
+								icon={KeyRoundIcon}
+								name={$LL.organization.dashboard.workspaceCard.access()}
+								value={access.word}
+							/>
+
+							{#if workspace.createdAt}
+								<Cell.Field
+									hook="workspace-field"
+									data-workspace-made={workspace.id}
+									icon={CalendarPlusIcon}
+									name={$LL.organization.dashboard.workspaceCard.created()}
+									value={madeOn(workspace.createdAt)}
+								/>
 							{/if}
-						</span>
+						</div>
 					{/snippet}
 				</RecordCard>
 			</div>

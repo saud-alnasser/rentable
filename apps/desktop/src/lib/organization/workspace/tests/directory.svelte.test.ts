@@ -353,10 +353,11 @@ const dialogTitle = () => document.querySelector('[data-slot="dialog-title"]')?.
 const dialogParagraphs = () =>
 	Array.from(document.querySelectorAll('[data-slot="dialog-content"] p'));
 
-/** the rail's own sentence for how many people are in a workspace, as the card draws it. */
-const memberCount = (count: number) => i18nObject('en').layout.workspaceMenu.members({ count });
+/** how many people are in a workspace, as the members field draws it beside the initials. */
+const memberCount = (count: number, language: 'en' | 'ar' = 'en') =>
+	i18nObject(language).organization.dashboard.workspaceCard.memberCount({ count });
 
-/** the words a card's members fact says, beside the stack of initials it draws. */
+/** the figure a card's members field says, beside the stack of initials it draws. */
 const countOn = (id: string) =>
 	on('members', id)?.querySelector('[data-workspace-count]')?.textContent?.trim();
 
@@ -421,8 +422,9 @@ test('the open one says it is open on this machine, after its disc, and no other
 
 	expect(said.textContent?.trim()).toBe(en.organization.dashboard.workspaceOpenHere);
 	expect(said.querySelector('svg')).not.toBeNull();
-	// in a badge, the words doing the marking (effort 846, *Everything in a tab is a card*).
-	expect(said.querySelector('[data-slot=badge]')).not.toBeNull();
+	// in a badge on the heading line, the words doing the marking (effort 846, ticket 45).
+	expect(said.getAttribute('data-slot')).toBe('badge');
+	expect(said.closest('[data-workspace-fields]')).toBeNull();
 	expect(card('ws-1')!.contains(said)).toBe(true);
 	expect(card('ws-2')?.textContent).not.toContain(en.organization.dashboard.workspaceOpenHere);
 
@@ -498,17 +500,26 @@ test('the stack draws three at most, and the count says the rest', () => {
 	expect(countOn('ws-1')).toBe(memberCount(5));
 });
 
-// effort 846, requirement 19 and ticket 33: no count of zero.
-test('a workspace nobody is counted in draws no members fact at all', () => {
+// effort 846, requirement 19 and ticket 45: no count of zero. The field still stands, so the tile
+// keeps its rows, and says nobody in words, muted.
+test('a workspace nobody is counted in says nobody, muted, and never a zero', () => {
 	list({ members: [] });
 
-	expect(document.querySelector('[data-workspace-members]')).toBeNull();
-	expect(document.body.textContent).not.toContain(memberCount(0));
+	for (const id of ['ws-1', 'ws-2']) {
+		const field = on('members', id)!;
+		const value = field.querySelector('[data-workspace-field-value]')!;
+
+		expect(value.textContent?.trim(), id).toBe(en.organization.dashboard.workspaceCard.noMembers);
+		expect(value.hasAttribute('data-empty'), id).toBe(true);
+		expect(value.getAttribute('class'), id).toContain('text-muted-foreground');
+		expect(field.querySelector('[data-workspace-avatars]'), id).toBeNull();
+		expect(field.textContent, id).not.toMatch(/[0-9\u0660-\u0669]/);
+	}
 });
 
-// ticket 33 of effort 846: the day it was created, off its row, after its glyph; nothing where the
-// workspace does not say.
-test('every card says the day it was created, after its glyph, and none where it is not known', () => {
+// tickets 33 and 45 of effort 846: the day it was created, off its row, as a field named for it;
+// nothing where the workspace does not say.
+test('every card says the day it was created, as its field, and none where it is not known', () => {
 	const drawn = list();
 
 	for (const [id, made] of [
@@ -518,8 +529,9 @@ test('every card says the day it was created, after its glyph, and none where it
 		const fact = on('made', id)!;
 		const day = formatLocaleDate('en', made, { dateStyle: 'medium' });
 
-		expect(fact.textContent?.trim(), id).toBe(
-			en.organization.dashboard.workspaceMade.replace('{date:string}', day)
+		expect(fact.querySelector('[data-workspace-field-value]')?.textContent?.trim(), id).toBe(day);
+		expect(fact.querySelector('[data-workspace-field-name]')?.textContent?.trim(), id).toBe(
+			en.organization.dashboard.workspaceCard.created
 		);
 		expect(fact.querySelector('svg')?.getAttribute('class'), id).toContain('lucide-calendar-plus');
 	}
@@ -530,25 +542,96 @@ test('every card says the day it was created, after its glyph, and none where it
 	expect(document.querySelector('[data-workspace-made]')).toBeNull();
 });
 
-// ticket 33 of effort 846: the card at the record tiles' standard: the glyph tile and the name on
-// the heading, the badge on the open one alone, and every fact a fact line with its glyph.
-test('every fact on a card is a fact line with its glyph, and the open badge is on the open one only', () => {
-	list();
+/** the name of the lucide glyph an svg draws. */
+const glyphOf = (svg: Element | null) =>
+	[...(svg?.classList ?? [])]
+		.find((name) => name.startsWith('lucide-') && name !== 'lucide-icon')
+		?.slice('lucide-'.length);
 
-	for (const id of ['ws-1', 'ws-2']) {
-		const facts = Array.from(card(id)!.querySelectorAll('[data-fact]'));
+/** a line's words with every space taken out, which is how a field's value is compared. */
+const bare = (text: string | null | undefined) => (text ?? '').replace(/\s+/g, '');
 
-		// members, access and the day it was made.
-		expect(facts, id).toHaveLength(3);
-		for (const fact of facts) expect(fact.querySelector('svg'), id).not.toBeNull();
+/** each field a card draws, as its glyph, its name and its value, read bare. */
+const fieldsOn = (id: string) =>
+	Array.from(card(id)!.querySelectorAll<HTMLElement>('[data-workspace-field]')).map((field) => {
+		const svg = field.querySelector('svg');
 
-		expect(card(id)!.querySelector('[data-workspace-glyph] svg')?.getAttribute('class')).toContain(
-			'lucide-building'
-		);
-	}
+		expect(svg?.getAttribute('aria-hidden')).toBe('true');
+		// the shared tinted cell, and nothing drawn beside it.
+		expect(field.hasAttribute('data-field')).toBe(true);
 
-	expect(card('ws-1')!.querySelector('[data-workspace-open] [data-slot=badge]')).not.toBeNull();
-	expect(card('ws-2')!.querySelector('[data-workspace-open]')).toBeNull();
+		return {
+			glyph: glyphOf(svg),
+			name: field.querySelector('[data-workspace-field-name]')?.textContent?.trim(),
+			value: bare(field.querySelector('[data-workspace-field-value]')?.textContent)
+		};
+	});
+
+// ticket 45 of effort 846, the human's word of 2026-10-03 ("follow the tinted files and things like
+// that in the reocrds cards of domain data"): the glyph tile, the name and the open badge on the
+// heading, then the facts as tinted `Cell.Field`s in a grid two across, the members across both
+// columns, in both languages.
+describe('the facts are tinted fields in a grid two across, as the member card lays its own', () => {
+	test.each(['en', 'ar'] as const)('in %s', (language) => {
+		loadLocale(language);
+		setLocale(language);
+
+		const words = language === 'en' ? en : ar;
+
+		list({}, language === 'ar' ? 'rtl' : 'ltr');
+
+		for (const [id, workspace, count] of [
+			['ws-1', workspaces[0], 3],
+			['ws-2', workspaces[1], 1]
+		] as const) {
+			const grid = card(id)!.querySelector<HTMLElement>('[data-workspace-fields]')!;
+
+			expect(grid.classList, id).toContain('grid');
+			expect(grid.classList, id).toContain('grid-cols-2');
+			expect(grid.querySelectorAll(':scope > [data-workspace-field]'), id).toHaveLength(3);
+			expect(card(id)!.querySelectorAll('[data-fact]'), id).toHaveLength(0);
+
+			// the initials are the members' value, before the figure.
+			expect(fieldsOn(id), id).toEqual([
+				{
+					glyph: 'users',
+					name: words.organization.dashboard.membersTitle,
+					value: bare([...avatarsOn(id), memberCount(count, language)].join(''))
+				},
+				{
+					glyph: 'key-round',
+					name: words.organization.dashboard.workspaceCard.access,
+					value: bare(words.organization.dashboard.workspaceYouOwn)
+				},
+				{
+					glyph: 'calendar-plus',
+					name: words.organization.dashboard.workspaceCard.created,
+					value: bare(formatLocaleDate(language, workspace.createdAt!, { dateStyle: 'medium' }))
+				}
+			]);
+			expect(on('members', id)!.classList, id).toContain('col-span-2');
+
+			for (const field of card(id)!.querySelectorAll('[data-workspace-field]')) {
+				// softly tinted with the muted token, no border, and nothing toned: none is a state.
+				expect(field.classList, id).toContain('bg-muted');
+				expect(field.classList, id).not.toContain('border');
+				expect(
+					field.querySelector('[data-workspace-field-value]')?.getAttribute('class'),
+					id
+				).toContain('text-foreground');
+			}
+
+			expect(
+				card(id)!.querySelector('[data-workspace-glyph] svg')?.getAttribute('class')
+			).toContain('lucide-building');
+		}
+
+		// the badge stands on the open one's heading alone.
+		expect(on('open', 'ws-1')?.getAttribute('data-slot')).toBe('badge');
+		expect(card('ws-2')!.querySelector('[data-workspace-open]')).toBeNull();
+
+		setLocale('en');
+	});
 });
 
 // ticket 33 of effort 846, as the record tiles are laid ([[rules/interface]], *List presentation*):
@@ -591,10 +674,15 @@ describe('the tiles are laid at the fixed height, in the record tiles columns', 
 					`${WORKSPACE_TILE_HEIGHT}px`
 				);
 			}
-			// every line under the heading sets the facts' fixed leading, which is what lets one
+			// every line under the heading sets the fields' fixed leading, which is what lets one
 			// height hold in Arabic.
-			for (const fact of document.querySelectorAll('[data-fact]')) {
-				expect(fact.className).toContain('leading-5');
+			const lines = document.querySelectorAll(
+				'[data-workspace-field-name], [data-workspace-field-value]'
+			);
+
+			expect(lines.length, language).toBe(12);
+			for (const line of lines) {
+				expect(line.getAttribute('class')).toContain('leading-5');
 			}
 
 			drawn.unmount();
@@ -608,7 +696,12 @@ describe('the tiles are laid at the fixed height, in the record tiles columns', 
 const accessOn = (id: string) => {
 	const fact = on('access', id);
 
-	return fact && { kind: fact.getAttribute('data-access'), word: fact.textContent?.trim() };
+	return (
+		fact && {
+			kind: fact.getAttribute('data-access'),
+			word: fact.querySelector('[data-workspace-field-value]')?.textContent?.trim()
+		}
+	);
 };
 
 /** one workspace the reader holds, on the first fixture's facts. */
@@ -1219,11 +1312,11 @@ test('and in arabic every card reads in its own words, right to left', async () 
 		)
 	).toEqual(['Riyadh', 'Jeddah']);
 	expect(on('open', 'ws-1')?.textContent?.trim()).toBe(ar.organization.dashboard.workspaceOpenHere);
-	expect(on('access', 'ws-1')?.textContent?.trim()).toBe(ar.organization.dashboard.workspaceYouOwn);
-	expect(countOn('ws-1')).toBe(i18nObject('ar').layout.workspaceMenu.members({ count: 3 }));
-	expect(on('made', 'ws-1')?.textContent?.trim()).toContain(
-		ar.organization.dashboard.workspaceMade.replace(' {date}', '')
-	);
+	expect(accessOn('ws-1')?.word).toBe(ar.organization.dashboard.workspaceYouOwn);
+	expect(countOn('ws-1')).toBe(memberCount(3, 'ar'));
+	expect(
+		on('made', 'ws-1')?.querySelector('[data-workspace-field-name]')?.textContent?.trim()
+	).toBe(ar.organization.dashboard.workspaceCard.created);
 	expect(document.querySelector('[data-directory-description]')?.textContent?.trim()).toBe(
 		ar.organization.dashboard.workspacesDescription
 	);
