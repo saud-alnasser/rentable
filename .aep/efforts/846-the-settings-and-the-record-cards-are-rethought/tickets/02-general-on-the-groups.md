@@ -1,0 +1,35 @@
+---
+status: open
+blocked-by: [01]
+---
+
+# feat(desktop): the general section reads as grouped rows
+
+Blocked by: 01
+
+Authoritative: [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], and [[efforts/846-the-settings-and-the-record-cards-are-rethought/plan]] for the approach.
+
+## Outcome
+
+General is drawn as three groups on the shared blocks: language and appearance, updates, diagnostics, each row with its icon, as the plan's mapping table gives them. Updates and diagnostics use labelled buttons with icons instead of icon-only chips. Ending soon stays where it is until ticket 10 moves it. The page's loading skeleton takes the grouped shape.
+
+## Acceptance Criteria
+
+Traces requirements 1, 4 and 5, and criteria 1, 4 and 5 for the general section.
+
+- [ ] Every row in general has an icon and a name (`app/tests/settings-area.svelte.test.ts`).
+- [ ] Within each group in general, every button carries an svg or none does.
+- [ ] With `api.settings.set` rejected, choosing another language or appearance puts the old one back and the shared handler says why.
+- [ ] No button in general is named *save* other than ending soon's, which ticket 10 removes.
+- [ ] `settings/component/page.svelte`'s skeleton draws grouped rows.
+
+## Relevant areas
+
+- `apps/desktop/src/lib/settings/component/{area,page,locale,appearance,updates,diagnostics}.svelte`
+- `apps/desktop/src/lib/settings/i18n/{en,ar}.ts`
+- `apps/desktop/src/lib/app/tests/settings-area.svelte.test.ts`
+
+## Constraints
+
+- This is a user-visible change: it carries its own changeset ([[references/changesets]]).
+- The two description lines of language and appearance become the group's one footer line, in both locales.
