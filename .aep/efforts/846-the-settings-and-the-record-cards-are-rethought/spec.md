@@ -152,7 +152,9 @@ statement read in time order, and each payment row says how it was paid.
     other machines* does today. Offline, the act says it reaches the others once this machine is
     back online, as today. A machine that has not yet run this version cannot be signed out on its
     own, since it would not read the sign-out; its row says so and offers *sign out all other
-    machines*, which reaches every machine.
+    machines*, which reaches every machine. *Decided 2026-10-02 by the human, at converge: the
+    one-machine sign-out moves off the row into the row's menu, so only *sign out all other
+    machines* stands in the error tone, last in its group (requirement 2).*
 11. **A machine has a name a person recognises.** A machine is named when it signs in, by the name
     its operating system gives it, so the list reads as the reader's own computers rather than
     identifiers.
@@ -161,7 +163,8 @@ statement read in time order, and each payment row says how it was paid.
 
 12. **Sync shows its state at a glance.** The sync group shows one named state (up to date,
     syncing, not yet reached, needs attention, needs reconnecting) with an icon and tone of its
-    own, when it last reached Turso, and *sync now*. A problem keeps the explanation and the act
+    own, when it last reached Turso, and the *sync* control (named *sync* at the human's word of
+    2026-09-17, kept on 2026-10-02). A problem keeps the explanation and the act
     it offers today, under the state rather than instead of it.
 13. **The Turso account reads as a connection.** The Turso group is one row naming the
     connection and its state on this machine: connected, or not held here with the act that
@@ -260,7 +263,7 @@ statement read in time order, and each payment row says how it was paid.
 11. A machine signing in after this lands appears in the list under its operating-system name; one
     that signed in before and has no name yet appears with a stated fallback, never a raw id.
 12. The sync group shows each of the five states with a distinct icon and tone (checked by driving
-    each state through the sync host), the last time Turso was reached, and *sync now*; a problem
+    each state through the sync host), the last time Turso was reached, and *sync*; a problem
     shows its explanation and act beneath the state.
 13. An owner whose machine holds the authority sees the Turso row as connected, with *forget* as
     the group's destructive act and its confirmation naming where to revoke the token; one whose
