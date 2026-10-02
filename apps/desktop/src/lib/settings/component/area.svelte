@@ -5,6 +5,7 @@
 	import type { Locales } from '$lib/i18n/i18n-types';
 	import PageFrame from '@rentable/design/block/page-frame.svelte';
 	import SectionSwitch from '@rentable/design/block/section-switch.svelte';
+	import SettingsGrid from '@rentable/design/block/settings-grid.svelte';
 	import SettingsGroup from '@rentable/design/block/settings-group.svelte';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import SettingsAppearance from '$lib/settings/component/appearance.svelte';
@@ -19,6 +20,7 @@
 		withSection,
 		type AddressableSection
 	} from '$lib/settings/section';
+	import PaletteIcon from '@lucide/svelte/icons/palette';
 
 	type AppSettings = Awaited<ReturnType<typeof api.settings.get>>;
 
@@ -33,9 +35,9 @@
 	 *
 	 * **Four sections, each named for what it holds** (requirement 24 of effort 828). There were
 	 * seven, and a person looking for one thing had to guess which of them it was under. General
-	 * carries the language and the appearance, then updates and diagnostics under their own titles,
-	 * each a group of rows on the design package's settings group and row (effort 846, requirement
-	 * 1); account
+	 * carries the language and the appearance, then updates and diagnostics, each a card on the
+	 * design package's settings group and row, laid in its settings grid (effort 846, requirement 1
+	 * and *Everything in a tab is a card*); account
 	 * carries what a person reads about themselves; organization carries where this machine stands
 	 * with it on Turso, the Turso account, the members directory and the two acts that end
 	 * something; workspaces carries the directory and the transfer beneath it. Nothing moved
@@ -123,14 +125,20 @@
 	<SectionSwitch sections={switchable} current={shown} label={$LL.settings.title()} />
 
 	{#if shown === 'general'}
-		<div class="flex flex-col gap-8">
-			<!-- the language and the appearance take no title of their own: the rail above already
-			     says general, and a title repeating it is the tab said twice. Updates and
-			     diagnostics carry theirs, because they are things of their own under that name. -->
-			<!-- ending soon is not here: it is set from the dashboard's ending-soon section, where
-			     it shows (effort 846, requirement 6). -->
-			<div data-general class="flex flex-col gap-6">
-				<SettingsGroup footer={$LL.settings.preferencesFooter()}>
+		<!-- three cards: the language and the appearance beside updates, two short cards a reader
+		     takes in side by side, then diagnostics across both, so its path has room. Ending soon
+		     is not here: it is set from the dashboard's ending-soon section, where it shows (effort
+		     846, requirement 6). -->
+		<SettingsGrid>
+			<!-- the wrappers stand aside from the grid's layout, so the card is the grid's item and
+			     its span reaches the grid; they stay for what reads a section by its marks. -->
+			<div data-general class="contents">
+				<SettingsGroup
+					icon={PaletteIcon}
+					title={$LL.settings.preferences.title()}
+					description={$LL.settings.preferences.description()}
+					footer={$LL.settings.preferencesFooter()}
+				>
 					{#snippet rows()}
 						<SettingsLocale currentLocale={$locale} onChange={onChangeLocale} />
 						<SettingsAppearance stored={settings.appearance} />
@@ -141,7 +149,7 @@
 			<SettingsUpdates version={settings.version} />
 
 			<SettingsDiagnostics diagnosticsDir={settings.diagnosticsDir} {onRevealDiagnostics} />
-		</div>
+		</SettingsGrid>
 	{:else if contribution}
 		<contribution.component {leaveForTheWall} />
 	{/if}

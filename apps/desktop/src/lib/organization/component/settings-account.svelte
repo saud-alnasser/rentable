@@ -1,8 +1,10 @@
 <script lang="ts">
 	import type { SettingsSectionProps } from '$lib/feature/surface';
+	import SettingsGrid from '@rentable/design/block/settings-grid.svelte';
 	import SettingsGroup from '@rentable/design/block/settings-group.svelte';
 	import SettingsRow from '@rentable/design/block/settings-row.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
+	import { Callout } from '@rentable/design/primitive/callout/index.js';
 	import { tone } from '@rentable/design/tone.js';
 	import { toErrorText } from '$lib/error/message';
 	import { LL } from '$lib/i18n/i18n-svelte';
@@ -22,6 +24,7 @@
 	import CrownIcon from '@lucide/svelte/icons/crown';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
+	import MonitorIcon from '@lucide/svelte/icons/monitor';
 
 	/**
 	 * The settings area's account section: what a person reads about themselves, and the one
@@ -38,8 +41,10 @@
 	 * waiting on a reply.
 	 *
 	 * **It reads as sign-in and security** (effort 846, requirement 8): who is signed in, the
-	 * password, the machines, and signing out of this one last, each a settings group of rows
-	 * in the manner of Apple's and Google's account pages. Signing out of this machine moved here
+	 * password, the machines, and signing out of this one last, each a card in the section's grid
+	 * in the manner of Apple's and Google's account pages (*Everything in a tab is a card*): the
+	 * offer across both columns, who is signed in beside the password, then the machines and this
+	 * machine across both, the list because it grows and the last because it ends something. Signing out of this machine moved here
 	 * from beside the username, so the way out is the last thing the section holds.
 	 */
 	// what the area hands every section it draws. Nothing this section does lets go of the
@@ -105,81 +110,105 @@
 	};
 </script>
 
+{#snippet changePasswordAct()}
+	<div>
+		<!-- the verb's glyph before its label; outline rather than solid, since the act is
+		     offered and never invited. -->
+		<Button
+			type="button"
+			variant="outline"
+			size="sm"
+			data-change-password-open
+			onclick={() => {
+				passwordRefusal = null;
+				changingPassword = true;
+			}}
+		>
+			<KeyRoundIcon class="size-4" />
+			{$LL.settings.you.password.change()}
+		</Button>
+	</div>
+{/snippet}
+
+{#snippet signOut()}
+	<SettingsRow icon={LogOutIcon} name={$LL.settings.you.thisMachine.signOut()} tone="error">
+		{#snippet control({ labelId })}
+			<Button
+				type="button"
+				variant="ghost"
+				size="sm"
+				class="{tone({
+					tone: 'error'
+				}).text()} hover:bg-destructive/10 hover:text-destructive"
+				aria-labelledby={labelId}
+				data-sign-out-open
+				onclick={requestSignOut}
+			>
+				<LogOutIcon class="size-4" />
+				{$LL.common.actions.signOut()}
+			</Button>
+		{/snippet}
+	</SettingsRow>
+{/snippet}
+
 {#if session}
 	<!-- the reader's sign-in and security, in the order requirement 8 of effort 846 gives: the
-	     offer where one stands, who is signed in, the password, the machines, and the way
-	     out of this one last. Each block is a settings group of rows, and each act that ends
-	     something is drawn in the error tone at the end of its group (requirement 2). -->
-	<div class="flex flex-col gap-8">
+	     offer where one stands, who is signed in beside the password, the machines, and the way
+	     out of this one last. Each is a card in the section's grid, and each act that ends
+	     something is drawn in the error tone at the end of its card (requirement 2). -->
+	<SettingsGrid>
 		<!-- the offer first, and only where one stands: it is the one thing in this section
 		     waiting on the reader, and everything under it is a fact about their account that
-		     will read the same tomorrow (requirement 22 of effort 828). *It stood last while it
-		     was the block most often absent; the human read the four sections and asked for what
-		     is waiting to come first.* -->
+		     will read the same tomorrow (requirement 22 of effort 828). A notice with its act,
+		     across both columns, in the tone a notice takes, rather than a card of one row: it is
+		     news, not a setting. *It stood last while it was the block most often absent; the
+		     human read the four sections and asked for what is waiting to come first.* -->
 		{#if session.ownershipOffered}
-			<div data-ownership-offer>
-				<SettingsGroup
-					title={$LL.settings.you.ownership.title()}
-					footer={$LL.settings.you.ownership.consequence()}
-				>
-					{#snippet rows()}
-						<SettingsRow
-							icon={CrownIcon}
-							name={$LL.settings.you.ownership.offeredBy({ owner: session.ownerUsername })}
-						>
-							{#snippet control()}
-								<Button
-									type="button"
-									variant="outline"
-									size="sm"
-									data-accept-ownership-open
-									onclick={() => {
-										acceptRefusal = null;
-										acceptingOwnership = true;
-									}}
-								>
-									<CrownIcon class="size-4" />
-									{$LL.organization.dashboard.acceptOwnership()}
-								</Button>
-							{/snippet}
-						</SettingsRow>
-					{/snippet}
-				</SettingsGroup>
+			<div data-ownership-offer class="col-span-full">
+				<Callout tone="info" class="flex flex-wrap items-center gap-3 rounded-2xl p-4">
+					<CrownIcon class="size-5 shrink-0" />
+					<div class="flex min-w-0 flex-1 flex-col gap-0.5">
+						<p class="font-semibold first-letter:uppercase">
+							{$LL.settings.you.ownership.offeredBy({ owner: session.ownerUsername })}
+						</p>
+						<!-- the callout's own tone, not grey: grey on a tinted ground reads dead
+						     (*Don't use grey text on colored backgrounds*). -->
+						<p>{$LL.settings.you.ownership.consequence()}</p>
+					</div>
+					<!-- solid: the one act on this tab the reader is invited to take. -->
+					<Button
+						type="button"
+						size="sm"
+						data-accept-ownership-open
+						onclick={() => {
+							acceptRefusal = null;
+							acceptingOwnership = true;
+						}}
+					>
+						<CrownIcon class="size-4" />
+						{$LL.organization.dashboard.acceptOwnership()}
+					</Button>
+				</Callout>
 			</div>
 		{/if}
 
 		<OrganizationIdentity {session} />
 
 		<!-- the fact, and the control that opens the write: nothing about the password is drawn
-		     until the person asks to change it (requirement 8 of effort 828). -->
-		<div data-password>
-			<SettingsGroup footer={$LL.settings.you.password.description()}>
-				{#snippet rows()}
-					<SettingsRow icon={KeyRoundIcon} name={$LL.settings.you.password.title()}>
-						{#snippet control()}
-							<!-- the verb's glyph before its label; outline rather than solid, since the act
-							     is offered and never invited. -->
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								data-change-password-open
-								onclick={() => {
-									passwordRefusal = null;
-									changingPassword = true;
-								}}
-							>
-								<KeyRoundIcon class="size-4" />
-								{$LL.settings.you.password.change()}
-							</Button>
-						{/snippet}
-					</SettingsRow>
-				{/snippet}
-			</SettingsGroup>
+		     until the person asks to change it (requirement 8 of effort 828). The card is its
+		     header and the one act at its foot, since a row named *password* under a card titled
+		     password would say it twice. -->
+		<div data-password class="contents">
+			<SettingsGroup
+				icon={KeyRoundIcon}
+				title={$LL.settings.you.password.title()}
+				description={$LL.settings.you.password.description()}
+				footer={changePasswordAct}
+			/>
 		</div>
 
 		<!-- every machine signed in as the reader, this one first, each other one signed out on its
-		     row and all of them at the group's foot (requirements 9 to 11). -->
+		     row and all of them at the card's end (requirements 9 to 11). -->
 		<OrganizationMachines
 			machines={machinesQuery.data ?? []}
 			onEndMachine={async (machineId) => {
@@ -193,31 +222,16 @@
 		<!-- the way out of this machine, last and alone. It is not confirmed: signing in again
 		     undoes it, and the organization stays on this machine (requirement 2; HIG, *Alerts*).
 		     The shell owns the wall, so this asks and the shell signs out, as the rail's menu does. -->
-		<div data-sign-out>
-			<SettingsGroup footer={$LL.settings.you.thisMachine.description()}>
-				{#snippet rows()}
-					<SettingsRow icon={LogOutIcon} name={$LL.settings.you.thisMachine.signOut()} tone="error">
-						{#snippet control({ labelId })}
-							<Button
-								type="button"
-								variant="ghost"
-								size="sm"
-								class="{tone({
-									tone: 'error'
-								}).text()} hover:bg-destructive/10 hover:text-destructive"
-								aria-labelledby={labelId}
-								data-sign-out-open
-								onclick={requestSignOut}
-							>
-								<LogOutIcon class="size-4" />
-								{$LL.common.actions.signOut()}
-							</Button>
-						{/snippet}
-					</SettingsRow>
-				{/snippet}
-			</SettingsGroup>
+		<div data-sign-out class="contents">
+			<SettingsGroup
+				icon={MonitorIcon}
+				title={$LL.settings.you.thisMachine.title()}
+				description={$LL.settings.you.thisMachine.description()}
+				end={signOut}
+				span="full"
+			/>
 		</div>
-	</div>
+	</SettingsGrid>
 
 	<OrganizationChangePasswordDialog
 		open={changingPassword}

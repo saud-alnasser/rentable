@@ -11,6 +11,8 @@ export const organization = {
 		alt: "the organization's signature or seal",
 		choose: 'choose image',
 		description: 'printed at the foot of every receipt and schedule.',
+		// the mark card's one row: the image itself, under the card's title (effort 846).
+		image: 'image',
 		none: 'none added yet',
 		readOnly: 'somebody allowed to change the mark can change it.',
 		remove: 'remove',
@@ -120,7 +122,14 @@ export const organization = {
 		// an owner whose machine holds no authority: the reconnect is the Turso account's, below,
 		// and the sync group points at it rather than drawing a second consent.
 		reconnectBelow: 'the Turso account is reconnected in the block below.',
-		checkNow: 'sync'
+		checkNow: 'sync',
+		// what folds under the state: the workspace this machine keeps a copy of, and where the copy
+		// is (effort 846, *Detail that few readers need folds under its row*).
+		detail: {
+			label: 'what this machine keeps',
+			workspace: 'workspace',
+			copy: 'copy on this machine'
+		}
 	},
 	dashboard: {
 		// the sentence the members section opens with: who is listed, and what this section is
@@ -204,6 +213,13 @@ export const organization = {
 		// the Turso account row's state on this machine, and the act that reconnects it.
 		authorityConnected: 'connected on this machine',
 		authorityNotHeld: 'not held here',
+		// what folds under the connected row: the organization's own database on the account, and
+		// the organization it holds (effort 846).
+		authorityDetail: {
+			label: 'what the Turso account holds',
+			database: 'organization database',
+			organization: 'organization'
+		},
 		reconnect: 'reconnect',
 		authorityDescription:
 			'this machine holds no authority over the Turso account, and it cannot be restored. grant the consent again.',
@@ -257,6 +273,8 @@ export const organization = {
 		// word so that a reader scanning the section knows what the last block is before they
 		// read either description.
 		leavingTitle: 'leaving',
+		// the leaving card's one line, the same for the owner and the member.
+		leavingDescription: 'how you step away from the organization.',
 		disconnectForgets:
 			"signs you out and deletes the organization's copy on this machine. nothing on Turso changes.",
 		// effort 846, requirement 14: what each act in the leaving group ends, one line apiece, and

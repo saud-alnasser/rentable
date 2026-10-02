@@ -2243,6 +2243,10 @@ type RootTranslation = {
 		 */
 		diagnosticsFolder: string
 		/**
+		 * t​h​e​ ​w​h​o​l​e​ ​p​a​t​h
+		 */
+		diagnosticsFullPath: string
+		/**
 		 * o​p​e​n​ ​l​o​g​ ​f​o​l​d​e​r
 		 */
 		diagnosticsReveal: string
@@ -2275,6 +2279,16 @@ type RootTranslation = {
 		 * u​p​d​a​t​e​ ​i​n​s​t​a​l​l​e​d​.​ ​r​e​s​t​a​r​t​ ​r​e​n​t​a​b​l​e​ ​t​o​ ​f​i​n​i​s​h​.
 		 */
 		restartNotice: string
+		preferences: {
+			/**
+			 * l​a​n​g​u​a​g​e​ ​a​n​d​ ​a​p​p​e​a​r​a​n​c​e
+			 */
+			title: string
+			/**
+			 * h​o​w​ ​r​e​n​t​a​b​l​e​ ​r​e​a​d​s​ ​a​n​d​ ​l​o​o​k​s​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​.
+			 */
+			description: string
+		}
 		/**
 		 * e​a​c​h​ ​a​p​p​l​i​e​s​ ​t​h​e​ ​m​o​m​e​n​t​ ​y​o​u​ ​p​i​c​k​ ​i​t​,​ ​a​n​d​ ​s​y​s​t​e​m​ ​f​o​l​l​o​w​s​ ​y​o​u​r​ ​c​o​m​p​u​t​e​r​ ​a​s​ ​i​t​ ​t​u​r​n​s​ ​l​i​g​h​t​ ​o​r​ ​d​a​r​k​.
 		 */
@@ -2327,6 +2341,38 @@ type RootTranslation = {
 		 * c​h​e​c​k​i​n​g​ ​f​o​r​ ​u​p​d​a​t​e​s​.​.​.
 		 */
 		updatesChecking: string
+		updatesState: {
+			/**
+			 * c​h​e​c​k​i​n​g
+			 */
+			checking: string
+			/**
+			 * u​p​ ​t​o​ ​d​a​t​e
+			 */
+			upToDate: string
+			/**
+			 * u​p​d​a​t​e​ ​a​v​a​i​l​a​b​l​e
+			 */
+			available: string
+			/**
+			 * d​o​w​n​l​o​a​d​i​n​g
+			 */
+			downloading: string
+			/**
+			 * r​e​s​t​a​r​t​ ​t​o​ ​f​i​n​i​s​h
+			 */
+			restart: string
+		}
+		/**
+		 * w​h​a​t​'​s​ ​n​e​w​ ​i​n​ ​{​v​e​r​s​i​o​n​}
+		 * @param {string} version
+		 */
+		whatsNew: RequiredParams<'version'>
+		/**
+		 * r​e​l​e​a​s​e​d​ ​{​d​a​t​e​}
+		 * @param {string} date
+		 */
+		releasedOn: RequiredParams<'date'>
 		/**
 		 * c​h​e​c​k​ ​f​o​r​ ​a​ ​n​e​w​e​r​ ​v​e​r​s​i​o​n​ ​a​n​d​ ​i​n​s​t​a​l​l​ ​i​t​.​ ​i​f​ ​t​h​e​ ​a​p​p​ ​t​h​e​n​ ​f​a​i​l​s​ ​t​o​ ​s​t​a​r​t​,​ ​i​t​ ​o​f​f​e​r​s​ ​t​h​e​ ​v​e​r​s​i​o​n​ ​y​o​u​ ​w​e​r​e​ ​o​n​.
 		 */
@@ -2408,6 +2454,11 @@ type RootTranslation = {
 				 */
 				description: string
 				/**
+				 * {​c​o​u​n​t​}​ ​s​i​g​n​e​d​ ​i​n
+				 * @param {number} count
+				 */
+				signedIn: RequiredParams<'count'>
+				/**
 				 * t​h​i​s​ ​m​a​c​h​i​n​e
 				 */
 				thisMachine: string
@@ -2468,6 +2519,10 @@ type RootTranslation = {
 				consequence: string
 			}
 			thisMachine: {
+				/**
+				 * t​h​i​s​ ​m​a​c​h​i​n​e
+				 */
+				title: string
 				/**
 				 * s​i​g​n​ ​o​u​t​ ​o​f​ ​t​h​i​s​ ​m​a​c​h​i​n​e
 				 */
@@ -3504,6 +3559,10 @@ type RootTranslation = {
 			 */
 			description: string
 			/**
+			 * i​m​a​g​e
+			 */
+			image: string
+			/**
 			 * n​o​n​e​ ​a​d​d​e​d​ ​y​e​t
 			 */
 			none: string
@@ -3827,6 +3886,20 @@ type RootTranslation = {
 			 * s​y​n​c
 			 */
 			checkNow: string
+			detail: {
+				/**
+				 * w​h​a​t​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​k​e​e​p​s
+				 */
+				label: string
+				/**
+				 * w​o​r​k​s​p​a​c​e
+				 */
+				workspace: string
+				/**
+				 * c​o​p​y​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e
+				 */
+				copy: string
+			}
 		}
 		dashboard: {
 			/**
@@ -4040,6 +4113,20 @@ type RootTranslation = {
 			 * n​o​t​ ​h​e​l​d​ ​h​e​r​e
 			 */
 			authorityNotHeld: string
+			authorityDetail: {
+				/**
+				 * w​h​a​t​ ​t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​ ​h​o​l​d​s
+				 */
+				label: string
+				/**
+				 * o​r​g​a​n​i​z​a​t​i​o​n​ ​d​a​t​a​b​a​s​e
+				 */
+				database: string
+				/**
+				 * o​r​g​a​n​i​z​a​t​i​o​n
+				 */
+				organization: string
+			}
 			/**
 			 * r​e​c​o​n​n​e​c​t
 			 */
@@ -4181,6 +4268,10 @@ type RootTranslation = {
 			 * l​e​a​v​i​n​g
 			 */
 			leavingTitle: string
+			/**
+			 * h​o​w​ ​y​o​u​ ​s​t​e​p​ ​a​w​a​y​ ​f​r​o​m​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
+			 */
+			leavingDescription: string
 			/**
 			 * s​i​g​n​s​ ​y​o​u​ ​o​u​t​ ​a​n​d​ ​d​e​l​e​t​e​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​c​o​p​y​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​.​ ​n​o​t​h​i​n​g​ ​o​n​ ​T​u​r​s​o​ ​c​h​a​n​g​e​s​.
 			 */
@@ -6973,6 +7064,10 @@ export type TranslationFunctions = {
 		 */
 		diagnosticsFolder: () => LocalizedString
 		/**
+		 * the whole path
+		 */
+		diagnosticsFullPath: () => LocalizedString
+		/**
 		 * open log folder
 		 */
 		diagnosticsReveal: () => LocalizedString
@@ -7004,6 +7099,16 @@ export type TranslationFunctions = {
 		 * update installed. restart rentable to finish.
 		 */
 		restartNotice: () => LocalizedString
+		preferences: {
+			/**
+			 * language and appearance
+			 */
+			title: () => LocalizedString
+			/**
+			 * how rentable reads and looks on this machine.
+			 */
+			description: () => LocalizedString
+		}
 		/**
 		 * each applies the moment you pick it, and system follows your computer as it turns light or dark.
 		 */
@@ -7056,6 +7161,36 @@ export type TranslationFunctions = {
 		 * checking for updates...
 		 */
 		updatesChecking: () => LocalizedString
+		updatesState: {
+			/**
+			 * checking
+			 */
+			checking: () => LocalizedString
+			/**
+			 * up to date
+			 */
+			upToDate: () => LocalizedString
+			/**
+			 * update available
+			 */
+			available: () => LocalizedString
+			/**
+			 * downloading
+			 */
+			downloading: () => LocalizedString
+			/**
+			 * restart to finish
+			 */
+			restart: () => LocalizedString
+		}
+		/**
+		 * what's new in {version}
+		 */
+		whatsNew: (arg: { version: string }) => LocalizedString
+		/**
+		 * released {date}
+		 */
+		releasedOn: (arg: { date: string }) => LocalizedString
 		/**
 		 * check for a newer version and install it. if the app then fails to start, it offers the version you were on.
 		 */
@@ -7137,6 +7272,10 @@ export type TranslationFunctions = {
 				 */
 				description: () => LocalizedString
 				/**
+				 * {count} signed in
+				 */
+				signedIn: (arg: { count: number }) => LocalizedString
+				/**
 				 * this machine
 				 */
 				thisMachine: () => LocalizedString
@@ -7192,6 +7331,10 @@ export type TranslationFunctions = {
 				consequence: () => LocalizedString
 			}
 			thisMachine: {
+				/**
+				 * this machine
+				 */
+				title: () => LocalizedString
 				/**
 				 * sign out of this machine
 				 */
@@ -8158,6 +8301,10 @@ export type TranslationFunctions = {
 			 */
 			description: () => LocalizedString
 			/**
+			 * image
+			 */
+			image: () => LocalizedString
+			/**
 			 * none added yet
 			 */
 			none: () => LocalizedString
@@ -8477,6 +8624,20 @@ export type TranslationFunctions = {
 			 * sync
 			 */
 			checkNow: () => LocalizedString
+			detail: {
+				/**
+				 * what this machine keeps
+				 */
+				label: () => LocalizedString
+				/**
+				 * workspace
+				 */
+				workspace: () => LocalizedString
+				/**
+				 * copy on this machine
+				 */
+				copy: () => LocalizedString
+			}
 		}
 		dashboard: {
 			/**
@@ -8687,6 +8848,20 @@ export type TranslationFunctions = {
 			 * not held here
 			 */
 			authorityNotHeld: () => LocalizedString
+			authorityDetail: {
+				/**
+				 * what the Turso account holds
+				 */
+				label: () => LocalizedString
+				/**
+				 * organization database
+				 */
+				database: () => LocalizedString
+				/**
+				 * organization
+				 */
+				organization: () => LocalizedString
+			}
 			/**
 			 * reconnect
 			 */
@@ -8819,6 +8994,10 @@ export type TranslationFunctions = {
 			 * leaving
 			 */
 			leavingTitle: () => LocalizedString
+			/**
+			 * how you step away from the organization.
+			 */
+			leavingDescription: () => LocalizedString
 			/**
 			 * signs you out and deletes the organization's copy on this machine. nothing on Turso changes.
 			 */

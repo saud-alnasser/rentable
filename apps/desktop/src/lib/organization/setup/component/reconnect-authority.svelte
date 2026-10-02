@@ -9,7 +9,7 @@
 		useConsentResult,
 		useReconnectAuthority
 	} from '$lib/organization/setup/query';
-	import DatabaseIcon from '@lucide/svelte/icons/database';
+	import Link2OffIcon from '@lucide/svelte/icons/link-2-off';
 	import PlugIcon from '@lucide/svelte/icons/plug';
 
 	/**
@@ -29,8 +29,8 @@
 	 * simply never belonged to the ownership. The group's line says where it does belong, and the
 	 * offer is the same either way.
 	 *
-	 * **A connection, read as one** (effort 846, requirement 13): the row names the account and its
-	 * state on this machine, and the reconnect carries its glyph as every control in the area does
+	 * **A connection, read as one** (effort 846, requirement 13): under the card titled for the
+	 * account, the row names its state on this machine, and the reconnect carries its glyph as every control in the area does
 	 * (requirement 5). While the consent is out in the browser, and when it comes back refused, what
 	 * that calls for is drawn beneath the row it is about.
 	 */
@@ -105,9 +105,8 @@
 {/snippet}
 
 <SettingsRow
-	icon={DatabaseIcon}
-	name={$LL.organization.dashboard.authorityTitle()}
-	value={$LL.organization.dashboard.authorityNotHeld()}
+	icon={Link2OffIcon}
+	name={$LL.organization.dashboard.authorityNotHeld()}
 	control={reconnectControl}
 	beneath={status === 'pending' || status === 'abandoned' || status === 'failed'
 		? consent

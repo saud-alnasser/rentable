@@ -9,6 +9,7 @@ export const settings = {
 	diagnosticsDescription:
 		'سجل بما يفعله رينتابل لتتبع الأعطال. يبقى هنا، ولا تُكتب فيه كلمات المرور ولا الرموز.',
 	diagnosticsFolder: 'مجلد السجل',
+	diagnosticsFullPath: 'المسار كاملًا',
 	diagnosticsReveal: 'فتح مجلد السجل',
 	diagnosticsTitle: 'التشخيص',
 
@@ -23,7 +24,11 @@ export const settings = {
 
 	restartNotice: 'تم تثبيت التحديث. أعد تشغيل رينتابل لإكماله.',
 
-	// the one line under the language and appearance group, for both of its rows (effort 846).
+	preferences: {
+		title: 'اللغة والمظهر',
+		description: 'كيف يُقرأ رينتابل ويبدو على هذا الجهاز.'
+	},
+	// the note at the foot of the language and appearance card, for both of its rows (effort 846).
 	preferencesFooter:
 		'يُطبَّق كل اختيار فور تحديده، ويتبع خيار النظام جهازك كلما تحوّل بين الفاتح والداكن.',
 	localeTitle: 'اللغة',
@@ -47,6 +52,15 @@ export const settings = {
 	title: 'الإعدادات',
 
 	updatesChecking: 'جارٍ التحقق من التحديثات...',
+	updatesState: {
+		checking: 'جارٍ التحقق',
+		upToDate: 'محدّث',
+		available: 'يتوفر تحديث',
+		downloading: 'جارٍ التنزيل',
+		restart: 'أعد التشغيل لإكماله'
+	},
+	whatsNew: 'ما الجديد في {version}',
+	releasedOn: 'صدر في {date}',
 	updatesDescription:
 		'تحقق من وجود إصدار أحدث وثبّته. وإذا تعذر تشغيل التطبيق بعده، فسيعرض إعادة الإصدار السابق.',
 	updatesTitle: 'التحديثات',
@@ -78,6 +92,7 @@ export const settings = {
 		machines: {
 			title: 'الأجهزة',
 			description: 'تسجيل خروج جهاز لا يغيّر كلمة مرورك.',
+			signedIn: 'الأجهزة المسجّلة: {count}',
 			thisMachine: 'هذا الجهاز',
 			unnamed: 'جهاز أُضيف في {date}',
 			lastSeen: 'آخر ظهور {moment}',
@@ -96,6 +111,7 @@ export const settings = {
 			consequence: 'إن قبلتها صرت المالك وصار هو مديرًا.'
 		},
 		thisMachine: {
+			title: 'هذا الجهاز',
 			signOut: 'سجّل الخروج من هذا الجهاز',
 			description: 'تبقى المؤسسة على هذا الجهاز. سجّل الدخول مرة أخرى لتكمل.'
 		}

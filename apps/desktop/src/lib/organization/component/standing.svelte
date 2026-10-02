@@ -4,10 +4,9 @@
 	import type { Component } from 'svelte';
 	import { tauri } from '$lib/platform/tauri';
 	import SettingsGroup from '@rentable/design/block/settings-group.svelte';
+	import SettingsRow from '@rentable/design/block/settings-row.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
-	import * as Item from '@rentable/design/primitive/item/index.js';
-	import { tone as toneOf } from '@rentable/design/tone.js';
 	import DetailDisclosure from '$lib/error/component/detail-disclosure.svelte';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { useAccountRefusalDetail } from '$lib/organization/query';
@@ -23,6 +22,7 @@
 		syncStatusWord
 	} from '$lib/sync';
 	import CircleCheckIcon from '@lucide/svelte/icons/circle-check';
+	import CloudIcon from '@lucide/svelte/icons/cloud';
 	import CloudOffIcon from '@lucide/svelte/icons/cloud-off';
 	import ExternalLinkIcon from '@lucide/svelte/icons/external-link';
 	import OctagonXIcon from '@lucide/svelte/icons/octagon-x';
@@ -47,11 +47,15 @@
 	 * that something is happening ([[rules/interface]], *Loading*); the word says it, and the tone
 	 * marks it, and nothing on the page moves for a run the heartbeat starts every five minutes.
 	 *
-	 * **The state row is the group's own rather than a `settings-row`**, because it is the one
-	 * row in the area whose glyph and name carry a tone other than the destructive one, and the
-	 * one with something drawn beneath it: a problem keeps the explanation and the act it offers,
-	 * under the state rather than instead of it. The row is built from the same item primitive,
-	 * marked as a row, so it reads as one.
+	 * **A card across both columns, its state one `settings-row` reporting it** (effort 846,
+	 * *Everything in a tab is a card*): the row's glyph and name take the state's tone
+	 * (`reports`), the last reach is the line under its name, *sync* is its control, and a
+	 * problem keeps the explanation and the act it offers beneath it, under the state rather than
+	 * instead of it, never folded. What does fold, behind the chevron, is the machine's own detail:
+	 * the workspace it keeps a copy of and where the copy is, which nobody acts on and a person
+	 * reads out to somebody helping them (*Detail that few readers need folds under its row*).
+	 * *The row was built by hand from the item primitive until then, the one row in the area that
+	 * was not a `settings-row`.*
 	 *
 	 * **Beneath the state, only what the problem calls for**: the account refusal's sentence and
 	 * the owner's dashboard control, the credential refusal's sentence, or the fault's own
@@ -98,7 +102,6 @@
 	const isOwner = $derived(session?.role === 'owner');
 
 	const tone = $derived(SYNC_STATUS_TONE[status]);
-	const toned = $derived(toneOf({ tone }).text());
 	const Glyph = $derived(GLYPH[status]);
 
 	// the clock the relative moment is read against. A minute is the finest unit the line says,
@@ -147,101 +150,111 @@
 	}
 </script>
 
+<!-- what folds under the state: the workspace this machine keeps a copy of, and where the copy is.
+     Nobody acts on either, and both are what a person reads out to somebody helping them. -->
+{#snippet machineDetail()}
+	<dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1" data-standing-detail>
+		<dt>{$LL.organization.standing.detail.workspace()}</dt>
+		<dd class="min-w-0 text-foreground"><bdi>{syncState.workspace.name}</bdi></dd>
+		<dt>{$LL.organization.standing.detail.copy()}</dt>
+		<dd class="min-w-0 text-xs break-all">
+			<bdi dir="ltr">{syncState.workspace.localDatabasePath}</bdi>
+		</dd>
+	</dl>
+{/snippet}
+
+{#snippet lastReachedLine()}
+	<span data-last-reached>{lastReached}</span>
+{/snippet}
+
+{#snippet checkNowControl()}
+	<!-- outline rather than solid, since the act is offered and never invited; the verb's glyph
+	     before its label, as every control here carries one. -->
+	<Button
+		type="button"
+		variant="outline"
+		size="sm"
+		data-check-now
+		onclick={() => void checkNow()}
+		disabled={isChecking}
+	>
+		<RefreshCwIcon class="size-4" />
+		{$LL.organization.standing.checkNow()}
+	</Button>
+{/snippet}
+
+<!-- beneath the state, only what its problem calls for, inside the row it explains, and never
+     folded: a problem is read where the state is. -->
+{#snippet problemBeneath()}
+	<div class="flex flex-col gap-2" data-standing-beneath>
+		{#if accountRefusal}
+			<!-- the account, refused by turso: said as the account's and never as a sync error, in
+			     the reader's own terms. A member is told whom to tell; the owner is told which limit
+			     and where on turso to go, and offered the dashboard, which is turso's own and spends
+			     nothing. -->
+			<Callout tone="warning" data-account-refusal={isOwner ? 'owner' : 'member'}>
+				{accountRefusal}
+			</Callout>
+			{#if isOwner}
+				<div>
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						data-open-dashboard
+						onclick={() => void tauri.opener.openUrl(TURSO_DASHBOARD_URL)}
+					>
+						<ExternalLinkIcon class="size-4" />
+						{$LL.organization.setup.openDashboard()}
+					</Button>
+				</div>
+			{/if}
+		{:else if problem === 'credentialRefused'}
+			<!-- this member's credential, rotated by a lock-out and not yet replaced on this machine.
+			     The application collects the re-sealed one on its own when the organization database
+			     is reachable; if it does not clear, there is none to collect and the owner is who to
+			     ask. -->
+			<Callout tone="warning" data-credential-refusal>
+				{$LL.workspace.credentialRefused()}
+			</Callout>
+		{:else if problem === 'needsReconnect'}
+			<!-- the fault, and only where there is one. What the service or the replica said is kept
+			     as plain words with no code to read a sentence from, so the callout says the generic
+			     one in the reader's language and the words stay behind details, closed
+			     ([[rules/interface]], *Error*). -->
+			{#if fault}
+				<Callout tone="error" data-fault>{$LL.common.messages.unexpectedError()}</Callout>
+				<DetailDisclosure detail={fault} name="fault" />
+			{/if}
+
+			{#if needsAuthority}
+				<p class="text-sm text-muted-foreground" data-reconnect-below>
+					{$LL.organization.standing.reconnectBelow()}
+				</p>
+			{/if}
+		{/if}
+	</div>
+{/snippet}
+
 <SettingsGroup
+	icon={CloudIcon}
 	title={$LL.organization.standing.title()}
-	footer={$LL.organization.standing.purpose()}
+	description={$LL.organization.standing.purpose()}
+	span="full"
 >
 	{#snippet rows()}
-		<Item.Root
-			role="listitem"
-			size="sm"
-			data-settings-row
-			data-row-tone="neutral"
+		<SettingsRow
+			icon={Glyph}
+			name={syncStatusWord(status, $LL)}
+			reports={tone}
+			meta={lastReached ? lastReachedLine : undefined}
+			control={checkNowControl}
+			beneath={beneath ? problemBeneath : undefined}
+			details={machineDetail}
+			detailsLabel={$LL.organization.standing.detail.label()}
+			detailsKey="organization.standing.detail"
 			data-standing={status}
 			data-standing-tone={tone}
-		>
-			<Item.Media variant="icon" class={toned} data-standing-glyph={status}>
-				<Glyph class="size-4" />
-			</Item.Media>
-
-			<Item.Content class="min-w-0">
-				<Item.Title class={toned}>
-					<span class="inline-block first-letter:uppercase" data-standing-word>
-						{syncStatusWord(status, $LL)}
-					</span>
-				</Item.Title>
-				{#if lastReached}
-					<Item.Description data-last-reached>{lastReached}</Item.Description>
-				{/if}
-			</Item.Content>
-
-			<Item.Actions>
-				<!-- outline rather than solid, since the act is offered and never invited; the verb's
-				     glyph before its label, as every control here carries one. -->
-				<Button
-					type="button"
-					variant="outline"
-					size="sm"
-					data-check-now
-					onclick={() => void checkNow()}
-					disabled={isChecking}
-				>
-					<RefreshCwIcon class="size-4" />
-					{$LL.organization.standing.checkNow()}
-				</Button>
-			</Item.Actions>
-
-			{#if beneath}
-				<!-- beneath the state, only what its problem calls for, inside the row it explains. -->
-				<Item.Footer class="flex-col items-stretch" data-standing-beneath>
-					{#if accountRefusal}
-						<!-- the account, refused by turso: said as the account's and never as a sync
-						     error, in the reader's own terms. A member is told whom to tell; the owner
-						     is told which limit and where on turso to go, and offered the dashboard,
-						     which is turso's own and spends nothing. -->
-						<Callout tone="warning" data-account-refusal={isOwner ? 'owner' : 'member'}>
-							{accountRefusal}
-						</Callout>
-						{#if isOwner}
-							<div>
-								<Button
-									type="button"
-									variant="outline"
-									size="sm"
-									data-open-dashboard
-									onclick={() => void tauri.opener.openUrl(TURSO_DASHBOARD_URL)}
-								>
-									<ExternalLinkIcon class="size-4" />
-									{$LL.organization.setup.openDashboard()}
-								</Button>
-							</div>
-						{/if}
-					{:else if problem === 'credentialRefused'}
-						<!-- this member's credential, rotated by a lock-out and not yet replaced on
-						     this machine. The application collects the re-sealed one on its own when
-						     the organization database is reachable; if it does not clear, there is
-						     none to collect and the owner is who to ask. -->
-						<Callout tone="warning" data-credential-refusal>
-							{$LL.workspace.credentialRefused()}
-						</Callout>
-					{:else if problem === 'needsReconnect'}
-						<!-- the fault, and only where there is one. What the service or the replica
-						     said is kept as plain words with no code to read a sentence from, so the
-						     callout says the generic one in the reader's language and the words stay
-						     behind details, closed ([[rules/interface]], *Error*). -->
-						{#if fault}
-							<Callout tone="error" data-fault>{$LL.common.messages.unexpectedError()}</Callout>
-							<DetailDisclosure detail={fault} name="fault" />
-						{/if}
-
-						{#if needsAuthority}
-							<p class="text-sm text-muted-foreground" data-reconnect-below>
-								{$LL.organization.standing.reconnectBelow()}
-							</p>
-						{/if}
-					{/if}
-				</Item.Footer>
-			{/if}
-		</Item.Root>
+		/>
 	{/snippet}
 </SettingsGroup>

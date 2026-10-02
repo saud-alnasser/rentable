@@ -1,64 +1,179 @@
 <script lang="ts">
 	import * as Item from '#lib/primitive/item/index.js';
-	import type { Snippet } from 'svelte';
+	import { cn } from '#lib/tailwind.js';
+	import type { Component, Snippet } from 'svelte';
 
 	/**
-	 * A group of settings rows, in the manner of a platform settings pane: a short title over a
-	 * card of rows, and at most one line under it.
+	 * A settings card: everything a settings section shows is one of these, laid in a
+	 * `settings-grid` (effort 846, *Everything in a tab is a card*, at the human's word of
+	 * 2026-10-02: "each section ... everything is a card").
 	 *
-	 * **The explanation belongs to the group, not to every row.** A row says what it is and what it
-	 * is set to; the one sentence a group needs sits under it, so a section reads as names and
-	 * values rather than as a column of paragraphs.
+	 * **One anatomy for every card in every tab.** A header inside the card: the card's glyph, its
+	 * title, one muted line saying what the card is for, and at its end an optional value (a count,
+	 * a state, a picture), never an act that ends something. Then the rows, each a `settings-row`,
+	 * hairlines between them. Then, after a separator, the rows that end something. Then an
+	 * optional footer: one note, a progress bar, or one act. The title and the line sit inside the
+	 * card rather than over and under it, so a card stands on its own in the grid beside another.
+	 * *They sat above and below a card of rows until that word.*
+	 *
+	 * **The explanation belongs to the card, not to every row.** A row says what it is and what it
+	 * is set to; the one sentence a card needs is its header's line, so a section reads as names
+	 * and values rather than as a column of paragraphs.
 	 *
 	 * **The rows that end something are drawn last, after a separator**, so a reader always finds
-	 * the act that deletes, disconnects, forgets or signs somebody out at the end of its group and
+	 * the act that deletes, disconnects, forgets or signs somebody out at the end of its card and
 	 * never between two benign ones. They are a slot of their own rather than a row the caller
-	 * remembers to put last, so the order is this block's to keep.
+	 * remembers to put last, so the order is this block's to keep. The error tone is on those rows
+	 * alone, never on the card's edge or a band across it.
+	 *
+	 * **A card is half the grid's width unless it says `span="full"`**: one whose rows are a list
+	 * that grows (the machines), and one holding the act that ends something (leaving, this
+	 * machine), span both columns, as requirement 1 gives it.
+	 *
+	 * **The card is the record card's surface** (`recordCard`'s radius, hairline ring and raised
+	 * shadow) rather than a bordered box, so a settings tab and a list read as one application, and
+	 * the shadow rather than a border marks its edge (*Use fewer borders*).
 	 *
 	 * The rows are a list, and each `settings-row` is one of its items, so a screen reader announces
-	 * how many a group holds. The words are the caller's.
+	 * how many a card holds. The words are the caller's.
 	 */
 	let {
+		icon: Icon,
+		media,
 		title,
-		footer,
+		titleAsWritten = false,
+		description,
+		value,
 		rows,
-		end
+		end,
+		footer,
+		span
 	}: {
-		/** What the group is about, where the section's own name does not already say it. */
+		/** The glyph the card's header leads with: what it is about. */
+		icon?: Component<{ class?: string }>;
+		/** What leads the header in the glyph's place, where a picture says it better: an avatar. */
+		media?: Snippet;
+		/** What the card is about. */
 		title?: string;
-		/** One line under the group: what the reader should know about all of its rows. */
-		footer?: string;
-		/** The group's rows, each a `settings-row`. */
-		rows: Snippet;
+		/**
+		 * Whether the title is somebody's own word, a username or a machine's name, drawn exactly
+		 * as written: a label's first letter is raised, and a name's is not the card's to change.
+		 */
+		titleAsWritten?: boolean;
+		/** One line under the title: what the card is for, said once for all of its rows. */
+		description?: string;
+		/** What the header says at its end: a count, a state, a picture. Never an act that ends. */
+		value?: string | Snippet;
+		/** The card's rows, each a `settings-row`. */
+		rows?: Snippet;
 		/** The rows that end something, each a `settings-row` in the error tone: always last. */
 		end?: Snippet;
+		/** What closes the card: one note, a progress bar, or one act. */
+		footer?: string | Snippet;
+		/** Whether the card spans both of the grid's columns. */
+		span?: 'full';
 	} = $props();
 
 	const titleId = $props.id();
+
+	const hasHeader = $derived(Boolean(title || description || Icon || media || value));
+	const hasBody = $derived(Boolean(rows || end || footer !== undefined));
 </script>
 
 <section
 	data-settings-group
+	data-span={span}
 	aria-labelledby={title ? titleId : undefined}
-	class="flex flex-col gap-2"
+	class={cn(
+		'flex min-w-0 flex-col rounded-2xl bg-card shadow-raised ring-1 ring-foreground/5',
+		span === 'full' && 'col-span-full'
+	)}
 >
-	{#if title}
-		<h2 id={titleId} class="px-3 text-sm font-medium text-muted-foreground first-letter:uppercase">
-			{title}
-		</h2>
+	{#if hasHeader}
+		<header
+			data-settings-group-header
+			class={cn('flex items-start gap-3 px-4 pt-4', hasBody ? 'pb-2' : 'pb-4')}
+		>
+			{#if media}
+				<div class="shrink-0">{@render media()}</div>
+			{:else if Icon}
+				<!-- a tile rather than a bare glyph, so the header reads as the card's own and a row's
+				     glyph under it reads as a row's. Muted, since a glyph is heavy beside its words
+				     (*Balance weight and contrast*). -->
+				<div
+					class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"
+					data-settings-group-glyph
+				>
+					<Icon class="size-4" />
+				</div>
+			{/if}
+
+			<div class="flex min-w-0 flex-1 flex-col gap-0.5">
+				{#if title}
+					<h2
+						id={titleId}
+						class={cn('text-sm font-semibold', !titleAsWritten && 'first-letter:uppercase')}
+					>
+						{#if titleAsWritten}<bdi>{title}</bdi>{:else}{title}{/if}
+					</h2>
+				{/if}
+				{#if description}
+					<p class="text-sm text-muted-foreground" data-settings-group-description>
+						{description}
+					</p>
+				{/if}
+			</div>
+
+			{#if value !== undefined}
+				<div class="shrink-0 text-sm text-muted-foreground" data-settings-group-value>
+					{#if typeof value === 'string'}
+						{value}
+					{:else}
+						{@render value()}
+					{/if}
+				</div>
+			{/if}
+		</header>
 	{/if}
 
-	<Item.Group class="gap-0 rounded-2xl border bg-card has-data-[size=sm]:gap-0">
-		{@render rows()}
+	{#if rows || end}
+		<!-- the rows sit inside the card's own inset, so the hairline between two of them stops
+		     short of its edges, as a grouped list's does. -->
+		<Item.Group
+			class={cn(
+				'gap-0 px-4 has-data-[size=sm]:gap-0',
+				'[&>[data-settings-row]]:rounded-none [&>[data-settings-row]]:px-0',
+				'[&>[data-settings-row]+[data-settings-row]]:border-t-border',
+				!hasHeader && 'pt-2',
+				!footer && 'pb-2'
+			)}
+		>
+			{@render rows?.()}
 
-		{#if end}
-			<!-- decorative, so the list holds rows and nothing else for a screen reader to count. -->
-			<Item.Separator decorative class="my-0" />
-			{@render end()}
-		{/if}
-	</Item.Group>
+			{#if end}
+				{#if rows}
+					<!-- decorative, so the list holds rows and nothing else for a screen reader to
+					     count. -->
+					<Item.Separator decorative class="my-0" />
+				{/if}
+				{@render end()}
+			{/if}
+		</Item.Group>
+	{/if}
 
-	{#if footer}
-		<p class="px-3 text-sm text-muted-foreground">{footer}</p>
+	{#if footer !== undefined}
+		<footer
+			data-settings-group-footer
+			class={cn(
+				'flex flex-col gap-2 px-4 pt-3 pb-4 text-sm text-muted-foreground',
+				(rows || end) && 'border-t'
+			)}
+		>
+			{#if typeof footer === 'string'}
+				<p>{footer}</p>
+			{:else}
+				{@render footer()}
+			{/if}
+		</footer>
 	{/if}
 </section>

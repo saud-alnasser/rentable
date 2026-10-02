@@ -80,7 +80,9 @@ const group = () => document.querySelector<HTMLElement>('[data-machines] [data-s
 
 const rows = () => [...group().querySelectorAll<HTMLElement>('[data-settings-row]')];
 
-const nameOf = (row: Element) => row.querySelector('[data-slot=item-title]')?.textContent?.trim();
+/** a row's name, without the badge that may stand beside it. */
+const nameOf = (row: Element) =>
+	row.querySelector('[data-slot=item-title] > span:first-child')?.textContent?.trim();
 
 const added = (locale: 'en' | 'ar') => formatLocaleDate(locale, ADDED, { dateStyle: 'medium' });
 
@@ -98,10 +100,22 @@ test('this machine is listed first and marked, with when each machine was seen a
 	]);
 
 	expect(here.querySelector('[data-this-machine]')).not.toBeNull();
-	expect(here.querySelector('[data-this-machine-mark]')?.textContent?.trim()).toBe(
+	// marked by a badge beside its name, as a passkey used from this device is (effort 846).
+	expect(here.querySelector('[data-slot=item-title] [data-row-badge]')?.textContent?.trim()).toBe(
 		en.settings.you.machines.thisMachine
 	);
 	expect(group().querySelectorAll('[data-this-machine]')).toHaveLength(1);
+	expect(group().querySelectorAll('[data-row-badge]')).toHaveLength(1);
+
+	// when it was seen and added is the line under the name, not a column at the row's end.
+	expect(laptop.querySelector('[data-row-meta]')?.textContent).toContain('last seen 3 hours ago');
+	expect(laptop.querySelector('[data-row-value]')).toBeNull();
+
+	// the card says how many are signed in, at its header's end, and spans both columns.
+	expect(group().querySelector('[data-settings-group-value]')?.textContent?.trim()).toBe(
+		en.settings.you.machines.signedIn.replace('{count:number}', '4')
+	);
+	expect(group().dataset.span).toBe('full');
 
 	// within a day it is said relative to now; further back, as a date, and still listed.
 	expect(laptop.textContent).toContain('last seen 3 hours ago');
@@ -236,7 +250,7 @@ test('signing every other machine out asks first, naming every other machine and
 test('and in arabic, this machine is marked and the fallback is written in its own words', () => {
 	draw('ar');
 
-	expect(rows()[0].querySelector('[data-this-machine-mark]')?.textContent?.trim()).toBe(
+	expect(rows()[0].querySelector('[data-row-badge]')?.textContent?.trim()).toBe(
 		ar.settings.you.machines.thisMachine
 	);
 	expect(nameOf(rows()[2])).toBe(ar.settings.you.machines.unnamed.replace('{date}', added('ar')));

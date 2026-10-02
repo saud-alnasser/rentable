@@ -160,6 +160,50 @@ be reached. The command menu offers it as a place, `/?ending-soon`, which opens 
 every neighbour there applied at once while it asked for a save.* *Added by
 [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirements 6 and 7.*
 
+### Settings section
+
+**A settings section is a grid of cards, and everything in it is one.** Each tab of the settings
+area draws its content in `packages/design/src/lib/block/settings-grid.svelte`: two columns where
+the section is wide enough for two cards of 340 pixels and their gap, read off the section's own
+width by a container query, one column where it is not, the content capped near 1100 pixels. Cards
+keep their own height, side by side, and the grid never reorders them: reading order is source
+order, so what a keyboard and a screen reader meet is what the eye sees. No masonry.
+
+**A card has one anatomy** (`block/settings-group.svelte`): a header inside the card with its glyph,
+its title, one muted line saying what it is for, and at its end an optional value (a count, a
+state, a badge), never an act that ends something; then its rows (`block/settings-row.svelte`), the
+meta line under a row's name and a badge beside it where one marks the row; then, after a
+separator, the acts that end something, in the error tone on the act alone, never on the card's
+edge or a band; then an optional footer of one note, one progress bar or one act. A card is half
+the grid's width unless it spans: a list that grows (the machines), a status that carries a
+problem (sync), a long path (diagnostics) and every card holding an act that ends something
+(leaving, this machine) span both columns, and those that end something are written last. The
+roles, members and workspaces directories are not boxed: their heading takes the card's header,
+the tray sits under it, the record cards follow, so no box sits in a box. A notice waiting on the
+reader, the ownership offer, is a callout across the grid rather than a card of one row.
+
+**Detail few readers need folds under its row, and nothing else folds.** A row's `details` is an
+expander on the `collapsible` primitive, in the manner of Fluent's settings expander: the glyph,
+the name, the value and the control stay in view, a chevron after them opens the detail beneath,
+labelled by what it opens, one level only, closed by default and remembered while the application
+runs. Four rows take it: the available version's release notes, the log folder's whole path, the
+sync state's machine detail (the workspace this machine keeps and where its copy is), and the
+Turso connection's database and organization. **Never folded**: a status word or its problem's
+callout, the last time Turso was reached, a download in progress, the ownership offer, the machines
+list, the earlier-records callout, and every act in a card's end, which `settings-row` refuses to
+fold whatever it is handed. A new fold passes the same test: most readers do not need it, it
+reports no condition, it ends nothing, and the row's header still says what matters.
+
+*Why: the human found the settings a linear column of sentences and asked for "cards and section
+of grids", then for everything in a tab to be a card, and then why the collapsible primitive went
+unused. Every settings pane the research saw is one column; the grid rests on the human's word and
+is kept to short, independent cards in source order. Every disclosure guideline read (Apple's
+disclosure controls, GOV.UK's details, Microsoft's settings expander, Android's advanced settings)
+agrees on the fold's test.* *Added by
+[[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirement 1 as widened on
+2026-10-02, ticket 21; evidence in its `evidence/research/settings-*-as-cards.md` and
+`how-production-apps-organize-a-settings-section.md`.*
+
 ## Tone
 
 **What a surface reports, it reports in one vocabulary: `neutral | info | success | warning | error`.**

@@ -6,6 +6,7 @@
 	import type { Standing } from '$lib/permission';
 	import Empty from '@rentable/design/block/empty.svelte';
 	import RecordCard from '@rentable/design/block/record-card.svelte';
+	import { Badge } from '@rentable/design/primitive/badge/index.js';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { CreateControl } from '$lib/create/ui';
@@ -19,6 +20,7 @@
 	import { recordOf, withSection, WORKSPACE_PARAM } from '$lib/settings';
 	import EarlierRecords from './app-database-records.svelte';
 	import DiscIcon from '$lib/design/cell/disc.svelte';
+	import BuildingIcon from '@lucide/svelte/icons/building';
 	import XIcon from '@lucide/svelte/icons/x';
 	import UsersIcon from '@lucide/svelte/icons/users';
 	import CrownIcon from '@lucide/svelte/icons/crown';
@@ -26,6 +28,7 @@
 	import EyeIcon from '@lucide/svelte/icons/eye';
 	import UserCogIcon from '@lucide/svelte/icons/user-cog';
 	import { permits, WRITE_FLAGS } from '@rentable/workspace-permission';
+	import { columnsFor, RECORD_TILE_MIN_WIDTH } from '$lib/list';
 
 	/**
 	 * The workspaces of the organization, as a directory of record cards, each carrying its own
@@ -37,10 +40,12 @@
 	 * actions*). *It was a row with a cluster of glyphs revealed on hover until this ticket, which
 	 * is what the human met in the running build and asked to be cards instead.*
 	 *
-	 * **A card is a tile: the name on its heading line, and its facts beneath, one to a line, each
-	 * with its icon** ([[rules/interface]], *List presentation*). The one open on this machine says
-	 * so in words, *open on this machine*, after the solid disc this application draws for
-	 * something live; every card says how many people hold it, after `users`; and every card says
+	 * **A card is a tile: the workspace's glyph and its name on its heading line, and its facts
+	 * beneath, one to a line, each with its icon** ([[rules/interface]], *List presentation*), and
+	 * the tiles are a grid, two or three to a row where there is room (effort 846, *Everything in a
+	 * tab is a card*). The one open on this machine says so in words, *open on this machine*, in a
+	 * badge after the solid disc this application draws for something live (Linear's worded
+	 * *joined* badge); every card says how many people hold it, after `users`; and every card says
 	 * what the reader may do there, from the session's own entry for that workspace, worded as what
 	 * they may do: *owner*, *you may read* where the grant is read only or nothing the reader holds
 	 * there writes, *set for you* where something is pinned for them there, and *you may edit*
@@ -183,6 +188,12 @@
 		return { kind: 'edit', word: $LL.organization.dashboard.workspaceYouEdit(), icon: PencilIcon };
 	};
 
+	/** the gap between two tiles, the list shell's `gap-3`. */
+	const TILE_GAP = 12;
+	/** the directory's own width, which the tiles divide. */
+	let width = $state(0);
+	const columns = $derived(columnsFor(width, RECORD_TILE_MIN_WIDTH, TILE_GAP));
+
 	let search = $state('');
 	// the empty treatment at a settings section's size: a directory here is one block among
 	// others, so it takes no screen's worth of padding.
@@ -264,6 +275,7 @@
 		legendId="workspaces-legend"
 		legend={$LL.settings.section.workspaces()}
 		grouped
+		icon={BuildingIcon}
 		description={$LL.organization.dashboard.workspacesDescription()}
 		bind:search
 		count={shown.length}
@@ -277,17 +289,28 @@
 	     18; effort 846, requirement 17). -->
 	<EarlierRecords workspace={open} />
 
-	<div class="flex flex-col gap-3" data-workspaces>
+	<!-- the tiles in a grid, as many to a row as there is room for at 300 pixels each and never
+	     more than three, read off the directory's own width the way the list shell reads its
+	     own (`columnsFor`), in source order. -->
+	<div
+		class="grid gap-3"
+		style:grid-template-columns="repeat({columns}, minmax(0, 1fr))"
+		bind:clientWidth={width}
+		data-workspaces
+		data-columns={columns}
+	>
 		{#if workspaces.length === 0}
-			<Empty
-				kind="nothing-yet"
-				title={$LL.organization.dashboard.noWorkspaces()}
-				class={DIRECTORY_EMPTY}
-			/>
+			<div class="col-span-full">
+				<Empty
+					kind="nothing-yet"
+					title={$LL.organization.dashboard.noWorkspaces()}
+					class={DIRECTORY_EMPTY}
+				/>
+			</div>
 		{:else if shown.length === 0}
 			<!-- the one empty treatment's no-match ([[rules/interface]], *Empty*): the search found
 			     nobody, and the way out is putting it down. -->
-			<div data-directory-no-match>
+			<div class="col-span-full" data-directory-no-match>
 				<Empty kind="no-match" title={$LL.common.messages.noMatch()} class={DIRECTORY_EMPTY}>
 					{#snippet action()}
 						<Button type="button" variant="outline" size="sm" onclick={() => (search = '')}>
@@ -310,8 +333,11 @@
 					layout="tile"
 				>
 					{#snippet heading()}
-						<span class="truncate text-sm font-medium" data-workspace-name>
-							<bdi>{workspace.name}</bdi>
+						<span class="flex min-w-0 items-center gap-2">
+							<BuildingIcon class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+							<span class="truncate text-sm font-medium" data-workspace-name>
+								<bdi>{workspace.name}</bdi>
+							</span>
 						</span>
 					{/snippet}
 
@@ -322,12 +348,11 @@
 						     that say what the disc means, so neither has to be learned. -->
 						<ul class="pointer-events-none relative flex min-w-0 flex-col gap-1 text-xs">
 							{#if workspace.id === openWorkspaceId}
-								<li
-									class="flex min-w-0 items-center gap-2 font-medium text-foreground"
-									data-workspace-open={workspace.id}
-								>
-									<DiscIcon class="size-3.5 shrink-0 text-primary" aria-hidden="true" />
-									<span class="truncate">{$LL.organization.dashboard.workspaceOpenHere()}</span>
+								<li class="flex min-w-0" data-workspace-open={workspace.id}>
+									<Badge variant="secondary" class="max-w-full">
+										<DiscIcon class="size-3 shrink-0 text-primary" aria-hidden="true" />
+										<span class="truncate">{$LL.organization.dashboard.workspaceOpenHere()}</span>
+									</Badge>
 								</li>
 							{/if}
 

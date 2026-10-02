@@ -3,7 +3,7 @@
 	import type { ListSort } from '@rentable/design/sort.js';
 	import { ListToolbar } from '$lib/list/ui';
 	import type { ListSortOption } from '$lib/list';
-	import type { Snippet } from 'svelte';
+	import type { Component, Snippet } from 'svelte';
 
 	/**
 	 * What a settings directory opens with: what the section is, and the list shell's own bar.
@@ -38,11 +38,11 @@
 	 * shell puts its own. A create is the one create control, last in the bar, where the list
 	 * shell's toolbar puts it too ([[rules/interface]], *Create*).
 	 *
-	 * **A directory heading may take the settings group's treatment** (`grouped`): the short muted
-	 * title a `settings-group` draws over its rows, with the sentence under it at the group's own
-	 * size, while the bar and the cards stay as they are (effort 846, requirement 1). The
-	 * workspaces directory takes it first, in ticket 7 of that effort; the members and roles
-	 * directories keep the legend until their own change moves them.
+	 * **A directory heading takes the settings card's header** (`grouped`, with its `icon`): the
+	 * card's glyph tile, its title and its one line, the way a `settings-group` heads a card, while
+	 * the bar and the record cards stay as they are and no box is drawn around them (effort 846,
+	 * requirement 1 and *Everything in a tab is a card*): the records are cards already, and a card
+	 * around cards is a box in a box. The members, roles and workspaces directories all take it.
 	 */
 	let {
 		legendId,
@@ -55,7 +55,8 @@
 		sort = $bindable(null),
 		narrowing,
 		action,
-		grouped = false
+		grouped = false,
+		icon: Icon
 	}: {
 		/** what the fieldset around the directory names in `aria-labelledby`. */
 		legendId: string;
@@ -80,22 +81,36 @@
 		narrowing?: Snippet;
 		/** what stands at the end of the bar, where the section has anything to put there. */
 		action?: Snippet;
-		/** whether the heading takes the settings group's title treatment rather than a legend's. */
+		/** whether the heading takes the settings card's header rather than a legend's. */
 		grouped?: boolean;
+		/** the glyph the heading leads with, where it takes the card's header. */
+		icon?: Component<{ class?: string }>;
 	} = $props();
 </script>
 
 <div data-directory-tray class="flex flex-col gap-3">
-	<div class={grouped ? 'flex min-w-0 flex-col gap-1 px-3' : 'min-w-0'}>
-		<!-- grouped, the legend reads as `settings-group`'s title: small, medium, muted. -->
-		<Field.Legend
-			id={legendId}
-			class={grouped
-				? 'mb-0 text-sm text-muted-foreground data-[variant=legend]:text-sm'
-				: undefined}
-			data-directory-grouped={grouped ? '' : undefined}>{legend}</Field.Legend
-		>
-		<Field.Description data-directory-description>{description}</Field.Description>
+	<div class={grouped ? 'flex min-w-0 items-start gap-3' : 'min-w-0'}>
+		{#if grouped && Icon}
+			<!-- the card header's glyph tile, so a directory heads its records as a card heads its
+			     rows. -->
+			<div
+				class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"
+				data-directory-glyph
+			>
+				<Icon class="size-4" />
+			</div>
+		{/if}
+		<div class={grouped ? 'flex min-w-0 flex-1 flex-col gap-0.5' : 'min-w-0'}>
+			<!-- grouped, the legend reads as a settings card's title, and the sentence as its line. -->
+			<Field.Legend
+				id={legendId}
+				class={grouped
+					? 'mb-0 text-sm font-semibold first-letter:uppercase data-[variant=legend]:text-sm'
+					: undefined}
+				data-directory-grouped={grouped ? '' : undefined}>{legend}</Field.Legend
+			>
+			<Field.Description data-directory-description>{description}</Field.Description>
+		</div>
 	</div>
 
 	<ListToolbar bind:search {answersSearchKey} {count} {sortOptions} bind:sort {narrowing}>

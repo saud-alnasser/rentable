@@ -16,8 +16,8 @@
 	 * link connects a machine to them again. Reaching another organization is this, then a
 	 * connect, since a machine holds one.
 	 *
-	 * **An act that ends something, so an error row with its glyph, and its consequence in one line
-	 * beneath it** (effort 846, requirements 2 and 14). A member is told the organization stays on
+	 * **An act that ends something, so an error row with its glyph, and its consequence as the line
+	 * under its name** (effort 846, requirements 2 and 14). A member is told the organization stays on
 	 * Turso and that a new link brings them back, since a link is the only way back a member has;
 	 * the owner is told nothing on Turso changes. The row's name is the act and labels the button,
 	 * whose own word is the verb alone.
@@ -44,18 +44,18 @@
 </script>
 
 {#snippet consequence()}
-	<p class="text-sm text-muted-foreground" data-leaving-consequence>
+	<span data-leaving-consequence>
 		{isOwner
 			? $LL.organization.dashboard.disconnectForgets()
 			: $LL.organization.dashboard.disconnectComesBack()}
-	</p>
+	</span>
 {/snippet}
 
 <SettingsRow
 	icon={UnplugIcon}
 	name={$LL.organization.dashboard.disconnectThisMachine()}
 	tone="error"
-	beneath={consequence}
+	meta={consequence}
 >
 	{#snippet control({ labelId })}
 		<!-- the row carries no mark of its own, so the act's two marks are on its one control: the

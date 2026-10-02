@@ -18,10 +18,12 @@
 	 * The organization's signature or seal, the one image printed at the foot of every receipt and
 	 * schedule (effort 835, requirement 13), as a settings group of its own.
 	 *
-	 * **One row, the mark, with its preview as the value** (effort 846, requirements 1 and 13), and
-	 * choosing or replacing it as the row's control. What the mark is for is the group's one line.
+	 * **A card titled for the mark, with one row, the image** (effort 846, requirements 1 and 13,
+	 * and *Everything in a tab is a card*): its preview as the row's value, drawn on paper as it
+	 * prints, and choosing or replacing it as the row's control. What the mark is for is the
+	 * card's one line. *The row was named for the mark itself until the card took that title.*
 	 *
-	 * **Removing it is the group's end row, in the error tone, and asks first** (requirement 2): it
+	 * **Removing it is the card's end row, in the error tone, and asks first** (requirement 2): it
 	 * takes the image off every receipt and schedule on every machine, and nothing brings that image
 	 * back but choosing it again, so the question says both. *It was a plain ghost button beside the
 	 * choose, with no glyph and no question, until effort 846.*
@@ -59,7 +61,7 @@
 {#snippet preview()}
 	<!-- drawn on paper, as it will print: light whatever the window is in. -->
 	<div
-		class="paper flex h-16 w-32 items-center justify-center rounded-lg border border-border bg-card p-1.5"
+		class="paper flex h-14 w-28 items-center justify-center rounded-lg border border-border bg-card p-1.5"
 	>
 		{#if mark}
 			<img
@@ -116,9 +118,11 @@
 	</SettingsRow>
 {/snippet}
 
-<div data-organization-mark>
+<div data-organization-mark class="contents">
 	<SettingsGroup
-		footer={setsMark
+		icon={ImageIcon}
+		title={$LL.organization.mark.title()}
+		description={setsMark
 			? $LL.organization.mark.description()
 			: `${$LL.organization.mark.description()} ${$LL.organization.mark.readOnly()}`}
 		end={setsMark && mark ? removeRow : undefined}
@@ -126,7 +130,7 @@
 		{#snippet rows()}
 			<SettingsRow
 				icon={ImageIcon}
-				name={$LL.organization.mark.title()}
+				name={$LL.organization.mark.image()}
 				value={preview}
 				control={setsMark ? chooseControl : undefined}
 			/>

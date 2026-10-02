@@ -1,7 +1,9 @@
 <script lang="ts">
 	import SettingsGroup from '@rentable/design/block/settings-group.svelte';
 	import SettingsRow from '@rentable/design/block/settings-row.svelte';
+	import { Badge } from '@rentable/design/primitive/badge/index.js';
 	import { Button } from '@rentable/design/primitive/button/index.js';
+	import { Progress } from '@rentable/design/primitive/progress/index.js';
 	import { toErrorDetail } from '$lib/error/message';
 	import { toTauriErrorCode } from '$lib/error/tauri';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
@@ -10,6 +12,7 @@
 	import type { AvailableUpdate, UpdaterDownloadEvent } from '$lib/update';
 	import { useCheckForUpdate, usePrepareUpdate, useRestartApp } from '$lib/update/ui';
 	import { announceUpdateOutcome } from '$lib/settings/update-announcement';
+	import CircleFadingArrowUpIcon from '@lucide/svelte/icons/circle-fading-arrow-up';
 	import DownloadIcon from '@lucide/svelte/icons/download';
 	import PackageIcon from '@lucide/svelte/icons/package';
 	import PowerIcon from '@lucide/svelte/icons/power';
@@ -19,10 +22,17 @@
 	/**
 	 * What this installation is running, and how it gets the next one.
 	 *
-	 * **A group of the general section, drawn on the shared settings group and row** (effort 846,
-	 * requirement 1): the version this installation runs, and the one it could move to with the act
-	 * that gets there. What a check does is said once, under the group; the release's date and notes
-	 * and the download's progress stand beneath it while there is one.
+	 * **A card of the general section, drawn on the shared settings group and row** (effort 846,
+	 * requirement 1 and *Everything in a tab is a card*): the version this installation runs, and
+	 * the one it could move to with the act that gets there. What a check does is said once, in the
+	 * card's header, and the header's end says where the installation stands in words (checking,
+	 * up to date, update available, downloading, restart to finish), the way Apple's software
+	 * update leads with its state; before anything has been asked it says nothing rather than
+	 * guess. The release's date and notes fold under the available version as *what's new*, since
+	 * few readers read them before installing (*Detail that few readers need folds under its row*),
+	 * and the download's progress stands at the card's foot on the shared progress bar while it
+	 * runs, never folded. *The notes stood in a second box below the group, and the progress was a
+	 * bar drawn by hand, until then.*
 	 *
 	 * **Its acts are labelled buttons with a glyph**, as every row control in the area is, rather
 	 * than the glyph-only chips they were (requirement 5): a chip here beside a labelled button in
@@ -52,6 +62,8 @@
 	let availableUpdate = $state<AvailableUpdate | null>(null);
 	let isInstallingUpdate = $state(false);
 	let isInstalled = $state(false);
+	/** a check has answered since this card was drawn, so *up to date* is a fact and not a guess. */
+	let hasChecked = $state(false);
 	let downloadedBytes = $state(0);
 	let contentLength = $state<number | null>(null);
 
@@ -117,6 +129,7 @@
 			await closeAvailableUpdate();
 			availableUpdate = update;
 			release = update && { version: update.version, date: update.date, body: update.body };
+			hasChecked = true;
 
 			announceUpdateOutcome({ kind: 'checked', hasRelease: update !== null }, $LL);
 		} catch (error) {
@@ -198,6 +211,20 @@
 	 * reader looks for *is there a newer one*, so it answers that question in every state rather
 	 * than appearing when the answer is yes and leaving a hole when it is no.
 	 */
+	/**
+	 * where the installation stands, for the header's end: the one act under way first, then what
+	 * the last check found. `null` before anything has been asked, which the header leaves blank.
+	 */
+	const updateState = $derived.by(() => {
+		if (isCheckingForUpdate) return 'checking' as const;
+		if (isInstallingUpdate) return 'downloading' as const;
+		if (isInstalled) return 'restart' as const;
+		if (release) return 'available' as const;
+		if (hasChecked) return 'upToDate' as const;
+
+		return null;
+	});
+
 	const availableValue = $derived(
 		release
 			? release.version
@@ -215,8 +242,54 @@
 	</span>
 {/snippet}
 
-<div data-updates class="flex flex-col gap-3">
-	<SettingsGroup title={$LL.settings.updatesTitle()} footer={$LL.settings.updatesDescription()}>
+<!-- where this installation stands, in words, at the end of the card's header: a badge in the
+     tone the state reports, and nothing until there is something to say. -->
+{#snippet stateBadge()}
+	{#if updateState}
+		<!-- solid where something waits on the reader, quiet where nothing does. -->
+		<Badge
+			variant={updateState === 'available' || updateState === 'restart' ? 'default' : 'secondary'}
+			data-updates-state={updateState}
+		>
+			{$LL.settings.updatesState[updateState]()}
+		</Badge>
+	{/if}
+{/snippet}
+
+<!-- the release's date and its notes, folded under the available version: few readers want them
+     before they press install, and the version and the act stay in view. -->
+{#snippet whatsNew()}
+	{#if release}
+		<p data-release-date>{$LL.settings.releasedOn({ date: formatReleaseDate(release.date) })}</p>
+		{#if release.body}
+			<p class="whitespace-pre-wrap" dir="auto" data-release-notes>{release.body}</p>
+		{/if}
+	{/if}
+{/snippet}
+
+<!-- the download while it runs, at the card's foot: the shared progress bar, indeterminate where
+     the server sent no length, which is a real answer rather than a bar stuck at zero. -->
+{#snippet downloading()}
+	<p class="text-xs tabular-nums" data-update-progress>
+		{$LL.settings.downloadingUpdate()}{#if percent !== null}
+			&nbsp;·&nbsp;{percent}%{/if}
+	</p>
+	<Progress
+		value={percent}
+		max={100}
+		aria-label={$LL.settings.downloadingUpdate()}
+		class={percent === null ? 'animate-pulse [&>[data-slot=progress-indicator]]:w-1/3' : undefined}
+	/>
+{/snippet}
+
+<div data-updates class="contents">
+	<SettingsGroup
+		icon={CircleFadingArrowUpIcon}
+		title={$LL.settings.updatesTitle()}
+		description={$LL.settings.updatesDescription()}
+		value={updateState ? stateBadge : undefined}
+		footer={isInstallingUpdate ? downloading : undefined}
+	>
 		{#snippet rows()}
 			<SettingsRow icon={PackageIcon} name={$LL.common.labels.currentVersion()}>
 				{#snippet value()}
@@ -224,13 +297,19 @@
 				{/snippet}
 			</SettingsRow>
 
-			<SettingsRow icon={DownloadIcon} name={$LL.common.labels.availableVersion()}>
+			<SettingsRow
+				icon={DownloadIcon}
+				name={$LL.common.labels.availableVersion()}
+				details={release ? whatsNew : undefined}
+				detailsLabel={release ? $LL.settings.whatsNew({ version: release.version }) : undefined}
+				detailsKey="settings.updates.whats-new"
+			>
 				{#snippet value()}
 					{@render figure(availableValue, release !== null)}
 				{/snippet}
 
 				{#snippet control()}
-					<div class="flex items-center gap-2">
+					<div class="flex flex-wrap items-center justify-end gap-2">
 						{#if availableUpdate}
 							<Button
 								variant="outline"
@@ -266,44 +345,4 @@
 			</SettingsRow>
 		{/snippet}
 	</SettingsGroup>
-
-	{#if release}
-		<div class="space-y-3 rounded-2xl border bg-card p-3 text-start">
-			<div>
-				<p class="text-xs text-muted-foreground uppercase">
-					{$LL.common.labels.releaseDate()}
-				</p>
-				<p class="mt-1 text-sm font-medium">{formatReleaseDate(release.date)}</p>
-			</div>
-
-			{#if release.body}
-				<div class="space-y-1 border-t pt-3">
-					<p class="text-xs text-muted-foreground uppercase">
-						{$LL.common.labels.releaseNotes()}
-					</p>
-					<p class="text-sm whitespace-pre-wrap text-muted-foreground">{release.body}</p>
-				</div>
-			{/if}
-		</div>
-	{/if}
-
-	{#if isInstallingUpdate}
-		<div class="space-y-1 px-3">
-			<p class="text-xs text-muted-foreground tabular-nums">
-				{$LL.settings.downloadingUpdate()}{#if percent !== null}
-					&nbsp;·&nbsp;{percent}%{/if}
-			</p>
-
-			<!-- indeterminate where the server sent no length, which is a real answer rather than a
-			     bar stuck at zero: the download is happening and its size is not known. -->
-			<div class="h-2 overflow-hidden rounded-full bg-muted">
-				<div
-					class="h-full bg-primary {percent === null
-						? 'w-1/3 animate-pulse'
-						: 'transition-[width]'}"
-					style={percent === null ? undefined : `width: ${percent}%`}
-				></div>
-			</div>
-		</div>
-	{/if}
 </div>

@@ -85,8 +85,8 @@ const block = (
 };
 
 const row = () => document.querySelector<HTMLElement>('[data-standing]')!;
-const word = () => row().querySelector('[data-standing-word]')?.textContent?.trim();
-const glyph = () => row().querySelector<HTMLElement>('[data-standing-glyph]')!;
+const word = () => row().querySelector('[data-slot=item-title] > span')?.textContent?.trim();
+const glyph = () => row().querySelector<HTMLElement>('[data-slot=item-media]')!;
 const lastReached = () => row().querySelector('[data-last-reached]')?.textContent?.trim();
 const checkNow = () => document.querySelector<HTMLButtonElement>('[data-check-now]')!;
 
@@ -273,6 +273,28 @@ test('the last-reached line beyond a day is the date and the time, under any sta
 	);
 });
 
+// effort 846, *Detail that few readers need folds under its row*: the workspace this machine keeps
+// and where its copy is fold under the state, closed, while the state, the last reach and sync stay.
+test('what this machine keeps folds under the state, closed, and the state stays in view', async () => {
+	block({ syncState: fakeSyncState({ lastReachedAt: Date.now() - 2 * MINUTE }) });
+
+	const chevron = row().querySelector<HTMLElement>('[data-row-details-trigger]')!;
+
+	expect(chevron.getAttribute('aria-expanded')).toBe('false');
+	expect(chevron.getAttribute('aria-label')).toBe(en.organization.standing.detail.label);
+	expect(row().querySelector('[data-standing-detail]')).toBeNull();
+	expect(word()).toBe(en.organization.standing.state.upToDate);
+	expect(lastReached()).toBeDefined();
+	expect(checkNow()).not.toBeNull();
+
+	await fireEvent.click(chevron);
+
+	const detail = row().querySelector('[data-standing-detail]')!;
+
+	expect(detail.textContent).toContain(fakeSyncState().workspace.name);
+	expect(detail.textContent).toContain(fakeSyncState().workspace.localDatabasePath);
+});
+
 test('before any replication went there is no last-reached line, and nothing beneath', () => {
 	block();
 
@@ -287,7 +309,7 @@ const beneathTheState = (selector: string) => {
 
 	expect(explanation).not.toBeNull();
 	expect(
-		row().querySelector('[data-standing-word]')!.compareDocumentPosition(explanation!) &
+		row().querySelector('[data-slot=item-title]')!.compareDocumentPosition(explanation!) &
 			Node.DOCUMENT_POSITION_FOLLOWING
 	).toBeTruthy();
 };

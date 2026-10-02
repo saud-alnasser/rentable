@@ -21,6 +21,7 @@
 	import { memberActs, memberHost, memberPending } from '$lib/organization/host.svelte';
 	import { memberRoleName } from '$lib/organization/role/role';
 	import { RECORD_PARAM, recordOf, withSection } from '$lib/settings';
+	import UsersIcon from '@lucide/svelte/icons/users';
 	import XIcon from '@lucide/svelte/icons/x';
 
 	/**
@@ -284,6 +285,8 @@
 	<DirectoryTray
 		legendId="members-legend"
 		legend={$LL.organization.dashboard.membersTitle()}
+		grouped
+		icon={UsersIcon}
 		description={$LL.organization.dashboard.membersDescription()}
 		bind:search
 		count={shown.length}

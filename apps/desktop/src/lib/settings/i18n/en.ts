@@ -8,6 +8,8 @@ export const settings = {
 	diagnosticsDescription:
 		'a record of what rentable does, for looking into failures. it stays here, and passwords and tokens are left out.',
 	diagnosticsFolder: 'log folder',
+	// the chevron that opens the folder's whole path under its row (effort 846).
+	diagnosticsFullPath: 'the whole path',
 	diagnosticsReveal: 'open log folder',
 	diagnosticsTitle: 'diagnostics',
 
@@ -22,7 +24,13 @@ export const settings = {
 
 	restartNotice: 'update installed. restart rentable to finish.',
 
-	// the one line under the language and appearance group, for both of its rows (effort 846).
+	// the language and appearance card: its title and its one line (effort 846, *Everything in a
+	// tab is a card*).
+	preferences: {
+		title: 'language and appearance',
+		description: 'how rentable reads and looks on this machine.'
+	},
+	// the note at the foot of the language and appearance card, for both of its rows (effort 846).
 	preferencesFooter:
 		'each applies the moment you pick it, and system follows your computer as it turns light or dark.',
 	localeTitle: 'language',
@@ -46,6 +54,18 @@ export const settings = {
 	title: 'settings',
 
 	updatesChecking: 'checking for updates...',
+	// what the updates card's header says at its end, in words: where this installation stands
+	// (effort 846, *Everything in a tab is a card*).
+	updatesState: {
+		checking: 'checking',
+		upToDate: 'up to date',
+		available: 'update available',
+		downloading: 'downloading',
+		restart: 'restart to finish'
+	},
+	// the chevron that opens a release's notes under the available version, and the date in them.
+	whatsNew: "what's new in {version:string}",
+	releasedOn: 'released {date:string}',
 	updatesDescription:
 		'check for a newer version and install it. if the app then fails to start, it offers the version you were on.',
 	updatesTitle: 'updates',
@@ -80,6 +100,8 @@ export const settings = {
 		machines: {
 			title: 'machines',
 			description: 'signing a machine out leaves your password as it is.',
+			// the machines card's header value: how many machines are signed in as the reader.
+			signedIn: '{count:number} signed in',
 			thisMachine: 'this machine',
 			unnamed: 'a machine added {date:string}',
 			lastSeen: 'last seen {moment:string}',
@@ -102,6 +124,7 @@ export const settings = {
 		},
 		// effort 846, requirement 8: the last group of the section, and the one way out of it.
 		thisMachine: {
+			title: 'this machine',
 			signOut: 'sign out of this machine',
 			description: 'the organization stays on this machine. sign in again to carry on.'
 		}

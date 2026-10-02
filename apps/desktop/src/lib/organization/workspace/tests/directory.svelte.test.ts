@@ -351,6 +351,8 @@ const dialogParagraphs = () =>
 const memberCount = (count: number) => i18nObject('en').layout.workspaceMenu.members({ count });
 
 beforeEach(() => {
+	// the tiles are laid in as many columns as the directory's width holds, which it measures.
+	layOutLists();
 	resetOrganizationDialogs();
 	resetOrganizationHost();
 	resetHostAnswers();
@@ -403,6 +405,8 @@ test('the open one says it is open on this machine, after its disc, and no other
 
 	expect(said.textContent?.trim()).toBe(en.organization.dashboard.workspaceOpenHere);
 	expect(said.querySelector('svg')).not.toBeNull();
+	// in a badge, the words doing the marking (effort 846, *Everything in a tab is a card*).
+	expect(said.querySelector('[data-slot=badge]')).not.toBeNull();
 	expect(card('ws-1')!.contains(said)).toBe(true);
 	expect(card('ws-2')?.textContent).not.toContain(en.organization.dashboard.workspaceOpenHere);
 
@@ -412,6 +416,27 @@ test('the open one says it is open on this machine, after its disc, and no other
 
 	expect(document.querySelector('[data-workspace-open]')).toBeNull();
 	expect(document.body.textContent).not.toContain(en.organization.dashboard.workspaceOpenHere);
+});
+
+// effort 846, *Everything in a tab is a card*: the cards are tiles in a grid of as many columns as
+// the directory's width holds, each heading led by the workspace's glyph.
+test('the tiles stand in a grid, each heading led by the workspace glyph', () => {
+	list();
+
+	const grid = document.querySelector<HTMLElement>('[data-workspaces]')!;
+
+	expect(grid.classList).toContain('grid');
+	// jsdom lays nothing out, so the width is nothing and the grid is the one column it falls to.
+	expect(grid.dataset.columns).toBe('1');
+
+	for (const id of ['ws-1', 'ws-2']) {
+		expect(
+			card(id)!
+				.querySelector('[data-workspace-name]')!
+				.parentElement!.querySelector('svg')
+				?.getAttribute('class')
+		).toContain('lucide-building');
+	}
 });
 
 // effort 846, criterion 16: every card counts who holds it, after the members' icon.
@@ -526,8 +551,11 @@ test('the section says what it is for, in the tray above the cards', () => {
 	const tray = document.querySelector('[data-directory-tray]')!;
 
 	expect(tray.querySelector('legend')?.textContent?.trim()).toBe(en.settings.section.workspaces);
-	// effort 846, requirement 1: the heading reads as a settings group's title.
+	// effort 846, requirement 1: the heading reads as a settings card's header, its glyph first.
 	expect(tray.querySelector('legend')?.hasAttribute('data-directory-grouped')).toBe(true);
+	expect(tray.querySelector('[data-directory-glyph] svg')?.getAttribute('class')).toContain(
+		'lucide-building'
+	);
 	expect(tray.querySelector('[data-directory-description]')?.textContent?.trim()).toBe(
 		en.organization.dashboard.workspacesDescription
 	);

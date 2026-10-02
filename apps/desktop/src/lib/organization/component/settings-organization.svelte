@@ -25,8 +25,7 @@
 
 <script lang="ts">
 	import type { SettingsSectionProps } from '$lib/feature/surface';
-	import * as Field from '@rentable/design/primitive/field/index.js';
-	import { Separator } from '@rentable/design/primitive/separator/index.js';
+	import SettingsGrid from '@rentable/design/block/settings-grid.svelte';
 	import OrganizationLeaving from '$lib/organization/component/leaving.svelte';
 	import OrganizationMark from '$lib/organization/component/mark.svelte';
 	import OrganizationMembers from '$lib/organization/member/component/directory.svelte';
@@ -57,7 +56,7 @@
 	 * organization.*
 	 *
 	 * **Inside the section: what it is about, then what it holds, then what ends something, at the
-	 * foot.** *Settled by the human on the real organization.* It opens with how this machine
+	 * foot**, each a card in the section's grid (effort 846, *Everything in a tab is a card*). *Settled by the human on the real organization.* It opens with how this machine
 	 * stands to the organization and closes with leaving it. What each block is gated on did not
 	 * change with the order, and Rust refuses every one of them again.
 	 */
@@ -88,71 +87,69 @@
 </script>
 
 {#if session}
-	<Field.Group>
-		<!-- how this machine stands to the organization first: it is what the section is about,
-		     it is what a reader who came here worried is looking for, and it reads the same for
-		     everybody. Then the signature or seal its pages print, then the account the databases
-		     sit on, then the people, then the two acts that end something. *The directory stood
-		     first until the human read the four sections and asked for the elements in each to be
-		     ordered.* -->
+	<!-- each block is a card in the section's grid (effort 846, *Everything in a tab is a card*):
+	     how this machine stands to the organization first, across both columns, since it is what
+	     the section is about and what a reader who came here worried is looking for; then the Turso
+	     account beside the signature or seal, two short cards side by side, the mark alone at half
+	     for a member, who meets no Turso account; then the roles and the people, two directories
+	     across both columns and never boxed, since their records are cards already; then the ways a
+	     reader steps away, last. *The directory stood first until the human read the four sections
+	     and asked for the elements in each to be ordered; the blocks stood in one column split by
+	     separators until the human asked for cards in a grid.* -->
+	<SettingsGrid>
 		{#if syncQuery.data}
-			<!-- the sync group: a settings group of its own, titled, so it takes no legend. -->
-			<div data-standing-block>
+			<div data-standing-block class="contents">
 				<OrganizationStanding syncState={syncQuery.data} {session} {needsAuthority} />
 			</div>
+		{/if}
 
-			<Separator />
+		<!-- the Turso account, which is the owner's alone: one row naming the connection and its
+		     state on this machine, reconnected where this machine holds no authority and given
+		     back, at the card's end, where it does (effort 846, requirement 13). -->
+		{#if isOwner}
+			<OrganizationTursoAccount
+				holdsAuthority={!needsAuthority}
+				organizationId={session.organizationId}
+				organizationName={session.organizationName}
+				onReconnected={() => void stateQuery.refetch()}
+			/>
 		{/if}
 
 		<!-- what the organization prints on its pages: everybody sees it, and whoever holds the
 		     flag to manage it changes it (effort 835, requirement 13; effort 838). -->
 		<OrganizationMark setsMark={permits(session.permissions, 'manageMark')} />
 
-		<Separator />
-
-		<!-- the Turso account, which is the owner's alone: one row naming the connection and its
-		     state on this machine, reconnected where this machine holds no authority and given
-		     back, at the group's end, where it does (effort 846, requirement 13). -->
-		{#if isOwner}
-			<OrganizationTursoAccount
-				holdsAuthority={!needsAuthority}
-				onReconnected={() => void stateQuery.refetch()}
-			/>
-
-			<Separator />
-		{/if}
-
 		<!-- the roles, before the people who hold them: what each kind of person may do, read by
 		     everybody and changed by whoever holds the flag to (effort 838, requirement 12). The
 		     section answers the search key once, and where the people are drawn below, it is
 		     theirs, the set a reader searches ([[rules/interface]], *Search*). -->
-		<OrganizationRoles
-			roles={rolesQuery.data ?? []}
-			{members}
-			reader={roleReaderOf(session)}
-			answersSearchKey={!administers}
-		/>
+		<div class="col-span-full" data-settings-directory data-span="full">
+			<OrganizationRoles
+				roles={rolesQuery.data ?? []}
+				{members}
+				reader={roleReaderOf(session)}
+				answersSearchKey={!administers}
+			/>
+		</div>
 
-		<Separator />
-
-		<!-- the people. The directory owns its own legend, the sentence under it, the cards and
-		     the add at its foot; what is decided here is what this reader may do, and a member
+		<!-- the people. The directory owns its own heading, the sentence under it, the cards and
+		     the add in its tray; what is decided here is what this reader may do, and a member
 		     who changes nobody's row meets no directory at all. -->
 		{#if administers}
-			<!-- the reader's gates, read by the one builder the command menu reads them by. -->
-			<OrganizationMembers
-				{members}
-				standings={standingsQuery.data ?? []}
-				{...memberReaderOf(session)}
-			/>
-
-			<Separator />
+			<div class="col-span-full" data-settings-directory data-span="full">
+				<!-- the reader's gates, read by the one builder the command menu reads them by. -->
+				<OrganizationMembers
+					{members}
+					standings={standingsQuery.data ?? []}
+					{...memberReaderOf(session)}
+				/>
+			</div>
 		{/if}
 
 		<!-- and the foot: the ways a reader steps away, told apart by who is reading (effort 846,
 		     requirement 14). A member meets the disconnect alone; an owner meets the handover first,
 		     then the disconnect, then the delete, last and set apart, which needs the authority the
-		     Turso group is about. -->
+		     Turso card is about. -->
 		<OrganizationLeaving
 			{session}
 			{members}
@@ -160,5 +157,5 @@
 			{holdsTursoAuthority}
 			{leaveForTheWall}
 		/>
-	</Field.Group>
+	</SettingsGrid>
 {/if}

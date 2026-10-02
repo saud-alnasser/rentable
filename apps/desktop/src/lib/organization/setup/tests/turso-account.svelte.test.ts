@@ -72,24 +72,31 @@ beforeEach(() => {
 const shown = (holdsAuthority: boolean) =>
 	render(
 		OrganizationTursoAccount,
-		{ holdsAuthority, onReconnected: () => {} },
+		{
+			holdsAuthority,
+			organizationId: 'org-id-1',
+			organizationName: 'Acme Rentals',
+			onReconnected: () => {}
+		},
 		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } }
 	);
 
 const rows = () => [...document.querySelectorAll<HTMLElement>('[data-settings-row]')];
 const nameOf = (row: Element) => row.querySelector('[data-slot=item-title]')?.textContent?.trim();
-const valueOf = (row: Element) => row.querySelector('[data-row-value]')?.textContent?.trim();
 
 test('held here: the account reads connected, and forget is the last row, in the error tone', () => {
 	shown(true);
 
 	const [account, forget] = rows();
 
+	// the card is titled for the account, and its row names the account's state on this machine.
+	expect(document.querySelector('[data-turso-account] h2')?.textContent?.trim()).toBe(
+		en.organization.dashboard.authorityTitle
+	);
 	expect(rows().map(nameOf)).toEqual([
-		en.organization.dashboard.authorityTitle,
+		en.organization.dashboard.authorityConnected,
 		en.organization.dashboard.forgetAccount
 	]);
-	expect(valueOf(account)).toBe(en.organization.dashboard.authorityConnected);
 	expect(account.dataset.rowTone).toBe('neutral');
 	expect(forget.dataset.rowTone).toBe('error');
 	expect(forget.previousElementSibling?.getAttribute('data-slot')).toBe('item-separator');
@@ -102,6 +109,26 @@ test('held here: the account reads connected, and forget is the last row, in the
 	expect(document.querySelector('[data-turso-account]')?.textContent).toContain(
 		en.organization.dashboard.forgetAccountDescription
 	);
+});
+
+// effort 846, *Detail that few readers need folds under its row*: what the account holds for this
+// organization is under the connected row, closed until asked for.
+test('held here: what the account holds folds under the connected row', async () => {
+	shown(true);
+
+	const [account] = rows();
+	const chevron = account.querySelector<HTMLElement>('[data-row-details-trigger]')!;
+
+	expect(chevron.getAttribute('aria-expanded')).toBe('false');
+	expect(chevron.getAttribute('aria-label')).toBe(en.organization.dashboard.authorityDetail.label);
+	expect(account.querySelector('[data-turso-detail]')).toBeNull();
+
+	await fireEvent.click(chevron);
+
+	const detail = account.querySelector('[data-turso-detail]')!;
+
+	expect(detail.textContent).toContain('org-org-id-1');
+	expect(detail.textContent).toContain('Acme Rentals');
 });
 
 test('forget asks first, naming where the token is revoked, and forgets once answered', async () => {
@@ -128,8 +155,12 @@ test('not held here: the account reads so, with a reconnect carrying its glyph, 
 	const [account] = rows();
 
 	expect(rows()).toHaveLength(1);
-	expect(nameOf(account)).toBe(en.organization.dashboard.authorityTitle);
-	expect(valueOf(account)).toBe(en.organization.dashboard.authorityNotHeld);
+	expect(document.querySelector('[data-turso-account] h2')?.textContent?.trim()).toBe(
+		en.organization.dashboard.authorityTitle
+	);
+	expect(nameOf(account)).toBe(en.organization.dashboard.authorityNotHeld);
+	// nothing is held here, so nothing folds under it.
+	expect(account.querySelector('[data-row-details-trigger]')).toBeNull();
 
 	const reconnect = account.querySelector<HTMLElement>('[data-reconnect-authority-open]')!;
 

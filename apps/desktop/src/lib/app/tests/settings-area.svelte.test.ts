@@ -19,6 +19,7 @@ import {
 import OrganizationHost from '$lib/organization/component/host.svelte';
 import { memberHost, organizationHostState } from '$lib/organization/host.svelte';
 import type { RemoteSyncState } from '$lib/sync/host';
+import type { AvailableUpdate } from '$lib/update';
 import { fakeSettings } from '$lib/settings/tests/testing.ts';
 import { fakeSyncState } from '$lib/sync/tests/testing.ts';
 import SettingsArea from '$lib/settings/component/area.svelte';
@@ -30,6 +31,7 @@ import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { pressSearchKey } from '$lib/list/tests/search';
 import { BUILT_IN } from '@rentable/workspace-permission';
 import { listenForSignOut } from '$lib/sync';
+import { layOutLists } from '#tests/permission.ts';
 
 /**
  * THE SETTINGS AREA, RENDERED
@@ -56,8 +58,17 @@ import { listenForSignOut } from '$lib/sync';
  * directories read is stood in for and moved between tests.
  */
 
-const { address } = vi.hoisted(() => ({
-	address: { url: new URL('http://localhost/settings') }
+const { address, updater } = vi.hoisted(() => ({
+	address: { url: new URL('http://localhost/settings') },
+	/** what a check for updates finds: nothing, unless a test stands a release here. */
+	updater: { next: null as AvailableUpdate | null }
+}));
+
+// the updater is the shell's, so a check answers what the test stood there and nothing installs.
+vi.mock('$lib/update/ui', () => ({
+	useCheckForUpdate: () => ({ mutateAsync: async () => updater.next }),
+	usePrepareUpdate: () => ({ mutateAsync: async () => {} }),
+	useRestartApp: () => ({ mutateAsync: async () => {} })
 }));
 
 vi.mock('$app/state', () => ({
@@ -103,7 +114,13 @@ vi.mock('$lib/sync/query', async (importOriginal) => ({
 	...(await import('$lib/organization/tests/host-hooks')).syncHooks
 }));
 
-beforeEach(resetHostAnswers);
+beforeEach(() => {
+	resetHostAnswers();
+	updater.next = null;
+	// the workspaces directory lays its tiles in as many columns as its width holds, which it
+	// measures.
+	layOutLists();
+});
 
 const noop = () => {};
 const resolved = async () => {};
@@ -188,8 +205,9 @@ const generalGroups = () => [...document.querySelectorAll<HTMLElement>('[data-se
 /** the general section's rows, in order. */
 const generalRows = () => [...document.querySelectorAll<HTMLElement>('[data-settings-row]')];
 
-/** a settings row's name, as its title draws it. */
-const rowName = (row: Element) => row.querySelector('[data-slot=item-title]')?.textContent?.trim();
+/** a settings row's name, as its title draws it, without the badge that may stand beside it. */
+const rowName = (row: Element) =>
+	row.querySelector('[data-slot=item-title] > span:first-child')?.textContent?.trim();
 
 // criterion 14(c) of effort 832: the settings sections switch with the one control a record's
 // sections switch with, the design package's section switch, rather than a row of their own.
@@ -378,8 +396,9 @@ test('within each group in general, every button carries an svg or none does', (
 		expect(group.every(Boolean) || group.every((has) => !has)).toBe(true);
 	}
 
-	// updates' check and diagnostics' reveal are labelled buttons with their glyph.
-	expect(withGlyph.slice(1)).toEqual([[true], [true]]);
+	// updates' check and diagnostics' reveal are labelled buttons with their glyph, and the
+	// chevron that opens the folder's whole path carries its own.
+	expect(withGlyph.slice(1)).toEqual([[true], [true, true]]);
 	expect(screen.getByRole('button', { name: en.common.actions.checkForUpdates })).toBeDefined();
 	expect(screen.getByRole('button', { name: en.settings.diagnosticsReveal })).toBeDefined();
 });
@@ -504,7 +523,7 @@ test('the organization section opens with the sync group: the state, the last re
 	);
 	expect(block.textContent).toContain(en.organization.standing.purpose);
 	expect(block.querySelectorAll('[data-standing]')).toHaveLength(1);
-	expect(block.querySelector('[data-standing-word]')?.textContent?.trim()).toBe(
+	expect(rowName(block.querySelector('[data-standing]')!)).toBe(
 		en.organization.standing.state.upToDate
 	);
 	expect(block.querySelector('[data-last-reached]')?.textContent?.trim()).toBe(
@@ -632,7 +651,9 @@ test('the account section ends with signing out of this machine, in the error to
 	const last = groups().at(-1)!;
 	const rows = [...last.querySelectorAll<HTMLElement>('[data-settings-row]')];
 
-	expect(groups()).toHaveLength(5);
+	// the offer is a callout across the grid, and the identity, the password, the machines and
+	// this machine are its four cards.
+	expect(groups()).toHaveLength(4);
 	expect(last.closest('[data-sign-out]')).not.toBeNull();
 	expect(rows.map(rowName)).toEqual([en.settings.you.thisMachine.signOut]);
 	expect(rows[0].dataset.rowTone).toBe('error');
@@ -671,7 +692,9 @@ test('every account row has a glyph and a name, and the buttons of a group agree
 
 	const rows = [...document.querySelectorAll<HTMLElement>('[data-settings-row]')];
 
-	expect(rows.length).toBeGreaterThanOrEqual(5);
+	// the identity and the password are a card's header and its act, so the rows are the two
+	// that sign out, and the machines' where there are any.
+	expect(rows.length).toBeGreaterThanOrEqual(2);
 
 	for (const row of rows) {
 		expect(row.querySelector('[data-slot=item-media] svg')).not.toBeNull();
@@ -822,13 +845,14 @@ test('an owner holding the authority reads the turso account as connected, and f
 
 	const [account, forget] = tursoRows();
 
+	// the card is titled for the account, and its row names the state on this machine.
+	expect(document.querySelector('[data-turso-account] h2')?.textContent?.trim()).toBe(
+		en.organization.dashboard.authorityTitle
+	);
 	expect(tursoRows().map(rowName)).toEqual([
-		en.organization.dashboard.authorityTitle,
+		en.organization.dashboard.authorityConnected,
 		en.organization.dashboard.forgetAccount
 	]);
-	expect(account.querySelector('[data-row-value]')?.textContent?.trim()).toBe(
-		en.organization.dashboard.authorityConnected
-	);
 	expect(account.querySelector('[data-slot=item-media] svg')).not.toBeNull();
 	expect(forget.dataset.rowTone).toBe('error');
 	expect(forget.querySelector('[data-slot=item-media] svg')).not.toBeNull();
@@ -851,10 +875,7 @@ test('an owner holding no authority reads the turso account as not held, with an
 	const [account] = tursoRows();
 
 	expect(tursoRows()).toHaveLength(1);
-	expect(rowName(account)).toBe(en.organization.dashboard.authorityTitle);
-	expect(account.querySelector('[data-row-value]')?.textContent?.trim()).toBe(
-		en.organization.dashboard.authorityNotHeld
-	);
+	expect(rowName(account)).toBe(en.organization.dashboard.authorityNotHeld);
 	expect(account.querySelector('[data-reconnect-authority-open] svg')).not.toBeNull();
 	expect(document.querySelector('[data-turso-account] [data-row-tone=error]')).toBeNull();
 });
@@ -1246,4 +1267,292 @@ test('the account section draws no ownership block where no offer stands', () =>
 
 	expect(document.querySelector('[data-ownership-offer]')).toBeNull();
 	expect(document.querySelector('[data-accept-ownership-open]')).toBeNull();
+});
+
+/**
+ * the section's cards and directories, in the order the document holds them, each named by the
+ * mark its block carries, with whether it spans both of the grid's columns.
+ */
+const SECTION_MARKS = [
+	'data-general',
+	'data-updates',
+	'data-diagnostics',
+	'data-identity',
+	'data-password',
+	'data-machines',
+	'data-sign-out',
+	'data-standing-block',
+	'data-turso-account',
+	'data-organization-mark',
+	'data-roles',
+	'data-members',
+	'data-leaving',
+	'data-workspaces'
+];
+
+const laidOut = () => {
+	const grids = [...document.querySelectorAll<HTMLElement>('[data-settings-grid]')];
+
+	expect(grids).toHaveLength(1);
+
+	// every card and directory the section draws, each the grid's item: a card is a settings group,
+	// a directory is not boxed and stands in a wrapper of its own.
+	const items = [
+		...grids[0].querySelectorAll<HTMLElement>('[data-settings-group], [data-settings-directory]')
+	].filter((item) => item.parentElement?.closest('[data-settings-group]') === null);
+
+	expect(items.length).toBeGreaterThan(0);
+
+	return items.map((item) => ({
+		mark: SECTION_MARKS.find(
+			(mark) =>
+				item.hasAttribute(mark) ||
+				item.closest(`[${mark}]`) !== null ||
+				item.querySelector(`[${mark}]`) !== null
+		),
+		spans: item.dataset.span === 'full' && item.classList.contains('col-span-full')
+	}));
+};
+
+// effort 846, criterion 1 as revised and ticket 21: each section's cards stand in one settings grid,
+// the growing lists, the directories and the cards that end something spanning both columns, and
+// the cards that end something last.
+test('each section is one grid of cards, the plan spanning the lists and the ends, the ends last', () => {
+	at('?section=general');
+	const general = area({ section: 'general' });
+
+	expect(laidOut()).toEqual([
+		{ mark: 'data-general', spans: false },
+		{ mark: 'data-updates', spans: false },
+		{ mark: 'data-diagnostics', spans: true }
+	]);
+	general.unmount();
+
+	at('?section=account');
+	hostAnswers.machines = [
+		{
+			id: 'machine-here',
+			name: 'Desk',
+			seenAt: Date.now(),
+			createdAt: Date.now(),
+			isThisMachine: true,
+			mayEndAlone: false
+		}
+	];
+	const account = area({
+		section: 'account',
+		session: fakeOrganizationSession({ ownershipOffered: true, ownerUsername: 'olivia.owner' })
+	});
+
+	expect(laidOut()).toEqual([
+		{ mark: 'data-identity', spans: false },
+		{ mark: 'data-password', spans: false },
+		{ mark: 'data-machines', spans: true },
+		{ mark: 'data-sign-out', spans: true }
+	]);
+
+	// the offer is a notice across both columns, first, ahead of every card.
+	const offer = document.querySelector<HTMLElement>('[data-ownership-offer]')!;
+
+	expect(offer.closest('[data-settings-grid]')).not.toBeNull();
+	expect(offer.classList).toContain('col-span-full');
+	expect(orderOf('data-ownership-offer', 'data-identity')[0]).toBe('data-ownership-offer');
+	account.unmount();
+
+	at('?section=organization');
+	const organization = area({ section: 'organization' });
+
+	expect(laidOut()).toEqual([
+		{ mark: 'data-standing-block', spans: true },
+		{ mark: 'data-turso-account', spans: false },
+		{ mark: 'data-organization-mark', spans: false },
+		{ mark: 'data-roles', spans: true },
+		{ mark: 'data-members', spans: true },
+		{ mark: 'data-leaving', spans: true }
+	]);
+	organization.unmount();
+
+	// a member meets no Turso card, and the mark stands alone at half, start-aligned.
+	at('?section=organization');
+	const member = area({
+		section: 'organization',
+		session: fakeOrganizationSession({ role: 'member', permissions: 0 }),
+		holdsTursoAuthority: false
+	});
+
+	expect(laidOut()).toEqual([
+		{ mark: 'data-standing-block', spans: true },
+		{ mark: 'data-organization-mark', spans: false },
+		{ mark: 'data-roles', spans: true },
+		{ mark: 'data-leaving', spans: true }
+	]);
+	member.unmount();
+
+	at('?section=workspaces');
+	area({ section: 'workspaces' });
+
+	expect(laidOut()).toEqual([{ mark: 'data-workspaces', spans: true }]);
+});
+
+// effort 846, *Everything in a tab is a card*: every card holds its header inside it, its title and
+// its one line, and the directories are not boxed in a card of their own.
+test('every card holds its title and its line, and no directory is boxed', () => {
+	for (const section of ['general', 'account', 'organization', 'workspaces'] as const) {
+		at(`?section=${section}`);
+		const drawn = area({ section });
+
+		for (const group of groups()) {
+			const header = group.querySelector(':scope > [data-settings-group-header]');
+
+			expect(header?.querySelector('h2')?.textContent?.trim(), section).toBeTruthy();
+			expect(
+				header?.querySelector('[data-settings-group-description]')?.textContent?.trim(),
+				section
+			).toBeTruthy();
+		}
+
+		for (const directory of document.querySelectorAll('[data-settings-directory]')) {
+			expect(directory.closest('[data-settings-group]')).toBeNull();
+			expect(directory.querySelector('[data-settings-group]')).toBeNull();
+			expect(directory.querySelector('[data-directory-glyph] svg')).not.toBeNull();
+		}
+
+		drawn.unmount();
+	}
+});
+
+/** the rows that fold their detail under them, by name, in the order drawn. */
+const foldingRows = () =>
+	[...document.querySelectorAll<HTMLElement>('[data-row-details]')].map((row) => rowName(row));
+
+/** whether an element sits inside a region a disclosure has closed, or would close. */
+const folded = (element: Element) =>
+	element.closest('[data-row-details-content], [data-slot=collapsible-content]') !== null;
+
+// effort 846, *Detail that few readers need folds under its row*: exactly four rows fold, the
+// available version's notes, the log folder's path, the sync state's machine detail and the Turso
+// connection's names, each closed until asked.
+test('the four rows the plan names fold their detail, and no other row does', async () => {
+	updater.next = {
+		currentVersion: '0.14.0',
+		version: '0.15.0',
+		date: '2026-10-01T00:00:00Z',
+		body: 'cards in a grid.',
+		rawJson: {},
+		downloadAndInstall: async () => {},
+		close: async () => {}
+	};
+
+	at('?section=general');
+	const general = area({ section: 'general' });
+
+	await fireEvent.click(screen.getByRole('button', { name: en.common.actions.checkForUpdates }));
+	await expect.poll(() => foldingRows()).toHaveLength(2);
+
+	const fromGeneral = foldingRows();
+
+	// the header says where the installation stands, in words.
+	expect(document.querySelector('[data-updates-state]')?.textContent?.trim()).toBe(
+		en.settings.updatesState.available
+	);
+	general.unmount();
+
+	at('?section=account');
+	hostAnswers.machines = [
+		{
+			id: 'machine-laptop',
+			name: 'Laptop',
+			seenAt: Date.now(),
+			createdAt: Date.now(),
+			isThisMachine: false,
+			mayEndAlone: true
+		}
+	];
+	const account = area({
+		section: 'account',
+		session: fakeOrganizationSession({ ownershipOffered: true, ownerUsername: 'olivia.owner' })
+	});
+	const fromAccount = foldingRows();
+
+	account.unmount();
+
+	at('?section=organization');
+	const organization = area({
+		section: 'organization',
+		syncState: fakeSyncState({ lastReachedAt: Date.now() - 60_000 })
+	});
+	const fromOrganization = foldingRows();
+
+	for (const chevron of document.querySelectorAll('[data-row-details-trigger]')) {
+		expect(chevron.getAttribute('aria-expanded')).toBe('false');
+		expect(chevron.getAttribute('aria-label')).toBeTruthy();
+	}
+
+	organization.unmount();
+
+	at('?section=workspaces');
+	area({ section: 'workspaces' });
+	const fromWorkspaces = foldingRows();
+
+	expect([...fromGeneral, ...fromAccount, ...fromOrganization, ...fromWorkspaces]).toEqual([
+		en.common.labels.availableVersion,
+		en.settings.diagnosticsFolder,
+		en.organization.standing.state.upToDate,
+		en.organization.dashboard.authorityConnected
+	]);
+});
+
+// and what never folds: the sync state's word, a problem's callout, the machines list, the offer,
+// and every act that ends something, each outside any collapsed region.
+test('the state, a problem, the machines, the offer and every end act stand outside any fold', () => {
+	at('?section=organization');
+	const organization = area({
+		section: 'organization',
+		syncState: fakeSyncState({ accountRefusal: { since: 1 }, lastReachedAt: Date.now() })
+	});
+
+	const state = document.querySelector('[data-standing]')!;
+
+	expect(folded(state.querySelector('[data-slot=item-title]')!)).toBe(false);
+	expect(folded(state.querySelector('[data-last-reached]')!)).toBe(false);
+	expect(folded(document.querySelector('[data-account-refusal]')!)).toBe(false);
+
+	const ends = [...document.querySelectorAll('[data-row-tone=error]')];
+
+	expect(ends.length).toBeGreaterThan(0);
+	expect(ends.filter(folded)).toEqual([]);
+	expect(ends.filter((row) => row.hasAttribute('data-row-details'))).toEqual([]);
+	organization.unmount();
+
+	at('?section=account');
+	hostAnswers.machines = [
+		{
+			id: 'machine-here',
+			name: 'Desk',
+			seenAt: Date.now(),
+			createdAt: Date.now(),
+			isThisMachine: true,
+			mayEndAlone: false
+		},
+		{
+			id: 'machine-laptop',
+			name: 'Laptop',
+			seenAt: Date.now(),
+			createdAt: Date.now(),
+			isThisMachine: false,
+			mayEndAlone: true
+		}
+	];
+	area({
+		section: 'account',
+		session: fakeOrganizationSession({ ownershipOffered: true, ownerUsername: 'olivia.owner' })
+	});
+
+	const machineRows = [...document.querySelectorAll('[data-machines] [data-settings-row]')];
+
+	expect(machineRows.length).toBe(3);
+	expect(machineRows.filter(folded)).toEqual([]);
+	expect(folded(document.querySelector('[data-ownership-offer]')!)).toBe(false);
+	expect([...document.querySelectorAll('[data-row-tone=error]')].filter(folded)).toEqual([]);
+	expect(document.querySelectorAll('[data-row-details]')).toHaveLength(0);
 });

@@ -24,7 +24,7 @@
 	 * whole of what goes, and the weight is declared rather than measured.
 	 *
 	 * **The last row of the leaving group, set apart from the disconnect before it** (effort 846,
-	 * requirements 2 and 14): an error row with its glyph, and beneath it the one line saying the
+	 * requirements 2 and 14): an error row with its glyph, and under its name the one line saying the
 	 * organization and every workspace go from the Turso account and nothing puts them back. The
 	 * row's name is the act and labels the button, whose own word is the verb alone.
 	 *
@@ -74,16 +74,16 @@
 </script>
 
 {#snippet consequence()}
-	<p class="text-sm text-muted-foreground" data-leaving-consequence>
+	<span data-leaving-consequence>
 		{$LL.organization.dashboard.deleteOrganizationDescription()}
-	</p>
+	</span>
 {/snippet}
 
 <SettingsRow
 	icon={Trash2Icon}
 	name={$LL.organization.dashboard.deleteOrganization()}
 	tone="error"
-	beneath={consequence}
+	meta={consequence}
 >
 	{#snippet control({ labelId })}
 		<!-- the row carries no mark of its own, so the act's two marks are on its one control: the

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { SettingsSectionProps } from '$lib/feature/surface';
-	import * as Field from '@rentable/design/primitive/field/index.js';
+	import SettingsGrid from '@rentable/design/block/settings-grid.svelte';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import OrganizationWorkspaces from '$lib/organization/workspace/component/directory.svelte';
 	import { workspaceContextOf } from '$lib/organization/workspace/acts';
@@ -37,19 +37,24 @@
 </script>
 
 {#if session}
-	<Field.Group>
-		<!-- the list owns its own legend, its rows' surfaces and the earlier records' callout; what is
+	<!-- one directory across the grid's width, on the grid every section is laid on, so the tab
+	     starts at the same edge and stops at the same width as its neighbours (effort 846,
+	     *Everything in a tab is a card*). Not boxed: its records are cards already. -->
+	<SettingsGrid>
+		<div class="col-span-full" data-settings-directory data-span="full">
+			<!-- the list owns its own legend, its rows' surfaces and the earlier records' callout; what is
 		     decided here is what this reader may do. The refusal is the rail's own sentence, and
 		     it is drawn for an owner whose machine lost the authority alone: nobody else ever
 		     had a create to be refused, so a sentence saying whose it is would be
 		     announcing something missing. -->
-		<OrganizationWorkspaces
-			workspaces={session.workspaces}
-			members={membersQuery.data ?? []}
-			{...workspaceContextOf(session, syncQuery.data?.workspace.remoteId ?? null)}
-			canCreate={canCreateWorkspace}
-			{isOwner}
-			refusal={needsAuthority ? $LL.layout.workspaceMenu.workspaceRefusedAuthority() : null}
-		/>
-	</Field.Group>
+			<OrganizationWorkspaces
+				workspaces={session.workspaces}
+				members={membersQuery.data ?? []}
+				{...workspaceContextOf(session, syncQuery.data?.workspace.remoteId ?? null)}
+				canCreate={canCreateWorkspace}
+				{isOwner}
+				refusal={needsAuthority ? $LL.layout.workspaceMenu.workspaceRefusedAuthority() : null}
+			/>
+		</div>
+	</SettingsGrid>
 {/if}

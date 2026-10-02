@@ -18,6 +18,7 @@
 	import type { OrganizationMember, OrganizationRole } from '$lib/organization/host';
 	import { getIntlLocale } from '$lib/platform/locale';
 	import { recordOf, ROLE_PARAM, withSection } from '$lib/settings';
+	import ShieldIcon from '@lucide/svelte/icons/shield';
 	import XIcon from '@lucide/svelte/icons/x';
 
 	/**
@@ -142,6 +143,8 @@
 	<DirectoryTray
 		legendId="roles-legend"
 		legend={$LL.organization.roleList.title()}
+		grouped
+		icon={ShieldIcon}
 		description={$LL.organization.roleList.description()}
 		bind:search
 		{answersSearchKey}

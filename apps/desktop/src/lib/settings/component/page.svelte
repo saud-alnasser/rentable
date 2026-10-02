@@ -6,6 +6,7 @@
 	import BackControl from '@rentable/design/block/back-control.svelte';
 	import Loading from '@rentable/design/block/loading.svelte';
 	import PageFrame from '@rentable/design/block/page-frame.svelte';
+	import SettingsGrid from '@rentable/design/block/settings-grid.svelte';
 	import StandaloneSurface from '@rentable/design/block/standalone-surface.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Skeleton } from '@rentable/design/primitive/skeleton/index.js';
@@ -127,8 +128,9 @@
 {/if}
 
 <Loading loading={isLoading} label={$LL.common.messages.loadingSettings()}>
-	<!-- the shape of the area: the title, the rail of sections under it, and a section's groups of
-	     rows, each a short title over a card of rows with a glyph, a name and a control. -->
+	<!-- the shape of the area: the title, the rail of sections under it, and a section's cards in
+	     its grid, two side by side and one across both, each a header with its glyph and title over
+	     rows with a glyph, a name and a control. -->
 	{#snippet skeleton()}
 		<PageFrame>
 			<Skeleton class="h-9 w-40" />
@@ -137,22 +139,29 @@
 					<Skeleton class="h-4 w-20" />
 				{/each}
 			</div>
-			<div class="flex flex-col gap-8">
+			<SettingsGrid>
 				{#each [2, 2, 1] as rows, group (group)}
-					<div data-skeleton-group class="flex flex-col gap-2">
-						<Skeleton class="mx-3 h-4 w-24" />
-						<div class="flex flex-col rounded-2xl border bg-card">
-							{#each { length: rows }, row (row)}
-								<div data-skeleton-row class="flex items-center gap-3 px-3 py-2.5">
-									<Skeleton class="size-4 rounded-sm" />
-									<Skeleton class="h-4 w-28" />
-									<Skeleton class="ms-auto h-8 w-40" />
-								</div>
-							{/each}
+					<div
+						data-skeleton-group
+						class="flex flex-col gap-1 rounded-2xl bg-card px-4 pt-4 pb-2 shadow-raised ring-1 ring-foreground/5 {group ===
+						2
+							? 'col-span-full'
+							: ''}"
+					>
+						<div class="flex items-center gap-3 pb-2">
+							<Skeleton class="size-8 rounded-lg" />
+							<Skeleton class="h-4 w-24" />
 						</div>
+						{#each { length: rows }, row (row)}
+							<div data-skeleton-row class="flex items-center gap-3 py-2.5">
+								<Skeleton class="size-4 rounded-sm" />
+								<Skeleton class="h-4 w-28" />
+								<Skeleton class="ms-auto h-8 w-32" />
+							</div>
+						{/each}
 					</div>
 				{/each}
-			</div>
+			</SettingsGrid>
 		</PageFrame>
 	{/snippet}
 

@@ -23,10 +23,12 @@
 		type MemberActRecord
 	} from '$lib/organization/member/acts';
 	import { useDeleteOrganization, useDisconnectOrganization } from '$lib/organization/query';
+	import DoorOpenIcon from '@lucide/svelte/icons/door-open';
 
 	/**
-	 * The organization section's last group: the ways a reader steps away from the organization,
-	 * told apart by who is reading (effort 846, requirement 14).
+	 * The organization section's last card, across both columns: the ways a reader steps away from
+	 * the organization, told apart by who is reading (effort 846, requirement 14, and *Everything
+	 * in a tab is a card*).
 	 *
 	 * **A member meets one act, *disconnect this machine***, and the line under it says the
 	 * organization stays on Turso and a new link brings them back. Being removed is done by
@@ -36,7 +38,7 @@
 	 * first, since that is how an owner steps away and keeps the organization; then disconnecting
 	 * this machine; then deleting the organization, last and set apart, as the one act nothing
 	 * undoes. The delete needs the Turso authority, so an owner whose machine holds none meets the
-	 * first two. Each act says what it ends in one line beneath it, and no two look alike: the
+	 * first two. Each act says what it ends in the line under its name, and no two look alike: the
 	 * handover is an ordinary row, and the two that end something are the group's error rows.
 	 *
 	 * **The handover is the act the owner's own member card carries, projected from the same
@@ -141,14 +143,14 @@
 	{@const offering = act.id === 'member.offerOwnership'}
 	{@const Icon = act.icon}
 	{#snippet consequence()}
-		<p class="text-sm text-muted-foreground" data-leaving-consequence>
+		<span data-leaving-consequence>
 			{offering
 				? $LL.organization.dashboard.handOverGoes()
 				: $LL.organization.dashboard.offerStandsGoes()}
-		</p>
+		</span>
 	{/snippet}
 
-	<SettingsRow icon={act.icon} name={act.label} beneath={consequence}>
+	<SettingsRow icon={act.icon} name={act.label} meta={consequence}>
 		{#snippet control({ labelId })}
 			<Tooltip.Root disabled={!act.unavailable}>
 				<Tooltip.Trigger>
@@ -216,16 +218,21 @@
 	{/if}
 {/snippet}
 
-<div data-leaving>
-	{#if isOwner && handover && ownRecord}
-		<SettingsGroup title={$LL.organization.dashboard.leavingTitle()} end={ending}>
-			{#snippet rows()}
-				{@render handoverRow(handover, ownRecord)}
-			{/snippet}
-		</SettingsGroup>
-	{:else}
-		<!-- a member, or an owner whose row is not answered yet: the acts that end something are the
-		     whole group, so they are its rows rather than an end after nothing. -->
-		<SettingsGroup title={$LL.organization.dashboard.leavingTitle()} rows={ending} />
+{#snippet handoverRows()}
+	{#if handover && ownRecord}
+		{@render handoverRow(handover, ownRecord)}
 	{/if}
+{/snippet}
+
+<!-- the last card of the section, across both columns. A member, or an owner whose row is not
+     answered yet, meets the acts that end something alone, as the card's end after its header. -->
+<div data-leaving class="contents">
+	<SettingsGroup
+		icon={DoorOpenIcon}
+		title={$LL.organization.dashboard.leavingTitle()}
+		description={$LL.organization.dashboard.leavingDescription()}
+		rows={isOwner && handover && ownRecord ? handoverRows : undefined}
+		end={ending}
+		span="full"
+	/>
 </div>

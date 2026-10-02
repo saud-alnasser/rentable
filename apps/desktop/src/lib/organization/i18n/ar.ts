@@ -11,6 +11,7 @@ export const organization = {
 		alt: 'توقيع المؤسسة أو ختمها',
 		choose: 'اختيار صورة',
 		description: 'يُطبع أسفل كل سند قبض وجدول دفعات.',
+		image: 'الصورة',
 		none: 'لم يُضف بعد',
 		readOnly: 'يستطيع تغييره من يُسمح له بتغيير التوقيع.',
 		remove: 'إزالة',
@@ -98,6 +99,11 @@ export const organization = {
 		lastReachedRecently: 'آخر وصول إلى Turso {moment}',
 		lastReached: 'آخر وصول إلى Turso في {moment}',
 		reconnectBelow: 'يُعاد ربط حساب Turso من القسم أدناه.',
+		detail: {
+			label: 'ما يحفظه هذا الجهاز',
+			workspace: 'مساحة العمل',
+			copy: 'النسخة على هذا الجهاز'
+		},
 		checkNow: 'زامن'
 	},
 	dashboard: {
@@ -162,6 +168,11 @@ export const organization = {
 		authorityTitle: 'حساب Turso',
 		authorityConnected: 'متصل على هذا الجهاز',
 		authorityNotHeld: 'لا يحمله هذا الجهاز',
+		authorityDetail: {
+			label: 'ما يحمله حساب Turso',
+			database: 'قاعدة بيانات المؤسسة',
+			organization: 'المؤسسة'
+		},
 		reconnect: 'أعد الربط',
 		authorityDescription:
 			'لا يحمل هذا الجهاز صلاحية على حساب Turso، ولا يمكن استعادتها. امنح الموافقة مجددًا.',
@@ -202,6 +213,7 @@ export const organization = {
 		lacksFlag: 'لا يحق لك {flag}.',
 		roleOutOfReach: 'الدور الذي في رتبتك أو فوقها يمنحه من هو أعلى منه.',
 		leavingTitle: 'المغادرة',
+		leavingDescription: 'كيف تبتعد عن المؤسسة.',
 		disconnectForgets: 'يسجّل خروجك ويحذف نسخة المؤسسة من هذا الجهاز. لا يتغير شيء على Turso.',
 		disconnectThisMachine: 'افصل هذا الجهاز',
 		disconnectComesBack:
