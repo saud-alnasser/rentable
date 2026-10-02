@@ -9,7 +9,9 @@
 //! The record takes the number at every sign-in by password or by an opened vault and never at a
 //! resume, so the same password signs a machine back in, and a machine closed when it was ended
 //! meets the wall at its next launch. The comparison is made where the epoch's is, at the resume
-//! (`remember::resumed`) and on the heartbeat (`heartbeat::ended_elsewhere`).
+//! (`remember::resumed`), on the heartbeat (`heartbeat::ended_elsewhere`), and before every act
+//! (`acting_row`, against the number the open session took), so a machine ended by a pull cannot
+//! act in the window before its heartbeat.
 //!
 //! **A machine that has not run this version would not read its row**, so it is not signed out on
 //! its own: the name row it writes is what says it has ([`MachineView::may_end_alone`]). Signing
@@ -101,6 +103,23 @@ pub(crate) async fn signed_out_here(
         .machine_signed_out(&held.machine_id, member_id)
         .await?
         > held.machine_signed_out)
+}
+
+/// Whether another machine signed this one out on its own since `session` opened (effort 846,
+/// requirement 10): [`signed_out_here`] asked of the open session, which carries the number it
+/// opened under, so every act asks it ([`acting_row`]) without taking the machine record's lock.
+pub(crate) async fn ended_alone(
+    store: &OrganizationStore,
+    session: &MemberSession,
+) -> Result<bool, Error> {
+    if session.machine_id.is_empty() {
+        return Ok(false);
+    }
+
+    Ok(store
+        .machine_signed_out(&session.machine_id, &session.member_id)
+        .await?
+        > session.machine_signed_out)
 }
 
 /// Write the name this machine's operating system gives it, where its row says otherwise or there

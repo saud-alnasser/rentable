@@ -3,7 +3,7 @@
 use std::sync::{Arc, Mutex, atomic::AtomicBool};
 use tokio::sync::RwLock;
 
-use crate::{database, machine, settings, turso::consent::TursoConsent};
+use crate::{credential::Credentials, database, machine, settings, turso::consent::TursoConsent};
 
 use super::{
     session::{MemberSession, Upgrades},
@@ -30,6 +30,10 @@ pub struct Shared {
     /// the upgrade that brings an older install forward, as the `upgrade` plugin manages it: the
     /// port the session runs it through (`session::Upgrade`).
     pub(crate) upgrade: Upgrades,
+    /// the credential store, as `lib.rs` manages it for every plugin: what an act refused because
+    /// this machine was signed out on its own forgets the remembered key from as it puts the wall
+    /// up (`act::as_member`, effort 846, requirement 10), where the act itself was handed none.
+    pub(crate) credentials: Credentials,
     /// the Turso consents this process has started.
     ///
     /// **Not behind an `RwLock` like the handles above**, because it holds its own lock over the

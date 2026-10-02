@@ -131,12 +131,23 @@ pub(crate) async fn ended_elsewhere(app_state: &Shared, credentials: &dyn Creden
         return false;
     }
 
+    signed_out_from_elsewhere(app_state, credentials).await;
+
+    true
+}
+
+/// Put the wall up for a session ended from another machine: exactly a sign-out, through the same
+/// routine, with the standing that tells the wall which sign-out this was. What the heartbeat does
+/// once it finds the session ended, and what an act refused because this machine was signed out on
+/// its own does (`act::as_member`, effort 846, requirement 10). The caller holds no lock.
+pub(crate) async fn signed_out_from_elsewhere(
+    app_state: &Shared,
+    credentials: &dyn CredentialStore,
+) {
     sign_out(app_state, credentials).await;
     app_state.signed_out_elsewhere.store(true, Ordering::SeqCst);
 
     diagnostics::info("organization.session.endedFromAnotherMachine").write();
-
-    true
 }
 
 /// Follow a handover this machine was not present for, and pin the key it left behind (effort
@@ -262,6 +273,7 @@ mod tests {
     use crate::database::Database;
     use crate::error::Error;
     use crate::machine::{RemoteSync, RemoteSyncStore};
+    use crate::organization::act::{Acting, Pull, as_member};
     use crate::organization::authority::VERIFYING_KEY_BYTES;
     use crate::organization::invitation::link::JoinLink;
     use crate::organization::invitation::{self, join};
@@ -304,7 +316,7 @@ mod tests {
     /// The organization's state over one data directory, as the plugins' setups build it, with
     /// nothing open and nobody in. *`forget.rs` and `invitation/join.rs` keep the same builder; a
     /// fixture is written out per module ([[rules/testing]]).*
-    async fn state_over(directory: &std::path::Path) -> Shared {
+    async fn state_over(credentials: &Credentials, directory: &std::path::Path) -> Shared {
         let mut settings =
             Persisted::<Settings>::load(directory.join(Settings::FILENAME)).expect("the settings");
         settings.database_path = directory.join(Database::FILENAME);
@@ -331,6 +343,7 @@ mod tests {
             settings,
             remote_sync: Arc::new(RwLock::new(remote_sync)),
             upgrade: Arc::new(crate::upgrade::Upgrader),
+            credentials: Arc::clone(credentials),
             consent: Arc::new(TursoConsent::new()),
             organization: Arc::new(RwLock::new(None)),
             member: Arc::new(RwLock::new(None)),
@@ -343,8 +356,8 @@ mod tests {
     /// A machine that has run the first run: an organization on it, the owner's row recorded, and
     /// the owner's member key filed, which is what every launch after it starts from. Nobody is
     /// signed in here, because a launch is a fresh process.
-    async fn first_run(credentials: &dyn CredentialStore, directory: &std::path::Path) -> Shared {
-        let app_state = state_over(directory).await;
+    async fn first_run(credentials: &Credentials, directory: &std::path::Path) -> Shared {
+        let app_state = state_over(credentials, directory).await;
         let mcp = ScriptedServer::start(vec![
             ScriptedResponse::new(
                 200,
@@ -371,7 +384,7 @@ mod tests {
             let mut remote_sync = app_state.remote_sync.write().await;
 
             create_organization(
-                credentials,
+                credentials.as_ref(),
                 &crate::clock::System::shared(),
                 remote_sync.store_mut(),
                 "a-platform-token",
@@ -584,7 +597,7 @@ mod tests {
     async fn a_session_ended_from_another_machine_is_gone_after_one_heartbeat() {
         let credentials: Credentials = Arc::new(Memory::new());
         let directory = scratch("heartbeat");
-        let app_state = first_run(credentials.as_ref(), &directory).await;
+        let app_state = first_run(&credentials, &directory).await;
         let (organization_id, member_id) = recorded(&app_state).await;
 
         let state = state_of(&app_state, &credentials, &crate::clock::System::shared())
@@ -675,7 +688,7 @@ mod tests {
      {
         let credentials: Credentials = Arc::new(Memory::new());
         let directory = scratch("heartbeat-one-machine");
-        let app_state = first_run(credentials.as_ref(), &directory).await;
+        let app_state = first_run(&credentials, &directory).await;
         let (organization_id, member_id) = recorded(&app_state).await;
 
         assert!(
@@ -840,6 +853,130 @@ mod tests {
         );
     }
 
+    /// **Effort 846, requirement 10: a machine signed out on its own cannot act before its next
+    /// heartbeat.** B came back signed in; on A the same member signs B out by its row, and the
+    /// pull brings it to B. With no heartbeat run, an organization act on B is refused as signed
+    /// out from another machine and B is at the wall, its key forgotten and the wall told which
+    /// sign-out this was. The same act on A and on a third machine, C, still runs.
+    #[tokio::test]
+    async fn a_machine_signed_out_on_its_own_is_refused_its_next_act_and_walled() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let directory = scratch("act-one-machine");
+        let app_state = first_run(&credentials, &directory).await;
+        let (organization_id, member_id) = recorded(&app_state).await;
+
+        assert!(
+            state_of(&app_state, &credentials, &crate::clock::System::shared())
+                .await
+                .expect("the state")
+                .session
+                .is_some(),
+            "the launch did not resume"
+        );
+
+        let held_b = {
+            let mut remote_sync = app_state.remote_sync.write().await;
+
+            remote_sync
+                .store_mut()
+                .organization
+                .clone()
+                .expect("the record names no organization")
+        };
+        let held_a = HeldOrganization {
+            machine_id: "machine-a".to_string(),
+            ..held_b.clone()
+        };
+        let held_c = HeldOrganization {
+            machine_id: "machine-c".to_string(),
+            ..held_b.clone()
+        };
+        let other = elsewhere(&directory, &organization_id).await;
+
+        for machine in ["machine-a", "machine-c"] {
+            other
+                .machine_seen(machine, Some(&member_id), CREATED_AT)
+                .await
+                .expect("the machine row");
+            other
+                .write_machine_name(machine, None, CREATED_AT)
+                .await
+                .expect("the name row");
+        }
+
+        let a = session::sign_in(&other, &held_a, PASSWORD, &slot())
+            .await
+            .expect("machine A did not sign in");
+        let c = session::sign_in(&other, &held_c, PASSWORD, &slot())
+            .await
+            .expect("machine C did not sign in");
+
+        // the act every machine takes here: reading the member's own machines, which passes the
+        // acting row first, as every organization act does.
+        let act_on_b = async || {
+            let held = held_b.clone();
+
+            as_member(
+                &app_state,
+                Pull::First,
+                async move |Acting { member, store }| session::machines(store, member, &held).await,
+            )
+            .await
+        };
+
+        act_on_b()
+            .await
+            .expect("B could not act before it was signed out");
+
+        session::end_machine(&other, &a, &held_a, &held_b.machine_id, CREATED_AT + 1)
+            .await
+            .expect("A could not sign B out");
+
+        // B pulls with its act, and no heartbeat has run.
+        let refused = act_on_b()
+            .await
+            .expect_err("B acted after it was signed out on its own");
+
+        assert!(
+            matches!(
+                refused,
+                Error::Refused {
+                    reason: crate::error::RefusalReason::SessionsEnded,
+                    ..
+                }
+            ),
+            "{refused:?}"
+        );
+        assert!(
+            refused.to_string().contains("signed out from another"),
+            "the refusal does not say what happened: {refused}"
+        );
+
+        // and B is at the wall, as one heartbeat would have put it there.
+        assert!(app_state.member.read().await.is_none());
+        assert!(app_state.organization.read().await.is_none());
+        assert_eq!(
+            filed(credentials.as_ref(), &organization_id, &member_id),
+            None,
+            "B's remembered key outlived its sign-out"
+        );
+        assert!(
+            state_of(&app_state, &credentials, &crate::clock::System::shared())
+                .await
+                .expect("the state")
+                .signed_out_elsewhere,
+            "the wall was not told which sign-out this was"
+        );
+
+        // A and C act as before.
+        session::machines(&other, &a, &held_a)
+            .await
+            .expect("A was refused with B");
+        session::machines(&other, &c, &held_c)
+            .await
+            .expect("C was refused with B");
+    }
+
     /// **The heartbeat pushes as well as pulls**, which is what carries out a sign-out made
     /// offline.
     ///
@@ -856,7 +993,7 @@ mod tests {
     async fn the_heartbeat_pushes_the_organization_replica_after_its_pull() {
         let credentials: Credentials = Arc::new(Memory::new());
         let directory = scratch("heartbeat-push");
-        let app_state = first_run(credentials.as_ref(), &directory).await;
+        let app_state = first_run(&credentials, &directory).await;
         let (organization_id, _) = recorded(&app_state).await;
 
         assert!(
@@ -928,7 +1065,7 @@ mod tests {
     async fn the_founders_open_session_is_a_managers_after_a_handover_elsewhere() {
         let credentials: Credentials = Arc::new(Memory::new());
         let directory = scratch("founder-after-handover");
-        let app_state = first_run(credentials.as_ref(), &directory).await;
+        let app_state = first_run(&credentials, &directory).await;
         let (organization_id, _) = recorded(&app_state).await;
         let state = state_of(&app_state, &credentials, &crate::clock::System::shared())
             .await
@@ -1073,7 +1210,7 @@ mod tests {
     async fn a_machine_open_across_a_handover_follows_it_on_the_heartbeat() {
         let credentials: Credentials = Arc::new(Memory::new());
         let directory = scratch("heartbeat-after-handover");
-        let app_state = first_run(credentials.as_ref(), &directory).await;
+        let app_state = first_run(&credentials, &directory).await;
         let (organization_id, member_id) = recorded(&app_state).await;
 
         assert!(
@@ -1136,7 +1273,7 @@ mod tests {
 
         let credentials: Credentials = Arc::new(Memory::new());
         let directory = scratch("owner-repair-heartbeat");
-        let app_state = first_run(credentials.as_ref(), &directory).await;
+        let app_state = first_run(&credentials, &directory).await;
         let (organization_id, member_id) = recorded(&app_state).await;
 
         assert!(

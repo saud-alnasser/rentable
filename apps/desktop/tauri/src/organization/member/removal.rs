@@ -1500,6 +1500,7 @@ mod tests {
             settings,
             remote_sync: Arc::new(tokio::sync::RwLock::new(remote_sync)),
             upgrade: Arc::new(crate::upgrade::Upgrader),
+            credentials: Arc::new(crate::credential::Memory::new()),
             consent: Arc::new(TursoConsent::new()),
             organization: Arc::new(tokio::sync::RwLock::new(Some(store))),
             member: Arc::new(tokio::sync::RwLock::new(Some(session))),

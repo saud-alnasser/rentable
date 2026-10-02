@@ -4,7 +4,7 @@ use tauri::Manager;
 use tauri::plugin::{Builder, TauriPlugin};
 use tokio::sync::RwLock;
 
-use crate::{database, machine, settings, turso::consent::TursoConsent};
+use crate::{credential, database, machine, settings, turso::consent::TursoConsent};
 
 use super::{Shared, session};
 
@@ -88,6 +88,7 @@ pub fn plugin() -> TauriPlugin<tauri::Wry> {
                 settings: app.state::<settings::Shared>().inner().clone(),
                 remote_sync: app.state::<machine::Shared>().inner().clone(),
                 upgrade: app.state::<session::Upgrades>().inner().clone(),
+                credentials: app.state::<credential::Credentials>().inner().clone(),
                 consent: Arc::new(TursoConsent::new()),
                 organization: Arc::new(RwLock::new(None)),
                 member: Arc::new(RwLock::new(None)),
