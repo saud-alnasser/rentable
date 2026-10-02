@@ -2667,6 +2667,44 @@ type RootTranslation = {
 			 */
 			title: string
 		}
+		card: {
+			contracts: {
+				/**
+				 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​s​c​h​e​d​u​l​e​d
+				 * @param {unknown} count
+				 */
+				scheduled: RequiredParams<'count|number'>
+				/**
+				 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​a​c​t​i​v​e
+				 * @param {unknown} count
+				 */
+				active: RequiredParams<'count|number'>
+				/**
+				 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​f​u​l​f​i​l​l​e​d
+				 * @param {unknown} count
+				 */
+				fulfilled: RequiredParams<'count|number'>
+				/**
+				 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​d​e​f​a​u​l​t​e​d
+				 * @param {unknown} count
+				 */
+				defaulted: RequiredParams<'count|number'>
+				/**
+				 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​e​x​p​i​r​e​d
+				 * @param {unknown} count
+				 */
+				expired: RequiredParams<'count|number'>
+				/**
+				 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​t​e​r​m​i​n​a​t​e​d
+				 * @param {unknown} count
+				 */
+				terminated: RequiredParams<'count|number'>
+			}
+			/**
+			 * n​o​ ​c​o​n​t​r​a​c​t​s
+			 */
+			noContracts: string
+		}
 		contracts: {
 			/**
 			 * n​o​ ​c​o​n​t​r​a​c​t​s​ ​y​e​t
@@ -7285,6 +7323,38 @@ export type TranslationFunctions = {
 			 * no tenants yet
 			 */
 			title: () => LocalizedString
+		}
+		card: {
+			contracts: {
+				/**
+				 * {count|number} scheduled
+				 */
+				scheduled: (arg: { count: unknown }) => LocalizedString
+				/**
+				 * {count|number} active
+				 */
+				active: (arg: { count: unknown }) => LocalizedString
+				/**
+				 * {count|number} fulfilled
+				 */
+				fulfilled: (arg: { count: unknown }) => LocalizedString
+				/**
+				 * {count|number} defaulted
+				 */
+				defaulted: (arg: { count: unknown }) => LocalizedString
+				/**
+				 * {count|number} expired
+				 */
+				expired: (arg: { count: unknown }) => LocalizedString
+				/**
+				 * {count|number} terminated
+				 */
+				terminated: (arg: { count: unknown }) => LocalizedString
+			}
+			/**
+			 * no contracts
+			 */
+			noContracts: () => LocalizedString
 		}
 		contracts: {
 			/**

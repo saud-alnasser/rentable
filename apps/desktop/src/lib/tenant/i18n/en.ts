@@ -10,6 +10,21 @@ export const tenants = {
 		title: 'no tenants yet'
 	},
 
+	// what a tenant's card says of the contracts naming it: a count per status, its word beside
+	// the figure, or that there are none. The status words are adjectives, so in english the
+	// word holds for one contract and for many.
+	card: {
+		contracts: {
+			scheduled: '{count|number} scheduled',
+			active: '{count|number} active',
+			fulfilled: '{count|number} fulfilled',
+			defaulted: '{count|number} defaulted',
+			expired: '{count|number} expired',
+			terminated: '{count|number} terminated'
+		},
+		noContracts: 'no contracts'
+	},
+
 	contracts: {
 		emptyTitle: 'no contracts yet',
 		emptyDescription: 'contracts this tenant holds will appear here.'

@@ -11,6 +11,18 @@ export const tenants = {
 		title: 'لا يوجد مستأجرون بعد'
 	},
 
+	card: {
+		contracts: {
+			scheduled: '{count|number} مجدول',
+			active: '{count|number} نشط',
+			fulfilled: '{count|number} مكتمل',
+			defaulted: '{count|number} متعثر',
+			expired: '{count|number} منتهي',
+			terminated: '{count|number} منتهي'
+		},
+		noContracts: 'لا توجد عقود'
+	},
+
 	contracts: {
 		emptyTitle: 'لا توجد عقود بعد',
 		emptyDescription: 'ستظهر هنا العقود التي يحملها هذا المستأجر.'
