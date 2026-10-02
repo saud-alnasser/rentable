@@ -139,6 +139,8 @@ statement read in time order, and each payment row says how it was paid.
    every dangerous act asks first, signing this machine out and every record's delete included;
    the exception above no longer holds. Its glyph and tone are as requirement 1's revisions give
    them (red on the button alone, no repeated glyph).*
+   *Revised again 2026-10-03 at the human's word ("follow the tinted files and things like that in the reocrds cards of domain data"): the tenant, complex, contract and
+   workspace cards take the member card's tinted fields, so every record card is one family.*
 3. **General holds application preferences only**: language, appearance, updates and diagnostics.
    Ending soon is not in it.
 4. **Every control in the area that applies a choice applies it at once**, as language and
