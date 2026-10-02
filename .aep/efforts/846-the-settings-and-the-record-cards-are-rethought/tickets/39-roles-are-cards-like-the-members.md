@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: []
 ---
 
@@ -15,8 +15,8 @@ The human's walk of 2026-10-02 ("also i like that the roles are orderd cards but
 
 Traces requirement 1 as revised 2026-10-02, and requirement 19.
 
-- [ ] A role card test: glyph tile, name, holders badge, every field with an svg, a label and a value, in both locales; no zero drawn as a figure.
-- [ ] The roles directory passes its fixed height and lays the cards in rank order; search, sort, acts and sheet tests pass.
+- [x] A role card test: glyph tile, name, holders badge, every field with an svg, a label and a value, in both locales; no zero drawn as a figure. *Verified: integrated on 37, desktop `vitest run` printed 92 files, 789 passed; `role/tests/card.svelte.test.ts` finds the shield tile, name, holders badge, and four fields (reads, changes, people, organization) each with an svg, a label and a value in en and ar, with no zero figure; the fields carry the member card's classes.*
+- [x] The roles directory passes its fixed height and lays the cards in rank order; search, sort, acts and sheet tests pass. *Verified: the same run: the roles directory lays the cards in the grid in rank order at `ROLE_TILE_HEIGHT` (196); search, sort, acts and sheet tests pass; node tests 1489 passed; check 0 errors.*
 
 ## Relevant areas
 

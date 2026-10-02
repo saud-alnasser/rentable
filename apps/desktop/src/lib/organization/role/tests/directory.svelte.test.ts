@@ -4,6 +4,7 @@ import { beforeEach, expect, test, vi } from 'vitest';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import Roles from '$lib/organization/role/component/directory.svelte';
+import { ROLE_TILE_HEIGHT } from '$lib/organization/role/component/card.svelte';
 import { organizationHostState, resetOrganizationHost } from '$lib/organization/host.svelte';
 import {
 	fakeOrganizationMember,
@@ -13,7 +14,6 @@ import {
 } from '$lib/organization/tests/testing';
 import type { OrganizationMember, OrganizationRole } from '$lib/organization/host';
 import en from '$lib/i18n/en';
-import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { expectCreateControlLast } from '$lib/create/tests/control';
 import { BAR_CONTROL, expectBarOrder } from '$lib/design/tests/set-bar';
@@ -141,6 +141,8 @@ const written = (hook: string) =>
 	hostAnswers.writes.filter((write) => write.hook === hook).map((write) => write.input);
 
 beforeEach(() => {
+	// the grid reads its own width, which jsdom measures with no observer of its own.
+	layOutLists();
 	resetOrganizationHost();
 	resetHostAnswers();
 	hostAnswers.session = fakeOrganizationSession({ permissions: BUILT_IN.owner.mask });
@@ -170,20 +172,48 @@ test('the roles are listed by rank, the owner first and the member last', () => 
 		'collector'
 	);
 	expect(card('collector')?.querySelector('[data-role-holders]')?.textContent?.trim()).toBe(
-		'held by 2 members'
+		'2 members'
 	);
 	expect(card('supervisor')?.querySelector('[data-role-holders]')?.textContent?.trim()).toBe(
-		en.organization.roleList.heldByNobody
+		en.organization.roleCard.noHolders
 	);
 });
 
-// requirement 12 as amended a fourth time: a card says little, the role's name, how many hold it
-// and one plain line of what it can do; the detail is the editor's. Which words the line picks is
-// `role.test.ts`'s, over `roleLine`.
+// effort 846, ticket 39: the roles are tiles in a grid, as the members are, as many across as the
+// directory's width holds at the list shell's tile width and never more than three, each at the
+// height its component declares, in rank order.
+test('the roles stand in a grid of tiles, at the declared height, in rank order', () => {
+	block();
 
-/** a card's one line, as it reads. */
-const lineOf = (id: string) =>
-	card(id)?.querySelector('[data-role-line]')?.textContent?.replace(/\s+/g, ' ').trim() ?? null;
+	const grid = document.querySelector<HTMLElement>('[data-roles-grid]')!;
+
+	expect(grid.classList).toContain('grid');
+	// jsdom lays nothing out, so the width is nothing and the grid is the one column it falls to.
+	expect(grid.dataset.columns).toBe('1');
+	expect(
+		Array.from(grid.querySelectorAll<HTMLElement>('[data-role]')).map((role) => role.dataset.role)
+	).toEqual(['owner', 'manager', 'supervisor', 'collector', 'member']);
+
+	for (const holder of grid.querySelectorAll<HTMLElement>('[data-role]')) {
+		expect(holder.style.height).toBe(`${ROLE_TILE_HEIGHT}px`);
+		expect(holder.querySelector('[data-layout=tile]')).not.toBeNull();
+	}
+});
+
+test('at a width of a thousand pixels the roles are laid three across', async () => {
+	const measured = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1000);
+
+	try {
+		block();
+
+		const grid = document.querySelector<HTMLElement>('[data-roles-grid]')!;
+
+		await waitFor(() => expect(grid.dataset.columns).toBe('3'));
+		expect(grid.style.gridTemplateColumns).toBe('repeat(3, minmax(0, 1fr))');
+	} finally {
+		measured.mockRestore();
+	}
+});
 
 /**
  * render the block over the roles every organization has and these beside them, in a language,
@@ -207,31 +237,40 @@ const blockOf = (roles: OrganizationRole[], language: 'en' | 'ar' = 'en') => {
 const custom = (id: string, flags: Flag[]) =>
 	fakeOrganizationRole({ id, mask: flags.reduce((mask, flag) => mask + maskOf(flag), 0) });
 
-test('each card says in one line what its role can do, and nothing more', () => {
-	blockOf([
-		custom('clerk', ['viewTenant', 'createTenant', 'viewPayment', 'createPayment']),
-		custom('empty', [])
+/** a card's fields, as name and value. */
+const fieldsOf = (id: string) =>
+	Array.from(card(id)?.querySelectorAll<HTMLElement>('[data-role-field]') ?? []).map((field) => [
+		field.querySelector('[data-role-field-name]')?.textContent?.trim(),
+		field.querySelector('[data-role-field-value]')?.textContent?.trim()
 	]);
 
-	expect(lineOf('owner')).toBe(en.organization.roleCard.everything);
-	expect(lineOf('manager')).toBe('full access to every record, runs the organization');
-	expect(lineOf('member')).toBe('edits every record');
-	expect(lineOf('clerk')).toBe('views and adds tenants and payments');
-	expect(lineOf('empty')).toBe(en.organization.roleList.carriesNothing);
+// effort 846, ticket 39: a card says what its role reaches in four fields; which kinds and which
+// acts are the editor's. The counting is `role.test.ts`'s, over `roleReach`.
+test('each card says what its role reaches, in four fields', () => {
+	blockOf([custom('clerk', ['viewTenant', 'createTenant', 'viewPayment']), custom('empty', [])]);
 
-	// one line apiece, and no glyph on it: the kinds and levels are the editor's to draw.
-	for (const role of document.querySelectorAll('[data-role]')) {
-		expect(role.querySelectorAll('[data-role-line]')).toHaveLength(1);
-		expect(role.querySelector('[data-role-line] svg')).toBeNull();
-	}
-});
+	const fields = en.organization.roleCard.fields;
 
-test('in Arabic, the line is written in Arabic', () => {
-	blockOf([custom('clerk', ['viewTenant', 'createTenant', 'viewPayment', 'createPayment'])], 'ar');
-
-	expect(lineOf('owner')).toBe(ar.organization.roleCard.everything);
-	expect(lineOf('member')).toBe('يعدّل كل السجلات');
-	expect(lineOf('clerk')).toBe('يعرض ويضيف المستأجرين والمدفوعات');
+	expect(fieldsOf('owner')).toEqual([
+		[fields.reads, 'every record'],
+		[fields.changes, 'every record'],
+		[fields.people, 'every act'],
+		[fields.organization, 'every act']
+	]);
+	expect(fieldsOf('clerk')).toEqual([
+		[fields.reads, '2 of 5 kinds'],
+		[fields.changes, '1 of 5 kinds'],
+		[fields.people, 'none'],
+		[fields.organization, 'none']
+	]);
+	expect(fieldsOf('empty')).toEqual([
+		[fields.reads, 'nothing'],
+		[fields.changes, 'nothing'],
+		[fields.people, 'none'],
+		[fields.organization, 'none']
+	]);
+	// the one plain line is gone; the fields say it.
+	expect(document.querySelector('[data-role-line]')).toBeNull();
 });
 
 // requirement 4: making a role is the block's one create, and the editor it opens writes the name

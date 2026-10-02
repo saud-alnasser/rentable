@@ -3,20 +3,20 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import Empty from '@rentable/design/block/empty.svelte';
-	import RecordCard from '@rentable/design/block/record-card.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import type { ListSort } from '@rentable/design/sort.js';
 	import { CreateControl } from '$lib/create/ui';
 	import { toCardActions } from '$lib/act';
-	import { LL, locale } from '$lib/i18n/i18n-svelte';
+	import { LL } from '$lib/i18n/i18n-svelte';
+	import { columnsFor, RECORD_TILE_MIN_WIDTH } from '$lib/list';
 	import { lacking, type RoleActRecord, type RoleReader } from '$lib/organization/role/acts';
 	import DirectoryTray from '$lib/organization/component/directory-tray.svelte';
 	import { toRoleDirectory } from '$lib/organization/directory';
 	import { roleActs, roleHost, rolePending } from '$lib/organization/host.svelte';
-	import { roleLine, roleNameOf } from '$lib/organization/role/role';
+	import RoleCard, { ROLE_TILE_HEIGHT } from '$lib/organization/role/component/card.svelte';
+	import { roleNameOf } from '$lib/organization/role/role';
 	import type { OrganizationMember, OrganizationRole } from '$lib/organization/host';
-	import { getIntlLocale } from '$lib/platform/locale';
 	import { recordOf, ROLE_PARAM, withSection } from '$lib/settings';
 	import ShieldIcon from '@lucide/svelte/icons/shield';
 	import XIcon from '@lucide/svelte/icons/x';
@@ -49,12 +49,17 @@
 	 * **The one create stands last at the end of the bar** ([[rules/interface]], *Create*), refused
 	 * with the flag it needs where the reader lacks it.
 	 *
-	 * **A card says little** (requirement 12 as amended a fourth time): the role's name, how many
-	 * hold it beside it, and one plain line of what it can do under it (`roleLine`: *edits every
-	 * record*). The rank is the list's order, and the detail is the editor's, which the card opens.
-	 * *It drew a line per level with every kind under its glyph, the owner under a crown and a
-	 * count of the organization's ten, until the human found the cards too much on the running
-	 * application, 2026-09-28.*
+	 * **The cards are tiles in a grid, as the members are** (effort 846, ticket 39, the human's
+	 * walk of 2026-10-02: "they should match the cards that use icons ad badges like the members
+	 * card"): two or three across where there is room, read off the directory's own width by the
+	 * list shell's rule (`columnsFor`, `RECORD_TILE_MIN_WIDTH`), each at the height its component
+	 * declares (`ROLE_TILE_HEIGHT`), and in rank order, row by row. What a tile says is
+	 * `./card.svelte`'s: a shield glyph, the name with how many hold it in a badge, and four tinted
+	 * fields of what the role reaches. The rank is the list's order, and the detail is the
+	 * editor's, which the card opens. *It was one wide card per row saying what the role can do in
+	 * one plain line (`roleLine`) until the human found the cards without glyphs odd beside the
+	 * members', 2026-10-02; before that, a line per level with every kind under its glyph, until
+	 * the human found the cards too much, 2026-09-28.*
 	 *
 	 * **Drawn for everybody signed in**, since what each role may do is not a secret from the people
 	 * who hold them. An act the reader may not take is refused with its reason (the flag they lack,
@@ -110,7 +115,11 @@
 		pending: rolePending()
 	});
 
-	const lineOf = (role: OrganizationRole) => roleLine($LL, getIntlLocale($locale), role);
+	/** the gap between two tiles, the list shell's `gap-3`. */
+	const TILE_GAP = 12;
+	/** the directory's own width, which the tiles divide. */
+	let width = $state(0);
+	const columns = $derived(columnsFor(width, RECORD_TILE_MIN_WIDTH, TILE_GAP));
 
 	// the role the address names is opened and then cleared out of it, as the members directory does.
 	$effect(() => {
@@ -154,11 +163,20 @@
 		action={trayActions}
 	/>
 
-	<div class="flex flex-col gap-3">
+	<!-- the tiles in a grid, as many to a row as there is room for at 300 pixels each and never
+	     more than three, read off the directory's own width the way the members directory reads
+	     its own (`columnsFor`), in rank order. -->
+	<div
+		class="grid gap-3"
+		style:grid-template-columns="repeat({columns}, minmax(0, 1fr))"
+		bind:clientWidth={width}
+		data-roles-grid
+		data-columns={columns}
+	>
 		{#if roles.length > 0 && shown.length === 0}
 			<!-- the one empty treatment's no-match ([[rules/interface]], *Empty*): the search found no
 			     role, and the way out is putting it down. -->
-			<div data-directory-no-match>
+			<div class="col-span-full" data-directory-no-match>
 				<Empty kind="no-match" title={$LL.common.messages.noMatch()} class={DIRECTORY_EMPTY}>
 					{#snippet action()}
 						<Button type="button" variant="outline" size="sm" onclick={() => (search = '')}>
@@ -171,32 +189,15 @@
 		{/if}
 
 		{#each shown as role (role.id)}
-			<div data-role={role.id} data-role-kind={role.kind}>
-				<RecordCard
+			<!-- the role it stands for is named on the element that holds it, at the tile's declared
+			     height, so every tile in a row is the same. -->
+			<div data-role={role.id} data-role-kind={role.kind} style:height="{ROLE_TILE_HEIGHT}px">
+				<RoleCard
+					{role}
+					name={nameOf(role)}
 					href={addressOf(role.id)}
-					label={nameOf(role)}
 					actions={toCardActions(roleActs, recordOfRole(role), $LL)}
-					class="gap-4 py-3"
-				>
-					{#snippet content()}
-						<div class="pointer-events-none relative flex min-w-0 flex-1 flex-col gap-1 text-start">
-							<div class="flex min-w-0 flex-wrap items-baseline justify-between gap-2">
-								<span class="truncate text-sm font-medium first-letter:uppercase" data-role-name>
-									<bdi>{nameOf(role)}</bdi>
-								</span>
-								<span class="text-xs text-muted-foreground tabular-nums" data-role-holders>
-									{role.holders === 0
-										? $LL.organization.roleList.heldByNobody()
-										: $LL.organization.roleList.heldBy({ count: role.holders })}
-								</span>
-							</div>
-
-							<p class="text-xs leading-snug text-muted-foreground" data-role-line>
-								{lineOf(role)}
-							</p>
-						</div>
-					{/snippet}
-				</RecordCard>
+				/>
 			</div>
 		{/each}
 	</div>

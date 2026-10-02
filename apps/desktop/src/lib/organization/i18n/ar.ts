@@ -387,7 +387,20 @@ export const organization = {
 		organization: {
 			all: 'يدير المؤسسة',
 			some: 'يشارك في إدارة المؤسسة'
-		}
+		},
+		holders: '{count|number} {{عضو|عضو|عضوان|أعضاء|عضوًا|عضو}}',
+		noHolders: 'لا أحد بعد',
+		fields: {
+			reads: 'يعرض',
+			changes: 'يغيّر',
+			people: 'الأشخاص',
+			organization: 'المؤسسة'
+		},
+		kindsOf: '{held|number} من {total|number} أنواع',
+		noKinds: 'لا شيء',
+		everyAct: 'كل الصلاحيات',
+		actsOf: '{held|number} من {total|number} صلاحيات',
+		noActs: 'لا شيء'
 	},
 
 	foreseen: {

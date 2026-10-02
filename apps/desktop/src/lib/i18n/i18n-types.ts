@@ -4824,6 +4824,57 @@ type RootTranslation = {
 				 */
 				some: string
 			}
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​m​e​m​b​e​r​|​m​e​m​b​e​r​s​}​}
+			 * @param {string | number | boolean} count
+			 */
+			holders: RequiredParams<'count|number'>
+			/**
+			 * n​o​b​o​d​y​ ​y​e​t
+			 */
+			noHolders: string
+			fields: {
+				/**
+				 * r​e​a​d​s
+				 */
+				reads: string
+				/**
+				 * c​h​a​n​g​e​s
+				 */
+				changes: string
+				/**
+				 * p​e​o​p​l​e
+				 */
+				people: string
+				/**
+				 * o​r​g​a​n​i​z​a​t​i​o​n
+				 */
+				organization: string
+			}
+			/**
+			 * {​h​e​l​d​|​n​u​m​b​e​r​}​ ​o​f​ ​{​t​o​t​a​l​|​n​u​m​b​e​r​}​ ​k​i​n​d​s
+			 * @param {unknown} held
+			 * @param {unknown} total
+			 */
+			kindsOf: RequiredParams<'held|number' | 'total|number'>
+			/**
+			 * n​o​t​h​i​n​g
+			 */
+			noKinds: string
+			/**
+			 * e​v​e​r​y​ ​a​c​t
+			 */
+			everyAct: string
+			/**
+			 * {​h​e​l​d​|​n​u​m​b​e​r​}​ ​o​f​ ​{​t​o​t​a​l​|​n​u​m​b​e​r​}​ ​a​c​t​s
+			 * @param {unknown} held
+			 * @param {unknown} total
+			 */
+			actsOf: RequiredParams<'held|number' | 'total|number'>
+			/**
+			 * n​o​n​e
+			 */
+			noActs: string
 		}
 		foreseen: {
 			/**
@@ -9567,6 +9618,52 @@ export type TranslationFunctions = {
 				 */
 				some: () => LocalizedString
 			}
+			/**
+			 * {count|number} {{member|members}}
+			 */
+			holders: (arg: { count: string | number | boolean }) => LocalizedString
+			/**
+			 * nobody yet
+			 */
+			noHolders: () => LocalizedString
+			fields: {
+				/**
+				 * reads
+				 */
+				reads: () => LocalizedString
+				/**
+				 * changes
+				 */
+				changes: () => LocalizedString
+				/**
+				 * people
+				 */
+				people: () => LocalizedString
+				/**
+				 * organization
+				 */
+				organization: () => LocalizedString
+			}
+			/**
+			 * {held|number} of {total|number} kinds
+			 */
+			kindsOf: (arg: { held: unknown, total: unknown }) => LocalizedString
+			/**
+			 * nothing
+			 */
+			noKinds: () => LocalizedString
+			/**
+			 * every act
+			 */
+			everyAct: () => LocalizedString
+			/**
+			 * {held|number} of {total|number} acts
+			 */
+			actsOf: (arg: { held: unknown, total: unknown }) => LocalizedString
+			/**
+			 * none
+			 */
+			noActs: () => LocalizedString
 		}
 		foreseen: {
 			/**

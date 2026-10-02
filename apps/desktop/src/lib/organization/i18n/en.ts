@@ -504,7 +504,22 @@ export const organization = {
 		organization: {
 			all: 'runs the organization',
 			some: 'helps run the organization'
-		}
+		},
+		/** how many hold the role, in the badge beside its name; nobody is said in words. */
+		holders: '{count|number} {{member|members}}',
+		noHolders: 'nobody yet',
+		/** the four fields under a role's name: what each counts, and what it says. */
+		fields: {
+			reads: 'reads',
+			changes: 'changes',
+			people: 'people',
+			organization: 'organization'
+		},
+		kindsOf: '{held|number} of {total|number} kinds',
+		noKinds: 'nothing',
+		everyAct: 'every act',
+		actsOf: '{held|number} of {total|number} acts',
+		noActs: 'none'
 	},
 
 	/**

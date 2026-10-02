@@ -20,6 +20,9 @@ import {
 	newRoleMask,
 	flagSays,
 	roleLine,
+	roleReach,
+	PEOPLE_ACTS,
+	ORGANIZATION_ACTS,
 	type KindLevel
 } from '../role.ts';
 import { recordsOf } from '../../access/access.ts';
@@ -248,4 +251,38 @@ test('each permission says what it allows, in both languages', () => {
 		assert.equal(flagSays(t, 'editContract'), t.organization.switches.flagSays.editContract());
 		assert.equal(flagSays(t, 'editUnit'), t.organization.switches.verbSays.edit());
 	}
+});
+
+// effort 846, ticket 39: a role's card counts what the role reaches in four fields: the kinds it
+// reads, the kinds it changes in any way, and the people and organization acts it holds.
+test("a role's reach counts the kinds it reads and changes, and the acts it holds", () => {
+	assert.deepEqual(roleReach(BUILT_IN.owner.mask), {
+		reads: { held: 5, total: 5 },
+		changes: { held: 5, total: 5 },
+		people: { held: 7, total: 7 },
+		organization: { held: 3, total: 3 }
+	});
+	assert.deepEqual(roleReach(BUILT_IN.member.mask).people, { held: 0, total: 7 });
+
+	const clerk = maskOf(
+		'viewTenant',
+		'createTenant',
+		'viewPayment',
+		'deletePayment',
+		'inviteMember'
+	);
+
+	assert.deepEqual(roleReach(clerk), {
+		reads: { held: 2, total: 5 },
+		changes: { held: 2, total: 5 },
+		people: { held: 1, total: 7 },
+		organization: { held: 0, total: 3 }
+	});
+	assert.deepEqual(roleReach(maskOf('manageRoles')).organization, { held: 1, total: 3 });
+
+	// the two sets split the organization's ten between them, and nothing else.
+	assert.deepEqual(
+		[...PEOPLE_ACTS, ...ORGANIZATION_ACTS].sort(),
+		[...FAMILIES.administration].sort()
+	);
 });
