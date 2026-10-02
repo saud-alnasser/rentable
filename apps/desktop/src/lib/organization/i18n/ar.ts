@@ -98,7 +98,7 @@ export const organization = {
 		},
 		lastReachedRecently: 'آخر وصول إلى Turso {moment}',
 		lastReached: 'آخر وصول إلى Turso في {moment}',
-		reconnectBelow: 'يُعاد ربط حساب Turso من القسم أدناه.',
+		reconnectOnAccount: 'أعد الربط من بطاقة حساب Turso.',
 		detail: {
 			label: 'ما يحفظه هذا الجهاز',
 			workspace: 'مساحة العمل',
@@ -228,7 +228,7 @@ export const organization = {
 		forgetAccountDescription:
 			'يحتفظ هذا الجهاز برمز لحساب Turso الخاص بالمؤسسة. إن نسيته، فلن يصل شيء من هنا إلى ذلك الحساب.',
 		forgetAccountRevokes:
-			'النسيان لا يلغي الرمز. أنهِ المنح بنفسك من لوحة تحكم Turso على app.turso.tech.',
+			'النسيان لا يلغي الرمز. أنهِه من app.turso.tech. ربط حساب Turso من جديد يعيده.',
 		forgetAccountRevokesAt: 'app.turso.tech',
 		accountForgotten: 'لم يعد هذا الجهاز يحتفظ برمز وصول إلى حساب Turso.',
 		deleteOrganization: 'احذف المؤسسة',

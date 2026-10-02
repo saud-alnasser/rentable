@@ -367,21 +367,21 @@ test('a fault on the replica: needs reconnecting, and the fault behind details u
 	beneathTheState('[data-error-detail="fault"]');
 	// the reconnect is the Turso account group's, and nothing points at it while the machine
 	// holds the authority.
-	expect(document.querySelector('[data-reconnect-below]')).toBeNull();
+	expect(document.querySelector('[data-reconnect-pointer]')).toBeNull();
 });
 
 // the plan lists the reconnect beneath this state where the machine holds no authority; the
-// group points at the Turso account group below it rather than drawing a second consent.
-test('and where the machine holds no authority, a line points at the reconnect below', () => {
+// group points at the Turso account card by name rather than drawing a second consent.
+test('and where the machine holds no authority, a line points at the Turso account card', () => {
 	block({
 		syncState: fakeSyncState({ workspace: fakeWorkspace({ lastError: 'the replica refused' }) }),
 		session: fakeOrganizationSession({ role: 'owner' }),
 		needsAuthority: true
 	});
 
-	beneathTheState('[data-reconnect-below]');
-	expect(document.querySelector('[data-reconnect-below]')?.textContent?.trim()).toBe(
-		en.organization.standing.reconnectBelow
+	beneathTheState('[data-reconnect-pointer]');
+	expect(document.querySelector('[data-reconnect-pointer]')?.textContent?.trim()).toBe(
+		en.organization.standing.reconnectOnAccount
 	);
 });
 

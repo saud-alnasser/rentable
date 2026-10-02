@@ -74,6 +74,35 @@ test('both locales say the token is not revoked and name where it is', () => {
 	}
 });
 
+// effort 846, requirement 2: a confirmation names what ends and whether anything brings it back.
+// Forgetting the Turso account is undone by connecting it again, and signing out every other
+// machine by each one signing in with the password; each locale says so in its own words.
+test('both locales say what brings back the forgotten account and the signed-out machines', () => {
+	const said = [
+		[
+			'english',
+			en,
+			'connecting the Turso account again brings it back',
+			'your password signs each one in again'
+		],
+		['arabic', ar, 'ربط حساب Turso من جديد يعيده', 'وتعيدك كلمة مرورك إلى كل منها']
+	] as const;
+
+	for (const [name, translation, account, machines] of said) {
+		const forget = translation.organization.dashboard.forgetAccountRevokes;
+		const signOut = translation.settings.you.sessions.confirmDescription;
+
+		assert.ok(
+			forget.includes(account),
+			`${name} does not say what brings the account back: ${forget}`
+		);
+		assert.ok(
+			signOut.includes(machines),
+			`${name} does not say how the machines sign in again: ${signOut}`
+		);
+	}
+});
+
 test('neither locale tells somebody that forgetting revoked anything', () => {
 	// each locale's own word for revoking, so the claim is checked against a reader of that
 	// language rather than against a reader of english twice.

@@ -1133,7 +1133,7 @@ test('the search key reaches the people where they are drawn, and the roles wher
 });
 
 // criterion 16 from the area's side: the section is the list this member holds, with the rows
-// the workspaces section draws, and the transfer beneath it. What each row offers is read in
+// the workspaces section draws. What each row offers is read in
 // `organization/workspace/tests/directory.svelte.test.ts`.
 test('the workspaces section draws a row per workspace the session holds', () => {
 	at('?section=workspaces');

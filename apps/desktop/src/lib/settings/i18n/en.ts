@@ -90,7 +90,7 @@ export const settings = {
 		sessions: {
 			action: 'sign out all other machines',
 			confirmDescription:
-				'every other machine signed in as you is signed out. this one stays signed in, and your password does not change.',
+				'every other machine is signed out, and your password signs each one in again. this one stays signed in.',
 			ended: 'your other machines were signed out.',
 			endedPending:
 				'this machine is offline; the sign-out reaches the others once it is back online.'

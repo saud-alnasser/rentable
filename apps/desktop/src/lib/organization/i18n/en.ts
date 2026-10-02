@@ -119,9 +119,10 @@ export const organization = {
 		// the moment of the last reach: relative within a day, the date and the time beyond it.
 		lastReachedRecently: 'last reached Turso {moment:string}',
 		lastReached: 'last reached Turso on {moment:string}',
-		// an owner whose machine holds no authority: the reconnect is the Turso account's, below,
-		// and the sync group points at it rather than drawing a second consent.
-		reconnectBelow: 'the Turso account is reconnected in the block below.',
+		// an owner whose machine holds no authority: the reconnect is the Turso account card's, and
+		// the sync group points at it by name rather than drawing a second consent. It names the card
+		// rather than a place, since the settings grid does not promise where the card sits.
+		reconnectOnAccount: 'reconnect on the Turso account card.',
 		checkNow: 'sync',
 		// what folds under the state: the workspace this machine keeps a copy of, and where the copy
 		// is (effort 846, *Detail that few readers need folds under its row*).
@@ -294,8 +295,10 @@ export const organization = {
 		disconnected: 'this machine no longer holds the organization.',
 		forgetAccountDescription:
 			"this machine holds a token for the organization's Turso account. forget it, and nothing here reaches that account.",
+		// the forget confirmation: what it leaves standing, where to end it, and what brings it back
+		// (effort 846, requirement 2).
 		forgetAccountRevokes:
-			"forgetting does not revoke the token. end the grant yourself on Turso's dashboard at app.turso.tech.",
+			'forgetting does not revoke the token. end it at app.turso.tech. connecting the Turso account again brings it back.',
 		forgetAccountRevokesAt: 'app.turso.tech',
 		accountForgotten: 'this machine no longer holds a token for your Turso account.',
 		deleteOrganization: 'delete organization',

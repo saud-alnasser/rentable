@@ -228,8 +228,8 @@
 			{/if}
 
 			{#if needsAuthority}
-				<p class="text-sm text-muted-foreground" data-reconnect-below>
-					{$LL.organization.standing.reconnectBelow()}
+				<p class="text-sm text-muted-foreground" data-reconnect-pointer>
+					{$LL.organization.standing.reconnectOnAccount()}
 				</p>
 			{/if}
 		{/if}

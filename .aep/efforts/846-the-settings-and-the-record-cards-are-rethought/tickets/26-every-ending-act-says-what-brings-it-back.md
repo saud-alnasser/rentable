@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: []
 ---
 
@@ -15,8 +15,8 @@ Converge round one, gap D, and two stale strings. Requirement 2 asks each confir
 
 Traces requirement 2 and criterion 2.
 
-- [ ] The forget and sign-out-all confirmations each name what brings it back, in both locales; their tests read the sentence.
-- [ ] No string or comment refers to a block below or a transfer beneath the directory.
+- [x] The forget and sign-out-all confirmations each name what brings it back, in both locales; their tests read the sentence. *Verified: `node --test i18n/tests/organization.test.ts` passes, reading in en and ar that reconnecting the Turso account brings it back and that the password signs each other machine in again; the turso-account, machines and area component tests read the new en sentences.*
+- [x] No string or comment refers to a block below or a transfer beneath the directory. *Verified: `grep -rniE 'block below|transfer beneath' apps/desktop/src` outside the generated types printed 0 lines; `reconnectBelow` became `reconnectOnAccount`.*
 
 ## Relevant areas
 

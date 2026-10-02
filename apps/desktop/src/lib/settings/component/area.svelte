@@ -40,8 +40,8 @@
 	 * and *Everything in a tab is a card*); account
 	 * carries what a person reads about themselves; organization carries where this machine stands
 	 * with it on Turso, the Turso account, the members directory and the two acts that end
-	 * something; workspaces carries the directory and the transfer beneath it. Nothing moved
-	 * between sections beyond that list.
+	 * something; workspaces carries the directory, each card exporting and importing its own.
+	 * Nothing moved between sections beyond that list.
 	 *
 	 * **General is the area's own, and the other three are contributed** (effort 840,
 	 * requirements 4 and 5). The organization declares them in its `surface.ts` with

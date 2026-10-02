@@ -2432,7 +2432,7 @@ type RootTranslation = {
 				 */
 				action: string
 				/**
-				 * e​v​e​r​y​ ​o​t​h​e​r​ ​m​a​c​h​i​n​e​ ​s​i​g​n​e​d​ ​i​n​ ​a​s​ ​y​o​u​ ​i​s​ ​s​i​g​n​e​d​ ​o​u​t​.​ ​t​h​i​s​ ​o​n​e​ ​s​t​a​y​s​ ​s​i​g​n​e​d​ ​i​n​,​ ​a​n​d​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​d​o​e​s​ ​n​o​t​ ​c​h​a​n​g​e​.
+				 * e​v​e​r​y​ ​o​t​h​e​r​ ​m​a​c​h​i​n​e​ ​i​s​ ​s​i​g​n​e​d​ ​o​u​t​,​ ​a​n​d​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​ ​s​i​g​n​s​ ​e​a​c​h​ ​o​n​e​ ​i​n​ ​a​g​a​i​n​.​ ​t​h​i​s​ ​o​n​e​ ​s​t​a​y​s​ ​s​i​g​n​e​d​ ​i​n​.
 				 */
 				confirmDescription: string
 				/**
@@ -3879,9 +3879,9 @@ type RootTranslation = {
 			 */
 			lastReached: RequiredParams<'moment'>
 			/**
-			 * t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​ ​i​s​ ​r​e​c​o​n​n​e​c​t​e​d​ ​i​n​ ​t​h​e​ ​b​l​o​c​k​ ​b​e​l​o​w​.
+			 * r​e​c​o​n​n​e​c​t​ ​o​n​ ​t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​ ​c​a​r​d​.
 			 */
-			reconnectBelow: string
+			reconnectOnAccount: string
 			/**
 			 * s​y​n​c
 			 */
@@ -4317,7 +4317,7 @@ type RootTranslation = {
 			 */
 			forgetAccountDescription: string
 			/**
-			 * f​o​r​g​e​t​t​i​n​g​ ​d​o​e​s​ ​n​o​t​ ​r​e​v​o​k​e​ ​t​h​e​ ​t​o​k​e​n​.​ ​e​n​d​ ​t​h​e​ ​g​r​a​n​t​ ​y​o​u​r​s​e​l​f​ ​o​n​ ​T​u​r​s​o​'​s​ ​d​a​s​h​b​o​a​r​d​ ​a​t​ ​a​p​p​.​t​u​r​s​o​.​t​e​c​h​.
+			 * f​o​r​g​e​t​t​i​n​g​ ​d​o​e​s​ ​n​o​t​ ​r​e​v​o​k​e​ ​t​h​e​ ​t​o​k​e​n​.​ ​e​n​d​ ​i​t​ ​a​t​ ​a​p​p​.​t​u​r​s​o​.​t​e​c​h​.​ ​c​o​n​n​e​c​t​i​n​g​ ​t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​ ​a​g​a​i​n​ ​b​r​i​n​g​s​ ​i​t​ ​b​a​c​k​.
 			 */
 			forgetAccountRevokes: string
 			/**
@@ -7250,7 +7250,7 @@ export type TranslationFunctions = {
 				 */
 				action: () => LocalizedString
 				/**
-				 * every other machine signed in as you is signed out. this one stays signed in, and your password does not change.
+				 * every other machine is signed out, and your password signs each one in again. this one stays signed in.
 				 */
 				confirmDescription: () => LocalizedString
 				/**
@@ -8617,9 +8617,9 @@ export type TranslationFunctions = {
 			 */
 			lastReached: (arg: { moment: string }) => LocalizedString
 			/**
-			 * the Turso account is reconnected in the block below.
+			 * reconnect on the Turso account card.
 			 */
-			reconnectBelow: () => LocalizedString
+			reconnectOnAccount: () => LocalizedString
 			/**
 			 * sync
 			 */
@@ -9043,7 +9043,7 @@ export type TranslationFunctions = {
 			 */
 			forgetAccountDescription: () => LocalizedString
 			/**
-			 * forgetting does not revoke the token. end the grant yourself on Turso's dashboard at app.turso.tech.
+			 * forgetting does not revoke the token. end it at app.turso.tech. connecting the Turso account again brings it back.
 			 */
 			forgetAccountRevokes: () => LocalizedString
 			/**
