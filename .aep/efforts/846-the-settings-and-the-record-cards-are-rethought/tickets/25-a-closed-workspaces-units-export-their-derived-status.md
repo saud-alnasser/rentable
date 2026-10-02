@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: []
 ---
 
@@ -15,7 +15,7 @@ Converge round one, gap C. Ticket 12 made a contract's status derived at read fo
 
 Traces requirement 15 and criterion 15.
 
-- [ ] `transfer/tests/router.test.ts`: a unit whose stored status is stale in a workspace that is not open exports its derived status; the open workspace's export is unchanged.
+- [x] `transfer/tests/router.test.ts`: a unit whose stored status is stale in a workspace that is not open exports its derived status; the open workspace's export is unchanged. *Verified: `node --test transfer/tests/router.test.ts` printed pass 24, fail 0; "a unit whose stored status went stale exports the status it derives now" (failing before the fix with A1 vacant, A2 occupied) exports south's A1 occupied and A2 vacant, leaves south's stored values stale, and north's open export keeps the stored value.*
 
 ## Relevant areas
 

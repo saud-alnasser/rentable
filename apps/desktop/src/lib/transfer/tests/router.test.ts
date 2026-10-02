@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import { FLAGS, maskOf } from '@rentable/workspace-permission';
+import { eq } from 'drizzle-orm';
 
 import type { Database } from '$lib/api/context.ts';
 import { bindSyncRequest, caller, context } from '$lib/api/trpc.ts';
@@ -812,4 +813,40 @@ test('a contract whose stored status went stale exports the status it derives no
 	assert.equal((await api.transfer.get({ workspaceId: 'south' })).contracts[0].status, 'active');
 	// derived as it was read, never written: a read-only reader could not have written it.
 	assert.equal((await south.contract.getMany({}))[0].status, 'scheduled');
+});
+
+test('a unit whose stored status went stale exports the status it derives now', async () => {
+	const { api, north, south, databases } = await twoWorkspaces();
+
+	await seedWorkspace(south);
+	await seedWorkspace(north);
+
+	const statuses = (file: WorkspaceTransfer) => file.units.map((unit) => [unit.name, unit.status]);
+
+	assert.deepEqual(statuses(await south.transfer.get()), [
+		['A1', 'occupied'],
+		['A2', 'vacant']
+	]);
+
+	// what a workspace nobody had open across a day holds: statuses its contracts have moved on from.
+	await databases.south.update(s.unit).set({ status: 'vacant' }).where(eq(s.unit.name, 'A1'));
+	await databases.south.update(s.unit).set({ status: 'occupied' }).where(eq(s.unit.name, 'A2'));
+
+	assert.deepEqual(statuses(await api.transfer.get({ workspaceId: 'south' })), [
+		['A1', 'occupied'],
+		['A2', 'vacant']
+	]);
+	// derived as it was read, never written: a read-only reader could not have written it.
+	assert.deepEqual(statuses(await south.transfer.get()), [
+		['A1', 'vacant'],
+		['A2', 'occupied']
+	]);
+
+	// the open workspace's export is unchanged: reconciled on its own triggers, read as stored.
+	await databases.north.update(s.unit).set({ status: 'vacant' }).where(eq(s.unit.name, 'A1'));
+
+	assert.deepEqual(statuses(await api.transfer.get()), [
+		['A1', 'vacant'],
+		['A2', 'vacant']
+	]);
 });

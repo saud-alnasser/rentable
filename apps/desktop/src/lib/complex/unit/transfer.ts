@@ -31,14 +31,34 @@ export default defineSheet({
 		// it, and reconciliation decides it the moment the workspace holds both.
 		{ header: 'Status', value: (unit) => unit.status }
 	],
-	read: async (db): Promise<TransferUnit[]> => {
+	// a status as stored, or as the contracts holding the unit make it now where the read derives: a
+	// workspace read on Turso may hold one nobody reconciled since a day passed. The derivation is
+	// the contract's, which it contributes, since the contract depends on the unit.
+	read: async (db, deriving): Promise<TransferUnit[]> => {
 		const units = await db
-			.select({ name: s.unit.name, status: s.unit.status, complex: s.complex.name })
+			.select({
+				id: s.unit.id,
+				name: s.unit.name,
+				status: s.unit.status,
+				complex: s.complex.name
+			})
 			.from(s.unit)
 			.innerJoin(s.complex, eq(s.unit.complexId, s.complex.id))
 			.orderBy(asc(s.complex.name), asc(s.unit.name), asc(s.unit.id));
 
-		return units.map((unit) => ({ complex: unit.complex, name: unit.name, status: unit.status }));
+		const derived =
+			deriving &&
+			units.length > 0 &&
+			(await deriving.contributions.unit.unitStatuses(
+				{ ...deriving, db, clock: { now: () => deriving.now } },
+				units.map((unit) => unit.id)
+			));
+
+		return units.map((unit) => ({
+			complex: unit.complex,
+			name: unit.name,
+			status: derived ? (derived.get(unit.id) ?? 'vacant') : unit.status
+		}));
 	},
 	// each unit's complex and its own name.
 	held: async (db) => {
