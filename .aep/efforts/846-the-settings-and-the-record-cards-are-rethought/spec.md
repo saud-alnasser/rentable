@@ -109,7 +109,9 @@ statement read in time order, and each payment row says how it was paid.
    glyph and name stay neutral; the diagnostics card folds nothing and reveals its folder with an
    icon button; appearance carries no sentence of explanation under its choice; the members
    directory is a grid of member cards, two or three across, each saying more; and a workspace
-   card says more and is drawn better.* *Added 2026-10-02, at the human's word mid-run ("maybe settings in
+   card says more and is drawn better. Then: "also for the check for updates button needs to be
+   just hte icon and the unkown needs to be not their in the update version": check for updates
+   is an icon button, and no *unknown* is drawn for the available version.* *Added 2026-10-02, at the human's word mid-run ("maybe settings in
    a section tab does not need to be sequential linear maybe they are cards and section of
    grids"):* a section is not one linear column. Its groups are cards laid out in a grid, two
    columns where the section is wide enough and one where it is not, each card holding its own

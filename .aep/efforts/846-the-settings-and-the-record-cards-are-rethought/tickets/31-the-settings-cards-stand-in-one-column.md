@@ -19,6 +19,7 @@ Traces requirement 1 and 2 as revised 2026-10-02, and criteria 1 and 2.
 - [ ] In every ending row of the area, the row's glyph and name carry no destructive colour and its button does; the design row test pins it.
 - [ ] The diagnostics card has no collapsible; its reveal is an icon button whose accessible name and tooltip say open log folder.
 - [ ] The general tab shows no explanation sentence under language and appearance; the *system* choice has a tooltip saying what it follows, in both locales.
+- [ ] Added by the human the same day ("also for the check for updates button needs to be just hte icon and the unkown needs to be not their in the update version"): *check for updates* is an icon button named by its tooltip, and the available-version row draws no *unknown*.
 - [ ] [[rules/interface]]'s *Settings section* and [[contexts/desktop/components]] say one column and the act-only tone; `validate.mjs` passes.
 
 ## Relevant areas
