@@ -154,6 +154,7 @@ export const organization = {
 		transferOwnershipConfirm: 'اعرضها',
 		ownershipOffered: 'عُرضت المؤسسة. يقبلها من جهاز له هو.',
 		withdrawOffer: 'اسحب العرض',
+		withdrawOfferAsks: 'ينتهي العرض ولا تنتقل الملكية. يمكنك عرض المؤسسة من جديد.',
 		ownershipOfferWithdrawn: 'سُحب العرض. لم تنتقل الملكية.',
 		acceptOwnership: 'اقبل الملكية',
 		acceptOwnershipGoes:
@@ -164,8 +165,11 @@ export const organization = {
 		ownershipAccepted: 'صارت المؤسسة لك. أنت المالك الآن.',
 		lockOut: 'احظر',
 		unsetPassword: 'أعد تعيين كلمة المرور',
+		unsetPasswordAsks:
+			'تتوقف كلمة مروره عن العمل على كل جهاز. الرابط الذي تصنعه له يتيح له اختيار كلمة جديدة.',
 		passwordUnset: 'أُلغيت كلمة مروره. اصنع له رابطًا ليختار كلمة مرور جديدة.',
 		endSessions: 'سجّل خروجه من كل جهاز',
+		endSessionsAsks: 'يُسجَّل خروجه من كل جهاز. يعود بتسجيل الدخول من جديد.',
 		sessionsEnded: 'سُجّل خروجه من كل جهاز.',
 		sessionsEndedPending: 'هذا الجهاز غير متصل؛ سيصل تسجيل الخروج إلى أجهزته عند عودة الاتصال.',
 		rename: 'غيّر الاسم',

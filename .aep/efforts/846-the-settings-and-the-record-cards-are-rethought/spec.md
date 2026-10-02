@@ -134,7 +134,11 @@ statement read in time order, and each payment row says how it was paid.
    tone, with an icon. Where it cannot be undone, or it ends something on another machine, it is
    confirmed, and the confirmation names what ends and whether anything brings it back; signing
    this machine out, which signing in undoes, is not confirmed (HIG, *Alerts*: confirm only what
-   cannot be undone). A benign act never takes that treatment.
+   cannot be undone). A benign act never takes that treatment. *Revised 2026-10-02 at the human's
+   word ("make sure dangerous actions have confirmation dialog even in domain records deletes"):
+   every dangerous act asks first, signing this machine out and every record's delete included;
+   the exception above no longer holds. Its glyph and tone are as requirement 1's revisions give
+   them (red on the button alone, no repeated glyph).*
 3. **General holds application preferences only**: language, appearance, updates and diagnostics.
    Ending soon is not in it.
 4. **Every control in the area that applies a choice applies it at once**, as language and

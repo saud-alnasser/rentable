@@ -689,9 +689,11 @@ test('the account section ends with signing out of this machine, in the error to
 	expect(last.textContent).toContain(en.settings.you.thisMachine.description);
 });
 
-// requirement 2: signing this machine out is undone by signing in, so it asks nothing first and
-// goes straight to the shell, the way the rail's menu does.
-test('signing out of this machine asks the shell at once, with no confirmation', async () => {
+// requirement 2 as revised on 2026-10-02, at the human's word: every dangerous act asks first,
+// signing this machine out included, though signing in undoes it. The question names who is signed
+// out and that signing in again brings them back; leaving it signs nobody out, and answering it
+// asks the shell, the way the rail's menu does.
+test('signing out of this machine asks first, and asks the shell only once answered', async () => {
 	at('?section=account');
 	area({ section: 'account' });
 
@@ -700,12 +702,28 @@ test('signing out of this machine asks the shell at once, with no confirmation',
 		asked += 1;
 	});
 
-	await fireEvent.click(screen.getByRole('button', { name: en.settings.you.thisMachine.signOut }));
-	stop();
+	const question = () => document.querySelector<HTMLElement>('[data-confirm-dialog]');
+	const control = (words: string) =>
+		[...(question()?.querySelectorAll<HTMLButtonElement>('button') ?? [])].find(
+			(button) => button.textContent?.trim() === words
+		);
 
-	expect(asked).toBe(1);
-	expect(screen.queryByRole('alertdialog')).toBeNull();
-	expect(screen.queryByRole('dialog')).toBeNull();
+	await fireEvent.click(screen.getByRole('button', { name: en.settings.you.thisMachine.signOut }));
+	await waitFor(() => expect(question()).not.toBeNull());
+
+	expect(asked).toBe(0);
+	expect(question()?.textContent).toContain(en.settings.you.thisMachine.asks);
+
+	await fireEvent.click(control('{cancel}')!);
+	await waitFor(() => expect(question()).toBeNull());
+	expect(asked).toBe(0);
+
+	await fireEvent.click(screen.getByRole('button', { name: en.settings.you.thisMachine.signOut }));
+	await waitFor(() => expect(control(en.common.actions.signOut)).toBeDefined());
+	await fireEvent.click(control(en.common.actions.signOut)!);
+
+	await waitFor(() => expect(asked).toBe(1));
+	stop();
 });
 
 // requirements 1, 2 and 5, criteria 1, 2 and 5 for the account section, with an offer standing so

@@ -31,8 +31,8 @@ export type ComplexHostRequests = {
 	/** open the form on this complex. */
 	edit: (complex: ComplexActRecord) => void;
 	/**
-	 * delete this complex: at once where nothing refuses it and no unit goes with it, asking first
-	 * where units do, as its policy says; the host decides.
+	 * delete this complex, once the reader has answered the question the host asks, which names the
+	 * units that go with it where any do.
 	 */
 	confirmDelete: (complex: ComplexActRecord) => void;
 };
@@ -70,10 +70,10 @@ export function declareComplexActs(host: ComplexHostRequests): ComplexAct[] {
 			tone: 'error',
 			group: 'destructive',
 			flag: 'deleteComplex',
-			// a complex with no units is all it removes, so it runs at once and offers undo. One whose
-			// units go with it is a cascade, which the host reads per record through
-			// `toComplexDeleteConfirmation`.
-			confirmation: 'none',
+			// a complex with no units is all it removes, and undo brings it back. One whose units go with
+			// it is a cascade, which the host reads per record through `toComplexDeleteConfirmation`.
+			// Either way it asks first.
+			confirmation: 'reversible',
 			run: host.confirmDelete
 		}
 	];
@@ -86,7 +86,7 @@ export function declareComplexActs(host: ComplexHostRequests): ComplexAct[] {
  *
  * The act declares what a complex alone costs, since how many units a complex has is not on the
  * record any surface holds; the host, which reads what the deletion would take, asks this for the
- * complex in front of it and hands the answer to `toDeleteStep`.
+ * complex in front of it and says what goes by the answer.
  */
 export const toComplexDeleteConfirmation = (
 	declared: ConfirmationPolicy | undefined,

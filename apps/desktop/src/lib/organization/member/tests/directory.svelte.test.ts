@@ -580,6 +580,24 @@ test('the transfer is on the owner own card and on no other', async () => {
 // requirement 22: a handover is two acts on two machines, so between them there is a standing
 // offer, and the owner's card is where it is seen and taken back. The offer and the withdrawal are
 // never on the card together, because there is one offer at a time and Rust refuses a second.
+/**
+ * the question a member act that ends something asks (effort 846, requirement 2 as revised on
+ * 2026-10-02): nothing is written while it stands, and it is answered with the act's own verb.
+ */
+async function answer(verb: string) {
+	const question = () => document.querySelector<HTMLElement>('[data-confirm-dialog]');
+
+	await waitFor(() => expect(question()).not.toBeNull());
+
+	const confirm = [...question()!.querySelectorAll<HTMLButtonElement>('button')].find(
+		(button) => button.textContent?.trim() === verb
+	);
+
+	expect(confirm).toBeDefined();
+	await fireEvent.click(confirm!);
+	await waitFor(() => expect(question()).toBeNull());
+}
+
 test('the owner card offers the withdrawal in the offer place while an offer stands', async () => {
 	list({
 		members: [
@@ -593,12 +611,14 @@ test('the owner card offers the withdrawal in the offer place while an offer sta
 
 	await press('owner', 'withdraw-offer');
 
-	// it asks nothing: nothing is unsealed and what is undone is something this person did, so it
-	// runs on the press rather than opening a surface.
+	// it ends the offer, so it asks first, and writes once answered (effort 846, requirement 2 as
+	// revised on 2026-10-02); no other surface opens.
+	expect(surface()).toBeNull();
+	expect(written('useWithdrawOffer')).toEqual([]);
+	await answer(en.organization.dashboard.withdrawOffer);
 	await waitFor(() => {
 		expect(written('useWithdrawOffer')).toHaveLength(1);
 	});
-	expect(surface()).toBeNull();
 });
 
 // and it is the owner's: a manager reading the owner's card still meets no menu at all,
@@ -889,6 +909,9 @@ test('signing a member out of every machine is offered behind reset password, an
 
 	await fireEvent.click(entry!);
 
+	// it signs them out, so it asks first, and writes once answered.
+	expect(written('useEndMemberSessions')).toEqual([]);
+	await answer(en.organization.dashboard.endSessions);
 	await waitFor(() => {
 		expect(written('useEndMemberSessions')).toEqual([{ memberId: 'sami' }]);
 	});
@@ -906,7 +929,10 @@ test('a card hands its own account to the link, the reset and the removals', asy
 		expect(organizationDialog.madeLink?.code).toBe('ABC234');
 	});
 
+	// the reset takes their password away, so it asks first, and writes once answered.
 	await press('sami', 'unset-password');
+	expect(written('useUnsetMemberPassword')).toEqual([]);
+	await answer(en.organization.dashboard.unsetPassword);
 	await waitFor(() => {
 		expect(written('useUnsetMemberPassword')).toEqual([{ memberId: 'sami' }]);
 	});

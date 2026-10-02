@@ -257,6 +257,7 @@ const ar = {
 			blockedPayments: '{count|number} دفعة مسجلة عليه',
 			blockedUnits: '{count|number} وحدة تابعة له',
 			description: 'لا يمكن التراجع عن هذا.',
+			undoable: 'يُحذف من مساحة العمل هذه. يمكنك التراجع عن هذا ما دام التطبيق مفتوحًا.',
 			unnamedRecord: 'هذا السجل'
 		}
 	},

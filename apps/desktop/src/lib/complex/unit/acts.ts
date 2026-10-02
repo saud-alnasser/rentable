@@ -38,7 +38,7 @@ export type UnitHostRequests = {
 	edit: (unit: UnitActRecord) => void;
 	/** open the contract form on a new contract, with this unit already chosen. */
 	newContract: (unit: UnitActRecord) => void;
-	/** delete this unit: at once where nothing refuses it, as its policy says; the host decides. */
+	/** delete this unit, once the reader has answered the question the host asks. */
 	confirmDelete: (unit: UnitActRecord) => void;
 };
 
@@ -87,8 +87,9 @@ export function declareUnitActs(host: UnitHostRequests): UnitAct[] {
 			tone: 'error',
 			group: 'destructive',
 			flag: 'deleteUnit',
-			// the record is all it removes, so it runs at once and offers undo.
-			confirmation: 'none',
+			// the record is all it removes, and undo brings it back: it asks first all the same, and
+			// says so.
+			confirmation: 'reversible',
 			run: host.confirmDelete
 		}
 	];

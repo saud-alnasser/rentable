@@ -34,7 +34,7 @@ export type TenantHostRequests = {
 	edit: (tenant: TenantActRecord) => void;
 	/** open the contract form on a new contract, with this tenant already chosen. */
 	newContract: (tenant: TenantActRecord) => void;
-	/** delete this tenant: at once where nothing refuses it, as its policy says; the host decides. */
+	/** delete this tenant, once the reader has answered the question the host asks. */
 	confirmDelete: (tenant: TenantActRecord) => void;
 };
 
@@ -81,8 +81,9 @@ export function declareTenantActs(host: TenantHostRequests): TenantAct[] {
 			tone: 'error',
 			group: 'destructive',
 			flag: 'deleteTenant',
-			// the record is all it removes, so it runs at once and offers undo.
-			confirmation: 'none',
+			// the record is all it removes, and undo brings it back: it asks first all the same, and
+			// says so.
+			confirmation: 'reversible',
 			run: host.confirmDelete
 		}
 	];

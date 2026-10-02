@@ -12,6 +12,7 @@
 	import OrganizationChangePasswordDialog from '$lib/organization/session/component/change-password-dialog.svelte';
 	import OrganizationIdentity from '$lib/organization/session/component/identity.svelte';
 	import OrganizationMachines from '$lib/organization/session/component/machines.svelte';
+	import OrganizationSignOutDialog from '$lib/organization/session/component/sign-out-dialog.svelte';
 	import { useAcceptOwnership } from '$lib/organization/member/query';
 	import {
 		useChangePassword,
@@ -20,7 +21,6 @@
 		useFetchMachines
 	} from '$lib/organization/session/query';
 	import { useFetchOrganizationState } from '$lib/organization/query';
-	import { requestSignOut } from '$lib/sync';
 	import CrownIcon from '@lucide/svelte/icons/crown';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
@@ -45,7 +45,7 @@
 	 * the section's column in the manner of Apple's and Google's account pages (*Everything in a tab
 	 * is a card*; "each card needs to be in a sequeintal order", the human on 2026-10-02). Signing
 	 * out of this machine moved here from beside the username, so the way out is the last thing
-	 * the section holds.
+	 * the section holds, and it asks first (effort 846, requirement 2 as revised 2026-10-02).
 	 */
 	// what the area hands every section it draws. Nothing this section does lets go of the
 	// organization, so it reads none of it; declared so the section is typed as one.
@@ -84,6 +84,8 @@
 			passwordRefusal = toErrorText(error, $LL);
 		}
 	};
+
+	let signingOut = $state(false);
 
 	let acceptingOwnership = $state(false);
 	/** what the shell refused the last acceptance with, marked on its password field. */
@@ -142,7 +144,9 @@
 				}).text()} hover:bg-destructive/10 hover:text-destructive"
 				aria-labelledby={labelId}
 				data-sign-out-open
-				onclick={requestSignOut}
+				onclick={() => {
+					signingOut = true;
+				}}
 			>
 				{$LL.common.actions.signOut()}
 			</Button>
@@ -255,5 +259,13 @@
 		isAccepting={acceptOwnershipMutation.isPending}
 		errorMessage={acceptRefusal}
 		onAccept={(password) => void acceptOwnership(password)}
+	/>
+
+	<OrganizationSignOutDialog
+		open={signingOut}
+		onOpenChange={(open) => {
+			signingOut = open;
+		}}
+		username={session.username}
 	/>
 {/if}

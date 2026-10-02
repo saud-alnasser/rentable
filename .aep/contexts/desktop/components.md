@@ -105,8 +105,8 @@ block a concept draws instead.
 | Block | Category | Drawn here for | Not for | Nearest alternative | Where |
 | --- | --- | --- | --- | --- | --- |
 | `block/back-control.svelte` | navigating | the one way back, on a record, a step of the way in, a not-found | the trail; leaving a dialog | `primitive/breadcrumb` | `settings/component/page.svelte` |
-| `block/confirm-dialog.svelte` | interrupting and confirming | asking before an act that is not a delete, under its own verb: terminate, restore, disconnect | a delete; an act undo answers (*Delete and confirm*) | `block/delete-dialog.svelte` | `contract/component/host.svelte` |
-| `block/delete-dialog.svelte` | interrupting and confirming | a delete that removes more than the record or cannot be undone, and a refused delete saying why | an ordinary delete (it happens at once and offers undo) | `block/confirm-dialog.svelte` | `complex/component/host.svelte` |
+| `block/confirm-dialog.svelte` | interrupting and confirming | asking before a dangerous act that is not a delete, under its own verb: terminate, restore, sign out, disconnect, forget, withdraw (*Delete and confirm*) | a delete | `block/delete-dialog.svelte` | `contract/component/host.svelte` |
+| `block/delete-dialog.svelte` | interrupting and confirming | every delete of one record, saying what brings it back, and a refused delete saying why (*Delete and confirm*) | a delete of a selection (`block/selection-dialog.svelte`); an act that is not a delete | `block/confirm-dialog.svelte` | `complex/component/host.svelte` |
 | `block/empty.svelte` | guiding and empty states | a region with nothing in it: nothing yet, no match, not found, each with its act | a load; an error | `block/not-found.svelte` | `list/component/empty.svelte` |
 | `block/export-dialog.svelte` | interrupting and confirming | which file a list is written as | choosing where (the system's save dialog) | `primitive/dropdown-menu` | `list/component/list.svelte` |
 | `block/field-error.svelte` | feedback and progress | a field's validation message, at the field | a summary of a form's errors (*Validation errors*) | `primitive/callout` | `complex/component/form.svelte` |

@@ -5,14 +5,9 @@
 	import { back } from '@rentable/design/back.svelte.js';
 	import DeleteDialog from '@rentable/design/block/delete-dialog.svelte';
 	import { usesAppleKeyboard } from '@rentable/design/shortcut.js';
-	import { toDeleteStep, toPaletteVerbs } from '$lib/act';
+	import { toPaletteVerbs } from '$lib/act';
 	import { onMutationError, onMutationSuccess } from '$lib/mutation/ui';
-	import {
-		showErrorSentence,
-		showErrorToast,
-		showRefusal,
-		showSuccessToast
-	} from '$lib/notification';
+	import { showErrorSentence, showErrorToast, showSuccessToast } from '$lib/notification';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { i18nObject } from '$lib/i18n/i18n-util';
 	import { toPaymentCreateUnavailable, type PaymentActRecord } from '$lib/payment/acts';
@@ -37,9 +32,9 @@
 	import PrintedReceipt, { type PrintedReceiptValue } from './receipt.svelte';
 
 	/**
-	 * The payment form and the payment's delete, mounted once for the whole shell. A delete runs at
-	 * once and offers undo, as its act declares; nothing refuses a payment's, so no dialog is drawn
-	 * for it unless the act comes to declare one ([[rules/interface]], *Delete and confirm*).
+	 * The payment form and the payment's delete, mounted once for the whole shell. A delete asks
+	 * first, in the delete dialog, saying undo brings the payment back; nothing refuses a payment's
+	 * delete, so the dialog never stands blocked ([[rules/interface]], *Delete and confirm*).
 	 *
 	 * A payment's acts are one list (`payment/acts.ts`), and every surface offering them is a
 	 * projection of it; what those acts open is here, so there is one `PaymentForm` in the tree.
@@ -64,11 +59,6 @@
 	// a payment has no name, and the nearest thing to one is its amount in the reader's locale.
 	const formatMoney = (value: number) => formatLocaleMoney($locale, value);
 
-	// whether the delete asks or runs now, by the act's own policy. Nothing refuses a payment's
-	// delete, so there is nothing to wait on.
-	const deletePolicy = paymentActs.find((act) => act.id === 'payment.delete')?.confirmation;
-	const deleteStep = $derived(deleting ? toDeleteStep(deletePolicy, undefined) : 'wait');
-
 	async function deleteConfirmed() {
 		if (!deleting) {
 			return;
@@ -78,19 +68,6 @@
 
 		await deleteMutation.mutateAsync(id);
 		closePaymentConfirmation();
-		await leaveDeleted(id, contractId);
-	}
-
-	/** A delete nothing asked about: its refusal, where it earns one, is raised rather than held. */
-	async function deleteAtOnce(id: string, contractId: string) {
-		try {
-			await deleteMutation.mutateAsync(id);
-		} catch (error) {
-			showRefusal(error, $LL);
-
-			return;
-		}
-
 		await leaveDeleted(id, contractId);
 	}
 
@@ -336,18 +313,6 @@
 		untrack(() => void answerAsked(asked.actId, asked.paymentId));
 	});
 
-	// the request is answered once and cleared first, as the two above are.
-	$effect(() => {
-		if (deleteStep !== 'run' || !deleting) {
-			return;
-		}
-
-		const { id, contractId } = deleting;
-
-		closePaymentConfirmation();
-		untrack(() => void deleteAtOnce(id, contractId));
-	});
-
 	onDestroy(resetPaymentHost);
 </script>
 
@@ -395,12 +360,13 @@
 {/if}
 
 <DeleteDialog
-	open={deleting !== null && deleteStep === 'ask'}
+	open={deleting !== null}
 	onOpenChange={(isOpen) => {
 		if (!isOpen) {
 			closePaymentConfirmation();
 		}
 	}}
 	record={deleting ? formatMoney(deleting.amount) : undefined}
+	description={$LL.common.deleteDialog.undoable()}
 	onSubmit={deleteConfirmed}
 />

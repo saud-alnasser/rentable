@@ -1896,6 +1896,10 @@ type RootTranslation = {
 			 */
 			description: string
 			/**
+			 * i​t​ ​i​s​ ​d​e​l​e​t​e​d​ ​f​r​o​m​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​.​ ​y​o​u​ ​c​a​n​ ​u​n​d​o​ ​t​h​i​s​ ​w​h​i​l​e​ ​t​h​e​ ​a​p​p​ ​i​s​ ​o​p​e​n​.
+			 */
+			undoable: string
+			/**
 			 * t​h​i​s​ ​r​e​c​o​r​d
 			 */
 			unnamedRecord: string
@@ -2523,6 +2527,10 @@ type RootTranslation = {
 				 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​s​t​a​y​s​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​.​ ​s​i​g​n​ ​i​n​ ​a​g​a​i​n​ ​t​o​ ​c​a​r​r​y​ ​o​n​.
 				 */
 				description: string
+				/**
+				 * y​o​u​ ​a​r​e​ ​s​i​g​n​e​d​ ​o​u​t​ ​h​e​r​e​,​ ​a​n​d​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​s​t​a​y​s​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​.​ ​s​i​g​n​i​n​g​ ​i​n​ ​a​g​a​i​n​ ​b​r​i​n​g​s​ ​y​o​u​ ​b​a​c​k​.
+				 */
+				asks: string
 			}
 		}
 	}
@@ -2550,7 +2558,7 @@ type RootTranslation = {
 			 */
 			blockedUnitsUnderContract: string
 			/**
-			 * i​t​s​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​u​n​i​t​|​u​n​i​t​s​}​}​ ​w​i​l​l​ ​b​e​ ​d​e​l​e​t​e​d​ ​w​i​t​h​ ​i​t​.
+			 * i​t​s​ ​{​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​u​n​i​t​|​u​n​i​t​s​}​}​ ​w​i​l​l​ ​b​e​ ​d​e​l​e​t​e​d​ ​w​i​t​h​ ​i​t​.​ ​y​o​u​ ​c​a​n​ ​u​n​d​o​ ​t​h​i​s​ ​w​h​i​l​e​ ​t​h​e​ ​a​p​p​ ​i​s​ ​o​p​e​n​.
 			 * @param {string | number | boolean} count
 			 */
 			unitsGoWithIt: RequiredParams<'count|number'>
@@ -4060,6 +4068,10 @@ type RootTranslation = {
 			 */
 			withdrawOffer: string
 			/**
+			 * t​h​e​ ​o​f​f​e​r​ ​e​n​d​s​ ​a​n​d​ ​n​o​t​h​i​n​g​ ​c​h​a​n​g​e​s​ ​h​a​n​d​s​.​ ​y​o​u​ ​c​a​n​ ​o​f​f​e​r​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​a​g​a​i​n​.
+			 */
+			withdrawOfferAsks: string
+			/**
 			 * t​h​e​ ​o​f​f​e​r​ ​w​a​s​ ​w​i​t​h​d​r​a​w​n​.​ ​n​o​t​h​i​n​g​ ​c​h​a​n​g​e​d​ ​h​a​n​d​s​.
 			 */
 			ownershipOfferWithdrawn: string
@@ -4094,6 +4106,10 @@ type RootTranslation = {
 			 */
 			unsetPassword: string
 			/**
+			 * t​h​e​i​r​ ​p​a​s​s​w​o​r​d​ ​s​t​o​p​s​ ​w​o​r​k​i​n​g​ ​o​n​ ​e​v​e​r​y​ ​m​a​c​h​i​n​e​.​ ​a​ ​l​i​n​k​ ​y​o​u​ ​m​a​k​e​ ​t​h​e​m​ ​l​e​t​s​ ​t​h​e​m​ ​c​h​o​o​s​e​ ​a​ ​n​e​w​ ​o​n​e​.
+			 */
+			unsetPasswordAsks: string
+			/**
 			 * t​h​e​i​r​ ​p​a​s​s​w​o​r​d​ ​w​a​s​ ​u​n​s​e​t​.​ ​m​a​k​e​ ​t​h​e​m​ ​a​ ​l​i​n​k​ ​s​o​ ​t​h​e​y​ ​c​a​n​ ​c​h​o​o​s​e​ ​a​ ​n​e​w​ ​o​n​e​.
 			 */
 			passwordUnset: string
@@ -4101,6 +4117,10 @@ type RootTranslation = {
 			 * s​i​g​n​ ​o​u​t​ ​e​v​e​r​y​w​h​e​r​e
 			 */
 			endSessions: string
+			/**
+			 * t​h​e​y​ ​a​r​e​ ​s​i​g​n​e​d​ ​o​u​t​ ​o​f​ ​e​v​e​r​y​ ​m​a​c​h​i​n​e​.​ ​s​i​g​n​i​n​g​ ​i​n​ ​a​g​a​i​n​ ​b​r​i​n​g​s​ ​t​h​e​m​ ​b​a​c​k​.
+			 */
+			endSessionsAsks: string
 			/**
 			 * t​h​e​y​ ​w​e​r​e​ ​s​i​g​n​e​d​ ​o​u​t​ ​o​f​ ​e​v​e​r​y​ ​m​a​c​h​i​n​e​.
 			 */
@@ -6803,6 +6823,10 @@ export type TranslationFunctions = {
 			 */
 			description: () => LocalizedString
 			/**
+			 * it is deleted from this workspace. you can undo this while the app is open.
+			 */
+			undoable: () => LocalizedString
+			/**
 			 * this record
 			 */
 			unnamedRecord: () => LocalizedString
@@ -7413,6 +7437,10 @@ export type TranslationFunctions = {
 				 * the organization stays on this machine. sign in again to carry on.
 				 */
 				description: () => LocalizedString
+				/**
+				 * you are signed out here, and the organization stays on this machine. signing in again brings you back.
+				 */
+				asks: () => LocalizedString
 			}
 		}
 	}
@@ -7437,7 +7465,7 @@ export type TranslationFunctions = {
 			 */
 			blockedUnitsUnderContract: () => LocalizedString
 			/**
-			 * its {count|number} {{unit|units}} will be deleted with it.
+			 * its {count|number} {{unit|units}} will be deleted with it. you can undo this while the app is open.
 			 */
 			unitsGoWithIt: (arg: { count: string | number | boolean }) => LocalizedString
 		}
@@ -8873,6 +8901,10 @@ export type TranslationFunctions = {
 			 */
 			withdrawOffer: () => LocalizedString
 			/**
+			 * the offer ends and nothing changes hands. you can offer the organization again.
+			 */
+			withdrawOfferAsks: () => LocalizedString
+			/**
 			 * the offer was withdrawn. nothing changed hands.
 			 */
 			ownershipOfferWithdrawn: () => LocalizedString
@@ -8905,6 +8937,10 @@ export type TranslationFunctions = {
 			 */
 			unsetPassword: () => LocalizedString
 			/**
+			 * their password stops working on every machine. a link you make them lets them choose a new one.
+			 */
+			unsetPasswordAsks: () => LocalizedString
+			/**
 			 * their password was unset. make them a link so they can choose a new one.
 			 */
 			passwordUnset: () => LocalizedString
@@ -8912,6 +8948,10 @@ export type TranslationFunctions = {
 			 * sign out everywhere
 			 */
 			endSessions: () => LocalizedString
+			/**
+			 * they are signed out of every machine. signing in again brings them back.
+			 */
+			endSessionsAsks: () => LocalizedString
 			/**
 			 * they were signed out of every machine.
 			 */

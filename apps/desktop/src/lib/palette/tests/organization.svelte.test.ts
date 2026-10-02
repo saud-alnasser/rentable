@@ -166,10 +166,9 @@ test('a member act reaches the organization host with the member the reader chos
 	expect(actId).toBe('member.unsetPassword');
 	expect(record.member).toEqual(sami);
 	expect(record.context).toMatchObject({ selfId: 'ada', isOwner: false, canReset: true });
-	expect(organizationHostState.member.pressed).toEqual({
-		kind: 'unsetPassword',
-		memberId: 'sami'
-	});
+	// the reset ends something, so the host asks first (effort 846, requirement 2 as revised).
+	expect(organizationHostState.member.asking?.kind).toBe('unsetPassword');
+	expect(organizationHostState.member.asking?.record.member.id).toBe('sami');
 });
 
 test('a member act the reader may not take is not offered', async () => {

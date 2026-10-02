@@ -32,9 +32,9 @@ export type MutationOptions = {
 	toast?: {
 		success?: ToastMessage;
 		/**
-		 * a second line under the announcement. A delete that runs at once declares the one the
-		 * delete dialog used to carry, that it can be taken back while the application is open,
-		 * because no dialog is shown to say it any more ([[rules/interface]], *Delete and confirm*).
+		 * a second line under the announcement. A record's delete declares that it can be taken back
+		 * while the application is open, which its question also said before it ran
+		 * ([[rules/interface]], *Delete and confirm*).
 		 */
 		detail?: ToastMessage;
 		error?: boolean | ToastMessage | ((error: Error) => ToastErrorDecision);

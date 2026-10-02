@@ -18,7 +18,8 @@ export const complexes = {
 	// for the unit's own delete.
 	deleteDialog: {
 		blockedUnitsUnderContract: 'a contract mentions one or more of its units',
-		unitsGoWithIt: 'its {count|number} {{unit|units}} will be deleted with it.'
+		unitsGoWithIt:
+			'its {count|number} {{unit|units}} will be deleted with it. you can undo this while the app is open.'
 	},
 
 	empty: {

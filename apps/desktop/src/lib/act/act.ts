@@ -1,5 +1,4 @@
 import type { RecordCardAction } from '@rentable/design/block/record-card.svelte';
-import { toConfirmation, type Blockers } from '@rentable/design/confirmation.js';
 import { toShortcutHint, type ShortcutCombination } from '@rentable/design/shortcut.js';
 import { get } from 'svelte/store';
 import { LL } from '$lib/i18n/i18n-svelte';
@@ -31,22 +30,42 @@ export type IconComponent = RecordCardAction['icon'];
 export type RecordActGroup = 'primary' | 'lifecycle' | 'destructive';
 
 /**
- * Whether a delete asks before it runs ([[rules/interface]], *Delete and confirm*).
+ * What the question in front of a dangerous act says brings it back ([[rules/interface]],
+ * *Delete and confirm*). **Every value asks**: no policy runs an act at once.
  *
- * `none` deletes at once and offers undo, because the record is all it removes and taking it back
- * is one keystroke. `cascade` asks, because it removes more than the record. `irreversible` asks,
- * because nothing puts it back. What refuses a delete is a separate question: a delete refused
- * asks under any of the three, since the answer is that it cannot be done.
+ * `reversible` names what brings it back (undo, restoring, offering again, signing in again).
+ * `cascade` is a delete that removes more than the record, and names what goes with it.
+ * `irreversible` says nothing puts it back. What refuses a delete is a separate question, which the
+ * delete dialog answers in its blocked state under any of the three.
  */
-export type ConfirmationPolicy = 'none' | 'cascade' | 'irreversible';
+export type ConfirmationPolicy = 'reversible' | 'cascade' | 'irreversible';
+
+/**
+ * An act's tone and whether it asks, tied together: **an act in the error tone is dangerous, and
+ * declares its confirmation**, so one declared without is a type error, and
+ * `act/tests/dangerous-acts-ask.svelte.test.ts` finds every one asking through its host before
+ * anything is written. A neutral act may ask too (restoring a contract) without being drawn as
+ * dangerous.
+ */
+type RecordActTone =
+	| {
+			tone?: 'neutral';
+			/** whether the host asks before running it; a neutral act need not. */
+			confirmation?: ConfirmationPolicy;
+	  }
+	| {
+			/** it deletes, ends, removes, signs out, disconnects, forgets or hands something over. */
+			tone: 'error';
+			/** what the question its host asks says brings it back. */
+			confirmation: ConfirmationPolicy;
+	  };
 
 /** One thing a person can do to a record. */
-export type RecordAct<T> = {
+export type RecordAct<T> = RecordActTone & {
 	/** stable, and the palette's key: `contract.renew`. */
 	id: string;
 	label: (t: TranslationFunctions) => string;
 	icon: IconComponent;
-	tone?: 'neutral' | 'error';
 	/** separators, and the order across concepts: the `destructive` group comes last. */
 	group?: RecordActGroup;
 	/** shown on every surface, and answered while a record is focused. */
@@ -62,47 +81,13 @@ export type RecordAct<T> = {
 	flag?: RecordFlag;
 	/** shown and refused, with the reason, where this gives one. */
 	unavailable?: (record: T, t: TranslationFunctions) => string | undefined;
-	/**
-	 * whether the host asks before running it. Declared on every act in the `destructive` group,
-	 * which `act/tests/act.test.ts` holds each concept to; the host reads it through
-	 * {@link toDeleteStep}.
-	 */
-	confirmation?: ConfirmationPolicy;
 	/** asks the host. */
 	run: (record: T) => void;
 };
 
-/**
- * What a host does with a delete it was asked for: put the delete dialog in front of the reader,
- * wait on what might refuse it, or run it now.
- */
-export type DeleteStep = 'ask' | 'wait' | 'run';
-
-/**
- * The host's answer to a delete, from the act's policy and what refuses it.
- *
- * A delete declared `none` waits on its blockers rather than asking while they are read, so the
- * dialog is never drawn for a record that turns out to have nothing in the way; then it runs, or,
- * where something refuses it, asks, because that dialog is where the refusal is named. A delete
- * declared anything else asks at once and reads its blockers inside the dialog. An act that
- * declares nothing asks: a delete that forgot to say is safer asking than not.
- */
-export function toDeleteStep(
-	policy: ConfirmationPolicy | undefined,
-	blockers: Blockers | undefined
-): DeleteStep {
-	if (policy !== 'none') {
-		return 'ask';
-	}
-
-	switch (toConfirmation(blockers).state) {
-		case 'awaiting':
-			return 'wait';
-		case 'blocked':
-			return 'ask';
-		case 'offered':
-			return 'run';
-	}
+/** Whether an act is dangerous, which is what its error tone says: its host asks before it runs. */
+export function isDangerous<T>(act: RecordAct<T>): boolean {
+	return act.tone === 'error';
 }
 
 /** The acts that apply to this record, in the order they were declared. */

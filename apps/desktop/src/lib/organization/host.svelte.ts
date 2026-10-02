@@ -33,6 +33,13 @@ import { openOrganizationDialog } from '$lib/organization/dialogs.svelte';
 /** A member act that runs on the press: the host runs the write and says what came of it. */
 export type MemberPress = 'makeLink' | 'unsetPassword' | 'endSessions' | 'withdrawOffer';
 
+/**
+ * A member act that ends something and so asks first, in the confirm dialog, before the host runs
+ * its write ([[rules/interface]], *Delete and confirm*): the reset, the sign-out from
+ * every machine and the withdrawal of an offer.
+ */
+export type MemberAsk = Exclude<MemberPress, 'makeLink'>;
+
 type OrganizationHostState = {
 	member: {
 		/** the member the sheet is open on, with what the reader may write of them. */
@@ -41,6 +48,8 @@ type OrganizationHostState = {
 		offering: MemberActRecord | null;
 		/** the member being asked about, and at which speed. */
 		removing: { record: MemberActRecord; lockOut: boolean } | null;
+		/** a write that ends something, being asked about before it runs. */
+		asking: { kind: MemberAsk; record: MemberActRecord } | null;
 		/** a write asked for on the press, waiting for the host to run it. */
 		pressed: { kind: MemberPress; memberId: string } | null;
 		/** the member each write is running for, while it runs. */
@@ -83,6 +92,7 @@ const idle = (): OrganizationHostState => ({
 		editing: null,
 		offering: null,
 		removing: null,
+		asking: null,
 		pressed: null,
 		pending: {
 			linking: null,
@@ -121,6 +131,10 @@ const press = (kind: MemberPress) => (record: MemberActRecord) => {
 	organizationHostState.member.pressed = { kind, memberId: record.member.id };
 };
 
+const ask = (kind: MemberAsk) => (record: MemberActRecord) => {
+	organizationHostState.member.asking = { kind, record };
+};
+
 /** Every member act, bound to this host. The one list every surface projects. */
 export const memberActs = declareMemberActs({
 	edit: (record) => {
@@ -129,10 +143,10 @@ export const memberActs = declareMemberActs({
 	offerOwnership: (record) => {
 		organizationHostState.member.offering = record;
 	},
-	withdrawOffer: press('withdrawOffer'),
+	withdrawOffer: ask('withdrawOffer'),
 	makeLink: press('makeLink'),
-	unsetPassword: press('unsetPassword'),
-	endSessions: press('endSessions'),
+	unsetPassword: ask('unsetPassword'),
+	endSessions: ask('endSessions'),
 	confirmRemoval: (record, lockOut) => {
 		organizationHostState.member.removing = { record, lockOut };
 	}

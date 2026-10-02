@@ -124,7 +124,9 @@ export const settings = {
 		thisMachine: {
 			title: 'this machine',
 			signOut: 'sign out of this machine',
-			description: 'the organization stays on this machine. sign in again to carry on.'
+			description: 'the organization stays on this machine. sign in again to carry on.',
+			// the question signing out asks first (effort 846, requirement 2 as revised 2026-10-02).
+			asks: 'you are signed out here, and the organization stays on this machine. signing in again brings you back.'
 		}
 	}
 } satisfies BaseTranslation;

@@ -11,13 +11,13 @@
 
 	/**
 	 * The one surface that asks before an act that is not a delete: terminating a contract,
-	 * restoring one, signing out elsewhere, forgetting the account, disconnecting this machine.
+	 * restoring one, signing out, forgetting the account, disconnecting this machine, withdrawing an
+	 * offer.
 	 *
 	 * **Named by its act, never by deleting.** The title and the confirming control are the act's
 	 * own verb, so nothing here has a default for them and a caller cannot forget to say what it
-	 * asks. The delete dialog beside it is kept for the deletes that still ask, the ones that
-	 * remove more than the record or that nothing can take back ([[rules/interface]], *Delete and
-	 * confirm*); an ordinary delete asks nothing and offers undo instead.
+	 * asks. The delete dialog beside it asks before every delete ([[rules/interface]], *Delete and
+	 * confirm*).
 	 *
 	 * Built the way the delete dialog is: the record the act is on leads the body, what the act
 	 * does follows on its own line, leaving is the tertiary control, and a refusal the handler

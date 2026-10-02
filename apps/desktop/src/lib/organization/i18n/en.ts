@@ -203,6 +203,9 @@ export const organization = {
 		transferOwnershipConfirm: 'offer it',
 		ownershipOffered: 'the organization was offered. they accept it on a machine of their own.',
 		withdrawOffer: 'withdraw the offer',
+		// what each member act that ends something says before it runs (effort 846, requirement 2).
+		withdrawOfferAsks:
+			'the offer ends and nothing changes hands. you can offer the organization again.',
 		ownershipOfferWithdrawn: 'the offer was withdrawn. nothing changed hands.',
 		acceptOwnership: 'accept ownership',
 		acceptOwnershipGoes:
@@ -213,8 +216,11 @@ export const organization = {
 		ownershipAccepted: 'the organization is yours. you are the owner now.',
 		lockOut: 'lock out',
 		unsetPassword: 'reset password',
+		unsetPasswordAsks:
+			'their password stops working on every machine. a link you make them lets them choose a new one.',
 		passwordUnset: 'their password was unset. make them a link so they can choose a new one.',
 		endSessions: 'sign out everywhere',
+		endSessionsAsks: 'they are signed out of every machine. signing in again brings them back.',
 		sessionsEnded: 'they were signed out of every machine.',
 		sessionsEndedPending:
 			'this machine is offline; the sign-out reaches their machines once it is back online.',

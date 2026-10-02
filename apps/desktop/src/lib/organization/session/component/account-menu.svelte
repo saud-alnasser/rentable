@@ -8,7 +8,8 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/platform/locale';
 	import { THE_SETTINGS_AREA } from '$lib/settings';
-	import { accountInitials, requestSignOut } from '$lib/sync';
+	import { accountInitials } from '$lib/sync';
+	import SignOutDialog from './sign-out-dialog.svelte';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
@@ -23,7 +24,8 @@
 	 *
 	 * **Signing out lives here and nowhere else.** It used to be a row in the settings page's
 	 * account group, which made settings the door for identity as well as the place for
-	 * preferences. The call is unchanged, including its refusal to do anything with the state it
+	 * preferences. It asks first (`sign-out-dialog.svelte`, effort 846, requirement 2), and once
+	 * answered the call is unchanged, including its refusal to do anything with the state it
 	 * gets back: signing out announces itself and the layout is what answers, because this
 	 * component is about to be behind the wall it raises.
 	 *
@@ -51,7 +53,10 @@
 	const initials = $derived(accountInitials(session.username));
 
 	// the shell owns the wall, so the menu asks and the shell signs out; nothing is awaited here.
-	const signOut = () => requestSignOut();
+	let signingOut = $state(false);
+	const signOut = () => {
+		signingOut = true;
+	};
 </script>
 
 {#snippet identity()}
@@ -123,3 +128,11 @@
 		</DropdownMenu.Root>
 	</Sidebar.MenuItem>
 </Sidebar.Menu>
+
+<SignOutDialog
+	open={signingOut}
+	onOpenChange={(value) => {
+		signingOut = value;
+	}}
+	username={session.username}
+/>

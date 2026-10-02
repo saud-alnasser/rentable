@@ -563,63 +563,80 @@ and 8: contract is the first concept declared this way, and the others follow it
 
 ### Delete and confirm
 
-**An ordinary delete happens at once and offers undo.** A record whose delete removes the record
-and nothing else is gone the moment the act is chosen, and the announcement it raises carries the
-undo control and the line saying the undo lasts while the application is open (the declaration's
-`toast.detail` in `mutation/announcement.ts`). Ctrl/Cmd+Z takes it back as well. There is no dialog in
-front of it.
+**Every dangerous act asks first, with no exception.** An act that deletes, ends, removes, signs
+out, disconnects, forgets or hands something over puts a confirmation in front of the reader before
+anything is written, from every route that offers it: a record's card menu and its context menu,
+its page, the command menu, a selection's bar, and every row of the settings area. That covers the
+records' deletes (tenant, complex, unit, contract, payment), terminating a contract, the
+organization's acts (deleting a workspace, removing a member or locking one out, resetting a
+member's password, signing a member out everywhere, deleting a role, withdrawing an ownership
+offer, transferring ownership), signing out another machine or every other one, signing this
+machine out, disconnecting it, forgetting the Turso account (in settings and in setup), deleting
+the organization, and removing the organization stamp. Leaving the question does nothing.
 
-**A confirmation appears only where a delete removes more than the record, or cannot be undone.**
-Each act declares which, as its `confirmation` in `act/act.ts`: `none`, `cascade` or
-`irreversible`, and every act in the `destructive` group declares one
-(`design/tests/delete-and-confirm.test.ts` holds each concept to it). The host reads it through
-`toDeleteStep` and opens `packages/design/src/lib/block/delete-dialog.svelte` only when the policy
-asks. A record's own parts are the record: a contract's unit assignments go with it and come back
-with its undo, so releasing its units is not a cascade. Today the tenant, complex, unit, payment
-and contract deletes are `none`; deleting a
-workspace, removing a member and locking one out are `irreversible`, which keeps the organization
-host's deletes in the delete dialog.
+**The question names what ends and whether anything brings it back.** The record leads, as the
+surface names it; the line under it says what goes and what puts it back: undo while the
+application is open for a record's delete, restoring for a termination, signing in again for a
+sign-out, a new link for a member's reset, offering again for a withdrawn offer, and *nothing* where
+nothing does. A record's delete still lands inside undo once answered, and its announcement still
+carries the undo control (*Undo*).
+
+**A record act declares that it asks.** Every act in the error tone declares its `confirmation` in
+`act/act.ts`, `reversible`, `cascade` or `irreversible`, saying what the question says brings it
+back; the type refuses an error-tone act without one, and every act in the `destructive` group is
+in the error tone. No value runs an act at once. The host owns the question and opens it on every
+run, so the card, the page and the command menu reach the same one.
+`act/tests/dangerous-acts-ask.svelte.test.ts` finds every `acts.ts` under `src/lib`, holds each
+error-tone act to a declared confirmation, and runs each through its host to find a dialog in front
+of the reader and nothing written, so a dangerous act added without its question fails there. A
+record's own parts are the record: a contract's unit assignments go with it and come back with its
+undo, so releasing its units is not a cascade.
 
 **A delete whose cost turns on the record declares what the record alone costs, and its host
 resolves the rest.** A complex's units are records of their own and go with it, so deleting a
-complex that has units is a cascade, and one with none is still `none`
-([[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]], requirement 22). How many units
-a complex has is on no record a surface holds, so the act declares `none` and the complex host,
-which reads the deletion's plan, hands `toDeleteStep` the policy `toComplexDeleteConfirmation`
-gives for the complex in front of it (`complex/acts.ts`). The dialog it opens names the units that
-go, and the delete is undone whole, the units included. The delete dialog's button names the verb (*delete*, *remove*),
-never *confirm* or *OK*.
+complex that has units is a cascade ([[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]],
+requirement 22). How many units a complex has is on no record a surface holds, so the act declares
+`reversible` and the complex host, which reads the deletion's plan, takes the policy
+`toComplexDeleteConfirmation` gives for the complex in front of it (`complex/acts.ts`). The dialog
+it opens names the units that go, and the delete is undone whole, the units included. Until the
+plan is read the dialog offers no delete, since what it would say goes may not be what goes.
 
-**A refused delete is still refused, and says why.** A delete declared `none` waits on what might
-refuse it before it runs; where something does (a tenant with contracts, a complex one of whose
-units a contract holds), the
-host opens the delete dialog in its blocked state, which names what stands in the way and offers no
-destructive control. The procedure refuses it either way.
+**A delete asks in `packages/design/src/lib/block/delete-dialog.svelte`**, whose button names the
+verb (*delete*, *remove*), never *confirm* or *OK*. **A refused delete is still refused, and says
+why**: where something stands in the way (a tenant with contracts, a complex one of whose units a
+contract holds), the same dialog opens in its blocked state, names what stands in the way and offers
+no destructive control. The procedure refuses it either way. **A selection asks in
+`block/selection-dialog.svelte`** (*Bulk selection*).
 
 **An act that is not a delete confirms in `packages/design/src/lib/block/confirm-dialog.svelte`**,
-titled and labelled with its own verb: terminate, restore, end the other sessions, forget the
-account, disconnect. It has no default title or button word, so a caller cannot fall back to
-*delete*. Its control is destructive for an act that takes something away, and the ordinary
-primary control for one that gives something back (restore).
+titled and labelled with its own verb: terminate, restore, sign out, forget the account, disconnect,
+withdraw. It has no default title or button word, so a caller cannot fall back to *delete*. Its
+control is destructive for an act that takes something away, and the ordinary primary control for
+one that gives something back (restore). Signing this machine out asks in it from both its routes,
+the account section's last card and the account menu at the foot of the rail
+(`organization/session/component/sign-out-dialog.svelte`).
 
-*Why: a dialog in front of every delete is a question the reader learns to answer without reading,
-which is the worst place for the one delete that really cannot be taken back. Undo answers the
-ordinary case better than a question does, and a confirmation kept for the rare case is one people
-still read. A terminate dialog drawn in the delete dialog's shape said "delete" to the reader in
-every way but its words.*
+*Why: the human walked the built application on 2026-10-02 and asked, in their words, to "make sure
+deangours actions have confirmation dialog even in domain records deletes have confirmation dialong
+and dangours actions". This replaced two exemptions: an ordinary record delete ran at once and
+offered undo (effort 832, requirement 11, on the reasoning that a question asked of every delete is
+answered without reading), and signing this machine out asked nothing because signing in undoes it
+(effort 846, requirement 2, after the HIG's *Alerts*). The reader would rather answer one more
+question than lose a record to a stray press, so every dangerous act asks, and the question says
+plainly what brings it back so the cheap ones read as cheap.* *Revised by
+[[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirement 1's revision of
+2026-10-02 and requirement 2, ticket 40.*
 
-The cost the spec accepts: undo lasts for the session, so a record deleted without a question is
-lost if the application closes before it is taken back
-([[efforts/832-the-interface-speaks-one-language-and-guides/spec]], *Risks*).
-
-**A stated exception: deleting the organization is a heavy form with a password, not the delete
-dialog.** It removes every workspace and everything in them, every member's way in, and every
+**A stated exception to the dialog, not to asking: deleting the organization is a heavy form with a
+password.** It removes every workspace and everything in them, every member's way in, and every
 other machine's place in the organization, and nothing puts any of it back: it is the one act in
 the application that nothing undoes. So it takes the shared form surface at the heavy weight
 (`organization/component/delete-organization.svelte`). Its body says what goes in the plainest
 words there are, and the owner's password is the confirmation, refused on its own field when it
 does not open the owner's vault (*Validation errors*). A question answered with one press is the
-wrong weight for the act a reader can least afford to answer without reading.
+wrong weight for the act a reader can least afford to answer without reading. Transferring
+ownership asks the same way, in its own surface with the owner's password
+(`member/component/offer-ownership.svelte`).
 
 Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 11.
 
@@ -657,8 +674,9 @@ something away confirm instead (*Delete and confirm*). And a file imported is no
 because its inverse would be a file's worth of deletions hung off a toast (`workspace/query.ts`).
 The mechanism, replaying inverses through the real procedures, is [[rules/data]]'s, under *Undo*.
 
-*Why: undo is what lets an ordinary delete skip its question (*Delete and confirm*), and it can
-only carry that weight if the reader can find it the same way after every change.*
+*Why: undo is what a record's delete question names as bringing the record back (*Delete and
+confirm*), and it can only carry that promise if the reader can find it the same way after every
+change.*
 
 Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 11.
 

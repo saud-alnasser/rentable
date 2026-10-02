@@ -17,7 +17,8 @@ export const complexes = {
 
 	deleteDialog: {
 		blockedUnitsUnderContract: 'وحدة أو أكثر من وحداته مذكورة في عقد',
-		unitsGoWithIt: 'ستُحذف معه وحداته الـ {count|number}.'
+		unitsGoWithIt:
+			'ستُحذف معه وحداته الـ {count|number}. يمكنك التراجع عن هذا ما دام التطبيق مفتوحًا.'
 	},
 
 	empty: {
