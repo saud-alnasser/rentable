@@ -31,12 +31,11 @@
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import OrganizationDeleteOrganization from '$lib/organization/component/delete-organization.svelte';
 	import OrganizationDisconnect from '$lib/organization/component/disconnect.svelte';
-	import OrganizationForgetAccount from '$lib/organization/setup/component/forget-account.svelte';
 	import OrganizationMark from '$lib/organization/component/mark.svelte';
 	import OrganizationMembers from '$lib/organization/member/component/directory.svelte';
-	import OrganizationReconnectAuthority from '$lib/organization/setup/component/reconnect-authority.svelte';
 	import OrganizationRoles from '$lib/organization/role/component/directory.svelte';
 	import OrganizationStanding from '$lib/organization/component/standing.svelte';
+	import OrganizationTursoAccount from '$lib/organization/setup/component/turso-account.svelte';
 	import { memberReaderOf } from '$lib/organization/member/acts';
 	import { roleReaderOf } from '$lib/organization/role/acts';
 	import {
@@ -158,18 +157,14 @@
 
 		<Separator />
 
-		<!-- the Turso account, which is the owner's alone: reconnected where this machine holds
-		     no authority, and given back where it does. Both are the same subject, so they share
-		     the legend rather than standing as two sections a reader meets one of. -->
+		<!-- the Turso account, which is the owner's alone: one row naming the connection and its
+		     state on this machine, reconnected where this machine holds no authority and given
+		     back, at the group's end, where it does (effort 846, requirement 13). -->
 		{#if isOwner}
-			<Field.Set>
-				<Field.Legend>{$LL.organization.dashboard.authorityTitle()}</Field.Legend>
-				{#if needsAuthority}
-					<OrganizationReconnectAuthority onReconnected={() => void stateQuery.refetch()} />
-				{:else}
-					<OrganizationForgetAccount />
-				{/if}
-			</Field.Set>
+			<OrganizationTursoAccount
+				holdsAuthority={!needsAuthority}
+				onReconnected={() => void stateQuery.refetch()}
+			/>
 
 			<Separator />
 		{/if}

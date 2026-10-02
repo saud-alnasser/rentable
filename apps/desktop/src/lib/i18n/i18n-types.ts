@@ -3399,6 +3399,14 @@ type RootTranslation = {
 			 */
 			remove: string
 			/**
+			 * r​e​c​e​i​p​t​s​ ​a​n​d​ ​s​c​h​e​d​u​l​e​s​ ​p​r​i​n​t​ ​w​i​t​h​o​u​t​ ​i​t​,​ ​o​n​ ​e​v​e​r​y​ ​m​a​c​h​i​n​e​.​ ​o​n​l​y​ ​c​h​o​o​s​i​n​g​ ​a​n​ ​i​m​a​g​e​ ​a​g​a​i​n​ ​b​r​i​n​g​s​ ​o​n​e​ ​b​a​c​k​.
+			 */
+			removeDescription: string
+			/**
+			 * r​e​m​o​v​e​ ​s​i​g​n​a​t​u​r​e​ ​o​r​ ​s​e​a​l
+			 */
+			removeTitle: string
+			/**
 			 * s​i​g​n​a​t​u​r​e​ ​o​r​ ​s​e​a​l​ ​r​e​m​o​v​e​d
 			 */
 			removed: string
@@ -3908,6 +3916,18 @@ type RootTranslation = {
 			 */
 			authorityTitle: string
 			/**
+			 * c​o​n​n​e​c​t​e​d​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e
+			 */
+			authorityConnected: string
+			/**
+			 * n​o​t​ ​h​e​l​d​ ​h​e​r​e
+			 */
+			authorityNotHeld: string
+			/**
+			 * r​e​c​o​n​n​e​c​t
+			 */
+			reconnect: string
+			/**
 			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​h​o​l​d​s​ ​n​o​ ​a​u​t​h​o​r​i​t​y​ ​o​v​e​r​ ​t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​,​ ​a​n​d​ ​i​t​ ​c​a​n​n​o​t​ ​b​e​ ​r​e​s​t​o​r​e​d​.​ ​g​r​a​n​t​ ​t​h​e​ ​c​o​n​s​e​n​t​ ​a​g​a​i​n​.
 			 */
 			authorityDescription: string
@@ -4011,6 +4031,10 @@ type RootTranslation = {
 			 * f​o​r​g​e​t​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t
 			 */
 			forgetAccount: string
+			/**
+			 * f​o​r​g​e​t
+			 */
+			forget: string
 			/**
 			 * w​h​a​t​ ​{​u​s​e​r​n​a​m​e​}​ ​m​a​y​ ​d​o​ ​i​n​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
 			 * @param {string} username
@@ -7903,6 +7927,14 @@ export type TranslationFunctions = {
 			 */
 			remove: () => LocalizedString
 			/**
+			 * receipts and schedules print without it, on every machine. only choosing an image again brings one back.
+			 */
+			removeDescription: () => LocalizedString
+			/**
+			 * remove signature or seal
+			 */
+			removeTitle: () => LocalizedString
+			/**
 			 * signature or seal removed
 			 */
 			removed: () => LocalizedString
@@ -8405,6 +8437,18 @@ export type TranslationFunctions = {
 			 */
 			authorityTitle: () => LocalizedString
 			/**
+			 * connected on this machine
+			 */
+			authorityConnected: () => LocalizedString
+			/**
+			 * not held here
+			 */
+			authorityNotHeld: () => LocalizedString
+			/**
+			 * reconnect
+			 */
+			reconnect: () => LocalizedString
+			/**
 			 * this machine holds no authority over the Turso account, and it cannot be restored. grant the consent again.
 			 */
 			authorityDescription: () => LocalizedString
@@ -8500,6 +8544,10 @@ export type TranslationFunctions = {
 			 * forget Turso account
 			 */
 			forgetAccount: () => LocalizedString
+			/**
+			 * forget
+			 */
+			forget: () => LocalizedString
 			/**
 			 * what {username} may do in this organization.
 			 */

@@ -14,6 +14,10 @@ export const organization = {
 		none: 'none added yet',
 		readOnly: 'somebody allowed to change the mark can change it.',
 		remove: 'remove',
+		// the group's end row and the question before it: what goes, and what brings it back.
+		removeDescription:
+			'receipts and schedules print without it, on every machine. only choosing an image again brings one back.',
+		removeTitle: 'remove signature or seal',
 		removed: 'signature or seal removed',
 		replace: 'replace image',
 		saved: 'signature or seal saved',
@@ -197,6 +201,10 @@ export const organization = {
 			'a username is three to thirty-two characters of letters, digits, dots, underscores and hyphens',
 		renamed: 'the member was renamed.',
 		authorityTitle: 'Turso account',
+		// the Turso account row's state on this machine, and the act that reconnects it.
+		authorityConnected: 'connected on this machine',
+		authorityNotHeld: 'not held here',
+		reconnect: 'reconnect',
 		authorityDescription:
 			'this machine holds no authority over the Turso account, and it cannot be restored. grant the consent again.',
 		// requirement 22: an owner who was handed the organization holds no authority, and the
@@ -235,6 +243,8 @@ export const organization = {
 		workspaceDeleted: 'the workspace was deleted.',
 		transferTitle: 'export and import {workspace:string}',
 		forgetAccount: 'forget Turso account',
+		// the end row's button, which its row's name labels.
+		forget: 'forget',
 		memberSheetDescription: 'what {username:string} may do in this organization.',
 		roleChanged: 'the role was saved.',
 		overrideSaved: 'what they may do was saved.',

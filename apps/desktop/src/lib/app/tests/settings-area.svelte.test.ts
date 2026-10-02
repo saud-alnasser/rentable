@@ -431,7 +431,7 @@ test('the organization section carries the directory, the account block and the 
 	expect(document.querySelector('[data-members]')).not.toBeNull();
 	expect(screen.getByText(en.organization.dashboard.membersTitle)).toBeDefined();
 	expect(screen.getByText(en.organization.dashboard.authorityTitle)).toBeDefined();
-	expect(document.querySelector('[data-forget-account]')).not.toBeNull();
+	expect(document.querySelector('[data-forget-account-open]')).not.toBeNull();
 	expect(document.querySelector('[data-delete-organization-open]')).not.toBeNull();
 	expect(document.querySelector('[data-disconnect]')).not.toBeNull();
 
@@ -452,7 +452,7 @@ test('the organization section is ordered: standing, account, people, leaving', 
 	expect(
 		orderOf(
 			'data-standing-block',
-			'data-forget-account',
+			'data-turso-account',
 			'data-members',
 			'data-leaving',
 			'data-disconnect',
@@ -460,7 +460,7 @@ test('the organization section is ordered: standing, account, people, leaving', 
 		)
 	).toEqual([
 		'data-standing-block',
-		'data-forget-account',
+		'data-turso-account',
 		'data-members',
 		'data-leaving',
 		'data-disconnect',
@@ -511,7 +511,7 @@ test('the organization section opens with the sync group: the state, the last re
 	expect(block.querySelector('[data-slot="badge"]')).toBeNull();
 	// and it is the first block of the section.
 	expect(
-		orderOf('data-standing-block', 'data-forget-account', 'data-members', 'data-leaving')[0]
+		orderOf('data-standing-block', 'data-turso-account', 'data-members', 'data-leaving')[0]
 	).toBe('data-standing-block');
 });
 
@@ -523,8 +523,8 @@ test('an owner holding no authority meets the reconnect, and the foot is the dis
 	area({ section: 'organization', holdsTursoAuthority: false });
 
 	expect(
-		orderOf('data-standing-block', 'data-reconnect-authority', 'data-members', 'data-disconnect')
-	).toEqual(['data-standing-block', 'data-reconnect-authority', 'data-members', 'data-disconnect']);
+		orderOf('data-standing-block', 'data-turso-account', 'data-members', 'data-disconnect')
+	).toEqual(['data-standing-block', 'data-turso-account', 'data-members', 'data-disconnect']);
 	expect(document.querySelector('[data-delete-organization]')).toBeNull();
 	expect(document.querySelector('[data-delete-organization-open]')).toBeNull();
 });
@@ -680,8 +680,8 @@ test('the owner is given the turso account and the disconnect, and no link', () 
 	area({ section: 'organization' });
 
 	expect(screen.getByText(en.organization.dashboard.authorityTitle)).toBeDefined();
-	expect(document.querySelector('[data-forget-account]')).not.toBeNull();
-	expect(document.querySelector('[data-reconnect-authority]')).toBeNull();
+	expect(document.querySelector('[data-forget-account-open]')).not.toBeNull();
+	expect(document.querySelector('[data-reconnect-authority-open]')).toBeNull();
 	expect(document.querySelector('[data-disconnect]')).not.toBeNull();
 	expect(screen.getByText(en.organization.standing.state.notYetReached)).toBeDefined();
 	expect(document.querySelector('[data-organization-link]')).toBeNull();
@@ -738,9 +738,11 @@ test('an owner whose machine holds no authority is offered the reconnect in its 
 	at('?section=organization');
 	area({ section: 'organization', holdsTursoAuthority: false });
 
-	expect(document.querySelector('[data-reconnect-authority]')).not.toBeNull();
-	expect(document.querySelector('[data-forget-account]')).toBeNull();
-	expect(screen.getByText(en.organization.dashboard.authorityDescription)).toBeDefined();
+	expect(document.querySelector('[data-reconnect-authority-open]')).not.toBeNull();
+	expect(document.querySelector('[data-forget-account-open]')).toBeNull();
+	expect(document.querySelector('[data-turso-account]')?.textContent).toContain(
+		en.organization.dashboard.authorityDescription
+	);
 });
 
 // criterion 22: an owner who was handed the organization holds no authority either, and the reason
@@ -750,10 +752,11 @@ test('an owner holding no authority is told the authority follows the account th
 	at('?section=organization');
 	area({ section: 'organization', holdsTursoAuthority: false });
 
-	expect(screen.getByText(en.organization.dashboard.authorityFollowsTheAccount)).toBeDefined();
-	expect(document.querySelector('[data-authority-follows-the-account]')).not.toBeNull();
+	expect(document.querySelector('[data-turso-account]')?.textContent).toContain(
+		en.organization.dashboard.authorityFollowsTheAccount
+	);
 	// and the offer beside it is the one that already existed.
-	expect(document.querySelector('[data-reconnect-authority]')).not.toBeNull();
+	expect(document.querySelector('[data-reconnect-authority-open]')).not.toBeNull();
 });
 
 // and nobody else meets it: an owner whose machine holds the authority has nothing to be told, and
@@ -762,7 +765,86 @@ test('the sentence is absent for an owner who holds the authority', () => {
 	at('?section=organization');
 	area({ section: 'organization', holdsTursoAuthority: true });
 
-	expect(document.querySelector('[data-authority-follows-the-account]')).toBeNull();
+	expect(document.querySelector('[data-turso-account]')?.textContent).not.toContain(
+		en.organization.dashboard.authorityFollowsTheAccount
+	);
+});
+
+/** the Turso account group's rows, in order. */
+const tursoRows = () => [
+	...document.querySelectorAll<HTMLElement>('[data-turso-account] [data-settings-row]')
+];
+
+// effort 846, criterion 13 with 2 and 5, from the area's side: the owner whose machine holds the
+// authority meets the Turso account as a connected row, and forgetting it as the group's last row,
+// in the error tone, with its glyph, asked first with the sentence naming where to revoke the token.
+test('an owner holding the authority reads the turso account as connected, and forget last', async () => {
+	at('?section=organization');
+	area({ section: 'organization', holdsTursoAuthority: true });
+
+	const [account, forget] = tursoRows();
+
+	expect(tursoRows().map(rowName)).toEqual([
+		en.organization.dashboard.authorityTitle,
+		en.organization.dashboard.forgetAccount
+	]);
+	expect(account.querySelector('[data-row-value]')?.textContent?.trim()).toBe(
+		en.organization.dashboard.authorityConnected
+	);
+	expect(account.querySelector('[data-slot=item-media] svg')).not.toBeNull();
+	expect(forget.dataset.rowTone).toBe('error');
+	expect(forget.querySelector('[data-slot=item-media] svg')).not.toBeNull();
+	expect(forget.querySelector('button svg')).not.toBeNull();
+
+	await fireEvent.click(forget.querySelector('[data-forget-account-open]')!);
+
+	const dialog = await screen.findByRole('dialog');
+
+	expect(dialog.textContent).toContain(en.organization.dashboard.forgetAccountRevokes);
+	expect(dialog.textContent).toContain(en.organization.dashboard.forgetAccountRevokesAt);
+});
+
+// and the owner whose machine does not: the row reads not held here and carries the reconnect,
+// with its glyph, and nothing in the group is drawn in the error tone, since nothing is held to end.
+test('an owner holding no authority reads the turso account as not held, with an icon on reconnect', () => {
+	at('?section=organization');
+	area({ section: 'organization', holdsTursoAuthority: false });
+
+	const [account] = tursoRows();
+
+	expect(tursoRows()).toHaveLength(1);
+	expect(rowName(account)).toBe(en.organization.dashboard.authorityTitle);
+	expect(account.querySelector('[data-row-value]')?.textContent?.trim()).toBe(
+		en.organization.dashboard.authorityNotHeld
+	);
+	expect(account.querySelector('[data-reconnect-authority-open] svg')).not.toBeNull();
+	expect(document.querySelector('[data-turso-account] [data-row-tone=error]')).toBeNull();
+});
+
+// effort 846, criterion 5 for the two groups this ticket draws: within each, every button carries
+// a glyph or none does, held or not, and the mark's group with them.
+test('the turso and mark groups agree on glyphs within each group', () => {
+	for (const holdsTursoAuthority of [true, false]) {
+		at('?section=organization');
+		const { unmount } = area({ section: 'organization', holdsTursoAuthority });
+
+		const ours = groups().filter(
+			(group) =>
+				group.closest('[data-turso-account]') !== null ||
+				group.closest('[data-organization-mark]') !== null
+		);
+
+		expect(ours).toHaveLength(2);
+
+		for (const group of ours) {
+			const buttons = [...group.querySelectorAll('button')];
+			const withGlyph = buttons.filter((button) => button.querySelector('svg') !== null);
+
+			expect([0, buttons.length]).toContain(withGlyph.length);
+		}
+
+		unmount();
+	}
 });
 
 // requirement 24: a member's organization section draws what the sync section drew for them, and
@@ -779,8 +861,8 @@ test('a plain member reads the standing and the disconnect, and no directory or 
 	expect(document.querySelector('[data-disconnect]')).not.toBeNull();
 	expect(document.querySelector('[data-members]')).toBeNull();
 	expect(screen.queryByText(en.organization.dashboard.membersTitle)).toBeNull();
-	expect(document.querySelector('[data-forget-account]')).toBeNull();
-	expect(document.querySelector('[data-reconnect-authority]')).toBeNull();
+	expect(document.querySelector('[data-forget-account-open]')).toBeNull();
+	expect(document.querySelector('[data-reconnect-authority-open]')).toBeNull();
 	expect(screen.queryByText(en.organization.dashboard.authorityTitle)).toBeNull();
 	expect(document.querySelector('[data-organization-link]')).toBeNull();
 

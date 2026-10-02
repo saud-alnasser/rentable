@@ -20,7 +20,11 @@
 				<button type="button" aria-labelledby={labelId} data-handed={labelId}>change</button>
 			{/snippet}
 		</SettingsRow>
-		<SettingsRow icon={KeyRoundIcon} name="password" />
+		<SettingsRow icon={KeyRoundIcon} name="password">
+			{#snippet beneath()}
+				<p data-beneath>set on another machine.</p>
+			{/snippet}
+		</SettingsRow>
 	{/snippet}
 
 	{#snippet end()}

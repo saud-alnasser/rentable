@@ -72,3 +72,15 @@ test('every row leads with its glyph and shows a value only where it has one', (
 		undefined
 	]);
 });
+
+test('what a row calls for is drawn beneath it, inside the row and not as one of its own', () => {
+	render(SettingsGroupHarness);
+
+	const [language, password] = rows();
+	const beneath = password.querySelector('[data-row-beneath]');
+
+	expect(beneath?.textContent?.trim()).toBe('set on another machine.');
+	expect(beneath?.closest('[data-settings-row]')).toBe(password);
+	expect(language.querySelector('[data-row-beneath]')).toBeNull();
+	expect(screen.getAllByRole('listitem')).toHaveLength(3);
+});

@@ -29,6 +29,11 @@
 	 * caller's, a destructive ghost button, and its emphasis is shadcn's vocabulary, which *Tone*
 	 * leaves to the control, rather than this block's.
 	 *
+	 * **What the row's state calls for is drawn beneath it, inside the row**, where a row has
+	 * something to add to its value: a line saying what is under way, or a callout and the act it
+	 * offers. It belongs to the row it explains, so it is not a row of its own for a screen reader
+	 * to count, and it is not the group's footer, which speaks for every row.
+	 *
 	 * The words are the caller's, as every block in this package takes them, and are drawn as
 	 * written but for the name's first letter, which is raised as a label's is.
 	 */
@@ -37,6 +42,7 @@
 		name,
 		value,
 		control,
+		beneath,
 		tone = 'neutral'
 	}: {
 		/** The glyph that leads the row: what it is about. */
@@ -47,6 +53,8 @@
 		value?: string | Snippet;
 		/** The control that changes it, given the id of the row's name to be labelled by. */
 		control?: Snippet<[{ labelId: string }]>;
+		/** What the row's state calls for, drawn beneath it inside the row, where there is any. */
+		beneath?: Snippet;
 		/** Whether this row ends something. Marked on the row, so a test can find it. */
 		tone?: SettingsRowTone;
 	} = $props();
@@ -86,5 +94,11 @@
 		<Item.Actions>
 			{@render control({ labelId })}
 		</Item.Actions>
+	{/if}
+
+	{#if beneath}
+		<Item.Footer class="flex-col items-stretch" data-row-beneath>
+			{@render beneath()}
+		</Item.Footer>
 	{/if}
 </Item.Root>

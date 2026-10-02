@@ -1,31 +1,38 @@
 <script lang="ts">
 	import { tauri } from '$lib/platform/tauri';
+	import SettingsRow from '@rentable/design/block/settings-row.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
-	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import {
 		useBeginConsent,
 		useConsentResult,
 		useReconnectAuthority
 	} from '$lib/organization/setup/query';
+	import DatabaseIcon from '@lucide/svelte/icons/database';
+	import PlugIcon from '@lucide/svelte/icons/plug';
 
 	/**
-	 * An owner on a machine that holds no Turso authority: restored here, or reinstalled.
+	 * An owner on a machine that holds no Turso authority, restored here or reinstalled: the Turso
+	 * account group's one row (`turso-account.svelte`), reading *not held here* with the act that
+	 * reconnects it.
 	 *
 	 * **The authority is re-obtained by repeating the consent and is restored from nowhere**
 	 * (requirement 5, requirement 6). No row holds it, so a machine that has just restored the
 	 * organization cannot create a workspace, lock anybody out or renew a credential until the
-	 * owner has given the consent again on this machine; this says so, and offers the same consent
-	 * the first run offered. Once it is granted, the account it is over is discovered the way the
-	 * first run discovered it, and the machine can act as the owner's again.
+	 * owner has given the consent again on this machine; the group's line says so, and this offers
+	 * the same consent the first run offered. Once it is granted, the account it is over is
+	 * discovered the way the first run discovered it, and the machine can act as the owner's again.
 	 *
 	 * **It is also what an owner who was handed the organization meets** (effort 828, requirement
 	 * 22), and that is a different reason for the same state: nothing was lost here, the authority
-	 * simply never belonged to the ownership. So one short sentence says where it does belong,
-	 * before the sentence about restoring it, and the offer below is the same offer either way.
-	 * The transfer's own surface says the same thing to the person handing it over, so neither
-	 * side learns it for the first time here.
+	 * simply never belonged to the ownership. The group's line says where it does belong, and the
+	 * offer is the same either way.
+	 *
+	 * **A connection, read as one** (effort 846, requirement 13): the row names the account and its
+	 * state on this machine, and the reconnect carries its glyph as every control in the area does
+	 * (requirement 5). While the consent is out in the browser, and when it comes back refused, what
+	 * that calls for is drawn beneath the row it is about.
 	 */
 	let { onReconnected }: { onReconnected: () => void } = $props();
 
@@ -66,30 +73,43 @@
 	});
 </script>
 
-<div class="space-y-4" data-reconnect-authority={status}>
-	<Field.Description data-authority-follows-the-account>
-		{$LL.organization.dashboard.authorityFollowsTheAccount()}
-	</Field.Description>
-	<Field.Description>{$LL.organization.dashboard.authorityDescription()}</Field.Description>
+{#snippet reconnectControl()}
+	<!-- outline rather than solid, since the act is offered and never invited. -->
+	<Button
+		type="button"
+		variant="outline"
+		size="sm"
+		data-reconnect-authority-open
+		onclick={() => void connect()}
+		disabled={beginConsent.isPending || status === 'pending' || reconnect.isPending}
+	>
+		<PlugIcon class="size-4" />
+		{beginConsent.isPending || reconnect.isPending
+			? $LL.common.actions.working()
+			: $LL.organization.dashboard.reconnect()}
+	</Button>
+{/snippet}
 
+{#snippet consent()}
 	{#if status === 'pending'}
-		<p class="text-sm text-muted-foreground">{$LL.organization.setup.connecting()}</p>
+		<p class="text-sm text-muted-foreground" data-consent-pending>
+			{$LL.organization.setup.connecting()}
+		</p>
 	{:else if status === 'abandoned' || status === 'failed'}
-		<Callout tone="error">
+		<Callout tone="error" data-consent-refused>
 			{status === 'abandoned'
 				? $LL.organization.setup.consentAbandoned()
 				: $LL.organization.setup.consentFailed()}
 		</Callout>
 	{/if}
+{/snippet}
 
-	<Button
-		variant="outline"
-		size="sm"
-		onclick={() => void connect()}
-		disabled={beginConsent.isPending || status === 'pending' || reconnect.isPending}
-	>
-		{beginConsent.isPending || reconnect.isPending
-			? $LL.common.actions.working()
-			: $LL.organization.setup.connect()}
-	</Button>
-</div>
+<SettingsRow
+	icon={DatabaseIcon}
+	name={$LL.organization.dashboard.authorityTitle()}
+	value={$LL.organization.dashboard.authorityNotHeld()}
+	control={reconnectControl}
+	beneath={status === 'pending' || status === 'abandoned' || status === 'failed'
+		? consent
+		: undefined}
+/>
