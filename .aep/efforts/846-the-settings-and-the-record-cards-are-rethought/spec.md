@@ -196,7 +196,12 @@ statement read in time order, and each payment row says how it was paid.
 18. **Tenants, complexes, units and contracts are a grid of cards.** Wherever one of these is listed,
     its records are cards laid in two columns, or three where the window is wide enough, and one
     where it is narrow. Search, filter, sort, selection, keyboard movement, the transfer menu, the
-    empty and loading states and virtualization work as they do in one column.
+    empty and loading states and virtualization work as they do in one column. *Narrowed
+    2026-10-02, at the human's word on the prototype ("i liked all cards views except the units
+    view feels odd since they are accessed via contract or complex also they feel too much space
+    they occupy for no reason"):* units are not a grid. A unit is reached through its complex or its
+    contract, so the units list keeps its compact rows; only tenants, complexes and contracts are
+    grids.
 19. **A card shows its record's key facts without a hover.** Each concept's card carries its name,
     the facts a reader scans for, each with an icon, and its status as an icon with its word. A
     count of zero is not drawn. What each card holds is decided per concept, the way
@@ -274,8 +279,8 @@ statement read in time order, and each payment row says how it was paid.
     reader's access to it.
 17. With 0.12.0 or 0.13.0 records left on the machine, the workspaces section still offers the
     callout, and bringing them in writes into the workspace it names.
-18. With a wide window, the tenants, complexes, contracts and a complex's units lists show three
-    columns; narrowed, two; narrower, one. In each, `/` searches, the filter and sort work, arrow
+18. With a wide window, the tenants, complexes and contracts lists show three columns; narrowed,
+    two; narrower, one; a complex's units list keeps its rows (narrowed 2026-10-02, requirement 18). In each, `/` searches, the filter and sort work, arrow
     keys move across and down, selection selects, and a list of a thousand records scrolls without
     drawing all of them.
 19. On each of the four concepts' cards, status reads as an icon and a word, every fact carries an

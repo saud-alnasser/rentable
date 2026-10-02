@@ -3,7 +3,7 @@ status: open
 blocked-by: [15]
 ---
 
-# feat(desktop): complexes and their units are grids of cards
+# feat(desktop): complexes are a grid of cards, and units keep their rows
 
 Blocked by: 15
 
@@ -11,14 +11,14 @@ Authoritative: [[efforts/846-the-settings-and-the-record-cards-are-rethought/spe
 
 ## Outcome
 
-The complex directory and a complex's unit directory draw tiles with the content and heights ticket 15 fixed: a complex's location and its non-zero unit counts; a unit's status with its word and its occupant.
+The complex directory draws tiles with the content and height ticket 15 fixed: a complex's location and its non-zero unit counts. A complex's unit directory keeps its compact rows (requirement 18, narrowed 2026-10-02 at the human's word: units are reached through their complex or contract, and a tile spends space a unit does not need); its row shows the unit's status with its word and its occupant, as the evidence of ticket 15 gives it, at the row height it has.
 
 ## Acceptance Criteria
 
 Traces requirements 18 and 19, and criteria 18 and 19 for complexes and units.
 
-- [ ] Each card has its own test: every fact has an svg, the unit's status shows its word, no count of zero.
-- [ ] Both directories pass `recordMinWidth` and the fixed heights; their list behaviour still passes its tests.
+- [ ] The complex card has its own test: every fact has an svg, no count of zero.
+- [ ] The complex directory passes `recordMinWidth` and the fixed height; the unit directory passes neither and stays one column of rows, its status showing its word; both lists' behaviour still passes its tests.
 
 ## Relevant areas
 
