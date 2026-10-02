@@ -7,12 +7,9 @@
 import type { Translation } from '../../i18n/i18n-types';
 
 export const complexes = {
-	// six forms, the arabic plural's: zero, one, two, few, many and other. A form left out reads as
-	// nothing for the counts that select it.
 	card: {
-		occupied: '{count|number} مشغول',
-		units: '{count|number} {{وحدة|وحدة|وحدتان|وحدات|وحدة|وحدة}}',
-		vacant: '{count|number} شاغر'
+		count: '{count|number}',
+		none: 'لا توجد'
 	},
 
 	deleteDialog: {

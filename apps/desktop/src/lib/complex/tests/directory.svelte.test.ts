@@ -1,6 +1,7 @@
 import { fireEvent, render, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest';
 
+import { COMPLEX_TILE_HEIGHT } from '$lib/complex/component/card.svelte';
 import ComplexDirectory from '$lib/complex/component/directory.svelte';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import en from '$lib/i18n/en';
@@ -52,11 +53,16 @@ const directory = () =>
 		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' as const } }
 	);
 
-/** each count the tiles draw, as its words. */
+/** each count the tiles draw, as its field's name and its value. */
 const figures = () =>
-	[...document.querySelectorAll<HTMLElement>('[data-fact]')]
-		.map((fact) => fact.textContent?.replace(/\s+/g, ' ').trim() ?? '')
-		.filter((said) => /^\d+ /.test(said));
+	[...document.querySelectorAll<HTMLElement>('[data-complex-field]')]
+		.filter((field) =>
+			field.querySelector('[data-complex-units], [data-complex-occupied], [data-complex-vacant]')
+		)
+		.map(
+			(field) =>
+				`${field.querySelector('[data-field-name]')?.textContent?.trim()}: ${field.querySelector('[data-field-value]')?.textContent?.trim()}`
+		);
 
 const offeredOrders = async () => {
 	await fireEvent.click(document.querySelector<HTMLElement>('[data-sort-control]')!);
@@ -73,7 +79,7 @@ test('a tile carrying its unit counts draws them', async () => {
 
 	await waitFor(() => expect(document.body.textContent).toContain('Palm Court'));
 
-	expect(figures()).toEqual(['3 units', '2 occupied', '1 vacant']);
+	expect(figures()).toEqual(['units: 3', 'occupied: 2', 'vacant: 1']);
 	expect(await offeredOrders()).toContain(en.common.labels.vacantUnits);
 });
 
@@ -107,4 +113,15 @@ test('the complexes directory draws its records as tiles in the grid', async () 
 	await waitFor(() => expect(document.body.textContent).toContain('Olive Yard'));
 
 	expect(document.querySelectorAll('[data-layout=tile]')).toHaveLength(2);
+
+	// ticket 43: the list lays each row at the tile's declared height, the gap below it apart.
+	const holders = [...document.querySelectorAll<HTMLElement>('[data-index]')];
+
+	expect(holders.length).toBeGreaterThan(0);
+
+	for (const holder of holders) {
+		expect(parseFloat(holder.style.height) - parseFloat(holder.style.paddingBottom)).toBe(
+			COMPLEX_TILE_HEIGHT
+		);
+	}
 });

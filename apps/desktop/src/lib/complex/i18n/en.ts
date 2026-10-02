@@ -5,12 +5,11 @@
 import type { BaseTranslation } from '../../i18n/i18n-types';
 
 export const complexes = {
-	// what a complex's tile counts, each with its word, since the tile carries no label to name the
-	// figure by. A count of zero is never drawn.
+	// a count on a complex's tile, under the field's own name (the units, occupied and vacant terms'
+	// own keys), so the figure stands alone; a count of zero is said in words, never as a figure.
 	card: {
-		occupied: '{count|number} occupied',
-		units: '{count|number} {{unit|units}}',
-		vacant: '{count|number} vacant'
+		count: '{count|number}',
+		none: 'none'
 	},
 
 	// what the delete dialog says of a complex: the units that go with it, or that a contract

@@ -2537,20 +2537,14 @@ type RootTranslation = {
 	complexes: {
 		card: {
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​o​c​c​u​p​i​e​d
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}
 			 * @param {unknown} count
 			 */
-			occupied: RequiredParams<'count|number'>
+			count: RequiredParams<'count|number'>
 			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​u​n​i​t​|​u​n​i​t​s​}​}
-			 * @param {string | number | boolean} count
+			 * n​o​n​e
 			 */
-			units: RequiredParams<'count|number'>
-			/**
-			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​v​a​c​a​n​t
-			 * @param {unknown} count
-			 */
-			vacant: RequiredParams<'count|number'>
+			none: string
 		}
 		deleteDialog: {
 			/**
@@ -7447,17 +7441,13 @@ export type TranslationFunctions = {
 	complexes: {
 		card: {
 			/**
-			 * {count|number} occupied
+			 * {count|number}
 			 */
-			occupied: (arg: { count: unknown }) => LocalizedString
+			count: (arg: { count: unknown }) => LocalizedString
 			/**
-			 * {count|number} {{unit|units}}
+			 * none
 			 */
-			units: (arg: { count: string | number | boolean }) => LocalizedString
-			/**
-			 * {count|number} vacant
-			 */
-			vacant: (arg: { count: unknown }) => LocalizedString
+			none: () => LocalizedString
 		}
 		deleteDialog: {
 			/**
