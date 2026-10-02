@@ -34,7 +34,11 @@ when a primitive, block or cell is added and not named here.*
 **A block before a primitive.** Where a block exists for the need, the application draws the
 block; the primitives it is built from are reached through it. The record card's menus are
 `primitive/context-menu` and `primitive/dropdown-menu`, but a concept draws
-`block/record-card.svelte`, never the menus.
+`block/record-card.svelte`, never the menus. A settings row's menu is the same record menu, and a
+section hands `block/settings-row.svelte` the row's acts through its `menu` and draws neither the
+menu nor the tooltip that gives a refused act its reason. What the two blocks share lives in one
+module inside the package (`record-menu.svelte`), which neither block exports and no concept
+imports.
 
 ## The categories
 
@@ -70,7 +74,7 @@ block a concept draws instead.
 | `primitive/command` | choosing a value | the command menu, and a combobox over another record's search inside a popover | a choice of a few fixed values | `primitive/select` | `contract/component/tenant-field.svelte` |
 | `primitive/context-menu` | taking an action | the record card's secondary-click route, through a block | anything not also on the visible control (research 2) | `primitive/dropdown-menu` | through `block/record-card.svelte` |
 | `primitive/dialog` | interrupting and confirming | a scoped task that must be answered: import review; beneath every confirming block and the form surface | information with nothing to answer; a repeated task (research 8) | `primitive/popover` | `transfer/component/import-dialog.svelte` |
-| `primitive/dropdown-menu` | taking an action | several commands behind one control: filter, sort, transfer, a card's acts, the dashboard's period | one or two items; a form's exclusive value (research 2, 3) | `primitive/toggle-group` | `list/component/list-toolbar.svelte` |
+| `primitive/dropdown-menu` | taking an action | several commands behind one control: filter, sort, transfer, a card's acts, the dashboard's period; and, through `block/settings-row.svelte`'s `menu`, a settings row's menu, the secondary acts on one row of a growing list however few, as a machine's sign-out | one or two commands on a surface, which are buttons; a form's exclusive value (research 2, 3) | `primitive/toggle-group` | `list/component/list-toolbar.svelte` |
 | `primitive/empty` | guiding and empty states | the parts of the empty block, through it | drawing an empty state directly | `block/empty.svelte` | through `block/empty.svelte` |
 | `primitive/field` | laying out | a form's fields, legends and descriptions | content with no control in it (research 5, shadcn *Item*) | `primitive/item` | `organization/access/component/switches.svelte` |
 | `primitive/form` | entering text | binding a field to its superform schema, with `block/field-error.svelte` | a field that writes at once outside a form | `primitive/field` | `complex/component/form.svelte` |
@@ -117,7 +121,7 @@ block a concept draws instead.
 | `block/selection-dialog.svelte` | interrupting and confirming | an act on a selection, showing what would go through before it runs | one record's act | `block/delete-dialog.svelte` | `complex/component/directory.svelte` |
 | `block/settings-grid.svelte` | laying out | a settings section's cards, two columns where it is wide enough and one where not, in source order | a list of records (the list shell lays those); a page's frame | `block/page-frame.svelte` | `settings/component/area.svelte` |
 | `block/settings-group.svelte` | laying out | a settings card: its header inside it (glyph, title, one line, a value), its rows, the ending rows last after a separator, an optional footer; half or full width in the grid | a list of records (those are record cards); a box around a directory | `block/record-card.svelte` | `organization/component/settings-account.svelte` |
-| `block/settings-row.svelte` | showing data | one setting: glyph, name with its meta line under it and a badge beside it, value, control; the `error` tone for an act that ends something; `details` folding what few readers need | a record in a directory | `primitive/item` | `organization/component/disconnect.svelte` |
+| `block/settings-row.svelte` | showing data | one setting: glyph, name with its meta line under it and a badge beside it, value, control; the `error` tone for an act that ends something; `details` folding what few readers need; `menu` holding a row's secondary acts | a record in a directory | `primitive/item` | `organization/component/disconnect.svelte` |
 | `block/specification.svelte` | showing data | a record's own fields as label and value | a list of records; tabular data (research 5) | `block/record-card.svelte` | `complex/component/details.svelte` |
 | `block/standalone-surface.svelte` | interrupting and confirming | the application failing: startup, recovery, an unhandled route error | a step of the way in; a not-found | `block/way-in-surface.svelte` | `shell/component/caught-error.svelte` |
 | `block/surface-action.svelte` | taking an action | one of a few acts on a surface that has stopped the application | a record's act | `block/record-action-control.svelte` | `startup/component/error.svelte` |
@@ -164,6 +168,7 @@ Each row names what this repository already draws for the need, and one file whe
 | detail few readers need | `primitive/collapsible` | `error/component/detail-disclosure.svelte` |
 | a small setting beside what it changes | `primitive/popover`, applied in place | `dashboard/component/ending-soon.svelte` |
 | a secondary act on a record | the record card's menu, and `block/record-action-control.svelte` on its page | `complex/component/details.svelte` |
+| a secondary act on a row of a growing list, in settings | `block/settings-row.svelte`'s `menu`, in the menu's default tone even for an act that ends something | `organization/session/component/machines.svelte` |
 | an act that ends something, in settings | `block/settings-row.svelte` in the `error` tone, in the group's `end` | `organization/component/disconnect.svelte` |
 | a confirmation | `block/confirm-dialog.svelte`, or `block/delete-dialog.svelte` for a delete that asks | `contract/component/host.svelte` |
 | an act on a selection | `block/selection-dialog.svelte` | `complex/component/directory.svelte` |

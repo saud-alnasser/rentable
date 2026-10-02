@@ -1,4 +1,5 @@
 <script lang="ts" module>
+	import type { RecordCardAction } from '#lib/block/record-card.svelte';
 	import type { Tone } from '#lib/tone.js';
 	import { SvelteMap } from 'svelte/reactivity';
 
@@ -16,6 +17,26 @@
 	 * past that. Keyed by the row's `detailsKey`.
 	 */
 	const opened = new SvelteMap<string, boolean>();
+
+	/**
+	 * One secondary act on a row, described as a record card describes it, so the same act reads
+	 * the same in either. A row's menu draws no keys and no groups: it holds an act or two on one
+	 * row of a growing list.
+	 */
+	export type SettingsRowAct = Pick<
+		RecordCardAction,
+		'label' | 'icon' | 'tone' | 'disabled' | 'unavailable' | 'attributes' | 'onSelect'
+	>;
+
+	/** The row's menu: what it is named, what it holds, and what the caller marks its control with. */
+	export type SettingsRowMenu = {
+		/** the control's accessible name, naming what it acts on: *actions for Olivia's Laptop*. */
+		label: string;
+		/** the row's secondary acts, in order. A row with none draws no control. */
+		acts: SettingsRowAct[];
+		/** the `data-*` the caller marks the control with, which a section is read by. */
+		attributes?: Record<string, string>;
+	};
 </script>
 
 <script lang="ts">
@@ -23,6 +44,7 @@
 	import { Button } from '#lib/primitive/button/index.js';
 	import * as Collapsible from '#lib/primitive/collapsible/index.js';
 	import * as Item from '#lib/primitive/item/index.js';
+	import RecordMenu from '#lib/record-menu.svelte';
 	import { tone as toneOf } from '#lib/tone.js';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import type { Component, Snippet } from 'svelte';
@@ -61,6 +83,15 @@
 	 * not ask for. **An error row takes none**: the act that ends something is read whole, and
 	 * nothing about it is put away.
 	 *
+	 * **A row's secondary acts are its menu** (`menu`), on one row of a list that grows, such as a
+	 * machine signed in as the reader: the record menu a record card draws, its quiet control at
+	 * the row's end named by the caller for what it acts on, and its entries, an act that cannot run
+	 * shown refused with its reason beside it. It is the row's own, so a section hands it the acts
+	 * and never draws the menu or the tooltip itself ([[contexts/desktop/components]], *A block
+	 * before a primitive*). An act that ends something drawn this way takes the menu's default
+	 * tone, so the card's end keeps its one error-tone act ([[rules/interface]], *A card has one
+	 * anatomy*).
+	 *
 	 * **A row may report a state** (`reports`): its glyph and its name then take that state's tone,
 	 * as the sync state's five do, the one row in the area whose words carry a tone other than the
 	 * destructive one.
@@ -75,6 +106,7 @@
 		badge,
 		value,
 		control,
+		menu,
 		beneath,
 		details,
 		detailsLabel,
@@ -95,6 +127,8 @@
 		value?: string | Snippet;
 		/** The control that changes it, given the id of the row's name to be labelled by. */
 		control?: Snippet<[{ labelId: string }]>;
+		/** The row's secondary acts, behind a quiet control at its end, after the control. */
+		menu?: SettingsRowMenu;
 		/** What the row's state calls for, drawn beneath it inside the row, where there is any. */
 		beneath?: Snippet;
 		/** Detail few readers need, folded under the row behind a chevron. Not on an error row. */
@@ -124,6 +158,9 @@
 	);
 	const glyph = $derived(coloured ?? 'text-muted-foreground');
 	const words = $derived(coloured ?? undefined);
+
+	// a menu with nothing in it is not drawn: a control that opens onto nothing is no control.
+	const offers = $derived((menu?.acts.length ?? 0) > 0);
 
 	// an error row is read whole: whatever detail it was handed, it folds nothing away.
 	const folds = $derived(details !== undefined && tone !== 'error');
@@ -168,9 +205,12 @@
 		</div>
 	{/if}
 
-	{#if control}
+	{#if control || offers}
 		<Item.Actions>
-			{@render control({ labelId })}
+			{@render control?.({ labelId })}
+			{#if menu && offers}
+				<RecordMenu actions={menu.acts} label={menu.label} attributes={menu.attributes} />
+			{/if}
 		</Item.Actions>
 	{/if}
 {/snippet}

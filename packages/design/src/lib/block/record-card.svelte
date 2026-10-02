@@ -85,59 +85,24 @@
 		attributes?: Record<string, string>;
 		onSelect: () => void;
 	};
-
-	/**
-	 * What an unavailable entry is marked with, over the menu's own attributes, so assistive
-	 * technology hears it refused. Written after the menu's attributes, because the menu marks
-	 * every entry it was not told to disable as enabled.
-	 */
-	export const unavailableEntry = {
-		'aria-disabled': 'true',
-		'data-unavailable': ''
-	} as const;
-
-	/**
-	 * The tooltip trigger's attributes, less the two that would say the entry is something else: its
-	 * slot, which names what the entry is to every surface and test that reads it, and the button
-	 * type a trigger carries, which a menu entry is not.
-	 */
-	export const asEntry = (props: Record<string, unknown>) => {
-		const hint = { ...props };
-
-		delete hint['data-slot'];
-		delete hint.type;
-
-		return hint;
-	};
-
-	/** how an unavailable entry looks: dimmed, as a disabled one is, and not pressable to the eye. */
-	export const unavailableLook = 'opacity-50 cursor-not-allowed';
-
-	/**
-	 * The quiet control that opens a record's menu: tertiary, round, on the secondary fill. Declared
-	 * here, where the card draws it, and read by a row that offers a record's secondary acts outside
-	 * a card (the machines in the account settings, effort 846 ticket 23), so the treatment keeps one
-	 * home.
-	 */
-	export const recordMenuControl =
-		'relative rounded-full bg-secondary p-0 transition-[background-color] hover:bg-accent';
-
-	/** whether this entry opens a new group, and so has a separator drawn above it. */
-	const opensGroup = (actions: RecordCardAction[], index: number) =>
-		index > 0 && actions[index].group !== actions[index - 1].group;
 </script>
 
 <script lang="ts">
 	// `href` is a route the concept already resolved, so the base is on it once — resolving it here
 	// would put it on twice.
-	import { Button } from '#lib/primitive/button/index.js';
 	import * as ContextMenu from '#lib/primitive/context-menu/index.js';
-	import * as DropdownMenu from '#lib/primitive/dropdown-menu/index.js';
 	import { Kbd } from '#lib/primitive/kbd/index.js';
 	import * as Tooltip from '#lib/primitive/tooltip/index.js';
 	import { toShortcutHint, usesAppleKeyboard } from '#lib/shortcut.js';
 	import { useDesignContract } from '#lib/strings.js';
 	import { cn } from '#lib/tailwind.js';
+	import RecordMenu, {
+		asEntry,
+		opensGroup,
+		refuse,
+		unavailableEntry,
+		unavailableLook
+	} from '#lib/record-menu.svelte';
 	import type { Snippet } from 'svelte';
 
 	const contract = useDesignContract();
@@ -146,15 +111,9 @@
 	// than once per entry.
 	const isAppleKeyboard = usesAppleKeyboard();
 
-	// the reason stands beside the entry, on the side the menu reads towards.
+	// the reason stands beside the entry, on the side the menu reads towards, as it does on the
+	// control's route.
 	const reasonSide = $derived(contract.direction === 'rtl' ? 'left' : 'right');
-
-	/**
-	 * An unavailable entry is refused here rather than by the menu: a menu's own disabled entry is
-	 * skipped by the keyboard and ignores the pointer, which would leave its reason unreachable.
-	 * Preventing the selection also keeps the menu open, with the reason still showing.
-	 */
-	const refuse = (event: Event) => event.preventDefault();
 
 	/**
 	 * A record in a list: the card that opens it, and the record's actions by both of the routes a
@@ -218,65 +177,11 @@
 
 {#snippet control()}
 	{#if actions.length > 0}
+		<!-- the record menu, drawn from the package's one home for it, which a settings row's menu
+		     reads too: the quiet control, named by the contract's word, and the same entries the
+		     context gesture offers. -->
 		<div class="relative flex size-8 shrink-0 items-center justify-center">
-			<DropdownMenu.Root>
-				<DropdownMenu.Trigger>
-					{#snippet child({ props })}
-						<!-- tertiary, and deliberately quiet: the reader came for the record, so the control
-						     is discoverable without competing with what the card says (_Semantics are
-						     secondary_, 60). This is the only home for the treatment now: the two lists
-						     that carried their own copy of it read this block instead. -->
-						<Button {...props} variant="ghost" size="icon-sm" class={recordMenuControl}>
-							<span class="sr-only">{contract.strings.openMenu}</span>
-							<EllipsisIcon class="size-4" />
-						</Button>
-					{/snippet}
-				</DropdownMenu.Trigger>
-
-				<DropdownMenu.Content align="end" class="min-w-[12rem]">
-					{#each actions as action, index (action.label)}
-						{#if opensGroup(actions, index)}
-							<DropdownMenu.Separator />
-						{/if}
-						{#if action.unavailable}
-							<Tooltip.Root>
-								<Tooltip.Trigger>
-									{#snippet child({ props: hint })}
-										<DropdownMenu.Item
-											{...asEntry(hint)}
-											variant={action.tone === 'error' ? 'destructive' : 'default'}
-											onSelect={refuse}
-											{...action.attributes}
-										>
-											{#snippet child({ props })}
-												<div
-													{...props}
-													{...unavailableEntry}
-													class={cn(props.class as string, unavailableLook)}
-												>
-													{@render entry(action)}
-												</div>
-											{/snippet}
-										</DropdownMenu.Item>
-									{/snippet}
-								</Tooltip.Trigger>
-								<Tooltip.Content side={reasonSide} sideOffset={8}>
-									{action.unavailable}
-								</Tooltip.Content>
-							</Tooltip.Root>
-						{:else}
-							<DropdownMenu.Item
-								variant={action.tone === 'error' ? 'destructive' : 'default'}
-								disabled={action.disabled}
-								onSelect={action.onSelect}
-								{...action.attributes}
-							>
-								{@render entry(action)}
-							</DropdownMenu.Item>
-						{/if}
-					{/each}
-				</DropdownMenu.Content>
-			</DropdownMenu.Root>
+			<RecordMenu {actions} label={contract.strings.openMenu} {entry} />
 		</div>
 	{/if}
 {/snippet}
@@ -355,7 +260,8 @@
 							{/snippet}
 						</Tooltip.Trigger>
 						<Tooltip.Content side={reasonSide} sideOffset={8}>
-							{action.unavailable}
+							<!-- drawn as the control's route draws it, so the two routes say it alike. -->
+							<span class="block max-w-xs" data-unavailable-reason>{action.unavailable}</span>
 						</Tooltip.Content>
 					</Tooltip.Root>
 				{:else}
