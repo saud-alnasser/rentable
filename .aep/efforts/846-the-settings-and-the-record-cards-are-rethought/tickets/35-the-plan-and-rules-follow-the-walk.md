@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [34]
 ---
 
@@ -15,8 +15,8 @@ The documents the walk's tickets (31 to 34) left behind are corrected: plan.md's
 
 Traces requirement 22 and criterion 22.
 
-- [ ] Each statement above reads as built, with file and line quoted in the commit body.
-- [ ] `node .aep/scripts/validate.mjs` passes and the index is regenerated.
+- [x] Each statement above reads as built, with file and line quoted in the commit body. *Verified: the commit body quotes each correction: plan.md 136, 172, 191, 212, 230, 238, 253 (dated notes, old text kept); rules/interface 187 (the two glyphs' motion, the seal's preview), 297 and 315 (member tile 188, workspace tile 174); components context 184 (two need rows); and, at integration, rules/frontend's *Motion* no longer calls the way in reducesMotion's one reader.*
+- [x] `node .aep/scripts/validate.mjs` passes and the index is regenerated. *Verified: `node .aep/scripts/validate.mjs` printed 575 artifacts checked, no failures; `index.mjs` ran.*
 
 ## Relevant areas
 

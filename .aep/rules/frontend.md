@@ -409,7 +409,8 @@ once, at the moment of a change: whether to ask for a view transition at all. It
 `matchMedia` when it is called, and answers no where there is none. `prefersReducedMotion` is a
 `MediaQuery` that calls `matchMedia` when its module loads, which jsdom does not have, so a
 block every screen of a flow draws through cannot import it without failing each of their
-component tests. It is the way in's one reader. A directory's commit (`list/commit.svelte.ts`)
+component tests. The way in reads it, and so do the settings' update check and log folder
+(effort 846, ticket 34), each once, when the glyph is about to move. A directory's commit (`list/commit.svelte.ts`)
 asks for its transition without reading it, and leaves the reduced-motion case to the token
 layer's `::view-transition-*` gate below, which collapses the animation. *Added 2026-10-01, effort
 843: the way-in surface and `crossWayIn` each carried a copy until then.*

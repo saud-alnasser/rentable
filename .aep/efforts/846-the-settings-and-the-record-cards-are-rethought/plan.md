@@ -133,6 +133,9 @@ never `--overwrite`, then prettier; [[references/shadcn-svelte]]), and build two
   toggle group is labelled by the row's name), `tone?: 'neutral' | 'error'`. An error row draws its
   icon and name in the destructive colour and its control as a destructive ghost button (button
   emphasis, which *Tone* leaves to shadcn). Marked `data-settings-row` and `data-row-tone`.
+  (*Corrected 2026-10-02, the human's walk: "only the action button" is red. An error row keeps
+  its mark and its place last, its glyph and name neutral, and the caller's button alone carries
+  the error tone; ticket 31.*)
 
 Rejected: spelling the look per block with `Field.*`. It needs no new files, but a dozen blocks each
 carrying the grouped look in their own classes is how today's area drifted (one red button among
@@ -166,6 +169,13 @@ and the command menu cannot disagree. Not on `settings/section.ts`, which loads 
 | organization | leaving | owner: hand over ownership (`crown`) | disconnect this machine (`unplug`); owner: delete organization (`trash-2`) |
 | workspaces | directory | the earlier-records callout above, then the cards | |
 
+(*Corrected 2026-10-02, the human's walk, tickets 31 and 34*: updates' check and diagnostics'
+reveal are icon buttons named by a tooltip, the check's `refresh-cw` turning while a check runs
+and the reveal's closed `folder` crossing to `folder-open` when pressed; the available version
+draws nothing until a check finds a release, never *unknown*; the signature or seal's row has no
+control, its preview is itself the button that chooses or replaces the image (`image-up` on its
+corner); the members are a grid of member tiles, not cards in a column.)
+
 **The section is a grid of group cards** (*added 2026-10-02*, requirement 1 as the human widened
 it mid-run). A third block, `block/settings-grid.svelte`, lays a section's groups out with a
 container query: one column below the width two 340px columns and their gap need, two above it,
@@ -177,6 +187,13 @@ members directories and leaving, workspaces' directory; the ending groups stay l
 order. The look is judged on screenshots of the running app on real data, both languages and
 appearances, one and two columns. Rejected: a masonry layout, which reorders what a keyboard and a
 screen reader meet against what the eye sees.
+
+(*Revised 2026-10-02, the human's walk of the built grid: "each card is under the next card";
+ticket 31.*) The grid is gone. `block/settings-grid.svelte` keeps its name and draws a flex column,
+every card one under the next at every width in every tab, capped near 1100 px, a directory spaced
+further from its neighbours than a card is. `settings-group.svelte` has no `span`, and no tab
+passes one: every card takes the column's width, the ending groups still written last. What stood
+here before is kept above as the record of the day it held.
 
 **Detail that few readers need folds under its row** (*added 2026-10-02*, after the human asked why
 the collapsible primitive went unused; evidence: [[efforts/846-the-settings-and-the-record-cards-are-rethought/evidence/research/how-production-apps-organize-a-settings-section]]).
@@ -192,6 +209,12 @@ list, the earlier-records callout, and every act in a group's `end`. The grid's 
 evidence: general's preferences beside updates, diagnostics after; account's identity beside
 password; organization's sync beside Turso (owner) or the mark (member).
 
+(*Revised 2026-10-02, the human's walk; ticket 31.*) Three rows fold: updates' release notes,
+sync's machine detail (the workspace this machine keeps and where its copy is), and the Turso
+connection's database and organization. Diagnostics folds nothing: the whole log path is the
+folder row's meta line, with room to stand whole. Sync's last-reached line is the state row's meta
+line, never folded. The grid's pairs are gone with the grid: one column.
+
 **Everything in a tab is a card** (*added 2026-10-02*, the human's third word on the settings:
 "the tabs remain the same but each section ... everything is a card"; evidence: the four
 `settings-*-as-cards` files in `evidence/research/`, from screenshots of Apple, Windows, Google,
@@ -204,23 +227,31 @@ Linear, Vercel, GitHub, Raycast, Zed, Discord, Notion, Neon, Supabase, Clerk, Ta
   the name where one marks it (*this machine*, *open on this machine*), and the control at the
   trailing edge. Hairlines between rows.
 - **End**: after a separator, the acts that end something, the error tone on the act alone, never
-  on the card's border or a red band.
+  on the card's border or a red band (*sharpened 2026-10-02, the human's walk, ticket 31*: on the
+  act's button alone, the row's glyph and name neutral).
 - **Footer** (optional): one note, a `progress`, or one act.
 - **Directories** (roles, members, workspaces) are not boxed inside a card: their title takes the
   card's title style, the tray sits under it, the record cards follow, so no box sits in a box.
 
 The tabs, as the research recommends and the agent decides:
 
-| Tab | Cards, in source order (half = one column of two; full = both) |
+| Tab | Cards, in source order, one under the next (*corrected 2026-10-02, the human's walk, tickets 31 to 34: the half and full widths are gone*) |
 | --- | --- |
-| general | display: language, appearance (half) · updates: the header states the state in words (up to date, available, downloading, restart to finish), version rows, *what's new* in a collapsible, the download as `progress` (half) · diagnostics: the folder, its path as the meta line, reveal (full) |
-| account | the ownership offer as a `callout` with *accept*, only when one stands (full) · identity as the card's header: `avatar` initials, username, role `badge`, organization (half) · password: *change* (half) · machines: header value *n signed in*, this machine first with its badge, meta line *last seen · added*, sign out in each other machine's row menu (*corrected 2026-10-02, ticket 23*), *sign out all other machines* in the end (full) · this machine: sign out (full, last) |
-| organization | sync: the state as the header's value, the last-reached line, *sync*, the problem callout under it, never folded (full) · Turso account, owner only (half) beside the signature or seal (half; alone for a member, at half, start-aligned) · roles, members (directories) · leaving (full, last) |
-| workspaces | the directory: title and its line, the tray, the earlier-records callout, then the tiles in a grid (`columnsFor`, 300 min, up to 3), each with its `building` glyph, the name, an *open on this machine* badge on the open one, members and access as facts |
+| general | display: language, appearance, no sentence under the choice, *system* saying what it follows in its own tooltip · updates: the header states the state in words (up to date, available, downloading, restart to finish), version rows, the available version drawn only once a check finds a release (never *unknown*), *check for updates* an icon button with a tooltip whose `refresh-cw` turns while a check runs, *what's new* in a collapsible, the download as `progress` · diagnostics: the folder, its whole path as the meta line, folded under nothing, reveal an icon button with a tooltip whose closed folder opens when pressed |
+| account | the ownership offer as a `callout` with *accept*, only when one stands · identity as the card's header: `avatar` initials, username, role `badge`, organization · password: *change* · machines: header value *n signed in*, this machine first with its badge, meta line *last seen · added*, sign out in each other machine's row menu (*corrected 2026-10-02, ticket 23*), *sign out all other machines* in the end · this machine: sign out (last) |
+| organization | sync: the state as the header's value, the last-reached line, *sync*, the problem callout under it, never folded · Turso account, owner only · the signature or seal, its preview itself the button that chooses or replaces the image, *remove* its ending act · roles (directory) · members: the tray, then member tiles in a grid (`columnsFor`, 300 min, up to 3; `MEMBER_TILE_HEIGHT` 188): avatar, username and role badge on the heading, then password set, a machine signed in, workspaces held, joined, and at the foot permissions of their own and an offered organization where they apply · leaving (last) |
+| workspaces | the directory: title and its line, the tray, the earlier-records callout, then the tiles in a grid (`columnsFor`, 300 min, up to 3; `WORKSPACE_TILE_HEIGHT` 174), each with its `building` glyph in a muted tile, the name, an *open on this machine* badge on the open one, then the members as a stack of initials with their count, the reader's access, and the day it was created |
+
+The table read until the walk: general's display and updates at half, diagnostics full; account's
+offer, machines and this machine full, identity and password half; organization's sync and leaving
+full, Turso beside the mark at half.
 
 The two-column grid rests on the human's request, not on a product picture (every settings pane
 the researchers saw is one column of 750 to 1000 px); it is kept to short, independent cards, in
 source order, content capped near 1100 px, and judged on screenshots of the running app.
+
+(*Superseded 2026-10-02, the human's walk: "each card is under the next card"; ticket 31.*) Every
+tab is one column, as every pane the researchers saw is.
 
 **Hand over ownership in the leaving group** projects the reader's own member record through
 `toPageActions` over `memberActs`, filtered to `member.offerOwnership` and `member.withdrawOffer`,

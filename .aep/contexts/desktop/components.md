@@ -181,6 +181,8 @@ Each row names what this repository already draws for the need, and one file whe
 | a set of settings | `block/settings-group.svelte` of `block/settings-row.svelte`, one under the next in a `block/settings-grid.svelte` | `organization/component/settings-account.svelte` |
 | detail few readers need, under a setting | `block/settings-row.svelte`'s `details` | `settings/component/updates.svelte` |
 | a row's control whose words a tooltip can carry | `primitive/button` at `icon-sm` with its `aria-label`, in `primitive/tooltip` saying the same | `settings/component/diagnostics.svelte` |
+| an icon control showing what it is doing | its own glyph moving on the motion tokens: turning (`animate-spin`, the spinner primitive's turn, with `aria-busy`) while it works, or crossing to a second glyph (`transition-[opacity,scale]`, `duration-quick`, `ease-move`) once pressed; `reducesMotion` read at the press and `motion-reduce:` as well, so the state still changes but nothing moves | `settings/component/updates.svelte`, `settings/component/diagnostics.svelte` |
+| a picture that is changed by pressing it | the preview itself as a `primitive/button` (ghost) named for the change, in `primitive/tooltip` saying the same, a small glyph on its corner; no button beside it, and a plain picture for a reader who may not change it | `organization/component/mark.svelte` |
 | a page section switch | `block/section-switch.svelte` | `settings/component/area.svelte` |
 | several commands behind one control | `primitive/dropdown-menu` | `list/component/list-toolbar.svelte` |
 | a field's error | `block/field-error.svelte` | `complex/component/form.svelte` |

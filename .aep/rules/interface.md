@@ -184,7 +184,14 @@ can carry is an icon control named by one (the log folder's reveal, the check fo
 way forward and every act that ends something keep their words. A choice explains itself, with no
 sentence under it; where one segment's effect is not in its word (appearance's *system*), that
 segment alone says it in a tooltip. A value not yet known is not drawn, never a word standing in
-for one (the available version before a check).
+for one (the available version before a check). An icon control may show what it is doing with its
+own glyph and nothing else: the check for updates turns its glyph while a check runs, `aria-busy`
+for as long, and stops when it answers; the log folder's reveal crosses from a closed folder to an
+open one when pressed and closes again. Both move on the motion tokens and hold still for a reader
+who asked for less motion ([[rules/frontend]], *Motion*), the state still changing. A
+picture the reader may change is itself the control that changes it, as a profile picture is: the
+seal's preview is a button named *replace image* (*choose image* while empty), with no button
+beside it; a reader who may not change it sees a picture.
 
 **Detail few readers need folds under its row, and nothing else folds.** A row's `details` is an
 expander on the `collapsible` primitive, in the manner of Fluent's settings expander: the glyph,
@@ -205,7 +212,7 @@ for "only the action button" to be red. Every settings pane the research saw is 
 disclosure guideline read (Apple's disclosure controls, GOV.UK's details, Microsoft's settings
 expander, Android's advanced settings) agrees on the fold's test.* *Added by
 [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirement 1 as widened on
-2026-10-02, ticket 21, and revised the same day, ticket 31; evidence in its
+2026-10-02, ticket 21, and revised the same day, tickets 31 and 34; evidence in its
 `evidence/research/settings-*-as-cards.md` and `how-production-apps-organize-a-settings-section.md`.*
 
 ## Tone
@@ -287,7 +294,7 @@ tiles at the height a concept declares rather than measuring them, and a line le
 leading is near 22 px in Arabic and overlaps the tile below. A line added to a tile, or one drawn
 without that leading, changes the concept's declared height too.
 
-**The complexes, tenants and contracts are grids; a complex's units are not.** Each tile is the
+**The complexes, tenants, contracts, members and workspaces are grids; a complex's units are not.** Each tile is the
 concept's own component, at the height its list declares:
 
 - **A complex** (`complex/component/card.svelte`, `COMPLEX_TILE_HEIGHT`, 120 px): its name, its
@@ -305,12 +312,23 @@ concept's own component, at the height its list declares:
   in the reader's list style, each a fact; at its foot the ring with the paid and expected amounts
   beside it, the cost with its interval, and how many payments it holds, drawn only above zero.
   Where the reader may not view tenants the reference leads instead and is not repeated.
+- **A member** (`organization/member/component/card.svelte`, `MEMBER_TILE_HEIGHT`, 188 px, in the
+  settings' members directory): the avatar's initials, the username and the role badge on the
+  heading line, then whether the account has a password, whether a machine is signed in on it, how
+  many workspaces it holds (in words when none) and when it joined; at its foot, only where they
+  apply, permissions of its own and an organization offered to it.
+- **A workspace** (`organization/workspace/component/directory.svelte`, `WORKSPACE_TILE_HEIGHT`,
+  174 px, in the settings' workspaces directory): the `building` glyph in its muted tile and the
+  name on the heading line, an *open on this machine* badge under it on the open one, then at its
+  foot who holds it as a stack of initials with their count, what the reader may do there, and the
+  day it was created.
 
 A complex's unit directory stays one column of rows at 64 px, because a unit is reached through
 its complex or its contract and a tile spends room its two facts, its status and its occupant, do
 not need. *Tickets 16 to 18 of [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]],
 requirement 18 as the human narrowed it on 2026-10-02 (units keep their rows); the tenant and
-contract tiles recorded by ticket 27.*
+contract tiles recorded by ticket 27; the member and workspace tiles laid out by tickets 32 and 33
+at the human's walk of 2026-10-02 and recorded by ticket 35.*
 
 ### Search
 
