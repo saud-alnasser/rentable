@@ -1,4 +1,5 @@
 import SectionSwitch from '#lib/block/section-switch.svelte';
+import SlidersHorizontalIcon from '@lucide/svelte/icons/sliders-horizontal';
 import { render, screen } from '@testing-library/svelte';
 import { expect, test } from 'vitest';
 
@@ -49,5 +50,26 @@ test('a switch replaces the address and keeps the scroll and the focus', () => {
 		expect(link.hasAttribute('data-sveltekit-replacestate')).toBe(true);
 		expect(link.hasAttribute('data-sveltekit-noscroll')).toBe(true);
 		expect(link.hasAttribute('data-sveltekit-keepfocus')).toBe(true);
+	}
+});
+
+test('given an icon, every section draws it before its label', () => {
+	render(SectionSwitch, {
+		sections: sections.map((section) => ({ ...section, icon: SlidersHorizontalIcon })),
+		current: 'payments',
+		label: 'a record'
+	});
+
+	for (const link of links()) {
+		expect(link.firstElementChild?.tagName.toLowerCase()).toBe('svg');
+		expect(link.querySelector('span')?.textContent?.trim()).toBe(link.dataset.section);
+	}
+});
+
+test('without an icon, a section draws its label alone', () => {
+	render(SectionSwitch, { sections, current: 'payments', label: 'a record' });
+
+	for (const link of links()) {
+		expect(link.querySelector('svg')).toBeNull();
 	}
 });

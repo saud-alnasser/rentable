@@ -17,6 +17,8 @@ import type { RemoteSyncState } from '$lib/sync/host';
 import { fakeSettings } from '$lib/settings/tests/testing.ts';
 import { fakeSyncState } from '$lib/sync/tests/testing.ts';
 import SettingsArea from '$lib/settings/component/area.svelte';
+import { SECTION_GLYPH } from '$lib/settings/glyph';
+import settingsSurface from '$lib/settings/surface';
 import type { AddressableSection } from '$lib/settings/section';
 import Providers from '#tests/providers.svelte';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
@@ -222,6 +224,28 @@ test('each tab is an anchor carrying its own section in the address', () => {
 		'/settings?section=organization',
 		'/settings?section=workspaces'
 	]);
+});
+
+// requirement 1 of effort 846: the switch names each section with a glyph beside its word, and it
+// is the glyph the command menu draws that section's row with, since both read `glyph.ts`.
+test('each tab leads with the glyph its command menu row carries', () => {
+	at();
+	area();
+
+	expect(
+		tabs().map((tab) => tab.firstElementChild?.getAttribute('class')?.match(/lucide-[a-z-]+/g))
+	).toEqual([
+		['lucide-icon', 'lucide-sliders-horizontal'],
+		['lucide-icon', 'lucide-circle-user'],
+		['lucide-icon', 'lucide-users'],
+		['lucide-icon', 'lucide-building']
+	]);
+
+	const menu = (settingsSurface.places ?? []).flatMap((place) =>
+		'icon' in place ? [place.icon] : []
+	);
+
+	expect(menu).toEqual(Object.values(SECTION_GLYPH));
 });
 
 // requirement 24: the gate moved from the section to the block inside it, so a member who

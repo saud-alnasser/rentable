@@ -13,6 +13,7 @@
 	import SettingsEndingSoon from '$lib/settings/component/ending-soon.svelte';
 	import SettingsLocale from '$lib/settings/component/locale.svelte';
 	import SettingsUpdates from '$lib/settings/component/updates.svelte';
+	import { SECTION_GLYPH } from '$lib/settings/glyph';
 	import {
 		holdingSection,
 		sectionsFor,
@@ -100,14 +101,16 @@
 
 	// every section is addressable, so the switch is a row of links to the addresses a menu row,
 	// the command palette and a bookmark open too. The mark follows `shown`, so an address naming
-	// a section this reader is not offered marks the section that is drawn.
+	// a section this reader is not offered marks the section that is drawn. Each carries the glyph
+	// the command menu draws it with, from the one map both read.
 	const switchable = $derived(
 		offered.map((value) => ({
 			value,
 			label:
 				contributed.find((entry) => entry.value === value)?.label($LL) ??
 				$LL.settings.section[value](),
-			href: resolve(withSection(value))
+			href: resolve(withSection(value)),
+			icon: SECTION_GLYPH[value]
 		}))
 	);
 </script>

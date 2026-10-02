@@ -1,8 +1,5 @@
 import { defineSurface } from '$lib/feature/surface';
-import BuildingIcon from '@lucide/svelte/icons/building';
-import CircleUserIcon from '@lucide/svelte/icons/circle-user';
-import SlidersHorizontalIcon from '@lucide/svelte/icons/sliders-horizontal';
-import UsersIcon from '@lucide/svelte/icons/users';
+import { SECTION_GLYPH } from './glyph';
 import { withSection } from './section';
 
 /**
@@ -22,8 +19,8 @@ import { withSection } from './section';
  * for one of those words is offered the row it is on rather than a row of its own.*
  *
  * The order is `section.ts`'s, so the command menu offers them in the order the area draws them.
- * No glyph is repeated, and none is the gear the account menu wears for the area as a whole:
- * these rows name parts of it rather than the whole.
+ * Each row's glyph is `glyph.ts`'s, which the area's section switch reads too, so the menu and the
+ * switch draw a section with the same picture.
  */
 export default defineSurface({
 	name: 'settings',
@@ -33,25 +30,25 @@ export default defineSurface({
 			route: '/settings',
 			url: withSection('general'),
 			label: (t) => t.settings.section.general(),
-			icon: SlidersHorizontalIcon
+			icon: SECTION_GLYPH.general
 		},
 		{
 			route: '/settings',
 			url: withSection('account'),
 			label: (t) => t.settings.section.account(),
-			icon: CircleUserIcon
+			icon: SECTION_GLYPH.account
 		},
 		{
 			route: '/settings',
 			url: withSection('organization'),
 			label: (t) => t.settings.section.organization(),
-			icon: UsersIcon
+			icon: SECTION_GLYPH.organization
 		},
 		{
 			route: '/settings',
 			url: withSection('workspaces'),
 			label: (t) => t.settings.section.workspaces(),
-			icon: BuildingIcon
+			icon: SECTION_GLYPH.workspaces
 		}
 	]
 });
