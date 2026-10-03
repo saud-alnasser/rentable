@@ -1959,7 +1959,7 @@ type RootTranslation = {
 			 */
 			open: string;
 			/**
-			 * m​a​n​a​g​e​ ​w​o​r​k​s​p​a​c​e​s​…
+			 * w​o​r​k​s​p​a​c​e​ ​s​e​t​t​i​n​g​s
 			 */
 			manage: string;
 			/**
@@ -6966,7 +6966,7 @@ export type TranslationFunctions = {
 			 */
 			open: () => LocalizedString;
 			/**
-			 * manage workspaces…
+			 * workspace settings
 			 */
 			manage: () => LocalizedString;
 			/**

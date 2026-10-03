@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { expect, test } from 'vitest';
 
+import ar from '$lib/i18n/ar';
 import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
@@ -16,11 +17,13 @@ import RailProviders from '$lib/shell/tests/rail-providers.svelte';
  *
  * What the control at the top of the rail puts in the document: a trigger naming the workspace
  * that is open and nothing else, and once it is open, one row per workspace the member holds with
- * the open one checked, a separator, and "manage workspaces…" to the workspaces section of the
+ * the open one checked, a separator, and "workspace settings" to the workspaces section of the
  * settings area. That is the whole of it, which is criteria 10 and 11 of effort 843. It is driven
  * from the keyboard as a menu is, which is that effort's criterion 13. A choice of another row is
  * handed back as that workspace's id, and a switch redraws the menu rather than replacing it,
  * which is effort 824's criterion 11 read at the menu, since the sidebar has no test of its own.
+ * Past five workspaces the rows scroll within themselves and the command below them does not,
+ * which is ticket 55 of effort 846.
  *
  * **Nothing here invites anybody and nothing here makes a workspace**, so no test hands the menu
  * a permission and none looks for a refusal sentence. Both acts left the menu on 2026-09-15 and
@@ -227,10 +230,10 @@ test('a new open id redraws the menu rather than replacing it', async () => {
 	expect(screen.getByRole('button', { expanded: true }).textContent).toContain('South Properties');
 });
 
-// requirement 9 of effort 828, with effort 843's words: one row, and it is the only thing the
-// menu offers besides the switch. It leads where the "workspaces" row did, and says "manage
-// workspaces…" with the ellipsis, because it opens more.
-test('manage workspaces leads to the settings area at the workspaces section', async () => {
+// requirement 9 of effort 828: one row, and it is the only thing the menu offers besides the
+// switch. It leads where the "workspaces" row did. Ticket 55 of effort 846 gave it the words
+// "workspace settings", with no ellipsis, because it goes to a place and asks nothing more.
+test('workspace settings leads to the settings area at the workspaces section', async () => {
 	menu();
 	await open();
 
@@ -239,7 +242,9 @@ test('manage workspaces leads to the settings area at the workspaces section', a
 	expect(rows).toHaveLength(1);
 	expect(rows[0]?.getAttribute('href')).toBe('/settings?section=workspaces');
 	expect(rows[0]?.textContent).toContain(en.layout.workspaceMenu.manage);
-	expect(en.layout.workspaceMenu.manage).toBe('manage workspaces…');
+	expect(en.layout.workspaceMenu.manage).toBe('workspace settings');
+	expect(ar.layout.workspaceMenu.manage).toBe('إعدادات مساحات العمل');
+	expect(`${en.layout.workspaceMenu.manage}${ar.layout.workspaceMenu.manage}`).not.toContain('…');
 	// nothing in the menu reaches the page the row used to open.
 	expect(document.querySelector('a[href="/workspace"]')).toBeNull();
 });
@@ -254,4 +259,99 @@ test('nothing in the menu invites anybody or makes a workspace', async () => {
 	expect(document.querySelector('[data-workspace-menu-invite]')).toBeNull();
 	expect(document.querySelector('[data-workspace-menu-create]')).toBeNull();
 	expect(document.querySelector('[data-workspace-menu-invite-refusal]')).toBeNull();
+});
+
+/**
+ * `count` held workspaces, named one to `count`, so a row's name says where it stands in the list.
+ */
+const held = (count: number) =>
+	Array.from({ length: count }, (_, index) =>
+		fakeOrganizationWorkspace({ id: `ws-${index + 1}`, name: `Workspace ${index + 1}` })
+	);
+
+const list = () => document.querySelector<HTMLElement>('[role="menu"] [data-workspace-menu-list]')!;
+
+/**
+ * jsdom lays nothing out and has no `scrollIntoView`, so each call is recorded with the row it
+ * was asked of: what the menu asks for is the claim, and the browser's own scrolling does the rest.
+ */
+function recordScrolls() {
+	const asked: Element[] = [];
+
+	Element.prototype.scrollIntoView = function (this: Element) {
+		asked.push(this);
+	};
+
+	return asked;
+}
+
+const nameOf = (row: Element | undefined) => row?.querySelector('span.truncate')?.textContent;
+
+// ticket 55 of effort 846: past five workspaces the rows scroll inside a list capped at five and
+// a half rows, and the separator and "workspace settings" stay outside the scroll, below it.
+test('past five workspaces the rows scroll in a capped list, and workspace settings stays outside it', async () => {
+	recordScrolls();
+	menu({ workspaces: held(9), openId: 'ws-1' });
+
+	const rows = await open();
+
+	expect(rows).toHaveLength(9);
+	expect(rows.every((row) => list().contains(row))).toBe(true);
+	expect(list().className).toContain('max-h-44');
+	expect(list().className).toContain('overflow-y-auto');
+	// the command and its separator are siblings after the list, never inside its scroll.
+	const manage = manageRows()[0]!;
+	expect(list().contains(manage)).toBe(false);
+	expect(list().querySelector('[data-slot="dropdown-menu-separator"]')).toBeNull();
+	expect(list().compareDocumentPosition(manage) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+// ticket 55 of effort 846: five or fewer draw no cap, so a short list keeps its own height.
+test('five workspaces or fewer draw no cap and no scroll', async () => {
+	recordScrolls();
+	menu({ workspaces: held(5), openId: 'ws-1' });
+
+	const rows = await open();
+
+	expect(rows).toHaveLength(5);
+	expect(list().className).not.toContain('max-h-44');
+	expect(list().className).not.toContain('overflow-y-auto');
+});
+
+// ticket 55 of effort 846: opening with the open workspace past the fold brings it into view.
+test('opening with the open workspace past the cap asks for it to be scrolled into view', async () => {
+	const asked = recordScrolls();
+	menu({
+		workspace: fakeWorkspace({ remoteId: 'ws-8', name: 'Workspace 8' }),
+		workspaces: held(9),
+		openId: 'ws-8'
+	});
+
+	await open();
+
+	await waitFor(() => expect(asked.map(nameOf)).toContain('Workspace 8'));
+	expect(asked[0]?.getAttribute('aria-checked')).toBe('true');
+});
+
+// ticket 55 of effort 846: the menu primitive focuses a row without scrolling to it, so every row
+// the arrow keys reach is brought into view by the menu itself.
+test('the arrow keys keep the row they reach in view', async () => {
+	const asked = recordScrolls();
+	menu({ workspaces: held(9), openId: 'ws-1' });
+
+	trigger().focus();
+	await fireEvent.keyDown(trigger(), { key: 'Enter' });
+	await waitFor(() => expect(document.activeElement?.closest('[role="menu"]')).not.toBeNull());
+
+	const highlighted = () => document.querySelector<HTMLElement>('[role="menu"] [data-highlighted]');
+
+	for (let step = 0; step < 7; step += 1) {
+		const before = highlighted();
+		await fireEvent.keyDown(document.activeElement as HTMLElement, { key: 'ArrowDown' });
+		await waitFor(() => expect(highlighted()).not.toBe(before));
+	}
+
+	const reached = highlighted()!;
+	expect(nameOf(reached)).toMatch(/^Workspace [6-9]$/);
+	expect(asked.at(-1)).toBe(reached);
 });

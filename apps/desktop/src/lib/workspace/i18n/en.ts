@@ -39,7 +39,7 @@ export const layout = {
 		create: 'new workspace',
 		members: '{count|number} {{member|members}}',
 		open: 'open',
-		manage: 'manage workspaces…',
+		manage: 'workspace settings',
 		workspaceRefusedAuthority:
 			'creating a workspace needs the Turso account. reconnect it in settings, under organization.'
 	},

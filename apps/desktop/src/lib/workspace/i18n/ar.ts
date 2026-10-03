@@ -38,7 +38,7 @@ export const layout = {
 		create: 'مساحة عمل جديدة',
 		members: '{count|number} عضو',
 		open: 'مفتوحة',
-		manage: 'إدارة مساحات العمل…',
+		manage: 'إعدادات مساحات العمل',
 		workspaceRefusedAuthority:
 			'إنشاء مساحة عمل يحتاج إلى حساب Turso. أعد ربطه من الإعدادات، في قسم المؤسسة.'
 	},

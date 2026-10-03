@@ -1432,6 +1432,26 @@ tab.*
 
 Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 14.
 
+### The workspace control
+
+**The workspace control at the top of the rail opens a menu of the workspaces the member holds,
+the open one checked, then a separator and *workspace settings*** (`workspace/component/menu.svelte`),
+which goes to the settings area's workspaces section. It is a place rather than a command asking
+for more, so it carries no ellipsis (Apple's HIG, *Menus*).
+
+**Past five workspaces the list scrolls, and the command under it does not.** The radio group is its
+own scroll container, capped at five and a half rows so the half-shown sixth says more is below;
+the separator and *workspace settings* stay in view beneath it, and five or fewer draw no cap. The
+open workspace is scrolled into view when the menu opens, and a row the arrow keys reach is
+scrolled into view, since the menu primitive focuses a row without scrolling to it. Both scroll
+instantly, and the scrollbar is the application's one from `tokens.css`.
+
+*Added by ticket 55 of [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], at the
+human's walk of 2026-10-03: "in the workspace dropdwn scroollable area after 5 workspaces and only
+the upper section the choosing chosises part where the ma ager owksapces is not part of the
+scroable area; also the "mamnanger workspaces.." needs to be better worded". The row read
+"manage workspaces…" until then.*
+
 ## Guidance
 
 **The interface guides by what it does, not by what it says.** Three things carry it, and none of

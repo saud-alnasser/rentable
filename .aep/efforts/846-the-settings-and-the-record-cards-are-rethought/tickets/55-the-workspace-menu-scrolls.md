@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: []
 ---
 
@@ -17,10 +17,10 @@ The human's walk of 2026-10-03, verbatim: "als the drop down of worksspaces mayb
 
 Traces requirement 1 as revised 2026-10-03.
 
-- [ ] A test: with more workspaces than the cap, the radio group sits in a scroll container whose max height is the cap, and the manage row is outside it; with few, no cap applies.
-- [ ] A test: opening with the open workspace past the cap scrolls it into view (or asserts `scrollIntoView` is asked for it); arrow keys keep the focused row in view.
-- [ ] A test: the manage row reads workspace settings in English and its Arabic, with no ellipsis.
-- [ ] Desktop check, node and vitest; eslint and prettier on changed files; [[rules/interface]] says it; `validate.mjs` passes.
+- [x] A test: with more workspaces than the cap, the radio group sits in a scroll container whose max height is the cap, and the manage row is outside it; with few, no cap applies. *Verified: menu.svelte.test.ts: past five workspaces the radio group is the capped scroll container (max-h-44, five and a half rows) with the separator and settings row after and outside it; five or fewer draw no cap*
+- [x] A test: opening with the open workspace past the cap scrolls it into view (or asserts `scrollIntoView` is asked for it); arrow keys keep the focused row in view. *Verified: menu.svelte.test.ts: opening with workspace 8 open asks scrollIntoView on its checked row; ArrowDown seven times keeps the highlighted row in view (bits-ui focuses with preventScroll, so the component scrolls on focusin)*
+- [x] A test: the manage row reads workspace settings in English and its Arabic, with no ellipsis. *Verified: menu.svelte.test.ts: the row reads workspace settings in English and its Arabic, no ellipsis*
+- [x] Desktop check, node and vitest; eslint and prettier on changed files; [[rules/interface]] says it; `validate.mjs` passes. *Verified: check 0 errors; node pass and vitest 883; eslint and prettier clean; interface rule has The workspace control; validate passes*
 
 ## Relevant areas
 
