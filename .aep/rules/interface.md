@@ -139,17 +139,29 @@ Recorded originally as ADR 0032, *A record surface is one shell with a per-conce
 At the top, what its card says: its name, the *open on this machine* badge on the one open here,
 and its fields with the card's glyphs (`block/specification.svelte`'s `icon`): how many hold it,
 what the reader may do there, the day it was made. Its acts are the card's, refused as there, but
-*members*, which is the page. Below, its one collection, the members who could hold it, each a
-tile in the members directory's family (initials, name, role, *in this workspace* or *not in this
-workspace* in words) with the large switch at its trailing edge, applied at once (*Members and
-access*, under *Form surface*). Back returns to the workspaces section, which the page names as
+*members*, which is the page. Below, its one collection, who holds it: first a field drawn as a
+search field (a leading glass, *find a member to add*) that opens the members who are not in it,
+every one before anything is typed, narrowed by username as the reader types, and puts the one
+chosen in at once (`organization/workspace/component/add-holder.svelte`, `primitive/command` in
+`primitive/popover`); then the members in it as the members directory's own cards (the member
+card at its tile height, in the record tiles' grid), *custom here* at a card's foot where what
+the member may do there is tailored, and the empty block where nobody holds it. Each card's
+record menu holds the acts on the member there (`declareHolderActs` in
+`organization/workspace/acts.ts`): *open member*, their card in the members section; *tailor
+access here*, their sheet opened on this workspace's permissions; and *remove from workspace*,
+red and asked first (*Delete and confirm*). How each is refused is *Members and access*, under
+*Form surface*. Back returns to the workspaces section, which the page names as
 its fallback: the trail keys a screen by its path, so the settings area is one screen whichever
 section was left, and where the fallback names the screen being returned to it says where on it
 (`backTarget`). A workspace the reader holds no grant on is not found. *Added by ticket 49 of
 [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirement 1 as revised
 2026-10-03, at the human's word: "manage members in the workspaces the form looks bad the switch it
 needs to be a better looking maybe a page details like how records have pages record and dicreocty
-of members and at the top information".*
+of members and at the top information". The switches became a search field and member cards by
+ticket 50, at the human's word of 2026-10-03: "the details page of a workspace in the settings it
+should have a record search bar or feild that you search for a member then add them to the
+worksace and a grid of cards sohwen to existing members and have elipses as action for them
+regarding the workspace".*
 
 ### Landing screen
 
@@ -971,21 +983,27 @@ member ranked at or above the reader is refused at the card's edit act, which op
 acts are the grants that exist (`useChangeAccess`), sent only for the workspaces that changed, then
 one workspace override per workspace whose pins changed, carrying what is pinned there and which
 of it is on (`useSetWorkspaceOverride`). **A workspace's members live on its page**
-(*Record surface*), drawn the same way from the other end: a switch per member, in or out, the one
-switch both ends draw (`access/component/access-switch.svelte`) refused by the one rule
-(`accessRefusalOf` in `access/access.ts`), so the two cannot refuse differently. There it is the
-large switch, the one control of a member's tile, and **it applies at once**, one grant or
-withdrawal per switch through the same write (`useChangeAccess`), since every control in the
-settings area applies its choice at once and nothing on the page is a form, so off and on again is
-two writes there, the second refused as a fresh grant is; a switch the shell
-refuses is put back and the shared handler says why. A person tailored there is marked *custom
-here* beside their state, and the tailoring itself is the card's. The owner and the reader are not
-listed. Without `grantWorkspace` every switch on the page is refused, naming it, as the member's
-card refuses its section, and the workspace card's *members* act, which goes to the page, is
-refused the same way rather than hidden. *Who held a workspace was a dialog of switches under one
+(*Record surface*), given from the other end: a member is found by search and put in, and each
+member in it is a card whose menu takes them out. Putting somebody in is refused by the one rule
+the member's card reads (`accessRefusalOf` in `access/access.ts`), so the two ends cannot refuse
+differently, and **it applies at once**, one grant per choice through the same write
+(`useChangeAccess`), since every control in the settings area applies its choice at once and
+nothing on the page is a form; a grant the shell refuses says why under the field, and the shared
+handler says it too. Taking somebody out is the card's *remove from workspace*, red, asking first
+in `block/confirm-dialog.svelte` under its own verb and saying adding them again gives it back,
+then one withdrawal through the same write. A person tailored there is marked *custom here* on
+their card, and *tailor access here* opens their sheet with that workspace's permissions open, so
+the tailoring itself stays the card's. The owner and the reader are not cards, and are not offered.
+Without `grantWorkspace` the field is refused and says so, naming it, and so is every card's
+removal, as the member's card refuses its section; where the reader holds the workspace read only
+the field is refused for that, and the removal still runs, since a withdrawal stays theirs. The
+tailoring is refused without `overrideMember`, naming it, and on a member ranked at or above the
+reader, as their card's edit is. The workspace card's *members* act, which goes to the page, is
+refused without `grantWorkspace` rather than hidden. *Who held a workspace was a dialog of switches under one
 save, drawn from the member card's list, until ticket 49 of
 [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]]: the human found the form
-looked bad and asked for a page.* *The human's calls on the running
+looked bad and asked for a page. The page drew a tile per member with the large switch until
+ticket 50, when the human asked for a search field and a grid of cards with a menu.* *The human's calls on the running
 application, 2026-09-27 ([[efforts/838-permissions-are-a-role-and-an-override/spec]], requirement
 12 as amended again and a third time; tickets 48, 49, 50 and 54): each workspace was a row of three
 levels beside the role, which read as a second permission system, and the workspace's dialog

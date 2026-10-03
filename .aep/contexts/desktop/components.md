@@ -71,7 +71,7 @@ block a concept draws instead.
 | `primitive/callout` | feedback and progress | a notice standing on the surface it is about, in the tone vocabulary (*Feedback*), with its act where it has one | a transient result (toast); a field's error (research 7) | `primitive/sonner` | `organization/component/standing.svelte` |
 | `primitive/checkbox` | choosing a value | picking records in a list's selection mode; a setting that waits for a save (*Field kinds*) | a setting that applies at once, or a permission (both switches) | `primitive/switch` | `list/component/rows.svelte` |
 | `primitive/collapsible` | disclosing detail | detail few readers need: the machine's words behind an error, a permission group, and through `block/settings-row.svelte`'s `details` a settings row's detail (a release's notes, not a path) | anything most readers need; a status, a problem, an act that ends something (research 9) | `primitive/tooltip` | `error/component/detail-disclosure.svelte` |
-| `primitive/command` | choosing a value | the command menu, and a combobox over another record's search inside a popover | a choice of a few fixed values | `primitive/select` | `contract/component/tenant-field.svelte` |
+| `primitive/command` | choosing a value | the command menu, and a combobox over another record's search inside a popover, as the field that finds a member to put in a workspace | a choice of a few fixed values | `primitive/select` | `contract/component/tenant-field.svelte` |
 | `primitive/context-menu` | taking an action | the record card's secondary-click route, through a block | anything not also on the visible control (research 2) | `primitive/dropdown-menu` | through `block/record-card.svelte` |
 | `primitive/dialog` | interrupting and confirming | a scoped task that must be answered: import review; beneath every confirming block and the form surface | information with nothing to answer; a repeated task (research 8) | `primitive/popover` | `transfer/component/import-dialog.svelte` |
 | `primitive/dropdown-menu` | taking an action | several commands behind one control: filter, sort, transfer, a card's acts, the dashboard's period; and, through `block/settings-row.svelte`'s `menu`, a settings row's menu, the secondary acts on one row of a growing list however few, as a machine's sign-out | one or two commands on a surface, which are buttons; a form's exclusive value (research 2, 3) | `primitive/toggle-group` | `list/component/list-toolbar.svelte` |
@@ -92,7 +92,7 @@ block a concept draws instead.
 | `primitive/skeleton` | feedback and progress | the shape of what is coming, handed to the loading block | a load drawn without the block's delay and hold | `block/loading.svelte` | `list/component/list.svelte` |
 | `primitive/sonner` | feedback and progress | the toaster, mounted once by `notification/` (*Feedback*) | a toast raised outside the shared handlers | `primitive/callout` | `notification/component/provider.svelte` |
 | `primitive/spinner` | feedback and progress | a control or a surface that is working: the standalone surface busy, the selection dialog reading its plan | standing in for content (*Loading*) | `block/loading.svelte` | through `block/standalone-surface.svelte` |
-| `primitive/switch` | choosing a value | on or off: a permission, a workspace a member is in (*Field kinds*); `sm` is the mini switch; `lg` the switch a tile stands on as its one control, a member in or out on a workspace's page | an act; a choice of more than two (research 3) | `primitive/checkbox` | `organization/role/component/permission-switches.svelte` |
+| `primitive/switch` | choosing a value | on or off: a permission, a workspace a member is in (*Field kinds*); `sm` is the mini switch; `lg` the larger switch a menu row or a way-in choice stands on | an act; a choice of more than two (research 3); who holds a workspace, on its page (a search field and cards) | `primitive/checkbox` | `organization/role/component/permission-switches.svelte` |
 | `primitive/textarea` | entering text | a longer note: a payment's note | a short value | `primitive/input` | `payment/component/form.svelte` |
 | `primitive/toggle` | choosing a value | one segment of a toggle group, through it | a lone pressable state on its own (unused alone here) | `primitive/toggle-group` | through `primitive/toggle-group` |
 | `primitive/toggle-group` | choosing a value | two to four exclusive values, all shown: the cycle, language, appearance, a payment's method | five or more; several commands (research 3) | `primitive/select` | `settings/component/appearance.svelte` |
@@ -159,7 +159,7 @@ Each row names what this repository already draws for the need, and one file whe
 | a value among five or more, or among records the organization adds | `primitive/select` | `organization/member/component/role.svelte` |
 | another record, chosen by searching | `primitive/command` in `primitive/popover` | `contract/component/tenant-field.svelte` |
 | an on/off setting | `primitive/switch` | `organization/role/component/permission-switches.svelte` |
-| who holds a workspace | its page (`block/record-surface.svelte`), a tile per member with the `lg` `primitive/switch`, applied at once | `organization/workspace/component/holders.svelte` |
+| who holds a workspace | its page (`block/record-surface.svelte`): a field drawn as a search field opening `primitive/command` in `primitive/popover`, putting a member in at once, then the member cards (`block/record-card.svelte`) of who is in, each with its record menu (open member, tailor access here, remove from workspace) | `organization/workspace/component/add-holder.svelte`, `organization/workspace/component/holders.svelte` |
 | several records picked for one act | `primitive/checkbox` in selection mode | `list/component/rows.svelte` |
 | a date | `primitive/calendar` in `primitive/popover` | `contract/component/start-date-field.svelte` |
 | an amount | `primitive/input-group` with the riyal sign | `contract/component/form.svelte` |
@@ -213,7 +213,8 @@ against.
 - **A form for what a page does.** Who held a workspace was a dialog of switches under one save,
   opened from the workspace card; the human found "the form looks bad the switch it needs to be a
   better looking maybe a page details like how records have pages" (effort 846, ticket 49). A
-  workspace's members live on its page, each a tile with the large switch, applied at once.
+  workspace's members live on its page: a member is found by search and put in at once, and each
+  member in it is a card whose menu takes them out (ticket 50).
 - **A dialog for what a popover does.** A small setting applied in place opens a popover beside it
   (the ending-soon window); a dialog is for what must be answered before going on (research 8).
   The window was a field with a *save* step two screens away until effort 846.

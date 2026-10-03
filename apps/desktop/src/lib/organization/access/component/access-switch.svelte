@@ -6,11 +6,12 @@
 	/**
 	 * One grant's switch, in or out, refused with its reason at the control.
 	 *
-	 * **Both ends of a grant draw it**: the member's card, one per workspace
-	 * (`access/component/switches.svelte`), and a workspace's page, one per member
-	 * (`workspace/component/holders.svelte`). Why it will not turn is the caller's, read from
-	 * `accessRefusalOf` in `../access.ts`, so the two cannot refuse differently; how a refused
-	 * switch behaves is this file's, so they cannot answer a press differently either.
+	 * **The member's card draws it**, one per workspace (`access/component/switches.svelte`). Why
+	 * it will not turn is the caller's, read from `accessRefusalOf` in `../access.ts`, which the
+	 * workspace's page reads too for its field that puts somebody in, so the two ends of a grant
+	 * cannot refuse differently; how a refused switch behaves is this file's. *A workspace's page
+	 * drew it per member, at its large size, until ticket 50 of effort 846 gave the page a search
+	 * field and member cards.*
 	 *
 	 * **A switch the reader may not turn is dimmed and says why**, as the permission switches do
 	 * (`unavailableControl`): `aria-disabled` rather than disabled, so it stays in the tab order,
@@ -26,8 +27,7 @@
 		disabled,
 		busy = false,
 		onTurn,
-		hook,
-		size = 'default'
+		hook
 	}: {
 		/** the control's id, which a label beside it names it by. */
 		id: string;
@@ -47,8 +47,6 @@
 		onTurn: (on: boolean) => void;
 		/** the row id the switch is found by, `data-access-switch`. */
 		hook: string;
-		/** `lg` where the switch is the one control of a tile, as on a workspace's page. */
-		size?: 'default' | 'lg';
 	} = $props();
 
 	const turn = (on: boolean) => {
@@ -78,7 +76,6 @@
 				{...props}
 				{id}
 				{checked}
-				{size}
 				onCheckedChange={turn}
 				onclick={refuse}
 				onkeydown={refuseKey}

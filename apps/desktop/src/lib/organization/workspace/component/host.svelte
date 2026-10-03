@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import api from '$lib/api/caller';
+	import ConfirmDialog from '@rentable/design/block/confirm-dialog.svelte';
 	import DeleteDialog from '@rentable/design/block/delete-dialog.svelte';
 	import { isolateDirection } from '$lib/error/message';
 	import { LL } from '$lib/i18n/i18n-svelte';
@@ -11,6 +12,7 @@
 	import { toTransferInput, toWorkbook, transferHost } from '$lib/transfer';
 	import { WorkspaceImportDialog } from '$lib/transfer/ui';
 	import { useImportRecords } from '$lib/workspace/ui';
+	import type { useChangeAccess } from '$lib/organization/access/query';
 	import type { WorkspaceActRecord } from '$lib/organization/workspace/acts';
 	import { back } from '@rentable/design/back.svelte.js';
 	import { tick, untrack } from 'svelte';
@@ -21,7 +23,9 @@
 
 	/**
 	 * Every surface a workspace act opens: its name, its file, and deleting it. Who holds it is the
-	 * workspace's own page (`./page.svelte`, effort 846 ticket 49), which the act navigates to.
+	 * workspace's own page (`./page.svelte`, effort 846 ticket 49), which the act navigates to; the
+	 * question before a member is taken out of it, asked from a card on that page, is here (ticket
+	 * 50), so the page mounts no dialog.
 	 * Mounted by the organization host (`../../component/host.svelte`), which resets what is here
 	 * as it goes.
 	 *
@@ -33,8 +37,11 @@
 	 * *Both sat in a block beneath the directory until then, and moved only the open workspace.*
 	 */
 	let {
+		changeAccess,
 		refetchState
 	}: {
+		/** the access write, read once by the organization host: a removal is a withdrawal. */
+		changeAccess: ReturnType<typeof useChangeAccess>;
 		/** read where the machine stands again, after a write that moves it. */
 		refetchState: () => Promise<unknown>;
 	} = $props();
@@ -69,6 +76,29 @@
 		}
 
 		back.forget(workspacePage);
+	};
+
+	// ----- who holds it
+
+	/**
+	 * a member taken out of the workspace, once the confirm has asked: one withdrawal through the
+	 * access write the page and the member's sheet make. What it was refused with is the shared
+	 * handler's to say, and the dialog stays open over it.
+	 */
+	const confirmRemove = async () => {
+		const asked = workspace.removing;
+
+		if (!asked) return;
+
+		await changeAccess.mutateAsync({
+			changes: [
+				{
+					workspaceId: asked.workspace.id,
+					memberId: asked.holder.member.id,
+					access: 'none'
+				}
+			]
+		});
 	};
 
 	// ----- the file
@@ -182,6 +212,21 @@
 	title={$LL.organization.dashboard.deleteWorkspace()}
 	description={$LL.organization.dashboard.deleteWorkspaceDescription()}
 	confirmLabel={$LL.organization.dashboard.deleteWorkspace()}
+	confirmLoadingLabel={$LL.common.actions.working()}
+/>
+
+<!-- taking a member out of a workspace ends their access there once what they hold runs out, so it
+     asks first under its own verb, naming the member, what ends and what gives it back. -->
+<ConfirmDialog
+	open={workspace.removing !== null}
+	onOpenChange={(value) => {
+		if (!value) organizationHostState.workspace.removing = null;
+	}}
+	onSubmit={confirmRemove}
+	record={workspace.removing?.holder.member.username}
+	title={$LL.organization.workspacePage.removeFromWorkspace()}
+	description={$LL.organization.workspacePage.removeAsks()}
+	confirmLabel={$LL.organization.workspacePage.removeFromWorkspace()}
 	confirmLoadingLabel={$LL.common.actions.working()}
 />
 

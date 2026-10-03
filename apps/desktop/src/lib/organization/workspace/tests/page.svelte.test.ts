@@ -19,6 +19,8 @@ import en from '$lib/i18n/en';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { layOutLists } from '#tests/permission.ts';
+import { toErrorText } from '$lib/error/message';
+import { MEMBER_TILE_HEIGHT } from '$lib/organization/member/component/card.svelte';
 
 /**
  * A WORKSPACE'S PAGE
@@ -27,16 +29,18 @@ import { layOutLists } from '#tests/permission.ts';
  * as revised 2026-10-03, at the human's word: "manage members in the workspaces the form looks bad
  * the switch it needs to be a better looking maybe a page details like how records have pages
  * record and dicreocty of members and at the top information". A workspace's card opens its page
- * the way a complex's card opens its own: what the workspace is at the top, with the card's acts,
- * and a directory of the members who could hold it below, each in or out by a switch named for
- * them, applied at once (requirement 4).
+ * the way a complex's card opens its own: what the workspace is at the top, with the card's acts.
  *
- * **It is the member's card read from the other end**, and the refusals are that card's
- * (`accessRefusalOf`): putting somebody in a workspace the reader holds read only is refused, and
- * every switch is refused, naming `grantWorkspace`, for a reader without it. A person tailored here
- * is marked *custom here*; the tailoring itself is on their card. The owner and the reader are not
- * listed. *These were the tests of the dialog the page replaced
- * (`access/tests/dialog.svelte.test.ts`), moved here with it.*
+ * **Who holds it** is ticket 50's, at the human's word of 2026-10-03: "the details page of a
+ * workspace in the settings it should have a record search bar or feild that you search for a
+ * member then add them to the worksace and a grid of cards sohwen to existing members and have
+ * elipses as action for them regarding the workspace". A field finds a member by username and
+ * puts them in at once; the holders are member cards, each with its menu: open member, tailor
+ * access here, and remove from workspace, which asks first.
+ *
+ * **The refusals are the member's card's** (`accessRefusalOf`): putting somebody in a workspace
+ * the reader holds read only is refused, and so is every grant and withdrawal, naming
+ * `grantWorkspace`, for a reader without it. The owner and the reader are not cards here.
  *
  * The host's hooks are stood in for (`../../tests/host-hooks.ts`), so what the page writes is read
  * back as the hook it asked and what it handed over; the address and the navigation are mocked the
@@ -177,18 +181,55 @@ const open = (workspaceId = 'ws-1', direction: 'ltr' | 'rtl' = 'ltr') => {
 const heading = () => document.querySelector('h1')?.textContent?.trim();
 const fact = (name: string) => document.querySelector<HTMLElement>(`[data-entry="${name}"]`);
 const holderIds = () =>
-	Array.from(document.querySelectorAll('[data-access-row]')).map((row) =>
-		row.getAttribute('data-access-row')
+	Array.from(document.querySelectorAll('[data-holder]')).map((card) =>
+		card.getAttribute('data-holder')
 	);
-const inSwitch = (id: string) =>
-	document.querySelector<HTMLElement>(`[data-access-switch="${id}"]`);
-const mark = (id: string) => document.querySelector<HTMLElement>(`[data-access-mark="${id}"]`);
-const checked = (element: HTMLElement | null) => element?.getAttribute('aria-checked') === 'true';
+const holder = (id: string) => document.querySelector<HTMLElement>(`[data-holder="${id}"]`);
 const dimmed = (element: HTMLElement | null) => element?.getAttribute('aria-disabled') === 'true';
-const reasons = () =>
-	Array.from(document.querySelectorAll('[data-access-refusal]')).map((line) =>
-		line.textContent?.trim()
+
+/** the field that adds a member by search: its control, and what it lists once opened. */
+const addControl = () => document.querySelector<HTMLElement>('[data-holder-add]');
+const addRefusal = () =>
+	document.querySelector('[data-holder-add-refusal]')?.textContent?.trim() ?? null;
+const addSearch = () =>
+	document.querySelector<HTMLInputElement>('[data-holder-candidates] input') ?? null;
+const candidate = (id: string) =>
+	document.querySelector<HTMLElement>(`[data-holder-candidate="${id}"]`);
+const candidateIds = () =>
+	Array.from(document.querySelectorAll('[data-holder-candidate]')).map((item) =>
+		item.getAttribute('data-holder-candidate')
 	);
+
+/** a card's one control, and an entry on the menu it opened. */
+const menuControl = (id: string) => holder(id)?.querySelector<HTMLButtonElement>('button') ?? null;
+const entry = (act: string) =>
+	document.querySelector<HTMLElement>(`[data-slot=dropdown-menu-item][data-act="${act}"]`);
+
+/** open a card's control, read what its menu offers, and close it again. */
+const actsOn = async (id: string) => {
+	await fireEvent.click(menuControl(id)!);
+
+	const offered = Array.from(document.querySelectorAll('[data-slot=dropdown-menu-item]')).map(
+		(item) => item.getAttribute('data-act')
+	);
+
+	await fireEvent.click(menuControl(id)!);
+
+	return offered;
+};
+
+/** the reason a refused entry gives, read as a person reaches it: focused, in its tooltip. */
+const reasonOf = async (refused: HTMLElement) => {
+	await fireEvent.focus(refused);
+
+	return await waitFor(() => {
+		const drawn = document.querySelector('[data-unavailable-reason]');
+
+		expect(drawn).not.toBeNull();
+
+		return drawn?.textContent?.trim() ?? '';
+	});
+};
 const acts = () =>
 	Array.from(document.querySelectorAll('[data-page-act]')).map((act) =>
 		act.getAttribute('data-page-act')
@@ -315,31 +356,28 @@ test('an act on the page asks the host, which opens what it opens', async () => 
 	});
 });
 
-// criterion: every holdable member is listed, the owner and the reader not.
-test('every member who could hold it is listed with a switch named for them, the owner not', () => {
+// ----- who holds it: a grid of member cards (ticket 50)
+
+// criterion: the holders render as a grid of member cards, the owner and the reader not.
+test('the people who hold it are a grid of member cards at the tile height, the owner not', () => {
 	open('ws-1');
 
-	expect(holderIds()).toEqual(['ada', 'sami']);
-	expect(inSwitch('ada')?.getAttribute('role')).toBe('switch');
-	expect(inSwitch('ada')?.getAttribute('aria-label')).toBe('ada');
-	expect(checked(inSwitch('ada'))).toBe(true);
-	expect(checked(inSwitch('sami'))).toBe(false);
-	// the state is in words as well as in the switch's position.
-	expect(
-		document.querySelector('[data-access-row="ada"] [data-access-state]')?.textContent?.trim()
-	).toBe(en.organization.workspacePage.isIn);
-	expect(
-		document.querySelector('[data-access-row="sami"] [data-access-state]')?.textContent?.trim()
-	).toBe(en.organization.workspacePage.isOut);
-	// a member is drawn as one, with their initials and their role.
-	expect(document.querySelector('[data-access-row="ada"] [data-slot="avatar"]')).not.toBeNull();
-	expect(
-		document.querySelector('[data-access-row="ada"] [data-member-role]')?.textContent?.trim()
-	).toBe('manager');
-	expect(reasons()).toEqual([]);
+	expect(holderIds()).toEqual(['ada']);
+	expect(document.querySelector('[data-holders]')?.getAttribute('data-columns')).not.toBeNull();
+
+	const ada = holder('ada')!;
+
+	expect(ada.style.height).toBe(`${MEMBER_TILE_HEIGHT}px`);
+	expect(ada.querySelector('[data-member-username]')?.textContent?.trim()).toBe('ada');
+	expect(ada.querySelector('[data-member-role]')?.textContent?.trim()).toBe('manager');
+	expect(ada.querySelector('[data-slot="avatar"]')).not.toBeNull();
+	expect(ada.querySelectorAll('[data-field]').length).toBeGreaterThan(0);
+	// no switch is left on the page: who holds it is changed by the search and the menus.
+	expect(document.querySelector('[role="switch"]')).toBeNull();
+	expect(document.querySelector('[data-access-row]')).toBeNull();
 });
 
-test('the reader is not listed: their own row is not theirs to write', () => {
+test('the reader is not a card: their own row is not theirs to write', () => {
 	hostAnswers.session = fakeOrganizationSession({
 		memberId: 'ada',
 		role: 'manager',
@@ -348,56 +386,10 @@ test('the reader is not listed: their own row is not theirs to write', () => {
 	});
 	open('ws-1');
 
-	expect(holderIds()).toEqual(['sami']);
+	expect(holderIds()).toEqual([]);
 });
 
-// requirement 4: a switch applies at once, through the mutation the dialog wrote through.
-test('switching a member on puts them in at full access, at once', async () => {
-	open('ws-1');
-
-	await fireEvent.click(inSwitch('sami')!);
-
-	await waitFor(() => {
-		expect(hostAnswers.writes).toEqual([
-			{
-				hook: 'useChangeAccess',
-				input: { changes: [{ workspaceId: 'ws-1', memberId: 'sami', access: 'full-access' }] }
-			}
-		]);
-	});
-	expect(checked(inSwitch('sami'))).toBe(true);
-	expect(document.querySelector('form')).toBeNull();
-});
-
-test('switching a member off takes them out, at once', async () => {
-	open('ws-1');
-
-	await fireEvent.click(inSwitch('ada')!);
-
-	await waitFor(() => {
-		expect(hostAnswers.writes).toEqual([
-			{
-				hook: 'useChangeAccess',
-				input: { changes: [{ workspaceId: 'ws-1', memberId: 'ada', access: 'none' }] }
-			}
-		]);
-	});
-});
-
-// requirement 4: a choice that fails is put back, and the shared handler says why.
-test('a switch the shell refuses is put back', async () => {
-	hostAnswers.refusals.useChangeAccess = new Error('refused');
-	open('ws-1');
-
-	await fireEvent.click(inSwitch('sami')!);
-
-	await waitFor(() => expect(hostAnswers.writes).toHaveLength(1));
-	await waitFor(() => expect(checked(inSwitch('sami'))).toBe(false));
-});
-
-// requirement 12 as amended a third time: a person whose permissions here differ from theirs
-// across the organization is marked, read with their switch.
-test('a person tailored here is marked custom here, read with their switch', () => {
+test('a person tailored here is marked custom here on their card', () => {
 	hostAnswers.members = [
 		members[0],
 		{
@@ -413,20 +405,97 @@ test('a person tailored here is marked custom here, read with their switch', () 
 				}
 			]
 		},
-		members[2]
+		member({ id: 'kai', username: 'kai', workspaces: [{ id: 'ws-1', ...everywhere }] })
 	];
 	open('ws-1');
 
-	expect(mark('ada')?.textContent?.trim()).toBe(en.organization.workspaceSwitches.customHere);
-	expect(inSwitch('ada')?.getAttribute('aria-describedby')).toContain(
-		mark('ada')!.getAttribute('id')
+	expect(holder('ada')?.querySelector('[data-member-custom-here]')?.textContent?.trim()).toBe(
+		en.organization.workspaceSwitches.customHere
 	);
-	expect(mark('sami')).toBeNull();
+	expect(holder('kai')?.querySelector('[data-member-custom-here]')).toBeNull();
 });
 
-// a granter gives only what they reach: where the reader holds this workspace read only, nobody
-// can be put in. Taking somebody out is still theirs.
-test('a workspace the reader holds read only puts nobody in, and still withdraws', async () => {
+test('with nobody holding it the grid says so', () => {
+	hostAnswers.members = [members[0], members[2]];
+	open('ws-1');
+
+	expect(holderIds()).toEqual([]);
+	expect(document.querySelector('[data-holders-empty]')?.textContent).toContain(
+		en.organization.workspacePage.nobodyHolds
+	);
+});
+
+// ----- adding by search (ticket 50)
+
+// criterion: the field lists only who can hold it and is not in it, filters by username, and
+// choosing one grants through the access mutation.
+test('the add field offers only members not in it, filtered by username', async () => {
+	hostAnswers.members = [
+		...members,
+		member({ id: 'samira', username: 'samira', workspaces: [] }),
+		member({ id: 'noura', username: 'noura', workspaces: [] })
+	];
+	open('ws-1');
+
+	expect(addControl()?.textContent).toContain(en.organization.workspacePage.addPlaceholder);
+
+	await fireEvent.click(addControl()!);
+
+	await waitFor(() => expect(candidateIds()).toEqual(['sami', 'samira', 'noura']));
+
+	await fireEvent.input(addSearch()!, { target: { value: 'sam' } });
+
+	await waitFor(() => expect(candidateIds()).toEqual(['sami', 'samira']));
+});
+
+test('choosing a member puts them in at full access, at once', async () => {
+	open('ws-1');
+
+	await fireEvent.click(addControl()!);
+	await waitFor(() => expect(candidate('sami')).not.toBeNull());
+	await fireEvent.click(candidate('sami')!);
+
+	await waitFor(() => {
+		expect(hostAnswers.writes).toEqual([
+			{
+				hook: 'useChangeAccess',
+				input: { changes: [{ workspaceId: 'ws-1', memberId: 'sami', access: 'full-access' }] }
+			}
+		]);
+	});
+	expect(document.querySelector('form')).toBeNull();
+});
+
+test('a grant the shell refuses says its reason at the field', async () => {
+	const refusal = new Error('refused');
+
+	hostAnswers.refusals.useChangeAccess = refusal;
+	open('ws-1');
+
+	await fireEvent.click(addControl()!);
+	await waitFor(() => expect(candidate('sami')).not.toBeNull());
+	await fireEvent.click(candidate('sami')!);
+
+	await waitFor(() => {
+		expect(document.querySelector('[data-holder-add-error]')?.textContent?.trim()).toBe(
+			toErrorText(refusal, i18nObject('en'))
+		);
+	});
+});
+
+test('with everybody in it the field says there is nobody left to add', async () => {
+	hostAnswers.members = [members[0], members[1]];
+	open('ws-1');
+
+	expect(dimmed(addControl())).toBe(true);
+	expect(addControl()?.textContent).toContain(en.organization.workspacePage.nobodyToAdd);
+
+	await fireEvent.click(addControl()!);
+	expect(document.querySelector('[data-holder-candidates]')).toBeNull();
+});
+
+// a granter gives only what they reach: where the reader holds it read only, nobody is put in.
+test('a workspace the reader holds read only offers no usable field, and says why', async () => {
 	hostAnswers.members = [
 		members[0],
 		member({ id: 'ada', username: 'ada', workspaces: [{ id: 'ws-2', ...everywhere }] }),
@@ -434,30 +503,15 @@ test('a workspace the reader holds read only puts nobody in, and still withdraws
 	];
 	open('ws-2');
 
-	const reason = en.organization.workspaceSwitches.notHeld;
+	expect(dimmed(addControl())).toBe(true);
+	expect(addRefusal()).toBe(en.organization.workspaceSwitches.notHeld);
 
-	expect(dimmed(inSwitch('sami'))).toBe(true);
-	expect(reasons()).toContain(reason);
-	await fireEvent.click(inSwitch('sami')!);
-	expect(checked(inSwitch('sami'))).toBe(false);
+	await fireEvent.click(addControl()!);
+	expect(document.querySelector('[data-holder-candidates]')).toBeNull();
 	expect(hostAnswers.writes).toEqual([]);
-
-	expect(dimmed(inSwitch('ada'))).toBe(false);
-	await fireEvent.click(inSwitch('ada')!);
-
-	await waitFor(() => {
-		expect(hostAnswers.writes).toEqual([
-			{
-				hook: 'useChangeAccess',
-				input: { changes: [{ workspaceId: 'ws-2', memberId: 'ada', access: 'none' }] }
-			}
-		]);
-	});
 });
 
-// the workspace card's members act is refused without `grantWorkspace`; on the page every switch
-// is, naming it, as the member's card refuses its workspaces.
-test('a reader without grantWorkspace reads every switch refused, naming it', async () => {
+test('a reader without grantWorkspace meets no usable field, naming it', async () => {
 	hostAnswers.session = fakeOrganizationSession({
 		memberId: 'sami',
 		role: 'member',
@@ -467,34 +521,162 @@ test('a reader without grantWorkspace reads every switch refused, naming it', as
 	hostAnswers.members = [members[0], members[1], member({ id: 'sami', username: 'sami' })];
 	open('ws-1');
 
-	expect(holderIds()).toEqual(['ada']);
-	expect(dimmed(inSwitch('ada'))).toBe(true);
-	expect(reasons()).toEqual([lacking(i18nObject('en'), 'grantWorkspace')]);
+	expect(dimmed(addControl())).toBe(true);
+	expect(addRefusal()).toBe(lacking(i18nObject('en'), 'grantWorkspace'));
 
-	await fireEvent.click(inSwitch('ada')!);
+	await fireEvent.click(addControl()!);
+	expect(document.querySelector('[data-holder-candidates]')).toBeNull();
+});
+
+// ----- each card's menu (ticket 50)
+
+// criterion: each card's menu holds open member, tailor access here and remove from workspace,
+// the remove red.
+test('a card offers open member, tailor access here, and remove from workspace in red', async () => {
+	open('ws-1');
+
+	expect(await actsOn('ada')).toEqual(['holder.open', 'holder.tailor', 'holder.remove']);
+
+	await fireEvent.click(menuControl('ada')!);
+	expect(entry('holder.remove')?.getAttribute('data-variant')).toBe('destructive');
+	// a menu entry reads in title case in english, as every menu's does.
+	const words = (act: string) => entry(act)?.textContent?.trim().toLowerCase();
+
+	expect(words('holder.remove')).toBe(en.organization.workspacePage.removeFromWorkspace);
+	expect(words('holder.tailor')).toBe(en.organization.workspacePage.tailorHere);
+	expect(words('holder.open')).toBe(en.organization.workspacePage.openMember);
+});
+
+test('remove from workspace asks first, and withdraws only once answered', async () => {
+	open('ws-1');
+
+	await fireEvent.click(menuControl('ada')!);
+	await fireEvent.click(entry('holder.remove')!);
+
+	const asked = await waitFor(() => {
+		const dialog = document.querySelector<HTMLElement>('[data-slot="dialog-content"]');
+
+		expect(dialog).not.toBeNull();
+
+		return dialog!;
+	});
+
+	expect(asked.textContent).toContain('ada');
+	expect(hostAnswers.writes).toEqual([]);
+
+	const confirm = Array.from(asked.querySelectorAll('button')).find((button) =>
+		button.textContent?.includes(en.organization.workspacePage.removeFromWorkspace)
+	);
+
+	await fireEvent.click(confirm!);
+
+	await waitFor(() => {
+		expect(hostAnswers.writes).toEqual([
+			{
+				hook: 'useChangeAccess',
+				input: { changes: [{ workspaceId: 'ws-1', memberId: 'ada', access: 'none' }] }
+			}
+		]);
+	});
+});
+
+test('tailor access here opens the member sheet with this workspace permissions open', async () => {
+	open('ws-1');
+
+	await fireEvent.click(menuControl('ada')!);
+	await fireEvent.click(entry('holder.tailor')!);
+
+	await waitFor(() => {
+		expect(document.querySelector('[data-member-sheet]')).not.toBeNull();
+		expect(document.querySelector('[data-tailor-open="access-ws-1-tailor"]')).not.toBeNull();
+	});
+});
+
+test('open member goes to their card in the members section', async () => {
+	open('ws-1');
+
+	await fireEvent.click(menuControl('ada')!);
+	await fireEvent.click(entry('holder.open')!);
+
+	await waitFor(() => {
+		expect(navigations.at(-1)).toBe('/settings?section=organization&member=ada');
+	});
+});
+
+test('a reader without the flags reads remove and tailor refused, each with its reason', async () => {
+	hostAnswers.session = fakeOrganizationSession({
+		memberId: 'sami',
+		role: 'member',
+		permissions: 0,
+		workspaces
+	});
+	hostAnswers.members = [members[0], members[1], member({ id: 'sami', username: 'sami' })];
+	open('ws-1');
+
+	await fireEvent.click(menuControl('ada')!);
+
+	expect(dimmed(entry('holder.remove'))).toBe(true);
+	expect(await reasonOf(entry('holder.remove')!)).toBe(lacking(i18nObject('en'), 'grantWorkspace'));
+	expect(dimmed(entry('holder.tailor'))).toBe(true);
+	expect(dimmed(entry('holder.open'))).toBe(false);
+
+	await fireEvent.click(entry('holder.remove')!);
+	expect(document.querySelector('[data-slot="dialog-content"]')).toBeNull();
 	expect(hostAnswers.writes).toEqual([]);
 });
 
-test('with nobody to list it says there is no member to put in', () => {
-	hostAnswers.members = [members[0]];
+test('tailoring somebody ranked at or above the reader is refused, saying so', async () => {
+	hostAnswers.session = fakeOrganizationSession({
+		memberId: 'kai',
+		role: 'manager',
+		rank: BUILT_IN.manager.rank,
+		permissions: maskOf(...EVERY_FLAG),
+		workspaces
+	});
+	hostAnswers.members = [
+		members[0],
+		{ ...members[1], rank: BUILT_IN.manager.rank },
+		member({ id: 'kai', username: 'kai', role: 'manager' })
+	];
 	open('ws-1');
 
-	expect(document.querySelector('[data-access-empty]')?.textContent?.trim()).toBe(
-		en.organization.dashboard.noMemberToGrant
-	);
+	await fireEvent.click(menuControl('ada')!);
+
+	expect(dimmed(entry('holder.tailor'))).toBe(true);
+	expect(await reasonOf(entry('holder.tailor')!)).toBe(en.organization.dashboard.notBelowYou);
+	expect(dimmed(entry('holder.remove'))).toBe(false);
 });
 
 test('and in arabic the page reads in its own words, right to left', () => {
 	loadLocale('ar');
 	setLocale('ar');
+	hostAnswers.members = [
+		members[0],
+		member({ id: 'ada', username: 'ada', workspaces: [{ id: 'ws-2', ...everywhere }] }),
+		members[2]
+	];
 	open('ws-2', 'rtl');
 
-	expect(
-		document.querySelector('[data-access-row="sami"] [data-access-state]')?.textContent?.trim()
-	).toBe(ar.organization.workspacePage.isOut);
-	expect(ar.organization.workspacePage.isOut).not.toBe(en.organization.workspacePage.isOut);
-	expect(reasons()).toEqual([ar.organization.workspaceSwitches.notHeld]);
+	expect(addRefusal()).toBe(ar.organization.workspaceSwitches.notHeld);
+	expect(ar.organization.workspacePage.addPlaceholder).not.toBe(
+		en.organization.workspacePage.addPlaceholder
+	);
+	expect(holderIds()).toEqual(['ada']);
 	expect(fact('access')?.textContent).toContain(ar.organization.dashboard.workspaceYouOwn);
+
+	setLocale('en');
+});
+
+test('and in arabic an empty workspace and a full one say so in its words', () => {
+	loadLocale('ar');
+	setLocale('ar');
+	hostAnswers.members = [members[0]];
+	open('ws-1', 'rtl');
+
+	expect(document.querySelector('[data-holders-empty]')?.textContent).toContain(
+		ar.organization.workspacePage.nobodyHolds
+	);
+	expect(addControl()?.textContent).toContain(ar.organization.workspacePage.nobodyToAdd);
 
 	setLocale('en');
 });

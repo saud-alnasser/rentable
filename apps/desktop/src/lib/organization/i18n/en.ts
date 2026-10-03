@@ -184,7 +184,6 @@ export const organization = {
 		role: 'role',
 		noWorkspaceToGrant: 'no workspace to grant yet. they can be granted one later.',
 		// a workspace's page with nobody to list: the owner and the reader are not.
-		noMemberToGrant: 'no member to put in this workspace yet.',
 		addMember: 'add a member',
 		cannotSend:
 			'rentable sends nothing: copy the link below, hand it over, and give the code separately. it works once.',
@@ -278,7 +277,7 @@ export const organization = {
 		memberWorkspacesDescription: 'the workspaces they can open. switch one on to let them in.',
 		accessSaved: 'the workspaces were saved.',
 		workspaceAccessDescription:
-			'who can open {workspace:string}. switch someone on to let them in. access taken back lasts until it runs out.',
+			'who can open {workspace:string}. find a member to let them in. access taken back lasts until it runs out.',
 		deleteWorkspace: 'delete workspace',
 		deleteWorkspaceDescription:
 			'the workspace and every record in it are deleted from Turso and from every machine that syncs it. nothing puts it back.',
@@ -565,12 +564,20 @@ export const organization = {
 	},
 
 	/**
-	 * a workspace's own page (effort 846, ticket 49): what each member in its directory is,
-	 * said in words beside the switch, so in and out read without the switch's position alone.
+	 * a workspace's own page (effort 846, tickets 49 and 50): the field that finds a member and
+	 * puts them in, the cards of who is in, and the acts each card offers on this workspace.
 	 */
 	workspacePage: {
-		isIn: 'in this workspace',
-		isOut: 'not in this workspace'
+		addPlaceholder: 'find a member to add',
+		searchPlaceholder: 'search by username',
+		noMatch: 'nobody by that name to add.',
+		nobodyToAdd: 'everybody is in this workspace',
+		nobodyHolds: 'nobody is in this workspace yet.',
+		openMember: 'open member',
+		tailorHere: 'tailor access here',
+		removeFromWorkspace: 'remove from workspace',
+		removeAsks:
+			'they can no longer open this workspace once the access they hold runs out. adding them again gives it back.'
 	}
 } satisfies BaseTranslation;
 

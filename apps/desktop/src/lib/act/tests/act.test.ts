@@ -554,9 +554,11 @@ const ORGANIZATION_GLYPHS = [
 	'link',
 	'lock',
 	'refresh-cw',
+	'sliders-horizontal',
 	'square-pen',
 	'trash-2',
 	'user-minus',
+	'user-round',
 	'users'
 ];
 

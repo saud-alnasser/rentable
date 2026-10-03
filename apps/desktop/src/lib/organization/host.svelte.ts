@@ -11,12 +11,15 @@ import {
 	type RolePending
 } from '$lib/organization/role/acts';
 import {
+	declareHolderActs,
 	declareWorkspaceActs,
+	type HolderActRecord,
 	type WorkspaceActId,
 	type WorkspaceActRecord
 } from '$lib/organization/workspace/acts';
 import { goto } from '$app/navigation';
 import { mayRun, type RecordAct } from '$lib/act';
+import { memberCardOf } from '$lib/organization/member/address';
 import { workspacePageOf } from '$lib/organization/workspace/address';
 import { openOrganizationDialog } from '$lib/organization/dialogs.svelte';
 
@@ -46,6 +49,11 @@ type OrganizationHostState = {
 	member: {
 		/** the member the sheet is open on, with what the reader may write of them. */
 		editing: MemberActRecord | null;
+		/**
+		 * the workspace whose permissions the sheet opens on, where it was opened to tailor them
+		 * there from the workspace's page (effort 846, ticket 50), or `null`.
+		 */
+		tailoring: string | null;
 		/** the owner's card the handover is open on. */
 		offering: MemberActRecord | null;
 		/** the member being asked about, and at which speed. */
@@ -68,6 +76,8 @@ type OrganizationHostState = {
 		editing: WorkspaceActRecord | null;
 		/** the workspace being asked about. */
 		deleting: WorkspaceActRecord | null;
+		/** the member a workspace is being taken back from, being asked about. */
+		removing: HolderActRecord | null;
 		/** the workspace whose file was asked for, waiting for the host to write it. */
 		exporting: WorkspaceActRecord | null;
 		/** the workspace a file is being read into, while its import is open. */
@@ -90,6 +100,7 @@ type OrganizationHostState = {
 const idle = (): OrganizationHostState => ({
 	member: {
 		editing: null,
+		tailoring: null,
 		offering: null,
 		removing: null,
 		asking: null,
@@ -105,6 +116,7 @@ const idle = (): OrganizationHostState => ({
 	workspace: {
 		editing: null,
 		deleting: null,
+		removing: null,
 		exporting: null,
 		importing: null
 	},
@@ -138,6 +150,7 @@ const ask = (kind: MemberAsk) => (record: MemberActRecord) => {
 export const memberActs = declareMemberActs({
 	edit: (record) => {
 		organizationHostState.member.editing = record;
+		organizationHostState.member.tailoring = null;
 	},
 	offerOwnership: (record) => {
 		organizationHostState.member.offering = record;
@@ -168,6 +181,24 @@ export const workspaceActs = declareWorkspaceActs({
 	},
 	importFile: (record) => {
 		organizationHostState.workspace.importing = record;
+	}
+});
+
+/**
+ * Every act on a member from a workspace's page, bound to this host (effort 846, ticket 50). The
+ * tailoring is the member's sheet, opened on that workspace's permissions; the removal asks first,
+ * in the workspace's host.
+ */
+export const holderActs = declareHolderActs({
+	open: (record) => {
+		void goto(memberCardOf(record.holder.member.id));
+	},
+	tailor: (record) => {
+		organizationHostState.member.editing = record.holder;
+		organizationHostState.member.tailoring = record.workspace.id;
+	},
+	confirmRemove: (record) => {
+		organizationHostState.workspace.removing = record;
 	}
 });
 

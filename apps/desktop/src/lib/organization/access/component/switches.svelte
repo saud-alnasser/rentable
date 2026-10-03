@@ -15,13 +15,13 @@
 	 * A member's grants as switches, one row per workspace, in or out (effort 838, requirement 12
 	 * as amended a third time 2026-09-27, the human's call).
 	 *
-	 * **A grant has two ends, and both turn it on the same terms.** A member's card lists the
+	 * **A grant has two ends, and both give it on the same terms.** A member's card lists the
 	 * workspaces the member could be in, here (`member/component/workspaces.svelte`); a workspace's
-	 * page lists the people who could hold it (`workspace/component/holders.svelte`). Both draw the
-	 * one switch (`./access-switch.svelte`) and read why it will not turn from the one rule
-	 * (`accessRefusalOf` in `../access.ts`), so the two cannot refuse differently. *The workspace's
-	 * end was a dialog drawn from this list until ticket 49 of effort 846 gave the workspace a page
-	 * with a directory of its people.*
+	 * page finds the people who could hold it by search and lists who does as cards
+	 * (`workspace/component/page.svelte`). Both write through one access write and refuse a grant
+	 * as Rust does: without `grantWorkspace`, and afresh on a workspace the reader holds read only.
+	 * *The workspace's end was a dialog drawn from this list until ticket 49 of effort 846, and a
+	 * tile per member with this switch until ticket 50.*
 	 *
 	 * **A row is in or out.** On is a full-access grant and off is none. Beneath a row that is in,
 	 * the caller may draw what belongs to it (`beneath`): the member's card draws the member's

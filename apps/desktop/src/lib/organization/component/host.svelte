@@ -57,6 +57,6 @@
 
 <MemberHost {session} {roles} {changeAccess} {refetchState} />
 
-<WorkspaceHost {refetchState} />
+<WorkspaceHost {changeAccess} {refetchState} />
 
 <RoleHost {session} {roles} />

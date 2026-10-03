@@ -489,6 +489,7 @@
 	{roleRefusal}
 	{overrideRefusal}
 	{workspacesRefusal}
+	tailoring={member.tailoring}
 	onSave={(edit) => void saveMember(edit)}
 />
 

@@ -139,7 +139,6 @@ export const organization = {
 			'اسم المستخدم والدور ومساحات العمل التي يحملها. لا كلمة مرور له حتى يفتح رابطًا تصنعه له.',
 		role: 'الدور',
 		noWorkspaceToGrant: 'لا مساحة عمل لمنحها بعد. يمكن منحهم واحدة لاحقًا.',
-		noMemberToGrant: 'لا عضو لإضافته إلى مساحة العمل هذه بعد.',
 		addMember: 'أضف عضوًا',
 		cannotSend:
 			'rentable لا يرسل شيئًا: انسخ الرابط أدناه وسلّمه، وأعطِ الرمز على حدة. يعمل مرة واحدة.',
@@ -215,7 +214,7 @@ export const organization = {
 		memberWorkspacesDescription: 'مساحات العمل التي يستطيع فتحها. شغّل مفتاح أي منها ليدخلها.',
 		accessSaved: 'حُفظت مساحات العمل.',
 		workspaceAccessDescription:
-			'من يستطيع فتح {workspace}. شغّل مفتاح أي منهم ليدخلها. الوصول المسحوب يبقى حتى تنتهي صلاحيته.',
+			'من يستطيع فتح {workspace}. ابحث عن عضو ليدخلها. الوصول المسحوب يبقى حتى تنتهي صلاحيته.',
 		deleteWorkspace: 'احذف مساحة العمل',
 		deleteWorkspaceDescription:
 			'تُحذف مساحة العمل وكل سجل فيها من Turso ومن كل جهاز يزامنها. لا شيء يعيدها.',
@@ -428,8 +427,15 @@ export const organization = {
 		notHeld: 'تحمل مساحة العمل هذه للقراءة فقط، فلا تستطيع منحها.'
 	},
 	workspacePage: {
-		isIn: 'في مساحة العمل هذه',
-		isOut: 'ليس في مساحة العمل هذه'
+		addPlaceholder: 'ابحث عن عضو لإضافته',
+		searchPlaceholder: 'ابحث باسم المستخدم',
+		noMatch: 'لا أحد بهذا الاسم لإضافته.',
+		nobodyToAdd: 'كل الأعضاء في مساحة العمل هذه',
+		nobodyHolds: 'لا أحد في مساحة العمل هذه بعد.',
+		openMember: 'افتح العضو',
+		tailorHere: 'خصّص الوصول هنا',
+		removeFromWorkspace: 'أزل من مساحة العمل',
+		removeAsks: 'لن يستطيع فتح مساحة العمل هذه حين ينتهي الوصول الذي يحمله. إضافته مجددًا تعيده.'
 	}
 } satisfies Translation['organization'];
 

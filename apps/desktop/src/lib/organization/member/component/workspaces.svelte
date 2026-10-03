@@ -23,8 +23,8 @@
 	 * again, a third and a fourth time, the human's calls on the running application).
 	 *
 	 * **A workspace is its access switch, in or out**, as `access/component/switches.svelte` draws
-	 * every grant; a workspace's page draws its people with the same switch, refused by the same
-	 * rule (`accessRefusalOf`). Beneath one that
+	 * every grant; a workspace's page puts its people in by search, refused by the same rule
+	 * (`accessRefusalOf`). Beneath one that
 	 * is in, the member's card folds the permissions they hold there (`beneath`,
 	 * `access/component/tailoring.svelte`); the sheet that adds a member draws in and out alone. So
 	 * the card reads as the member's role and the places they can open, and not as a second set of

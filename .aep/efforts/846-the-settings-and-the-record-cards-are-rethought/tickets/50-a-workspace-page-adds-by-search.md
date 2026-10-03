@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: []
 ---
 
@@ -15,11 +15,11 @@ The human's walk of 2026-10-03, verbatim: "the details page of a workspace in th
 
 Traces requirement 1 as revised 2026-10-03, and requirements 2, 16, 18 and 19.
 
-- [ ] A page test: the search field lists only members who can hold the workspace and are not in it, filters by username, and choosing one grants through the access mutation; a refused grant says its reason; a reader who cannot grant meets no usable field and the reason; with none left to add it says so; in both locales.
-- [ ] A page test: the holders render as a grid of member cards (fixed height, `recordMinWidth`) with username, role badge and tinted fields, *custom here* on the tailored, and an empty state with no holders; no switch remains on the page.
-- [ ] A page test: each card's ellipsis menu holds remove from workspace (red, confirmed before it withdraws), tailor access here and open member, each refused with its reason where the reader may not; the dangerous-acts guard passes.
-- [ ] Desktop check, node and vitest; design tests; eslint and prettier on changed files.
-- [ ] [[rules/interface]] and [[contexts/desktop/components]] say the page adds by search and lists members as cards with a menu; `validate.mjs` passes.
+- [x] A page test: the search field lists only members who can hold the workspace and are not in it, filters by username, and choosing one grants through the access mutation; a refused grant says its reason; a reader who cannot grant meets no usable field and the reason; with none left to add it says so; in both locales. *Verified: `vitest run page.svelte.test.ts` printed 26 passed: the find-a-member field (a command list in a popover, drawn as a search field) lists only members who can hold the workspace and are not in it, filters by username, and choosing one grants at full access through `useChangeAccess`; a refused grant shows its reason; a reader without grantWorkspace or holding it read only meets a dimmed field with the reason; nobody left is said; en and ar.*
+- [x] A page test: the holders render as a grid of member cards (fixed height, `recordMinWidth`) with username, role badge and tinted fields, *custom here* on the tailored, and an empty state with no holders; no switch remains on the page. *Verified: the same file: holders render as member cards at `MEMBER_TILE_HEIGHT` in the columns grid with username, role badge, fields and custom here; an empty state with no holders; no `role=switch` remains.*
+- [x] A page test: each card's ellipsis menu holds remove from workspace (red, confirmed before it withdraws), tailor access here and open member, each refused with its reason where the reader may not; the dangerous-acts guard passes. *Verified: the same file: each card's menu holds open member, tailor access here (refused without overrideMember or for a member at or above the reader) and remove from workspace (red, confirmed before it withdraws, refused without grantWorkspace); `dangerous-acts-ask` printed 24 passed with `declareHolderActs` registered.*
+- [x] Desktop check, node and vitest; design tests; eslint and prettier on changed files. *Verified: orchestrator's run of `vitest run src/lib/organization src/lib/act`: 25 files, 435 passed; child's desktop check 0 errors, node 1485 and vitest 853 passed; design check 0 errors, 168 and 164 passed; eslint and prettier clean.*
+- [x] [[rules/interface]] and [[contexts/desktop/components]] say the page adds by search and lists members as cards with a menu; `validate.mjs` passes. *Verified: rules/interface (Record surface; Members and access) and contexts/desktop/components (command, switch, the need table) updated; `validate.mjs` printed 590 artifacts checked, no failures.*
 
 ## Relevant areas
 

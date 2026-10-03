@@ -17,6 +17,7 @@ import { LL, setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import OrganizationHost from '$lib/organization/component/host.svelte';
 import {
+	holderActs,
 	memberActs,
 	resetOrganizationHost,
 	roleActs,
@@ -256,6 +257,28 @@ const cases: Record<string, HostCase> = {
 	declareWorkspaceActs: {
 		acts: workspaceActs as readonly RecordAct<never>[],
 		record: { workspace: fakeOrganizationWorkspace(), context: {} },
+		Host: OrganizationHost
+	},
+	declareHolderActs: {
+		acts: holderActs as readonly RecordAct<never>[],
+		record: {
+			holder: {
+				member: fakeOrganizationMember({ id: 'member-1', username: 'noura' }),
+				context: {
+					canGrantWorkspace: true,
+					pending: {
+						linking: false,
+						unsetting: false,
+						endingSessions: false,
+						offering: false,
+						withdrawing: false
+					}
+				},
+				standing: null
+			},
+			workspace: fakeOrganizationWorkspace(),
+			writing: false
+		},
 		Host: OrganizationHost
 	},
 	declareRoleActs: {

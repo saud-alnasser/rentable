@@ -50,6 +50,7 @@
 		readerPermissions,
 		refusal = null,
 		regrantRefusal = null,
+		opened = false,
 		disabled
 	}: {
 		/** what the fold and its switches are named by in the document. */
@@ -67,10 +68,24 @@
 		refusal?: string | null;
 		/** why re-granting this workspace at full access would be refused, or `null`. */
 		regrantRefusal?: string | null;
+		/**
+		 * whether the fold opens on arrival and is brought into view: the card was opened to tailor
+		 * this workspace, from its page's *tailor access here* (effort 846, ticket 50).
+		 */
+		opened?: boolean;
 		disabled: boolean;
 	} = $props();
 
 	let open = $state(false);
+	let fold = $state<HTMLElement | null>(null);
+
+	// asked for from the workspace's page: open, and in view, so the reader lands on it.
+	$effect(() => {
+		if (!opened) return;
+
+		open = true;
+		fold?.scrollIntoView?.({ block: 'nearest' });
+	});
 
 	const shown = $derived(tailoredShown(organizationWide, value));
 
@@ -99,7 +114,7 @@
 </script>
 
 <!-- indented to the workspace's name, so the glyph's column stays the row's. -->
-<Collapsible.Root bind:open class="flex flex-col ps-6" data-tailor={id}>
+<Collapsible.Root bind:open bind:ref={fold} class="flex flex-col ps-6" data-tailor={id}>
 	<Collapsible.Trigger
 		class="flex min-h-8 w-full items-center gap-2 rounded-xl text-start text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/30"
 		data-tailor-fold

@@ -28,6 +28,7 @@
 	import CrownIcon from '@lucide/svelte/icons/crown';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 	import LaptopIcon from '@lucide/svelte/icons/laptop';
+	import SlidersHorizontalIcon from '@lucide/svelte/icons/sliders-horizontal';
 	import UserCogIcon from '@lucide/svelte/icons/user-cog';
 
 	/**
@@ -60,7 +61,9 @@
 	 * **At the foot, what marks this member out**, and only where it does: permissions of their
 	 * own beyond their role, and the organization offered to them, each a small outline badge with
 	 * its glyph, quieter than the role's filled one. Pushed to the tile's foot, so the fields above
-	 * read as one group (_Avoid ambiguous spacing_, 96).
+	 * read as one group (_Avoid ambiguous spacing_, 96). On a workspace's page the foot also says
+	 * *custom here* where what they may do in that workspace is tailored (`tailoredHere`, effort
+	 * 846, ticket 50), with the glyph its *tailor access here* act carries.
 	 *
 	 * The joining is a moment rather than a domain day, so it is said in the reader's own time
 	 * zone, as the machines a reader holds are, and not through `Cell.Date`, which reads whole UTC
@@ -71,7 +74,8 @@
 		standing,
 		role,
 		href,
-		actions
+		actions,
+		tailoredHere = false
 	}: {
 		member: OrganizationMember;
 		/** where the account stands, or `null` until the standings have been answered. */
@@ -82,6 +86,8 @@
 		href: string;
 		/** what the member offers, on the tile's control and its context gesture. */
 		actions: RecordCardAction[];
+		/** whether what they may do in the workspace the tile stands for is tailored there. */
+		tailoredHere?: boolean;
 	} = $props();
 
 	const workspaceCount = $derived(member.workspaces.length);
@@ -156,11 +162,22 @@
 			{/if}
 		</div>
 
-		{#if ownPermissions || member.offeredOwnership}
+		{#if ownPermissions || member.offeredOwnership || tailoredHere}
 			<div
 				data-member-marks
 				class="pointer-events-none relative mt-auto flex h-5 min-w-0 items-center gap-1.5 overflow-hidden"
 			>
+				{#if tailoredHere}
+					<Badge
+						variant="outline"
+						class="h-5 leading-4 text-muted-foreground"
+						data-member-custom-here
+					>
+						<SlidersHorizontalIcon aria-hidden="true" />
+						{$LL.organization.workspaceSwitches.customHere()}
+					</Badge>
+				{/if}
+
 				{#if ownPermissions}
 					<Badge
 						variant="outline"

@@ -18,7 +18,8 @@
 	import { toMemberDirectory } from '$lib/organization/directory';
 	import { memberActs, memberHost, memberPending } from '$lib/organization/host.svelte';
 	import { memberRoleName } from '$lib/organization/role/role';
-	import { RECORD_PARAM, recordOf, withSection } from '$lib/settings';
+	import { recordOf, withSection } from '$lib/settings';
+	import { memberCardOf } from '$lib/organization/member/address';
 	import UsersIcon from '@lucide/svelte/icons/users';
 	import XIcon from '@lucide/svelte/icons/x';
 
@@ -156,12 +157,10 @@
 	} = $props();
 
 	// the address of the section this directory sits in, resolved once. A card's is it with the
-	// member named on it, which is the whole of what a card's `href` is ([[rules/frontend]]: the
-	// path is the caller's to resolve, and the packaged card takes one already resolved).
+	// member named on it (`memberCardOf`), which is the whole of what a card's `href` is
+	// ([[rules/frontend]]: the path is the caller's to resolve, and the packaged card takes one
+	// already resolved).
 	const sectionAddress = resolve(withSection('organization'));
-
-	const addressOf = (memberId: string) =>
-		`${sectionAddress}&${RECORD_PARAM}=${encodeURIComponent(memberId)}`;
 
 	const roleLabel = (member: OrganizationMember) => memberRoleName($LL, member);
 
@@ -314,7 +313,7 @@
 					{member}
 					standing={standingOf(member.id)}
 					role={roleLabel(member)}
-					href={addressOf(member.id)}
+					href={memberCardOf(member.id)}
 					actions={toCardActions(memberActs, recordOfMember(member), $LL)}
 				/>
 			</div>

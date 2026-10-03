@@ -88,9 +88,11 @@ for (const glyph of [
 	'printer',
 	'refresh-cw',
 	'rotate-ccw',
+	'sliders-horizontal',
 	'square-pen',
 	'trash-2',
 	'user-minus',
+	'user-round',
 	'users'
 ]) {
 	mock.module(`@lucide/svelte/icons/${glyph}`, { exports: { default: () => {} } });
@@ -109,7 +111,8 @@ const { declarePaymentActs } = await import('$lib/payment/acts');
 const { declareContractActs } = await import('$lib/contract/acts');
 const { declareMemberActs } = await import('$lib/organization/member/acts');
 const { declareRoleActs } = await import('$lib/organization/role/acts');
-const { declareWorkspaceActs } = await import('$lib/organization/workspace/acts');
+const { declareHolderActs, declareWorkspaceActs } =
+	await import('$lib/organization/workspace/acts');
 const { loadLocale } = await import('$lib/i18n/i18n-util.sync');
 const { LL, setLocale } = await import('$lib/i18n/i18n-svelte');
 const { get } = await import('svelte/store');
@@ -336,6 +339,7 @@ describe('what each concept declares about asking', () => {
 		contract: declareContractActs(host),
 		member: declareMemberActs(host),
 		workspace: declareWorkspaceActs(host),
+		holder: declareHolderActs(host),
 		role: declareRoleActs(host)
 	};
 

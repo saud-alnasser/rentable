@@ -127,6 +127,7 @@
 		roleRefusal,
 		overrideRefusal,
 		workspacesRefusal,
+		tailoring: tailoringOn = null,
 		onSave
 	}: {
 		open: boolean;
@@ -170,6 +171,8 @@
 		overrideRefusal: string | null;
 		/** what the grants were refused with, or `null`. */
 		workspacesRefusal: string | null;
+		/** the workspace whose permissions open on arrival, or `null` (effort 846, ticket 50). */
+		tailoring?: string | null;
 		onSave: (edit: MemberEdit) => void;
 	} = $props();
 
@@ -425,6 +428,7 @@
 						{readerPermissions}
 						refusal={canOverride ? null : lacking($LL, 'overrideMember')}
 						regrantRefusal={regrantRefusalOf(row)}
+						opened={tailoringOn === row.id}
 						disabled={isSaving}
 					/>
 				{/if}

@@ -5,10 +5,14 @@ import { EXPORT_FLAGS, IMPORT_FLAGS, refusalOfEvery, type Standing } from '$lib/
 import { permits } from '@rentable/workspace-permission';
 import FileDownIcon from '@lucide/svelte/icons/file-down';
 import FileUpIcon from '@lucide/svelte/icons/file-up';
+import SlidersHorizontalIcon from '@lucide/svelte/icons/sliders-horizontal';
 import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 import Trash2Icon from '@lucide/svelte/icons/trash-2';
+import UserMinusIcon from '@lucide/svelte/icons/user-minus';
+import UserRoundIcon from '@lucide/svelte/icons/user-round';
 import UsersIcon from '@lucide/svelte/icons/users';
 
+import type { MemberActRecord } from '../member/acts';
 import { lacking } from '../role/acts';
 
 /**
@@ -160,6 +164,86 @@ export function declareWorkspaceActs(host: WorkspaceHostRequests): WorkspaceAct[
 			confirmation: 'irreversible',
 			appliesTo: ({ context }) => context.canDelete,
 			run: host.confirmDelete
+		}
+	];
+}
+
+/**
+ * One member in a workspace, as a card on the workspace's page offers acts on them there (effort
+ * 846, ticket 50): the member with the reader's gates, as their own card reads them, and the
+ * workspace the card stands on.
+ */
+export type HolderActRecord = {
+	holder: MemberActRecord;
+	workspace: OrganizationWorkspace;
+	/** whether a write on this page is running, which every act waits for. */
+	writing: boolean;
+};
+
+/** Every act on a member in a workspace, by the id the card's menu keys it on. */
+export type HolderActId = 'holder.open' | 'holder.tailor' | 'holder.remove';
+
+/** What the acts on a member in a workspace ask of the organization host. */
+export type HolderHostRequests = {
+	/** go to the member's own card, in the members section. */
+	open: (record: HolderActRecord) => void;
+	/** open the member's sheet on what they may do in this workspace. */
+	tailor: (record: HolderActRecord) => void;
+	/** ask before taking the workspace back from the member. */
+	confirmRemove: (record: HolderActRecord) => void;
+};
+
+/** An act on a member in a workspace, with the id narrowed to the ones declared here. */
+export type HolderAct = RecordAct<HolderActRecord> & { id: HolderActId };
+
+/**
+ * The acts on one member from a workspace's page, bound to the host: who they are, what they may
+ * do here, then taking the workspace back from them.
+ *
+ * **Each is refused as the router and Rust would refuse it**, said at the entry: the tailoring is
+ * `overrideMember`'s, and a member ranked at or above the reader is tailored by somebody above
+ * them, as their own card's edit says; the removal is a withdrawal, `grantWorkspace`'s, which a
+ * reader holding the workspace read only may still make. Opening the member is reading their
+ * card, which nothing refuses.
+ */
+export function declareHolderActs(host: HolderHostRequests): HolderAct[] {
+	return [
+		{
+			id: 'holder.open',
+			label: (t) => t.organization.workspacePage.openMember(),
+			icon: UserRoundIcon,
+			group: 'primary',
+			run: host.open
+		},
+		{
+			id: 'holder.tailor',
+			label: (t) => t.organization.workspacePage.tailorHere(),
+			icon: SlidersHorizontalIcon,
+			group: 'primary',
+			unavailable: ({ holder }, t) =>
+				!holder.context.canOverride
+					? lacking(t, 'overrideMember')
+					: holder.member.rank >= holder.context.rank
+						? t.organization.dashboard.notBelowYou()
+						: undefined,
+			run: host.tailor
+		},
+		{
+			// it ends their access here, so it is drawn as ending something and asks first; adding
+			// them again gives it back.
+			id: 'holder.remove',
+			label: (t) => t.organization.workspacePage.removeFromWorkspace(),
+			icon: UserMinusIcon,
+			tone: 'error',
+			group: 'destructive',
+			confirmation: 'reversible',
+			unavailable: ({ holder, writing }, t) =>
+				!holder.context.canGrantWorkspace
+					? lacking(t, 'grantWorkspace')
+					: writing
+						? t.common.actions.working()
+						: undefined,
+			run: host.confirmRemove
 		}
 	];
 }
