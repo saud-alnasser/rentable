@@ -152,6 +152,8 @@ export function declareContractActs(host: ContractHostRequests): ContractAct[] {
 			tone: 'error',
 			group: 'lifecycle',
 			flag: 'editContract',
+			// restoring brings it back, and the confirm dialog asks first.
+			confirmation: 'reversible',
 			appliesTo: (contract) => canManuallyTerminateContractStatus(contract.status),
 			run: (contract) => host.confirm('terminate', contract)
 		},
@@ -175,8 +177,9 @@ export function declareContractActs(host: ContractHostRequests): ContractAct[] {
 			tone: 'error',
 			group: 'destructive',
 			flag: 'deleteContract',
-			// the record is all it removes, so it runs at once and offers undo.
-			confirmation: 'none',
+			// the record is all it removes, and undo brings it back: it asks first all the same, and
+			// says so.
+			confirmation: 'reversible',
 			run: (contract) => host.confirm('delete', contract)
 		}
 	];

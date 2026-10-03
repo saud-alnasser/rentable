@@ -18,7 +18,7 @@
 	import { formatRecordDate, formatRecordDateRange } from '$lib/date';
 	import type { Locales, TranslationFunctions } from '$lib/i18n/i18n-types';
 	import { i18nObject } from '$lib/i18n/i18n-util';
-	import type { PaymentMethod } from '$lib/platform/database/schema';
+	import { paymentMethodLabel } from '$lib/payment/method';
 	import { formatLocaleMoney, formatLocaleNumber } from '$lib/platform/locale';
 
 	/**
@@ -47,14 +47,6 @@
 	// every locale is in memory from startup on (`startup/startup.ts`), whichever one is showing.
 	const t = $derived<TranslationFunctions>(i18nObject(locale));
 	const dir = $derived(locale === 'ar' ? 'rtl' : 'ltr');
-
-	const methodLabel = (method: PaymentMethod) =>
-		({
-			cash: t.contracts.payments.methods.cash,
-			'bank-transfer': t.contracts.payments.methods.bankTransfer,
-			cheque: t.contracts.payments.methods.cheque,
-			ejar: t.contracts.payments.methods.ejar
-		})[method]();
 
 	const reference = $derived(value.payment.reference?.trim() ?? '');
 	const govId = $derived(value.contract?.govId.trim() ?? '');
@@ -108,7 +100,7 @@
 
 		{#if value.payment.method}
 			{@render fact(t.contracts.payments.method(), 'method')}
-			<dd class="font-medium">{methodLabel(value.payment.method)}</dd>
+			<dd class="font-medium">{paymentMethodLabel(value.payment.method, t)}</dd>
 		{/if}
 
 		{#if reference}

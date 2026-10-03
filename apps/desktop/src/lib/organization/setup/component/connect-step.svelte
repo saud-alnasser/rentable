@@ -1,4 +1,5 @@
 <script lang="ts">
+	import ConfirmDialog from '@rentable/design/block/confirm-dialog.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
 	import DetailDisclosure from '$lib/error/component/detail-disclosure.svelte';
@@ -44,6 +45,13 @@
 	 * already held the authority when the walk opened. A consent that was started here says what
 	 * it said; only a walk that has started none reads the machine's standing.
 	 */
+	/**
+	 * whether forgetting the account is being asked about. It forgets the authority this machine
+	 * holds, so it asks first, in the words the leaving card's forget asks in (effort 846,
+	 * requirement 2 as revised 2026-10-02).
+	 */
+	let forgetting = $state(false);
+
 	const granted = $derived(
 		consent.status === 'granted' || (consent.status === 'idle' && holdsTursoAuthority)
 	);
@@ -114,7 +122,15 @@
 		</Button>
 		<!-- the way to give the authority back, quiet under the way on: the callout above already
 		     says what is connected, and this is the exception to going on. -->
-		<Button variant="ghost" size="sm" class="self-center" onclick={onDisconnect}>
+		<Button
+			variant="ghost"
+			size="sm"
+			class="self-center"
+			data-setup-forget-open
+			onclick={() => {
+				forgetting = true;
+			}}
+		>
 			<span class="first-letter:uppercase">{$LL.organization.dashboard.forgetAccount()}</span>
 		</Button>
 	{:else}
@@ -129,3 +145,16 @@
 		</p>
 	{/if}
 </div>
+
+<ConfirmDialog
+	open={forgetting}
+	onOpenChange={(value) => {
+		forgetting = value;
+	}}
+	onSubmit={onDisconnect}
+	record={$LL.organization.dashboard.authorityTitle()}
+	title={$LL.organization.dashboard.forgetAccount()}
+	description={$LL.organization.dashboard.forgetAccountRevokes()}
+	confirmLabel={$LL.organization.dashboard.forgetAccount()}
+	confirmLoadingLabel={$LL.common.actions.working()}
+/>

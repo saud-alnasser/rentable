@@ -522,13 +522,13 @@ mod tests {
             invitation::{
                 AccountAndLink, Invitation, WorkspaceGrant, locator, make_account_and_link, members,
             },
-            lease::apply::Pipeline,
             member::vault::KdfParams,
             role::permission,
             session::{CredentialSlot, MemberSession, refresh_credentials, sign_in},
             setup::{CreateOrganization, Remote, create_organization},
             store::{OrganizationStore, TABLES},
             workspace::create_workspace,
+            workspace::remote::Pipeline,
         },
         persisted::Persisted,
         settings::Settings,
@@ -597,6 +597,7 @@ mod tests {
             role: Some(role.to_string()),
             joined_at: 0,
             format: None,
+            machine_signed_out: 0,
         }
     }
 
@@ -1499,6 +1500,7 @@ mod tests {
             settings,
             remote_sync: Arc::new(tokio::sync::RwLock::new(remote_sync)),
             upgrade: Arc::new(crate::upgrade::Upgrader),
+            credentials: Arc::new(crate::credential::Memory::new()),
             consent: Arc::new(TursoConsent::new()),
             organization: Arc::new(tokio::sync::RwLock::new(Some(store))),
             member: Arc::new(tokio::sync::RwLock::new(Some(session))),

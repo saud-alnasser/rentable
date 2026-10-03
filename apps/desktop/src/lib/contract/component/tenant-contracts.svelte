@@ -2,7 +2,8 @@
 	import type api from '$lib/api/caller';
 	import { List } from '$lib/list/ui';
 	import type { ListSort } from '@rentable/design/sort.js';
-	import ContractRecord from './record.svelte';
+	import ContractRecord, { CONTRACT_TILE_HEIGHT } from './record.svelte';
+	import { RECORD_TILE_MIN_WIDTH } from '$lib/list';
 	import ContractSelectionActions from './selection-actions.svelte';
 	import { CONTRACT_SORT_COLUMN_IDS, type ContractSortColumnId } from '$lib/contract/contract';
 	import { RANK_FILTER, toChosenRank } from '$lib/contract/rank/filter';
@@ -16,8 +17,6 @@
 	let { recordId: tenantId }: { recordId: string } = $props();
 
 	type ContractRow = Awaited<ReturnType<typeof api.contract.getMany>>[number];
-
-	const ROW_HEIGHT = 64;
 
 	let search = $state('');
 	let sort = $state<ListSort | null>(null);
@@ -68,7 +67,8 @@
 			{selectionActions}
 			isLoading={contractsQuery.isLoading}
 			isFetching={contractsQuery.isFetching}
-			recordHeight={ROW_HEIGHT}
+			recordHeight={CONTRACT_TILE_HEIGHT}
+			recordMinWidth={RECORD_TILE_MIN_WIDTH}
 			onCreate={() => contractHost.create({ tenantId })}
 			createLabel={$LL.common.actions.newContract()}
 			createUnavailable={memberPermissions.refusal('createContract', $LL)}

@@ -79,11 +79,12 @@ fn value_at(row: &SqliteRow, index: usize) -> Result<Value, Error> {
 
 /// Refuses a statement that would open or close a transaction of its own.
 ///
-/// **Both engines owe this and it is written once for that reason.** Batching is the only
-/// transactional path this application has — a single statement that began a transaction would
-/// leave one open across the command boundary, on a connection the next request has no reason to
-/// be the same one.
-fn reject_transaction_control(sql: &str) -> Result<(), Error> {
+/// **Both engines owe this, and so does a workspace reached over its pipeline
+/// (`organization/workspace/remote.rs`), and it is written once for that reason.** Batching is the
+/// only transactional path this application has: a single statement that began a transaction
+/// would leave one open across the command boundary, on a connection the next request has no
+/// reason to be the same one.
+pub(crate) fn reject_transaction_control(sql: &str) -> Result<(), Error> {
     let sql_upper = sql.trim().to_uppercase();
 
     if sql_upper.starts_with("BEGIN")
@@ -183,7 +184,7 @@ fn bind_params<'a>(
 ///
 /// What the two must agree on is the JSON, and nothing in either signature forces that.
 /// `both_engines_map_every_storage_class_alike` is what does.
-fn workspace_value(value: turso::Value) -> Value {
+pub(crate) fn workspace_value(value: turso::Value) -> Value {
     match value {
         turso::Value::Null => Value::Null,
         turso::Value::Integer(integer) => Value::from(integer),
@@ -221,7 +222,7 @@ async fn workspace_rows(rows: &mut super::corrupt::Rows) -> Result<Vec<SQLRow>, 
 /// object, binds as null — not because null is right, but because it is what the other arm has
 /// always done, and an arm that disagreed here would change what a statement means by which
 /// engine ran it.
-fn workspace_params(params: &[Value]) -> Vec<turso::Value> {
+pub(crate) fn workspace_params(params: &[Value]) -> Vec<turso::Value> {
     params
         .iter()
         .map(|param| match param {

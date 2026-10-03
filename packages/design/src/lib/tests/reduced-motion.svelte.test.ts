@@ -2,8 +2,9 @@ import { DesignProvider } from '#lib/strings.js';
 import { suppliedStrings } from '#tests/contract-strings.js';
 import DialogHarness from '#tests/dialog-harness.svelte';
 import RecordCardHarness from '#tests/record-card-harness.svelte';
+import SettingsGroupHarness from '#tests/settings-group-harness.svelte';
 import SheetHarness from '#tests/sheet-harness.svelte';
-import { render } from '@testing-library/svelte';
+import { fireEvent, render } from '@testing-library/svelte';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { Component } from 'svelte';
@@ -133,5 +134,27 @@ test.each(surfaces)('with reduced motion on, %s neither moves nor fades', (_, su
 				slot: element.getAttribute('data-slot'),
 				token
 			}))
+	).toEqual([]);
+});
+
+// effort 846: a settings row's detail opens under it with a fade and the chevron turns, and with
+// reduced motion on neither moves. Read open, since what fades is drawn only while it is. What is
+// read is the row's own motion, the fade and the turn: the press nudge every button carries is the
+// button primitive's, and no surface here owns it.
+test('with reduced motion on, a settings row folding its detail neither moves nor fades', async () => {
+	render(SettingsGroupHarness);
+
+	await fireEvent.click(document.querySelector('[data-row-details-trigger]')!);
+
+	const row = document.querySelector('[data-row-details]')!;
+	const motion = motionIn(row).filter(({ kind }) => kind !== 'pointer');
+
+	expect(motion.map(({ kind }) => kind)).toEqual(
+		expect.arrayContaining(['keyframe', 'transition'])
+	);
+	expect(
+		motion
+			.filter((each) => !stopped(each))
+			.map(({ element, token }) => ({ slot: element.getAttribute('data-slot'), token }))
 	).toEqual([]);
 });

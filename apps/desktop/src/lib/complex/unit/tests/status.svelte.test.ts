@@ -23,6 +23,10 @@ import { loadLocale } from '$lib/i18n/i18n-util.sync';
  * directory is virtualised and jsdom lays nothing out, so no row is ever in its window. The row's
  * half is the cell, rendered here as the row renders it, and the directory is read to hold that
  * it does.
+ *
+ * The row draws the cell's labelled form since ticket 17 of effort 846 (requirement 19): its word
+ * is visible beside the glyph, as every record card's status is, and the description stays on
+ * hover. The page keeps the bare glyph.
  */
 
 const { unit } = vi.hoisted(() => ({
@@ -85,22 +89,23 @@ for (const [status, word, description] of [
 		});
 	});
 
-	test(`a unit row's status, ${status}, is named by its word`, () => {
+	test(`a unit row's status, ${status}, shows its word`, () => {
 		render(
 			Cell.Status,
-			{ status },
+			{ status, labelled: true },
 			{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } }
 		);
 
-		const trigger = statusNamed(word);
+		const trigger = document.querySelector<HTMLElement>('[data-status-labelled]');
 
+		expect(trigger?.textContent?.trim()).toBe(word);
 		expect(trigger?.getAttribute('tabindex')).toBe('0');
 		expect(trigger?.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
 	});
 }
 
-test('the unit rows draw the status through the one status cell', () => {
-	expect(unitDirectory).toContain('<Cell.Status status={record.status} />');
+test('the unit rows draw the status through the one status cell, with its word', () => {
+	expect(unitDirectory).toContain('<Cell.Status status={record.status} labelled />');
 });
 
 // ticket 33 of effort 832, from the second walk of ticket 27: the occupied glyph was a solid disc,

@@ -25,6 +25,7 @@
 		type PaymentLedgerMonth
 	} from '$lib/payment/ledger';
 	import { toPaymentCreateUnavailable } from '$lib/payment/acts';
+	import { paymentMethodGlyph, paymentMethodLabel } from '$lib/payment/method';
 	import { PAYMENT_SORT_COLUMN_IDS, type PaymentSortColumnId } from '$lib/payment/payment';
 	import type { ListSort } from '@rentable/design/sort.js';
 	import { paymentActs, paymentHost } from '$lib/payment/host.svelte';
@@ -39,14 +40,16 @@
 	import { useImportRecords } from '$lib/workspace/ui';
 	import { toTransferInput } from '$lib/transfer';
 	import { IMPORT_FLAGS, memberPermissions } from '$lib/permission';
+	import StickyNoteIcon from '@lucide/svelte/icons/sticky-note';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 
 	/** The contract whose payments this statement lists. */
 	let { recordId: contractId }: { recordId: string } = $props();
 
-	// one line of text and the breathing room around it; the shell lays rows out at this
-	// height rather than measuring them.
-	const ROW_HEIGHT = 52;
+	// two lines of text and the breathing room around them: the day and the amount, then how it was
+	// paid. The shell lays rows out at this height rather than measuring them, so a row that has
+	// nothing for its second line keeps the height and centres its one line in it.
+	const ROW_HEIGHT = 64;
 	// the marker's own height. The space that separates one month from the records above it is
 	// the list block's, not this figure — the block owns the gap between cards and the two have
 	// to be set against each other.
@@ -306,12 +309,51 @@
 				actions={cardActions(entry)}
 			>
 				{#snippet content()}
-					<span class="pointer-events-none relative min-w-0 flex-1 truncate text-start text-sm">
-						<Cell.Date value={entry.date} />
-					</span>
-					<span class="pointer-events-none relative shrink-0 text-end text-sm font-medium">
-						<Cell.Money amount={entry.amount} />
-					</span>
+					{@const reference = entry.reference?.trim() ?? ''}
+					{@const note = entry.note?.trim() ?? ''}
+					<!-- a statement line: the day with the amount at its end, then, quieter, how it was
+					     paid. What was never recorded is left out whole, glyph and all, and a row with
+					     none of the three is the one line, centred in the row's height. -->
+					<div class="pointer-events-none relative flex min-w-0 flex-1 flex-col gap-1">
+						<div class="flex min-w-0 items-center gap-3 text-sm">
+							<span class="min-w-0 flex-1 truncate text-start">
+								<Cell.Date value={entry.date} />
+							</span>
+							<span class="shrink-0 text-end font-medium">
+								<Cell.Money amount={entry.amount} />
+							</span>
+						</div>
+						{#if entry.method || reference || note}
+							<div
+								class="flex min-w-0 items-center gap-2 text-xs text-muted-foreground"
+								data-payment-how
+							>
+								{#if entry.method}
+									{@const Glyph = paymentMethodGlyph(entry.method)}
+									<!-- the glyph is beside the word and says nothing the word does not. -->
+									<span class="flex shrink-0 items-center gap-1" data-payment-method>
+										<Glyph class="size-3.5 shrink-0" aria-hidden="true" />
+										{paymentMethodLabel(entry.method, $LL)}
+									</span>
+								{/if}
+								{#if reference}
+									<!-- a transfer, cheque or SADAD number is a machine's string, so it
+									     runs left to right in either language. -->
+									<span class="min-w-0 shrink truncate" data-payment-reference>
+										<span class="sr-only">{$LL.contracts.payments.reference()}</span>
+										<span dir="ltr">{reference}</span>
+									</span>
+								{/if}
+								{#if note}
+									<span class="flex min-w-0 flex-1 items-center gap-1" data-payment-note>
+										<StickyNoteIcon class="size-3.5 shrink-0" aria-hidden="true" />
+										<span class="sr-only">{$LL.contracts.payments.note()}</span>
+										<span class="min-w-0 truncate"><bdi>{note}</bdi></span>
+									</span>
+								{/if}
+							</div>
+						{/if}
+					</div>
 				{/snippet}
 			</RecordCard>
 		{/snippet}

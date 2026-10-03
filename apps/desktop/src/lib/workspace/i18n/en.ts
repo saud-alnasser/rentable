@@ -17,19 +17,18 @@ export const workspace = {
 	accountRefusedOwner:
 		"Turso is refusing the organization's account: {detail}. work goes on here; fix it at app.turso.tech to send it.",
 	accountRefusedOwnerNoDetail:
-		"Turso is refusing the organization's account. work goes on here; fix it at app.turso.tech to send it.",
-	transferDescription:
-		'write every record to one workbook, or read one in. records name each other, so the file opens on any machine.'
+		"Turso is refusing the organization's account. work goes on here; fix it at app.turso.tech to send it."
 } satisfies BaseTranslation;
 
-// the records 0.12.0 and 0.13.0 left on this machine, offered on the way in and in the settings
-// area's workspace group until they are brought in or put aside (effort 838, requirement 18).
+// the records 0.12.0 and 0.13.0 left on this machine, offered on the way in and above the settings
+// area's workspace cards until they are brought in or put aside (effort 838, requirement 18).
 export const earlier = {
 	wayIn:
 		'records from version {version:string} are on this machine. bring them in from settings once there is a workspace.',
 	title: 'records from version {version:string}',
 	description:
-		'they are still on this machine. review what they would add, then bring them into this workspace.',
+		'they are still on this machine. review what they would add, then bring them into {workspace:string}.',
+	openOne: 'they are still on this machine. open a workspace to bring them in.',
 	kept: 'a copy is kept as a workbook:',
 	bringIn: 'bring them in...',
 	dismiss: 'dismiss'
@@ -40,7 +39,7 @@ export const layout = {
 		create: 'new workspace',
 		members: '{count|number} {{member|members}}',
 		open: 'open',
-		manage: 'manage workspaces…',
+		manage: 'workspace settings',
 		workspaceRefusedAuthority:
 			'creating a workspace needs the Turso account. reconnect it in settings, under organization.'
 	},

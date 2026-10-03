@@ -33,9 +33,11 @@
 
 mod command;
 mod open;
+pub mod remote;
 
 pub use command::*;
 pub(crate) use open::open_database;
+pub use remote::Pipeline;
 
 use std::collections::HashMap;
 
@@ -47,7 +49,7 @@ use crate::{
 
 use super::{
     authority::AdministratorKey,
-    lease::apply::{self, Pipeline},
+    lease::apply,
     member::vault::{open_content, seal_content, seal_to_public_key},
     role::permission::{self, Flag},
     session::{MemberSession, WorkspaceCredential, WorkspaceFacts, permissions_on_row},
@@ -267,6 +269,7 @@ async fn finish_workspace<P: TursoPlatform>(
         pinned: 0,
         granted: 0,
         permissions: session.permissions,
+        created_at: now,
     })
 }
 
@@ -768,6 +771,7 @@ pub fn openable(
             pinned,
             granted,
             permissions: permission::effective_in_workspace(session.permissions, pinned, granted),
+            created_at: workspace.created_at,
         },
         held.clone(),
     )))
@@ -844,7 +848,6 @@ mod tests {
         organization::{
             HeldOrganization,
             authority::{AdministratorKey, Issue, certificate_id, issue_certificate},
-            lease::apply::Pipeline,
             member::vault::{
                 KdfParams, MemberSecretKey, create_vault_with_secret, seal_content,
                 seal_to_public_key,
@@ -854,6 +857,7 @@ mod tests {
             session::{CredentialSlot, MemberSession, sign_in},
             setup::{CreateOrganization, Remote, create_organization},
             store::{GrantRecord, MemberRecord, OrganizationStore, Signer, TABLES},
+            workspace::remote::Pipeline,
         },
         persisted::Persisted,
         sync::test::server::{ScriptedResponse, ScriptedServer},
@@ -1046,6 +1050,7 @@ mod tests {
             role: Some(permission::MEMBER.to_string()),
             joined_at: 1_757_000_000_001,
             format: None,
+            machine_signed_out: 0,
         }
     }
 
@@ -1106,6 +1111,7 @@ mod tests {
             role: Some(permission::MANAGER.to_string()),
             joined_at: 1_757_000_000_002,
             format: None,
+            machine_signed_out: 0,
         }
     }
 
@@ -2291,6 +2297,7 @@ mod tests {
             role: Some(permission::OWNER.to_string()),
             joined_at: 0,
             format: None,
+            machine_signed_out: 0,
         }
     }
 

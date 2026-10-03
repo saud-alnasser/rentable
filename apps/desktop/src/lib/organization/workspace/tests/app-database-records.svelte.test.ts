@@ -18,13 +18,17 @@ import { forgetReader, holdEveryFlagBut, layOutLists, refusedControl } from '#te
 import earlierTables from '$lib/workspace/tests/app-database.json';
 
 /**
- * THE EARLIER RECORDS, OFFERED IN THE WORKSPACE GROUP
+ * THE EARLIER RECORDS, OFFERED ABOVE THE WORKSPACE CARDS
  *
  * Effort 838, requirement 18 and criterion 18: where this machine's `app.db` holds the records of
  * 0.12.0 or 0.13.0 and they were neither brought in nor dismissed, the settings area's workspace
  * group offers them. Bringing them in reads them through the shell and opens the workspace import
  * over what it read, the plan before anything is written; it needs the import's flags. Brought in
  * or dismissed, the offer is written to this machine's settings and goes.
+ *
+ * **It names the workspace it fills** (effort 846, requirement 17 and criterion 17): the one
+ * open on this machine, in its sentence and in the import's title, and the write goes there by its
+ * id. With nothing open it says to open one and offers no act.
  *
  * **What reaches Rust is stood in for** at `tauri`, and **the settings and the workspace** at the
  * caller, where a settings file is kept between calls so a dismissal is read back as a real one.
@@ -88,10 +92,13 @@ afterEach(() => {
 	document.body.innerHTML = '';
 });
 
-const drawn = () =>
+/** the workspace open on this machine, which the records go into. */
+const RIYADH = { id: 'ws-1', name: 'Riyadh' };
+
+const drawn = (workspace: { id: string; name: string } | null = RIYADH) =>
 	render(
 		EarlierRecords,
-		{},
+		{ workspace },
 		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' as const } }
 	);
 
@@ -118,6 +125,29 @@ test('records found and not yet settled are offered, naming the version and the 
 	);
 	expect(callout()!.querySelector('[data-earlier-workbook]')?.getAttribute('dir')).toBe('ltr');
 	expect(refusedControl(en.earlier.bringIn)).toBeUndefined();
+});
+
+test('the offer names the workspace open here as the one it fills', async () => {
+	drawn();
+
+	await waitFor(() => expect(callout()).not.toBeNull());
+
+	expect(callout()!.querySelector('[data-earlier-description]')?.textContent?.trim()).toBe(
+		en.earlier.description.replace('{workspace:string}', '\u2068Riyadh\u2069')
+	);
+});
+
+test('with nothing open, the offer says to open one and offers no act', async () => {
+	drawn(null);
+
+	await waitFor(() => expect(callout()).not.toBeNull());
+
+	expect(callout()!.querySelector('[data-earlier-description]')?.textContent?.trim()).toBe(
+		en.earlier.openOne
+	);
+	expect(bringIn()).toBeNull();
+	expect(dismiss()).toBeNull();
+	expect(callout()!.querySelectorAll('button')).toHaveLength(0);
 });
 
 test('nothing is offered where app.db holds no earlier records', async () => {
@@ -191,7 +221,12 @@ test('bringing them in reads them and opens the import over those tables, writin
 	await waitFor(() => expect(dialog()).not.toBeNull());
 
 	expect(hooks.read).toHaveBeenCalledOnce();
-	expect(hooks.held).toHaveBeenCalledOnce();
+	// what is held is read from the workspace named, and the dialog is named for it.
+	expect(hooks.held).toHaveBeenCalledExactlyOnceWith({ workspaceId: 'ws-1' });
+	expect(
+		dialog()!.querySelector('[data-slot="dialog-title"]')?.getAttribute('data-import-workspace')
+	).toBe('ws-1');
+	expect(dialog()!.querySelector('[data-slot="dialog-title"]')?.textContent).toContain('Riyadh');
 	// the file the tables are is named under the title, as a chosen file would be.
 	expect(dialog()!.textContent).toContain('workspace-0.13.0.xlsx');
 	// every sheet of the earlier records, each creating its one record.
@@ -216,6 +251,8 @@ test('brought in, the records are written and the offer goes', async () => {
 	await fireEvent.click(confirm!);
 
 	await waitFor(() => expect(hooks.importWhole).toHaveBeenCalledOnce());
+	// written into the workspace the callout named, by its id.
+	expect(hooks.importWhole.mock.calls[0]![0]).toMatchObject({ workspaceId: 'ws-1' });
 	await waitFor(() => expect(hooks.set).toHaveBeenCalledWith({ earlierRecordsSettled: true }));
 	await waitFor(() => expect(callout()).toBeNull());
 });

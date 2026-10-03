@@ -9,9 +9,13 @@ import type { QueryKey } from '@tanstack/svelte-query';
  */
 export type SettingsSurfaceContributions = {
 	/**
-	 * the key of what is ranked by the ending-soon figure, refreshed with the settings when the
-	 * figure changes: the dashboard's, its prefix, so whichever period it shows is refreshed. Read
-	 * when a change lands, since the prefix is the cache policy's.
+	 * the keys of everything that reads the rank the ending-soon figure decides, refreshed with the
+	 * settings when the figure changes: the dashboard's, and the contracts list's filter, a
+	 * contract's page and its schedule. Read when a change lands, since the prefixes are the cache
+	 * policy's.
+	 *
+	 * *One key, the dashboard's, until effort 846 (requirement 6): the contracts filter, a
+	 * contract's page and the schedule went on showing the rank the old figure gave.*
 	 */
-	endingSoonReaders: () => QueryKey;
+	endingSoonReaders: () => readonly QueryKey[];
 };

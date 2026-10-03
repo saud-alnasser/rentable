@@ -67,11 +67,11 @@ use crate::{
     turso::platform::{AccessLevel, TursoPlatform},
 };
 
+use super::workspace::remote::{OverThePipeline, Pipeline};
 use super::{
     session::{MemberSession, WorkspaceCredential, WorkspaceFacts},
     store::{MigrationLeaseRecord, OrganizationStore},
 };
-use apply::{OverThePipeline, Pipeline};
 
 /// How long a lease stands after it is taken: a migration that has not finished in this long
 /// has died, and the workspace is somebody else's to upgrade from then on. The retired control
@@ -647,12 +647,13 @@ mod tests {
             invitation::{
                 AccountAndLink, Invitation, WorkspaceGrant, locator, make_account_and_link,
             },
-            lease::apply::{self, Pipeline},
+            lease::apply,
             member::vault::KdfParams,
             role::permission,
             session::{CredentialSlot, MemberSession, WorkspaceFacts, sign_in},
             setup::{CreateOrganization, Remote, create_organization},
             store::OrganizationStore,
+            workspace::remote::Pipeline,
             workspace::{create_workspace, openable},
         },
         persisted::Persisted,
@@ -722,6 +723,7 @@ mod tests {
             role: Some(role.to_string()),
             joined_at: 0,
             format: None,
+            machine_signed_out: 0,
         }
     }
 

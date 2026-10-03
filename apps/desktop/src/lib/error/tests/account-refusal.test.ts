@@ -5,7 +5,7 @@ import { i18nObject } from '$lib/i18n/i18n-util';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import { fakeSyncState } from '$lib/sync/tests/testing';
 import { accountRefusalSentence } from '$lib/error/refusal';
-import { syncStandingSentence, syncStatusOf } from '$lib/sync/status';
+import { syncProblemOf, syncStatusOf, syncStatusWord } from '$lib/sync/status';
 
 /**
  * REQUIREMENT 25, IN WORDS
@@ -54,14 +54,12 @@ for (const locale of ['en', 'ar'] as const) {
 			fakeSyncState({ workspace: { ...fakeSyncState().workspace, lastError: 'offline' } })
 		);
 
-		const now = Date.UTC(2026, 8, 15, 14, 0, 0);
-		const sentenceOf = (status: ReturnType<typeof syncStatusOf>) =>
-			syncStandingSentence(status, null, locale, now, LL);
+		const wordOf = (status: ReturnType<typeof syncStatusOf>) => syncStatusWord(status, LL);
 
-		assert.equal(refused, 'accountRefused');
+		assert.equal(refused, 'needsAttention');
 		assert.notEqual(refused, offline);
-		assert.notEqual(sentenceOf(refused), sentenceOf(offline));
-		assert.notEqual(sentenceOf(refused), sentenceOf('synced'));
+		assert.notEqual(wordOf(refused), wordOf(offline));
+		assert.notEqual(wordOf(refused), wordOf('upToDate'));
 	});
 }
 
@@ -73,5 +71,5 @@ test('the account refusal is read before a stale disconnection', () => {
 		workspace: { ...fakeSyncState().workspace, lastError: 'something stale' }
 	});
 
-	assert.equal(syncStatusOf(state), 'accountRefused');
+	assert.equal(syncProblemOf(state), 'accountRefused');
 });

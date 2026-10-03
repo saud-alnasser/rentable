@@ -4,7 +4,7 @@ use tauri::Manager;
 use tauri::plugin::{Builder, TauriPlugin};
 use tokio::sync::RwLock;
 
-use crate::{database, machine, settings, turso::consent::TursoConsent};
+use crate::{credential, database, machine, settings, turso::consent::TursoConsent};
 
 use super::{Shared, session};
 
@@ -39,6 +39,8 @@ pub fn plugin() -> TauriPlugin<tauri::Wry> {
             super::session::organization_session_sign_in,
             super::session::organization_session_sign_out,
             super::session::organization_session_end_elsewhere,
+            super::session::organization_session_machines,
+            super::session::organization_session_end_machine,
             super::invitation::organization_invitation_member_create,
             super::invitation::organization_invitation_link_make,
             super::invitation::organization_invitation_password_unset,
@@ -74,6 +76,8 @@ pub fn plugin() -> TauriPlugin<tauri::Wry> {
             super::workspace::organization_workspace_open,
             super::workspace::organization_workspace_renew_credentials,
             super::workspace::organization_workspace_renew_due,
+            super::workspace::organization_workspace_query,
+            super::workspace::organization_workspace_batch,
             super::mark::organization_mark_get,
             super::mark::organization_mark_set,
             super::mark::organization_mark_clear,
@@ -84,6 +88,7 @@ pub fn plugin() -> TauriPlugin<tauri::Wry> {
                 settings: app.state::<settings::Shared>().inner().clone(),
                 remote_sync: app.state::<machine::Shared>().inner().clone(),
                 upgrade: app.state::<session::Upgrades>().inner().clone(),
+                credentials: app.state::<credential::Credentials>().inner().clone(),
                 consent: Arc::new(TursoConsent::new()),
                 organization: Arc::new(RwLock::new(None)),
                 member: Arc::new(RwLock::new(None)),

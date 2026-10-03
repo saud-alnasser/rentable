@@ -1,5 +1,6 @@
 //! the commands on a workspace: created, granted, withdrawn, deleted, opened (and brought up to
-//! this build's schema under the lease), renamed, and its credentials renewed.
+//! this build's schema under the lease), renamed, its credentials renewed, and reached on Turso
+//! without being opened.
 
 use serde::Serialize;
 use tauri::Emitter;
@@ -14,11 +15,17 @@ use crate::{
 
 use crate::organization::{
     act::{Acting, Pull, as_member, if_member, owner_platform},
-    lease::{self, MigrationPhase, PipelineLease, apply::Pipeline},
+    lease::{self, MigrationPhase, PipelineLease},
     session::{MemberSession, WorkspaceFacts},
-    workspace,
+    workspace::{
+        self,
+        remote::{self, Collect, Pipeline, Reach},
+    },
 };
-use crate::turso::platform::AccessLevel;
+use crate::{
+    database::proxy::{SQLQuery, SQLRow},
+    turso::platform::AccessLevel,
+};
 
 /// Create a workspace on the account, migrated and granted to the owner. Owner only, at the
 /// command: anybody else is told to ask the owner, before any request.
@@ -395,4 +402,72 @@ pub async fn organization_workspace_rename(
 
     let mut remote_sync = app_state.remote_sync.write().await;
     remote_sync.get_state().await
+}
+
+/// The workspace a command names, reached on Turso for the signed-in member: under the
+/// credential their session holds, or, where Turso refused that one, after collecting the
+/// credentials again, which hands the sync engine any that moved for the open workspace too.
+struct Signed<'a> {
+    app_state: &'a Shared,
+    workspace_id: &'a str,
+}
+
+impl remote::Resolve for Signed<'_> {
+    async fn reach(&mut self, collect: Collect) -> Result<Reach, Error> {
+        let app_state = self.app_state;
+        let workspace_id = self.workspace_id;
+
+        as_member(app_state, Pull::No, async |Acting { member, store }| {
+            if collect == Collect::Again {
+                remote::collect_again(store, member).await?;
+                hold_renewed_token(app_state, member).await;
+            }
+
+            remote::reach(store, member, workspace_id, Pipeline::of).await
+        })
+        .await
+    }
+}
+
+/// Run one statement on a workspace that need not be open on this machine, directly on Turso, and
+/// answer its rows as `execute_single_sql` answers a replica's (effort 846, requirement 15).
+///
+/// **Nothing is opened, switched or written to this machine.** The window's open workspace stays
+/// open, no replica is named, and the credential is the one the vault already unsealed for that
+/// workspace: nothing is minted, and the caller names the workspace and never a host or a token
+/// ([[rules/credentials]], *Client boundary*). The refusals are [`remote::reach`]'s and
+/// [`remote::reached`]'s.
+#[tauri::command(rename = "workspace_query")]
+pub(crate) async fn organization_workspace_query(
+    app_state: tauri::State<'_, Shared>,
+    workspace_id: String,
+    query: SQLQuery,
+) -> Result<Vec<SQLRow>, Error> {
+    remote::reached(
+        &mut Signed {
+            app_state: app_state.inner(),
+            workspace_id: &workspace_id,
+        },
+        &query,
+    )
+    .await
+}
+
+/// Run several statements on a workspace that need not be open on this machine, as one
+/// transaction directly on Turso, and answer each one's rows as `execute_batch_sql` does: all of
+/// them, or none of them kept. Otherwise as [`organization_workspace_query`].
+#[tauri::command(rename = "workspace_batch")]
+pub(crate) async fn organization_workspace_batch(
+    app_state: tauri::State<'_, Shared>,
+    workspace_id: String,
+    queries: Vec<SQLQuery>,
+) -> Result<Vec<Vec<SQLRow>>, Error> {
+    remote::reached(
+        &mut Signed {
+            app_state: app_state.inner(),
+            workspace_id: &workspace_id,
+        },
+        queries.as_slice(),
+    )
+    .await
 }

@@ -50,8 +50,8 @@ as the sentence its code stands for, in their language (`error/refusal.ts`, and
   files rather than merging, so the flags that make it replace one already here — `add
   --overwrite`, `init --reinstall` — discard whatever this repository put in it. Adding is
   safe; replacing is what there is no way back from. [[references/shadcn-svelte]] has both.
-  What they would discard is load-bearing. Thirty-five of these files, across eighteen of the
-  56 families, read the contract `@rentable/design/strings.js` declares — for a string, or for
+  What they would discard is load-bearing. Twenty-seven of these files, across thirteen of the
+  34 families, read the contract `@rentable/design/strings.js` declares — for a string, or for
   `dir` on the rendered element. A regenerated file carries neither and still compiles and
   renders, so the damage shows up as a silently English, silently LTR primitive rather than as
   an error. *This used to count files reading this application's i18n store, and it fell from
@@ -232,10 +232,11 @@ cannot be imported by a consumer, while the token layer still reaches the two fi
 `url()`, which resolves on disk and never through the export map.
 
 **Every text size and weight comes from one scale**, and it is Tailwind's own steps, a subset
-of them:
+of them, and one step under them the token layer adds:
 
 | Size        | px | For                                                                  |
 | ----------- | -- | -------------------------------------------------------------------- |
+| `text-2xs`  | 11 | the figure inside a ring on a record card, and nothing else          |
 | `text-xs`   | 12 | metadata, field and menu labels, eyebrows, counts on a row, shortcuts |
 | `text-sm`   | 14 | the body: list rows, controls, descriptions, menus                   |
 | `text-base` | 16 | what is typed into an input, a card's title                          |
@@ -253,6 +254,11 @@ of them:
 *The `text-2xl` row gained a step's title on the way in on 2026-10-01 (effort 843): with no card
 around it, the step's title heads the window's content area as a record's title heads its page,
 and the look was judged on screen at that size.*
+
+*The `text-2xs` row was added on 2026-10-03 (effort 846, ticket 46), at the human's word that the
+contract card's ring figure "needs to be a little bit smaller": twelve filled the 36 px arc to its
+edge. Tailwind's scale has no step under `text-xs`, so the step is the token layer's
+(`--text-2xs` in `tokens.css`), and it holds that one figure alone.*
 
 No arbitrary size (`text-[...]`) and no other weight. A node test in each package fails on
 `text-[`: `packages/design/src/lib/tests/typography.test.ts` and
@@ -409,7 +415,8 @@ once, at the moment of a change: whether to ask for a view transition at all. It
 `matchMedia` when it is called, and answers no where there is none. `prefersReducedMotion` is a
 `MediaQuery` that calls `matchMedia` when its module loads, which jsdom does not have, so a
 block every screen of a flow draws through cannot import it without failing each of their
-component tests. It is the way in's one reader. A directory's commit (`list/commit.svelte.ts`)
+component tests. The way in reads it, and so do the settings' update check and log folder
+(effort 846, ticket 34), each once, when the glyph is about to move. A directory's commit (`list/commit.svelte.ts`)
 asks for its transition without reading it, and leaves the reduced-motion case to the token
 layer's `::view-transition-*` gate below, which collapses the animation. *Added 2026-10-01, effort
 843: the way-in surface and `crossWayIn` each carried a copy until then.*

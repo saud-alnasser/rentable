@@ -1,9 +1,10 @@
 <script lang="ts">
+	import ConfirmDialog from '@rentable/design/block/confirm-dialog.svelte';
 	import DeleteDialog from '@rentable/design/block/delete-dialog.svelte';
 	import { AWAITING_BLOCKERS } from '@rentable/design/confirmation.js';
 	import { toErrorText } from '$lib/error/message';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import type { AccessChoice } from '$lib/organization/access/component/dialog.svelte';
+	import type { AccessChoice } from '$lib/organization/access/access';
 	import { useSetWorkspaceOverride, type useChangeAccess } from '$lib/organization/access/query';
 	import { pinnedAcross } from '$lib/organization/access/access';
 	import MemberSheet, { type MemberEdit } from '$lib/organization/member/component/sheet.svelte';
@@ -31,10 +32,10 @@
 	import { untrack } from 'svelte';
 
 	/**
-	 * Every surface a member act opens, and every write one runs on the press: the member's sheet,
-	 * the handover, the removal, and the link, the reset, the sign-out and the withdrawal. Mounted
-	 * by the organization host (`../../component/host.svelte`), which reads the session and the
-	 * roles once for every part of it and resets what is here as it goes.
+	 * Every surface a member act opens, and every write one runs: the member's sheet, the handover,
+	 * the removal, the link on the press, and the reset, the sign-out and the withdrawal once asked.
+	 * Mounted by the organization host (`../../component/host.svelte`), which reads the session and
+	 * the roles once for every part of it and resets what is here as it goes.
 	 */
 	let {
 		session,
@@ -47,8 +48,8 @@
 		/** the roles, read by the organization host while a surface that chooses or edits one is open. */
 		roles: OrganizationRole[];
 		/**
-		 * the one access write the member's sheet and a workspace's access dialog share, so either
-		 * surface waits while the other's write runs.
+		 * the access write the member's sheet makes, read once by the organization host. A
+		 * workspace's page writes through the same declaration from its own end.
 		 */
 		changeAccess: ReturnType<typeof useChangeAccess>;
 		/** read where the machine stands again, after a write that moves it. */
@@ -350,11 +351,10 @@
 	/**
 	 * one write asked for on a card's press, and the member it ran for marked while it runs.
 	 *
-	 * They run on the press rather than behind a question: the link is shown once on the one panel
-	 * that shows a link and a code, the reset hands nothing over, the one question this effort asks
-	 * before ending sessions is the reader's own, and the withdrawal undoes something the owner
-	 * did. What each did is announced by its hook, the only place a toast is raised
-	 * ([[rules/frontend]], *Data access*).
+	 * The link runs on the press, since it ends nothing and is shown once on the one panel that shows
+	 * a link and a code. The reset, the sign-out from every machine and the withdrawal end something,
+	 * so each runs from here once its question is answered (below). What each did is announced by
+	 * its hook, the only place a toast is raised ([[rules/frontend]], *Data access*).
 	 */
 	const runPressed = async (kind: MemberPress, memberId: string) => {
 		const { pending } = organizationHostState.member;
@@ -399,6 +399,38 @@
 		organizationHostState.member.pressed = null;
 		untrack(() => void runPressed(pressed.kind, pressed.memberId));
 	});
+
+	// ----- the writes that end something, asked first
+
+	const asking = $derived(member.asking);
+
+	/** what each asks, under the member it is on: what ends, and what brings it back. */
+	const askingCopy = $derived.by(() => {
+		switch (asking?.kind) {
+			case 'unsetPassword':
+				return {
+					act: $LL.organization.dashboard.unsetPassword(),
+					description: $LL.organization.dashboard.unsetPasswordAsks()
+				};
+			case 'endSessions':
+				return {
+					act: $LL.organization.dashboard.endSessions(),
+					description: $LL.organization.dashboard.endSessionsAsks()
+				};
+			case 'withdrawOffer':
+			case undefined:
+				return {
+					act: $LL.organization.dashboard.withdrawOffer(),
+					description: $LL.organization.dashboard.withdrawOfferAsks()
+				};
+		}
+	});
+
+	const confirmAsked = async () => {
+		if (!asking) return;
+
+		await runPressed(asking.kind, asking.record.member.id);
+	};
 
 	// ----- the removal
 
@@ -472,6 +504,21 @@
 	isOffering={member.pending.offering}
 	errorMessage={offerRefusal}
 	onOffer={(memberId, password) => void offer(memberId, password)}
+/>
+
+<!-- the reset, the sign-out from every machine and the withdrawal end something, so each asks
+     first under its own verb, naming the member, what ends and what brings it back. -->
+<ConfirmDialog
+	open={asking !== null}
+	onOpenChange={(open) => {
+		if (!open) organizationHostState.member.asking = null;
+	}}
+	onSubmit={confirmAsked}
+	record={asking?.record.member.username}
+	title={askingCopy.act}
+	description={askingCopy.description}
+	confirmLabel={askingCopy.act}
+	confirmLoadingLabel={$LL.common.actions.working()}
 />
 
 <!-- the ordinary removal asks once and says what it does not do: nothing on the member's machine is

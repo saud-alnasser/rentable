@@ -1,10 +1,12 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { beforeEach, expect, test, vi } from 'vitest';
 
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { i18nObject } from '$lib/i18n/i18n-util';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import Members from '$lib/organization/member/component/directory.svelte';
+import { MEMBER_TILE_HEIGHT } from '$lib/organization/member/component/card.svelte';
+import { columnsFor, RECORD_TILE_MIN_WIDTH } from '$lib/list';
 import { organizationDialog, resetOrganizationDialogs } from '$lib/organization/dialogs.svelte';
 import { organizationHostState, resetOrganizationHost } from '$lib/organization/host.svelte';
 import {
@@ -39,6 +41,13 @@ import { layOutLists } from '#tests/permission.ts';
 import { hostAnswers, resetHostAnswers } from '$lib/organization/tests/host-hooks';
 import HostProviders from '$lib/organization/tests/host-providers.svelte';
 import { unfold } from '$lib/organization/tests/switches';
+import {
+	areaOf,
+	expectBoundedArea,
+	expectFadeWhileMoreBelow,
+	expectFocusScrollsTile,
+	expectNoPhysicalSides
+} from '$lib/organization/tests/directory-grid';
 
 /**
  * THE MEMBERS, AS A DIRECTORY OF CARDS
@@ -309,6 +318,8 @@ const written = (hook: string) =>
 	hostAnswers.writes.filter((write) => write.hook === hook).map((write) => write.input);
 
 beforeEach(() => {
+	// the tiles are laid in as many columns as the directory's width holds, which it measures.
+	layOutLists();
 	resetOrganizationDialogs();
 	resetOrganizationHost();
 	resetHostAnswers();
@@ -351,28 +362,10 @@ test('a card carries the avatar, the username and the role', () => {
 });
 
 // the human's second look: a chip per workspace, each carrying its own access, read as a second
-// list along the bottom of every card. What a card says now is how many, in one line; which ones
+// list along the bottom of every card. What a card says now is how many, as one fact; which ones
 // and what each is good for is what the menu's workspaces entry opens.
-test('a card says how many workspaces are held, in one line, and names none of them', () => {
-	list({
-		members: [
-			member({ id: 'owner', username: 'olivia', role: 'owner' }),
-			member({
-				id: 'ada',
-				username: 'ada',
-				role: 'manager',
-				workspaces: [
-					{ id: 'ws-1', access: 'full-access', pinned: 0, granted: 0, permissions: 0 },
-					{ id: 'ws-2', access: 'read-only', pinned: 0, granted: 0, permissions: 0 }
-				]
-			}),
-			member({
-				id: 'sami',
-				username: 'sami',
-				workspaces: [{ id: 'ws-1', access: 'full-access', pinned: 0, granted: 0, permissions: 0 }]
-			})
-		]
-	});
+test('a card says how many workspaces are held, as one fact, and names none of them', () => {
+	list();
 
 	const held = (id: string) => {
 		const line = card(id)!.querySelector('[data-member-workspaces]')!;
@@ -380,15 +373,17 @@ test('a card says how many workspaces are held, in one line, and names none of t
 		return [line.getAttribute('data-member-workspaces'), line.textContent?.trim()];
 	};
 
-	// many, one, and none: the three forms, pluralised by the locale layer rather than by a
-	// count printed beside a fixed word.
+	// many, one, and none: the figure under the field's name (effort 846, ticket 37), numbered by
+	// the locale layer, and none said in words rather than as a zero.
 	const translations = i18nObject('en');
 
-	expect(held('ada')).toEqual(['2', '2 workspaces']);
-	expect(held('sami')).toEqual(['1', '1 workspace']);
-	expect(held('owner')).toEqual(['0', en.organization.dashboard.noWorkspaces]);
-	expect(translations.organization.dashboard.workspacesHeld({ count: 2 })).toBe('2 workspaces');
-	expect(translations.organization.dashboard.workspacesHeld({ count: 1 })).toBe('1 workspace');
+	expect(held('ada')).toEqual(['2', '2']);
+	expect(held('sami')).toEqual(['1', '1']);
+	expect(held('owner')).toEqual(['0', en.organization.dashboard.memberCard.noWorkspaces]);
+	expect(translations.organization.dashboard.memberCard.workspaceCount({ count: 2 })).toBe('2');
+	expect(translations.organization.dashboard.memberCard.workspaceCount({ count: 1000 })).toBe(
+		'1,000'
+	);
 
 	// and no workspace is named on a card any more, nor what it is good for.
 	expect(document.querySelector('[data-member-workspace]')).toBeNull();
@@ -396,28 +391,173 @@ test('a card says how many workspaces are held, in one line, and names none of t
 	expect(document.body.textContent).not.toContain('read only');
 });
 
-// criterion 19: the three standings, each said in one line, read from the members query joined to
-// the register on the member's id.
-test('each card says where its account stands, in one of three lines', () => {
+// criterion 19 of effort 828, as ticket 32 of effort 846 draws it: where an account stands is two
+// facts on the tile, its password and its machine, read from the members query joined to the
+// register on the member's id.
+test('each card says where its account stands, its password and its machine', () => {
 	const open = list();
 
-	const lineOf = (id: string) => {
-		const line = card(id)!.querySelector('[data-member-standing]')!;
+	const standingOf = (id: string) => [
+		card(id)!.querySelector('[data-member-password]')?.getAttribute('data-member-password'),
+		card(id)!.querySelector('[data-member-machine]')?.getAttribute('data-member-machine')
+	];
 
-		return [line.getAttribute('data-member-standing'), line.textContent?.trim()];
-	};
-
-	expect(lineOf('sami')).toEqual(['no-password', en.organization.dashboard.standingNoPassword]);
-	expect(lineOf('ada')).toEqual(['no-machine', en.organization.dashboard.standingNoMachine]);
-	expect(lineOf('owner')).toEqual(['signed-in', en.organization.dashboard.standingSignedIn]);
+	expect(standingOf('sami')).toEqual(['unset', 'none']);
+	expect(standingOf('ada')).toEqual(['set', 'none']);
+	expect(standingOf('owner')).toEqual(['set', 'signed-in']);
+	expect(card('sami')!.querySelector('[data-member-password]')?.textContent?.trim()).toBe(
+		en.organization.dashboard.memberCard.noPassword
+	);
+	expect(card('owner')!.querySelector('[data-member-machine]')?.textContent?.trim()).toBe(
+		en.organization.dashboard.memberCard.signedIn
+	);
 	open.unmount();
 
 	// the standings are a second read, so the cards are drawn before they arrive, and a line
 	// guessed from nothing would say something untrue about an account somebody is working on.
 	list({ standings: [] });
 
-	expect(document.querySelectorAll('[data-member-standing]')).toHaveLength(0);
+	expect(document.querySelectorAll('[data-member-password]')).toHaveLength(0);
+	expect(document.querySelectorAll('[data-member-machine]')).toHaveLength(0);
 	expect(document.querySelectorAll('[data-member]')).toHaveLength(3);
+});
+
+// effort 846, ticket 32: the members are tiles in a grid, as many across as the directory's width
+// holds at the list shell's tile width and never more than three, each at the height its component
+// declares.
+test('the members stand in a grid of tiles, at the declared height', () => {
+	list();
+
+	const grid = document.querySelector<HTMLElement>('[data-members]')!;
+
+	expect(grid.classList).toContain('grid');
+	// jsdom lays nothing out, so the width is nothing and the grid is the one column it falls to.
+	expect(grid.dataset.columns).toBe('1');
+
+	for (const id of ['owner', 'ada', 'sami']) {
+		const holder = card(id) as HTMLElement;
+
+		expect(holder.style.height).toBe(`${MEMBER_TILE_HEIGHT}px`);
+		expect(holder.querySelector('[data-layout=tile]')).not.toBeNull();
+	}
+});
+
+test('at a width of a thousand pixels the members are laid three across', async () => {
+	const measured = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1000);
+
+	try {
+		list();
+
+		const grid = document.querySelector<HTMLElement>('[data-members]')!;
+
+		await waitFor(() => expect(grid.dataset.columns).toBe('3'));
+		expect(grid.style.gridTemplateColumns).toBe('repeat(3, minmax(0, 1fr))');
+		// the shell's own rule, at its own tile width.
+		expect(columnsFor(1000, RECORD_TILE_MIN_WIDTH, 12)).toBe(3);
+	} finally {
+		measured.mockRestore();
+	}
+});
+
+/** a directory of this many members past the three the file is written over. */
+const crowd = (count: number) => [
+	...members,
+	...Array.from({ length: count - members.length }, (_, index) =>
+		member({ id: `extra-${index}`, username: `extra${index}` })
+	)
+];
+
+/** the directory measured at this width, for the test inside. */
+const atWidth = async (width: number, run: () => Promise<void> | void) => {
+	const measured = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(width);
+
+	try {
+		await run();
+	} finally {
+		measured.mockRestore();
+	}
+};
+
+// effort 846, ticket 53, at the human's walks of 2026-10-03: past a few rows the cards scroll
+// inside the directory's own area, the tray staying put above, and the rows in view follow the
+// columns: "for mobile size 2 cards ... for mid screen 2 columns become 4 cards meaning 2x2; for
+// full screen 3x3 cards 9 cards".
+test('at three across, nine members are in view and the rest scroll in their own area, under the tray', async () => {
+	await atWidth(1000, async () => {
+		list({ members: crowd(12) });
+
+		const grid = document.querySelector<HTMLElement>('[data-members]')!;
+
+		await waitFor(() => expect(grid.dataset.columns).toBe('3'));
+		expect(grid.querySelectorAll('[data-member]')).toHaveLength(12);
+		expectBoundedArea(grid, {
+			tileHeight: MEMBER_TILE_HEIGHT,
+			columns: 3,
+			legendId: 'members-legend'
+		});
+		await expectFadeWhileMoreBelow(areaOf(grid)!);
+	});
+});
+
+test('at two across, four members are in view, two rows', async () => {
+	await atWidth(700, async () => {
+		list({ members: crowd(7) });
+
+		const grid = document.querySelector<HTMLElement>('[data-members]')!;
+
+		await waitFor(() => expect(grid.dataset.columns).toBe('2'));
+		expectBoundedArea(grid, {
+			tileHeight: MEMBER_TILE_HEIGHT,
+			columns: 2,
+			legendId: 'members-legend'
+		});
+	});
+});
+
+test('at one across, two members are in view', async () => {
+	// jsdom lays nothing out, so the width is nothing and the grid is the one column it falls to.
+	list({ members: crowd(6) });
+
+	const grid = document.querySelector<HTMLElement>('[data-members]')!;
+
+	expectBoundedArea(grid, {
+		tileHeight: MEMBER_TILE_HEIGHT,
+		columns: 1,
+		legendId: 'members-legend'
+	});
+});
+
+test('with fewer members than the rows hold the area is bounded and no taller than its cards', async () => {
+	await atWidth(1000, async () => {
+		list();
+
+		const grid = document.querySelector<HTMLElement>('[data-members]')!;
+
+		await waitFor(() => expect(grid.dataset.columns).toBe('3'));
+		expect(grid.querySelectorAll('[data-member]')).toHaveLength(3);
+		expectBoundedArea(grid, {
+			tileHeight: MEMBER_TILE_HEIGHT,
+			columns: 3,
+			legendId: 'members-legend'
+		});
+		expect(areaOf(grid)!.hasAttribute('data-more-below')).toBe(false);
+	});
+});
+
+test('the keyboard reaching a card below the fold brings it into view, in either direction', async () => {
+	list({ members: crowd(7) });
+
+	await expectFocusScrollsTile(card('extra-3') as HTMLElement);
+	expectNoPhysicalSides(areaOf(document.querySelector('[data-members]')!)!);
+	cleanup();
+
+	loadLocale('ar');
+	setLocale('ar');
+	list({ members: crowd(7) }, 'rtl');
+
+	expectNoPhysicalSides(areaOf(document.querySelector('[data-members]')!)!);
+	await expectFocusScrollsTile(card('extra-3') as HTMLElement);
+	setLocale('en');
 });
 
 // requirement 19: the section says what it is for in the tray above the cards, and the tray is
@@ -548,6 +688,24 @@ test('the transfer is on the owner own card and on no other', async () => {
 // requirement 22: a handover is two acts on two machines, so between them there is a standing
 // offer, and the owner's card is where it is seen and taken back. The offer and the withdrawal are
 // never on the card together, because there is one offer at a time and Rust refuses a second.
+/**
+ * the question a member act that ends something asks (effort 846, requirement 2 as revised on
+ * 2026-10-02): nothing is written while it stands, and it is answered with the act's own verb.
+ */
+async function answer(verb: string) {
+	const question = () => document.querySelector<HTMLElement>('[data-confirm-dialog]');
+
+	await waitFor(() => expect(question()).not.toBeNull());
+
+	const confirm = [...question()!.querySelectorAll<HTMLButtonElement>('button')].find(
+		(button) => button.textContent?.trim() === verb
+	);
+
+	expect(confirm).toBeDefined();
+	await fireEvent.click(confirm!);
+	await waitFor(() => expect(question()).toBeNull());
+}
+
 test('the owner card offers the withdrawal in the offer place while an offer stands', async () => {
 	list({
 		members: [
@@ -561,12 +719,14 @@ test('the owner card offers the withdrawal in the offer place while an offer sta
 
 	await press('owner', 'withdraw-offer');
 
-	// it asks nothing: nothing is unsealed and what is undone is something this person did, so it
-	// runs on the press rather than opening a surface.
+	// it ends the offer, so it asks first, and writes once answered (effort 846, requirement 2 as
+	// revised on 2026-10-02); no other surface opens.
+	expect(surface()).toBeNull();
+	expect(written('useWithdrawOffer')).toEqual([]);
+	await answer(en.organization.dashboard.withdrawOffer);
 	await waitFor(() => {
 		expect(written('useWithdrawOffer')).toHaveLength(1);
 	});
-	expect(surface()).toBeNull();
 });
 
 // and it is the owner's: a manager reading the owner's card still meets no menu at all,
@@ -630,16 +790,23 @@ test('every account whose password is set is offered on the handover', async () 
 	).toBe('1');
 });
 
-// and a lone owner is offered nothing to hand it to, so the act is absent rather than opening a
-// surface with an empty chooser.
-test('an owner who is the only account meets no handover', async () => {
+// and a lone owner has nobody to hand it to, so the act is shown refused with that reason rather
+// than missing, and pressing it opens no surface with an empty chooser (effort 846, requirement 14).
+test('an owner who is the only account meets the handover refused, saying why', async () => {
 	list({
 		members: [member({ id: 'owner', username: 'olivia', role: 'owner' })],
 		standings: [standing({ memberId: 'owner', machineSignedIn: true })]
 	});
 
-	expect(control('owner')).toBeNull();
-	expect(await actsOn('owner')).toEqual([]);
+	expect(await actsOn('owner')).toEqual(['transfer']);
+
+	const transfer = await openTo('owner', 'transfer');
+
+	expect(transfer?.getAttribute('aria-disabled')).toBe('true');
+	expect(await reasonOf(transfer!)).toContain(en.organization.dashboard.nobodyOfferable);
+	await fireEvent.click(transfer!);
+	expect(organizationHostState.member.offering).toBeNull();
+	expect(surface()).toBeNull();
 });
 
 // [[rules/interface]], *Validation errors*: the shell refuses a password that does not open the
@@ -813,8 +980,8 @@ test('the link act is offered whatever the standing says, and the line stays a f
 	});
 
 	// a card standing *signed in on a machine* says so and offers the link all the same.
-	expect(card('ada')?.querySelector('[data-member-standing]')?.textContent?.trim()).toBe(
-		en.organization.dashboard.standingSignedIn
+	expect(card('ada')?.querySelector('[data-member-machine]')?.textContent?.trim()).toBe(
+		en.organization.dashboard.memberCard.signedIn
 	);
 	expect(await actsOn('ada')).toContain('link');
 	expect(await actsOn('sami')).toContain('link');
@@ -826,7 +993,8 @@ test('the link act is offered whatever the standing says, and the line stays a f
 	// have been refused by Rust on the gate this stood in for.*
 	const loading = list({ standings: [] });
 
-	expect(card('ada')?.querySelector('[data-member-standing]')).toBeNull();
+	expect(card('ada')?.querySelector('[data-member-password]')).toBeNull();
+	expect(card('ada')?.querySelector('[data-member-machine]')).toBeNull();
 	expect(await actsOn('ada')).toContain('link');
 	expect(await actsOn('sami')).toContain('link');
 	expect(await actsOn('ada')).toContain('edit');
@@ -849,6 +1017,9 @@ test('signing a member out of every machine is offered behind reset password, an
 
 	await fireEvent.click(entry!);
 
+	// it signs them out, so it asks first, and writes once answered.
+	expect(written('useEndMemberSessions')).toEqual([]);
+	await answer(en.organization.dashboard.endSessions);
 	await waitFor(() => {
 		expect(written('useEndMemberSessions')).toEqual([{ memberId: 'sami' }]);
 	});
@@ -866,7 +1037,10 @@ test('a card hands its own account to the link, the reset and the removals', asy
 		expect(organizationDialog.madeLink?.code).toBe('ABC234');
 	});
 
+	// the reset takes their password away, so it asks first, and writes once answered.
 	await press('sami', 'unset-password');
+	expect(written('useUnsetMemberPassword')).toEqual([]);
+	await answer(en.organization.dashboard.unsetPassword);
 	await waitFor(() => {
 		expect(written('useUnsetMemberPassword')).toEqual([{ memberId: 'sami' }]);
 	});
@@ -1389,19 +1563,19 @@ test('and in arabic every card reads in its own words, right to left', async () 
 			node.textContent?.trim()
 		)
 	).toEqual(['olivia', 'ada', 'sami']);
-	expect(card('sami')?.querySelector('[data-member-standing]')?.textContent?.trim()).toBe(
-		ar.organization.dashboard.standingNoPassword
+	expect(card('sami')?.querySelector('[data-member-password]')?.textContent?.trim()).toBe(
+		ar.organization.dashboard.memberCard.noPassword
 	);
-	// the count line too, pluralised and numbered by the Arabic locale rather than by a
-	// substitution this test performs.
+	// the count too, numbered by the Arabic locale rather than by a substitution this test
+	// performs, under the field's own name in Arabic.
 	expect(card('sami')?.querySelector('[data-member-workspaces]')?.textContent?.trim()).toBe(
-		i18nObject('ar').organization.dashboard.workspacesHeld({ count: 1 })
+		i18nObject('ar').organization.dashboard.memberCard.workspaceCount({ count: 1 })
 	);
-	expect(ar.organization.dashboard.workspacesHeld).not.toBe(
-		en.organization.dashboard.workspacesHeld
+	expect(ar.organization.dashboard.memberCard.noWorkspaces).not.toBe(
+		en.organization.dashboard.memberCard.noWorkspaces
 	);
-	expect(ar.organization.dashboard.standingNoPassword).not.toBe(
-		en.organization.dashboard.standingNoPassword
+	expect(ar.organization.dashboard.memberCard.noPassword).not.toBe(
+		en.organization.dashboard.memberCard.noPassword
 	);
 	expect(document.querySelector('[data-directory-description]')?.textContent?.trim()).toBe(
 		ar.organization.dashboard.membersDescription

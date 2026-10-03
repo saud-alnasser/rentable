@@ -8,7 +8,7 @@
 	import * as Form from '@rentable/design/primitive/form/index.js';
 	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import type { AccessChoice } from '$lib/organization/access/component/dialog.svelte';
+	import type { AccessChoice } from '$lib/organization/access/access';
 	import MemberOverride from '$lib/organization/member/component/override.svelte';
 	import MemberRole from '$lib/organization/member/component/role.svelte';
 	import MemberSectionHead from '$lib/organization/component/section-head.svelte';

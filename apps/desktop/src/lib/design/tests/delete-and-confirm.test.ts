@@ -5,21 +5,21 @@ import type { CreateMutationResult } from '@tanstack/svelte-query';
 
 import { type Api, createApi, monthsFromNow, seedTenant } from '$lib/app/tests/testing.ts';
 import { bindingOf } from '#tests/mutation.ts';
-import { AWAITING_BLOCKERS } from '@rentable/design/confirmation.js';
 
 /**
  * DELETE AND CONFIRM
  *
- * Requirement 11 of effort 832, criterion 11 (a): an ordinary delete runs at once and offers undo,
- * and the undo it offers puts the record back. Read here through what the reader actually meets,
- * the announcement and the control on it, rather than through the undo stack underneath: the
- * toast is substituted to keep what it was asked to render, and its control is pressed.
+ * Requirement 11 of effort 832, criterion 11 (a), as effort 846 revised it on 2026-10-02: a
+ * record's delete asks first (`act/tests/dangerous-acts-ask.svelte.test.ts`), and once answered it
+ * offers undo, and the undo it offers puts the record back. Read here through what the reader
+ * actually meets, the announcement and the control on it, rather than through the undo stack
+ * underneath: the toast is substituted to keep what it was asked to render, and its control is
+ * pressed.
  *
  * The procedures are real, over the in-memory database `app/tests/testing.ts` builds, the way
  * `api/tests/undo.test.ts` drives them. Nothing here reaches a workspace on disk or a remote.
  *
- * What a host does with a delete is read here too, as the pure step every host asks
- * (`toDeleteStep`), and what each concept declares for its destructive acts.
+ * What each concept declares for its destructive acts is read here too.
  */
 
 let caller: Api = await createApi();
@@ -77,7 +77,9 @@ for (const glyph of [
 	'calendar-plus',
 	'copy',
 	'crown',
+	'file-down',
 	'file-plus',
+	'file-up',
 	'files',
 	'laptop',
 	'link',
@@ -86,16 +88,17 @@ for (const glyph of [
 	'printer',
 	'refresh-cw',
 	'rotate-ccw',
+	'sliders-horizontal',
 	'square-pen',
 	'trash-2',
 	'user-minus',
+	'user-round',
 	'users'
 ]) {
 	mock.module(`@lucide/svelte/icons/${glyph}`, { exports: { default: () => {} } });
 }
 
 const { inverseStack } = await import('$lib/undo/undo');
-const { toDeleteStep } = await import('$lib/act');
 const { useDeleteTenant } = await import('$lib/tenant/query');
 const { useCreateComplex, useDeleteComplex } = await import('$lib/complex/query');
 const { useCreateUnit, useDeleteUnit } = await import('$lib/complex/unit/query');
@@ -108,7 +111,8 @@ const { declarePaymentActs } = await import('$lib/payment/acts');
 const { declareContractActs } = await import('$lib/contract/acts');
 const { declareMemberActs } = await import('$lib/organization/member/acts');
 const { declareRoleActs } = await import('$lib/organization/role/acts');
-const { declareWorkspaceActs } = await import('$lib/organization/workspace/acts');
+const { declareHolderActs, declareWorkspaceActs } =
+	await import('$lib/organization/workspace/acts');
 const { loadLocale } = await import('$lib/i18n/i18n-util.sync');
 const { LL, setLocale } = await import('$lib/i18n/i18n-svelte');
 const { get } = await import('svelte/store');
@@ -156,7 +160,7 @@ beforeEach(async () => {
 	caller = await createApi();
 });
 
-describe('an ordinary delete runs at once and offers undo', () => {
+describe('a record delete, once answered, offers undo', () => {
 	it('puts back a tenant with no contracts', async () => {
 		const tenant = await seedTenant(caller);
 
@@ -323,33 +327,6 @@ describe('an ordinary delete runs at once and offers undo', () => {
 	});
 });
 
-describe('what a host does with a delete it was asked for', () => {
-	it('runs a delete declared `none` once nothing refuses it', () => {
-		assert.equal(toDeleteStep('none', []), 'run');
-		assert.equal(toDeleteStep('none', undefined), 'run');
-	});
-
-	it('waits on what might refuse it rather than drawing a dialog that may not be needed', () => {
-		assert.equal(toDeleteStep('none', AWAITING_BLOCKERS), 'wait');
-	});
-
-	it('asks where something refuses it, because the dialog is where the refusal is named', () => {
-		assert.equal(toDeleteStep('none', ['1 contract still mentions it']), 'ask');
-	});
-
-	it('asks at once for a delete that cascades or cannot be undone, whatever its blockers', () => {
-		for (const policy of ['cascade', 'irreversible'] as const) {
-			assert.equal(toDeleteStep(policy, []), 'ask');
-			assert.equal(toDeleteStep(policy, AWAITING_BLOCKERS), 'ask');
-			assert.equal(toDeleteStep(policy, ['blocked']), 'ask');
-		}
-	});
-
-	it('asks for a delete that declared nothing, since asking is the safe side', () => {
-		assert.equal(toDeleteStep(undefined, []), 'ask');
-	});
-});
-
 describe('what each concept declares about asking', () => {
 	// every request answers nothing: only what the acts declare is read.
 	const host = new Proxy({}, { get: () => () => {} }) as never;
@@ -362,26 +339,29 @@ describe('what each concept declares about asking', () => {
 		contract: declareContractActs(host),
 		member: declareMemberActs(host),
 		workspace: declareWorkspaceActs(host),
+		holder: declareHolderActs(host),
 		role: declareRoleActs(host)
 	};
 
-	it('every destructive act declares whether it asks', () => {
+	it('every destructive act declares what its question says', () => {
 		for (const [concept, acts] of Object.entries(declared)) {
-			for (const act of acts.filter((declaredAct) => declaredAct.group === 'destructive')) {
+			for (const act of acts.filter(
+				(declaredAct) => declaredAct.group === 'destructive' || declaredAct.tone === 'error'
+			)) {
 				assert.ok(act.confirmation, `${concept}: ${act.id} declares no confirmation policy`);
 			}
 		}
 	});
 
-	it('a record that takes nothing else with it is deleted at once', () => {
+	it('a record that takes nothing else with it asks, saying undo brings it back', () => {
 		const policyOf = (acts: { id: string; confirmation?: string }[], id: string) =>
 			acts.find((act) => act.id === id)?.confirmation;
 
-		assert.equal(policyOf(declared.tenant, 'tenant.delete'), 'none');
-		assert.equal(policyOf(declared.complex, 'complex.delete'), 'none');
-		assert.equal(policyOf(declared.unit, 'unit.delete'), 'none');
-		assert.equal(policyOf(declared.payment, 'payment.delete'), 'none');
-		assert.equal(policyOf(declared.contract, 'contract.delete'), 'none');
+		assert.equal(policyOf(declared.tenant, 'tenant.delete'), 'reversible');
+		assert.equal(policyOf(declared.complex, 'complex.delete'), 'reversible');
+		assert.equal(policyOf(declared.unit, 'unit.delete'), 'reversible');
+		assert.equal(policyOf(declared.payment, 'payment.delete'), 'reversible');
+		assert.equal(policyOf(declared.contract, 'contract.delete'), 'reversible');
 	});
 
 	// effort 840, requirement 22: its units go with it, so it removes more than the record.
@@ -390,9 +370,8 @@ describe('what each concept declares about asking', () => {
 			(act) => act.id === 'complex.delete'
 		)?.confirmation;
 
-		assert.equal(toComplexDeleteConfirmation(declaredPolicy, 0), 'none');
+		assert.equal(toComplexDeleteConfirmation(declaredPolicy, 0), 'reversible');
 		assert.equal(toComplexDeleteConfirmation(declaredPolicy, 3), 'cascade');
-		assert.equal(toDeleteStep(toComplexDeleteConfirmation(declaredPolicy, 3), []), 'ask');
 	});
 
 	it('what nothing puts back asks first: a workspace, a member removed, and a role deleted', () => {

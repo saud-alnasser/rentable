@@ -183,7 +183,7 @@ impl LiveWorkspace {
             .expect("a libsql:// workspace url");
 
         crate::organization::lease::apply::apply(
-            &crate::organization::lease::apply::Pipeline::of(host),
+            &crate::organization::workspace::remote::Pipeline::of(host),
             &self.token,
             up_to,
         )

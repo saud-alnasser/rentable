@@ -26,11 +26,13 @@ change, the link and the Turso account, keep their history.*
 ## Language
 
 **Organization**:
-One database on the owner's Turso account, `org-<id>`, holding fifteen tables (`store::TABLES`):
+One database on the owner's Turso account, `org-<id>`, holding seventeen tables (`store::TABLES`):
 its format, the organization, the roles, the members, the certificates, the revocations, the
 workspaces, the grants, the invitations, the migration lease, the machine links, the register of
-the machines that hold it, the successions a handover writes, its mark, and the workspace
-overrides. Every username and name
+the machines that hold it, the successions a handover writes, its mark, the workspace
+overrides, the sign-outs of one machine, and each machine's name (the last two by effort 846,
+with no change of format: `complete_schema` creates them after a pull, and the change to format 3
+with `workspace_override`). Every username and name
 in it is sealed under the content key; every authority field is signed along a chain rooted at a
 key the member's machine pinned. Every member's machine keeps a replica.
 _Avoid_: "the control plane" and "the account" for it. There is no service of ours, and the
@@ -152,7 +154,13 @@ member stands); nothing pinned deletes the row. It goes with the organization la
 the reset to the role, a deleted role, each refused where a flag pinned anywhere is one the actor
 does not hold) and with the grant (a withdrawal, a removal, a deleted workspace). The session and
 the members list carry each workspace's pins and permissions, and the tRPC context answers a
-record procedure by the open workspace's (`api/context.ts`, `permissionsIn`). A member's card
+record procedure by the open workspace's (`api/context.ts`, `permissionsIn`). A procedure naming a
+workspace answers by that one's instead: the transfer procedures (`transfer/router.ts`) take
+`{ workspaceId }` through `procedure.permittedIn` (`api/trpc.ts`), which refuses with
+`host.noGrant` where the member holds no grant on it, asks the member's flags folded for that
+workspace, and reaches a workspace that is not open on Turso through `Context.databaseOf`, over
+the shell's `workspace_query` and `workspace_batch`, without opening it here. Naming nothing, or
+the open one, is the open replica as before (effort 846, requirement 15). A member's card
 sets it beneath each workspace the member is in, as that workspace's permissions
 (`access/component/tailoring.svelte`, the record groups of the shared switch list, folded): **what is
 pinned is exactly what the switches differ on from what the member holds across the organization
@@ -349,6 +357,27 @@ refused unless what it yields is the key this machine pinned, and the directory 
   epoch is outside the row's signature, and that is an accepted limit (the human, 2026-09-15): a
   member holding the organization credential can write another member's epoch and force them to the
   wall, which is availability rather than authority.*
+- **One machine is signed out on its own by a number only the member's other machines write**
+  (effort 846, requirements 9 to 11; `tauri/src/organization/session/machine.rs`). The epoch above
+  ends every machine but the one moving it; `end_machine` (`session_end_machine`) instead moves
+  that machine's row in `machine_sign_out` to one past the greatest it holds and stops the
+  `machine` row naming the member, so it leaves the list at once, and nothing about the password
+  or the epoch moves. The target compares the row with the mark it last acknowledged,
+  `machine_signed_out` in its `remote-sync.json` record, which a sign-in by password or by an
+  opened vault takes, at the wall after the pull it makes once the vault is open (ticket 30), and
+  **a resume never does**, so the same password signs it back in. The
+  comparison is made at the resume, on the heartbeat, and before every act (`acting_row`, against
+  the number the open session took, which is its own member's and never a mark the record kept for
+  whoever signed in here before (ticket 28), and on the id a launch draws for a record from before
+  machine ids where the session resumed without one (ticket 30); since ticket 24 an act refused for it puts the wall up rather
+  than waiting on the heartbeat), and a machine found above its mark takes the signed-out-elsewhere
+  path. Refused: this machine itself (`NotYourself`), a machine no longer signed in as the reader
+  (`MachineMissing`), and one with no `machine_name` row (`MachineNotUpdated`), which has not run
+  this version and would not read its row, so *sign out all other machines* is what reaches it.
+  Each machine writes its own `machine_name`, the operating system's name sealed under the content
+  key. The member's list is every `machine` row naming them, with no presence window, this machine
+  first and then by `seen_at`, which the heartbeat refreshes at most hourly (`SEEN_REFRESH`).
+  *Unsigned, as the epoch is, and under the same accepted limit.*
 - **One Turso group holds one organization, and a group that holds one is connected to.** A group
   holding an `org-` database sends the walk to a step where the owner types their username and
   password, and this machine joins the organization that is there. **Only the owner can**, because
@@ -382,6 +411,22 @@ refused unless what it yields is the key this machine pinned, and the directory 
   query, push or pull meets after the open marks the replica through the store's watched
   connection, and its next open sets it aside the same way. What this machine wrote to it and had
   not pushed is lost, and the log says so.
+- **The development seed fills the organization through the running app, never by writing rows.**
+  *Effort 846, ticket 54.* Roles and members are signed along the chain and a member carries a vault
+  sealed under keys only a signed-in owner's app holds, so no script can make a row the app would
+  verify. `pnpm db:seed` (`apps/desktop/scripts/seed.ts`) therefore has an organization step,
+  `scripts/organization.ts`, that reaches the development app over the webview's remote debugging
+  port (DevTools protocol, `Runtime.evaluate` of `__TAURI_INTERNALS__.invoke`) and calls
+  `role_create`, `invitation_member_create`, `workspace_create`, `workspace_grant` and the lists as
+  the signed-in member does, in that order: roles, members, workspaces, grants. Each workspace it
+  makes is a hosted database on the owner's Turso account, so the list is a fixed dozen and only
+  the owner's machine makes them; elsewhere the refusal is said and the rest seeds. `pnpm dev`
+  opens the port on Windows only (`scripts/debug-port.mjs`, read by `tauri-with-env.mjs`, 9222 or
+  `RENTABLE_DEBUG_PORT`), and `build` never does. A role name, username, workspace name or grant
+  already there is skipped;
+  an app that is closed or signed out, or a webview with no port (macOS, Linux), is said in one
+  sentence and the records seed runs regardless. `--records-only` and `--organization-only` pick a
+  half. It reads no vault and no keyring.
 - **Live tests reach the human's account only when asked**, each creating and removing its own
   database; [[rules/testing]] under *Tests that reach a live remote* admits them, and
   [[references/turso]] under *Never run* bounds them.

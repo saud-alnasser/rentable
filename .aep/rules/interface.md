@@ -34,6 +34,14 @@ Every rule governing what a surface **is** and how it **presents**. How the code
 draws it is written is [[rules/frontend]]'s; what it reads and writes is
 [[rules/data]]'s.
 
+**A component is chosen by [[contexts/desktop/components]].** Before a surface draws a primitive, a
+block or a cell to show data, show a status, take an action, choose a value, disclose detail,
+interrupt or guide, that context is read and its decision table followed; a need it does not name
+is raised rather than answered with a component chosen by habit. Where a section below names the
+component for a case, the section wins and the context is corrected. *Added by ticket 22 of
+[[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], at the human's word of
+2026-10-02.*
+
 ## The catalogue of acts
 
 **Each act a person repeats has one pattern, and its section is where that pattern is written.**
@@ -126,6 +134,55 @@ state, and header arrangement — none of which is the shape of anybody's record
 
 Recorded originally as ADR 0032, *A record surface is one shell with a per-concept body*.
 
+**A workspace has a record page of its own, under the settings area it is listed in**:
+`/settings/workspaces/<id>` (`organization/workspace/component/page.svelte`), on the same shell.
+At the top, what its card says: its name, the *open on this machine* badge on the one open here,
+and its fields with the card's glyphs (`block/specification.svelte`'s `icon`): how many hold it,
+what the reader may do there, the day it was made. Its acts are the card's, refused as there, but
+*members*, which is the page. Below, its one collection, who holds it, as a record directory
+(`organization/workspace/component/holders.svelte`): the settings directories' tray
+(`organization/component/directory-tray.svelte`), its heading in the settings card's manner, the
+search narrowing by username or role, the count, the order by username or role, and last the plus
+(`create/component/control.svelte`, *add members*); then the members in it as the members
+directory's own cards (the member card at its tile height, in the record tiles' grid), *custom
+here* at a card's foot where what the member may do there is tailored, the empty block where
+nobody holds it, and the no-match block where the search finds nobody. The plus opens the add
+sheet (`organization/workspace/component/add-sheet.svelte`, the edge panel), which the page mounts
+since it holds who can be put in. It is **one checklist**: the shared search field at its top
+(*Search*, *find a member to add*, holding the focus as the sheet opens and leaving `/` to the
+page's tray), and under it every member not in the workspace, always shown with nothing to open,
+narrowed in place by username. A row is the person as their card heads them (the disc, the
+username, the role's badge) with a check at its trailing edge, an empty ring filled and ticked
+once checked. Pressing a row, or Space on it, checks or unchecks it where it stands, so nothing
+moves between lists; the rows are a listbox with `aria-multiselectable`, one row in the tab order,
+the arrows, Home and End moving between them and the down arrow reaching them from the field. A
+search that finds nobody says so with the way out that clears it, and a sheet with nobody left
+to put in says so. The footer's one button counts what it adds (*add 1 member*, *add 3 members*,
+in Arabic in its own plural forms) and cannot be pressed with none checked; it puts every one
+checked in, in the list's order. Pressing a card
+opens *edit permissions* on that member (its `href` is the page with the member named on it,
+consumed on arrival as the members directory consumes its own). Each card's record menu holds
+the acts on the member there (`declareHolderActs` in `organization/workspace/acts.ts`), and
+only these: *edit permissions*, a sheet of this workspace's permissions alone
+(`organization/workspace/component/permissions-sheet.svelte`, mounted by the workspace's host);
+and *remove from workspace*, red and asked first (*Delete and confirm*). How each is refused is
+*Members and access*, under *Form surface*. Back returns to the workspaces section, which the page names as
+its fallback: the trail keys a screen by its path, so the settings area is one screen whichever
+section was left, and where the fallback names the screen being returned to it says where on it
+(`backTarget`). A workspace the reader holds no grant on is not found. *Added by ticket 49 of
+[[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirement 1 as revised
+2026-10-03, at the human's word: "manage members in the workspaces the form looks bad the switch it
+needs to be a better looking maybe a page details like how records have pages record and dicreocty
+of members and at the top information". The switches became a search field and member cards by
+ticket 50, at the human's word of 2026-10-03: "the details page of a workspace in the settings it
+should have a record search bar or feild that you search for a member then add them to the
+worksace and a grid of cards sohwen to existing members and have elipses as action for them
+regarding the workspace". The field became the directory's tray with a plus opening the add
+sheet, and the menu lost *open member* and turned *tailor access here* into *edit permissions*, by
+ticket 51, at the human's walk of 2026-10-03: "in a workspace the details page it has a searchbar
+filter,sort add button on the tray; then grid of cards like now; a card when clicked it opens the
+edit permissions option sheet; and the eliapess show edit permissions and remove options only".*
+
 ### Landing screen
 
 **The landing screen is a band of routed figures over one section of records per rank.**
@@ -137,6 +194,110 @@ Anything that does neither does not belong on this screen.
 *who do I chase* while leaving *how is the month going* to a strip nobody reads.*
 
 Recorded originally as ADR 0030, *The landing screen is figures over sections, and a figure routes or a section holds rows*.
+
+**A section may carry the control for the setting that defines it, and that section's header
+stands with no rows.** The ending-soon section is the one: the window that decides which contracts
+rank as ending soon is a quiet glyph at the end of its header (`dashboard/component/ending-soon.svelte`),
+opening the number of days, applied in place with no save step. Where no contract falls in the
+window the header is still drawn in the rank's own place, saying none end within it, with the same
+control, so a window that catches nothing is widened where it would show; the section fills in place
+when it does. It is the one header the stated test above admits without rows, because a setting with
+its only home on a section that vanishes when the setting catches nothing is a setting that cannot
+be reached. The command menu offers it as a place, `/?ending-soon`, which opens the control.
+
+*Why: the window was a field in the settings area, two screens from the only rows it changes, and
+every neighbour there applied at once while it asked for a save.* *Added by
+[[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirements 6 and 7.*
+
+### Settings section
+
+**A settings section is one column of cards, and everything in it is one.** Each tab of the
+settings area draws its content in `packages/design/src/lib/block/settings-grid.svelte`: its cards
+one under the next in a single column at every width, in every tab, the content capped near 1100
+pixels. No two-column grid, no card spanning or standing beside another, no masonry: reading order
+is source order, so what a keyboard and a screen reader meet is what the eye sees.
+
+**A card has one anatomy** (`block/settings-group.svelte`): a header inside the card with its glyph,
+its title, one muted line saying what it is for, and at its end an optional value (a count, a
+state, a badge), never an act, and after the value an optional **header action** (`action`): the
+card's one act on the card as a whole, a quiet text button at the header's trailing edge (the start
+edge in Arabic), words with no glyph. The password card is its header alone, its *change* there; the
+machines card's header carries *sign out others*, red words since it ends something, confirmed and
+naming the machines it ends, refused with its reason where no other machine is signed in. Then its
+rows (`block/settings-row.svelte`), the
+meta line under a row's name and a badge beside it where one marks the row; then, after a
+separator, the acts that end something, the error tone on the act's button alone, never on the
+row's glyph or name, the card's edge or a band (an ending act on one row of a growing list, such as one machine's sign-out, is an
+entry in that row's record menu instead, confirmed and in the menu's default tone, so the card's
+red stays on one act: this machine's own sign-out is such an entry in its row's menu, and the
+account has no card for this machine); then an optional footer of one note, one progress bar or one act. Every card takes the column's
+width, and those that end something are written last. The roles, members and workspaces
+directories are not boxed: their heading takes the card's header, the tray sits under it, the
+record cards follow, so no box sits in a box. A notice waiting on the reader, the ownership offer,
+is a callout in the column rather than a card of one row. A row's control whose words a tooltip
+can carry is an icon control named by one (the log folder's reveal, the check for updates, sync);
+the way forward and every act that ends something keep their words, save the one that sits on a
+picture (below). **No button repeats the glyph
+its row or its card already shows**, in any tab: a row's control is words alone, or an icon alone
+named by a tooltip, and never the row's own glyph again, since the glyph already said what the row
+is about (a row whose control must keep a glyph leads with another, as the available version's
+`package-plus` beside the install's `download`). Every act in a card's end is red words with no
+glyph. The organization's leaving card holds, for an owner, the Turso account: one row stating
+its connection on this machine (connected, or not held here with *reconnect* in words), then the
+acts, *transfer ownership* (its button *transfer*, refused with its reason where nobody can take
+it), *forget Turso account* (confirmed, naming where the token is revoked), *disconnect this
+machine*, and *delete organization* last and set apart; a member meets the disconnect alone. There
+is no Turso account card. A choice explains itself, with no
+sentence under it; where one segment's effect is not in its word (appearance's *system*), that
+segment alone says it in a tooltip. A value not yet known is not drawn, never a word standing in
+for one (the available version before a check). An icon control may show what it is doing with its
+own glyph and nothing else: the check for updates turns its glyph while a check runs, `aria-busy`
+for as long, and stops when it answers, and sync turns its glyph the same way while a run is in
+flight, whoever started it, the state row's own glyph (`cloud-sync` while syncing) standing still;
+the log folder's reveal crosses from a closed folder to an
+open one when pressed and closes again. Both move on the motion tokens and hold still for a reader
+who asked for less motion ([[rules/frontend]], *Motion*), the state still changing. A
+picture the reader may change is itself the control that changes it, as a profile picture is: the
+organization stamp's preview is a button named *replace image* (*choose image* while empty), with
+no button beside it; a reader who may not change it sees a picture. Removing such a picture sits on
+the picture, not in a row of its own: a small icon button inside the preview's top trailing corner,
+the preview's sibling rather than inside it, red on the button alone, named *remove organization
+stamp* by its label and its tooltip, confirmed, and absent while there is no picture to remove. It
+and the replace glyph inside the bottom trailing corner are one pair, drawn as the same small disc
+and always shown, never hanging past the picture's edge. The picture sits at the card header's
+trailing edge, in its action slot beside the title and the card's one line, top-aligned with them
+and mirrored in Arabic, for a reader who may change it and one who may not alike. The card then
+has no rows at all.
+
+**Detail few readers need folds under its row, and nothing else folds.** A row's `details` is an
+expander on the `collapsible` primitive, in the manner of Fluent's settings expander: the glyph,
+the name, the value and the control stay in view, a chevron after them opens the detail beneath,
+labelled by what it opens, one level only, closed by default and remembered while the application
+runs. Three rows take it: the available version's release notes, the sync state's machine detail (the workspace this machine keeps and where its copy is), and the
+Turso account row's database and organization, in the leaving card. **Never folded**: a status word or its problem's
+callout, the last time Turso was reached, a download in progress, the ownership offer, the machines
+list, the earlier-records callout, the log folder's path (a line of facts with room to stand whole),
+and every act in a card's end, which `settings-row` refuses to
+fold whatever it is handed. A new fold passes the same test: most readers do not need it, it
+reports no condition, it ends nothing, and the row's header still says what matters.
+
+*Why: the human found the settings a linear column of sentences and asked for "cards and section
+of grids", then for everything in a tab to be a card, and then why the collapsible primitive went
+unused. Walking the built two-column grid, they asked for "each card is under the next card" and
+for "only the action button" to be red. Then they found "odd using the same icon of the sectio
+ntitle and descripto in the action button", asked for *transfer ownership* with a red *transfer*
+and red text disconnect and delete, asked that the sync button be "the icon only with tooltip",
+and, finding the Turso account card said what disconnect says, chose to "Fold it into Leaving". Of the stamp's remove row they asked that it "needs to be
+integrated in into the part of the image not a separate thing", named the organization stamp.
+Of the account they asked for the password's act as "a text simple milimst on the right side of
+the card", that the machines and this machine be merged with "simpley an otpoin to login out of
+the mecahine", and found signing out of all "od to be a complete section".
+Every settings pane the research saw is one column. Every
+disclosure guideline read (Apple's disclosure controls, GOV.UK's details, Microsoft's settings
+expander, Android's advanced settings) agrees on the fold's test.* *Added by
+[[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirement 1 as widened on
+2026-10-02, ticket 21, revised the same day, tickets 31, 34, 36 and 38, and on 2026-10-03, ticket 46; evidence in its
+`evidence/research/settings-*-as-cards.md` and `how-production-apps-organize-a-settings-section.md`.*
 
 ## Tone
 
@@ -190,13 +351,111 @@ than browsed — and one uniform table fits none of them.*
 
 Recorded originally as ADR 0013, *Each list gets the presentation its data is shaped like, over one shared shell*.
 
+**A list may lay its records as tiles in a grid**, and the shell owns the grid as it owns the rest
+of the geometry. A list turns it on by passing `recordMinWidth`, which for a grid of record cards
+is `RECORD_TILE_MIN_WIDTH` (300 px) from `list/list.ts`; one width for every grid, so the
+directories break at the same window widths. The shell fits as many columns as `columnsFor`
+answers: tiles of at least that width with the gap between them counted, one where the window is
+narrow, two where it is wider, and **never more than three**, since a fourth column makes each
+record a strip again. Tiles are `gap-3` apart across a row, the same measure as down the list, and
+the loading skeleton draws the same columns with the same gap. A selection box stands beside a
+tile, level with its heading line, where a row has it at the row's middle. Keyboard movement runs
+across a row and down the columns in both reading directions, and the rows stay virtualized.
+
+A record in a grid wears `record-card.svelte` with `layout="tile"`: a column whose first line is
+the `heading` snippet (the record's name and its status) with the actions control at its end, and
+whose facts follow, one to a line. The link over the card and both routes to its acts are the
+row's (*Record card actions*, below). A list that does not turn the grid on keeps the row layout,
+one line, unchanged. *Added by ticket 14 of
+[[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirements 18 and 19: the
+shell and the card can draw the grid; each directory turns it on in its own ticket.*
+
+**A tile's facts are `Cell.Fact` lines, and a tile's height is counted, not measured.** Every
+fact on a tile is one `Cell.Fact` (`design/cell/fact.svelte`): a small dimmed glyph standing for
+what the fact is, then the fact, muted and small, so no label is written beside a number. Each
+line sets the same fixed leading, `factLeading`, 20 px in both locales, because the list lays its
+tiles at the height a concept declares rather than measuring them, and a line left to inherit its
+leading is near 22 px in Arabic and overlaps the tile below. A line added to a tile, or one drawn
+without that leading, changes the concept's declared height too. The member tile is the one
+exception, at the human's word of 2026-10-02: its facts are four short values side by side, the
+case where a name is wanted to tell them apart, so each is a tinted field carrying its name small
+above the value, every line still at the same fixed leading.
+
+**The complexes, tenants, contracts, members and workspaces are grids; a complex's units are not.** Each tile is the
+concept's own component, at the height its list declares:
+
+- **A complex** (`complex/component/card.svelte`, `COMPLEX_TILE_HEIGHT`, 120 px): its name, its
+  location, and at its foot how many units it holds, how many are occupied and how many vacant,
+  each count with its word and left out at zero.
+- **A tenant** (`tenant/component/card.svelte`, `TENANT_TILE_HEIGHT`, 144 px): the name as the
+  one strong line, the national id and the phone as two facts held left to right, and at its foot
+  what the tenant's contracts stand at: a chip for each status holding any (`Cell.StatusCount`,
+  its glyph, figure and word in the status's tone), in the contracts directory's order, a status
+  at zero left out, and *no contracts* where every count is zero. A reader who may not view
+  contracts is told nothing of them.
+- **A contract** (`contract/component/record.svelte`, `CONTRACT_TILE_HEIGHT`, 184 px, the same
+  tile in the directory, a tenant's contracts and a unit's): the tenant with the status and its
+  word on the heading line, then the reference, the dates as a range, and the names of its units
+  in the reader's list style, each a fact; at its foot the ring with the paid and expected amounts
+  beside it, the cost with its interval, and how many payments it holds, drawn only above zero.
+  Where the reader may not view tenants the reference leads instead and is not repeated.
+- **A member** (`organization/member/component/card.svelte`, `MEMBER_TILE_HEIGHT`, 228 px, in the
+  settings' members directory): the avatar's initials, the username and the role badge on the
+  heading line, then its facts as four fields in a grid two across, each a rounded tile in the
+  muted token with no border, holding its glyph and its name small and muted over the value in
+  the stronger weight: how many workspaces it holds (in words when none) and when it joined in the
+  first row, whether the account has a password and whether a machine is signed in on it in the
+  second, drawn once the standing has answered. No field takes a tone; a value saying nothing is
+  there (*not yet*, *none*) is muted. At its foot, only where they apply, permissions of its own and
+  an organization offered to it, each a small outline badge with its glyph.
+- **A role** (`organization/role/component/card.svelte`, `ROLE_TILE_HEIGHT`, 196 px, in the
+  settings' roles directory, in rank order): the `shield` glyph in its muted tile, the role's name
+  and a badge counting who holds it (*nobody yet* when none), then four fields in the member
+  card's look, two across: what it reads, what it changes, the people acts it holds, and the
+  organization acts it holds, each as every one, a count of the whole, or *nothing* / *none*
+  muted. It has no foot.
+- **A workspace** (`organization/workspace/component/directory.svelte`, `WORKSPACE_TILE_HEIGHT`,
+  196 px, in the settings' workspaces directory): the `building` glyph in its muted tile and the
+  name on the heading line, an *open on this machine* badge beside it on the open one, then tinted
+  fields two across: how many hold it, as a count in words (*nobody* when none, muted) with no
+  initials drawn, beside what the reader may do there, and under them, across both columns, the
+  day it was created.
+
+A complex's unit directory stays one column of rows at 64 px, because a unit is reached through
+its complex or its contract and a tile spends room its two facts, its status and its occupant, do
+not need. *Tickets 16 to 18 of [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]],
+requirement 18 as the human narrowed it on 2026-10-02 (units keep their rows); the tenant and
+contract tiles recorded by ticket 27; the member and workspace tiles laid out by tickets 32 and 33
+at the human's walk of 2026-10-02 and recorded by ticket 35; the member's fields by ticket 37; the
+workspace's members as a count by ticket 48, at the human's walk of 2026-10-03.*
+
+**A settings directory shows a few rows of its cards and scrolls the rest inside its own area.**
+The members, roles and workspaces directories lay their tiles through one grid,
+`organization/component/directory-grid.svelte`, in the list shell's columns (one, two or three by
+the directory's own width, `columnsFor`), and bound them to the rows in view at those columns:
+two rows at one or two across and three at three (`rowsInView`), so two cards, four or nine.
+Past that the cards scroll in an area exactly that tall, gaps counted, so no card is cut in half,
+computed again whenever the width changes the columns; with fewer cards the area is as tall as
+they are. The tray (search, count, order, the plus) stands above the area, outside it. The area is
+the platform's own scroll (a native overflow, as every bounded list here scrolls; the package
+holds no scroll primitive), a region named by the directory's heading, its foot fading with a
+still mask while more cards are below. Keyboard focus reaching a card the area cuts off brings
+the whole card into view at once, with no smooth scroll, and a press does not move it. A
+workspace page's members are not bounded: they are the page's only collection, so the page's
+scroll is theirs and a second one would nest inside it. *Ticket 53 of
+[[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], at the human's walks of
+2026-10-03: "in settings members and roles each one should havea 4x4 cards as masx then more will
+result in a scorlling area", then "for mobile size 2 cards then becomes an area of scroll; for mid
+screen 2 columns become 4 cards meaning 2x2; for full screen 3x3 cards 9 cards", the workspaces
+directory included.*
+
 ### Search
 
 **Every set a person can search searches one way: `list/component/search-field.svelte`.** A leading
 search glass, a wait of 250 ms after the last keystroke before the term becomes the search, and
 `/` to put the cursor in the field from anywhere on the surface. The list shell draws it, the
-contract's unit panes draw it, and the settings members, roles and workspaces directories draw it,
-and a set added later draws it rather than an input of its own. The key is registered by the field,
+contract's unit panes draw it, the settings members, roles and workspaces directories draw it,
+and so does a workspace's add sheet, its words saying what it finds (`placeholder`), and a set added later draws it rather than an input of its own. The key is registered by the field,
 so it exists exactly where there is something to search, and it stands down while text is being
 typed. **A surface answers the key once**: where it draws two sets, the one a reader searches
 holds it and the other's field is reached by pointer or by tab (`answersSearchKey`). The
@@ -211,7 +470,8 @@ block the bar and put two sets on one section.*
 narrows the set, the order, and what acts on it, in that order. The list shell draws it above its
 records and the settings directories above their cards. What a directory does not want it leaves
 out: the settings directories offer no export, since a dozen accounts are not a file anybody
-wants, and a workspace's own file is the transfer beneath the cards. The contract's unit panes are
+wants, and a workspace's own file is exported and imported from each workspace card's acts
+(*Export and import*), not from the bar. The contract's unit panes are
 two halves of one transfer rather than a directory, so they take the field and not the bar: the
 field on the bar's surface, and their units as the record cards every unit list draws, with the
 unit's acts and the transfer beside them. Every list offers an order, the unit directory and the
@@ -294,11 +554,13 @@ know which surface they are on before they know what will happen.*
 Recorded originally as ADR 0025, *A row opens its record, and does nothing else*.
 
 *Noted 2026-09-17, an accepted deviation: **in the settings directories a record's page is its
-sheet.** A member, a role and a workspace have no page of their own, so the card in the members,
-roles and workspaces directories opens the record's edit sheet on the same address
-(`?section=organization&member=<id>`, `?section=organization&role=<id>`,
-`?section=workspaces&workspace=<id>`), and does nothing else; the acts are still explicit controls
-on the card. Requirement 23 of
+sheet.** A member and a role have no page of their own, so the card in the members and roles
+directories opens the record's edit sheet on the same address
+(`?section=organization&member=<id>`, `?section=organization&role=<id>`), and does nothing else;
+the acts are still explicit controls on the card. A workspace left the deviation with ticket 49 of
+[[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]]: it has a page
+(*Record surface*), its card opens it, and an address naming one on its section
+(`?section=workspaces&workspace=<id>`) is sent on to it. Requirement 23 of
 [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] is the precedent, and the
 human accepted it at that effort's review round two on 2026-09-17.*
 
@@ -387,63 +649,80 @@ and 8: contract is the first concept declared this way, and the others follow it
 
 ### Delete and confirm
 
-**An ordinary delete happens at once and offers undo.** A record whose delete removes the record
-and nothing else is gone the moment the act is chosen, and the announcement it raises carries the
-undo control and the line saying the undo lasts while the application is open (the declaration's
-`toast.detail` in `mutation/announcement.ts`). Ctrl/Cmd+Z takes it back as well. There is no dialog in
-front of it.
+**Every dangerous act asks first, with no exception.** An act that deletes, ends, removes, signs
+out, disconnects, forgets or hands something over puts a confirmation in front of the reader before
+anything is written, from every route that offers it: a record's card menu and its context menu,
+its page, the command menu, a selection's bar, and every row of the settings area. That covers the
+records' deletes (tenant, complex, unit, contract, payment), terminating a contract, the
+organization's acts (deleting a workspace, removing a member or locking one out, resetting a
+member's password, signing a member out everywhere, deleting a role, withdrawing an ownership
+offer, transferring ownership), signing out another machine or every other one, signing this
+machine out, disconnecting it, forgetting the Turso account (in settings and in setup), deleting
+the organization, and removing the organization stamp. Leaving the question does nothing.
 
-**A confirmation appears only where a delete removes more than the record, or cannot be undone.**
-Each act declares which, as its `confirmation` in `act/act.ts`: `none`, `cascade` or
-`irreversible`, and every act in the `destructive` group declares one
-(`design/tests/delete-and-confirm.test.ts` holds each concept to it). The host reads it through
-`toDeleteStep` and opens `packages/design/src/lib/block/delete-dialog.svelte` only when the policy
-asks. A record's own parts are the record: a contract's unit assignments go with it and come back
-with its undo, so releasing its units is not a cascade. Today the tenant, complex, unit, payment
-and contract deletes are `none`; deleting a
-workspace, removing a member and locking one out are `irreversible`, which keeps the organization
-host's deletes in the delete dialog.
+**The question names what ends and whether anything brings it back.** The record leads, as the
+surface names it; the line under it says what goes and what puts it back: undo while the
+application is open for a record's delete, restoring for a termination, signing in again for a
+sign-out, a new link for a member's reset, offering again for a withdrawn offer, and *nothing* where
+nothing does. A record's delete still lands inside undo once answered, and its announcement still
+carries the undo control (*Undo*).
+
+**A record act declares that it asks.** Every act in the error tone declares its `confirmation` in
+`act/act.ts`, `reversible`, `cascade` or `irreversible`, saying what the question says brings it
+back; the type refuses an error-tone act without one, and every act in the `destructive` group is
+in the error tone. No value runs an act at once. The host owns the question and opens it on every
+run, so the card, the page and the command menu reach the same one.
+`act/tests/dangerous-acts-ask.svelte.test.ts` finds every `acts.ts` under `src/lib`, holds each
+error-tone act to a declared confirmation, and runs each through its host to find a dialog in front
+of the reader and nothing written, so a dangerous act added without its question fails there. A
+record's own parts are the record: a contract's unit assignments go with it and come back with its
+undo, so releasing its units is not a cascade.
 
 **A delete whose cost turns on the record declares what the record alone costs, and its host
 resolves the rest.** A complex's units are records of their own and go with it, so deleting a
-complex that has units is a cascade, and one with none is still `none`
-([[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]], requirement 22). How many units
-a complex has is on no record a surface holds, so the act declares `none` and the complex host,
-which reads the deletion's plan, hands `toDeleteStep` the policy `toComplexDeleteConfirmation`
-gives for the complex in front of it (`complex/acts.ts`). The dialog it opens names the units that
-go, and the delete is undone whole, the units included. The delete dialog's button names the verb (*delete*, *remove*),
-never *confirm* or *OK*.
+complex that has units is a cascade ([[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]],
+requirement 22). How many units a complex has is on no record a surface holds, so the act declares
+`reversible` and the complex host, which reads the deletion's plan, takes the policy
+`toComplexDeleteConfirmation` gives for the complex in front of it (`complex/acts.ts`). The dialog
+it opens names the units that go, and the delete is undone whole, the units included. Until the
+plan is read the dialog offers no delete, since what it would say goes may not be what goes.
 
-**A refused delete is still refused, and says why.** A delete declared `none` waits on what might
-refuse it before it runs; where something does (a tenant with contracts, a complex one of whose
-units a contract holds), the
-host opens the delete dialog in its blocked state, which names what stands in the way and offers no
-destructive control. The procedure refuses it either way.
+**A delete asks in `packages/design/src/lib/block/delete-dialog.svelte`**, whose button names the
+verb (*delete*, *remove*), never *confirm* or *OK*. **A refused delete is still refused, and says
+why**: where something stands in the way (a tenant with contracts, a complex one of whose units a
+contract holds), the same dialog opens in its blocked state, names what stands in the way and offers
+no destructive control. The procedure refuses it either way. **A selection asks in
+`block/selection-dialog.svelte`** (*Bulk selection*).
 
 **An act that is not a delete confirms in `packages/design/src/lib/block/confirm-dialog.svelte`**,
-titled and labelled with its own verb: terminate, restore, end the other sessions, forget the
-account, disconnect. It has no default title or button word, so a caller cannot fall back to
-*delete*. Its control is destructive for an act that takes something away, and the ordinary
-primary control for one that gives something back (restore).
+titled and labelled with its own verb: terminate, restore, sign out, forget the account, disconnect,
+withdraw. It has no default title or button word, so a caller cannot fall back to *delete*. Its
+control is destructive for an act that takes something away, and the ordinary primary control for
+one that gives something back (restore). Signing this machine out asks in it from both its routes,
+the account section's last card and the account menu at the foot of the rail
+(`organization/session/component/sign-out-dialog.svelte`).
 
-*Why: a dialog in front of every delete is a question the reader learns to answer without reading,
-which is the worst place for the one delete that really cannot be taken back. Undo answers the
-ordinary case better than a question does, and a confirmation kept for the rare case is one people
-still read. A terminate dialog drawn in the delete dialog's shape said "delete" to the reader in
-every way but its words.*
+*Why: the human walked the built application on 2026-10-02 and asked, in their words, to "make sure
+deangours actions have confirmation dialog even in domain records deletes have confirmation dialong
+and dangours actions". This replaced two exemptions: an ordinary record delete ran at once and
+offered undo (effort 832, requirement 11, on the reasoning that a question asked of every delete is
+answered without reading), and signing this machine out asked nothing because signing in undoes it
+(effort 846, requirement 2, after the HIG's *Alerts*). The reader would rather answer one more
+question than lose a record to a stray press, so every dangerous act asks, and the question says
+plainly what brings it back so the cheap ones read as cheap.* *Revised by
+[[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirement 1's revision of
+2026-10-02 and requirement 2, ticket 40.*
 
-The cost the spec accepts: undo lasts for the session, so a record deleted without a question is
-lost if the application closes before it is taken back
-([[efforts/832-the-interface-speaks-one-language-and-guides/spec]], *Risks*).
-
-**A stated exception: deleting the organization is a heavy form with a password, not the delete
-dialog.** It removes every workspace and everything in them, every member's way in, and every
+**A stated exception to the dialog, not to asking: deleting the organization is a heavy form with a
+password.** It removes every workspace and everything in them, every member's way in, and every
 other machine's place in the organization, and nothing puts any of it back: it is the one act in
 the application that nothing undoes. So it takes the shared form surface at the heavy weight
 (`organization/component/delete-organization.svelte`). Its body says what goes in the plainest
 words there are, and the owner's password is the confirmation, refused on its own field when it
 does not open the owner's vault (*Validation errors*). A question answered with one press is the
-wrong weight for the act a reader can least afford to answer without reading.
+wrong weight for the act a reader can least afford to answer without reading. Transferring
+ownership asks the same way, in its own surface with the owner's password
+(`member/component/offer-ownership.svelte`).
 
 Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 11.
 
@@ -481,8 +760,9 @@ something away confirm instead (*Delete and confirm*). And a file imported is no
 because its inverse would be a file's worth of deletions hung off a toast (`workspace/query.ts`).
 The mechanism, replaying inverses through the real procedures, is [[rules/data]]'s, under *Undo*.
 
-*Why: undo is what lets an ordinary delete skip its question (*Delete and confirm*), and it can
-only carry that weight if the reader can find it the same way after every change.*
+*Why: undo is what a record's delete question names as bringing the record back (*Delete and
+confirm*), and it can only carry that promise if the reader can find it the same way after every
+change.*
 
 Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 11.
 
@@ -585,11 +865,23 @@ Tenants, complexes, units, contracts and payments offer both. A contract that ta
 refuses the import on its ledger, with the reason its create is refused (`importUnavailable` on
 the list shell), since an import only adds payments. The settings directories offer neither (*Search*).
 
-**A whole workspace is one file, and it moves from the settings area**, beside sync
-(`organization/workspace/component/transfer.svelte`), never from a directory: a directory's control writes that
-directory's records and nothing else. Its import shows a line per sheet
-(`transfer/component/import-dialog.svelte`), and a reference nothing in the file answers refuses
-the whole file.
+**A whole workspace is one file, and it moves from that workspace's card** in the settings
+area's workspaces directory, never from a record directory: a directory's control writes that
+directory's records and nothing else. *Export* and *import* are acts on every workspace card the
+reader holds, declared with the card's other acts (`organization/workspace/acts.ts`, *Record card
+actions*), so the card's menu, its context menu and the command menu offer the same two, whether
+or not the workspace is open on this machine. Each is refused, with the reason, by what the reader
+may do in that workspace (every kind's view to export, every kind's create to import, a read-only
+grant there refusing the import), not by what they may do in the one open. The organization host
+runs them (`organization/workspace/component/host.svelte`): the export asks where through the
+system's save dialog, reads that workspace, writes the workbook and opens its folder; the import is
+one dialog (`transfer/component/import-dialog.svelte`), named for the workspace it reads into, which
+shows a line per sheet and confirms with that workspace's id, and a reference nothing in the file
+answers refuses the whole file. The open workspace's file moves through this machine's replica,
+offline included; any other is read and written on Turso without being opened here, so it needs
+Turso reachable, and unreachable the act says so when pressed and writes nothing.
+*It moved from a block beneath the directory that moved the open workspace alone, by
+[[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirement 15.*
 
 *Why: the export was an icon that could say export and nothing else, so a second format had nowhere
 to be named and the other direction had nowhere to go.*
@@ -597,10 +889,12 @@ to be named and the other direction had nowhere to go.*
 Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 6.
 
 **A stated exception: the earlier records skip choosing a file.** Where this machine still holds the
-records of 0.12.0 or 0.13.0, a callout in the settings workspace group, above the transfer controls
-(`organization/workspace/component/app-database-records.svelte`), opens the same workspace import review over those
-records as the shell reads them from the earlier version's database, rather than over a file the
-person chose. There is no file for the person to choose, since the records sit in the earlier
+records of 0.12.0 or 0.13.0, a callout above the settings area's workspace cards
+(`organization/workspace/component/app-database-records.svelte`) opens the same workspace import
+review over those records as the shell reads them from the earlier version's database, rather than
+over a file the person chose. It names the workspace open on this machine as the one it fills and
+writes into that workspace by its id; with nothing open it says to open one and offers no act
+(effort 846, requirement 17). There is no file for the person to choose, since the records sit in the earlier
 version's own data, and nothing the pattern protects is lost: the plan is still shown, sheet by
 sheet, before anything is written. Settled by
 [[efforts/838-permissions-are-a-role-and-an-override/spec]], requirement 18.
@@ -622,7 +916,7 @@ on macOS and Linux both open the system's print panel (`tauri/src/print/`).
 
 The page is paper: light whatever the window's appearance (`.paper` in the token layer), in the one
 language chosen, set out as a document with the organization that issued it at its head and its
-signature or seal at the foot where one is set (the organization's *mark*, set in its settings),
+organization stamp at the foot where one is set (the code's *mark*, set in its settings),
 with Western digits. Where
 the host refuses, the reader is told in one sentence (`showErrorSentence`); a saved PDF is
 confirmed in a toast. Today the contract prints its schedule and a payment its receipt.
@@ -728,14 +1022,39 @@ workspace read only, since granting it again at full access is their own credent
 member ranked at or above the reader is refused at the card's edit act, which opens nothing. The
 acts are the grants that exist (`useChangeAccess`), sent only for the workspaces that changed, then
 one workspace override per workspace whose pins changed, carrying what is pinned there and which
-of it is on (`useSetWorkspaceOverride`). **A workspace's own dialog draws its
-people the same way**, a switch per member, in or out, with the same refusals at the same
-controls, from the one list both surfaces share (`access/component/switches.svelte`), so the two cannot
-refuse differently; a person tailored there is marked *custom here* beside their name, and the
-tailoring itself is the card's. A member is drawn with the member's glyph (`organization/glyph.ts`,
-`circle-user`, the account's), never the tenant's person, and the owner and the reader are not
-listed. The workspace card's act that opens it is refused without `grantWorkspace`, naming it, as
-the member's card refuses its section, rather than hidden. *The human's calls on the running
+of it is on (`useSetWorkspaceOverride`). **A workspace's members live on its page**
+(*Record surface*), given from the other end: members are checked in the add sheet's one list and
+put in on its save, and each member in it is a card whose menu takes them out. Putting somebody
+in is refused by the one rule the member's card reads (`accessRefusalOf` in `access/access.ts`),
+so the two ends cannot refuse differently, and the sheet's one save writes a grant for each
+member checked through the same write (`useChangeAccess`), in the list's order: a refusal stops it
+there, the grants before it stand and leave the list, and the sheet stays open saying the reason
+and that those still checked were not put in, still checked, while the shared handler says it
+too. Taking somebody out is the card's *remove from workspace*, red, asking first
+in `block/confirm-dialog.svelte` under its own verb and saying adding them again gives it back,
+then one withdrawal through the same write. A person tailored there is marked *custom here* on
+their card, and *edit permissions*, the card's press and its first entry, opens a sheet of that
+workspace's permissions alone: the switches the member's card folds beneath the workspace
+(`access/component/tailoring.svelte`, standing open), its description saying they override the
+organization's and the role's permissions for this workspace, saved through the same writes the
+card makes for one workspace (`useSetWorkspaceOverride`, then the read-only grant lifted where a
+write was turned on over it). The owner and the reader are not cards, and are not offered.
+Without `grantWorkspace` the plus is refused and says so, naming it, and so is every card's
+removal, as the member's card refuses its section; where the reader holds the workspace read only
+the plus is refused for that, and the removal still runs, since a withdrawal stays theirs; with
+nobody left to put in, the plus says so. *Edit permissions* is refused without `overrideMember`, naming it, and on a member ranked at or above the
+reader, as their card's edit is. The workspace card's *members* act, which goes to the page, is
+refused without `grantWorkspace` rather than hidden. *Who held a workspace was a dialog of switches under one
+save, drawn from the member card's list, until ticket 49 of
+[[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]]: the human found the form
+looked bad and asked for a page. The page drew a tile per member with the large switch until
+ticket 50, when the human asked for a search field and a grid of cards with a menu; the field put
+one member in at once and the tailoring opened the member's own sheet until ticket 51, when the
+human asked for the directory's tray, an add sheet and a sheet of the workspace's permissions.
+The add sheet was a search field opening a dropdown beside a list of the chosen until ticket 52,
+when the human found a member chosen leaving the dropdown for the other list, the dropdown still
+open, odd, and asked for the best way to add from the plus: one list, checked in place, as the
+platform's own add-people pickers do.* *The human's calls on the running
 application, 2026-09-27 ([[efforts/838-permissions-are-a-role-and-an-override/spec]], requirement
 12 as amended again and a third time; tickets 48, 49, 50 and 54): each workspace was a row of three
 levels beside the role, which read as a second permission system, and the workspace's dialog
@@ -861,13 +1180,22 @@ Recorded originally as ADR 0018, *A validation error belongs to its field, not t
 **A status renders as an icon carrying no visible text.**
 
 Its name and its description reach the reader through a tooltip and an accessible label. This
-binds every surface showing a status, and every status in the vocabulary of nine carries a
-description.
+binds every surface showing a status except a tile in a grid (below), and every status in the
+vocabulary of nine carries a description.
 
 *Why: the row stops spending width on a word most readers recognise by position, and the reader
 who does not recognise it gets a full sentence rather than a single word.*
 
 Recorded originally as ADR 0023, *A status is an icon, and its word lives in the tooltip*.
+
+**On a tile in a grid, a status carries its word.** `Cell.Status` with `labelled` draws the icon
+and the word beside it, both in the status's tone, and keeps the description in the tooltip. A
+tile is scanned rather than read down a column, so there is no position to recognise the icon by.
+Rows, pages and every other surface keep the bare icon, but for one row: a complex's unit rows,
+which stand in for the unit's card (requirement 18 keeps units as rows), draw the labelled form,
+since a unit's status is one of the two facts its row is scanned for. *Added by ticket 14 of
+[[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirement 19; the unit
+rows by ticket 17.*
 
 ## Concept surfaces
 
@@ -929,7 +1257,8 @@ list that filters by rank offers it. Settled by
 
 **A surface waiting on its content draws `packages/design/src/lib/block/loading.svelte`, and
 nothing else.** The surface hands in a snippet drawing the shape of what is on its way (a list's
-cards, a record's header, the settings area's rail and fields, the dashboard's sections) from the
+cards, a record's header, the settings area's title, its section switch and a section's grid of
+group cards, the dashboard's sections) from the
 skeleton primitive. The block decides when that shape appears: **not before 200 ms, and once shown,
 for at least 300 ms.** A load that settles inside the delay draws no skeleton at all. Until then the
 region is empty and marked busy, and the skeleton, once it is up, is a status carrying the
@@ -1102,6 +1431,26 @@ settings area's were links, so a contract's history could not be opened from any
 tab.*
 
 Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 14.
+
+### The workspace control
+
+**The workspace control at the top of the rail opens a menu of the workspaces the member holds,
+the open one checked, then a separator and *workspace settings*** (`workspace/component/menu.svelte`),
+which goes to the settings area's workspaces section. It is a place rather than a command asking
+for more, so it carries no ellipsis (Apple's HIG, *Menus*).
+
+**Past five workspaces the list scrolls, and the command under it does not.** The radio group is its
+own scroll container, capped at five and a half rows so the half-shown sixth says more is below;
+the separator and *workspace settings* stay in view beneath it, and five or fewer draw no cap. The
+open workspace is scrolled into view when the menu opens, and a row the arrow keys reach is
+scrolled into view, since the menu primitive focuses a row without scrolling to it. Both scroll
+instantly, and the scrollbar is the application's one from `tokens.css`.
+
+*Added by ticket 55 of [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], at the
+human's walk of 2026-10-03: "in the workspace dropdwn scroollable area after 5 workspaces and only
+the upper section the choosing chosises part where the ma ager owksapces is not part of the
+scroable area; also the "mamnanger workspaces.." needs to be better worded". The row read
+"manage workspaces…" until then.*
 
 ## Guidance
 

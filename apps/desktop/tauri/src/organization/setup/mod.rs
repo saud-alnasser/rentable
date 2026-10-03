@@ -70,7 +70,7 @@ use super::{
         seal_content, seal_to_public_key,
     },
     role::permission,
-    session::remember,
+    session::{self, remember},
     store::{
         FORMAT_VERSION, GrantRecord, MemberRecord, OrganizationRecord, OrganizationStore,
         RoleRecord, Signer,
@@ -536,6 +536,16 @@ async fn finish<P: TursoPlatform>(
             .write();
     }
 
+    // this machine's id in the registry of connected machines (effort 828, requirement 15),
+    // drawn where a connect draws it: the moment the machine starts holding the organization.
+    // The row itself is written by the sign-in that follows, which is where the credential
+    // the push goes out under comes from.
+    let machine_id = random_id()?;
+    // the first run is a sign-in, and acknowledges what it finds for this machine, which in an
+    // organization made a moment ago is nothing (effort 846, requirement 10).
+    let machine_signed_out =
+        session::sign_outs_acknowledged(&organization_store, &machine_id, &member_id).await?;
+
     // the one organization this machine holds, from now: the owner's, with their member row
     // recorded from the outset.
     store.organization = Some(HeldOrganization {
@@ -543,17 +553,14 @@ async fn finish<P: TursoPlatform>(
         name: name.to_string(),
         verifying_key: BASE64URL.encode(verifying_key),
         remote_url: remote_url.clone(),
-        // this machine's id in the registry of connected machines (effort 828, requirement 15),
-        // drawn where a connect draws it: the moment the machine starts holding the organization.
-        // The row itself is written by the sign-in that follows, which is where the credential
-        // the push goes out under comes from.
-        machine_id: random_id()?,
+        machine_id,
         member_id: Some(member_id.clone()),
         role: Some(OWNER_ROLE.to_string()),
         joined_at: now,
         // it was made in this build's format, which is the first reading of it there is (effort
         // 838, ticket 25).
         format: Some(FORMAT_VERSION),
+        machine_signed_out,
     });
     store.commit()?;
 

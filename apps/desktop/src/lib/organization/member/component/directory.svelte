@@ -4,23 +4,23 @@
 	import { page } from '$app/state';
 	import type { MemberStanding, OrganizationMember } from '$lib/organization/host';
 	import Empty from '@rentable/design/block/empty.svelte';
-	import RecordCard from '@rentable/design/block/record-card.svelte';
-	import * as Avatar from '@rentable/design/primitive/avatar/index.js';
-	import { Badge } from '@rentable/design/primitive/badge/index.js';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { CreateControl } from '$lib/create/ui';
 	import { toCardActions } from '$lib/act';
 	import type { ListSort } from '@rentable/design/sort.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import { accountInitials } from '$lib/sync';
 	import { lacking } from '$lib/organization/role/acts';
 	import { toMemberActContext, type MemberActRecord } from '$lib/organization/member/acts';
+	import MemberCard, { MEMBER_TILE_HEIGHT } from '$lib/organization/member/component/card.svelte';
 	import DirectoryTray from '$lib/organization/component/directory-tray.svelte';
+	import DirectoryGrid from '$lib/organization/component/directory-grid.svelte';
 	import { toMemberDirectory } from '$lib/organization/directory';
 	import { memberActs, memberHost, memberPending } from '$lib/organization/host.svelte';
 	import { memberRoleName } from '$lib/organization/role/role';
-	import { RECORD_PARAM, recordOf, withSection } from '$lib/settings';
+	import { recordOf, withSection } from '$lib/settings';
+	import { memberCardOf } from '$lib/organization/member/address';
+	import UsersIcon from '@lucide/svelte/icons/users';
 	import XIcon from '@lucide/svelte/icons/x';
 
 	/**
@@ -33,19 +33,21 @@
 	 * actions*). *It was a list of rows with a hover cluster, and then rows with one visible
 	 * control; the human saw the second in the running build and chose cards instead.*
 	 *
-	 * **A card says four things**: the username with the role beside it, one line of standing, and
-	 * one line saying how many workspaces they hold. *Each workspace was a chip carrying its own
-	 * access until the human's second look, which put a second list along the bottom of every
-	 * card; which workspaces somebody holds, and what each one is good for, is a section of the
-	 * sheet the card opens, which lists every workspace with what they hold on it before it offers
-	 * a change.*
+	 * **The cards are tiles in a grid, two or three across where there is room** (effort 846,
+	 * ticket 32, the human's walk of 2026-10-02: "like the other records shows more data better").
+	 * The columns are read off the directory's own width by the list shell's rule (`columnsFor`,
+	 * `RECORD_TILE_MIN_WIDTH`), as the workspaces directory reads them, and every tile stands at the
+	 * height its component declares (`MEMBER_TILE_HEIGHT`). What a tile says is `./card.svelte`'s:
+	 * the person, then their password, machine, workspaces and joining as facts. *It was one wide
+	 * card per row, saying the standing as one sentence and the workspaces as a count.* Which
+	 * workspaces somebody holds, and what each one is good for, is a section of the sheet the card
+	 * opens, which lists every workspace with what they hold on it before it offers a change.
 	 *
-	 * **The standing is two facts, read as a sentence, and it gates nothing.** A member holds no
-	 * password until their first link is opened, and the register (requirement 15) says whether a
-	 * machine is signed in for them. The line says where the account stands and nothing more: a
-	 * link is offered on every card this reader may write, whichever of the three it reads.
-	 * *The line was also why the link act was absent until the human ruled one machine per account
-	 * out on 2026-09-20.*
+	 * **The standing gates nothing.** A member holds no password until their first link is opened,
+	 * and the register (requirement 15) says whether a machine is signed in for them. The tile says
+	 * where the account stands and nothing more: a link is offered on every card this reader may
+	 * write, whatever it reads. *The line was also why the link act was absent until the human
+	 * ruled one machine per account out on 2026-09-20.*
 	 *
 	 * **Activating a card opens its record** ([[rules/interface]], *Row activation*). A member has
 	 * no page, so what opening one means is the member's sheet, and the card's `href` is this
@@ -155,38 +157,15 @@
 	} = $props();
 
 	// the address of the section this directory sits in, resolved once. A card's is it with the
-	// member named on it, which is the whole of what a card's `href` is ([[rules/frontend]]: the
-	// path is the caller's to resolve, and the packaged card takes one already resolved).
+	// member named on it (`memberCardOf`), which is the whole of what a card's `href` is
+	// ([[rules/frontend]]: the path is the caller's to resolve, and the packaged card takes one
+	// already resolved).
 	const sectionAddress = resolve(withSection('organization'));
-
-	const addressOf = (memberId: string) =>
-		`${sectionAddress}&${RECORD_PARAM}=${encodeURIComponent(memberId)}`;
 
 	const roleLabel = (member: OrganizationMember) => memberRoleName($LL, member);
 
 	const standingOf = (memberId: string) =>
 		standings.find((standing) => standing.memberId === memberId) ?? null;
-
-	/**
-	 * the one line a card carries about where a member stands, and the mark its test reads it by.
-	 *
-	 * `null` until the standings have been answered: the list of people is drawn either way, and a
-	 * line guessed from nothing would say *no machine signed in* about a member somebody is
-	 * working on.
-	 */
-	const standingLine = (memberId: string) => {
-		const standing = standingOf(memberId);
-
-		if (!standing) return null;
-
-		if (!standing.passwordSet) {
-			return { kind: 'no-password', text: $LL.organization.dashboard.standingNoPassword() };
-		}
-
-		return standing.machineSignedIn
-			? { kind: 'signed-in', text: $LL.organization.dashboard.standingSignedIn() }
-			: { kind: 'no-machine', text: $LL.organization.dashboard.standingNoMachine() };
-	};
 
 	/**
 	 * what every member act is gated on, read once for the whole directory, through the builder the
@@ -284,6 +263,8 @@
 	<DirectoryTray
 		legendId="members-legend"
 		legend={$LL.organization.dashboard.membersTitle()}
+		grouped
+		icon={UsersIcon}
 		description={$LL.organization.dashboard.membersDescription()}
 		bind:search
 		count={shown.length}
@@ -292,11 +273,19 @@
 		action={trayActions}
 	/>
 
-	<div class="flex flex-col gap-3" data-members>
+	<!-- the tiles one, two or three across by the width, a few rows in view and the rest scrolled
+	     to inside the directory's own area, under the tray (effort 846, ticket 53). -->
+	<DirectoryGrid
+		count={shown.length}
+		tileHeight={MEMBER_TILE_HEIGHT}
+		bounded
+		labelledBy="members-legend"
+		data-members
+	>
 		{#if members.length > 0 && shown.length === 0}
 			<!-- the one empty treatment's no-match ([[rules/interface]], *Empty*): the search found
 			     nobody, and the way out is putting it down. -->
-			<div data-directory-no-match>
+			<div class="col-span-full" data-directory-no-match>
 				<Empty kind="no-match" title={$LL.common.messages.noMatch()} class={DIRECTORY_EMPTY}>
 					{#snippet action()}
 						<Button type="button" variant="outline" size="sm" onclick={() => (search = '')}>
@@ -309,62 +298,18 @@
 		{/if}
 
 		{#each shown as member (member.id)}
-			{@const standing = standingLine(member.id)}
 			<!-- the card is the record and takes no mark of its own, so the member it stands for is
-			     named on the element that holds it, which is what this section is read by. -->
-			<div data-member={member.id}>
-				<RecordCard
-					href={addressOf(member.id)}
-					label={member.username}
+			     named on the element that holds it, which is what this section is read by. It stands
+			     at the tile's declared height, so every tile in a row is the same. -->
+			<div data-member={member.id} style:height="{MEMBER_TILE_HEIGHT}px">
+				<MemberCard
+					{member}
+					standing={standingOf(member.id)}
+					role={roleLabel(member)}
+					href={memberCardOf(member.id)}
 					actions={toCardActions(memberActs, recordOfMember(member), $LL)}
-					class="gap-4 py-3"
-				>
-					{#snippet content()}
-						<!-- the same disc the rail's account control and the identity block draw, with the
-						     same two letters (requirement 24 of effort 824). -->
-						<div class="pointer-events-none relative shrink-0">
-							<Avatar.Root class="size-10 rounded-full">
-								<Avatar.Fallback class="rounded-full text-xs">
-									{accountInitials(member.username)}
-								</Avatar.Fallback>
-							</Avatar.Root>
-						</div>
-
-						<div class="pointer-events-none relative flex min-w-0 flex-1 flex-col gap-1 text-start">
-							<div class="flex min-w-0 flex-wrap items-center gap-2">
-								<span class="truncate text-sm font-medium" data-member-username>
-									<bdi>{member.username}</bdi>
-								</span>
-								<Badge variant="secondary"><bdi>{roleLabel(member)}</bdi></Badge>
-							</div>
-
-							{#if standing}
-								<span
-									class="truncate text-xs text-muted-foreground"
-									data-member-standing={standing.kind}
-								>
-									{standing.text}
-								</span>
-							{/if}
-
-							<!-- how many workspaces, and not which: a card is scanned, and a chip per
-						     workspace carrying its own access turned the bottom of every card into a
-						     second list. Which ones and what each is good for is one press away, on the
-						     surface the card's own menu opens. -->
-							<span
-								class="truncate text-xs text-muted-foreground"
-								data-member-workspaces={member.workspaces.length}
-							>
-								{member.workspaces.length === 0
-									? $LL.organization.dashboard.noWorkspaces()
-									: $LL.organization.dashboard.workspacesHeld({
-											count: member.workspaces.length
-										})}
-							</span>
-						</div>
-					{/snippet}
-				</RecordCard>
+				/>
 			</div>
 		{/each}
-	</div>
+	</DirectoryGrid>
 </Field.Set>

@@ -1,16 +1,23 @@
 <script lang="ts">
 	import type { SettingsSectionProps } from '$lib/feature/surface';
+	import SettingsGrid from '@rentable/design/block/settings-grid.svelte';
+	import SettingsGroup from '@rentable/design/block/settings-group.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
-	import * as Field from '@rentable/design/primitive/field/index.js';
-	import { Separator } from '@rentable/design/primitive/separator/index.js';
+	import { Callout } from '@rentable/design/primitive/callout/index.js';
 	import { toErrorText } from '$lib/error/message';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import OrganizationAcceptOwnership from '$lib/organization/member/component/accept-ownership.svelte';
 	import OrganizationChangePasswordDialog from '$lib/organization/session/component/change-password-dialog.svelte';
-	import OrganizationEndOtherSessions from '$lib/organization/session/component/end-other-sessions.svelte';
 	import OrganizationIdentity from '$lib/organization/session/component/identity.svelte';
+	import OrganizationMachines from '$lib/organization/session/component/machines.svelte';
+	import OrganizationSignOutDialog from '$lib/organization/session/component/sign-out-dialog.svelte';
 	import { useAcceptOwnership } from '$lib/organization/member/query';
-	import { useChangePassword, useEndOtherSessions } from '$lib/organization/session/query';
+	import {
+		useChangePassword,
+		useEndMachine,
+		useEndOtherSessions,
+		useFetchMachines
+	} from '$lib/organization/session/query';
 	import { useFetchOrganizationState } from '$lib/organization/query';
 	import CrownIcon from '@lucide/svelte/icons/crown';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
@@ -21,13 +28,21 @@
 	 * area draws it while somebody is signed in.
 	 *
 	 * **What it reads and writes is its own**, the way a record's section reads its records: the
-	 * session, the password change, the acceptance and signing out of the other machines. *The
+	 * session, the password change, the acceptance, the machines and signing them out. *The
 	 * settings route read them and handed the area a callback per act until effort 840, when the
 	 * area stopped naming the organization.*
 	 *
 	 * **What the section is about, then what it holds.** *Settled by the human on the real
 	 * organization.* It opens with the offer where one stands, because it is the one block here
 	 * waiting on a reply.
+	 *
+	 * **It reads as sign-in and security** (effort 846, requirement 8): who is signed in, the
+	 * password and the machines, each a card one under the next in the section's column in the
+	 * manner of Apple's and Google's account pages (*Everything in a tab is a card*; "each card
+	 * needs to be in a sequeintal order", the human on 2026-10-02). Signing out of this machine is
+	 * an entry in its own row's menu in the machines card, and it asks first (effort 846,
+	 * requirement 2 as revised 2026-10-02). *It was a card of its own, last, until ticket 46, when
+	 * the human asked that the machines and this machine be merged.*
 	 */
 	// what the area hands every section it draws. Nothing this section does lets go of the
 	// organization, so it reads none of it; declared so the section is typed as one.
@@ -39,6 +54,8 @@
 
 	const changePasswordMutation = useChangePassword();
 	const acceptOwnershipMutation = useAcceptOwnership();
+	const machinesQuery = useFetchMachines();
+	const endMachine = useEndMachine();
 	const endOtherSessions = useEndOtherSessions();
 
 	let changingPassword = $state(false);
@@ -65,6 +82,8 @@
 		}
 	};
 
+	let signingOut = $state(false);
+
 	let acceptingOwnership = $state(false);
 	/** what the shell refused the last acceptance with, marked on its password field. */
 	let acceptRefusal = $state<string | null>(null);
@@ -90,92 +109,94 @@
 	};
 </script>
 
+{#snippet changePasswordAct()}
+	<!-- a quiet text at the header's end, words alone, since the card's own glyph is the key and a
+	     button repeating it says the card twice (effort 846, tickets 38 and 46). Its name is the
+	     whole act, which holds the word it shows. -->
+	<Button
+		type="button"
+		variant="ghost"
+		size="sm"
+		aria-label={$LL.settings.you.password.change()}
+		data-change-password-open
+		onclick={() => {
+			passwordRefusal = null;
+			changingPassword = true;
+		}}
+	>
+		{$LL.settings.you.password.changeShort()}
+	</Button>
+{/snippet}
+
 {#if session}
-	<Field.Group>
+	<!-- the reader's sign-in and security, in the order requirement 8 of effort 846 gives: the
+	     offer where one stands, who is signed in, the password and the machines. Each is a card in
+	     the section's column, and each act that ends something asks first (requirement 2). -->
+	<SettingsGrid>
 		<!-- the offer first, and only where one stands: it is the one thing in this section
 		     waiting on the reader, and everything under it is a fact about their account that
-		     will read the same tomorrow (requirement 22). *It stood last while it was the block
-		     most often absent; the human read the four sections and asked for what is waiting to
-		     come first.* -->
+		     will read the same tomorrow (requirement 22 of effort 828). A notice with its act,
+		     in the tone a notice takes, rather than a card of one row: it is
+		     news, not a setting. *It stood last while it was the block most often absent; the
+		     human read the four sections and asked for what is waiting to come first.* -->
 		{#if session.ownershipOffered}
-			<Field.Set>
-				<Field.Legend>{$LL.settings.you.ownership.title()}</Field.Legend>
-				<Field.Field orientation="vertical" data-ownership-offer>
-					<Field.Content>
-						<Field.Description>
-							{$LL.settings.you.ownership.offered({ owner: session.ownerUsername })}
-						</Field.Description>
-					</Field.Content>
-
-					<div>
-						<Button
-							type="button"
-							variant="outline"
-							data-accept-ownership-open
-							onclick={() => {
-								acceptRefusal = null;
-								acceptingOwnership = true;
-							}}
-						>
-							<CrownIcon class="size-4" />
-							{$LL.organization.dashboard.acceptOwnership()}
-						</Button>
+			<div data-ownership-offer>
+				<Callout tone="info" class="flex flex-wrap items-center gap-3 rounded-2xl p-4">
+					<CrownIcon class="size-5 shrink-0" />
+					<div class="flex min-w-0 flex-1 flex-col gap-0.5">
+						<p class="font-semibold first-letter:uppercase">
+							{$LL.settings.you.ownership.offeredBy({ owner: session.ownerUsername })}
+						</p>
+						<!-- the callout's own tone, not grey: grey on a tinted ground reads dead
+						     (*Don't use grey text on colored backgrounds*). -->
+						<p>{$LL.settings.you.ownership.consequence()}</p>
 					</div>
-				</Field.Field>
-			</Field.Set>
-
-			<Separator />
-		{/if}
-
-		<!-- then who this reader is, then the one thing they change about themselves, then the
-		     machines they left signed in: the section is about them, so it opens with them. -->
-		<Field.Set>
-			<Field.Legend>{$LL.settings.you.signedInAs()}</Field.Legend>
-			<OrganizationIdentity {session} />
-		</Field.Set>
-
-		<Separator />
-
-		<Field.Set>
-			<Field.Legend>{$LL.settings.you.password.title()}</Field.Legend>
-			<!-- the fact, and the control that opens the write: nothing about the password is
-			     drawn until the person asks to change it (requirement 8). -->
-			<Field.Field orientation="vertical" data-password>
-				<Field.Content>
-					<Field.Description>{$LL.settings.you.password.description()}</Field.Description>
-				</Field.Content>
-
-				<div>
-					<!-- the verb's glyph before its label; outline rather than solid, since the act is
-					     offered and never invited. -->
+					<!-- solid: the one act on this tab the reader is invited to take. -->
 					<Button
 						type="button"
-						variant="outline"
-						data-change-password-open
+						size="sm"
+						data-accept-ownership-open
 						onclick={() => {
-							passwordRefusal = null;
-							changingPassword = true;
+							acceptRefusal = null;
+							acceptingOwnership = true;
 						}}
 					>
-						<KeyRoundIcon class="size-4" />
-						{$LL.settings.you.password.change()}
+						{$LL.organization.dashboard.acceptOwnership()}
 					</Button>
-				</div>
-			</Field.Field>
-		</Field.Set>
+				</Callout>
+			</div>
+		{/if}
 
-		<Separator />
+		<OrganizationIdentity {session} />
 
-		<Field.Set>
-			<Field.Legend>{$LL.settings.you.sessions.title()}</Field.Legend>
-			<OrganizationEndOtherSessions
-				organizationName={session.organizationName}
-				onEndOtherSessions={async () => {
-					await endOtherSessions.mutateAsync();
-				}}
+		<!-- the fact, and the control that opens the write: nothing about the password is drawn
+		     until the person asks to change it (requirement 8 of effort 828). The card is its
+		     header alone, the act at its trailing edge, since a row named *password* under a card
+		     titled password would say it twice. -->
+		<div data-password class="contents">
+			<SettingsGroup
+				icon={KeyRoundIcon}
+				title={$LL.settings.you.password.title()}
+				description={$LL.settings.you.password.description()}
+				action={changePasswordAct}
 			/>
-		</Field.Set>
-	</Field.Group>
+		</div>
+
+		<!-- every machine signed in as the reader, this one first, each signed out from its row's
+		     menu and every other one from the header (requirements 2 and 9 to 11). -->
+		<OrganizationMachines
+			machines={machinesQuery.data ?? []}
+			onEndMachine={async (machineId) => {
+				await endMachine.mutateAsync({ machineId });
+			}}
+			onEndOtherSessions={async () => {
+				await endOtherSessions.mutateAsync();
+			}}
+			onSignOut={() => {
+				signingOut = true;
+			}}
+		/>
+	</SettingsGrid>
 
 	<OrganizationChangePasswordDialog
 		open={changingPassword}
@@ -202,5 +223,13 @@
 		isAccepting={acceptOwnershipMutation.isPending}
 		errorMessage={acceptRefusal}
 		onAccept={(password) => void acceptOwnership(password)}
+	/>
+
+	<OrganizationSignOutDialog
+		open={signingOut}
+		onOpenChange={(open) => {
+			signingOut = open;
+		}}
+		username={session.username}
 	/>
 {/if}

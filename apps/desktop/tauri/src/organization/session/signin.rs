@@ -715,6 +715,7 @@ mod tests {
             role: Some("member".to_string()),
             joined_at: 1_757_000_000_001,
             format: None,
+            machine_signed_out: 0,
         };
 
         // each opens with its own password and its own role.

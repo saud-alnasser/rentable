@@ -262,6 +262,8 @@ const en = {
 			blockedPayments: '{count|number} {{payment|payments}} recorded against it',
 			blockedUnits: '{count|number} {{unit belongs|units belong}} to it',
 			description: 'this cannot be undone.',
+			// a record delete undo brings back: it asks first, and says so (effort 846, requirement 2).
+			undoable: 'it is deleted from this workspace. you can undo this while the app is open.',
 			unnamedRecord: 'this record'
 		}
 	},

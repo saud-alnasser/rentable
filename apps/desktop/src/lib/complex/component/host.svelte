@@ -17,19 +17,19 @@
 	} from '$lib/complex/host.svelte';
 	import { useDeleteComplex, usePlanManyComplexes, useReadComplex } from '$lib/complex/query';
 	import { consumeCreateIntent, landing } from '$lib/create/ui';
-	import { toDeleteStep, toPaletteVerbs } from '$lib/act';
+	import { toPaletteVerbs } from '$lib/act';
 	import { onMutationError, onMutationSuccess } from '$lib/mutation/ui';
-	import { showErrorSentence, showErrorToast, showRefusal } from '$lib/notification';
+	import { showErrorSentence, showErrorToast } from '$lib/notification';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { writeDetailsToClipboard } from '$lib/platform/clipboard';
 	import { onDestroy, untrack } from 'svelte';
 	import ComplexForm from './form.svelte';
 
 	/**
-	 * The complex form and the complex's delete, mounted once for the whole shell. A delete runs at
-	 * once and offers undo, as its act declares, where the complex has no units; one whose units go
-	 * with it asks first, naming them, and is undone whole all the same. The dialog is also drawn
-	 * where something refuses the delete, to say what ([[rules/interface]], *Delete and confirm*).
+	 * The complex form and the complex's delete, mounted once for the whole shell. A delete asks
+	 * first, in the delete dialog: that undo brings the complex back, naming the units that go with
+	 * it where any do, since it is undone whole, or what refuses it where something does
+	 * ([[rules/interface]], *Delete and confirm*).
 	 *
 	 * A complex's acts are one list (`complex/acts.ts`), and every surface offering them is a
 	 * projection of it; what those acts open is here, so there is one `ComplexForm` in the tree.
@@ -56,8 +56,8 @@
 		}
 
 		// a plan cached from before the workspace last moved is refetched on reading, and until the
-		// fresh one lands it may say no units go where some now do: the delete would run without
-		// asking. So it waits on the fetch, not only on the first one.
+		// fresh one lands it may say no units go where some now do: the dialog would say less than
+		// the delete takes. So it waits on the fetch, not only on the first one.
 		if (deletionPlanQuery.isPending || deletionPlanQuery.isFetching) {
 			return AWAITING_BLOCKERS;
 		}
@@ -76,19 +76,13 @@
 		}
 	});
 
-	// how many units go with it, which is what makes the delete ask, and what the dialog names.
+	// how many units go with it, which is what the dialog names.
 	const unitsGoing = $derived(deleting ? (deletionPlanQuery.data?.units ?? 0) : 0);
 
-	// whether the delete asks, waits on what refuses it, or runs now: the act's own policy, which
-	// is a cascade for a complex whose units go with it.
+	// the act's own policy, which is a cascade for a complex whose units go with it: what the dialog
+	// says goes.
 	const declaredPolicy = complexActs.find((act) => act.id === 'complex.delete')?.confirmation;
 	const deletePolicy = $derived(toComplexDeleteConfirmation(declaredPolicy, unitsGoing));
-	const deleteStep = $derived(deleting ? toDeleteStep(deletePolicy, deleteBlockers) : 'wait');
-
-	// the complex whose confirmed delete is in flight. Its own write moves the plan it was asked on:
-	// the complex is gone, so the plan says no units go, and a delete with none runs at once. Read
-	// then, the step would delete it a second time behind the dialog, with a second announcement.
-	let confirming = $state<string | null>(null);
 
 	async function deleteConfirmed() {
 		if (!deleting) {
@@ -97,27 +91,8 @@
 
 		const id = deleting.id;
 
-		confirming = id;
-
-		try {
-			await deleteMutation.mutateAsync(id);
-			closeComplexConfirmation();
-			await leaveDeleted(id);
-		} finally {
-			confirming = null;
-		}
-	}
-
-	/** A delete nothing asked about: its refusal, where it earns one, is raised rather than held. */
-	async function deleteAtOnce(id: string) {
-		try {
-			await deleteMutation.mutateAsync(id);
-		} catch (error) {
-			showRefusal(error, $LL);
-
-			return;
-		}
-
+		await deleteMutation.mutateAsync(id);
+		closeComplexConfirmation();
 		await leaveDeleted(id);
 	}
 
@@ -227,18 +202,6 @@
 		untrack(() => void answerAsked(asked.actId, asked.complexId));
 	});
 
-	// the request is answered once and cleared first, as the two above are.
-	$effect(() => {
-		if (deleteStep !== 'run' || !deleting || deleting.id === confirming) {
-			return;
-		}
-
-		const { id } = deleting;
-
-		closeComplexConfirmation();
-		untrack(() => void deleteAtOnce(id));
-	});
-
 	// the command menu's new complex arrives as `?create` on its directory. The host that owns the
 	// form answers it, rather than the directory ([[rules/interface]], *Create*).
 	consumeCreateIntent(resolve('/complexes'), () => complexHost.create());
@@ -260,7 +223,7 @@
 {/key}
 
 <DeleteDialog
-	open={deleting !== null && deleteStep === 'ask'}
+	open={deleting !== null}
 	onOpenChange={(isOpen) => {
 		if (!isOpen) {
 			closeComplexConfirmation();
@@ -268,8 +231,8 @@
 	}}
 	record={deleting?.name}
 	blockers={deleteBlockers}
-	description={unitsGoing > 0
+	description={deletePolicy === 'cascade'
 		? $LL.complexes.deleteDialog.unitsGoWithIt({ count: unitsGoing })
-		: undefined}
+		: $LL.common.deleteDialog.undoable()}
 	onSubmit={deleteConfirmed}
 />

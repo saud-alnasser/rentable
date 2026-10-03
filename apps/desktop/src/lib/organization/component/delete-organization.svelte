@@ -1,8 +1,10 @@
 <script lang="ts">
 	import FormSurface, { insetControl } from '@rentable/design/block/form-surface.svelte';
+	import SettingsRow from '@rentable/design/block/settings-row.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
+	import { tone } from '@rentable/design/tone.js';
 	import { onSubmit } from '$lib/form';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
@@ -20,6 +22,12 @@
 	 * and it takes a password, so it is the surface every other write takes rather than a confirm
 	 * with a field bolted on; heavy because what a person has to read before they type is the
 	 * whole of what goes, and the weight is declared rather than measured.
+	 *
+	 * **The last row of the leaving group, set apart from the disconnect before it** (effort 846,
+	 * requirements 2 and 14): an error row with its glyph, and under its name the one line saying the
+	 * organization and every workspace go from the Turso account and nothing puts them back. The
+	 * row's name is the act and labels the button, whose own word is the verb alone, red and with
+	 * no glyph, since the row's glyph already says what it is about (ticket 38).
 	 *
 	 * **The body says what goes in the plainest words there are**, because this is the one act in
 	 * the application that nothing undoes: every workspace and everything in it, every member's
@@ -66,29 +74,36 @@
 	});
 </script>
 
-<Field.Field orientation="vertical" data-delete-organization>
-	<Field.Content>
-		<Field.Description>
-			{$LL.organization.dashboard.deleteOrganizationDescription()}
-		</Field.Description>
-	</Field.Content>
+{#snippet consequence()}
+	<span data-leaving-consequence>
+		{$LL.organization.dashboard.deleteOrganizationDescription()}
+	</span>
+{/snippet}
 
-	<div>
-		<!-- the verb's glyph before its label; outline rather than solid, since the act is offered
-		     and never invited, and the destructive colour on the label rather than behind it, which
-		     is the treatment every other loss in the application carries on a control like this. -->
+<SettingsRow
+	icon={Trash2Icon}
+	name={$LL.organization.dashboard.deleteOrganization()}
+	tone="error"
+	meta={consequence}
+>
+	{#snippet control({ labelId })}
+		<!-- the row carries no mark of its own, so the act's two marks are on its one control: the
+		     act (`data-delete-organization`), which the section's order is read by, and what opens
+		     it. -->
 		<Button
 			type="button"
-			variant="outline"
-			class="text-destructive hover:text-destructive"
+			variant="ghost"
+			size="sm"
+			class="{tone({ tone: 'error' }).text()} hover:bg-destructive/10 hover:text-destructive"
+			aria-labelledby={labelId}
+			data-delete-organization
 			data-delete-organization-open
 			onclick={() => onOpenChange(true)}
 		>
-			<Trash2Icon class="size-4" />
-			{$LL.organization.dashboard.deleteOrganization()}
+			{$LL.common.actions.delete()}
 		</Button>
-	</div>
-</Field.Field>
+	{/snippet}
+</SettingsRow>
 
 <FormSurface
 	{open}

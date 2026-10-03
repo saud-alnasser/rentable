@@ -5,6 +5,7 @@ import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
+import { TENANT_TILE_HEIGHT } from '$lib/tenant/component/card.svelte';
 import TenantDirectory from '$lib/tenant/component/directory.svelte';
 import Providers from '#tests/providers.svelte';
 import { forgetReader, holdEveryFlagBut, layOutLists } from '#tests/permission.ts';
@@ -14,7 +15,10 @@ import { forgetReader, holdEveryFlagBut, layOutLists } from '#tests/permission.t
  *
  * Effort 838, requirement 10 and criterion 10: `tenant.getMany` answers a reader who may not view
  * contracts with no count of them (the router test covers that), and the directory draws such a
- * row whole, with no figure where the counts stood and no order by them offered.
+ * card whole, with no chip where the counts stood and no order by them offered.
+ *
+ * Effort 846, requirement 18: the directory lays its tenants as tiles in the grid, at the height
+ * the tenant's card declares.
  *
  * **The read is the mock**, answering with the row the router answers each reader with.
  */
@@ -61,11 +65,11 @@ const directory = () =>
 		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' as const } }
 	);
 
-/** what a screen reader hears of each figure on the rows. */
+/** what each contract chip on the cards says. */
 const figures = () =>
-	[...document.querySelectorAll('.sr-only')]
-		.map((figure) => figure.textContent?.trim() ?? '')
-		.filter((said) => /: \d+$/.test(said));
+	[...document.querySelectorAll('[data-status-count]')].map(
+		(chip) => chip.textContent?.trim() ?? ''
+	);
 
 const offeredOrders = async () => {
 	await fireEvent.click(document.querySelector<HTMLElement>('[data-sort-control]')!);
@@ -75,25 +79,44 @@ const offeredOrders = async () => {
 	);
 };
 
-test('a row carrying its counts draws a figure per status', async () => {
+test('the directory lays its tenants as tiles in the grid, at the height of a card', async () => {
+	holdEveryFlagBut();
+	rows.current = [1, 2, 3, 4].map((n) => ({ ...TENANT, id: `tenant-${n}`, name: `Sara ${n}` }));
+	vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(1000);
+	vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1000);
+	directory();
+
+	await waitFor(() => expect(document.querySelector('[data-record-grid]')).not.toBeNull());
+
+	const grid = document.querySelector<HTMLElement>('[data-record-grid]')!;
+
+	expect(grid.style.gridTemplateColumns).toBe('repeat(3, minmax(0, 1fr))');
+	expect(grid.querySelectorAll('[data-layout=tile]')).toHaveLength(3);
+	// the row the grid sits in is the card's height and the gap below it, never a measured one.
+	const row = grid.parentElement!.style;
+
+	expect(parseFloat(row.height) - parseFloat(row.paddingBottom)).toBe(TENANT_TILE_HEIGHT);
+});
+
+test('a card carrying its counts draws a chip per status holding any', async () => {
 	holdEveryFlagBut();
 	rows.current = [{ ...TENANT, ...COUNTS }];
 	directory();
 
 	await waitFor(() => expect(document.body.textContent).toContain('Sara'));
 
-	expect(figures()).toContain(`${en.common.status.active}: 2`);
+	expect(figures()).toEqual(['1 defaulted', '2 active']);
 	expect(await offeredOrders()).toContain(en.common.labels.activeContracts);
 });
 
-test('without viewing contracts, a row draws no figure where its counts stood, and offers no order by them', async () => {
+test('without viewing contracts, a card draws no chip where its counts stood, and offers no order by them', async () => {
 	holdEveryFlagBut('viewContract');
 	rows.current = [TENANT];
 	directory();
 
 	await waitFor(() => expect(document.body.textContent).toContain('Sara'));
 
-	// the tenant's own fields are the row, whole.
+	// the tenant's own fields are the card, whole.
 	expect(document.body.textContent).toContain('1000000000');
 	expect(figures()).toEqual([]);
 	expect(await offeredOrders()).not.toContain(en.common.labels.activeContracts);

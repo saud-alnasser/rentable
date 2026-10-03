@@ -54,6 +54,10 @@
 //! [`ended_elsewhere`]. [`end_member_sessions`] does the same to somebody else's row, under
 //! `resetPassword`.
 //!
+//! **One machine is signed out by a number of its own** (effort 846, requirement 10), in
+//! `machine_sign_out`, which only the member's other machines write and which the machine compares
+//! with the number its own record last acknowledged ([`end_machine`], `machine.rs`).
+//!
 //! *Why a number and not a moment: two machines' clocks disagree, and a session opened on a
 //! machine running a minute fast would survive a sign-out meant to end it. A number only ever
 //! moves forward, and the comparison is the same on every machine that reads the row.*
@@ -62,6 +66,7 @@ mod command;
 mod epoch;
 pub mod forget;
 mod heartbeat;
+mod machine;
 mod remember;
 mod replica;
 mod signin;
@@ -71,6 +76,11 @@ pub use command::*;
 // reaches is the epoch's.
 pub(crate) use epoch::end_elsewhere;
 pub use epoch::{end_member_sessions, ended_elsewhere};
+pub(crate) use heartbeat::signed_out_from_elsewhere;
+pub use machine::{MachineView, SEEN_REFRESH, machines};
+pub(crate) use machine::{
+    end_machine, ended_alone, machine_kept, machine_named, sign_outs_acknowledged, signed_out_here,
+};
 pub(crate) use remember::*;
 pub(crate) use replica::leave_registry;
 pub use signin::*;
@@ -131,6 +141,13 @@ pub struct MemberSession {
     /// the `member.session_epoch` this session opened under. Behind the row's, the session has
     /// been ended from another machine and the next heartbeat closes it ([`ended_elsewhere`]).
     pub session_epoch: i64,
+    /// the machine this session is open on, as the record names it, and the number of its row in
+    /// `machine_sign_out` this session opened under (effort 846, requirement 10). Above it, another
+    /// of the member's machines signed this one out on its own, and every act is refused
+    /// ([`acting_row`]) as it is for an epoch behind the row. Empty where the record names no
+    /// machine yet, which nothing can sign out on its own.
+    pub machine_id: String,
+    pub machine_signed_out: i64,
     pub verifying_key: [u8; VERIFYING_KEY_BYTES],
     pub secret: MemberSecretKey,
     pub content_key: ContentKey,
@@ -222,6 +239,10 @@ pub struct SessionsEnded {
 /// one out. The third is what keeps a revoked machine from acting in the window before its
 /// heartbeat, and in particular from ending everybody else's sessions and filing its own key
 /// under a number past the revocation.
+///
+/// **A machine signed out on its own is refused the same way** (effort 846, requirement 10): its
+/// row in `machine_sign_out` above the number this session opened under, which `end_machine` on
+/// another of the member's machines moved and a pull brought.
 pub async fn acting_row(
     store: &OrganizationStore,
     session: &MemberSession,
@@ -247,6 +268,16 @@ pub async fn acting_row(
         return Err(Error::refused(
             RefusalReason::SessionsEnded,
             "your sessions were ended from another machine. sign in again",
+        ));
+    }
+
+    // and this machine alone, signed out from another of the member's (effort 846, requirement
+    // 10): the same window before the heartbeat, closed the same way. `act::as_member` is what
+    // puts the wall up behind this refusal.
+    if ended_alone(store, session).await? {
+        return Err(Error::refused(
+            RefusalReason::SessionsEnded,
+            "this machine was signed out from another of your machines. sign in again",
         ));
     }
 
@@ -391,6 +422,9 @@ pub struct WorkspaceFacts {
     /// (`permission::effective_in_workspace`). What the web layer answers a record procedure by,
     /// with a read-only grant's writes cleared.
     pub permissions: i64,
+    /// when the workspace was made, in milliseconds since the epoch, off its row in the
+    /// organization store. The workspace card says it (effort 846, ticket 33).
+    pub created_at: i64,
 }
 
 /// What the web layer is told about a signed-in member.
@@ -507,6 +541,19 @@ pub(crate) async fn open_session(
 
     let role = super::role::kind_of(&store.roles(&verifying_key).await?, &member.role_id);
 
+    // the number this machine's sign-outs stand at, which a sign-in acknowledges and a resume has
+    // just checked is not past the record's (effort 846, requirement 10). The greater of the two,
+    // so neither path can open a session under a number below what the record already took. The
+    // record's only where it names this member: the number is per member, and a record still
+    // naming whoever signed in here before carries theirs, which would let this member act past a
+    // sign-out of their own up to it.
+    let acknowledged = sign_outs_acknowledged(store, &held.machine_id, &member.id).await?;
+    let machine_signed_out = if held.member_id.as_deref() == Some(member.id.as_str()) {
+        acknowledged.max(held.machine_signed_out)
+    } else {
+        acknowledged
+    };
+
     Ok(MemberSession {
         organization_id: held.id.clone(),
         member_id: member.id.clone(),
@@ -514,6 +561,8 @@ pub(crate) async fn open_session(
         permissions: member.effective,
         must_change_password: member.must_change_password,
         session_epoch: member.session_epoch,
+        machine_id: held.machine_id.clone(),
+        machine_signed_out,
         verifying_key,
         secret,
         content_key,
@@ -634,6 +683,7 @@ pub async fn facts_of(
                     pinned,
                     granted,
                 ),
+                created_at: workspace.created_at,
             })
         })
         .collect::<Result<Vec<_>, Error>>()?;

@@ -22,7 +22,7 @@ import {
 } from '$lib/organization/tests/testing';
 import { fakeSyncState, fakeWorkspace } from '$lib/sync/tests/testing';
 import { usesAppleKeyboard } from '@rentable/design/shortcut.js';
-import { maskOf } from '@rentable/workspace-permission';
+import { EVERY_FLAG, maskOf } from '@rentable/workspace-permission';
 
 import PaletteHarness from '#tests/palette-harness.svelte';
 
@@ -82,6 +82,17 @@ vi.mock('$lib/sync/query', async (importOriginal) => ({
 	})
 }));
 
+// the workspace's members act goes to the workspace's own page (effort 846, ticket 49): the
+// navigation is recorded rather than run, since this runner has no router.
+const { navigations } = vi.hoisted(() => ({ navigations: [] as string[] }));
+
+vi.mock('$app/navigation', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$app/navigation')>()),
+	goto: async (to: string) => {
+		navigations.push(to);
+	}
+}));
+
 const member = (overrides: Partial<OrganizationMember>): OrganizationMember =>
 	fakeOrganizationMember(overrides);
 
@@ -90,6 +101,7 @@ const ada = member({ id: 'ada', username: 'ada', role: 'manager' });
 const sami = member({ id: 'sami', username: 'sami' });
 
 beforeEach(() => {
+	navigations.length = 0;
 	loadLocale('en');
 	setLocale('en');
 
@@ -166,10 +178,9 @@ test('a member act reaches the organization host with the member the reader chos
 	expect(actId).toBe('member.unsetPassword');
 	expect(record.member).toEqual(sami);
 	expect(record.context).toMatchObject({ selfId: 'ada', isOwner: false, canReset: true });
-	expect(organizationHostState.member.pressed).toEqual({
-		kind: 'unsetPassword',
-		memberId: 'sami'
-	});
+	// the reset ends something, so the host asks first (effort 846, requirement 2 as revised).
+	expect(organizationHostState.member.asking?.kind).toBe('unsetPassword');
+	expect(organizationHostState.member.asking?.record.member.id).toBe('sami');
 });
 
 test('a member act the reader may not take is not offered', async () => {
@@ -234,13 +245,79 @@ test('a workspace act reaches the organization host with the workspace the reade
 	const [actId, record] = run.mock.calls[0];
 	expect(actId).toBe('workspace.members');
 	expect(record.workspace).toEqual(north);
-	expect(record.context).toEqual({
+	expect(record.context).toMatchObject({
 		openWorkspaceId: 'north',
 		canRename: false,
 		canGrantWorkspace: true,
 		canDelete: true
 	});
-	expect(organizationHostState.workspace.changingAccess?.workspace).toEqual(north);
+	expect(navigations).toEqual(['/settings/workspaces/north']);
+});
+
+// effort 846, requirement 15: a workspace's file is offered from the menu as from its card, on a
+// workspace not open here as on the open one, refused by the reader's standing in the one chosen.
+test("a workspace's export and import are offered, and run on the workspace chosen, open or not", async () => {
+	const north = fakeOrganizationWorkspace({ id: 'north', name: 'North Properties' });
+	const south = fakeOrganizationWorkspace({
+		id: 'south',
+		name: 'South Properties',
+		accessLevel: 'read-only'
+	});
+
+	answers.session = fakeOrganizationSession({
+		memberId: 'ada',
+		role: 'manager',
+		permissions: maskOf(...EVERY_FLAG),
+		workspaces: [north, south]
+	});
+	const run = vi.spyOn(workspaceHost, 'run');
+
+	await openPalette();
+
+	await waitFor(() => expect(row('workspace.export')).not.toBeNull());
+	expect(row('workspace.import')).not.toBeNull();
+
+	await fireEvent.click(row('workspace.export')!);
+	await waitFor(() => expect(row('south')).not.toBeNull());
+	await fireEvent.click(row('south')!);
+
+	expect(run).toHaveBeenCalledTimes(1);
+	expect(run.mock.calls[0]![0]).toBe('workspace.export');
+	expect(run.mock.calls[0]![1].workspace).toEqual(south);
+	expect(organizationHostState.workspace.exporting?.workspace).toEqual(south);
+});
+
+test('the import is refused on a workspace held read only, and offered on the open one', async () => {
+	const north = fakeOrganizationWorkspace({ id: 'north', name: 'North Properties' });
+	const south = fakeOrganizationWorkspace({
+		id: 'south',
+		name: 'South Properties',
+		accessLevel: 'read-only'
+	});
+
+	answers.session = fakeOrganizationSession({
+		memberId: 'ada',
+		role: 'manager',
+		permissions: maskOf(...EVERY_FLAG),
+		workspaces: [north, south]
+	});
+	const run = vi.spyOn(workspaceHost, 'run');
+
+	await openPalette();
+
+	await waitFor(() => expect(row('workspace.import')).not.toBeNull());
+	await fireEvent.click(row('workspace.import')!);
+
+	await waitFor(() => expect(row('south')).not.toBeNull());
+	expect(row('south')!.getAttribute('aria-disabled')).toBe('true');
+	expect(row('north')!.getAttribute('aria-disabled')).not.toBe('true');
+
+	await fireEvent.click(row('south')!);
+	expect(run).not.toHaveBeenCalled();
+
+	await fireEvent.click(row('north')!);
+	expect(run).toHaveBeenCalledTimes(1);
+	expect(organizationHostState.workspace.importing?.workspace).toEqual(north);
 });
 
 test('a workspace act the reader may not take is not offered, and who is in one is refused', async () => {
@@ -272,5 +349,5 @@ test('a workspace act the reader may not take is not offered, and who is in one 
 	// nor anything of a member's, since sami's row writes nobody.
 	expect(document.querySelector('[data-value^="member."]')).toBeNull();
 	expect(run).not.toHaveBeenCalled();
-	expect(organizationHostState.workspace.changingAccess).toBeNull();
+	expect(navigations).toEqual([]);
 });

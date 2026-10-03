@@ -53,7 +53,11 @@ const ALLOWED: readonly { label: string; most: number; reason: string }[] = [
 		most: 1,
 		reason: 'a rank heading: "overdue", "owing" or "ending soon"'
 	},
-	{ label: 'lib/design/cell/status.svelte', most: 1, reason: 'a status name, one word' },
+	{
+		label: 'lib/design/cell/status.svelte',
+		most: 2,
+		reason: 'a status name, one word, in its tooltip and beside the icon on a tile'
+	},
 	{
 		label: 'lib/history/component/record-history.svelte',
 		most: 1,

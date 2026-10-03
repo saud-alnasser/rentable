@@ -1,5 +1,6 @@
 //! the commands of a session: where this machine stands, the sign-in and the sign-out, the launch's
-//! resume, the sessions ended from here and from elsewhere, the heartbeat, and the forget.
+//! resume, the sessions ended from here and from elsewhere, the reader's machines and one of them
+//! signed out, the heartbeat, and the forget.
 
 use std::sync::atomic::Ordering;
 
@@ -22,7 +23,7 @@ use crate::organization::{
     act::{Acting, Pull, as_member, owner_platform},
     invitation::join,
     ownership,
-    session::{self, SessionFacts, SessionsEnded, forget},
+    session::{self, MachineView, SessionFacts, SessionsEnded, forget},
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -266,6 +267,10 @@ pub(crate) async fn organization_session_sign_in(
         }
     };
 
+    // the admission pulls once the vault is open, because the pull needs the credential the vault
+    // held, and before it acknowledges this machine's sign-outs, so the number it takes is the
+    // one Turso holds (effort 846, ticket 30). What a pull that could not go leaves out is the
+    // offline case rather than a failure of signing in.
     let member = {
         let mut remote_sync = app_state.remote_sync.write().await;
 
@@ -281,11 +286,6 @@ pub(crate) async fn organization_session_sign_in(
         )
         .await?
     };
-
-    // best effort, and after the vault is open, because the pull needs the credential the vault
-    // held. What arrives is read on the next question, and what does not arrive is the offline
-    // case rather than a failure of signing in.
-    store.pull().await;
 
     *app_state.organization.write().await = Some(store);
     *app_state.member.write().await = Some(member);
@@ -387,13 +387,78 @@ pub(crate) async fn organization_session_end_elsewhere(
     // is one past the row's, and a row this machine has not refreshed since somebody else's
     // sign-out is a number already reached, which would write nothing and report the sessions
     // ended. A pull that could not go is the offline case and leaves the row as it stands.
+    let held = held_here(&app_state).await?;
+
     as_member(&app_state, Pull::First, async |Acting { member, store }| {
         Ok(SessionsEnded {
-            sent: session::end_elsewhere(credentials.inner().as_ref(), store, member, clock.now())
-                .await?,
+            sent: session::end_elsewhere(
+                credentials.inner().as_ref(),
+                store,
+                member,
+                &held.machine_id,
+                clock.now(),
+            )
+            .await?,
         })
     })
     .await
+}
+
+/// Every machine signed in as the reader, this one first, however long ago each was last seen
+/// (effort 846, requirement 9): its name, when it was last seen and added, and whether it can be
+/// signed out on its own. Names and moments cross, and nothing else ([[rules/credentials]],
+/// *Client boundary*).
+///
+/// Off the replica as it stands: the heartbeat is what pulls, and a list read on every look at the
+/// account section has no business putting a round trip in front of it.
+#[tauri::command(rename = "session_machines")]
+pub(crate) async fn organization_session_machines(
+    app_state: tauri::State<'_, Shared>,
+) -> Result<Vec<MachineView>, Error> {
+    let held = held_here(&app_state).await?;
+
+    as_member(&app_state, Pull::No, async |Acting { member, store }| {
+        session::machines(store, member, &held).await
+    })
+    .await
+}
+
+/// Sign one of the reader's other machines out, and stay signed in here (effort 846, requirement
+/// 10). The member is the session's, never the caller's, and nothing about the password moves.
+///
+/// **What comes back says whether the sign-out went out**, as
+/// [`organization_session_end_elsewhere`]'s does: offline, it reaches that machine once this one is
+/// back online, and the account section says so.
+#[tauri::command(rename = "session_end_machine")]
+pub(crate) async fn organization_session_end_machine(
+    app_state: tauri::State<'_, Shared>,
+    clock: tauri::State<'_, clock::Shared>,
+    machine_id: String,
+) -> Result<SessionsEnded, Error> {
+    let held = held_here(&app_state).await?;
+
+    // before the sign-out, as ending every other session pulls before it bumps: the new number is
+    // one past what the replica holds, and a replica behind another machine's sign-out of the same
+    // one would write a number already reached and report it sent.
+    as_member(&app_state, Pull::First, async |Acting { member, store }| {
+        Ok(SessionsEnded {
+            sent: session::end_machine(store, member, &held, &machine_id, clock.now()).await?,
+        })
+    })
+    .await
+}
+
+/// The organization this machine's record holds, for the acts that need to know which machine
+/// this is. Read before the member's lock is taken, so the record's lock is never held under it.
+async fn held_here(app_state: &Shared) -> Result<HeldOrganization, Error> {
+    let mut remote_sync = app_state.remote_sync.write().await;
+
+    remote_sync.store_mut().organization.clone().ok_or_else(|| {
+        Error::refused(
+            RefusalReason::NoOrganization,
+            "this machine holds no organization",
+        )
+    })
 }
 
 /// Send what this machine wrote, then take what the others wrote.
@@ -677,6 +742,7 @@ mod tests {
             settings,
             remote_sync: Arc::new(RwLock::new(remote_sync)),
             upgrade: Arc::new(crate::upgrade::Upgrader),
+            credentials: Arc::new(crate::credential::Memory::new()),
             consent: Arc::new(TursoConsent::new()),
             organization: Arc::new(RwLock::new(None)),
             member: Arc::new(RwLock::new(None)),

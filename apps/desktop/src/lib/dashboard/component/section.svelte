@@ -31,6 +31,7 @@
 	import { isMoneyRank, isReminderRank, withContractRank, toContractName } from '$lib/contract';
 	import type { DashboardSection } from '$lib/dashboard/dashboard';
 	import { LL } from '$lib/i18n/i18n-svelte';
+	import type { Snippet } from 'svelte';
 
 	type QueueEntry = Awaited<ReturnType<typeof api.dashboard.get>>['queue'][number];
 
@@ -41,7 +42,26 @@
 	 * The heading's figures describe the whole rank while the rows are only the few the read
 	 * returned, which is what lets the card state a count it is not showing.
 	 */
-	let { section }: { section: DashboardSection<QueueEntry> } = $props();
+	let {
+		section,
+		control,
+		none
+	}: {
+		section: DashboardSection<QueueEntry>;
+		/**
+		 * the control for the setting that defines this rank, at the end of the header: the
+		 * ending-soon window's, on the ending-soon section alone (effort 846, requirement 6).
+		 */
+		control?: Snippet;
+		/**
+		 * what the header says in place of its count where the rank holds nothing. A rank whose
+		 * header stands with no rows is one whose control has to stay reachable: a window that
+		 * catches nothing is widened from here (effort 846, requirement 7).
+		 */
+		none?: string;
+	} = $props();
+
+	const isVacant = $derived(section.summary.contractCount === 0);
 
 	const rank = $derived(section.summary.rank);
 
@@ -96,8 +116,14 @@
 	const runAnswer = (actId: string, id: string) => contractHost.runOn(actId, id);
 </script>
 
-<section class="shrink-0 rounded-2xl bg-card">
-	<header class="flex items-center gap-3 border-b px-4 py-3">
+<section
+	class="shrink-0 rounded-2xl bg-card"
+	data-dashboard-section={rank}
+	data-vacant={isVacant ? '' : undefined}
+>
+	<!-- a header standing with no rows draws no rule under it: there is nothing below to divide it
+	     from. -->
+	<header class="flex items-center gap-3 px-4 py-3 {isVacant ? '' : 'border-b'}">
 		<!-- only the late rank is coloured. Several of four ranks marked as trouble is a screen with
 		     no emphasis left to spend, and overdue is the one that is already costing money. -->
 		<span
@@ -109,9 +135,13 @@
 		</span>
 
 		<h2 class="text-sm font-medium capitalize">{rankLabels[rank]}</h2>
-		<span class="text-xs text-muted-foreground tabular-nums">
-			{$LL.dashboard.sections.contractCount({ count: section.summary.contractCount })}
-		</span>
+		{#if isVacant && none}
+			<span class="min-w-0 truncate text-xs text-muted-foreground" data-vacant-line>{none}</span>
+		{:else}
+			<span class="text-xs text-muted-foreground tabular-nums">
+				{$LL.dashboard.sections.contractCount({ count: section.summary.contractCount })}
+			</span>
+		{/if}
 
 		<!-- only the money ranks carry a total. a due-soon or renewals contract owes nothing today
 		     by definition, so the figure there would always read zero and say nothing. -->
@@ -120,72 +150,78 @@
 				<Cell.Money amount={section.summary.totalAmount} />
 			</span>
 		{/if}
+
+		{#if control}
+			<span class="ms-auto shrink-0">{@render control()}</span>
+		{/if}
 	</header>
 
-	<div class="flex flex-col p-2">
-		{#each section.entries as entry (entry.id)}
-			<div class="relative flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-muted/60">
-				<!-- the link covers the row rather than wrapping it, so the phone can sit above it
+	{#if !isVacant}
+		<div class="flex flex-col p-2">
+			{#each section.entries as entry (entry.id)}
+				<div class="relative flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-muted/60">
+					<!-- the link covers the row rather than wrapping it, so the phone can sit above it
 				     and stay selectable instead of being swallowed by the row's click target. -->
-				<a
-					href={resolve(`/contracts/${entry.id}`)}
-					class="absolute inset-0 rounded-xl transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-					aria-label={rowLink(entry)}
-				></a>
+					<a
+						href={resolve(`/contracts/${entry.id}`)}
+						class="absolute inset-0 rounded-xl transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+						aria-label={rowLink(entry)}
+					></a>
 
-				<span class="pointer-events-none relative flex min-w-0 flex-1 flex-col gap-1">
-					<span class="flex min-w-0 items-center gap-2">
-						<Cell.Text class="truncate text-sm font-medium" text={rowName(entry)} />
-						<Cell.Status status={entry.status} />
-						{#if entry.isEndingSoon && isMoneyRank(entry.rank)}
-							<Badge variant="outline">{$LL.dashboard.sections.alsoEnding()}</Badge>
-						{/if}
-					</span>
-					<span class="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-						<!-- a due-soon row dates the cycle coming due, which is what the rank is about;
+					<span class="pointer-events-none relative flex min-w-0 flex-1 flex-col gap-1">
+						<span class="flex min-w-0 items-center gap-2">
+							<Cell.Text class="truncate text-sm font-medium" text={rowName(entry)} />
+							<Cell.Status status={entry.status} />
+							{#if entry.isEndingSoon && isMoneyRank(entry.rank)}
+								<Badge variant="outline">{$LL.dashboard.sections.alsoEnding()}</Badge>
+							{/if}
+						</span>
+						<span class="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+							<!-- a due-soon row dates the cycle coming due, which is what the rank is about;
 						     every other row dates the contract's end. -->
-						<Cell.Date value={entry.comingDue?.due ?? entry.contractEnd} />
-						{#if entry.tenantPhone !== undefined}
-							<span aria-hidden="true">&middot;</span>
-							<span class="pointer-events-auto truncate select-text">
-								<Cell.Phone phone={entry.tenantPhone} />
-							</span>
-						{/if}
+							<Cell.Date value={entry.comingDue?.due ?? entry.contractEnd} />
+							{#if entry.tenantPhone !== undefined}
+								<span aria-hidden="true">&middot;</span>
+								<span class="pointer-events-auto truncate select-text">
+									<Cell.Phone phone={entry.tenantPhone} />
+								</span>
+							{/if}
+						</span>
 					</span>
-				</span>
 
-				<!-- a money row states what is owed today and a due-soon row what is coming due. A
+					<!-- a money row states what is owed today and a due-soon row what is coming due. A
 				     renewals contract owes nothing by construction, so the amount position is empty
 				     rather than reading zero, the same reason its heading carries no total. -->
-				{#if isMoneyRank(entry.rank)}
-					<span class="pointer-events-none relative shrink-0 text-sm font-medium tabular-nums">
-						<Cell.Money amount={entry.outstandingAmount} />
-					</span>
-				{:else if entry.comingDue}
-					<span class="pointer-events-none relative shrink-0 text-sm font-medium tabular-nums">
-						<Cell.Money amount={entry.comingDue.amount} />
-					</span>
-				{/if}
+					{#if isMoneyRank(entry.rank)}
+						<span class="pointer-events-none relative shrink-0 text-sm font-medium tabular-nums">
+							<Cell.Money amount={entry.outstandingAmount} />
+						</span>
+					{:else if entry.comingDue}
+						<span class="pointer-events-none relative shrink-0 text-sm font-medium tabular-nums">
+							<Cell.Money amount={entry.comingDue.amount} />
+						</span>
+					{/if}
 
-				<!-- the row's own control, sitting above the link that covers the row: a row opens
+					<!-- the row's own control, sitting above the link that covers the row: a row opens
 				     its record and never does a second thing, so acting on one is always an
 				     explicit control on it. -->
-				{#if answer}
-					<!-- the contract's own act, drawn as every record act's control is: its glyph,
+					{#if answer}
+						<!-- the contract's own act, drawn as every record act's control is: its glyph,
 					     its name in the tooltip, and the same everywhere it is offered. -->
-					<span class="relative shrink-0">
-						<RecordActionControl
-							label={answer.label($LL)}
-							icon={answer.icon}
-							tone={answer.tone}
-							shortcut={answer.shortcut}
-							onclick={() => runAnswer(answer.id, entry.id)}
-						/>
-					</span>
-				{/if}
-			</div>
-		{/each}
-	</div>
+						<span class="relative shrink-0">
+							<RecordActionControl
+								label={answer.label($LL)}
+								icon={answer.icon}
+								tone={answer.tone}
+								shortcut={answer.shortcut}
+								onclick={() => runAnswer(answer.id, entry.id)}
+							/>
+						</span>
+					{/if}
+				</div>
+			{/each}
+		</div>
+	{/if}
 
 	<!-- the door exists exactly when there is a rest to reach, and it states the whole rank
 	     rather than the remainder: the list it opens is filtered to this rank, so the figure on

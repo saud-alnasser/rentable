@@ -16,9 +16,9 @@
 		unitActs,
 		unitHostState
 	} from '$lib/complex/unit/host.svelte';
-	import { toDeleteStep, toPaletteVerbs } from '$lib/act';
+	import { toPaletteVerbs } from '$lib/act';
 	import { onMutationError, onMutationSuccess } from '$lib/mutation/ui';
-	import { showErrorSentence, showErrorToast, showRefusal } from '$lib/notification';
+	import { showErrorSentence, showErrorToast } from '$lib/notification';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { writeDetailsToClipboard } from '$lib/platform/clipboard';
 	import { contributionsTo } from '$lib/feature/surface';
@@ -26,9 +26,9 @@
 	import UnitForm from './form.svelte';
 
 	/**
-	 * The unit form and the unit's delete, mounted once for the whole shell. A delete runs at once
-	 * and offers undo, as its act declares; the dialog is drawn only where something refuses it, to
-	 * say what ([[rules/interface]], *Delete and confirm*).
+	 * The unit form and the unit's delete, mounted once for the whole shell. A delete asks first, in
+	 * the delete dialog, saying undo brings the unit back, or what refuses it where something does
+	 * ([[rules/interface]], *Delete and confirm*).
 	 *
 	 * A unit's acts are one list (`complex/unit/acts.ts`), and every surface offering them is a
 	 * projection of it; what those acts open is here, so there is one `UnitForm` in the tree and a
@@ -71,10 +71,6 @@
 			: [$LL.common.deleteDialog.blockedContracts({ count: held.length })];
 	});
 
-	// whether the delete asks, waits on what refuses it, or runs now, by the act's own policy.
-	const deletePolicy = unitActs.find((act) => act.id === 'unit.delete')?.confirmation;
-	const deleteStep = $derived(deleting ? toDeleteStep(deletePolicy, deleteBlockers) : 'wait');
-
 	async function deleteConfirmed() {
 		if (!deleting) {
 			return;
@@ -84,19 +80,6 @@
 
 		await deleteMutation.mutateAsync(id);
 		closeUnitConfirmation();
-		await leaveDeleted(id, complexId);
-	}
-
-	/** A delete nothing asked about: its refusal, where it earns one, is raised rather than held. */
-	async function deleteAtOnce(id: string, complexId: string) {
-		try {
-			await deleteMutation.mutateAsync(id);
-		} catch (error) {
-			showRefusal(error, $LL);
-
-			return;
-		}
-
 		await leaveDeleted(id, complexId);
 	}
 
@@ -218,18 +201,6 @@
 		untrack(() => void answerAsked(asked.actId, asked.unitId));
 	});
 
-	// the request is answered once and cleared first, as the two above are.
-	$effect(() => {
-		if (deleteStep !== 'run' || !deleting) {
-			return;
-		}
-
-		const { id, complexId } = deleting;
-
-		closeUnitConfirmation();
-		untrack(() => void deleteAtOnce(id, complexId));
-	});
-
 	onDestroy(resetUnitHost);
 </script>
 
@@ -251,7 +222,7 @@
 {/if}
 
 <DeleteDialog
-	open={deleting !== null && deleteStep === 'ask'}
+	open={deleting !== null}
 	onOpenChange={(isOpen) => {
 		if (!isOpen) {
 			closeUnitConfirmation();
@@ -259,5 +230,6 @@
 	}}
 	record={deleting?.name}
 	blockers={deleteBlockers}
+	description={$LL.common.deleteDialog.undoable()}
 	onSubmit={deleteConfirmed}
 />

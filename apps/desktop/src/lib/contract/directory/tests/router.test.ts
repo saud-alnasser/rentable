@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { type Api, createApi, monthsFromNow, seedTenant } from '$lib/app/tests/testing.ts';
+import {
+	type Api,
+	createApi,
+	identityWithout,
+	monthsFromNow,
+	seedTenant
+} from '$lib/app/tests/testing.ts';
+import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import type { ContractSortColumnId } from '$lib/contract/contract.ts';
 import type { ContractRank } from '$lib/contract/rank/rank.ts';
 import type { ListSort } from '@rentable/design/sort.ts';
@@ -179,6 +186,41 @@ test('a contract holding units in two complexes appears once in each', async () 
 			[contract.id]
 		);
 	}
+});
+
+test('the contract list names the units each contract holds, in one read', async () => {
+	const api = await createApi();
+	const complex = await api.complex.create({ name: 'Named Court', location: 'Riyadh' });
+	const tenth = await api.complex.units.create({ name: 'Room 10', complexId: complex.id });
+	const second = await api.complex.units.create({ name: 'Room 2', complexId: complex.id });
+	const held = await seedContract(api, { unitIds: [tenth.id, second.id] });
+	const empty = await seedContract(api);
+
+	const contracts = await api.contract.getMany({});
+	const listed = (id: string) => contracts.find((candidate) => candidate.id === id);
+
+	// in the order a reader counts them, so Room 2 comes before Room 10 rather than after it.
+	assert.deepEqual(listed(held.id)?.unitNames, ['Room 2', 'Room 10']);
+	// a contract holding nothing is still listed, with no names rather than missing from the list.
+	assert.deepEqual(listed(empty.id)?.unitNames, []);
+	// read through the assignment table without multiplying the contract into a row per unit.
+	assert.equal(contracts.filter((contract) => contract.id === held.id).length, 1);
+});
+
+test('without viewing units, a contract row names no unit', async () => {
+	const db = createMemoryDatabase();
+	const api = await createApi({ db });
+	const { unit } = await seedComplexWithUnit(api, 'Hidden');
+	const contract = await seedContract(api, { unitIds: [unit.id] });
+	const lacking = await createApi({ db, identity: identityWithout('viewUnit') });
+
+	const [everything] = await api.contract.getMany({});
+	assert.deepEqual(everything?.unitNames, ['Unit Hidden'], 'the row named no unit to leave out');
+
+	// the contract is still listed; only what it holds goes unnamed (effort 846, requirement 19).
+	const [row] = await lacking.contract.getMany({});
+	assert.equal(row?.id, contract.id);
+	assert.equal('unitNames' in row!, false);
 });
 
 test('the payment count follows a deleted payment back down', async () => {

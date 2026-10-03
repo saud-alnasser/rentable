@@ -115,6 +115,15 @@ export type Identity = {
  */
 export type Context = {
 	db: Database;
+	/**
+	 * the database of a workspace the member holds a grant on, reached on Turso whether or not it
+	 * is open here (effort 846, requirement 15): a client over the shell's `workspace_query` and
+	 * `workspace_batch`, built by the one factory every client is ([[rules/api-layer]], under *One
+	 * database client type*). Nothing is opened, switched or kept on this machine, so it answers
+	 * only while Turso does. `procedure.permittedIn` is what reaches for it, and only for a
+	 * workspace that is not the open one, which stays `db`.
+	 */
+	databaseOf: (workspaceId: string) => Database;
 	clock: Clock;
 	host: Host;
 	/** who is acting, or `null` where nobody is signed in on this machine. */
@@ -140,18 +149,7 @@ const systemClock: Clock = {
  * procedure.
  */
 async function actingIdentity(host: Host): Promise<Identity | null> {
-	let state;
-
-	// only the asking is guarded, and deliberately: a failure to reach the shell is an
-	// unanswered question, while a failure to make sense of the answer is a defect, and
-	// swallowing the second inside the first would report it as a request nobody made.
-	try {
-		state = await host.organization.getState();
-	} catch {
-		return null;
-	}
-
-	const session = state.session;
+	const session = await sessionOf(host);
 
 	return (
 		session && {
@@ -168,6 +166,25 @@ async function actingIdentity(host: Host): Promise<Identity | null> {
 }
 
 /**
+ * whose vault is open on this machine, as the shell answers it, or `null` where nobody's is or the
+ * shell cannot be reached.
+ */
+export async function sessionOf(host: Host): Promise<OrganizationSession | null> {
+	let state;
+
+	// only the asking is guarded, and deliberately: a failure to reach the shell is an
+	// unanswered question, while a failure to make sense of the answer is a defect, and
+	// swallowing the second inside the first would report it as a request nobody made.
+	try {
+		state = await host.organization.getState();
+	} catch {
+		return null;
+	}
+
+	return state.session;
+}
+
+/**
  * the workspace this machine has open, by id, or `null` where the shell cannot say or none is.
  *
  * **Read-only wherever that cannot be said** ([`accessIn`]): a shell that cannot say which
@@ -175,7 +192,7 @@ async function actingIdentity(host: Host): Promise<Identity | null> {
  * is the safe direction, and it costs nothing a caller could want, since there are no records to
  * write without an open workspace, and the organization's own flags are not a workspace's to clear.
  */
-async function openWorkspace(host: Host): Promise<string | null> {
+export async function openWorkspace(host: Host): Promise<string | null> {
 	try {
 		return (await host.sync.getState()).workspace.remoteId;
 	} catch {
@@ -263,6 +280,7 @@ export const context = async (
 ): Promise<Context> => {
 	const db = overrides.db ?? (await import('$lib/platform/database/client')).db;
 	const host = overrides.host;
+	const databaseOf = overrides.databaseOf ?? (await reachedOnTurso(host));
 	const clock = overrides.clock ?? systemClock;
 	const identity = overrides.identity ?? (await actingIdentity(host));
 
@@ -272,5 +290,28 @@ export const context = async (
 	// is one of them. What is left public is host-only and has no actor to name: this machine's own
 	// settings, its updater, what the shell knows about syncing, and the calls that come before
 	// there is anybody to act as.
-	return { db, clock, host, identity };
+	return { db, databaseOf, clock, host, identity };
 };
+
+/**
+ * a workspace's database by its id, over the shell's commands for a workspace that is not open:
+ * one statement through `query`, a batch through `batch`, which the shell runs as one transaction.
+ * A third transport through the factory every client is built by, so the row mapping is the one
+ * the open replica's goes through.
+ *
+ * **The factory is imported lazily**, as the open database is above, so importing this module stays
+ * free of the Tauri runtime the factory's module loads with it.
+ */
+async function reachedOnTurso(host: Host): Promise<Context['databaseOf']> {
+	const { createDatabase } = await import('$lib/platform/database/client');
+
+	return (workspaceId) =>
+		createDatabase(
+			(sql, params) => host.organization.workspace.query(workspaceId, { sql, params }),
+			(queries) =>
+				host.organization.workspace.batch(
+					workspaceId,
+					queries.map(({ sql, params }) => ({ sql, params }))
+				)
+		);
+}

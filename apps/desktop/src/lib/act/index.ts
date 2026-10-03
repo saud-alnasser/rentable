@@ -5,14 +5,13 @@
  * never a file inside it.
  */
 export {
+	isDangerous,
 	mayRun,
 	toCardActions,
-	toDeleteStep,
 	toPageActions,
 	toPaletteActs,
 	toPaletteVerbs,
 	type ConfirmationPolicy,
-	type DeleteStep,
 	type IconComponent,
 	type PageAction,
 	type PaletteAct,

@@ -90,7 +90,7 @@ use-when: "adding or changing a router, a domain module, a database client or tr
   `ctx.contributions.<its kind>`, declared under `contributes` in the dependent feature's
   `feature.ts` and typed in `app/contributions.ts`. The `contribute` middleware every procedure in
   `api/trpc.ts` starts with adds it beside the context rather than in it: `context()` still builds
-  the four ambient members, and `app/router.ts` binds the merged contributions as it builds the
+  the five ambient members, and `app/router.ts` binds the merged contributions as it builds the
   root router (`api/contribution.ts`). A domain helper a procedure hands its context to, such as
   `reconcile` and `reconcileTouched`, takes the context rather than the bare database, so it can
   read them too. *Added by ticket 62 of effort 840, carrying out the human's decision of
@@ -98,8 +98,8 @@ use-when: "adding or changing a router, a domain module, a database client or tr
 
 ## Who may call
 
-- **A procedure names who may call it, in one of five ways, and each records itself in its
-  `meta`.** All five are on `procedure` in `api/trpc.ts`.
+- **A procedure names who may call it, in one of six ways, and each records itself in its
+  `meta`.** All six are on `procedure` in `api/trpc.ts`.
   - `procedure.permitted(...flags)` asks for every flag it names. It is the rule for an act.
   - `procedure.permittedAny(...flags)` asks for any one of them, for two acts that carry the same
     authority over the same thing. There is one: `member.linkMake`, which is `inviteMember`'s or
@@ -109,27 +109,40 @@ use-when: "adding or changing a router, a domain module, a database client or tr
     asked. There are three: `history.append` and `history.getMany`, where an entry about a
     payment is the payment's act, and `organization.member.remove`, which asks the owner's
     `lockOut` beside `removeMember` where the removal locks out.
+  - `procedure.permittedIn(...flags)` reads the workspace the call is about off its input, as
+    `{ workspaceId }`, and asks every flag it names there: the open workspace where it names none
+    or the open one, and any other the member holds a grant on, reached on Turso through
+    `Context.databaseOf` with the member's permissions folded for that workspace, its pins and its
+    grant's access, never the open one's. No grant on it is refused with the shell's own
+    `host.noGrant`. Naming no flags it is a member's read of that workspace and records `member`.
+    There are three, the transfer's: `transfer.get` and `transfer.importWhole` with every kind's
+    view and create, and `transfer.held` naming none. *Added by ticket 12 of
+    [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirement 15.*
   - `procedure.member` asks only that somebody is signed in, and refuses a machine nobody is.
   - `procedure.public` asks nothing.
 
-  The three `permitted` forms compose onto `member` rather than replacing it, so each refuses
+  The four `permitted` forms compose onto `member` rather than replacing it, so each refuses
   nobody-signed-in first and then refuses with `FORBIDDEN`, naming the flags the caller lacks.
   None of them is the authority: the Rust side refuses the same request against the member's
   signed row whatever the router says. The flags are read off `Context.identity.permissions`,
-  which `api/context.ts` folds for the workspace open: the record flags pinned for the member in
-  that workspace are set as they are granted there (the workspace layer, `effectiveInWorkspace`),
-  and a read-only grant then clears every create, edit and delete.
+  which `api/context.ts` folds for the workspace open (or `permittedIn` for the workspace named):
+  the record flags pinned for the member in that workspace are set as they are granted there (the
+  workspace layer, `effectiveInWorkspace`), and a read-only grant then clears every create, edit
+  and delete.
 - **The walk reads the meta.** `Meta` in `api/trpc.ts` carries `flags` for `permitted`, `anyOf` for
-  `permittedAny`, `byInput` for every flag `permittedBy` may ask for, and `member: true` or
-  `public: true`. `api/tests/flags.test.ts` walks `appRouter._def.procedures`, which holds one
+  `permittedAny`, `byInput` for every flag `permittedBy` may ask for, `member: true` or
+  `public: true`, and `workspace: true` beside `flags` or `member` for `permittedIn`. `api/tests/flags.test.ts` walks `appRouter._def.procedures`, which holds one
   entry per procedure under its dotted path, and fails on a procedure that names no flag and is
   neither `member` nor `public`, on a record procedure that names no flag other than the two open
   reads below and `contract.reconcile`, and on a record procedure whose flag is not the one the
-  plan maps it to. A procedure declared any other way records nothing, so the walk names it.
+  plan maps it to. It holds the procedures recording `workspace` to the three of the transfer, and
+  refuses each flag one names when it is pinned off in the workspace named alone. A procedure
+  declared any other way records nothing, so the walk names it.
 - **A flag where there is one, and `member` only where there is none.** Every record procedure
-  names its flag but two reads open to every member, `dashboard.get` and `transfer.held`,
-  whose answers leave out a kind the member may not view. What else is `member` is one of two
-  things. A member's own act: their password, their other sessions, accepting an ownership offer
+  names its flag but two reads open to every member, `dashboard.get` and `transfer.held` (the
+  second declared `permittedIn()`, so in the workspace it names), whose answers leave out a kind
+  the member may not view. What else is `member` is one of two
+  things. A member's own act: their password, their other sessions, listing their machines and signing one out, accepting an ownership offer
   made to them, opening a workspace they hold a grant on, and this machine's bootstrap and
   reconcile. And a read open to every member: the member list and its standings, the roles, and
   the mark. The owner's acts and the mark's writes name the flag their Rust command checks, which
@@ -139,9 +152,14 @@ use-when: "adding or changing a router, a domain module, a database client or tr
   habit over `public`: a procedure written without thinking about who calls it should be the safe
   one.
 
-  **Counted 2026-09-28 the way the walk counts:** every entry of `appRouter._def.procedures`,
-  sorted by its `meta`. There are 113: 83 `permitted`, 1 `permittedAny`, 3 `permittedBy`, 12
-  `member` and 14 `public`, so 99 need somebody signed in and 87 of those name a flag. *It was 75,
+  **Counted 2026-10-02 the way the walk counts:** every entry of `appRouter._def.procedures`,
+  sorted by its `meta`. There are 115: 81 `permitted`, 2 `permittedIn` naming flags, 1
+  `permittedAny`, 3 `permittedBy`, 14 `member` (one of them `permittedIn()`, `transfer.held`) and
+  14 `public`, so 101 need somebody signed in and 87 of those name a flag. *Ticket 09 of effort 846
+  added `organization.session.machines` and `organization.session.endMachine`, both `member`, to
+  the 113 counted before it. Ticket 12 of effort 846
+  moved `transfer.get` and `transfer.importWhole` from `permitted` and `transfer.held` from
+  `member` onto `permittedIn`; the 2026-09-28 count read 83 `permitted` and 12 `member`. It was 75,
   1, 2, 20 and 14, and a third kind of `member` stood above, an act whose check was Rust's alone:
   the owner's acts and setting and clearing the mark. Ticket 17 of
   [[efforts/838-permissions-are-a-role-and-an-override/spec]] gave each the flag its Rust command
@@ -291,12 +309,18 @@ in the Rust layer behind `plugin:database|execute_single_sql` and `execute_batch
 functions the shipping client hands the factory still call `invoke`, and what changed is the
 engine behind the command.
 
-**The conclusion the gate bought still holds, and the count is two.** `createDatabase` has two
-callers in the tree: `client.ts` with Tauri's `invoke`, and `memory.ts` with the in-memory
-engine. **Both return the same `SqliteRemoteDatabase<typeof schema>`**, which is the property
-this rule protects: a transport is a caller at this factory, never a second kind of client. What
-the move into Rust costs is a second row mapping, in `tauri/src/database/proxy.rs`, held to the
-first by a Rust test rather than by this rule.
+**The conclusion the gate bought still holds, and the count is three.** `createDatabase` has
+three callers in the tree: `client.ts` with Tauri's `invoke`, `memory.ts` with the in-memory
+engine, and `api/context.ts`, whose `databaseOf` reaches a workspace that is not open over the
+organization port's `query` and `batch` (`plugin:organization|workspace_query` and
+`workspace_batch`, run on Turso). **All three return the same `SqliteRemoteDatabase<typeof
+schema>`**, which is the property this rule protects: a transport is a caller at this factory,
+never a second kind of client. What the move into Rust costs is a second row mapping, in
+`tauri/src/database/proxy.rs`, held to the first by a Rust test rather than by this rule; the
+Turso transport in `tauri/src/organization/workspace/remote.rs` decodes each cell through the
+proxy's own mapping rather than adding a third.
+*The third caller was added by ticket 12 of
+[[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirement 15.*
 
 *The count was three until #840 removed the third: a web-layer transport to a
 `@tursodatabase/sync` replica, left standing by #565 when it moved the engine into Rust and

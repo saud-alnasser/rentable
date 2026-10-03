@@ -7,8 +7,10 @@
 //! requests by a baton as the real server holds one, and answers in the pipeline's typed JSON
 //! (effort 838, ticket 32).
 //!
-//! **What it speaks is what this application sends**: `execute` with no arguments, `batch` with
-//! `ok`, `error`, `not`, `and` and `or` conditions, and `close`, on a baton or on none. A stream
+//! **What it speaks is what this application sends**: `execute` with positional arguments of the
+//! five typed values, `batch` with `ok`, `error`, `not`, `and` and `or` conditions, and `close`,
+//! on a baton or on none. *Arguments arrived with effort 846, ticket 11, when a workspace that is
+//! not open came to be read and written over the pipeline with the web layer's bound values.* A stream
 //! closed, or let go by a request that did not keep it, rolls back whatever it left open, as the
 //! server does. It never names a `base_url`.
 //!
@@ -359,22 +361,46 @@ async fn run(
 ) -> Result<Value, Value> {
     let sql = statement["sql"].as_str().unwrap_or_default();
 
-    assert!(
-        statement
-            .get("args")
-            .and_then(Value::as_array)
-            .is_none_or(Vec::is_empty),
-        "the stand-in takes no arguments, and this statement carries some: {sql}"
-    );
-
     if refusing.as_deref() == Some(sql) {
         *refusing = None;
 
         return Err(json!({ "type": "error", "error": { "message": "refused by the test" } }));
     }
 
-    let rows = sqlx::query(AssertSqlSafe(sql))
-        .persistent(false)
+    let mut query = sqlx::query(AssertSqlSafe(sql)).persistent(false);
+
+    for argument in statement
+        .get("args")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+    {
+        let value = &argument["value"];
+
+        query = match argument["type"].as_str() {
+            Some("integer") => query.bind(
+                value
+                    .as_str()
+                    .and_then(|text| text.parse::<i64>().ok())
+                    .expect("an integer argument"),
+            ),
+            Some("float") => query.bind(value.as_f64().expect("a float argument")),
+            Some("text") => query.bind(value.as_str().expect("a text argument").to_string()),
+            Some("blob") => query.bind(
+                base64::Engine::decode(
+                    &base64::engine::general_purpose::STANDARD_NO_PAD,
+                    argument["base64"]
+                        .as_str()
+                        .expect("a blob argument")
+                        .trim_end_matches('='),
+                )
+                .expect("base64"),
+            ),
+            _ => query.bind(None::<String>),
+        };
+    }
+
+    let rows = query
         .fetch_all(&mut *connection)
         .await
         .map_err(|error| json!({ "type": "error", "error": { "message": error.to_string() } }))?;

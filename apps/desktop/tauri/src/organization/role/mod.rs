@@ -528,7 +528,6 @@ mod tests {
     use crate::organization::invitation::{
         AccountAndLink, Invitation, WorkspaceGrant, locator, make_account_and_link,
     };
-    use crate::organization::lease::apply::Pipeline;
     use crate::organization::member::removal;
     use crate::organization::member::vault::KdfParams;
     use crate::organization::ownership::organization_key_of;
@@ -542,6 +541,7 @@ mod tests {
         GrantRecord, MemberRecord, OrganizationStore, Signer, TABLES, WorkspaceOverrideRecord,
         pins_of,
     };
+    use crate::organization::workspace::remote::Pipeline;
     use crate::organization::workspace::{create_workspace, grant_workspace, signer_of};
     use crate::persisted::Persisted;
     use crate::sync::test::server::{ScriptedResponse, ScriptedServer};
@@ -611,6 +611,7 @@ mod tests {
             role: Some(role.to_string()),
             joined_at: 0,
             format: None,
+            machine_signed_out: 0,
         }
     }
 

@@ -282,3 +282,41 @@ test('an act in the error tone is drawn as the menus draw a destructive entry', 
 	expect(throughControl[2]?.getAttribute('data-variant')).toBe('destructive');
 	expect(throughControl[0]?.getAttribute('data-variant')).toBe('default');
 });
+
+// requirement 18 of effort 846: a card laid as a tile in a grid reads from its heading line, the
+// record's name with the control at its end, then the facts below it. A row is what it was.
+test('a row is one line, the content then the control, and draws no heading', () => {
+	show({ actions: [action] });
+
+	const surface = link()!.parentElement!;
+
+	expect(surface.hasAttribute('data-layout')).toBe(false);
+	expect(surface.classList.contains('items-center')).toBe(true);
+	expect(document.querySelector('[data-heading]')).toBe(null);
+	expect(surface.lastElementChild?.querySelector('button')).toBe(control());
+});
+
+test('a tile draws its heading first with the control at its end, then the facts', () => {
+	show({ actions: [action], layout: 'tile' });
+
+	const surface = link()!.parentElement!;
+	const [, headingLine, facts] = [...surface.children];
+
+	expect(surface.dataset.layout).toBe('tile');
+	expect(surface.classList.contains('flex-col')).toBe(true);
+	expect(headingLine.querySelector('[data-heading]')?.textContent).toBe('عنوان السجل');
+	expect(headingLine.lastElementChild?.querySelector('button')).toBe(control());
+	expect(facts.textContent).toBe('اسم السجل');
+});
+
+test('both routes of a tile offer the acts a row offers', async () => {
+	show({ actions: grouped, layout: 'tile' });
+
+	await throughTheControl();
+	expect(drawn('dropdown-menu')).toEqual(['انسخ', expect.stringContaining('عدل'), '|', 'احذف']);
+
+	await fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+
+	await throughTheGesture();
+	expect(drawn('context-menu')).toEqual(['انسخ', expect.stringContaining('عدل'), '|', 'احذف']);
+});

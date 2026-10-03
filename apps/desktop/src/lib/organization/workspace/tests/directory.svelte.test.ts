@@ -1,14 +1,18 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
-import { beforeEach, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { i18nObject } from '$lib/i18n/i18n-util';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import Workspaces from '$lib/organization/workspace/component/directory.svelte';
+import Workspaces, {
+	WORKSPACE_TILE_HEIGHT
+} from '$lib/organization/workspace/component/directory.svelte';
+import { columnsFor, RECORD_TILE_MIN_WIDTH } from '$lib/list';
+import { formatLocaleDate } from '$lib/platform/locale';
 import { organizationDialog, resetOrganizationDialogs } from '$lib/organization/dialogs.svelte';
 import { organizationHostState, resetOrganizationHost } from '$lib/organization/host.svelte';
 import { fakeOrganizationMember, fakeOrganizationSession } from '$lib/organization/tests/testing';
-import { BUILT_IN, maskOf } from '@rentable/workspace-permission';
+import { BUILT_IN, EVERY_FLAG, maskOf } from '@rentable/workspace-permission';
 import type { OrganizationMember, OrganizationWorkspace } from '$lib/organization/host';
 import en from '$lib/i18n/en';
 import { toTitleCase } from '@rentable/design/title-case.js';
@@ -24,9 +28,23 @@ import {
 } from '$lib/list/tests/search';
 import { expectCreateControlLast } from '$lib/create/tests/control';
 import { BAR_CONTROL, expectBarOrder } from '$lib/design/tests/set-bar';
+import { layOutLists } from '#tests/permission.ts';
 
 import { hostAnswers, resetHostAnswers } from '$lib/organization/tests/host-hooks';
+import type { Standing } from '$lib/permission';
+import { EXPORT_FLAGS } from '$lib/permission';
+import { fakeSettings } from '$lib/settings/tests/testing';
+import type { ImportTable } from '$lib/transfer/host';
+import { emptyHeld } from '$lib/transfer';
+import '$lib/app/transfer';
+import earlierTables from '$lib/workspace/tests/app-database.json';
 import HostProviders from '$lib/organization/tests/host-providers.svelte';
+import {
+	areaOf,
+	expectBoundedArea,
+	expectFadeWhileMoreBelow,
+	expectFocusScrollsTile
+} from '$lib/organization/tests/directory-grid';
 
 /**
  * THE WORKSPACES, AS A DIRECTORY OF CARDS
@@ -37,11 +55,11 @@ import HostProviders from '$lib/organization/tests/host-providers.svelte';
  * cards. *It was a row with a cluster of glyphs revealed on hover until this ticket, which is what
  * the human met in the running build.*
  *
- * **What a card carries** is the name and how many people hold the workspace, with a disc before
- * the name of the one open on this machine. The disc carries no visible text, so what is read here
- * is its accessible name, the way every other mark of this kind is read ([[rules/interface]],
- * *Status presentation*). *The card carried the open word as a badge and this reader's access as a
- * line of its own until the human's look at this directory.*
+ * **What a card carries** is the name on its heading line and its facts beneath: *open on this
+ * machine* after the disc on the one open here, how many people hold the workspace, and what the
+ * reader may do there, worded as what they may do (effort 846, requirement 16 and criterion 16).
+ * *Effort 843 took the open word and the access line off the card, leaving the disc alone; the
+ * human brought both back on 2026-10-02.*
  *
  * **What a card offers** is drawn from the props alone, and an act the reader does not hold is
  * absent from the menu rather than disabled in it. Every act is read by opening the card's one
@@ -58,24 +76,71 @@ import HostProviders from '$lib/organization/tests/host-providers.svelte';
  * workspace something else and there is no command that renames one from a distance. So the entry
  * is behind `renameWorkspace` and behind the open mark, and both are read below.
  *
- * **Activating a card opens its record** ([[rules/interface]], *Row activation*), and for a
- * workspace with no page of its own that means this section's address with the workspace named on
- * it. Both halves are read here: the `href` a card carries, and what the section does when the
- * address carries one.
+ * **Activating a card opens its record** ([[rules/interface]], *Row activation*): the workspace's
+ * own page (effort 846, ticket 49). Both halves are read here: the `href` a card carries, and an
+ * older address naming a workspace on this section, which is sent on to that page. What the page
+ * draws is `./page.svelte.test.ts`'s.
  *
  * **The address and the navigation are mocked**, the way `organization/member/tests/directory.svelte.test.ts` mocks them:
  * `$app/state` carries no navigation under this runner, and `goto` has no router to reach.
  *
- * The rows the access dialog draws are the organization's members rather than its workspaces,
- * which is the same surface read the other way round; the owner is not among them, because Rust
- * refuses a withdrawal of the owner's own grant, and neither is the reader.
- *
  * **What a card's act opens is the organization host's** (effort 832, requirement 8), mounted once
  * in the frame, so the section is rendered with the host beside it (`./host-providers.svelte`) and
- * the host's hooks stood in for (`./host-hooks.ts`): the members the dialog lists and the session
- * that says who is reading are what those hooks answer. Each entry is read by the act it projects,
+ * the host's hooks stood in for (`./host-hooks.ts`): the members and the session that says who is
+ * reading are what those hooks answer. Each entry is read by the act it projects,
  * `data-act`. The name's entry reads *edit* (effort 832, requirement 6), where it read *rename*.
+ *
+ * **A workspace's file moves from its card** (effort 846, requirement 15 and criterion 15):
+ * *export* and *import* are on every card, refused by the reader's standing in that workspace, and
+ * the host runs them. What reaches Rust is stood in for at `tauri` (the save and open dialogs, the
+ * reveal, the workbook written and read), and the transfer's reads and write at the caller, so
+ * what each act asked for, and of which workspace, is read back. *A block beneath the cards
+ * moved the open workspace alone until then.*
  */
+
+const transfer = vi.hoisted(() => ({
+	saveFile: vi.fn(),
+	openFile: vi.fn(),
+	reveal: vi.fn(),
+	writeWorkbook: vi.fn(),
+	readBook: vi.fn(),
+	get: vi.fn(),
+	held: vi.fn(),
+	importWhole: vi.fn(),
+	failed: [] as unknown[],
+	earlier: null as { version: string } | null
+}));
+
+vi.mock('$lib/platform/tauri', () => ({
+	tauri: {
+		dialog: { saveFile: transfer.saveFile, openFile: transfer.openFile },
+		opener: { revealItemInDir: transfer.reveal },
+		diagnostics: { write: vi.fn(async () => {}) }
+	}
+}));
+
+vi.mock('$lib/transfer/tauri', () => ({
+	tauri: {
+		export: { writeWorkbook: transfer.writeWorkbook },
+		import: { readBook: transfer.readBook }
+	}
+}));
+
+vi.mock('$lib/workspace/tauri', () => ({
+	tauri: { earlier: { find: async () => transfer.earlier, read: vi.fn() } }
+}));
+
+vi.mock('$lib/api/caller', () => ({
+	default: {
+		settings: { get: async () => ({ ...fakeSettings(), earlierRecordsSettled: false }) },
+		transfer: { get: transfer.get, held: transfer.held, importWhole: transfer.importWhole }
+	}
+}));
+
+vi.mock('$lib/notification', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/notification')>()),
+	showErrorToast: (failure: unknown) => transfer.failed.push(failure)
+}));
 
 vi.mock('$lib/organization/query', async (importOriginal) => ({
 	...(await importOriginal<typeof import('$lib/organization/query')>()),
@@ -145,7 +210,8 @@ const workspaces: OrganizationWorkspace[] = [
 		accessLevel: 'full-access',
 		pinned: 0,
 		granted: 0,
-		permissions: 0
+		permissions: 0,
+		createdAt: Date.UTC(2026, 2, 3, 12)
 	},
 	{
 		id: 'ws-2',
@@ -156,7 +222,8 @@ const workspaces: OrganizationWorkspace[] = [
 		accessLevel: 'read-only',
 		pinned: 0,
 		granted: 0,
-		permissions: 0
+		permissions: 0,
+		createdAt: Date.UTC(2026, 8, 20, 12)
 	}
 ];
 
@@ -186,6 +253,12 @@ const members = [
 	})
 ];
 
+/** a reader holding every flag in every workspace, at full access. */
+const holdingEverything = (): Standing => ({
+	permissions: maskOf(...EVERY_FLAG),
+	accessLevel: 'full-access'
+});
+
 const list = (
 	overrides: Partial<Parameters<typeof render<typeof Workspaces>>[1]> = {},
 	direction: 'ltr' | 'rtl' = 'ltr'
@@ -200,6 +273,8 @@ const list = (
 			canDelete: true,
 			canRename: true,
 			canGrantWorkspace: true,
+			isOwner: true,
+			standingOf: holdingEverything,
 			refusal: null,
 			...overrides
 		},
@@ -210,6 +285,8 @@ const list = (
 const KINDS = {
 	'workspace.edit': 'edit',
 	'workspace.members': 'grant',
+	'workspace.export': 'export',
+	'workspace.import': 'import',
 	'workspace.delete': 'delete'
 } as const;
 
@@ -256,14 +333,39 @@ const press = async (id: string, kind: string) => {
 };
 
 const surface = () => document.querySelector('[data-slot=form-surface]');
+
+/**
+ * the reason an unavailable entry gives, read the way a person reaches it: the entry takes the
+ * focus and its tooltip says why, as the members directory reads it.
+ */
+const reasonOf = async (entry: Element) => {
+	layOutLists();
+
+	await fireEvent.focus(entry);
+
+	return await waitFor(() => {
+		const drawn = document.querySelector('[data-slot=tooltip-content]');
+
+		expect(drawn).not.toBeNull();
+
+		return drawn?.textContent ?? '';
+	});
+};
 const dialogTitle = () => document.querySelector('[data-slot="dialog-title"]')?.textContent?.trim();
 const dialogParagraphs = () =>
 	Array.from(document.querySelectorAll('[data-slot="dialog-content"] p'));
 
-/** the rail's own sentence for how many people are in a workspace, as the card draws it. */
-const memberCount = (count: number) => i18nObject('en').layout.workspaceMenu.members({ count });
+/** how many people are in a workspace, as the members field says it. */
+const memberCount = (count: number, language: 'en' | 'ar' = 'en') =>
+	i18nObject(language).organization.dashboard.workspaceCard.memberCount({ count });
+
+/** the figure a card's members field says. */
+const countOn = (id: string) =>
+	on('members', id)?.querySelector('[data-workspace-count]')?.textContent?.trim();
 
 beforeEach(() => {
+	// the tiles are laid in as many columns as the directory's width holds, which it measures.
+	layOutLists();
 	resetOrganizationDialogs();
 	resetOrganizationHost();
 	resetHostAnswers();
@@ -273,6 +375,16 @@ beforeEach(() => {
 	setLocale('en');
 	navigations.length = 0;
 	at();
+	transfer.failed.length = 0;
+	transfer.earlier = null;
+	transfer.saveFile.mockReset().mockResolvedValue('C:/files/workspace.xlsx');
+	transfer.openFile.mockReset().mockResolvedValue('C:/files/jeddah.xlsx');
+	transfer.reveal.mockReset().mockResolvedValue(undefined);
+	transfer.writeWorkbook.mockReset().mockImplementation(async (path: string) => path);
+	transfer.readBook.mockReset().mockResolvedValue(earlierTables as ImportTable[]);
+	transfer.get.mockReset().mockResolvedValue({});
+	transfer.held.mockReset().mockResolvedValue(emptyHeld());
+	transfer.importWhole.mockReset().mockResolvedValue({});
 });
 
 // criterion 21: one card per workspace, carrying the name, how many hold it, and the mark on the
@@ -289,39 +401,422 @@ test('one card is drawn per workspace, carrying its name and how many hold it', 
 	).toEqual(['Riyadh', 'Jeddah']);
 
 	// three people hold Riyadh and one holds Jeddah, counted off the organization's own list.
-	expect(on('members', 'ws-1')?.textContent?.trim()).toBe(memberCount(3));
-	expect(on('members', 'ws-2')?.textContent?.trim()).toBe(memberCount(1));
+	expect(countOn('ws-1')).toBe(memberCount(3));
+	expect(countOn('ws-2')).toBe(memberCount(1));
 
 	// the hostname is Turso's fact about a database, and not on the card.
 	expect(card('ws-1')?.textContent).not.toContain('turso.io');
 });
 
-// the human's look at this directory: the shell says which workspace is open at the top of every
-// screen, so the card marks it once and quietly, and what somebody holds is the surface the menu
-// opens rather than a line on the card.
-test('the open one is marked by a disc carrying its word, and no card says an access', () => {
-	list();
+// effort 846, criterion 16: the open one says so in words after its disc, on that card alone.
+test('the open one says it is open on this machine, after its disc, and no other card does', () => {
+	const drawn = list();
 
-	// the mark is on the one open here, and on no other card.
 	expect(document.querySelectorAll('[data-workspace-open]')).toHaveLength(1);
 
-	const mark = on('open', 'ws-1')!;
+	const said = on('open', 'ws-1')!;
 
-	// no visible text: a glyph, and the word read out and shown on hover.
-	expect(mark.querySelector('svg')).not.toBeNull();
-	expect(mark.textContent?.trim()).toBe(en.layout.workspaceMenu.open);
-	expect(mark.querySelector('.sr-only')?.textContent?.trim()).toBe(en.layout.workspaceMenu.open);
+	expect(said.textContent?.trim()).toBe(en.organization.dashboard.workspaceOpenHere);
+	expect(said.querySelector('svg')).not.toBeNull();
+	// in a badge on the heading line, the words doing the marking (effort 846, ticket 45).
+	expect(said.getAttribute('data-slot')).toBe('badge');
+	expect(said.closest('[data-workspace-fields]')).toBeNull();
+	expect(card('ws-1')!.contains(said)).toBe(true);
+	expect(card('ws-2')?.textContent).not.toContain(en.organization.dashboard.workspaceOpenHere);
 
-	// and it stands before the name it marks.
-	const name = card('ws-1')!.querySelector('[data-workspace-name]')!;
+	// nothing open on this machine, and no card says it is.
+	drawn.unmount();
+	list({ openWorkspaceId: null });
 
-	expect(mark.compareDocumentPosition(name) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+	expect(document.querySelector('[data-workspace-open]')).toBeNull();
+	expect(document.body.textContent).not.toContain(en.organization.dashboard.workspaceOpenHere);
+});
 
-	// no access on any card, in either of the words it could be said in.
-	expect(document.querySelector('[data-workspace-access]')).toBeNull();
+// effort 846, *Everything in a tab is a card*: the cards are tiles in a grid of as many columns as
+// the directory's width holds, each heading led by the workspace's glyph.
+test('the tiles stand in a grid, each heading led by the workspace glyph', () => {
+	list();
+
+	const grid = document.querySelector<HTMLElement>('[data-workspaces]')!;
+
+	expect(grid.classList).toContain('grid');
+	// jsdom lays nothing out, so the width is nothing and the grid is the one column it falls to.
+	expect(grid.dataset.columns).toBe('1');
+
 	for (const id of ['ws-1', 'ws-2']) {
-		expect(card(id)?.textContent, id).not.toContain(en.organization.dashboard.accessFull);
-		expect(card(id)?.textContent, id).not.toContain('read only');
+		expect(
+			card(id)!
+				.querySelector('[data-workspace-name]')!
+				.parentElement!.querySelector('svg')
+				?.getAttribute('class')
+		).toContain('lucide-building');
+	}
+});
+
+// effort 846, criterion 16: every card counts who holds it, after the members' icon.
+test('every card says how many hold it, after its icon', () => {
+	list();
+
+	for (const [id, count] of [
+		['ws-1', 3],
+		['ws-2', 1]
+	] as const) {
+		const fact = on('members', id)!;
+
+		expect(countOn(id), id).toBe(memberCount(count));
+		expect(fact.querySelector('svg'), id).not.toBeNull();
+	}
+});
+
+// ticket 48 of effort 846, the human's walk of 2026-10-03 ("the workspaces card members showen
+// feels odd (SA) 1 showing each member feels odd"): the members field is a count, as every other
+// field reads, with no initials beside it, in both languages.
+describe('the members field counts who holds it and draws nobody', () => {
+	test.each(['en', 'ar'] as const)('in %s', (language) => {
+		loadLocale(language);
+		setLocale(language);
+
+		const words = language === 'en' ? en : ar;
+
+		list({}, language === 'ar' ? 'rtl' : 'ltr');
+
+		for (const [id, count] of [
+			['ws-1', 3],
+			['ws-2', 1]
+		] as const) {
+			const field = on('members', id)!;
+
+			expect(card(id)!.querySelector('[data-slot=avatar]'), id).toBeNull();
+			expect(field.querySelector('svg')?.getAttribute('class'), id).toContain('lucide-users');
+			expect(field.querySelector('[data-workspace-field-name]')?.textContent?.trim(), id).toBe(
+				words.organization.dashboard.membersTitle
+			);
+			expect(field.querySelector('[data-workspace-field-value]')?.textContent?.trim(), id).toBe(
+				memberCount(count, language)
+			);
+		}
+
+		setLocale('en');
+	});
+});
+
+// effort 846, requirement 19 and ticket 45: no count of zero. The field still stands, so the tile
+// keeps its rows, and says nobody in words, muted.
+test('a workspace nobody is counted in says nobody, muted, and never a zero', () => {
+	list({ members: [] });
+
+	for (const id of ['ws-1', 'ws-2']) {
+		const field = on('members', id)!;
+		const value = field.querySelector('[data-workspace-field-value]')!;
+
+		expect(value.textContent?.trim(), id).toBe(en.organization.dashboard.workspaceCard.noMembers);
+		expect(value.hasAttribute('data-empty'), id).toBe(true);
+		expect(value.getAttribute('class'), id).toContain('text-muted-foreground');
+		expect(field.querySelector('[data-slot=avatar]'), id).toBeNull();
+		expect(field.textContent, id).not.toMatch(/[0-9\u0660-\u0669]/);
+	}
+});
+
+// tickets 33 and 45 of effort 846: the day it was created, off its row, as a field named for it;
+// nothing where the workspace does not say.
+test('every card says the day it was created, as its field, and none where it is not known', () => {
+	const drawn = list();
+
+	for (const [id, made] of [
+		['ws-1', workspaces[0].createdAt!],
+		['ws-2', workspaces[1].createdAt!]
+	] as const) {
+		const fact = on('made', id)!;
+		const day = formatLocaleDate('en', made, { dateStyle: 'medium' });
+
+		expect(fact.querySelector('[data-workspace-field-value]')?.textContent?.trim(), id).toBe(day);
+		expect(fact.querySelector('[data-workspace-field-name]')?.textContent?.trim(), id).toBe(
+			en.organization.dashboard.workspaceCard.created
+		);
+		expect(fact.querySelector('svg')?.getAttribute('class'), id).toContain('lucide-calendar-plus');
+	}
+
+	drawn.unmount();
+	list({ workspaces: workspaces.map((workspace) => ({ ...workspace, createdAt: undefined })) });
+
+	expect(document.querySelector('[data-workspace-made]')).toBeNull();
+});
+
+/** the name of the lucide glyph an svg draws. */
+const glyphOf = (svg: Element | null) =>
+	[...(svg?.classList ?? [])]
+		.find((name) => name.startsWith('lucide-') && name !== 'lucide-icon')
+		?.slice('lucide-'.length);
+
+/** a line's words with every space taken out, which is how a field's value is compared. */
+const bare = (text: string | null | undefined) => (text ?? '').replace(/\s+/g, '');
+
+/** each field a card draws, as its glyph, its name and its value, read bare. */
+const fieldsOn = (id: string) =>
+	Array.from(card(id)!.querySelectorAll<HTMLElement>('[data-workspace-field]')).map((field) => {
+		const svg = field.querySelector('svg');
+
+		expect(svg?.getAttribute('aria-hidden')).toBe('true');
+		// the shared tinted cell, and nothing drawn beside it.
+		expect(field.hasAttribute('data-field')).toBe(true);
+
+		return {
+			glyph: glyphOf(svg),
+			name: field.querySelector('[data-workspace-field-name]')?.textContent?.trim(),
+			value: bare(field.querySelector('[data-workspace-field-value]')?.textContent)
+		};
+	});
+
+// ticket 45 of effort 846, the human's word of 2026-10-03 ("follow the tinted files and things like
+// that in the reocrds cards of domain data"): the glyph tile, the name and the open badge on the
+// heading, then the facts as tinted `Cell.Field`s in a grid two across, the members and the access
+// side by side and the day it was made across both columns under them (ticket 48), in both
+// languages.
+describe('the facts are tinted fields in a grid two across, as the member card lays its own', () => {
+	test.each(['en', 'ar'] as const)('in %s', (language) => {
+		loadLocale(language);
+		setLocale(language);
+
+		const words = language === 'en' ? en : ar;
+
+		list({}, language === 'ar' ? 'rtl' : 'ltr');
+
+		for (const [id, workspace, count] of [
+			['ws-1', workspaces[0], 3],
+			['ws-2', workspaces[1], 1]
+		] as const) {
+			const grid = card(id)!.querySelector<HTMLElement>('[data-workspace-fields]')!;
+
+			expect(grid.classList, id).toContain('grid');
+			expect(grid.classList, id).toContain('grid-cols-2');
+			expect(grid.querySelectorAll(':scope > [data-workspace-field]'), id).toHaveLength(3);
+			expect(card(id)!.querySelectorAll('[data-fact]'), id).toHaveLength(0);
+
+			expect(fieldsOn(id), id).toEqual([
+				{
+					glyph: 'users',
+					name: words.organization.dashboard.membersTitle,
+					value: bare(memberCount(count, language))
+				},
+				{
+					glyph: 'key-round',
+					name: words.organization.dashboard.workspaceCard.access,
+					value: bare(words.organization.dashboard.workspaceYouOwn)
+				},
+				{
+					glyph: 'calendar-plus',
+					name: words.organization.dashboard.workspaceCard.created,
+					value: bare(formatLocaleDate(language, workspace.createdAt!, { dateStyle: 'medium' }))
+				}
+			]);
+			expect(on('members', id)!.classList, id).not.toContain('col-span-2');
+			expect(on('access', id)!.classList, id).not.toContain('col-span-2');
+			expect(on('made', id)!.classList, id).toContain('col-span-2');
+
+			for (const field of card(id)!.querySelectorAll('[data-workspace-field]')) {
+				// softly tinted with the muted token, no border, and nothing toned: none is a state.
+				expect(field.classList, id).toContain('bg-muted');
+				expect(field.classList, id).not.toContain('border');
+				expect(
+					field.querySelector('[data-workspace-field-value]')?.getAttribute('class'),
+					id
+				).toContain('text-foreground');
+			}
+
+			expect(
+				card(id)!.querySelector('[data-workspace-glyph] svg')?.getAttribute('class')
+			).toContain('lucide-building');
+		}
+
+		// the badge stands on the open one's heading alone.
+		expect(on('open', 'ws-1')?.getAttribute('data-slot')).toBe('badge');
+		expect(card('ws-2')!.querySelector('[data-workspace-open]')).toBeNull();
+
+		setLocale('en');
+	});
+});
+
+// ticket 33 of effort 846, as the record tiles are laid ([[rules/interface]], *List presentation*):
+// the tiles are laid at the one fixed height the directory declares, in as many columns as
+// `RECORD_TILE_MIN_WIDTH` fits.
+describe('the tiles are laid at the fixed height, in the record tiles columns', () => {
+	afterEach(() => {
+		delete (HTMLElement.prototype as { clientWidth?: number }).clientWidth;
+	});
+
+	const wide = (width: number) =>
+		Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
+			configurable: true,
+			get: () => width
+		});
+
+	test.each([
+		[1000, 3],
+		[620, 2],
+		[500, 1]
+	])('at %i pixels wide the grid lays %i across', (width, across) => {
+		wide(width);
+		list();
+
+		expect(columnsFor(width, RECORD_TILE_MIN_WIDTH, 12)).toBe(across);
+		expect(document.querySelector<HTMLElement>('[data-workspaces]')!.dataset.columns).toBe(
+			String(across)
+		);
+	});
+
+	// effort 846, ticket 53, at the human's word of 2026-10-03: "make the workspaces under settings
+	// directory have 4 cards on a 2 column grid after that it goes to a scrolling area", the rows in
+	// view following the columns: two cards at one across, four at two, nine at three.
+	test.each([
+		[1000, 3, 12],
+		[620, 2, 7],
+		[500, 1, 3]
+	])(
+		'at %i pixels wide, %i across, the cards past the rows in view scroll under the tray',
+		async (width, across, count) => {
+			wide(width);
+			list({
+				workspaces: Array.from({ length: count }, (_, index) => ({
+					...workspaces[index % 2],
+					id: `ws-${index + 1}`,
+					name: `Place ${index + 1}`
+				}))
+			});
+
+			const grid = document.querySelector<HTMLElement>('[data-workspaces]')!;
+
+			expect(grid.querySelectorAll('[data-workspace]')).toHaveLength(count);
+			expectBoundedArea(grid, {
+				tileHeight: WORKSPACE_TILE_HEIGHT,
+				columns: across,
+				legendId: 'workspaces-legend'
+			});
+			await expectFadeWhileMoreBelow(areaOf(grid)!);
+			await expectFocusScrollsTile(card(`ws-${count}`) as HTMLElement);
+		}
+	);
+
+	test('every tile is the declared height, in both languages', () => {
+		for (const language of ['en', 'ar'] as const) {
+			loadLocale(language);
+			setLocale(language);
+
+			const drawn = list({}, language === 'ar' ? 'rtl' : 'ltr');
+
+			for (const id of ['ws-1', 'ws-2']) {
+				expect((card(id) as HTMLElement).style.height, `${language} ${id}`).toBe(
+					`${WORKSPACE_TILE_HEIGHT}px`
+				);
+			}
+			// every line under the heading sets the fields' fixed leading, which is what lets one
+			// height hold in Arabic.
+			const lines = document.querySelectorAll(
+				'[data-workspace-field-name], [data-workspace-field-value]'
+			);
+
+			expect(lines.length, language).toBe(12);
+			for (const line of lines) {
+				expect(line.getAttribute('class')).toContain('leading-5');
+			}
+
+			drawn.unmount();
+		}
+
+		setLocale('en');
+	});
+});
+
+/** the access line a card draws, as the kind it is marked with and the words it says. */
+const accessOn = (id: string) => {
+	const fact = on('access', id);
+
+	return (
+		fact && {
+			kind: fact.getAttribute('data-access'),
+			word: fact.querySelector('[data-workspace-field-value]')?.textContent?.trim()
+		}
+	);
+};
+
+/** one workspace the reader holds, on the first fixture's facts. */
+const held = (overrides: Partial<OrganizationWorkspace>): OrganizationWorkspace => ({
+	...workspaces[0],
+	...overrides
+});
+
+// effort 846, criterion 16: what the reader may do there, in the words of what they may do, and
+// never the level of a grant.
+test('every card says what the reader may do there: owner, edit, read or set for them', () => {
+	const owner = list();
+
+	for (const id of ['ws-1', 'ws-2']) {
+		expect(accessOn(id), id).toEqual({
+			kind: 'owner',
+			word: en.organization.dashboard.workspaceYouOwn
+		});
+		expect(on('access', id)?.querySelector('svg'), id).not.toBeNull();
+	}
+
+	owner.unmount();
+
+	// a member: a full grant they write under, a read-only one, one with something pinned for
+	// them, and a full grant under a role that writes nothing.
+	list({
+		isOwner: false,
+		workspaces: [
+			held({ id: 'full', name: 'Full', permissions: BUILT_IN.member.mask }),
+			held({
+				id: 'read',
+				name: 'Read',
+				accessLevel: 'read-only',
+				permissions: maskOf('viewTenant')
+			}),
+			held({
+				id: 'pinned',
+				name: 'Pinned',
+				pinned: maskOf('editTenant'),
+				permissions: BUILT_IN.member.mask - maskOf('editTenant')
+			}),
+			held({ id: 'views', name: 'Views', permissions: maskOf('viewTenant', 'viewUnit') })
+		]
+	});
+
+	expect(accessOn('full')).toEqual({
+		kind: 'edit',
+		word: en.organization.dashboard.workspaceYouEdit
+	});
+	expect(accessOn('read')).toEqual({
+		kind: 'read',
+		word: en.organization.dashboard.workspaceYouRead
+	});
+	expect(accessOn('pinned')).toEqual({
+		kind: 'pinned',
+		word: en.organization.dashboard.workspaceSetForYou
+	});
+	expect(accessOn('views')).toEqual({
+		kind: 'read',
+		word: en.organization.dashboard.workspaceYouRead
+	});
+	for (const id of ['full', 'read', 'pinned', 'views']) {
+		expect(on('access', id)?.querySelector('svg'), id).not.toBeNull();
+	}
+});
+
+// effort 846, criterion 16 and the interface rule's member card: the level of a grant is never the
+// words a card says, for any reader.
+test('no card says full access or no access', () => {
+	for (const isOwner of [true, false]) {
+		const drawn = list({ isOwner });
+
+		for (const id of ['ws-1', 'ws-2']) {
+			const said = card(id)?.textContent?.toLowerCase() ?? '';
+
+			expect(said, id).not.toContain('full access');
+			expect(said, id).not.toContain('no access');
+			expect(said, id).not.toContain(en.organization.dashboard.accessFull);
+		}
+
+		drawn.unmount();
 	}
 });
 
@@ -333,6 +828,11 @@ test('the section says what it is for, in the tray above the cards', () => {
 	const tray = document.querySelector('[data-directory-tray]')!;
 
 	expect(tray.querySelector('legend')?.textContent?.trim()).toBe(en.settings.section.workspaces);
+	// effort 846, requirement 1: the heading reads as a settings card's header, its glyph first.
+	expect(tray.querySelector('legend')?.hasAttribute('data-directory-grouped')).toBe(true);
+	expect(tray.querySelector('[data-directory-glyph] svg')?.getAttribute('class')).toContain(
+		'lucide-building'
+	);
 	expect(tray.querySelector('[data-directory-description]')?.textContent?.trim()).toBe(
 		en.organization.dashboard.workspacesDescription
 	);
@@ -391,27 +891,29 @@ test('an owner whose machine lost the authority reads why in the tray, and every
 });
 
 // criterion 21: rename, members and delete on the card's menu, each behind its gate.
-test('an owner holding every gate is offered members and delete on each card, and edit on the open one', async () => {
+test('an owner holding every gate is offered members, the file and delete on each card, and edit on the open one', async () => {
 	list();
 
-	expect(await actsOn('ws-1')).toEqual(['edit', 'grant', 'delete']);
-	// the name's edit acts on the workspace this machine has open, so it is offered on that card alone.
-	expect(await actsOn('ws-2')).toEqual(['grant', 'delete']);
+	expect(await actsOn('ws-1')).toEqual(['edit', 'grant', 'export', 'import', 'delete']);
+	// the name's edit acts on the workspace this machine has open, so it is offered on that card
+	// alone; its file is on every card (effort 846, requirement 15).
+	expect(await actsOn('ws-2')).toEqual(['grant', 'export', 'import', 'delete']);
 });
 
 // ticket 50 of effort 838: who is in a workspace is offered to every reader and refused, naming
 // the flag, without `grantWorkspace`, as the member's card refuses its workspaces section, so the
 // two ends of a grant refuse the same way. Nothing else is offered, and there is no create.
-test('a member holding no act is offered only who is in each workspace, refused naming the flag', async () => {
+test('a member holding no act is offered who is in each workspace and its file, refused naming the flag', async () => {
 	list({
 		canCreate: false,
 		canDelete: false,
 		canRename: false,
-		canGrantWorkspace: false
+		canGrantWorkspace: false,
+		standingOf: () => ({ permissions: 0, accessLevel: 'full-access' })
 	});
 
 	for (const id of ['ws-1', 'ws-2']) {
-		expect(await actsOn(id), id).toEqual(['grant']);
+		expect(await actsOn(id), id).toEqual(['grant', 'export', 'import']);
 	}
 
 	await fireEvent.click(control('ws-1')!);
@@ -420,7 +922,7 @@ test('a member holding no act is offered only who is in each workspace, refused 
 
 	expect(grant?.getAttribute('aria-disabled')).toBe('true');
 	await fireEvent.click(grant!);
-	expect(organizationHostState.workspace.changingAccess).toBeNull();
+	expect(navigations).toEqual([]);
 
 	expect(document.querySelector('[data-workspace-create]')).toBeNull();
 	expect(document.querySelector('[data-workspace-refusal]')).toBeNull();
@@ -445,24 +947,26 @@ test('each act is drawn by its own gate and by no other', async () => {
 		rendered.unmount();
 	};
 
-	// who is in a workspace is on every card, refused where the reader lacks the flag.
-	await only({ canRename: true }, 'ws-1', ['edit', 'grant']);
-	await only({ canRename: true }, 'ws-2', ['grant']);
-	await only({ canGrantWorkspace: true }, 'ws-1', ['grant']);
-	await only({ canGrantWorkspace: true }, 'ws-2', ['grant']);
-	await only({ canDelete: true }, 'ws-1', ['grant', 'delete']);
-	await only({ canDelete: true }, 'ws-2', ['grant', 'delete']);
+	// who is in a workspace and its file are on every card, refused where the reader lacks the flag.
+	const file = ['export', 'import'];
+
+	await only({ canRename: true }, 'ws-1', ['edit', 'grant', ...file]);
+	await only({ canRename: true }, 'ws-2', ['grant', ...file]);
+	await only({ canGrantWorkspace: true }, 'ws-1', ['grant', ...file]);
+	await only({ canGrantWorkspace: true }, 'ws-2', ['grant', ...file]);
+	await only({ canDelete: true }, 'ws-1', ['grant', ...file, 'delete']);
+	await only({ canDelete: true }, 'ws-2', ['grant', ...file, 'delete']);
 });
 
-// [[rules/interface]], *Row activation*: activating a card opens its record, which for a workspace
-// is this section's address with the workspace named on it.
+// [[rules/interface]], *Row activation*: activating a card opens its record, the workspace's own
+// page (effort 846, ticket 49).
 test('a card opens its own record, and nothing on the card itself does anything else', async () => {
 	list();
 
 	const jeddah = card('ws-2')!;
 	const opens = jeddah.querySelector('a')!;
 
-	expect(opens.getAttribute('href')).toBe('/settings?section=workspaces&workspace=ws-2');
+	expect(opens.getAttribute('href')).toBe('/settings/workspaces/ws-2');
 	expect(opens.getAttribute('aria-label')).toBe('Jeddah');
 	// the acts are behind the card's one control, and nothing else on it is pressable.
 	expect(jeddah.querySelectorAll('button')).toHaveLength(1);
@@ -481,147 +985,206 @@ test('a card opens its own record, and nothing on the card itself does anything 
 	expect(document.querySelectorAll('[data-slot=dropdown-menu-item]').length).toBeGreaterThan(0);
 });
 
-// the other half of the same rule: the section reads the workspace off the address and opens its
-// edit, then clears it, so pressing the same card twice opens the same surface twice.
-test('the address naming a workspace opens that workspace and is cleared', async () => {
+// an address kept from before the workspace had a page names it on this section: it is sent on to
+// the page, in place of the address that named it, and a name nobody here holds is cleared and
+// opens nothing.
+test('an older address naming a workspace is sent on to its page', async () => {
 	at('?section=workspaces&workspace=ws-2');
 	list();
 
-	await waitFor(() => {
-		expect(document.querySelector('[data-access-form]')).not.toBeNull();
-	});
-	expect(
-		screen.getByText(
-			en.organization.dashboard.workspaceAccessDescription.replace('{workspace:string}', 'Jeddah')
-		)
-	).toBeDefined();
-	expect(navigations).toEqual(['/settings?section=workspaces']);
-});
-
-// a reader who may only rename opens the one workspace they can rename, and a name nobody here
-// holds opens nothing at all.
-test('the edit a card opens is the one this reader holds, and an unknown name opens nothing', async () => {
-	at('?section=workspaces&workspace=ws-1');
-	const renamer = list({ canGrantWorkspace: false, canDelete: false });
-
-	await waitFor(() => {
-		expect(surface()).not.toBeNull();
-	});
-	expect(screen.getByText(en.workspace.renameDescription)).toBeDefined();
-	renamer.unmount();
-	resetOrganizationHost();
-
-	at('?section=workspaces&workspace=ws-gone');
-	list();
-
-	expect(document.querySelector('[data-access-form]')).toBeNull();
+	await waitFor(() => expect(navigations).toEqual(['/settings/workspaces/ws-2']));
 	expect(surface()).toBeNull();
 });
 
-// criterion 21: export and import stay, in this section, acting on the open workspace.
-test('export and import sit beneath the cards, under a legend naming the open workspace', () => {
+test('an older address naming a workspace nobody here holds is cleared, and opens nothing', async () => {
+	at('?section=workspaces&workspace=ws-gone');
 	list();
 
-	expect(screen.getByRole('button', { name: en.common.actions.export })).toBeDefined();
-	expect(screen.getByRole('button', { name: en.common.actions.import })).toBeDefined();
+	await waitFor(() => expect(navigations).toEqual(['/settings?section=workspaces']));
+	expect(surface()).toBeNull();
+});
 
-	const legend = screen.getByText(
-		en.organization.dashboard.transferTitle.replace('{workspace:string}', 'Riyadh')
+// effort 846, criterion 15: no block beneath the cards; the file is on each card.
+test('no transfer block is drawn below the cards, and nothing outside a card exports or imports', () => {
+	list();
+
+	const buttons = [...document.querySelectorAll('button')].filter(
+		(button) => !button.closest('[data-workspace]')
 	);
+	const words = buttons.map((button) => button.textContent?.trim().toLowerCase());
+
+	expect(words).not.toContain(en.common.actions.export);
+	expect(words).not.toContain(en.common.actions.import);
+	expect(document.querySelector('[data-slot="separator"]')).toBeNull();
+
+	// the cards are the section's last block.
 	const last = document.querySelectorAll('[data-workspace]')[1]!;
 
-	expect(legend.compareDocumentPosition(last) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
-	expect(screen.getByText(en.workspace.transferDescription)).toBeDefined();
+	expect(
+		[...document.querySelectorAll('fieldset, [data-slot="field-set"]')].every(
+			(set) => !(last.compareDocumentPosition(set) & Node.DOCUMENT_POSITION_FOLLOWING)
+		)
+	).toBe(true);
 });
 
-test('the members act opens the access dialog on the people who could hold that workspace', async () => {
+// effort 846, criterion 15: a card not open on this machine offers both acts, and its export
+// writes that workspace, asked of it by its id, through the save dialog, then reveals it.
+test('export on a card not open asks where, reads that workspace, writes it and reveals it', async () => {
 	list();
 
-	await press('ws-2', 'grant');
+	await press('ws-2', 'export');
 
-	expect(document.querySelector('[data-access-form]')).not.toBeNull();
-	// the owner's own grant is never withdrawn and the reader never writes their own row, so
-	// neither is offered; what is left is everybody a grant can be moved on.
-	expect(
-		Array.from(document.querySelectorAll('[data-access-row]')).map((node) =>
-			node.getAttribute('data-access-row')
-		)
-	).toEqual(['ada', 'sami']);
-	expect(
-		screen.getByText(
-			en.organization.dashboard.workspaceAccessDescription.replace('{workspace:string}', 'Jeddah')
-		)
-	).toBeDefined();
+	await waitFor(() => expect(transfer.reveal).toHaveBeenCalledOnce());
+	expect(transfer.saveFile).toHaveBeenCalledExactlyOnceWith('workspace.xlsx');
+	expect(transfer.get).toHaveBeenCalledExactlyOnceWith({ workspaceId: 'ws-2' });
+	expect(transfer.writeWorkbook).toHaveBeenCalledOnce();
+	expect(transfer.writeWorkbook.mock.calls[0]![0]).toBe('C:/files/workspace.xlsx');
+	expect(transfer.reveal).toHaveBeenCalledWith('C:/files/workspace.xlsx');
+	expect(transfer.failed).toEqual([]);
 });
 
-test('the members act hands up the rows that changed, as member ids on that workspace', async () => {
+// walking away from the save dialog reads nothing and writes nothing.
+test('export walked away from reads and writes nothing', async () => {
+	transfer.saveFile.mockResolvedValue(null);
 	list();
 
-	await press('ws-1', 'grant');
-	// ada is in it, and her switch takes her out.
-	await fireEvent.click(document.querySelector<HTMLElement>('#access-ada')!);
-	await fireEvent.submit(document.querySelector('form')!);
+	await press('ws-2', 'export');
 
-	await waitFor(() => {
-		expect(hostAnswers.writes).toEqual([
-			{
-				hook: 'useChangeAccess',
-				input: { changes: [{ workspaceId: 'ws-1', memberId: 'ada', access: 'none' }] }
-			}
-		]);
+	await waitFor(() => expect(transfer.saveFile).toHaveBeenCalledOnce());
+	expect(transfer.get).not.toHaveBeenCalled();
+	expect(transfer.writeWorkbook).not.toHaveBeenCalled();
+});
+
+// effort 846, criterion 15: with Turso unreachable, the procedure refuses with ticket 11's
+// sentence, which is said, and no file is written.
+test('an export of a workspace that cannot be reached says so and writes nothing', async () => {
+	const unreachable = new Error('Jeddah could not be reached on Turso. check the connection.');
+
+	transfer.get.mockRejectedValue(unreachable);
+	list();
+
+	await press('ws-2', 'export');
+
+	await waitFor(() => expect(transfer.failed).toEqual([unreachable]));
+	expect(transfer.get).toHaveBeenCalledExactlyOnceWith({ workspaceId: 'ws-2' });
+	expect(transfer.writeWorkbook).not.toHaveBeenCalled();
+	expect(transfer.reveal).not.toHaveBeenCalled();
+});
+
+// effort 846, criterion 15: the import on a card reads what that workspace holds, opens named for
+// it, and its confirm writes into it by its id, not into the one open.
+test('import on a card not open is named for that workspace and writes into it by its id', async () => {
+	list();
+
+	await press('ws-2', 'import');
+
+	const title = () => document.querySelector('[data-slot="dialog-title"]');
+
+	await waitFor(() => expect(title()?.getAttribute('data-import-workspace')).toBe('ws-2'));
+	expect(title()?.textContent).toContain('Jeddah');
+	expect(transfer.openFile).toHaveBeenCalledOnce();
+	expect(transfer.held).toHaveBeenCalledExactlyOnceWith({ workspaceId: 'ws-2' });
+
+	const confirm = [
+		...document.querySelectorAll<HTMLButtonElement>('[data-slot="dialog-content"] button')
+	].find((button) => button.textContent?.trim() === en.common.actions.import);
+
+	await fireEvent.click(confirm!);
+
+	await waitFor(() => expect(transfer.importWhole).toHaveBeenCalledOnce());
+	expect(transfer.importWhole.mock.calls[0]![0]).toMatchObject({ workspaceId: 'ws-2' });
+});
+
+// effort 846, criterion 15: a read-only grant on the card not open refuses its import, with the
+// reason, while the open card's is offered; its export stands.
+test('a read-only grant refuses import on that card while the open card offers it', async () => {
+	list({
+		standingOf: (workspaceId) => ({
+			permissions: maskOf(...EVERY_FLAG),
+			accessLevel: workspaceId === 'ws-2' ? 'read-only' : 'full-access'
+		})
 	});
+
+	await fireEvent.click(control('ws-2')!);
+
+	expect(on('import', 'ws-2')?.getAttribute('aria-disabled')).toBe('true');
+	expect(await reasonOf(on('import', 'ws-2')!)).toContain(en.common.permission.readOnly);
+	expect(on('export', 'ws-2')?.hasAttribute('data-unavailable')).toBe(false);
+
+	await fireEvent.click(on('import', 'ws-2')!);
+	expect(transfer.openFile).not.toHaveBeenCalled();
+
+	await fireEvent.click(control('ws-2')!);
+	await fireEvent.click(control('ws-1')!);
+
+	expect(on('import', 'ws-1')?.hasAttribute('data-unavailable')).toBe(false);
+	expect(on('export', 'ws-1')?.hasAttribute('data-unavailable')).toBe(false);
 });
 
-// requirement 12 as amended a third time: the dialog marks a person whose permissions in that
-// workspace differ from theirs across the organization, read off the members' facts, and draws no
-// lock (ticket 54 of effort 838).
-test('the members act marks a person tailored in that workspace, and draws no lock', async () => {
-	hostAnswers.members = [
-		members[0],
-		{
-			...members[1],
-			permissions: BUILT_IN.manager.mask,
-			workspaces: [
-				{
-					id: 'ws-1',
-					access: 'full-access',
-					pinned: maskOf('deletePayment'),
-					granted: 0,
-					permissions: BUILT_IN.manager.mask - maskOf('deletePayment')
-				}
-			]
-		},
-		members[2]
-	];
+// carried from the transfer block (effort 838, requirement 10): the file holds every kind, so the
+// export asks every view flag, and a reader lacking one is refused on the card, naming it.
+test.each(EXPORT_FLAGS)(
+	'without %s in a workspace, its export is refused, naming the flag, and asks for no file',
+	async (flag) => {
+		list({
+			standingOf: () => ({
+				permissions: maskOf(...EVERY_FLAG.filter((held) => held !== flag)),
+				accessLevel: 'full-access'
+			})
+		});
+
+		await fireEvent.click(control('ws-2')!);
+
+		expect(on('export', 'ws-2')?.getAttribute('aria-disabled')).toBe('true');
+		expect(await reasonOf(on('export', 'ws-2')!)).toContain(en.common.permission.missing[flag]);
+
+		await fireEvent.click(on('export', 'ws-2')!);
+
+		expect(transfer.saveFile).not.toHaveBeenCalled();
+		expect(transfer.get).not.toHaveBeenCalled();
+	}
+);
+
+// effort 846, criterion 17: the earlier records stand above the cards, naming the open workspace.
+test('the earlier records stand above the cards, naming the workspace open here', async () => {
+	transfer.earlier = { version: '0.13.0' };
 	list();
 
-	await press('ws-1', 'grant');
-	await waitFor(() => expect(document.querySelector('[data-access-form]')).not.toBeNull());
+	const callout = () => document.querySelector('[data-earlier-records]');
 
-	expect(document.querySelector('[data-access-mark="ada"]')?.textContent?.trim()).toBe(
-		en.organization.workspaceSwitches.customHere
-	);
-	expect(document.querySelector('[data-access-mark="sami"]')).toBeNull();
-	expect(document.querySelector('[id$="-lock"]')).toBeNull();
+	await waitFor(() => expect(callout()).not.toBeNull());
+
+	const first = document.querySelector('[data-workspace]')!;
+
+	expect(callout()!.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+	expect(callout()!.querySelector('[data-earlier-description]')?.textContent).toContain('Riyadh');
+	expect(callout()!.querySelector('[data-earlier-bring-in]')).not.toBeNull();
 });
 
-// full access is the reader's own credential re-sealed, and the reader holds Jeddah read only,
-// so the host hands the dialog rows nobody can be put in on, and the switch says why.
-test('the members act on a workspace the reader holds read only puts nobody in', async () => {
+test('with nothing open, the earlier records keep their line and offer no act', async () => {
+	transfer.earlier = { version: '0.13.0' };
+	list({ openWorkspaceId: null });
+
+	const callout = () => document.querySelector('[data-earlier-records]');
+
+	await waitFor(() => expect(callout()).not.toBeNull());
+
+	expect(callout()!.querySelector('[data-earlier-description]')?.textContent?.trim()).toBe(
+		en.earlier.openOne
+	);
+	expect(callout()!.querySelectorAll('button')).toHaveLength(0);
+});
+
+// effort 846, ticket 49: who holds a workspace is its own page, and the members act goes there
+// rather than opening a dialog. What the page draws and writes is `./page.svelte.test.ts`'s.
+test('the members act goes to that workspace page, and opens no dialog', async () => {
 	list();
 
 	await press('ws-2', 'grant');
 
-	const ada = document.querySelector<HTMLElement>('#access-ada')!;
-
-	expect(ada.getAttribute('aria-disabled')).toBe('true');
-	expect(document.querySelector('#access-ada-reason')?.textContent?.trim()).toBe(
-		en.organization.workspaceSwitches.notHeld
-	);
-
-	await fireEvent.click(ada);
-
-	expect(ada.getAttribute('aria-checked')).toBe('false');
+	await waitFor(() => expect(navigations).toEqual(['/settings/workspaces/ws-2']));
+	expect(surface()).toBeNull();
+	expect(document.querySelector('[data-access-row]')).toBeNull();
 });
 
 // criterion 21: delete asks once and names what is lost, and it is the owner's.
@@ -686,7 +1249,12 @@ test('and in arabic every card reads in its own words, right to left', async () 
 			node.textContent?.trim()
 		)
 	).toEqual(['Riyadh', 'Jeddah']);
-	expect(on('open', 'ws-1')?.textContent?.trim()).toBe(ar.layout.workspaceMenu.open);
+	expect(on('open', 'ws-1')?.textContent?.trim()).toBe(ar.organization.dashboard.workspaceOpenHere);
+	expect(accessOn('ws-1')?.word).toBe(ar.organization.dashboard.workspaceYouOwn);
+	expect(countOn('ws-1')).toBe(memberCount(3, 'ar'));
+	expect(
+		on('made', 'ws-1')?.querySelector('[data-workspace-field-name]')?.textContent?.trim()
+	).toBe(ar.organization.dashboard.workspaceCard.created);
 	expect(document.querySelector('[data-directory-description]')?.textContent?.trim()).toBe(
 		ar.organization.dashboard.workspacesDescription
 	);
@@ -694,9 +1262,6 @@ test('and in arabic every card reads in its own words, right to left', async () 
 		en.organization.dashboard.workspacesDescription
 	);
 	expect(screen.getByRole('button', { name: ar.layout.workspaceMenu.create })).toBeDefined();
-	expect(
-		screen.getByText(ar.organization.dashboard.transferTitle.replace('{workspace}', 'Riyadh'))
-	).toBeDefined();
 
 	await fireEvent.click(control('ws-1')!);
 
@@ -790,8 +1355,8 @@ test('the directory is ordered by name, then by how many hold each', async () =>
 	expect(shownWorkspaces()).toEqual(byCount.map((workspace) => workspace.id));
 });
 
-// the settings directories offer nothing to export: the file a workspace becomes is the transfer
-// beneath the cards, not the directory's.
+// the settings directories offer nothing to export from their bar: the file a workspace becomes is
+// on its own card, not the directory's.
 test('the directory offers no transfer of its records', () => {
 	list();
 

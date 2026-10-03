@@ -11,11 +11,16 @@ import {
 	type RolePending
 } from '$lib/organization/role/acts';
 import {
+	declareHolderActs,
 	declareWorkspaceActs,
+	type HolderActId,
+	type HolderActRecord,
 	type WorkspaceActId,
 	type WorkspaceActRecord
 } from '$lib/organization/workspace/acts';
+import { goto } from '$app/navigation';
 import { mayRun, type RecordAct } from '$lib/act';
+import { workspacePageOf } from '$lib/organization/workspace/address';
 import { openOrganizationDialog } from '$lib/organization/dialogs.svelte';
 
 /**
@@ -33,6 +38,13 @@ import { openOrganizationDialog } from '$lib/organization/dialogs.svelte';
 /** A member act that runs on the press: the host runs the write and says what came of it. */
 export type MemberPress = 'makeLink' | 'unsetPassword' | 'endSessions' | 'withdrawOffer';
 
+/**
+ * A member act that ends something and so asks first, in the confirm dialog, before the host runs
+ * its write ([[rules/interface]], *Delete and confirm*): the reset, the sign-out from
+ * every machine and the withdrawal of an offer.
+ */
+export type MemberAsk = Exclude<MemberPress, 'makeLink'>;
+
 type OrganizationHostState = {
 	member: {
 		/** the member the sheet is open on, with what the reader may write of them. */
@@ -41,6 +53,8 @@ type OrganizationHostState = {
 		offering: MemberActRecord | null;
 		/** the member being asked about, and at which speed. */
 		removing: { record: MemberActRecord; lockOut: boolean } | null;
+		/** a write that ends something, being asked about before it runs. */
+		asking: { kind: MemberAsk; record: MemberActRecord } | null;
 		/** a write asked for on the press, waiting for the host to run it. */
 		pressed: { kind: MemberPress; memberId: string } | null;
 		/** the member each write is running for, while it runs. */
@@ -55,10 +69,16 @@ type OrganizationHostState = {
 	workspace: {
 		/** the workspace whose name is open. */
 		editing: WorkspaceActRecord | null;
-		/** the workspace whose members are open. */
-		changingAccess: WorkspaceActRecord | null;
 		/** the workspace being asked about. */
 		deleting: WorkspaceActRecord | null;
+		/** the member a workspace is being taken back from, being asked about. */
+		removing: HolderActRecord | null;
+		/** the member whose permissions in one workspace are open (effort 846, ticket 51). */
+		permissions: HolderActRecord | null;
+		/** the workspace whose file was asked for, waiting for the host to write it. */
+		exporting: WorkspaceActRecord | null;
+		/** the workspace a file is being read into, while its import is open. */
+		importing: WorkspaceActRecord | null;
 	};
 	role: {
 		/** the role the editor is open on. */
@@ -79,6 +99,7 @@ const idle = (): OrganizationHostState => ({
 		editing: null,
 		offering: null,
 		removing: null,
+		asking: null,
 		pressed: null,
 		pending: {
 			linking: null,
@@ -88,7 +109,14 @@ const idle = (): OrganizationHostState => ({
 			withdrawing: false
 		}
 	},
-	workspace: { editing: null, changingAccess: null, deleting: null },
+	workspace: {
+		editing: null,
+		deleting: null,
+		removing: null,
+		permissions: null,
+		exporting: null,
+		importing: null
+	},
 	role: { editing: null, creating: false, deleting: null, moving: null, pending: { moving: false } }
 });
 
@@ -111,6 +139,10 @@ const press = (kind: MemberPress) => (record: MemberActRecord) => {
 	organizationHostState.member.pressed = { kind, memberId: record.member.id };
 };
 
+const ask = (kind: MemberAsk) => (record: MemberActRecord) => {
+	organizationHostState.member.asking = { kind, record };
+};
+
 /** Every member act, bound to this host. The one list every surface projects. */
 export const memberActs = declareMemberActs({
 	edit: (record) => {
@@ -119,10 +151,10 @@ export const memberActs = declareMemberActs({
 	offerOwnership: (record) => {
 		organizationHostState.member.offering = record;
 	},
-	withdrawOffer: press('withdrawOffer'),
+	withdrawOffer: ask('withdrawOffer'),
 	makeLink: press('makeLink'),
-	unsetPassword: press('unsetPassword'),
-	endSessions: press('endSessions'),
+	unsetPassword: ask('unsetPassword'),
+	endSessions: ask('endSessions'),
 	confirmRemoval: (record, lockOut) => {
 		organizationHostState.member.removing = { record, lockOut };
 	}
@@ -133,11 +165,32 @@ export const workspaceActs = declareWorkspaceActs({
 	edit: (record) => {
 		organizationHostState.workspace.editing = record;
 	},
+	// who holds a workspace is its own page (effort 846, ticket 49), so the act goes there.
 	changeAccess: (record) => {
-		organizationHostState.workspace.changingAccess = record;
+		void goto(workspacePageOf(record.workspace.id));
 	},
 	confirmDelete: (record) => {
 		organizationHostState.workspace.deleting = record;
+	},
+	exportFile: (record) => {
+		organizationHostState.workspace.exporting = record;
+	},
+	importFile: (record) => {
+		organizationHostState.workspace.importing = record;
+	}
+});
+
+/**
+ * Every act on a member from a workspace's page, bound to this host (effort 846, tickets 50 and
+ * 51). Their permissions there are a sheet of that workspace's alone, and the removal asks first,
+ * both in the workspace's host.
+ */
+export const holderActs = declareHolderActs({
+	editPermissions: (record) => {
+		organizationHostState.workspace.permissions = record;
+	},
+	confirmRemove: (record) => {
+		organizationHostState.workspace.removing = record;
 	}
 });
 
@@ -185,6 +238,11 @@ export const workspaceHost = {
 		runDeclared(workspaceActs, actId, record),
 	/** open the form that names a new workspace, mounted once in the shell. */
 	create: () => openOrganizationDialog('workspace')
+};
+
+export const holderHost = {
+	/** run one act on a member in a workspace. An act the member does not admit is not run. */
+	run: (actId: HolderActId, record: HolderActRecord) => runDeclared(holderActs, actId, record)
 };
 
 export const roleHost = {

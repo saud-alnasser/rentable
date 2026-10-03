@@ -22,13 +22,22 @@ let shellState: RemoteSyncState = fakeSyncState({
 let replicatesTo = false;
 let pushesTo = true;
 let refusesWith: ReplicationRefusal = 'none';
+let stateFails = false;
+// what each replication waits on before it answers, in call order: none, but for the test that
+// holds one out.
+let replicationGates: Promise<void>[] = [];
 
 mock.module('$lib/sync/tauri', {
 	exports: {
 		tauri: {
-			getState: async () => shellState,
+			getState: async () => {
+				if (stateFails) throw new Error('the shell did not answer');
+
+				return shellState;
+			},
 			replicate: async () => {
 				calls.push('replicate');
+				await replicationGates.shift();
 
 				return { pushed: pushesTo, received: replicatesTo, refusal: refusesWith };
 			},
@@ -49,6 +58,8 @@ function reset() {
 	replicatesTo = false;
 	pushesTo = true;
 	refusesWith = 'none';
+	stateFails = false;
+	replicationGates = [];
 	shellState = fakeSyncState({ workspace: fakeWorkspace({ id: 'workspace-1' }) });
 }
 
@@ -112,4 +123,39 @@ test('a dispatch leaves what was written where it was', async () => {
 	await syncWorkspaceNow();
 
 	assert.equal(inverseStack.undoable, before);
+});
+
+// effort 846, requirement 12: the sync group says syncing while a run is out, read off a count
+// kept where every run passes, so the control and the sync manager are both counted.
+test('a run is counted while it is out, and no longer once it ends, however it ends', async () => {
+	reset();
+
+	const { syncActivity } = await import('$lib/sync/activity.svelte');
+
+	assert.equal(syncActivity.inFlight, false);
+
+	let release = () => {};
+	replicationGates = [Promise.resolve(), new Promise((resolve) => (release = resolve))];
+
+	const first = syncWorkspaceNow();
+	const second = syncWorkspaceNow();
+
+	assert.equal(syncActivity.inFlight, true);
+
+	await first;
+
+	// the other is still out, so one finishing does not say nothing runs.
+	assert.equal(syncActivity.inFlight, true);
+
+	release();
+	await second;
+
+	assert.equal(syncActivity.inFlight, false);
+
+	// a run whose state could not be read ends counted out too.
+	stateFails = true;
+
+	await assert.rejects(syncWorkspaceNow());
+
+	assert.equal(syncActivity.inFlight, false);
 });

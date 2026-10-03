@@ -8,16 +8,18 @@ import type { Translation } from '../../i18n/i18n-types';
 
 export const organization = {
 	mark: {
-		alt: 'توقيع المؤسسة أو ختمها',
+		alt: 'ختم المؤسسة',
 		choose: 'اختيار صورة',
 		description: 'يُطبع أسفل كل سند قبض وجدول دفعات.',
 		none: 'لم يُضف بعد',
-		readOnly: 'يستطيع تغييره من يُسمح له بتغيير التوقيع.',
+		readOnly: 'يستطيع تغييره من يُسمح له بتغيير ختم المؤسسة.',
 		remove: 'إزالة',
-		removed: 'أُزيل التوقيع أو الختم',
+		removeDescription: 'تُطبع السندات والجداول دونه على كل جهاز. لا يعيده إلا اختيار صورة من جديد.',
+		removeTitle: 'إزالة ختم المؤسسة',
+		removed: 'أُزيل ختم المؤسسة',
 		replace: 'استبدال الصورة',
-		saved: 'حُفظ التوقيع أو الختم',
-		title: 'التوقيع أو الختم'
+		saved: 'حُفظ ختم المؤسسة',
+		title: 'ختم المؤسسة'
 	},
 	setup: {
 		connectTitle: 'اربط Turso',
@@ -86,30 +88,57 @@ export const organization = {
 		title: 'هذا الجهاز وTurso',
 		purpose:
 			'المؤسسة محفوظة على Turso وتصل إلى هذا الجهاز تلقائيًا. ما تكتبه يُرسل حين يمكن الوصول إلى Turso.',
-		notYetReached: 'لم يصل هذا الجهاز إلى Turso بعد',
-		upToDateChecked: 'كل شيء محدّث، آخر فحص {moment}',
+		state: {
+			upToDate: 'محدّث',
+			syncing: 'جارية المزامنة',
+			notYetReached: 'لم يصل بعد',
+			needsAttention: 'يحتاج إلى عناية',
+			needsReconnecting: 'يحتاج إلى إعادة ربط'
+		},
+		lastReachedRecently: 'آخر وصول إلى Turso {moment}',
 		lastReached: 'آخر وصول إلى Turso في {moment}',
-		accountNeedsAttention: 'حساب Turso يحتاج إلى عناية',
-		accessNeedsAttention: 'صلاحية وصول هذا الجهاز تحتاج إلى عناية',
-		needsReconnecting: 'هذا الجهاز يحتاج إلى إعادة ربط',
-		reconnectBelow: 'يُعاد ربط حساب Turso من القسم أدناه.',
-		checkNow: 'زامن',
-		checking: 'جارية المزامنة...'
+		reconnectOnAccount: 'أعد ربط حساب Turso من المغادرة.',
+		detail: {
+			label: 'ما يحفظه هذا الجهاز',
+			workspace: 'مساحة العمل',
+			copy: 'النسخة على هذا الجهاز'
+		},
+		checkNow: 'زامن'
 	},
 	dashboard: {
 		membersTitle: 'الأعضاء',
 		membersDescription: 'كل من في المؤسسة. الأعضاء يُنشأون ويُغيّرون من هنا.',
 		workspacesDescription: 'كل مساحات عمل المؤسسة. مساحات العمل تُنشأ وتُغيّر من هنا.',
-		standingNoPassword: 'لا كلمة مرور بعد',
-		standingNoMachine: 'لا جهاز مسجّل الدخول',
-		standingSignedIn: 'مسجّل الدخول على جهاز',
+		workspaceOpenHere: 'مفتوحة على هذا الجهاز',
+		workspaceYouOwn: 'المالك',
+		workspaceYouEdit: 'يمكنك التعديل',
+		workspaceYouRead: 'يمكنك القراءة',
+		workspaceSetForYou: 'مخصّصة لك',
+		workspaceCard: {
+			memberCount: '{count|number}',
+			noMembers: 'لا أحد',
+			access: 'صلاحيتك',
+			created: 'تاريخ الإنشاء'
+		},
+		memberCard: {
+			password: 'كلمة المرور',
+			passwordSet: 'معيّنة',
+			noPassword: 'ليست بعد',
+			machine: 'الجهاز',
+			signedIn: 'مسجّل الدخول',
+			noMachine: 'لا يوجد',
+			workspaceCount: '{count|number}',
+			noWorkspaces: 'لا توجد',
+			joined: 'انضم',
+			ownPermissions: 'صلاحيات خاصة به',
+			offered: 'عُرضت عليه المؤسسة'
+		},
 
 		memberTitle: 'عضو جديد',
 		memberDescription:
 			'اسم المستخدم والدور ومساحات العمل التي يحملها. لا كلمة مرور له حتى يفتح رابطًا تصنعه له.',
 		role: 'الدور',
 		noWorkspaceToGrant: 'لا مساحة عمل لمنحها بعد. يمكن منحهم واحدة لاحقًا.',
-		noMemberToGrant: 'لا عضو لإضافته إلى مساحة العمل هذه بعد.',
 		addMember: 'أضف عضوًا',
 		cannotSend:
 			'rentable لا يرسل شيئًا: انسخ الرابط أدناه وسلّمه، وأعطِ الرمز على حدة. يعمل مرة واحدة.',
@@ -120,7 +149,7 @@ export const organization = {
 		done: 'تم',
 		invitationExpires: 'تنتهي صلاحية الرابط في {date}',
 		makeLink: 'اصنع رابطًا',
-		transferOwnership: 'سلّم الملكية',
+		transferOwnership: 'انقل الملكية',
 		transferOwnershipGoes: 'يُعرض عليه أخذ المؤسسة. فإذا قبل، صار هو المالك وصرت أنت مديرًا.',
 		transferOwnershipMember: 'من يُعرض عليه',
 		transferOwnershipAuthority:
@@ -128,6 +157,7 @@ export const organization = {
 		transferOwnershipConfirm: 'اعرضها',
 		ownershipOffered: 'عُرضت المؤسسة. يقبلها من جهاز له هو.',
 		withdrawOffer: 'اسحب العرض',
+		withdrawOfferAsks: 'ينتهي العرض ولا تنتقل الملكية. يمكنك عرض المؤسسة من جديد.',
 		ownershipOfferWithdrawn: 'سُحب العرض. لم تنتقل الملكية.',
 		acceptOwnership: 'اقبل الملكية',
 		acceptOwnershipGoes:
@@ -138,8 +168,11 @@ export const organization = {
 		ownershipAccepted: 'صارت المؤسسة لك. أنت المالك الآن.',
 		lockOut: 'احظر',
 		unsetPassword: 'أعد تعيين كلمة المرور',
+		unsetPasswordAsks:
+			'تتوقف كلمة مروره عن العمل على كل جهاز. الرابط الذي تصنعه له يتيح له اختيار كلمة جديدة.',
 		passwordUnset: 'أُلغيت كلمة مروره. اصنع له رابطًا ليختار كلمة مرور جديدة.',
 		endSessions: 'سجّل خروجه من كل جهاز',
+		endSessionsAsks: 'يُسجَّل خروجه من كل جهاز. يعود بتسجيل الدخول من جديد.',
 		sessionsEnded: 'سُجّل خروجه من كل جهاز.',
 		sessionsEndedPending: 'هذا الجهاز غير متصل؛ سيصل تسجيل الخروج إلى أجهزته عند عودة الاتصال.',
 		rename: 'غيّر الاسم',
@@ -151,6 +184,14 @@ export const organization = {
 			'اسم المستخدم من ثلاثة إلى اثنين وثلاثين حرفًا من الحروف والأرقام والنقاط والشرطات السفلية والشرطات',
 		renamed: 'غُيّر اسم العضو.',
 		authorityTitle: 'حساب Turso',
+		authorityConnected: 'متصل على هذا الجهاز',
+		authorityNotHeld: 'لا يحمله هذا الجهاز',
+		authorityDetail: {
+			label: 'ما يحمله حساب Turso',
+			database: 'قاعدة بيانات المؤسسة',
+			organization: 'المؤسسة'
+		},
+		reconnect: 'أعد الربط',
 		authorityDescription:
 			'لا يحمل هذا الجهاز صلاحية على حساب Turso، ولا يمكن استعادتها. امنح الموافقة مجددًا.',
 		authorityFollowsTheAccount: 'الصلاحية تتبع حساب Turso الذي منحها، لا من يملك المؤسسة.',
@@ -169,19 +210,17 @@ export const organization = {
 		linkUnreachableWorkspaces:
 			'أنت لا تملك {workspaces}، لذا لم يستطع الرابط نقلها. يمكن لمدير يملكها منحها مجددًا.',
 		noWorkspaces: 'لا مساحة عمل بعد.',
-		workspacesHeld: '{count|number} {{مساحة عمل|مساحات عمل}}',
 		accessFull: 'وصول كامل',
 		memberWorkspacesDescription: 'مساحات العمل التي يستطيع فتحها. شغّل مفتاح أي منها ليدخلها.',
 		accessSaved: 'حُفظت مساحات العمل.',
-		workspaceAccessTitle: 'الأعضاء والوصول',
 		workspaceAccessDescription:
-			'من يستطيع فتح {workspace}. شغّل مفتاح أي منهم ليدخلها. الوصول المسحوب يبقى حتى تنتهي صلاحيته.',
+			'من يستطيع فتح {workspace}. أضف أعضاء ليدخلوها. الوصول المسحوب يبقى حتى تنتهي صلاحيته.',
 		deleteWorkspace: 'احذف مساحة العمل',
 		deleteWorkspaceDescription:
 			'تُحذف مساحة العمل وكل سجل فيها من Turso ومن كل جهاز يزامنها. لا شيء يعيدها.',
 		workspaceDeleted: 'حُذفت مساحة العمل.',
-		transferTitle: 'تصدير واستيراد {workspace}',
 		forgetAccount: 'انسَ حساب Turso',
+		forget: 'انسَ',
 		memberSheetDescription: 'ما يستطيع {username} فعله في هذه المؤسسة.',
 		roleChanged: 'حُفظ الدور.',
 		overrideSaved: 'حُفظ ما يستطيع فعله.',
@@ -190,13 +229,22 @@ export const organization = {
 		lacksFlag: 'لا يحق لك {flag}.',
 		roleOutOfReach: 'الدور الذي في رتبتك أو فوقها يمنحه من هو أعلى منه.',
 		leavingTitle: 'المغادرة',
+		leavingDescription: 'كيف تبتعد عن المؤسسة.',
 		disconnectForgets: 'يسجّل خروجك ويحذف نسخة المؤسسة من هذا الجهاز. لا يتغير شيء على Turso.',
+		disconnectThisMachine: 'افصل هذا الجهاز',
+		disconnectComesBack:
+			'يسجّل خروجك ويحذف نسخة المؤسسة من هذا الجهاز. تبقى على Turso، ورابط جديد يعيدك إليها.',
+		transfer: 'انقل',
+		transferGoes: 'يصبح العضو الذي تختاره المالك حين يقبل، وتبقى أنت مديرًا.',
+		withdraw: 'اسحب',
+		offerStandsGoes: 'هناك عرض قائم. لا ينتقل شيء حتى يُقبل.',
+		nobodyOfferable: 'لم يعيّن أحد كلمة مرور بعد، فلا أحد يستطيع تسلّمها.',
 		disconnect: 'افصل',
 		disconnected: 'لم يعد هذا الجهاز يحتفظ بالمؤسسة.',
 		forgetAccountDescription:
 			'يحتفظ هذا الجهاز برمز لحساب Turso الخاص بالمؤسسة. إن نسيته، فلن يصل شيء من هنا إلى ذلك الحساب.',
 		forgetAccountRevokes:
-			'النسيان لا يلغي الرمز. أنهِ المنح بنفسك من لوحة تحكم Turso على app.turso.tech.',
+			'النسيان لا يلغي الرمز. أنهِه من app.turso.tech. ربط حساب Turso من جديد يعيده.',
 		forgetAccountRevokesAt: 'app.turso.tech',
 		accountForgotten: 'لم يعد هذا الجهاز يحتفظ برمز وصول إلى حساب Turso.',
 		deleteOrganization: 'احذف المؤسسة',
@@ -243,14 +291,14 @@ export const organization = {
 		grantWorkspace: 'منح مساحات العمل',
 		manageRoles: 'إدارة الأدوار',
 		overrideMember: 'تغيير صلاحيات عضو بعينه',
-		manageMark: 'تغيير توقيع المؤسسة أو ختمها',
+		manageMark: 'تغيير ختم المؤسسة',
 		createWorkspace: 'إنشاء مساحات العمل',
 		deleteWorkspace: 'حذف مساحات العمل',
 		mintReadOnly: 'منح وصول القراءة فقط',
 		lockOut: 'حظر الأعضاء',
 		renewCredentials: 'تجديد الاعتمادات',
 		tursoAccount: 'وصل حساب Turso',
-		transferOwnership: 'تسليم المؤسسة',
+		transferOwnership: 'نقل المؤسسة',
 		deleteOrganization: 'حذف المؤسسة'
 	},
 
@@ -309,7 +357,7 @@ export const organization = {
 			grantWorkspace: 'إدخال الأعضاء إلى مساحات العمل أو إخراجهم منها.',
 			manageRoles: 'إضافة الأدوار وتعديلها وترتيبها وحذفها.',
 			overrideMember: 'منح عضو بعينه أكثر أو أقل مما يمنحه دوره.',
-			manageMark: 'ضبط التوقيع أو الختم المطبوع على صفحات المؤسسة.'
+			manageMark: 'ضبط ختم المؤسسة المطبوع على صفحاتها.'
 		},
 		viewFirst: 'شغّل العرض أولًا، فإضافة السجل أو تعديله أو حذفه تحتاج إلى رؤيته.',
 		groupRefused: 'بعضها ليس لك أن تغيّره',
@@ -345,7 +393,20 @@ export const organization = {
 		organization: {
 			all: 'يدير المؤسسة',
 			some: 'يشارك في إدارة المؤسسة'
-		}
+		},
+		holders: '{count|number} {{عضو|عضو|عضوان|أعضاء|عضوًا|عضو}}',
+		noHolders: 'لا أحد بعد',
+		fields: {
+			reads: 'يعرض',
+			changes: 'يغيّر',
+			people: 'الأشخاص',
+			organization: 'المؤسسة'
+		},
+		kindsOf: '{held|number} من {total|number} أنواع',
+		noKinds: 'لا شيء',
+		everyAct: 'كل الصلاحيات',
+		actsOf: '{held|number} من {total|number} صلاحيات',
+		noActs: 'لا شيء'
 	},
 
 	foreseen: {
@@ -364,6 +425,21 @@ export const organization = {
 		customHere: 'مخصّص هنا',
 		movesNotHeld: 'هذا يغيّر هنا صلاحية لا تحملها أنت.',
 		notHeld: 'تحمل مساحة العمل هذه للقراءة فقط، فلا تستطيع منحها.'
+	},
+	workspacePage: {
+		addMembers: 'أضف أعضاء',
+		addDescription: 'حدّد من تضيفه إلى {workspace}. يُمنح كل منهم الوصول حين تضيفه.',
+		addPlaceholder: 'ابحث عن عضو لإضافته',
+		addCount: '{{count:أضف أعضاء|أضف عضوًا واحدًا|أضف عضوين|أضف ?? أعضاء|أضف ?? عضوًا|أضف ?? عضو}}',
+		notAllAdded: 'من بقي محدّدًا لم يُضف.',
+		noMatch: 'لا أحد بهذا الاسم لإضافته.',
+		nobodyToAdd: 'كل الأعضاء في مساحة العمل هذه',
+		nobodyHolds: 'لا أحد في مساحة العمل هذه بعد.',
+		editPermissions: 'عدّل الصلاحيات',
+		permissionsOf: 'ما يستطيعه {username} في مساحة العمل هذه.',
+		permissionsOverride: 'هذه تتقدّم على صلاحيات المؤسسة والدور في {workspace} وحدها.',
+		removeFromWorkspace: 'أزل من مساحة العمل',
+		removeAsks: 'لن يستطيع فتح مساحة العمل هذه حين ينتهي الوصول الذي يحمله. إضافته مجددًا تعيده.'
 	}
 } satisfies Translation['organization'];
 
@@ -392,6 +468,9 @@ export const refusals = {
 		youWereRemoved: 'أُزلت من هذه المؤسسة.',
 		sessionsEnded: 'أُنهيت جلساتك من جهاز آخر. سجّل الدخول مرة أخرى.',
 		keyNotInForce: 'سُلّمت المؤسسة إلى مالك جديد، فلا يستطيع القيام بهذا سواه.',
+		machineMissing: 'لم يعد ذلك الجهاز مسجل الدخول باسمك. أعد التحميل لترى ما تغيّر.',
+		machineNotUpdated:
+			'لم يشغّل ذلك الجهاز هذا الإصدار بعد، فلا يُسجَّل خروجه وحده. سجّل خروج الأجهزة الأخرى بدلًا من ذلك.',
 		usernameInvalid:
 			'يتكوّن اسم المستخدم من 3 إلى 32 من الحروف أو الأرقام أو النقاط أو الشرطات السفلية أو الشرطات، دون مسافات.',
 		usernameTaken: 'اسم المستخدم هذا مأخوذ في هذه المؤسسة. اختر اسماً آخر.',
@@ -437,6 +516,8 @@ export const refusals = {
 		workspaceNewer: 'رقّى إصدار أحدث من rentable مساحة العمل هذه. حدّث rentable لتفتحها.',
 		workspaceBehind:
 			'تحتاج مساحة العمل هذه إلى ترقية، وصلاحية القراءة وحدها لا تكفي لذلك. اطلب من عضو بصلاحية كاملة أن يفتحها مرة واحدة.',
+		workspaceNeedsOpening:
+			'مساحة العمل هذه أقدم من هذا الإصدار من rentable. افتحها مرة واحدة على هذا الجهاز لتحديثها.',
 		databaseRefused: 'رفضت قاعدة البيانات الطلب ولم يتغيّر شيء. حاول مرة أخرى لاحقاً.',
 		organizationOlder:
 			'أنشأ إصدار أقدم هذه المؤسسة، وهي تنتظر مالكها ليفتحها في هذا الإصدار فيرقّيها.',

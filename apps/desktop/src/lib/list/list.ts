@@ -12,6 +12,29 @@ import type { FilterSelection, ListFilter } from './filter';
  * itself is `component/list.svelte`, which takes exactly these props.
  */
 
+/**
+ * The narrowest a record laid as a tile may be, in pixels: what a list that lays its records in a
+ * grid passes as `recordMinWidth`. One width for every grid, so the four directories break to two
+ * columns and to three at the same window widths.
+ */
+export const RECORD_TILE_MIN_WIDTH = 300;
+
+/**
+ * How many tiles fit across `width`, each at least `min` wide with `gap` between them, and never
+ * more than `max`.
+ *
+ * The gap is counted because it is space no tile has: two tiles of the minimum width do not fit in
+ * twice that width once there is a gap between them, and counting without it drew tiles narrower
+ * than the narrowest they may be. The cap is three because a fourth column on a wide window makes
+ * each record a strip again, and three is what a reader scans across before reading down
+ * ([[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirement 18).
+ */
+export function columnsFor(width: number, min: number, gap: number, max = 3): number {
+	const fit = Math.floor((width + gap) / (min + gap));
+
+	return Math.min(Math.max(1, fit), Math.max(1, max));
+}
+
 /** One order the set offers the reader, keyed by what the set orders by. */
 export type ListSortOption = {
 	/** The column's id, which is what the set orders by. */
@@ -111,8 +134,9 @@ export type ListProps<TData extends { id: string }, TGroup extends ListGroup> = 
 	/**
 	 * The narrowest a record may render, in pixels. A list that sets it lays records out
 	 * across the viewport rather than one to a line, fitting as many columns of at least
-	 * this width as there is room for — so the layout reflows on a resize instead of
-	 * scrolling sideways. A list that leaves it unset is one record wide.
+	 * this width as there is room for, gaps counted and three at most (`columnsFor`), so the
+	 * layout reflows on a resize instead of scrolling sideways. A list that leaves it unset is
+	 * one record wide. A grid list passes `RECORD_TILE_MIN_WIDTH` and draws its records as tiles.
 	 */
 	recordMinWidth?: number;
 	/**

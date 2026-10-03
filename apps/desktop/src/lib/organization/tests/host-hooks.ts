@@ -1,4 +1,5 @@
 import type {
+	MachineView,
 	MemberStanding,
 	OrganizationMember,
 	OrganizationRole,
@@ -53,6 +54,8 @@ export const hostAnswers = {
 	/** where each member stands, as the members section draws it in a line. */
 	standings: [] as MemberStanding[],
 	roles: [] as OrganizationRole[],
+	/** the reader's machines, this one first, as the account section lists them. */
+	machines: [] as MachineView[],
 	/** the machine's sync record; `null` until it has been read, and while signed out. */
 	syncState: null as RemoteSyncState | null,
 	writes: [] as HostWrite[],
@@ -66,6 +69,7 @@ export function resetHostAnswers() {
 	hostAnswers.members = [];
 	hostAnswers.standings = [];
 	hostAnswers.roles = [];
+	hostAnswers.machines = [];
 	hostAnswers.syncState = null;
 	hostAnswers.writes = [];
 	hostAnswers.refusals = {};
@@ -115,6 +119,11 @@ export const hostHooks = {
 			return hostAnswers.roles;
 		}
 	}),
+	useFetchMachines: () => ({
+		get data() {
+			return hostAnswers.machines;
+		}
+	}),
 	useLockOutCost: () => ({ data: undefined }),
 	useRenameMember: mutation('useRenameMember'),
 	useAssignRole: mutation('useAssignRole'),
@@ -136,6 +145,7 @@ export const hostHooks = {
 	useChangePassword: mutation('useChangePassword'),
 	useAcceptOwnership: mutation('useAcceptOwnership'),
 	useEndOtherSessions: mutation('useEndOtherSessions'),
+	useEndMachine: mutation('useEndMachine'),
 	useDeleteOrganization: mutation('useDeleteOrganization'),
 	useDisconnectOrganization: mutation('useDisconnectOrganization')
 };

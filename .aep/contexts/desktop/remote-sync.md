@@ -147,7 +147,13 @@ sentence from both.
   is a keyring entry Rust alone reads and writes, and the replicate the sync heartbeat dispatches
   pulls the organization replica first, pushes what this machine wrote to it (which is what
   carries out a sign-out made with no connection; 2026-09-15), and ends a session whose epoch the
-  row has moved past, answering a standing the wall reads.*
+  row has moved past, answering a standing the wall reads.* *Since effort 846 (requirement 10) it
+  also ends a session this machine was signed out of alone: its `machine_sign_out` row above the
+  `machine_signed_out` mark `remote-sync.json` keeps, which only a sign-in takes. The same check
+  is made at the resume and before every act, an act refused for it putting the wall up at once
+  (ticket 24). A heartbeat that ends nothing writes this machine's sealed `machine_name` where it
+  differs and its `seen_at` at most hourly, and pushes what it wrote;
+  [[contexts/desktop/organization]] has the sign-out of one machine whole.*
 - **A flow is one command, and the interface observes it rather than sequencing it.** The caller
   asks to sign in, join, or restore and gets back the state that resulted; it does not open a
   session, poll it, redeem a code and hold the pieces in between. A flow outstanding for as long

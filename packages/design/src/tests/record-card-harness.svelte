@@ -13,16 +13,21 @@
 	let {
 		href = '/records/1',
 		label = 'افتح السجل',
-		actions = []
+		actions = [],
+		layout = 'row'
 	}: {
 		href?: string;
 		label?: string;
 		actions?: RecordCardAction[];
+		layout?: 'row' | 'tile';
 	} = $props();
 </script>
 
 <Tooltip.Provider delayDuration={0}>
-	<RecordCard {href} {label} {actions}>
+	<RecordCard {href} {label} {actions} {layout}>
+		{#snippet heading()}
+			<span data-heading>عنوان السجل</span>
+		{/snippet}
 		{#snippet content()}
 			<span class="pointer-events-none relative">اسم السجل</span>
 		{/snippet}

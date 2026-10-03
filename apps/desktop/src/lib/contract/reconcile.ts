@@ -1,7 +1,11 @@
 import type { Contributed } from '$lib/api/contribution';
 import type { Context, Database } from '$lib/api/context';
 import * as s from '$lib/platform/database/schema';
-import { deriveContractStatus, getContractPaymentSummary } from '$lib/contract/contract';
+import {
+	deriveContractStatus,
+	getContractPaymentSummary,
+	type ContractLike
+} from '$lib/contract/contract';
 import { deriveUnitStatuses, type ContractAssignment } from '$lib/contract/assignment/assignment';
 import { eq, inArray } from 'drizzle-orm';
 
@@ -190,4 +194,30 @@ export async function unitStatuses(
 	const paymentsByContractId = await ctx.contributions.contract.paymentsOf(ctx.db, contractIds);
 
 	return deriveUnitStatuses(unitIds, assignments, paymentsByContractId, ctx.clock.now());
+}
+
+/**
+ * Each contract's status as its term and its payments derive it at `now`, by the contract's id: the
+ * derivation a pass writes back, read rather than written.
+ *
+ * **For a workspace read without being open** (effort 846, requirement 15): one nobody had open
+ * across a day still holds the status it was last reconciled to, and the reader may hold a
+ * read-only grant, so its stored status cannot be brought up to date by writing it.
+ */
+export async function contractStatusesAt(
+	ctx: Settling,
+	now: number,
+	contracts: readonly (ContractLike & { id: string })[]
+) {
+	const paymentsByContractId = await ctx.contributions.contract.paymentsOf(
+		ctx.db,
+		contracts.map((contract) => contract.id)
+	);
+
+	return new Map<string, ReturnType<typeof deriveContractStatus>>(
+		contracts.map((contract) => [
+			contract.id,
+			deriveContractStatus(contract, paymentsByContractId.get(contract.id) ?? [], now)
+		])
+	);
 }

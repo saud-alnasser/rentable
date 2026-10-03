@@ -7,9 +7,15 @@
 import type { Translation } from '../../i18n/i18n-types';
 
 export const complexes = {
+	card: {
+		count: '{count|number}',
+		none: 'لا توجد'
+	},
+
 	deleteDialog: {
 		blockedUnitsUnderContract: 'وحدة أو أكثر من وحداته مذكورة في عقد',
-		unitsGoWithIt: 'ستُحذف معه وحداته الـ {count|number}.'
+		unitsGoWithIt:
+			'ستُحذف معه وحداته الـ {count|number}. يمكنك التراجع عن هذا ما دام التطبيق مفتوحًا.'
 	},
 
 	empty: {

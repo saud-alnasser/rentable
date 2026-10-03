@@ -13,7 +13,7 @@
 //! answered, so a statement refused part way left the ones before it committed and the ones after
 //! it tried; the version was kept only in the organization, a different database from the schema,
 //! and a retry replayed a tail that was half there. Now [`apply_between`] holds one stream by its
-//! baton ([`OverThePipeline`]) and sends, in order:
+//! baton ([`OverThePipeline`], `organization/workspace/remote.rs`) and sends, in order:
 //!
 //! 1. `BEGIN`, the one-row [`VERSION_TABLE`] made where it is missing, and its row read. The
 //!    workspace's own row is the version it is at; a workspace migrated before the table existed
@@ -45,23 +45,26 @@
 //! (effort 838, tickets 28 and 30). [`OverThePipeline`] answers `backup.rs` the workspace's schema
 //! and rows with the credential the migration goes over, in one transaction on one stream held
 //! across requests, each value decoded from the pipeline's typed JSON into the storage class the
-//! database holds it in, so the copy keeps integers, reals, text, blobs and nulls apart.
+//! database holds it in, so the copy keeps integers, reals, text, blobs and nulls apart. *The
+//! client was written here, and moved to `organization/workspace/remote.rs` with effort 846, ticket
+//! 11, when a workspace that is not open came to be read and written over it as well.*
 
 use std::{
     collections::HashMap,
     str::FromStr,
     sync::{Mutex, OnceLock, PoisonError},
-    time::Duration,
 };
 
-use base64::Engine as _;
 use serde_json::{Value, json};
 use sqlx::{ConnectOptions, sqlite::SqliteConnectOptions};
 
 use crate::{
     backup, diagnostics,
     error::{Error, RefusalReason},
-    http::build_client,
+    organization::workspace::remote::{
+        OverThePipeline, Pipeline, decoded, decoded_row, decoded_rows, execute, refused_at,
+        rows_of, unreadable,
+    },
     schema::{self, Found, Shape},
 };
 
@@ -69,9 +72,6 @@ include!(concat!(env!("OUT_DIR"), "/workspace-migrations.rs"));
 
 /// `drizzle-kit`'s own separator, which both runners split on.
 const STATEMENT_BREAKPOINT: &str = "--> statement-breakpoint";
-
-/// The whole shipped schema has to arrive; a pipeline that hung would leave a workspace half built.
-const MIGRATION_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// The one-row table a workspace keeps its own schema version in, the application's and not the
 /// engine's: a copy carries it as it carries every other table.
@@ -159,34 +159,6 @@ pub async fn fresh(version: usize) -> Result<Shape, Error> {
         .insert(version, shape.clone());
 
     Ok(shape)
-}
-
-/// Where a database's pipeline endpoint is. A value so a test can point the runner at a scripted
-/// server; production derives it from the hostname the Platform API answered with.
-#[derive(Clone, Debug)]
-pub struct Pipeline {
-    url: String,
-}
-
-impl Pipeline {
-    /// `https://<hostname>/v2/pipeline`, which is where a Turso database takes statements.
-    pub fn of(hostname: &str) -> Self {
-        Self {
-            url: format!("https://{hostname}/v2/pipeline"),
-        }
-    }
-
-    /// The endpoint, for the lease that posts to the organization database's own.
-    pub fn url(&self) -> &str {
-        &self.url
-    }
-
-    #[cfg(test)]
-    pub(crate) fn at(base: &str) -> Self {
-        Self {
-            url: format!("{base}/v2/pipeline"),
-        }
-    }
 }
 
 /// What [`apply_between`] found and did.
@@ -408,309 +380,16 @@ async fn migrated_on(
     })
 }
 
-/// One statement, as the pipeline takes it.
-fn execute(sql: &str) -> Value {
-    json!({ "type": "execute", "stmt": { "sql": sql } })
-}
-
-/// Which of `results` the database refused first, where it refused one.
-fn refused_at(results: &[Value]) -> Option<usize> {
-    results
-        .iter()
-        .position(|result| result.get("type").and_then(Value::as_str) != Some("ok"))
-}
-
-/// The rows the `index`th of `results` read, each a list of the pipeline's typed cells.
-fn rows_of(results: &[Value], index: usize) -> Vec<Value> {
-    results
-        .get(index)
-        .and_then(|result| result.pointer("/response/result/rows"))
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default()
-}
-
-/// A workspace read or migrated over its pipeline, on one stream held by its baton.
-///
-/// **One stream, held across requests by its baton.** The pipeline keeps a stream open between
-/// requests when a request does not close it, and answers a baton naming it, which the next
-/// request hands back; so `BEGIN` in the first request and everything after it are one
-/// transaction, however many requests it takes. Where an answer names a `base_url`, the requests
-/// after it go there, which is how the stream stays on the server holding it. A copy reads over
-/// it (effort 838, tickets 28 and 30), and its last request rolls back and closes; a migration
-/// writes over it ([`apply_between`]), and its last request commits and closes. Nothing else here
-/// holds a stream: every other request to a pipeline is one request, closed.
-pub(crate) struct OverThePipeline<'a> {
-    pipeline: &'a Pipeline,
-    token: &'a str,
-    stream: std::sync::Mutex<Stream>,
-    /// what the stream is for, as the failures say it: `its copy` or `its migration`.
-    doing: &'static str,
-}
-
-/// Where a stream stands between two requests.
-#[derive(Default)]
-struct Stream {
-    /// what the last answer named the stream by; none before the first request.
-    baton: Option<String>,
-    /// where the last answer said the stream's requests go, where it said.
-    base_url: Option<String>,
-}
-
-impl<'a> OverThePipeline<'a> {
-    /// A stream a copy reads the workspace over.
-    pub(crate) fn new(pipeline: &'a Pipeline, token: &'a str) -> Self {
-        Self::doing(pipeline, token, "its copy")
-    }
-
-    /// A stream a migration is applied over.
-    fn migrating(pipeline: &'a Pipeline, token: &'a str) -> Self {
-        Self::doing(pipeline, token, "its migration")
-    }
-
-    fn doing(pipeline: &'a Pipeline, token: &'a str, doing: &'static str) -> Self {
-        Self {
-            pipeline,
-            token,
-            stream: std::sync::Mutex::new(Stream::default()),
-            doing,
-        }
-    }
-
-    /// Send `requests` on the stream, closing it after them where `close` says, and answer the
-    /// result of each, in order, for the caller to read statement by statement.
-    async fn exchanged(&self, requests: Vec<Value>, close: bool) -> Result<Vec<Value>, Error> {
-        let doing = self.doing;
-        let (url, baton) = {
-            let stream = self.stream.lock().unwrap_or_else(PoisonError::into_inner);
-            let url = stream.base_url.as_deref().map_or_else(
-                || self.pipeline.url.clone(),
-                |base| format!("{}/v2/pipeline", base.trim_end_matches('/')),
-            );
-
-            (url, stream.baton.clone())
-        };
-        let mut requests = requests;
-
-        if close {
-            requests.push(json!({ "type": "close" }));
-        }
-
-        let client = build_client(MIGRATION_TIMEOUT)?;
-        let response = client
-            .post(&url)
-            .bearer_auth(self.token)
-            .json(&json!({ "baton": baton, "requests": requests }))
-            .send()
-            .await
-            .map_err(|error| Error::Network {
-                message: format!(
-                    "the workspace database could not be reached for {doing} ({error})"
-                ),
-            })?;
-        let status = response.status();
-
-        if !status.is_success() {
-            // the stream is gone with a request the server would not take.
-            *self.stream.lock().unwrap_or_else(PoisonError::into_inner) = Stream::default();
-
-            return Err(Error::refused(
-                RefusalReason::DatabaseRefused,
-                format!("the workspace database refused {doing} ({status})"),
-            ));
-        }
-
-        let answered: Value = response.json().await.map_err(|_| Error::Integrity {
-            message: format!(
-                "the workspace database answered {doing} with something this application cannot \
-                 read"
-            ),
-        })?;
-        let baton = answered
-            .get("baton")
-            .and_then(Value::as_str)
-            .map(str::to_string);
-        let results = answered
-            .get("results")
-            .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default();
-
-        {
-            let mut stream = self.stream.lock().unwrap_or_else(PoisonError::into_inner);
-
-            stream.baton = baton.clone();
-
-            if let Some(base_url) = answered.get("base_url").and_then(Value::as_str) {
-                stream.base_url = Some(base_url.to_string());
-            }
-        }
-
-        // a refusal is the caller's to read and say; a stream that closed with nothing refused
-        // is one the rest of the work has nowhere to go.
-        if baton.is_none() && !close && refused_at(&results).is_none() {
-            return Err(Error::Integrity {
-                message: format!(
-                    "the workspace database closed the stream of {doing} before it was done"
-                ),
-            });
-        }
-
-        if results.len() < requests.len() && refused_at(&results).is_none() {
-            return Err(Error::Integrity {
-                message: format!(
-                    "the workspace database answered {doing} with fewer results than it was sent"
-                ),
-            });
-        }
-
-        Ok(results)
-    }
-
-    /// Send `sql` on the stream, closing it after where `close` says, and answer the rows it
-    /// read, each a list of the pipeline's typed cells.
-    async fn sent(&self, sql: &str, close: bool) -> Result<Vec<Value>, Error> {
-        let results = self.exchanged(vec![execute(sql)], close).await?;
-
-        if refused_at(&results) == Some(0) {
-            return Err(Error::refused(
-                RefusalReason::DatabaseRefused,
-                format!(
-                    "the workspace database refused to be read for {}",
-                    self.doing
-                ),
-            ));
-        }
-
-        Ok(rows_of(&results, 0))
-    }
-
-    /// Whether the server holds the stream open for another request.
-    fn open(&self) -> bool {
-        self.stream
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .baton
-            .is_some()
-    }
-
-    /// Roll back and close a stream a migration failed on, where it is open: the workspace is then
-    /// as it was. A rollback that cannot be sent is logged and not raised over the failure that
-    /// caused it; the server rolls back a stream it lets go of in any case.
-    async fn abandoned(&self) {
-        if !self.open() {
-            return;
-        }
-
-        if let Err(error) = self.exchanged(vec![execute("ROLLBACK")], true).await {
-            diagnostics::warn("organization.migrate.rollbackNotSent")
-                .with("error", error.to_string())
-                .write();
-        }
-    }
-}
-
-impl backup::Source for OverThePipeline<'_> {
-    async fn begin(&self) -> Result<(), Error> {
-        self.sent("BEGIN", false).await?;
-
-        Ok(())
-    }
-
-    async fn read(&self, sql: &str) -> Result<Vec<Vec<turso::Value>>, Error> {
-        self.sent(sql, false)
-            .await?
-            .iter()
-            .map(decoded_row)
-            .collect()
-    }
-
-    async fn end(&self) -> Result<(), Error> {
-        // a stream that was never opened, or that the server has already let go, has nothing to
-        // roll back.
-        if self.open() {
-            self.sent("ROLLBACK", true).await?;
-        }
-
-        Ok(())
-    }
-}
-
-/// Every row the `index`th of `results` read, each cell as the value the database holds.
-fn decoded_rows(results: &[Value], index: usize) -> Result<Vec<Vec<turso::Value>>, Error> {
-    rows_of(results, index).iter().map(decoded_row).collect()
-}
-
-/// One row of the pipeline's answer, each cell as the value the database holds.
-fn decoded_row(row: &Value) -> Result<Vec<turso::Value>, Error> {
-    row.as_array()
-        .ok_or_else(|| unreadable("a row"))?
-        .iter()
-        .map(decoded)
-        .collect()
-}
-
-/// A typed cell as the pipeline sends it: `null`; `integer` with its value as a string, since
-/// JSON cannot carry every 64-bit integer; `float` as a number; `text`; and `blob` as base64,
-/// with or without its padding.
-fn decoded(cell: &Value) -> Result<turso::Value, Error> {
-    let value = cell.get("value");
-
-    match cell.get("type").and_then(Value::as_str) {
-        Some("null") => Ok(turso::Value::Null),
-        Some("integer") => value
-            .and_then(|value| {
-                value
-                    .as_str()
-                    .and_then(|text| text.parse().ok())
-                    .or_else(|| value.as_i64())
-            })
-            .map(turso::Value::Integer)
-            .ok_or_else(|| unreadable("an integer")),
-        Some("float") => value
-            .and_then(Value::as_f64)
-            .map(turso::Value::Real)
-            .ok_or_else(|| unreadable("a real")),
-        Some("text") => value
-            .and_then(Value::as_str)
-            .map(|text| turso::Value::Text(text.to_string()))
-            .ok_or_else(|| unreadable("a text")),
-        Some("blob") => cell
-            .get("base64")
-            .and_then(Value::as_str)
-            .and_then(|encoded| {
-                base64::engine::general_purpose::STANDARD_NO_PAD
-                    .decode(encoded.trim_end_matches('='))
-                    .ok()
-            })
-            .map(turso::Value::Blob)
-            .ok_or_else(|| unreadable("a blob")),
-        _ => Err(unreadable("a value")),
-    }
-}
-
-/// The failure of a read that answered `what` in a shape this application cannot read: a row, a
-/// cell of a storage class it does not know, or a value that does not parse as its class says.
-fn unreadable(what: &str) -> Error {
-    Error::Integrity {
-        message: format!(
-            "the workspace database answered with {what} this application cannot read"
-        ),
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use serde_json::json;
-
     use crate::sync::test::{
         pipeline::LocalPipeline,
         server::{ScriptedResponse, ScriptedServer},
     };
 
     use super::{
-        Migrated, OverThePipeline, Pipeline, VERSION_READ, WORKSPACE_MIGRATIONS, apply,
-        apply_between, fresh, shipped_version, statements, statements_between, version_written,
+        Migrated, Pipeline, VERSION_READ, WORKSPACE_MIGRATIONS, apply, apply_between, fresh,
+        shipped_version, statements, statements_between, version_written,
     };
     use crate::{
         backup,
@@ -1087,109 +766,6 @@ mod tests {
             apply(&Pipeline::at(&dropping.url("")), "t", 1).await,
             Err(crate::error::Error::Network { .. })
         ));
-    }
-
-    /// One answer on a stream the pipeline holds open: `rows` of typed cells, the baton, and where
-    /// the stream's next requests go.
-    fn streamed(rows: Vec<Vec<serde_json::Value>>, base_url: Option<&str>) -> ScriptedResponse {
-        ScriptedResponse::new(
-            200,
-            json!({ "baton": "a-baton", "base_url": base_url, "results": [
-                { "type": "ok", "response": { "type": "execute", "result": { "cols": [], "rows": rows } } }
-            ] })
-            .to_string(),
-        )
-    }
-
-    fn integer(value: i64) -> serde_json::Value {
-        json!({ "type": "integer", "value": value.to_string() })
-    }
-
-    fn text(value: &str) -> serde_json::Value {
-        json!({ "type": "text", "value": value })
-    }
-
-    /// **Ticket 30's third criterion.** A workspace is copied in one transaction on one stream,
-    /// the baton handed back and the `base_url` followed, and a table larger than a page is read
-    /// a page at a time after the last rowid it has, so no one answer holds the whole table.
-    #[tokio::test]
-    async fn a_workspace_is_copied_in_one_transaction_a_page_at_a_time() {
-        let rows = backup::PAGE + 1;
-        let page = |ids: std::ops::Range<usize>| -> Vec<Vec<serde_json::Value>> {
-            ids.map(|id| vec![integer(id as i64), integer(id as i64)])
-                .collect()
-        };
-        // where the stream is held, which the first answer names as its `base_url`.
-        let held = ScriptedServer::start(vec![
-            streamed(
-                vec![vec![
-                    text("table"),
-                    text("note"),
-                    text("CREATE TABLE \"note\" (\"id\" INTEGER PRIMARY KEY)"),
-                ]],
-                None,
-            ),
-            streamed(vec![vec![integer(rows as i64)]], None),
-            streamed(page(1..backup::PAGE + 1), None),
-            streamed(page(backup::PAGE + 1..rows + 1), None),
-            ScriptedResponse::new(
-                200,
-                json!({ "baton": null, "base_url": null, "results": [
-                    { "type": "ok", "response": { "type": "execute", "result": { "cols": [], "rows": [] } } },
-                    { "type": "ok", "response": { "type": "close" } }
-                ] })
-                .to_string(),
-            ),
-        ])
-        .await;
-        let first = ScriptedServer::start(vec![streamed(Vec::new(), Some(&held.url("")))]).await;
-        let pipeline = Pipeline::at(&first.url(""));
-        let data = crate::test::scratch("migrate-paged");
-        let path = backup::local_copy(
-            &OverThePipeline::new(&pipeline, "a-token"),
-            &data,
-            "ws-1",
-            "schema-3-to-4",
-            1,
-        )
-        .await
-        .expect("the copy");
-        let copy = backup::contents_of(&path).await;
-
-        assert_eq!(copy.len(), 1);
-        assert_eq!(copy[0].1.len(), rows, "the copy is not the whole table");
-
-        // the transaction opened where the pipeline is, and everything after it went where the
-        // stream is held, with its baton.
-        assert_eq!(first.request_count(), 1);
-        assert_eq!(held.request_count(), 5);
-
-        let body = |request: crate::sync::test::server::RecordedRequest| -> serde_json::Value {
-            serde_json::from_str(&request.body).expect("json")
-        };
-        let opened = body(first.request(0));
-
-        assert_eq!(opened["baton"], serde_json::Value::Null);
-        assert_eq!(opened["requests"][0]["stmt"]["sql"], "BEGIN");
-        assert_eq!(opened["requests"].as_array().expect("requests").len(), 1);
-
-        let sent: Vec<serde_json::Value> = (0..5).map(|index| body(held.request(index))).collect();
-
-        assert!(sent.iter().all(|sent| sent["baton"] == "a-baton"));
-
-        let sql = |index: usize| {
-            sent[index]["requests"][0]["stmt"]["sql"]
-                .as_str()
-                .expect("sql")
-                .to_string()
-        };
-
-        assert!(sql(1).starts_with("SELECT COUNT(*)"), "{}", sql(1));
-        assert_eq!(sql(2), backup::paging("note", None));
-        assert_eq!(sql(3), backup::paging("note", Some(backup::PAGE as i64)));
-        assert!(sql(3).contains(&format!("LIMIT {}", backup::PAGE)));
-        assert_eq!(sql(4), "ROLLBACK");
-        assert_eq!(sent[4]["requests"][1]["type"], "close");
     }
 
     // every workspace version shipped from 0.14.0 on, seeded with rows and walked to the shipped

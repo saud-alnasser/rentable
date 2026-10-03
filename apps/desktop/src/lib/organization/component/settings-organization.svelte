@@ -25,25 +25,15 @@
 
 <script lang="ts">
 	import type { SettingsSectionProps } from '$lib/feature/surface';
-	import * as Field from '@rentable/design/primitive/field/index.js';
-	import { Separator } from '@rentable/design/primitive/separator/index.js';
-	import { toErrorText } from '$lib/error/message';
-	import { LL } from '$lib/i18n/i18n-svelte';
-	import OrganizationDeleteOrganization from '$lib/organization/component/delete-organization.svelte';
-	import OrganizationDisconnect from '$lib/organization/component/disconnect.svelte';
-	import OrganizationForgetAccount from '$lib/organization/setup/component/forget-account.svelte';
+	import SettingsGrid from '@rentable/design/block/settings-grid.svelte';
+	import OrganizationLeaving from '$lib/organization/component/leaving.svelte';
 	import OrganizationMark from '$lib/organization/component/mark.svelte';
 	import OrganizationMembers from '$lib/organization/member/component/directory.svelte';
-	import OrganizationReconnectAuthority from '$lib/organization/setup/component/reconnect-authority.svelte';
 	import OrganizationRoles from '$lib/organization/role/component/directory.svelte';
 	import OrganizationStanding from '$lib/organization/component/standing.svelte';
 	import { memberReaderOf } from '$lib/organization/member/acts';
 	import { roleReaderOf } from '$lib/organization/role/acts';
-	import {
-		useDeleteOrganization,
-		useDisconnectOrganization,
-		useFetchOrganizationState
-	} from '$lib/organization/query';
+	import { useFetchOrganizationState } from '$lib/organization/query';
 	import { useFetchMemberStandings, useFetchMembers } from '$lib/organization/member/query';
 	import { useFetchRoles } from '$lib/organization/role/query';
 	import { administersMembers } from '$lib/organization/member/member';
@@ -52,8 +42,8 @@
 
 	/**
 	 * The settings area's organization section: where this machine stands with the organization
-	 * on Turso, the mark its pages print, the Turso account, the roles and the people, and the two
-	 * acts that end something. The organization contributes it (`surface.ts`), and the area draws
+	 * on Turso, the mark its pages print, the roles and the people, and the ways a reader steps
+	 * away (`leaving.svelte`), which holds an owner's Turso account. The organization contributes it (`surface.ts`), and the area draws
 	 * it while somebody is signed in.
 	 *
 	 * **What it reads and writes is its own**, the way a record's section reads its records. A
@@ -65,7 +55,7 @@
 	 * organization.*
 	 *
 	 * **Inside the section: what it is about, then what it holds, then what ends something, at the
-	 * foot.** *Settled by the human on the real organization.* It opens with how this machine
+	 * foot**, each a card in the section's grid (effort 846, *Everything in a tab is a card*). *Settled by the human on the real organization.* It opens with how this machine
 	 * stands to the organization and closes with leaving it. What each block is gated on did not
 	 * change with the order, and Rust refuses every one of them again.
 	 */
@@ -87,147 +77,75 @@
 
 	const members = $derived(membersQuery.data ?? []);
 
-	const deleteOrganizationMutation = useDeleteOrganization();
-	const disconnectOrganization = useDisconnectOrganization();
-
 	const isOwner = $derived(session?.role === 'owner');
 	// an owner restored on this machine holds no Turso authority until they repeat the consent.
 	const needsAuthority = $derived(isOwner && !holdsTursoAuthority);
 	// the directory is this section's own gate: it was a section of its own, and what admitted a
 	// reader to that section now decides whether the block is drawn.
 	const administers = $derived(administersMembers(session));
-
-	/**
-	 * the disconnect, once confirmed: the shell forgets the organization, and the area leaves for
-	 * the wall. A refusal is said by the shared handler and rethrown so the confirm stays open on
-	 * it.
-	 */
-	const disconnect = async () => {
-		await disconnectOrganization.mutateAsync();
-		await leaveForTheWall();
-	};
-
-	let deletingOrganization = $state(false);
-	/** what the shell refused the last delete with, marked on the surface's password field. */
-	let deleteRefusal = $state<string | null>(null);
-
-	/**
-	 * the organization, deleted with the owner's password: every workspace database and the
-	 * organization's own go from the Turso account, this machine forgets what it held, and the
-	 * area leaves for the wall, exactly as a disconnect leaves it.
-	 *
-	 * The same shape the password change has, and for the same reason: a delete that went through
-	 * closes the surface, which empties the one value on it, and a refusal keeps it open with what
-	 * was typed and puts the sentence on the password, because the password is what the shell
-	 * refuses this with ([[rules/interface]], *Validation errors*). Nothing is drawn afterwards
-	 * either way, since the machine that deleted the organization is a machine holding nothing.
-	 */
-	const deleteOrganization = async (password: string) => {
-		deleteRefusal = null;
-
-		try {
-			await deleteOrganizationMutation.mutateAsync({ password });
-			await leaveForTheWall();
-			deletingOrganization = false;
-		} catch (error) {
-			deleteRefusal = toErrorText(error, $LL);
-		}
-	};
 </script>
 
 {#if session}
-	<Field.Group>
-		<!-- how this machine stands to the organization first: it is what the section is about,
-		     it is what a reader who came here worried is looking for, and it reads the same for
-		     everybody. Then the signature or seal its pages print, then the account the databases
-		     sit on, then the people, then the two acts that end something. *The directory stood
-		     first until the human read the four sections and asked for the elements in each to be
-		     ordered.* -->
+	<!-- each block is a card, one under the next in the section's column (effort 846, *Everything
+	     in a tab is a card*, and requirement 1 as revised on 2026-10-02): how this machine stands
+	     to the organization first, since it is what the section is about and what a reader who
+	     came here worried is looking for; then the signature or seal; then the roles and the
+	     people, two directories never boxed, since their records are cards already; then the
+	     ways a reader steps away, last, which for an owner holds the Turso account. *The
+	     directory stood first until the human read the four sections and asked for the elements in
+	     each to be ordered; the cards stood two to a row for a day until the human asked for each
+	     under the next; the Turso account was a card of its own until ticket 38 folded it into
+	     leaving.* -->
+	<SettingsGrid>
 		{#if syncQuery.data}
-			<Field.Set data-standing-block>
+			<div data-standing-block class="contents">
 				<OrganizationStanding syncState={syncQuery.data} {session} {needsAuthority} />
-			</Field.Set>
-
-			<Separator />
+			</div>
 		{/if}
 
 		<!-- what the organization prints on its pages: everybody sees it, and whoever holds the
 		     flag to manage it changes it (effort 835, requirement 13; effort 838). -->
 		<OrganizationMark setsMark={permits(session.permissions, 'manageMark')} />
 
-		<Separator />
-
-		<!-- the Turso account, which is the owner's alone: reconnected where this machine holds
-		     no authority, and given back where it does. Both are the same subject, so they share
-		     the legend rather than standing as two sections a reader meets one of. -->
-		{#if isOwner}
-			<Field.Set>
-				<Field.Legend>{$LL.organization.dashboard.authorityTitle()}</Field.Legend>
-				{#if needsAuthority}
-					<OrganizationReconnectAuthority onReconnected={() => void stateQuery.refetch()} />
-				{:else}
-					<OrganizationForgetAccount />
-				{/if}
-			</Field.Set>
-
-			<Separator />
-		{/if}
-
 		<!-- the roles, before the people who hold them: what each kind of person may do, read by
 		     everybody and changed by whoever holds the flag to (effort 838, requirement 12). The
 		     section answers the search key once, and where the people are drawn below, it is
 		     theirs, the set a reader searches ([[rules/interface]], *Search*). -->
-		<OrganizationRoles
-			roles={rolesQuery.data ?? []}
-			{members}
-			reader={roleReaderOf(session)}
-			answersSearchKey={!administers}
-		/>
+		<div data-settings-directory>
+			<OrganizationRoles
+				roles={rolesQuery.data ?? []}
+				{members}
+				reader={roleReaderOf(session)}
+				answersSearchKey={!administers}
+			/>
+		</div>
 
-		<Separator />
-
-		<!-- the people. The directory owns its own legend, the sentence under it, the cards and
-		     the add at its foot; what is decided here is what this reader may do, and a member
+		<!-- the people. The directory owns its own heading, the sentence under it, the cards and
+		     the add in its tray; what is decided here is what this reader may do, and a member
 		     who changes nobody's row meets no directory at all. -->
 		{#if administers}
-			<!-- the reader's gates, read by the one builder the command menu reads them by. -->
-			<OrganizationMembers
-				{members}
-				standings={standingsQuery.data ?? []}
-				{...memberReaderOf(session)}
-			/>
-
-			<Separator />
+			<div data-settings-directory>
+				<!-- the reader's gates, read by the one builder the command menu reads them by. -->
+				<OrganizationMembers
+					{members}
+					standings={standingsQuery.data ?? []}
+					{...memberReaderOf(session)}
+				/>
+			</div>
 		{/if}
 
-		<!-- and the foot, where both acts end something: leaving with this machine, and leaving
-		     with the organization. One legend over the two, because what they have in common is
-		     the thing a reader needs to know before reading either, and the heavier one is last.
-		     The delete is the owner's and needs the authority the block above is about, so an
-		     owner whose machine holds none meets the disconnect alone, exactly as they did while
-		     the delete sat inside that block. -->
-		<Field.Set data-leaving>
-			<Field.Legend>{$LL.organization.dashboard.leavingTitle()}</Field.Legend>
-			<OrganizationDisconnect
-				organizationName={session.organizationName}
-				onDisconnect={disconnect}
-			/>
-
-			{#if isOwner && !needsAuthority}
-				<Field.Separator />
-
-				<OrganizationDeleteOrganization
-					open={deletingOrganization}
-					onOpenChange={(value) => {
-						deletingOrganization = value;
-
-						if (!value) deleteRefusal = null;
-					}}
-					isDeleting={deleteOrganizationMutation.isPending}
-					errorMessage={deleteRefusal}
-					onDelete={(password) => void deleteOrganization(password)}
-				/>
-			{/if}
-		</Field.Set>
-	</Field.Group>
+		<!-- and the foot: the ways a reader steps away, told apart by who is reading (effort 846,
+		     requirement 14). A member meets the disconnect alone; an owner meets the Turso account's
+		     row first, reconnected where this machine holds no authority (requirement 13, folded in
+		     by ticket 38), then the transfer, the forget, the disconnect, and the delete, last and
+		     set apart. -->
+		<OrganizationLeaving
+			{session}
+			{members}
+			standings={standingsQuery.data ?? []}
+			{holdsTursoAuthority}
+			onReconnected={() => void stateQuery.refetch()}
+			{leaveForTheWall}
+		/>
+	</SettingsGrid>
 {/if}

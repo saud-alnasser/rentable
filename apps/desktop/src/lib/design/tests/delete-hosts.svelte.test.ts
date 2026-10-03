@@ -6,28 +6,33 @@ import { beforeEach, expect, test, vi } from 'vitest';
 import '$lib/app/surfaces';
 import ComplexHost from '$lib/complex/component/host.svelte';
 import UnitHost from '$lib/complex/unit/component/host.svelte';
-import { complexHost } from '$lib/complex/host.svelte';
-import { unitHost } from '$lib/complex/unit/host.svelte';
+import { complexActs, complexHost } from '$lib/complex/host.svelte';
+import { unitActs } from '$lib/complex/unit/host.svelte';
 import ContractHost from '$lib/contract/component/host.svelte';
-import { contractHost } from '$lib/contract/host.svelte';
+import { contractActs, contractHost } from '$lib/contract/host.svelte';
 import type { ContractActRecord } from '$lib/contract/acts';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
-import { setLocale } from '$lib/i18n/i18n-svelte';
+import { LL, setLocale } from '$lib/i18n/i18n-svelte';
+import { toCardActions, type RecordAct } from '$lib/act';
+import en from '$lib/i18n/en';
+import { get } from 'svelte/store';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import Providers from '#tests/providers.svelte';
 import PaymentHost from '$lib/payment/component/host.svelte';
-import { paymentHost } from '$lib/payment/host.svelte';
+import { paymentActs } from '$lib/payment/host.svelte';
 import TenantHost from '$lib/tenant/component/host.svelte';
-import { tenantHost } from '$lib/tenant/host.svelte';
+import { tenantActs, tenantHost } from '$lib/tenant/host.svelte';
 import { complexPlan } from './plan.svelte';
 
 /**
  * WHAT A HOST DOES WITH A DELETE
  *
- * Requirement 11 of effort 832, criterion 11 (a) to (c), read on the hosts the frame mounts: a
- * delete whose act declares `none` and that nothing refuses runs at once with no dialog, a delete
- * something refuses opens the delete dialog naming what refuses it, and terminating asks in the
- * confirm dialog rather than the delete dialog. That the undo the announcement offers puts the
+ * Requirement 11 of effort 832, criterion 11 (a) to (c), as effort 846 revised it on 2026-10-02
+ * (requirement 2, criterion 2), read on the hosts the frame mounts: every record delete asks first,
+ * from the card's menu as from anywhere, in the delete dialog saying undo brings the record back;
+ * leaving the dialog deletes nothing and answering it deletes. A delete something refuses opens the
+ * same dialog naming what refuses it, and terminating asks in the confirm dialog rather than the
+ * delete dialog. That the undo the announcement offers puts the
  * record back is `delete-and-confirm.test.ts`'s, over the real procedures.
  *
  * **The hooks are stood in for**, through partial mocks of each concept's query module: what the
@@ -163,7 +168,8 @@ beforeEach(() => {
 const mount = (Host: Parameters<typeof render>[0]) =>
 	render(Host, {}, { wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } });
 
-const dialog = () => document.querySelector('[data-slot="dialog-content"]');
+// the one drawn last: a dialog answered in the test before may still be on its way out.
+const dialog = () => [...document.querySelectorAll('[data-slot="dialog-content"]')].at(-1) ?? null;
 
 const confirmDialog = () => document.querySelector('[data-confirm-dialog]');
 
@@ -183,13 +189,55 @@ const contract: ContractActRecord = {
 	tenantName: 'Noura'
 };
 
-test('a tenant with no contracts is deleted at once, with no dialog', async () => {
+/** The dialog's own control, by the placeholder its word stands in as: `{cancel}` or `{delete}`. */
+const control = (word: string) =>
+	[...(dialog()?.querySelectorAll('button') ?? [])].find(
+		(button) => button.textContent?.trim() === word
+	);
+
+/** Choose a record's act from its card's menu, the entry the card draws for it. */
+function chooseFromCard<T>(acts: readonly RecordAct<T>[], actId: string, record: T) {
+	const entry = toCardActions(acts, record, get(LL)).find(
+		(action) => action.attributes?.['data-act'] === actId
+	);
+
+	expect(entry).toBeDefined();
+	entry?.onSelect();
+}
+
+/**
+ * The delete asks first, saying undo brings the record back: leaving it deletes nothing, and
+ * answering it deletes the record once.
+ */
+async function asksThenDeletes(choose: () => void, written: string) {
+	choose();
+
+	await waitFor(() => expect(dialog()).not.toBeNull());
+	expect(confirmDialog()).toBeNull();
+	expect(dialog()?.textContent).toContain(en.common.deleteDialog.undoable);
+	await waitFor(() => expect(control('{delete}')?.disabled).toBe(false));
+
+	control('{cancel}')?.click();
+	await waitFor(() => expect(dialog()).toBeNull());
+	expect(asked).toEqual([]);
+
+	choose();
+	await waitFor(() => expect(control('{delete}')?.disabled).toBe(false));
+	control('{delete}')?.click();
+
+	await waitFor(() => expect(asked).toEqual([written]));
+	// the dialog closes once the write lands, and nothing is written twice.
+	await waitFor(() => expect(dialog()).toBeNull());
+	expect(asked).toEqual([written]);
+}
+
+test('a tenant with no contracts asks first from its card, and is deleted once answered', async () => {
 	mount(TenantHost);
 
-	tenantHost.run('tenant.delete', tenant);
-
-	await waitFor(() => expect(asked).toEqual(['deleteTenant:tenant-1']));
-	expect(dialog()).toBeNull();
+	await asksThenDeletes(
+		() => chooseFromCard(tenantActs, 'tenant.delete', tenant),
+		'deleteTenant:tenant-1'
+	);
 });
 
 test('a tenant with contracts is refused with what holds it, and nothing is deleted', async () => {
@@ -204,64 +252,72 @@ test('a tenant with contracts is refused with what holds it, and nothing is dele
 	expect(asked).toEqual([]);
 });
 
-test('a unit is deleted at once, with no dialog', async () => {
+test('a unit asks first from its card, and is deleted once answered', async () => {
 	mount(UnitHost);
 
-	unitHost.run('unit.delete', { id: 'unit-1', name: 'A1', status: 'vacant', complexId: 'c-1' });
-
-	await waitFor(() => expect(asked).toEqual(['deleteUnit:unit-1']));
-	expect(dialog()).toBeNull();
+	await asksThenDeletes(
+		() =>
+			chooseFromCard(unitActs, 'unit.delete', {
+				id: 'unit-1',
+				name: 'A1',
+				status: 'vacant',
+				complexId: 'c-1'
+			}),
+		'deleteUnit:unit-1'
+	);
 });
 
-test('a payment is deleted at once, with no dialog', async () => {
+test('a payment asks first from its card, and is deleted once answered', async () => {
 	mount(PaymentHost);
 
-	paymentHost.run('payment.delete', {
-		id: 'payment-1',
-		date: Date.UTC(2026, 1, 1),
-		amount: 1500,
-		contractId: 'contract-1',
-		contractStatus: 'active'
-	});
-
-	await waitFor(() => expect(asked).toEqual(['deletePayment:payment-1']));
-	expect(dialog()).toBeNull();
+	await asksThenDeletes(
+		() =>
+			chooseFromCard(paymentActs, 'payment.delete', {
+				id: 'payment-1',
+				date: Date.UTC(2026, 1, 1),
+				amount: 1500,
+				contractId: 'contract-1',
+				contractStatus: 'active'
+			}),
+		'deletePayment:payment-1'
+	);
 });
 
-test('a contract with no payments is deleted at once, with no dialog', async () => {
+test('a contract with no payments asks first from its card, and is deleted once answered', async () => {
 	mount(ContractHost);
 
-	contractHost.run('contract.delete', contract);
-
-	await waitFor(() => expect(asked).toEqual(['deleteContract:contract-1']));
-	expect(dialog()).toBeNull();
+	await asksThenDeletes(
+		() => chooseFromCard(contractActs, 'contract.delete', contract),
+		'deleteContract:contract-1'
+	);
 });
 
 const complex = { id: 'c-1', name: 'Tower', location: 'Riyadh' };
 
 // effort 840, requirement 22, on the host: what a complex's delete does turns on its units.
-test('a complex with no units is deleted at once, with no dialog', async () => {
+test('a complex with no units asks first from its card, and is deleted once answered', async () => {
 	complexPlan.plan = { eligible: ['c-1'], refused: [], units: 0 };
 	mount(ComplexHost);
 
-	complexHost.run('complex.delete', complex);
-
-	await waitFor(() => expect(asked).toEqual(['deleteComplex:c-1']));
-	expect(dialog()).toBeNull();
+	await asksThenDeletes(
+		() => chooseFromCard(complexActs, 'complex.delete', complex),
+		'deleteComplex:c-1'
+	);
 });
 
-// a plan cached before the workspace moved says no units go; until the fresh one lands, the delete
-// neither runs nor asks.
-test('a complex whose plan is being fetched again waits, and deletes nothing', async () => {
+// a plan cached before the workspace moved says no units go; until the fresh one lands, the dialog
+// offers no delete, since what it says goes may not be what goes.
+test('a complex whose plan is being fetched again asks, offers no delete yet, and deletes nothing', async () => {
 	complexPlan.plan = { eligible: ['c-1'], refused: [], units: 0 };
 	complexPlan.fetching = true;
 	mount(ComplexHost);
 
 	complexHost.run('complex.delete', complex);
 
+	await waitFor(() => expect(dialog()).not.toBeNull());
 	await new Promise((resolve) => setTimeout(resolve, 50));
+	expect(control('{delete}')?.disabled).toBe(true);
 	expect(asked).toEqual([]);
-	expect(dialog()).toBeNull();
 });
 
 test('a complex whose units go with it asks first, naming them, and deletes once answered', async () => {
@@ -272,7 +328,9 @@ test('a complex whose units go with it asks first, naming them, and deletes once
 
 	await waitFor(() => expect(dialog()).not.toBeNull());
 	expect(confirmDialog()).toBeNull();
-	expect(dialog()?.textContent).toContain('its 3 units will be deleted with it.');
+	expect(dialog()?.textContent).toContain(
+		'its 3 units will be deleted with it. you can undo this while the app is open.'
+	);
 	expect(asked).toEqual([]);
 
 	// the destructive control, by the placeholder its word stands in as.

@@ -8,6 +8,11 @@
  * Nothing in this file imports a `@tauri-apps` package, for the reason `$lib/platform/host` gives.
  */
 
+import type { Row } from '$lib/platform/database/client';
+
+/** one statement run on a workspace that is not open: its text and its values, as a replica's. */
+export type WorkspaceStatement = { sql: string; params: unknown[] };
+
 /** one workspace a signed-in member holds a grant on. No credential. */
 export type OrganizationWorkspace = {
 	id: string;
@@ -32,6 +37,13 @@ export type OrganizationWorkspace = {
 	 * folds.
 	 */
 	permissions: number;
+	/**
+	 * when the workspace was made, in milliseconds since the epoch, off its row in the
+	 * organization store (effort 846, ticket 33). The shell always answers it; it is optional
+	 * because a workspace built by hand, as a test builds one, need not say, and the card then
+	 * draws no date rather than a wrong one.
+	 */
+	createdAt?: number;
 };
 
 /** a workspace: created by the owner, opened by whoever holds a grant, granted and taken back. */
@@ -62,4 +74,18 @@ export type WorkspaceHost = {
 	remove: (workspaceId: string) => Promise<void>;
 	/** mint fresh credentials for every grant and re-seal them, on the owner's machine. */
 	renewCredentials: () => Promise<number>;
+	/**
+	 * run one statement on a workspace this member holds a grant on, directly on Turso, whether or
+	 * not it is open on this machine, and answer its rows as the open replica's transport does
+	 * (effort 846, requirement 15). Nothing is opened, switched or written to this machine; the
+	 * shell names the host and holds the credential, so the caller names the workspace alone.
+	 * Refuses a workspace with no grant, one of a newer or an older schema, and an unreachable
+	 * Turso, naming the workspace.
+	 */
+	query: (workspaceId: string, query: WorkspaceStatement) => Promise<Row[]>;
+	/**
+	 * run several statements on such a workspace as one transaction, all of them or none kept, and
+	 * answer each one's rows. Otherwise as `query`.
+	 */
+	batch: (workspaceId: string, queries: WorkspaceStatement[]) => Promise<Row[][]>;
 };

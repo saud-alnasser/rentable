@@ -110,9 +110,10 @@ pub(crate) async fn organization_setup_create(
     let credential: CredentialSlot = Arc::new(Mutex::new(None));
     let member = session::sign_in(&store, &joined, &password, &credential).await?;
 
-    // the owner's machine enters the registry (effort 828, requirement 15). A first run draws the
-    // machine id with the record (`setup/`) and registers here, after the sign-in, because the
-    // push goes out under the credential the vault unsealed.
+    // the owner's machine enters the registry (effort 828, requirement 15), named (effort 846,
+    // requirement 11). A first run draws the machine id with the record (`setup/`) and registers
+    // here, after the sign-in, because the push goes out under the credential the vault unsealed.
+    session::machine_named(&store, &joined, &member.content_key, clock.now()).await;
     session::machine_seen(&store, &joined, Some(&member.member_id), clock.now()).await;
 
     *app_state.organization.write().await = Some(store);

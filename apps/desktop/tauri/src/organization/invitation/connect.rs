@@ -37,6 +37,7 @@ use crate::{
 use crate::organization::{
     HeldOrganization,
     invitation::{link::Locator, random_id},
+    session,
     store::{FORMAT_VERSION, OrganizationStore},
 };
 
@@ -178,6 +179,14 @@ pub async fn record(
             .write();
     }
 
+    // the owner's connect is a sign-in, and acknowledges what it finds for this machine (effort
+    // 846, requirement 10); a connect by link has nobody signed in yet to acknowledge it for.
+    let machine_signed_out = match member {
+        Some((member_id, _)) => {
+            session::sign_outs_acknowledged(store, &machine_id, member_id).await?
+        }
+        None => 0,
+    };
     let held = HeldOrganization {
         id: facts.id,
         name: facts.name,
@@ -190,6 +199,7 @@ pub async fn record(
         // both callers refused another format before they came here, so what this machine has
         // read is this build's (effort 838, ticket 25).
         format: Some(FORMAT_VERSION),
+        machine_signed_out,
     };
 
     machine.organization = Some(held.clone());

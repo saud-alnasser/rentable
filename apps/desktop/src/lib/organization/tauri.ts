@@ -5,6 +5,7 @@ import type {
 	GroupState,
 	LinkShape,
 	LockOutCost,
+	MachineView,
 	MadeLink,
 	MemberRemoved,
 	MemberStanding,
@@ -20,8 +21,10 @@ import type {
 	OrganizationWorkspace,
 	SessionsEnded,
 	UnreachableWorkspace,
-	WorkspaceGrant
+	WorkspaceGrant,
+	WorkspaceStatement
 } from './host';
+import type { Row } from '$lib/platform/database/client';
 
 /** the Rust side is `LINK_ARRIVED_EVENT` in `tauri/src/organization/invitation/arrival.rs`, one name. */
 const LINK_ARRIVED_EVENT = 'organization:link';
@@ -65,6 +68,9 @@ export const tauri = {
 		invoke<OrganizationState>('plugin:organization|session_sign_in', { username, password }),
 	signOut: () => invoke<OrganizationState>('plugin:organization|session_sign_out'),
 	sessionEndElsewhere: () => invoke<SessionsEnded>('plugin:organization|session_end_elsewhere'),
+	machines: () => invoke<MachineView[]>('plugin:organization|session_machines'),
+	endMachine: (machineId: string) =>
+		invoke<SessionsEnded>('plugin:organization|session_end_machine', { machineId }),
 	linkTake: () => invoke<string | null>('plugin:organization|invitation_link_take'),
 	onLink: (listener: (link: string) => void) =>
 		listen<string>(LINK_ARRIVED_EVENT, (event) => listener(event.payload)),
@@ -98,7 +104,11 @@ export const tauri = {
 			invoke<void>('plugin:organization|workspace_grant_withdraw', { workspaceId, memberId }),
 		remove: (workspaceId: string) =>
 			invoke<void>('plugin:organization|workspace_delete', { workspaceId }),
-		renewCredentials: () => invoke<number>('plugin:organization|workspace_renew_credentials')
+		renewCredentials: () => invoke<number>('plugin:organization|workspace_renew_credentials'),
+		query: (workspaceId: string, query: WorkspaceStatement) =>
+			invoke<Row[]>('plugin:organization|workspace_query', { workspaceId, query }),
+		batch: (workspaceId: string, queries: WorkspaceStatement[]) =>
+			invoke<Row[][]>('plugin:organization|workspace_batch', { workspaceId, queries })
 	},
 	member: {
 		list: () => invoke<OrganizationMember[]>('plugin:organization|member_list'),

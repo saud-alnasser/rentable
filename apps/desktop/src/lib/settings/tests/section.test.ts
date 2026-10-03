@@ -105,8 +105,8 @@ test('a workspace is named by its own word, and a member is not one', () => {
 });
 
 // requirement 14, on the way in: the area is the one address that draws signed out, and general
-// is the only section that needs no organization. What it holds there is the language, the
-// ending-soon figure, updates and diagnostics.
+// is the only section that needs no organization. What it holds there is the language and the
+// appearance, updates and diagnostics.
 test('with nobody signed in, only the section that needs no session is offered', () => {
 	assert.deepEqual(sectionsFor(false, []), ['general']);
 	assert.deepEqual(sectionsFor(false, ['account', 'organization', 'workspaces']), ['general']);

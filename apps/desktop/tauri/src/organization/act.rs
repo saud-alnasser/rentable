@@ -29,7 +29,11 @@ use crate::{
     turso::platform::{PlatformApi, PlatformEndpoint},
 };
 
-use super::{session::MemberSession, setup, store::OrganizationStore};
+use super::{
+    session::{self, MemberSession},
+    setup,
+    store::OrganizationStore,
+};
 
 /// What an act is handed: the signed-in member's session, for writing, and their organization
 /// replica, both under the locks [`as_member`] took.
@@ -50,13 +54,44 @@ pub enum Pull {
 }
 
 /// Run `act` as the signed-in member, or refuse with the wall where nobody is signed in.
+///
+/// **An act refused because another machine signed this one out on its own puts the wall up**
+/// (effort 846, requirement 10): the act's gate (`session::acting_row`) refused it after a pull
+/// brought the sign-out, and the machine goes where the heartbeat would have sent it, through the
+/// same sign-out, rather than holding a session every act refuses until the heartbeat comes round.
+/// Asked again here, under the locks the act held, so only that refusal does it; the wall goes up
+/// once they are let go of, since the sign-out takes them itself.
 pub async fn as_member<T>(
     app_state: &Shared,
     pull: Pull,
     act: impl AsyncFnOnce(Acting<'_>) -> Result<T, Error>,
 ) -> Result<T, Error> {
-    match if_member(app_state, pull, act).await {
-        Some(acted) => acted,
+    let acted = if_member(app_state, pull, async move |Acting { member, store }| {
+        let acted = act(Acting {
+            member: &mut *member,
+            store,
+        })
+        .await;
+        let ended_alone = matches!(
+            acted,
+            Err(Error::Refused {
+                reason: RefusalReason::SessionsEnded,
+                ..
+            })
+        ) && session::ended_alone(store, member).await.unwrap_or(false);
+
+        (acted, ended_alone)
+    })
+    .await;
+
+    match acted {
+        Some((acted, ended_alone)) => {
+            if ended_alone {
+                session::signed_out_from_elsewhere(app_state, app_state.credentials.as_ref()).await;
+            }
+
+            acted
+        }
         None => Err(signed_out()),
     }
 }

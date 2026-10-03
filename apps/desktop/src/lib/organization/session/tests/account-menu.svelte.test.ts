@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/svelte';
+import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { expect, test } from 'vitest';
 
 import en from '$lib/i18n/en';
@@ -7,6 +7,7 @@ import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import AccountMenu from '$lib/organization/session/component/account-menu.svelte';
 import { fakeOrganizationSession } from '$lib/organization/tests/testing.ts';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
+import { listenForSignOut } from '$lib/sync';
 
 import RailProviders from '$lib/shell/tests/rail-providers.svelte';
 
@@ -142,4 +143,42 @@ test('the way out is cased like the settings row beside it', async () => {
 
 	expect(settings?.className).toContain('capitalize');
 	expect(label(en.common.actions.signOut)?.className).toBe(settings?.className);
+});
+
+// effort 846, requirement 2 as revised on 2026-10-02: every dangerous act asks first, signing this
+// machine out included. Choosing the way out asks, naming who is signed out and what brings them
+// back; leaving the question signs nobody out, and answering it asks the shell.
+test('the way out asks first, and asks the shell to sign out only once answered', async () => {
+	menu('ada.lovelace');
+	await open();
+
+	let asked = 0;
+	const stop = listenForSignOut(() => {
+		asked += 1;
+	});
+
+	const question = () => document.querySelector<HTMLElement>('[data-confirm-dialog]');
+	const control = (words: string) =>
+		[...(question()?.querySelectorAll<HTMLButtonElement>('button') ?? [])].find(
+			(button) => button.textContent?.trim() === words
+		);
+
+	await fireEvent.click(screen.getByRole('menuitem', { name: en.common.actions.signOut }));
+	await waitFor(() => expect(question()).not.toBeNull());
+
+	expect(asked).toBe(0);
+	expect(question()?.textContent).toContain('ada.lovelace');
+	expect(question()?.textContent).toContain(en.settings.you.thisMachine.asks);
+
+	await fireEvent.click(control('{cancel}')!);
+	await waitFor(() => expect(question()).toBeNull());
+	expect(asked).toBe(0);
+
+	await open();
+	await fireEvent.click(screen.getByRole('menuitem', { name: en.common.actions.signOut }));
+	await waitFor(() => expect(control(en.common.actions.signOut)).toBeDefined());
+	await fireEvent.click(control(en.common.actions.signOut)!);
+
+	await waitFor(() => expect(asked).toBe(1));
+	stop();
 });

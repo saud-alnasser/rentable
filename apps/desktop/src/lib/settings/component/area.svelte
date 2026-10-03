@@ -5,14 +5,14 @@
 	import type { Locales } from '$lib/i18n/i18n-types';
 	import PageFrame from '@rentable/design/block/page-frame.svelte';
 	import SectionSwitch from '@rentable/design/block/section-switch.svelte';
-	import * as Field from '@rentable/design/primitive/field/index.js';
-	import { Separator } from '@rentable/design/primitive/separator/index.js';
+	import SettingsGrid from '@rentable/design/block/settings-grid.svelte';
+	import SettingsGroup from '@rentable/design/block/settings-group.svelte';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import SettingsAppearance from '$lib/settings/component/appearance.svelte';
 	import SettingsDiagnostics from '$lib/settings/component/diagnostics.svelte';
-	import SettingsEndingSoon from '$lib/settings/component/ending-soon.svelte';
 	import SettingsLocale from '$lib/settings/component/locale.svelte';
 	import SettingsUpdates from '$lib/settings/component/updates.svelte';
+	import { SECTION_GLYPH } from '$lib/settings/glyph';
 	import {
 		holdingSection,
 		sectionsFor,
@@ -20,6 +20,7 @@
 		withSection,
 		type AddressableSection
 	} from '$lib/settings/section';
+	import PaletteIcon from '@lucide/svelte/icons/palette';
 
 	type AppSettings = Awaited<ReturnType<typeof api.settings.get>>;
 
@@ -34,11 +35,13 @@
 	 *
 	 * **Four sections, each named for what it holds** (requirement 24 of effort 828). There were
 	 * seven, and a person looking for one thing had to guess which of them it was under. General
-	 * carries the general blocks, then updates and diagnostics under their own legends; account
+	 * carries the language and the appearance, then updates and diagnostics, each a card on the
+	 * design package's settings group and row, one under the next in its settings column (effort
+	 * 846, requirement 1 and *Everything in a tab is a card*); account
 	 * carries what a person reads about themselves; organization carries where this machine stands
 	 * with it on Turso, the Turso account, the members directory and the two acts that end
-	 * something; workspaces carries the directory and the transfer beneath it. Nothing moved
-	 * between sections beyond that list.
+	 * something; workspaces carries the directory, each card exporting and importing its own.
+	 * Nothing moved between sections beyond that list.
 	 *
 	 * **General is the area's own, and the other three are contributed** (effort 840,
 	 * requirements 4 and 5). The organization declares them in its `surface.ts` with
@@ -100,14 +103,16 @@
 
 	// every section is addressable, so the switch is a row of links to the addresses a menu row,
 	// the command palette and a bookmark open too. The mark follows `shown`, so an address naming
-	// a section this reader is not offered marks the section that is drawn.
+	// a section this reader is not offered marks the section that is drawn. Each carries the glyph
+	// the command menu draws it with, from the one map both read.
 	const switchable = $derived(
 		offered.map((value) => ({
 			value,
 			label:
 				contributed.find((entry) => entry.value === value)?.label($LL) ??
 				$LL.settings.section[value](),
-			href: resolve(withSection(value))
+			href: resolve(withSection(value)),
+			icon: SECTION_GLYPH[value]
 		}))
 	);
 </script>
@@ -120,32 +125,30 @@
 	<SectionSwitch sections={switchable} current={shown} label={$LL.settings.title()} />
 
 	{#if shown === 'general'}
-		<Field.Group>
-			<!-- what the section is named for goes first and takes no legend of its own: the rail
-			     above already says general, and a legend repeating it is the tab said twice. The two
-			     below carry one each, because they are things of their own under that name. -->
-			<Field.Set data-general>
-				<SettingsLocale currentLocale={$locale} onChange={onChangeLocale} />
-				<Field.Separator />
-				<SettingsAppearance stored={settings.appearance} />
-				<Field.Separator />
-				<SettingsEndingSoon {settings} />
-			</Field.Set>
+		<!-- three cards, one under the next: the language and the appearance, then updates, then
+		     diagnostics. Ending soon is not here: it is set from the dashboard's ending-soon
+		     section, where it shows (effort 846, requirement 6). -->
+		<SettingsGrid>
+			<!-- the wrappers stand aside from the column's layout, so the card is the column's item;
+			     they stay for what reads a section by its marks. The card has no footer: each choice
+			     says what it does, and system says what it follows in its own tooltip. -->
+			<div data-general class="contents">
+				<SettingsGroup
+					icon={PaletteIcon}
+					title={$LL.settings.preferences.title()}
+					description={$LL.settings.preferences.description()}
+				>
+					{#snippet rows()}
+						<SettingsLocale currentLocale={$locale} onChange={onChangeLocale} />
+						<SettingsAppearance stored={settings.appearance} />
+					{/snippet}
+				</SettingsGroup>
+			</div>
 
-			<Separator />
+			<SettingsUpdates version={settings.version} />
 
-			<Field.Set data-updates>
-				<Field.Legend>{$LL.settings.updatesTitle()}</Field.Legend>
-				<SettingsUpdates version={settings.version} />
-			</Field.Set>
-
-			<Separator />
-
-			<Field.Set data-diagnostics>
-				<Field.Legend>{$LL.settings.diagnosticsTitle()}</Field.Legend>
-				<SettingsDiagnostics diagnosticsDir={settings.diagnosticsDir} {onRevealDiagnostics} />
-			</Field.Set>
-		</Field.Group>
+			<SettingsDiagnostics diagnosticsDir={settings.diagnosticsDir} {onRevealDiagnostics} />
+		</SettingsGrid>
 	{:else if contribution}
 		<contribution.component {leaveForTheWall} />
 	{/if}

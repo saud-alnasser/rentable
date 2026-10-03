@@ -1,5 +1,5 @@
 <script lang="ts" module>
-	import type { Snippet } from 'svelte';
+	import type { Component, Snippet } from 'svelte';
 
 	/** One line of a record's specification. */
 	export type SpecificationEntry = {
@@ -7,6 +7,14 @@
 		label: string;
 		/** The datum, as text — or as a snippet where the concept renders it itself. */
 		value: string | Snippet;
+		/**
+		 * The glyph the label leads with, where the record states its facts with glyphs as its card
+		 * does (a workspace's page, effort 846 ticket 49). Every entry of one specification has one or
+		 * none does, so the labels keep one edge.
+		 */
+		icon?: Component<{ class?: string }>;
+		/** What the entry is found by, `data-entry`: the fact it states, not its words. */
+		hook?: string;
 	};
 </script>
 
@@ -49,8 +57,22 @@
 
 <dl class={cn('text-start text-sm', className)}>
 	{#each entries as entry (entry.label)}
-		<div class="flex items-baseline gap-6 border-b border-border/40 py-2 last:border-0">
-			<dt class="w-40 shrink-0 text-muted-foreground">{toTitleCase(entry.label)}</dt>
+		<div
+			class="flex items-baseline gap-6 border-b border-border/40 py-2 last:border-0"
+			data-entry={entry.hook}
+		>
+			{#if entry.icon}
+				<!-- the glyph sits on the label's line and takes its muted colour: it names the fact,
+				     and the value stays the brightest thing on the row. -->
+				<dt class="flex w-40 shrink-0 items-center gap-2 text-muted-foreground">
+					<span class="flex shrink-0" aria-hidden="true" data-entry-glyph>
+						<entry.icon class="size-4" />
+					</span>
+					<span>{toTitleCase(entry.label)}</span>
+				</dt>
+			{:else}
+				<dt class="w-40 shrink-0 text-muted-foreground">{toTitleCase(entry.label)}</dt>
+			{/if}
 			<dd class="min-w-0 font-medium break-words text-foreground">
 				{#if typeof entry.value === 'string'}
 					<bdi>{entry.value}</bdi>

@@ -1,4 +1,4 @@
-import { fireEvent, render } from '@testing-library/svelte';
+import { render } from '@testing-library/svelte';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
@@ -14,10 +14,10 @@ import { fakeSyncState, fakeWorkspace } from '$lib/sync/tests/testing';
 import DirectoryImportDialog from '$lib/transfer/component/directory-import-dialog.svelte';
 import WorkspaceImportDialog from '$lib/transfer/component/import-dialog.svelte';
 import WorkspacePermissions from '$lib/workspace/component/permissions.svelte';
-import WorkspaceTransfer from '$lib/organization/workspace/component/transfer.svelte';
-import { memberPermissions } from '$lib/permission';
+import { i18nObject } from '$lib/i18n/i18n-util';
+import { IMPORT_FLAGS, memberPermissions } from '$lib/permission';
 import Providers from '#tests/providers.svelte';
-import { describedBy, forgetReader, holdEveryFlagBut, holdReadOnly } from '#tests/permission.ts';
+import { forgetReader, holdEveryFlagBut } from '#tests/permission.ts';
 import { EVERY_FLAG, maskOf } from '@rentable/workspace-permission';
 
 /**
@@ -26,8 +26,11 @@ import { EVERY_FLAG, maskOf } from '@rentable/workspace-permission';
  * Effort 838, requirement 10 and criterion 10. The frame holds what the reader may do in the
  * workspace open, read from the session and the open workspace the way the tRPC context reads
  * them, so a read-only grant folds here as it folds there. An import writes every kind, so both
- * import dialogs and the workspace's import control ask for every kind's create, as the procedure
- * does, and a reader lacking one is told which and has nothing read.
+ * import dialogs ask for every kind's create, as the procedure does, and a reader lacking one is
+ * told which and has nothing read. *The workspace's import control was read here too until it
+ * moved onto each workspace's card (effort 846, requirement 15), where
+ * `organization/workspace/tests/directory.svelte.test.ts` reads it, by the reader's standing in
+ * that workspace.*
  *
  * **The reads and the shell are the mock**: the session, the machine's sync record, and the file
  * dialog, which is watched so a refused import is seen to ask for no file.
@@ -131,31 +134,6 @@ test('nothing is held before the session has arrived', () => {
 	expect(memberPermissions.standing).toBeNull();
 });
 
-test("the workspace's import is refused, naming the create the reader lacks, and asks for no file", async () => {
-	holdEveryFlagBut('createContract');
-	render(WorkspaceTransfer, {}, providers);
-
-	const control = [...document.querySelectorAll<HTMLElement>('[data-unavailable]')].find((one) =>
-		one.textContent?.trim().startsWith(en.common.actions.import)
-	);
-
-	expect(control?.getAttribute('aria-disabled')).toBe('true');
-	expect(describedBy(control)).toBe(en.common.permission.missing.createContract);
-
-	await fireEvent.click(control!);
-
-	expect(shell.openFile).not.toHaveBeenCalled();
-});
-
-test("on a read-only grant the workspace's import is refused for the grant", () => {
-	holdReadOnly();
-	render(WorkspaceTransfer, {}, providers);
-
-	const control = document.querySelector('[data-unavailable]');
-
-	expect(describedBy(control)).toBe(en.common.permission.readOnly);
-});
-
 test('both import dialogs refuse before a file is chosen, naming the create the reader lacks', async () => {
 	holdEveryFlagBut('createUnit');
 
@@ -167,7 +145,17 @@ test('both import dialogs refuse before a file is chosen, naming the create the 
 
 	await directory.component.choose();
 
-	const workspace = render(WorkspaceImportDialog, { onConfirm: async () => {} }, providers);
+	// the workspace's dialog is handed the refusal by whoever opens it, read off the reader's
+	// standing in the workspace it reads into: here the one open.
+	const workspace = render(
+		WorkspaceImportDialog,
+		{
+			workspace: { id: 'north', name: 'north' },
+			refusal: memberPermissions.refusalOfEvery(IMPORT_FLAGS, i18nObject('en')),
+			onConfirm: async () => {}
+		},
+		providers
+	);
 
 	await workspace.component.choose();
 

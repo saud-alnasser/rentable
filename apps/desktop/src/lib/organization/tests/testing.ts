@@ -33,6 +33,8 @@ export function fakeOrganizationHost(): OrganizationHost {
 		signIn: refuse('organization.signIn'),
 		signOut: refuse('organization.signOut'),
 		sessionEndElsewhere: refuse('organization.sessionEndElsewhere'),
+		machines: refuse('organization.machines'),
+		endMachine: refuse('organization.endMachine'),
 		linkTake: refuse('organization.linkTake'),
 		onLink: refuse('organization.onLink'),
 		onMigration: refuse('organization.onMigration'),
@@ -53,7 +55,9 @@ export function fakeOrganizationHost(): OrganizationHost {
 			grant: refuse('organization.workspace.grant'),
 			withdraw: refuse('organization.workspace.withdraw'),
 			remove: refuse('organization.workspace.remove'),
-			renewCredentials: refuse('organization.workspace.renewCredentials')
+			renewCredentials: refuse('organization.workspace.renewCredentials'),
+			query: refuse('organization.workspace.query'),
+			batch: refuse('organization.workspace.batch')
 		},
 		member: {
 			list: refuse('organization.member.list'),

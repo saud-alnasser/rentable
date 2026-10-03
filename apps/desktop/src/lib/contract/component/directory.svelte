@@ -13,7 +13,7 @@
 		toRankArrivalSelection
 	} from '$lib/contract/rank/filter';
 	import { useListContracts } from '$lib/contract/query';
-	import { toChosenLabel, type FilterSelection } from '$lib/list';
+	import { RECORD_TILE_MIN_WIDTH, toChosenLabel, type FilterSelection } from '$lib/list';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { toNarrowedName } from '@rentable/design/csv.js';
 	import { DirectoryImportDialog } from '$lib/transfer/ui';
@@ -23,14 +23,10 @@
 	import { TENANT_KIND } from '$lib/tenant';
 	import { IMPORT_FLAGS, memberPermissions } from '$lib/permission';
 	import { contractHost } from '$lib/contract/host.svelte';
-	import ContractRecord from './record.svelte';
+	import ContractRecord, { CONTRACT_TILE_HEIGHT } from './record.svelte';
 	import ContractSelectionActions from './selection-actions.svelte';
 
 	type ContractRow = Awaited<ReturnType<typeof api.contract.getMany>>[number];
-
-	// two lines of text and the breathing room around them; the shell lays rows out at this
-	// height rather than measuring them.
-	const ROW_HEIGHT = 64;
 
 	let search = $state('');
 	let sort = $state<ListSort | null>(null);
@@ -107,7 +103,8 @@
 			{selectionActions}
 			isLoading={contractsQuery.isLoading}
 			isFetching={contractsQuery.isFetching}
-			recordHeight={ROW_HEIGHT}
+			recordHeight={CONTRACT_TILE_HEIGHT}
+			recordMinWidth={RECORD_TILE_MIN_WIDTH}
 			exportAs={{
 				name: toNarrowedName($LL.common.nav.contracts(), [
 					search,

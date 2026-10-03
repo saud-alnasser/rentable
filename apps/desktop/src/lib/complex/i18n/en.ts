@@ -5,12 +5,20 @@
 import type { BaseTranslation } from '../../i18n/i18n-types';
 
 export const complexes = {
+	// a count on a complex's tile, under the field's own name (the units, occupied and vacant terms'
+	// own keys), so the figure stands alone; a count of zero is said in words, never as a figure.
+	card: {
+		count: '{count|number}',
+		none: 'none'
+	},
+
 	// what the delete dialog says of a complex: the units that go with it, or that a contract
 	// holding one stands in the way. Every contract that ever mentioned a unit counts, as it does
 	// for the unit's own delete.
 	deleteDialog: {
 		blockedUnitsUnderContract: 'a contract mentions one or more of its units',
-		unitsGoWithIt: 'its {count|number} {{unit|units}} will be deleted with it.'
+		unitsGoWithIt:
+			'its {count|number} {{unit|units}} will be deleted with it. you can undo this while the app is open.'
 	},
 
 	empty: {

@@ -548,13 +548,17 @@ const ORGANIZATION_GLYPHS = [
 	'arrow-down',
 	'arrow-up',
 	'crown',
+	'file-down',
+	'file-up',
 	'laptop',
 	'link',
 	'lock',
 	'refresh-cw',
+	'sliders-horizontal',
 	'square-pen',
 	'trash-2',
 	'user-minus',
+	'user-round',
 	'users'
 ];
 
@@ -600,6 +604,8 @@ function recordingOrganizationHost() {
 		workspace: {
 			edit: onWorkspace('edit'),
 			changeAccess: onWorkspace('changeAccess'),
+			exportFile: onWorkspace('exportFile'),
+			importFile: onWorkspace('importFile'),
 			confirmDelete: onWorkspace('confirmDelete')
 		}
 	};
@@ -796,6 +802,38 @@ test('a member act waiting on the shell is shown and refused until it lands', ()
 	assert.equal(entry('member.edit')?.unavailable, undefined);
 });
 
+// effort 846, requirement 14: where nobody can take the organization yet, the handover is shown on
+// the owner's own card refused with that reason rather than missing, on every surface alike, and a
+// host asked for it by id does not run it.
+test('the handover with nobody to take it is shown refused, saying nobody has set a password', () => {
+	const host = recordingOrganizationHost();
+	const acts = declareMemberActs(host.member);
+	const record = {
+		member: memberOf('olivia', 'owner'),
+		context: { ...MEMBER_READERS.owner, offerable: [] }
+	};
+	const reason = translations.organization.dashboard.nobodyOfferable();
+
+	const card = toCardActions(acts, record, translations);
+	const page = toPageActions(acts, record, translations);
+
+	assert.deepEqual(
+		card.map((action) => action.attributes?.['data-act']),
+		['member.offerOwnership']
+	);
+	assert.equal(card[0]?.unavailable, reason);
+	assert.equal(page[0]?.unavailable, reason);
+	assert.equal(toPaletteVerbs(acts, record, translations, false)[0]?.unavailable, reason);
+	assert.match(reason, /nobody has set a password yet/);
+
+	// and with somebody to take it, the same act is offered and asks the host.
+	const offerable = { ...record, context: MEMBER_READERS.owner };
+
+	assert.equal(toPageActions(acts, offerable, translations)[0]?.unavailable, undefined);
+	toPageActions(acts, offerable, translations)[0]?.run();
+	assert.deepEqual(host.asked, ['offerOwnership:olivia']);
+});
+
 const workspaceOf = (id: string): OrganizationWorkspace => ({
 	id,
 	name: id,
@@ -808,26 +846,55 @@ const workspaceOf = (id: string): OrganizationWorkspace => ({
 	permissions: 0
 });
 
+/** a reader holding every flag in every workspace, at full access. */
+const holdingEverything = () => ({
+	permissions: maskOf(...EVERY_FLAG),
+	accessLevel: 'full-access' as const
+});
+
+/** a reader holding no flag in any workspace, at full access. */
+const holdingNothing = () => ({ permissions: 0, accessLevel: 'full-access' as const });
+
 /** the readers a workspace's card is read by; ws-1 is the one open on this machine. */
 const WORKSPACE_READERS: Record<string, WorkspaceActContext> = {
-	owner: { openWorkspaceId: 'ws-1', canRename: true, canGrantWorkspace: true, canDelete: true },
+	owner: {
+		openWorkspaceId: 'ws-1',
+		canRename: true,
+		canGrantWorkspace: true,
+		canDelete: true,
+		standingOf: holdingEverything
+	},
 	manager: {
 		openWorkspaceId: 'ws-1',
 		canRename: true,
 		canGrantWorkspace: true,
-		canDelete: false
+		canDelete: false,
+		standingOf: holdingEverything
 	},
 	'member widened by renameWorkspace': {
 		openWorkspaceId: 'ws-1',
 		canRename: true,
 		canGrantWorkspace: false,
-		canDelete: false
+		canDelete: false,
+		standingOf: holdingNothing
 	},
 	'member holding nothing': {
 		openWorkspaceId: 'ws-1',
 		canRename: false,
 		canGrantWorkspace: false,
-		canDelete: false
+		canDelete: false,
+		standingOf: holdingNothing
+	},
+	// effort 846, requirement 15: every flag, but a read-only grant on ws-2, the card not open.
+	'member reading ws-2 only': {
+		openWorkspaceId: 'ws-1',
+		canRename: false,
+		canGrantWorkspace: false,
+		canDelete: false,
+		standingOf: (workspaceId) => ({
+			permissions: maskOf(...EVERY_FLAG),
+			accessLevel: workspaceId === 'ws-2' ? 'read-only' : 'full-access'
+		})
 	}
 };
 
@@ -866,21 +933,29 @@ test('a workspace is edited only where it is open, its people refused without th
 			translations
 		).map((act) => act.id);
 
+	// a workspace's file is on every card, open here or not (effort 846, requirement 15).
+	const FILE = ['workspace.export', 'workspace.import'];
+
 	assert.deepEqual(idsFor('ws-1', 'owner'), [
 		'workspace.edit',
 		'workspace.members',
+		...FILE,
 		'workspace.delete'
 	]);
-	assert.deepEqual(idsFor('ws-2', 'owner'), ['workspace.members', 'workspace.delete']);
-	assert.deepEqual(idsFor('ws-1', 'manager'), ['workspace.edit', 'workspace.members']);
+	assert.deepEqual(idsFor('ws-2', 'owner'), ['workspace.members', ...FILE, 'workspace.delete']);
+	assert.deepEqual(idsFor('ws-1', 'manager'), ['workspace.edit', 'workspace.members', ...FILE]);
 	// who is in a workspace is offered to every reader and refused without `grantWorkspace`,
 	// naming it, as the member's card refuses its workspaces section (ticket 50 of effort 838).
 	assert.deepEqual(idsFor('ws-1', 'member widened by renameWorkspace'), [
 		'workspace.edit',
-		'workspace.members'
+		'workspace.members',
+		...FILE
 	]);
-	assert.deepEqual(idsFor('ws-2', 'member widened by renameWorkspace'), ['workspace.members']);
-	assert.deepEqual(idsFor('ws-1', 'member holding nothing'), ['workspace.members']);
+	assert.deepEqual(idsFor('ws-2', 'member widened by renameWorkspace'), [
+		'workspace.members',
+		...FILE
+	]);
+	assert.deepEqual(idsFor('ws-1', 'member holding nothing'), ['workspace.members', ...FILE]);
 
 	const membersRefusal = (reader: string) =>
 		toPageActions(
@@ -898,6 +973,42 @@ test('a workspace is edited only where it is open, its people refused without th
 	const edit = acts.find((act) => act.id === 'workspace.edit')!;
 
 	assert.equal(edit.label(translations), translations.common.actions.edit());
+});
+
+// effort 846, requirement 15: a workspace's file is refused by the reader's standing in that
+// workspace, not in the one open, so a read-only grant on a card not open refuses its import while
+// the open card's is offered, and a reader holding no flag is refused both, naming the first.
+test("a workspace's export and import are refused by the reader's standing in that workspace", () => {
+	const acts = declareWorkspaceActs(recordingOrganizationHost().workspace);
+	const refusalOf = (id: string, context: WorkspaceActContext, act: string) =>
+		toPageActions(acts, { workspace: workspaceOf(id), context }, translations).find(
+			(offered) => offered.id === act
+		)?.unavailable;
+	const reading = WORKSPACE_READERS['member reading ws-2 only'];
+	const nothing = WORKSPACE_READERS['member holding nothing'];
+
+	assert.equal(refusalOf('ws-1', reading, 'workspace.export'), undefined);
+	assert.equal(refusalOf('ws-1', reading, 'workspace.import'), undefined);
+	assert.equal(refusalOf('ws-2', reading, 'workspace.export'), undefined);
+	assert.equal(
+		refusalOf('ws-2', reading, 'workspace.import'),
+		translations.common.permission.readOnly()
+	);
+
+	assert.equal(
+		refusalOf('ws-2', nothing, 'workspace.export'),
+		translations.common.permission.missing.viewComplex()
+	);
+	assert.equal(
+		refusalOf('ws-2', nothing, 'workspace.import'),
+		translations.common.permission.missing.createComplex()
+	);
+
+	// nothing is refused before the standing is known, as every record control reads it.
+	const unknown = { ...WORKSPACE_READERS.owner, standingOf: () => null };
+
+	assert.equal(refusalOf('ws-2', unknown, 'workspace.export'), undefined);
+	assert.equal(refusalOf('ws-2', unknown, 'workspace.import'), undefined);
 });
 
 test('the destructive group comes last on a member and on a workspace', () => {
@@ -932,11 +1043,23 @@ test('every organization surface runs an act by asking the host, on the record i
 		.find((act) => act.id === 'workspace.delete')
 		?.run();
 
+	// a workspace's file, on a card that is not open, from the card and from the palette.
+	const other = { workspace: workspaceOf('ws-2'), context: WORKSPACE_READERS.owner };
+
+	toCardActions(workspaceActs, other, translations)
+		.find((action) => action.attributes?.['data-act'] === 'workspace.export')
+		?.onSelect();
+	toPaletteVerbs(workspaceActs, other, translations, false)
+		.find((act) => act.id === 'workspace.import')
+		?.run();
+
 	assert.deepEqual(host.asked, [
 		'confirm.lockOut:sami',
 		'edit:sami',
 		'changeAccess:ws-1',
-		'confirmDelete:ws-1'
+		'confirmDelete:ws-1',
+		'exportFile:ws-2',
+		'importFile:ws-2'
 	]);
 });
 

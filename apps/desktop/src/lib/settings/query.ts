@@ -24,20 +24,27 @@ export function useFetchSettings() {
 	}));
 }
 
+/**
+ * Set how many days before its end a contract ranks as ending soon, from the dashboard's
+ * ending-soon section (effort 846, requirement 6).
+ *
+ * **No success announcement**: the change is seen in place, the section filling or emptying under
+ * the control that made it. A refusal is said through the shared handler, and the control puts its
+ * field back.
+ */
 export const useSetEndingSoonNoticeDays = declareMutation({
 	mutate: ({ days }: { days: number }) => api.settings.set({ endingSoonNoticeDays: days }),
 	touches: 'none',
 	toast: {
-		success: () => get(LL).settingsHooks.endingSoonUpdated(),
 		error: true,
 		unexpected: () => get(LL).common.messages.unexpectedError()
 	},
 	sets: ({ result }) => [{ key: keys.settings, data: result }],
-	// a function, because what reads the figure is contributed, and its key is the cache policy's,
-	// read once it runs.
+	// a function, because what reads the figure is contributed, and its keys are the cache
+	// policy's, read once it runs.
 	invalidates: () => [
 		{
-			together: [keys.settings, contributionsTo('settings').endingSoonReaders()]
+			together: [keys.settings, ...contributionsTo('settings').endingSoonReaders()]
 		}
 	]
 });

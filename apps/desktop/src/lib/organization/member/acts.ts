@@ -183,13 +183,16 @@ export type MemberHostRequests = {
 	edit: (record: MemberActRecord) => void;
 	/** open the handover, on the accounts it can go to. */
 	offerOwnership: (record: MemberActRecord) => void;
-	/** take the standing offer back. It asks nothing, because nothing is being unsealed. */
+	/** take the standing offer back, once the reader has answered the question the host asks. */
 	withdrawOffer: (record: MemberActRecord) => void;
 	/** make the one link that admits a machine to the member's row. */
 	makeLink: (record: MemberActRecord) => void;
-	/** unset the member's password, so the next link made for them asks for a new one. */
+	/**
+	 * unset the member's password, so the next link made for them asks for a new one, once the
+	 * reader has answered the question the host asks.
+	 */
 	unsetPassword: (record: MemberActRecord) => void;
-	/** sign the member out of every machine. */
+	/** sign the member out of every machine, once the reader has answered the host's question. */
 	endSessions: (record: MemberActRecord) => void;
 	/** ask before removing the member, at either speed. */
 	confirmRemoval: (record: MemberActRecord, lockOut: boolean) => void;
@@ -233,6 +236,10 @@ export function declareMemberActs(host: MemberHostRequests): MemberAct[] {
 			id: 'member.withdrawOffer',
 			label: (t) => t.organization.dashboard.withdrawOffer(),
 			icon: CrownIcon,
+			// it ends the offer, so it is drawn as ending something and asks first; offering again
+			// brings it back.
+			tone: 'error',
+			confirmation: 'reversible',
 			group: 'primary',
 			appliesTo: (record) => ownersOwn(record) && record.context.offerStands,
 			unavailable: (record, t) =>
@@ -240,14 +247,21 @@ export function declareMemberActs(host: MemberHostRequests): MemberAct[] {
 			run: host.withdrawOffer
 		},
 		{
+			// shown refused rather than missing where nobody can take it yet (effort 846, requirement
+			// 14): an owner looking for how to step away meets the act and the reason it waits, on
+			// their card and in the leaving group alike. Rust refuses an offer to an account with no
+			// password by name; this is the earlier refusal.
 			id: 'member.offerOwnership',
 			label: (t) => t.organization.dashboard.transferOwnership(),
 			icon: CrownIcon,
 			group: 'primary',
-			appliesTo: (record) =>
-				ownersOwn(record) && !record.context.offerStands && record.context.offerable.length > 0,
+			appliesTo: (record) => ownersOwn(record) && !record.context.offerStands,
 			unavailable: (record, t) =>
-				record.context.pending.offering ? t.common.actions.working() : undefined,
+				record.context.offerable.length === 0
+					? t.organization.dashboard.nobodyOfferable()
+					: record.context.pending.offering
+						? t.common.actions.working()
+						: undefined,
 			run: host.offerOwnership
 		},
 		{
@@ -296,6 +310,9 @@ export function declareMemberActs(host: MemberHostRequests): MemberAct[] {
 			id: 'member.unsetPassword',
 			label: (t) => t.organization.dashboard.unsetPassword(),
 			icon: RefreshCwIcon,
+			// it takes their password away, so it asks first; a link lets them choose another.
+			tone: 'error',
+			confirmation: 'reversible',
 			group: 'lifecycle',
 			appliesTo: (record) => record.context.canReset && writable(record),
 			// a reset builds the account again, its grant on the organization database included,
@@ -312,6 +329,9 @@ export function declareMemberActs(host: MemberHostRequests): MemberAct[] {
 			id: 'member.endSessions',
 			label: (t) => t.organization.dashboard.endSessions(),
 			icon: LaptopIcon,
+			// it signs them out, so it asks first; signing in again brings them back.
+			tone: 'error',
+			confirmation: 'reversible',
 			group: 'lifecycle',
 			appliesTo: (record) => record.context.canReset && writable(record),
 			unavailable: (record, t) =>

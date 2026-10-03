@@ -1,9 +1,17 @@
 import { FAMILIES, permits, type Flag } from '@rentable/workspace-permission';
 import { TRPCError, initTRPC } from '@trpc/server';
-import { ZodError, type z } from 'zod';
+import { ZodError, z } from 'zod';
 import { contributions } from './contribution';
-import { context, type Identity } from './context';
-import { readRefusal } from './refusal';
+import {
+	context,
+	openWorkspace,
+	permissionsIn,
+	sessionOf,
+	type Context,
+	type Database,
+	type Identity
+} from './context';
+import { readRefusal, refuse } from './refusal';
 
 /**
  * CONTEXT
@@ -81,6 +89,11 @@ export type Meta = {
 	member?: true;
 	/** a call with nobody to name: `procedure.public`'s. */
 	public?: true;
+	/**
+	 * the workspace the call is about is read off its input, and the flags are asked there:
+	 * `procedure.permittedIn`'s, beside `flags` where it names any and `member` where it names none.
+	 */
+	workspace?: true;
 };
 
 /**
@@ -255,10 +268,18 @@ export const middleware = {
 
 			return next({ ctx: { identity } });
 		}),
-	scheduleWorkspaceSync: t.middleware(async ({ next }) => {
+	/**
+	 * asks sync to push the open workspace once a write has landed.
+	 *
+	 * **Not for a workspace that is not open** (effort 846, requirement 15): a write that went to
+	 * Turso directly is already where a push would carry it, and the open workspace's replica holds
+	 * nothing new. `procedure.permittedIn` says which it reached, and a procedure declared any other
+	 * way writes the open one.
+	 */
+	scheduleWorkspaceSync: t.middleware(async ({ ctx, next }) => {
 		const result = await next();
 
-		if (result.ok) {
+		if (result.ok && !('opened' in ctx && ctx.opened === false)) {
 			requestSync();
 		}
 
@@ -269,13 +290,58 @@ export const middleware = {
 export const autosync = () => middleware.scheduleWorkspaceSync;
 
 /**
+ * What a call naming a workspace may say: which one, or nothing for the one open.
+ *
+ * **Optional whole, and optional within**, so a call that names nothing reads exactly as it did
+ * before a workspace could be named: `transfer.get()` is the open workspace's.
+ */
+const NamingAWorkspace = z.object({ workspaceId: z.string().min(1).optional() }).optional();
+
+/** What a call naming a workspace runs against, and whether that is the one this machine has open. */
+type Reached = { opened: true } | { opened: false; db: Database; identity: Identity };
+
+/**
+ * the workspace a call names, reached: the open one as the context already holds it, and any
+ * other on Turso, with what the member may do there.
+ *
+ * **Absent or the open one changes nothing**, so the open workspace keeps its replica, offline
+ * included, and its permissions as the context folded them. **Any other is the session's to
+ * answer**: refused with the shell's own code where the member holds no grant on it, since the
+ * shell refuses the same request for the same reason ([[rules/api-layer]], under *Errors*), and
+ * otherwise its database over Turso and the member's permissions folded for it, its pins and its
+ * grant's access, as the context folds them for the open one (`permissionsIn`).
+ */
+async function reach(
+	ctx: Context,
+	identity: Identity,
+	workspaceId: string | undefined
+): Promise<Reached> {
+	if (workspaceId === undefined || workspaceId === (await openWorkspace(ctx.host))) {
+		return { opened: true };
+	}
+
+	const session = await sessionOf(ctx.host);
+
+	if (!session?.workspaces.some((workspace) => workspace.id === workspaceId)) {
+		throw refuse('host.noGrant');
+	}
+
+	return {
+		opened: false,
+		db: ctx.databaseOf(workspaceId),
+		identity: { ...identity, permissions: permissionsIn(session, workspaceId) }
+	};
+}
+
+/**
  * PROCEDURES
  *
- * **Five ways to declare a procedure, and the difference is who may call it.** `permitted`,
- * `permittedAny` and `permittedBy` name the flags a call needs; `member` needs only somebody
- * signed in; `public` needs nobody. The three that name a flag compose onto `member` rather than
- * replacing it, so a permitted procedure is a member procedure that asks one question more, and
- * everything `requireIdentity` narrows downstream survives.
+ * **Six ways to declare a procedure, and the difference is who may call it.** `permitted`,
+ * `permittedAny` and `permittedBy` name the flags a call needs; `permittedIn` names them too, asked
+ * in the workspace the call's input names; `member` needs only somebody signed in; `public` needs
+ * nobody. The ones that name a flag compose onto `member` rather than replacing it, so a permitted
+ * procedure is a member procedure that asks one question more, and everything `requireIdentity`
+ * narrows downstream survives.
  *
  * **A flag where there is one, and `member` only where there is none**: a member's own act, a read
  * open to every member whose answer leaves out what they may not view, and an act whose check is
@@ -399,5 +465,49 @@ export const procedure = {
 				refuseMissing(ctx.identity, flagsOf(input as z.output<Schema>));
 
 				return next();
+			}),
+	/**
+	 * permittedIn
+	 *
+	 * a call about one workspace the member holds a grant on, named by its input as
+	 * `{ workspaceId }`, refused where the member may not do the named acts **in that workspace**
+	 * (effort 846, requirement 15).
+	 *
+	 * **Nothing named is the workspace open**, and the call is then exactly `permitted`'s, so a
+	 * caller that names nothing is unchanged. A workspace that is not open is reached on Turso
+	 * (`Context.databaseOf`) and never opened here: the window keeps the workspace it has, and no
+	 * replica is made for the other. The flags asked are the member's there, its pins and its
+	 * grant's access, never the open workspace's, and a member with no grant on it is refused.
+	 *
+	 * **The workspace is read before the permission**, as `permittedBy` reads its input, because
+	 * which permissions to ask is read off it; only `{ workspaceId }` is, so the procedure's own
+	 * input is still parsed after the gate, and a call refused for its flags is refused whatever
+	 * else it carried. The procedure's own input, an object, is merged beside it.
+	 *
+	 * **Naming no acts is a member's read of that workspace**, recorded as `member`: the gate is
+	 * then holding a grant on it. `transfer.held` is one, open to every member and answering with
+	 * nothing of a kind they may not view there.
+	 *
+	 * The context it hands on says whether the workspace is the open one (`opened`), which the
+	 * autosync middleware reads so a write to Turso asks no push of the open replica.
+	 *
+	 * middlewares: [log, contribute, requireIdentity, { workspaceId }, requirePermission(...acts) there]
+	 */
+	permittedIn: (...acts: readonly [] | Flags) =>
+		t.procedure
+			.meta(
+				acts.length > 0 ? { flags: [...acts], workspace: true } : { member: true, workspace: true }
+			)
+			.use(middleware.log)
+			.use(middleware.contribute)
+			.use(middleware.requireIdentity)
+			.input(NamingAWorkspace)
+			.use(async ({ ctx, input, next }) => {
+				const reached = await reach(ctx, ctx.identity, input?.workspaceId);
+				const identity = reached.opened ? ctx.identity : reached.identity;
+
+				refuseMissing(identity, acts);
+
+				return next({ ctx: reached.opened ? { opened: true as const } : reached });
 			})
 };

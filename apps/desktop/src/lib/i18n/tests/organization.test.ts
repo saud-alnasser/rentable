@@ -74,6 +74,35 @@ test('both locales say the token is not revoked and name where it is', () => {
 	}
 });
 
+// effort 846, requirement 2: a confirmation names what ends and whether anything brings it back.
+// Forgetting the Turso account is undone by connecting it again, and signing out every other
+// machine by each one signing in with the password; each locale says so in its own words.
+test('both locales say what brings back the forgotten account and the signed-out machines', () => {
+	const said = [
+		[
+			'english',
+			en,
+			'connecting the Turso account again brings it back',
+			'your password signs each one in again'
+		],
+		['arabic', ar, 'ربط حساب Turso من جديد يعيده', 'وتعيدك كلمة مرورك إلى كل منها']
+	] as const;
+
+	for (const [name, translation, account, machines] of said) {
+		const forget = translation.organization.dashboard.forgetAccountRevokes;
+		const signOut = translation.settings.you.sessions.confirmDescription;
+
+		assert.ok(
+			forget.includes(account),
+			`${name} does not say what brings the account back: ${forget}`
+		);
+		assert.ok(
+			signOut.includes(machines),
+			`${name} does not say how the machines sign in again: ${signOut}`
+		);
+	}
+});
+
 test('neither locale tells somebody that forgetting revoked anything', () => {
 	// each locale's own word for revoking, so the claim is checked against a reader of that
 	// language rather than against a reader of english twice.
@@ -90,36 +119,33 @@ test('neither locale tells somebody that forgetting revoked anything', () => {
 	}
 });
 
-// effort 828, requirement 19: a card carries one line of standing, and the three lines are two
-// facts about the account read as sentences. They gate nothing. What is read here is that both
-// locales carry all three in their own words and tell them apart; the card itself is rendered in
-// `organization/member/tests/directory.svelte.test.ts`. *Both locales marked a pending member and dated
-// their link until the cards replaced the rows; the standing says the same thing about the
-// account rather than about an invitation.*
-test('both locales say where an account stands, in three lines that differ', () => {
+// effort 828, requirement 19, as ticket 32 of effort 846 draws it: a member's tile says where the
+// account stands as two facts, its password and its machine, each either way. They gate nothing.
+// What is read here is that both locales carry all four in their own words and tell them apart;
+// the card itself is rendered in `organization/member/tests/card.svelte.test.ts`. *Both locales
+// marked a pending member and dated their link until the cards replaced the rows, and said the
+// standing as one of three sentences until the tiles.*
+test('both locales say where an account stands, in four facts that differ', () => {
 	const lines = [
-		['english', en.organization.dashboard],
-		['arabic', ar.organization.dashboard]
+		['english', en.organization.dashboard.memberCard],
+		['arabic', ar.organization.dashboard.memberCard]
 	] as const;
 
-	for (const [name, dashboard] of lines) {
-		const said = [
-			dashboard.standingNoPassword,
-			dashboard.standingNoMachine,
-			dashboard.standingSignedIn
-		];
+	for (const [name, card] of lines) {
+		const said = [card.passwordSet, card.noPassword, card.signedIn, card.noMachine];
 
-		assert.equal(new Set(said).size, 3, `${name} says two standings with one sentence`);
+		assert.equal(new Set(said).size, 4, `${name} says two standings with one sentence`);
 
 		for (const line of said) {
 			assert.ok(line.length > 0, `${name} leaves a standing unsaid`);
 		}
 	}
 
-	assert.match(en.organization.dashboard.standingNoPassword, /^no password yet$/);
+	// said under the field's own name, *password* (effort 846, ticket 37).
+	assert.match(en.organization.dashboard.memberCard.noPassword, /^not yet$/);
 	assert.notEqual(
-		ar.organization.dashboard.standingSignedIn,
-		en.organization.dashboard.standingSignedIn
+		ar.organization.dashboard.memberCard.signedIn,
+		en.organization.dashboard.memberCard.signedIn
 	);
 	// the link a handover dates is still dated, in both locales: it is the one place the sentence
 	// is read now.
@@ -207,6 +233,10 @@ const RETIRED = [
 	'organization.dashboard.resetPassword',
 	'organization.dashboard.standingOpen',
 	'organization.dashboard.standingConsumed',
+	// the block beneath the workspace cards, until a workspace's file moved onto its card (effort
+	// 846, requirement 15)
+	'organization.dashboard.transferTitle',
+	'workspace.transferDescription',
 	// the workspace page's identity and members blocks
 	'workspace.groupIdentity',
 	'workspace.groupMembers',

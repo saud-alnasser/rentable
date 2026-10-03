@@ -177,6 +177,81 @@ test('each record procedure names the flag the plan maps it to', () => {
 });
 
 /**
+ * The procedures that take the workspace they are about, `procedure.permittedIn`'s (effort 846,
+ * requirement 15): the three of the transfer, the export and the import asking their flags and
+ * what the workspace holds open to every member there.
+ */
+const IN_A_WORKSPACE = ['transfer.get', 'transfer.held', 'transfer.importWhole'];
+
+test('the procedures that take a workspace say so, and each says who may call it', () => {
+	const declared = procedures.filter(({ meta }) => meta.workspace).map(({ path }) => path);
+
+	assert.deepEqual(declared.sort(), IN_A_WORKSPACE);
+
+	for (const { path, meta } of procedures.filter(({ meta }) => meta.workspace)) {
+		assert.ok(namesAFlag(meta) || meta.member, `${path} names nobody who may call it`);
+		assert.ok(!(namesAFlag(meta) && meta.member), `${path} is both member and permitted`);
+	}
+});
+
+/**
+ * A manager with one record flag pinned off in south alone, while north is open: what a procedure
+ * that takes a workspace asks is asked in the one it names.
+ */
+async function pinnedOffInSouth(flag: Flag) {
+	const session = fakeOrganizationSession({
+		role: 'manager',
+		roleId: BUILT_IN.manager.id,
+		rank: BUILT_IN.manager.rank,
+		permissions: maskOf(...RECORD_FLAGS),
+		workspaces: [
+			fakeOrganizationWorkspace({ id: 'north' }),
+			fakeOrganizationWorkspace({ id: 'south', pinned: maskOf(flag), granted: 0 })
+		]
+	});
+	const state = fakeOrganizationState({ session });
+	const south = createMemoryDatabase();
+
+	return caller(appRouter)(
+		await context({
+			db: createMemoryDatabase(),
+			databaseOf: () => south,
+			clock: { now: () => NOW },
+			host: fakeHost({
+				organization: { ...fakeHost().organization, getState: async () => state },
+				sync: {
+					...fakeHost().sync,
+					getState: async () => fakeSyncState({ workspace: fakeWorkspace({ remoteId: 'north' }) })
+				}
+			})
+		})
+	);
+}
+
+test('a flag a procedure asks in the workspace it names is refused by name there alone', async () => {
+	const named = procedures.filter(({ meta }) => meta.workspace && (meta.flags?.length ?? 0) > 0);
+
+	assert.ok(named.length > 0, 'no procedure that takes a workspace names a flag');
+
+	for (const { path, meta } of named) {
+		for (const flag of meta.flags ?? []) {
+			const api = await pinnedOffInSouth(flag);
+			const there = await refusalFrom(callAt(api, path, { workspaceId: 'south' }));
+			const open = await refusalFrom(callAt(api, path));
+
+			assert.equal(there?.code, 'FORBIDDEN', `${path} without ${flag} in south`);
+			assert.ok(
+				there?.message?.endsWith(`${flag} in this workspace`),
+				`${path} refused without naming ${flag}: ${there?.message}`
+			);
+			// the open workspace pins nothing, so the call passes the gate there: whatever it says
+			// next, it is not refused for the flag.
+			assert.notEqual(open?.code, 'FORBIDDEN', `${path} refused in the open workspace`);
+		}
+	}
+});
+
+/**
  * EACH RECORD FLAG IS REFUSED BY NAME
  *
  * Effort 838, criterion 10: for each record flag, a member holding every record act but that one

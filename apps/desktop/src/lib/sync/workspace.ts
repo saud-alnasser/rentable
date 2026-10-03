@@ -6,6 +6,7 @@ import api from '$lib/api/caller';
 import { invalidateRoot } from '$lib/mutation';
 import type { RemoteSyncState, ReplicationRefusal, SessionStanding } from '$lib/sync/host';
 import { tauri } from '$lib/sync/tauri';
+import { countRun } from '$lib/sync/activity.svelte';
 
 /**
  * what a dispatch did, or declined to do.
@@ -97,21 +98,28 @@ export async function announceReceivedRows(client: QueryClient): Promise<number>
  *
  * **Nothing is snapshotted and nothing is cleared on either side.** A push that could not reach
  * the remote leaves the write captured for the next one.
+ *
+ * **Every run is counted while it is out** (`./activity.svelte.ts`), which is what the sync
+ * group's *syncing* reads (effort 846, requirement 12): the control and the sync manager both come
+ * through here, so counting here misses neither.
  */
-export async function syncWorkspaceNow(
+export function syncWorkspaceNow(
 	providedState?: RemoteSyncState | null
 ): Promise<WorkspaceSyncResult> {
-	const state = providedState ?? (await tauri.getState());
-	const replication = await tauri.replicate().catch(() => ({
-		pushed: false,
-		received: false,
-		refusal: 'none' as const,
-		// a call that did not answer says nothing about the session, and the held answer is the
-		// one that changes nothing: the wall goes up on what Rust read, never on a failed read.
-		standing: 'held' as const
-	}));
+	return countRun(async () => {
+		const state = providedState ?? (await tauri.getState());
+		const replication = await tauri.replicate().catch(() => ({
+			pushed: false,
+			received: false,
+			refusal: 'none' as const,
+			// a call that did not answer says nothing about the session, and the held answer is
+			// the one that changes nothing: the wall goes up on what Rust read, never on a failed
+			// read.
+			standing: 'held' as const
+		}));
 
-	return { state, action: 'none', ...replication };
+		return { state, action: 'none' as const, ...replication };
+	});
 }
 
 /**

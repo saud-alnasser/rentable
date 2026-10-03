@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { toTitleCase } from '@rentable/design/title-case.js';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
 	import * as Dialog from '@rentable/design/primitive/dialog/index.js';
+	import { isolateDirection } from '$lib/error/message';
 	import { showErrorSentence, showErrorToast } from '$lib/notification';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { tauri } from '$lib/platform/tauri';
@@ -25,7 +25,6 @@
 	import FileSpreadsheetIcon from '@lucide/svelte/icons/file-spreadsheet';
 	import UnlinkIcon from '@lucide/svelte/icons/unlink';
 	import api from '$lib/api/caller';
-	import { IMPORT_FLAGS, memberPermissions } from '$lib/permission';
 
 	/**
 	 * Reading a whole workspace out of one file: choose it, see what each sheet would do, agree.
@@ -40,14 +39,28 @@
 	 * file: the row it named is what another row exists for, and writing the half that resolved
 	 * would build a workspace the file never described. In a file of one concept nothing can
 	 * depend on the dropped row, so the row is turned away and the rest still goes in.
+	 *
+	 * **It reads into the workspace it is handed, named in its title** (effort 846, requirement
+	 * 15): any workspace the reader holds, open on this machine or not. What is already held is
+	 * read from that workspace, and the confirm hands its id back with the file, so the write lands
+	 * where the plan was made and nowhere else.
 	 */
 	let {
 		open = $bindable(false),
+		workspace,
+		refusal,
 		onConfirm
 	}: {
 		open?: boolean;
-		/** write the workspace the reader agreed to. */
-		onConfirm: (transfer: WorkspaceTransfer) => Promise<void>;
+		/** the workspace the file is read into, by the id the organization knows it under. */
+		workspace: { id: string; name: string } | null;
+		/**
+		 * why the reader may not import into that workspace, by their standing there, or nothing
+		 * where they may.
+		 */
+		refusal: string | undefined;
+		/** write the workspace the reader agreed to, into the workspace named by its id. */
+		onConfirm: (transfer: WorkspaceTransfer, workspaceId: string) => Promise<void>;
 	} = $props();
 
 	let isReading = $state(false);
@@ -144,17 +157,20 @@
 	/**
 	 * Whether the reader may not import, telling them why where they may not.
 	 *
-	 * The procedure asks for every kind's create, whatever the file holds, so this asks the same
-	 * before anything is read: a reader who may not import is told so, and nothing is read.
+	 * The procedure asks for every kind's create in the workspace named, whatever the file holds,
+	 * so this asks the same before anything is read: a reader who may not import is told so, and
+	 * nothing is read. With no workspace to read into there is nothing to ask.
 	 */
 	function refuse() {
-		const refused = memberPermissions.refusalOfEvery(IMPORT_FLAGS, $LL);
-
-		if (refused) {
-			showErrorSentence(refused);
+		if (!workspace) {
+			return true;
 		}
 
-		return Boolean(refused);
+		if (refusal) {
+			showErrorSentence(refusal);
+		}
+
+		return Boolean(refusal);
 	}
 
 	/**
@@ -166,7 +182,7 @@
 		// what the workspace already holds, read once for the whole file: a row that duplicates
 		// a record is turned away here rather than at the write, and a reference may resolve
 		// against a record that is already here as readily as against one the file creates.
-		const held = await api.transfer.held();
+		const held = await api.transfer.held({ workspaceId: workspace?.id });
 
 		fileName = path.split(/[\\/]/).pop() ?? path;
 		plan = planWorkspaceImport(tables, Date.now(), held);
@@ -227,14 +243,14 @@
 	}
 
 	async function confirm() {
-		if (!plan || !canConfirm) {
+		if (!plan || !canConfirm || !workspace) {
 			return;
 		}
 
 		isWriting = true;
 
 		try {
-			await onConfirm(plan.transfer);
+			await onConfirm(plan.transfer, workspace.id);
 			open = false;
 			plan = null;
 		} catch (failure) {
@@ -250,7 +266,12 @@
 <Dialog.Root bind:open>
 	<Dialog.Content class="w-full max-w-md">
 		<Dialog.Header>
-			<Dialog.Title>{toTitleCase($LL.settings.transferImportTitle())}</Dialog.Title>
+			<!-- the workspace's name is the person's own, so it is not set in title case: the title
+			     raises its first letter alone, and the name reads as written, isolated so a name in
+			     one script keeps its order inside a sentence in the other. -->
+			<Dialog.Title class="first-letter:uppercase" data-import-workspace={workspace?.id}>
+				{$LL.settings.transferImportTitle({ workspace: isolateDirection(workspace?.name ?? '') })}
+			</Dialog.Title>
 			<Dialog.Description class="flex items-center gap-2">
 				<FileSpreadsheetIcon class="size-3.5 shrink-0" />
 				<span class="min-w-0 truncate">{fileName}</span>

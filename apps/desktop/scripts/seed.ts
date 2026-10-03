@@ -1,18 +1,20 @@
 import { faker } from '@faker-js/faker';
 import { eq } from 'drizzle-orm';
 import Randexp from 'randexp';
+import { deriveContractStatus } from '../src/lib/contract/contract';
 import {
-	deriveContractStatus,
-	deriveUnitStatus,
 	getContractCycleStartDate,
 	getContractEndDateForCycles,
 	getExpectedAmountBy,
 	getIntervalMonths
-} from '../src/lib/contract/contract';
+} from '../src/lib/contract/schedule/cycle';
+import { deriveUnitStatus } from '../src/lib/contract/assignment/assignment';
 import { newId } from '../src/lib/platform/database/identity';
 import * as s from '../src/lib/platform/database/schema';
 import { identity, phone } from '../src/lib/tenant/tenant';
-import { openWorkspaceDatabase, write } from './database';
+import { openWorkspaceDatabase, wantedWorkspace, write } from './database';
+import { debugPort } from './debug-port.mjs';
+import { connectOverDebugPort, runOrganizationSeed } from './organization';
 
 const counts = {
 	tenants: 5000,
@@ -388,11 +390,39 @@ const seed = async () => {
 	return target;
 };
 
-seed()
-	.then((target) =>
-		console.log(`seeded ${target.path} with tenants, complexes, units, contracts, and payments`)
-	)
-	.catch((error) => {
-		console.error(error);
-		process.exit(1);
-	});
+/**
+ * **Two halves, the records and the organization, and a flag picks one.** `--records-only` writes
+ * the workspace's records and leaves the organization alone; `--organization-only` the other way
+ * round. The organization half goes through the running app (`./organization` says why) and never
+ * fails the records half: an app that is closed or signed out is said in one sentence.
+ */
+const recordsOnly = process.argv.includes('--records-only');
+const organizationOnly = process.argv.includes('--organization-only');
+
+const main = async () => {
+	if (recordsOnly && organizationOnly) {
+		throw new Error('--records-only and --organization-only together seed nothing; pick one');
+	}
+
+	if (!organizationOnly) {
+		const target = await seed();
+
+		console.log(`seeded ${target.path} with tenants, complexes, units, contracts, and payments`);
+	}
+
+	if (!recordsOnly) {
+		const outcome = await runOrganizationSeed(connectOverDebugPort(debugPort()), {
+			workspaceId: wantedWorkspace()
+		});
+
+		// asked for the organization alone and nothing reached it: that run did nothing
+		if (organizationOnly && outcome.status === 'skipped') {
+			process.exitCode = 1;
+		}
+	}
+};
+
+main().catch((error) => {
+	console.error(error);
+	process.exit(1);
+});

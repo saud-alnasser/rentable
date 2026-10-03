@@ -168,9 +168,31 @@ pub(super) async fn machine_registered(app_state: &Shared) -> Result<(), Error> 
             identified
         }
     };
+    // the member before the replica, the order every act takes them in.
+    let mut member = app_state.member.write().await;
     let organization = app_state.organization.read().await;
 
     if let Some(store) = organization.as_ref() {
+        // a session the resume opened over the record before it had an id is open on the machine
+        // the id now names, under the number this machine's sign-outs stand at for its member, so
+        // a sign-out of it alone refuses its next act rather than waiting on the heartbeat (effort
+        // 846, ticket 30).
+        if let Some(signed_in) = member.as_mut()
+            && signed_in.machine_id.is_empty()
+        {
+            signed_in.machine_signed_out =
+                session::sign_outs_acknowledged(store, &held.machine_id, &signed_in.member_id)
+                    .await?;
+            signed_in.machine_id = held.machine_id.clone();
+        }
+
+        // a machine that came back signed in names itself, which is how a machine that signed in
+        // before this build gains a name without anybody typing a password (effort 846,
+        // requirement 11). The registry's push below carries it.
+        if let Some(signed_in) = member.as_ref() {
+            session::machine_named(store, &held, &signed_in.content_key, store.clock().now()).await;
+        }
+
         session::machine_seen(store, &held, held.member_id.as_deref(), store.clock().now()).await;
     }
 
@@ -414,6 +436,7 @@ mod tests {
             settings,
             remote_sync: Arc::new(RwLock::new(remote_sync)),
             upgrade: Arc::new(crate::upgrade::Upgrader),
+            credentials: Arc::new(crate::credential::Memory::new()),
             consent: Arc::new(TursoConsent::new()),
             organization: Arc::new(RwLock::new(None)),
             member: Arc::new(RwLock::new(None)),

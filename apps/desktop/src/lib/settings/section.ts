@@ -200,8 +200,9 @@ export function isSettingsSection(value: string): value is SettingsSection {
  * **A section with nothing to show for this member is absent, not empty** (requirement 14 of
  * effort 826). Signed out, general is the whole of it: the area is still the one address that
  * draws with nobody signed in, and the other three each need an organization. What general holds
- * there is the language, the ending-soon figure, updates and diagnostics, which is everything the
- * three signed-out sections held between them before the four.
+ * there is the language and the appearance, updates and diagnostics: everything the three
+ * signed-out sections held between them before the four, but the ending-soon figure, which the
+ * dashboard sets since effort 846.
  *
  * General is the area's own and leads; what follows is what is contributed, in the order it is
  * handed, which is each contribution's `order`. A contribution under a name that is not one of the

@@ -23,10 +23,10 @@
 		useTerminateContract,
 		useUnterminateContract
 	} from '$lib/contract/query';
-	import { toDeleteStep, toPaletteVerbs } from '$lib/act';
+	import { toPaletteVerbs } from '$lib/act';
 	import { consumeCreateIntent } from '$lib/create/ui';
 	import { onMutationError, onMutationSuccess } from '$lib/mutation/ui';
-	import { showErrorSentence, showErrorToast, showRefusal } from '$lib/notification';
+	import { showErrorSentence, showErrorToast } from '$lib/notification';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { writeDetailsToClipboard } from '$lib/platform/clipboard';
 	import { contributionsTo } from '$lib/feature/surface';
@@ -51,9 +51,9 @@
 	 * the way every other hook does. What they write, and how each is taken back, is unchanged from
 	 * when each surface mounted its own copy.
 	 *
-	 * **A delete runs at once and offers undo**, as its act declares; the delete dialog is drawn only
-	 * where something refuses it, to say what. Terminating and restoring ask first, in the confirm
-	 * dialog under their own verbs ([[rules/interface]], *Delete and confirm*).
+	 * **Every one of them asks first** ([[rules/interface]], *Delete and confirm*): a
+	 * delete in the delete dialog, saying undo brings the contract back or what refuses it, and
+	 * terminating and restoring in the confirm dialog under their own verbs.
 	 *
 	 * **The reminder and the printed schedule are the schedule's**, each answered by a host of its
 	 * own under `schedule/component/`, mounted here so they are drawn where this is.
@@ -135,23 +135,6 @@
 			await deleteMutation.mutateAsync(id);
 			await leaveDeleted(id);
 		});
-
-	/** A delete nothing asked about: its refusal, where it earns one, is raised rather than held. */
-	async function deleteAtOnce(id: string) {
-		try {
-			await deleteMutation.mutateAsync(id);
-		} catch (error) {
-			showRefusal(error, $LL);
-
-			return;
-		}
-
-		await leaveDeleted(id);
-	}
-
-	// whether the delete asks, waits on what refuses it, or runs now, by the act's own policy.
-	const deletePolicy = contractActs.find((act) => act.id === 'contract.delete')?.confirmation;
-	const deleteStep = $derived(isDeleting ? toDeleteStep(deletePolicy, deleteBlockers) : 'wait');
 
 	const intervalLabels = $derived<Record<ContractActRecord['interval'], string>>({
 		'1m': $LL.contracts.intervals.monthly(),
@@ -278,18 +261,6 @@
 		untrack(() => void answerAsked(asked.actId, asked.contractId));
 	});
 
-	// the request is answered once and cleared first, as the two above are.
-	$effect(() => {
-		if (deleteStep !== 'run' || !confirming) {
-			return;
-		}
-
-		const { id } = confirming.contract;
-
-		closeContractConfirmation();
-		untrack(() => void deleteAtOnce(id));
-	});
-
 	/**
 	 * A new contract opens its own page, which is where its next step is: its units, its
 	 * payments, its term ([[rules/interface]], *Guidance*).
@@ -325,7 +296,7 @@
 {/key}
 
 <DeleteDialog
-	open={confirming?.kind === 'delete' && deleteStep === 'ask'}
+	open={confirming?.kind === 'delete'}
 	onOpenChange={(isOpen) => {
 		if (!isOpen) {
 			closeContractConfirmation();
@@ -333,6 +304,7 @@
 	}}
 	record={confirmingRecord}
 	blockers={deleteBlockers}
+	description={$LL.common.deleteDialog.undoable()}
 	onSubmit={deleteConfirming}
 />
 

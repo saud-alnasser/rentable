@@ -10,7 +10,7 @@
 	import { useFetchPayment } from '$lib/payment/query';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { formatLocaleMoney } from '$lib/platform/locale';
-	import type { PaymentMethod } from '$lib/platform/database/schema';
+	import { paymentMethodLabel } from '$lib/payment/method';
 	import type { SpecificationEntry } from '@rentable/design/block/specification.svelte';
 
 	let {
@@ -27,14 +27,6 @@
 
 	const formatMoney = (value: number) => formatLocaleMoney($locale, value);
 
-	const methodLabel = (method: PaymentMethod) =>
-		({
-			cash: $LL.contracts.payments.methods.cash,
-			'bank-transfer': $LL.contracts.payments.methods.bankTransfer,
-			cheque: $LL.contracts.payments.methods.cheque,
-			ejar: $LL.contracts.payments.methods.ejar
-		})[method]();
-
 	// how the payment was made, and what was written about it. The method is always stated, as not
 	// recorded where nobody said, since its absence is itself something a reader matching a
 	// statement needs to know; a reference or a note that was never written is left out whole,
@@ -46,7 +38,7 @@
 			{
 				label: $LL.contracts.payments.method(),
 				value: payment.method
-					? methodLabel(payment.method)
+					? paymentMethodLabel(payment.method, $LL)
 					: $LL.contracts.payments.methodNotRecorded()
 			},
 			...(payment.reference

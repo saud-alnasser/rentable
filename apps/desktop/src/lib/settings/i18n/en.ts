@@ -7,30 +7,33 @@ import type { BaseTranslation } from '../../i18n/i18n-types';
 export const settings = {
 	diagnosticsDescription:
 		'a record of what rentable does, for looking into failures. it stays here, and passwords and tokens are left out.',
+	diagnosticsFolder: 'log folder',
+	// the icon control that opens the log folder: its accessible name and its tooltip (effort 846).
 	diagnosticsReveal: 'open log folder',
 	diagnosticsTitle: 'diagnostics',
 
 	downloadingUpdate: 'downloading update',
 
-	endingSoonDescription:
-		'a contract starts showing as ending soon on the dashboard this many days before it ends.',
-	endingSoonInvalid: 'the number of days must be greater than zero',
-	endingSoonTitle: 'ending soon',
-
 	latestRelease: "you're already on the latest release.",
 
 	loadErrorTitle: 'settings are unavailable right now',
 
-	transferImportTitle: 'import a workspace',
+	transferImportTitle: 'import into {workspace:string}',
 	transferImportSuccess: 'the file was imported',
 
 	restartNotice: 'update installed. restart rentable to finish.',
 
-	localeDescription: 'the interface changes as soon as you pick one.',
+	// the language and appearance card: its title and its one line (effort 846, *Everything in a
+	// tab is a card*).
+	preferences: {
+		title: 'language and appearance',
+		description: 'how rentable reads and looks on this machine.'
+	},
 	localeTitle: 'language',
 
 	appearanceTitle: 'appearance',
-	appearanceDescription: 'light or dark, or follow your system as it changes.',
+	// the tooltip on the system choice, the one whose word does not say what it does (effort 846).
+	appearanceSystemHint: 'follows your computer as it turns light or dark',
 	appearance: {
 		system: 'system',
 		light: 'light',
@@ -48,7 +51,18 @@ export const settings = {
 
 	title: 'settings',
 
-	updatesChecking: 'checking for updates...',
+	// what the updates card's header says at its end, in words: where this installation stands
+	// (effort 846, *Everything in a tab is a card*).
+	updatesState: {
+		checking: 'checking',
+		upToDate: 'up to date',
+		available: 'update available',
+		downloading: 'downloading',
+		restart: 'restart to finish'
+	},
+	// the chevron that opens a release's notes under the available version, and the date in them.
+	whatsNew: "what's new in {version:string}",
+	releasedOn: 'released {date:string}',
 	updatesDescription:
 		'check for a newer version and install it. if the app then fails to start, it offers the version you were on.',
 	updatesTitle: 'updates',
@@ -68,30 +82,61 @@ export const settings = {
 			confirmLabel: 'new password, again',
 			mismatch: 'the two do not match.',
 			change: 'change password',
+			// the password card's act, a quiet text at its header's end (effort 846, ticket 46); its
+			// accessible name is `change` above, which holds these words.
+			changeShort: 'change',
 			changed: 'your password was changed.'
 		},
 		sessions: {
-			title: 'other machines',
-			description: 'sign out everywhere but here. your password stays the same.',
-			action: 'sign out of other machines',
+			action: 'sign out all other machines',
+			// the machines card's header act, small and red (effort 846, ticket 46), and why it is
+			// refused where no other machine is signed in.
+			short: 'sign out others',
+			noOthers: 'no other machine is signed in as you.',
 			confirmDescription:
-				'every other machine signed in as you is signed out. this one stays signed in, and your password does not change.',
+				'every other machine is signed out, and your password signs each one in again. this one stays signed in.',
 			ended: 'your other machines were signed out.',
 			endedPending:
 				'this machine is offline; the sign-out reaches the others once it is back online.'
 		},
+		// effort 846, requirements 9 to 11: every machine signed in as the reader, a row each, this
+		// one first, and each other one signed out from its row's menu.
+		machines: {
+			title: 'machines',
+			description: 'signing a machine out leaves your password as it is.',
+			// the machines card's header value: how many machines are signed in as the reader.
+			signedIn: '{count:number} signed in',
+			thisMachine: 'this machine',
+			unnamed: 'a machine added {date:string}',
+			lastSeen: 'last seen {moment:string}',
+			added: 'added {date:string}',
+			notUpdated: 'not on this version yet',
+			// the row's menu, named for the machine it acts on (ticket 23 of effort 846).
+			menu: 'actions for {machine:string}',
+			confirmTitle: 'sign out a machine',
+			confirmDescription:
+				'it is signed out when it next reaches Turso, and your password signs it in again. your password does not change.',
+			ended: 'the machine was signed out.',
+			endedPending:
+				'this machine is offline; the sign-out reaches that machine once this one is back online.'
+		},
 		// requirement 22: drawn for the one person an offer stands with, and absent for
-		// everybody else. One sentence naming who offered it, and the act.
+		// everybody else. A row naming who offered it, the act, and what accepting changes.
 		ownership: {
 			title: 'ownership',
-			offered:
-				'{owner:string} has offered you this organization. accepting makes you the owner and makes them a manager.'
+			offeredBy: 'offered by {owner:string}',
+			consequence: 'accepting makes you the owner and makes them a manager.'
+		},
+		// effort 846, requirement 8: the last group of the section, and the one way out of it.
+		thisMachine: {
+			signOut: 'sign out of this machine',
+			// the question signing out asks first (effort 846, requirement 2 as revised 2026-10-02).
+			asks: 'you are signed out here, and the organization stays on this machine. signing in again brings you back.'
 		}
 	}
 } satisfies BaseTranslation;
 
 export const settingsHooks = {
-	endingSoonUpdated: 'ending soon notice window updated successfully!',
 	workspaceUpToDate: 'everything is up to date.'
 } satisfies BaseTranslation;
 

@@ -1,31 +1,57 @@
+<script lang="ts" module>
+	/**
+	 * How tall a workspace's tile is, which the directory lays every tile at rather than letting
+	 * each find its own (effort 846, ticket 33), so the tiles in a row line up and a card with
+	 * fewer facts keeps its place.
+	 *
+	 * Counted the way the member's and the role's tiles are (effort 846, ticket 45): the padding
+	 * (32), the heading line at the glyph tile's and the control's height (32), then 12 px to the
+	 * fields, two rows of fields 8 px apart, each field 8 px of padding above and below a name and
+	 * a value at a fixed 20 px leading (8 + 20 + 20 + 8 = 56). 32 + 32 + 12 + (56 + 8 + 56) = 196.
+	 * The open badge stands on the heading line and adds nothing. The first row is the members and
+	 * the access, always drawn; the second is the day it was created, counted whether or not the row
+	 * says it, so a workspace without the date keeps its place. It holds in Arabic only because
+	 * every line sets its own leading, so a line added to the tile, or one drawn without it,
+	 * changes this figure too.
+	 */
+	export const WORKSPACE_TILE_HEIGHT = 196;
+</script>
+
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import type { OrganizationMember, OrganizationWorkspace } from '$lib/organization/host';
+	import type { Standing } from '$lib/permission';
 	import Empty from '@rentable/design/block/empty.svelte';
 	import RecordCard from '@rentable/design/block/record-card.svelte';
+	import { Badge } from '@rentable/design/primitive/badge/index.js';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
-	import { Separator } from '@rentable/design/primitive/separator/index.js';
-	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import { CreateControl } from '$lib/create/ui';
 	import { toCardActions } from '$lib/act';
 	import type { ListSort } from '@rentable/design/sort.js';
-	import { LL } from '$lib/i18n/i18n-svelte';
+	import { LL, locale } from '$lib/i18n/i18n-svelte';
+	import { formatLocaleDate } from '$lib/platform/locale';
+	import * as Cell from '$lib/design/cell';
 	import type { WorkspaceActContext, WorkspaceActRecord } from '$lib/organization/workspace/acts';
 	import DirectoryTray from '$lib/organization/component/directory-tray.svelte';
+	import DirectoryGrid from '$lib/organization/component/directory-grid.svelte';
 	import { toWorkspaceDirectory } from '$lib/organization/directory';
 	import { workspaceActs, workspaceHost } from '$lib/organization/host.svelte';
-	import { recordOf, withSection, WORKSPACE_PARAM } from '$lib/settings';
-	import WorkspaceTransfer from './transfer.svelte';
+	import { recordOf, WORKSPACE_PARAM } from '$lib/settings';
+	import { workspacePageOf, workspacesSection } from '$lib/organization/workspace/address';
+	import { holderCount, workspaceAccessOf } from '$lib/organization/workspace/standing';
 	import EarlierRecords from './app-database-records.svelte';
 	import DiscIcon from '$lib/design/cell/disc.svelte';
+	import BuildingIcon from '@lucide/svelte/icons/building';
 	import XIcon from '@lucide/svelte/icons/x';
+	import UsersIcon from '@lucide/svelte/icons/users';
+	import CalendarPlusIcon from '@lucide/svelte/icons/calendar-plus';
+	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 
 	/**
-	 * The workspaces of the organization, as a directory of record cards, and the file that moves
-	 * the open one.
+	 * The workspaces of the organization, as a directory of record cards, each carrying its own
+	 * file.
 	 *
 	 * **One card per workspace, the shape the members section takes** (effort 828, requirement
 	 * 21): `design/block/record-card.svelte`, the card is the record, its own quiet control carries
@@ -33,33 +59,51 @@
 	 * actions*). *It was a row with a cluster of glyphs revealed on hover until this ticket, which
 	 * is what the human met in the running build and asked to be cards instead.*
 	 *
-	 * **A card says two things, and marks one**: the name, how many people hold the workspace, and
-	 * a solid disc before the name of the one open on this machine, whose word reaches the reader
-	 * on hover and through its accessible name ([[rules/interface]], *Status presentation*). The
-	 * disc is the mark this application already draws for something live, in the tone the status
-	 * treatment gives that, and the rail's switcher marks its open row the same way round: the mark
-	 * carries no visible text. *The card carried the open word as a badge and this reader's access
-	 * as a line of its own until the human's look at this directory: the shell says which workspace
-	 * is open at the top of every screen, and what each person holds is the surface the card's menu
-	 * opens rather than a fact about the card.*
+	 * **A card is a tile in the member card's family: the workspace's glyph in its muted tile, its
+	 * name and, on the one open here, a badge on the heading line; then its facts as tinted
+	 * `Cell.Field`s in a grid two across** (effort 846, ticket 45, at the human's word of
+	 * 2026-10-03: "follow the tinted files and things like that in the reocrds cards of domain
+	 * data"), and the tiles are a grid, two or three to a row where there is room (effort 846,
+	 * *Everything in a tab is a card*), each at `WORKSPACE_TILE_HEIGHT`. The one open on this
+	 * machine says so in words, *open on this machine*, in a badge after the solid disc this
+	 * application draws for something live (Linear's worded *joined* badge), where the member's
+	 * heading carries its role. The fields: how many hold the workspace, as a count in words; beside
+	 * it what the reader may do there, from the session's own entry for that workspace, worded as
+	 * what they may do: *owner*,
+	 * *you may read* where the grant is read only or nothing the reader holds there writes, *set
+	 * for you* where something is pinned for them there, and *you may edit* otherwise, never *full
+	 * access* or *no access*, which the member's card does not say either; and under them, across
+	 * both columns as a card's odd field is laid, the day it was created, off its row in the
+	 * organization store, where the row says. A workspace nobody holds says *nobody*, muted, never a
+	 * zero. There is no fourth field: the rest of what the session
+	 * reads of a workspace is its database's name, host and schema, Turso's facts rather than the
+	 * reader's. *Effort 843 took the open word and the access line off the card, leaving the disc
+	 * alone, and the human brought both back on 2026-10-02 (effort 846, requirement 16); the same
+	 * day they found the tile sparse ("the workspaces grid card needs to be more informative and
+	 * better looking"), and ticket 33 gave it the glyph tile, the avatars and the date. On
+	 * 2026-10-03 the human found the avatars odd ("the workspaces card members showen feels odd (SA)
+	 * 1 showing each member feels odd"), and ticket 48 left the count alone, read as every other
+	 * field is.* Record
+	 * counts are not on it: a workspace not open here would have to be reached over Turso for each
+	 * tile, and the open one's are the dashboard's.
 	 *
-	 * **Activating a card opens its record** ([[rules/interface]], *Row activation*). A workspace
-	 * has no page, so what opening one means is that workspace's edit, and the card's `href` is
-	 * this section's address with the workspace named on it. The address is consumed on arrival
-	 * and cleared, the way the members directory consumes a member, so pressing the same card twice
-	 * opens the same surface twice. The rule records this as its accepted deviation, dated
-	 * 2026-09-17: in the settings directories a record's page is its sheet.
+	 * **The heading takes the settings group's treatment, and the tray and the cards stay**
+	 * (effort 846, requirement 1): the directory is not a group of rows, so only its title reads as
+	 * one.
+	 *
+	 * **Activating a card opens its record's page** ([[rules/interface]], *Row activation*): a
+	 * workspace has one (`./page.svelte`, at `/settings/workspaces/<id>`, effort 846 ticket 49),
+	 * what it is at the top and who holds it below, and the card's `href` is it. An older address
+	 * naming the workspace on this section (`?workspace=<id>`), as a bookmark or the trail kept it,
+	 * is sent on to that page. *Until then a workspace had no page, and opening its card opened who
+	 * held it in a dialog, or its name for a reader who could only rename: the rule's deviation of
+	 * 2026-09-17, which no longer covers the workspaces.*
 	 *
 	 * **The acts are declared once, in `workspace/acts.ts`**, and a card's menu and context menu
 	 * are that list's projection (effort 832, requirement 8). What an act opens is the organization
 	 * host's, mounted once in the frame, so this section draws cards and mounts nothing an act
 	 * opens. *It built its own list and mounted the rename, the members dialog and the delete, and
 	 * the settings route handed it a callback per act.*
-	 *
-	 * **What a card opens is the members and access surface, and the name only where that is all
-	 * this reader has.** The access is the edit every card carries, and the name belongs to the
-	 * open workspace alone, so keying the card on the name would make the same gesture mean one
-	 * thing on one card and another on the next.
 	 *
 	 * **Every gate is a prop, and none of them is a permission read here.** Creating and deleting a
 	 * workspace are the owner's in Rust (`require_owner`), so they are drawn from who is reading
@@ -87,9 +131,15 @@
 	 * control, in its place; everybody else is offered neither, since creating was never theirs to
 	 * be refused.
 	 *
-	 * **The transfer sits beneath the cards, under a legend naming the workspace it acts on.** It
-	 * reads and writes whatever is open on this machine, which is one of the cards above, and the
-	 * legend is what stops that being a guess.
+	 * **A workspace's file moves from its own card** (effort 846, requirement 15): *export* and
+	 * *import* are acts on every card, after members, whether or not the workspace is open here,
+	 * and each is refused, with the reason, by what the reader may do in that workspace rather than
+	 * in the one open (`standingOf`). The organization host runs them, as it runs every act.
+	 * *A block beneath the cards moved the open workspace alone, under a legend naming it, until
+	 * then; a person switched workspaces to export another.*
+	 *
+	 * **The earlier records stand above the cards** (effort 846, requirement 17), naming the
+	 * workspace open here that they would fill, since that is the one they go into.
 	 */
 	let {
 		workspaces,
@@ -99,6 +149,8 @@
 		canDelete,
 		canRename,
 		canGrantWorkspace,
+		isOwner,
+		standingOf,
 		refusal
 	}: {
 		/** the workspaces this member holds a grant on, which is what the session carries. */
@@ -115,6 +167,10 @@
 		canRename: boolean;
 		/** whether the reader's row carries `grantWorkspace`. */
 		canGrantWorkspace: boolean;
+		/** whether the reader owns the organization, which is what every card then says they are. */
+		isOwner: boolean;
+		/** where the reader stands in a workspace, by its id, which its file's acts are refused by. */
+		standingOf: (workspaceId: string) => Standing | null;
 		/**
 		 * why there is no create control, for an owner whose machine lost the Turso authority;
 		 * `null` for the owner who holds it and for everybody else, who is offered nothing and
@@ -123,19 +179,20 @@
 		refusal: string | null;
 	} = $props();
 
-	// this section's own address, resolved once. A card's is it with the workspace named on it,
-	// which is the whole of what a card's `href` is ([[rules/frontend]]: the path is the caller's
-	// to resolve, and the packaged card takes one already resolved).
-	const sectionAddress = resolve(withSection('workspaces'));
-
-	const addressOf = (workspaceId: string) =>
-		`${sectionAddress}&${WORKSPACE_PARAM}=${encodeURIComponent(workspaceId)}`;
+	// this section's own address, resolved once: where an older address naming a workspace on it
+	// is cleared to as it is sent on.
+	const sectionAddress = workspacesSection();
 
 	/** how many people hold a grant on a workspace, counted off the organization's own list. */
-	const memberCount = (workspaceId: string) =>
-		members.filter((member) => member.workspaces.some((held) => held.id === workspaceId)).length;
+	const memberCount = (workspaceId: string) => holderCount(members, workspaceId);
+
+	/** the day a workspace was made, as the machines list says the day a machine was added. */
+	const madeOn = (moment: number) => formatLocaleDate($locale, moment, { dateStyle: 'medium' });
 
 	const open = $derived(workspaces.find((workspace) => workspace.id === openWorkspaceId) ?? null);
+
+	/** what the reader may do in a workspace, as its card and its page both word it. */
+	const accessOf = (workspace: OrganizationWorkspace) => workspaceAccessOf(workspace, isOwner, $LL);
 
 	let search = $state('');
 	// the empty treatment at a settings section's size: a directory here is one block among
@@ -155,7 +212,8 @@
 		openWorkspaceId,
 		canRename,
 		canGrantWorkspace,
-		canDelete
+		canDelete,
+		standingOf
 	});
 
 	const recordOfWorkspace = (workspace: OrganizationWorkspace): WorkspaceActRecord => ({
@@ -163,9 +221,8 @@
 		context
 	});
 
-	// the workspace the address names is opened and then cleared out of the address, the way the
-	// members directory consumes an account: left there, a reload would reopen a surface the person
-	// has already dismissed, and pressing the same card a second time would navigate nowhere.
+	// an older address naming a workspace on this section is sent on to that workspace's page, and
+	// one naming a workspace nobody here holds is cleared, so the section stands as it is.
 	$effect(() => {
 		const named = recordOf(page.url, WORKSPACE_PARAM);
 
@@ -177,14 +234,10 @@
 		// for it, and this runs again when it arrives.
 		if (!workspace && workspaces.length === 0) return;
 
-		// the two edits are gated separately, so what a workspace's edit *is* depends on who is
-		// looking: who holds it for somebody who may grant it, its name for somebody who may only
-		// edit the one they are in. A reader holding neither opens nothing, and the card still reads.
 		if (workspace) {
-			const record = recordOfWorkspace(workspace);
+			void goto(workspacePageOf(workspace.id), { replaceState: true });
 
-			if (!workspaceHost.run('workspace.members', record))
-				workspaceHost.run('workspace.edit', record);
+			return;
 		}
 
 		void goto(sectionAddress, { replaceState: true, noScroll: true, keepFocus: true });
@@ -216,6 +269,8 @@
 	<DirectoryTray
 		legendId="workspaces-legend"
 		legend={$LL.settings.section.workspaces()}
+		grouped
+		icon={BuildingIcon}
 		description={$LL.organization.dashboard.workspacesDescription()}
 		bind:search
 		count={shown.length}
@@ -224,17 +279,33 @@
 		action={canCreate ? newWorkspace : refusal ? authorityRefused : undefined}
 	/>
 
-	<div class="flex flex-col gap-3" data-workspaces>
+	<!-- the records an earlier version left on this machine, offered until they are brought in or
+	     dismissed, above the cards and naming the open one they go into (effort 838, requirement
+	     18; effort 846, requirement 17). -->
+	<EarlierRecords workspace={open} />
+
+	<!-- the tiles one, two or three across by the width, in source order, a few rows in view and
+	     the rest scrolled to inside the directory's own area, under the tray (effort 846, ticket
+	     53). -->
+	<DirectoryGrid
+		count={shown.length}
+		tileHeight={WORKSPACE_TILE_HEIGHT}
+		bounded
+		labelledBy="workspaces-legend"
+		data-workspaces
+	>
 		{#if workspaces.length === 0}
-			<Empty
-				kind="nothing-yet"
-				title={$LL.organization.dashboard.noWorkspaces()}
-				class={DIRECTORY_EMPTY}
-			/>
+			<div class="col-span-full">
+				<Empty
+					kind="nothing-yet"
+					title={$LL.organization.dashboard.noWorkspaces()}
+					class={DIRECTORY_EMPTY}
+				/>
+			</div>
 		{:else if shown.length === 0}
 			<!-- the one empty treatment's no-match ([[rules/interface]], *Empty*): the search found
 			     nobody, and the way out is putting it down. -->
-			<div data-directory-no-match>
+			<div class="col-span-full" data-directory-no-match>
 				<Empty kind="no-match" title={$LL.common.messages.noMatch()} class={DIRECTORY_EMPTY}>
 					{#snippet action()}
 						<Button type="button" variant="outline" size="sm" onclick={() => (search = '')}>
@@ -249,79 +320,83 @@
 		{#each shown as workspace (workspace.id)}
 			<!-- the card is the record and takes no mark of its own, so the workspace it stands for is
 			     named on the element that holds it, which is what this section is read by. -->
-			<div data-workspace={workspace.id}>
+			<div data-workspace={workspace.id} style:height="{WORKSPACE_TILE_HEIGHT}px">
 				<RecordCard
-					href={addressOf(workspace.id)}
+					href={workspacePageOf(workspace.id)}
 					label={workspace.name}
 					actions={toCardActions(workspaceActs, recordOfWorkspace(workspace), $LL)}
-					class="gap-4 py-3"
+					layout="tile"
+					class="gap-3"
 				>
-					{#snippet content()}
-						<div class="pointer-events-none relative flex min-w-0 flex-1 flex-col gap-1 text-start">
-							<div class="flex min-w-0 items-center gap-2">
-								<!-- the one open here, as a disc before its name, in the rail's own word for
-								     it: a reader meets the same word in the switcher and here. It is the
-								     mark and the tone this application gives something live, and it carries
-								     no visible text, so a directory of five workspaces reads as five names
-								     with one of them marked rather than as a column of labels
-								     ([[rules/interface]], *Status presentation*). `pointer-events-auto` for
-								     the reason the count cell carries it: the card lays its link over its
-								     content, and the tooltip has to be reachable through it. -->
-								{#if workspace.id === openWorkspaceId}
-									<Tooltip.Root>
-										<Tooltip.Trigger>
-											{#snippet child({ props })}
-												<span
-													{...props}
-													class="pointer-events-auto flex shrink-0 items-center text-primary"
-													data-workspace-open={workspace.id}
-												>
-													<DiscIcon class="size-4" aria-hidden="true" />
-													<span class="sr-only">{$LL.layout.workspaceMenu.open()}</span>
-												</span>
-											{/snippet}
-										</Tooltip.Trigger>
-										<Tooltip.Content side="top" sideOffset={6}>
-											{$LL.layout.workspaceMenu.open()}
-										</Tooltip.Content>
-									</Tooltip.Root>
-								{/if}
-
-								<span class="truncate text-sm font-medium" data-workspace-name>
-									<bdi>{workspace.name}</bdi>
-								</span>
-							</div>
-
-							<!-- how many people are in it, the one line the rail's own header carries under
-							     the same name. What each of them holds is the surface the menu opens. -->
-							<span
-								class="truncate text-xs text-muted-foreground"
-								data-workspace-members={workspace.id}
+					{#snippet heading()}
+						<!-- the glyph in the muted tile the directory's own heading wears, so the card and
+						     the section read as one family. -->
+						<span
+							class="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"
+							data-workspace-glyph
+						>
+							<BuildingIcon class="size-4" aria-hidden="true" />
+						</span>
+						<span class="flex min-w-0" data-workspace-name>
+							<Cell.Text class="truncate text-sm font-semibold" text={workspace.name} />
+						</span>
+						<!-- the open one says so beside its name, where a member's heading carries the role: the
+						     disc the rail's switcher marks it with and the words that say what the disc means,
+						     so neither has to be learned. -->
+						{#if workspace.id === openWorkspaceId}
+							<Badge
+								variant="secondary"
+								class="max-w-full min-w-0 shrink"
+								data-workspace-open={workspace.id}
 							>
-								{$LL.layout.workspaceMenu.members({ count: memberCount(workspace.id) })}
-							</span>
+								<DiscIcon class="size-3 shrink-0 text-primary" aria-hidden="true" />
+								<span class="truncate">{$LL.organization.dashboard.workspaceOpenHere()}</span>
+							</Badge>
+						{/if}
+					{/snippet}
+
+					{#snippet content()}
+						{@const access = accessOf(workspace)}
+						{@const held = memberCount(workspace.id)}
+						<div data-workspace-fields class="pointer-events-none relative grid grid-cols-2 gap-2">
+							<!-- how many hold it, as a count in words beside the access, the way every other
+							     field reads its value. -->
+							<Cell.Field
+								hook="workspace-field"
+								data-workspace-members={workspace.id}
+								icon={UsersIcon}
+								name={$LL.organization.dashboard.membersTitle()}
+								value={held === 0
+									? $LL.organization.dashboard.workspaceCard.noMembers()
+									: $LL.organization.dashboard.workspaceCard.memberCount({ count: held })}
+								empty={held === 0}
+								valueAttributes={{ 'data-workspace-count': held }}
+							/>
+
+							<Cell.Field
+								hook="workspace-field"
+								data-workspace-access={workspace.id}
+								data-access={access.kind}
+								icon={KeyRoundIcon}
+								name={$LL.organization.dashboard.workspaceCard.access()}
+								value={access.word}
+							/>
+
+							{#if workspace.createdAt}
+								<!-- the odd field, across both columns, as the tenant card lays its own. -->
+								<Cell.Field
+									hook="workspace-field"
+									data-workspace-made={workspace.id}
+									class="col-span-2"
+									icon={CalendarPlusIcon}
+									name={$LL.organization.dashboard.workspaceCard.created()}
+									value={madeOn(workspace.createdAt)}
+								/>
+							{/if}
 						</div>
 					{/snippet}
 				</RecordCard>
 			</div>
 		{/each}
-	</div>
+	</DirectoryGrid>
 </Field.Set>
-
-<!-- beneath the cards, and named for the workspace it acts on: a file is written from what is open
-     on this machine, which is one of the cards above. Drawn only where there is one, since there is
-     nothing to write out of a machine that has opened none. -->
-{#if open}
-	<Separator />
-
-	<Field.Set>
-		<Field.Legend>
-			{$LL.organization.dashboard.transferTitle({ workspace: open.name })}
-		</Field.Legend>
-		<!-- the records an earlier version left on this machine, offered here until they are
-		     brought in or dismissed, above the import they go through (effort 838,
-		     requirement 18). -->
-		<EarlierRecords />
-		<WorkspaceTransfer />
-	</Field.Set>
-{/if}

@@ -423,3 +423,54 @@ export const holdersWritingBlind = (
 			);
 		})
 		.map((holder) => holder.username);
+
+/**
+ * the organization's own flags that act on a person: who is in, what they hold, what they are
+ * called. The rest of the family (`ORGANIZATION_ACTS`) acts on the organization itself.
+ */
+export const PEOPLE_ACTS = [
+	'inviteMember',
+	'removeMember',
+	'assignRole',
+	'resetPassword',
+	'renameMember',
+	'grantWorkspace',
+	'overrideMember'
+] as const satisfies readonly Flag[];
+
+/** the organization's own flags that act on the organization: its workspaces' names, its roles, its stamp. */
+export const ORGANIZATION_ACTS = FAMILIES.administration.filter(
+	(flag) => !(PEOPLE_ACTS as readonly Flag[]).includes(flag)
+);
+
+/** how much of a set a role holds: `held` of `total`. */
+export type Reach = { held: number; total: number };
+
+/**
+ * What a role can do, as the four fields its card draws (effort 846, ticket 39): how many kinds
+ * of record it may read, how many it may change in any way (add, edit or delete), and how many of
+ * the people acts and the organization acts it holds. Counted off the mask, so the card says
+ * what the role carries and the editor says which.
+ */
+export const roleReach = (
+	mask: number
+): { reads: Reach; changes: Reach; people: Reach; organization: Reach } => {
+	const count = (flags: readonly Flag[]): Reach => ({
+		held: flags.filter((flag) => permits(mask, flag)).length,
+		total: flags.length
+	});
+
+	return {
+		reads: {
+			held: RECORD_KINDS.filter((kind) => permits(mask, viewOf(kind))).length,
+			total: RECORD_KINDS.length
+		},
+		changes: {
+			held: RECORD_KINDS.filter((kind) => writesOf(kind).some((flag) => permits(mask, flag)))
+				.length,
+			total: RECORD_KINDS.length
+		},
+		people: count(PEOPLE_ACTS),
+		organization: count(ORGANIZATION_ACTS)
+	};
+};

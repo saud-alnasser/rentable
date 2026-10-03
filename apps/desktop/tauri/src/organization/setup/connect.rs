@@ -232,6 +232,9 @@ where
             role: None,
             joined_at: now,
             format: Some(FORMAT_VERSION),
+            // a record for the sign-in alone, with no machine yet: `connect::record` below draws
+            // the machine and acknowledges for it.
+            machine_signed_out: 0,
         };
         let mut session =
             sign_in_by_username(
@@ -261,6 +264,17 @@ where
             now,
         )
         .await?;
+
+        // the session opened over `signing_in`, which had no machine yet; it is open on the one
+        // the record just drew, under the number the record acknowledged, so a sign-out of this
+        // machine alone reaches its acts as it reaches any other session's (effort 846,
+        // requirement 10).
+        session.machine_id = held.machine_id.clone();
+        session.machine_signed_out = held.machine_signed_out;
+
+        // the machine names itself as it signs in (effort 846, requirement 11), carried by the
+        // push below with its row in the registry.
+        session::machine_named(&replica, &held, &session.content_key, now).await;
 
         if !replica.push().await {
             diagnostics::warn("organization.connectedToExisting.notYetSent")
@@ -377,8 +391,11 @@ fn opened_text(key: &ContentKey, column: &str, sealed: &[u8]) -> Result<String, 
 #[cfg(test)]
 mod tests {
     use crate::credential::{CredentialStore, Memory};
-    use crate::error::Error;
-    use crate::machine::RemoteSyncStore;
+    use crate::database::Database;
+    use crate::error::{Error, RefusalReason};
+    use crate::machine::{RemoteSync, RemoteSyncStore};
+    use crate::organization::Shared;
+    use crate::organization::act::{Acting, Pull, as_member};
     use crate::organization::authority::OrganizationKey;
     use crate::organization::invitation::link::JoinLink;
     use crate::organization::invitation::{
@@ -395,14 +412,17 @@ mod tests {
     use crate::organization::store::OrganizationStore;
     use crate::organization::workspace::WORKSPACE_CREDENTIAL_LIFETIME;
     use crate::persisted::Persisted;
+    use crate::settings::Settings;
     use crate::sync::test::server::{ScriptedResponse, ScriptedServer};
     use crate::test::scratch;
-    use crate::turso::consent::{platform_token, store_platform_token};
+    use crate::turso::consent::{TursoConsent, platform_token, store_platform_token};
     use crate::turso::discovery::McpEndpoint;
     use crate::turso::platform::{AccessLevel, InMemoryPlatform};
+    use crate::update::Update;
     use base64::Engine as _;
     use serde_json::json;
     use std::sync::{Arc, Mutex};
+    use tokio::sync::RwLock;
 
     const TOKEN: &str = "a-platform-token";
 
@@ -1142,5 +1162,161 @@ mod tests {
                 "{machine_name} let the account the consent was over go"
             );
         }
+    }
+
+    /// The organization's state over one data directory, as the plugins' setups build it, with
+    /// nothing open and nobody in. `remote-sync.json` is loaded from the directory, so a test
+    /// writes the record it wants first. *`invitation/join.rs` keeps the same builder; a fixture is
+    /// written out per module ([[rules/testing]]).*
+    async fn state_over(directory: &std::path::Path) -> Shared {
+        let mut settings =
+            Persisted::<Settings>::load(directory.join(Settings::FILENAME)).expect("the settings");
+        settings.database_path = directory.join(Database::FILENAME);
+        settings.recovery_path = directory.join(Update::FILENAME);
+        settings.commit().expect("the settings");
+
+        let settings = Arc::new(RwLock::new(settings));
+        let remote_sync = RemoteSync::new(
+            settings.clone(),
+            directory.join(RemoteSync::FILENAME),
+            crate::clock::System::shared(),
+        )
+        .await
+        .expect("the sync record");
+        Update::new(settings.clone()).await.expect("the update");
+
+        Shared {
+            db: Arc::new(RwLock::new(Database::new(
+                settings.clone(),
+                crate::clock::System::shared(),
+            ))),
+            settings,
+            remote_sync: Arc::new(RwLock::new(remote_sync)),
+            upgrade: Arc::new(crate::upgrade::Upgrader),
+            credentials: Arc::new(Memory::new()),
+            consent: Arc::new(TursoConsent::new()),
+            organization: Arc::new(RwLock::new(None)),
+            member: Arc::new(RwLock::new(None)),
+            arriving_link: Arc::new(Mutex::new(None)),
+            signed_out_elsewhere: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            old_shape_check: tokio::sync::OnceCell::new(),
+        }
+    }
+
+    /// **Effort 846, ticket 28: the session a connect on the account opens knows its machine.**
+    /// The owner connects machine B to the organization their account holds; on machine A they
+    /// sign B out by its row, and the pull brings it to B. With no heartbeat run, B's next
+    /// organization act is refused as signed out from another machine and B is at the wall. A
+    /// session opened with no machine id would read as never signed out alone, and act on.
+    #[tokio::test]
+    async fn an_owner_connected_on_the_account_is_refused_its_next_act_once_signed_out_alone() {
+        let credentials = Memory::new();
+
+        store_platform_token(&credentials, TOKEN)
+            .expect("the test credential store would not take the token");
+
+        let directory = scratch("connect-existing-ended-alone");
+        let theirs = scratch("connect-existing-ended-alone-b");
+        let (platform, replica, owners_machine) = an_organization(&credentials, &directory).await;
+        let held_a = owners_machine.organization.clone().expect("the record");
+
+        drop(replica);
+
+        let mcp = ScriptedServer::start(holding_the_organization()).await;
+        let mut machine = Persisted::<RemoteSyncStore>::load(theirs.join(RemoteSync::FILENAME))
+            .expect("the record");
+        let (held_b, replica_b, session_b) = connect_existing(
+            &credentials,
+            &crate::upgrade::Upgrader,
+            &crate::clock::System::shared(),
+            &mut machine,
+            TOKEN,
+            &McpEndpoint::at(&mcp.url("")),
+            |_| Arc::clone(&platform),
+            Remote::none(),
+            &directory.join("app.db"),
+            "olivia.owner",
+            PASSWORD,
+            ISSUED_AT + 1,
+        )
+        .await
+        .expect("the owner could not connect to their own organization");
+
+        drop(machine);
+
+        // B as a launch leaves it: its record on disk, its replica open and the owner signed in.
+        let app_state = state_over(&theirs).await;
+
+        *app_state.organization.write().await = Some(replica_b);
+        *app_state.member.write().await = Some(session_b);
+
+        // B on this version, named; A signed in as the same owner over the same replica.
+        let machine_a = OrganizationStore::open(
+            crate::clock::System::shared(),
+            &OrganizationStore::replica_path(&directory.join("app.db"), HELD_ID),
+            None,
+            || async { Ok::<String, turso::Error>(String::new()) },
+        )
+        .await
+        .expect("machine A's replica");
+
+        machine_a
+            .write_machine_name(&held_b.machine_id, None, ISSUED_AT + 1)
+            .await
+            .expect("the name row");
+
+        let a = sign_in(&machine_a, &held_a, PASSWORD, &slot())
+            .await
+            .expect("machine A did not sign in");
+        let act_on_b = async || {
+            let held = held_b.clone();
+
+            as_member(
+                &app_state,
+                Pull::First,
+                async move |Acting { member, store }| session::machines(store, member, &held).await,
+            )
+            .await
+        };
+
+        act_on_b()
+            .await
+            .expect("B could not act before it was signed out");
+
+        session::end_machine(&machine_a, &a, &held_a, &held_b.machine_id, ISSUED_AT + 2)
+            .await
+            .expect("A could not sign B out");
+
+        // B pulls with its act, and no heartbeat has run.
+        let refused = act_on_b()
+            .await
+            .expect_err("B acted after it was signed out on its own");
+
+        assert!(
+            matches!(
+                refused,
+                Error::Refused {
+                    reason: RefusalReason::SessionsEnded,
+                    ..
+                }
+            ),
+            "{refused:?}"
+        );
+        assert!(
+            app_state.member.read().await.is_none(),
+            "B is not at the wall"
+        );
+        assert!(app_state.organization.read().await.is_none());
+        assert!(
+            app_state
+                .signed_out_elsewhere
+                .load(std::sync::atomic::Ordering::SeqCst),
+            "the wall was not told which sign-out this was"
+        );
+
+        // and A acts as before.
+        session::machines(&machine_a, &a, &held_a)
+            .await
+            .expect("A was refused with B");
     }
 }

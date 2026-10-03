@@ -16,7 +16,7 @@ import { asc, eq } from 'drizzle-orm';
 import z from 'zod';
 import { ensureValidContractInput, hasValidContractCost } from './contract';
 import { hasValidContractPeriodForInterval } from './schedule/cycle';
-import { reconcileTouched } from './reconcile';
+import { contractStatusesAt, reconcileTouched } from './reconcile';
 
 /**
  * THE CONTRACTS SHEET
@@ -99,7 +99,9 @@ export default defineSheet({
 			value: (contract) => ({ kind: 'money', value: contract.expectedAmount })
 		}
 	],
-	read: async (db): Promise<TransferContract[]> => {
+	// a status as stored, or as the term and the payments make it now where the read derives: a
+	// workspace read on Turso may hold one nobody reconciled since a day passed.
+	read: async (db, deriving): Promise<TransferContract[]> => {
 		const contracts = await db
 			.select({
 				id: s.contract.id,
@@ -127,6 +129,8 @@ export default defineSheet({
 			.innerJoin(s.complex, eq(s.unit.complexId, s.complex.id))
 			.orderBy(asc(s.complex.name), asc(s.unit.name));
 
+		const derived =
+			deriving && (await contractStatusesAt({ ...deriving, db }, deriving.now, contracts));
 		const unitsOf = new Map<string, string[]>();
 
 		for (const assignment of assignments) {
@@ -144,7 +148,7 @@ export default defineSheet({
 			end: contract.end.getTime(),
 			interval: contract.interval,
 			cost: contract.cost,
-			status: contract.status,
+			status: derived?.get(contract.id) ?? contract.status,
 			paidAmount: contract.paidAmount,
 			expectedAmount: contract.expectedAmount
 		}));

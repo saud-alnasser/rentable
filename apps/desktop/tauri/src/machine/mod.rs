@@ -1,5 +1,5 @@
 //! This machine's record: what it holds, in `remote-sync.json`, and the holder the process reads
-//! and writes it through.
+//! and writes it through; and the name its operating system gives it (`name`).
 //!
 //! The record is the workspace this machine has open, the replicas it keeps and whose they are,
 //! the organization it holds, the Turso organization its consent is over, and the moment it last
@@ -14,6 +14,7 @@
 //! (`HeldOrganization`), with the kinds a role is recorded as, because that is what the record
 //! keeps; `organization` re-exports both where its own code names them.
 
+pub mod name;
 mod record;
 
 pub use record::{

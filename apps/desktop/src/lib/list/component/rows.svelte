@@ -21,6 +21,7 @@
 		virtualRows,
 		rows,
 		columns,
+		isGrid,
 		rowGap,
 		rowInset,
 		listId,
@@ -43,6 +44,11 @@
 		rows: ListRow<TData, TGroup>[];
 		/** How many records a row holds. */
 		columns: number;
+		/**
+		 * Whether the list lays its records as tiles in a grid, however many columns fit right
+		 * now. A tile is read from its top, so what sits beside it aligns there.
+		 */
+		isGrid: boolean;
 		/** The space between one card and the next, as the row's own bottom padding. */
 		rowGap: number;
 		/** The inline space a card's shadow falls into. */
@@ -68,13 +74,16 @@
 		<!-- the checkbox sits beside the card rather than on it: the card is the concept's and is
 		     one tab stop that opens the record, and a control inside it would be a second thing to
 		     press in the place a reader presses to open. -->
-		<div class="flex h-full items-center gap-2">
+		<!-- beside a row it stands at the row's middle; beside a tile, level with the tile's heading,
+		     which is where a tile is read from. `pt-6` puts its middle on the heading's: the tile's
+		     own padding, then half the height of the actions control the heading line holds. -->
+		<div class={cn('flex h-full gap-2', isGrid ? 'items-start' : 'items-center')}>
 			<!-- shift is read here rather than from the checkbox, which reports the state it is
 			     moving to and nothing about what was held down to move it. -->
 			<div
 				onpointerdown={(event) => selection.holdShift(event.shiftKey)}
 				onkeydown={(event) => selection.holdShift(event.shiftKey)}
-				class="shrink-0"
+				class={cn('shrink-0', isGrid && 'flex pt-6')}
 				role="none"
 			>
 				<Checkbox
@@ -132,7 +141,8 @@
 						</div>
 					{:else}
 						<div
-							class="grid h-full"
+							data-record-grid
+							class="grid h-full gap-3"
 							style={`grid-template-columns: repeat(${columns}, minmax(0, 1fr));`}
 						>
 							{#each row.records as item, column (item.id)}

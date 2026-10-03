@@ -8,16 +8,21 @@ import type { BaseTranslation } from '../../i18n/i18n-types';
 export const organization = {
 	// the one image the organization prints at the foot of its pages (effort 835).
 	mark: {
-		alt: "the organization's signature or seal",
+		alt: 'the organization stamp',
 		choose: 'choose image',
 		description: 'printed at the foot of every receipt and schedule.',
 		none: 'none added yet',
-		readOnly: 'somebody allowed to change the mark can change it.',
+		readOnly: 'somebody allowed to change the organization stamp can change it.',
 		remove: 'remove',
-		removed: 'signature or seal removed',
+		// the remove on the stamp's corner and the question before it: what goes, and what brings it
+		// back.
+		removeDescription:
+			'receipts and schedules print without it, on every machine. only choosing an image again brings one back.',
+		removeTitle: 'remove organization stamp',
+		removed: 'organization stamp removed',
 		replace: 'replace image',
-		saved: 'signature or seal saved',
-		title: 'signature or seal'
+		saved: 'organization stamp saved',
+		title: 'organization stamp'
 	},
 	setup: {
 		connectTitle: 'connect Turso',
@@ -88,31 +93,43 @@ export const organization = {
 		tryAgain: 'try again',
 		back: 'back'
 	},
-	// the block at the top of the organization section: where this machine stands with the
-	// organization on Turso, in one sentence (effort 828, requirement 25). A standing that
-	// needs something says what needs doing; synced says when this machine last reached
-	// Turso. No status word stands alone here, and the only one of these that says "sync" is
-	// the control, which the human named so on 2026-09-17.
+	// the sync group at the top of the organization section: where this machine stands with the
+	// organization on Turso, as one of five named states each in a tone of its own (effort 846,
+	// requirement 12, which brings back the coloured word effort 828 retired), and when it last
+	// reached Turso on a line of its own. The control is named "sync", as the human named it on
+	// 2026-09-17.
 	standing: {
-		// the legend and the sentence of purpose, the same whatever the standing: what the block
-		// is about, before the line that changes.
+		// the group's title and its one line, the same whatever the state: what the group is
+		// about.
 		title: 'this machine and Turso',
 		purpose:
 			'the organization lives on Turso and reaches this machine on its own. what you write goes out when Turso is reachable.',
-		// a machine that has never reached Turso: a fresh machine opened offline, which is not
-		// up to date and has no moment to say. *It read "up to date" until review round two of
-		// effort 828.*
-		notYetReached: 'this machine has not reached Turso yet',
-		upToDateChecked: 'up to date, checked {moment:string}',
+		// the five states, a word or two each, read at a glance; the explanation, where one is
+		// owed, is a callout beneath.
+		state: {
+			upToDate: 'up to date',
+			syncing: 'syncing',
+			// a machine that has never reached Turso: a fresh machine opened offline, which is
+			// not up to date. *It read "up to date" until review round two of effort 828.*
+			notYetReached: 'not yet reached',
+			needsAttention: 'needs attention',
+			needsReconnecting: 'needs reconnecting'
+		},
+		// the moment of the last reach: relative within a day, the date and the time beyond it.
+		lastReachedRecently: 'last reached Turso {moment:string}',
 		lastReached: 'last reached Turso on {moment:string}',
-		accountNeedsAttention: 'the Turso account needs attention',
-		accessNeedsAttention: "this machine's access needs attention",
-		needsReconnecting: 'this machine needs reconnecting',
-		// an owner whose machine holds no authority: the reconnect is the block below, and the
-		// standing block points at it rather than drawing a second consent.
-		reconnectBelow: 'the Turso account is reconnected in the block below.',
+		// an owner whose machine holds no authority: the reconnect is the leaving card's Turso account
+		// row, and the sync group points at it by name rather than drawing a second consent (effort
+		// 846, ticket 38).
+		reconnectOnAccount: 'reconnect the Turso account under leaving.',
 		checkNow: 'sync',
-		checking: 'syncing...'
+		// what folds under the state: the workspace this machine keeps a copy of, and where the copy
+		// is (effort 846, *Detail that few readers need folds under its row*).
+		detail: {
+			label: 'what this machine keeps',
+			workspace: 'workspace',
+			copy: 'copy on this machine'
+		}
 	},
 	dashboard: {
 		// the sentence the members section opens with: who is listed, and what this section is
@@ -123,19 +140,50 @@ export const organization = {
 		// then what this section is for.
 		workspacesDescription:
 			'every workspace in the organization. workspaces are made and changed here.',
-		// the one line a card carries about where an account stands. It is a fact about the
-		// account and nothing follows from it: a link is offered whichever of the three it says.
-		standingNoPassword: 'no password yet',
-		standingNoMachine: 'no machine signed in',
-		standingSignedIn: 'signed in on a machine',
+		// what a workspace card says beyond its name (effort 846, requirement 16): that it is the
+		// one open on this machine, and what the reader may do there, as what they may do rather
+		// than as a level of access, which the member's card never names either.
+		workspaceOpenHere: 'open on this machine',
+		workspaceYouOwn: 'owner',
+		workspaceYouEdit: 'you may edit',
+		workspaceYouRead: 'you may read',
+		workspaceSetForYou: 'set for you',
+		// what a workspace's tile says under its heading, as fields each with its name small above
+		// its value (effort 846, ticket 45): who holds it, named by the term's one key
+		// `organization.dashboard.membersTitle`, then the reader's access and the day it was made.
+		// Nobody holding it is said in words, never as a zero.
+		workspaceCard: {
+			memberCount: '{count|number}',
+			noMembers: 'nobody',
+			access: 'your access',
+			created: 'created'
+		},
+		// what a member's tile says, as four fields each with its name small above its value
+		// (effort 846, ticket 37): a name is written because four short values side by side need
+		// one to be told apart. Where the account stands is a fact about it and nothing follows
+		// from it: a link is offered whatever the password and machine fields say. A count of
+		// nothing is said in words, never as a zero.
+		memberCard: {
+			password: 'password',
+			passwordSet: 'set',
+			noPassword: 'not yet',
+			machine: 'machine',
+			signedIn: 'signed in',
+			noMachine: 'none',
+			// the workspaces field is named by the term's one key, `settings.section.workspaces`.
+			workspaceCount: '{count|number}',
+			noWorkspaces: 'none',
+			joined: 'joined',
+			ownPermissions: 'permissions of their own',
+			offered: 'offered the organization'
+		},
 
 		memberTitle: 'a new member',
 		memberDescription:
 			'a username, a role and the workspaces they hold. no password until they open a link you make.',
 		role: 'role',
 		noWorkspaceToGrant: 'no workspace to grant yet. they can be granted one later.',
-		// the workspace's own dialog with nobody to list: the owner and the reader are not.
-		noMemberToGrant: 'no member to put in this workspace yet.',
+		// a workspace's page with nobody to list: the owner and the reader are not.
 		addMember: 'add a member',
 		cannotSend:
 			'rentable sends nothing: copy the link below, hand it over, and give the code separately. it works once.',
@@ -151,7 +199,7 @@ export const organization = {
 		// requirement 22: the two entries on the owner's own card, one at a time, and the
 		// acceptance the other person meets. Two plain words each, and the sentences that
 		// say what changes belong to the surfaces they open.
-		transferOwnership: 'hand over ownership',
+		transferOwnership: 'transfer ownership',
 		transferOwnershipGoes:
 			'they are offered the organization. once they accept, they become the owner and you become a manager.',
 		transferOwnershipMember: 'who is offered the organization',
@@ -160,6 +208,9 @@ export const organization = {
 		transferOwnershipConfirm: 'offer it',
 		ownershipOffered: 'the organization was offered. they accept it on a machine of their own.',
 		withdrawOffer: 'withdraw the offer',
+		// what each member act that ends something says before it runs (effort 846, requirement 2).
+		withdrawOfferAsks:
+			'the offer ends and nothing changes hands. you can offer the organization again.',
 		ownershipOfferWithdrawn: 'the offer was withdrawn. nothing changed hands.',
 		acceptOwnership: 'accept ownership',
 		acceptOwnershipGoes:
@@ -170,8 +221,11 @@ export const organization = {
 		ownershipAccepted: 'the organization is yours. you are the owner now.',
 		lockOut: 'lock out',
 		unsetPassword: 'reset password',
+		unsetPasswordAsks:
+			'their password stops working on every machine. a link you make them lets them choose a new one.',
 		passwordUnset: 'their password was unset. make them a link so they can choose a new one.',
 		endSessions: 'sign out everywhere',
+		endSessionsAsks: 'they are signed out of every machine. signing in again brings them back.',
 		sessionsEnded: 'they were signed out of every machine.',
 		sessionsEndedPending:
 			'this machine is offline; the sign-out reaches their machines once it is back online.',
@@ -185,6 +239,17 @@ export const organization = {
 			'a username is three to thirty-two characters of letters, digits, dots, underscores and hyphens',
 		renamed: 'the member was renamed.',
 		authorityTitle: 'Turso account',
+		// the Turso account row's state on this machine, and the act that reconnects it.
+		authorityConnected: 'connected on this machine',
+		authorityNotHeld: 'not held here',
+		// what folds under the connected row: the organization's own database on the account, and
+		// the organization it holds (effort 846).
+		authorityDetail: {
+			label: 'what the Turso account holds',
+			database: 'organization database',
+			organization: 'organization'
+		},
+		reconnect: 'reconnect',
 		authorityDescription:
 			'this machine holds no authority over the Turso account, and it cannot be restored. grant the consent again.',
 		// requirement 22: an owner who was handed the organization holds no authority, and the
@@ -207,22 +272,19 @@ export const organization = {
 		linkUnreachableWorkspaces:
 			'you do not hold {workspaces}, so the link could not carry it over. a manager who does can grant it again.',
 		noWorkspaces: 'no workspace yet.',
-		// what a card says about the workspaces somebody holds: how many, and not which. Which
-		// ones, and which of them are locked to read only, is the sheet the card's edit opens.
-		workspacesHeld: '{count|number} {{workspace|workspaces}}',
 		accessFull: 'full access',
 		// the line under the workspaces on the sheet that adds a member.
 		memberWorkspacesDescription: 'the workspaces they can open. switch one on to let them in.',
 		accessSaved: 'the workspaces were saved.',
-		workspaceAccessTitle: 'members and access',
 		workspaceAccessDescription:
-			'who can open {workspace:string}. switch someone on to let them in. access taken back lasts until it runs out.',
+			'who can open {workspace:string}. add members to let them in. access taken back lasts until it runs out.',
 		deleteWorkspace: 'delete workspace',
 		deleteWorkspaceDescription:
 			'the workspace and every record in it are deleted from Turso and from every machine that syncs it. nothing puts it back.',
 		workspaceDeleted: 'the workspace was deleted.',
-		transferTitle: 'export and import {workspace:string}',
 		forgetAccount: 'forget Turso account',
+		// the end row's button, which its row's name labels.
+		forget: 'forget',
 		memberSheetDescription: 'what {username:string} may do in this organization.',
 		roleChanged: 'the role was saved.',
 		overrideSaved: 'what they may do was saved.',
@@ -236,14 +298,31 @@ export const organization = {
 		// word so that a reader scanning the section knows what the last block is before they
 		// read either description.
 		leavingTitle: 'leaving',
+		// the leaving card's one line, the same for the owner and the member.
+		leavingDescription: 'how you step away from the organization.',
 		disconnectForgets:
 			"signs you out and deletes the organization's copy on this machine. nothing on Turso changes.",
+		// effort 846, requirement 14: what each act in the leaving group ends, one line apiece, and
+		// the member's says how they come back, since a link is the only way back a member has.
+		disconnectThisMachine: 'disconnect this machine',
+		disconnectComesBack:
+			"signs you out and deletes the organization's copy on this machine. it stays on Turso, and a new link brings you back.",
+		transfer: 'transfer',
+		transferGoes:
+			'the member you choose becomes the owner once they accept, and you stay on as a manager.',
+		withdraw: 'withdraw',
+		offerStandsGoes: 'an offer stands. nothing changes hands until it is accepted.',
+		// why the handover is refused where nobody could accept it: an account with no password of its
+		// own has no vault for the organization's next key, and the owner's own is not a choice.
+		nobodyOfferable: 'nobody has set a password yet, so nobody can take it.',
 		disconnect: 'disconnect',
 		disconnected: 'this machine no longer holds the organization.',
 		forgetAccountDescription:
 			"this machine holds a token for the organization's Turso account. forget it, and nothing here reaches that account.",
+		// the forget confirmation: what it leaves standing, where to end it, and what brings it back
+		// (effort 846, requirement 2).
 		forgetAccountRevokes:
-			"forgetting does not revoke the token. end the grant yourself on Turso's dashboard at app.turso.tech.",
+			'forgetting does not revoke the token. end it at app.turso.tech. connecting the Turso account again brings it back.',
 		forgetAccountRevokesAt: 'app.turso.tech',
 		accountForgotten: 'this machine no longer holds a token for your Turso account.',
 		deleteOrganization: 'delete organization',
@@ -307,14 +386,14 @@ export const organization = {
 		grantWorkspace: 'grant workspaces',
 		manageRoles: 'manage roles',
 		overrideMember: "change one member's permissions",
-		manageMark: "change the organization's mark",
+		manageMark: 'change the organization stamp',
 		createWorkspace: 'create workspaces',
 		deleteWorkspace: 'delete workspaces',
 		mintReadOnly: 'grant read only access',
 		lockOut: 'lock members out',
 		renewCredentials: 'renew credentials',
 		tursoAccount: 'connect the Turso account',
-		transferOwnership: 'hand the organization over',
+		transferOwnership: 'transfer the organization',
 		deleteOrganization: 'delete the organization'
 	},
 
@@ -391,7 +470,7 @@ export const organization = {
 			grantWorkspace: 'put members in workspaces, or take them out.',
 			manageRoles: 'add, edit, rank and delete roles.',
 			overrideMember: 'give one member more or less than their role does.',
-			manageMark: "set the signature or seal printed on the organization's pages."
+			manageMark: 'set the organization stamp printed on its pages.'
 		},
 		viewFirst: 'turn view on first: adding, editing or deleting a record needs seeing it.',
 		groupRefused: 'some of these are not yours to change',
@@ -435,7 +514,22 @@ export const organization = {
 		organization: {
 			all: 'runs the organization',
 			some: 'helps run the organization'
-		}
+		},
+		/** how many hold the role, in the badge beside its name; nobody is said in words. */
+		holders: '{count|number} {{member|members}}',
+		noHolders: 'nobody yet',
+		/** the four fields under a role's name: what each counts, and what it says. */
+		fields: {
+			reads: 'reads',
+			changes: 'changes',
+			people: 'people',
+			organization: 'organization'
+		},
+		kindsOf: '{held|number} of {total|number} kinds',
+		noKinds: 'nothing',
+		everyAct: 'every act',
+		actsOf: '{held|number} of {total|number} acts',
+		noActs: 'none'
 	},
 
 	/**
@@ -467,6 +561,29 @@ export const organization = {
 		customHere: 'custom here',
 		movesNotHeld: 'this changes a permission here that you do not hold yourself.',
 		notHeld: 'you hold this workspace read only, so you cannot give it.'
+	},
+
+	/**
+	 * a workspace's own page (effort 846, tickets 49, 50 and 51): the directory of who is in it, the
+	 * sheet that adds members, and the sheet of what one member may do there.
+	 */
+	workspacePage: {
+		addMembers: 'add members',
+		addDescription:
+			'check who to put in {workspace:string}. each is given access when you add them.',
+		addPlaceholder: 'find a member to add',
+		addCount: '{{count:add members|add ?? member|add ?? members}}',
+		notAllAdded: 'those still checked were not added.',
+		noMatch: 'nobody by that name to add.',
+		nobodyToAdd: 'everybody is in this workspace',
+		nobodyHolds: 'nobody is in this workspace yet.',
+		editPermissions: 'edit permissions',
+		permissionsOf: 'what {username:string} may do in this workspace.',
+		permissionsOverride:
+			"these override the organization's and the role's permissions for {workspace:string} alone.",
+		removeFromWorkspace: 'remove from workspace',
+		removeAsks:
+			'they can no longer open this workspace once the access they hold runs out. adding them again gives it back.'
 	}
 } satisfies BaseTranslation;
 
@@ -498,6 +615,9 @@ export const refusals = {
 		youWereRemoved: 'you were removed from this organization.',
 		sessionsEnded: 'your sessions were ended from another machine. sign in again.',
 		keyNotInForce: 'the organization was handed over, so only its new owner can do this.',
+		machineMissing: 'that machine is no longer signed in as you. reload to see what changed.',
+		machineNotUpdated:
+			'that machine has not run this version yet, so it is not signed out alone. sign out others instead.',
 		usernameInvalid:
 			'a username is 3 to 32 letters, digits, dots, underscores or hyphens, with no spaces.',
 		usernameTaken: 'that username is already taken in this organization. choose another.',
@@ -548,6 +668,8 @@ export const refusals = {
 			'a newer version of rentable upgraded this workspace. update rentable to open it.',
 		workspaceBehind:
 			'this workspace needs upgrading, and read-only access cannot do it. ask a member with full access to open it once.',
+		workspaceNeedsOpening:
+			'this workspace is behind this version of rentable. open it once on this machine to bring it up to date.',
 		databaseRefused: 'the database refused the request, and nothing was changed. try again later.',
 		organizationOlder:
 			'an older version made this organization. it waits for its owner to open it in this version, which upgrades it.',

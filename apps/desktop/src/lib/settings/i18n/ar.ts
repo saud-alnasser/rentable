@@ -8,30 +8,29 @@ import type { Translation } from '../../i18n/i18n-types';
 export const settings = {
 	diagnosticsDescription:
 		'سجل بما يفعله رينتابل لتتبع الأعطال. يبقى هنا، ولا تُكتب فيه كلمات المرور ولا الرموز.',
+	diagnosticsFolder: 'مجلد السجل',
 	diagnosticsReveal: 'فتح مجلد السجل',
 	diagnosticsTitle: 'التشخيص',
 
 	downloadingUpdate: 'جاري تنزيل التحديث',
 
-	endingSoonDescription:
-		'يظهر العقد في لوحة التحكم ضمن العقود القريبة من الانتهاء قبل هذا العدد من الأيام من نهايته.',
-	endingSoonInvalid: 'يجب أن يكون عدد الأيام أكبر من صفر',
-	endingSoonTitle: 'قريب من الانتهاء',
-
 	latestRelease: 'أنت تستخدم أحدث إصدار.',
 
 	loadErrorTitle: 'الإعدادات غير متاحة حالياً',
 
-	transferImportTitle: 'استيراد مساحة عمل',
+	transferImportTitle: 'استيراد إلى {workspace}',
 	transferImportSuccess: 'تم استيراد الملف',
 
 	restartNotice: 'تم تثبيت التحديث. أعد تشغيل رينتابل لإكماله.',
 
-	localeDescription: 'تتغير الواجهة بمجرد اختيارك.',
+	preferences: {
+		title: 'اللغة والمظهر',
+		description: 'كيف يُقرأ رينتابل ويبدو على هذا الجهاز.'
+	},
 	localeTitle: 'اللغة',
 
 	appearanceTitle: 'المظهر',
-	appearanceDescription: 'فاتح أو داكن، أو يتبع نظامك كلما تغيّر.',
+	appearanceSystemHint: 'يتبع جهازك كلما تحوّل بين الفاتح والداكن',
 	appearance: {
 		system: 'النظام',
 		light: 'فاتح',
@@ -49,7 +48,15 @@ export const settings = {
 
 	title: 'الإعدادات',
 
-	updatesChecking: 'جارٍ التحقق من التحديثات...',
+	updatesState: {
+		checking: 'جارٍ التحقق',
+		upToDate: 'محدّث',
+		available: 'يتوفر تحديث',
+		downloading: 'جارٍ التنزيل',
+		restart: 'أعد التشغيل لإكماله'
+	},
+	whatsNew: 'ما الجديد في {version}',
+	releasedOn: 'صدر في {date}',
 	updatesDescription:
 		'تحقق من وجود إصدار أحدث وثبّته. وإذا تعذر تشغيل التطبيق بعده، فسيعرض إعادة الإصدار السابق.',
 	updatesTitle: 'التحديثات',
@@ -69,26 +76,47 @@ export const settings = {
 			confirmLabel: 'كلمة المرور الجديدة مرة أخرى',
 			mismatch: 'الاثنتان غير متطابقتين.',
 			change: 'غيّر كلمة المرور',
+			changeShort: 'غيّر',
 			changed: 'تم تغيير كلمة مرورك.'
 		},
 		sessions: {
-			title: 'الأجهزة الأخرى',
-			description: 'سجّل الخروج من كل مكان عدا هنا. كلمة مرورك تبقى كما هي.',
-			action: 'سجّل الخروج من الأجهزة الأخرى',
+			action: 'سجّل الخروج من كل الأجهزة الأخرى',
+			short: 'سجّل خروج الأجهزة الأخرى',
+			noOthers: 'لا جهاز آخر مسجّل الدخول باسمك.',
 			confirmDescription:
-				'يُسجَّل خروجك من كل جهاز آخر. يبقى هذا الجهاز مسجل الدخول، ولا تتغير كلمة مرورك.',
+				'يُسجَّل خروجك من كل جهاز آخر، وتعيدك كلمة مرورك إلى كل منها. يبقى هذا الجهاز مسجل الدخول.',
 			ended: 'سُجّل الخروج من أجهزتك الأخرى.',
 			endedPending: 'هذا الجهاز غير متصل؛ سيصل تسجيل الخروج إلى الأجهزة الأخرى عند عودة الاتصال.'
 		},
+		machines: {
+			title: 'الأجهزة',
+			description: 'تسجيل خروج جهاز لا يغيّر كلمة مرورك.',
+			signedIn: 'الأجهزة المسجّلة: {count}',
+			thisMachine: 'هذا الجهاز',
+			unnamed: 'جهاز أُضيف في {date}',
+			lastSeen: 'آخر ظهور {moment}',
+			added: 'أُضيف في {date}',
+			notUpdated: 'لم يُحدَّث إلى هذا الإصدار بعد',
+			menu: 'إجراءات {machine}',
+			confirmTitle: 'سجّل خروج جهاز',
+			confirmDescription:
+				'يُسجَّل خروجه حين يصل إلى Turso في المرة القادمة، وتعيده كلمة مرورك. لا تتغير كلمة مرورك.',
+			ended: 'سُجّل خروج الجهاز.',
+			endedPending: 'هذا الجهاز غير متصل؛ سيصل تسجيل الخروج إلى ذلك الجهاز عند عودة الاتصال.'
+		},
 		ownership: {
 			title: 'الملكية',
-			offered: 'عرض عليك {owner} هذه المؤسسة. إن قبلتها صرت المالك وصار هو مديرًا.'
+			offeredBy: 'عرضها عليك {owner}',
+			consequence: 'إن قبلتها صرت المالك وصار هو مديرًا.'
+		},
+		thisMachine: {
+			signOut: 'سجّل الخروج من هذا الجهاز',
+			asks: 'يُسجَّل خروجك هنا، وتبقى المؤسسة على هذا الجهاز. تسجيل الدخول من جديد يعيدك.'
 		}
 	}
 } satisfies Translation['settings'];
 
 export const settingsHooks = {
-	endingSoonUpdated: 'تم تحديث فترة الإشعار!',
 	workspaceUpToDate: 'كل شيء محدّث.'
 } satisfies Translation['settingsHooks'];
 

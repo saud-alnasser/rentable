@@ -10,7 +10,9 @@
 		},
 		variants: {
 			size: {
-				row: { arc: 'size-9', figure: 'text-xs font-medium' },
+				// a step under the scale's smallest text, so the figure sits inside the arc with room
+				// around it rather than filling it to its edge (effort 846, ticket 46).
+				row: { arc: 'size-9', figure: 'text-2xs font-medium' },
 				// the hero reading gives ground on a narrow window: three of these at full size
 				// fill a short one on their own, leaving no room for what they sit above.
 				hero: { arc: 'size-16 sm:size-24', figure: 'text-base font-semibold sm:text-lg' }
@@ -108,5 +110,5 @@
 			)}
 		/>
 	</svg>
-	<span class={styles.figure()} aria-hidden="true">{figure ?? defaultFigure}</span>
+	<span class={styles.figure()} aria-hidden="true" data-ring-figure>{figure ?? defaultFigure}</span>
 </span>

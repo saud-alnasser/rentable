@@ -19,4 +19,4 @@ export {
 	type ListFilter,
 	type PeriodFilter
 } from './filter';
-export type { ListProps, ListSortOption } from './list';
+export { RECORD_TILE_MIN_WIDTH, columnsFor, type ListProps, type ListSortOption } from './list';

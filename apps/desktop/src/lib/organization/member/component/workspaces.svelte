@@ -1,5 +1,5 @@
 <script lang="ts" module>
-	import type { AccessSwitchRow } from '$lib/organization/access/component/switches.svelte';
+	import type { AccessSwitchRow } from '$lib/organization/access/access';
 
 	/**
 	 * one workspace a member can be put in: what they hold on it today, what is set for them there
@@ -12,7 +12,7 @@
 <script lang="ts">
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import type { AccessChoice } from '$lib/organization/access/component/dialog.svelte';
+	import type { AccessChoice } from '$lib/organization/access/access';
 	import AccessSwitches from '$lib/organization/access/component/switches.svelte';
 	import MemberSectionHead from '$lib/organization/component/section-head.svelte';
 	import BuildingIcon from '@lucide/svelte/icons/building';
@@ -23,7 +23,8 @@
 	 * again, a third and a fourth time, the human's calls on the running application).
 	 *
 	 * **A workspace is its access switch, in or out**, as `access/component/switches.svelte` draws
-	 * every grant; the workspace's own dialog draws its people from the same list. Beneath one that
+	 * every grant; a workspace's page puts its people in by search, refused by the same rule
+	 * (`accessRefusalOf`). Beneath one that
 	 * is in, the member's card folds the permissions they hold there (`beneath`,
 	 * `access/component/tailoring.svelte`); the sheet that adds a member draws in and out alone. So
 	 * the card reads as the member's role and the places they can open, and not as a second set of

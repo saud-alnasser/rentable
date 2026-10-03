@@ -130,7 +130,6 @@ mod tests {
                 AccountAndLink, Invitation, WorkspaceGrant, locator, make_account_and_link,
                 reset_account,
             },
-            lease::apply::Pipeline,
             member::vault::{KdfParams, MemberKey, open_sealed_secret_key, unseal_with_secret_key},
             role::permission,
             session::{CredentialSlot, MEMBER_KEY_SERVICE, MemberSession, read_entry, sign_in},
@@ -139,6 +138,7 @@ mod tests {
                 ORGANIZATION_KEY_PURPOSE, Remote, create_organization,
             },
             store::{OrganizationStore, TABLES},
+            workspace::remote::Pipeline,
             workspace::{create_workspace, grant_workspace},
         },
         persisted::Persisted,
@@ -205,6 +205,7 @@ mod tests {
             role: Some(role.to_string()),
             joined_at: 0,
             format: None,
+            machine_signed_out: 0,
         }
     }
 

@@ -1,4 +1,6 @@
 <script lang="ts" module>
+	import type { Component } from 'svelte';
+
 	/** One section a reader can switch to, at its own address. */
 	export type SwitchSection = {
 		/** What names the section in the address: the value `?section=` carries. */
@@ -7,6 +9,11 @@
 		label: string;
 		/** The section's address, already resolved. */
 		href: string;
+		/**
+		 * The glyph drawn before the label, where the surface names its sections with one. The
+		 * settings area does; a record's collections do not, and leave it unset.
+		 */
+		icon?: Component<{ class?: string }>;
 	};
 </script>
 
@@ -64,9 +71,13 @@
 			data-sveltekit-replacestate
 			data-sveltekit-noscroll
 			data-sveltekit-keepfocus
-			class="shrink-0 border-b-2 border-transparent pb-3 text-sm font-medium whitespace-nowrap text-muted-foreground capitalize transition-colors hover:text-foreground aria-[current=page]:border-primary aria-[current=page]:text-foreground"
+			class="inline-flex shrink-0 items-center gap-2 border-b-2 border-transparent pb-3 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:border-primary aria-[current=page]:text-foreground"
 		>
-			{section.label}
+			<!-- the glyph is decoration beside the word, which is the link's name. -->
+			{#if section.icon}
+				<section.icon class="size-4 shrink-0" />
+			{/if}
+			<span class="capitalize">{section.label}</span>
 		</a>
 	{/each}
 </nav>

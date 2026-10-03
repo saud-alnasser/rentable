@@ -31,6 +31,15 @@ export type Reference = {
 	reference: string;
 };
 
+/**
+ * What a read is handed where what the clock derives has to be derived as it reads rather than read
+ * as stored: the instant to derive it at, and what the features contribute, which a derivation may
+ * read through. Handed for a workspace read on Turso without being open (effort 846, requirement
+ * 15), which nothing may have reconciled since a day passed; the open one is reconciled on every
+ * trigger and is read as stored.
+ */
+export type Deriving = { now: number } & Contributed;
+
 /** One statement of the batch an import is written in. */
 export type Statement = Parameters<Database['batch']>[0][number];
 
@@ -85,8 +94,11 @@ export type Sheet<C extends string, TRecord, TRow extends Record<string, string>
 	 * and not the other is what makes a file this application wrote a file it cannot read.
 	 */
 	columns: readonly ExportColumn<TRecord>[];
-	/** every record the workspace holds, in the shape and the order the file holds them. */
-	read(db: Database): Promise<TRecord[]>;
+	/**
+	 * every record the workspace holds, in the shape and the order the file holds them. With
+	 * `deriving`, what a record derives from the clock is derived at its instant.
+	 */
+	read(db: Database, deriving?: Deriving): Promise<TRecord[]>;
 	/**
 	 * What the workspace already holds, by the names a file uses: the identity a row repeating one
 	 * is turned away under.
@@ -152,7 +164,7 @@ export type AnySheet = {
 	names: { written: string; accepted: readonly string[] };
 	view: Flag;
 	columns: readonly ExportColumn<never>[];
-	read(db: Database): Promise<unknown[]>;
+	read(db: Database, deriving?: Deriving): Promise<unknown[]>;
 	held(db: Database): Promise<HeldName[]>;
 	fields: readonly ImportField<never>[];
 	rowsMayRepeat?: boolean;

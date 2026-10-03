@@ -50,6 +50,7 @@
 		readerPermissions,
 		refusal = null,
 		regrantRefusal = null,
+		folded = true,
 		disabled
 	}: {
 		/** what the fold and its switches are named by in the document. */
@@ -67,6 +68,12 @@
 		refusal?: string | null;
 		/** why re-granting this workspace at full access would be refused, or `null`. */
 		regrantRefusal?: string | null;
+		/**
+		 * whether the switches fold beneath a *permissions* row, as on the member's card, or stand
+		 * open as the whole of a surface: the workspace page's *edit permissions* sheet, which holds
+		 * nothing else (effort 846, ticket 51).
+		 */
+		folded?: boolean;
 		disabled: boolean;
 	} = $props();
 
@@ -98,53 +105,64 @@
 	const planOf = (next: number) => tailoredTo(organizationWide, held.access, next);
 </script>
 
-<!-- indented to the workspace's name, so the glyph's column stays the row's. -->
-<Collapsible.Root bind:open class="flex flex-col ps-6" data-tailor={id}>
-	<Collapsible.Trigger
-		class="flex min-h-8 w-full items-center gap-2 rounded-xl text-start text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/30"
-		data-tailor-fold
-	>
-		<span class="min-w-0 flex-1 first-letter:uppercase">
-			{$LL.organization.workspaceSwitches.permissions()}
-		</span>
-		{#if differing !== 0}
-			<span class="flex shrink-0 items-center gap-1.5 text-xs" data-tailor-custom>
-				<span class="size-2 rounded-full bg-primary" aria-hidden="true"></span>
-				{$LL.organization.switches.custom()}
-			</span>
-		{/if}
-		<ChevronDownIcon
-			class="size-4 shrink-0 transition-transform duration-quick ease-move {open
-				? 'rotate-180'
-				: ''}"
-			aria-hidden="true"
+{#snippet switches()}
+	<div class="flex flex-col gap-3 pt-1 pb-1" data-tailor-open={id}>
+		<p class="text-xs leading-snug text-muted-foreground" data-tailor-says>
+			{$LL.organization.workspaceSwitches.permissionsSays()}
+		</p>
+
+		<PermissionSwitches
+			{id}
+			mask={shown}
+			onChange={(next) => onChange(planOf(next))}
+			held={readerPermissions}
+			{refusal}
+			refusalOf={(next) => refusalOfPlan(planOf(next))}
+			{disabled}
+			marked={{
+				mask: differing,
+				label: $LL.organization.workspaceSwitches.differs()
+			}}
+			records
 		/>
-	</Collapsible.Trigger>
+	</div>
+{/snippet}
 
-	<Collapsible.Content>
-		<!-- drawn only while open, so what nobody opened reaches neither a reader nor a screen
-		     reader. -->
-		{#if open}
-			<div class="flex flex-col gap-3 pt-1 pb-1" data-tailor-open={id}>
-				<p class="text-xs leading-snug text-muted-foreground" data-tailor-says>
-					{$LL.organization.workspaceSwitches.permissionsSays()}
-				</p>
+{#if folded}
+	<!-- indented to the workspace's name, so the glyph's column stays the row's. -->
+	<Collapsible.Root bind:open class="flex flex-col ps-6" data-tailor={id}>
+		<Collapsible.Trigger
+			class="flex min-h-8 w-full items-center gap-2 rounded-xl text-start text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/30"
+			data-tailor-fold
+		>
+			<span class="min-w-0 flex-1 first-letter:uppercase">
+				{$LL.organization.workspaceSwitches.permissions()}
+			</span>
+			{#if differing !== 0}
+				<span class="flex shrink-0 items-center gap-1.5 text-xs" data-tailor-custom>
+					<span class="size-2 rounded-full bg-primary" aria-hidden="true"></span>
+					{$LL.organization.switches.custom()}
+				</span>
+			{/if}
+			<ChevronDownIcon
+				class="size-4 shrink-0 transition-transform duration-quick ease-move {open
+					? 'rotate-180'
+					: ''}"
+				aria-hidden="true"
+			/>
+		</Collapsible.Trigger>
 
-				<PermissionSwitches
-					{id}
-					mask={shown}
-					onChange={(next) => onChange(planOf(next))}
-					held={readerPermissions}
-					{refusal}
-					refusalOf={(next) => refusalOfPlan(planOf(next))}
-					{disabled}
-					marked={{
-						mask: differing,
-						label: $LL.organization.workspaceSwitches.differs()
-					}}
-					records
-				/>
-			</div>
-		{/if}
-	</Collapsible.Content>
-</Collapsible.Root>
+		<Collapsible.Content>
+			<!-- drawn only while open, so what nobody opened reaches neither a reader nor a screen
+			     reader. -->
+			{#if open}
+				{@render switches()}
+			{/if}
+		</Collapsible.Content>
+	</Collapsible.Root>
+{:else}
+	<!-- the whole of the surface it stands on, so nothing folds it away. -->
+	<div class="flex flex-col" data-tailor={id}>
+		{@render switches()}
+	</div>
+{/if}

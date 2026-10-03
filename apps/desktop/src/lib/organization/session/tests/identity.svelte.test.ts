@@ -9,14 +9,17 @@ import { fakeOrganizationSession } from '$lib/organization/tests/testing.ts';
 import en from '$lib/i18n/en';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
+import { accountInitials } from '$lib/sync';
 
 /**
  * THE IDENTITY BLOCK, RENDERED
  *
  * Requirement 21 of the redesign: the block on the account page names the person by the one
  * username, with no address and no display name beside it; the role and the organization are
- * the two facts drawn under it, and the avatar is the first two characters of the username
- * upper-cased, as the rail's and the members list's are (requirement 24). Both locales.
+ * the two facts drawn beside it. Since effort 846 it is a settings card drawn as its header
+ * alone: the avatar, the username as its title, the organization as its line and the role as a
+ * badge at its end; and the way out is not in it: signing out is the account section's last card
+ * (requirement 8 of that effort). Both locales.
  *
  * The block is props and a session, no query and no client, so nothing here provides one.
  */
@@ -39,16 +42,24 @@ test('the block names the person by the username, the role and the organization,
 	block('sami.staff');
 
 	const identity = document.querySelector('[data-identity]')!;
+	const header = identity.querySelector('[data-settings-group-header]')!;
 
-	expect(identity.querySelector('[data-identity-username]')?.textContent?.trim()).toBe(
-		'sami.staff'
+	// a header, not a row: the person leads, larger than a setting, by their avatar.
+	expect(screen.getByRole('region', { name: 'sami.staff' })).toBeDefined();
+	expect(identity.querySelectorAll('[data-settings-row]')).toHaveLength(0);
+	expect(header.querySelector('h2')?.textContent?.trim()).toBe('sami.staff');
+	expect(header.querySelector('[data-slot=avatar]')?.textContent?.trim()).toBe(
+		accountInitials('sami.staff')
 	);
-	expect(screen.getByText(en.layout.signIn.roleManager)).toBeDefined();
-	expect(screen.getByText('Acme Rentals')).toBeDefined();
+	expect(header.querySelector('[data-settings-group-description]')?.textContent?.trim()).toBe(
+		'Acme Rentals'
+	);
+	expect(
+		header.querySelector('[data-settings-group-value] [data-slot=badge]')?.textContent?.trim()
+	).toBe(en.layout.signIn.roleManager);
 	expect(identity.textContent).not.toContain('@');
-	expect(identity.querySelectorAll('[data-identity-username]')).toHaveLength(1);
-	expect(document.querySelector('[data-slot="avatar-fallback"]')?.textContent?.trim()).toBe('SA');
-	expect(screen.getByRole('button', { name: en.common.actions.signOut })).toBeDefined();
+	// the way out is the section's last group, not a button beside the name.
+	expect(screen.queryByRole('button')).toBeNull();
 });
 
 test('and in arabic, the same username under the role in its own words', () => {
@@ -56,10 +67,9 @@ test('and in arabic, the same username under the role in its own words', () => {
 	setLocale('ar');
 	block('lina_h', 'rtl');
 
-	expect(document.querySelector('[data-identity-username]')?.textContent?.trim()).toBe('lina_h');
+	expect(document.querySelector('[data-identity] h2')?.textContent?.trim()).toBe('lina_h');
 	expect(screen.getByText(ar.layout.signIn.roleManager)).toBeDefined();
-	expect(document.querySelector('[data-slot="avatar-fallback"]')?.textContent?.trim()).toBe('LI');
-	expect(screen.getByRole('button', { name: ar.common.actions.signOut })).toBeDefined();
+	expect(screen.getByRole('region', { name: 'lina_h' })).toBeDefined();
 
 	setLocale('en');
 });

@@ -888,7 +888,6 @@ mod tests {
     use crate::organization::invitation::{
         AccountAndLink, Invitation, WorkspaceGrant, locator, make_account_and_link,
     };
-    use crate::organization::lease::apply::Pipeline;
     use crate::organization::member::removal;
     use crate::organization::member::vault::{KdfParams, seal_to_public_key};
     use crate::organization::role::permission::{self, Flag};
@@ -900,6 +899,7 @@ mod tests {
         ADMINISTRATOR_KEY_PURPOSE, CreateOrganization, Remote, create_organization, owner_key_from,
     };
     use crate::organization::store::{MemberRecord, OrganizationStore, Signer, TABLES};
+    use crate::organization::workspace::remote::Pipeline;
     use crate::organization::workspace::{create_workspace, signer_of};
     use crate::persisted::Persisted;
     use crate::sync::test::server::{ScriptedResponse, ScriptedServer};
@@ -974,6 +974,7 @@ mod tests {
             role: Some(role.to_string()),
             joined_at: 0,
             format: None,
+            machine_signed_out: 0,
         }
     }
 

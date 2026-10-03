@@ -106,6 +106,11 @@ mod tests {
         ("workspace_grant_withdraw", Gate::Flag(Flag::GrantWorkspace)),
         ("workspace_delete", Gate::Owner(Flag::DeleteWorkspace)),
         ("workspace_open", Gate::Own),
+        // the member's own grant, reached on Turso: what may be done to a record there is asked
+        // of the reader's access in that workspace by the procedure that sends the statements,
+        // and a read-only grant's token is read-only at Turso.
+        ("workspace_query", Gate::Own),
+        ("workspace_batch", Gate::Own),
         (
             "workspace_renew_credentials",
             Gate::Owner(Flag::RenewCredentials),
@@ -150,6 +155,10 @@ mod tests {
         ("mark_set", Gate::Flag(Flag::ManageMark)),
         ("mark_clear", Gate::Flag(Flag::ManageMark)),
         ("session_end_elsewhere", Gate::Own),
+        // the reader's own machines, and one of them signed out (effort 846, requirements 9 and
+        // 10): the member is the session's, never input.
+        ("session_machines", Gate::Own),
+        ("session_end_machine", Gate::Own),
         ("member_end_sessions", Gate::Flag(Flag::ResetPassword)),
         ("member_lock_out_cost", Gate::Flag(Flag::RemoveMember)),
         ("member_remove", Gate::Flag(Flag::RemoveMember)),

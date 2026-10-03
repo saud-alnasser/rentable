@@ -1,11 +1,9 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
 	import { DirectoryImportDialog } from '$lib/transfer/ui';
 	import { List } from '$lib/list/ui';
+	import { RECORD_TILE_MIN_WIDTH } from '$lib/list';
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
-	import RecordCard from '@rentable/design/block/record-card.svelte';
 	import SelectionDialog from '@rentable/design/block/selection-dialog.svelte';
-	import * as Cell from '$lib/design/cell';
 	import {
 		describeRefusals,
 		foreseenRefusals,
@@ -13,7 +11,11 @@
 	} from '@rentable/design/selection.js';
 	import type { ListSort } from '@rentable/design/sort.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import type api from '$lib/api/caller';
+	import TenantCard, {
+		contractCounts,
+		TENANT_TILE_HEIGHT,
+		type TenantRecord
+	} from '$lib/tenant/component/card.svelte';
 	import { toNarrowedName } from '@rentable/design/csv.js';
 	import { toCardActions } from '$lib/act';
 	import { tenantActs, tenantHost } from '$lib/tenant/host.svelte';
@@ -30,34 +32,8 @@
 	import { contributionsTo } from '$lib/feature/surface';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 
-	type TenantRecord = Awaited<ReturnType<typeof api.tenant.getMany>>[number];
-
-	// two lines of text and the breathing room around them; the shell lays rows out at this
-	// height rather than measuring them.
-	const ROW_HEIGHT = 64;
-
-	// the row's six figures, keyed by the status each counts.
-	//
-	// The query answers with one field per status rather than a nested figure, so this is where
-	// the two shapes meet — and it is a function of the record rather than a derived value
-	// because the list hands each row to the snippet one at a time.
-	//
-	// Nothing where the row carries no counts: a reader who may not view contracts is answered with
-	// none (effort 838, requirement 10), and the row then draws no figures rather than six zeroes.
-	const contractCounts = (tenant: TenantRecord) =>
-		tenant.contractsScheduled === undefined
-			? undefined
-			: {
-					scheduled: tenant.contractsScheduled,
-					active: tenant.contractsActive ?? 0,
-					fulfilled: tenant.contractsFulfilled ?? 0,
-					defaulted: tenant.contractsDefaulted ?? 0,
-					expired: tenant.contractsExpired ?? 0,
-					terminated: tenant.contractsTerminated ?? 0
-				};
-
-	// what the row says of the contracts naming the tenant is the contract's to decide, and it
-	// contributes it: the order the six figures stand in, and whether the reader may see them.
+	// what a card says of the contracts naming the tenant is the contract's to decide, and it
+	// contributes it: the order the chips stand in, and whether the reader may see them.
 	const contracts = contributionsTo('tenant');
 
 	// the counts are offered as an order and a column of the file only to a reader shown them.
@@ -163,16 +139,18 @@
 	{selectionActions}
 	isLoading={tenantsQuery.isLoading}
 	isFetching={tenantsQuery.isFetching}
-	recordHeight={ROW_HEIGHT}
+	recordMinWidth={RECORD_TILE_MIN_WIDTH}
+	recordHeight={TENANT_TILE_HEIGHT}
 	exportAs={{
 		name: toNarrowedName($LL.common.nav.tenants(), [search]),
 		columns: [
 			{ header: $LL.common.labels.name(), value: (tenant) => tenant.name },
 			{ header: $LL.common.labels.nationalId(), value: (tenant) => tenant.nationalId },
 			{ header: $LL.common.labels.phone(), value: (tenant) => tenant.phone },
-			// the export follows the row, because the columns are the row's: a reader exports what
-			// they are looking at, and a file short of a figure that is on screen is the defect the
-			// complexes export already has.
+			// the export follows the card: a reader exports what they are looking at, and a file
+			// short of a figure that is on screen is the defect the complexes export already has.
+			// Every status is a column, zeros included, where the card leaves a zero out: a column
+			// has to be there on every line to be a column.
 			//
 			// The counts cross as counts. Rendered through the locale they were text, and a column
 			// of text is a column nothing can total — which is the first thing anyone does to a
@@ -192,37 +170,11 @@
 	emptyDescription={$LL.tenants.empty.description()}
 >
 	{#snippet record(tenant: TenantRecord)}
-		{@const counts = contractCounts(tenant)}
-		<RecordCard
-			href={resolve(`/tenants/${tenant.id}`)}
-			label={tenant.name}
+		<TenantCard
+			{tenant}
 			actions={toCardActions(tenantActs, tenant, $LL)}
-			class="gap-4"
-		>
-			{#snippet content()}
-				<span class="pointer-events-none relative flex min-w-0 flex-1 flex-col gap-0.5 text-start">
-					<Cell.Text class="truncate text-sm font-medium" text={tenant.name} />
-					<span class="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
-						<span class="truncate tabular-nums">{tenant.nationalId}</span>
-						<span aria-hidden="true">&middot;</span>
-						<Cell.Phone phone={tenant.phone} />
-					</span>
-				</span>
-
-				<!-- a figure per status, in the order the contracts directory ranks them: what needs the
-				     reader, then what is running, then what has not started, then the history behind
-				     them. Every status is shown including the ones at zero, so the six form fixed
-				     columns down the list — a cluster that varied with what each tenant happened to
-				     hold would work against exactly that. -->
-				{#if counts}
-					<span class="pointer-events-none relative flex shrink-0 items-center gap-3">
-						{#each contracts.attentionOrder as status (status)}
-							<Cell.StatusCount {status} count={counts[status]} />
-						{/each}
-					</span>
-				{/if}
-			{/snippet}
-		</RecordCard>
+			statuses={contracts.attentionOrder}
+		/>
 	{/snippet}
 </List>
 
