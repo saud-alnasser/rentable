@@ -165,7 +165,8 @@ statement read in time order, and each payment row says how it was paid.
    app's own signed commands. Then: "same thing also for thew orkapces seed workspaces and make the seeding part of the seed script; also make the workspaces under settings directory have 4 cards on a 2 column grid after that it goes to a scrolling area also when i said 4 cards for all priori requirements and this requirement of workspaces what i meant is not restricted on the reponsivines becuase i know it becomes 3 columns grid whne the screen is binger and 1 column when it's mobile size ; for mobile size 2 cards then becomes an area of scroll; for mid screen 2 columns become 4 cards meaning 2x2; for full screen 3x3 cards 9 cards then becomes scorllable area": the seed makes workspaces too; and the members, roles and
    workspaces directories in settings keep their responsive columns and show as many rows as fit the
    column count before scrolling in their own area: two cards at one column, four (two by two) at two,
-   nine (three by three) at three.*
+   nine (three by three) at three. Then: "als the drop down of worksspaces maybe at a limit becomes scrollable": the sidebar's workspace menu lists a few workspaces
+   and scrolls the rest, its manage row staying in view.*
 3. **General holds application preferences only**: language, appearance, updates and diagnostics.
    Ending soon is not in it.
 4. **Every control in the area that applies a choice applies it at once**, as language and
