@@ -160,7 +160,9 @@ statement read in time order, and each payment row says how it was paid.
    every member not yet in the workspace; pressing a row checks it and it stays where it is; the one
    button says how many it adds. Then: "in settings members and roles each one should havea 4x4 cards as masx then more will result in a scorlling area for that directory of records", and "what i mean by 4x4 i meant 4 cards on a 2 columns grid": the members and the
    roles directories in settings lay their cards in two columns and show four at most, two rows,
-   scrolling within their own area past that, the tray staying put above.*
+   scrolling within their own area past that, the tray staying put above. Then: "also seed roles; and make roles  and members seedning part of the seed script": the
+   development seed also fills the organization with custom roles and members, through the running
+   app's own signed commands.*
 3. **General holds application preferences only**: language, appearance, updates and diagnostics.
    Ending soon is not in it.
 4. **Every control in the area that applies a choice applies it at once**, as language and
