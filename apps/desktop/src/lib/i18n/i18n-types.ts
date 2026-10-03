@@ -4280,7 +4280,7 @@ type RootTranslation = {
 			 */
 			accessSaved: string;
 			/**
-			 * w​h​o​ ​c​a​n​ ​o​p​e​n​ ​{​w​o​r​k​s​p​a​c​e​}​.​ ​f​i​n​d​ ​a​ ​m​e​m​b​e​r​ ​t​o​ ​l​e​t​ ​t​h​e​m​ ​i​n​.​ ​a​c​c​e​s​s​ ​t​a​k​e​n​ ​b​a​c​k​ ​l​a​s​t​s​ ​u​n​t​i​l​ ​i​t​ ​r​u​n​s​ ​o​u​t​.
+			 * w​h​o​ ​c​a​n​ ​o​p​e​n​ ​{​w​o​r​k​s​p​a​c​e​}​.​ ​a​d​d​ ​m​e​m​b​e​r​s​ ​t​o​ ​l​e​t​ ​t​h​e​m​ ​i​n​.​ ​a​c​c​e​s​s​ ​t​a​k​e​n​ ​b​a​c​k​ ​l​a​s​t​s​ ​u​n​t​i​l​ ​i​t​ ​r​u​n​s​ ​o​u​t​.
 			 * @param {string} workspace
 			 */
 			workspaceAccessDescription: RequiredParams<'workspace'>;
@@ -4974,7 +4974,7 @@ type RootTranslation = {
 			 */
 			addMembers: string;
 			/**
-			 * c​h​o​o​s​e​ ​w​h​o​ ​t​o​ ​p​u​t​ ​i​n​ ​{​w​o​r​k​s​p​a​c​e​}​.​ ​e​a​c​h​ ​i​s​ ​g​i​v​e​n​ ​a​c​c​e​s​s​ ​w​h​e​n​ ​y​o​u​ ​s​a​v​e​.
+			 * c​h​e​c​k​ ​w​h​o​ ​t​o​ ​p​u​t​ ​i​n​ ​{​w​o​r​k​s​p​a​c​e​}​.​ ​e​a​c​h​ ​i​s​ ​g​i​v​e​n​ ​a​c​c​e​s​s​ ​w​h​e​n​ ​y​o​u​ ​a​d​d​ ​t​h​e​m​.
 			 * @param {string} workspace
 			 */
 			addDescription: RequiredParams<'workspace'>;
@@ -4983,30 +4983,13 @@ type RootTranslation = {
 			 */
 			addPlaceholder: string;
 			/**
-			 * c​h​o​s​e​n
+			 * {​{​a​d​d​ ​m​e​m​b​e​r​s​|​a​d​d​ ​?​?​ ​m​e​m​b​e​r​|​a​d​d​ ​?​?​ ​m​e​m​b​e​r​s​}​}
 			 */
-			chosen: string;
+			addCount: string;
 			/**
-			 * n​o​b​o​d​y​ ​c​h​o​s​e​n​ ​y​e​t​.​ ​f​i​n​d​ ​a​ ​m​e​m​b​e​r​ ​a​b​o​v​e​.
-			 */
-			nobodyChosen: string;
-			/**
-			 * c​h​o​o​s​e​ ​a​t​ ​l​e​a​s​t​ ​o​n​e​ ​m​e​m​b​e​r​ ​t​o​ ​a​d​d​.
-			 */
-			chooseSomebody: string;
-			/**
-			 * t​h​o​s​e​ ​s​t​i​l​l​ ​l​i​s​t​e​d​ ​w​e​r​e​ ​n​o​t​ ​a​d​d​e​d​.
+			 * t​h​o​s​e​ ​s​t​i​l​l​ ​c​h​e​c​k​e​d​ ​w​e​r​e​ ​n​o​t​ ​a​d​d​e​d​.
 			 */
 			notAllAdded: string;
-			/**
-			 * t​a​k​e​ ​{​u​s​e​r​n​a​m​e​}​ ​o​f​f​ ​t​h​e​ ​l​i​s​t
-			 * @param {string} username
-			 */
-			unchoose: RequiredParams<'username'>;
-			/**
-			 * s​e​a​r​c​h​ ​b​y​ ​u​s​e​r​n​a​m​e
-			 */
-			searchPlaceholder: string;
 			/**
 			 * n​o​b​o​d​y​ ​b​y​ ​t​h​a​t​ ​n​a​m​e​ ​t​o​ ​a​d​d​.
 			 */
@@ -9225,7 +9208,7 @@ export type TranslationFunctions = {
 			 */
 			accessSaved: () => LocalizedString;
 			/**
-			 * who can open {workspace}. find a member to let them in. access taken back lasts until it runs out.
+			 * who can open {workspace}. add members to let them in. access taken back lasts until it runs out.
 			 */
 			workspaceAccessDescription: (arg: { workspace: string }) => LocalizedString;
 			/**
@@ -9897,7 +9880,7 @@ export type TranslationFunctions = {
 			 */
 			addMembers: () => LocalizedString;
 			/**
-			 * choose who to put in {workspace}. each is given access when you save.
+			 * check who to put in {workspace}. each is given access when you add them.
 			 */
 			addDescription: (arg: { workspace: string }) => LocalizedString;
 			/**
@@ -9905,29 +9888,13 @@ export type TranslationFunctions = {
 			 */
 			addPlaceholder: () => LocalizedString;
 			/**
-			 * chosen
+			 * {{add members|add ?? member|add ?? members}}
 			 */
-			chosen: () => LocalizedString;
+			addCount: (arg: { count: number | string | boolean }) => LocalizedString;
 			/**
-			 * nobody chosen yet. find a member above.
-			 */
-			nobodyChosen: () => LocalizedString;
-			/**
-			 * choose at least one member to add.
-			 */
-			chooseSomebody: () => LocalizedString;
-			/**
-			 * those still listed were not added.
+			 * those still checked were not added.
 			 */
 			notAllAdded: () => LocalizedString;
-			/**
-			 * take {username} off the list
-			 */
-			unchoose: (arg: { username: string }) => LocalizedString;
-			/**
-			 * search by username
-			 */
-			searchPlaceholder: () => LocalizedString;
 			/**
 			 * nobody by that name to add.
 			 */

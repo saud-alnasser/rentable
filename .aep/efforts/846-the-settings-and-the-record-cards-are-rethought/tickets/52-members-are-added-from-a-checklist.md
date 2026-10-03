@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: []
 ---
 
@@ -15,10 +15,10 @@ The human's walk of 2026-10-03, verbatim: "option in the workspace members secti
 
 Traces requirement 1 as revised 2026-10-03, and requirements 2, 16 and 18.
 
-- [ ] A sheet test: the list shows every member not in the workspace without opening anything; typing filters it by username in place; with nothing matching it says so; with nobody left it says so.
-- [ ] A sheet test: pressing a row and pressing Space on it toggle its check, the row staying in the list and in place; arrow keys move between rows; no second list or dropdown exists.
-- [ ] A sheet test: the button counts the checked in both locales and is disabled at none; save grants each in order and closes; a refusal keeps the sheet with its reason, the granted gone and the rest checked.
-- [ ] Desktop check, node and vitest; design tests; eslint and prettier on changed files; [[rules/interface]] and [[contexts/desktop/components]] describe the checklist; `validate.mjs` passes.
+- [x] A sheet test: the list shows every member not in the workspace without opening anything; typing filters it by username in place; with nothing matching it says so; with nobody left it says so. *Verified: add-sheet.svelte.test.ts: every candidate listed in an aria-multiselectable listbox with nothing to open; typing filters in place; no-match and nobody-left empty states*
+- [x] A sheet test: pressing a row and pressing Space on it toggle its check, the row staying in the list and in place; arrow keys move between rows; no second list or dropdown exists. *Verified: add-sheet.svelte.test.ts: click and Space toggle a row which stays in place; roving focus with arrows, Home, End; one listbox, no popover or chosen list*
+- [x] A sheet test: the button counts the checked in both locales and is disabled at none; save grants each in order and closes; a refusal keeps the sheet with its reason, the granted gone and the rest checked. *Verified: add-sheet and page tests: button counts in en and ar plural forms, disabled at none; save grants in list order through useChangeAccess and closes; refusal keeps the sheet with its reason, granted gone, rest checked*
+- [x] Desktop check, node and vitest; design tests; eslint and prettier on changed files; [[rules/interface]] and [[contexts/desktop/components]] describe the checklist; `validate.mjs` passes. *Verified: check 0 errors; node 1485, vitest 879; design 168/164; eslint and prettier clean; interface rule and components context describe the checklist; validate 592 artifacts pass*
 
 ## Relevant areas
 

@@ -4,44 +4,47 @@
 </script>
 
 <script lang="ts">
-	import FormSurface, { insetControl } from '@rentable/design/block/form-surface.svelte';
+	import Empty from '@rentable/design/block/empty.svelte';
+	import FormSurface from '@rentable/design/block/form-surface.svelte';
+	import * as Avatar from '@rentable/design/primitive/avatar/index.js';
+	import { Badge } from '@rentable/design/primitive/badge/index.js';
 	import { Button } from '@rentable/design/primitive/button/index.js';
-	import * as Command from '@rentable/design/primitive/command/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
-	import * as Popover from '@rentable/design/primitive/popover/index.js';
 	import { cn } from '@rentable/design/tailwind.js';
 	import { onSubmit } from '$lib/form';
 	import { LL } from '$lib/i18n/i18n-svelte';
+	import { SearchField } from '$lib/list/ui';
 	import { matchesTerm } from '$lib/palette';
-	import MemberSectionHead from '$lib/organization/component/section-head.svelte';
-	import SearchIcon from '@lucide/svelte/icons/search';
-	import UserRoundIcon from '@lucide/svelte/icons/user-round';
-	import UserRoundPlusIcon from '@lucide/svelte/icons/user-round-plus';
+	import { accountInitials } from '$lib/sync';
+	import CheckIcon from '@lucide/svelte/icons/check';
 	import UserPlusIcon from '@lucide/svelte/icons/user-plus';
 	import XIcon from '@lucide/svelte/icons/x';
 
 	/**
 	 * The sheet the plus on a workspace's members opens, which puts several members in at once
-	 * (effort 846, ticket 51, at the human's word of 2026-10-03: "the plus button opens a form or
-	 * sheet and a search filed that dropdown filtered with the searched and added muliipjle members;
-	 * it only shows members that are not in the workspace and simply add them to the workspace to
-	 * complete the operation").
+	 * (effort 846, ticket 52, at the human's walk of 2026-10-03: "the add sheet desgin feels odd
+	 * first when a member is choosen they just removed from the dropdown added in a free from list
+	 * yet the dropdown remains; try to find the best way to add a member using the plus").
 	 *
 	 * **Heavy: the edge panel** ([[rules/interface]], *Form surface*): it chooses other records and
 	 * writes one grant for each, as the member and contract forms do.
 	 *
-	 * **Another record chosen by searching** is `primitive/command` in `primitive/popover`
-	 * ([[contexts/desktop/components]]), as the contract form chooses its tenant. The control is
-	 * drawn as a search field (a leading glass and words saying what to find), and pressing it opens
-	 * the members who are not in the workspace and not chosen yet, every one before anything is
-	 * typed, narrowed by username through the comparison every set held in memory folds with
-	 * (`matchesTerm`). Choosing one puts them on the chosen list under it and out of the dropdown,
-	 * which stays open for the next; each on the list is taken off with its own control.
+	 * **One list, with nothing to open.** The shared search field at the top
+	 * (`list/component/search-field.svelte`, *Search*) and under it every member not in the
+	 * workspace, always shown, narrowed in place by username through the comparison every set held
+	 * in memory folds with (`matchesTerm`). A row is the person as their card heads them (the
+	 * disc, the username, the role's badge) with a check at its trailing edge, the way the
+	 * platform's own add-people pickers mark several at once. Pressing a row, or Space on it,
+	 * checks or unchecks it where it stands, so nothing moves between lists and nothing has to be
+	 * found twice. The rows are a listbox with `aria-multiselectable`, one row in the tab order,
+	 * the arrows, Home and End moving between them, and the down arrow reaching the first row from
+	 * the field. The field does not answer `/`: it holds the focus as the sheet opens, and the
+	 * page's own tray holds the key.
 	 *
-	 * **One save hands every chosen member up** (`onSave`), and the caller grants them in one write.
-	 * A save with nobody chosen says to choose somebody. What the shell refused stands under the list
-	 * (`error`), and those still listed are the ones not put in, since a member granted leaves the
-	 * candidates.
+	 * **The one button counts the checked** (*add 2 members*) and is not pressable with none. Its
+	 * save hands the checked up in the list's order (`onSave`), and the caller grants them in one
+	 * write. What the shell refused stands under the list (`error`); a member granted before it
+	 * has left the candidates, and so the list, and those still checked are the ones not put in.
 	 */
 	let {
 		open,
@@ -56,7 +59,7 @@
 		onOpenChange: (value: boolean) => void;
 		/** the workspace members are being put in, which the description names. */
 		workspaceName: string;
-		/** every member who could be put in and is not in yet. */
+		/** every member who could be put in and is not in yet, in the order they are listed. */
 		candidates: HolderCandidate[];
 		isSaving: boolean;
 		/** what the shell refused the last save with, or `null`. */
@@ -64,59 +67,80 @@
 		onSave: (memberIds: string[]) => void;
 	} = $props();
 
-	let picking = $state(false);
 	let search = $state('');
-	/** the members chosen, in the order they were chosen. */
-	let chosenIds = $state<string[]>([]);
-	/** said where the save had nobody to put in. */
-	let nobody = $state(false);
+	/** the members checked, by id; the list's order is the order they are put in. */
+	let checkedIds = $state<string[]>([]);
+	/** the row the keyboard last stood on, which holds the list's one tab stop. */
+	let activeId = $state<string | null>(null);
+	let listbox = $state<HTMLElement | null>(null);
 
-	// a fresh open starts with nobody chosen.
+	/** whether the sheet was open when last looked at, so only an opening clears it. */
+	let wasOpen = false;
+
+	// a fresh open starts with nobody checked and nothing searched. Only the opening does: a
+	// refusal hands the sheet new candidates while it stays open, and what is checked stands.
 	$effect(() => {
-		if (open) {
-			chosenIds = [];
+		if (open && !wasOpen) {
+			checkedIds = [];
 			search = '';
-			nobody = false;
+			activeId = null;
 		}
+
+		wasOpen = open;
 	});
 
-	/** the chosen who can still be put in: one granted already has left the candidates. */
-	const chosen = $derived(
-		chosenIds.flatMap((id) => candidates.filter((candidate) => candidate.id === id))
+	/** the checked who can still be put in: one granted already has left the candidates. */
+	const checked = $derived(candidates.filter((candidate) => checkedIds.includes(candidate.id)));
+
+	const shown = $derived(candidates.filter((candidate) => matchesTerm(candidate.username, search)));
+
+	/** the row in the tab order: the one last stood on while it is shown, else the first. */
+	const tabStop = $derived(
+		shown.some((candidate) => candidate.id === activeId) ? activeId : (shown[0]?.id ?? null)
 	);
 
-	const shown = $derived(
-		candidates.filter(
-			(candidate) => !chosenIds.includes(candidate.id) && matchesTerm(candidate.username, search)
-		)
-	);
+	const toggle = (memberId: string) => {
+		activeId = memberId;
 
-	const setPicking = (next: boolean) => {
-		picking = next && !isSaving;
+		if (isSaving) return;
 
-		if (!picking) search = '';
+		checkedIds = checkedIds.includes(memberId)
+			? checkedIds.filter((id) => id !== memberId)
+			: [...checkedIds, memberId];
 	};
 
-	const choose = (memberId: string) => {
-		chosenIds = [...chosenIds, memberId];
-		search = '';
-		nobody = false;
+	const focusRow = (memberId: string | undefined) => {
+		if (!memberId) return;
+
+		activeId = memberId;
+		listbox?.querySelector<HTMLElement>(`[data-holder-candidate="${memberId}"]`)?.focus();
 	};
 
-	const unchoose = (memberId: string) => {
-		chosenIds = chosenIds.filter((id) => id !== memberId);
+	const onRowKey = (event: KeyboardEvent, memberId: string) => {
+		const at = shown.findIndex((candidate) => candidate.id === memberId);
+		const step = { ArrowDown: at + 1, ArrowUp: at - 1, Home: 0, End: shown.length - 1 }[event.key];
+
+		if (event.key === ' ') {
+			event.preventDefault();
+			toggle(memberId);
+		} else if (step !== undefined) {
+			event.preventDefault();
+			focusRow(shown[Math.min(Math.max(step, 0), shown.length - 1)]?.id);
+		}
+	};
+
+	// the down arrow in the field goes to the list, where the one stop stands.
+	const onFieldKey = (event: KeyboardEvent) => {
+		if (event.key !== 'ArrowDown' || !tabStop) return;
+
+		event.preventDefault();
+		focusRow(tabStop);
 	};
 
 	const enhance = onSubmit(() => {
-		if (isSaving) return;
+		if (isSaving || checked.length === 0) return;
 
-		if (chosen.length === 0) {
-			nobody = true;
-
-			return;
-		}
-
-		onSave(chosen.map((candidate) => candidate.id));
+		onSave(checked.map((candidate) => candidate.id));
 	});
 </script>
 
@@ -128,113 +152,111 @@
 	title={$LL.organization.workspacePage.addMembers()}
 	description={$LL.organization.workspacePage.addDescription({ workspace: workspaceName })}
 >
-	<div class="flex flex-col gap-6" data-holders-add-sheet>
-		<Popover.Root bind:open={() => picking, setPicking}>
-			<Popover.Trigger>
-				{#snippet child({ props })}
-					<Button
-						{...props}
-						variant="outline"
-						disabled={isSaving}
-						class={cn('w-full justify-start gap-2 font-normal text-muted-foreground', insetControl)}
-						data-holder-pick
-					>
-						<SearchIcon class="size-4 shrink-0" aria-hidden="true" />
-						<span class="min-w-0 flex-1 truncate text-start">
-							{$LL.organization.workspacePage.addPlaceholder()}
-						</span>
-					</Button>
-				{/snippet}
-			</Popover.Trigger>
-
-			<Popover.Content class="w-(--bits-popover-anchor-width) min-w-72 p-0" align="start">
-				<Command.Root class="w-full" shouldFilter={false} data-holder-candidates>
-					<Command.Input
-						bind:value={search}
-						placeholder={$LL.organization.workspacePage.searchPlaceholder()}
-					/>
-					<Command.List>
-						{#if shown.length === 0}
-							<div class="p-3 text-sm text-muted-foreground" data-holder-no-match>
-								{candidates.length === chosen.length
-									? $LL.organization.workspacePage.nobodyToAdd()
-									: $LL.organization.workspacePage.noMatch()}
-							</div>
-						{:else}
-							<Command.Group>
-								{#each shown as candidate (candidate.id)}
-									<Command.Item
-										value={candidate.id}
-										onSelect={() => choose(candidate.id)}
-										data-holder-candidate={candidate.id}
-									>
-										<UserRoundPlusIcon class="size-4 shrink-0" aria-hidden="true" />
-										<span class="min-w-0 flex-1 truncate text-start">
-											<bdi>{candidate.username}</bdi>
-										</span>
-										<span class="shrink-0 text-xs text-muted-foreground">
-											<bdi>{candidate.role}</bdi>
-										</span>
-									</Command.Item>
-								{/each}
-							</Command.Group>
-						{/if}
-					</Command.List>
-				</Command.Root>
-			</Popover.Content>
-		</Popover.Root>
-
-		<Field.Set class="gap-3" aria-labelledby="holders-chosen-legend" data-holders-chosen>
-			<MemberSectionHead
-				id="holders-chosen"
-				legend={$LL.organization.workspacePage.chosen()}
-				description={chosen.length === 0 ? $LL.organization.workspacePage.nobodyChosen() : null}
+	<div class="flex flex-col gap-4" data-holders-add-sheet>
+		<!-- the field's own keys stay its own; only the down arrow is taken, to reach the list. -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div onkeydown={onFieldKey}>
+			<SearchField
+				bind:value={search}
+				answersSearchKey={false}
+				placeholder={$LL.organization.workspacePage.addPlaceholder()}
+				class="rounded-lg bg-foreground/5 inset-shadow-sunken sm:max-w-none"
 			/>
+		</div>
 
-			{#if chosen.length > 0}
-				<ul class="flex flex-col gap-1">
-					{#each chosen as member (member.id)}
-						<li class="flex min-h-10 items-center gap-2" data-holder-chosen={member.id}>
-							<UserRoundIcon class="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-							<span class="min-w-0 flex-1 truncate text-sm"><bdi>{member.username}</bdi></span>
-							<span class="shrink-0 text-xs text-muted-foreground"><bdi>{member.role}</bdi></span>
-							<Button
-								type="button"
-								variant="ghost"
-								size="icon-sm"
-								disabled={isSaving}
-								aria-label={$LL.organization.workspacePage.unchoose({ username: member.username })}
-								onclick={() => unchoose(member.id)}
-								data-holder-unchoose={member.id}
-							>
-								<XIcon />
-							</Button>
-						</li>
-					{/each}
-				</ul>
-			{/if}
+		{#if candidates.length === 0}
+			<div data-holders-nobody-left>
+				<Empty kind="nothing-yet" title={$LL.organization.workspacePage.nobodyToAdd()} />
+			</div>
+		{:else if shown.length === 0}
+			<!-- the search found nobody, and the way out is putting it down. -->
+			<div data-holder-no-match>
+				<Empty kind="no-match" title={$LL.organization.workspacePage.noMatch()}>
+					{#snippet action()}
+						<Button type="button" variant="outline" size="sm" onclick={() => (search = '')}>
+							<XIcon />
+							{$LL.common.actions.clearSearch()}
+						</Button>
+					{/snippet}
+				</Empty>
+			</div>
+		{:else}
+			<ul
+				bind:this={listbox}
+				role="listbox"
+				aria-multiselectable="true"
+				aria-label={$LL.organization.workspacePage.addMembers()}
+				aria-disabled={isSaving || undefined}
+				class="flex flex-col gap-0.5"
+				data-holder-candidates
+			>
+				{#each shown as candidate (candidate.id)}
+					{@const isChecked = checkedIds.includes(candidate.id)}
+					<li
+						role="option"
+						aria-selected={isChecked}
+						tabindex={candidate.id === tabStop ? 0 : -1}
+						class={cn(
+							'flex min-h-12 cursor-default items-center gap-3 rounded-lg px-3 py-2 transition-colors outline-none select-none hover:bg-foreground/5 focus-visible:ring-2 focus-visible:ring-ring',
+							isChecked && 'bg-primary/5 hover:bg-primary/10'
+						)}
+						onclick={() => toggle(candidate.id)}
+						onkeydown={(event) => onRowKey(event, candidate.id)}
+						onfocus={() => (activeId = candidate.id)}
+						data-holder-candidate={candidate.id}
+					>
+						<!-- the same disc the member's card heads them with; the row's name is the words. -->
+						<Avatar.Root class="size-8 shrink-0 rounded-full" aria-hidden="true">
+							<Avatar.Fallback class="rounded-full text-xs">
+								{accountInitials(candidate.username)}
+							</Avatar.Fallback>
+						</Avatar.Root>
+						<span class="min-w-0 flex-1 truncate text-sm font-medium">
+							<bdi>{candidate.username}</bdi>
+						</span>
+						<Badge variant="secondary" class="max-w-32 shrink">
+							<bdi class="truncate">{candidate.role}</bdi>
+						</Badge>
+						<!-- the check at the trailing edge: an empty ring, filled and ticked once checked.
+						     The row's own state says it to a screen reader. -->
+						<span
+							aria-hidden="true"
+							class={cn(
+								'flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors',
+								isChecked
+									? 'border-primary bg-primary text-primary-foreground'
+									: 'border-muted-foreground/40'
+							)}
+							data-holder-check
+						>
+							{#if isChecked}
+								<CheckIcon class="size-3.5" strokeWidth={3} />
+							{/if}
+						</span>
+					</li>
+				{/each}
+			</ul>
+		{/if}
 
-			{#if nobody || error}
-				<Field.Error data-holders-add-error>
-					{#if nobody}
-						{$LL.organization.workspacePage.chooseSomebody()}
-					{:else}
-						{error}
-						{$LL.organization.workspacePage.notAllAdded()}
-					{/if}
-				</Field.Error>
-			{/if}
-		</Field.Set>
+		{#if error}
+			<Field.Error data-holders-add-error>
+				{error}
+				{$LL.organization.workspacePage.notAllAdded()}
+			</Field.Error>
+		{/if}
 	</div>
 
 	{#snippet actions()}
 		<Button type="button" variant="outline" disabled={isSaving} onclick={() => onOpenChange(false)}>
 			{$LL.common.actions.cancel()}
 		</Button>
-		<!-- the verb's glyph before its label, as every primary here carries one. -->
-		<Button type="submit" disabled={isSaving}>
+		<!-- the verb's glyph before its label, as every primary here carries one; it counts what it
+		     adds, and with nobody checked there is nothing to press. -->
+		<Button type="submit" disabled={isSaving || checked.length === 0} data-holders-add-save>
 			<UserPlusIcon class="size-4" />
-			{isSaving ? $LL.common.actions.working() : $LL.common.actions.add()}
+			{isSaving
+				? $LL.common.actions.working()
+				: $LL.organization.workspacePage.addCount({ count: checked.length })}
 		</Button>
 	{/snippet}
 </FormSurface>

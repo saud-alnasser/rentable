@@ -37,6 +37,7 @@
 		value = $bindable(''),
 		onSearch,
 		answersSearchKey = true,
+		placeholder,
 		class: className
 	}: {
 		/** The search, as the set reads it: what was typed, once the reader stopped typing. */
@@ -53,6 +54,11 @@
 		 * sets the one the reader searches less passes `false` ([[rules/interface]], *Search*).
 		 */
 		answersSearchKey?: boolean;
+		/**
+		 * What the empty field says it finds, where the set is narrower than a list: a workspace's
+		 * add sheet finds a member to add. Every list leaves it to the shared words.
+		 */
+		placeholder?: string;
 		class?: string;
 	} = $props();
 
@@ -109,7 +115,7 @@
 	<Input
 		bind:ref={element}
 		bind:value={typed}
-		placeholder={$LL.common.table.searchPlaceholder()}
+		placeholder={placeholder ?? $LL.common.table.searchPlaceholder()}
 		aria-label={$LL.common.ui.search()}
 		class="h-8 border-transparent bg-transparent ps-9 hover:bg-input/30"
 	/>

@@ -569,14 +569,11 @@ export const organization = {
 	 */
 	workspacePage: {
 		addMembers: 'add members',
-		addDescription: 'choose who to put in {workspace:string}. each is given access when you save.',
+		addDescription:
+			'check who to put in {workspace:string}. each is given access when you add them.',
 		addPlaceholder: 'find a member to add',
-		chosen: 'chosen',
-		nobodyChosen: 'nobody chosen yet. find a member above.',
-		chooseSomebody: 'choose at least one member to add.',
-		notAllAdded: 'those still listed were not added.',
-		unchoose: 'take {username:string} off the list',
-		searchPlaceholder: 'search by username',
+		addCount: '{{count:add members|add ?? member|add ?? members}}',
+		notAllAdded: 'those still checked were not added.',
 		noMatch: 'nobody by that name to add.',
 		nobodyToAdd: 'everybody is in this workspace',
 		nobodyHolds: 'nobody is in this workspace yet.',

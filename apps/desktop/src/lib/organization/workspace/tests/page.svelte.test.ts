@@ -43,7 +43,8 @@ import { unfold } from '$lib/organization/tests/switches';
  * 2026-10-03: "in a workspace the details page it has a searchbar filter,sort add button on the
  * tray; then grid of cards like now; a card when clicked it opens the edit permissions option
  * sheet; and the eliapess show edit permissions and remove options only". The plus opens a sheet
- * whose search lists the members not in it; the chosen are granted on one save. A card's press and
+ * whose search lists the members not in it; the chosen are granted on one save. Ticket 52 made that
+ * sheet one checklist: every member not in it listed at once, checked in place, added together. A card's press and
  * its menu's *edit permissions* open a sheet of this workspace's permissions alone; *remove from
  * workspace* asks first.
  *
@@ -204,34 +205,27 @@ const plusRefusal = () => {
 	return described ? (document.getElementById(described)?.textContent?.trim() ?? null) : null;
 };
 
-/** the sheet the plus opens: its search, what it lists, what is chosen, and its save. */
+/** the sheet the plus opens: what it lists, what is checked, and its save. */
 const addSheet = () =>
 	document
 		.querySelector<HTMLElement>('[data-holders-add-sheet]')
 		?.closest<HTMLElement>('[role="dialog"]') ?? null;
-const pickControl = () => document.querySelector<HTMLElement>('[data-holder-pick]');
-const addSearch = () =>
-	document.querySelector<HTMLInputElement>('[data-holder-candidates] input') ?? null;
 const candidate = (id: string) =>
 	document.querySelector<HTMLElement>(`[data-holder-candidate="${id}"]`);
 const candidateIds = () =>
 	Array.from(document.querySelectorAll('[data-holder-candidate]')).map((item) =>
 		item.getAttribute('data-holder-candidate')
 	);
-const chosenIds = () =>
-	Array.from(document.querySelectorAll('[data-holder-chosen]')).map((item) =>
-		item.getAttribute('data-holder-chosen')
+const checkedIds = () =>
+	Array.from(document.querySelectorAll('[data-holder-candidate][aria-selected="true"]')).map(
+		(item) => item.getAttribute('data-holder-candidate')
 	);
-const unchoose = (id: string) =>
-	document.querySelector<HTMLElement>(`[data-holder-unchoose="${id}"]`);
 const saveAdd = () => addSheet()?.querySelector<HTMLButtonElement>('button[type="submit"]') ?? null;
 
-/** open the add sheet from the plus, and its search. */
+/** open the add sheet from the plus, its list standing at once. */
 const openAdd = async () => {
 	await fireEvent.click(plus()!);
-	await waitFor(() => expect(pickControl()).not.toBeNull());
-	await fireEvent.click(pickControl()!);
-	await waitFor(() => expect(document.querySelector('[data-holder-candidates]')).not.toBeNull());
+	await waitFor(() => expect(addSheet()).not.toBeNull());
 };
 
 /** the sheet of a member's permissions in this workspace. */
@@ -535,10 +529,10 @@ test('the cards are ordered by username, then back the other way', async () => {
 	expect(holderIds()).toEqual(['ada', 'kai']);
 });
 
-// ----- adding in a sheet (ticket 51)
+// ----- adding from one checklist (tickets 51 and 52)
 
-// criterion: the plus opens the add sheet; its search lists only members not in it, filtered.
-test('the plus opens a sheet whose search lists only members not in it, filtered', async () => {
+// criterion: the plus opens the add sheet, which lists only members not in it, with nothing to open.
+test('the plus opens a sheet listing only the members not in it, filtered in place', async () => {
 	hostAnswers.members = [
 		...members,
 		member({ id: 'samira', username: 'samira', workspaces: [] }),
@@ -551,44 +545,26 @@ test('the plus opens a sheet whose search lists only members not in it, filtered
 	expect(addSheet()?.textContent?.toLowerCase()).toContain(
 		en.organization.workspacePage.addMembers
 	);
-	await waitFor(() => expect(candidateIds()).toEqual(['sami', 'samira', 'noura']));
+	expect(candidateIds()).toEqual(['sami', 'samira', 'noura']);
 
-	await fireEvent.input(addSearch()!, { target: { value: 'sam' } });
+	const field = addSheet()!.querySelector<HTMLInputElement>('[data-search-field] input')!;
+
+	await fireEvent.input(field, { target: { value: 'sam' } });
+	await pastTheWait();
 
 	await waitFor(() => expect(candidateIds()).toEqual(['sami', 'samira']));
 });
 
-test('choosing adds to the chosen list and out of the dropdown, and one can be taken off', async () => {
+// criterion: one save grants every checked member, in the list's order, and closes.
+test('the save grants every checked member at full access in the list order, then closes', async () => {
 	hostAnswers.members = [...members, member({ id: 'noura', username: 'noura', workspaces: [] })];
 	open('ws-1');
 
 	await openAdd();
-	await waitFor(() => expect(candidate('sami')).not.toBeNull());
-	await fireEvent.click(candidate('sami')!);
-
-	await waitFor(() => expect(chosenIds()).toEqual(['sami']));
-	expect(candidateIds()).toEqual(['noura']);
-	expect(hostAnswers.writes).toEqual([]);
-
-	await fireEvent.click(unchoose('sami')!);
-
-	await waitFor(() => expect(chosenIds()).toEqual([]));
-	// the dropdown may have closed as the list was pressed; it opens again on its control.
-	if (!document.querySelector('[data-holder-candidates]')) await fireEvent.click(pickControl()!);
-	await waitFor(() => expect(candidateIds()).toEqual(['sami', 'noura']));
-});
-
-// criterion: one save grants every chosen member and closes.
-test('the save grants every chosen member at full access, then closes', async () => {
-	hostAnswers.members = [...members, member({ id: 'noura', username: 'noura', workspaces: [] })];
-	open('ws-1');
-
-	await openAdd();
-	await waitFor(() => expect(candidate('sami')).not.toBeNull());
-	await fireEvent.click(candidate('sami')!);
-	await waitFor(() => expect(candidate('noura')).not.toBeNull());
 	await fireEvent.click(candidate('noura')!);
-	await waitFor(() => expect(chosenIds()).toEqual(['sami', 'noura']));
+	await fireEvent.click(candidate('sami')!);
+	expect(checkedIds()).toEqual(['sami', 'noura']);
+	expect(hostAnswers.writes).toEqual([]);
 
 	await fireEvent.click(saveAdd()!);
 
@@ -608,22 +584,17 @@ test('the save grants every chosen member at full access, then closes', async ()
 	await waitFor(() => expect(addSheet()).toBeNull());
 });
 
-test('a save with nobody chosen says to choose somebody and writes nothing', async () => {
+test('with nobody checked the save cannot be pressed and writes nothing', async () => {
 	open('ws-1');
 
-	await fireEvent.click(plus()!);
-	await waitFor(() => expect(saveAdd()).not.toBeNull());
-	await fireEvent.click(saveAdd()!);
+	await openAdd();
+	expect(saveAdd()?.disabled).toBe(true);
 
-	await waitFor(() => {
-		expect(document.querySelector('[data-holders-add-error]')?.textContent?.trim()).toBe(
-			en.organization.workspacePage.chooseSomebody
-		);
-	});
+	await fireEvent.click(saveAdd()!);
 	expect(hostAnswers.writes).toEqual([]);
 });
 
-// criterion: a refusal says its reason, and the sheet stays open over it.
+// criterion: a refusal says its reason, and the sheet stays open over it, the rest still checked.
 test('a grant the shell refuses says its reason in the sheet, which stays open', async () => {
 	const refusal = new Error('refused');
 
@@ -631,7 +602,6 @@ test('a grant the shell refuses says its reason in the sheet, which stays open',
 	open('ws-1');
 
 	await openAdd();
-	await waitFor(() => expect(candidate('sami')).not.toBeNull());
 	await fireEvent.click(candidate('sami')!);
 	await fireEvent.click(saveAdd()!);
 
@@ -642,7 +612,7 @@ test('a grant the shell refuses says its reason in the sheet, which stays open',
 		expect(said).toContain(en.organization.workspacePage.notAllAdded);
 	});
 	expect(addSheet()).not.toBeNull();
-	expect(chosenIds()).toEqual(['sami']);
+	expect(checkedIds()).toEqual(['sami']);
 });
 
 test('with everybody in it the plus says there is nobody left to add', async () => {
@@ -914,9 +884,11 @@ test('and in arabic the add sheet reads in its own words', async () => {
 	await openAdd();
 
 	expect(addSheet()?.textContent).toContain(ar.organization.workspacePage.addMembers);
-	expect(addSheet()?.textContent).toContain(ar.organization.workspacePage.nobodyChosen);
-	expect(ar.organization.workspacePage.nobodyChosen).not.toBe(
-		en.organization.workspacePage.nobodyChosen
+	expect(saveAdd()?.textContent?.trim()).toBe(
+		i18nObject('ar').organization.workspacePage.addCount({ count: 0 })
+	);
+	expect(ar.organization.workspacePage.addPlaceholder).not.toBe(
+		en.organization.workspacePage.addPlaceholder
 	);
 
 	setLocale('en');

@@ -148,11 +148,18 @@ directory's own cards (the member card at its tile height, in the record tiles' 
 here* at a card's foot where what the member may do there is tailored, the empty block where
 nobody holds it, and the no-match block where the search finds nobody. The plus opens the add
 sheet (`organization/workspace/component/add-sheet.svelte`, the edge panel), which the page mounts
-since it holds who can be put in: a search field (a leading glass, *find a member to add*)
-opening `primitive/command` in `primitive/popover` as the contract form chooses its tenant, over
-the members who are not in it and not chosen yet, every one before anything is typed, narrowed
-by username; choosing one puts them on the sheet's chosen list and out of the dropdown, each on
-the list taken off by its own control; and one save puts every one chosen in. Pressing a card
+since it holds who can be put in. It is **one checklist**: the shared search field at its top
+(*Search*, *find a member to add*, holding the focus as the sheet opens and leaving `/` to the
+page's tray), and under it every member not in the workspace, always shown with nothing to open,
+narrowed in place by username. A row is the person as their card heads them (the disc, the
+username, the role's badge) with a check at its trailing edge, an empty ring filled and ticked
+once checked. Pressing a row, or Space on it, checks or unchecks it where it stands, so nothing
+moves between lists; the rows are a listbox with `aria-multiselectable`, one row in the tab order,
+the arrows, Home and End moving between them and the down arrow reaching them from the field. A
+search that finds nobody says so with the way out that clears it, and a sheet with nobody left
+to put in says so. The footer's one button counts what it adds (*add 1 member*, *add 3 members*,
+in Arabic in its own plural forms) and cannot be pressed with none checked; it puts every one
+checked in, in the list's order. Pressing a card
 opens *edit permissions* on that member (its `href` is the page with the member named on it,
 consumed on arrival as the members directory consumes its own). Each card's record menu holds
 the acts on the member there (`declareHolderActs` in `organization/workspace/acts.ts`), and
@@ -427,8 +434,8 @@ workspace's members as a count by ticket 48, at the human's walk of 2026-10-03.*
 **Every set a person can search searches one way: `list/component/search-field.svelte`.** A leading
 search glass, a wait of 250 ms after the last keystroke before the term becomes the search, and
 `/` to put the cursor in the field from anywhere on the surface. The list shell draws it, the
-contract's unit panes draw it, and the settings members, roles and workspaces directories draw it,
-and a set added later draws it rather than an input of its own. The key is registered by the field,
+contract's unit panes draw it, the settings members, roles and workspaces directories draw it,
+and so does a workspace's add sheet, its words saying what it finds (`placeholder`), and a set added later draws it rather than an input of its own. The key is registered by the field,
 so it exists exactly where there is something to search, and it stands down while text is being
 typed. **A surface answers the key once**: where it draws two sets, the one a reader searches
 holds it and the other's field is reached by pointer or by tab (`answersSearchKey`). The
@@ -996,13 +1003,14 @@ member ranked at or above the reader is refused at the card's edit act, which op
 acts are the grants that exist (`useChangeAccess`), sent only for the workspaces that changed, then
 one workspace override per workspace whose pins changed, carrying what is pinned there and which
 of it is on (`useSetWorkspaceOverride`). **A workspace's members live on its page**
-(*Record surface*), given from the other end: members are found by search in the add sheet and
+(*Record surface*), given from the other end: members are checked in the add sheet's one list and
 put in on its save, and each member in it is a card whose menu takes them out. Putting somebody
 in is refused by the one rule the member's card reads (`accessRefusalOf` in `access/access.ts`),
 so the two ends cannot refuse differently, and the sheet's one save writes a grant for each
-member chosen through the same write (`useChangeAccess`), in order: a refusal stops it there, the
-grants before it stand, and the sheet stays open saying the reason and that those still listed
-were not put in, while the shared handler says it too. Taking somebody out is the card's *remove from workspace*, red, asking first
+member checked through the same write (`useChangeAccess`), in the list's order: a refusal stops it
+there, the grants before it stand and leave the list, and the sheet stays open saying the reason
+and that those still checked were not put in, still checked, while the shared handler says it
+too. Taking somebody out is the card's *remove from workspace*, red, asking first
 in `block/confirm-dialog.svelte` under its own verb and saying adding them again gives it back,
 then one withdrawal through the same write. A person tailored there is marked *custom here* on
 their card, and *edit permissions*, the card's press and its first entry, opens a sheet of that
@@ -1022,7 +1030,11 @@ save, drawn from the member card's list, until ticket 49 of
 looked bad and asked for a page. The page drew a tile per member with the large switch until
 ticket 50, when the human asked for a search field and a grid of cards with a menu; the field put
 one member in at once and the tailoring opened the member's own sheet until ticket 51, when the
-human asked for the directory's tray, an add sheet and a sheet of the workspace's permissions.* *The human's calls on the running
+human asked for the directory's tray, an add sheet and a sheet of the workspace's permissions.
+The add sheet was a search field opening a dropdown beside a list of the chosen until ticket 52,
+when the human found a member chosen leaving the dropdown for the other list, the dropdown still
+open, odd, and asked for the best way to add from the plus: one list, checked in place, as the
+platform's own add-people pickers do.* *The human's calls on the running
 application, 2026-09-27 ([[efforts/838-permissions-are-a-role-and-an-override/spec]], requirement
 12 as amended again and a third time; tickets 48, 49, 50 and 54): each workspace was a row of three
 levels beside the role, which read as a second permission system, and the workspace's dialog

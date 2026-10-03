@@ -59,13 +59,15 @@
 	 * **Below, who holds it, as a record directory** (ticket 51): the settings directories' tray
 	 * over the holders' member cards (`./holders.svelte`), each with its menu of the acts on them
 	 * here (`declareHolderActs`). The tray's plus opens the add sheet (`./add-sheet.svelte`), which
-	 * this page mounts since it holds who can be put in: its one save grants every member chosen
-	 * through the one access write the member's card makes (`useChangeAccess`), and a refusal stays
-	 * in the sheet with the members it did not put in. Pressing a card goes to this page with the
+	 * this page mounts since it holds who can be put in: one list of them to check (ticket 52), and
+	 * one save that grants every member checked through the one access write the member's card
+	 * makes (`useChangeAccess`), a refusal staying in the sheet with the members it did not put in
+	 * still checked. Pressing a card goes to this page with the
 	 * member named on it, which is consumed on arrival by running *edit permissions* on them, as
 	 * the members directory consumes a member named on its own address. *Who held a workspace was a
 	 * dialog of switches under one save until ticket 49, a tile per member with a large switch
-	 * until ticket 50, and a field that put one member in at once until ticket 51.*
+	 * until ticket 50, a field that put one member in at once until ticket 51, and a dropdown
+	 * beside a list of the chosen until ticket 52.*
 	 *
 	 * **Who is listed or offered is decided here**: never the owner, whose grant is never withdrawn,
 	 * and never the reader, who does not write their own row. Rust refuses both again, and every grant and
@@ -210,9 +212,9 @@
 	};
 
 	/**
-	 * every member chosen in the sheet, put in at full access in one write, in order: a refusal
-	 * stops it there and what went through before it stands, so the sheet stays open over the
-	 * reason with the members still to put in, and the shared handler says it too.
+	 * every member checked in the sheet, put in at full access in one write, in the list's order: a
+	 * refusal stops it there and what went through before it stands, so the sheet stays open over
+	 * the reason with the members still to put in checked, and the shared handler says it too.
 	 */
 	async function add(memberIds: string[]) {
 		if (writing || addRefusal !== null) return;
