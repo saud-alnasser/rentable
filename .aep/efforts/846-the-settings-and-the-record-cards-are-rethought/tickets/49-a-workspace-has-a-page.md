@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [48]
 ---
 
@@ -15,11 +15,11 @@ The human's walk of 2026-10-03 ("manage members in the workspaces the form looks
 
 Traces requirement 1 as revised 2026-10-03, and requirements 16, 18 and 19.
 
-- [ ] A route test: the workspace card's members act navigates to the workspace page; back returns to the workspaces section; an unknown id says so.
-- [ ] A page test: the header shows the name, the open badge where open, access, made date and holder count with glyphs; its acts are the card's, refused as there.
-- [ ] A page test: every holdable member is listed with an in-or-out control named for the member; changing one grants or withdraws through the same mutation; the refusals and their reasons hold; the owner and the reader are not listed; custom here marks the tailored.
-- [ ] No access dialog remains for a workspace; desktop vitest, node tests and `pnpm check` pass.
-- [ ] [[rules/interface]] and [[contexts/desktop/components]] say a workspace's members live on its page; `validate.mjs` passes.
+- [x] A route test: the workspace card's members act navigates to the workspace page; back returns to the workspaces section; an unknown id says so. *Verified: `vitest run src/lib/organization/workspace` (page and directory tests): the card and its members act navigate to `/settings/workspaces/ws-2`; back returns to `/settings?section=workspaces`; an unknown id says it was not found; 5 files, 111 passed with the act guard.*
+- [x] A page test: the header shows the name, the open badge where open, access, made date and holder count with glyphs; its acts are the card's, refused as there. *Verified: the page test: the header carries the name, the open badge where open, the holder count, access and made date, each with its glyph, and the card's acts but members, refused as there.*
+- [x] A page test: every holdable member is listed with an in-or-out control named for the member; changing one grants or withdraws through the same mutation; the refusals and their reasons hold; the owner and the reader are not listed; custom here marks the tailored. *Verified: the page test: every holdable member has a large switch named for them with its state in words; each change writes once through `useChangeAccess` and a refused one is put back; the not-held and grantWorkspace refusals hold; the owner and the reader are not listed; custom here marks the tailored.*
+- [x] No access dialog remains for a workspace; desktop vitest, node tests and `pnpm check` pass. *Verified: `access/component/dialog.svelte` and its test are deleted; integrated desktop check 0 errors, node and vitest passed; design check 0 errors, node and vitest passed; the dangerous-acts guard passes.*
+- [x] [[rules/interface]] and [[contexts/desktop/components]] say a workspace's members live on its page; `validate.mjs` passes. *Verified: rules/interface (Record surface, Row activation, members and access) and contexts/desktop/components say a workspace's members live on its page; `validate.mjs` passes.*
 
 ## Relevant areas
 

@@ -1,5 +1,5 @@
 import { goto } from '$app/navigation';
-import { backTrail } from '#lib/back.js';
+import { backTarget, backTrail } from '#lib/back.js';
 
 /**
  * The reactive face of {@link backTrail}. Owns nothing but the mirror — every decision is the
@@ -23,7 +23,8 @@ class Back {
 	forget = (screen: string) => backTrail.forget(screen);
 
 	/**
-	 * Go back, or to `fallback` where there is nowhere to go back to. `fallback` arrives
+	 * Go back, or to `fallback` where there is nowhere to go back to or it names the screen being
+	 * returned to with more said of where on it (`backTarget`). `fallback` arrives
 	 * already resolved.
 	 *
 	 * Navigating rather than following a link, because the trail is the application's own and
@@ -32,7 +33,7 @@ class Back {
 	 */
 	// the destination is a path the router itself produced, so it is already resolved and the
 	// base is already on it — resolving it a second time would put the base on twice.
-	go = (fallback: string) => goto(this.destination ?? fallback);
+	go = (fallback: string) => goto(backTarget(this.destination, fallback));
 }
 
 /** what a record surface's back control reads. */

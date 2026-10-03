@@ -13,7 +13,7 @@ import { Switch } from '../index.js';
  * under a right to left document, beside the one that moves it in either. Which of the two wins is
  * Tailwind's: the `rtl:` rule is emitted after the plain one at the same specificity.
  */
-const drawn = (direction: DesignDirection, size?: 'default' | 'sm') => {
+const drawn = (direction: DesignDirection, size?: 'default' | 'sm' | 'lg') => {
 	render(
 		Switch,
 		{ checked: true, size, 'aria-label': 'view complexes' },
@@ -51,4 +51,17 @@ test('the mini switch is a step smaller, thumb and track together', () => {
 	expect(root.getAttribute('data-size')).toBe('sm');
 	expect(root.className).toContain('w-6');
 	expect(thumb.className).toContain('size-3');
+});
+
+// effort 846, ticket 49: the switch a tile stands on is larger, and its thumb travels the larger
+// track, the other way in Arabic.
+test('the large switch is a step larger, and its thumb travels the larger track both ways', () => {
+	const { root, thumb } = drawn('rtl', 'lg');
+
+	expect(root.getAttribute('data-size')).toBe('lg');
+	expect(root.className).toContain('w-11');
+	expect(thumb.className).toContain('size-5');
+	expect(thumb.className).toContain('data-[state=checked]:translate-x-[calc(100%+2px)]');
+	expect(thumb.className).toContain('rtl:data-[state=checked]:-translate-x-[calc(100%+2px)]');
+	expect(thumb.className).not.toContain('calc(100%-2px)');
 });

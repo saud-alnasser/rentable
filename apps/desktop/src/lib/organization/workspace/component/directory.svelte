@@ -19,7 +19,6 @@
 
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import type { OrganizationMember, OrganizationWorkspace } from '$lib/organization/host';
 	import type { Standing } from '$lib/permission';
@@ -38,7 +37,9 @@
 	import DirectoryTray from '$lib/organization/component/directory-tray.svelte';
 	import { toWorkspaceDirectory } from '$lib/organization/directory';
 	import { workspaceActs, workspaceHost } from '$lib/organization/host.svelte';
-	import { recordOf, withSection, WORKSPACE_PARAM } from '$lib/settings';
+	import { recordOf, WORKSPACE_PARAM } from '$lib/settings';
+	import { workspacePageOf, workspacesSection } from '$lib/organization/workspace/address';
+	import { holderCount, workspaceAccessOf } from '$lib/organization/workspace/standing';
 	import EarlierRecords from './app-database-records.svelte';
 	import DiscIcon from '$lib/design/cell/disc.svelte';
 	import BuildingIcon from '@lucide/svelte/icons/building';
@@ -46,7 +47,6 @@
 	import UsersIcon from '@lucide/svelte/icons/users';
 	import CalendarPlusIcon from '@lucide/svelte/icons/calendar-plus';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
-	import { permits, WRITE_FLAGS } from '@rentable/workspace-permission';
 	import { columnsFor, RECORD_TILE_MIN_WIDTH } from '$lib/list';
 
 	/**
@@ -91,23 +91,19 @@
 	 * (effort 846, requirement 1): the directory is not a group of rows, so only its title reads as
 	 * one.
 	 *
-	 * **Activating a card opens its record** ([[rules/interface]], *Row activation*). A workspace
-	 * has no page, so what opening one means is that workspace's edit, and the card's `href` is
-	 * this section's address with the workspace named on it. The address is consumed on arrival
-	 * and cleared, the way the members directory consumes a member, so pressing the same card twice
-	 * opens the same surface twice. The rule records this as its accepted deviation, dated
-	 * 2026-09-17: in the settings directories a record's page is its sheet.
+	 * **Activating a card opens its record's page** ([[rules/interface]], *Row activation*): a
+	 * workspace has one (`./page.svelte`, at `/settings/workspaces/<id>`, effort 846 ticket 49),
+	 * what it is at the top and who holds it below, and the card's `href` is it. An older address
+	 * naming the workspace on this section (`?workspace=<id>`), as a bookmark or the trail kept it,
+	 * is sent on to that page. *Until then a workspace had no page, and opening its card opened who
+	 * held it in a dialog, or its name for a reader who could only rename: the rule's deviation of
+	 * 2026-09-17, which no longer covers the workspaces.*
 	 *
 	 * **The acts are declared once, in `workspace/acts.ts`**, and a card's menu and context menu
 	 * are that list's projection (effort 832, requirement 8). What an act opens is the organization
 	 * host's, mounted once in the frame, so this section draws cards and mounts nothing an act
 	 * opens. *It built its own list and mounted the rename, the members dialog and the delete, and
 	 * the settings route handed it a callback per act.*
-	 *
-	 * **What a card opens is the members and access surface, and the name only where that is all
-	 * this reader has.** The access is the edit every card carries, and the name belongs to the
-	 * open workspace alone, so keying the card on the name would make the same gesture mean one
-	 * thing on one card and another on the next.
 	 *
 	 * **Every gate is a prop, and none of them is a permission read here.** Creating and deleting a
 	 * workspace are the owner's in Rust (`require_owner`), so they are drawn from who is reading
@@ -183,40 +179,20 @@
 		refusal: string | null;
 	} = $props();
 
-	// this section's own address, resolved once. A card's is it with the workspace named on it,
-	// which is the whole of what a card's `href` is ([[rules/frontend]]: the path is the caller's
-	// to resolve, and the packaged card takes one already resolved).
-	const sectionAddress = resolve(withSection('workspaces'));
-
-	const addressOf = (workspaceId: string) =>
-		`${sectionAddress}&${WORKSPACE_PARAM}=${encodeURIComponent(workspaceId)}`;
+	// this section's own address, resolved once: where an older address naming a workspace on it
+	// is cleared to as it is sent on.
+	const sectionAddress = workspacesSection();
 
 	/** how many people hold a grant on a workspace, counted off the organization's own list. */
-	const memberCount = (workspaceId: string) =>
-		members.filter((member) => member.workspaces.some((held) => held.id === workspaceId)).length;
+	const memberCount = (workspaceId: string) => holderCount(members, workspaceId);
 
 	/** the day a workspace was made, as the machines list says the day a machine was added. */
 	const madeOn = (moment: number) => formatLocaleDate($locale, moment, { dateStyle: 'medium' });
 
 	const open = $derived(workspaces.find((workspace) => workspace.id === openWorkspaceId) ?? null);
 
-	/**
-	 * what the reader may do in a workspace, read off the session's own entry for it. The owner
-	 * first, since nothing is pinned or withheld from them; then a read-only grant; then anything
-	 * pinned for the reader there; then whether anything they hold there writes at all, so a role
-	 * that only views reads *you may read* under a full grant rather than an edit it cannot make.
-	 */
-	const accessOf = (workspace: OrganizationWorkspace) => {
-		if (isOwner) return { kind: 'owner', word: $LL.organization.dashboard.workspaceYouOwn() };
-		if (workspace.accessLevel === 'read-only')
-			return { kind: 'read', word: $LL.organization.dashboard.workspaceYouRead() };
-		if (workspace.pinned !== 0)
-			return { kind: 'pinned', word: $LL.organization.dashboard.workspaceSetForYou() };
-		if (!WRITE_FLAGS.some((flag) => permits(workspace.permissions, flag)))
-			return { kind: 'read', word: $LL.organization.dashboard.workspaceYouRead() };
-
-		return { kind: 'edit', word: $LL.organization.dashboard.workspaceYouEdit() };
-	};
+	/** what the reader may do in a workspace, as its card and its page both word it. */
+	const accessOf = (workspace: OrganizationWorkspace) => workspaceAccessOf(workspace, isOwner, $LL);
 
 	/** the gap between two tiles, the list shell's `gap-3`. */
 	const TILE_GAP = 12;
@@ -251,9 +227,8 @@
 		context
 	});
 
-	// the workspace the address names is opened and then cleared out of the address, the way the
-	// members directory consumes an account: left there, a reload would reopen a surface the person
-	// has already dismissed, and pressing the same card a second time would navigate nowhere.
+	// an older address naming a workspace on this section is sent on to that workspace's page, and
+	// one naming a workspace nobody here holds is cleared, so the section stands as it is.
 	$effect(() => {
 		const named = recordOf(page.url, WORKSPACE_PARAM);
 
@@ -265,14 +240,10 @@
 		// for it, and this runs again when it arrives.
 		if (!workspace && workspaces.length === 0) return;
 
-		// the two edits are gated separately, so what a workspace's edit *is* depends on who is
-		// looking: who holds it for somebody who may grant it, its name for somebody who may only
-		// edit the one they are in. A reader holding neither opens nothing, and the card still reads.
 		if (workspace) {
-			const record = recordOfWorkspace(workspace);
+			void goto(workspacePageOf(workspace.id), { replaceState: true });
 
-			if (!workspaceHost.run('workspace.members', record))
-				workspaceHost.run('workspace.edit', record);
+			return;
 		}
 
 		void goto(sectionAddress, { replaceState: true, noScroll: true, keepFocus: true });
@@ -357,7 +328,7 @@
 			     named on the element that holds it, which is what this section is read by. -->
 			<div data-workspace={workspace.id} style:height="{WORKSPACE_TILE_HEIGHT}px">
 				<RecordCard
-					href={addressOf(workspace.id)}
+					href={workspacePageOf(workspace.id)}
 					label={workspace.name}
 					actions={toCardActions(workspaceActs, recordOfWorkspace(workspace), $LL)}
 					layout="tile"

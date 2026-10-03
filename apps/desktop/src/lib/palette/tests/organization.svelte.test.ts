@@ -82,6 +82,17 @@ vi.mock('$lib/sync/query', async (importOriginal) => ({
 	})
 }));
 
+// the workspace's members act goes to the workspace's own page (effort 846, ticket 49): the
+// navigation is recorded rather than run, since this runner has no router.
+const { navigations } = vi.hoisted(() => ({ navigations: [] as string[] }));
+
+vi.mock('$app/navigation', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$app/navigation')>()),
+	goto: async (to: string) => {
+		navigations.push(to);
+	}
+}));
+
 const member = (overrides: Partial<OrganizationMember>): OrganizationMember =>
 	fakeOrganizationMember(overrides);
 
@@ -90,6 +101,7 @@ const ada = member({ id: 'ada', username: 'ada', role: 'manager' });
 const sami = member({ id: 'sami', username: 'sami' });
 
 beforeEach(() => {
+	navigations.length = 0;
 	loadLocale('en');
 	setLocale('en');
 
@@ -239,7 +251,7 @@ test('a workspace act reaches the organization host with the workspace the reade
 		canGrantWorkspace: true,
 		canDelete: true
 	});
-	expect(organizationHostState.workspace.changingAccess?.workspace).toEqual(north);
+	expect(navigations).toEqual(['/settings/workspaces/north']);
 });
 
 // effort 846, requirement 15: a workspace's file is offered from the menu as from its card, on a
@@ -337,5 +349,5 @@ test('a workspace act the reader may not take is not offered, and who is in one 
 	// nor anything of a member's, since sami's row writes nobody.
 	expect(document.querySelector('[data-value^="member."]')).toBeNull();
 	expect(run).not.toHaveBeenCalled();
-	expect(organizationHostState.workspace.changingAccess).toBeNull();
+	expect(navigations).toEqual([]);
 });

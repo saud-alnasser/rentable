@@ -26,7 +26,7 @@
 	import { onSubmit } from '$lib/form';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { lacking } from '$lib/organization/role/acts';
-	import type { AccessChoice } from '$lib/organization/access/component/dialog.svelte';
+	import type { AccessChoice } from '$lib/organization/access/access';
 	import MemberOverride from '$lib/organization/member/component/override.svelte';
 	import MemberRole from '$lib/organization/member/component/role.svelte';
 	import MemberSectionHead from '$lib/organization/component/section-head.svelte';

@@ -214,7 +214,6 @@ export const organization = {
 		accessFull: 'وصول كامل',
 		memberWorkspacesDescription: 'مساحات العمل التي يستطيع فتحها. شغّل مفتاح أي منها ليدخلها.',
 		accessSaved: 'حُفظت مساحات العمل.',
-		workspaceAccessTitle: 'الأعضاء والوصول',
 		workspaceAccessDescription:
 			'من يستطيع فتح {workspace}. شغّل مفتاح أي منهم ليدخلها. الوصول المسحوب يبقى حتى تنتهي صلاحيته.',
 		deleteWorkspace: 'احذف مساحة العمل',
@@ -427,6 +426,10 @@ export const organization = {
 		customHere: 'مخصّص هنا',
 		movesNotHeld: 'هذا يغيّر هنا صلاحية لا تحملها أنت.',
 		notHeld: 'تحمل مساحة العمل هذه للقراءة فقط، فلا تستطيع منحها.'
+	},
+	workspacePage: {
+		isIn: 'في مساحة العمل هذه',
+		isOut: 'ليس في مساحة العمل هذه'
 	}
 } satisfies Translation['organization'];
 

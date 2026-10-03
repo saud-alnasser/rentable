@@ -1,4 +1,3 @@
-import CircleUserIcon from '@lucide/svelte/icons/circle-user';
 import DoorOpenIcon from '@lucide/svelte/icons/door-open';
 import EyeIcon from '@lucide/svelte/icons/eye';
 import KeyRoundIcon from '@lucide/svelte/icons/key-round';
@@ -31,13 +30,6 @@ export const kindGlyph = (kind: RecordKind): Icon => glyphOf(kind);
 
 /** the administration's glyph: the organization's people. */
 export const ADMINISTRATION_GLYPH = UsersIcon;
-
-/**
- * one member of the organization, where a list draws people rather than records: an account, so
- * the account section's glyph. The plain person is the tenant's, which its surface declares and
- * the tenants page wears, and a member is not a tenant.
- */
-export const MEMBER_GLYPH = CircleUserIcon;
 
 /**
  * The glyph each permission's row in the switch list leads with (effort 838, requirement 12 as

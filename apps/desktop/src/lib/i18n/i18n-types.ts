@@ -4282,10 +4282,6 @@ type RootTranslation = {
 			 */
 			accessSaved: string
 			/**
-			 * m​e​m​b​e​r​s​ ​a​n​d​ ​a​c​c​e​s​s
-			 */
-			workspaceAccessTitle: string
-			/**
 			 * w​h​o​ ​c​a​n​ ​o​p​e​n​ ​{​w​o​r​k​s​p​a​c​e​}​.​ ​s​w​i​t​c​h​ ​s​o​m​e​o​n​e​ ​o​n​ ​t​o​ ​l​e​t​ ​t​h​e​m​ ​i​n​.​ ​a​c​c​e​s​s​ ​t​a​k​e​n​ ​b​a​c​k​ ​l​a​s​t​s​ ​u​n​t​i​l​ ​i​t​ ​r​u​n​s​ ​o​u​t​.
 			 * @param {string} workspace
 			 */
@@ -4973,6 +4969,16 @@ type RootTranslation = {
 			 * y​o​u​ ​h​o​l​d​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​r​e​a​d​ ​o​n​l​y​,​ ​s​o​ ​y​o​u​ ​c​a​n​n​o​t​ ​g​i​v​e​ ​i​t​.
 			 */
 			notHeld: string
+		}
+		workspacePage: {
+			/**
+			 * i​n​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e
+			 */
+			isIn: string
+			/**
+			 * n​o​t​ ​i​n​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e
+			 */
+			isOut: string
 		}
 	}
 	workspace: {
@@ -9138,10 +9144,6 @@ export type TranslationFunctions = {
 			 */
 			accessSaved: () => LocalizedString
 			/**
-			 * members and access
-			 */
-			workspaceAccessTitle: () => LocalizedString
-			/**
 			 * who can open {workspace}. switch someone on to let them in. access taken back lasts until it runs out.
 			 */
 			workspaceAccessDescription: (arg: { workspace: string }) => LocalizedString
@@ -9807,6 +9809,16 @@ export type TranslationFunctions = {
 			 * you hold this workspace read only, so you cannot give it.
 			 */
 			notHeld: () => LocalizedString
+		}
+		workspacePage: {
+			/**
+			 * in this workspace
+			 */
+			isIn: () => LocalizedString
+			/**
+			 * not in this workspace
+			 */
+			isOut: () => LocalizedString
 		}
 	}
 	workspace: {

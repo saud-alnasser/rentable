@@ -83,7 +83,7 @@ export type WorkspaceActId =
 export type WorkspaceHostRequests = {
 	/** open the workspace's name. */
 	edit: (record: WorkspaceActRecord) => void;
-	/** open who holds the workspace, and at what. */
+	/** open the workspace's page, where who holds it is changed. */
 	changeAccess: (record: WorkspaceActRecord) => void;
 	/** write the workspace's records to a file the reader chooses. */
 	exportFile: (record: WorkspaceActRecord) => void;

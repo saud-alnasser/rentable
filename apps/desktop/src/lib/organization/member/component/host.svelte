@@ -4,7 +4,7 @@
 	import { AWAITING_BLOCKERS } from '@rentable/design/confirmation.js';
 	import { toErrorText } from '$lib/error/message';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import type { AccessChoice } from '$lib/organization/access/component/dialog.svelte';
+	import type { AccessChoice } from '$lib/organization/access/access';
 	import { useSetWorkspaceOverride, type useChangeAccess } from '$lib/organization/access/query';
 	import { pinnedAcross } from '$lib/organization/access/access';
 	import MemberSheet, { type MemberEdit } from '$lib/organization/member/component/sheet.svelte';
@@ -48,8 +48,8 @@
 		/** the roles, read by the organization host while a surface that chooses or edits one is open. */
 		roles: OrganizationRole[];
 		/**
-		 * the one access write the member's sheet and a workspace's access dialog share, so either
-		 * surface waits while the other's write runs.
+		 * the access write the member's sheet makes, read once by the organization host. A
+		 * workspace's page writes through the same declaration from its own end.
 		 */
 		changeAccess: ReturnType<typeof useChangeAccess>;
 		/** read where the machine stands again, after a write that moves it. */

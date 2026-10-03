@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import api from '$lib/api/caller';
 	import DeleteDialog from '@rentable/design/block/delete-dialog.svelte';
 	import { isolateDirection } from '$lib/error/message';
@@ -10,21 +12,18 @@
 	import { WorkspaceImportDialog } from '$lib/transfer/ui';
 	import { useImportRecords } from '$lib/workspace/ui';
 	import type { WorkspaceActRecord } from '$lib/organization/workspace/acts';
+	import { back } from '@rentable/design/back.svelte.js';
 	import { tick, untrack } from 'svelte';
-	import AccessDialog, {
-		type AccessChoice
-	} from '$lib/organization/access/component/dialog.svelte';
-	import { isTailored } from '$lib/organization/access/access';
-	import type { useChangeAccess } from '$lib/organization/access/query';
+	import { workspacePageOf, workspacesSection } from '$lib/organization/workspace/address';
 	import { useDeleteWorkspace } from '$lib/organization/workspace/query';
 	import { organizationHostState } from '$lib/organization/host.svelte';
-	import type { OrganizationMember, OrganizationSession } from '$lib/organization/host';
 	import WorkspaceRenameForm from './rename-form.svelte';
 
 	/**
-	 * Every surface a workspace act opens: its name, who holds it, its file, and deleting it.
-	 * Mounted by the organization host (`../../component/host.svelte`), which reads the session and
-	 * the members once for every part of it and resets what is here as it goes.
+	 * Every surface a workspace act opens: its name, its file, and deleting it. Who holds it is the
+	 * workspace's own page (`./page.svelte`, effort 846 ticket 49), which the act navigates to.
+	 * Mounted by the organization host (`../../component/host.svelte`), which resets what is here
+	 * as it goes.
 	 *
 	 * **A workspace's file is written and read here, for whichever card asked** (effort 846,
 	 * requirement 15). The export asks where first, then reads the workspace the card names
@@ -34,20 +33,8 @@
 	 * *Both sat in a block beneath the directory until then, and moved only the open workspace.*
 	 */
 	let {
-		session,
-		members,
-		changeAccess,
 		refetchState
 	}: {
-		/** the session the organization host reads, or `null` while it is being read. */
-		session: OrganizationSession | null;
-		/** the members, read by the organization host while the one surface that lists them is open. */
-		members: OrganizationMember[] | undefined;
-		/**
-		 * the one access write a workspace's access dialog and the member's sheet share, so either
-		 * surface waits while the other's write runs.
-		 */
-		changeAccess: ReturnType<typeof useChangeAccess>;
 		/** read where the machine stands again, after a write that moves it. */
 		refetchState: () => Promise<unknown>;
 	} = $props();
@@ -59,54 +46,10 @@
 	// ----- the workspaces
 
 	/**
-	 * the rows the access dialog draws for a workspace: everybody who could hold it, whether what
-	 * each may do there is tailored, and whether the reader holds it at full access, which is what
-	 * putting any of them in gives.
-	 */
-	const workspaceRows = $derived.by(() => {
-		const opened = workspace.changingAccess;
-
-		if (!opened) return [];
-
-		const givable = opened.workspace.accessLevel === 'full-access';
-
-		return (members ?? [])
-			.filter((candidate) => candidate.role !== 'owner' && candidate.id !== session?.memberId)
-			.map((candidate) => {
-				const grant = candidate.workspaces.find((held) => held.id === opened.workspace.id);
-
-				return {
-					id: candidate.id,
-					name: candidate.username,
-					access: (grant?.access ?? 'none') as AccessChoice,
-					tailored: grant ? isTailored(candidate.permissions, grant) : false,
-					givable
-				};
-			});
-	});
-
-	const changeWorkspaceAccess = async (changes: { id: string; access: AccessChoice }[]) => {
-		const opened = workspace.changingAccess;
-
-		if (!opened) return;
-
-		try {
-			await changeAccess.mutateAsync({
-				changes: changes.map((change) => ({
-					workspaceId: opened.workspace.id,
-					memberId: change.id,
-					access: change.access
-				}))
-			});
-			organizationHostState.workspace.changingAccess = null;
-		} catch {
-			// said by the shared handler; the surface keeps what was chosen.
-		}
-	};
-
-	/**
 	 * a workspace deleted, once the confirm has asked: the database goes with it, so the session is
-	 * read again to drop the row the rail's switcher is still drawing.
+	 * read again to drop the row the rail's switcher is still drawing. Its page is not somewhere back
+	 * can return to now: a reader standing on it is taken to the workspaces section, and anywhere
+	 * else it is only forgotten from behind them, as a complex's page is.
 	 */
 	const confirmDelete = async () => {
 		const opened = workspace.deleting;
@@ -115,6 +58,17 @@
 
 		await deleteWorkspace.mutateAsync({ workspaceId: opened.workspace.id });
 		await refetchState();
+
+		const workspacePage = workspacePageOf(opened.workspace.id);
+
+		if (page.url.pathname === workspacePage) {
+			back.forgetCurrent();
+			await goto(workspacesSection());
+
+			return;
+		}
+
+		back.forget(workspacePage);
 	};
 
 	// ----- the file
@@ -214,20 +168,6 @@
 		/>
 	{/key}
 {/if}
-
-<AccessDialog
-	open={workspace.changingAccess !== null}
-	onOpenChange={(value) => {
-		if (!value && !changeAccess.isPending) organizationHostState.workspace.changingAccess = null;
-	}}
-	title={$LL.organization.dashboard.workspaceAccessTitle()}
-	description={$LL.organization.dashboard.workspaceAccessDescription({
-		workspace: workspace.changingAccess?.workspace.name ?? ''
-	})}
-	rows={workspaceRows}
-	isSaving={changeAccess.isPending}
-	onSave={(changes) => void changeWorkspaceAccess(changes)}
-/>
 
 <!-- the packaged confirm, which names what is lost before it offers anything destructive
      ([[rules/interface]], *Form surface*). Deleting a workspace deletes its database on Turso, and

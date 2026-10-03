@@ -134,6 +134,23 @@ state, and header arrangement — none of which is the shape of anybody's record
 
 Recorded originally as ADR 0032, *A record surface is one shell with a per-concept body*.
 
+**A workspace has a record page of its own, under the settings area it is listed in**:
+`/settings/workspaces/<id>` (`organization/workspace/component/page.svelte`), on the same shell.
+At the top, what its card says: its name, the *open on this machine* badge on the one open here,
+and its fields with the card's glyphs (`block/specification.svelte`'s `icon`): how many hold it,
+what the reader may do there, the day it was made. Its acts are the card's, refused as there, but
+*members*, which is the page. Below, its one collection, the members who could hold it, each a
+tile in the members directory's family (initials, name, role, *in this workspace* or *not in this
+workspace* in words) with the large switch at its trailing edge, applied at once (*Members and
+access*, under *Form surface*). Back returns to the workspaces section, which the page names as
+its fallback: the trail keys a screen by its path, so the settings area is one screen whichever
+section was left, and where the fallback names the screen being returned to it says where on it
+(`backTarget`). A workspace the reader holds no grant on is not found. *Added by ticket 49 of
+[[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirement 1 as revised
+2026-10-03, at the human's word: "manage members in the workspaces the form looks bad the switch it
+needs to be a better looking maybe a page details like how records have pages record and dicreocty
+of members and at the top information".*
+
 ### Landing screen
 
 **The landing screen is a band of routed figures over one section of records per rank.**
@@ -485,11 +502,13 @@ know which surface they are on before they know what will happen.*
 Recorded originally as ADR 0025, *A row opens its record, and does nothing else*.
 
 *Noted 2026-09-17, an accepted deviation: **in the settings directories a record's page is its
-sheet.** A member, a role and a workspace have no page of their own, so the card in the members,
-roles and workspaces directories opens the record's edit sheet on the same address
-(`?section=organization&member=<id>`, `?section=organization&role=<id>`,
-`?section=workspaces&workspace=<id>`), and does nothing else; the acts are still explicit controls
-on the card. Requirement 23 of
+sheet.** A member and a role have no page of their own, so the card in the members and roles
+directories opens the record's edit sheet on the same address
+(`?section=organization&member=<id>`, `?section=organization&role=<id>`), and does nothing else;
+the acts are still explicit controls on the card. A workspace left the deviation with ticket 49 of
+[[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]]: it has a page
+(*Record surface*), its card opens it, and an address naming one on its section
+(`?section=workspaces&workspace=<id>`) is sent on to it. Requirement 23 of
 [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] is the precedent, and the
 human accepted it at that effort's review round two on 2026-09-17.*
 
@@ -951,14 +970,22 @@ workspace read only, since granting it again at full access is their own credent
 member ranked at or above the reader is refused at the card's edit act, which opens nothing. The
 acts are the grants that exist (`useChangeAccess`), sent only for the workspaces that changed, then
 one workspace override per workspace whose pins changed, carrying what is pinned there and which
-of it is on (`useSetWorkspaceOverride`). **A workspace's own dialog draws its
-people the same way**, a switch per member, in or out, with the same refusals at the same
-controls, from the one list both surfaces share (`access/component/switches.svelte`), so the two cannot
-refuse differently; a person tailored there is marked *custom here* beside their name, and the
-tailoring itself is the card's. A member is drawn with the member's glyph (`organization/glyph.ts`,
-`circle-user`, the account's), never the tenant's person, and the owner and the reader are not
-listed. The workspace card's act that opens it is refused without `grantWorkspace`, naming it, as
-the member's card refuses its section, rather than hidden. *The human's calls on the running
+of it is on (`useSetWorkspaceOverride`). **A workspace's members live on its page**
+(*Record surface*), drawn the same way from the other end: a switch per member, in or out, the one
+switch both ends draw (`access/component/access-switch.svelte`) refused by the one rule
+(`accessRefusalOf` in `access/access.ts`), so the two cannot refuse differently. There it is the
+large switch, the one control of a member's tile, and **it applies at once**, one grant or
+withdrawal per switch through the same write (`useChangeAccess`), since every control in the
+settings area applies its choice at once and nothing on the page is a form, so off and on again is
+two writes there, the second refused as a fresh grant is; a switch the shell
+refuses is put back and the shared handler says why. A person tailored there is marked *custom
+here* beside their state, and the tailoring itself is the card's. The owner and the reader are not
+listed. Without `grantWorkspace` every switch on the page is refused, naming it, as the member's
+card refuses its section, and the workspace card's *members* act, which goes to the page, is
+refused the same way rather than hidden. *Who held a workspace was a dialog of switches under one
+save, drawn from the member card's list, until ticket 49 of
+[[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]]: the human found the form
+looked bad and asked for a page.* *The human's calls on the running
 application, 2026-09-27 ([[efforts/838-permissions-are-a-role-and-an-override/spec]], requirement
 12 as amended again and a third time; tickets 48, 49, 50 and 54): each workspace was a row of three
 levels beside the role, which read as a second permission system, and the workspace's dialog

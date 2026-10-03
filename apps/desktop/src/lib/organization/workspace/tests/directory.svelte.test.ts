@@ -70,22 +70,18 @@ import HostProviders from '$lib/organization/tests/host-providers.svelte';
  * workspace something else and there is no command that renames one from a distance. So the entry
  * is behind `renameWorkspace` and behind the open mark, and both are read below.
  *
- * **Activating a card opens its record** ([[rules/interface]], *Row activation*), and for a
- * workspace with no page of its own that means this section's address with the workspace named on
- * it. Both halves are read here: the `href` a card carries, and what the section does when the
- * address carries one.
+ * **Activating a card opens its record** ([[rules/interface]], *Row activation*): the workspace's
+ * own page (effort 846, ticket 49). Both halves are read here: the `href` a card carries, and an
+ * older address naming a workspace on this section, which is sent on to that page. What the page
+ * draws is `./page.svelte.test.ts`'s.
  *
  * **The address and the navigation are mocked**, the way `organization/member/tests/directory.svelte.test.ts` mocks them:
  * `$app/state` carries no navigation under this runner, and `goto` has no router to reach.
  *
- * The rows the access dialog draws are the organization's members rather than its workspaces,
- * which is the same surface read the other way round; the owner is not among them, because Rust
- * refuses a withdrawal of the owner's own grant, and neither is the reader.
- *
  * **What a card's act opens is the organization host's** (effort 832, requirement 8), mounted once
  * in the frame, so the section is rendered with the host beside it (`./host-providers.svelte`) and
- * the host's hooks stood in for (`./host-hooks.ts`): the members the dialog lists and the session
- * that says who is reading are what those hooks answer. Each entry is read by the act it projects,
+ * the host's hooks stood in for (`./host-hooks.ts`): the members and the session that says who is
+ * reading are what those hooks answer. Each entry is read by the act it projects,
  * `data-act`. The name's entry reads *edit* (effort 832, requirement 6), where it read *rename*.
  *
  * **A workspace's file moves from its card** (effort 846, requirement 15 and criterion 15):
@@ -888,7 +884,7 @@ test('a member holding no act is offered who is in each workspace and its file, 
 
 	expect(grant?.getAttribute('aria-disabled')).toBe('true');
 	await fireEvent.click(grant!);
-	expect(organizationHostState.workspace.changingAccess).toBeNull();
+	expect(navigations).toEqual([]);
 
 	expect(document.querySelector('[data-workspace-create]')).toBeNull();
 	expect(document.querySelector('[data-workspace-refusal]')).toBeNull();
@@ -924,15 +920,15 @@ test('each act is drawn by its own gate and by no other', async () => {
 	await only({ canDelete: true }, 'ws-2', ['grant', ...file, 'delete']);
 });
 
-// [[rules/interface]], *Row activation*: activating a card opens its record, which for a workspace
-// is this section's address with the workspace named on it.
+// [[rules/interface]], *Row activation*: activating a card opens its record, the workspace's own
+// page (effort 846, ticket 49).
 test('a card opens its own record, and nothing on the card itself does anything else', async () => {
 	list();
 
 	const jeddah = card('ws-2')!;
 	const opens = jeddah.querySelector('a')!;
 
-	expect(opens.getAttribute('href')).toBe('/settings?section=workspaces&workspace=ws-2');
+	expect(opens.getAttribute('href')).toBe('/settings/workspaces/ws-2');
 	expect(opens.getAttribute('aria-label')).toBe('Jeddah');
 	// the acts are behind the card's one control, and nothing else on it is pressable.
 	expect(jeddah.querySelectorAll('button')).toHaveLength(1);
@@ -951,40 +947,22 @@ test('a card opens its own record, and nothing on the card itself does anything 
 	expect(document.querySelectorAll('[data-slot=dropdown-menu-item]').length).toBeGreaterThan(0);
 });
 
-// the other half of the same rule: the section reads the workspace off the address and opens its
-// edit, then clears it, so pressing the same card twice opens the same surface twice.
-test('the address naming a workspace opens that workspace and is cleared', async () => {
+// an address kept from before the workspace had a page names it on this section: it is sent on to
+// the page, in place of the address that named it, and a name nobody here holds is cleared and
+// opens nothing.
+test('an older address naming a workspace is sent on to its page', async () => {
 	at('?section=workspaces&workspace=ws-2');
 	list();
 
-	await waitFor(() => {
-		expect(document.querySelector('[data-access-form]')).not.toBeNull();
-	});
-	expect(
-		screen.getByText(
-			en.organization.dashboard.workspaceAccessDescription.replace('{workspace:string}', 'Jeddah')
-		)
-	).toBeDefined();
-	expect(navigations).toEqual(['/settings?section=workspaces']);
+	await waitFor(() => expect(navigations).toEqual(['/settings/workspaces/ws-2']));
+	expect(surface()).toBeNull();
 });
 
-// a reader who may only rename opens the one workspace they can rename, and a name nobody here
-// holds opens nothing at all.
-test('the edit a card opens is the one this reader holds, and an unknown name opens nothing', async () => {
-	at('?section=workspaces&workspace=ws-1');
-	const renamer = list({ canGrantWorkspace: false, canDelete: false });
-
-	await waitFor(() => {
-		expect(surface()).not.toBeNull();
-	});
-	expect(screen.getByText(en.workspace.renameDescription)).toBeDefined();
-	renamer.unmount();
-	resetOrganizationHost();
-
+test('an older address naming a workspace nobody here holds is cleared, and opens nothing', async () => {
 	at('?section=workspaces&workspace=ws-gone');
 	list();
 
-	expect(document.querySelector('[data-access-form]')).toBeNull();
+	await waitFor(() => expect(navigations).toEqual(['/settings?section=workspaces']));
 	expect(surface()).toBeNull();
 });
 
@@ -1159,94 +1137,16 @@ test('with nothing open, the earlier records keep their line and offer no act', 
 	expect(callout()!.querySelectorAll('button')).toHaveLength(0);
 });
 
-test('the members act opens the access dialog on the people who could hold that workspace', async () => {
+// effort 846, ticket 49: who holds a workspace is its own page, and the members act goes there
+// rather than opening a dialog. What the page draws and writes is `./page.svelte.test.ts`'s.
+test('the members act goes to that workspace page, and opens no dialog', async () => {
 	list();
 
 	await press('ws-2', 'grant');
 
-	expect(document.querySelector('[data-access-form]')).not.toBeNull();
-	// the owner's own grant is never withdrawn and the reader never writes their own row, so
-	// neither is offered; what is left is everybody a grant can be moved on.
-	expect(
-		Array.from(document.querySelectorAll('[data-access-row]')).map((node) =>
-			node.getAttribute('data-access-row')
-		)
-	).toEqual(['ada', 'sami']);
-	expect(
-		screen.getByText(
-			en.organization.dashboard.workspaceAccessDescription.replace('{workspace:string}', 'Jeddah')
-		)
-	).toBeDefined();
-});
-
-test('the members act hands up the rows that changed, as member ids on that workspace', async () => {
-	list();
-
-	await press('ws-1', 'grant');
-	// ada is in it, and her switch takes her out.
-	await fireEvent.click(document.querySelector<HTMLElement>('#access-ada')!);
-	await fireEvent.submit(document.querySelector('form')!);
-
-	await waitFor(() => {
-		expect(hostAnswers.writes).toEqual([
-			{
-				hook: 'useChangeAccess',
-				input: { changes: [{ workspaceId: 'ws-1', memberId: 'ada', access: 'none' }] }
-			}
-		]);
-	});
-});
-
-// requirement 12 as amended a third time: the dialog marks a person whose permissions in that
-// workspace differ from theirs across the organization, read off the members' facts, and draws no
-// lock (ticket 54 of effort 838).
-test('the members act marks a person tailored in that workspace, and draws no lock', async () => {
-	hostAnswers.members = [
-		members[0],
-		{
-			...members[1],
-			permissions: BUILT_IN.manager.mask,
-			workspaces: [
-				{
-					id: 'ws-1',
-					access: 'full-access',
-					pinned: maskOf('deletePayment'),
-					granted: 0,
-					permissions: BUILT_IN.manager.mask - maskOf('deletePayment')
-				}
-			]
-		},
-		members[2]
-	];
-	list();
-
-	await press('ws-1', 'grant');
-	await waitFor(() => expect(document.querySelector('[data-access-form]')).not.toBeNull());
-
-	expect(document.querySelector('[data-access-mark="ada"]')?.textContent?.trim()).toBe(
-		en.organization.workspaceSwitches.customHere
-	);
-	expect(document.querySelector('[data-access-mark="sami"]')).toBeNull();
-	expect(document.querySelector('[id$="-lock"]')).toBeNull();
-});
-
-// full access is the reader's own credential re-sealed, and the reader holds Jeddah read only,
-// so the host hands the dialog rows nobody can be put in on, and the switch says why.
-test('the members act on a workspace the reader holds read only puts nobody in', async () => {
-	list();
-
-	await press('ws-2', 'grant');
-
-	const ada = document.querySelector<HTMLElement>('#access-ada')!;
-
-	expect(ada.getAttribute('aria-disabled')).toBe('true');
-	expect(document.querySelector('#access-ada-reason')?.textContent?.trim()).toBe(
-		en.organization.workspaceSwitches.notHeld
-	);
-
-	await fireEvent.click(ada);
-
-	expect(ada.getAttribute('aria-checked')).toBe('false');
+	await waitFor(() => expect(navigations).toEqual(['/settings/workspaces/ws-2']));
+	expect(surface()).toBeNull();
+	expect(document.querySelector('[data-access-row]')).toBeNull();
 });
 
 // criterion 21: delete asks once and names what is lost, and it is the owner's.

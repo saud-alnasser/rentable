@@ -1,7 +1,8 @@
 import { resolve } from '$app/paths';
 import type { ResolvedPathname } from '$app/types';
 import { defineSurface } from '$lib/feature/surface';
-import { RECORD_PARAM, WORKSPACE_PARAM, withSection } from '$lib/settings';
+import { RECORD_PARAM, withSection } from '$lib/settings';
+import { workspacePageOf } from './workspace/address';
 import dialogs from './component/dialogs.svelte';
 import host from './component/host.svelte';
 import railRow from './component/rail-row.svelte';
@@ -20,8 +21,8 @@ import SettingsWorkspaces from './component/settings-workspaces.svelte';
  * **A member and a workspace are found only while one of their acts asks for one.** They are
  * opened from their settings directory, and the menu reaches them to run an act on them; their
  * acts are gated on who is reading, so the organization reads what they are gated on and offers
- * only the acts that reader may take (`palette.ts`). Opening one goes to its card in the settings
- * area.
+ * only the acts that reader may take (`palette.ts`). Opening a member goes to its card in the
+ * settings area, and a workspace to its own page.
  *
  * **The settings sections follow the area's own general section**, each drawn under the name
  * `settings/section.ts` gives it in the address, in this order, and only while somebody is signed
@@ -51,8 +52,7 @@ export default defineSurface({
 		{
 			subject: 'workspace',
 			heading: (t) => t.settings.section.workspaces(),
-			href: (match) =>
-				`${resolve(withSection('workspaces'))}&${WORKSPACE_PARAM}=${encodeURIComponent(match.id)}` as ResolvedPathname,
+			href: (match) => workspacePageOf(match.id),
 			find: (term, asked, { isOpen }) =>
 				useOrganizationOfferings(isOpen).workspace.find(term, asked)
 		}

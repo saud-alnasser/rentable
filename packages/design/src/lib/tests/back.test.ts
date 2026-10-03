@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { BackTrail, toScreen } from '../back.ts';
+import { BackTrail, backTarget, toScreen } from '../back.ts';
 
 /**
  * a record's url with a section on it — the whole url the shell hands over, of which the path
@@ -118,5 +118,27 @@ describe('where back returns to', () => {
 		trail.visit('/contracts');
 
 		assert.equal(notifications, 2);
+	});
+});
+
+// effort 846, ticket 49: a screen is a path, so a page whose sections are in the address is one
+// screen on the trail, and back to it lands on its first section. Where the fallback names that
+// same page with a section on it, the fallback says where on the page the reader came from.
+describe('where pressing back goes', () => {
+	it('is the fallback where there is nowhere to return to', () => {
+		assert.equal(backTarget(null, '/tenants'), '/tenants');
+	});
+
+	it('is the screen returned to where the fallback names another', () => {
+		assert.equal(backTarget('/contracts/2', '/tenants'), '/contracts/2');
+		assert.equal(backTarget('/contracts', '/settings?section=workspaces'), '/contracts');
+	});
+
+	it('is the fallback where it names the screen returned to, and says where on it', () => {
+		assert.equal(
+			backTarget('/settings', '/settings?section=workspaces'),
+			'/settings?section=workspaces'
+		);
+		assert.equal(backTarget('/complexes', '/complexes'), '/complexes');
 	});
 });

@@ -11,7 +11,9 @@ import {
 } from '@rentable/workspace-permission';
 
 import {
+	accessRefusalOf,
 	firstUnheldPinned,
+	inLevelOf,
 	firstUnheldTailored,
 	isTailored,
 	pinnedAcross,
@@ -180,4 +182,21 @@ test('clearing every workspace needs every flag pinned in any of them held', () 
 	assert.equal(firstUnheldPinned(BUILT_IN.manager.mask, pinned), null);
 	assert.equal(firstUnheldPinned(MEMBER, pinned), 'deleteUnit');
 	assert.equal(firstUnheldPinned(0, 0), null);
+});
+
+// the one refusal both ends of a grant read (effort 846, ticket 49): the member's card and the
+// workspace's page turn a switch on the same terms.
+test('a switch is refused for the reader who may turn none, and for a fresh grant they cannot give', () => {
+	const out = { id: 'sami', name: 'sami', access: 'none' as const, givable: true };
+	const held = { ...out, access: 'full-access' as const };
+
+	assert.equal(accessRefusalOf(out, 'none', 'no grant', 'not held'), 'no grant');
+	assert.equal(accessRefusalOf(held, 'full-access', 'no grant', 'not held'), 'no grant');
+	assert.equal(accessRefusalOf(out, 'none', null, 'not held'), null);
+	assert.equal(accessRefusalOf({ ...out, givable: false }, 'none', null, 'not held'), 'not held');
+	// out is a withdrawal, and back on is what the row held: neither is refused.
+	assert.equal(accessRefusalOf({ ...held, givable: false }, 'full-access', null, 'not held'), null);
+	assert.equal(accessRefusalOf({ ...held, givable: false }, 'none', null, 'not held'), null);
+	assert.equal(inLevelOf(out), 'full-access');
+	assert.equal(inLevelOf({ ...out, access: 'read-only' }), 'read-only');
 });

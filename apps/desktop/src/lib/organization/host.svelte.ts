@@ -15,7 +15,9 @@ import {
 	type WorkspaceActId,
 	type WorkspaceActRecord
 } from '$lib/organization/workspace/acts';
+import { goto } from '$app/navigation';
 import { mayRun, type RecordAct } from '$lib/act';
+import { workspacePageOf } from '$lib/organization/workspace/address';
 import { openOrganizationDialog } from '$lib/organization/dialogs.svelte';
 
 /**
@@ -64,8 +66,6 @@ type OrganizationHostState = {
 	workspace: {
 		/** the workspace whose name is open. */
 		editing: WorkspaceActRecord | null;
-		/** the workspace whose members are open. */
-		changingAccess: WorkspaceActRecord | null;
 		/** the workspace being asked about. */
 		deleting: WorkspaceActRecord | null;
 		/** the workspace whose file was asked for, waiting for the host to write it. */
@@ -104,7 +104,6 @@ const idle = (): OrganizationHostState => ({
 	},
 	workspace: {
 		editing: null,
-		changingAccess: null,
 		deleting: null,
 		exporting: null,
 		importing: null
@@ -157,8 +156,9 @@ export const workspaceActs = declareWorkspaceActs({
 	edit: (record) => {
 		organizationHostState.workspace.editing = record;
 	},
+	// who holds a workspace is its own page (effort 846, ticket 49), so the act goes there.
 	changeAccess: (record) => {
-		organizationHostState.workspace.changingAccess = record;
+		void goto(workspacePageOf(record.workspace.id));
 	},
 	confirmDelete: (record) => {
 		organizationHostState.workspace.deleting = record;

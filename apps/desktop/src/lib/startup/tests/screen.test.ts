@@ -286,7 +286,10 @@ test('and a record page goes to the directory its concept is listed in', () => {
 		'/complexes/units/[id]': '/complexes',
 		'/contracts/[id]': '/contracts',
 		'/contracts/units/[id]': '/contracts',
-		'/contracts/payments/[id]': '/contracts'
+		'/contracts/payments/[id]': '/contracts',
+		// a workspace's page (effort 846, ticket 49) sits under the settings area, the place its
+		// trail names, so a switch takes the reader to the settings as it takes them off any record.
+		'/settings/workspaces/[id]': '/settings'
 	};
 	const records = PAGE_ROUTES.filter((route) => route.includes('['));
 

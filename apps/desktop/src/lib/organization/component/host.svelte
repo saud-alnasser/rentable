@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { useChangeAccess } from '$lib/organization/access/query';
 	import MemberHost from '$lib/organization/member/component/host.svelte';
-	import { useFetchMembers } from '$lib/organization/member/query';
 	import RoleHost from '$lib/organization/role/component/host.svelte';
 	import { useFetchRoles } from '$lib/organization/role/query';
 	import WorkspaceHost from '$lib/organization/workspace/component/host.svelte';
@@ -31,20 +30,17 @@
 	 *
 	 * **Each sub-concept draws its own** (`member/component/host.svelte`, then the workspace's and
 	 * the role's), in the order their surfaces always stood. What they share is read here once: the
-	 * session, the members and the roles, and the one access write the member's sheet and a
-	 * workspace's access dialog both make, so either waits while the other's runs.
+	 * session and the roles, and the member's sheet's access write. *A workspace's access dialog
+	 * shared that write, and the members were read here for it, until effort 846's ticket 49 gave a
+	 * workspace a page of its own that reads and writes them itself.*
 	 */
 	const stateQuery = useFetchOrganizationState();
 
 	const member = $derived(organizationHostState.member);
-	const workspace = $derived(organizationHostState.workspace);
 	const role = $derived(organizationHostState.role);
 
 	const session = $derived(stateQuery.data?.session ?? null);
 
-	// the members are read only while the one surface that lists them is open: the settings
-	// sections read them already, so this is the same cache rather than a second request.
-	const membersQuery = useFetchMembers(() => workspace.changingAccess !== null);
 	// the roles, read while a surface that chooses or edits one is open: the organization section
 	// of the settings area reads them already, so this is the same cache.
 	const rolesQuery = useFetchRoles(
@@ -61,6 +57,6 @@
 
 <MemberHost {session} {roles} {changeAccess} {refetchState} />
 
-<WorkspaceHost {session} members={membersQuery.data} {changeAccess} {refetchState} />
+<WorkspaceHost {refetchState} />
 
 <RoleHost {session} {roles} />

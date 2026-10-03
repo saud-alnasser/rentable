@@ -92,7 +92,7 @@ block a concept draws instead.
 | `primitive/skeleton` | feedback and progress | the shape of what is coming, handed to the loading block | a load drawn without the block's delay and hold | `block/loading.svelte` | `list/component/list.svelte` |
 | `primitive/sonner` | feedback and progress | the toaster, mounted once by `notification/` (*Feedback*) | a toast raised outside the shared handlers | `primitive/callout` | `notification/component/provider.svelte` |
 | `primitive/spinner` | feedback and progress | a control or a surface that is working: the standalone surface busy, the selection dialog reading its plan | standing in for content (*Loading*) | `block/loading.svelte` | through `block/standalone-surface.svelte` |
-| `primitive/switch` | choosing a value | on or off: a permission, a workspace a member is in (*Field kinds*); `sm` is the mini switch | an act; a choice of more than two (research 3) | `primitive/checkbox` | `organization/role/component/permission-switches.svelte` |
+| `primitive/switch` | choosing a value | on or off: a permission, a workspace a member is in (*Field kinds*); `sm` is the mini switch; `lg` the switch a tile stands on as its one control, a member in or out on a workspace's page | an act; a choice of more than two (research 3) | `primitive/checkbox` | `organization/role/component/permission-switches.svelte` |
 | `primitive/textarea` | entering text | a longer note: a payment's note | a short value | `primitive/input` | `payment/component/form.svelte` |
 | `primitive/toggle` | choosing a value | one segment of a toggle group, through it | a lone pressable state on its own (unused alone here) | `primitive/toggle-group` | through `primitive/toggle-group` |
 | `primitive/toggle-group` | choosing a value | two to four exclusive values, all shown: the cycle, language, appearance, a payment's method | five or more; several commands (research 3) | `primitive/select` | `settings/component/appearance.svelte` |
@@ -116,13 +116,13 @@ block a concept draws instead.
 | `block/page-frame.svelte` | laying out | the frame every screen sits in, one width and padding | a box around a group | `block/settings-group.svelte` | `settings/component/area.svelte` |
 | `block/record-action-control.svelte` | taking an action | one of a record page's acts, quiet at rest, refused with its reason | an act on a failure screen (that is the surface action) | `block/surface-action.svelte` | `complex/component/details.svelte` |
 | `block/record-card.svelte` | showing data | one record in a list, as a row or a tile, with both routes to its acts | a group of settings; a record's own page | `block/specification.svelte` | `complex/component/card.svelte` |
-| `block/record-surface.svelte` | laying out | the page a record is read on: back, acts, title, fields, collections | a directory; a settings area | `block/page-frame.svelte` | `complex/component/details.svelte` |
+| `block/record-surface.svelte` | laying out | the page a record is read on: back, acts, title, fields, collections; a workspace's page under the settings area | a directory; a settings area | `block/page-frame.svelte` | `complex/component/details.svelte` |
 | `block/section-switch.svelte` | navigating | a page's sections, each at its address: settings, a record's collections | places of the application (the rail) | `primitive/sidebar` | `settings/component/area.svelte` |
 | `block/selection-dialog.svelte` | interrupting and confirming | an act on a selection, showing what would go through before it runs | one record's act | `block/delete-dialog.svelte` | `complex/component/directory.svelte` |
 | `block/settings-grid.svelte` | laying out | a settings section's cards, one under the next in a single column at every width, in source order | a list of records (the list shell lays those); a page's frame; two cards side by side | `block/page-frame.svelte` | `settings/component/area.svelte` |
 | `block/settings-group.svelte` | laying out | a settings card: its header inside it (glyph, title, one line, a value, and a header action: the card's one act on itself as quiet text at the trailing edge, red words where it ends something), its rows, the ending rows last after a separator, an optional footer; the column's width | a list of records (those are record cards); a box around a directory | `block/record-card.svelte` | `organization/component/settings-account.svelte` |
 | `block/settings-row.svelte` | showing data | one setting: glyph, name with its meta line under it and a badge beside it, value, control; the `error` mark for an act that ends something, its button alone red, words with no glyph, and its glyph and name neutral; a control never repeating the row's glyph; `details` folding what few readers need; `menu` holding a row's secondary acts | a record in a directory | `primitive/item` | `organization/component/disconnect.svelte` |
-| `block/specification.svelte` | showing data | a record's own fields as label and value | a list of records; tabular data (research 5) | `block/record-card.svelte` | `complex/component/details.svelte` |
+| `block/specification.svelte` | showing data | a record's own fields as label and value, each label led by its glyph (`icon`) where the record's card shows its facts with glyphs, as a workspace's page does | a list of records; tabular data (research 5) | `block/record-card.svelte` | `complex/component/details.svelte` |
 | `block/standalone-surface.svelte` | interrupting and confirming | the application failing: startup, recovery, an unhandled route error | a step of the way in; a not-found | `block/way-in-surface.svelte` | `shell/component/caught-error.svelte` |
 | `block/surface-action.svelte` | taking an action | one of a few acts on a surface that has stopped the application | a record's act | `block/record-action-control.svelte` | `startup/component/error.svelte` |
 | `block/way-in-position.svelte` | guiding and empty states | "step 1 of 2" above a walk's title, through the way-in surface | a wait (that is progress) | `primitive/progress` | through `block/way-in-surface.svelte` |
@@ -159,6 +159,7 @@ Each row names what this repository already draws for the need, and one file whe
 | a value among five or more, or among records the organization adds | `primitive/select` | `organization/member/component/role.svelte` |
 | another record, chosen by searching | `primitive/command` in `primitive/popover` | `contract/component/tenant-field.svelte` |
 | an on/off setting | `primitive/switch` | `organization/role/component/permission-switches.svelte` |
+| who holds a workspace | its page (`block/record-surface.svelte`), a tile per member with the `lg` `primitive/switch`, applied at once | `organization/workspace/component/holders.svelte` |
 | several records picked for one act | `primitive/checkbox` in selection mode | `list/component/rows.svelte` |
 | a date | `primitive/calendar` in `primitive/popover` | `contract/component/start-date-field.svelte` |
 | an amount | `primitive/input-group` with the riyal sign | `contract/component/form.svelte` |
@@ -209,6 +210,10 @@ against.
   nothing else, so a second format and the other direction had nowhere to go (*Export and import*);
   a button among labelled neighbours carried no glyph (effort 846, requirement 5). A status icon is
   the stated exception, with its word in the tooltip, except on a tile.
+- **A form for what a page does.** Who held a workspace was a dialog of switches under one save,
+  opened from the workspace card; the human found "the form looks bad the switch it needs to be a
+  better looking maybe a page details like how records have pages" (effort 846, ticket 49). A
+  workspace's members live on its page, each a tile with the large switch, applied at once.
 - **A dialog for what a popover does.** A small setting applied in place opens a popover beside it
   (the ending-soon window); a dialog is for what must be answered before going on (research 8).
   The window was a field with a *save* step two screens away until effort 846.

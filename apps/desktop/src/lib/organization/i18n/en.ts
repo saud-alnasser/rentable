@@ -183,7 +183,7 @@ export const organization = {
 			'a username, a role and the workspaces they hold. no password until they open a link you make.',
 		role: 'role',
 		noWorkspaceToGrant: 'no workspace to grant yet. they can be granted one later.',
-		// the workspace's own dialog with nobody to list: the owner and the reader are not.
+		// a workspace's page with nobody to list: the owner and the reader are not.
 		noMemberToGrant: 'no member to put in this workspace yet.',
 		addMember: 'add a member',
 		cannotSend:
@@ -277,7 +277,6 @@ export const organization = {
 		// the line under the workspaces on the sheet that adds a member.
 		memberWorkspacesDescription: 'the workspaces they can open. switch one on to let them in.',
 		accessSaved: 'the workspaces were saved.',
-		workspaceAccessTitle: 'members and access',
 		workspaceAccessDescription:
 			'who can open {workspace:string}. switch someone on to let them in. access taken back lasts until it runs out.',
 		deleteWorkspace: 'delete workspace',
@@ -563,6 +562,15 @@ export const organization = {
 		customHere: 'custom here',
 		movesNotHeld: 'this changes a permission here that you do not hold yourself.',
 		notHeld: 'you hold this workspace read only, so you cannot give it.'
+	},
+
+	/**
+	 * a workspace's own page (effort 846, ticket 49): what each member in its directory is,
+	 * said in words beside the switch, so in and out read without the switch's position alone.
+	 */
+	workspacePage: {
+		isIn: 'in this workspace',
+		isOut: 'not in this workspace'
 	}
 } satisfies BaseTranslation;
 

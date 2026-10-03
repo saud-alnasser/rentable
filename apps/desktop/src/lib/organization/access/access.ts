@@ -135,3 +135,49 @@ export const firstUnheldTailored = (
  */
 export const firstUnheldPinned = (held: number, pinned: number): Flag | null =>
 	RECORD_FLAGS.find((flag) => permits(pinned, flag) && !permits(held, flag)) ?? null;
+
+/** what one grant is good for, or that there is none. */
+export type AccessChoice = 'none' | 'full-access' | 'read-only';
+
+/**
+ * one thing a grant can be held on, with the access held on it today. `read-only` is a grant
+ * the owner minted before the lock left (effort 838, requirement 12 as amended a third time):
+ * it keeps working, and nothing here makes a new one.
+ */
+export type AccessRow = { id: string; name: string; access: AccessChoice };
+
+/**
+ * one grant a switch can put somebody in: what is held on it today, and whether the reader
+ * holds the workspace at full access themselves, which is what putting somebody in gives.
+ */
+export type AccessSwitchRow = AccessRow & { givable: boolean };
+
+/** what switching a row on comes to: what the row held, or a full-access grant. */
+export const inLevelOf = (row: AccessSwitchRow): AccessChoice =>
+	row.access === 'none' ? 'full-access' : row.access;
+
+/**
+ * Why a row's switch will not turn from the level it shows now, or `null` where it will. Both
+ * ends of a grant read it (`access/component/switches.svelte` on a member's card, and the
+ * workspace's page), so the two cannot refuse differently; the reasons are the refusals Rust
+ * makes.
+ *
+ * - `refusal`, where the caller says the reader may turn none (the reader without
+ *   `grantWorkspace`), refuses every switch.
+ * - Off is a withdrawal, which every holder of the act may make.
+ * - Back on is what the row held, which is no change and writes nothing.
+ * - Putting somebody in afresh is the reader's own full-access credential re-sealed, so a reader
+ *   holding the workspace read only is refused it, with `notHeld`.
+ */
+export const accessRefusalOf = (
+	row: AccessSwitchRow,
+	shown: AccessChoice,
+	refusal: string | null,
+	notHeld: string
+): string | null => {
+	if (refusal) return refusal;
+	if (shown !== 'none') return null;
+	if (row.access !== 'none') return null;
+
+	return row.givable ? null : notHeld;
+};

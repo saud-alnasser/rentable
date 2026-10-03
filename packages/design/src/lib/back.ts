@@ -19,6 +19,25 @@ export function toScreen(url: { pathname: string }) {
 	return url.pathname;
 }
 
+/**
+ * Where pressing back goes, given the screen the trail returns to and the fallback.
+ *
+ * **The fallback wins where it names the very screen being returned to.** A screen is a path, so
+ * a page whose sections sit in its address (`/settings?section=workspaces`) is one screen on the
+ * trail, and returning to it by its path alone lands on its first section. A record listed in one
+ * of those sections names that section as its fallback, so where the trail returns to the same
+ * page, the fallback says where on it the reader came from. Anywhere else the trail is right, and
+ * with nowhere to return to the fallback is all there is. *Added by effort 846's ticket 49, when a
+ * workspace got a page listed in the settings area's workspaces section.*
+ */
+export function backTarget(previous: string | null, fallback: string): string {
+	if (previous === null) {
+		return fallback;
+	}
+
+	return fallback.split(/[?#]/)[0] === previous ? fallback : previous;
+}
+
 export class BackTrail {
 	#visited: string[] = [];
 	#observers = new Set<() => void>();
