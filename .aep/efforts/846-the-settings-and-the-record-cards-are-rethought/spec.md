@@ -166,7 +166,8 @@ statement read in time order, and each payment row says how it was paid.
    workspaces directories in settings keep their responsive columns and show as many rows as fit the
    column count before scrolling in their own area: two cards at one column, four (two by two) at two,
    nine (three by three) at three. Then: "als the drop down of worksspaces maybe at a limit becomes scrollable": the sidebar's workspace menu lists a few workspaces
-   and scrolls the rest, its manage row staying in view.*
+   and scrolls the rest, its manage row staying in view. Then: "in the workspace dropdwn scroollable area after 5 workspaces and only the upper section the choosing chosises part where the ma ager owksapces is not part of the scroable area; also the "mamnanger workspaces.." needs to be better worded": five rows before it scrolls,
+   and the manage row reads *workspace settings*, without an ellipsis, since it opens a place.*
 3. **General holds application preferences only**: language, appearance, updates and diagnostics.
    Ending soon is not in it.
 4. **Every control in the area that applies a choice applies it at once**, as language and
