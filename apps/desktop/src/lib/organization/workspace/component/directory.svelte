@@ -8,8 +8,9 @@
 	 * (32), the heading line at the glyph tile's and the control's height (32), then 12 px to the
 	 * fields, two rows of fields 8 px apart, each field 8 px of padding above and below a name and
 	 * a value at a fixed 20 px leading (8 + 20 + 20 + 8 = 56). 32 + 32 + 12 + (56 + 8 + 56) = 196.
-	 * The open badge stands on the heading line and adds nothing. Both rows are counted whatever
-	 * they hold, since the members and the access are always drawn. It holds in Arabic only because
+	 * The open badge stands on the heading line and adds nothing. The first row is the members and
+	 * the access, always drawn; the second is the day it was created, counted whether or not the row
+	 * says it, so a workspace without the date keeps its place. It holds in Arabic only because
 	 * every line sets its own leading, so a line added to the tile, or one drawn without it,
 	 * changes this figure too.
 	 */
@@ -24,7 +25,6 @@
 	import type { Standing } from '$lib/permission';
 	import Empty from '@rentable/design/block/empty.svelte';
 	import RecordCard from '@rentable/design/block/record-card.svelte';
-	import * as Avatar from '@rentable/design/primitive/avatar/index.js';
 	import { Badge } from '@rentable/design/primitive/badge/index.js';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
@@ -33,7 +33,6 @@
 	import type { ListSort } from '@rentable/design/sort.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { formatLocaleDate } from '$lib/platform/locale';
-	import { accountInitials } from '$lib/sync';
 	import * as Cell from '$lib/design/cell';
 	import type { WorkspaceActContext, WorkspaceActRecord } from '$lib/organization/workspace/acts';
 	import DirectoryTray from '$lib/organization/component/directory-tray.svelte';
@@ -68,19 +67,23 @@
 	 * *Everything in a tab is a card*), each at `WORKSPACE_TILE_HEIGHT`. The one open on this
 	 * machine says so in words, *open on this machine*, in a badge after the solid disc this
 	 * application draws for something live (Linear's worded *joined* badge), where the member's
-	 * heading carries its role. The fields: who holds the workspace, across both columns since the
-	 * stack wants the room, as their initials with how many there are; then what the reader may do
-	 * there, from the session's own entry for that workspace, worded as what they may do: *owner*,
+	 * heading carries its role. The fields: how many hold the workspace, as a count in words; beside
+	 * it what the reader may do there, from the session's own entry for that workspace, worded as
+	 * what they may do: *owner*,
 	 * *you may read* where the grant is read only or nothing the reader holds there writes, *set
 	 * for you* where something is pinned for them there, and *you may edit* otherwise, never *full
-	 * access* or *no access*, which the member's card does not say either; and the day it was
-	 * created, off its row in the organization store, where the row says. A workspace nobody holds
-	 * says *nobody*, muted, never a zero. There is no fourth field: the rest of what the session
+	 * access* or *no access*, which the member's card does not say either; and under them, across
+	 * both columns as a card's odd field is laid, the day it was created, off its row in the
+	 * organization store, where the row says. A workspace nobody holds says *nobody*, muted, never a
+	 * zero. There is no fourth field: the rest of what the session
 	 * reads of a workspace is its database's name, host and schema, Turso's facts rather than the
 	 * reader's. *Effort 843 took the open word and the access line off the card, leaving the disc
 	 * alone, and the human brought both back on 2026-10-02 (effort 846, requirement 16); the same
 	 * day they found the tile sparse ("the workspaces grid card needs to be more informative and
-	 * better looking"), and ticket 33 gave it the glyph tile, the avatars and the date.* Record
+	 * better looking"), and ticket 33 gave it the glyph tile, the avatars and the date. On
+	 * 2026-10-03 the human found the avatars odd ("the workspaces card members showen feels odd (SA)
+	 * 1 showing each member feels odd"), and ticket 48 left the count alone, read as every other
+	 * field is.* Record
 	 * counts are not on it: a workspace not open here would have to be reached over Turso for each
 	 * tile, and the open one's are the dashboard's.
 	 *
@@ -191,18 +194,6 @@
 	/** how many people hold a grant on a workspace, counted off the organization's own list. */
 	const memberCount = (workspaceId: string) =>
 		members.filter((member) => member.workspaces.some((held) => held.id === workspaceId)).length;
-
-	/**
-	 * who holds a grant on a workspace, the highest role first and then by name, so the owner leads
-	 * the stack the way the members directory leads with them.
-	 */
-	const holdersOf = (workspaceId: string) =>
-		members
-			.filter((member) => member.workspaces.some((held) => held.id === workspaceId))
-			.sort((one, other) => other.rank - one.rank || one.username.localeCompare(other.username));
-
-	/** how many holders the stack draws; the count beside it says the rest. */
-	const STACKED = 3;
 
 	/** the day a workspace was made, as the machines list says the day a machine was added. */
 	const madeOn = (moment: number) => formatLocaleDate($locale, moment, { dateStyle: 'medium' });
@@ -401,45 +392,21 @@
 
 					{#snippet content()}
 						{@const access = accessOf(workspace)}
-						{@const holders = holdersOf(workspace.id)}
+						{@const held = memberCount(workspace.id)}
 						<div data-workspace-fields class="pointer-events-none relative grid grid-cols-2 gap-2">
-							<!-- who holds it, across both columns, since the stack of initials wants the room. -->
+							<!-- how many hold it, as a count in words beside the access, the way every other
+							     field reads its value. -->
 							<Cell.Field
 								hook="workspace-field"
 								data-workspace-members={workspace.id}
-								class="col-span-2"
 								icon={UsersIcon}
 								name={$LL.organization.dashboard.membersTitle()}
-								empty={holders.length === 0}
-							>
-								{#if holders.length === 0}
-									{$LL.organization.dashboard.workspaceCard.noMembers()}
-								{:else}
-									<span class="flex min-w-0 items-center gap-2">
-										<!-- the people themselves, by the initials their own cards wear, at the
-										     value's 20 px line; the count beside them says it, so the stack is not
-										     read twice. -->
-										<span
-											class="flex shrink-0 -space-x-1"
-											aria-hidden="true"
-											data-workspace-avatars
-										>
-											{#each holders.slice(0, STACKED) as holder (holder.id)}
-												<Avatar.Root class="size-5 ring-2 ring-muted">
-													<Avatar.Fallback class="text-xs leading-none font-medium text-foreground">
-														{accountInitials(holder.username)}
-													</Avatar.Fallback>
-												</Avatar.Root>
-											{/each}
-										</span>
-										<span class="truncate" data-workspace-count>
-											{$LL.organization.dashboard.workspaceCard.memberCount({
-												count: holders.length
-											})}
-										</span>
-									</span>
-								{/if}
-							</Cell.Field>
+								value={held === 0
+									? $LL.organization.dashboard.workspaceCard.noMembers()
+									: $LL.organization.dashboard.workspaceCard.memberCount({ count: held })}
+								empty={held === 0}
+								valueAttributes={{ 'data-workspace-count': held }}
+							/>
 
 							<Cell.Field
 								hook="workspace-field"
@@ -451,9 +418,11 @@
 							/>
 
 							{#if workspace.createdAt}
+								<!-- the odd field, across both columns, as the tenant card lays its own. -->
 								<Cell.Field
 									hook="workspace-field"
 									data-workspace-made={workspace.id}
+									class="col-span-2"
 									icon={CalendarPlusIcon}
 									name={$LL.organization.dashboard.workspaceCard.created()}
 									value={madeOn(workspace.createdAt)}

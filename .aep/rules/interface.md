@@ -362,9 +362,10 @@ concept's own component, at the height its list declares:
   organization acts it holds, each as every one, a count of the whole, or *nothing* / *none*
   muted. It has no foot.
 - **A workspace** (`organization/workspace/component/directory.svelte`, `WORKSPACE_TILE_HEIGHT`,
-  174 px, in the settings' workspaces directory): the `building` glyph in its muted tile and the
-  name on the heading line, an *open on this machine* badge under it on the open one, then at its
-  foot who holds it as a stack of initials with their count, what the reader may do there, and the
+  196 px, in the settings' workspaces directory): the `building` glyph in its muted tile and the
+  name on the heading line, an *open on this machine* badge beside it on the open one, then tinted
+  fields two across: how many hold it, as a count in words (*nobody* when none, muted) with no
+  initials drawn, beside what the reader may do there, and under them, across both columns, the
   day it was created.
 
 A complex's unit directory stays one column of rows at 64 px, because a unit is reached through
@@ -372,7 +373,8 @@ its complex or its contract and a tile spends room its two facts, its status and
 not need. *Tickets 16 to 18 of [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]],
 requirement 18 as the human narrowed it on 2026-10-02 (units keep their rows); the tenant and
 contract tiles recorded by ticket 27; the member and workspace tiles laid out by tickets 32 and 33
-at the human's walk of 2026-10-02 and recorded by ticket 35; the member's fields by ticket 37.*
+at the human's walk of 2026-10-02 and recorded by ticket 35; the member's fields by ticket 37; the
+workspace's members as a count by ticket 48, at the human's walk of 2026-10-03.*
 
 ### Search
 

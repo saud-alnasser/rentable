@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: []
 ---
 
@@ -15,8 +15,8 @@ The human's walk of 2026-10-03 ("the workspaces card members showen feels odd (S
 
 Traces requirement 1 as revised 2026-10-03, and requirements 16 and 19.
 
-- [ ] The workspace directory test finds no avatar in a card; the members field has its svg, its label and the count words, in both locales.
-- [ ] The directory's fixed-height, acts, export and import tests pass.
+- [x] The workspace directory test finds no avatar in a card; the members field has its svg, its label and the count words, in both locales. *Verified: the workspace directory test 'the members field counts who holds it and draws nobody' runs in en and ar: no avatar in any card, the members field carries its svg, its label and the count words; `vitest run src/lib/organization/workspace` printed 3 files, 74 passed.*
+- [x] The directory's fixed-height, acts, export and import tests pass. *Verified: the same file holds the fixed-height (196), acts, export and import tests, all passing; the child's full desktop run printed 95 files, 835 passed; check 0 errors.*
 
 ## Relevant areas
 

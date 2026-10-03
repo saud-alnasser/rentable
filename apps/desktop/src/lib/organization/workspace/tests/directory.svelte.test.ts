@@ -353,19 +353,13 @@ const dialogTitle = () => document.querySelector('[data-slot="dialog-title"]')?.
 const dialogParagraphs = () =>
 	Array.from(document.querySelectorAll('[data-slot="dialog-content"] p'));
 
-/** how many people are in a workspace, as the members field draws it beside the initials. */
+/** how many people are in a workspace, as the members field says it. */
 const memberCount = (count: number, language: 'en' | 'ar' = 'en') =>
 	i18nObject(language).organization.dashboard.workspaceCard.memberCount({ count });
 
-/** the figure a card's members field says, beside the stack of initials it draws. */
+/** the figure a card's members field says. */
 const countOn = (id: string) =>
 	on('members', id)?.querySelector('[data-workspace-count]')?.textContent?.trim();
-
-/** the initials a card's stack draws, in the order it draws them. */
-const avatarsOn = (id: string) =>
-	Array.from(on('members', id)?.querySelectorAll('[data-slot=avatar]') ?? []).map((avatar) =>
-		avatar.textContent?.trim()
-	);
 
 beforeEach(() => {
 	// the tiles are laid in as many columns as the directory's width holds, which it measures.
@@ -472,32 +466,36 @@ test('every card says how many hold it, after its icon', () => {
 	}
 });
 
-// ticket 33 of effort 846: who holds a workspace is drawn as their initials, the owner first and
-// then by role and name, with the count in words beside them.
-test('every card stacks the initials of who holds it, the owner first, beside the count', () => {
-	list();
+// ticket 48 of effort 846, the human's walk of 2026-10-03 ("the workspaces card members showen
+// feels odd (SA) 1 showing each member feels odd"): the members field is a count, as every other
+// field reads, with no initials beside it, in both languages.
+describe('the members field counts who holds it and draws nobody', () => {
+	test.each(['en', 'ar'] as const)('in %s', (language) => {
+		loadLocale(language);
+		setLocale(language);
 
-	expect(avatarsOn('ws-1')).toEqual(['OL', 'AD', 'SA']);
-	expect(avatarsOn('ws-2')).toEqual(['OL']);
-	// the stack is the count drawn, so it is not read out a second time.
-	expect(
-		on('members', 'ws-1')!.querySelector('[data-workspace-avatars]')?.getAttribute('aria-hidden')
-	).toBe('true');
-});
+		const words = language === 'en' ? en : ar;
 
-test('the stack draws three at most, and the count says the rest', () => {
-	const many = ['ana', 'ben', 'cy', 'dee', 'eli'].map((username) =>
-		member({
-			id: username,
-			username,
-			workspaces: [{ id: 'ws-1', access: 'full-access', pinned: 0, granted: 0, permissions: 0 }]
-		})
-	);
+		list({}, language === 'ar' ? 'rtl' : 'ltr');
 
-	list({ members: many });
+		for (const [id, count] of [
+			['ws-1', 3],
+			['ws-2', 1]
+		] as const) {
+			const field = on('members', id)!;
 
-	expect(avatarsOn('ws-1')).toEqual(['AN', 'BE', 'CY']);
-	expect(countOn('ws-1')).toBe(memberCount(5));
+			expect(card(id)!.querySelector('[data-slot=avatar]'), id).toBeNull();
+			expect(field.querySelector('svg')?.getAttribute('class'), id).toContain('lucide-users');
+			expect(field.querySelector('[data-workspace-field-name]')?.textContent?.trim(), id).toBe(
+				words.organization.dashboard.membersTitle
+			);
+			expect(field.querySelector('[data-workspace-field-value]')?.textContent?.trim(), id).toBe(
+				memberCount(count, language)
+			);
+		}
+
+		setLocale('en');
+	});
 });
 
 // effort 846, requirement 19 and ticket 45: no count of zero. The field still stands, so the tile
@@ -512,7 +510,7 @@ test('a workspace nobody is counted in says nobody, muted, and never a zero', ()
 		expect(value.textContent?.trim(), id).toBe(en.organization.dashboard.workspaceCard.noMembers);
 		expect(value.hasAttribute('data-empty'), id).toBe(true);
 		expect(value.getAttribute('class'), id).toContain('text-muted-foreground');
-		expect(field.querySelector('[data-workspace-avatars]'), id).toBeNull();
+		expect(field.querySelector('[data-slot=avatar]'), id).toBeNull();
 		expect(field.textContent, id).not.toMatch(/[0-9\u0660-\u0669]/);
 	}
 });
@@ -569,8 +567,9 @@ const fieldsOn = (id: string) =>
 
 // ticket 45 of effort 846, the human's word of 2026-10-03 ("follow the tinted files and things like
 // that in the reocrds cards of domain data"): the glyph tile, the name and the open badge on the
-// heading, then the facts as tinted `Cell.Field`s in a grid two across, the members across both
-// columns, in both languages.
+// heading, then the facts as tinted `Cell.Field`s in a grid two across, the members and the access
+// side by side and the day it was made across both columns under them (ticket 48), in both
+// languages.
 describe('the facts are tinted fields in a grid two across, as the member card lays its own', () => {
 	test.each(['en', 'ar'] as const)('in %s', (language) => {
 		loadLocale(language);
@@ -591,12 +590,11 @@ describe('the facts are tinted fields in a grid two across, as the member card l
 			expect(grid.querySelectorAll(':scope > [data-workspace-field]'), id).toHaveLength(3);
 			expect(card(id)!.querySelectorAll('[data-fact]'), id).toHaveLength(0);
 
-			// the initials are the members' value, before the figure.
 			expect(fieldsOn(id), id).toEqual([
 				{
 					glyph: 'users',
 					name: words.organization.dashboard.membersTitle,
-					value: bare([...avatarsOn(id), memberCount(count, language)].join(''))
+					value: bare(memberCount(count, language))
 				},
 				{
 					glyph: 'key-round',
@@ -609,7 +607,9 @@ describe('the facts are tinted fields in a grid two across, as the member card l
 					value: bare(formatLocaleDate(language, workspace.createdAt!, { dateStyle: 'medium' }))
 				}
 			]);
-			expect(on('members', id)!.classList, id).toContain('col-span-2');
+			expect(on('members', id)!.classList, id).not.toContain('col-span-2');
+			expect(on('access', id)!.classList, id).not.toContain('col-span-2');
+			expect(on('made', id)!.classList, id).toContain('col-span-2');
 
 			for (const field of card(id)!.querySelectorAll('[data-workspace-field]')) {
 				// softly tinted with the muted token, no border, and nothing toned: none is a state.
