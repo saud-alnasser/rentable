@@ -144,7 +144,11 @@ statement read in time order, and each payment row says how it was paid.
    the contract ring's figure is smaller; the password card's act is a quiet text button at its header's
    trailing edge; the machines and this machine cards are one card, this machine signed out from its own
    row's menu; and signing out every other machine is a small red text button in that card's header,
-   confirmed, not a section of its own.*
+   confirmed, not a section of its own. Then, 2026-10-03: "the delete and add image in orgnization stamp feels ood the image neexsc on the righrt side no need to be under; and the button of delete and add a littilbe bit needs to be worked on; the workspaces card members showen feels odd (SA) 1 showing each member feels odd; also manage members in the workspaces the form looks bad the switch it needs to be a better looking maybe a page details like how records have pages record and dicreocty of members and at the top information": the stamp's picture sits at the
+   row's trailing edge beside its name, not beneath it, and its replace and remove controls are drawn
+   with more care; a workspace card says how many members hold it without a stack of initials; and a
+   workspace's members are managed on a page of its own, the way a record has one: what the workspace
+   is at the top, a directory of who can hold it below, each in or out by a well-drawn control.*
 3. **General holds application preferences only**: language, appearance, updates and diagnostics.
    Ending soon is not in it.
 4. **Every control in the area that applies a choice applies it at once**, as language and
