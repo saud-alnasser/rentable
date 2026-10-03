@@ -148,7 +148,10 @@ statement read in time order, and each payment row says how it was paid.
    row's trailing edge beside its name, not beneath it, and its replace and remove controls are drawn
    with more care; a workspace card says how many members hold it without a stack of initials; and a
    workspace's members are managed on a page of its own, the way a record has one: what the workspace
-   is at the top, a directory of who can hold it below, each in or out by a well-drawn control.*
+   is at the top, a directory of who can hold it below, each in or out by a well-drawn control. Then: "the details page of a workspace in the settings it should have a record search bar or feild that you search for a member then add them to the worksace and a grid of cards sohwen to existing members and have elipses as action for them regarding the workspace":
+   the page adds a member by searching for them in a field and choosing them, and draws the members it
+   has as a grid of member cards, each with its ellipsis menu of what can be done to them in this
+   workspace; no switches.*
 3. **General holds application preferences only**: language, appearance, updates and diagnostics.
    Ending soon is not in it.
 4. **Every control in the area that applies a choice applies it at once**, as language and
