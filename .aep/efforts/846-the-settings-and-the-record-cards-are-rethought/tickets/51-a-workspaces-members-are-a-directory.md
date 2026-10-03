@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: []
 ---
 
@@ -15,11 +15,11 @@ The human's walk of 2026-10-03, verbatim: "in the workspace details page the top
 
 Traces requirement 1 as revised 2026-10-03, and requirements 2, 16, 18 and 19.
 
-- [ ] A page test: the members directory has the tray with search (filters by username), sort, and the plus; no find-a-member field remains; the grid and empty state as ticket 50.
-- [ ] A page test: the plus opens the add sheet; its search lists only members not in the workspace, filtered; choosing adds to the chosen list and removes from the dropdown; a chosen member can be taken off; save grants every chosen member and closes; a refusal says its reason; the plus is refused with its reason for a reader who cannot grant; en and ar.
-- [ ] A page test: pressing a card opens edit permissions for it; the menu holds exactly edit permissions and remove; remove asks first; open member is absent; the dangerous-acts guard passes.
-- [ ] A sheet test: edit permissions lists this workspace's permission switches only, its description says they override the organization's and the role's permissions here, saving writes through the tailoring mutation, and it is refused with its reason where the reader may not.
-- [ ] Desktop check, node and vitest; design tests; eslint and prettier on changed files; [[rules/interface]] and [[contexts/desktop/components]] say all this; `validate.mjs` passes.
+- [x] A page test: the members directory has the tray with search (filters by username), sort, and the plus; no find-a-member field remains; the grid and empty state as ticket 50. *Verified: `vitest run page.svelte.test.ts` printed 35 passed: the members directory has the DirectoryTray with search by username, sort and the plus (CreateControl); no find-a-member field remains; grid and empty state hold.*
+- [x] A page test: the plus opens the add sheet; its search lists only members not in the workspace, filtered; choosing adds to the chosen list and removes from the dropdown; a chosen member can be taken off; save grants every chosen member and closes; a refusal says its reason; the plus is refused with its reason for a reader who cannot grant; en and ar. *Verified: the same file: the plus opens the add sheet (a FormSurface with a command-in-popover search, as the contract picks its tenant) listing only members not in the workspace, filtered; chosen members join the sheet's list, leave the dropdown and can be taken off; one save grants them all through `useChangeAccess`, a refusal keeps the rest listed with its reason; the plus is refused with its reason without grantWorkspace, read only, or with nobody left; en and ar.*
+- [x] A page test: pressing a card opens edit permissions for it; the menu holds exactly edit permissions and remove; remove asks first; open member is absent; the dangerous-acts guard passes. *Verified: the same file: pressing a card opens edit permissions; the menu is exactly edit permissions and remove; remove asks first; open member is absent; orchestrator's `vitest run src/lib/organization src/lib/act`: 26 files, 449 passed, the dangerous-acts guard among them.*
+- [x] A sheet test: edit permissions lists this workspace's permission switches only, its description says they override the organization's and the role's permissions here, saving writes through the tailoring mutation, and it is refused with its reason where the reader may not. *Verified: `permissions-sheet.svelte.test.ts` printed 5 passed: this workspace's switches only, its description saying they override the organization's and the role's permissions here, saving through `useSetWorkspaceOverride`, refused as the router would.*
+- [x] Desktop check, node and vitest; design tests; eslint and prettier on changed files; [[rules/interface]] and [[contexts/desktop/components]] say all this; `validate.mjs` passes. *Verified: child's desktop check 0 errors, node 1485 and vitest 867 passed; design check 0 errors, 168 and 164; eslint and prettier clean; rules/interface and contexts/desktop/components updated; `validate.mjs` printed 591 artifacts checked, no failures.*
 
 ## Relevant areas
 

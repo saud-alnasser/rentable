@@ -3,7 +3,8 @@
 	import RecordSurface from '@rentable/design/block/record-surface.svelte';
 	import Specification from '@rentable/design/block/specification.svelte';
 	import { Badge } from '@rentable/design/primitive/badge/index.js';
-	import * as Field from '@rentable/design/primitive/field/index.js';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import { toCardActions, toPageActions } from '$lib/act';
 	import DiscIcon from '$lib/design/cell/disc.svelte';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
@@ -11,22 +12,31 @@
 	import { toErrorText } from '$lib/error/message';
 	import { accessRefusalOf, isTailored } from '$lib/organization/access/access';
 	import { useChangeAccess } from '$lib/organization/access/query';
-	import { holderActs, memberPending, workspaceActs } from '$lib/organization/host.svelte';
+	import {
+		holderActs,
+		holderHost,
+		memberPending,
+		workspaceActs
+	} from '$lib/organization/host.svelte';
 	import { memberReaderOf, toMemberActContext } from '$lib/organization/member/acts';
-	import { memberCardOf } from '$lib/organization/member/address';
 	import { useFetchMembers, useFetchMemberStandings } from '$lib/organization/member/query';
 	import { useFetchOrganizationState } from '$lib/organization/query';
 	import { lacking } from '$lib/organization/role/acts';
 	import { memberRoleName } from '$lib/organization/role/role';
 	import { workspaceContextOf, type WorkspaceActRecord } from '$lib/organization/workspace/acts';
-	import { workspacePageOf, workspacesSection } from '$lib/organization/workspace/address';
+	import {
+		holderCardOf,
+		workspacePageOf,
+		workspacesSection
+	} from '$lib/organization/workspace/address';
+	import { recordOf } from '$lib/settings';
 	import { holderCount, workspaceAccessOf } from '$lib/organization/workspace/standing';
 	import { useFetchRemoteSyncState } from '$lib/sync/ui';
 	import CalendarPlusIcon from '@lucide/svelte/icons/calendar-plus';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 	import UsersIcon from '@lucide/svelte/icons/users';
 	import { permits } from '@rentable/workspace-permission';
-	import AddHolder, { type HolderCandidate } from './add-holder.svelte';
+	import AddSheet, { type HolderCandidate } from './add-sheet.svelte';
 	import Holders, { type HolderCard } from './holders.svelte';
 
 	/**
@@ -43,15 +53,19 @@
 	 * card's glyphs, how many hold it, what the reader may do there, and the day it was made where
 	 * the row says. **The acts are the card's** (`workspace/acts.ts`, projected by
 	 * `toPageActions`), refused as there, save *members*, which is this page. What each opens is
-	 * the organization host's, mounted in the frame, so the page mounts no form and no dialog.
+	 * the organization host's, mounted in the frame; the one form the page mounts is its own add
+	 * sheet, below.
 	 *
-	 * **Below, who holds it** (ticket 50): a field that finds a member who is not in it by username
-	 * and puts them in at once (`./add-holder.svelte`), through the one access write the member's
-	 * card makes (`useChangeAccess`, requirement 4: every control in the area applies at once), and
-	 * under it the holders as member cards (`./holders.svelte`), each with its menu of the acts on
-	 * them here (`declareHolderActs`). A choice the shell refuses says why under the field, and the
-	 * shared handler says it too. *Who held a workspace was a dialog of switches under one save
-	 * until ticket 49, and a tile per member with a large switch until ticket 50.*
+	 * **Below, who holds it, as a record directory** (ticket 51): the settings directories' tray
+	 * over the holders' member cards (`./holders.svelte`), each with its menu of the acts on them
+	 * here (`declareHolderActs`). The tray's plus opens the add sheet (`./add-sheet.svelte`), which
+	 * this page mounts since it holds who can be put in: its one save grants every member chosen
+	 * through the one access write the member's card makes (`useChangeAccess`), and a refusal stays
+	 * in the sheet with the members it did not put in. Pressing a card goes to this page with the
+	 * member named on it, which is consumed on arrival by running *edit permissions* on them, as
+	 * the members directory consumes a member named on its own address. *Who held a workspace was a
+	 * dialog of switches under one save until ticket 49, a tile per member with a large switch
+	 * until ticket 50, and a field that put one member in at once until ticket 51.*
 	 *
 	 * **Who is listed or offered is decided here**: never the owner, whose grant is never withdrawn,
 	 * and never the reader, who does not write their own row. Rust refuses both again, and every grant and
@@ -94,9 +108,11 @@
 
 	// ----- who holds it
 
-	/** the member whose grant is being written from the field, while it is. */
-	let writing = $state<string | null>(null);
-	/** what the shell refused the last choice with, said under the field. */
+	/** whether the add sheet is open. */
+	let adding = $state(false);
+	/** whether its grants are being written. */
+	let writing = $state(false);
+	/** what the shell refused the last save with, said in the sheet. */
 	let addError = $state<string | null>(null);
 
 	const standings = $derived(standingsQuery.data ?? []);
@@ -132,13 +148,13 @@
 					role: memberRoleName($LL, each),
 					standing,
 					tailored: isTailored(each.permissions, grant),
-					href: memberCardOf(each.id),
+					href: holderCardOf(workspace.id, each.id),
 					actions: toCardActions(
 						holderActs,
 						{
 							holder: { member: each, context: memberContext, standing },
 							workspace,
-							writing: writing !== null
+							writing
 						},
 						$LL
 					)
@@ -181,26 +197,72 @@
 		)
 	);
 
-	/**
-	 * one member chosen in the field, put in at once at full access. A refusal stands under the
-	 * field, and the shared handler says it too.
-	 */
-	async function add(memberId: string) {
-		if (writing !== null || addRefusal !== null) return;
+	/** why the plus opens nothing: the reader may put nobody in, or nobody is left to put in. */
+	const plusRefusal = $derived(
+		addRefusal ?? (candidates.length === 0 ? $LL.organization.workspacePage.nobodyToAdd() : null)
+	);
 
-		writing = memberId;
+	const openAdd = () => {
+		if (plusRefusal !== null) return;
+
+		addError = null;
+		adding = true;
+	};
+
+	/**
+	 * every member chosen in the sheet, put in at full access in one write, in order: a refusal
+	 * stops it there and what went through before it stands, so the sheet stays open over the
+	 * reason with the members still to put in, and the shared handler says it too.
+	 */
+	async function add(memberIds: string[]) {
+		if (writing || addRefusal !== null) return;
+
+		writing = true;
 		addError = null;
 
 		try {
 			await changeAccess.mutateAsync({
-				changes: [{ workspaceId, memberId, access: 'full-access' }]
+				changes: memberIds.map((memberId) => ({
+					workspaceId,
+					memberId,
+					access: 'full-access' as const
+				}))
 			});
+			adding = false;
 		} catch (error) {
 			addError = toErrorText(error, $LL);
 		} finally {
-			writing = null;
+			writing = false;
 		}
 	}
+
+	// a member named on the address is the card that was pressed: what it opens is their
+	// permissions here, where the reader may edit them, and the address is cleared either way, so
+	// a reload does not reopen a sheet already dismissed and the same card can be pressed again.
+	$effect(() => {
+		const named = recordOf(page.url);
+
+		if (!named) return;
+
+		// a list still on its way answers for nobody yet: the address keeps its name until it can.
+		if (members.length === 0) return;
+
+		const card = cards.find((each) => each.member.id === named);
+
+		if (card && workspace && memberContext) {
+			holderHost.run('holder.permissions', {
+				holder: { member: card.member, context: memberContext, standing: card.standing },
+				workspace,
+				writing
+			});
+		}
+
+		void goto(workspacePageOf(workspaceId), {
+			replaceState: true,
+			noScroll: true,
+			keepFocus: true
+		});
+	});
 </script>
 
 {#snippet identity()}
@@ -264,19 +326,26 @@
 
 {#snippet holders()}
 	{#if workspace}
-		<div class="flex flex-col gap-3" data-workspace-holders>
-			<Field.Description>
-				{$LL.organization.dashboard.workspaceAccessDescription({ workspace: workspace.name })}
-			</Field.Description>
-			<AddHolder
-				{candidates}
-				refusal={addRefusal}
-				error={addError}
-				writing={writing !== null}
-				onAdd={(id) => void add(id)}
-			/>
-			<Holders {cards} />
-		</div>
+		<Holders
+			{cards}
+			description={$LL.organization.dashboard.workspaceAccessDescription({
+				workspace: workspace.name
+			})}
+			addRefusal={plusRefusal}
+			onAdd={openAdd}
+		/>
+
+		<AddSheet
+			open={adding}
+			onOpenChange={(value) => {
+				if (!value && !writing) adding = false;
+			}}
+			workspaceName={workspace.name}
+			{candidates}
+			isSaving={writing}
+			error={addError}
+			onSave={(ids) => void add(ids)}
+		/>
 	{/if}
 {/snippet}
 

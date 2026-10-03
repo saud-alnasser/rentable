@@ -4,7 +4,7 @@
 	import api from '$lib/api/caller';
 	import ConfirmDialog from '@rentable/design/block/confirm-dialog.svelte';
 	import DeleteDialog from '@rentable/design/block/delete-dialog.svelte';
-	import { isolateDirection } from '$lib/error/message';
+	import { isolateDirection, toErrorText } from '$lib/error/message';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { showErrorToast, showSuccessToast } from '$lib/notification';
 	import { IMPORT_FLAGS, refusalOfEvery } from '$lib/permission';
@@ -12,7 +12,10 @@
 	import { toTransferInput, toWorkbook, transferHost } from '$lib/transfer';
 	import { WorkspaceImportDialog } from '$lib/transfer/ui';
 	import { useImportRecords } from '$lib/workspace/ui';
-	import type { useChangeAccess } from '$lib/organization/access/query';
+	import { useSetWorkspaceOverride, type useChangeAccess } from '$lib/organization/access/query';
+	import type { WorkspaceTailoring } from '$lib/organization/access/access';
+	import { lacking } from '$lib/organization/role/acts';
+	import PermissionsSheet from './permissions-sheet.svelte';
 	import type { WorkspaceActRecord } from '$lib/organization/workspace/acts';
 	import { back } from '@rentable/design/back.svelte.js';
 	import { tick, untrack } from 'svelte';
@@ -99,6 +102,98 @@
 				}
 			]
 		});
+	};
+
+	// ----- what one member may do there (ticket 51)
+
+	const setWorkspaceOverride = useSetWorkspaceOverride();
+
+	let isSavingPermissions = $state(false);
+	/** what the shell refused the last save with, said in the sheet, which stays open over it. */
+	let permissionsError = $state<string | null>(null);
+
+	/** what the workspace the sheet is open on holds for the member now. */
+	const permissionsHeld = $derived.by((): WorkspaceTailoring => {
+		const asked = workspace.permissions;
+		const grant = asked?.holder.member.workspaces.find((held) => held.id === asked.workspace.id);
+
+		return {
+			access: grant?.access === 'read-only' ? 'read-only' : 'full-access',
+			pinned: grant?.pinned ?? 0,
+			granted: grant?.granted ?? 0
+		};
+	});
+
+	/**
+	 * why the reader may change nothing in the sheet, as the act was refused: the act is
+	 * `overrideMember`'s, and a member ranked at or above the reader is tailored by somebody above.
+	 */
+	const permissionsRefusal = $derived.by(() => {
+		const asked = workspace.permissions;
+
+		if (!asked) return null;
+		if (!asked.holder.context.canOverride) return lacking($LL, 'overrideMember');
+
+		return asked.holder.member.rank >= asked.holder.context.rank
+			? $LL.organization.dashboard.notBelowYou()
+			: null;
+	});
+
+	/**
+	 * why a grant minted read only could not be lifted to full access by a write turned on, as the
+	 * member's card says it: the act, and a workspace the reader holds at full access.
+	 */
+	const regrantRefusal = $derived.by(() => {
+		const asked = workspace.permissions;
+
+		if (!asked) return null;
+		if (!asked.holder.context.canGrantWorkspace) return lacking($LL, 'grantWorkspace');
+
+		return asked.workspace.accessLevel === 'full-access'
+			? null
+			: $LL.organization.workspaceSwitches.notHeld();
+	});
+
+	/**
+	 * the member's permissions in the workspace, saved through the writes the member's card makes
+	 * for one workspace: what is pinned there first, then a grant minted read only lifted to full
+	 * access where a write was turned on over it, since the pins are what keep its other writes off.
+	 * Nothing changed closes the sheet and writes nothing.
+	 */
+	const savePermissions = async (next: WorkspaceTailoring) => {
+		const asked = workspace.permissions;
+
+		if (!asked || permissionsRefusal !== null) return;
+
+		const held = permissionsHeld;
+		const memberId = asked.holder.member.id;
+		const workspaceId = asked.workspace.id;
+
+		isSavingPermissions = true;
+		permissionsError = null;
+
+		try {
+			if (next.pinned !== held.pinned || next.granted !== held.granted) {
+				await setWorkspaceOverride.mutateAsync({
+					memberId,
+					workspaceId,
+					pinned: next.pinned,
+					granted: next.granted
+				});
+			}
+
+			if (next.access === 'full-access' && held.access === 'read-only') {
+				await changeAccess.mutateAsync({
+					changes: [{ workspaceId, memberId, access: 'full-access' }]
+				});
+			}
+
+			organizationHostState.workspace.permissions = null;
+		} catch (error) {
+			permissionsError = toErrorText(error, $LL);
+		} finally {
+			isSavingPermissions = false;
+		}
 	};
 
 	// ----- the file
@@ -229,6 +324,34 @@
 	confirmLabel={$LL.organization.workspacePage.removeFromWorkspace()}
 	confirmLoadingLabel={$LL.common.actions.working()}
 />
+
+<!-- what one member may do in the workspace, and nothing else, keyed on the member and the
+     workspace because the sheet holds what its switches come to. -->
+{#if workspace.permissions}
+	{@const asked = workspace.permissions}
+	{#key `${asked.workspace.id}:${asked.holder.member.id}`}
+		<PermissionsSheet
+			open
+			onOpenChange={(value) => {
+				if (!value && !isSavingPermissions) {
+					organizationHostState.workspace.permissions = null;
+					permissionsError = null;
+				}
+			}}
+			username={asked.holder.member.username}
+			workspaceId={asked.workspace.id}
+			workspaceName={asked.workspace.name}
+			organizationWide={asked.holder.member.permissions}
+			held={permissionsHeld}
+			readerPermissions={asked.holder.context.permissions}
+			refusal={permissionsRefusal}
+			{regrantRefusal}
+			isSaving={isSavingPermissions}
+			error={permissionsError}
+			onSave={(next) => void savePermissions(next)}
+		/>
+	{/key}
+{/if}
 
 <!-- one import for every card, named for the workspace it reads into, and writing into that one
      by the id its confirm hands back. -->

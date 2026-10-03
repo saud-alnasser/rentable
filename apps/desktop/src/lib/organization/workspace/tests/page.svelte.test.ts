@@ -1,4 +1,4 @@
-import { fireEvent, render, waitFor } from '@testing-library/svelte';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { beforeEach, expect, test, vi } from 'vitest';
 
 import { back } from '@rentable/design/back.svelte.js';
@@ -21,6 +21,9 @@ import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { layOutLists } from '#tests/permission.ts';
 import { toErrorText } from '$lib/error/message';
 import { MEMBER_TILE_HEIGHT } from '$lib/organization/member/component/card.svelte';
+import { expectCreateControlLast } from '$lib/create/tests/control';
+import { pastTheWait, searchField, typeSearch } from '$lib/list/tests/search';
+import { unfold } from '$lib/organization/tests/switches';
 
 /**
  * A WORKSPACE'S PAGE
@@ -34,9 +37,15 @@ import { MEMBER_TILE_HEIGHT } from '$lib/organization/member/component/card.svel
  * **Who holds it** is ticket 50's, at the human's word of 2026-10-03: "the details page of a
  * workspace in the settings it should have a record search bar or feild that you search for a
  * member then add them to the worksace and a grid of cards sohwen to existing members and have
- * elipses as action for them regarding the workspace". A field finds a member by username and
- * puts them in at once; the holders are member cards, each with its menu: open member, tailor
- * access here, and remove from workspace, which asks first.
+ * elipses as action for them regarding the workspace".
+ *
+ * **As a directory, added in a sheet and edited in one** is ticket 51's, at the human's walk of
+ * 2026-10-03: "in a workspace the details page it has a searchbar filter,sort add button on the
+ * tray; then grid of cards like now; a card when clicked it opens the edit permissions option
+ * sheet; and the eliapess show edit permissions and remove options only". The plus opens a sheet
+ * whose search lists the members not in it; the chosen are granted on one save. A card's press and
+ * its menu's *edit permissions* open a sheet of this workspace's permissions alone; *remove from
+ * workspace* asks first.
  *
  * **The refusals are the member's card's** (`accessRefusalOf`): putting somebody in a workspace
  * the reader holds read only is refused, and so is every grant and withdrawal, naming
@@ -187,10 +196,20 @@ const holderIds = () =>
 const holder = (id: string) => document.querySelector<HTMLElement>(`[data-holder="${id}"]`);
 const dimmed = (element: HTMLElement | null) => element?.getAttribute('aria-disabled') === 'true';
 
-/** the field that adds a member by search: its control, and what it lists once opened. */
-const addControl = () => document.querySelector<HTMLElement>('[data-holder-add]');
-const addRefusal = () =>
-	document.querySelector('[data-holder-add-refusal]')?.textContent?.trim() ?? null;
+/** the plus in the directory's tray, and why it is refused where it is. */
+const plus = () => document.querySelector<HTMLElement>('[data-holders-add]');
+const plusRefusal = () => {
+	const described = plus()?.getAttribute('aria-describedby');
+
+	return described ? (document.getElementById(described)?.textContent?.trim() ?? null) : null;
+};
+
+/** the sheet the plus opens: its search, what it lists, what is chosen, and its save. */
+const addSheet = () =>
+	document
+		.querySelector<HTMLElement>('[data-holders-add-sheet]')
+		?.closest<HTMLElement>('[role="dialog"]') ?? null;
+const pickControl = () => document.querySelector<HTMLElement>('[data-holder-pick]');
 const addSearch = () =>
 	document.querySelector<HTMLInputElement>('[data-holder-candidates] input') ?? null;
 const candidate = (id: string) =>
@@ -199,6 +218,24 @@ const candidateIds = () =>
 	Array.from(document.querySelectorAll('[data-holder-candidate]')).map((item) =>
 		item.getAttribute('data-holder-candidate')
 	);
+const chosenIds = () =>
+	Array.from(document.querySelectorAll('[data-holder-chosen]')).map((item) =>
+		item.getAttribute('data-holder-chosen')
+	);
+const unchoose = (id: string) =>
+	document.querySelector<HTMLElement>(`[data-holder-unchoose="${id}"]`);
+const saveAdd = () => addSheet()?.querySelector<HTMLButtonElement>('button[type="submit"]') ?? null;
+
+/** open the add sheet from the plus, and its search. */
+const openAdd = async () => {
+	await fireEvent.click(plus()!);
+	await waitFor(() => expect(pickControl()).not.toBeNull());
+	await fireEvent.click(pickControl()!);
+	await waitFor(() => expect(document.querySelector('[data-holder-candidates]')).not.toBeNull());
+};
+
+/** the sheet of a member's permissions in this workspace. */
+const permissionsSheet = () => document.querySelector<HTMLElement>('[data-holder-permissions]');
 
 /** a card's one control, and an entry on the menu it opened. */
 const menuControl = (id: string) => holder(id)?.querySelector<HTMLButtonElement>('button') ?? null;
@@ -425,11 +462,83 @@ test('with nobody holding it the grid says so', () => {
 	);
 });
 
-// ----- adding by search (ticket 50)
+// ----- the directory's tray (ticket 51)
 
-// criterion: the field lists only who can hold it and is not in it, filters by username, and
-// choosing one grants through the access mutation.
-test('the add field offers only members not in it, filtered by username', async () => {
+// criterion: the members are a record directory: the tray with search, sort and the plus, and no
+// find-a-member field.
+test('the members open with the directory tray: search, sort and the plus, and no field', () => {
+	open('ws-1');
+
+	const tray = document.querySelector('[data-directory-tray]');
+
+	expect(tray).not.toBeNull();
+	expect(tray?.contains(searchField())).toBe(true);
+	expect(
+		within(tray as HTMLElement).getByRole('button', {
+			name: new RegExp(`^${en.common.actions.sortBy}`)
+		})
+	).not.toBeNull();
+	expect(tray?.contains(plus())).toBe(true);
+	expect(plus()?.getAttribute('aria-label')).toBe(en.organization.workspacePage.addMembers);
+	expectCreateControlLast();
+	expect(document.querySelector('[data-holder-field]')).toBeNull();
+	expect(document.querySelector('[data-holder-add]')).toBeNull();
+});
+
+test('the search narrows the cards by username', async () => {
+	hostAnswers.members = [
+		members[0],
+		members[1],
+		member({ id: 'kai', username: 'kai', workspaces: [{ id: 'ws-1', ...everywhere }] })
+	];
+	open('ws-1');
+
+	expect(holderIds()).toEqual(['ada', 'kai']);
+
+	await typeSearch('ka');
+	await pastTheWait();
+
+	expect(holderIds()).toEqual(['kai']);
+	expect(document.querySelector('[data-list-count]')?.textContent?.trim()).toBe('1 result');
+});
+
+test('a search that finds nobody says so, and the way out clears it', async () => {
+	open('ws-1');
+
+	await typeSearch('nobody-here');
+	await pastTheWait();
+
+	expect(holderIds()).toEqual([]);
+	expect(document.querySelector('[data-holders-no-match]')?.textContent).toContain(
+		en.common.messages.noMatch
+	);
+	expect(document.querySelector('[data-holders-empty]')).toBeNull();
+});
+
+test('the cards are ordered by username, then back the other way', async () => {
+	hostAnswers.members = [
+		members[0],
+		member({ id: 'kai', username: 'kai', workspaces: [{ id: 'ws-1', ...everywhere }] }),
+		members[1]
+	];
+	open('ws-1');
+
+	await fireEvent.click(
+		screen.getByRole('button', { name: new RegExp(`^${en.common.actions.sortBy}`) })
+	);
+	const byName = Array.from(document.querySelectorAll('[data-slot=dropdown-menu-item]')).find(
+		(item) => item.textContent?.trim() === en.organization.dashboard.username
+	);
+
+	await fireEvent.click(byName!);
+
+	expect(holderIds()).toEqual(['ada', 'kai']);
+});
+
+// ----- adding in a sheet (ticket 51)
+
+// criterion: the plus opens the add sheet; its search lists only members not in it, filtered.
+test('the plus opens a sheet whose search lists only members not in it, filtered', async () => {
 	hostAnswers.members = [
 		...members,
 		member({ id: 'samira', username: 'samira', workspaces: [] }),
@@ -437,10 +546,11 @@ test('the add field offers only members not in it, filtered by username', async 
 	];
 	open('ws-1');
 
-	expect(addControl()?.textContent).toContain(en.organization.workspacePage.addPlaceholder);
+	await openAdd();
 
-	await fireEvent.click(addControl()!);
-
+	expect(addSheet()?.textContent?.toLowerCase()).toContain(
+		en.organization.workspacePage.addMembers
+	);
 	await waitFor(() => expect(candidateIds()).toEqual(['sami', 'samira', 'noura']));
 
 	await fireEvent.input(addSearch()!, { target: { value: 'sam' } });
@@ -448,54 +558,106 @@ test('the add field offers only members not in it, filtered by username', async 
 	await waitFor(() => expect(candidateIds()).toEqual(['sami', 'samira']));
 });
 
-test('choosing a member puts them in at full access, at once', async () => {
+test('choosing adds to the chosen list and out of the dropdown, and one can be taken off', async () => {
+	hostAnswers.members = [...members, member({ id: 'noura', username: 'noura', workspaces: [] })];
 	open('ws-1');
 
-	await fireEvent.click(addControl()!);
+	await openAdd();
 	await waitFor(() => expect(candidate('sami')).not.toBeNull());
 	await fireEvent.click(candidate('sami')!);
+
+	await waitFor(() => expect(chosenIds()).toEqual(['sami']));
+	expect(candidateIds()).toEqual(['noura']);
+	expect(hostAnswers.writes).toEqual([]);
+
+	await fireEvent.click(unchoose('sami')!);
+
+	await waitFor(() => expect(chosenIds()).toEqual([]));
+	// the dropdown may have closed as the list was pressed; it opens again on its control.
+	if (!document.querySelector('[data-holder-candidates]')) await fireEvent.click(pickControl()!);
+	await waitFor(() => expect(candidateIds()).toEqual(['sami', 'noura']));
+});
+
+// criterion: one save grants every chosen member and closes.
+test('the save grants every chosen member at full access, then closes', async () => {
+	hostAnswers.members = [...members, member({ id: 'noura', username: 'noura', workspaces: [] })];
+	open('ws-1');
+
+	await openAdd();
+	await waitFor(() => expect(candidate('sami')).not.toBeNull());
+	await fireEvent.click(candidate('sami')!);
+	await waitFor(() => expect(candidate('noura')).not.toBeNull());
+	await fireEvent.click(candidate('noura')!);
+	await waitFor(() => expect(chosenIds()).toEqual(['sami', 'noura']));
+
+	await fireEvent.click(saveAdd()!);
 
 	await waitFor(() => {
 		expect(hostAnswers.writes).toEqual([
 			{
 				hook: 'useChangeAccess',
-				input: { changes: [{ workspaceId: 'ws-1', memberId: 'sami', access: 'full-access' }] }
+				input: {
+					changes: [
+						{ workspaceId: 'ws-1', memberId: 'sami', access: 'full-access' },
+						{ workspaceId: 'ws-1', memberId: 'noura', access: 'full-access' }
+					]
+				}
 			}
 		]);
 	});
-	expect(document.querySelector('form')).toBeNull();
+	await waitFor(() => expect(addSheet()).toBeNull());
 });
 
-test('a grant the shell refuses says its reason at the field', async () => {
+test('a save with nobody chosen says to choose somebody and writes nothing', async () => {
+	open('ws-1');
+
+	await fireEvent.click(plus()!);
+	await waitFor(() => expect(saveAdd()).not.toBeNull());
+	await fireEvent.click(saveAdd()!);
+
+	await waitFor(() => {
+		expect(document.querySelector('[data-holders-add-error]')?.textContent?.trim()).toBe(
+			en.organization.workspacePage.chooseSomebody
+		);
+	});
+	expect(hostAnswers.writes).toEqual([]);
+});
+
+// criterion: a refusal says its reason, and the sheet stays open over it.
+test('a grant the shell refuses says its reason in the sheet, which stays open', async () => {
 	const refusal = new Error('refused');
 
 	hostAnswers.refusals.useChangeAccess = refusal;
 	open('ws-1');
 
-	await fireEvent.click(addControl()!);
+	await openAdd();
 	await waitFor(() => expect(candidate('sami')).not.toBeNull());
 	await fireEvent.click(candidate('sami')!);
+	await fireEvent.click(saveAdd()!);
 
 	await waitFor(() => {
-		expect(document.querySelector('[data-holder-add-error]')?.textContent?.trim()).toBe(
-			toErrorText(refusal, i18nObject('en'))
-		);
+		const said = document.querySelector('[data-holders-add-error]')?.textContent ?? '';
+
+		expect(said).toContain(toErrorText(refusal, i18nObject('en')));
+		expect(said).toContain(en.organization.workspacePage.notAllAdded);
 	});
+	expect(addSheet()).not.toBeNull();
+	expect(chosenIds()).toEqual(['sami']);
 });
 
-test('with everybody in it the field says there is nobody left to add', async () => {
+test('with everybody in it the plus says there is nobody left to add', async () => {
 	hostAnswers.members = [members[0], members[1]];
 	open('ws-1');
 
-	expect(dimmed(addControl())).toBe(true);
-	expect(addControl()?.textContent).toContain(en.organization.workspacePage.nobodyToAdd);
+	expect(dimmed(plus())).toBe(true);
+	expect(plusRefusal()).toBe(en.organization.workspacePage.nobodyToAdd);
 
-	await fireEvent.click(addControl()!);
-	expect(document.querySelector('[data-holder-candidates]')).toBeNull();
+	await fireEvent.click(plus()!);
+	expect(addSheet()).toBeNull();
 });
 
-// a granter gives only what they reach: where the reader holds it read only, nobody is put in.
-test('a workspace the reader holds read only offers no usable field, and says why', async () => {
+// criterion: the plus is refused with its reason for a reader who cannot grant.
+test('a workspace the reader holds read only refuses the plus, and says why', async () => {
 	hostAnswers.members = [
 		members[0],
 		member({ id: 'ada', username: 'ada', workspaces: [{ id: 'ws-2', ...everywhere }] }),
@@ -503,39 +665,44 @@ test('a workspace the reader holds read only offers no usable field, and says wh
 	];
 	open('ws-2');
 
-	expect(dimmed(addControl())).toBe(true);
-	expect(addRefusal()).toBe(en.organization.workspaceSwitches.notHeld);
+	expect(dimmed(plus())).toBe(true);
+	expect(plusRefusal()).toBe(en.organization.workspaceSwitches.notHeld);
 
-	await fireEvent.click(addControl()!);
-	expect(document.querySelector('[data-holder-candidates]')).toBeNull();
+	await fireEvent.click(plus()!);
+	expect(addSheet()).toBeNull();
 	expect(hostAnswers.writes).toEqual([]);
 });
 
-test('a reader without grantWorkspace meets no usable field, naming it', async () => {
+test('a reader without grantWorkspace meets the plus refused, naming it', async () => {
 	hostAnswers.session = fakeOrganizationSession({
 		memberId: 'sami',
 		role: 'member',
 		permissions: 0,
 		workspaces
 	});
-	hostAnswers.members = [members[0], members[1], member({ id: 'sami', username: 'sami' })];
+	hostAnswers.members = [
+		members[0],
+		members[1],
+		member({ id: 'sami', username: 'sami' }),
+		member({ id: 'noura', username: 'noura', workspaces: [] })
+	];
 	open('ws-1');
 
-	expect(dimmed(addControl())).toBe(true);
-	expect(addRefusal()).toBe(lacking(i18nObject('en'), 'grantWorkspace'));
+	expect(dimmed(plus())).toBe(true);
+	expect(plusRefusal()).toBe(lacking(i18nObject('en'), 'grantWorkspace'));
 
-	await fireEvent.click(addControl()!);
-	expect(document.querySelector('[data-holder-candidates]')).toBeNull();
+	await fireEvent.click(plus()!);
+	expect(addSheet()).toBeNull();
 });
 
-// ----- each card's menu (ticket 50)
+// ----- each card (tickets 50 and 51)
 
-// criterion: each card's menu holds open member, tailor access here and remove from workspace,
-// the remove red.
-test('a card offers open member, tailor access here, and remove from workspace in red', async () => {
+// criterion: the menu holds exactly edit permissions and remove, the remove red; open member is
+// gone.
+test('a card offers edit permissions and remove from workspace in red, and nothing else', async () => {
 	open('ws-1');
 
-	expect(await actsOn('ada')).toEqual(['holder.open', 'holder.tailor', 'holder.remove']);
+	expect(await actsOn('ada')).toEqual(['holder.permissions', 'holder.remove']);
 
 	await fireEvent.click(menuControl('ada')!);
 	expect(entry('holder.remove')?.getAttribute('data-variant')).toBe('destructive');
@@ -543,8 +710,9 @@ test('a card offers open member, tailor access here, and remove from workspace i
 	const words = (act: string) => entry(act)?.textContent?.trim().toLowerCase();
 
 	expect(words('holder.remove')).toBe(en.organization.workspacePage.removeFromWorkspace);
-	expect(words('holder.tailor')).toBe(en.organization.workspacePage.tailorHere);
-	expect(words('holder.open')).toBe(en.organization.workspacePage.openMember);
+	expect(words('holder.permissions')).toBe(en.organization.workspacePage.editPermissions);
+	expect(entry('holder.open')).toBeNull();
+	expect(document.body.textContent?.toLowerCase()).not.toContain('open member');
 });
 
 test('remove from workspace asks first, and withdraws only once answered', async () => {
@@ -580,30 +748,77 @@ test('remove from workspace asks first, and withdraws only once answered', async
 	});
 });
 
-test('tailor access here opens the member sheet with this workspace permissions open', async () => {
+// criterion: pressing a card opens edit permissions for it. A card's press is its address, this
+// page's with the member named on it, consumed on arrival as the members directory consumes its own.
+test('pressing a card opens edit permissions for that member, and not their member sheet', async () => {
+	open('ws-1');
+
+	expect(holder('ada')?.querySelector('a')?.getAttribute('href')).toBe(
+		'/settings/workspaces/ws-1?member=ada'
+	);
+
+	address.url = new URL('http://localhost/settings/workspaces/ws-1?member=ada');
+	render(
+		WorkspacePage,
+		{ workspaceId: 'ws-1' },
+		{ wrapper: HostProviders, wrapperProps: { strings, direction: 'ltr' } }
+	);
+
+	await waitFor(() => expect(permissionsSheet()).not.toBeNull());
+	expect(permissionsSheet()?.closest('[role="dialog"]')?.textContent).toContain('ada');
+	expect(document.querySelector('[data-member-sheet]')).toBeNull();
+	await waitFor(() => expect(navigations.at(-1)).toBe('/settings/workspaces/ws-1'));
+});
+
+test('edit permissions opens a sheet of this workspace permissions alone', async () => {
 	open('ws-1');
 
 	await fireEvent.click(menuControl('ada')!);
-	await fireEvent.click(entry('holder.tailor')!);
+	await fireEvent.click(entry('holder.permissions')!);
 
-	await waitFor(() => {
-		expect(document.querySelector('[data-member-sheet]')).not.toBeNull();
-		expect(document.querySelector('[data-tailor-open="access-ws-1-tailor"]')).not.toBeNull();
+	const sheet = await waitFor(() => {
+		expect(permissionsSheet()).not.toBeNull();
+
+		return permissionsSheet()!.closest<HTMLElement>('[role="dialog"]')!;
 	});
+
+	expect(sheet.textContent).toContain(
+		i18nObject('en').organization.workspacePage.permissionsOverride({ workspace: 'Riyadh' })
+	);
+	// the record groups alone: no role, no organization switches, no workspace switches.
+	expect(sheet.querySelector('[data-switches-group]')).not.toBeNull();
+	expect(sheet.querySelector('[data-switches-owner]')).toBeNull();
+	expect(sheet.querySelector('[data-access-row]')).toBeNull();
+	expect(sheet.querySelector('[data-sheet-section="role"]')).toBeNull();
+	expect(document.querySelector('[data-member-sheet]')).toBeNull();
 });
 
-test('open member goes to their card in the members section', async () => {
+test('edit permissions saves through the tailoring write, then closes', async () => {
 	open('ws-1');
 
 	await fireEvent.click(menuControl('ada')!);
-	await fireEvent.click(entry('holder.open')!);
+	await fireEvent.click(entry('holder.permissions')!);
+	await waitFor(() => expect(permissionsSheet()).not.toBeNull());
+
+	const sheet = permissionsSheet()!.closest<HTMLElement>('[role="dialog"]')!;
+
+	await unfold('payment', sheet);
+	await fireEvent.click(sheet.querySelector<HTMLElement>('[data-switch="viewPayment"]')!);
+	await fireEvent.click(sheet.querySelector<HTMLButtonElement>('button[type="submit"]')!);
 
 	await waitFor(() => {
-		expect(navigations.at(-1)).toBe('/settings?section=organization&member=ada');
+		expect(hostAnswers.writes).toHaveLength(1);
 	});
+
+	const [write] = hostAnswers.writes;
+
+	expect(write.hook).toBe('useSetWorkspaceOverride');
+	expect(write.input).toMatchObject({ memberId: 'ada', workspaceId: 'ws-1' });
+	expect((write.input as { pinned: number }).pinned).not.toBe(0);
+	await waitFor(() => expect(permissionsSheet()).toBeNull());
 });
 
-test('a reader without the flags reads remove and tailor refused, each with its reason', async () => {
+test('a reader without the flags reads remove and edit permissions refused, each with its reason', async () => {
 	hostAnswers.session = fakeOrganizationSession({
 		memberId: 'sami',
 		role: 'member',
@@ -617,15 +832,33 @@ test('a reader without the flags reads remove and tailor refused, each with its 
 
 	expect(dimmed(entry('holder.remove'))).toBe(true);
 	expect(await reasonOf(entry('holder.remove')!)).toBe(lacking(i18nObject('en'), 'grantWorkspace'));
-	expect(dimmed(entry('holder.tailor'))).toBe(true);
-	expect(dimmed(entry('holder.open'))).toBe(false);
+	expect(dimmed(entry('holder.permissions'))).toBe(true);
 
 	await fireEvent.click(entry('holder.remove')!);
 	expect(document.querySelector('[data-slot="dialog-content"]')).toBeNull();
 	expect(hostAnswers.writes).toEqual([]);
 });
 
-test('tailoring somebody ranked at or above the reader is refused, saying so', async () => {
+test('a card pressed by a reader who may not tailor opens nothing', async () => {
+	hostAnswers.session = fakeOrganizationSession({
+		memberId: 'sami',
+		role: 'member',
+		permissions: 0,
+		workspaces
+	});
+	hostAnswers.members = [members[0], members[1], member({ id: 'sami', username: 'sami' })];
+	address.url = new URL('http://localhost/settings/workspaces/ws-1?member=ada');
+	render(
+		WorkspacePage,
+		{ workspaceId: 'ws-1' },
+		{ wrapper: HostProviders, wrapperProps: { strings, direction: 'ltr' } }
+	);
+
+	await waitFor(() => expect(navigations.at(-1)).toBe('/settings/workspaces/ws-1'));
+	expect(permissionsSheet()).toBeNull();
+});
+
+test('editing the permissions of somebody ranked at or above the reader is refused, saying so', async () => {
 	hostAnswers.session = fakeOrganizationSession({
 		memberId: 'kai',
 		role: 'manager',
@@ -642,12 +875,12 @@ test('tailoring somebody ranked at or above the reader is refused, saying so', a
 
 	await fireEvent.click(menuControl('ada')!);
 
-	expect(dimmed(entry('holder.tailor'))).toBe(true);
-	expect(await reasonOf(entry('holder.tailor')!)).toBe(en.organization.dashboard.notBelowYou);
+	expect(dimmed(entry('holder.permissions'))).toBe(true);
+	expect(await reasonOf(entry('holder.permissions')!)).toBe(en.organization.dashboard.notBelowYou);
 	expect(dimmed(entry('holder.remove'))).toBe(false);
 });
 
-test('and in arabic the page reads in its own words, right to left', () => {
+test('and in arabic the page reads in its own words, right to left', async () => {
 	loadLocale('ar');
 	setLocale('ar');
 	hostAnswers.members = [
@@ -657,12 +890,34 @@ test('and in arabic the page reads in its own words, right to left', () => {
 	];
 	open('ws-2', 'rtl');
 
-	expect(addRefusal()).toBe(ar.organization.workspaceSwitches.notHeld);
-	expect(ar.organization.workspacePage.addPlaceholder).not.toBe(
-		en.organization.workspacePage.addPlaceholder
+	expect(plusRefusal()).toBe(ar.organization.workspaceSwitches.notHeld);
+	expect(plus()?.getAttribute('aria-label')).toBe(ar.organization.workspacePage.addMembers);
+	expect(ar.organization.workspacePage.editPermissions).not.toBe(
+		en.organization.workspacePage.editPermissions
 	);
 	expect(holderIds()).toEqual(['ada']);
 	expect(fact('access')?.textContent).toContain(ar.organization.dashboard.workspaceYouOwn);
+
+	await fireEvent.click(menuControl('ada')!);
+	expect(entry('holder.permissions')?.textContent?.trim()).toBe(
+		ar.organization.workspacePage.editPermissions
+	);
+
+	setLocale('en');
+});
+
+test('and in arabic the add sheet reads in its own words', async () => {
+	loadLocale('ar');
+	setLocale('ar');
+	open('ws-1', 'rtl');
+
+	await openAdd();
+
+	expect(addSheet()?.textContent).toContain(ar.organization.workspacePage.addMembers);
+	expect(addSheet()?.textContent).toContain(ar.organization.workspacePage.nobodyChosen);
+	expect(ar.organization.workspacePage.nobodyChosen).not.toBe(
+		en.organization.workspacePage.nobodyChosen
+	);
 
 	setLocale('en');
 });
@@ -676,7 +931,7 @@ test('and in arabic an empty workspace and a full one say so in its words', () =
 	expect(document.querySelector('[data-holders-empty]')?.textContent).toContain(
 		ar.organization.workspacePage.nobodyHolds
 	);
-	expect(addControl()?.textContent).toContain(ar.organization.workspacePage.nobodyToAdd);
+	expect(plusRefusal()).toBe(ar.organization.workspacePage.nobodyToAdd);
 
 	setLocale('en');
 });

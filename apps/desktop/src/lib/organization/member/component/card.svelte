@@ -63,7 +63,7 @@
 	 * its glyph, quieter than the role's filled one. Pushed to the tile's foot, so the fields above
 	 * read as one group (_Avoid ambiguous spacing_, 96). On a workspace's page the foot also says
 	 * *custom here* where what they may do in that workspace is tailored (`tailoredHere`, effort
-	 * 846, ticket 50), with the glyph its *tailor access here* act carries.
+	 * 846, ticket 50), with the glyph its *edit permissions* act carries.
 	 *
 	 * The joining is a moment rather than a domain day, so it is said in the reader's own time
 	 * zone, as the machines a reader holds are, and not through `Cell.Date`, which reads whole UTC

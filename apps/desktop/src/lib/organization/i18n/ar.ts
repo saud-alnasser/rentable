@@ -214,7 +214,7 @@ export const organization = {
 		memberWorkspacesDescription: 'مساحات العمل التي يستطيع فتحها. شغّل مفتاح أي منها ليدخلها.',
 		accessSaved: 'حُفظت مساحات العمل.',
 		workspaceAccessDescription:
-			'من يستطيع فتح {workspace}. ابحث عن عضو ليدخلها. الوصول المسحوب يبقى حتى تنتهي صلاحيته.',
+			'من يستطيع فتح {workspace}. أضف أعضاء ليدخلوها. الوصول المسحوب يبقى حتى تنتهي صلاحيته.',
 		deleteWorkspace: 'احذف مساحة العمل',
 		deleteWorkspaceDescription:
 			'تُحذف مساحة العمل وكل سجل فيها من Turso ومن كل جهاز يزامنها. لا شيء يعيدها.',
@@ -427,13 +427,21 @@ export const organization = {
 		notHeld: 'تحمل مساحة العمل هذه للقراءة فقط، فلا تستطيع منحها.'
 	},
 	workspacePage: {
+		addMembers: 'أضف أعضاء',
+		addDescription: 'اختر من تضيفه إلى {workspace}. يُمنح كل منهم الوصول حين تحفظ.',
 		addPlaceholder: 'ابحث عن عضو لإضافته',
+		chosen: 'المختارون',
+		nobodyChosen: 'لم تختر أحدًا بعد. ابحث عن عضو في الأعلى.',
+		chooseSomebody: 'اختر عضوًا واحدًا على الأقل لإضافته.',
+		notAllAdded: 'من بقي في القائمة لم يُضف.',
+		unchoose: 'أزل {username} من القائمة',
 		searchPlaceholder: 'ابحث باسم المستخدم',
 		noMatch: 'لا أحد بهذا الاسم لإضافته.',
 		nobodyToAdd: 'كل الأعضاء في مساحة العمل هذه',
 		nobodyHolds: 'لا أحد في مساحة العمل هذه بعد.',
-		openMember: 'افتح العضو',
-		tailorHere: 'خصّص الوصول هنا',
+		editPermissions: 'عدّل الصلاحيات',
+		permissionsOf: 'ما يستطيعه {username} في مساحة العمل هذه.',
+		permissionsOverride: 'هذه تتقدّم على صلاحيات المؤسسة والدور في {workspace} وحدها.',
 		removeFromWorkspace: 'أزل من مساحة العمل',
 		removeAsks: 'لن يستطيع فتح مساحة العمل هذه حين ينتهي الوصول الذي يحمله. إضافته مجددًا تعيده.'
 	}

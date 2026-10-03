@@ -4970,9 +4970,39 @@ type RootTranslation = {
 		};
 		workspacePage: {
 			/**
+			 * a​d​d​ ​m​e​m​b​e​r​s
+			 */
+			addMembers: string;
+			/**
+			 * c​h​o​o​s​e​ ​w​h​o​ ​t​o​ ​p​u​t​ ​i​n​ ​{​w​o​r​k​s​p​a​c​e​}​.​ ​e​a​c​h​ ​i​s​ ​g​i​v​e​n​ ​a​c​c​e​s​s​ ​w​h​e​n​ ​y​o​u​ ​s​a​v​e​.
+			 * @param {string} workspace
+			 */
+			addDescription: RequiredParams<'workspace'>;
+			/**
 			 * f​i​n​d​ ​a​ ​m​e​m​b​e​r​ ​t​o​ ​a​d​d
 			 */
 			addPlaceholder: string;
+			/**
+			 * c​h​o​s​e​n
+			 */
+			chosen: string;
+			/**
+			 * n​o​b​o​d​y​ ​c​h​o​s​e​n​ ​y​e​t​.​ ​f​i​n​d​ ​a​ ​m​e​m​b​e​r​ ​a​b​o​v​e​.
+			 */
+			nobodyChosen: string;
+			/**
+			 * c​h​o​o​s​e​ ​a​t​ ​l​e​a​s​t​ ​o​n​e​ ​m​e​m​b​e​r​ ​t​o​ ​a​d​d​.
+			 */
+			chooseSomebody: string;
+			/**
+			 * t​h​o​s​e​ ​s​t​i​l​l​ ​l​i​s​t​e​d​ ​w​e​r​e​ ​n​o​t​ ​a​d​d​e​d​.
+			 */
+			notAllAdded: string;
+			/**
+			 * t​a​k​e​ ​{​u​s​e​r​n​a​m​e​}​ ​o​f​f​ ​t​h​e​ ​l​i​s​t
+			 * @param {string} username
+			 */
+			unchoose: RequiredParams<'username'>;
 			/**
 			 * s​e​a​r​c​h​ ​b​y​ ​u​s​e​r​n​a​m​e
 			 */
@@ -4990,13 +5020,19 @@ type RootTranslation = {
 			 */
 			nobodyHolds: string;
 			/**
-			 * o​p​e​n​ ​m​e​m​b​e​r
+			 * e​d​i​t​ ​p​e​r​m​i​s​s​i​o​n​s
 			 */
-			openMember: string;
+			editPermissions: string;
 			/**
-			 * t​a​i​l​o​r​ ​a​c​c​e​s​s​ ​h​e​r​e
+			 * w​h​a​t​ ​{​u​s​e​r​n​a​m​e​}​ ​m​a​y​ ​d​o​ ​i​n​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​.
+			 * @param {string} username
 			 */
-			tailorHere: string;
+			permissionsOf: RequiredParams<'username'>;
+			/**
+			 * t​h​e​s​e​ ​o​v​e​r​r​i​d​e​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​a​n​d​ ​t​h​e​ ​r​o​l​e​'​s​ ​p​e​r​m​i​s​s​i​o​n​s​ ​f​o​r​ ​{​w​o​r​k​s​p​a​c​e​}​ ​a​l​o​n​e​.
+			 * @param {string} workspace
+			 */
+			permissionsOverride: RequiredParams<'workspace'>;
 			/**
 			 * r​e​m​o​v​e​ ​f​r​o​m​ ​w​o​r​k​s​p​a​c​e
 			 */
@@ -9857,9 +9893,37 @@ export type TranslationFunctions = {
 		};
 		workspacePage: {
 			/**
+			 * add members
+			 */
+			addMembers: () => LocalizedString;
+			/**
+			 * choose who to put in {workspace}. each is given access when you save.
+			 */
+			addDescription: (arg: { workspace: string }) => LocalizedString;
+			/**
 			 * find a member to add
 			 */
 			addPlaceholder: () => LocalizedString;
+			/**
+			 * chosen
+			 */
+			chosen: () => LocalizedString;
+			/**
+			 * nobody chosen yet. find a member above.
+			 */
+			nobodyChosen: () => LocalizedString;
+			/**
+			 * choose at least one member to add.
+			 */
+			chooseSomebody: () => LocalizedString;
+			/**
+			 * those still listed were not added.
+			 */
+			notAllAdded: () => LocalizedString;
+			/**
+			 * take {username} off the list
+			 */
+			unchoose: (arg: { username: string }) => LocalizedString;
 			/**
 			 * search by username
 			 */
@@ -9877,13 +9941,17 @@ export type TranslationFunctions = {
 			 */
 			nobodyHolds: () => LocalizedString;
 			/**
-			 * open member
+			 * edit permissions
 			 */
-			openMember: () => LocalizedString;
+			editPermissions: () => LocalizedString;
 			/**
-			 * tailor access here
+			 * what {username} may do in this workspace.
 			 */
-			tailorHere: () => LocalizedString;
+			permissionsOf: (arg: { username: string }) => LocalizedString;
+			/**
+			 * these override the organization's and the role's permissions for {workspace} alone.
+			 */
+			permissionsOverride: (arg: { workspace: string }) => LocalizedString;
 			/**
 			 * remove from workspace
 			 */

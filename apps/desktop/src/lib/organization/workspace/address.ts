@@ -1,5 +1,5 @@
 import { resolve } from '$app/paths';
-import { withSection } from '$lib/settings';
+import { RECORD_PARAM, withSection } from '$lib/settings';
 
 /**
  * WHERE A WORKSPACE IS READ
@@ -16,3 +16,11 @@ export const workspacePageOf = (workspaceId: string) =>
 
 /** the settings area's workspaces section, resolved: where a workspace's page is listed. */
 export const workspacesSection = () => resolve(withSection('workspaces'));
+
+/**
+ * one member on a workspace's page, resolved: the page with the member named on it, which their
+ * card's press is and the page consumes by opening what they may do there (ticket 51), the way the
+ * organization section consumes a member named on its own address.
+ */
+export const holderCardOf = (workspaceId: string, memberId: string) =>
+	`${workspacePageOf(workspaceId)}?${RECORD_PARAM}=${encodeURIComponent(memberId)}`;

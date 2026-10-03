@@ -139,18 +139,27 @@ Recorded originally as ADR 0032, *A record surface is one shell with a per-conce
 At the top, what its card says: its name, the *open on this machine* badge on the one open here,
 and its fields with the card's glyphs (`block/specification.svelte`'s `icon`): how many hold it,
 what the reader may do there, the day it was made. Its acts are the card's, refused as there, but
-*members*, which is the page. Below, its one collection, who holds it: first a field drawn as a
-search field (a leading glass, *find a member to add*) that opens the members who are not in it,
-every one before anything is typed, narrowed by username as the reader types, and puts the one
-chosen in at once (`organization/workspace/component/add-holder.svelte`, `primitive/command` in
-`primitive/popover`); then the members in it as the members directory's own cards (the member
-card at its tile height, in the record tiles' grid), *custom here* at a card's foot where what
-the member may do there is tailored, and the empty block where nobody holds it. Each card's
-record menu holds the acts on the member there (`declareHolderActs` in
-`organization/workspace/acts.ts`): *open member*, their card in the members section; *tailor
-access here*, their sheet opened on this workspace's permissions; and *remove from workspace*,
-red and asked first (*Delete and confirm*). How each is refused is *Members and access*, under
-*Form surface*. Back returns to the workspaces section, which the page names as
+*members*, which is the page. Below, its one collection, who holds it, as a record directory
+(`organization/workspace/component/holders.svelte`): the settings directories' tray
+(`organization/component/directory-tray.svelte`), its heading in the settings card's manner, the
+search narrowing by username or role, the count, the order by username or role, and last the plus
+(`create/component/control.svelte`, *add members*); then the members in it as the members
+directory's own cards (the member card at its tile height, in the record tiles' grid), *custom
+here* at a card's foot where what the member may do there is tailored, the empty block where
+nobody holds it, and the no-match block where the search finds nobody. The plus opens the add
+sheet (`organization/workspace/component/add-sheet.svelte`, the edge panel), which the page mounts
+since it holds who can be put in: a search field (a leading glass, *find a member to add*)
+opening `primitive/command` in `primitive/popover` as the contract form chooses its tenant, over
+the members who are not in it and not chosen yet, every one before anything is typed, narrowed
+by username; choosing one puts them on the sheet's chosen list and out of the dropdown, each on
+the list taken off by its own control; and one save puts every one chosen in. Pressing a card
+opens *edit permissions* on that member (its `href` is the page with the member named on it,
+consumed on arrival as the members directory consumes its own). Each card's record menu holds
+the acts on the member there (`declareHolderActs` in `organization/workspace/acts.ts`), and
+only these: *edit permissions*, a sheet of this workspace's permissions alone
+(`organization/workspace/component/permissions-sheet.svelte`, mounted by the workspace's host);
+and *remove from workspace*, red and asked first (*Delete and confirm*). How each is refused is
+*Members and access*, under *Form surface*. Back returns to the workspaces section, which the page names as
 its fallback: the trail keys a screen by its path, so the settings area is one screen whichever
 section was left, and where the fallback names the screen being returned to it says where on it
 (`backTarget`). A workspace the reader holds no grant on is not found. *Added by ticket 49 of
@@ -161,7 +170,11 @@ of members and at the top information". The switches became a search field and m
 ticket 50, at the human's word of 2026-10-03: "the details page of a workspace in the settings it
 should have a record search bar or feild that you search for a member then add them to the
 worksace and a grid of cards sohwen to existing members and have elipses as action for them
-regarding the workspace".*
+regarding the workspace". The field became the directory's tray with a plus opening the add
+sheet, and the menu lost *open member* and turned *tailor access here* into *edit permissions*, by
+ticket 51, at the human's walk of 2026-10-03: "in a workspace the details page it has a searchbar
+filter,sort add button on the tray; then grid of cards like now; a card when clicked it opens the
+edit permissions option sheet; and the eliapess show edit permissions and remove options only".*
 
 ### Landing screen
 
@@ -983,27 +996,33 @@ member ranked at or above the reader is refused at the card's edit act, which op
 acts are the grants that exist (`useChangeAccess`), sent only for the workspaces that changed, then
 one workspace override per workspace whose pins changed, carrying what is pinned there and which
 of it is on (`useSetWorkspaceOverride`). **A workspace's members live on its page**
-(*Record surface*), given from the other end: a member is found by search and put in, and each
-member in it is a card whose menu takes them out. Putting somebody in is refused by the one rule
-the member's card reads (`accessRefusalOf` in `access/access.ts`), so the two ends cannot refuse
-differently, and **it applies at once**, one grant per choice through the same write
-(`useChangeAccess`), since every control in the settings area applies its choice at once and
-nothing on the page is a form; a grant the shell refuses says why under the field, and the shared
-handler says it too. Taking somebody out is the card's *remove from workspace*, red, asking first
+(*Record surface*), given from the other end: members are found by search in the add sheet and
+put in on its save, and each member in it is a card whose menu takes them out. Putting somebody
+in is refused by the one rule the member's card reads (`accessRefusalOf` in `access/access.ts`),
+so the two ends cannot refuse differently, and the sheet's one save writes a grant for each
+member chosen through the same write (`useChangeAccess`), in order: a refusal stops it there, the
+grants before it stand, and the sheet stays open saying the reason and that those still listed
+were not put in, while the shared handler says it too. Taking somebody out is the card's *remove from workspace*, red, asking first
 in `block/confirm-dialog.svelte` under its own verb and saying adding them again gives it back,
 then one withdrawal through the same write. A person tailored there is marked *custom here* on
-their card, and *tailor access here* opens their sheet with that workspace's permissions open, so
-the tailoring itself stays the card's. The owner and the reader are not cards, and are not offered.
-Without `grantWorkspace` the field is refused and says so, naming it, and so is every card's
+their card, and *edit permissions*, the card's press and its first entry, opens a sheet of that
+workspace's permissions alone: the switches the member's card folds beneath the workspace
+(`access/component/tailoring.svelte`, standing open), its description saying they override the
+organization's and the role's permissions for this workspace, saved through the same writes the
+card makes for one workspace (`useSetWorkspaceOverride`, then the read-only grant lifted where a
+write was turned on over it). The owner and the reader are not cards, and are not offered.
+Without `grantWorkspace` the plus is refused and says so, naming it, and so is every card's
 removal, as the member's card refuses its section; where the reader holds the workspace read only
-the field is refused for that, and the removal still runs, since a withdrawal stays theirs. The
-tailoring is refused without `overrideMember`, naming it, and on a member ranked at or above the
+the plus is refused for that, and the removal still runs, since a withdrawal stays theirs; with
+nobody left to put in, the plus says so. *Edit permissions* is refused without `overrideMember`, naming it, and on a member ranked at or above the
 reader, as their card's edit is. The workspace card's *members* act, which goes to the page, is
 refused without `grantWorkspace` rather than hidden. *Who held a workspace was a dialog of switches under one
 save, drawn from the member card's list, until ticket 49 of
 [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]]: the human found the form
 looked bad and asked for a page. The page drew a tile per member with the large switch until
-ticket 50, when the human asked for a search field and a grid of cards with a menu.* *The human's calls on the running
+ticket 50, when the human asked for a search field and a grid of cards with a menu; the field put
+one member in at once and the tailoring opened the member's own sheet until ticket 51, when the
+human asked for the directory's tray, an add sheet and a sheet of the workspace's permissions.* *The human's calls on the running
 application, 2026-09-27 ([[efforts/838-permissions-are-a-role-and-an-override/spec]], requirement
 12 as amended again and a third time; tickets 48, 49, 50 and 54): each workspace was a row of three
 levels beside the role, which read as a second permission system, and the workspace's dialog

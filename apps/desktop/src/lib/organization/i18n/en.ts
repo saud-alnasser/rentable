@@ -277,7 +277,7 @@ export const organization = {
 		memberWorkspacesDescription: 'the workspaces they can open. switch one on to let them in.',
 		accessSaved: 'the workspaces were saved.',
 		workspaceAccessDescription:
-			'who can open {workspace:string}. find a member to let them in. access taken back lasts until it runs out.',
+			'who can open {workspace:string}. add members to let them in. access taken back lasts until it runs out.',
 		deleteWorkspace: 'delete workspace',
 		deleteWorkspaceDescription:
 			'the workspace and every record in it are deleted from Turso and from every machine that syncs it. nothing puts it back.',
@@ -564,17 +564,26 @@ export const organization = {
 	},
 
 	/**
-	 * a workspace's own page (effort 846, tickets 49 and 50): the field that finds a member and
-	 * puts them in, the cards of who is in, and the acts each card offers on this workspace.
+	 * a workspace's own page (effort 846, tickets 49, 50 and 51): the directory of who is in it, the
+	 * sheet that adds members, and the sheet of what one member may do there.
 	 */
 	workspacePage: {
+		addMembers: 'add members',
+		addDescription: 'choose who to put in {workspace:string}. each is given access when you save.',
 		addPlaceholder: 'find a member to add',
+		chosen: 'chosen',
+		nobodyChosen: 'nobody chosen yet. find a member above.',
+		chooseSomebody: 'choose at least one member to add.',
+		notAllAdded: 'those still listed were not added.',
+		unchoose: 'take {username:string} off the list',
 		searchPlaceholder: 'search by username',
 		noMatch: 'nobody by that name to add.',
 		nobodyToAdd: 'everybody is in this workspace',
 		nobodyHolds: 'nobody is in this workspace yet.',
-		openMember: 'open member',
-		tailorHere: 'tailor access here',
+		editPermissions: 'edit permissions',
+		permissionsOf: 'what {username:string} may do in this workspace.',
+		permissionsOverride:
+			"these override the organization's and the role's permissions for {workspace:string} alone.",
 		removeFromWorkspace: 'remove from workspace',
 		removeAsks:
 			'they can no longer open this workspace once the access they hold runs out. adding them again gives it back.'
