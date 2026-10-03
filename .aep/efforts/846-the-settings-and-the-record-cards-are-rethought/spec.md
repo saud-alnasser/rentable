@@ -155,7 +155,10 @@ statement read in time order, and each payment row says how it was paid.
    (search, sort, and the plus); the plus opens a sheet where several members are chosen from a
    filtered search of those not yet in and added together; a card opens *edit permissions*, a sheet of
    this workspace's permission switches that says they override the organization's and the role's
-   here; and a card's menu holds only edit permissions and remove.*
+   here; and a card's menu holds only edit permissions and remove. Then: "option in the workspace members section in the details page of a workspace; the add sheet desgin feels odd first when a member is choosen they just removed from the dropdown added in a free from list yet the dropdown remains; try to find the best way to add a member using the plus even if it's not a sheet try to find the best option": adding is one
+   list, not a dropdown and a second list: the plus opens a sheet whose search field filters, in place,
+   every member not yet in the workspace; pressing a row checks it and it stays where it is; the one
+   button says how many it adds.*
 3. **General holds application preferences only**: language, appearance, updates and diagnostics.
    Ending soon is not in it.
 4. **Every control in the area that applies a choice applies it at once**, as language and
