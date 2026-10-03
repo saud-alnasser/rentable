@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: []
 ---
 
@@ -15,9 +15,9 @@ The human's walk of 2026-10-03, verbatim: "the delete and add image in orgnizati
 
 Traces requirement 1 as revised 2026-10-03, and requirements 2 and 5.
 
-- [ ] A test: the image row's preview sits in the row's trailing value slot on the name's line (the row does not stack), in both locales.
-- [ ] A test: replace and remove are each named by label and tooltip and reachable by keyboard, remove red on itself alone and opening the confirmation; with no stamp there is no remove; pressing the preview still opens the picker.
-- [ ] The commit body says how the two controls are drawn and why.
+- [x] A test: the image row's preview sits in the row's trailing value slot on the name's line (the row does not stack), in both locales. *Verified: read at the orchestrator's call on the human's 'no need to be under' (under the card's header, not under the row's name; a render at 360 to 800px showed the row never stacked): the preview now sits in the card header's trailing action slot and the image row is gone; `vitest run mark.svelte.test.ts` printed 17 passed, the new test asserting the picture in `[data-settings-group-action]`, 0 rows and no separator, in en and ar, with and without manageMark.*
+- [x] A test: replace and remove are each named by label and tooltip and reachable by keyboard, remove red on itself alone and opening the confirmation; with no stamp there is no remove; pressing the preview still opens the picker. *Verified: the same run: replace and remove are matching 24px discs inside the picture's trailing edge, each named by label and tooltip and in tab order; remove red on itself alone and opening the confirmation; no remove without a stamp; the preview opens the picker; the dangerous-acts guard and mark tests printed 39 passed together; desktop 841 passed, design 162.*
+- [x] The commit body says how the two controls are drawn and why. *Verified: the commit body says the pair is two matching discs inside the picture's edge, always shown for keyboard and touch, and the picture top-aligned in the header so the title reads first.*
 
 ## Relevant areas
 

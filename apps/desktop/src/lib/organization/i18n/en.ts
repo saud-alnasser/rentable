@@ -11,8 +11,6 @@ export const organization = {
 		alt: 'the organization stamp',
 		choose: 'choose image',
 		description: 'printed at the foot of every receipt and schedule.',
-		// the stamp card's one row: the image itself, under the card's title (effort 846).
-		image: 'image',
 		none: 'none added yet',
 		readOnly: 'somebody allowed to change the organization stamp can change it.',
 		remove: 'remove',

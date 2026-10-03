@@ -3578,10 +3578,6 @@ type RootTranslation = {
 			 */
 			description: string
 			/**
-			 * i​m​a​g​e
-			 */
-			image: string
-			/**
 			 * n​o​n​e​ ​a​d​d​e​d​ ​y​e​t
 			 */
 			none: string
@@ -8451,10 +8447,6 @@ export type TranslationFunctions = {
 			 * printed at the foot of every receipt and schedule.
 			 */
 			description: () => LocalizedString
-			/**
-			 * image
-			 */
-			image: () => LocalizedString
 			/**
 			 * none added yet
 			 */

@@ -11,7 +11,6 @@ export const organization = {
 		alt: 'ختم المؤسسة',
 		choose: 'اختيار صورة',
 		description: 'يُطبع أسفل كل سند قبض وجدول دفعات.',
-		image: 'الصورة',
 		none: 'لم يُضف بعد',
 		readOnly: 'يستطيع تغييره من يُسمح له بتغيير ختم المؤسسة.',
 		remove: 'إزالة',

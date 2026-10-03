@@ -211,10 +211,14 @@ who asked for less motion ([[rules/frontend]], *Motion*), the state still changi
 picture the reader may change is itself the control that changes it, as a profile picture is: the
 organization stamp's preview is a button named *replace image* (*choose image* while empty), with
 no button beside it; a reader who may not change it sees a picture. Removing such a picture sits on
-the picture, not in a row of its own: a small icon button on the preview's corner, the preview's
-sibling rather than inside it, red on the button alone, named *remove organization stamp* by its
-label and its tooltip, confirmed, and absent while there is no picture to remove. The card then
-has no end row.
+the picture, not in a row of its own: a small icon button inside the preview's top trailing corner,
+the preview's sibling rather than inside it, red on the button alone, named *remove organization
+stamp* by its label and its tooltip, confirmed, and absent while there is no picture to remove. It
+and the replace glyph inside the bottom trailing corner are one pair, drawn as the same small disc
+and always shown, never hanging past the picture's edge. The picture sits at the card header's
+trailing edge, in its action slot beside the title and the card's one line, top-aligned with them
+and mirrored in Arabic, for a reader who may change it and one who may not alike. The card then
+has no rows at all.
 
 **Detail few readers need folds under its row, and nothing else folds.** A row's `details` is an
 expander on the `collapsible` primitive, in the manner of Fluent's settings expander: the glyph,

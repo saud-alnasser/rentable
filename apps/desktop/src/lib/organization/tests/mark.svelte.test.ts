@@ -16,8 +16,9 @@ import Providers from '#tests/providers.svelte';
  * and 13(d): whoever holds `manageMark` chooses, replaces and removes the mark; a reader without
  * it sees the mark and no control; an image the host refuses is answered with the host's sentence.
  * And tickets 05, 34 and 36 of [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]]:
- * the mark is a settings row whose preview replaces it, and its remove is an icon button on the
- * preview's corner, confirmed.
+ * the mark's preview replaces it, and its remove is an icon button on the preview's corner,
+ * confirmed. And ticket 47: the preview sits in the card header's trailing edge with no row, and
+ * the replace glyph and the remove are one matching pair inside its corners.
  *
  * **What reaches Rust is stood in for**: the router's three mark procedures at the caller, and the
  * open dialog at `tauri`.
@@ -169,8 +170,8 @@ const hintOf = async (trigger: HTMLElement, mark: string) => {
 };
 
 // effort 846 ticket 36, at the human's word of 2026-10-02 ("the remove ... needs to be integrated
-// in into the part of the image not a separate thing maybe a button"): the card is one row and no
-// remove row. The remove is an icon button on the preview's corner, beside the preview and not
+// in into the part of the image not a separate thing maybe a button"): no remove row (and since
+// ticket 47, no row at all; the picture is in the header). The remove is an icon button on the preview's corner, beside the preview and not
 // inside it, named by its label and its tooltip, red on the button alone, and it asks first.
 test('the stamp is removed from its picture, by an icon button on the corner, and no row', async () => {
 	host.markGet.mockResolvedValue(MARK);
@@ -178,20 +179,19 @@ test('the stamp is removed from its picture, by an icon button on the corner, an
 
 	await waitFor(() => expect(image()).toBe('data:image/png;base64,iVBORw0K'));
 
-	const [row] = rows();
+	const action = document.querySelector<HTMLElement>('[data-settings-group-action]')!;
 
-	// one row, the image; no end row, no separator, nothing in the error tone but the one button.
-	expect(rows()).toHaveLength(1);
-	expect(row.dataset.rowTone).toBe('neutral');
+	// no rows, no end row, no separator, nothing in the error tone but the one button.
+	expect(rows()).toHaveLength(0);
 	expect(document.querySelector('[data-row-tone=error]')).toBeNull();
 	expect(document.querySelector('[data-settings-group] [data-slot=item-separator]')).toBeNull();
-	expect(row.querySelector('[data-row-value] [data-organization-mark-image]')).not.toBeNull();
+	expect(action.querySelector('[data-organization-mark-image]')).not.toBeNull();
 
-	const preview = within(row).getByRole('button', { name: en.organization.mark.replace });
-	const remove = within(row).getByRole('button', { name: en.organization.mark.removeTitle });
+	const preview = within(action).getByRole('button', { name: en.organization.mark.replace });
+	const remove = within(action).getByRole('button', { name: en.organization.mark.removeTitle });
 
-	// on the picture: in the row's value with the preview, its sibling, never nested in it.
-	expect(remove.closest('[data-row-value]')).not.toBeNull();
+	// on the picture: in the header's action slot with the preview, its sibling, never in it.
+	expect(remove.closest('[data-settings-group-action]')).toBe(action);
 	expect(remove.parentElement).toBe(preview.parentElement);
 	expect(preview.contains(remove)).toBe(false);
 
@@ -230,7 +230,7 @@ test('with no stamp set there is nothing to remove, and no remove button', async
 	await waitFor(() =>
 		expect(document.querySelector('[data-organization-mark-none]')).not.toBeNull()
 	);
-	expect(rows()).toHaveLength(1);
+	expect(rows()).toHaveLength(0);
 	expect(document.querySelector('[data-organization-mark-remove]')).toBeNull();
 	expect(screen.queryByRole('button', { name: en.organization.mark.removeTitle })).toBeNull();
 	expect(document.querySelector('[data-row-tone=error]')).toBeNull();
@@ -316,7 +316,7 @@ test('the preview is the control that replaces the image, and there is no replac
 	const preview = within(card).getByRole('button', { name: en.organization.mark.replace });
 
 	expect(preview.querySelector('[data-organization-mark-image]')).not.toBeNull();
-	expect(preview.closest('[data-row-value]')).not.toBeNull();
+	expect(preview.closest('[data-settings-group-action]')).not.toBeNull();
 	// the preview and the remove, and nothing beside the preview.
 	expect(card.querySelectorAll('button')).toHaveLength(2);
 
@@ -364,4 +364,152 @@ test('a reader without manageMark meets the preview as a picture, not a button',
 	await waitFor(() => expect(image()).toBe('data:image/png;base64,iVBORw0K'));
 	expect(document.querySelector('[data-organization-mark-image]')?.closest('button')).toBeNull();
 	expect(document.querySelectorAll('[data-organization-mark] button')).toHaveLength(0);
+});
+
+// effort 846 ticket 47, at the human's word of 2026-10-03 ("the image neexsc on the righrt side no
+// need to be under"): the picture is not a row under the header. It sits in the header's trailing
+// action slot, beside the title and the card's one line, and the card has no rows; its corners are
+// placed by the logical edge, so Arabic mirrors it.
+test.each([
+	{ locale: 'en' as const, said: en, direction: 'ltr' as const, sets: true },
+	{ locale: 'ar' as const, said: ar, direction: 'rtl' as const, sets: true },
+	{ locale: 'en' as const, said: en, direction: 'ltr' as const, sets: false },
+	{ locale: 'ar' as const, said: ar, direction: 'rtl' as const, sets: false }
+])(
+	'the picture sits in the header beside the title, and no row, in $locale (manageMark: $sets)',
+	async ({ locale, said, direction, sets }) => {
+		loadLocale(locale);
+		setLocale(locale);
+		host.markGet.mockResolvedValue(MARK);
+		render(
+			OrganizationMark,
+			{ setsMark: sets },
+			{ wrapper: Providers, wrapperProps: { strings, direction } }
+		);
+
+		await waitFor(() => expect(image()).toBe('data:image/png;base64,iVBORw0K'));
+
+		const group = document.querySelector<HTMLElement>('[data-settings-group]')!;
+		const header = group.querySelector<HTMLElement>('[data-settings-group-header]')!;
+		const action = header.querySelector<HTMLElement>('[data-settings-group-action]')!;
+
+		// no rows, no list, no separator, no footer: the header is the whole card.
+		expect(rows()).toHaveLength(0);
+		expect(group.querySelector('[data-slot=item-group], [data-slot=item-separator]')).toBeNull();
+		expect(group.querySelector('[data-settings-group-footer]')).toBeNull();
+		expect(group.lastElementChild).toBe(header);
+
+		// the title and its line first, then the picture at the header's end.
+		expect(header.querySelector('h2')?.textContent?.trim()).toBe(said.organization.mark.title);
+		expect(header.lastElementChild).toBe(action);
+		expect(action.querySelector('[data-organization-mark-image]')).not.toBeNull();
+
+		if (!sets) {
+			// a picture and nothing to press, with the sentence saying who can change it.
+			expect(action.querySelector('button')).toBeNull();
+			expect(header.textContent).toContain(said.organization.mark.readOnly);
+
+			return;
+		}
+
+		// the picture and both its controls are in the action slot, the controls placed by the
+		// logical end, never by left or right, and never past the picture's edge.
+		const preview = within(action).getByRole('button', { name: said.organization.mark.replace });
+		const remove = within(action).getByRole('button', {
+			name: said.organization.mark.removeTitle
+		});
+
+		expect(preview.querySelector('[data-organization-mark-image]')).not.toBeNull();
+		expect(remove.parentElement).toBe(preview.parentElement);
+		for (const corner of action.querySelectorAll<HTMLElement>('[data-organization-mark-corner]')) {
+			expect(corner.className).toMatch(/\bend-1\.5\b/);
+			expect(corner.className).not.toMatch(/(^|\s)-|\b(left|right)-/);
+		}
+	}
+);
+
+// effort 846 ticket 47 ("the button of delete and add a littilbe bit needs to be worked on"): the
+// replace glyph and the remove are one pair, the same disc inside the picture's two trailing
+// corners. Replace is the picture itself and remove is beside it; each is named by its label and
+// its tooltip and is reached by the keyboard; remove alone is red and asks first.
+test('replace and remove are a matching pair, each named and reached by the keyboard', async () => {
+	host.markGet.mockResolvedValue(MARK);
+	host.openImage.mockResolvedValue(null);
+	shown(true);
+
+	await waitFor(() => expect(image()).toBe('data:image/png;base64,iVBORw0K'));
+
+	const card = document.querySelector<HTMLElement>('[data-organization-mark]')!;
+	const preview = within(card).getByRole('button', { name: en.organization.mark.replace });
+	const remove = within(card).getByRole('button', { name: en.organization.mark.removeTitle });
+	const glyph = preview.querySelector<HTMLElement>('[data-organization-mark-corner=replace]')!;
+
+	// drawn alike: the same disc, at the top and the bottom of the same edge.
+	expect(remove.dataset.organizationMarkCorner).toBe('remove');
+	expect(glyph.getAttribute('aria-hidden')).toBe('true');
+
+	const shape = (element: HTMLElement) =>
+		element.className
+			.split(/\s+/)
+			.filter((name) =>
+				/^(absolute|end-|size-|rounded-|border|bg-background|shadow-|backdrop-)/.test(name)
+			)
+			.filter((name) => !name.startsWith('border-destructive'))
+			.sort();
+
+	expect(shape(glyph)).toEqual(shape(remove));
+	expect(shape(remove)).toEqual(expect.arrayContaining(['size-6', 'rounded-full']));
+	expect(glyph.className).toMatch(/\bbottom-1\.5\b/);
+	expect(remove.className).toMatch(/\btop-1\.5\b/);
+
+	// each is named by its label and its tooltip, and each takes the keyboard's focus in turn.
+	expect(await hintOf(preview, 'data-organization-mark-choose-hint')).toBe(
+		en.organization.mark.replace
+	);
+	expect(await hintOf(remove, 'data-organization-mark-remove-hint')).toBe(
+		en.organization.mark.removeTitle
+	);
+	for (const control of [preview, remove]) {
+		expect(control.tagName).toBe('BUTTON');
+		expect(control.hasAttribute('disabled')).toBe(false);
+		expect(control.tabIndex).toBe(0);
+		control.focus();
+		expect(document.activeElement).toBe(control);
+	}
+	expect(preview.compareDocumentPosition(remove) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+	// red on the remove alone, its glyph included; the replace glyph is not.
+	expect(remove.className).toMatch(/text-destructive/);
+	expect(glyph.className).not.toMatch(/destructive/);
+	expect([...card.querySelectorAll<HTMLElement>('[class*=text-destructive]')]).toEqual([remove]);
+
+	// pressing the picture still opens the picker.
+	await fireEvent.click(preview);
+	await waitFor(() => expect(host.openImage).toHaveBeenCalledOnce());
+
+	// pressing remove asks, and takes nothing yet.
+	await fireEvent.click(remove);
+
+	const dialog = await screen.findByRole('dialog');
+
+	expect(dialog.textContent).toContain(en.organization.mark.removeDescription);
+	expect(host.markClear).not.toHaveBeenCalled();
+});
+
+test('with no stamp the replace glyph stands alone, and there is no remove', async () => {
+	host.markGet.mockResolvedValue(null);
+	shown(true);
+
+	const card = await waitFor(() => {
+		const found = document.querySelector<HTMLElement>('[data-organization-mark]');
+
+		expect(found?.querySelector('[data-organization-mark-none]')).not.toBeNull();
+
+		return found!;
+	});
+
+	expect(within(card).getByRole('button', { name: en.organization.mark.choose })).not.toBeNull();
+	expect(card.querySelectorAll('[data-organization-mark-corner]')).toHaveLength(1);
+	expect(card.querySelector('[data-organization-mark-corner=remove]')).toBeNull();
+	expect(within(card).queryByRole('button', { name: en.organization.mark.removeTitle })).toBeNull();
 });
