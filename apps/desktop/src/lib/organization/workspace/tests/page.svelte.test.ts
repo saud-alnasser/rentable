@@ -395,6 +395,8 @@ test('the people who hold it are a grid of member cards at the tile height, the 
 
 	expect(holderIds()).toEqual(['ada']);
 	expect(document.querySelector('[data-holders]')?.getAttribute('data-columns')).not.toBeNull();
+	// the page's only collection scrolls with the page, never in an area of its own (ticket 53).
+	expect(document.querySelector('[data-holders]')?.closest('[data-directory-scroll]')).toBeNull();
 
 	const ada = holder('ada')!;
 

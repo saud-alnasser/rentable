@@ -166,6 +166,7 @@ Each row names what this repository already draws for the need, and one file whe
 | a status to read at a glance | `cell/status.svelte` | `complex/unit/component/directory.svelte` |
 | a status with a problem to act on | `primitive/callout` with its act, in its tone | `organization/component/standing.svelte` |
 | a list of records | the list shell with `block/record-card.svelte` | `complex/component/card.svelte` |
+| a settings directory's cards (members, roles, workspaces) | `organization/component/directory-grid.svelte`, `bounded`: the list shell's columns, the rows in view following them (two cards at one across, four at two, nine at three), the rest in a native overflow named by the directory's heading, under the tray; unbounded on a workspace's page, whose members are its only collection | `organization/member/component/directory.svelte` |
 | a record's facts | `block/specification.svelte` | `complex/component/details.svelte` |
 | a record card's facts, each named, side by side | `cell/field.svelte` in a grid two across | `organization/role/component/card.svelte` |
 | detail few readers need | `primitive/collapsible` | `error/component/detail-disclosure.svelte` |
@@ -248,10 +249,11 @@ against.
 ## Gaps
 
 The package holds no radio group, accordion, tab panel, hover card, toggletip, alert-dialog
-primitive, table, slider or pagination. Where a need would reach for one, the repository answers
-with what it holds: a toggle group for one choice among few, collapsibles for folding groups, the
-section switch for a page's sections, a dialog under the confirming blocks, record cards for a
-list. A new primitive is added through the CLI ([[references/shadcn-svelte]], [[rules/frontend]]
+primitive, table, slider, pagination or scroll area. Where a need would reach for one, the
+repository answers with what it holds: a toggle group for one choice among few, collapsibles for
+folding groups, the section switch for a page's sections, a dialog under the confirming blocks,
+record cards for a list, and the platform's own overflow for a bounded list (the settings
+directories' grid, the list shell's rows, the form surface's body). A new primitive is added through the CLI ([[references/shadcn-svelte]], [[rules/frontend]]
 under *Components*).
 
 ## Related

@@ -9,9 +9,9 @@
 	import { CreateControl } from '$lib/create/ui';
 	import { toCardActions } from '$lib/act';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import { columnsFor, RECORD_TILE_MIN_WIDTH } from '$lib/list';
 	import { lacking, type RoleActRecord, type RoleReader } from '$lib/organization/role/acts';
 	import DirectoryTray from '$lib/organization/component/directory-tray.svelte';
+	import DirectoryGrid from '$lib/organization/component/directory-grid.svelte';
 	import { toRoleDirectory } from '$lib/organization/directory';
 	import { roleActs, roleHost, rolePending } from '$lib/organization/host.svelte';
 	import RoleCard, { ROLE_TILE_HEIGHT } from '$lib/organization/role/component/card.svelte';
@@ -115,12 +115,6 @@
 		pending: rolePending()
 	});
 
-	/** the gap between two tiles, the list shell's `gap-3`. */
-	const TILE_GAP = 12;
-	/** the directory's own width, which the tiles divide. */
-	let width = $state(0);
-	const columns = $derived(columnsFor(width, RECORD_TILE_MIN_WIDTH, TILE_GAP));
-
 	// the role the address names is opened and then cleared out of it, as the members directory does.
 	$effect(() => {
 		const named = recordOf(page.url, ROLE_PARAM);
@@ -163,15 +157,15 @@
 		action={trayActions}
 	/>
 
-	<!-- the tiles in a grid, as many to a row as there is room for at 300 pixels each and never
-	     more than three, read off the directory's own width the way the members directory reads
-	     its own (`columnsFor`), in rank order. -->
-	<div
-		class="grid gap-3"
-		style:grid-template-columns="repeat({columns}, minmax(0, 1fr))"
-		bind:clientWidth={width}
+	<!-- the tiles one, two or three across by the width, in rank order, a few rows in view and
+	     the rest scrolled to inside the directory's own area, under the tray (effort 846, ticket
+	     53). -->
+	<DirectoryGrid
+		count={shown.length}
+		tileHeight={ROLE_TILE_HEIGHT}
+		bounded
+		labelledBy="roles-legend"
 		data-roles-grid
-		data-columns={columns}
 	>
 		{#if roles.length > 0 && shown.length === 0}
 			<!-- the one empty treatment's no-match ([[rules/interface]], *Empty*): the search found no
@@ -200,5 +194,5 @@
 				/>
 			</div>
 		{/each}
-	</div>
+	</DirectoryGrid>
 </Field.Set>

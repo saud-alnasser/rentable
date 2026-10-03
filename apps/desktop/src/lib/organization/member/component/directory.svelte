@@ -10,11 +10,11 @@
 	import { toCardActions } from '$lib/act';
 	import type { ListSort } from '@rentable/design/sort.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import { columnsFor, RECORD_TILE_MIN_WIDTH } from '$lib/list';
 	import { lacking } from '$lib/organization/role/acts';
 	import { toMemberActContext, type MemberActRecord } from '$lib/organization/member/acts';
 	import MemberCard, { MEMBER_TILE_HEIGHT } from '$lib/organization/member/component/card.svelte';
 	import DirectoryTray from '$lib/organization/component/directory-tray.svelte';
+	import DirectoryGrid from '$lib/organization/component/directory-grid.svelte';
 	import { toMemberDirectory } from '$lib/organization/directory';
 	import { memberActs, memberHost, memberPending } from '$lib/organization/host.svelte';
 	import { memberRoleName } from '$lib/organization/role/role';
@@ -221,12 +221,6 @@
 		void goto(sectionAddress, { replaceState: true, noScroll: true, keepFocus: true });
 	});
 
-	/** the gap between two tiles, the list shell's `gap-3`. */
-	const TILE_GAP = 12;
-	/** the directory's own width, which the tiles divide. */
-	let width = $state(0);
-	const columns = $derived(columnsFor(width, RECORD_TILE_MIN_WIDTH, TILE_GAP));
-
 	let search = $state('');
 	// the empty treatment at a settings section's size: a directory here is one block among
 	// others, so it takes no screen's worth of padding.
@@ -279,15 +273,14 @@
 		action={trayActions}
 	/>
 
-	<!-- the tiles in a grid, as many to a row as there is room for at 300 pixels each and never
-	     more than three, read off the directory's own width the way the list shell reads its
-	     own (`columnsFor`), in source order. -->
-	<div
-		class="grid gap-3"
-		style:grid-template-columns="repeat({columns}, minmax(0, 1fr))"
-		bind:clientWidth={width}
+	<!-- the tiles one, two or three across by the width, a few rows in view and the rest scrolled
+	     to inside the directory's own area, under the tray (effort 846, ticket 53). -->
+	<DirectoryGrid
+		count={shown.length}
+		tileHeight={MEMBER_TILE_HEIGHT}
+		bounded
+		labelledBy="members-legend"
 		data-members
-		data-columns={columns}
 	>
 		{#if members.length > 0 && shown.length === 0}
 			<!-- the one empty treatment's no-match ([[rules/interface]], *Empty*): the search found
@@ -318,5 +311,5 @@
 				/>
 			</div>
 		{/each}
-	</div>
+	</DirectoryGrid>
 </Field.Set>

@@ -35,6 +35,7 @@
 	import * as Cell from '$lib/design/cell';
 	import type { WorkspaceActContext, WorkspaceActRecord } from '$lib/organization/workspace/acts';
 	import DirectoryTray from '$lib/organization/component/directory-tray.svelte';
+	import DirectoryGrid from '$lib/organization/component/directory-grid.svelte';
 	import { toWorkspaceDirectory } from '$lib/organization/directory';
 	import { workspaceActs, workspaceHost } from '$lib/organization/host.svelte';
 	import { recordOf, WORKSPACE_PARAM } from '$lib/settings';
@@ -47,7 +48,6 @@
 	import UsersIcon from '@lucide/svelte/icons/users';
 	import CalendarPlusIcon from '@lucide/svelte/icons/calendar-plus';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
-	import { columnsFor, RECORD_TILE_MIN_WIDTH } from '$lib/list';
 
 	/**
 	 * The workspaces of the organization, as a directory of record cards, each carrying its own
@@ -194,12 +194,6 @@
 	/** what the reader may do in a workspace, as its card and its page both word it. */
 	const accessOf = (workspace: OrganizationWorkspace) => workspaceAccessOf(workspace, isOwner, $LL);
 
-	/** the gap between two tiles, the list shell's `gap-3`. */
-	const TILE_GAP = 12;
-	/** the directory's own width, which the tiles divide. */
-	let width = $state(0);
-	const columns = $derived(columnsFor(width, RECORD_TILE_MIN_WIDTH, TILE_GAP));
-
 	let search = $state('');
 	// the empty treatment at a settings section's size: a directory here is one block among
 	// others, so it takes no screen's worth of padding.
@@ -290,15 +284,15 @@
 	     18; effort 846, requirement 17). -->
 	<EarlierRecords workspace={open} />
 
-	<!-- the tiles in a grid, as many to a row as there is room for at 300 pixels each and never
-	     more than three, read off the directory's own width the way the list shell reads its
-	     own (`columnsFor`), in source order. -->
-	<div
-		class="grid gap-3"
-		style:grid-template-columns="repeat({columns}, minmax(0, 1fr))"
-		bind:clientWidth={width}
+	<!-- the tiles one, two or three across by the width, in source order, a few rows in view and
+	     the rest scrolled to inside the directory's own area, under the tray (effort 846, ticket
+	     53). -->
+	<DirectoryGrid
+		count={shown.length}
+		tileHeight={WORKSPACE_TILE_HEIGHT}
+		bounded
+		labelledBy="workspaces-legend"
 		data-workspaces
-		data-columns={columns}
 	>
 		{#if workspaces.length === 0}
 			<div class="col-span-full">
@@ -404,5 +398,5 @@
 				</RecordCard>
 			</div>
 		{/each}
-	</div>
+	</DirectoryGrid>
 </Field.Set>

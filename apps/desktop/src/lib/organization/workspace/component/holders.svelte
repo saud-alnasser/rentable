@@ -24,8 +24,8 @@
 	import type { ListSort } from '@rentable/design/sort.js';
 	import { CreateControl } from '$lib/create/ui';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import { columnsFor, RECORD_TILE_MIN_WIDTH } from '$lib/list';
 	import DirectoryTray from '$lib/organization/component/directory-tray.svelte';
+	import DirectoryGrid from '$lib/organization/component/directory-grid.svelte';
 	import { toMemberDirectory } from '$lib/organization/directory';
 	import MemberCard, { MEMBER_TILE_HEIGHT } from '$lib/organization/member/component/card.svelte';
 	import UsersIcon from '@lucide/svelte/icons/users';
@@ -90,11 +90,6 @@
 		).flatMap((member) => cards.filter((card) => card.member.id === member.id));
 	});
 
-	/** the gap between two tiles, the list shell's `gap-3`. */
-	const TILE_GAP = 12;
-	let width = $state(0);
-	const columns = $derived(columnsFor(width, RECORD_TILE_MIN_WIDTH, TILE_GAP));
-
 	// the empty treatment at a settings section's size, as the members directory draws its own.
 	const HOLDERS_EMPTY = 'h-auto flex-none gap-3 rounded-2xl border border-dashed p-4 md:p-6';
 </script>
@@ -123,12 +118,13 @@
 		action={trayActions}
 	/>
 
-	<div
-		class="grid gap-3"
-		style:grid-template-columns="repeat({columns}, minmax(0, 1fr))"
-		bind:clientWidth={width}
+	<!-- the settings directories' grid, up to three across and with no cap: the members are the
+	     page's only collection, so the page's own scroll is theirs (effort 846, ticket 53). -->
+	<DirectoryGrid
+		count={shown.length}
+		tileHeight={MEMBER_TILE_HEIGHT}
+		labelledBy="holders-legend"
 		data-holders
-		data-columns={columns}
 	>
 		{#if cards.length === 0}
 			<div class="col-span-full" data-holders-empty>
@@ -164,5 +160,5 @@
 				/>
 			</div>
 		{/each}
-	</div>
+	</DirectoryGrid>
 </Field.Set>

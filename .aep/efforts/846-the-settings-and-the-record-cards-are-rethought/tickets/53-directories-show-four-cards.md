@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: []
 ---
 
@@ -17,10 +17,10 @@ The human's walk of 2026-10-03, verbatim: "in settings members and roles each on
 
 Traces requirement 1 as revised 2026-10-03, and requirements 16 and 19.
 
-- [ ] A test: the members directory lays its cards in two columns; with more than four members the grid sits in a bounded scroll area whose height is two rows of the fixed card height plus the gap, and the tray is outside it; with few members the area is no taller than its cards.
-- [ ] The same for the roles and the workspaces directories, and the visible rows follow the live column count (two rows at one or two columns, three at three).
-- [ ] Keyboard focus moving to a card below the fold scrolls it into view; the area is named for screen readers; RTL and reduced motion hold.
-- [ ] Desktop check, node and vitest; design tests; eslint and prettier on changed files; [[rules/interface]] and [[contexts/desktop/components]] say it; `validate.mjs` passes.
+- [x] A test: the members directory lays its cards in two columns; with more than four members the grid sits in a bounded scroll area whose height is two rows of the fixed card height plus the gap, and the tray is outside it; with few members the area is no taller than its cards. *Verified: member/tests/directory.svelte.test.ts: at 3, 2 and 1 across the grid is a named region with max-height of 3, 2 and 2 rows plus gaps, the tray before and outside it, the fade showing while more is below; few members leave no extra height*
+- [x] The same for the roles and the workspaces directories, and the visible rows follow the live column count (two rows at one or two columns, three at three). *Verified: role and workspace directory tests repeat it at 1, 2 and 3 across, rows following the live column count (rowsInView = max(2, columns)); the workspace page's members are unbounded*
+- [x] Keyboard focus moving to a card below the fold scrolls it into view; the area is named for screen readers; RTL and reduced motion hold. *Verified: focus on a card scrolls it into view instantly with nearest alignment and a press does not; the region is named by its legend; Arabic RTL uses logical classes only*
+- [x] Desktop check, node and vitest; design tests; eslint and prettier on changed files; [[rules/interface]] and [[contexts/desktop/components]] say it; `validate.mjs` passes. *Verified: check 0 errors; node pass and vitest 890; design 168/164; eslint and prettier clean; interface rule and components context say it; validate passes*
 
 ## Relevant areas
 

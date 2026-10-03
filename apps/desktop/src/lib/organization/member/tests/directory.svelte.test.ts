@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { beforeEach, expect, test, vi } from 'vitest';
 
 import { setLocale } from '$lib/i18n/i18n-svelte';
@@ -41,6 +41,13 @@ import { layOutLists } from '#tests/permission.ts';
 import { hostAnswers, resetHostAnswers } from '$lib/organization/tests/host-hooks';
 import HostProviders from '$lib/organization/tests/host-providers.svelte';
 import { unfold } from '$lib/organization/tests/switches';
+import {
+	areaOf,
+	expectBoundedArea,
+	expectFadeWhileMoreBelow,
+	expectFocusScrollsTile,
+	expectNoPhysicalSides
+} from '$lib/organization/tests/directory-grid';
 
 /**
  * THE MEMBERS, AS A DIRECTORY OF CARDS
@@ -450,6 +457,107 @@ test('at a width of a thousand pixels the members are laid three across', async 
 	} finally {
 		measured.mockRestore();
 	}
+});
+
+/** a directory of this many members past the three the file is written over. */
+const crowd = (count: number) => [
+	...members,
+	...Array.from({ length: count - members.length }, (_, index) =>
+		member({ id: `extra-${index}`, username: `extra${index}` })
+	)
+];
+
+/** the directory measured at this width, for the test inside. */
+const atWidth = async (width: number, run: () => Promise<void> | void) => {
+	const measured = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(width);
+
+	try {
+		await run();
+	} finally {
+		measured.mockRestore();
+	}
+};
+
+// effort 846, ticket 53, at the human's walks of 2026-10-03: past a few rows the cards scroll
+// inside the directory's own area, the tray staying put above, and the rows in view follow the
+// columns: "for mobile size 2 cards ... for mid screen 2 columns become 4 cards meaning 2x2; for
+// full screen 3x3 cards 9 cards".
+test('at three across, nine members are in view and the rest scroll in their own area, under the tray', async () => {
+	await atWidth(1000, async () => {
+		list({ members: crowd(12) });
+
+		const grid = document.querySelector<HTMLElement>('[data-members]')!;
+
+		await waitFor(() => expect(grid.dataset.columns).toBe('3'));
+		expect(grid.querySelectorAll('[data-member]')).toHaveLength(12);
+		expectBoundedArea(grid, {
+			tileHeight: MEMBER_TILE_HEIGHT,
+			columns: 3,
+			legendId: 'members-legend'
+		});
+		await expectFadeWhileMoreBelow(areaOf(grid)!);
+	});
+});
+
+test('at two across, four members are in view, two rows', async () => {
+	await atWidth(700, async () => {
+		list({ members: crowd(7) });
+
+		const grid = document.querySelector<HTMLElement>('[data-members]')!;
+
+		await waitFor(() => expect(grid.dataset.columns).toBe('2'));
+		expectBoundedArea(grid, {
+			tileHeight: MEMBER_TILE_HEIGHT,
+			columns: 2,
+			legendId: 'members-legend'
+		});
+	});
+});
+
+test('at one across, two members are in view', async () => {
+	// jsdom lays nothing out, so the width is nothing and the grid is the one column it falls to.
+	list({ members: crowd(6) });
+
+	const grid = document.querySelector<HTMLElement>('[data-members]')!;
+
+	expectBoundedArea(grid, {
+		tileHeight: MEMBER_TILE_HEIGHT,
+		columns: 1,
+		legendId: 'members-legend'
+	});
+});
+
+test('with fewer members than the rows hold the area is bounded and no taller than its cards', async () => {
+	await atWidth(1000, async () => {
+		list();
+
+		const grid = document.querySelector<HTMLElement>('[data-members]')!;
+
+		await waitFor(() => expect(grid.dataset.columns).toBe('3'));
+		expect(grid.querySelectorAll('[data-member]')).toHaveLength(3);
+		expectBoundedArea(grid, {
+			tileHeight: MEMBER_TILE_HEIGHT,
+			columns: 3,
+			legendId: 'members-legend'
+		});
+		expect(areaOf(grid)!.hasAttribute('data-more-below')).toBe(false);
+	});
+});
+
+test('the keyboard reaching a card below the fold brings it into view, in either direction', async () => {
+	list({ members: crowd(7) });
+
+	await expectFocusScrollsTile(card('extra-3') as HTMLElement);
+	expectNoPhysicalSides(areaOf(document.querySelector('[data-members]')!)!);
+	cleanup();
+
+	loadLocale('ar');
+	setLocale('ar');
+	list({ members: crowd(7) }, 'rtl');
+
+	expectNoPhysicalSides(areaOf(document.querySelector('[data-members]')!)!);
+	await expectFocusScrollsTile(card('extra-3') as HTMLElement);
+	setLocale('en');
 });
 
 // requirement 19: the section says what it is for in the tray above the cards, and the tray is

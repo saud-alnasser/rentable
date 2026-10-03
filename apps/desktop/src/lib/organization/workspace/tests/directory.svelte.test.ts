@@ -39,6 +39,12 @@ import { emptyHeld } from '$lib/transfer';
 import '$lib/app/transfer';
 import earlierTables from '$lib/workspace/tests/app-database.json';
 import HostProviders from '$lib/organization/tests/host-providers.svelte';
+import {
+	areaOf,
+	expectBoundedArea,
+	expectFadeWhileMoreBelow,
+	expectFocusScrollsTile
+} from '$lib/organization/tests/directory-grid';
 
 /**
  * THE WORKSPACES, AS A DIRECTORY OF CARDS
@@ -657,6 +663,38 @@ describe('the tiles are laid at the fixed height, in the record tiles columns', 
 			String(across)
 		);
 	});
+
+	// effort 846, ticket 53, at the human's word of 2026-10-03: "make the workspaces under settings
+	// directory have 4 cards on a 2 column grid after that it goes to a scrolling area", the rows in
+	// view following the columns: two cards at one across, four at two, nine at three.
+	test.each([
+		[1000, 3, 12],
+		[620, 2, 7],
+		[500, 1, 3]
+	])(
+		'at %i pixels wide, %i across, the cards past the rows in view scroll under the tray',
+		async (width, across, count) => {
+			wide(width);
+			list({
+				workspaces: Array.from({ length: count }, (_, index) => ({
+					...workspaces[index % 2],
+					id: `ws-${index + 1}`,
+					name: `Place ${index + 1}`
+				}))
+			});
+
+			const grid = document.querySelector<HTMLElement>('[data-workspaces]')!;
+
+			expect(grid.querySelectorAll('[data-workspace]')).toHaveLength(count);
+			expectBoundedArea(grid, {
+				tileHeight: WORKSPACE_TILE_HEIGHT,
+				columns: across,
+				legendId: 'workspaces-legend'
+			});
+			await expectFadeWhileMoreBelow(areaOf(grid)!);
+			await expectFocusScrollsTile(card(`ws-${count}`) as HTMLElement);
+		}
+	);
 
 	test('every tile is the declared height, in both languages', () => {
 		for (const language of ['en', 'ar'] as const) {

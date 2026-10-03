@@ -429,6 +429,26 @@ contract tiles recorded by ticket 27; the member and workspace tiles laid out by
 at the human's walk of 2026-10-02 and recorded by ticket 35; the member's fields by ticket 37; the
 workspace's members as a count by ticket 48, at the human's walk of 2026-10-03.*
 
+**A settings directory shows a few rows of its cards and scrolls the rest inside its own area.**
+The members, roles and workspaces directories lay their tiles through one grid,
+`organization/component/directory-grid.svelte`, in the list shell's columns (one, two or three by
+the directory's own width, `columnsFor`), and bound them to the rows in view at those columns:
+two rows at one or two across and three at three (`rowsInView`), so two cards, four or nine.
+Past that the cards scroll in an area exactly that tall, gaps counted, so no card is cut in half,
+computed again whenever the width changes the columns; with fewer cards the area is as tall as
+they are. The tray (search, count, order, the plus) stands above the area, outside it. The area is
+the platform's own scroll (a native overflow, as every bounded list here scrolls; the package
+holds no scroll primitive), a region named by the directory's heading, its foot fading with a
+still mask while more cards are below. Keyboard focus reaching a card the area cuts off brings
+the whole card into view at once, with no smooth scroll, and a press does not move it. A
+workspace page's members are not bounded: they are the page's only collection, so the page's
+scroll is theirs and a second one would nest inside it. *Ticket 53 of
+[[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], at the human's walks of
+2026-10-03: "in settings members and roles each one should havea 4x4 cards as masx then more will
+result in a scorlling area", then "for mobile size 2 cards then becomes an area of scroll; for mid
+screen 2 columns become 4 cards meaning 2x2; for full screen 3x3 cards 9 cards", the workspaces
+directory included.*
+
 ### Search
 
 **Every set a person can search searches one way: `list/component/search-field.svelte`.** A leading

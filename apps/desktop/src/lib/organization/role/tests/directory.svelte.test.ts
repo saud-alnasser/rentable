@@ -32,6 +32,13 @@ import { layOutLists } from '#tests/permission.ts';
 import { hostAnswers, resetHostAnswers } from '$lib/organization/tests/host-hooks';
 import HostProviders from '$lib/organization/tests/host-providers.svelte';
 import { unfold } from '$lib/organization/tests/switches';
+import {
+	areaOf,
+	expectBoundedArea,
+	expectFadeWhileMoreBelow,
+	expectFocusScrollsTile,
+	expectNoPhysicalSides
+} from '$lib/organization/tests/directory-grid';
 
 /**
  * THE ROLES, AS A LIST OF CARDS, AND THE EDITOR THEY OPEN
@@ -213,6 +220,54 @@ test('at a width of a thousand pixels the roles are laid three across', async ()
 	} finally {
 		measured.mockRestore();
 	}
+});
+
+// effort 846, ticket 53, at the human's walks of 2026-10-03: the roles scroll inside their own
+// area past the rows in view, two at one or two across and three at three, the tray above it.
+test('at one across, two roles are in view and the rest scroll in their own area, under the tray', async () => {
+	// jsdom lays nothing out, so the width is nothing and the grid is the one column it falls to.
+	block();
+
+	const grid = document.querySelector<HTMLElement>('[data-roles-grid]')!;
+
+	expect(grid.querySelectorAll('[data-role]')).toHaveLength(5);
+	expectBoundedArea(grid, { tileHeight: ROLE_TILE_HEIGHT, columns: 1, legendId: 'roles-legend' });
+	await expectFadeWhileMoreBelow(areaOf(grid)!);
+});
+
+test('at two across four roles are in view, and at three across the five are no taller than they are', async () => {
+	for (const [width, columns] of [
+		[700, 2],
+		[1000, 3]
+	] as const) {
+		const measured = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(width);
+
+		try {
+			block();
+
+			const grid = document.querySelector<HTMLElement>('[data-roles-grid]')!;
+
+			await waitFor(() => expect(grid.dataset.columns).toBe(String(columns)));
+			expectBoundedArea(grid, { tileHeight: ROLE_TILE_HEIGHT, columns, legendId: 'roles-legend' });
+			cleanup();
+		} finally {
+			measured.mockRestore();
+		}
+	}
+});
+
+test('the keyboard reaching a role below the fold brings it into view, in either direction', async () => {
+	block();
+
+	await expectFocusScrollsTile(card('member') as HTMLElement);
+	expectNoPhysicalSides(areaOf(document.querySelector('[data-roles-grid]')!)!);
+	cleanup();
+
+	blockOf([], 'ar');
+
+	expectNoPhysicalSides(areaOf(document.querySelector('[data-roles-grid]')!)!);
+	await expectFocusScrollsTile(card('member') as HTMLElement);
+	setLocale('en');
 });
 
 /**
