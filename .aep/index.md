@@ -136,7 +136,7 @@ Start at [[protocol]].
 | 838-permissions-are-a-role-and-an-override | implemented | [[efforts/838-permissions-are-a-role-and-an-override/spec]] | 2 | 0 | 60 |
 | 840-a-feature-plugs-in-and-lives-in-one-place | implemented | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]] | 2 | 0 | 77 |
 | 843-the-way-in-and-the-workspace-control-read-as-apple-would | implemented | [[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/spec]] | 1 | 1 | 22 |
-| 846-the-settings-and-the-record-cards-are-rethought | accepted | [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]] | 7 | 1 | 55 |
+| 846-the-settings-and-the-record-cards-are-rethought | implemented | [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]] | 7 | 1 | 55 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -521,7 +521,7 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/846-the-settings-and-the-record-cards-are-rethought/tickets/17-complexes-and-units-as-tiles]] feat(desktop): complexes are a grid of cards, and units keep their rows | 846-the-settings-and-the-record-cards-are-rethought | resolved | 15 |
 | [[efforts/846-the-settings-and-the-record-cards-are-rethought/tickets/18-contracts-as-tiles]] feat(desktop): contracts are a grid of cards that name their units | 846-the-settings-and-the-record-cards-are-rethought | resolved | 15 |
 | [[efforts/846-the-settings-and-the-record-cards-are-rethought/tickets/19-the-ledger-says-how-it-was-paid]] feat(desktop): the ledger says how each payment was made | 846-the-settings-and-the-record-cards-are-rethought | resolved | — |
-| [[efforts/846-the-settings-and-the-record-cards-are-rethought/tickets/20-the-human-checks]] chore(desktop): the human checks | 846-the-settings-and-the-record-cards-are-rethought | open | 06, 09, 10, 13, 16, 17, 18, 19, 21, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55 |
+| [[efforts/846-the-settings-and-the-record-cards-are-rethought/tickets/20-the-human-checks]] chore(desktop): the human checks | 846-the-settings-and-the-record-cards-are-rethought | obsolete | 06, 09, 10, 13, 16, 17, 18, 19, 21, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55 |
 | [[efforts/846-the-settings-and-the-record-cards-are-rethought/tickets/21-the-settings-sections-are-grids-of-cards]] feat(desktop): a settings section is a grid of cards, and its detail folds | 846-the-settings-and-the-record-cards-are-rethought | resolved | 06, 09, 10, 13, 22 |
 | [[efforts/846-the-settings-and-the-record-cards-are-rethought/tickets/22-a-context-says-which-component-shows-what]] docs(aep): a context says which component shows what | 846-the-settings-and-the-record-cards-are-rethought | resolved | — |
 | [[efforts/846-the-settings-and-the-record-cards-are-rethought/tickets/23-a-machine-is-signed-out-from-its-menu]] feat(desktop): a machine is signed out from its row's menu | 846-the-settings-and-the-record-cards-are-rethought | resolved | — |

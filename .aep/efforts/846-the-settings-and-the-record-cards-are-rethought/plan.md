@@ -242,6 +242,15 @@ The tabs, as the research recommends and the agent decides:
 | organization | sync: the state as the header's value, the last-reached line, *sync*, the problem callout under it, never folded · Turso account, owner only · the signature or seal, its preview itself the button that chooses or replaces the image, *remove* its ending act · roles (directory) · members: the tray, then member tiles in a grid (`columnsFor`, 300 min, up to 3; `MEMBER_TILE_HEIGHT` 188): avatar, username and role badge on the heading, then password set, a machine signed in, workspaces held, joined, and at the foot permissions of their own and an offered organization where they apply · leaving (last) |
 | workspaces | the directory: title and its line, the tray, the earlier-records callout, then the tiles in a grid (`columnsFor`, 300 min, up to 3; `WORKSPACE_TILE_HEIGHT` 174), each with its `building` glyph in a muted tile, the name, an *open on this machine* badge on the open one, then the members as a stack of initials with their count, the reader's access, and the day it was created |
 
+(*Corrected 2026-10-03, the human's later walks, tickets 36 to 55:* the signature or seal is the
+*organization stamp*, its picture in the card's header with replace and remove on it; the Turso
+account card folded into leaving; roles are tiles like the members'; a workspace tile counts its
+members, no stack of initials, and its *members* act opens the workspace's own page under
+`/settings/workspaces/[id]` (facts and acts on top, its members as a directory, added from one
+checklist sheet, each card opening *edit permissions*); the members, roles and workspaces
+directories show two cards at one column, four at two and nine at three, then scroll in their own
+area; and the workspace menu scrolls past five, its last row *workspace settings*.)
+
 The table read until the walk: general's display and updates at half, diagnostics full; account's
 offer, machines and this machine full, identity and password half; organization's sync and leaving
 full, Turso beside the mark at half.
