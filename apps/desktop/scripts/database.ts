@@ -182,6 +182,11 @@ function requestedWorkspace() {
 	return process.env.SEED_WORKSPACE ?? null;
 }
 
+/** the workspace a dev script means: the one asked for, or else the one the shell holds. */
+export function wantedWorkspace() {
+	return requestedWorkspace() ?? currentWorkspace();
+}
+
 /**
  * where the hosted database this replica answers to lives.
  *
@@ -306,7 +311,7 @@ function findReplicas(directory: string) {
  */
 export async function openWorkspaceDatabase(): Promise<Target> {
 	const directories = candidateDirectories();
-	const wanted = requestedWorkspace() ?? currentWorkspace();
+	const wanted = wantedWorkspace();
 
 	const found = directories.flatMap((directory) =>
 		findReplicas(directory).map((replica) => ({ ...replica, directory }))

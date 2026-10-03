@@ -411,6 +411,22 @@ refused unless what it yields is the key this machine pinned, and the directory 
   query, push or pull meets after the open marks the replica through the store's watched
   connection, and its next open sets it aside the same way. What this machine wrote to it and had
   not pushed is lost, and the log says so.
+- **The development seed fills the organization through the running app, never by writing rows.**
+  *Effort 846, ticket 54.* Roles and members are signed along the chain and a member carries a vault
+  sealed under keys only a signed-in owner's app holds, so no script can make a row the app would
+  verify. `pnpm db:seed` (`apps/desktop/scripts/seed.ts`) therefore has an organization step,
+  `scripts/organization.ts`, that reaches the development app over the webview's remote debugging
+  port (DevTools protocol, `Runtime.evaluate` of `__TAURI_INTERNALS__.invoke`) and calls
+  `role_create`, `invitation_member_create`, `workspace_create`, `workspace_grant` and the lists as
+  the signed-in member does, in that order: roles, members, workspaces, grants. Each workspace it
+  makes is a hosted database on the owner's Turso account, so the list is a fixed dozen and only
+  the owner's machine makes them; elsewhere the refusal is said and the rest seeds. `pnpm dev`
+  opens the port on Windows only (`scripts/debug-port.mjs`, read by `tauri-with-env.mjs`, 9222 or
+  `RENTABLE_DEBUG_PORT`), and `build` never does. A role name, username, workspace name or grant
+  already there is skipped;
+  an app that is closed or signed out, or a webview with no port (macOS, Linux), is said in one
+  sentence and the records seed runs regardless. `--records-only` and `--organization-only` pick a
+  half. It reads no vault and no keyring.
 - **Live tests reach the human's account only when asked**, each creating and removing its own
   database; [[rules/testing]] under *Tests that reach a live remote* admits them, and
   [[references/turso]] under *Never run* bounds them.

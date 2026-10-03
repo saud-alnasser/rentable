@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: []
 ---
 
@@ -17,10 +17,10 @@ The human's walk of 2026-10-03, verbatim: "also seed roles; and make roles  and 
 
 Traces requirement 1 as revised 2026-10-03.
 
-- [ ] A node test of the organization seed's plan (with the invoke stubbed): it chains role creation from the manager, creates the members with their roles and grants, creates the workspaces and grants members into them, skips names already present, and reports an unreachable app or a signed-out one without failing the records seed.
-- [ ] `scripts/tauri-with-env.mjs` sets the debug port for `dev` on Windows and never for `build`; a test or the commit body shows it.
-- [ ] Run against the running app (the orchestrator does this), a second run creates nothing new and says so.
-- [ ] Desktop check and node tests; eslint and prettier on changed files; the remote-sync or organization context names the seed's organization step and why it goes through the app; `validate.mjs` passes.
+- [x] A node test of the organization seed's plan (with the invoke stubbed): it chains role creation from the manager, creates the members with their roles and grants, creates the workspaces and grants members into them, skips names already present, and reports an unreachable app or a signed-out one without failing the records seed. *Verified: scripts/tests/organization.test.ts: 16 pass with invoke stubbed: role chain from manager, members with roles and grants, workspaces and grants in order, skips existing names, unreachable, signed-out and non-Windows cases resolve without failing the records seed*
+- [x] `scripts/tauri-with-env.mjs` sets the debug port for `dev` on Windows and never for `build`; a test or the commit body shows it. *Verified: scripts/tests/debug-port.test.ts: 5 pass: dev on win32 sets the WebView2 debug port, build never does*
+- [x] Run against the running app (the orchestrator does this), a second run creates nothing new and says so. *Verified: orchestrator, live app 2026-10-03: first run made 4 roles, 30 members, Al Rawdah Court and 33 grants; second run printed 'the organization already holds the 12 roles, 30 members, 12 workspaces and their grants, so nothing new was made'*
+- [x] Desktop check and node tests; eslint and prettier on changed files; the remote-sync or organization context names the seed's organization step and why it goes through the app; `validate.mjs` passes. *Verified: check 0 errors; node 1506 and vitest 879 pass; eslint and prettier clean; organization context names the seed's organization step; validate passes*
 
 ## Relevant areas
 
