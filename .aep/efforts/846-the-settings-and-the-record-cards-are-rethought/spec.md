@@ -151,7 +151,11 @@ statement read in time order, and each payment row says how it was paid.
    is at the top, a directory of who can hold it below, each in or out by a well-drawn control. Then: "the details page of a workspace in the settings it should have a record search bar or feild that you search for a member then add them to the worksace and a grid of cards sohwen to existing members and have elipses as action for them regarding the workspace":
    the page adds a member by searching for them in a field and choosing them, and draws the members it
    has as a grid of member cards, each with its ellipsis menu of what can be done to them in this
-   workspace; no switches.*
+   workspace; no switches. Then: "in the workspace details page the top bar needs to be like and records directory view and the plus is what opens a sheet and the user simlier ot the contract choooses members then adds them to the list and completes the addtion or something simlijer; for elispases the card in a workspaces when clicked it should open the tailor acess here; and the options in the card on the workspace view details should be edit permissions, remove; where edit permissions is only permissions on that workspace switches on a sheet; where open member is no longer there; so in a workspace the details page it has a searchbar filter,sort add button on the tray; then grid of cards like now; a card when clicked it opens the edit permissions option sheet; and the eliapess show edit permissions and remove options only; the edit permissions is a sheet with the permissions for this workspace only swtiches to edit and it sayss it is an override on the org and role pemirsisons for this workspace; and the plus button opens a form or sheet and a search filed that dropdown filtered with the searched and added muliipjle members; it only shows members that are not in the workspace and simply add them to the workspace to complete the operation": the page's members are a record directory with its tray
+   (search, sort, and the plus); the plus opens a sheet where several members are chosen from a
+   filtered search of those not yet in and added together; a card opens *edit permissions*, a sheet of
+   this workspace's permission switches that says they override the organization's and the role's
+   here; and a card's menu holds only edit permissions and remove.*
 3. **General holds application preferences only**: language, appearance, updates and diagnostics.
    Ending soon is not in it.
 4. **Every control in the area that applies a choice applies it at once**, as language and
