@@ -102,8 +102,9 @@ use-when: "adding or changing a router, a domain module, a database client or tr
   `meta`.** All six are on `procedure` in `api/trpc.ts`.
   - `procedure.permitted(...flags)` asks for every flag it names. It is the rule for an act.
   - `procedure.permittedAny(...flags)` asks for any one of them, for two acts that carry the same
-    authority over the same thing. There is one: `member.linkMake`, which is `inviteMember`'s or
-    `resetPassword`'s.
+    authority over the same thing. There are two: `member.linkMake`, which is `inviteMember`'s or
+    `resetPassword`'s, and `member.unlock` (effort 851), which is `assignRole`'s or
+    `overrideMember`'s, the two flags that may sign a member's lock.
   - `procedure.permittedBy(possible, schema, flagsOf)` reads the flag off its input, for a
     procedure that serves every record kind, or whose input decides whether a second flag is
     asked. There are three: `history.append` and `history.getMany`, where an entry about a
@@ -145,7 +146,11 @@ use-when: "adding or changing a router, a domain module, a database client or tr
   things. A member's own act: their password, their other sessions, listing their machines and signing one out, accepting an ownership offer
   made to them, opening a workspace they hold a grant on, and this machine's bootstrap and
   reconcile. And a read open to every member: the member list and its standings, the roles, and
-  the mark. The owner's acts and the mark's writes name the flag their Rust command checks, which
+  the mark. **One act is `member` because no flag carries it**: `organization.rename` (effort 851,
+  requirement 24) belongs to the owner alone, and there is deliberately no `renameOrganization`
+  flag to grant, so the procedure asks only that somebody is signed in and the Rust command refuses
+  everybody but the owner's verified row (`Gate::OwnerAlone`, `require_owner_alone`). It is the
+  kind effort 838 retired, back for one act on purpose: a flag would invite granting it. The owner's acts and the mark's writes name the flag their Rust command checks, which
   `organization/tests/router.test.ts` holds each organization mutation to by reading the `GATES`
   table in `tauri/src/organization/mod.rs`, which every sub-concept's `command.rs` is held to. Of
   the ways to write a procedure that needs somebody, `member` is still the one to reach for by
@@ -183,6 +188,12 @@ use-when: "adding or changing a router, a domain module, a database client or tr
   2026-09-15, counted as every `procedure.public` under `src/lib`, the updater's two in
   `api/app.ts` included; it read nine, which was already short of the eleven the tree then had,
   until effort 826 added `invitation.accept`*).
+  *Corrected 2026-10-05 by
+  [[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/spec]]: sixteen, the
+  same way counted. `organization.select` and `organization.remove` choose and forget an
+  organization this machine holds, from the wall, which is signed out by definition (requirement
+  8): there is nobody to act as, and neither reaches `ctx.db`. `select` is refused in Rust while a
+  session is open.*
   *Corrected 2026-09-16 by
   [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]]: the count is fourteen,
   counted the same way, and the three that effort added are each public for a reason already on

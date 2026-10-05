@@ -10,11 +10,11 @@
 	 * Disconnecting this machine from the organization: a row at the end of the leaving group.
 	 *
 	 * **It forgets the organization here and touches nothing on Turso** (requirement 20 of
-	 * effort 824): the shell signs the person out first, deletes the organization replica and
-	 * every workspace replica on this machine, empties the record and clears the Turso authority
-	 * from the keyring. The organization and its workspaces on Turso stay as they are, and the
-	 * link connects a machine to them again. Reaching another organization is this, then a
-	 * connect, since a machine holds one.
+	 * effort 824): the shell signs the person out first, deletes this organization's replica and
+	 * its workspace replicas on this machine, drops its entry from the record and clears its Turso
+	 * authority from the keyring. Any other organization the machine holds is left as it is
+	 * (effort 851, requirement 5). The organization and its workspaces on Turso stay as they are,
+	 * and a link connects a machine to them again.
 	 *
 	 * **An act that ends something, so an error row with its glyph, and its consequence as the line
 	 * under its name** (effort 846, requirements 2 and 14). A member is told the organization stays

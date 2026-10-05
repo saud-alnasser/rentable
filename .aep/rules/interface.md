@@ -247,7 +247,10 @@ its connection on this machine (connected, or not held here with *reconnect* in 
 acts, *transfer ownership* (its button *transfer*, refused with its reason where nobody can take
 it), *forget Turso account* (confirmed, naming where the token is revoked), *disconnect this
 machine*, and *delete organization* last and set apart; a member meets the disconnect alone. There
-is no Turso account card. A choice explains itself, with no
+is no Turso account card. The disconnect forgets this organization alone and leaves any other the
+machine holds; the wall's switcher reaches the same act, confirmed the same way, for any held
+organization, and the organization tab opens on the name card, whose edit the owner alone sees
+(effort 851). A choice explains itself, with no
 sentence under it; where one segment's effect is not in its word (appearance's *system*), that
 segment alone says it in a tooltip. A value not yet known is not drawn, never a word standing in
 for one (the available version before a check). An icon control may show what it is doing with its

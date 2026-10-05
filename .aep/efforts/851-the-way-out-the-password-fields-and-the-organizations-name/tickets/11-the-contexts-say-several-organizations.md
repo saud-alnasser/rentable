@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [10]
 ---
 
@@ -15,9 +15,9 @@ Authoritative: [[efforts/851-the-way-out-the-password-fields-and-the-organizatio
 
 Traces requirement 1 and criterion 1, through the spec's constraint that the contexts are corrected in the same change.
 
-- [ ] `remote-sync.md` and `organization.md` are corrected where they state or imply one organization per machine, the shared consent account, the prefix-wide forget, or the week-long link, each with a dated note saying what it read before.
-- [ ] A search for "one organization or none", "holds one organization" and `AnotherOrganizationHeld` across `apps/desktop/` and `.aep/contexts/` finds nothing current.
-- [ ] `node .aep/scripts/index.mjs` and `node .aep/scripts/validate.mjs` pass.
+- [x] `remote-sync.md` and `organization.md` are corrected where they state or imply one organization per machine, the shared consent account, the prefix-wide forget, or the week-long link, each with a dated note saying what it read before.
+- [x] A search for "one organization or none", "holds one organization" and `AnotherOrganizationHeld` across `apps/desktop/` and `.aep/contexts/` finds nothing current.
+- [x] `node .aep/scripts/index.mjs` and `node .aep/scripts/validate.mjs` pass.
 
 ## Relevant areas
 

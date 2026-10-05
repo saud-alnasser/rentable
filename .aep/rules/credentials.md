@@ -77,7 +77,10 @@ organization stands for them; the side that draws a screen needs those facts and
 else. **Nothing about a certificate crosses**: not its id, its key, its ceiling or its issuer
 (effort 838). *It named `RemoteSyncState`'s `tokenExpiresAt` and the session's three moments until
 the session window retired with the control plane on 2026-09-12, and a role word and a permissions
-mask of seven acts until effort 838.*
+mask of seven acts until effort 838.* *Since effort 851 (2026-10-05) `OrganizationState` carries
+the organizations this machine holds, each with whether this machine holds that organization's
+Turso consent (`holdsTursoAuthority`), and which is selected; the session also carries whether the
+member is locked. Still facts about a credential, never one.*
 
 **Two things cross that look like credentials and are sanctioned by the spec that made them.** The
 join link crosses both ways as a string: it carries a read-only credential over sealed rows, which
@@ -120,6 +123,17 @@ a fresh link. Corrected 2026-09-16 (requirements 19 and 20): those three command
 code crosses out of `member_link_make` alone, which is the one act that makes a link. Nothing hands
 a link over a second time, so nothing reads a code back out of a row. Renamed 2026-09-29 (effort
 840): that act is `invitation_link_make` on the organization plugin, and nothing else changed.*
+
+*Corrected 2026-10-05 ([[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/spec]],
+requirements 10 and 11): the maker chooses how long a link lasts, one hour to one week, three days
+unless changed, and the link lapses at the earlier of that and its credential's death. **An owner's
+link no longer seals the owner's four-week grant**: the owner's machine mints a full-access token on
+the organization database that Turso itself expires at the link's lifetime, and seals that, so the
+credential inside dies with the link; an owner offline cannot make one, and the act is refused
+rather than falling back to the grant. **A manager's link still seals the manager's own four-week
+grant**, since a manager's machine holds no Turso consent to mint with, and that grant outliving
+the link is the risk the spec accepted. A spent, lapsed or revoked link is refused before the
+machine records anything.*
 
 *Corrected 2026-09-16 ([[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]],
 requirement 16, which supersedes requirement 4): **no link carries a legible credential, and the
