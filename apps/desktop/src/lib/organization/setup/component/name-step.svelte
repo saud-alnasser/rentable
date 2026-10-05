@@ -24,8 +24,14 @@
 		groupDetail,
 		isCreating
 	}: {
-		/** the walk's form for the organization's name, the owner's username and password. */
-		superform: SuperForm<{ name: string; username: string; password: string; group: string }>;
+		/** the walk's form for the organization's name, the owner's username and password, typed twice. */
+		superform: SuperForm<{
+			name: string;
+			username: string;
+			password: string;
+			confirmation: string;
+			group: string;
+		}>;
 		/** the fields the walk presents, in its description's order. */
 		fields: readonly SetupField[];
 		/** whether the step has to ask for the Turso group. */
@@ -49,7 +55,7 @@
 	});
 </script>
 
-<!-- the three fields, and they are the three the walk description names. A fourth would
+<!-- the four fields, and they are the four the walk description names. A fifth would
      render here only if it were added to `SETUP_WALK`, which is what the test reads,
      or where Turso has left the group to be asked for, which is the block at the foot
      of the form. Each is its label and its input, with no glyph (effort 843,
@@ -115,6 +121,26 @@
 				/>
 			</Form.Control>
 			<Form.Description>{$LL.organization.setup.passwordFloor()}</Form.Description>
+			<FieldError />
+		</Form.Field>
+	{/if}
+
+	{#if fields.includes('confirmation')}
+		<!-- the password again, under it, labelled and refused as the join's confirmation is
+		     (effort 851, requirement 17). -->
+		<Form.Field form={superform} name="confirmation" class="group relative">
+			<Form.Control>
+				<Form.Label>{$LL.organization.join.confirmLabel()}</Form.Label>
+				<PasswordInput
+					name="confirmation"
+					bind:value={$form.confirmation}
+					autocomplete="new-password"
+					disabled={isCreating}
+					aria-invalid={$errors.confirmation ? 'true' : undefined}
+					{...$constraints.confirmation}
+					class="h-9"
+				/>
+			</Form.Control>
 			<FieldError />
 		</Form.Field>
 	{/if}

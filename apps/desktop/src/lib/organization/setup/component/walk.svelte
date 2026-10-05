@@ -23,10 +23,11 @@
 	/**
 	 * The first run, on the way-in surface.
 	 *
-	 * **Two steps and three fields.** Connecting the Turso account, which is a consent in the
+	 * **Two steps and four fields.** Connecting the Turso account, which is a consent in the
 	 * browser and nothing typed here; and naming the organization, the owner's own username and
-	 * their password. Creating it signs the owner in, and the route hands over to the loading pass,
-	 * whose first stage makes the first workspace for them (effort 832, requirement 18). Nothing
+	 * their password, typed twice (effort 851, requirement 17). Creating it signs the owner in, and
+	 * the route hands over to the loading pass, whose first stage makes the first workspace for them
+	 * (effort 832, requirement 18). Nothing
 	 * after the create is drawn here: the walk stays on its working surface until the loading
 	 * surface replaces it.
 	 *
@@ -200,27 +201,42 @@
 	// gives: the messages resolve against a locale, and at module load there is none. The
 	// username's rule is the shared one the invite dialog and the member's sheet read, so the owner's is
 	// refused with the sentence every other username is.
-	const SetupSchema = z.object({
-		name: z
-			.string()
-			.trim()
-			.min(1, { message: $LL.organization.setup.nameRequired() })
-			.max(ORGANIZATION_NAME_LIMIT, { message: $LL.organization.setup.nameTooLong() }),
-		username: usernameSchema($LL),
-		password: z
-			.string()
-			.min(PASSWORD_FLOOR, { message: $LL.organization.setup.passwordTooShort() }),
-		// the only bound is that it was given, and only where it was asked for: what a group may
-		// be called is Turso's to say, and a shape refused here would be this form inventing a
-		// rule about somebody else's names. A group that is not the consent's is refused by Rust,
-		// by both names.
-		group: z
-			.string()
-			.trim()
-			.refine((group) => !askGroup || group.length > 0, {
-				message: $LL.organization.setup.groupRequired()
-			})
-	});
+	const SetupSchema = z
+		.object({
+			name: z
+				.string()
+				.trim()
+				.min(1, { message: $LL.organization.setup.nameRequired() })
+				.max(ORGANIZATION_NAME_LIMIT, { message: $LL.organization.setup.nameTooLong() }),
+			username: usernameSchema($LL),
+			password: z
+				.string()
+				.min(PASSWORD_FLOOR, { message: $LL.organization.setup.passwordTooShort() }),
+			// the password again, held to nothing of its own: the one rule is that it matches.
+			confirmation: z.string(),
+			// the only bound is that it was given, and only where it was asked for: what a group may
+			// be called is Turso's to say, and a shape refused here would be this form inventing a
+			// rule about somebody else's names. A group that is not the consent's is refused by Rust,
+			// by both names.
+			group: z
+				.string()
+				.trim()
+				.refine((group) => !askGroup || group.length > 0, {
+					message: $LL.organization.setup.groupRequired()
+				})
+		})
+		// effort 851, requirement 17: two that differ are refused on the confirmation, which is
+		// where the person typed last, in the join's words for it. The tenant form puts its phone
+		// refusal on its field the same way.
+		.superRefine((value, ctx) => {
+			if (value.password !== value.confirmation) {
+				ctx.addIssue({
+					code: 'custom',
+					path: ['confirmation'],
+					message: $LL.organization.join.mismatch()
+				});
+			}
+		});
 
 	type SetupForm = z.infer<typeof SetupSchema>;
 
@@ -231,6 +247,7 @@
 					name: z.string(),
 					username: z.string(),
 					password: z.string(),
+					confirmation: z.string(),
 					group: z.string()
 				})
 			)
@@ -242,6 +259,7 @@
 			onUpdate: async ({ form }) => {
 				if (!form.valid) return;
 
+				// the confirmation stops here: it has said the two match, and that is all it is for.
 				await onCreate(
 					form.data.name.trim(),
 					form.data.username.trim(),

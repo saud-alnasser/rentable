@@ -163,7 +163,8 @@ async function walkToCreate() {
 	for (const [name, value] of [
 		['name', 'Acme Rentals'],
 		['username', 'olivia.owner'],
-		['password', 'a long enough password']
+		['password', 'a long enough password'],
+		['confirmation', 'a long enough password']
 	]) {
 		await fireEvent.input(document.querySelector(`input[name="${name}"]`)!, {
 			target: { value }

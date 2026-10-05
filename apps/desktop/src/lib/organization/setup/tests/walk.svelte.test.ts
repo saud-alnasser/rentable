@@ -129,6 +129,14 @@ test('the name and existing steps each draw their password with the eye', async 
 				document.querySelector<HTMLInputElement>('input[name=password]'),
 				strings.showPassword
 			);
+
+			// and the name step's confirmation under it, which is a password field too.
+			if (step === 'name') {
+				await expectTheEye(
+					document.querySelector<HTMLInputElement>('input[name=confirmation]'),
+					strings.showPassword
+				);
+			}
 			rendered.unmount();
 		}
 	}
@@ -136,7 +144,7 @@ test('the name and existing steps each draw their password with the eye', async 
 	setLocale('en');
 });
 
-test('the naming step presents exactly three fields: the name, a username and a password', () => {
+test('the naming step presents exactly four fields: the name, a username, a password and the password again', () => {
 	loadLocale('en');
 	setLocale('en');
 	walk('name');
@@ -147,7 +155,8 @@ test('the naming step presents exactly three fields: the name, a username and a 
 	expect(inputs.map((input) => input.getAttribute('name'))).toEqual([
 		'name',
 		'username',
-		'password'
+		'password',
+		'confirmation'
 	]);
 	expect(inputs.find((input) => input.name === 'password')?.type).toBe('password');
 	expect(screen.getByText(en.organization.setup.nameLabel)).toBeDefined();
@@ -156,8 +165,16 @@ test('the naming step presents exactly three fields: the name, a username and a 
 	expect(screen.getByText(en.organization.setup.passwordFloor)).toBeDefined();
 	expect(screen.getByRole('button', { name: en.organization.setup.create })).toBeDefined();
 	expect(document.querySelector('[data-setup-fields]')?.getAttribute('data-setup-fields')).toBe(
-		'name,username,password'
+		'name,username,password,confirmation'
 	);
+
+	// effort 851, requirement 17: the confirmation is labelled as the join's is, and offered to the
+	// password manager as the same new password.
+	const confirmation = inputs.find((input) => input.name === 'confirmation');
+
+	expect(confirmation?.type).toBe('password');
+	expect(confirmation?.getAttribute('autocomplete')).toBe('new-password');
+	expect(screen.getByText(en.organization.join.confirmLabel)).toBeDefined();
 
 	// and nothing on the step says a word about the Turso group, which is the whole of this
 	// ticket: the create is tried three ways before anybody is asked for one.
@@ -171,7 +188,8 @@ const fillAndCreate = async (group?: string) => {
 	const typed: [string, string][] = [
 		['name', 'Acme Rentals'],
 		['username', 'olivia.owner'],
-		['password', 'a long enough password']
+		['password', 'a long enough password'],
+		['confirmation', 'a long enough password']
 	];
 
 	if (group !== undefined) typed.push(['group', group]);
@@ -206,6 +224,69 @@ test('the ordinary create carries no group at all', async () => {
 	});
 });
 
+/**
+ * Effort 851, requirement 17 and its criterion: **the owner's first password is asked for twice.**
+ * Two that differ create nothing, and the refusal is the walk's own field error on the
+ * confirmation, in the join's words for it. Two that match create as before, and the confirmation
+ * goes no further than the form: the create is handed the password alone.
+ *
+ * The refusal is read where a person first meets it, on leaving the confirmation, for the reason
+ * the header gives; the submit after it is what shows nothing is created.
+ */
+test('a password and a different confirmation create nothing, and the confirmation says they differ', async () => {
+	loadLocale('en');
+	setLocale('en');
+
+	const onCreate = vi.fn(async () => {});
+
+	walk('name', { onCreate });
+
+	for (const [name, value] of [
+		['name', 'Acme Rentals'],
+		['username', 'olivia.owner'],
+		['password', 'a long enough password'],
+		['confirmation', 'a long enough passwort']
+	]) {
+		await fireEvent.input(document.querySelector(`input[name="${name}"]`)!, {
+			target: { value }
+		});
+	}
+
+	const confirmation = document.querySelector<HTMLInputElement>('input[name="confirmation"]')!;
+
+	await fireEvent.focusOut(confirmation);
+
+	await waitFor(() => {
+		expect(screen.getByRole('alert').textContent).toBe(en.organization.join.mismatch);
+	});
+	expect(confirmation.getAttribute('aria-invalid')).toBe('true');
+	expect(document.querySelector('input[name="password"]')?.getAttribute('aria-invalid')).toBeNull();
+
+	await fireEvent.submit(document.querySelector('form')!);
+	await new Promise((settle) => setTimeout(settle, 50));
+
+	expect(onCreate).not.toHaveBeenCalled();
+
+	// and once the two match, the create goes ahead with the password alone.
+	await fireEvent.input(confirmation, { target: { value: 'a long enough password' } });
+	await fireEvent.focusOut(confirmation);
+
+	await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+	expect(confirmation.getAttribute('aria-invalid')).toBeNull();
+
+	await fireEvent.submit(document.querySelector('form')!);
+
+	await waitFor(() => {
+		expect(onCreate).toHaveBeenCalledWith(
+			'Acme Rentals',
+			'olivia.owner',
+			'a long enough password',
+			null
+		);
+	});
+	expect(onCreate).toHaveBeenCalledTimes(1);
+});
+
 /** what Rust hands back after the phrase, which is Turso's own account of the refusal. */
 const TURSO_SAID =
 	'turso refused every group this application could name on its own, and said: 404 group `default` not found';
@@ -235,6 +316,7 @@ test('a walk asked for the group draws the field with the sentence above it, and
 		'name',
 		'username',
 		'password',
+		'confirmation',
 		'group'
 	]);
 
@@ -321,6 +403,7 @@ test('the fields the person already filled survive the group being asked for', a
 		['name', 'Acme Rentals'],
 		['username', 'olivia.owner'],
 		['password', 'a long enough password'],
+		['confirmation', 'a long enough password'],
 		['group', '']
 	]);
 	expect(screen.getByText(en.organization.setup.groupNeeded)).toBeDefined();
@@ -500,7 +583,7 @@ test('the walk is two steps, and the name step is the last, with no workspace as
 		i18nObject('en').organization.setup.position({ step: 2, total: 2 })
 	);
 	expect(document.querySelector('[data-setup-fields]')?.getAttribute('data-setup-fields')).toBe(
-		'name,username,password'
+		'name,username,password,confirmation'
 	);
 	expect(screen.queryByText(en.layout.noWorkspace.nameLabel)).toBeNull();
 	expect(screen.queryByRole('button', { name: en.layout.noWorkspace.create })).toBeNull();
@@ -705,6 +788,7 @@ test('the walk renders in arabic with the same fields on each step', () => {
 		'name',
 		'username',
 		'password',
+		'confirmation',
 		'group'
 	]);
 	expect(screen.getByText(ar.organization.setup.nameLabel)).toBeDefined();

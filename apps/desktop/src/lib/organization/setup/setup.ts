@@ -67,8 +67,13 @@ export function stepsOf(step: SetupStep): readonly SetupStep[] {
  * It is the last resort, and [`refusalAfterFailedCreate`] is what puts it on screen, with a
  * sentence over it saying what to type. *The connect step said beforehand that it was coming,
  * under `groupAskedOnce`, until effort 843 took the consent's facts off the way in.*
+ *
+ * **`confirmation` is the password typed again, and nothing new** (effort 851, requirement 17).
+ * The owner's first password is the only one nobody can reset for them, so it is asked for twice,
+ * as the join and the change of password ask for theirs. The walk refuses two that differ on the
+ * form, and the confirmation goes no further than it: the create carries the password alone.
  */
-export type SetupField = 'name' | 'username' | 'password';
+export type SetupField = 'name' | 'username' | 'password' | 'confirmation';
 
 /**
  * what each step of the walk asks for.
@@ -87,7 +92,7 @@ export type SetupStepDescription = {
 
 export const SETUP_WALK: readonly SetupStepDescription[] = [
 	{ step: 'connect', fields: [] },
-	{ step: 'name', fields: ['name', 'username', 'password'] }
+	{ step: 'name', fields: ['name', 'username', 'password', 'confirmation'] }
 ];
 
 /** every field the whole walk presents, in order. */
