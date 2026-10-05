@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(desktop): a locked member with no workspace is told the account is locked
@@ -14,9 +14,9 @@ A locked member who lands on the no-workspace screen reads the same locked sente
 
 Traces requirement 32 and criterion 32 (the locked sentence).
 
-- [ ] The no-workspace screen draws the locked notice (`organization/component/locked-notice.svelte`) for a locked session and not for an unlocked one, placed per [[contexts/desktop/components]] and [[rules/interface]].
-- [ ] A component test of the no-workspace screen in English and Arabic, locked and unlocked.
-- [ ] `pnpm test` and `pnpm check` pass.
+- [x] The no-workspace screen draws the locked notice (`organization/component/locked-notice.svelte`) for a locked session and not for an unlocked one, placed per [[contexts/desktop/components]] and [[rules/interface]].
+- [x] A component test of the no-workspace screen in English and Arabic, locked and unlocked.
+- [x] `pnpm test` and `pnpm check` pass.
 
 ## Relevant areas
 

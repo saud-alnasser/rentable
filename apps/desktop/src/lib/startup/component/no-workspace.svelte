@@ -3,7 +3,7 @@
 	import WayInSurface from '@rentable/design/block/way-in-surface.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import { OrganizationSwitcher } from '$lib/organization/ui';
+	import { OrganizationLockedNotice, OrganizationSwitcher } from '$lib/organization/ui';
 	import { WayInPreferences } from '$lib/settings/ui';
 	import { WorkspaceFields } from '$lib/workspace/ui';
 	import { workspaceFormSchema } from '$lib/workspace';
@@ -29,6 +29,11 @@
 	 * the root layout's; removing another organization leaves this one signed in. "Add
 	 * organization" turns the screen into the add step, the welcome's two ways in with back to
 	 * here, as the wall does. None of it can be used while a workspace is being created.
+	 *
+	 * **A locked member reads the locked sentence here, as the shell says it** (effort 851,
+	 * requirement 32, ticket 16): with no workspace they never reach the shell's `notice` place, so
+	 * the same notice stands under the switcher, the organization it is about, and above whatever
+	 * the step offers. It reads the session itself and is gone once the session reads unlocked.
 	 *
 	 * **The form is the shared one.** The name field and the rule it is refused by are
 	 * `workspace/form.ts` and `workspace/component/fields.svelte`, the
@@ -125,6 +130,8 @@
 					{onRemove}
 				/>
 			</div>
+
+			<OrganizationLockedNotice framed={false} />
 
 			{#if canCreate}
 				<form method="POST" use:enhance class="flex flex-col gap-4">
