@@ -137,7 +137,7 @@ Start at [[protocol]].
 | 840-a-feature-plugs-in-and-lives-in-one-place | implemented | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]] | 2 | 0 | 77 |
 | 843-the-way-in-and-the-workspace-control-read-as-apple-would | implemented | [[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/spec]] | 1 | 1 | 22 |
 | 846-the-settings-and-the-record-cards-are-rethought | implemented | [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]] | 7 | 1 | 55 |
-| 851-the-way-out-the-password-fields-and-the-organizations-name | accepted | [[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/spec]] | 0 | 0 | 11 |
+| 851-the-way-out-the-password-fields-and-the-organizations-name | accepted | [[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/spec]] | 0 | 0 | 12 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -569,3 +569,4 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/tickets/09-the-organization-name-is-signed]] feat(organization): the organization's name is signed by the owner | 851-the-way-out-the-password-fields-and-the-organizations-name | open | 05 |
 | [[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/tickets/10-the-owner-renames-the-organization]] feat(organization): the owner renames the organization | 851-the-way-out-the-password-fields-and-the-organizations-name | open | 08, 09 |
 | [[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/tickets/11-the-contexts-say-several-organizations]] docs(desktop): the contexts say a machine holds several organizations | 851-the-way-out-the-password-fields-and-the-organizations-name | open | 10 |
+| [[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/tickets/12-the-group-field-keeps-the-form]] fix(organization): asking for the Turso group keeps what the owner typed | 851-the-way-out-the-password-fields-and-the-organizations-name | open | 02 |

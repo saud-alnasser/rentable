@@ -4,7 +4,8 @@ status: accepted
 
 # Problem
 
-Four things the human asked for on 2026-10-05, read against the code.
+Four things the human asked for on 2026-10-05, read against the code, and a fifth they added the
+same day while the effort was being built: the walk's group field.
 
 ## A machine holds one organization, and the wall hides the way off it
 
@@ -74,6 +75,15 @@ the password from settings (`change-password-dialog.svelte`).
 **A password field gives no way to check what was typed.** Every password field draws dots and
 nothing else. The human asked for an eye at the field's end that shows the password while pressed
 and held, and hides it on release.
+
+## The walk's group field
+
+**Asking for the Turso group costs the owner everything they typed.** Where Turso takes none of
+the group names the application can work out, the first create is refused and the walk's name
+step grows a group field (`askGroup` in `organization/setup/component/first-run.svelte`). The
+human, 2026-10-05: when that field appears after the first submit, every other field is cleared,
+so the name, the username and the password have to be typed again. It should only add the new
+field, ask for it, and carry on from there.
 
 ## The organization's name
 
@@ -233,6 +243,13 @@ holds the same one, the same way, after the update.
     owner's signature, as the mark is, and a machine reading a name whose signature does not check
     keeps showing the last name that did.
 
+## The walk's group field
+
+30. **Asking for the group keeps what was typed.** When the create is refused because Turso needs
+    the group named, the name step keeps the organization's name, the username, the password and
+    its confirmation exactly as typed, adds the group field with its sentence, and puts the focus
+    in it. Creating again sends the kept values with the group; nothing has to be retyped.
+
 # Acceptance Criteria
 
 1. A component test with no organization held draws today's welcome with set up and join by a
@@ -318,6 +335,11 @@ holds the same one, the same way, after the update.
 29. A Rust test writes a new `name_sealed` straight into a replica without the owner's signature and
     asserts that a member's machine keeps naming the previous signed name; an organization set up
     before this change still opens and names its name.
+30. A component test of the first run, through the real create path and its refusal (not a
+    rerender of the walk with new props), fills the name step, has the create refused with the
+    group asked for, and asserts the name, username, password and confirmation fields still hold
+    what was typed, the group field is shown and focused, and a second create sends the kept
+    values with the group.
 
 # Constraints
 

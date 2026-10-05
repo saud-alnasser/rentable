@@ -177,6 +177,17 @@ field (criterion 19).
 label and the mismatch sentence are `organization.join.confirmLabel` and `organization.join.mismatch`,
 which already say this. The refusal is the walk's own field error (requirement 17).
 
+## The group field keeps the form
+
+*Added 2026-10-05 for requirement 30, while the effort was being built.* The walk's test of the
+group field rerenders the walk with `askGroup` and finds the values kept, yet the human sees them
+cleared after a real refused create, so the cause lies on the path the test skips: the form's
+own handling after `onUpdate` resolves (superforms resets a valid SPA form by default once the
+submit handler returns, and `create` in `first-run.svelte` catches the refusal so the handler
+returns normally), or the walk being torn down while `isCreating` holds. Ticket 12 pins it with a
+failing test through the real path first ([[skills/implement/diagnosing]]), then fixes it where
+the cause is; the form state stays in the walk.
+
 ## The switcher
 
 **`organization/component/switcher.svelte`**, an application component (it reads `$LL` and the
@@ -297,6 +308,8 @@ Steps, in the order they land. *Cut on 2026-10-05 into eleven tickets under `tic
     kept; the code comments naming the old rule (`machine/record.rs`, `sign-in.svelte`,
     `setup/command.rs`, `invitation/machine.rs`) are corrected where their tickets touch them; one
     changeset per user-visible ticket rides with it ([[references/changesets]]).
+11. **The group field keeps the form** (ticket 12, added 2026-10-05): built on the owner's
+    confirmation, since both live in the walk's one form.
 
 5 precedes 6 because every command in 6 reads the list; 6 precedes 7 because the switcher calls
 its commands; 8 precedes 9 because the rename writes the signed row.
