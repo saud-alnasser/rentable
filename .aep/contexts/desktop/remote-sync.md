@@ -124,10 +124,13 @@ sentence from both.
   from before 2026-09-13 and forget. The Turso organization a consent was granted over while it
   waits for the organization it will belong to is written under `pendingTursoOrganization`, a key
   of its own, because the top-level copy cannot hold it while the selected organization has one
-  (requirement 39); a record written before that key reads it from the top where it differs from
-  the selected organization's. A record an earlier build wrote is converted in place at load
+  (requirement 39), and it is never copied to the top, so a rolled-back build cannot lend it to the
+  selected organization; a record written before that key reads it from the top where it differs
+  from the selected organization's. A record an earlier build wrote is converted in place at load
   (`machine/record.rs`, `sanitize`, against release 0.19.0's record, frozen as
-  `machine/test/released.json`). Opening a workspace judges only the open organization's
+  `machine/test/released.json`), and only that load marks the converted organization
+  (`consentToMove`) as the one the pending consent may move to; a launch that converted nothing
+  moves and forgets no consent. Opening a workspace judges only the open organization's
   replicas, and only the open organization replicates. Removing an organization (`forget_one`)
   deletes that organization's replica files, remembered key, entry and Turso consent and nothing
   else; until 851 the forget swept every `org-*` and `ws-*` file on the machine.*

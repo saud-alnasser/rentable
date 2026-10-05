@@ -217,8 +217,7 @@ locked. One `member_lock` row per member, signed (`Authority::MemberLock`): a ro
 verify reads locked. Before the owner's machine has written its backfill and the root-signed
 marker (the owner's own lock row), a member with no row reads unlocked, which is how members who
 had set a password before 851 carried over; after it, or on a machine that latched it
-(`lock_marked`), no row reads locked, so deleting one's own row unlocks nothing; and a machine that joined by an invitation reads its own member locked with no row from the first join (`own_lock_latched`), without judging anybody else by it. A role assignment
-re-signs the member's lock under the assigner.
+(`lock_marked`), no row reads locked, so deleting one's own row unlocks nothing; and a machine that joined by an invitation or a machine link reads each member it latched locked with no row from the first join (`own_lock_latched`, a list), without judging anybody else by it. The row is signed over the member's signing key as well (`member-lock.v2`), and a reset draws a new key, so an unlock kept from before a reset and written back reads locked. The backfill locks every member whose password is not their own, runs only after a pull that went, and never on a machine whose own member reads locked. Any role change (`role/apply.rs`) re-signs the locks of the members it moves under the actor where the actor covers them.
 _Avoid_: "suspended" or "disabled", which this application does not do.
 
 **Vault**:
