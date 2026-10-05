@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { CODE_LENGTH, normalizeCode, type JoinStep } from '$lib/organization/setup/connect';
+	import PasswordInput from '@rentable/design/block/password-input.svelte';
 	import WayInSurface from '@rentable/design/block/way-in-surface.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
@@ -376,10 +377,9 @@
 					<Field.Label for="join-password">
 						{$LL.organization.setup.passwordLabel()}
 					</Field.Label>
-					<Input
+					<PasswordInput
 						id="join-password"
 						name="password"
-						type="password"
 						autocomplete="new-password"
 						class="h-9"
 						bind:ref={passwordField}
@@ -395,10 +395,9 @@
 
 				<Field.Field>
 					<Field.Label for="join-confirmation">{$LL.organization.join.confirmLabel()}</Field.Label>
-					<Input
+					<PasswordInput
 						id="join-confirmation"
 						name="confirmation"
-						type="password"
 						autocomplete="new-password"
 						class="h-9"
 						bind:value={confirmation}

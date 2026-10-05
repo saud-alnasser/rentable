@@ -13,6 +13,7 @@ import { fakeHeldOrganization } from '$lib/organization/tests/testing.ts';
 import { fakeSettings } from '$lib/settings/tests/testing.ts';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import Providers from '#tests/providers.svelte';
+import { expectTheEye } from '#tests/password-eye.ts';
 
 /**
  * THE WELCOME AND THE WALL, RENDERED
@@ -178,6 +179,24 @@ test('the wall renders in arabic with the same two fields and its own line', () 
 	setLocale('en');
 });
 
+// effort 851, criteria 19 and 20: the wall's password carries the eye in both locales, named by
+// the string contract's word for it, which the window supplies in the reader's language.
+test("the wall's password field carries the eye, in both locales", async () => {
+	for (const locale of ['en', 'ar'] as const) {
+		loadLocale(locale);
+		setLocale(locale);
+		const rendered = card('locked');
+
+		await expectTheEye(
+			document.querySelector<HTMLInputElement>('#sign-in-password'),
+			strings.showPassword
+		);
+		rendered.unmount();
+	}
+
+	setLocale('en');
+});
+
 // requirement 8: arriving puts the cursor in the first field, Enter signs in, and no password is
 // ever filled in for the person.
 test('arriving at the wall focuses the username, the password is empty, and Enter signs in', async () => {
@@ -280,8 +299,16 @@ test('neither screen draws a glyph in a field or on its buttons, nor a back or a
 	for (const situation of ['noOrganization', 'locked'] as const) {
 		const rendered = card(situation, situation === 'noOrganization' ? { organization: null } : {});
 
-		expect(document.querySelector('[data-slot=input-group-addon]'), situation).toBeNull();
-		expect(document.querySelector('[data-way-in-content] button svg'), situation).toBeNull();
+		// the one glyph a field carries is the password's eye at its trailing end, which is a
+		// control rather than a decoration (effort 851, requirement 19); nothing leads a field.
+		expect(
+			document.querySelector('[data-slot=input-group-addon][data-align=inline-start]'),
+			situation
+		).toBeNull();
+		expect(
+			document.querySelector('[data-way-in-content] button:not([data-password-eye]) svg'),
+			situation
+		).toBeNull();
 		expect(document.querySelector('[data-back-control]'), situation).toBeNull();
 		expect(document.querySelector('[data-way-in-position]'), situation).toBeNull();
 

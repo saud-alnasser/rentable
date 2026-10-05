@@ -1,12 +1,11 @@
 <script lang="ts">
 	import FormSurface, { insetControl } from '@rentable/design/block/form-surface.svelte';
+	import PasswordInput from '@rentable/design/block/password-input.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
-	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
 	import { onSubmit } from '$lib/form';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { PASSWORD_FLOOR } from '$lib/organization/setup/setup';
-	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 
 	/**
@@ -95,20 +94,16 @@
 	<div class="flex flex-col gap-4" data-change-password>
 		<Field.Field>
 			<Field.Label for="password-current">{currentLabel}</Field.Label>
-			<InputGroup.Root class={insetControl} data-disabled={isChanging ? 'true' : undefined}>
-				<InputGroup.Addon>
-					<KeyRoundIcon />
-				</InputGroup.Addon>
-				<InputGroup.Input
-					id="password-current"
-					name="current"
-					type="password"
-					autocomplete="current-password"
-					bind:value={current}
-					disabled={isChanging}
-					aria-invalid={errorMessage ? 'true' : undefined}
-				/>
-			</InputGroup.Root>
+			<PasswordInput
+				id="password-current"
+				name="current"
+				autocomplete="current-password"
+				bind:value={current}
+				disabled={isChanging}
+				aria-invalid={errorMessage ? 'true' : undefined}
+				class={insetControl}
+				lead
+			/>
 			{#if errorMessage}
 				<Field.Error>{errorMessage}</Field.Error>
 			{/if}
@@ -116,20 +111,16 @@
 
 		<Field.Field>
 			<Field.Label for="password-next">{$LL.settings.you.password.nextLabel()}</Field.Label>
-			<InputGroup.Root class={insetControl} data-disabled={isChanging ? 'true' : undefined}>
-				<InputGroup.Addon>
-					<KeyRoundIcon />
-				</InputGroup.Addon>
-				<InputGroup.Input
-					id="password-next"
-					name="next"
-					type="password"
-					autocomplete="new-password"
-					bind:value={next}
-					disabled={isChanging}
-					aria-invalid={tooShort}
-				/>
-			</InputGroup.Root>
+			<PasswordInput
+				id="password-next"
+				name="next"
+				autocomplete="new-password"
+				bind:value={next}
+				disabled={isChanging}
+				aria-invalid={tooShort}
+				class={insetControl}
+				lead
+			/>
 			<Field.Description>{$LL.organization.setup.passwordFloor()}</Field.Description>
 			{#if tooShort}
 				<Field.Error>{$LL.organization.setup.passwordTooShort()}</Field.Error>
@@ -140,20 +131,16 @@
 			<Field.Label for="password-confirmation"
 				>{$LL.settings.you.password.confirmLabel()}</Field.Label
 			>
-			<InputGroup.Root class={insetControl} data-disabled={isChanging ? 'true' : undefined}>
-				<InputGroup.Addon>
-					<KeyRoundIcon />
-				</InputGroup.Addon>
-				<InputGroup.Input
-					id="password-confirmation"
-					name="confirmation"
-					type="password"
-					autocomplete="new-password"
-					bind:value={confirmation}
-					disabled={isChanging}
-					aria-invalid={mismatch}
-				/>
-			</InputGroup.Root>
+			<PasswordInput
+				id="password-confirmation"
+				name="confirmation"
+				autocomplete="new-password"
+				bind:value={confirmation}
+				disabled={isChanging}
+				aria-invalid={mismatch}
+				class={insetControl}
+				lead
+			/>
 			{#if mismatch}
 				<Field.Error>{$LL.settings.you.password.mismatch()}</Field.Error>
 			{/if}

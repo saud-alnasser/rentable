@@ -11,6 +11,7 @@ import en from '$lib/i18n/en';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import Providers from '#tests/providers.svelte';
+import { expectTheEye } from '#tests/password-eye.ts';
 
 /**
  * THE CONNECT SCREEN, RENDERED
@@ -378,11 +379,26 @@ test('the password step draws its two fields and its join with no glyph', () => 
 	expect(
 		screen.getByRole('button', { name: en.common.actions.join }).querySelector('svg')
 	).toBeNull();
-	expect(document.querySelector('[data-slot=input-group-addon]')).toBeNull();
+	// the one glyph a field carries is the password's eye at its trailing end, which is a control
+	// rather than a decoration (effort 851, requirement 19); nothing leads a field.
+	expect(
+		document.querySelector('[data-slot=input-group-addon][data-align=inline-start]')
+	).toBeNull();
 	expect(inputsOnScreen().map((input) => input.getAttribute('name'))).toEqual([
 		'password',
 		'confirmation'
 	]);
+});
+
+// effort 851, criterion 19: both of the password step's fields carry the eye.
+test('the password and its confirmation each carry the eye', async () => {
+	loadLocale('en');
+	setLocale('en');
+	joinScreen(stepOf({ kind: 'invitation', expiresAt: 1 }));
+
+	for (const id of ['#join-password', '#join-confirmation']) {
+		await expectTheEye(document.querySelector<HTMLInputElement>(id), strings.showPassword);
+	}
 });
 
 test('while the accept is out the fields are held and the wait is said on the primary', () => {

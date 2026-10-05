@@ -11,6 +11,7 @@ import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { fakeSettings } from '$lib/settings/tests/testing.ts';
 import Providers from '#tests/providers.svelte';
+import { expectTheEye } from '#tests/password-eye.ts';
 
 /**
  * THE WALK, RENDERED
@@ -109,6 +110,31 @@ const stepButtons = () =>
 
 /** whether a button is drawn prominent: the filled primary variant. */
 const isProminent = (button: HTMLElement) => button.className.includes('bg-primary');
+
+// effort 851, criteria 19 and 20: the password of the name step and of the existing-organization
+// step carry the eye, named by the string contract's word for it, at the trailing end in both
+// directions.
+test('the name and existing steps each draw their password with the eye', async () => {
+	for (const [locale, direction] of [
+		['en', 'ltr'],
+		['ar', 'rtl']
+	] as const) {
+		loadLocale(locale);
+		setLocale(locale);
+
+		for (const step of ['name', 'existing'] as const) {
+			const rendered = walk(step, {}, direction);
+
+			await expectTheEye(
+				document.querySelector<HTMLInputElement>('input[name=password]'),
+				strings.showPassword
+			);
+			rendered.unmount();
+		}
+	}
+
+	setLocale('en');
+});
 
 test('the naming step presents exactly three fields: the name, a username and a password', () => {
 	loadLocale('en');
@@ -586,8 +612,16 @@ test('no step draws a glyph in a field or on its buttons', () => {
 	for (const args of cases) {
 		const rendered = walk(...args);
 
-		expect(document.querySelector('[data-slot=input-group-addon]'), args[0]).toBeNull();
-		expect(document.querySelector('[data-setup-step] button svg'), args[0]).toBeNull();
+		// the one glyph a field carries is the password's eye at its trailing end, which is a
+		// control rather than a decoration (effort 851, requirement 19); nothing leads a field.
+		expect(
+			document.querySelector('[data-slot=input-group-addon][data-align=inline-start]'),
+			args[0]
+		).toBeNull();
+		expect(
+			document.querySelector('[data-setup-step] button:not([data-password-eye]) svg'),
+			args[0]
+		).toBeNull();
 		rendered.unmount();
 	}
 });

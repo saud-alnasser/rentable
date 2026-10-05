@@ -26,7 +26,9 @@ import { getContext } from 'svelte';
  * its caller's. #782 added six more of that kind, when the export dialog and the record card
  * crossed: five of them the dialog's, and `openMenu` the card's. Effort 832 gave the record
  * surface's not-found three of that kind, `recordNotFound`, `recordNotFoundDescription` and
- * `goBack`, in place of the `noResults` it borrowed from the lists.
+ * `goBack`, in place of the `noResults` it borrowed from the lists. Effort 851 gave the password
+ * block one, `showPassword`, the accessible name of its eye: a word every field that draws the
+ * block wants the same, so it is the block's rather than each caller's.
  *
  * **Two keys are functions and every other one is a string.** `moreRecords` counts the records a
  * selection dialog decided not to name, which is arithmetic over a plan the consumer handed in
@@ -122,6 +124,9 @@ export type DesignStrings = {
 	/** what a confirmation says for the refusal its action earned, in the reader's words. The
 	 * second key that is a function; the docstring above has why. */
 	refusal: (failure: unknown) => string;
+	/** the accessible name of the eye at a password field's end, which shows what was typed while
+	 * it is held. */
+	showPassword: string;
 	/** what the sidebar's drawer presentation is titled, for a reader who cannot see it. */
 	sidebar: string;
 	/** the accessible name of both controls that fold and unfold the sidebar. */
@@ -166,8 +171,8 @@ export const DESIGN_CONTRACT = Symbol('rentable.design.contract');
  * the screen draws.** Most of the families that read this are overlays whose content `bits-ui`
  * instantiates only once they open, so a missing provider surfaces on the first interaction
  * rather than on render. `card`, `toggle-group`, `breadcrumb`, `carousel`, `pagination`, the
- * sidebar's own chrome, `block/record-surface` and `block/back-control` throw at render, because
- * they are the ones that are not overlays. **`block/delete-dialog` throws at render as well, and
+ * sidebar's own chrome, `block/record-surface`, `block/back-control` and `block/password-input`
+ * throw at render, because they are the ones that are not overlays. **`block/delete-dialog` throws at render as well, and
  * it is an overlay.** Its own script reads the contract to default four of its props, before
  * `bits-ui` has decided anything, and consumers mount it closed rather than behind an `{#if}`,
  * so it runs when the page holding it first draws. The laziness is `Dialog.Content`'s, not the

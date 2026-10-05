@@ -1,13 +1,12 @@
 <script lang="ts">
 	import FormSurface, { insetControl } from '@rentable/design/block/form-surface.svelte';
 	import SettingsRow from '@rentable/design/block/settings-row.svelte';
+	import PasswordInput from '@rentable/design/block/password-input.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
-	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
 	import { tone } from '@rentable/design/tone.js';
 	import { onSubmit } from '$lib/form';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 
 	/**
@@ -123,20 +122,16 @@
 			<Field.Label for="delete-organization-password">
 				{$LL.organization.setup.passwordLabel()}
 			</Field.Label>
-			<InputGroup.Root class={insetControl} data-disabled={isDeleting ? 'true' : undefined}>
-				<InputGroup.Addon>
-					<KeyRoundIcon />
-				</InputGroup.Addon>
-				<InputGroup.Input
-					id="delete-organization-password"
-					name="password"
-					type="password"
-					autocomplete="current-password"
-					bind:value={password}
-					disabled={isDeleting}
-					aria-invalid={errorMessage ? 'true' : undefined}
-				/>
-			</InputGroup.Root>
+			<PasswordInput
+				id="delete-organization-password"
+				name="password"
+				autocomplete="current-password"
+				bind:value={password}
+				disabled={isDeleting}
+				aria-invalid={errorMessage ? 'true' : undefined}
+				class={insetControl}
+				lead
+			/>
 			{#if errorMessage}
 				<Field.Error>{errorMessage}</Field.Error>
 			{/if}

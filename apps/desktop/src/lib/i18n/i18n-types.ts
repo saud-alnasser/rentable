@@ -1865,6 +1865,10 @@ type RootTranslation = {
 			 */
 			search: string;
 			/**
+			 * s​h​o​w​ ​p​a​s​s​w​o​r​d
+			 */
+			showPassword: string;
+			/**
 			 * s​i​d​e​b​a​r
 			 */
 			sidebar: string;
@@ -6875,6 +6879,10 @@ export type TranslationFunctions = {
 			 * search
 			 */
 			search: () => LocalizedString;
+			/**
+			 * show password
+			 */
+			showPassword: () => LocalizedString;
 			/**
 			 * sidebar
 			 */

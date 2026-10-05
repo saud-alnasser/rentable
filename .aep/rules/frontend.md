@@ -595,7 +595,7 @@ packaged component says in its prop's own documentation that it expects a resolv
 that docstring is the only thing a second consumer will read before supplying one.
 
 **A parameterised string is the contract's only where the package owns the number.**
-`DesignStrings` is 37 keys and 35 of them are plain strings; `moreRecords` is a function because
+`DesignStrings` is 38 keys and 36 of them are plain strings; `moreRecords` is a function because
 `block/selection-dialog` counts the refused records it had no room to name, from a plan its
 consumer handed in, so there is no moment at which the consumer could have resolved the phrase.
 `refusal` is the second function: a confirmation turns the refusal its act earned into the

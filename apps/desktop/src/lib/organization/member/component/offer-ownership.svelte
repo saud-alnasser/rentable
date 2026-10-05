@@ -1,14 +1,13 @@
 <script lang="ts">
 	import FormSurface, { insetControl } from '@rentable/design/block/form-surface.svelte';
+	import PasswordInput from '@rentable/design/block/password-input.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
-	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
 	import * as Select from '@rentable/design/primitive/select/index.js';
 	import { cn } from '@rentable/design/tailwind.js';
 	import { onSubmit } from '$lib/form';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import CrownIcon from '@lucide/svelte/icons/crown';
-	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 
 	/**
 	 * Offering the organization to somebody else: the first of the two acts a handover is (effort
@@ -133,20 +132,16 @@
 			<Field.Label for="transfer-ownership-password">
 				{$LL.organization.setup.passwordLabel()}
 			</Field.Label>
-			<InputGroup.Root class={insetControl} data-disabled={isOffering ? 'true' : undefined}>
-				<InputGroup.Addon>
-					<KeyRoundIcon />
-				</InputGroup.Addon>
-				<InputGroup.Input
-					id="transfer-ownership-password"
-					name="password"
-					type="password"
-					autocomplete="current-password"
-					bind:value={password}
-					disabled={isOffering}
-					aria-invalid={errorMessage ? 'true' : undefined}
-				/>
-			</InputGroup.Root>
+			<PasswordInput
+				id="transfer-ownership-password"
+				name="password"
+				autocomplete="current-password"
+				bind:value={password}
+				disabled={isOffering}
+				aria-invalid={errorMessage ? 'true' : undefined}
+				class={insetControl}
+				lead
+			/>
 			{#if errorMessage}
 				<Field.Error>{errorMessage}</Field.Error>
 			{/if}

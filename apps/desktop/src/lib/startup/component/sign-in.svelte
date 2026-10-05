@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { EarlierRecords } from '$lib/workspace';
 	import type { HeldOrganization } from '$lib/organization';
+	import PasswordInput from '@rentable/design/block/password-input.svelte';
 	import WayInSurface from '@rentable/design/block/way-in-surface.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
@@ -268,10 +269,9 @@
 
 				<Field.Field>
 					<Field.Label for="sign-in-password">{$LL.layout.signIn.password()}</Field.Label>
-					<Input
+					<PasswordInput
 						id="sign-in-password"
 						name="password"
-						type="password"
 						autocomplete="current-password"
 						class="h-9"
 						bind:ref={passwordField}

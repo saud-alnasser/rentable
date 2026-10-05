@@ -1,5 +1,6 @@
 <script lang="ts">
 	import FieldError from '@rentable/design/block/field-error.svelte';
+	import PasswordInput from '@rentable/design/block/password-input.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Form from '@rentable/design/primitive/form/index.js';
 	import { Input } from '@rentable/design/primitive/input/index.js';
@@ -78,9 +79,8 @@
 	<Form.Field form={superform} name="password" class="group relative">
 		<Form.Control>
 			<Form.Label>{$LL.organization.setup.passwordLabel()}</Form.Label>
-			<Input
+			<PasswordInput
 				name="password"
-				type="password"
 				bind:value={$existingForm.password}
 				autocomplete="current-password"
 				disabled={isCreating}

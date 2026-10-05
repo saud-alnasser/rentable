@@ -34,6 +34,7 @@ import { pressSearchKey } from '$lib/list/tests/search';
 import { BUILT_IN } from '@rentable/workspace-permission';
 import { listenForSignOut } from '$lib/sync';
 import { layOutLists } from '#tests/permission.ts';
+import { expectTheEye } from '#tests/password-eye.ts';
 
 /**
  * THE SETTINGS AREA, RENDERED
@@ -865,6 +866,11 @@ test('the owner is offered the delete, on a surface that says what goes and take
 	expect(document.querySelector('[data-slot=form-surface]')).not.toBeNull();
 	expect(document.querySelectorAll('input[type=password]')).toHaveLength(1);
 	expect(screen.getByText(en.organization.setup.passwordLabel)).toBeDefined();
+	// effort 851, criterion 19: the password carries the eye.
+	await expectTheEye(
+		document.querySelector<HTMLInputElement>('#delete-organization-password'),
+		strings.showPassword
+	);
 });
 
 // the delete is the owner's whichever block it sits in: it stood in the account block and stands at
@@ -1397,6 +1403,11 @@ test('the account section draws the offer and its acceptance for the member it s
 
 	expect(form).not.toBeNull();
 	expect(form?.querySelector('input[type=password]')).not.toBeNull();
+	// effort 851, criterion 19: the password carries the eye.
+	await expectTheEye(
+		document.querySelector<HTMLInputElement>('#accept-ownership-password'),
+		strings.showPassword
+	);
 	expect(document.querySelector('[data-accept-ownership-authority]')?.textContent?.trim()).toBe(
 		en.organization.dashboard.acceptOwnershipAuthority
 	);

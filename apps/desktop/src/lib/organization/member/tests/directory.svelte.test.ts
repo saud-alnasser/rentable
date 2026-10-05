@@ -37,6 +37,7 @@ import {
 import { BUILT_IN, WRITE_FLAGS, maskOf, type Flag } from '@rentable/workspace-permission';
 
 import { layOutLists } from '#tests/permission.ts';
+import { expectTheEye } from '#tests/password-eye.ts';
 
 import { hostAnswers, resetHostAnswers } from '$lib/organization/tests/host-hooks';
 import HostProviders from '$lib/organization/tests/host-providers.svelte';
@@ -770,6 +771,11 @@ test('the offer opens a heavy form surface naming what changes and taking the pa
 		en.organization.dashboard.transferOwnershipAuthority
 	);
 	expect(form?.querySelector('input[type=password]')).not.toBeNull();
+	// effort 851, criterion 19: the password carries the eye.
+	await expectTheEye(
+		document.querySelector<HTMLInputElement>('#transfer-ownership-password'),
+		strings.showPassword
+	);
 });
 
 // the account the organization goes to is chosen on the surface, and the owner's own row is not
