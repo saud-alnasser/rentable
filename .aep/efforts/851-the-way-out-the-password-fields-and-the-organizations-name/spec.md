@@ -57,7 +57,7 @@ The one-organization rule is built into the shell, not only drawn on the wall:
 
 **A spent link still admits a machine to the wall.** An invitation link and its code, and a
 machine link and its code, are each marked spent once used (`consumed_at`) and lapse within a
-week; the human asked for three days. A spent machine link is refused. A spent invitation link is refused only after
+week; the human asked for a lifetime the maker chooses, from an hour to a week, three days unless changed. A spent machine link is refused. A spent invitation link is refused only after
 `connect::connect` has already recorded the organization on a machine that held nothing
 (`organization/invitation/join.rs`), so that machine is left on the organization's wall. The
 human: the code should be spent at once so it cannot be used again unless the owner or a manager
@@ -163,63 +163,69 @@ holds the same one, the same way, after the update.
     pulled, and the refusal says to ask the owner or a manager for a new link. Today a spent
     invitation link still connects a machine that holds nothing before the spent row is read
     (`organization/invitation/join.rs`), which lands that machine on the organization's wall.
-    **An unused link and its code lapse three days after they are made**, or sooner where the
-    credential sealed inside them dies, for invitation links and machine links alike. Today it is
-    a week (`INVITATION_LIFETIME_MS`).
-11. **Adding an organization again takes a new link.** A person who removed an organization, or
+11. **Whoever makes a link chooses how long it and its code last.** One lifetime covers both,
+    since the code is half of the key that opens the link and the pair lapses together. The
+    choice runs from one hour to one week: every hour from 1 to 23 hours, then every day from 1 to
+    6 days, then 1 week, and nothing else. It starts at 3 days. It is offered wherever a link is
+    made, for invitation links and machine links alike, and the link lapses at the chosen moment
+    or sooner where the credential sealed inside it dies. The handover says when the pair lapses,
+    with the time of day as well as the date. Today every link lasts a week
+    (`INVITATION_LIFETIME_MS`) and the handover prints a date alone
+    (`organization/member/component/link-handover.svelte`).
+12. **Adding an organization again takes a new link.** A person who removed an organization, or
     whose link was spent, comes back only by a link and code the owner or a manager makes for
     them, or, for the owner, by connecting the existing organization from set up. Nothing left on
     the machine admits it again.
-12. **A link for an organization not held adds it; one for an organization held opens that
+13. **A link for an organization not held adds it; one for an organization held opens that
     organization's wall** and admits nothing new.
-13. **Each organization keeps its own Turso consent.** An owner who owns two organizations on two
+14. **Each organization keeps its own Turso consent.** An owner who owns two organizations on two
     Turso accounts holds both consents on one machine, and owner-only acts in one use that
     organization's consent and no other.
-14. **The wall's foot control carries the language and the appearance, and nothing else.**
+15. **The wall's foot control carries the language and the appearance, and nothing else.**
     "Disconnect" and "use a link" leave it, for the switcher's remove and "add organization".
-15. **Every machine that holds an organization today holds the same organization after the
+16. **Every machine that holds an organization today holds the same organization after the
     update, the same way.** Signed in stays signed in, a remembered sign-in still opens with no
     password, its replicas are kept and not pulled again, and an owner's Turso consent still
     works. Nobody is asked to set up, connect, or sign in again because of this change.
 
 ## Passwords
 
-16. **The owner's first password is asked for twice.** The walk's name step draws a confirmation
+17. **The owner's first password is asked for twice.** The walk's name step draws a confirmation
     field directly under the password, labelled as the join and change-password confirmations are.
     The organization is not created while the two differ, and the refusal is a sentence under the
     confirmation field, in the form's own error treatment.
-17. **Every surface that chooses a new password keeps asking twice.** Joining by a link and
+18. **Every surface that chooses a new password keeps asking twice.** Joining by a link and
     changing the password keep their confirmation fields and refusals unchanged.
-18. **Every password field carries an eye at its trailing end.** At rest it is a closed eye and the
+19. **Every password field carries an eye at its trailing end.** At rest it is a closed eye and the
     field draws dots. While a person presses and holds it, the field shows the characters and the
     eye is drawn open. On release the field draws dots again and the eye closes. It never stays
     open: it closes when the pointer is released anywhere, when the press is cancelled, and when
     the window loses focus.
-19. **The eye works without a mouse.** It is a button named for what it does ("show password" in
+20. **The eye works without a mouse.** It is a button named for what it does ("show password" in
     English, its counterpart in Arabic), reachable with Tab, and holding Space on it shows the
     password until Space is released. Enter in a password field still submits its form.
-20. **Holding the eye does not disturb the field.** The cursor stays where it was, what was typed is
+21. **Holding the eye does not disturb the field.** The cursor stays where it was, what was typed is
     unchanged, and typing after release continues in the field. While the field is disabled the eye
     is disabled with it.
 
 ## The organization's name
 
-21. **The owner sees a rename in the organization tab**, beside the organization's name, and nobody
+22. **The owner sees a rename in the organization tab**, beside the organization's name, and nobody
     else sees it: not a manager, not a member holding any combination of flags.
-22. **The rename takes the same name rules as setting up.** The name is trimmed, may not be empty,
+23. **The rename takes the same name rules as setting up.** The name is trimmed, may not be empty,
     and may not exceed `ORGANIZATION_NAME_LIMIT`, refused with the sentences the walk's name step
     uses.
-23. **Only the owner's rename is accepted.** A rename sent by anybody else is refused in the shell
+24. **Only the owner's rename is accepted.** A rename sent by anybody else is refused in the shell
     with no change, whatever the interface drew.
-24. **The owner's machine shows the new name at once**, in the organization tab, the shell, the
+25. **The owner's machine shows the new name at once**, in the organization tab, the shell, the
     switcher and its own record.
-25. **Every other member's machine shows the new name once it has synced while signed in**, in the
+26. **Every other member's machine shows the new name once it has synced while signed in**, in the
     shell, the switcher and its record. A machine that has not opened the organization since keeps
     naming the last name it saw.
-26. **Links already handed out keep working.** Joining by one still succeeds; the link's text may
+27. **Links already handed out keep working.** Joining by one still succeeds; the link's text may
     name the old name, and the machine that joins shows the current name once it is in.
-27. **Links made after the rename carry the new name.**
-28. **A name the owner did not write is not shown.** The organization's name is put under the
+28. **Links made after the rename carry the new name.**
+29. **A name the owner did not write is not shown.** The organization's name is put under the
     owner's signature, as the mark is, and a machine reading a name whose signature does not check
     keeps showing the last name that did.
 
@@ -253,61 +259,65 @@ holds the same one, the same way, after the update.
    organization signed out from elsewhere while not open shows as signed out when next opened.
 10. Rust tests, for an invitation link and for a machine link: used once, then opened again on the
     same machine and on a machine holding nothing, each second opening is refused with the
-    "already used" reason, the record is unchanged, and no replica file is written. A link made
-    now carries an expiry of exactly three days out (or the credential's death, if sooner), and
-    one opened past it is refused as lapsed.
-11. A Rust test removes an organization and opens the link that first added it: refused as in 10. A
+    "already used" reason, the record is unchanged, and no replica file is written.
+11. Component tests of the link act: the lifetime choice offers exactly 1 to 23 hours, 1 to 6
+    days and 1 week, in that order, starting at 3 days, and the handover prints the lapse with date
+    and time. Rust tests: a link made with each of 1 hour, 3 days and 1 week carries an expiry of
+    exactly that long after it was made, or the credential's death where sooner; a lifetime under
+    an hour, over a week, or off the steps is refused by the shell; a link opened past its expiry
+    is refused as lapsed.
+12. A Rust test removes an organization and opens the link that first added it: refused as in 10. A
     new link for the same account admits it.
-12. Rust tests: a link for an organization not held adds it; a link for a held organization selects
+13. Rust tests: a link for an organization not held adds it; a link for a held organization selects
     it and adds nothing.
-13. A Rust test holds two organizations owned on two Turso accounts: each owner-only act reaches the
+14. A Rust test holds two organizations owned on two Turso accounts: each owner-only act reaches the
     Platform API with its own organization's consent, and forgetting one consent leaves the other.
-14. Opening the wall's foot control shows the language and the appearance and no other act. Covered
+15. Opening the wall's foot control shows the language and the appearance and no other act. Covered
     by a component test.
-15. A test starts from a `remote-sync.json`, keyring and data directory written by the current
+16. A test starts from a `remote-sync.json`, keyring and data directory written by the current
     release (one organization, signed in with a remembered key, two workspace replicas, an owner's
     Turso consent) and asserts that after the update the same organization is held, the session
     resumes with no password, no replica is deleted or pulled again, and an owner-only act reaches
     Turso.
-16. In the walk's name step, a password and a different confirmation do not create the
+17. In the walk's name step, a password and a different confirmation do not create the
     organization, and a sentence under the confirmation says they differ; matching values create it
     as today. Covered by a component test.
-17. The existing tests of the join and change-password confirmations pass unchanged.
-18. For every field in the scope table, a test shows `type="password"` at rest, `type="text"` while
+18. The existing tests of the join and change-password confirmations pass unchanged.
+19. For every field in the scope table, a test shows `type="password"` at rest, `type="text"` while
     the eye is held, and `type="password"` after pointer release, after `pointercancel`, and after
     the window's `blur`. The eye's icon is the closed eye at rest and the open eye while held. In
     Arabic the eye sits at the field's left end, its trailing end there.
-19. Keyboard: Tab reaches the eye; Space held shows the password and Space released hides it; Enter
+20. Keyboard: Tab reaches the eye; Space held shows the password and Space released hides it; Enter
     in the field submits the form. The eye's accessible name is "show password" in English and the
     Arabic string in Arabic. Covered by component tests.
-20. Holding and releasing the eye leaves the field's value and cursor position unchanged, and focus
+21. Holding and releasing the eye leaves the field's value and cursor position unchanged, and focus
     returns to the field after a pointer hold. With the field disabled the eye is disabled. Covered
     by component tests.
-21. A component test of the organization tab draws the rename for an owner session and draws no
+22. A component test of the organization tab draws the rename for an owner session and draws no
     rename for a manager session and for a member session holding every flag.
-22. A rename to blank, to whitespace, and to one character past the limit is refused with the walk's
+23. A rename to blank, to whitespace, and to one character past the limit is refused with the walk's
     sentences; a valid name is trimmed before it is written. Covered by tests on the form and in
     the shell.
-23. A Rust test calls the rename as a non-owner session and asserts a refusal and an unchanged
+24. A Rust test calls the rename as a non-owner session and asserts a refusal and an unchanged
     `name_sealed`.
-24. After a rename on the owner's machine, the organization tab, the shell, the switcher and the
+25. After a rename on the owner's machine, the organization tab, the shell, the switcher and the
     record read the new name without a restart. Covered by a test on the record and a component
     test on the tab.
-25. A Rust test with two replicas: after the owner renames and the member's replica syncs while
+26. A Rust test with two replicas: after the owner renames and the member's replica syncs while
     signed in, the member's record names the new name. A replica that has not synced still names
     the old one.
-26. A Rust test joins by a link minted before the rename; the join succeeds and the joined machine's
+27. A Rust test joins by a link minted before the rename; the join succeeds and the joined machine's
     record names the new name.
-27. A link minted after the rename carries the new name. Covered by a Rust test.
-28. A Rust test writes a new `name_sealed` straight into a replica without the owner's signature and
+28. A link minted after the rename carries the new name. Covered by a Rust test.
+29. A Rust test writes a new `name_sealed` straight into a replica without the owner's signature and
     asserts that a member's machine keeps naming the previous signed name; an organization set up
     before this change still opens and names its name.
 
 # Constraints
 
-- **The application has users** ([[contexts/repository]], *Constraints*). Requirement 15 is the
+- **The application has users** ([[contexts/repository]], *Constraints*). Requirement 16 is the
   bar for the record, the keyring, the replicas and the Turso consent, and the organization row's
-  signature (requirement 28) is added to organizations that already exist without locking any
+  signature (requirement 29) is added to organizations that already exist without locking any
   member out. Nothing is reset to land this.
 - **Data at rest changes under [[rules/migrations]] and [[contexts/desktop/persistence]]**: the
   machine's record shape, the keyring account of the Turso consent, the replica entries, and the
@@ -348,7 +358,7 @@ holds the same one, the same way, after the update.
 
 - "The logo" in the human's picture is a tile that tells organizations apart. The organization's
   mark cannot be opened at the wall, so the tile is the name's first letter on a tinted square.
-- "User settings password" refers to change password, which already asks twice; requirement 17
+- "User settings password" refers to change password, which already asks twice; requirement 18
   keeps it so.
 - The eye goes on every password field, including the ones that check a current password.
 - A keyboard user is served by holding Space on the eye, matching the press-and-hold the human
@@ -363,20 +373,20 @@ holds the same one, the same way, after the update.
   per-token revocation; rotating invalidates every token for the database
   ([[references/turso]], under revocation). So "the link is expired too" holds inside the
   application (requirement 10) and not on Turso: whoever holds both the link and its code could
-  read the credential out by hand until the link's own lapse, at most three days. The plan may
+  read the credential out by hand until the link's own lapse, at most the week the longest choice allows. The plan may
   shorten that window; it cannot close it without a rotation that signs out every machine.
 - **Remove deleting another organization's data.** Today's forget sweeps every replica file and the
   one consent token. Criterion 5 checks the other organization byte for byte for this reason.
 - **The update stranding an existing install.** Moving the record from one organization to many,
-  and the consent token to a per-organization key, touches every machine in the field. Criterion 15
+  and the consent token to a per-organization key, touches every machine in the field. Criterion 16
   starts from a real current-release machine.
 - **A workspace replica file named by workspace id alone** could collide between organizations only
   if two organizations shared a workspace id; ids are generated, so this is held as unlikely, and
   the plan says whether replica entries carry the organization.
-- **Organizations set up before the name was signed** have an unsigned name; criterion 28 checks
+- **Organizations set up before the name was signed** have an unsigned name; criterion 29 checks
   that they still open.
 - **The eye adds a tab stop** between the password and the submit button; Enter still submits.
 - **The window losing focus while the eye is held** could leave a field shown if `blur` is not
-  handled; criterion 18 tests it.
+  handled; criterion 19 tests it.
 - **Two machines naming an organization differently** until the stale one opens it and syncs;
-  requirement 25 accepts this.
+  requirement 26 accepts this.
