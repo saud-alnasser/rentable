@@ -2863,7 +2863,7 @@ mod tests {
     #[ignore = "reaches a live Turso account and creates a database; see the doc comment"]
     async fn workspace_live_a_read_only_credential_is_refused_by_turso_and_a_full_one_is_not() {
         use crate::turso::{
-            consent::store_platform_token,
+            consent::{Account, store_platform_token},
             discovery::TursoOrganization,
             platform::{PlatformApi, PlatformEndpoint, TursoPlatform},
         };
@@ -2893,6 +2893,7 @@ mod tests {
                 slug: read("TURSO_ORG"),
                 group: read("TURSO_GROUP"),
             },
+            Account::Pending,
             credentials.clone(),
         );
         let nonce = std::time::SystemTime::now()

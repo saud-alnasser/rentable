@@ -17,7 +17,7 @@ use super::{
     belongs_to_the_account, no_authority, turso_refused, unreachable,
 };
 use crate::turso::{
-    consent::platform_token,
+    consent::{Account, platform_token},
     discovery::{TursoOrganization, group_named_in, group_record_from},
 };
 
@@ -41,7 +41,7 @@ impl PlatformEndpoint {
     }
 
     #[cfg(test)]
-    fn at(base: &str) -> Self {
+    pub(crate) fn at(base: &str) -> Self {
         Self {
             base: base.to_string(),
         }
@@ -56,10 +56,16 @@ impl PlatformEndpoint {
 /// keep spending an authority the owner had given up. Reading it each time is what makes
 /// requirement 5's disconnect take effect at the next request rather than at the next launch.
 /// What it holds is the store the consent filed the token in, which is where each call reads it.
+///
+/// **And which entry of it** (effort 851, requirement 14): the organization's own consent for an
+/// act on an organization this machine holds, so two organizations on two Turso accounts each
+/// reach theirs with their own token and slug, and the pending slot for a setup or a connect that
+/// runs before the consent belongs to any organization.
 #[derive(Clone)]
 pub struct PlatformApi {
     endpoint: PlatformEndpoint,
     organization: TursoOrganization,
+    account: Account,
     credentials: Credentials,
 }
 
@@ -70,6 +76,7 @@ impl std::fmt::Debug for PlatformApi {
             .debug_struct("PlatformApi")
             .field("endpoint", &self.endpoint)
             .field("organization", &self.organization)
+            .field("account", &self.account)
             .finish_non_exhaustive()
     }
 }
@@ -78,11 +85,13 @@ impl PlatformApi {
     pub(crate) fn new(
         endpoint: PlatformEndpoint,
         organization: TursoOrganization,
+        account: Account,
         credentials: Credentials,
     ) -> Self {
         Self {
             endpoint,
             organization,
+            account,
             credentials,
         }
     }
@@ -148,7 +157,7 @@ impl TursoPlatform for PlatformApi {
     async fn create_database(&self, name: &str) -> Result<WorkspaceDatabase, Error> {
         let what = "create the workspace database";
         let client = client()?;
-        let platform_token = authority(self.credentials.as_ref())?;
+        let platform_token = authority(self.credentials.as_ref(), &self.account)?;
 
         let body = call(
             what,
@@ -209,7 +218,7 @@ impl TursoPlatform for PlatformApi {
     async fn copy_database(&self, source: &str, name: &str) -> Result<(), Error> {
         let what = "copy the database";
         let client = client()?;
-        let platform_token = authority(self.credentials.as_ref())?;
+        let platform_token = authority(self.credentials.as_ref(), &self.account)?;
 
         call(
             what,
@@ -251,7 +260,7 @@ impl TursoPlatform for PlatformApi {
     ) -> Result<String, Error> {
         let what = "mint a token for this workspace";
         let client = client()?;
-        let platform_token = authority(self.credentials.as_ref())?;
+        let platform_token = authority(self.credentials.as_ref(), &self.account)?;
 
         // reqwest is built without its `query` feature here, so the two parameters are put on
         // the URL by the url crate, which encodes them the same way.
@@ -337,7 +346,7 @@ impl TursoPlatform for PlatformApi {
 
     async fn protect_database(&self, name: &str) -> Result<(), Error> {
         let client = client()?;
-        let platform_token = authority(self.credentials.as_ref())?;
+        let platform_token = authority(self.credentials.as_ref(), &self.account)?;
 
         self.set_delete_protection(
             &client,
@@ -352,7 +361,7 @@ impl TursoPlatform for PlatformApi {
     async fn rotate_credentials(&self, database_name: &str) -> Result<(), Error> {
         let what = "lock the removed member out of this workspace";
         let client = client()?;
-        let platform_token = authority(self.credentials.as_ref())?;
+        let platform_token = authority(self.credentials.as_ref(), &self.account)?;
 
         call(
             what,
@@ -367,7 +376,7 @@ impl TursoPlatform for PlatformApi {
     async fn delete_database(&self, name: &str, intent: DeletionIntent) -> Result<(), Error> {
         let what = "remove the workspace database";
         let client = client()?;
-        let platform_token = authority(self.credentials.as_ref())?;
+        let platform_token = authority(self.credentials.as_ref(), &self.account)?;
 
         diagnostics::info("turso.platform.deletingDatabase")
             .with("database", name)
@@ -400,9 +409,9 @@ fn client() -> Result<reqwest::Client, Error> {
     })
 }
 
-/// The authority this machine holds, read from where the consent filed it.
-fn authority(credentials: &dyn CredentialStore) -> Result<String, Error> {
-    platform_token(credentials).map_err(|_| no_authority())
+/// The authority this machine holds under `account`, read from where the consent filed it.
+fn authority(credentials: &dyn CredentialStore, account: &Account) -> Result<String, Error> {
+    platform_token(credentials, account).map_err(|_| no_authority())
 }
 
 /// Send one request and read its JSON body, or say how it failed in the port's vocabulary.
@@ -479,7 +488,7 @@ mod tests {
     use crate::credential::Memory;
     use crate::error::Error;
     use crate::sync::test::server::{RecordedRequest, ScriptedResponse, ScriptedServer};
-    use crate::turso::consent::store_platform_token;
+    use crate::turso::consent::{Account, store_platform_token};
     use crate::turso::discovery::TursoOrganization;
     use crate::turso::platform::{
         AccessLevel, DeletionIntent, PlatformApi, PlatformEndpoint, TursoPlatform,
@@ -509,6 +518,7 @@ mod tests {
         let platform = PlatformApi::new(
             PlatformEndpoint::at(&server.url("")),
             organization(),
+            Account::Pending,
             credentials.clone(),
         );
 
@@ -523,6 +533,7 @@ mod tests {
         let platform = PlatformApi::new(
             PlatformEndpoint::at(&server.url("")),
             organization(),
+            Account::Pending,
             Arc::new(Memory::new()),
         );
 
@@ -1160,6 +1171,7 @@ mod tests {
         let platform = PlatformApi::new(
             PlatformEndpoint::production(),
             organization.clone(),
+            Account::Pending,
             credentials,
         );
         let nonce = std::time::SystemTime::now()

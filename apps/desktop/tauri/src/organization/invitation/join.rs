@@ -2054,7 +2054,7 @@ mod tests {
                 workspace::create_workspace,
             },
             turso::{
-                consent::store_platform_token,
+                consent::{Account, store_platform_token},
                 discovery::{McpEndpoint, TursoOrganization},
                 platform::{
                     AccessLevel, DeletionIntent, PlatformApi, PlatformEndpoint, TursoPlatform,
@@ -2086,11 +2086,6 @@ mod tests {
             slug: read("TURSO_ORG"),
             group: read("TURSO_GROUP"),
         };
-        let platform = PlatformApi::new(
-            PlatformEndpoint::production(),
-            organization.clone(),
-            credentials.clone(),
-        );
         let now = || {
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -2112,6 +2107,7 @@ mod tests {
                 PlatformApi::new(
                     PlatformEndpoint::production(),
                     organization,
+                    Account::Pending,
                     credentials.clone(),
                 )
             },
@@ -2132,6 +2128,14 @@ mod tests {
         .await
         .expect("the live first run failed");
         let organization_database = format!("org-{}", created.organization_id);
+        // the first run moved the consent to the organization it made (effort 851, requirement
+        // 14), so everything after it spends that organization's own.
+        let platform = PlatformApi::new(
+            PlatformEndpoint::production(),
+            organization.clone(),
+            Account::of(&created.organization_id),
+            credentials.clone(),
+        );
 
         eprintln!("created {organization_database}");
         assert!(

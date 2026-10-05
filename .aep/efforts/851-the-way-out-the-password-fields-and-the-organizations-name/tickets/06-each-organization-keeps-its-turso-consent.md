@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [04, 05]
 ---
 
@@ -15,11 +15,11 @@ The Turso consent token lives under `org:<organization id>` in the keyring, `own
 
 Traces requirements 14 and 16, and criteria 14 and 16 (the keyring half).
 
-- [ ] `store_platform_token` writes `owner`; `setup::finish`, `setup::connect` and `setup_reconnect_authority` move it to `org:<id>` (read, set, read back, delete) once the id is known; `platform_token`, `setup::authority`, `owner_platform` and `PlatformApi` take the organization id; `consented_organization` caches nothing across organizations; `abandon_the_consent` and `forget` delete only their own account.
-- [ ] The once-per-launch cell in `state_of` moves an `owner` token to the one held organization that has a `turso_organization` and no `org:<id>` entry, after the old-shape check and before `resume_remembered`; a test pins that order.
-- [ ] Criterion 16's test, extended: from the frozen fixture plus an `owner` token in the keyring, after load and the launch cell the token is under `org:<id>`, `owner` is empty, and an owner-only act reaches the in-memory platform.
-- [ ] Criterion 14's test: two organizations on two Turso organizations; each owner-only act reaches the platform with its own token and slug; forgetting one leaves the other's token.
-- [ ] `nothing_but_this_module_names_the_platform_token_service` is widened to the new account names and passes.
+- [x] `store_platform_token` writes `owner`; `setup::finish`, `setup::connect` and `setup_reconnect_authority` move it to `org:<id>` (read, set, read back, delete) once the id is known; `platform_token`, `setup::authority`, `owner_platform` and `PlatformApi` take the organization id; `consented_organization` caches nothing across organizations; `abandon_the_consent` and `forget` delete only their own account.
+- [x] The once-per-launch cell in `state_of` moves an `owner` token to the one held organization that has a `turso_organization` and no `org:<id>` entry, after the old-shape check and before `resume_remembered`; a test pins that order.
+- [x] Criterion 16's test, extended: from the frozen fixture plus an `owner` token in the keyring, after load and the launch cell the token is under `org:<id>`, `owner` is empty, and an owner-only act reaches the in-memory platform.
+- [x] Criterion 14's test: two organizations on two Turso organizations; each owner-only act reaches the platform with its own token and slug; forgetting one leaves the other's token.
+- [x] `nothing_but_this_module_names_the_platform_token_service` is widened to the new account names and passes.
 
 ## Relevant areas
 

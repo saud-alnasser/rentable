@@ -17,6 +17,7 @@ use crate::{
 };
 
 use super::{
+    consent,
     format::runner::{self, ItsRemote, OnTheAccount},
     shape,
 };
@@ -130,6 +131,18 @@ impl Upgrade for Upgrader {
             shape::forget_old_shape(state, credentials, clock)
                 .await
                 .map(|_| ())
+        })
+    }
+
+    fn move_the_consent<'a>(
+        &'a self,
+        state: &'a Shared,
+        credentials: &'a dyn CredentialStore,
+    ) -> Upgrading<'a> {
+        Box::pin(async move {
+            consent::move_the_consent(state, credentials).await;
+
+            Ok(())
         })
     }
 }

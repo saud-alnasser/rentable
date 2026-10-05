@@ -21,7 +21,10 @@ use crate::{
     },
 };
 
-use super::{ORGANIZATION_CREDENTIAL_LIFETIME, Remote, held_organization_id, owner_key_from};
+use super::{
+    ORGANIZATION_CREDENTIAL_LIFETIME, Remote, held_organization_id, owner_key_from,
+    settle_the_consent,
+};
 use crate::organization::{
     HeldOrganization,
     authority::VERIFYING_KEY_BYTES,
@@ -145,7 +148,7 @@ where
 
     // which account the consent is over, recorded now: it is what every Platform API path this
     // machine builds afterwards is made of, and it stays true whether or not this run connects.
-    store.remember_consent_organization(organization.clone());
+    store.remember_consent_organization(None, organization.clone());
     store.commit()?;
 
     let platform = platform_for(organization);
@@ -298,6 +301,10 @@ where
         }
     };
 
+    // the consent this connected on becomes the organization's own, now that the record holds it
+    // (effort 851, requirement 14).
+    settle_the_consent(credentials, &held.id);
+
     diagnostics::info("organization.connectedToExisting")
         .with("organization", held.id.as_str())
         .write();
@@ -415,7 +422,7 @@ mod tests {
     use crate::settings::Settings;
     use crate::sync::test::server::{ScriptedResponse, ScriptedServer};
     use crate::test::scratch;
-    use crate::turso::consent::{TursoConsent, platform_token, store_platform_token};
+    use crate::turso::consent::{Account, TursoConsent, platform_token, store_platform_token};
     use crate::turso::discovery::McpEndpoint;
     use crate::turso::platform::{AccessLevel, InMemoryPlatform};
     use crate::update::Update;
@@ -1089,9 +1096,14 @@ mod tests {
             "connecting a second machine ended the session on the first"
         );
 
-        // the consent is kept, as it is on every connect that goes through.
-        assert!(platform_token(&credentials).is_ok());
-        assert!(machine.consent_organization().is_some());
+        // the consent is kept, as it is on every connect that goes through, and it is the
+        // organization's own now: moved out of the pending slot (effort 851, requirement 14).
+        assert!(platform_token(&credentials, &Account::of(&second.id)).is_ok());
+        assert!(
+            platform_token(&credentials, &Account::Pending).is_err(),
+            "the consent the connect went through is still pending"
+        );
+        assert!(machine.consent_organization(Some(&second.id)).is_some());
     }
 
     /// **The fourth case.** A wrong password and a username nobody holds are one refusal, and it
@@ -1114,13 +1126,16 @@ mod tests {
             ("wrong-password", "olivia.owner", "not the owners password"),
             ("wrong-username", "nobody.here", PASSWORD),
         ] {
-            store_platform_token(&credentials, TOKEN)
-                .expect("the test credential store would not take the token");
-
             let directory = scratch(&format!("connect-existing-{machine_name}"));
             let (platform, replica, _) = an_organization(&credentials, &directory).await;
 
             drop(replica);
+
+            // the consent this machine connects on, filed after the owner's own machine made the
+            // organization: one store stands for both machines here, and the first run moves the
+            // consent it spent to the organization it made (effort 851, requirement 14).
+            store_platform_token(&credentials, TOKEN)
+                .expect("the test credential store would not take the token");
 
             let mcp = ScriptedServer::start(holding_the_organization()).await;
             let mut machine = fresh_machine(&directory, machine_name);
@@ -1155,9 +1170,12 @@ mod tests {
             // and the consent is untouched by either, so the person retypes where they are: this
             // is the refusal the walk has to tell from the one that gives the consent back, and
             // the authority is exactly where it was.
-            assert!(platform_token(&credentials).is_ok(), "{machine_name}");
             assert!(
-                machine.consent_organization().is_some(),
+                platform_token(&credentials, &Account::Pending).is_ok(),
+                "{machine_name}"
+            );
+            assert!(
+                machine.consent_organization(None).is_some(),
                 "{machine_name} let the account the consent was over go"
             );
         }

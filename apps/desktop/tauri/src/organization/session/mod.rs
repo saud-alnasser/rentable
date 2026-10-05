@@ -886,6 +886,15 @@ pub(crate) trait Upgrade: Send + Sync {
         credentials: &'a dyn CredentialStore,
         clock: &'a clock::Shared,
     ) -> Upgrading<'a>;
+
+    /// Move the Turso consent an earlier build filed under its one keyring entry to the
+    /// organization it was granted for (effort 851, requirement 14): the second thing the launch's
+    /// first state read does, after the old shape and before the resume (`upgrade/consent.rs`).
+    fn move_the_consent<'a>(
+        &'a self,
+        state: &'a Shared,
+        credentials: &'a dyn CredentialStore,
+    ) -> Upgrading<'a>;
 }
 
 /// The upgrade port as the `upgrade` plugin manages it and the organization's state holds it.

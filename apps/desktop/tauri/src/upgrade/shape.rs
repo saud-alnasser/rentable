@@ -63,6 +63,7 @@ use crate::{
     error::Error,
     organization::Shared,
     organization::{session::forget::forget, store::OrganizationStore},
+    turso::consent::{Account, forget_platform_token},
 };
 
 /// Why the startup check forgot what the machine held: the sign it read.
@@ -170,6 +171,12 @@ pub(crate) async fn forget_old_shape(
         .write();
 
     forget(app_state, credentials).await?;
+
+    // and the consent an earlier build filed for it, which this check runs before the launch moves
+    // to its organization (`upgrade/consent.rs`): on this path the pending slot still holds the
+    // consent of what was just forgotten, and nothing is left for it to move to (effort 851,
+    // requirement 14).
+    forget_platform_token(credentials, &Account::Pending)?;
 
     Ok(Some(shape))
 }

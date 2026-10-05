@@ -6,7 +6,7 @@ use std::sync::Arc;
 use crate::{clock, credential::Credentials, error::Error, organization::Shared};
 
 use crate::organization::{
-    act::{Acting, Pull, as_member, owner_platform},
+    act::{Acting, Pull, as_member, signed_in_owner_platform},
     invitation::{
         self, MadeLink, MemberFacts, UnreachableWorkspace, WorkspaceGrant, join,
         link::{self, JoinLink, LinkShape},
@@ -39,7 +39,7 @@ pub(crate) async fn organization_invitation_member_create(
     override_mask: i64,
     workspaces: Vec<WorkspaceGrant>,
 ) -> Result<MemberFacts, Error> {
-    let platform = owner_platform(&app_state, &credentials).await;
+    let platform = signed_in_owner_platform(&app_state, &credentials).await;
     as_member(&app_state, Pull::No, async |Acting { member, store }| {
         invitation::create_account(
             store,
@@ -82,7 +82,7 @@ pub(crate) async fn organization_invitation_link_make(
     // where this machine holds the organization's consent the link carries a credential minted to
     // die with it, so the platform decides what is sealed as well as what is granted (effort 851,
     // requirement 11).
-    let platform = owner_platform(&app_state, &credentials).await;
+    let platform = signed_in_owner_platform(&app_state, &credentials).await;
     // an invitation-kind link writes the account's row back whole, and that row carries the
     // session epoch, so it is read after a pull rather than off this machine's last sight of it
     // (effort 826, requirement 22). *The register this act was gated on was read from the same
@@ -118,7 +118,7 @@ pub(crate) async fn organization_invitation_password_unset(
     clock: tauri::State<'_, clock::Shared>,
     member_id: String,
 ) -> Result<Vec<UnreachableWorkspace>, Error> {
-    let platform = owner_platform(&app_state, &credentials).await;
+    let platform = signed_in_owner_platform(&app_state, &credentials).await;
     // the row this act writes back whole carries the session epoch, so it is read after a pull
     // rather than off this machine's last sight of it (effort 826, requirement 22).
     as_member(&app_state, Pull::First, async |Acting { member, store }| {

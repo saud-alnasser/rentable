@@ -1,7 +1,7 @@
 //! everything that brings an install of 0.12 to 0.15 forward, in one place, so a release that no
 //! longer carries those installs removes it in one step (effort 840, requirement 15).
 //!
-//! Three paths, each run once on the machine that needs it and never again:
+//! Four paths, each run once on the machine that needs it and never again:
 //!
 //! - [`record`]: the records 0.12.0 and 0.13.0 kept in `app.db`, read as the whole-workspace
 //!   export so the interface brings them in through the import it already has.
@@ -10,6 +10,8 @@
 //!   row.
 //! - [`shape`]: what a machine holds in a shape this build replaced, found at startup and
 //!   forgotten.
+//! - [`consent`]: the Turso consent an earlier build filed under its one keyring entry, moved at
+//!   startup to the organization it was granted for (effort 851, requirement 14).
 //!
 //! **Nothing names this module but the composition root**, which registers it as the `upgrade`
 //! plugin (`plugin.rs`): the two commands `record` answers, and [`Upgrader`], managed as the
@@ -22,6 +24,7 @@
 //! signature check and every stored spelling here is what those installs left on disk, and moving
 //! this code changed none of them.
 
+pub mod consent;
 pub mod format;
 mod plugin;
 pub mod record;

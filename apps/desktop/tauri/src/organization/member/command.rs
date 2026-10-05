@@ -9,7 +9,7 @@ use crate::{
 };
 
 use crate::organization::{
-    act::{Acting, Pull, as_member, owner_platform},
+    act::{Acting, Pull, as_member, signed_in_owner_platform},
     invitation::{self, MemberFacts, MemberStanding},
     member::{
         password,
@@ -36,7 +36,7 @@ pub(crate) async fn organization_member_organization_delete(
     clock: tauri::State<'_, clock::Shared>,
     password: String,
 ) -> Result<OrganizationState, Error> {
-    let platform = owner_platform(&app_state, &credentials)
+    let platform = signed_in_owner_platform(&app_state, &credentials)
         .await
         .ok_or_else(|| {
             Error::refused(
@@ -135,7 +135,7 @@ pub(crate) async fn organization_member_remove(
     member_id: String,
     lock_out: Option<bool>,
 ) -> Result<Removed, Error> {
-    let platform = owner_platform(&app_state, &credentials).await;
+    let platform = signed_in_owner_platform(&app_state, &credentials).await;
     // the row this act writes back whole carries the session epoch, so it is read after a pull
     // rather than off this machine's last sight of it (effort 826, requirement 22).
     as_member(&app_state, Pull::First, async |Acting { member, store }| {

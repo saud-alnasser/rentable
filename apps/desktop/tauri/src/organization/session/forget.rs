@@ -25,16 +25,26 @@
 use std::path::{Path, PathBuf};
 
 use crate::{
-    credential::CredentialStore, diagnostics, error::Error, organization::Shared,
-    turso::platform::database_is_gone,
+    credential::CredentialStore,
+    diagnostics,
+    error::Error,
+    organization::Shared,
+    turso::{
+        consent::{Account, forget_platform_token},
+        platform::database_is_gone,
+    },
 };
 
 /// Forget the organization this machine holds, whole.
 ///
 /// Signs out where somebody is in, releases the workspace engine, deletes every `org-*.db*` and
 /// `ws-*.db*` under the data directory, empties the record (`RemoteSync::forget_organization`),
-/// clears the Turso authority from the keyring (`TursoConsent::disconnect`), and commits. A file
-/// that could not be removed is reported after all of that has run, by name.
+/// clears the Turso authority of every organization it forgets from the keyring, and commits. A
+/// file that could not be removed is reported after all of that has run, by name.
+///
+/// **Each organization's own consent and nothing else** (effort 851, requirement 14): the
+/// `org:<id>` entry of each organization the record held, and never the pending slot, which is a
+/// consent no organization has claimed yet and is the setup walk's to give back.
 pub(crate) async fn forget(
     app_state: &Shared,
     credentials: &dyn CredentialStore,
@@ -57,13 +67,23 @@ pub(crate) async fn forget(
     let directory = data_directory(app_state).await;
     let swept = sweep_replicas(&directory);
 
-    {
+    let forgotten: Vec<String> = {
         let mut remote_sync = app_state.remote_sync.write().await;
+        let held = remote_sync
+            .store_mut()
+            .held_organizations
+            .iter()
+            .map(|held| held.id.clone())
+            .collect();
 
         remote_sync.forget_organization().await?;
-    }
 
-    app_state.consent.disconnect(credentials)?;
+        held
+    };
+
+    for organization_id in &forgotten {
+        forget_platform_token(credentials, &Account::of(organization_id))?;
+    }
 
     diagnostics::info("organization.forgotten")
         .with("removed", swept.removed.len().to_string())
@@ -229,7 +249,9 @@ mod tests {
         settings::Settings,
         sync::test::server::{ScriptedResponse, ScriptedServer},
         turso::{
-            consent::{TursoConsent, platform_token, store_platform_token},
+            consent::{
+                Account, TursoConsent, move_pending_consent, platform_token, store_platform_token,
+            },
             discovery::McpEndpoint,
             platform::InMemoryPlatform,
         },
@@ -394,7 +416,11 @@ mod tests {
 
         a_workspace_replica(&directory, "north").await;
         a_workspace_replica(&directory, "south").await;
+        // the organization's own consent, moved where a first run moves it, and a pending one no
+        // organization has claimed (effort 851, requirement 14).
         store_platform_token(&credentials, "a-platform-token").expect("the authority");
+        move_pending_consent(&credentials, &held.id).expect("the move");
+        store_platform_token(&credentials, "a-pending-consent").expect("the pending consent");
 
         let app_state = state_over(&directory).await;
 
@@ -453,7 +479,7 @@ mod tests {
             "the two workspace replicas are not there: {before:?}"
         );
         assert!(
-            platform_token(&credentials).is_ok(),
+            platform_token(&credentials, &Account::of(&held.id)).is_ok(),
             "no authority to clear"
         );
 
@@ -477,7 +503,7 @@ mod tests {
 
         assert_eq!(store.selected(), None);
         assert!(store.replicas.is_empty());
-        assert_eq!(store.consent_organization(), None);
+        assert_eq!(store.consent_organization(Some(&held.id)), None);
         assert_eq!(store.workspace.remote_id, None);
         assert_eq!(store.workspace.remote_url, None);
 
@@ -491,8 +517,14 @@ mod tests {
         assert!(app_state.member.read().await.is_none());
         assert!(app_state.organization.read().await.is_none());
         assert!(
-            platform_token(&credentials).is_err(),
+            platform_token(&credentials, &Account::of(&held.id)).is_err(),
             "the authority survived the disconnect"
+        );
+        // and only the organization's own: the pending slot is the setup walk's to give back.
+        assert_eq!(
+            platform_token(&credentials, &Account::Pending).as_deref(),
+            Ok("a-pending-consent"),
+            "the forget took a consent that was not the organization's"
         );
     }
 

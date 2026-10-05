@@ -534,7 +534,9 @@ mod tests {
         settings::Settings,
         sync::test::server::{ScriptedResponse, ScriptedServer},
         turso::{
-            consent::{TursoConsent, platform_token, store_platform_token},
+            consent::{
+                Account, TursoConsent, move_pending_consent, platform_token, store_platform_token,
+            },
             discovery::McpEndpoint,
             platform::{AccessLevel, DeletionIntent, InMemoryPlatform},
         },
@@ -1546,9 +1548,6 @@ mod tests {
         let database = org.database.clone();
         let north = org.north.clone();
         let south = org.south.clone();
-
-        store_platform_token(&credentials, "a-platform-token").expect("the authority");
-
         let held_before: Vec<String> = platform
             .databases()
             .into_iter()
@@ -1558,6 +1557,19 @@ mod tests {
         assert!(held_before.contains(&database), "{held_before:?}");
 
         let app_state = machine_holding(&directory, org.store, org.owner).await;
+        let organization_id = app_state
+            .remote_sync
+            .write()
+            .await
+            .store_mut()
+            .selected()
+            .map(|held| held.id.clone())
+            .expect("the record names no organization");
+
+        // the owner's consent, filed where a consent files it and moved to the organization as a
+        // first run moves it (effort 851, requirement 14).
+        store_platform_token(&credentials, "a-platform-token").expect("the authority");
+        move_pending_consent(&credentials, &organization_id).expect("the move");
 
         assert!(
             replica_files(&directory)
@@ -1611,11 +1623,11 @@ mod tests {
                 .write()
                 .await
                 .store_mut()
-                .consent_organization(),
+                .consent_organization(Some(&organization_id)),
             None
         );
         assert!(
-            platform_token(&credentials).is_err(),
+            platform_token(&credentials, &Account::of(&organization_id)).is_err(),
             "the consent survived the delete, with no organization left for it to be over"
         );
     }
@@ -1739,7 +1751,7 @@ mod tests {
         use crate::{
             organization::workspace::MIGRATION_CREDENTIAL_LIFETIME,
             turso::{
-                consent::store_platform_token,
+                consent::{Account, store_platform_token},
                 discovery::TursoOrganization,
                 platform::{
                     AccessLevel, DeletionIntent, PlatformApi, PlatformEndpoint, TursoPlatform,
@@ -1772,6 +1784,7 @@ mod tests {
                 slug: read("TURSO_ORG"),
                 group: read("TURSO_GROUP"),
             },
+            Account::Pending,
             credentials.clone(),
         );
         let nonce = std::time::SystemTime::now()

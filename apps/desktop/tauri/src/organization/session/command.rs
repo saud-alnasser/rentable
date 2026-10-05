@@ -107,6 +107,12 @@ pub(crate) async fn organization_session_state_get(
 /// happens once a launch and is last for the same reason: the resume is what opens the replica
 /// the row is written through, so a machine that came back signed in refreshes its row here
 /// without anybody typing a password.
+///
+/// **Between the check and the resume, the Turso consent an earlier build filed moves to its
+/// organization** (effort 851, requirement 14, `upgrade/consent.rs`). After the check, because a
+/// machine whose shape is forgotten has no organization left to move it to; before the resume,
+/// because the resume is the first thing that asks for the owner's platform, and it would find
+/// none on the first launch of this build.
 pub(crate) async fn state_of(
     app_state: &Shared,
     credentials: &Credentials,
@@ -118,6 +124,10 @@ pub(crate) async fn state_of(
             app_state
                 .upgrade
                 .forget_old_shape(app_state, credentials.as_ref(), clock)
+                .await?;
+            app_state
+                .upgrade
+                .move_the_consent(app_state, credentials.as_ref())
                 .await?;
             resume_remembered(app_state, credentials, clock).await;
 
@@ -156,15 +166,22 @@ pub(crate) async fn state_of(
         held_name_refreshed(app_state, read).await?;
     }
 
-    let organization = {
+    let (organization, selected) = {
         let mut remote_sync = app_state.remote_sync.write().await;
+        let selected = remote_sync.store_mut().selected();
 
-        remote_sync
-            .store_mut()
-            .selected()
-            .map(HeldOrganizationFacts::from)
+        (
+            selected.map(HeldOrganizationFacts::from),
+            selected.map(|held| held.id.clone()),
+        )
     };
-    let holds_turso_authority = owner_platform(app_state, credentials).await.is_some();
+    // the selected organization's own consent, which is the one the wall and the session are of.
+    let holds_turso_authority = match selected.as_deref() {
+        Some(organization_id) => owner_platform(app_state, credentials, organization_id)
+            .await
+            .is_some(),
+        None => false,
+    };
 
     // the standing is only ever about a wall that is up: somebody signed in has answered it,
     // whichever way they got back in, so this one read clears it rather than five sign-in paths
@@ -734,11 +751,13 @@ mod tests {
     use crate::error::Error;
     use crate::organization::HeldOrganization;
     use crate::organization::Shared;
+    use crate::organization::act::{owner_platform, owner_platform_at};
     use crate::organization::invitation::{
         Invitation, locator, make_account_and_link, vault_password_of,
     };
     use crate::organization::member::vault::{open_content, seal_content};
     use crate::organization::role::permission;
+    use crate::organization::session::{AccountCopy, CredentialSlot, Upgrade, Upgrading};
     use crate::organization::session::{MemberSession, sign_in};
     use crate::organization::store::{
         OrganizationNameRecord, OrganizationRecord, OrganizationStore, Signer,
@@ -748,9 +767,14 @@ mod tests {
     use crate::settings::Settings;
     use crate::sync::test::server::{ScriptedResponse, ScriptedServer};
     use crate::test::scratch;
-    use crate::turso::consent::TursoConsent;
-    use crate::turso::discovery::McpEndpoint;
-    use crate::turso::platform::InMemoryPlatform;
+    use crate::turso::consent::{
+        Account, TursoConsent, forget_platform_token, holds_platform_token, move_pending_consent,
+        platform_token, store_platform_token,
+    };
+    use crate::turso::discovery::{McpEndpoint, TursoOrganization};
+    use crate::turso::platform::{
+        AccessLevel, InMemoryPlatform, PlatformApi, PlatformEndpoint, TursoPlatform,
+    };
     use crate::update::Update;
     use serde_json::json;
 
@@ -1794,5 +1818,489 @@ mod tests {
         }
 
         assert_eq!(names_on(&member, &elsewhere).await, both("Acme"));
+    }
+
+    // -------------------------------------------------------------------------------------
+    // Effort 851, requirement 14: each organization keeps its own Turso consent.
+    // -------------------------------------------------------------------------------------
+
+    /// what the launch's cell did, in the order it did it, and what each step found.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    enum Step {
+        /// the old shape was checked, with the pending slot and the organization's entry holding
+        /// a token or not.
+        OldShape { pending: bool, organization: bool },
+        /// the consent was moved.
+        Moved,
+        /// the resume reached the upgrade, with the owner's platform in hand or not.
+        Resumed { account: bool },
+    }
+
+    /// The upgrade a launch runs, with every step the cell takes written down as it is taken:
+    /// what pins the cell's order. It hands each step to the real upgrade unless told to stop the
+    /// resume there, which a machine whose remembered key is not in the store needs.
+    struct Recording {
+        organization_id: String,
+        credentials: Credentials,
+        steps: Arc<Mutex<Vec<Step>>>,
+        stop_the_resume: bool,
+    }
+
+    impl Recording {
+        fn note(&self, step: Step) {
+            self.steps.lock().expect("the steps").push(step);
+        }
+    }
+
+    impl Upgrade for Recording {
+        fn with_password<'a>(
+            &'a self,
+            store: &'a OrganizationStore,
+            account: Option<PlatformApi>,
+            held: &'a HeldOrganization,
+            username: &'a str,
+            password: &'a str,
+            credential: &'a CredentialSlot,
+            now: i64,
+        ) -> Upgrading<'a> {
+            crate::upgrade::Upgrader
+                .with_password(store, account, held, username, password, credential, now)
+        }
+
+        fn with_remembered_key<'a>(
+            &'a self,
+            credentials: &'a dyn CredentialStore,
+            store: &'a OrganizationStore,
+            account: Option<PlatformApi>,
+            held: &'a HeldOrganization,
+            credential: &'a CredentialSlot,
+            now: i64,
+        ) -> Upgrading<'a> {
+            self.note(Step::Resumed {
+                account: account.is_some(),
+            });
+
+            if self.stop_the_resume {
+                return Box::pin(async {
+                    Err(Error::refused(
+                        crate::error::RefusalReason::SignInAgain,
+                        "the test stops the resume here",
+                    ))
+                });
+            }
+
+            crate::upgrade::Upgrader.with_remembered_key(
+                credentials,
+                store,
+                account,
+                held,
+                credential,
+                now,
+            )
+        }
+
+        fn on_connect<'a>(
+            &'a self,
+            store: &'a OrganizationStore,
+            remote: Remote,
+            account: &'a dyn AccountCopy,
+            username: &'a str,
+            password: &'a str,
+            credential: &'a CredentialSlot,
+            now: i64,
+            refused: &'a (dyn Fn() -> Error + Send + Sync),
+        ) -> Upgrading<'a> {
+            crate::upgrade::Upgrader.on_connect(
+                store, remote, account, username, password, credential, now, refused,
+            )
+        }
+
+        fn forget_old_shape<'a>(
+            &'a self,
+            state: &'a Shared,
+            credentials: &'a dyn CredentialStore,
+            clock: &'a crate::clock::Shared,
+        ) -> Upgrading<'a> {
+            let holds = |account: &Account| {
+                holds_platform_token(self.credentials.as_ref(), account).expect("the store")
+            };
+
+            self.note(Step::OldShape {
+                pending: holds(&Account::Pending),
+                organization: holds(&Account::of(&self.organization_id)),
+            });
+
+            crate::upgrade::Upgrader.forget_old_shape(state, credentials, clock)
+        }
+
+        fn move_the_consent<'a>(
+            &'a self,
+            state: &'a Shared,
+            credentials: &'a dyn CredentialStore,
+        ) -> Upgrading<'a> {
+            self.note(Step::Moved);
+
+            crate::upgrade::Upgrader.move_the_consent(state, credentials)
+        }
+    }
+
+    /// The state a launch builds over `directory`, with the recording upgrade in place of the
+    /// real one, and the steps it will write down.
+    async fn launch_recording(
+        directory: &std::path::Path,
+        credentials: &Credentials,
+        organization_id: &str,
+        stop_the_resume: bool,
+    ) -> (Shared, Arc<Mutex<Vec<Step>>>) {
+        let steps = Arc::new(Mutex::new(Vec::new()));
+        let mut app_state = state_over(directory).await;
+
+        app_state.upgrade = Arc::new(Recording {
+            organization_id: organization_id.to_string(),
+            credentials: Arc::clone(credentials),
+            steps: Arc::clone(&steps),
+            stop_the_resume,
+        });
+
+        (app_state, steps)
+    }
+
+    /// What the Platform API answers a mint with.
+    fn minted() -> ScriptedResponse {
+        ScriptedResponse::new(200, json!({ "jwt": "a-minted-credential" }).to_string())
+    }
+
+    /// Mint once through the owner's platform for `organization_id`, against a loopback Platform
+    /// API, and answer what reached it: the request's path and its bearer token.
+    async fn an_owner_only_act(
+        app_state: &Shared,
+        credentials: &Credentials,
+        organization_id: &str,
+    ) -> (String, String) {
+        let server = ScriptedServer::start(vec![minted()]).await;
+        let platform = owner_platform_at(
+            app_state,
+            credentials,
+            organization_id,
+            PlatformEndpoint::at(&server.url("")),
+        )
+        .await
+        .expect("the machine holds no authority for the organization");
+
+        platform
+            .mint_token(
+                &format!("org-{organization_id}"),
+                "4w",
+                AccessLevel::FullAccess,
+            )
+            .await
+            .expect("the act did not reach the platform");
+
+        let request = server.request(0);
+
+        (
+            request
+                .target
+                .split('?')
+                .next()
+                .unwrap_or_default()
+                .to_string(),
+            request
+                .header("authorization")
+                .unwrap_or_default()
+                .to_string(),
+        )
+    }
+
+    /// **The cell's order** (effort 851, the plan's *Each organization keeps its own Turso
+    /// consent*): the old shape is checked while the consent is still where an earlier build filed
+    /// it, the consent moves next, and the resume finds the owner's platform already there. A
+    /// machine made by the first run of an earlier build, signed in, resumes on this one with its
+    /// consent moved and nothing typed.
+    #[tokio::test]
+    async fn the_launch_moves_the_consent_after_the_old_shape_and_before_the_resume() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let directory = scratch("consent-order");
+        let app_state = first_run(credentials.as_ref(), &directory).await;
+        let (organization_id, _) = recorded(&app_state).await;
+
+        // where an earlier build left the owner's consent: under `owner`, and nowhere else.
+        store_platform_token(credentials.as_ref(), "a-platform-token").expect("the consent");
+
+        let (next, steps) =
+            launch_recording(&directory, &credentials, &organization_id, false).await;
+        let state = state_of(&next, &credentials, &crate::clock::System::shared())
+            .await
+            .expect("the state");
+
+        assert_eq!(
+            *steps.lock().expect("the steps"),
+            vec![
+                Step::OldShape {
+                    pending: true,
+                    organization: false,
+                },
+                Step::Moved,
+                Step::Resumed { account: true },
+            ],
+            "the cell ran out of order"
+        );
+        assert!(state.session.is_some(), "the launch did not resume");
+        assert!(state.holds_turso_authority);
+        assert_eq!(
+            platform_token(credentials.as_ref(), &Account::of(&organization_id)).as_deref(),
+            Ok("a-platform-token")
+        );
+        assert!(!holds_platform_token(credentials.as_ref(), &Account::Pending).expect("the store"));
+    }
+
+    /// `remote-sync.json` as release 0.19.0 writes it, frozen (effort 851, criterion 16): one
+    /// organization, signed in as its owner, with the Turso organization its consent is over, two
+    /// workspace replicas and the workspace it had open. Never edited: a record on disk is what the
+    /// conversion has to meet, and a fixture that followed the code would meet nothing.
+    ///
+    /// **Written out byte for byte here and in the tests of `machine/record.rs`**,
+    /// as a fixture used by more than one module is (`rules/testing`).
+    const RELEASED: &str = r#"{
+  "workspace": {
+    "id": "workspace-1759000000000",
+    "name": "Riyadh",
+    "localDatabasePath": "C:\\Users\\someone\\AppData\\Roaming\\rentable\\app.db",
+    "remoteId": "wks-north",
+    "remoteUrl": "libsql://rentable-wks-north-acme.aws-eu-west-1.turso.io",
+    "permissions": 63,
+    "lastError": null,
+    "createdAt": 1759000000000,
+    "updatedAt": 1759500000000
+  },
+  "startupPromptEnabled": false,
+  "deviceId": "device-1759000000000",
+  "replicas": [
+    {
+      "workspaceId": "wks-north",
+      "memberId": "mem-olivia",
+      "createdAt": 1759000100000
+    },
+    {
+      "workspaceId": "wks-south",
+      "memberId": "mem-olivia",
+      "createdAt": 1759000200000
+    }
+  ],
+  "tursoOrganization": {
+    "slug": "acme",
+    "group": "rentable"
+  },
+  "organization": {
+    "id": "org-acme",
+    "name": "Acme",
+    "verifyingKey": "c29tZS12ZXJpZnlpbmcta2V5LW9mLXRoaXJ0eS10d28tYnl0ZXM",
+    "remoteUrl": "libsql://rentable-org-acme-acme.aws-eu-west-1.turso.io",
+    "machineId": "mch-this-one",
+    "memberId": "mem-olivia",
+    "role": "owner",
+    "joinedAt": 1759000000000,
+    "format": 3,
+    "machineSignedOut": 3
+  },
+  "lastReachedAt": 1759600000000
+}
+"#;
+
+    /// **Criterion 16, the keyring half** (effort 851): the record release 0.19.0 wrote, frozen,
+    /// with the owner's consent where that release filed it and the replica on disk. After the
+    /// load and the launch's cell the consent is the organization's own, the pending slot is
+    /// empty, and an owner-only act reaches the platform with that token and the slug the
+    /// release recorded.
+    #[tokio::test]
+    async fn a_released_owners_consent_is_its_organizations_after_the_launch() {
+        const ORGANIZATION: &str = "org-acme";
+
+        let credentials: Credentials = Arc::new(Memory::new());
+        let directory = scratch("consent-released");
+
+        std::fs::write(directory.join(RemoteSync::FILENAME), RELEASED).expect("the record");
+        store_platform_token(credentials.as_ref(), "the-owners-consent").expect("the consent");
+
+        // the replica the release left, in this build's shape, so the check keeps what it finds.
+        let replica = OrganizationStore::open(
+            crate::clock::System::shared(),
+            &OrganizationStore::replica_path(&directory.join(Database::FILENAME), ORGANIZATION),
+            None,
+            || async { Ok::<String, turso::Error>(String::new()) },
+        )
+        .await
+        .expect("the replica");
+
+        replica.install_schema().await.expect("the schema");
+        replica.write_format().await.expect("the format");
+        drop(replica);
+
+        // no remembered key is filed for the release's member here, so the resume stops at the
+        // upgrade rather than going on to a remote this test has no stand-in for.
+        let (app_state, steps) =
+            launch_recording(&directory, &credentials, ORGANIZATION, true).await;
+        let state = state_of(&app_state, &credentials, &crate::clock::System::shared())
+            .await
+            .expect("the state");
+
+        assert_eq!(
+            state.organization.as_ref().map(|held| held.id.as_str()),
+            Some(ORGANIZATION),
+            "the released organization is not held"
+        );
+        assert_eq!(
+            *steps.lock().expect("the steps"),
+            vec![
+                Step::OldShape {
+                    pending: true,
+                    organization: false,
+                },
+                Step::Moved,
+                Step::Resumed { account: true },
+            ]
+        );
+        assert_eq!(
+            platform_token(credentials.as_ref(), &Account::of(ORGANIZATION)).as_deref(),
+            Ok("the-owners-consent"),
+            "the consent is not under the organization"
+        );
+        assert!(
+            !holds_platform_token(credentials.as_ref(), &Account::Pending).expect("the store"),
+            "the consent is still under `owner`"
+        );
+        assert!(state.holds_turso_authority);
+        assert_eq!(
+            an_owner_only_act(&app_state, &credentials, ORGANIZATION).await,
+            (
+                format!("/v1/organizations/acme/databases/org-{ORGANIZATION}/auth/tokens"),
+                "Bearer the-owners-consent".to_string()
+            )
+        );
+
+        // and the next launch finds nothing left to move, and moves nothing.
+        let (again, _) = launch_recording(&directory, &credentials, ORGANIZATION, true).await;
+
+        state_of(&again, &credentials, &crate::clock::System::shared())
+            .await
+            .expect("the second launch");
+
+        assert_eq!(
+            platform_token(credentials.as_ref(), &Account::of(ORGANIZATION)).as_deref(),
+            Ok("the-owners-consent")
+        );
+    }
+
+    /// **Criterion 14** (effort 851): one machine holds two organizations owned on two Turso
+    /// accounts. Each owner-only act reaches the Platform API with its own organization's token
+    /// and slug, and forgetting one organization's consent leaves the other's.
+    #[tokio::test]
+    async fn two_organizations_on_two_turso_accounts_each_act_with_their_own_consent() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let directory = scratch("consent-two-accounts");
+        let app_state = state_over(&directory).await;
+
+        {
+            let mut remote_sync = app_state.remote_sync.write().await;
+            let record = remote_sync.store_mut();
+
+            for (id, slug) in [("org-a", "alpha"), ("org-b", "beta")] {
+                record.hold(HeldOrganization {
+                    id: id.to_string(),
+                    name: id.to_string(),
+                    verifying_key: "k".to_string(),
+                    remote_url: format!("libsql://{id}"),
+                    turso_organization: Some(TursoOrganization {
+                        slug: slug.to_string(),
+                        group: "rentable".to_string(),
+                    }),
+                    ..Default::default()
+                });
+            }
+
+            record.commit().expect("the record");
+        }
+
+        // each consent is granted into the pending slot and moved to its organization, as a
+        // first run moves it.
+        for (id, token) in [("org-a", "token-a"), ("org-b", "token-b")] {
+            store_platform_token(credentials.as_ref(), token).expect("the consent");
+            move_pending_consent(credentials.as_ref(), id).expect("the move");
+        }
+
+        assert_eq!(
+            an_owner_only_act(&app_state, &credentials, "org-a").await,
+            (
+                "/v1/organizations/alpha/databases/org-org-a/auth/tokens".to_string(),
+                "Bearer token-a".to_string()
+            )
+        );
+        assert_eq!(
+            an_owner_only_act(&app_state, &credentials, "org-b").await,
+            (
+                "/v1/organizations/beta/databases/org-org-b/auth/tokens".to_string(),
+                "Bearer token-b".to_string()
+            )
+        );
+
+        forget_platform_token(credentials.as_ref(), &Account::of("org-a")).expect("the forget");
+
+        assert!(
+            owner_platform(&app_state, &credentials, "org-a")
+                .await
+                .is_none(),
+            "the forgotten organization still reads as holding its authority"
+        );
+        assert_eq!(
+            an_owner_only_act(&app_state, &credentials, "org-b").await,
+            (
+                "/v1/organizations/beta/databases/org-org-b/auth/tokens".to_string(),
+                "Bearer token-b".to_string()
+            ),
+            "forgetting one organization's consent took the other's"
+        );
+    }
+
+    /// The launch moves nothing where the consent cannot be told apart: two held organizations
+    /// on Turso accounts and neither with a consent of its own is no record any build wrote, and
+    /// guessing would hand one organization's authority to the other.
+    #[tokio::test]
+    async fn the_launch_moves_no_consent_it_cannot_place() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let directory = scratch("consent-unplaced");
+        let app_state = state_over(&directory).await;
+
+        {
+            let mut remote_sync = app_state.remote_sync.write().await;
+            let record = remote_sync.store_mut();
+
+            for (id, slug) in [("org-a", "alpha"), ("org-b", "beta")] {
+                record.hold(HeldOrganization {
+                    id: id.to_string(),
+                    name: id.to_string(),
+                    verifying_key: "k".to_string(),
+                    remote_url: format!("libsql://{id}"),
+                    turso_organization: Some(TursoOrganization {
+                        slug: slug.to_string(),
+                        group: "rentable".to_string(),
+                    }),
+                    ..Default::default()
+                });
+            }
+
+            record.commit().expect("the record");
+        }
+
+        store_platform_token(credentials.as_ref(), "a-platform-token").expect("the consent");
+
+        crate::upgrade::consent::move_the_consent(&app_state, credentials.as_ref()).await;
+
+        assert_eq!(
+            platform_token(credentials.as_ref(), &Account::Pending).as_deref(),
+            Ok("a-platform-token"),
+            "a consent with two places it could go was moved to one of them"
+        );
+        assert!(!holds_platform_token(credentials.as_ref(), &Account::of("org-a")).expect("a"));
+        assert!(!holds_platform_token(credentials.as_ref(), &Account::of("org-b")).expect("b"));
     }
 }

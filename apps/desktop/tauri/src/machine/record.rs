@@ -504,28 +504,50 @@ impl RemoteSyncStore {
         }
     }
 
-    /// which Turso organization the consent on this machine is over, as the record knows it: the
-    /// selected organization's, or, where none is selected, the one a setup looked up.
-    pub fn consent_organization(&self) -> Option<&TursoOrganization> {
-        match self.selected() {
-            Some(held) => held.turso_organization.as_ref(),
+    /// which Turso organization a consent on this machine is over, as the record knows it: the
+    /// held organization `organization_id`'s own, or, with `None`, the pending consent's, which
+    /// a setup looked up before any organization held here recorded it.
+    ///
+    /// **Never another organization's** (effort 851, requirement 14): each organization keeps the
+    /// one its own consent was granted over, so an owner of two on two Turso accounts never builds
+    /// a path for one out of the other's slug.
+    pub fn consent_organization(
+        &self,
+        organization_id: Option<&str>,
+    ) -> Option<&TursoOrganization> {
+        match organization_id {
+            Some(organization_id) => self.held(organization_id)?.turso_organization.as_ref(),
             None => self.turso_organization.as_ref(),
         }
     }
 
-    /// Remember which Turso organization the consent is over, where
-    /// [`Self::consent_organization`] reads it. The caller commits.
-    pub fn remember_consent_organization(&mut self, organization: TursoOrganization) {
-        match self.selected_mut() {
-            Some(held) => held.turso_organization = Some(organization),
+    /// Remember which Turso organization a consent is over, where
+    /// [`Self::consent_organization`] reads it for the same `organization_id`. An id this machine
+    /// does not hold remembers nothing. The caller commits.
+    pub fn remember_consent_organization(
+        &mut self,
+        organization_id: Option<&str>,
+        organization: TursoOrganization,
+    ) {
+        match organization_id {
+            Some(organization_id) => {
+                if let Some(held) = self.held_mut(organization_id) {
+                    held.turso_organization = Some(organization);
+                }
+            }
             None => self.turso_organization = Some(organization),
         }
     }
 
-    /// Forget it, from where [`Self::consent_organization`] reads it. The caller commits.
-    pub fn forget_consent_organization(&mut self) {
-        match self.selected_mut() {
-            Some(held) => held.turso_organization = None,
+    /// Forget it, from where [`Self::consent_organization`] reads it for the same
+    /// `organization_id`. The caller commits.
+    pub fn forget_consent_organization(&mut self, organization_id: Option<&str>) {
+        match organization_id {
+            Some(organization_id) => {
+                if let Some(held) = self.held_mut(organization_id) {
+                    held.turso_organization = None;
+                }
+            }
             None => self.turso_organization = None,
         }
     }
@@ -1074,7 +1096,13 @@ pub(super) fn sanitize_optional_string(value: Option<String>) -> Option<String> 
         .filter(|value| !value.is_empty())
 }
 
-/// The organization this machine's consent is over: asked for once, and remembered.
+/// The organization a consent on this machine is over: asked for once, and remembered, for the held
+/// organization `organization_id` or, with `None`, for the pending consent a setup or a connect is
+/// about to make an organization of.
+///
+/// **Remembered per organization, and read for that organization alone** (effort 851, requirement
+/// 14). It was one value for the machine until then, which a second organization's setup would have
+/// read as its own and created its database on the first organization's account.
 ///
 /// **Nothing asks twice.** The lookup is the one thing in this effort that depends on a surface
 /// Turso versions for agents, so every call after the first is answered from this machine's own
@@ -1086,10 +1114,11 @@ pub(super) fn sanitize_optional_string(value: Option<String>) -> Option<String> 
 /// record would reach back into `machine` from the module `machine` reaches for.
 pub async fn consented_organization(
     store: &mut Persisted<RemoteSyncStore>,
+    organization_id: Option<&str>,
     platform_token: &str,
     endpoint: &McpEndpoint,
 ) -> Result<Option<ConsentedGroup>, Error> {
-    if let Some(known) = store.consent_organization().cloned() {
+    if let Some(known) = store.consent_organization(organization_id).cloned() {
         return Ok(Some(ConsentedGroup {
             organization: known,
             databases: None,
@@ -1101,7 +1130,7 @@ pub async fn consented_organization(
             organization,
             databases,
         } => {
-            store.remember_consent_organization(organization.clone());
+            store.remember_consent_organization(organization_id, organization.clone());
             store.commit()?;
 
             Ok(Some(ConsentedGroup {
@@ -1445,7 +1474,9 @@ mod tests {
         assert_eq!(held.machine_signed_out, 3);
         assert_eq!(held.workspace_id.as_deref(), Some("wks-north"));
         assert_eq!(
-            store.consent_organization().map(|it| it.slug.as_str()),
+            store
+                .consent_organization(Some("org-acme"))
+                .map(|it| it.slug.as_str()),
             Some("acme")
         );
         assert_eq!(store.turso_organization, None);
@@ -1496,10 +1527,13 @@ mod tests {
     fn holding_an_organization_takes_the_turso_organization_a_setup_looked_up() {
         let mut store = RemoteSyncStore::default();
 
-        store.remember_consent_organization(crate::turso::discovery::TursoOrganization {
-            slug: "acme".to_string(),
-            group: "rentable".to_string(),
-        });
+        store.remember_consent_organization(
+            None,
+            crate::turso::discovery::TursoOrganization {
+                slug: "acme".to_string(),
+                group: "rentable".to_string(),
+            },
+        );
 
         let pending = serde_json::to_value(&store).expect("serialised");
 
@@ -1514,9 +1548,12 @@ mod tests {
 
         assert_eq!(store.turso_organization, None);
         assert_eq!(
-            store.consent_organization().map(|it| it.slug.as_str()),
+            store
+                .consent_organization(Some("org-acme"))
+                .map(|it| it.slug.as_str()),
             Some("acme")
         );
+        assert_eq!(store.consent_organization(None), None);
         assert_eq!(store.selected_organization.as_deref(), Some("org-acme"));
 
         let held = serde_json::to_value(&store).expect("serialised");
@@ -1531,7 +1568,9 @@ mod tests {
 
         assert_eq!(reread.turso_organization, None);
         assert_eq!(
-            reread.consent_organization().map(|it| it.slug.as_str()),
+            reread
+                .consent_organization(Some("org-acme"))
+                .map(|it| it.slug.as_str()),
             Some("acme")
         );
     }
@@ -2047,12 +2086,12 @@ mod tests {
             .await;
             let endpoint = McpEndpoint::at(&server.url(""));
 
-            let first = consented_organization(&mut store, TOKEN, &endpoint)
+            let first = consented_organization(&mut store, None, TOKEN, &endpoint)
                 .await
                 .expect("the first lookup failed");
             let after_first = server.request_count();
 
-            let second = consented_organization(&mut store, TOKEN, &endpoint)
+            let second = consented_organization(&mut store, None, TOKEN, &endpoint)
                 .await
                 .expect("the second lookup failed");
 
@@ -2096,6 +2135,76 @@ mod tests {
             );
         }
 
+        /// **What one organization's consent is over is never another's answer** (effort 851,
+        /// requirement 14). A machine holding an organization whose consent is over `acme` asks
+        /// again for the pending consent of the next, which is over `beta`, and remembers each
+        /// where it belongs.
+        #[tokio::test]
+        async fn one_organizations_consent_is_never_read_as_anothers() {
+            let directory = scratch("discovery-per-organization");
+            let mut store = load_store(&directory);
+
+            store.hold(super::super::HeldOrganization {
+                id: "org-a".to_string(),
+                verifying_key: "k".to_string(),
+                remote_url: "libsql://a".to_string(),
+                turso_organization: Some(TursoOrganization {
+                    slug: "acme".to_string(),
+                    group: "rents".to_string(),
+                }),
+                ..Default::default()
+            });
+            store.commit().expect("the commit");
+
+            let server = ScriptedServer::start(vec![
+                handshake(),
+                listing(json!([{
+                    "Name": "ledger",
+                    "hostname": "ledger-beta.aws-us-east-1.turso.io",
+                    "group": "beta-group"
+                }])),
+            ])
+            .await;
+            let endpoint = McpEndpoint::at(&server.url(""));
+
+            let held = consented_organization(&mut store, Some("org-a"), TOKEN, &endpoint)
+                .await
+                .expect("the held organization's lookup failed")
+                .expect("the held organization's consent was not remembered");
+
+            assert_eq!(held.organization.slug, "acme");
+            assert_eq!(
+                server.request_count(),
+                0,
+                "a remembered answer was asked again"
+            );
+
+            let pending = consented_organization(&mut store, None, TOKEN, &endpoint)
+                .await
+                .expect("the pending lookup failed")
+                .expect("the pending consent's group holds a database");
+
+            assert_eq!(
+                pending.organization.slug, "beta",
+                "the pending consent was answered with another organization's account"
+            );
+            assert!(
+                server.request_count() > 0,
+                "the pending consent was not asked about"
+            );
+            assert_eq!(
+                store
+                    .consent_organization(Some("org-a"))
+                    .map(|it| it.slug.as_str()),
+                Some("acme"),
+                "the held organization's account was overwritten"
+            );
+            assert_eq!(
+                store.consent_organization(None).map(|it| it.slug.as_str()),
+                Some("beta")
+            );
+        }
+
         /// An empty group is remembered as nothing, so the next run asks again rather than believing
         /// the account has no organization.
         #[tokio::test]
@@ -2106,7 +2215,7 @@ mod tests {
             let server = ScriptedServer::start(vec![handshake(), listing(json!([]))]).await;
 
             let found =
-                consented_organization(&mut store, TOKEN, &McpEndpoint::at(&server.url("")))
+                consented_organization(&mut store, None, TOKEN, &McpEndpoint::at(&server.url("")))
                     .await
                     .expect("an empty group was reported as a failure");
 

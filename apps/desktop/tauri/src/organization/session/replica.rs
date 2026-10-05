@@ -289,7 +289,7 @@ pub(super) async fn open_replica(
     // the owner's account, where this machine holds its authority: what renews a lapsed grant
     // before the owner's upgrade pushes (ticket 25). It mints only for the owner, whom the upgrade
     // finds by key, and only where the grant is lapsed or gone.
-    let account = owner_platform(app_state, credentials).await;
+    let account = owner_platform(app_state, credentials, &held.id).await;
 
     match opening {
         Opening::Password { username, password } => {

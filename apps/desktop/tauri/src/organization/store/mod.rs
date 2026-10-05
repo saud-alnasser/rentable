@@ -3062,7 +3062,7 @@ mod tests {
     #[ignore = "reaches a live Turso account and creates a database; see the doc comment"]
     async fn organization_live_a_second_machine_reads_what_the_first_wrote() {
         use crate::turso::{
-            consent::store_platform_token,
+            consent::{Account, store_platform_token},
             discovery::TursoOrganization,
             platform::{DeletionIntent, PlatformApi, PlatformEndpoint, TursoPlatform},
         };
@@ -3092,6 +3092,7 @@ mod tests {
                 slug: read("TURSO_ORG"),
                 group: read("TURSO_GROUP"),
             },
+            Account::Pending,
             credentials.clone(),
         );
         let nonce = std::time::SystemTime::now()

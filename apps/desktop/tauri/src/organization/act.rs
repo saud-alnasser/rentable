@@ -26,12 +26,14 @@ use crate::{
     credential::Credentials,
     error::{Error, RefusalReason},
     organization::Shared,
-    turso::platform::{PlatformApi, PlatformEndpoint},
+    turso::{
+        consent::{Account, holds_platform_token},
+        platform::{PlatformApi, PlatformEndpoint},
+    },
 };
 
 use super::{
     session::{self, MemberSession},
-    setup,
     store::OrganizationStore,
 };
 
@@ -136,21 +138,72 @@ fn signed_out() -> Error {
     )
 }
 
-/// The Platform API client this machine can build, where it holds the authority and knows the
-/// organization: the owner's machine after a consent, and nobody else's. `None` is not a failure;
-/// it is what makes a read-only grant, a create and a delete the owner's, at the command.
+/// The Platform API client this machine can build for the organization `organization_id`, where it
+/// holds that organization's authority and knows the Turso organization it is over: the owner's
+/// machine after a consent, and nobody else's. `None` is not a failure; it is what makes a
+/// read-only grant, a create and a delete the owner's, at the command.
+///
+/// **That organization's consent and slug, and no other's** (effort 851, requirement 14): the
+/// token is read from the organization's own keyring entry at every call the client makes, and
+/// the slug is the one its own consent was granted over, so an owner of two organizations on two
+/// Turso accounts reaches each with its own.
 pub(super) async fn owner_platform(
     app_state: &Shared,
     credentials: &Credentials,
+    organization_id: &str,
 ) -> Option<PlatformApi> {
-    setup::authority(credentials.as_ref()).ok()?;
+    owner_platform_at(
+        app_state,
+        credentials,
+        organization_id,
+        PlatformEndpoint::production(),
+    )
+    .await
+}
+
+/// The same, for the organization the signed-in member acts in, which is what every owner-only
+/// command acts on. `None` where nobody is signed in, and the act refuses with the wall.
+///
+/// **The session is read and let go of before the record is taken**, so this keeps the order every
+/// command takes them in: the record before the session, never inside it.
+pub(super) async fn signed_in_owner_platform(
+    app_state: &Shared,
+    credentials: &Credentials,
+) -> Option<PlatformApi> {
+    let organization_id = app_state
+        .member
+        .read()
+        .await
+        .as_ref()?
+        .organization_id
+        .clone();
+
+    owner_platform(app_state, credentials, &organization_id).await
+}
+
+/// [`owner_platform`] against `endpoint`, which a test points at a loopback server.
+pub(super) async fn owner_platform_at(
+    app_state: &Shared,
+    credentials: &Credentials,
+    organization_id: &str,
+    endpoint: PlatformEndpoint,
+) -> Option<PlatformApi> {
+    let account = Account::of(organization_id);
+
+    if !holds_platform_token(credentials.as_ref(), &account).unwrap_or(false) {
+        return None;
+    }
 
     let mut remote_sync = app_state.remote_sync.write().await;
-    let organization = remote_sync.store_mut().consent_organization().cloned()?;
+    let organization = remote_sync
+        .store_mut()
+        .consent_organization(Some(organization_id))
+        .cloned()?;
 
     Some(PlatformApi::new(
-        PlatformEndpoint::production(),
+        endpoint,
         organization,
+        account,
         Arc::clone(credentials),
     ))
 }

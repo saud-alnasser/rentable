@@ -14,7 +14,7 @@ use crate::{
 };
 
 use crate::organization::{
-    act::{Acting, Pull, as_member, if_member, owner_platform},
+    act::{Acting, Pull, as_member, if_member, owner_platform, signed_in_owner_platform},
     lease::{self, MigrationPhase, PipelineLease},
     session::{MemberSession, WorkspaceFacts},
     workspace::{
@@ -36,7 +36,7 @@ pub(crate) async fn organization_workspace_create(
     clock: tauri::State<'_, clock::Shared>,
     name: String,
 ) -> Result<WorkspaceFacts, Error> {
-    let platform = owner_platform(&app_state, &credentials)
+    let platform = signed_in_owner_platform(&app_state, &credentials)
         .await
         .ok_or_else(|| {
             Error::refused(
@@ -62,7 +62,7 @@ pub(crate) async fn organization_workspace_grant(
     member_id: String,
     access: AccessLevel,
 ) -> Result<(), Error> {
-    let platform = owner_platform(&app_state, &credentials).await;
+    let platform = signed_in_owner_platform(&app_state, &credentials).await;
     as_member(&app_state, Pull::No, async |Acting { member, store }| {
         workspace::grant_workspace(
             store,
@@ -100,7 +100,7 @@ pub(crate) async fn organization_workspace_delete(
     credentials: tauri::State<'_, Credentials>,
     workspace_id: String,
 ) -> Result<(), Error> {
-    let platform = owner_platform(&app_state, &credentials)
+    let platform = signed_in_owner_platform(&app_state, &credentials)
         .await
         .ok_or_else(|| {
             Error::refused(
@@ -202,7 +202,8 @@ pub(crate) async fn organization_workspace_open(
             // the owner's account, where this machine holds its authority: the workspace is
             // copied there as well as here before the migration (effort 838, ticket 28). A
             // member's machine holds none and copies to this machine alone.
-            let account = owner_platform(&app_state, &credentials).await;
+            let account =
+                owner_platform(&app_state, &credentials, &member.organization_id).await;
             let notice = |phase: MigrationPhase| {
                 let _ = app.emit(
                     MIGRATION_EVENT,
@@ -267,7 +268,7 @@ pub(crate) async fn organization_workspace_renew_credentials(
     app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
 ) -> Result<usize, Error> {
-    let platform = owner_platform(&app_state, &credentials)
+    let platform = signed_in_owner_platform(&app_state, &credentials)
         .await
         .ok_or_else(|| {
             Error::refused(
@@ -325,7 +326,7 @@ pub(crate) async fn organization_workspace_renew_due(
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
 ) -> Result<bool, Error> {
-    let Some(platform) = owner_platform(&app_state, &credentials).await else {
+    let Some(platform) = signed_in_owner_platform(&app_state, &credentials).await else {
         return Ok(false);
     };
     // nobody signed in answers `false` rather than the wall, and the pull is its own, after the

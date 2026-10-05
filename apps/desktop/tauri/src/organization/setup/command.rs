@@ -17,7 +17,9 @@ use crate::organization::{
     workspace,
 };
 use crate::turso::{
-    consent::{TursoConsentResult, TursoConsentStart, TursoEndpoints},
+    consent::{
+        Account, TursoConsentResult, TursoConsentStart, TursoEndpoints, move_pending_consent,
+    },
     discovery::McpEndpoint,
     platform::{PlatformApi, PlatformEndpoint},
 };
@@ -80,6 +82,7 @@ pub(crate) async fn organization_setup_create(
             PlatformApi::new(
                 PlatformEndpoint::production(),
                 organization,
+                Account::Pending,
                 credentials.inner().clone(),
             )
         },
@@ -191,6 +194,7 @@ pub(crate) async fn organization_setup_connect_existing(
                 PlatformApi::new(
                     PlatformEndpoint::production(),
                     organization,
+                    Account::Pending,
                     credentials.inner().clone(),
                 )
             },
@@ -253,6 +257,12 @@ pub async fn organization_setup_account_refusal_detail(
 /// machine can build the Platform API client again: what an owner restored on a new machine
 /// does after repeating the consent. The account is discovered the way the first run
 /// discovered it, and nothing about it was restored from anywhere.
+///
+/// **The consent becomes the selected organization's own** (effort 851, requirement 14): the
+/// consent filed it in the pending slot, and it is moved to the organization's entry here, read,
+/// set, read back and deleted, once the account it is over is known. Selecting another
+/// organization is refused while a session is open, so the selected one is the one the owner is
+/// in. A move that did not finish is refused, and leaves the consent pending for the next try.
 #[tauri::command(rename = "setup_reconnect_authority")]
 pub(crate) async fn organization_setup_reconnect_authority(
     app_state: tauri::State<'_, Shared>,
@@ -263,9 +273,20 @@ pub(crate) async fn organization_setup_reconnect_authority(
 
     {
         let mut remote_sync = app_state.remote_sync.write().await;
+        let organization_id = remote_sync
+            .store_mut()
+            .selected()
+            .map(|held| held.id.clone())
+            .ok_or_else(|| {
+                Error::refused(
+                    RefusalReason::NoOrganization,
+                    "this machine holds no organization to reconnect the turso account to",
+                )
+            })?;
 
         if crate::machine::consented_organization(
             remote_sync.store_mut(),
+            Some(&organization_id),
             &platform_token,
             &McpEndpoint::production(),
         )
@@ -277,6 +298,8 @@ pub(crate) async fn organization_setup_reconnect_authority(
                 "the consent was granted over a group with no database in it, and the                           organization is not there. grant it over the group that holds the                           organization",
             ));
         }
+
+        move_pending_consent(credentials.inner().as_ref(), &organization_id)?;
     }
 
     state_of(&app_state, &credentials, &clock).await

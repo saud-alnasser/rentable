@@ -56,6 +56,7 @@ use crate::{
     machine::{RemoteSyncStore, consented_organization},
     persisted::Persisted,
     turso::{
+        consent::{Account, move_pending_consent},
         discovery::{McpEndpoint, TursoOrganization},
         platform::{AccessLevel, DeletionIntent, TursoPlatform},
     },
@@ -282,8 +283,11 @@ where
     let organization_id = random_id()?;
     let database_name = format!("{ORGANIZATION_DATABASE_PREFIX}{organization_id}");
 
-    // the database, and the slug it is created under or read from.
-    let (organization, hostname) = match consented_organization(store, platform_token, mcp).await? {
+    // the database, and the slug it is created under or read from: the pending consent's, never
+    // that of an organization this machine already holds, since the one being made is none of them
+    // (effort 851, requirement 14).
+    let consented = consented_organization(store, None, platform_token, mcp).await?;
+    let (organization, hostname) = match consented {
         Some(consented) => {
             // **a group that was typed is checked first, and the check keeps the consent.** What
             // the consent is over is already known here, from the listing or from this machine's
@@ -340,7 +344,7 @@ where
             )
             .await?;
 
-            store.remember_consent_organization(first.organization.clone());
+            store.remember_consent_organization(None, first.organization.clone());
             store.commit()?;
 
             (first.organization, first.hostname)
@@ -586,6 +590,10 @@ async fn finish<P: TursoPlatform>(
     // the first epoch, the one the owner's row was just written with.
     remember(credentials, organization_id, &member_id, 0, &member_key);
 
+    // and the consent this was made on becomes the organization's own (effort 851, requirement
+    // 14), now that its id is known and the record holds it.
+    settle_the_consent(credentials, organization_id);
+
     diagnostics::info("organization.created")
         .with("organization", organization_id)
         .write();
@@ -599,7 +607,9 @@ async fn finish<P: TursoPlatform>(
     ))
 }
 
-/// Give the consent back, so the person can grant another one over another group or account.
+/// Give the pending consent back, so the person can grant another one over another group or
+/// account. Only the pending slot and the Turso organization looked up for it: an organization this
+/// machine already holds keeps its own consent (effort 851, requirement 14).
 ///
 /// **The token and the slug go together.** The slug is a fact about the consent that is being
 /// abandoned, and a machine that kept it would build every Platform API path of the next
@@ -610,16 +620,34 @@ async fn finish<P: TursoPlatform>(
 /// a credential store that would not empty goes to the diagnostics log rather than taking the
 /// refusal's place on the screen.
 fn abandon_the_consent(store: &mut Persisted<RemoteSyncStore>, credentials: &dyn CredentialStore) {
-    if let Err(error) = crate::turso::consent::forget_platform_token(credentials) {
+    if let Err(error) = crate::turso::consent::forget_platform_token(credentials, &Account::Pending)
+    {
         diagnostics::error("organization.setup.consentNotForgotten")
             .with("error", error.to_string())
             .write();
     }
 
-    store.forget_consent_organization();
+    store.forget_consent_organization(None);
 
     if let Err(error) = store.commit() {
         diagnostics::error("organization.setup.consentNotForgotten")
+            .with("error", error.to_string())
+            .write();
+    }
+}
+
+/// Move the pending consent to the organization `organization_id`, which a first run, a connect and
+/// a reconnect do once the organization is held (effort 851, requirement 14).
+///
+/// **Best effort, after the record is committed**, because nothing about the organization is
+/// undone for it: a move that did not finish leaves the token in the pending slot
+/// (`turso::consent::move_pending_consent`), the next launch moves it (`upgrade/consent.rs`), and
+/// until then this machine reads as holding no authority for the organization. What went wrong goes
+/// to the diagnostics log, never the token.
+pub(crate) fn settle_the_consent(credentials: &dyn CredentialStore, organization_id: &str) {
+    if let Err(error) = move_pending_consent(credentials, organization_id) {
+        diagnostics::error("organization.setup.consentNotMoved")
+            .with("organization", organization_id)
             .with("error", error.to_string())
             .write();
     }
@@ -699,14 +727,17 @@ fn draw_these_ids_next(ids: &[&str]) {
     });
 }
 
-/// The authority this machine holds, for a first run.
+/// The authority this machine holds, for a first run: the pending consent, which is the one a
+/// setup, a connect and a reconnect run on, because each of them runs before the consent belongs
+/// to an organization this machine holds (effort 851, requirement 14). They move it to the
+/// organization's own entry once its id is known ([`settle_the_consent`]).
 ///
 /// **Refused before anything is asked of anybody.** A consent the person abandoned filed no
 /// token, so a first run reached without one stops here, having created nothing, and the answer
 /// says what to do: grant the consent. Requirement 5's re-consent, at the one place a first run
 /// spends the authority.
 pub(crate) fn authority(credentials: &dyn CredentialStore) -> Result<String, Error> {
-    crate::turso::consent::platform_token(credentials).map_err(|_| {
+    crate::turso::consent::platform_token(credentials, &Account::Pending).map_err(|_| {
         Error::refused(
             RefusalReason::TursoNotConnected,
             "this machine holds no turso authority. connect the turso account first, then \
@@ -991,7 +1022,9 @@ mod tests {
 
         // and the slug was asked for once and remembered.
         assert_eq!(
-            store.consent_organization().map(|o| o.slug.as_str()),
+            store
+                .consent_organization(Some(&joined.id))
+                .map(|o| o.slug.as_str()),
             Some("an-org")
         );
         assert_eq!(
