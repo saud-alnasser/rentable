@@ -234,12 +234,23 @@ pub struct LinkShape {
 /// `credential` is the issuer's own grant on the organization database, which is what the machine
 /// reads the rows with from here; `vault_password` is the password the invited vault was made
 /// under, and it is absent on a link that opens no vault.
+///
+/// `locked_member` is the member a machine link was made for, where that member read as locked
+/// when it was made (effort 851, requirement 38): the machine it connects holds that member to
+/// their own lock (`HeldOrganization::own_lock_latched`), as a machine an invitation joined does.
+/// **It names the member rather than saying yes or no** because the row behind a machine link is
+/// unsigned, and a latch read off the row's member could be pointed at somebody else by whoever
+/// rewrote it; sealed here, it is bound as everything in the payload is, and nothing changes it
+/// without the code. Absent on a link for a member who was not locked, and on every link made
+/// before it, which reads as not locked.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LinkPayload {
     pub credential: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub vault_password: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub locked_member: Option<String>,
 }
 
 impl JoinLink {
@@ -752,6 +763,7 @@ mod tests {
         let payload = LinkPayload {
             credential: "the-issuers-grant".to_string(),
             vault_password: Some("the-generated-password".to_string()),
+            locked_member: None,
         };
         let sealed =
             seal_payload("7K4M9Q", &locator(), &half, &payload, test_cost()).expect("the seal");
@@ -813,6 +825,7 @@ mod tests {
         let bare = LinkPayload {
             credential: "the-members-grant".to_string(),
             vault_password: None,
+            locked_member: None,
         };
         let sealed =
             seal_payload("7K4M9Q", &locator(), &half, &bare, test_cost()).expect("the seal");
@@ -826,6 +839,45 @@ mod tests {
             !String::from_utf8_lossy(&serde_json::to_vec(&bare).expect("json"))
                 .contains("vaultPassword"),
             "a payload with no vault password wrote the field"
+        );
+    }
+
+    /// Effort 851, requirement 38: **a machine link for a locked member says so inside the seal,
+    /// and a link made before that reads as not locked.** The member it names comes back out with
+    /// the right code; a payload in the earlier shape, which never wrote the field, opens to none;
+    /// and a payload for a member who was not locked writes no field at all, so it is that earlier
+    /// shape byte for byte.
+    #[test]
+    fn a_machine_link_seals_its_members_lock_and_an_older_one_reads_as_not_locked() {
+        let half = half(HalfKind::Machine);
+        let locked = LinkPayload {
+            credential: "the-members-grant".to_string(),
+            vault_password: None,
+            locked_member: Some("sami".to_string()),
+        };
+        let sealed =
+            seal_payload("7K4M9Q", &locator(), &half, &locked, test_cost()).expect("the seal");
+
+        assert_eq!(
+            open_payload("7K4M9Q", &locator(), &half, &sealed, test_cost())
+                .expect("the right code")
+                .locked_member
+                .as_deref(),
+            Some("sami")
+        );
+
+        let older: LinkPayload =
+            serde_json::from_str(r#"{"credential":"the-members-grant"}"#).expect("the older shape");
+
+        assert_eq!(older.locked_member, None);
+        assert_eq!(
+            serde_json::to_string(&LinkPayload {
+                locked_member: None,
+                ..locked
+            })
+            .expect("json"),
+            r#"{"credential":"the-members-grant"}"#,
+            "a link for a member who was not locked changed shape"
         );
     }
 
@@ -846,6 +898,7 @@ mod tests {
         let payload = LinkPayload {
             credential: "the-members-grant".to_string(),
             vault_password: None,
+            locked_member: None,
         };
         let sealed = seal_payload("7K4M9Q", &locator, &half, &payload, test_cost()).expect("seal");
         let link = locator.sealed(&sealed, half.clone());

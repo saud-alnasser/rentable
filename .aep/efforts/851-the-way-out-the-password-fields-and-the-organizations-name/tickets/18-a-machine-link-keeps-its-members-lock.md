@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(organization): a machine added by a machine link keeps its member's lock
@@ -14,10 +14,10 @@ A machine link made for a locked member carries that the member was locked, seal
 
 Traces requirement 38 and criterion 38.
 
-- [ ] The machine link's sealed payload carries whether its member was locked when it was made, bound so it cannot be changed without the code; an older link without it reads as not locked.
-- [ ] Connecting by a machine link that says locked sets `own_lock_latched` for that member on the new entry; signing in there reads the member locked with no verifying row, and a verifying unlock clears it.
-- [ ] Criterion 38's Rust test, with the latch shown failing when removed; the existing machine-link tests pass.
-- [ ] The full Rust suite, `cargo fmt --check` and clippy pass with no new warnings.
+- [x] The machine link's sealed payload carries whether its member was locked when it was made, bound so it cannot be changed without the code; an older link without it reads as not locked.
+- [x] Connecting by a machine link that says locked sets `own_lock_latched` for that member on the new entry; signing in there reads the member locked with no verifying row, and a verifying unlock clears it.
+- [x] Criterion 38's Rust test, with the latch shown failing when removed; the existing machine-link tests pass.
+- [x] The full Rust suite, `cargo fmt --check` and clippy pass with no new warnings.
 
 ## Relevant areas
 

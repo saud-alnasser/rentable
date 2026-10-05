@@ -19,6 +19,12 @@
 //! already does. So the link is worth one machine's first read and no more, and it is dead within
 //! four weeks whatever happens to it, because the grant inside it is.
 //!
+//! **A locked member's link keeps their lock** (effort 851, requirement 38). A link made for a
+//! member who read as locked names them inside its seal, and the machine it connects latches their
+//! own lock (`HeldOrganization::own_lock_latched`), as a machine an invitation joined does, so they
+//! read as locked there with no lock row until a verifying unlock is read. A link made before this
+//! names nobody, and latches nothing.
+//!
 //! **One link stands at a time.** Making one drops the account's other unspent rows, so a pair
 //! somebody lost stops being a way in the moment another is made.
 //!
@@ -106,8 +112,9 @@ fn no_longer_a_member(organization_name: &str) -> Error {
 /// because deriving for a dead link is a free pass to whoever is guessing; unseal the payload with
 /// the code and the link's secret together; reach the replica with what came out; judge the row,
 /// refusing a replaced, lapsed or spent one by name; refuse an account that is no longer in the
-/// organization; record the organization with no member, beside any others held, and select it;
-/// mark the row spent and send it.
+/// organization; record the organization with no member, beside any others held, and select it,
+/// with the member's own lock latched where the seal says they were locked; mark the row spent and
+/// send it.
 ///
 /// **Nothing is signed in afterwards and nothing is kept.** The credential goes out of scope with
 /// the slot it was put in, and the member signs in at the wall with the username and password they
@@ -172,7 +179,15 @@ where
             ));
         }
     };
-    let connected = connected(reached.borrow(), machine, link, &payload.credential, now).await;
+    let connected = connected(
+        reached.borrow(),
+        machine,
+        link,
+        &payload.credential,
+        payload.locked_member.as_deref(),
+        now,
+    )
+    .await;
 
     drop(reached);
 
@@ -192,6 +207,7 @@ async fn connected(
     machine: &mut Persisted<RemoteSyncStore>,
     link: &JoinLink,
     link_credential: &str,
+    locked_member: Option<&str>,
     now: i64,
 ) -> Result<HeldOrganization, Error> {
     let half = &link.half;
@@ -239,6 +255,26 @@ async fn connected(
     // recorded beside any other organization this machine holds, and selected.
     let held = connect::connect(store, machine, &link.locator(), link_credential, now).await?;
 
+    // **and a locked member's own lock latched from the connect on** (effort 851, requirement 38),
+    // where the link's seal says they were locked when it was made: they read as locked here with
+    // no lock row of theirs that verifies, as a machine an invitation joined holds them, so
+    // deleting their row and the owner's marker from this replica unlocks nobody. The member is
+    // the one the seal names, never the unsigned row's, and a verifying unlock still reads first.
+    let held = match locked_member {
+        Some(member_id) => {
+            let latched = HeldOrganization {
+                own_lock_latched: Some(member_id.to_string()),
+                ..held
+            };
+
+            machine.hold(latched.clone());
+            machine.commit()?;
+
+            latched
+        }
+        None => held,
+    };
+
     store.consume_machine_link(&half.id, now).await?;
 
     if !store.push().await {
@@ -275,10 +311,11 @@ mod tests {
                 link::{CODE_REFUSED, JoinLink, LinkKind, LinkPayload, Locator, open_payload},
                 locator, make_link,
             },
-            member::vault::KdfParams,
+            member::{lock::unlock_member, vault::KdfParams},
             role::permission,
             session::{
-                CredentialSlot, MEMBER_KEY_SERVICE, MemberSession, sign_in, sign_in_by_username,
+                CredentialSlot, MEMBER_KEY_SERVICE, MemberSession, acting_row, sign_in,
+                sign_in_by_username,
             },
             setup::{CreateOrganization, Remote, create_organization, credential_expiry},
             store::{MachineLinkRecord, OrganizationStore},
@@ -817,6 +854,160 @@ mod tests {
             "the refusal points somewhere the person cannot reach: {refusal}"
         );
         assert_eq!(first_machine.selected(), Some(&before));
+    }
+
+    /// Effort 851, requirement 38 and criterion 38: **a locked member's machine link keeps their
+    /// lock on the machine it connects, and an unlocked member's latches nothing.**
+    ///
+    /// Sami opened their invitation, so their account is locked, and a link made for them now names
+    /// them inside its seal. Before it is opened, sami deletes their own lock row and the owner's
+    /// marker, so nothing in the replica says they are locked and a machine that never saw the
+    /// marker would read them unlocked. The new machine latches their own lock all the same: sami
+    /// signs in there and is refused an act of the organization as locked. The owner's verifying
+    /// unlock is what lets them act, and a link made for them then names nobody and latches
+    /// nothing.
+    #[tokio::test]
+    async fn a_locked_members_machine_link_keeps_their_lock_and_an_unlocked_ones_latches_nothing() {
+        let credentials = Memory::new();
+        let directory = scratch("locked-link");
+        let (store, owner, locator, member_id, username) = account(&credentials, &directory).await;
+        let made = make_link(
+            &store,
+            &owner,
+            no_platform(),
+            &locator,
+            &member_id,
+            crate::organization::invitation::TEST_LIFETIME_HOURS,
+            test_cost(),
+            ISSUED_AT + 2,
+        )
+        .await
+        .expect("the link could not be made");
+        let sealed = |made: &MadeLink| {
+            let link = JoinLink::decode(&made.link).expect("the link");
+
+            open_payload(
+                &made.code,
+                &link.locator(),
+                &link.half,
+                &link.credential,
+                test_cost(),
+            )
+            .expect("the code did not open the payload")
+        };
+
+        assert_eq!(
+            sealed(&made).locked_member.as_deref(),
+            Some(member_id.as_str()),
+            "a locked member's link does not say so"
+        );
+
+        // sami's own row and the owner's marker, deleted from the replica the link pulls.
+        for id in [&member_id, &owner.member_id] {
+            store
+                .connection()
+                .execute(
+                    "DELETE FROM \"member_lock\" WHERE \"member_id\" = ?",
+                    vec![turso::Value::Text(id.clone())],
+                )
+                .await
+                .expect("the row deleted");
+        }
+
+        let sami = store
+            .member(&owner.verifying_key, &member_id)
+            .await
+            .expect("the row")
+            .expect("sami");
+
+        assert!(
+            !store
+                .member_locked(&owner.verifying_key, &sami, false)
+                .await
+                .expect("the lock"),
+            "the replica still holds something that locks sami"
+        );
+
+        let next = scratch("locked-link-next");
+        let mut machine = fresh_machine(&next);
+
+        connect_on(&mut machine, &store, &made, &made.code, ISSUED_AT + 3)
+            .await
+            .expect("the next machine did not connect");
+
+        // the record as the next launch reads it back.
+        let held = Persisted::<RemoteSyncStore>::load(machine.path().to_path_buf())
+            .expect("the record")
+            .selected()
+            .cloned()
+            .expect("the organization");
+
+        assert_eq!(held.member_id, None, "the connect recorded a member");
+        assert_eq!(
+            held.own_lock_latched.as_deref(),
+            Some(member_id.as_str()),
+            "the connect did not latch sami's own lock"
+        );
+
+        let session = sign_in_by_username(&credentials, &store, &held, &username, CHOSEN, &slot())
+            .await
+            .expect("sami could not sign in on the next machine");
+
+        assert!(session.own_lock_latched, "the wall forgot sami's own lock");
+
+        let refused = unlock_member(&store, &session, &owner.member_id, ISSUED_AT + 4)
+            .await
+            .expect_err("a locked member acted");
+
+        assert!(
+            matches!(
+                refused,
+                Error::Refused {
+                    reason: RefusalReason::Locked,
+                    ..
+                }
+            ),
+            "{refused:?}"
+        );
+
+        // a verifying unlock reads before the latch.
+        unlock_member(&store, &owner, &member_id, ISSUED_AT + 5)
+            .await
+            .expect("the owner could not unlock sami");
+
+        let session = sign_in_by_username(&credentials, &store, &held, &username, CHOSEN, &slot())
+            .await
+            .expect("sami could not sign in again");
+
+        acting_row(&store, &session)
+            .await
+            .expect("an unlocked member read as locked");
+
+        // and an unlocked member's link names nobody and latches nothing.
+        let unlocked = make_link(
+            &store,
+            &owner,
+            no_platform(),
+            &locator,
+            &member_id,
+            crate::organization::invitation::TEST_LIFETIME_HOURS,
+            test_cost(),
+            ISSUED_AT + 6,
+        )
+        .await
+        .expect("the second link could not be made");
+
+        assert_eq!(sealed(&unlocked).locked_member, None);
+
+        let mut third = fresh_machine(&scratch("locked-link-third"));
+        let held = connect_on(&mut third, &store, &unlocked, &unlocked.code, ISSUED_AT + 7)
+            .await
+            .expect("the third machine did not connect");
+
+        assert_eq!(
+            held.own_lock_latched, None,
+            "an unlocked member's link latched"
+        );
     }
 
     /// The organization's replica in `from`, copied into `to`: a machine's own replica, as a

@@ -146,7 +146,7 @@ use super::{
     role::permission::{self, Flag},
     session::{MemberSession, actor, rank_of},
     setup::{SHIPPING_KDF, credential_expiry},
-    store::{InvitationRecord, MachineLinkRecord, OrganizationStore, Signer},
+    store::{InvitationRecord, MachineLinkRecord, OrganizationStore, Signer, locked_in},
     workspace::signer_of,
 };
 use link::{Half, HalfKind, LinkPayload, Locator, seal_payload};
@@ -391,7 +391,7 @@ pub async fn make_link<P: TursoPlatform>(
     let code = generate_code()?;
 
     let mut unreachable_workspaces = Vec::new();
-    let (kind, vault_password) = if member.must_change_password {
+    let (kind, vault_password, locked_member) = if member.must_change_password {
         // no password to admit them with, so the link carries the one the vault is built under and
         // the person opening it replaces it with theirs. The row is written before the link so a
         // link that exists always has a row behind it.
@@ -423,7 +423,8 @@ pub async fn make_link<P: TursoPlatform>(
             )
             .await?;
 
-        (HalfKind::Invitation, Some(password))
+        // the accept latches the member's own lock whatever the payload says, so it carries none.
+        (HalfKind::Invitation, Some(password), None)
     } else {
         // their password already admits them, so the link opens no vault: it connects the machine
         // and leaves it at the wall. Their other unspent rows go first, so one link stands at a
@@ -439,7 +440,13 @@ pub async fn make_link<P: TursoPlatform>(
             })
             .await?;
 
-        (HalfKind::Machine, None)
+        // and whether they read as locked now, as this machine reads it (effort 851, requirement
+        // 38): a locked member's link says so in its seal, so the machine it connects holds them
+        // to their lock with no lock row of theirs to read, as a machine an invitation joined does.
+        let locks = store.member_locks(&session.verifying_key).await?;
+        let locked = locked_in(&locks, &member, locks.latch(&session.lock_marked));
+
+        (HalfKind::Machine, None, locked.then(|| member.id.clone()))
     };
 
     let half = Half {
@@ -455,6 +462,7 @@ pub async fn make_link<P: TursoPlatform>(
         &LinkPayload {
             credential,
             vault_password,
+            locked_member,
         },
         kdf_params,
     )?;
