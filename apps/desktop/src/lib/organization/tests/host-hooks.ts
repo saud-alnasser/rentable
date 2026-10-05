@@ -148,7 +148,8 @@ export const hostHooks = {
 	useEndOtherSessions: mutation('useEndOtherSessions'),
 	useEndMachine: mutation('useEndMachine'),
 	useDeleteOrganization: mutation('useDeleteOrganization'),
-	useDisconnectOrganization: mutation('useDisconnectOrganization')
+	useDisconnectOrganization: mutation('useDisconnectOrganization'),
+	useRenameOrganization: mutation('useRenameOrganization')
 };
 
 /** what the sync query's read of the sync record is replaced with. */

@@ -38,10 +38,12 @@
 mod command;
 mod connect;
 mod group;
+mod rename;
 
 pub use command::*;
 pub use connect::*;
 pub use group::*;
+pub use rename::*;
 
 use std::path::Path;
 
@@ -249,7 +251,8 @@ where
     P: TursoPlatform,
     F: Fn(TursoOrganization) -> P,
 {
-    let name = request.name.trim();
+    // the name is held to the rule a rename is (effort 851, requirement 23).
+    let name = organization_name(request.name)?;
     let username = request.username.trim();
     // a field that was drawn and left blank is a field that was not answered, and the walk only
     // draws it after Turso has refused everything else: there is nothing to refuse it with here
@@ -258,13 +261,6 @@ where
         .group
         .map(str::trim)
         .filter(|group| !group.is_empty());
-
-    if name.is_empty() {
-        return Err(Error::refused(
-            RefusalReason::OrganizationNameMissing,
-            "the organization needs a name",
-        ));
-    }
 
     // the owner is the first member, so nobody holds the username yet; the shape is the whole
     // check, and it is the same check an invitation makes.
@@ -752,8 +748,9 @@ pub(crate) fn authority(credentials: &dyn CredentialStore) -> Result<String, Err
 #[cfg(test)]
 mod tests {
     use super::{
-        CreateOrganization, MINIMUM_PASSWORD_LENGTH, ORGANIZATION_DATABASE_PREFIX, OWNER_ROLE,
-        OrganizationCreated, Remote, SHIPPING_KDF, create_organization, credential_expiry,
+        CreateOrganization, MINIMUM_PASSWORD_LENGTH, ORGANIZATION_DATABASE_PREFIX,
+        ORGANIZATION_NAME_LIMIT, OWNER_ROLE, OrganizationCreated, Remote, SHIPPING_KDF,
+        create_organization, credential_expiry,
     };
     use crate::credential::Memory;
     use crate::error::{Error, RefusalReason};
@@ -1251,7 +1248,9 @@ mod tests {
     }
 
     /// The three things typed are checked before anything is asked of Turso, and a username
-    /// outside requirement 21's rules is refused with the sentence an invitation refuses with.
+    /// outside requirement 21's rules is refused with the sentence an invitation refuses with. A
+    /// name one character past `ORGANIZATION_NAME_LIMIT` is refused as a rename refuses it
+    /// (effort 851, criterion 23).
     /// **The group is not among them**: it is asked for only after Turso has refused every name
     /// this application can work out, so a run that carries none is the ordinary one.
     #[tokio::test]
@@ -1264,9 +1263,11 @@ mod tests {
         let database_path = directory.join("app.db");
         let too_short = "a".repeat(MINIMUM_PASSWORD_LENGTH - 1);
         let too_long = "o".repeat(33);
+        let name_too_long = "n".repeat(ORGANIZATION_NAME_LIMIT + 1);
 
         for (name, username, password) in [
             ("   ", "olivia", PASSWORD),
+            (name_too_long.as_str(), "olivia", PASSWORD),
             ("Acme", "olivia", too_short.as_str()),
             ("Acme", "ol", PASSWORD),
             ("Acme", too_long.as_str(), PASSWORD),
@@ -1301,6 +1302,19 @@ mod tests {
 
             if username != "olivia" {
                 assert_eq!(error.to_string(), USERNAME_RULES, "{username:?}");
+            }
+
+            if name == name_too_long {
+                assert!(
+                    matches!(
+                        error,
+                        Error::Refused {
+                            reason: RefusalReason::OrganizationNameTooLong,
+                            ..
+                        }
+                    ),
+                    "{error:?}"
+                );
             }
         }
 

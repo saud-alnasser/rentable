@@ -805,6 +805,29 @@ pub(super) async fn require_owner(
     Ok(actor.row)
 }
 
+/// The refusal anybody but the owner meets for an act that is the owner's by role alone and names
+/// no flag: renaming the organization (effort 851, requirement 24). Answers the acting member's
+/// verified row, as [`require_owner`] does and for its reason.
+///
+/// **No flag, on purpose.** The owner's role always carries everything, so a flag for an act only
+/// the owner performs would be a bit no role and no override could be given; the spec keeps the
+/// rename off the flag vocabulary (*Constraints*). What is asked is the row naming the owner's role,
+/// which only the root signs about its own holder, read under the pinned key every time, so a
+/// session opened as the owner that has since handed the organization over is refused here.
+pub(super) async fn require_owner_alone(
+    store: &OrganizationStore,
+    session: &MemberSession,
+    refusal: &str,
+) -> Result<MemberRecord, Error> {
+    let actor = super::session::actor(store, session).await?;
+
+    if actor.row.role_id != permission::OWNER {
+        return Err(Error::refused(RefusalReason::OwnerOnly, refusal));
+    }
+
+    Ok(actor.row)
+}
+
 /// Refuse a grant to a member who has been removed: renewal skips them, and a first grant should
 /// not reach them either.
 fn refuse_removed(member: &MemberRecord) -> Result<(), Error> {

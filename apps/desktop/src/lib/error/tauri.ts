@@ -104,6 +104,7 @@ export const TAURI_REFUSAL_REASONS = [
 	'nothingOffered',
 	'offererGone',
 	'organizationNameMissing',
+	'organizationNameTooLong',
 	'workspaceNameMissing',
 	'workspaceMissing',
 	'noWorkspaceOpen',

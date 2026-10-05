@@ -73,6 +73,24 @@ export const useDeleteOrganization = declareMutation({
 	}
 });
 
+/**
+ * rename the organization, as its owner (effort 851, requirements 22 to 25). The shell answers
+ * with the whole state, which is written under the state's key before anything is read again, so
+ * the organization tab, the rail and the record the switcher draws from name the new name at
+ * once rather than after a round trip.
+ */
+export const useRenameOrganization = declareMutation({
+	mutate: ({ name }: { name: string }) => api.organization.rename({ name }),
+	touches: 'none',
+	toast: {
+		success: () => get(LL).organization.name.renamed(),
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
+	},
+	sets: ({ result }) => [{ key: keys.state, data: result }],
+	invalidates: [keys.state]
+});
+
 /** where this machine stands: the organizations it joined and who is in. */
 export function useFetchOrganizationState() {
 	return createQuery(() => ({

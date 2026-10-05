@@ -28,6 +28,13 @@ export const organization = {
 		saved: 'حُفظ ختم المؤسسة',
 		title: 'ختم المؤسسة'
 	},
+	name: {
+		description: 'الاسم الذي يراه كل عضو عند تسجيل الدخول وفي أرجاء rentable.',
+		edit: 'تعديل اسم المؤسسة',
+		readOnly: 'لا يغيّره إلا المالك.',
+		renameDescription: 'اسم هذه المؤسسة على جهاز كل عضو بعد مزامنته.',
+		renamed: 'تمت إعادة تسمية المؤسسة.'
+	},
 	setup: {
 		connectTitle: 'اربط Turso',
 		connectDescription: 'تُحفظ مؤسستك في حساب Turso الخاص بك.',
@@ -520,6 +527,7 @@ export const refusals = {
 		nothingOffered: 'لا يوجد عرض قائم لهذه المؤسسة.',
 		offererGone: 'لم يعد الحساب الذي عرض عليك المؤسسة موجوداً فيها.',
 		organizationNameMissing: 'تحتاج المؤسسة إلى اسم.',
+		organizationNameTooLong: 'هذا الاسم طويل جداً.',
 		workspaceNameMissing: 'تحتاج مساحة العمل إلى اسم.',
 		workspaceMissing: 'لم تعد مساحة العمل هذه في المؤسسة. أعد التحميل لترى ما تغيّر.',
 		noWorkspaceOpen: 'لا توجد مساحة عمل مفتوحة على هذا الجهاز. افتح واحدة وحاول مرة أخرى.',

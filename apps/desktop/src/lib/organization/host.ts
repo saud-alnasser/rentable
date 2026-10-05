@@ -342,6 +342,14 @@ export type OrganizationHost = {
 	 */
 	remove: (organizationId: string) => Promise<OrganizationState>;
 	/**
+	 * rename the organization, as its owner (effort 851, requirements 22 to 28): trimmed, sealed
+	 * and signed by Rust, written to the signed name and the unsigned column, and sent. Answers
+	 * the whole state, so the tab, the shell and the switcher read the new name at once. Refuses
+	 * with `ownerOnly` for anybody else, and with `organizationNameMissing` or
+	 * `organizationNameTooLong` for a name outside the walk's rules; nothing is written on any.
+	 */
+	rename: (name: string) => Promise<OrganizationState>;
+	/**
 	 * delete the organization, with the owner's password: every workspace database and the
 	 * organization's own directory are removed from the owner's Turso account, and this machine
 	 * then forgets what it held exactly as a disconnect leaves it. Nothing puts either back.

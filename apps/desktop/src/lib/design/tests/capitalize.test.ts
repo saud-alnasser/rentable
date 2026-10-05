@@ -37,6 +37,11 @@ const ALLOWED: readonly { label: string; most: number; reason: string }[] = [
 		most: 1,
 		reason: 'the submit verb'
 	},
+	{
+		label: 'lib/organization/component/rename-form.svelte',
+		most: 1,
+		reason: 'the submit verb'
+	},
 	{ label: 'lib/contract/component/form.svelte', most: 1, reason: 'the submit verb' },
 	{
 		label: 'lib/contract/component/interval-field.svelte',

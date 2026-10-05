@@ -11,6 +11,7 @@ use crate::{
 };
 
 use crate::organization::{
+    act::{Acting, Pull, as_member},
     session::{self, CredentialSlot, OrganizationState, sign_out, state_of},
     setup::{
         self, ConnectedToExisting, CreateOrganization, GroupState, OrganizationCreated, Remote,
@@ -380,4 +381,48 @@ pub(crate) async fn organization_setup_consent_disconnect(
     credentials: tauri::State<'_, Credentials>,
 ) -> Result<(), Error> {
     app_state.consent.disconnect(credentials.inner().as_ref())
+}
+
+/// Rename the organization, as its owner (effort 851, requirements 22 to 28).
+///
+/// **One command for the whole act, and the screens observe it.** The signed name and the unsigned
+/// column are written and sent (`setup::rename_organization`), this machine's own entry names the
+/// new name at once, so the wall and the switcher read it with no restart, and what answers is the
+/// whole state, so the settings tab and the shell read the name just set rather than the one they
+/// had (requirement 25). Every other member's machine follows once it has synced while signed in
+/// (requirement 26, `session::state_of`).
+///
+/// The name is validated by the form first and again by Rust, which is what stores it.
+#[tauri::command(rename = "setup_rename")]
+pub(crate) async fn organization_setup_rename(
+    app_state: tauri::State<'_, Shared>,
+    credentials: tauri::State<'_, Credentials>,
+    clock: tauri::State<'_, clock::Shared>,
+    name: String,
+) -> Result<OrganizationState, Error> {
+    rename(&app_state, &credentials, &clock, &name).await
+}
+
+/// [`organization_setup_rename`]'s act, over the state a test holds as the plugin does.
+pub(crate) async fn rename(
+    app_state: &Shared,
+    credentials: &Credentials,
+    clock: &clock::Shared,
+    name: &str,
+) -> Result<OrganizationState, Error> {
+    let (organization_id, renamed) =
+        as_member(app_state, Pull::No, async |Acting { member, store }| {
+            let renamed = setup::rename_organization(store, member, name, clock.now()).await?;
+
+            Ok((member.organization_id.clone(), renamed))
+        })
+        .await?;
+
+    app_state
+        .remote_sync
+        .write()
+        .await
+        .rename_held_organization(&organization_id, &renamed)?;
+
+    state_of(app_state, credentials, clock).await
 }

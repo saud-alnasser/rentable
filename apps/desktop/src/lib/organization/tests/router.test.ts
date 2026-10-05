@@ -4,7 +4,7 @@ import test from 'node:test';
 import { appRouter } from '$lib/app/router.ts';
 import { caller, context, type Meta } from '$lib/api/trpc.ts';
 import organization from '$lib/organization/router.ts';
-import { PASSWORD_FLOOR } from '$lib/organization/setup/setup.ts';
+import { ORGANIZATION_NAME_LIMIT, PASSWORD_FLOOR } from '$lib/organization/setup/setup.ts';
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import { fakeHost } from '$lib/app/tests/host.ts';
 import {
@@ -513,6 +513,7 @@ test('nothing here asks the host to list organizations', () => {
 		'ownershipAccept',
 		'password.change',
 		'remove',
+		'rename',
 		'role.create',
 		'role.delete',
 		'role.list',
@@ -893,6 +894,40 @@ test('ending sessions reaches the host behind reset password, and ending your ow
 	assert.deepEqual(asked, ['endSessions:member-2', 'endElsewhere', 'endElsewhere']);
 });
 
+// effort 851, requirements 23 and 24: renaming the organization needs somebody signed in and no
+// flag, since whether they are the owner is Rust's alone. The name is held to the walk's rules
+// before the host is reached: blank, whitespace and one character past the limit are refused,
+// and a name inside them arrives trimmed.
+test('renaming the organization reaches the host trimmed for anybody signed in, and a name past the rules does not', async () => {
+	const asked: string[] = [];
+	const host = fakeHost({
+		organization: {
+			...fakeHost().organization,
+			rename: async (name) => {
+				asked.push(`rename:${name}`);
+
+				return fakeOrganizationState();
+			}
+		}
+	});
+	const signedIn = await permittedApi(host);
+
+	for (const name of ['', '   ', 'n'.repeat(ORGANIZATION_NAME_LIMIT + 1)]) {
+		await assert.rejects(signedIn.organization.rename({ name }), JSON.stringify(name));
+	}
+
+	assert.deepEqual(asked, []);
+
+	await signedIn.organization.rename({ name: '  Acme Rentals  ' });
+	await signedIn.organization.rename({ name: ` ${'n'.repeat(ORGANIZATION_NAME_LIMIT)} ` });
+
+	assert.deepEqual(asked, ['rename:Acme Rentals', `rename:${'n'.repeat(ORGANIZATION_NAME_LIMIT)}`]);
+
+	// and nobody signed in renames nothing.
+	await assert.rejects((await signedOutApi(host)).organization.rename({ name: 'Acme Rentals' }));
+	assert.equal(asked.length, 2);
+});
+
 // effort 828, requirement 18: deleting the organization needs somebody signed in and a password,
 // and it hands both on as given. It is the owner's `deleteOrganization` here as it is in Rust
 // (ticket 17 of effort 838), and whether the password opens the owner's vault is Rust's. A caller
@@ -1184,6 +1219,7 @@ const COMMAND_OF: Record<string, string> = {
 	ownershipAccept: 'plugin:organization|ownership_accept',
 	'password.change': 'plugin:organization|member_change_password',
 	remove: 'plugin:organization|session_remove',
+	rename: 'plugin:organization|setup_rename',
 	'role.create': 'plugin:organization|role_create',
 	'role.delete': 'plugin:organization|role_delete',
 	'role.move': 'plugin:organization|role_move',
@@ -1217,8 +1253,11 @@ function metaFor(path: string, gate: Gate): Meta {
 		case 'Public':
 		case 'ThisMachine':
 			return { public: true };
+		// `OwnerAlone` is the owner's by role alone, with no flag to name (effort 851, requirement
+		// 24): the check is Rust's, and the router asks only that somebody is signed in.
 		case 'Own':
 		case 'SignedIn':
+		case 'OwnerAlone':
 			return { member: true };
 		case 'AnyFlag':
 			return { anyOf: gate.flags };

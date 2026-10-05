@@ -33,6 +33,15 @@ export const organization = {
 		saved: 'organization stamp saved',
 		title: 'organization stamp'
 	},
+	// the organization tab's first card: the organization's name, and for the owner alone the edit
+	// that renames it (effort 851, requirements 22 to 25).
+	name: {
+		description: 'what every member sees it called, at sign-in and across rentable.',
+		edit: 'edit organization name',
+		readOnly: 'only the owner can change it.',
+		renameDescription: "what this organization is called, on every member's machine once it syncs.",
+		renamed: 'the organization was renamed.'
+	},
 	setup: {
 		connectTitle: 'connect Turso',
 		connectDescription: 'your organization is stored in your Turso account.',
@@ -674,6 +683,7 @@ export const refusals = {
 		nothingOffered: 'no offer of this organization stands.',
 		offererGone: 'the account that offered you the organization is no longer in it.',
 		organizationNameMissing: 'the organization needs a name.',
+		organizationNameTooLong: 'that name is too long.',
 		workspaceNameMissing: 'the workspace needs a name.',
 		workspaceMissing:
 			'that workspace is no longer in this organization. reload to see what changed.',

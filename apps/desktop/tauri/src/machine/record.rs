@@ -876,6 +876,30 @@ impl RemoteSync {
         self.store.commit()
     }
 
+    /// The name the owner just gave the organization, on this machine's own entry for it, so the
+    /// wall and the switcher read it before anything is read again (effort 851, requirement 25).
+    /// The name is the one the owner signed, so the entry is latched to signed names as a read of
+    /// the signed row latches it (`HeldOrganization::name_signed`). An organization this machine
+    /// does not hold changes nothing.
+    pub(crate) fn rename_held_organization(
+        &mut self,
+        organization_id: &str,
+        name: &str,
+    ) -> Result<(), Error> {
+        let Some(entry) = self.store.held_mut(organization_id) else {
+            return Ok(());
+        };
+
+        if entry.name == name && entry.name_signed {
+            return Ok(());
+        }
+
+        entry.name = name.to_string();
+        entry.name_signed = true;
+
+        self.store.commit()
+    }
+
     /// Forget one organization this machine holds, on the record: its entry, every replica entry
     /// of it and of the workspaces in `workspaces`, and, where it was the selected one, the
     /// selection, the workspace it had open and what this process held and heard for it. Every

@@ -221,6 +221,9 @@ pub enum RefusalReason {
     // workspaces and grants.
     /// the organization was given no name.
     OrganizationNameMissing,
+    /// the organization's name is longer than `setup::ORGANIZATION_NAME_LIMIT` (effort 851,
+    /// requirement 23).
+    OrganizationNameTooLong,
     /// the workspace was given no name.
     WorkspaceNameMissing,
     /// the workspace acted on is not in this organization.

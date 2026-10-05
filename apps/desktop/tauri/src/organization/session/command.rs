@@ -905,6 +905,7 @@ mod tests {
     use crate::organization::HeldOrganization;
     use crate::organization::Shared;
     use crate::organization::act::{owner_platform, owner_platform_at};
+    use crate::organization::invitation::link::JoinLink;
     use crate::organization::invitation::{
         Invitation, locator, make_account_and_link, vault_password_of,
     };
@@ -912,10 +913,7 @@ mod tests {
     use crate::organization::role::permission;
     use crate::organization::session::{AccountCopy, CredentialSlot, Upgrade, Upgrading};
     use crate::organization::session::{MemberSession, sign_in};
-    use crate::organization::store::{
-        OrganizationNameRecord, OrganizationRecord, OrganizationStore, Signer,
-    };
-    use crate::organization::workspace::signer_of;
+    use crate::organization::store::OrganizationStore;
     use crate::persisted::Persisted;
     use crate::settings::Settings;
     use crate::sync::test::server::{ScriptedResponse, ScriptedServer};
@@ -1801,42 +1799,12 @@ mod tests {
         app_state
     }
 
-    /// The owner renames the organization as the rename will (effort 851, ticket 10): the signed
-    /// row and the unsigned column, with the same sealed name.
+    /// The owner renames the organization through the rename itself (effort 851, ticket 10): the
+    /// signed row and the unsigned column, with the same sealed name.
     async fn renamed(store: &OrganizationStore, owner: &MemberSession, name: &str, at: i64) {
-        let name_sealed = seal_content(
-            &owner.content_key,
-            "organization.name_sealed",
-            name.as_bytes(),
-        )
-        .expect("the sealed name");
-        let (key, certificate) = signer_of(store, owner).await.expect("the owner's signer");
-        let organization = store
-            .organization()
+        crate::organization::setup::rename_organization(store, owner, name, at)
             .await
-            .expect("the row")
-            .expect("the organization");
-
-        store
-            .write_organization_name(
-                &Signer {
-                    key: &key,
-                    certificate: &certificate,
-                },
-                &OrganizationNameRecord {
-                    name_sealed: name_sealed.clone(),
-                    updated_at: at,
-                },
-            )
-            .await
-            .expect("the signed name");
-        store
-            .write_organization(&OrganizationRecord {
-                name_sealed,
-                ..organization
-            })
-            .await
-            .expect("the organization row");
+            .expect("the owner's rename");
     }
 
     /// What `app_state`'s machine names the organization: in the session, and in the record the
@@ -2274,6 +2242,350 @@ mod tests {
         }
 
         assert_eq!(names_on(&member, &elsewhere).await, both("Acme"));
+    }
+
+    // -------------------------------------------------------------------------------------
+    // Effort 851, requirements 23 to 28: the owner renames the organization.
+    // -------------------------------------------------------------------------------------
+
+    /// The owner signed in on the first run's machine, as the shell holds them after a sign-in.
+    async fn owner_signed_in(owners: &Shared) {
+        let store = replica_of(owners).await;
+        let owner = the_owner(&store, owners).await;
+
+        *owners.organization.write().await = Some(store);
+        *owners.member.write().await = Some(owner);
+        owners
+            .old_shape_check
+            .set(())
+            .expect("the launch's checks had run");
+    }
+
+    /// The account and its link the signed-in owner on `owners` makes for `username`: the link's
+    /// text and its code.
+    async fn link_for(owners: &Shared, username: &'static str) -> (String, String) {
+        let organization = owners.organization.read().await;
+        let member = owners.member.read().await;
+        let (store, owner) = (
+            organization.as_ref().expect("the replica"),
+            member.as_ref().expect("the owner"),
+        );
+        let link = locator(store, owner).await.expect("the link");
+        let invited = make_account_and_link(
+            store,
+            owner,
+            None::<&InMemoryPlatform>,
+            &link,
+            Invitation {
+                username,
+                role: permission::MEMBER,
+                workspaces: &[],
+            },
+            test_cost(),
+            CREATED_AT + 1,
+        )
+        .await
+        .expect("the invitation");
+
+        (invited.join_link, invited.code)
+    }
+
+    /// The name a link carries in the clear.
+    fn named_by(link: &str) -> String {
+        JoinLink::decode(link).expect("the link").organization_name
+    }
+
+    /// A machine that holds nothing, joined by `link` with its code and a password chosen there,
+    /// over a replica of what the owner's machine holds, and past its launch's checks.
+    async fn joined_by(
+        owners: &Shared,
+        credentials: &Credentials,
+        directory: &std::path::Path,
+        (link, code): &(String, String),
+    ) -> Shared {
+        let link = JoinLink::decode(link).expect("the link");
+        let replica = {
+            let organization = owners.organization.read().await;
+
+            replica_beside(
+                organization.as_ref().expect("the replica"),
+                directory,
+                &link.organization_id,
+            )
+            .await
+        };
+        let app_state = state_over(directory).await;
+        let database_path = app_state.settings.read().await.database_path.clone();
+        let (replica, member) = {
+            let mut remote_sync = app_state.remote_sync.write().await;
+
+            join::accept(
+                credentials.as_ref(),
+                |_| async { Ok::<_, Error>(replica) },
+                remote_sync.store_mut(),
+                &database_path,
+                &link,
+                code,
+                "a password sami chose",
+                test_cost(),
+                CREATED_AT + 20,
+            )
+            .await
+            .expect("the link did not join")
+        };
+
+        *app_state.organization.write().await = Some(replica);
+        *app_state.member.write().await = Some(member);
+        app_state
+            .old_shape_check
+            .set(())
+            .expect("the launch's checks had run");
+
+        app_state
+    }
+
+    /// The organization's name on `app_state`'s replica as it lies: the unsigned column, and the
+    /// signed row's sealed name where there is one.
+    async fn name_rows(app_state: &Shared) -> (Vec<u8>, Option<Vec<u8>>) {
+        let organization = app_state.organization.read().await;
+        let store = organization.as_ref().expect("the replica");
+
+        (
+            store
+                .organization()
+                .await
+                .expect("the row")
+                .expect("the organization")
+                .name_sealed,
+            store
+                .organization_name_row()
+                .await
+                .expect("the signed row")
+                .map(|row| row.record.name_sealed),
+        )
+    }
+
+    /// What `app_state`'s record names, as the wall and the switcher read it, with no state read
+    /// first, and whether it is latched to signed names.
+    async fn held_name(app_state: &Shared) -> (String, bool) {
+        let mut remote_sync = app_state.remote_sync.write().await;
+        let held = remote_sync.store_mut().selected().expect("the entry");
+
+        (held.name.clone(), held.name_signed)
+    }
+
+    fn reason_of(refusal: Error) -> crate::error::RefusalReason {
+        match refusal {
+            Error::Refused { reason, .. } => reason,
+            other => panic!("not a refusal: {other:?}"),
+        }
+    }
+
+    /// **Criteria 23 and 25.** The owner's rename is held to the walk's rules in the shell: blank,
+    /// whitespace and one character past the limit are refused and change neither half of the
+    /// name. A name inside them is trimmed, sealed once into the signed row and the unsigned
+    /// column, and named at once by the state the rename answers (the session the tab and the
+    /// shell read, the held organization the switcher reads) and by the record, with no restart.
+    #[tokio::test]
+    async fn the_owners_rename_is_trimmed_signed_and_named_at_once_and_a_refused_one_changes_nothing()
+     {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let clock = crate::clock::System::shared();
+        let directory = scratch("rename-owner");
+        let owners = first_run(credentials.as_ref(), &directory).await;
+
+        owner_signed_in(&owners).await;
+
+        let before = name_rows(&owners).await;
+        let too_long = "n".repeat(crate::organization::setup::ORGANIZATION_NAME_LIMIT + 1);
+
+        for (name, reason) in [
+            ("", crate::error::RefusalReason::OrganizationNameMissing),
+            ("   ", crate::error::RefusalReason::OrganizationNameMissing),
+            (
+                too_long.as_str(),
+                crate::error::RefusalReason::OrganizationNameTooLong,
+            ),
+        ] {
+            let refusal = crate::organization::setup::rename(&owners, &credentials, &clock, name)
+                .await
+                .expect_err(name);
+
+            assert_eq!(reason_of(refusal), reason, "{name:?}");
+            assert_eq!(name_rows(&owners).await, before, "{name:?} wrote a name");
+        }
+
+        let state =
+            crate::organization::setup::rename(&owners, &credentials, &clock, "  Acme Rentals  ")
+                .await
+                .expect("the owner's rename");
+
+        assert_eq!(
+            state.session.as_ref().expect("the owner").organization_name,
+            "Acme Rentals",
+            "the tab and the shell read the old name"
+        );
+        assert_eq!(
+            state.selected_organization().expect("the entry").name,
+            "Acme Rentals",
+            "the switcher reads the old name"
+        );
+        assert_eq!(
+            held_name(&owners).await,
+            ("Acme Rentals".to_string(), true),
+            "the record names the old name"
+        );
+
+        let (column, signed) = name_rows(&owners).await;
+
+        assert_eq!(Some(column.clone()), signed, "the two halves differ");
+
+        let organization = owners.organization.read().await;
+        let member = owners.member.read().await;
+        let (store, owner) = (
+            organization.as_ref().expect("the replica"),
+            member.as_ref().expect("the owner"),
+        );
+
+        assert_eq!(
+            open_content(&owner.content_key, "organization.name_sealed", &column)
+                .expect("the name opens"),
+            b"Acme Rentals",
+            "the name was not trimmed"
+        );
+        assert!(
+            store
+                .organization_name(&owner.verifying_key)
+                .await
+                .expect("the signed name")
+                .is_some(),
+            "the signed row does not verify"
+        );
+    }
+
+    /// **Criterion 24.** A rename sent by anybody but the owner is refused in the shell, whatever
+    /// the interface drew, and changes nothing: a member locked as their link leaves them, and the
+    /// same member unlocked and made a manager, holding every flag but the owner's.
+    #[tokio::test]
+    async fn a_rename_by_anybody_but_the_owner_is_refused_and_changes_nothing() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let elsewhere: Credentials = Arc::new(Memory::new());
+        let clock = crate::clock::System::shared();
+        let directory = scratch("rename-not-owner");
+        let owners = first_run(credentials.as_ref(), &directory.join("owner")).await;
+
+        owner_signed_in(&owners).await;
+
+        let link = link_for(&owners, "sami.staff").await;
+        let member = joined_by(&owners, &elsewhere, &directory.join("member"), &link).await;
+        let member_id = member
+            .member
+            .read()
+            .await
+            .as_ref()
+            .expect("the member")
+            .member_id
+            .clone();
+        let before = name_rows(&member).await;
+
+        let locked = crate::organization::setup::rename(&member, &elsewhere, &clock, "Forged")
+            .await
+            .expect_err("a locked member renamed the organization");
+
+        assert_eq!(reason_of(locked), crate::error::RefusalReason::Locked);
+        assert_eq!(name_rows(&member).await, before);
+
+        {
+            let organization = owners.organization.read().await;
+            let owner = owners.member.read().await;
+            let (store, owner) = (
+                organization.as_ref().expect("the replica"),
+                owner.as_ref().expect("the owner"),
+            );
+
+            crate::organization::member::lock::unlocked_for_a_test(store, owner, &member_id)
+                .await
+                .expect("the owner unlocks them");
+            crate::organization::role::assign_role(
+                store,
+                owner,
+                &member_id,
+                permission::MANAGER,
+                None,
+                CREATED_AT + 30,
+            )
+            .await
+            .expect("the owner makes them a manager");
+
+            let replica = member.organization.read().await;
+
+            synced(store, replica.as_ref().expect("the member's replica")).await;
+        }
+
+        let before = name_rows(&member).await;
+        let refused = crate::organization::setup::rename(&member, &elsewhere, &clock, "Forged")
+            .await
+            .expect_err("a manager renamed the organization");
+
+        assert_eq!(reason_of(refused), crate::error::RefusalReason::OwnerOnly);
+        assert_eq!(name_rows(&member).await, before, "a refused rename wrote");
+        assert_eq!(names_on(&member, &elsewhere).await, both("Acme"));
+    }
+
+    /// **Criterion 27.** A link made before the rename still joins once the organization has been
+    /// renamed. The link names the old name, and the machine it joins names the current one once
+    /// it is in: the session, and the record the wall and the switcher read.
+    #[tokio::test]
+    async fn a_link_made_before_the_rename_still_joins_and_its_machine_names_the_new_name() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let elsewhere: Credentials = Arc::new(Memory::new());
+        let clock = crate::clock::System::shared();
+        let directory = scratch("rename-old-link");
+        let owners = first_run(credentials.as_ref(), &directory.join("owner")).await;
+
+        owner_signed_in(&owners).await;
+
+        let link = link_for(&owners, "sami.staff").await;
+
+        assert_eq!(named_by(&link.0), "Acme");
+
+        crate::organization::setup::rename(&owners, &credentials, &clock, "Acme Rentals")
+            .await
+            .expect("the owner's rename");
+
+        let joined = joined_by(&owners, &elsewhere, &directory.join("joined"), &link).await;
+
+        assert_eq!(
+            names_on(&joined, &elsewhere).await,
+            both("Acme Rentals"),
+            "the joined machine names the name the link carried"
+        );
+        assert_eq!(held_name(&joined).await, ("Acme Rentals".to_string(), true));
+    }
+
+    /// **Criterion 28.** A link made after the rename carries the new name, and the machine it
+    /// joins names it from the moment it is recorded, before anything reads the state.
+    #[tokio::test]
+    async fn a_link_made_after_the_rename_carries_the_new_name() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let elsewhere: Credentials = Arc::new(Memory::new());
+        let clock = crate::clock::System::shared();
+        let directory = scratch("rename-new-link");
+        let owners = first_run(credentials.as_ref(), &directory.join("owner")).await;
+
+        owner_signed_in(&owners).await;
+        crate::organization::setup::rename(&owners, &credentials, &clock, "Acme Rentals")
+            .await
+            .expect("the owner's rename");
+
+        let link = link_for(&owners, "sami.staff").await;
+
+        assert_eq!(named_by(&link.0), "Acme Rentals");
+
+        let joined = joined_by(&owners, &elsewhere, &directory.join("joined"), &link).await;
+
+        assert_eq!(held_name(&joined).await.0, "Acme Rentals");
+        assert_eq!(names_on(&joined, &elsewhere).await, both("Acme Rentals"));
     }
 
     // -------------------------------------------------------------------------------------

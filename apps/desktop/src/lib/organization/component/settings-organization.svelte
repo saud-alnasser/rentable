@@ -28,6 +28,7 @@
 	import SettingsGrid from '@rentable/design/block/settings-grid.svelte';
 	import OrganizationLeaving from '$lib/organization/component/leaving.svelte';
 	import OrganizationMark from '$lib/organization/component/mark.svelte';
+	import OrganizationName from '$lib/organization/component/name.svelte';
 	import OrganizationMembers from '$lib/organization/member/component/directory.svelte';
 	import OrganizationRoles from '$lib/organization/role/component/directory.svelte';
 	import OrganizationStanding from '$lib/organization/component/standing.svelte';
@@ -56,8 +57,9 @@
 	 * organization.*
 	 *
 	 * **Inside the section: what it is about, then what it holds, then what ends something, at the
-	 * foot**, each a card in the section's grid (effort 846, *Everything in a tab is a card*). *Settled by the human on the real organization.* It opens with how this machine
-	 * stands to the organization and closes with leaving it. What each block is gated on did not
+	 * foot**, each a card in the section's grid (effort 846, *Everything in a tab is a card*). *Settled by the human on the real organization.* It opens with the organization's
+	 * name, which its owner renames there (effort 851), then how this machine stands to the
+	 * organization, and closes with leaving it. What each block is gated on did not
 	 * change with the order, and Rust refuses every one of them again.
 	 */
 	let { leaveForTheWall }: SettingsSectionProps = $props();
@@ -88,9 +90,9 @@
 
 {#if session}
 	<!-- each block is a card, one under the next in the section's column (effort 846, *Everything
-	     in a tab is a card*, and requirement 1 as revised on 2026-10-02): how this machine stands
-	     to the organization first, since it is what the section is about and what a reader who
-	     came here worried is looking for; then the signature or seal; then the roles and the
+	     in a tab is a card*, and requirement 1 as revised on 2026-10-02): the organization's name
+	     first (effort 851); then how this machine stands to the organization, since it is what a
+	     reader who came here worried is looking for; then the signature or seal; then the roles and the
 	     people, two directories never boxed, since their records are cards already; then the
 	     ways a reader steps away, last, which for an owner holds the Turso account. *The
 	     directory stood first until the human read the four sections and asked for the elements in
@@ -98,6 +100,10 @@
 	     under the next; the Turso account was a card of its own until ticket 38 folded it into
 	     leaving.* -->
 	<SettingsGrid>
+		<!-- what the organization is called, first: the tab is about the organization, and its
+		     owner renames it here and nobody else does (effort 851, requirements 22 and 25). -->
+		<OrganizationName {session} />
+
 		{#if syncQuery.data}
 			<div data-standing-block class="contents">
 				<OrganizationStanding syncState={syncQuery.data} {session} {needsAuthority} />

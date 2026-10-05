@@ -66,6 +66,7 @@ export const tauri = {
 		invoke<OrganizationState>('plugin:organization|session_select', { organizationId }),
 	remove: (organizationId: string) =>
 		invoke<OrganizationState>('plugin:organization|session_remove', { organizationId }),
+	rename: (name: string) => invoke<OrganizationState>('plugin:organization|setup_rename', { name }),
 	delete: (password: string) =>
 		invoke<OrganizationState>('plugin:organization|member_organization_delete', { password }),
 	signIn: (username: string, password: string) =>

@@ -4,6 +4,7 @@
 	import * as DropdownMenu from '@rentable/design/primitive/dropdown-menu/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import DisconnectDialog from '$lib/organization/component/disconnect-dialog.svelte';
+	import OrganizationTile from '$lib/organization/component/tile.svelte';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import XIcon from '@lucide/svelte/icons/x';
@@ -76,9 +77,6 @@
 	const chosen = $derived(organizations.find((held) => held.id === selected) ?? null);
 	const scrolls = $derived(organizations.length > SHOWN_ROWS);
 
-	/** the tile's letter: the name's first character as a reader sees it, raised where it has case. */
-	const initial = (name: string) => Array.from(name.trim())[0]?.toLocaleUpperCase() ?? '';
-
 	const reveal = (row: Element | null | undefined) => {
 		if (scrolls) {
 			row?.scrollIntoView({ block: 'nearest' });
@@ -103,19 +101,6 @@
 	};
 </script>
 
-{#snippet tile(name: string, size: 'trigger' | 'row')}
-	<span
-		class="flex shrink-0 items-center justify-center bg-primary/10 font-semibold text-primary {size ===
-		'trigger'
-			? 'size-8 rounded-lg text-sm'
-			: 'size-5 rounded-sm text-xs'}"
-		aria-hidden="true"
-		data-organization-tile
-	>
-		{initial(name)}
-	</span>
-{/snippet}
-
 <DropdownMenu.Root bind:open>
 	<DropdownMenu.Trigger {disabled}>
 		{#snippet child({ props })}
@@ -127,7 +112,7 @@
 				data-organization-switcher
 			>
 				{#if chosen}
-					{@render tile(chosen.name, 'trigger')}
+					<OrganizationTile name={chosen.name} size="card" />
 					<span class="flex-1 truncate text-start" data-organization-switcher-name>
 						<bdi>{chosen.name}</bdi>
 					</span>
@@ -173,7 +158,7 @@
 					}}
 				>
 					{#snippet children({ checked })}
-						{@render tile(held.name, 'row')}
+						<OrganizationTile name={held.name} size="row" />
 						<span class="flex-1 truncate"><bdi>{held.name}</bdi></span>
 						{#if checked}
 							<span class="sr-only">{$LL.organization.switcher.chosen()}</span>

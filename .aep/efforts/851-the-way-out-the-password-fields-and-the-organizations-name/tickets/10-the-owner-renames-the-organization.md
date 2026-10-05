@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [08, 09]
 ---
 
@@ -15,12 +15,12 @@ The organization tab opens with a card showing the organization's name; the owne
 
 Traces requirements 22 to 28, and criteria 22 to 28.
 
-- [ ] `organization_rename(name)` behind a flagless `require_owner_alone` and a new `Gate::OwnerAlone` in the command gate table; the router uses `procedure.member`; a non-owner is refused with `name_sealed` unchanged (criterion 24).
-- [ ] Rust trims, refuses empty (`OrganizationNameMissing`) and over 120 characters (new `OrganizationNameTooLong`), for rename and for setup (criterion 23); the form refuses with the walk's two sentences.
-- [ ] The rename writes the signed row and `organization.name_sealed` with one sealed value, pushes, updates the owner's held entry, and returns the whole `OrganizationState`; the tab, the shell and the switcher read the new name with no restart (criterion 25).
-- [ ] Rust tests: a link minted before the rename still joins and the joined machine names the new name (criterion 27); one minted after carries the new name (criterion 28).
-- [ ] The organization tab's first card shows the name; the edit control is drawn for an owner session and not for a manager or a member holding every flag (criterion 22); the form follows `workspace/component/rename-form.svelte`, and an unchanged name closes with no write.
-- [ ] Every new string in English and Arabic; a changeset.
+- [x] `organization_rename(name)` behind a flagless `require_owner_alone` and a new `Gate::OwnerAlone` in the command gate table; the router uses `procedure.member`; a non-owner is refused with `name_sealed` unchanged (criterion 24).
+- [x] Rust trims, refuses empty (`OrganizationNameMissing`) and over 120 characters (new `OrganizationNameTooLong`), for rename and for setup (criterion 23); the form refuses with the walk's two sentences.
+- [x] The rename writes the signed row and `organization.name_sealed` with one sealed value, pushes, updates the owner's held entry, and returns the whole `OrganizationState`; the tab, the shell and the switcher read the new name with no restart (criterion 25).
+- [x] Rust tests: a link minted before the rename still joins and the joined machine names the new name (criterion 27); one minted after carries the new name (criterion 28).
+- [x] The organization tab's first card shows the name; the edit control is drawn for an owner session and not for a manager or a member holding every flag (criterion 22); the form follows `workspace/component/rename-form.svelte`, and an unchanged name closes with no write.
+- [x] Every new string in English and Arabic; a changeset.
 
 ## Relevant areas
 

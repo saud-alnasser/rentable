@@ -31,7 +31,7 @@ import type { AddressableSection } from '$lib/settings/section';
 import Providers from '#tests/providers.svelte';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { pressSearchKey } from '$lib/list/tests/search';
-import { BUILT_IN } from '@rentable/workspace-permission';
+import { BUILT_IN, EVERY_FLAG, maskOf } from '@rentable/workspace-permission';
 import { listenForSignOut } from '$lib/sync';
 import { layOutLists } from '#tests/permission.ts';
 import { expectTheEye } from '#tests/password-eye.ts';
@@ -467,16 +467,17 @@ test('the organization section carries the directory, the account block and the 
 	expect(document.querySelector('[data-workspace]')).toBeNull();
 });
 
-// how this machine stands to the organization, then the people, then the ways out, the Turso
-// account the databases sit on first among them and the heaviest act last. Settled by the human on
-// the real organization; the Turso account folded into leaving by ticket 38 ("Fold it into
-// Leaving").
-test('the organization section is ordered: standing, people, leaving with the account in it', () => {
+// the organization's name, then how this machine stands to the organization, then the people,
+// then the ways out, the Turso account the databases sit on first among them and the heaviest act
+// last. Settled by the human on the real organization; the Turso account folded into leaving by
+// ticket 38 ("Fold it into Leaving"); the name put first by effort 851.
+test('the organization section is ordered: name, standing, people, leaving with the account in it', () => {
 	at('?section=organization');
 	area({ section: 'organization' });
 
 	expect(
 		orderOf(
+			'data-organization-name',
 			'data-standing-block',
 			'data-members',
 			'data-leaving',
@@ -486,6 +487,7 @@ test('the organization section is ordered: standing, people, leaving with the ac
 			'data-delete-organization'
 		)
 	).toEqual([
+		'data-organization-name',
 		'data-standing-block',
 		'data-members',
 		'data-leaving',
@@ -509,6 +511,48 @@ test('the organization section is ordered: standing, people, leaving with the ac
 	expect(
 		[...document.querySelectorAll('[data-settings-group] h2')].map((h) => h.textContent?.trim())
 	).not.toContain(en.organization.dashboard.authorityTitle);
+});
+
+// effort 851, criterion 22: the tab opens on the organization's name, and the edit that renames it
+// is drawn for an owner session and for nobody else, neither a manager nor a member holding every
+// flag, since no flag carries it.
+test("the organization section opens on the organization's name, and the owner alone meets its edit", () => {
+	at('?section=organization');
+
+	for (const [session, drawn] of [
+		[fakeOrganizationSession({ role: 'owner', permissions: BUILT_IN.owner.mask }), true],
+		[
+			fakeOrganizationSession({
+				role: 'manager',
+				roleId: 'manager',
+				permissions: BUILT_IN.manager.mask
+			}),
+			false
+		],
+		[
+			fakeOrganizationSession({
+				role: 'member',
+				roleId: 'member',
+				permissions: maskOf(...EVERY_FLAG)
+			}),
+			false
+		]
+	] as const) {
+		const { unmount } = area({ section: 'organization', session });
+		const name = document.querySelector<HTMLElement>('[data-organization-name]')!;
+
+		expect(orderOf('data-organization-name', 'data-standing-block', 'data-leaving')).toEqual([
+			'data-organization-name',
+			'data-standing-block',
+			'data-leaving'
+		]);
+		expect(name.querySelector('h2')?.textContent?.trim()).toBe(session.organizationName);
+		expect(name.querySelector('[data-organization-rename-open]') !== null, session.role).toBe(
+			drawn
+		);
+
+		unmount();
+	}
 });
 
 // criterion 12 of effort 846, from the area's side: the section opens with the sync group, a
@@ -1443,6 +1487,7 @@ const SECTION_MARKS = [
 	'data-identity',
 	'data-password',
 	'data-machines',
+	'data-organization-name',
 	'data-standing-block',
 	'data-organization-mark',
 	'data-roles',
@@ -1527,6 +1572,7 @@ test('each section is one column of cards in source order, the ends last', () =>
 
 	// the Turso account is a row of leaving, not a card of its own (ticket 38).
 	expect(laidOut()).toEqual([
+		'data-organization-name',
 		'data-standing-block',
 		'data-organization-mark',
 		'data-roles',
@@ -1544,6 +1590,7 @@ test('each section is one column of cards in source order, the ends last', () =>
 	});
 
 	expect(laidOut()).toEqual([
+		'data-organization-name',
 		'data-standing-block',
 		'data-organization-mark',
 		'data-roles',

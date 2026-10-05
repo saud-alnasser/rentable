@@ -3,6 +3,7 @@ import { procedure, router } from '$lib/api/trpc';
 import z from 'zod';
 
 import member from './member/router';
+import { ORGANIZATION_NAME_LIMIT } from './setup/setup';
 import role from './role/router';
 import session from './session/router';
 import setup from './setup/router';
@@ -68,6 +69,22 @@ export default router({
 		.input(z.object({ organizationId: z.string().min(1) }))
 		.mutation(async ({ input, ctx }): Promise<OrganizationState> => {
 			return ctx.host.organization.remove(input.organizationId);
+		}),
+	/**
+	 * Rename the organization (effort 851, requirements 22 to 28).
+	 *
+	 * **`member`, because the check is Rust's alone**: the rename is the owner's by role, and no
+	 * flag says so, since the owner's role always carries everything and a `renameOrganization`
+	 * flag would be one no role or override could be given. Rust asks the acting member's
+	 * verified row for the owner's role and refuses anybody else with `ownerOnly`, whatever this
+	 * side drew. The name is held to the walk's rules here as it is in Rust, trimmed and between
+	 * one character and `ORGANIZATION_NAME_LIMIT`. What comes back is the whole state, so every
+	 * screen reading the name reads the new one.
+	 */
+	rename: procedure.member
+		.input(z.object({ name: z.string().trim().min(1).max(ORGANIZATION_NAME_LIMIT) }))
+		.mutation(async ({ input, ctx }): Promise<OrganizationState> => {
+			return ctx.host.organization.rename(input.name);
 		}),
 	/**
 	 * Accept the organization that was offered to this reader: the second of the two acts a

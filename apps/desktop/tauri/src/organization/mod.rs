@@ -86,6 +86,10 @@ mod tests {
         /// the owner's verified row, carrying the flag: the acts that need the Turso authority
         /// or hand the organization on (`session::Actor::require_owner`).
         Owner(Flag),
+        /// the owner's verified row, by its role alone and with no flag: an act no role and no
+        /// override could be given, because only the owner performs it, as renaming the
+        /// organization (effort 851, requirement 24; `workspace::require_owner_alone`).
+        OwnerAlone,
     }
 
     /// Every command the sub-concepts declare, with its gate.
@@ -189,6 +193,7 @@ mod tests {
         // signed out elsewhere ends it before anything is pushed.
         ("session_replicate", Gate::ThisMachine),
         ("workspace_rename", Gate::Flag(Flag::RenameWorkspace)),
+        ("setup_rename", Gate::OwnerAlone),
     ];
 
     /// Every command the sub-concepts declare, read off their source by walking `organization/`,
@@ -299,7 +304,11 @@ mod tests {
             let flags: Vec<Flag> = match gate {
                 Gate::Flag(flag) | Gate::Owner(flag) => vec![*flag],
                 Gate::AnyFlag(flags) | Gate::AllFlags(flags) => flags.to_vec(),
-                Gate::Public | Gate::ThisMachine | Gate::Own | Gate::SignedIn => Vec::new(),
+                Gate::Public
+                | Gate::ThisMachine
+                | Gate::Own
+                | Gate::SignedIn
+                | Gate::OwnerAlone => Vec::new(),
             };
 
             for flag in flags {

@@ -31,6 +31,7 @@ export function fakeOrganizationHost(): OrganizationHost {
 		disconnect: refuse('organization.disconnect'),
 		select: refuse('organization.select'),
 		remove: refuse('organization.remove'),
+		rename: refuse('organization.rename'),
 		delete: refuse('organization.delete'),
 		signIn: refuse('organization.signIn'),
 		signOut: refuse('organization.signOut'),

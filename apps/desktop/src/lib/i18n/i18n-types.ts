@@ -1260,6 +1260,10 @@ type RootTranslation = {
 				 */
 				organizationNameMissing: string;
 				/**
+				 * t​h​a​t​ ​n​a​m​e​ ​i​s​ ​t​o​o​ ​l​o​n​g​.
+				 */
+				organizationNameTooLong: string;
+				/**
 				 * t​h​e​ ​w​o​r​k​s​p​a​c​e​ ​n​e​e​d​s​ ​a​ ​n​a​m​e​.
 				 */
 				workspaceNameMissing: string;
@@ -3650,6 +3654,28 @@ type RootTranslation = {
 			 * o​r​g​a​n​i​z​a​t​i​o​n​ ​s​t​a​m​p
 			 */
 			title: string;
+		};
+		name: {
+			/**
+			 * w​h​a​t​ ​e​v​e​r​y​ ​m​e​m​b​e​r​ ​s​e​e​s​ ​i​t​ ​c​a​l​l​e​d​,​ ​a​t​ ​s​i​g​n​-​i​n​ ​a​n​d​ ​a​c​r​o​s​s​ ​r​e​n​t​a​b​l​e​.
+			 */
+			description: string;
+			/**
+			 * e​d​i​t​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​n​a​m​e
+			 */
+			edit: string;
+			/**
+			 * o​n​l​y​ ​t​h​e​ ​o​w​n​e​r​ ​c​a​n​ ​c​h​a​n​g​e​ ​i​t​.
+			 */
+			readOnly: string;
+			/**
+			 * w​h​a​t​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​i​s​ ​c​a​l​l​e​d​,​ ​o​n​ ​e​v​e​r​y​ ​m​e​m​b​e​r​'​s​ ​m​a​c​h​i​n​e​ ​o​n​c​e​ ​i​t​ ​s​y​n​c​s​.
+			 */
+			renameDescription: string;
+			/**
+			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​w​a​s​ ​r​e​n​a​m​e​d​.
+			 */
+			renamed: string;
 		};
 		setup: {
 			/**
@@ -6362,6 +6388,10 @@ export type TranslationFunctions = {
 				 */
 				organizationNameMissing: () => LocalizedString;
 				/**
+				 * that name is too long.
+				 */
+				organizationNameTooLong: () => LocalizedString;
+				/**
 				 * the workspace needs a name.
 				 */
 				workspaceNameMissing: () => LocalizedString;
@@ -8644,6 +8674,28 @@ export type TranslationFunctions = {
 			 * organization stamp
 			 */
 			title: () => LocalizedString;
+		};
+		name: {
+			/**
+			 * what every member sees it called, at sign-in and across rentable.
+			 */
+			description: () => LocalizedString;
+			/**
+			 * edit organization name
+			 */
+			edit: () => LocalizedString;
+			/**
+			 * only the owner can change it.
+			 */
+			readOnly: () => LocalizedString;
+			/**
+			 * what this organization is called, on every member's machine once it syncs.
+			 */
+			renameDescription: () => LocalizedString;
+			/**
+			 * the organization was renamed.
+			 */
+			renamed: () => LocalizedString;
 		};
 		setup: {
 			/**
