@@ -57,7 +57,7 @@ The one-organization rule is built into the shell, not only drawn on the wall:
 
 **A spent link still admits a machine to the wall.** An invitation link and its code, and a
 machine link and its code, are each marked spent once used (`consumed_at`) and lapse within a
-week. A spent machine link is refused. A spent invitation link is refused only after
+week; the human asked for three days. A spent machine link is refused. A spent invitation link is refused only after
 `connect::connect` has already recorded the organization on a machine that held nothing
 (`organization/invitation/join.rs`), so that machine is left on the organization's wall. The
 human: the code should be spent at once so it cannot be used again unless the owner or a manager
@@ -163,6 +163,9 @@ holds the same one, the same way, after the update.
     pulled, and the refusal says to ask the owner or a manager for a new link. Today a spent
     invitation link still connects a machine that holds nothing before the spent row is read
     (`organization/invitation/join.rs`), which lands that machine on the organization's wall.
+    **An unused link and its code lapse three days after they are made**, or sooner where the
+    credential sealed inside them dies, for invitation links and machine links alike. Today it is
+    a week (`INVITATION_LIFETIME_MS`).
 11. **Adding an organization again takes a new link.** A person who removed an organization, or
     whose link was spent, comes back only by a link and code the owner or a manager makes for
     them, or, for the owner, by connecting the existing organization from set up. Nothing left on
@@ -250,7 +253,9 @@ holds the same one, the same way, after the update.
    organization signed out from elsewhere while not open shows as signed out when next opened.
 10. Rust tests, for an invitation link and for a machine link: used once, then opened again on the
     same machine and on a machine holding nothing, each second opening is refused with the
-    "already used" reason, the record is unchanged, and no replica file is written.
+    "already used" reason, the record is unchanged, and no replica file is written. A link made
+    now carries an expiry of exactly three days out (or the credential's death, if sooner), and
+    one opened past it is refused as lapsed.
 11. A Rust test removes an organization and opens the link that first added it: refused as in 10. A
     new link for the same account admits it.
 12. Rust tests: a link for an organization not held adds it; a link for a held organization selects
@@ -358,7 +363,7 @@ holds the same one, the same way, after the update.
   per-token revocation; rotating invalidates every token for the database
   ([[references/turso]], under revocation). So "the link is expired too" holds inside the
   application (requirement 10) and not on Turso: whoever holds both the link and its code could
-  read the credential out by hand until the link's own lapse, at most a week. The plan may
+  read the credential out by hand until the link's own lapse, at most three days. The plan may
   shorten that window; it cannot close it without a rotation that signs out every machine.
 - **Remove deleting another organization's data.** Today's forget sweeps every replica file and the
   one consent token. Criterion 5 checks the other organization byte for byte for this reason.
