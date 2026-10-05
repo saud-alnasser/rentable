@@ -331,6 +331,9 @@ Steps, in the order they land. *Cut on 2026-10-05 into eleven tickets under `tic
 6. **One organization open; select, remove, add**: `forget_one`, `session_select`,
    `session_remove`, the refusals turned into adds, the held short-circuit for links and
    connect-existing, resume of the selected only.
+   *Amended 2026-10-05 by the human's ruling on requirement 13: a link for a held organization
+   selects it, then is judged on that organization's own replica with no session open; only a
+   reset link for one of its members is let through.*
 7. **The state and the switcher**: the frontend shape, the wall and the no-workspace screen, the
    foot control, the startup routing.
 8. **The signed name**: the table, the authority, the re-sign, the owner's backfill, the latch,

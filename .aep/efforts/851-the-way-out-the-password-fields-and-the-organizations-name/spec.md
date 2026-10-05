@@ -210,7 +210,12 @@ holds the same one, the same way, after the update.
     them, or, for the owner, by connecting the existing organization from set up. Nothing left on
     the machine admits it again.
 13. **A link for an organization not held adds it; one for an organization held opens that
-    organization's wall** and admits nothing new.
+    organization's wall.** There the link is judged against the organization's own replica, with no
+    session open: a password-reset link for a member of that organization lets them choose a new
+    password as today; any other link (an invitation, a machine link, or one used or lapsed) is
+    refused with the "already used" sentence, and nothing is added or recorded. *Settled by the
+    human on 2026-10-05, while the effort was being built: the plan's short-circuit admitted
+    nothing, which refused a spent link silently and stranded a member whose password was reset.*
 14. **Each organization keeps its own Turso consent.** An owner who owns two organizations on two
     Turso accounts holds both consents on one machine, and owner-only acts in one use that
     organization's consent and no other.
@@ -335,7 +340,9 @@ holds the same one, the same way, after the update.
 12. A Rust test removes an organization and opens the link that first added it: refused as in 10. A
     new link for the same account admits it.
 13. Rust tests: a link for an organization not held adds it; a link for a held organization selects
-    it and adds nothing.
+    it and adds nothing; on a held organization a spent link and an unused invitation are refused as
+    "already used" with the record unchanged, and a reset link for a member lets them set a new
+    password and sign in.
 14. A Rust test holds two organizations owned on two Turso accounts: each owner-only act reaches the
     Platform API with its own organization's consent, and forgetting one consent leaves the other.
 15. Opening the wall's foot control shows the language and the appearance and no other act. Covered
