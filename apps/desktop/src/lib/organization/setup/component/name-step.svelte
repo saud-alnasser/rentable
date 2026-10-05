@@ -53,6 +53,17 @@
 
 		void tick().then(() => firstField?.focus());
 	});
+
+	// the group field appears on the step the owner is already on, after a create Turso refused
+	// for want of it, and it is the one thing left to type: the cursor goes there, with everything
+	// else still as it was typed (effort 851, requirement 30).
+	let groupField = $state<HTMLInputElement | null>(null);
+
+	$effect(() => {
+		if (!groupField) return;
+
+		void tick().then(() => groupField?.focus());
+	});
 </script>
 
 <!-- the four fields, and they are the four the walk description names. A fifth would
@@ -179,6 +190,7 @@
 						aria-invalid={$errors.group ? 'true' : undefined}
 						{...$constraints.group}
 						class="h-9"
+						bind:ref={groupField}
 					/>
 				</Form.Control>
 				<Form.Description>{$LL.organization.setup.groupDescription()}</Form.Description>

@@ -256,6 +256,12 @@
 			id: 'setup-organization',
 			SPA: true,
 			validators: zod4(SetupSchema),
+			// **never emptied by a submit** (effort 851, requirement 30). superforms resets a valid
+			// form once `onUpdate` returns, and `onCreate` returns normally from every refused
+			// create, because the route catches the refusal to answer it on this step: the group
+			// it asks for, or a create to press again. A create that succeeds hands over to the
+			// loading surface, so there is nothing a reset would ever be wanted for.
+			resetForm: false,
 			onUpdate: async ({ form }) => {
 				if (!form.valid) return;
 

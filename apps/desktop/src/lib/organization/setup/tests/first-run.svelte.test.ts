@@ -14,6 +14,7 @@ import {
 	fakeOrganizationWorkspace
 } from '$lib/organization/tests/testing';
 import type { Startup } from '$lib/startup';
+import type { Writable } from 'svelte/store';
 import FirstRun from '../component/first-run.svelte';
 
 /**
@@ -41,12 +42,30 @@ const hooks = vi.hoisted(() => ({
 	holdsTursoAuthority: true,
 	groupKind: 'empty' as 'empty' | 'held',
 	connectExisting: vi.fn(),
-	consentSession: null as (() => string | null) | null
+	consentSession: null as (() => string | null) | null,
+	page: null as Writable<Record<string, unknown>> | null
 }));
+
+// **The form's own answer to a submit is applied as SvelteKit applies it**: what `applyAction` does
+// with a result that is not an error is set the page's `form` and `status`, and superforms reads
+// the page and resets a valid form on a success. A no-op here skipped that, and with it the reset
+// that cleared what the owner typed when Turso asked for the group (effort 851, requirement 30).
+// The page is a store of this file's own, since this runner has no application root to hold one.
+vi.mock('$app/stores', async (original) => {
+	const { writable } = await import('svelte/store');
+
+	hooks.page = writable<Record<string, unknown>>({});
+
+	return { ...(await original<Record<string, unknown>>()), page: hooks.page };
+});
 
 vi.mock('$app/forms', async (original) => ({
 	...(await original<Record<string, unknown>>()),
-	applyAction: async () => {}
+	applyAction: async (result: { type: string; status?: number; data?: unknown }) => {
+		if (result.type === 'error' || result.type === 'redirect') return;
+
+		hooks.page?.update((page) => ({ ...page, form: result.data, status: result.status }));
+	}
 }));
 
 vi.mock('$app/navigation', async (original) => ({
@@ -359,4 +378,63 @@ test('connecting to an existing organization holds the walk until the loading, a
 		).toBeDefined()
 	);
 	expect(hooks.goto).not.toHaveBeenCalled();
+});
+
+/**
+ * Effort 851, requirement 30: **asking for the group costs the owner nothing they typed.** Driven
+ * through the real create and its refusal rather than a rerender of the walk with new props,
+ * because the rerender skips what the form does once its submit handler returns, and that is
+ * where the fields were being cleared.
+ */
+test('a create refused for want of the group keeps what was typed, asks for the group, and sends all of it again', async () => {
+	loadLocale('en');
+	setLocale('en');
+
+	await atTheWall();
+
+	hooks.createOrganization.mockImplementationOnce(async () => {
+		throw {
+			code: 'refused',
+			reason: 'groupNeeded',
+			message: 'turso refused every group this application could name on its own'
+		};
+	});
+
+	await walkToCreate();
+
+	await waitFor(() => expect(document.querySelector('input[name="group"]')).not.toBeNull());
+
+	const values = () =>
+		[...document.querySelectorAll<HTMLInputElement>('form input')].map((input) => [
+			input.getAttribute('name'),
+			input.value
+		]);
+
+	// the four fields as typed, and the group beside them, empty and with the cursor in it.
+	await waitFor(() => {
+		expect(values()).toEqual([
+			['name', 'Acme Rentals'],
+			['username', 'olivia.owner'],
+			['password', 'a long enough password'],
+			['confirmation', 'a long enough password'],
+			['group', '']
+		]);
+		expect(document.activeElement).toBe(document.querySelector('input[name="group"]'));
+	});
+	expect(screen.getByText(en.organization.setup.groupNeeded)).toBeDefined();
+
+	// the group typed, and the create sent again with nothing retyped.
+	hooks.createOrganization.mockImplementationOnce(async () => {});
+	await fireEvent.input(document.querySelector('input[name="group"]')!, {
+		target: { value: 'rentals' }
+	});
+	await fireEvent.submit(document.querySelector('form')!);
+
+	await waitFor(() => expect(hooks.createOrganization).toHaveBeenCalledTimes(2));
+	expect(hooks.createOrganization).toHaveBeenLastCalledWith({
+		name: 'Acme Rentals',
+		username: 'olivia.owner',
+		password: 'a long enough password',
+		group: 'rentals'
+	});
 });

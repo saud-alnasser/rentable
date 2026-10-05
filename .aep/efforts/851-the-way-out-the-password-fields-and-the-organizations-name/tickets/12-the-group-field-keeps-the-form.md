@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [02]
 ---
 
@@ -15,11 +15,11 @@ When a create is refused because Turso needs the group named, the walk's name st
 
 Traces requirement 30 and criterion 30.
 
-- [ ] **First, a failing test** of the first run through the real create path: the create mutation refuses with the group asked for, and the test asserts the four fields still hold what was typed. It fails on the current code for the reason found, and the cause is named in the commit body.
-- [ ] The fix is where the cause is; the same test passes, and asserts the group field is shown and focused.
-- [ ] Filling the group and creating again calls the create with the kept name, username and password and the typed group.
-- [ ] The existing walk and first-run tests pass, including the rerender test of the group field; any other failed create that keeps the form today still keeps it.
-- [ ] A changeset.
+- [x] **First, a failing test** of the first run through the real create path: the create mutation refuses with the group asked for, and the test asserts the four fields still hold what was typed. It fails on the current code for the reason found, and the cause is named in the commit body.
+- [x] The fix is where the cause is; the same test passes, and asserts the group field is shown and focused.
+- [x] Filling the group and creating again calls the create with the kept name, username and password and the typed group.
+- [x] The existing walk and first-run tests pass, including the rerender test of the group field; any other failed create that keeps the form today still keeps it.
+- [x] A changeset.
 
 ## Relevant areas
 
