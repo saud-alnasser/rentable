@@ -71,7 +71,7 @@ pub async fn sign_in(
         Err(_) if member.removed_at.is_some() => return Err(removed()),
         Err(refusal) => return Err(refusal),
     };
-    let repaired = owner_row_repaired(store, &verifying_key, member, &secret).await;
+    let repaired = owner_row_repaired(store, &verifying_key, member, &secret, Some(joined)).await;
     let member = repaired.as_ref().unwrap_or(member);
 
     if member.removed_at.is_some() {
@@ -99,21 +99,48 @@ pub async fn sign_in(
 ///
 /// **A repair that could not be made is a diagnostic and never a refusal**: the sign-in goes on
 /// with the row as it reads, which is what it did before, and the next heartbeat asks again.
+///
+/// **The owner's machine signs the organization's name here too**, where no signed name verifies
+/// (`ownership::sign_organization_name`, effort 851): every sign-in, resume and heartbeat passes
+/// through this one function, so the name is signed wherever the row is repaired. `held` is this
+/// machine's entry for the organization, whose latch says which name that is; where it is not
+/// known, nothing is signed.
 pub(super) async fn owner_row_repaired(
     store: &OrganizationStore,
     verifying_key: &[u8; VERIFYING_KEY_BYTES],
     member: &MemberRecord,
     secret: &MemberSecretKey,
+    held: Option<&HeldOrganization>,
 ) -> Option<MemberRecord> {
-    match crate::organization::ownership::repair_owner_row(
+    let repaired = crate::organization::ownership::repair_owner_row(
         store,
         verifying_key,
         &member.id,
         secret,
         store.clock().now(),
     )
+    .await;
+
+    // and beside it, the organization's name signed where nobody has signed it yet (effort 851,
+    // requirement 29): after the repair, since the root the owner signs with is what that writes
+    // back. On every machine but the owner's it writes nothing, and a name that could not be
+    // signed is a diagnostic, asked again at the next heartbeat.
+    if let Err(refusal) = crate::organization::ownership::sign_organization_name(
+        store,
+        verifying_key,
+        &member.id,
+        secret,
+        held,
+        store.clock().now(),
+    )
     .await
     {
+        diagnostics::warn("organization.name.notSigned")
+            .with("reason", refusal.to_string())
+            .write();
+    }
+
+    match repaired {
         Ok(true) => store.member(verifying_key, &member.id).await.ok().flatten(),
         Ok(false) => None,
         Err(refusal) => {
@@ -130,7 +157,11 @@ pub(super) async fn owner_row_repaired(
 /// machine holds open, taking what the row says once it is written. On every machine but the
 /// owner's it writes nothing. **Nothing comes back**, since the heartbeat has nothing to do with
 /// the answer and this module answers no question with a yes or a no.
-pub(crate) async fn repair_own_row(store: &OrganizationStore, session: &mut MemberSession) {
+pub(crate) async fn repair_own_row(
+    store: &OrganizationStore,
+    session: &mut MemberSession,
+    held: Option<&HeldOrganization>,
+) {
     let Some(row) = store
         .member(&session.verifying_key, &session.member_id)
         .await
@@ -141,7 +172,7 @@ pub(crate) async fn repair_own_row(store: &OrganizationStore, session: &mut Memb
     };
 
     if let Some(repaired) =
-        owner_row_repaired(store, &session.verifying_key, &row, &session.secret).await
+        owner_row_repaired(store, &session.verifying_key, &row, &session.secret, held).await
     {
         session.role = permission::OWNER.to_string();
         session.permissions = repaired.effective;
@@ -246,7 +277,7 @@ pub(crate) async fn sign_in_by_username(
         )?;
 
         if carried.trim().to_lowercase() == wanted {
-            let member = owner_row_repaired(store, &verifying_key, member, &secret)
+            let member = owner_row_repaired(store, &verifying_key, member, &secret, Some(held))
                 .await
                 .unwrap_or_else(|| member.clone());
 
@@ -402,7 +433,9 @@ mod tests {
         let session = sign_in(&store, &joined, PASSWORD, &credential)
             .await
             .expect("the password did not open the vault");
-        let facts = facts_of(&store, &session).await.expect("the facts");
+        let facts = facts_of(&store, &session, &mut joined.clone())
+            .await
+            .expect("the facts");
 
         assert_eq!(session.role, "owner");
         assert_eq!(
@@ -738,7 +771,9 @@ mod tests {
             Some(credential)
         );
 
-        let facts = facts_of(&store_b, &b).await.expect("the facts");
+        let facts = facts_of(&store_b, &b, &mut joined_b.clone())
+            .await
+            .expect("the facts");
 
         assert_eq!(facts.organization_name, "Beta");
         assert_eq!(facts.username, "me.there");

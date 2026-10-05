@@ -84,8 +84,9 @@ mod tests {
     }
 
     /// Every table but `format` and what the change creates, row by row: what format 3 leaves as
-    /// it found it. The change creates `workspace_override`, and the two tables effort 846 added
-    /// to this format after it, which a walk arriving here builds with it.
+    /// it found it. The change creates `workspace_override`, and the tables effort 846 and effort
+    /// 851 added to this format after it, which a walk arriving here builds with it; the owner's
+    /// sign-in then signs the organization's name into the last of them.
     async fn contents_but_the_change(
         store: &OrganizationStore,
     ) -> Vec<(String, Vec<Vec<turso::Value>>)> {
@@ -97,6 +98,7 @@ mod tests {
                 "workspace_override",
                 "machine_sign_out",
                 "machine_name",
+                "organization_name",
             ]
             .contains(&table.as_str())
             {

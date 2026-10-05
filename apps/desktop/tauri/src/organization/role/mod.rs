@@ -1121,9 +1121,13 @@ mod tests {
             )
         );
 
-        let facts = crate::organization::session::facts_of(&store, &held)
-            .await
-            .expect("the session's facts");
+        let facts = crate::organization::session::facts_of(
+            &store,
+            &held,
+            &mut joined_as(&held, &held.member_id, &held.role),
+        )
+        .await
+        .expect("the session's facts");
 
         assert_eq!(facts.role, "custom");
         assert_eq!(facts.role_id, bookkeeper);
@@ -1144,9 +1148,13 @@ mod tests {
         )
         .await
         .expect("the assignment failed");
-        let facts = crate::organization::session::facts_of(&store, &held)
-            .await
-            .expect("the session's facts");
+        let facts = crate::organization::session::facts_of(
+            &store,
+            &held,
+            &mut joined_as(&held, &held.member_id, &held.role),
+        )
+        .await
+        .expect("the session's facts");
 
         assert_eq!(facts.role, permission::MANAGER);
         assert_eq!(facts.role_name, "");
@@ -4879,9 +4887,13 @@ mod tests {
         assert!(permission::permits(held.permissions, Flag::ViewPayment));
 
         // the member's own session reads the same off the replica.
-        let facts = crate::organization::session::facts_of(&store, &sami_session)
-            .await
-            .expect("sami's facts");
+        let facts = crate::organization::session::facts_of(
+            &store,
+            &sami_session,
+            &mut joined_as(&sami_session, &sami_session.member_id, &sami_session.role),
+        )
+        .await
+        .expect("sami's facts");
         let theirs = facts
             .workspaces
             .iter()

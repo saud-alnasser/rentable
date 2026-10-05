@@ -41,6 +41,7 @@ pub enum Reading {
 /// | `workspace` | hold `renameWorkspace` or `grantWorkspace` |
 /// | `invitation` | hold `inviteMember` or `resetPassword` |
 /// | `mark` | hold `manageMark` |
+/// | `organization_name` | be the root: the owner, which no flag stands for (effort 851, requirement 29) |
 /// | `workspace_override` | pin record flags alone and grant none it does not pin, be about a member who is in and is not the certificate's own, and hold `overrideMember`, outrank that member as a member row's signer does, and hold every flag it pins; or be the root |
 ///
 /// Certificates and revocations are judged by the walk, and a succession by the organization key,
@@ -121,6 +122,7 @@ pub fn covers(
         Authority::Workspace(_) => holds_any(&[Flag::RenameWorkspace, Flag::GrantWorkspace]),
         Authority::Invitation(_) => holds_any(&[Flag::InviteMember, Flag::ResetPassword]),
         Authority::Mark(_) => holds(Flag::ManageMark),
+        Authority::OrganizationName { .. } => certificate.is_root(),
         Authority::WorkspaceOverride(workspace_override) => {
             permission::first_beyond_records(workspace_override.pinned).is_none()
                 && workspace_override.granted & !workspace_override.pinned == 0
@@ -189,6 +191,7 @@ pub fn needed_for(authority: Authority<'_>) -> &'static str {
         Authority::Workspace(_) => "renameWorkspace or grantWorkspace",
         Authority::Invitation(_) => "inviteMember or resetPassword",
         Authority::Mark(_) => "manageMark",
+        Authority::OrganizationName { .. } => "the owner's certificate",
         Authority::WorkspaceOverride(_) => {
             "overrideMember, a rank above the member, every flag the override pins, record flags \
              alone, and not to be the member's own"
@@ -1870,6 +1873,63 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// Effort 851, requirement 29: the organization's name is the root's to sign and nobody
+    /// else's, a delegated certificate carrying every flag there is included, and a refusal names
+    /// the owner's certificate.
+    #[test]
+    fn the_organizations_name_is_the_roots_alone() {
+        let organization = an_organization();
+        let sealed = hex(CHECKED_IN_SEALED_CREDENTIAL);
+        let authority = Authority::OrganizationName {
+            name_sealed: &sealed,
+            updated_at: 1_757_000_000_000,
+        };
+        let (key, everything) = delegate(
+            &organization.administrator_key,
+            &organization.certificate,
+            "everything",
+            permission::OWNER_ROLE.mask,
+            MANAGER_ROLE.rank,
+        );
+        let certificates = [organization.certificate.clone(), everything.clone()];
+
+        let signature = sign(
+            &organization.administrator_key,
+            &organization.certificate,
+            authority,
+        )
+        .expect("failed to sign");
+
+        assert_eq!(
+            verify(
+                &organization.verifying_key,
+                &certificates,
+                &[],
+                &organization.certificate,
+                authority,
+                &signature
+            ),
+            Ok(())
+        );
+
+        let signature = sign(&key, &everything, authority).expect("failed to sign");
+
+        assert_eq!(
+            verify(
+                &organization.verifying_key,
+                &certificates,
+                &[],
+                &everything,
+                authority,
+                &signature
+            ),
+            Err(Error::Integrity {
+                message: BEYOND_ITS_CERTIFICATE.to_string(),
+            })
+        );
+        assert_eq!(needed_for(authority), "the owner's certificate");
     }
 
     #[test]

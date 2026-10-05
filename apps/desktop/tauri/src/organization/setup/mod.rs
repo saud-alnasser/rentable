@@ -72,8 +72,8 @@ use super::{
     role::permission,
     session::{self, remember},
     store::{
-        FORMAT_VERSION, GrantRecord, MemberRecord, OrganizationRecord, OrganizationStore,
-        RoleRecord, Signer, leave_no_replica,
+        FORMAT_VERSION, GrantRecord, MemberRecord, OrganizationNameRecord, OrganizationRecord,
+        OrganizationStore, RoleRecord, Signer, leave_no_replica,
     },
 };
 
@@ -444,10 +444,12 @@ async fn finish<P: TursoPlatform>(
 
     organization_store.install_schema().await?;
     organization_store.write_format().await?;
+    let name_sealed = seal_content(&content_key, "organization.name_sealed", name.as_bytes())?;
+
     organization_store
         .write_organization(&OrganizationRecord {
             id: organization_id.to_string(),
-            name_sealed: seal_content(&content_key, "organization.name_sealed", name.as_bytes())?,
+            name_sealed: name_sealed.clone(),
             verifying_key,
             remote_url: remote_url.clone(),
             created_at: now,
@@ -521,6 +523,18 @@ async fn finish<P: TursoPlatform>(
                 )?,
                 access_level: "full-access".to_string(),
                 credential_expires_at: credential_expiry(&owner_credential),
+            },
+        )
+        .await?;
+
+    // the name under the root's signature from the first (effort 851, requirement 29): the same
+    // sealed bytes as the organization row, which builds before the signed name go on reading.
+    organization_store
+        .write_organization_name(
+            &signer,
+            &OrganizationNameRecord {
+                name_sealed,
+                updated_at: now,
             },
         )
         .await?;

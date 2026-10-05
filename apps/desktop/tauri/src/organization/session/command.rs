@@ -136,14 +136,6 @@ pub(crate) async fn state_of(
         })
         .await?;
 
-    let organization = {
-        let mut remote_sync = app_state.remote_sync.write().await;
-
-        remote_sync
-            .store_mut()
-            .selected()
-            .map(HeldOrganizationFacts::from)
-    };
     // **and the one thing that can make this machine's key wrong** (effort 828, requirement 22).
     // A handover somebody else accepted arrives here as rows this machine cannot verify, which is
     // what the read below refuses with. So a refusal is the sign, and the succession is followed
@@ -156,6 +148,21 @@ pub(crate) async fn state_of(
 
             current_facts(app_state).await?
         }
+    };
+    // the name this machine holds follows the one the owner signed (effort 851, requirement 26),
+    // so the wall and the switcher name what the shell does. After the read, which is what verified
+    // it, and before the held organization is read for the answer.
+    if let Some(read) = &session {
+        held_name_refreshed(app_state, read).await?;
+    }
+
+    let organization = {
+        let mut remote_sync = app_state.remote_sync.write().await;
+
+        remote_sync
+            .store_mut()
+            .selected()
+            .map(HeldOrganizationFacts::from)
     };
     let holds_turso_authority = owner_platform(app_state, credentials).await.is_some();
 
@@ -170,7 +177,7 @@ pub(crate) async fn state_of(
 
     Ok(OrganizationState {
         organization,
-        session,
+        session: session.map(|(facts, _)| facts),
         holds_turso_authority,
         signed_out_elsewhere: app_state.signed_out_elsewhere.load(Ordering::SeqCst),
     })
@@ -350,16 +357,59 @@ pub(crate) async fn sign_out(app_state: &Shared, credentials: &dyn CredentialSto
 }
 
 /// The signed-in member's facts, re-read from the replica so a row that changed under them since
-/// sign-in is what the screen shows.
-async fn current_facts(app_state: &Shared) -> Result<Option<SessionFacts>, Error> {
+/// sign-in is what the screen shows, with this machine's entry for the organization as the read
+/// left it: `name_signed` set where a signed name was read (`session::organization_name_of`).
+async fn current_facts(
+    app_state: &Shared,
+) -> Result<Option<(SessionFacts, HeldOrganization)>, Error> {
     let member = app_state.member.read().await;
     let organization = app_state.organization.read().await;
 
     let (Some(member), Some(store)) = (member.as_ref(), organization.as_ref()) else {
         return Ok(None);
     };
+    let held = {
+        let mut remote_sync = app_state.remote_sync.write().await;
 
-    session::facts_of(store, member).await.map(Some)
+        remote_sync
+            .store_mut()
+            .held(&member.organization_id)
+            .cloned()
+    };
+    let Some(mut held) = held else {
+        return Ok(None);
+    };
+
+    let facts = session::facts_of(store, member, &mut held).await?;
+
+    Ok(Some((facts, held)))
+}
+
+/// Write this machine's entry for the organization where the read changed it (effort 851,
+/// requirements 26 and 29): `name_signed` once a signed name has been read, and the name the owner
+/// signed where it differs from the one held. **Only a signed name is written**: an unsigned one,
+/// read before the owner has signed, changes nothing the record holds.
+async fn held_name_refreshed(
+    app_state: &Shared,
+    (facts, read): &(SessionFacts, HeldOrganization),
+) -> Result<(), Error> {
+    if !read.name_signed {
+        return Ok(());
+    }
+
+    let mut remote_sync = app_state.remote_sync.write().await;
+    let record = remote_sync.store_mut();
+    let Some(entry) = record.held_mut(&read.id) else {
+        return Ok(());
+    };
+
+    if entry.name_signed && entry.name == facts.organization_name {
+        return Ok(());
+    }
+
+    entry.name_signed = true;
+    entry.name = facts.organization_name.clone();
+    record.commit()
 }
 
 /// Sign this member out of every machine but the one they are at (effort 826, requirement 22).
@@ -682,7 +732,18 @@ mod tests {
 
     use super::{Opening, open_replica, sign_out, state_of};
     use crate::error::Error;
+    use crate::organization::HeldOrganization;
     use crate::organization::Shared;
+    use crate::organization::invitation::{
+        Invitation, locator, make_account_and_link, vault_password_of,
+    };
+    use crate::organization::member::vault::{open_content, seal_content};
+    use crate::organization::role::permission;
+    use crate::organization::session::{MemberSession, sign_in};
+    use crate::organization::store::{
+        OrganizationNameRecord, OrganizationRecord, OrganizationStore, Signer,
+    };
+    use crate::organization::workspace::signer_of;
     use crate::persisted::Persisted;
     use crate::settings::Settings;
     use crate::sync::test::server::{ScriptedResponse, ScriptedServer};
@@ -1091,5 +1152,647 @@ mod tests {
             directory.join(RemoteSync::FILENAME).is_file(),
             "the record was not among the files the sweep read"
         );
+    }
+    // -------------------------------------------------------------------------------------
+    // Effort 851, requirements 26 and 29: the organization's name is the one the owner signed.
+    // -------------------------------------------------------------------------------------
+
+    /// A replica of the organization `store` holds, on another machine whose data directory is
+    /// `directory`, carrying every row `store` holds.
+    async fn replica_beside(
+        store: &OrganizationStore,
+        directory: &std::path::Path,
+        organization_id: &str,
+    ) -> OrganizationStore {
+        std::fs::create_dir_all(directory).expect("the data directory");
+
+        let replica = OrganizationStore::open(
+            crate::clock::System::shared(),
+            &OrganizationStore::replica_path(&directory.join(Database::FILENAME), organization_id),
+            None,
+            || async { Ok::<String, turso::Error>(String::new()) },
+        )
+        .await
+        .expect("the second replica");
+
+        replica.install_schema().await.expect("the schema");
+        synced(store, &replica).await;
+
+        replica
+    }
+
+    /// What a pull brings, with no remote to bring it from: every row of every table `from` holds,
+    /// in place of what `to` holds there. A table `to` lacks is what an earlier build's replica
+    /// lacks, and is left out, as a pull leaves it to `complete_schema`.
+    async fn synced(from: &OrganizationStore, to: &OrganizationStore) {
+        let present = to.tables().await.expect("the tables");
+
+        for table in from.tables().await.expect("the tables") {
+            if !present.contains(&table) {
+                continue;
+            }
+
+            to.connection()
+                .execute(&format!("DELETE FROM \"{table}\""), ())
+                .await
+                .expect("the old rows");
+
+            let mut rows = from
+                .connection()
+                .query(&format!("SELECT * FROM \"{table}\""), ())
+                .await
+                .expect("the rows");
+
+            while let Some(row) = rows.next().await.expect("a row") {
+                let values: Vec<turso::Value> = (0..row.column_count())
+                    .map(|index| row.get_value(index).expect("a value"))
+                    .collect();
+                let placeholders = vec!["?"; values.len()].join(", ");
+
+                to.connection()
+                    .execute(
+                        &format!("INSERT INTO \"{table}\" VALUES ({placeholders})"),
+                        values,
+                    )
+                    .await
+                    .expect("the row");
+            }
+        }
+    }
+
+    /// The organization's replica on `app_state`'s machine, opened as a test reads it.
+    async fn replica_of(app_state: &Shared) -> OrganizationStore {
+        let (organization_id, _) = recorded(app_state).await;
+        let database_path = app_state.settings.read().await.database_path.clone();
+
+        OrganizationStore::open(
+            crate::clock::System::shared(),
+            &OrganizationStore::replica_path(&database_path, &organization_id),
+            None,
+            || async { Ok::<String, turso::Error>(String::new()) },
+        )
+        .await
+        .expect("the replica")
+    }
+
+    /// The owner signed in on the first run's replica, as a test acts for them.
+    async fn the_owner(store: &OrganizationStore, app_state: &Shared) -> MemberSession {
+        let held = {
+            let mut remote_sync = app_state.remote_sync.write().await;
+
+            remote_sync
+                .store_mut()
+                .selected()
+                .cloned()
+                .expect("the entry")
+        };
+
+        sign_in(store, &held, PASSWORD, &Arc::new(Mutex::new(None)))
+            .await
+            .expect("the owner did not sign in")
+    }
+
+    /// A member's machine: invited by `owner` on `owner_store`, holding a replica of it in
+    /// `directory`, signed in there, and past its launch's checks. What the state reads of it is
+    /// what a member's screen shows.
+    async fn a_members_machine(
+        owner_store: &OrganizationStore,
+        owner: &MemberSession,
+        directory: &std::path::Path,
+        username: &'static str,
+    ) -> Shared {
+        let link = locator(owner_store, owner).await.expect("the link");
+        let invited = make_account_and_link(
+            owner_store,
+            owner,
+            None::<&InMemoryPlatform>,
+            &link,
+            Invitation {
+                username,
+                role: permission::MEMBER,
+                workspaces: &[],
+            },
+            test_cost(),
+            CREATED_AT + 1,
+        )
+        .await
+        .expect("the invitation");
+        let replica = replica_beside(owner_store, directory, &owner.organization_id).await;
+        let app_state = state_over(directory).await;
+        let held = {
+            let mut remote_sync = app_state.remote_sync.write().await;
+            let record = remote_sync.store_mut();
+
+            record.hold(HeldOrganization {
+                id: owner.organization_id.clone(),
+                name: "Acme".to_string(),
+                verifying_key: base64::Engine::encode(
+                    &base64::engine::general_purpose::URL_SAFE_NO_PAD,
+                    owner.verifying_key,
+                ),
+                remote_url: "libsql://org-acme.turso.io".to_string(),
+                machine_id: format!("machine-{username}"),
+                member_id: Some(invited.member_id.clone()),
+                role: Some(permission::MEMBER.to_string()),
+                joined_at: CREATED_AT + 1,
+                format: None,
+                machine_signed_out: 0,
+                turso_organization: None,
+                workspace_id: None,
+                name_signed: false,
+            });
+            record.commit().expect("the record");
+            record.selected().cloned().expect("the entry")
+        };
+        let member = sign_in(
+            &replica,
+            &held,
+            &vault_password_of(&invited.join_link, &invited.code, test_cost()),
+            &Arc::new(Mutex::new(None)),
+        )
+        .await
+        .expect("the member did not sign in");
+
+        *app_state.organization.write().await = Some(replica);
+        *app_state.member.write().await = Some(member);
+        app_state
+            .old_shape_check
+            .set(())
+            .expect("the launch's checks had run");
+
+        app_state
+    }
+
+    /// The owner renames the organization as the rename will (effort 851, ticket 10): the signed
+    /// row and the unsigned column, with the same sealed name.
+    async fn renamed(store: &OrganizationStore, owner: &MemberSession, name: &str, at: i64) {
+        let name_sealed = seal_content(
+            &owner.content_key,
+            "organization.name_sealed",
+            name.as_bytes(),
+        )
+        .expect("the sealed name");
+        let (key, certificate) = signer_of(store, owner).await.expect("the owner's signer");
+        let organization = store
+            .organization()
+            .await
+            .expect("the row")
+            .expect("the organization");
+
+        store
+            .write_organization_name(
+                &Signer {
+                    key: &key,
+                    certificate: &certificate,
+                },
+                &OrganizationNameRecord {
+                    name_sealed: name_sealed.clone(),
+                    updated_at: at,
+                },
+            )
+            .await
+            .expect("the signed name");
+        store
+            .write_organization(&OrganizationRecord {
+                name_sealed,
+                ..organization
+            })
+            .await
+            .expect("the organization row");
+    }
+
+    /// What `app_state`'s machine names the organization: in the session, and in the record the
+    /// wall and the switcher draw from.
+    async fn names_on(app_state: &Shared, credentials: &Credentials) -> (String, String) {
+        let state = state_of(app_state, credentials, &crate::clock::System::shared())
+            .await
+            .expect("the state");
+
+        (
+            state
+                .session
+                .expect("nobody is signed in")
+                .organization_name,
+            state.organization.expect("nothing is held").name,
+        )
+    }
+
+    /// Whether `app_state`'s record has read a signed name.
+    async fn read_signed(app_state: &Shared) -> bool {
+        let mut remote_sync = app_state.remote_sync.write().await;
+
+        remote_sync
+            .store_mut()
+            .selected()
+            .expect("the entry")
+            .name_signed
+    }
+
+    /// The pair a machine names when the session and the record both say `name`.
+    fn both(name: &str) -> (String, String) {
+        (name.to_string(), name.to_string())
+    }
+
+    /// **Criterion 26.** The owner renames; a member's machine whose replica syncs while they are
+    /// signed in names the new name in its session and its record, and a member's machine that has
+    /// not synced still names the old one.
+    #[tokio::test]
+    async fn a_members_machine_names_the_new_name_once_it_has_synced() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let elsewhere: Credentials = Arc::new(Memory::new());
+        let directory = scratch("signed-name-follows");
+        let owners = first_run(credentials.as_ref(), &directory.join("owner")).await;
+        let store = replica_of(&owners).await;
+        let owner = the_owner(&store, &owners).await;
+        let syncs = a_members_machine(&store, &owner, &directory.join("syncs"), "sami.staff").await;
+        let behind =
+            a_members_machine(&store, &owner, &directory.join("behind"), "bea.staff").await;
+
+        assert_eq!(names_on(&syncs, &elsewhere).await, both("Acme"));
+        assert!(read_signed(&syncs).await, "the signed name was not latched");
+
+        renamed(&store, &owner, "Acme Rentals", CREATED_AT + 10).await;
+
+        // before its replica has synced, the member's machine names the name it has.
+        assert_eq!(names_on(&syncs, &elsewhere).await, both("Acme"));
+
+        {
+            let organization = syncs.organization.read().await;
+
+            synced(&store, organization.as_ref().expect("the replica")).await;
+        }
+
+        assert_eq!(
+            names_on(&syncs, &elsewhere).await,
+            both("Acme Rentals"),
+            "the member's machine did not follow the rename"
+        );
+        assert_eq!(
+            names_on(&behind, &elsewhere).await,
+            both("Acme"),
+            "a machine that has not synced named a name it never received"
+        );
+    }
+
+    /// **Criterion 29, a forged name.** Once a member's machine has read the name the owner signed,
+    /// a new `name_sealed` written straight into its replica without the owner's signature is not
+    /// shown; neither is a signed row whose name somebody swapped, nor the unsigned column once
+    /// the signed row is deleted. It keeps naming the last name that verified.
+    #[tokio::test]
+    async fn a_name_the_owner_did_not_sign_is_not_shown() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let elsewhere: Credentials = Arc::new(Memory::new());
+        let directory = scratch("signed-name-forged");
+        let owners = first_run(credentials.as_ref(), &directory.join("owner")).await;
+        let store = replica_of(&owners).await;
+        let owner = the_owner(&store, &owners).await;
+        let member =
+            a_members_machine(&store, &owner, &directory.join("member"), "sami.staff").await;
+        let forged = seal_content(
+            &owner.content_key,
+            "organization.name_sealed",
+            b"Forged Rentals",
+        )
+        .expect("the sealed name");
+
+        assert_eq!(names_on(&member, &elsewhere).await, both("Acme"));
+
+        for (statement, what) in [
+            (
+                "UPDATE \"organization\" SET \"name_sealed\" = ?",
+                "an unsigned name written straight into the replica",
+            ),
+            (
+                "UPDATE \"organization_name\" SET \"name_sealed\" = ?",
+                "a signed row with its name swapped",
+            ),
+            (
+                "DELETE FROM \"organization_name\" WHERE \"name_sealed\" = ?",
+                "the signed row deleted",
+            ),
+        ] {
+            {
+                let organization = member.organization.read().await;
+
+                organization
+                    .as_ref()
+                    .expect("the replica")
+                    .connection()
+                    .execute(statement, vec![turso::Value::Blob(forged.clone())])
+                    .await
+                    .unwrap_or_else(|error| panic!("{what}: {error}"));
+            }
+
+            assert_eq!(
+                names_on(&member, &elsewhere).await,
+                both("Acme"),
+                "{what} was shown"
+            );
+        }
+    }
+
+    /// **Criterion 29, an organization made before this change.** Its replicas hold no signed
+    /// name, and a member's of an earlier build not even the table: the member's machine opens it
+    /// and names its name from the unsigned column. The owner's next launch signs that same name,
+    /// and the member's machine, once it has synced, reads it signed and names the same name.
+    #[tokio::test]
+    async fn an_organization_made_before_the_signed_name_names_its_name_before_and_after_it_is_signed()
+     {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let elsewhere: Credentials = Arc::new(Memory::new());
+        let directory = scratch("signed-name-before");
+        let owners = first_run(credentials.as_ref(), &directory.join("owner")).await;
+        let member = {
+            let store = replica_of(&owners).await;
+            let owner = the_owner(&store, &owners).await;
+
+            // what an organization made before this change holds: no signed name.
+            store
+                .connection()
+                .execute("DELETE FROM \"organization_name\"", ())
+                .await
+                .expect("the organization before the signed name");
+
+            let member =
+                a_members_machine(&store, &owner, &directory.join("member"), "sami.staff").await;
+
+            {
+                let organization = member.organization.read().await;
+
+                organization
+                    .as_ref()
+                    .expect("the replica")
+                    .connection()
+                    .execute("DROP TABLE \"organization_name\"", ())
+                    .await
+                    .expect("a replica an earlier build made");
+            }
+
+            member
+        };
+
+        assert_eq!(
+            names_on(&member, &elsewhere).await,
+            both("Acme"),
+            "an organization made before the signed name lost its name"
+        );
+        assert!(!read_signed(&member).await, "an unsigned name was latched");
+
+        // the owner's next launch resumes the owner, and their machine signs the name.
+        assert_eq!(names_on(&owners, &credentials).await, both("Acme"));
+
+        {
+            let organization = owners.organization.read().await;
+            let store = organization.as_ref().expect("the owner's replica");
+            let row = store
+                .organization()
+                .await
+                .expect("the row")
+                .expect("the organization");
+            let name = store
+                .organization_name(&row.verifying_key)
+                .await
+                .expect("the read")
+                .expect("the owner's machine did not sign the name");
+
+            assert_eq!(
+                name.name_sealed, row.name_sealed,
+                "the name signed is not the one the organization carried"
+            );
+
+            let theirs = member.organization.read().await;
+            let replica = theirs.as_ref().expect("the replica");
+
+            assert!(
+                replica.complete_schema().await.expect("the completion"),
+                "the earlier build's replica was not completed"
+            );
+            synced(store, replica).await;
+        }
+
+        assert_eq!(names_on(&member, &elsewhere).await, both("Acme"));
+        assert!(
+            read_signed(&member).await,
+            "the signed name was not latched"
+        );
+        assert!(
+            read_signed(&owners).await,
+            "the owner's own machine did not latch"
+        );
+    }
+
+    /// **Criterion 29, a forgery before the owner's machine first signs.** An organization made
+    /// before the signed name, whose unsigned column a member rewrote before the owner's first
+    /// sign-in on this build: the owner's machine signs the name its own entry holds, never the
+    /// column's, and writes the column back with it, so every machine names the owner's name.
+    #[tokio::test]
+    async fn the_owners_first_signing_never_signs_a_column_somebody_rewrote() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let elsewhere: Credentials = Arc::new(Memory::new());
+        let directory = scratch("signed-name-forged-before");
+        let owners = first_run(credentials.as_ref(), &directory.join("owner")).await;
+        let (member, owner) = {
+            let store = replica_of(&owners).await;
+            let owner = the_owner(&store, &owners).await;
+            let forged = seal_content(
+                &owner.content_key,
+                "organization.name_sealed",
+                b"Forged Rentals",
+            )
+            .expect("the sealed name");
+
+            // what an organization made before this change holds, no signed name, with the
+            // unsigned column rewritten by a member holding the credential.
+            store
+                .connection()
+                .execute("DELETE FROM \"organization_name\"", ())
+                .await
+                .expect("the organization before the signed name");
+            store
+                .connection()
+                .execute(
+                    "UPDATE \"organization\" SET \"name_sealed\" = ?",
+                    vec![turso::Value::Blob(forged)],
+                )
+                .await
+                .expect("the forged column");
+
+            let member =
+                a_members_machine(&store, &owner, &directory.join("member"), "sami.staff").await;
+
+            (member, owner)
+        };
+
+        assert!(
+            !read_signed(&owners).await,
+            "the owner's machine had read a signed name before its first signing"
+        );
+
+        // the owner's next launch resumes the owner, and their machine signs the name.
+        assert_eq!(
+            names_on(&owners, &credentials).await,
+            both("Acme"),
+            "the owner's machine named the forged column"
+        );
+
+        let name_of = |sealed: &[u8]| {
+            String::from_utf8(
+                open_content(&owner.content_key, "organization.name_sealed", sealed)
+                    .expect("the name opens"),
+            )
+            .expect("a name")
+        };
+
+        {
+            let organization = owners.organization.read().await;
+            let store = organization.as_ref().expect("the owner's replica");
+            let signed = store
+                .organization_name(&owner.verifying_key)
+                .await
+                .expect("the read")
+                .expect("the owner's machine did not sign the name");
+
+            assert_eq!(
+                name_of(&signed.name_sealed),
+                "Acme",
+                "the owner's machine signed the forged column"
+            );
+            assert_eq!(
+                name_of(
+                    &store
+                        .organization()
+                        .await
+                        .expect("the row")
+                        .expect("the organization")
+                        .name_sealed
+                ),
+                "Acme",
+                "the unsigned column was left forged"
+            );
+
+            let theirs = member.organization.read().await;
+
+            synced(store, theirs.as_ref().expect("the replica")).await;
+        }
+
+        assert_eq!(names_on(&member, &elsewhere).await, both("Acme"));
+        assert!(
+            read_signed(&member).await,
+            "the signed name was not latched"
+        );
+    }
+
+    /// **Criterion 29, the owner's machine after a forgery.** Once a signed name has been seen, a
+    /// member deletes the signed row and rewrites `name_sealed`: the owner's next sign-in writes a
+    /// signed row naming the previous name, and the unsigned column with it, never the forged one,
+    /// and no machine shows the forged name.
+    #[tokio::test]
+    async fn the_owners_machine_never_signs_a_name_written_around_the_signed_row() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let elsewhere: Credentials = Arc::new(Memory::new());
+        let directory = scratch("signed-name-not-laundered");
+        let owners = first_run(credentials.as_ref(), &directory.join("owner")).await;
+
+        // the owner's launch reads the signed name, and their record latches it.
+        assert_eq!(names_on(&owners, &credentials).await, both("Acme"));
+        assert!(
+            read_signed(&owners).await,
+            "the owner's machine did not latch"
+        );
+
+        let (member, verifying_key) = {
+            let organization = owners.organization.read().await;
+            let store = organization.as_ref().expect("the owner's replica");
+            let session = owners.member.read().await;
+            let owner = session.as_ref().expect("the owner's session");
+            let member =
+                a_members_machine(store, owner, &directory.join("member"), "sami.staff").await;
+
+            // the member's machine reads the signed name too, and latches it.
+            assert_eq!(names_on(&member, &elsewhere).await, both("Acme"));
+
+            let forged = seal_content(
+                &owner.content_key,
+                "organization.name_sealed",
+                b"Forged Rentals",
+            )
+            .expect("the sealed name");
+
+            // a member holding the credential: the signed row deleted, the column rewritten.
+            store
+                .connection()
+                .execute("DELETE FROM \"organization_name\"", ())
+                .await
+                .expect("the deletion");
+            store
+                .connection()
+                .execute(
+                    "UPDATE \"organization\" SET \"name_sealed\" = ?",
+                    vec![turso::Value::Blob(forged)],
+                )
+                .await
+                .expect("the forged column");
+
+            {
+                let theirs = member.organization.read().await;
+
+                synced(store, theirs.as_ref().expect("the replica")).await;
+            }
+
+            assert_eq!(
+                names_on(&member, &elsewhere).await,
+                both("Acme"),
+                "the forged name reached the member's screen"
+            );
+
+            (member, owner.verifying_key)
+        };
+
+        // the owner signs out, and signs in again.
+        sign_out(&owners, credentials.as_ref()).await;
+
+        let store = replica_of(&owners).await;
+        let owner = the_owner(&store, &owners).await;
+        let name_of = |sealed: &[u8]| {
+            String::from_utf8(
+                open_content(&owner.content_key, "organization.name_sealed", sealed)
+                    .expect("the name opens"),
+            )
+            .expect("a name")
+        };
+        let signed = store
+            .organization_name(&verifying_key)
+            .await
+            .expect("the read")
+            .expect("the owner's sign-in signed no name");
+
+        assert_eq!(
+            name_of(&signed.name_sealed),
+            "Acme",
+            "the owner's machine signed the forged name"
+        );
+        assert_eq!(
+            name_of(
+                &store
+                    .organization()
+                    .await
+                    .expect("the row")
+                    .expect("the organization")
+                    .name_sealed
+            ),
+            "Acme",
+            "the unsigned column was left forged"
+        );
+
+        // and the member's machine, synced before and after, names the previous name throughout.
+        assert_eq!(names_on(&member, &elsewhere).await, both("Acme"));
+
+        {
+            let organization = member.organization.read().await;
+
+            synced(&store, organization.as_ref().expect("the replica")).await;
+        }
+
+        assert_eq!(names_on(&member, &elsewhere).await, both("Acme"));
     }
 }

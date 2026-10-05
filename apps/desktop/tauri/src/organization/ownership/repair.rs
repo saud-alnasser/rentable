@@ -1,5 +1,6 @@
 //! the owner's own row repaired by the owner's machine where somebody below them wrote it, with the
-//! owner's own keys and nothing read off the row (effort 838, the re-check of ticket 20).
+//! owner's own keys and nothing read off the row (effort 838, the re-check of ticket 20); and the
+//! organization's name signed by the owner's machine where nobody has signed it yet (effort 851).
 
 use crate::{diagnostics, error::Error};
 
@@ -8,10 +9,12 @@ use crate::organization::role::{
     sent,
 };
 use crate::organization::{
+    HeldOrganization,
     authority::{AdministratorKey, VERIFYING_KEY_BYTES},
-    member::vault::{MemberSecretKey, Vault},
+    member::vault::{MemberSecretKey, Vault, open_content, seal_content},
+    session::content_key_of,
     setup::{ADMINISTRATOR_KEY_PURPOSE, owner_key_from},
-    store::{MemberRecord, OrganizationStore, Signer},
+    store::{MemberRecord, OrganizationNameRecord, OrganizationRecord, OrganizationStore, Signer},
 };
 
 /// Sign the owner's own row again under the root where it does not read as the owner's: what the
@@ -105,6 +108,123 @@ pub(in crate::organization) async fn repair_owner_row(
     .await;
     diagnostics::warn("organization.owner.rowRepaired")
         .with("member", member_id)
+        .write();
+
+    Ok(true)
+}
+
+/// Sign the organization's name under the root where no signed name verifies: what the owner's
+/// machine does beside [`repair_owner_row`], with nobody acting, at a sign-in, a resume or a
+/// heartbeat (effort 851, requirement 29). Answers whether it wrote.
+///
+/// **The name signed is the one this machine's entry holds** (`HeldOrganization::name`), the name
+/// the owner typed or last read signed, **and never the unsigned column's**: every member can write
+/// that column, so a member who rewrote it before the owner's machine signed, or who deleted the
+/// signed row and rewrote it after, would otherwise have the owner's machine sign their name. Where
+/// the column opens to that name, its sealed bytes are signed as they lie, which is an organization
+/// made before the signed name keeping the name every machine has shown; where it does not, the
+/// name is sealed again under the content key and the column is written back with it, as the
+/// rename writes both.
+///
+/// **Only the owner's machine writes**, as [`repair_owner_row`] decides it: `secret` derives the
+/// pinned key, and the root certificate that names its signing key is live. Nothing is written
+/// where `held` is not known, where the replica lacks the table (one an earlier build made, before
+/// the pull that completes it), or where a signed name already verifies.
+pub(in crate::organization) async fn sign_organization_name(
+    store: &OrganizationStore,
+    verifying_key: &[u8; VERIFYING_KEY_BYTES],
+    member_id: &str,
+    secret: &MemberSecretKey,
+    held: Option<&HeldOrganization>,
+    now: i64,
+) -> Result<bool, Error> {
+    let Some(held) = held else {
+        return Ok(false);
+    };
+
+    if owner_key_from(secret)?.verifying_key() != *verifying_key {
+        return Ok(false);
+    }
+
+    if !store
+        .tables()
+        .await?
+        .iter()
+        .any(|table| table == "organization_name")
+        || store.organization_name(verifying_key).await?.is_some()
+    {
+        return Ok(false);
+    }
+
+    let Some(organization) = store.organization().await? else {
+        return Ok(false);
+    };
+    let Some(row) = store.member(verifying_key, member_id).await? else {
+        return Ok(false);
+    };
+    let key = AdministratorKey::from_bytes(&secret.derive_seed(ADMINISTRATOR_KEY_PURPOSE)?);
+    let Some(root) = store
+        .live_certificates(verifying_key, member_id)
+        .await?
+        .into_iter()
+        .find(|certificate| {
+            certificate.is_root() && certificate.signing_public_key == key.verifying_key()
+        })
+    else {
+        return Ok(false);
+    };
+    let content_key = content_key_of(&row.sealed_content_key, secret)?;
+    let column_is_held = open_content(
+        &content_key,
+        "organization.name_sealed",
+        &organization.name_sealed,
+    )
+    .is_ok_and(|column| column == held.name.as_bytes());
+    let name_sealed = if column_is_held {
+        organization.name_sealed.clone()
+    } else {
+        seal_content(
+            &content_key,
+            "organization.name_sealed",
+            held.name.as_bytes(),
+        )?
+    };
+
+    store
+        .write_organization_name(
+            &Signer {
+                key: &key,
+                certificate: &root,
+            },
+            &OrganizationNameRecord {
+                name_sealed: name_sealed.clone(),
+                updated_at: now,
+            },
+        )
+        .await?;
+
+    if !column_is_held {
+        store
+            .write_organization(&OrganizationRecord {
+                name_sealed,
+                ..organization.clone()
+            })
+            .await?;
+    }
+
+    sent(
+        store,
+        "organization.name.signedNotYetSent",
+        "organization",
+        &organization.id,
+    )
+    .await;
+    diagnostics::info("organization.name.signed")
+        .with("organization", organization.id.as_str())
+        .with(
+            "columnRewritten",
+            if column_is_held { "false" } else { "true" },
+        )
         .write();
 
     Ok(true)

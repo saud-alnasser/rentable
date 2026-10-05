@@ -65,7 +65,16 @@ pub(crate) async fn ended_elsewhere(app_state: &Shared, credentials: &dyn Creden
         // command: the owner's machine holds the root and writes it again, with nobody acting
         // (effort 838, the human's decision after review round two). Every other machine writes
         // nothing here.
-        session::repair_own_row(store, session).await;
+        let held = {
+            let mut remote_sync = app_state.remote_sync.write().await;
+
+            remote_sync
+                .store_mut()
+                .held(&session.organization_id)
+                .cloned()
+        };
+
+        session::repair_own_row(store, session, held.as_ref()).await;
 
         let standing = match session::ended_elsewhere(store, session).await {
             Ok(ended) => Ok(ended),

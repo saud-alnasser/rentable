@@ -2,8 +2,8 @@
 
 use super::{
     CERTIFICATE_DOMAIN, Certificate, GRANT_DOMAIN, INVITATION_DOMAIN, MARK_DOMAIN, MEMBER_DOMAIN,
-    REVOCATION_DOMAIN, ROLE_DOMAIN, Revocation, SUCCESSION_DOMAIN, VERIFYING_KEY_BYTES,
-    WORKSPACE_DOMAIN, WORKSPACE_OVERRIDE_DOMAIN,
+    ORGANIZATION_NAME_DOMAIN, REVOCATION_DOMAIN, ROLE_DOMAIN, Revocation, SUCCESSION_DOMAIN,
+    VERIFYING_KEY_BYTES, WORKSPACE_DOMAIN, WORKSPACE_OVERRIDE_DOMAIN,
 };
 
 /// The authority fields of one row: exactly what its signature covers, and
@@ -30,6 +30,15 @@ pub enum Authority<'a> {
     /// A `workspace_override` row: what is pinned for one member in one workspace (effort 838,
     /// requirement 12 as amended a third time).
     WorkspaceOverride(WorkspaceOverrideAuthority<'a>),
+    /// The `organization_name` row: the organization's name as sealed, and when it was set, under
+    /// the owner's signature (effort 851, requirement 29). **The root's alone**, so a name any
+    /// member holding the database's credential wrote is never shown as the organization's. The
+    /// unsigned `organization.name_sealed` beside it is what builds before this one read, and what
+    /// a machine falls back to only until it has once read this row.
+    OrganizationName {
+        name_sealed: &'a [u8],
+        updated_at: i64,
+    },
 }
 
 /// What a `workspace_override` row puts under signature, which is the whole of the row: whose it
@@ -311,6 +320,15 @@ pub(crate) fn preimage(certificate_id: &str, authority: Authority<'_>) -> Vec<u8
             field(&mut message, workspace_id.as_bytes());
             field(&mut message, &pinned.to_be_bytes());
             field(&mut message, &granted.to_be_bytes());
+        }
+        Authority::OrganizationName {
+            name_sealed,
+            updated_at,
+        } => {
+            message.extend_from_slice(ORGANIZATION_NAME_DOMAIN);
+            field(&mut message, certificate_id.as_bytes());
+            field(&mut message, name_sealed);
+            field(&mut message, &updated_at.to_be_bytes());
         }
     }
 
@@ -917,6 +935,20 @@ mod tests {
             ),
             "a grant row covers a different set of fields"
         );
+
+        assert_eq!(
+            to_hex(&preimage(
+                CHECKED_IN_CERTIFICATE_ID,
+                organization_name_authority(&sealed_credential, CHECKED_IN_NAMED_AT)
+            )),
+            concat!(
+                "72656e7461626c652e6f7267616e697a6174696f6e2e617574686f726974792e",
+                "6f7267616e697a6174696f6e2d6e616d652e7631000000000000000d63657274",
+                "696669636174652d310000000000000004a1b2c3d40000000000000008000001",
+                "99155c6200",
+            ),
+            "the organization's name covers a different set of fields"
+        );
     }
 
     #[test]
@@ -934,6 +966,7 @@ mod tests {
         let signed_workspace =
             workspace_authority(CHECKED_IN_DATABASE_NAME, CHECKED_IN_DATABASE_HOSTNAME);
         let signed_grant = grant_authority(&sealed_credential);
+        let signed_name = organization_name_authority(&sealed_credential, CHECKED_IN_NAMED_AT);
 
         let rewrites: Vec<(Authority<'_>, Authority<'_>)> = vec![
             // member: id, public_key, signing_public_key, role_id, override, removed_at
@@ -1076,6 +1109,15 @@ mod tests {
                     access_level: CHECKED_IN_ACCESS_LEVEL,
                     credential_expires_at: None,
                 }),
+            ),
+            // the organization's name: the name as sealed, and when it was set
+            (
+                signed_name,
+                organization_name_authority(&other_credential, CHECKED_IN_NAMED_AT),
+            ),
+            (
+                signed_name,
+                organization_name_authority(&sealed_credential, CHECKED_IN_NAMED_AT + 1),
             ),
         ];
 
@@ -1360,6 +1402,17 @@ mod tests {
         .expect("failed to revoke")
     }
 
+    /// When the checked-in organization name was set, in milliseconds.
+    const CHECKED_IN_NAMED_AT: i64 = 1_757_000_000_000;
+
+    /// The organization's signed name (effort 851), over whatever sealed bytes the caller hands.
+    fn organization_name_authority(name_sealed: &[u8], updated_at: i64) -> Authority<'_> {
+        Authority::OrganizationName {
+            name_sealed,
+            updated_at,
+        }
+    }
+
     fn checked_in_role_authority(name_sealed: &[u8]) -> Authority<'_> {
         Authority::Role(RoleAuthority {
             id: "role-1",
@@ -1443,6 +1496,14 @@ mod tests {
                 concat!(
                     "28f6b7bdd9df90f859857417127566f878a724b4ed3307f58b92d3e68a64db65",
                     "d90eee65c2b3d6beacfae2c0481b75274f6b4cd3818513f8488cf00386de790b",
+                ),
+            ),
+            // added by effort 851, from the same OpenSSL over the vector above.
+            (
+                organization_name_authority(&sealed_credential, CHECKED_IN_NAMED_AT),
+                concat!(
+                    "16766c73d99733a9b015475f6408b5fae7ccd0d4a2c246268a9b50055b71cde2",
+                    "86f063181218d783c6cb177c8808ace6c9c3e0091557751397ba7693e1890400",
                 ),
             ),
         ] {

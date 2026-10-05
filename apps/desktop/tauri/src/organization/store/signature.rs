@@ -15,8 +15,8 @@ use crate::{
 };
 
 use super::{
-    GrantRecord, InvitationRecord, MarkRecord, MemberRecord, OrganizationStore, RoleRecord,
-    WorkspaceOverrideRecord, WorkspaceRecord,
+    GrantRecord, InvitationRecord, MarkRecord, MemberRecord, OrganizationNameRecord,
+    OrganizationStore, RoleRecord, WorkspaceOverrideRecord, WorkspaceRecord,
     role::{rank_in, ranks_of_members, standings},
 };
 
@@ -229,6 +229,13 @@ impl OrganizationStore {
             .filter(|(signed_by, _)| of(signed_by))
             .map(|(_, workspace_override)| workspace_override)
             .collect();
+        // the organization's signed name, which only the root signs: the handover retires the
+        // founder's root, and the new owner's signs it again (effort 851, requirement 29).
+        let organization_name = self
+            .signed_organization_name(organization_verifying_key)
+            .await?
+            .filter(|(signed_by, _)| of(signed_by))
+            .map(|(_, name)| name);
 
         // a member row its certificate no longer covers is not signed again under anybody: that
         // would make the role somebody below the member named real under a signer who covers it
@@ -259,7 +266,8 @@ impl OrganizationStore {
             .chain(grants.iter().map(grant_authority))
             .chain(invitations.iter().map(invitation_authority))
             .chain(mark.iter().map(mark_authority))
-            .chain(workspace_overrides.iter().map(workspace_override_authority));
+            .chain(workspace_overrides.iter().map(workspace_override_authority))
+            .chain(organization_name.iter().map(organization_name_authority));
 
         for authority in authorities {
             if !chain.covers(signer.certificate, authority) {
@@ -303,13 +311,18 @@ impl OrganizationStore {
                 .await?;
         }
 
+        if let Some(name) = &organization_name {
+            self.write_organization_name(signer, name).await?;
+        }
+
         Ok(roles.len()
             + members.len()
             + workspaces.len()
             + grants.len()
             + invitations.len()
             + usize::from(mark.is_some())
-            + workspace_overrides.len())
+            + workspace_overrides.len()
+            + usize::from(organization_name.is_some()))
     }
 }
 
@@ -367,6 +380,14 @@ pub(crate) fn mark_authority(mark: &MarkRecord) -> Authority<'_> {
         updated_by: &mark.updated_by,
         updated_at: mark.updated_at,
     })
+}
+
+/// What the organization's signed name puts under signature, from the record.
+pub(crate) fn organization_name_authority(name: &OrganizationNameRecord) -> Authority<'_> {
+    Authority::OrganizationName {
+        name_sealed: &name.name_sealed,
+        updated_at: name.updated_at,
+    }
 }
 
 /// What a workspace override row puts under signature, from the record.

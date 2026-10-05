@@ -19,7 +19,7 @@ mod command;
 mod repair;
 
 pub use command::*;
-pub(in crate::organization) use repair::repair_owner_row;
+pub(in crate::organization) use repair::{repair_owner_row, sign_organization_name};
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64URL};
 
@@ -1711,9 +1711,9 @@ mod tests {
     /// live under the key being left is live under the new pinned key; each the founder issued
     /// directly is issued again from the new owner's root, under its id and signing key, and the
     /// one a manager issued keeps its issuer. The founder's own certificate is a manager's, their
-    /// row names the manager role with no override and reads the manager's mask, and the roles and
-    /// the mark verify under the new key. What the founder revoked as the owner stays revoked, and
-    /// the new owner's session carries every flag.
+    /// row names the manager role with no override and reads the manager's mask, and the roles,
+    /// the mark and the organization's signed name verify under the new key. What the founder
+    /// revoked as the owner stays revoked, and the new owner's session carries every flag.
     #[tokio::test]
     async fn after_a_handover_every_certificate_walks_to_the_new_key_and_the_founder_is_a_manager()
     {
@@ -2021,6 +2021,16 @@ mod tests {
                 .await
                 .expect("the mark does not verify under the new key")
                 .is_some()
+        );
+        // and the organization's name, which the founder's root signed and only a root may
+        // (effort 851, requirement 29): signed again by the new owner's.
+        assert!(
+            store
+                .organization_name(&new_key)
+                .await
+                .expect("the name's read")
+                .is_some(),
+            "the organization's name does not verify under the new key"
         );
         store
             .grants(&new_key)

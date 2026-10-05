@@ -2607,6 +2607,7 @@ mod tests {
             "DROP TABLE \"workspace_override\"",
             "DROP TABLE \"machine_sign_out\"",
             "DROP TABLE \"machine_name\"",
+            "DROP TABLE \"organization_name\"",
             "DROP TABLE \"role\"",
             "DROP TABLE \"certificate\"",
             "DROP TABLE \"revocation\"",

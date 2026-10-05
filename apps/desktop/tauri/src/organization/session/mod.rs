@@ -626,12 +626,60 @@ pub async fn refresh_credentials(
     Ok(moved)
 }
 
+/// The organization's name as this machine shows it (effort 851, requirements 26 and 29).
+///
+/// - **The signed row, where it verifies**, opened with the session's content key; reading it
+///   sets `held.name_signed`, and from then on this machine never trusts the unsigned column.
+/// - **Where none verifies and `held.name_signed` is false**, the unsigned
+///   `organization.name_sealed`, which is what every machine showed before the owner signed:
+///   an organization made before this change keeps naming its name until the owner's machine
+///   signs it (`ownership::sign_organization_name`).
+/// - **Where none verifies and `held.name_signed` is true**, the name `held` carries: a row that
+///   is missing or forged, or an unsigned `name_sealed` written straight into the replica, is
+///   never shown, and the last name that verified stays.
+pub(crate) async fn organization_name_of(
+    store: &OrganizationStore,
+    session: &MemberSession,
+    held: &mut HeldOrganization,
+) -> Result<String, Error> {
+    if let Some(signed) = store.organization_name(&session.verifying_key).await? {
+        let name = opened(
+            &session.content_key,
+            "organization.name_sealed",
+            &signed.name_sealed,
+        )?;
+
+        held.name_signed = true;
+
+        return Ok(name);
+    }
+
+    if held.name_signed {
+        return Ok(held.name.clone());
+    }
+
+    match store.organization().await? {
+        Some(organization) => opened(
+            &session.content_key,
+            "organization.name_sealed",
+            &organization.name_sealed,
+        ),
+        None => Ok(held.name.clone()),
+    }
+}
+
 /// What the web layer is told about `session`, read off the replica now rather than remembered
 /// from sign-in, so a row that changed under the member is what the screen shows. Every row is
 /// verified on the way, and the names are opened with the content key the session holds.
+///
+/// **The organization's name is the one the owner signed** (effort 851, requirement 29), read
+/// through [`organization_name_of`] against `held`, this machine's entry for the organization,
+/// whose `name_signed` it sets once a signed name has been read. What the entry's name becomes is
+/// the caller's to write (`state_of`).
 pub async fn facts_of(
     store: &OrganizationStore,
     session: &MemberSession,
+    held: &mut HeldOrganization,
 ) -> Result<SessionFacts, Error> {
     let key = &session.verifying_key;
     let members = store.members(key).await?;
@@ -688,14 +736,7 @@ pub async fn facts_of(
         })
         .collect::<Result<Vec<_>, Error>>()?;
 
-    let organization_name = match store.organization().await? {
-        Some(organization) => opened(
-            &session.content_key,
-            "organization.name_sealed",
-            &organization.name_sealed,
-        )?,
-        None => String::new(),
-    };
+    let organization_name = organization_name_of(store, session, held).await?;
 
     let owner_username = match members
         .iter()
