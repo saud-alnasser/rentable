@@ -8,7 +8,7 @@ use crate::{error::Error, turso::platform::AccessLevel};
 use super::opened;
 use crate::organization::{
     session::MemberSession,
-    store::{OrganizationStore, pins_of},
+    store::{OrganizationStore, locked_in, pins_of},
 };
 
 /// One workspace a member is in, as the members list draws it: the access their grant holds on it,
@@ -152,6 +152,10 @@ pub struct MemberStanding {
     pub password_set: bool,
     /// whether a machine that was seen inside the window is signed in on the account.
     pub machine_signed_in: bool,
+    /// whether the account is locked (effort 851, requirement 33), off its signed lock as it reads
+    /// now (`store::locked_in`): what draws the locked badge on the card, and with `password_set`
+    /// what offers the unlock.
+    pub locked: bool,
 }
 
 /// Every member's standing, in the order [`members`] answers them.
@@ -168,6 +172,8 @@ pub async fn standings(
     let machines = store
         .connected_machines(&session.verifying_key, now)
         .await?;
+    let locks = store.member_locks(&session.verifying_key).await?;
+    let latched = locks.latch(&session.lock_marked);
 
     Ok(store
         .members(&session.verifying_key)
@@ -177,6 +183,7 @@ pub async fn standings(
         // still hold it, and the directory lists who is in.
         .filter(|member| member.removed_at.is_none())
         .map(|member| MemberStanding {
+            locked: locked_in(&locks, &member, latched),
             password_set: !member.must_change_password,
             machine_signed_in: machines
                 .iter()

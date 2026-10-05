@@ -1128,6 +1128,10 @@ type RootTranslation = {
 				 */
 				machineMissing: string;
 				/**
+				 * y​o​u​r​ ​a​c​c​o​u​n​t​ ​i​s​ ​l​o​c​k​e​d​ ​u​n​t​i​l​ ​a​n​ ​o​w​n​e​r​ ​o​r​ ​a​ ​m​a​n​a​g​e​r​ ​u​n​l​o​c​k​s​ ​i​t​.​ ​y​o​u​ ​c​a​n​ ​s​t​i​l​l​ ​v​i​e​w​,​ ​a​n​d​ ​c​h​a​n​g​e​ ​y​o​u​r​ ​p​a​s​s​w​o​r​d​.
+				 */
+				locked: string;
+				/**
 				 * t​h​a​t​ ​m​a​c​h​i​n​e​ ​h​a​s​ ​n​o​t​ ​r​u​n​ ​t​h​i​s​ ​v​e​r​s​i​o​n​ ​y​e​t​,​ ​s​o​ ​i​t​ ​i​s​ ​n​o​t​ ​s​i​g​n​e​d​ ​o​u​t​ ​a​l​o​n​e​.​ ​s​i​g​n​ ​o​u​t​ ​o​t​h​e​r​s​ ​i​n​s​t​e​a​d​.
 				 */
 				machineNotUpdated: string;
@@ -1228,7 +1232,7 @@ type RootTranslation = {
 				 */
 				alreadyOwner: string;
 				/**
-				 * t​h​a​t​ ​a​c​c​o​u​n​t​ ​h​a​s​ ​n​o​ ​p​a​s​s​w​o​r​d​ ​o​f​ ​i​t​s​ ​o​w​n​ ​y​e​t​.​ ​o​n​c​e​ ​t​h​e​y​ ​o​p​e​n​ ​t​h​e​i​r​ ​l​i​n​k​ ​a​n​d​ ​c​h​o​o​s​e​ ​o​n​e​,​ ​o​f​f​e​r​ ​i​t​ ​a​g​a​i​n​.
+				 * t​h​a​t​ ​a​c​c​o​u​n​t​ ​h​a​s​ ​n​o​ ​p​a​s​s​w​o​r​d​ ​o​f​ ​i​t​s​ ​o​w​n​ ​y​e​t​.​ ​o​n​c​e​ ​t​h​e​y​ ​o​p​e​n​ ​t​h​e​i​r​ ​l​i​n​k​ ​a​n​d​ ​c​h​o​o​s​e​ ​o​n​e​,​ ​t​r​y​ ​a​g​a​i​n​.
 				 */
 				accountNotSetUp: string;
 				/**
@@ -6187,6 +6191,10 @@ export type TranslationFunctions = {
 				 */
 				machineMissing: () => LocalizedString;
 				/**
+				 * your account is locked until an owner or a manager unlocks it. you can still view, and change your password.
+				 */
+				locked: () => LocalizedString;
+				/**
 				 * that machine has not run this version yet, so it is not signed out alone. sign out others instead.
 				 */
 				machineNotUpdated: () => LocalizedString;
@@ -6287,7 +6295,7 @@ export type TranslationFunctions = {
 				 */
 				alreadyOwner: () => LocalizedString;
 				/**
-				 * that account has no password of its own yet. once they open their link and choose one, offer it again.
+				 * that account has no password of its own yet. once they open their link and choose one, try again.
 				 */
 				accountNotSetUp: () => LocalizedString;
 				/**

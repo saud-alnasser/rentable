@@ -399,11 +399,21 @@ async fn accepted(
     let machine_signed_out =
         sign_outs_acknowledged(store, &held.machine_id, &session.member_id).await?;
 
+    // **and their own lock is latched from the join on** (effort 851, requirement 35). An
+    // invitation is issued by a build that locks the member it names, so this member with no lock
+    // row that verifies reads as locked on this machine from the first: otherwise a locked invitee
+    // could delete their own row and the owner's marker from their replica before this machine
+    // had ever read the marker, and read unlocked. **Theirs alone**: the organization's marker is
+    // latched only by reading it, so a member carried over with no row of their own is judged here
+    // as the organization stands, in the directory and in a role change (requirements 33 and 36).
+    session.own_lock_latched = true;
+
     machine.hold(HeldOrganization {
         member_id: Some(session.member_id.clone()),
         role: Some(session.role.clone()),
         format: Some(FORMAT_VERSION),
         machine_signed_out,
+        own_lock_latched: Some(session.member_id.clone()),
         ..held.clone()
     });
     machine.commit()?;
@@ -842,6 +852,251 @@ mod tests {
             .filter(|invitation| invitation.member_id == member_id)
             .max_by_key(|invitation| invitation.created_at)
             .map(|invitation| (invitation.expires_at, invitation.consumed_at))
+    }
+
+    /// Effort 851, criterion 31: **an account an invitation makes is locked, under a lock that
+    /// verifies, and opening its link and choosing a password leaves it locked.** The person is in
+    /// and their password is their own, which is what the directory says; what they may do waits
+    /// on an owner or a manager.
+    #[tokio::test]
+    async fn an_invited_member_is_still_locked_after_opening_their_link_and_choosing_a_password() {
+        let credentials = Memory::new();
+        let directory = scratch("join-locked");
+        let (store, owner, _, invitation, _, code) = invited(&credentials, &directory).await;
+        let (_, session) = opened(
+            &credentials,
+            &directory.join("sami"),
+            &store,
+            &invitation,
+            &code,
+            CHOSEN,
+            ISSUED_AT + 1,
+        )
+        .await;
+        let session = session.expect("the invitation did not open");
+        let member = store
+            .member(&owner.verifying_key, &session.member_id)
+            .await
+            .expect("the row")
+            .expect("sami's row");
+
+        assert!(!member.must_change_password, "the join set no password");
+        assert!(
+            store
+                .member_locked(&owner.verifying_key, &member, false)
+                .await
+                .expect("the lock"),
+            "the join unlocked the account"
+        );
+        assert_eq!(
+            store
+                .signed_member_locks(&owner.verifying_key)
+                .await
+                .expect("the locks")
+                .into_iter()
+                .find(|(_, lock)| lock.member_id == session.member_id)
+                .map(|(signer, lock)| (signer, lock.locked)),
+            Some((
+                crate::organization::workspace::signer_of(&store, &owner)
+                    .await
+                    .expect("the owner's signer")
+                    .1
+                    .id,
+                true
+            )),
+            "the lock is not the inviter's, or does not verify"
+        );
+    }
+
+    /// Effort 851, requirement 35: **an invitee cannot unlock themselves before their machine has
+    /// read the marker.** Their machine joined and latched their own lock as it did; they then
+    /// delete their own lock row and the owner's marker from the replica. They still read as
+    /// locked, in the session the join opened and in one opened afresh from the record, and an
+    /// organization act is refused as locked.
+    #[tokio::test]
+    async fn an_invitee_who_deletes_their_lock_and_the_marker_still_reads_locked() {
+        let credentials = Memory::new();
+        let directory = scratch("join-lock-deleted");
+        let (store, owner, _, invitation, workspace_id, code) =
+            invited(&credentials, &directory).await;
+        let (machine, session) = opened(
+            &credentials,
+            &directory.join("sami"),
+            &store,
+            &invitation,
+            &code,
+            CHOSEN,
+            ISSUED_AT + 1,
+        )
+        .await;
+        let session = session.expect("the invitation did not open");
+
+        for member_id in [&session.member_id, &owner.member_id] {
+            store
+                .connection()
+                .execute(
+                    "DELETE FROM \"member_lock\" WHERE \"member_id\" = ?",
+                    vec![turso::Value::Text(member_id.clone())],
+                )
+                .await
+                .expect("the row deleted");
+        }
+
+        let held = held_by(&machine);
+        let member = store
+            .member(&owner.verifying_key, &session.member_id)
+            .await
+            .expect("the row")
+            .expect("sami's row");
+
+        assert_eq!(
+            held.own_lock_latched.as_deref(),
+            Some(session.member_id.as_str()),
+            "the join latched no lock of the invitee's own"
+        );
+        assert!(
+            store
+                .member_locked(&owner.verifying_key, &member, true)
+                .await
+                .expect("the lock"),
+            "deleting the lock and the marker unlocked the invitee on their own machine"
+        );
+
+        let again = sign_in(&store, &held, CHOSEN, &slot())
+            .await
+            .expect("sami signs in again");
+
+        for session in [&session, &again] {
+            match crate::organization::workspace::rename_workspace(
+                &store,
+                session,
+                &workspace_id,
+                "Mine",
+                ISSUED_AT + 2,
+            )
+            .await
+            {
+                Err(Error::Refused { reason, .. }) => assert_eq!(reason, RefusalReason::Locked),
+                other => panic!("the invitee's act was not refused as locked: {other:?}"),
+            }
+        }
+    }
+
+    /// Effort 851, requirements 33 and 36: **the join latches the joiner's own lock and nobody
+    /// else's.** On an organization the owner has not marked, a manager joins by their link and is
+    /// unlocked; a peer who set a password has no lock row. On the manager's machine the
+    /// directory reads the peer unlocked, in the session the join opened and in one opened afresh
+    /// from the record, and a role the manager gives the peer does not lock them.
+    #[tokio::test]
+    async fn a_joiners_machine_reads_a_peer_with_no_lock_as_the_unmarked_organization_stands() {
+        let credentials = Memory::new();
+        let directory = scratch("join-lock-own");
+        let (store, owner, link, invitation, workspace_id, code) =
+            invited(&credentials, &directory).await;
+        let manager = make_account_and_link(
+            &store,
+            &owner,
+            no_platform(),
+            &link,
+            Invitation {
+                username: "ada.manager",
+                role: permission::MANAGER,
+                workspaces: &full(std::slice::from_ref(&workspace_id)),
+            },
+            test_cost(),
+            ISSUED_AT,
+        )
+        .await
+        .expect("the manager's invitation");
+        let (machine, ada) = opened(
+            &credentials,
+            &directory.join("ada"),
+            &store,
+            &JoinLink::decode(&manager.join_link).expect("the manager's link"),
+            &manager.code,
+            CHOSEN,
+            ISSUED_AT + 1,
+        )
+        .await;
+        let ada = ada.expect("the manager's invitation did not open");
+
+        crate::organization::member::lock::unlocked_for_a_test(&store, &owner, &ada.member_id)
+            .await
+            .expect("the owner unlocks ada");
+
+        // sami arrives by their own link and chooses a password, and then has no lock row: a
+        // member carried over from before the lock, who reads unlocked until the owner marks.
+        let (_, sami) = opened(
+            &credentials,
+            &directory.join("sami"),
+            &store,
+            &invitation,
+            &code,
+            "a password sami chose too",
+            ISSUED_AT + 1,
+        )
+        .await;
+        let sami = sami.expect("sami's invitation did not open").member_id;
+
+        for member_id in [&sami, &owner.member_id] {
+            store
+                .connection()
+                .execute(
+                    "DELETE FROM \"member_lock\" WHERE \"member_id\" = ?",
+                    vec![turso::Value::Text(member_id.clone())],
+                )
+                .await
+                .expect("the row deleted");
+        }
+
+        let sami_locked = async |session: &MemberSession| {
+            crate::organization::invitation::standings(&store, session, ISSUED_AT + 2)
+                .await
+                .expect("the standings")
+                .into_iter()
+                .find(|standing| standing.member_id == sami)
+                .expect("sami's standing")
+                .locked
+        };
+        let held = held_by(&machine);
+
+        assert!(
+            !sami_locked(&ada).await,
+            "the join's session read a member with no lock row locked"
+        );
+
+        crate::organization::role::assign_role(
+            &store,
+            &ada,
+            &sami,
+            permission::MEMBER,
+            None,
+            ISSUED_AT + 3,
+        )
+        .await
+        .expect("ada gives sami a role");
+
+        assert_ne!(
+            store
+                .member_locks(&owner.verifying_key)
+                .await
+                .expect("the locks")
+                .rows
+                .get(&sami),
+            Some(&true),
+            "a role given on the joiner's machine locked sami"
+        );
+
+        // and a session opened afresh from ada's record, whose sign-in writes the rows it finds
+        // missing, reads sami as the organization stands.
+        let again = sign_in(&store, &held, CHOSEN, &slot())
+            .await
+            .expect("ada signs in again");
+
+        assert!(
+            !sami_locked(&again).await,
+            "a session from the joiner's record read a member with no lock row locked"
+        );
     }
 
     /// Effort 828, requirement 1: **reading a link is a decode, and it reaches nothing.**
@@ -2612,6 +2867,7 @@ mod tests {
             "DROP TABLE \"machine_sign_out\"",
             "DROP TABLE \"machine_name\"",
             "DROP TABLE \"organization_name\"",
+            "DROP TABLE \"member_lock\"",
             "DROP TABLE \"role\"",
             "DROP TABLE \"certificate\"",
             "DROP TABLE \"revocation\"",

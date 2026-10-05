@@ -619,6 +619,8 @@ export const refusals = {
 		sessionsEnded: 'your sessions were ended from another machine. sign in again.',
 		keyNotInForce: 'the organization was handed over, so only its new owner can do this.',
 		machineMissing: 'that machine is no longer signed in as you. reload to see what changed.',
+		locked:
+			'your account is locked until an owner or a manager unlocks it. you can still view, and change your password.',
 		machineNotUpdated:
 			'that machine has not run this version yet, so it is not signed out alone. sign out others instead.',
 		usernameInvalid:
@@ -651,7 +653,7 @@ export const refusals = {
 			'a workspace changes only what may be done to its records. set the rest across the organization.',
 		alreadyOwner: 'you are the owner already. choose the account that is to have it.',
 		accountNotSetUp:
-			'that account has no password of its own yet. once they open their link and choose one, offer it again.',
+			'that account has no password of its own yet. once they open their link and choose one, try again.',
 		offerPending: 'the organization is already offered to an account. withdraw that offer first.',
 		offerAccepted:
 			'the offer was already accepted, and the organization is theirs now. nothing was changed.',

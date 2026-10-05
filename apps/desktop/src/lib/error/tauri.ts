@@ -75,6 +75,7 @@ export const TAURI_REFUSAL_REASONS = [
 	'keyNotInForce',
 	'machineMissing',
 	'machineNotUpdated',
+	'locked',
 	'usernameInvalid',
 	'usernameTaken',
 	'roleUnknown',

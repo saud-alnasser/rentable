@@ -160,6 +160,12 @@ mod tests {
         ("session_machines", Gate::Own),
         ("session_end_machine", Gate::Own),
         ("member_end_sessions", Gate::Flag(Flag::ResetPassword)),
+        // and from above the member, once their password is their own (effort 851, requirement
+        // 34).
+        (
+            "member_unlock",
+            Gate::AnyFlag(&[Flag::AssignRole, Flag::OverrideMember]),
+        ),
         ("member_lock_out_cost", Gate::Flag(Flag::RemoveMember)),
         ("member_remove", Gate::Flag(Flag::RemoveMember)),
         (

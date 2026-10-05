@@ -196,6 +196,7 @@ const members = [
 const standing = (overrides: Partial<MemberStanding> & { memberId: string }): MemberStanding => ({
 	passwordSet: true,
 	machineSignedIn: false,
+	locked: false,
 	...overrides
 });
 

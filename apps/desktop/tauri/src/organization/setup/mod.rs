@@ -582,6 +582,8 @@ async fn finish<P: TursoPlatform>(
         turso_organization: None,
         workspace_id: None,
         name_signed: false,
+        lock_marked: false,
+        own_lock_latched: None,
     });
     store.commit()?;
 

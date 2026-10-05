@@ -142,6 +142,9 @@ pub enum RefusalReason {
     /// the machine acted on has not run this version, so it would not read a sign-out of its own;
     /// signing every other machine out is what reaches it (effort 846, requirement 10).
     MachineNotUpdated,
+    /// the reader's account is locked until an owner or a manager unlocks it: they sign in, change
+    /// their password and read, and do nothing else (effort 851, requirement 32).
+    Locked,
 
     // members and what may be done to them.
     /// the username is not three to thirty-two letters, digits, dots, underscores or hyphens.
@@ -202,7 +205,8 @@ pub enum RefusalReason {
     // handing the organization over.
     /// the owner offered the organization to themselves.
     AlreadyOwner,
-    /// the account offered the organization has no password of its own yet.
+    /// the account acted on has no password of its own yet: the organization is not offered to it,
+    /// and it is not unlocked (effort 851, requirement 34), until it has.
     AccountNotSetUp,
     /// an offer already stands.
     OfferPending,

@@ -2,8 +2,8 @@
 
 use super::{
     CERTIFICATE_DOMAIN, Certificate, GRANT_DOMAIN, INVITATION_DOMAIN, MARK_DOMAIN, MEMBER_DOMAIN,
-    ORGANIZATION_NAME_DOMAIN, REVOCATION_DOMAIN, ROLE_DOMAIN, Revocation, SUCCESSION_DOMAIN,
-    VERIFYING_KEY_BYTES, WORKSPACE_DOMAIN, WORKSPACE_OVERRIDE_DOMAIN,
+    MEMBER_LOCK_DOMAIN, ORGANIZATION_NAME_DOMAIN, REVOCATION_DOMAIN, ROLE_DOMAIN, Revocation,
+    SUCCESSION_DOMAIN, VERIFYING_KEY_BYTES, WORKSPACE_DOMAIN, WORKSPACE_OVERRIDE_DOMAIN,
 };
 
 /// The authority fields of one row: exactly what its signature covers, and
@@ -37,6 +37,17 @@ pub enum Authority<'a> {
     /// a machine falls back to only until it has once read this row.
     OrganizationName {
         name_sealed: &'a [u8],
+        updated_at: i64,
+    },
+    /// A `member_lock` row: whether a member is locked, and when that was set, under the signature
+    /// of whoever set it (effort 851, requirements 31 to 37). **A row of its own**, because a field
+    /// on [`MemberAuthority`] would move the member preimage and break every signature already
+    /// made. Signed by the root, or by a holder of `assignRole` or `overrideMember` who outranks
+    /// the member and is not them ([`covers`](super::covers)); a reader takes a row that does not
+    /// verify as locked, so a locked member writing an unlocked row of their own unlocks nobody.
+    MemberLock {
+        member_id: &'a str,
+        locked: bool,
         updated_at: i64,
     },
 }
@@ -328,6 +339,17 @@ pub(crate) fn preimage(certificate_id: &str, authority: Authority<'_>) -> Vec<u8
             message.extend_from_slice(ORGANIZATION_NAME_DOMAIN);
             field(&mut message, certificate_id.as_bytes());
             field(&mut message, name_sealed);
+            field(&mut message, &updated_at.to_be_bytes());
+        }
+        Authority::MemberLock {
+            member_id,
+            locked,
+            updated_at,
+        } => {
+            message.extend_from_slice(MEMBER_LOCK_DOMAIN);
+            field(&mut message, certificate_id.as_bytes());
+            field(&mut message, member_id.as_bytes());
+            field(&mut message, &[u8::from(locked)]);
             field(&mut message, &updated_at.to_be_bytes());
         }
     }
@@ -949,6 +971,20 @@ mod tests {
             ),
             "the organization's name covers a different set of fields"
         );
+
+        assert_eq!(
+            to_hex(&preimage(
+                CHECKED_IN_CERTIFICATE_ID,
+                member_lock_authority(CHECKED_IN_MEMBER_ID, true, CHECKED_IN_NAMED_AT)
+            )),
+            concat!(
+                "72656e7461626c652e6f7267616e697a6174696f6e2e617574686f726974792e",
+                "6d656d6265722d6c6f636b2e7631000000000000000d63657274696669636174",
+                "652d3100000000000000086d656d6265722d3100000000000000010100000000",
+                "0000000800000199155c6200",
+            ),
+            "a member's lock covers a different set of fields"
+        );
     }
 
     #[test]
@@ -967,6 +1003,7 @@ mod tests {
             workspace_authority(CHECKED_IN_DATABASE_NAME, CHECKED_IN_DATABASE_HOSTNAME);
         let signed_grant = grant_authority(&sealed_credential);
         let signed_name = organization_name_authority(&sealed_credential, CHECKED_IN_NAMED_AT);
+        let signed_lock = member_lock_authority(CHECKED_IN_MEMBER_ID, true, CHECKED_IN_NAMED_AT);
 
         let rewrites: Vec<(Authority<'_>, Authority<'_>)> = vec![
             // member: id, public_key, signing_public_key, role_id, override, removed_at
@@ -1118,6 +1155,19 @@ mod tests {
             (
                 signed_name,
                 organization_name_authority(&sealed_credential, CHECKED_IN_NAMED_AT + 1),
+            ),
+            // a member's lock: whose it is, whether they are locked, and when that was set
+            (
+                signed_lock,
+                member_lock_authority("member-2", true, CHECKED_IN_NAMED_AT),
+            ),
+            (
+                signed_lock,
+                member_lock_authority(CHECKED_IN_MEMBER_ID, false, CHECKED_IN_NAMED_AT),
+            ),
+            (
+                signed_lock,
+                member_lock_authority(CHECKED_IN_MEMBER_ID, true, CHECKED_IN_NAMED_AT + 1),
             ),
         ];
 
@@ -1413,6 +1463,15 @@ mod tests {
         }
     }
 
+    /// A member's signed lock (effort 851), about whoever the caller names.
+    fn member_lock_authority(member_id: &str, locked: bool, updated_at: i64) -> Authority<'_> {
+        Authority::MemberLock {
+            member_id,
+            locked,
+            updated_at,
+        }
+    }
+
     fn checked_in_role_authority(name_sealed: &[u8]) -> Authority<'_> {
         Authority::Role(RoleAuthority {
             id: "role-1",
@@ -1504,6 +1563,15 @@ mod tests {
                 concat!(
                     "16766c73d99733a9b015475f6408b5fae7ccd0d4a2c246268a9b50055b71cde2",
                     "86f063181218d783c6cb177c8808ace6c9c3e0091557751397ba7693e1890400",
+                ),
+            ),
+            // added by effort 851 for a member's lock, from the same OpenSSL over the vector
+            // above.
+            (
+                member_lock_authority(CHECKED_IN_MEMBER_ID, true, CHECKED_IN_NAMED_AT),
+                concat!(
+                    "15d09f81d32055d8833051e5031f76060ec49427d529d8da13f3102a8d61e653",
+                    "c240e7e666287bbe57e3add90c2ec530cb81c5c520cab1e5b16abab6d5808f0b",
                 ),
             ),
         ] {

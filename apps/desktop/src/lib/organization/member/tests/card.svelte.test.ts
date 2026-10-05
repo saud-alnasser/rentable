@@ -42,6 +42,7 @@ const standing = (overrides: Partial<MemberStanding> = {}): MemberStanding => ({
 	memberId: 'ada',
 	passwordSet: true,
 	machineSignedIn: true,
+	locked: false,
 	...overrides
 });
 

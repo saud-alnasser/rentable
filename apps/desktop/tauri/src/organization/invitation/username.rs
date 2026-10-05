@@ -315,6 +315,8 @@ mod tests {
             turso_organization: None,
             workspace_id: None,
             name_signed: false,
+            lock_marked: false,
+            own_lock_latched: None,
         }
     }
 
@@ -445,6 +447,10 @@ mod tests {
         )
         .await
         .expect("the account could not be opened");
+        // every account starts locked (effort 851), and the acts these tests are about are an
+        // unlocked member's: unlocked by whoever made the link, where they may.
+        let _ =
+            crate::organization::member::lock::unlocked_for_a_test(store, owner, member_id).await;
         let machine_id = machine.selected().expect("the record").machine_id.clone();
 
         (session, machine_id)
@@ -643,6 +649,10 @@ mod tests {
         .await
         .expect("the manager did not sign in");
         ada.must_change_password = false;
+        // every account starts locked (effort 851); these tests are about an unlocked one.
+        let _ =
+            crate::organization::member::lock::unlocked_for_a_test(&store, &owner, &ada.member_id)
+                .await;
 
         let sami = make_account_and_link(
             &store,
@@ -823,6 +833,13 @@ mod tests {
         .await
         .expect("the member did not sign in");
         member.must_change_password = false;
+        // every account starts locked (effort 851); these tests are about an unlocked one.
+        let _ = crate::organization::member::lock::unlocked_for_a_test(
+            &store,
+            &owner,
+            &member.member_id,
+        )
+        .await;
 
         let error = rename_member(&store, &member, &bob.member_id, "robert", 2)
             .await

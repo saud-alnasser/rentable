@@ -138,6 +138,13 @@ export type OrganizationSession = {
 	/** the owner's username: whom a member is told to tell when the account needs attention. */
 	ownerUsername: string;
 	/**
+	 * whether this member is locked until an owner or a manager unlocks them (effort 851,
+	 * requirement 32), off their signed lock as it reads now. A locked member signs in, changes
+	 * their password and views; every other act of the organization is refused in Rust
+	 * (`locked`), and the interface masks their permissions to the view flags.
+	 */
+	locked: boolean;
+	/**
 	 * whether this reader has been offered the organization and has not accepted yet (effort 828,
 	 * requirement 22), which is what draws the acceptance in their account section. A fact about a
 	 * standing offer and never the offer itself; who offered it is `ownerUsername`.

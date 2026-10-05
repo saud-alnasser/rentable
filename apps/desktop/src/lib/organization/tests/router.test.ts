@@ -481,6 +481,7 @@ test('nothing here asks the host to list organizations', () => {
 		'member.setOverride',
 		'member.setWorkspaceOverride',
 		'member.standings',
+		'member.unlock',
 		'member.unsetPassword',
 		'member.withdrawOffer',
 		'ownershipAccept',
@@ -580,8 +581,8 @@ test('where each account stands is answered for every member, to any signed-in m
 					asked += 1;
 
 					return [
-						{ memberId: 'member-1', passwordSet: true, machineSignedIn: true },
-						{ memberId: 'member-2', passwordSet: false, machineSignedIn: false }
+						{ memberId: 'member-1', passwordSet: true, machineSignedIn: true, locked: false },
+						{ memberId: 'member-2', passwordSet: false, machineSignedIn: false, locked: false }
 					];
 				}
 			}
@@ -593,8 +594,8 @@ test('where each account stands is answered for every member, to any signed-in m
 	const standings = await member.organization.member.standings();
 
 	assert.deepEqual(standings, [
-		{ memberId: 'member-1', passwordSet: true, machineSignedIn: true },
-		{ memberId: 'member-2', passwordSet: false, machineSignedIn: false }
+		{ memberId: 'member-1', passwordSet: true, machineSignedIn: true, locked: false },
+		{ memberId: 'member-2', passwordSet: false, machineSignedIn: false, locked: false }
 	]);
 	assert.equal(asked, 1);
 
@@ -1149,6 +1150,7 @@ const COMMAND_OF: Record<string, string> = {
 	'member.rename': 'plugin:organization|member_rename',
 	'member.setOverride': 'plugin:organization|role_set_override',
 	'member.setWorkspaceOverride': 'plugin:organization|role_set_workspace_override',
+	'member.unlock': 'plugin:organization|member_unlock',
 	'member.unsetPassword': 'plugin:organization|invitation_password_unset',
 	'member.withdrawOffer': 'plugin:organization|ownership_withdraw_offer',
 	ownershipAccept: 'plugin:organization|ownership_accept',

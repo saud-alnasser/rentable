@@ -1541,7 +1541,8 @@ test('a reset and a link that builds the account again name grantWorkspace where
 	const standingOf = (memberId: string, passwordSet: boolean) => ({
 		memberId,
 		passwordSet,
-		machineSignedIn: false
+		machineSignedIn: false,
+		locked: false
 	});
 	const unset = memberOf('sami', 'member');
 	const set = memberOf('noor', 'member');

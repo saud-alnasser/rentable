@@ -53,6 +53,7 @@ pub fn plugin() -> TauriPlugin<tauri::Wry> {
             super::member::organization_member_remove,
             super::member::organization_member_lock_out_cost,
             super::member::organization_member_end_sessions,
+            super::member::organization_member_unlock,
             super::member::organization_member_change_password,
             super::member::organization_member_list,
             super::member::organization_member_standings,

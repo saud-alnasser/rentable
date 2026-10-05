@@ -70,27 +70,28 @@ pub use format::{
 pub use invitation::InvitationRecord;
 pub use lease::MigrationLeaseRecord;
 pub use mark::MarkRecord;
-pub use member::MemberRecord;
+pub use member::{MemberLockRecord, MemberLocks, MemberRecord, locked_in};
 pub use ownership::SuccessionRecord;
 pub use role::RoleRecord;
 pub use session::{MACHINE_PRESENCE_WINDOW, MachineLinkRecord, MachineNameRecord, MachineRecord};
 pub use setup::{OrganizationNameRecord, OrganizationRecord};
 pub use signature::{SignedRow, Signer};
 pub(crate) use signature::{
-    grant_authority, invitation_authority, mark_authority, organization_name_authority,
-    role_authority, workspace_authority,
+    grant_authority, invitation_authority, mark_authority, member_lock_authority,
+    organization_name_authority, role_authority, workspace_authority,
 };
 pub use workspace::{GrantRecord, WorkspaceOverrideRecord, WorkspaceRecord, pins_of};
 
-/// The eighteen tables, in the order the schema creates them. A test pins this list against what
+/// The nineteen tables, in the order the schema creates them. A test pins this list against what
 /// the database reports, so a table added anywhere is added here or fails there.
 ///
 /// **A table added after format 3 goes last, with no change of format** (effort 846): the two
 /// tables a machine is signed out on its own by are created on every replica of this format by
 /// [`OrganizationStore::complete_schema`] after a pull, and by the change to format 3 with
 /// `workspace_override`, so a walk arriving at this format builds what a fresh one is built with.
-/// `organization_name` came after them the same way (effort 851), and the next table goes after it.
-pub const TABLES: [&str; 18] = [
+/// `organization_name` came after them the same way (effort 851), and `member_lock` after it, and
+/// the next table goes after that.
+pub const TABLES: [&str; 19] = [
     "format",
     "organization",
     "role",
@@ -109,6 +110,7 @@ pub const TABLES: [&str; 18] = [
     "machine_sign_out",
     "machine_name",
     "organization_name",
+    "member_lock",
 ];
 
 /// How many of [`TABLES`] format 2 held: every one but `workspace_override`, which format 3 adds
@@ -125,7 +127,7 @@ const FORMAT_TWO_TABLES: usize = 14;
 ///
 /// `grant` is quoted everywhere because it is a keyword in most dialects, and a statement that
 /// works in SQLite and fails elsewhere is a statement worth spelling defensively once.
-const SCHEMA: [&str; 18] = [
+const SCHEMA: [&str; 19] = [
     format::FORMAT,
     setup::ORGANIZATION,
     role::ROLE,
@@ -144,6 +146,7 @@ const SCHEMA: [&str; 18] = [
     session::MACHINE_SIGN_OUT,
     session::MACHINE_NAME,
     setup::ORGANIZATION_NAME,
+    member::MEMBER_LOCK,
 ];
 
 /// The organization replica on this machine.
@@ -445,7 +448,7 @@ impl OrganizationStore {
     }
 }
 
-/// Create the eighteen tables on `connection` where they do not exist: what
+/// Create the nineteen tables on `connection` where they do not exist: what
 /// [`OrganizationStore::install_schema`] runs on the replica, and what a change of format arriving
 /// at this format builds a fresh organization with, to check an upgraded one against
 /// (`upgrade::format::Transition::built`, ticket 33).
@@ -470,7 +473,8 @@ pub(crate) async fn install_format_two(connection: &turso::Connection) -> Result
 
 /// Create what format 3 adds, where it is missing: the `workspace_override` table (effort 838,
 /// ticket 53), the two tables a machine is signed out on its own by (effort 846), and the signed
-/// organization name (effort 851), which came after it with no change of format. What
+/// organization name and the members' locks (effort 851), which came after it with no change of
+/// format. What
 /// `upgrade/format/overriding.rs` runs.
 pub(crate) async fn install_format_three(connection: &turso::Connection) -> Result<(), Error> {
     for statement in &SCHEMA[FORMAT_TWO_TABLES..] {
@@ -866,7 +870,8 @@ mod tests {
     /// names a new table completes it on every machine after a pull. Format 3's replica as the build
     /// before this one made it, `workspace_override` and all, gains both and says so, and the
     /// `machine` table they sit beside keeps its four columns. **Effort 851's signed organization
-    /// name came after them the same way**, and reaches the same replica with them.
+    /// name and the members' locks came after them the same way**, and reach the same replica with
+    /// them.
     #[tokio::test]
     async fn a_format_three_replica_without_the_machine_tables_gains_both() {
         let directory = scratch("schema-machine-tables");
@@ -879,18 +884,19 @@ mod tests {
         .await
         .expect("the store");
 
-        assert_eq!(TABLES.len(), 18);
+        assert_eq!(TABLES.len(), 19);
         assert_eq!(
-            &TABLES[TABLES.len() - 4..],
+            &TABLES[TABLES.len() - 5..],
             &[
                 "workspace_override",
                 "machine_sign_out",
                 "machine_name",
-                "organization_name"
+                "organization_name",
+                "member_lock"
             ]
         );
 
-        for statement in &super::SCHEMA[..super::SCHEMA.len() - 3] {
+        for statement in &super::SCHEMA[..super::SCHEMA.len() - 4] {
             store
                 .connection
                 .execute(statement, ())
@@ -910,7 +916,12 @@ mod tests {
 
         let tables = store.tables().await.expect("the tables");
 
-        for table in ["machine_sign_out", "machine_name", "organization_name"] {
+        for table in [
+            "machine_sign_out",
+            "machine_name",
+            "organization_name",
+            "member_lock",
+        ] {
             assert!(tables.iter().any(|t| t == table), "{table} was not created");
         }
         assert_eq!(
@@ -943,6 +954,16 @@ mod tests {
             ]
         );
         assert_eq!(
+            store.columns_of("member_lock").await.expect("the columns"),
+            vec![
+                "member_id",
+                "locked",
+                "updated_at",
+                "certificate_id",
+                "signature"
+            ]
+        );
+        assert_eq!(
             store.columns_of("organization").await.expect("the columns"),
             vec![
                 "id",
@@ -952,6 +973,11 @@ mod tests {
                 "created_at"
             ],
             "the organization table was altered"
+        );
+        assert_eq!(
+            store.columns_of("member").await.expect("the columns").len(),
+            18,
+            "the member table was altered"
         );
         assert_eq!(
             store.format().await.expect("the format"),

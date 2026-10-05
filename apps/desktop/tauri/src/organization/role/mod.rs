@@ -615,6 +615,8 @@ mod tests {
             turso_organization: None,
             workspace_id: None,
             name_signed: false,
+            lock_marked: false,
+            own_lock_latched: None,
         }
     }
 
@@ -715,6 +717,15 @@ mod tests {
         )
         .await
         .expect("the invitation failed");
+        // every account starts locked (effort 851), and the acts these tests are about are an
+        // unlocked member's: unlocked by whoever made it, where they may, and left locked by a
+        // maker holding neither flag that unlocks, as it would be.
+        let _ = crate::organization::member::lock::unlocked_for_a_test(
+            store,
+            owner,
+            &invited.member_id,
+        )
+        .await;
         let mut session = sign_in(
             store,
             &joined_as(owner, &invited.member_id, role),
@@ -3344,6 +3355,10 @@ mod tests {
         let lena = holding_role(&store, &owner, &link, "lena", &lead, &workspace_id).await;
         let (sami, sami_session) =
             a_member(&store, &lena, &link, "sami", &clerk, &workspace_id).await;
+        // the lead holds neither flag that unlocks, so the owner does (effort 851).
+        crate::organization::member::lock::unlocked_for_a_test(&store, &owner, &sami.member_id)
+            .await
+            .expect("the owner unlocks sami");
         let issued = the_certificate(&store, &owner, &sami.member_id).await;
         let lead_rank = the_certificate(&store, &owner, &lena.member_id).await.rank;
 

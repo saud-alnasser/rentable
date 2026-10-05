@@ -405,12 +405,14 @@ async fn current_facts(
 /// Write this machine's entry for the organization where the read changed it (effort 851,
 /// requirements 26 and 29): `name_signed` once a signed name has been read, and the name the owner
 /// signed where it differs from the one held. **Only a signed name is written**: an unsigned one,
-/// read before the owner has signed, changes nothing the record holds.
+/// read before the owner has signed, changes nothing the record holds. **And `lock_marked`** once
+/// the organization's lock marker has been read, which is never cleared (effort 851, requirement
+/// 35).
 async fn held_name_refreshed(
     app_state: &Shared,
     (facts, read): &(SessionFacts, HeldOrganization),
 ) -> Result<(), Error> {
-    if !read.name_signed {
+    if !read.name_signed && !read.lock_marked {
         return Ok(());
     }
 
@@ -419,13 +421,24 @@ async fn held_name_refreshed(
     let Some(entry) = record.held_mut(&read.id) else {
         return Ok(());
     };
+    let name_moved =
+        read.name_signed && !(entry.name_signed && entry.name == facts.organization_name);
+    // and the lock marker, once read, latched for good (effort 851, requirement 35).
+    let marked = read.lock_marked && !entry.lock_marked;
 
-    if entry.name_signed && entry.name == facts.organization_name {
+    if !name_moved && !marked {
         return Ok(());
     }
 
-    entry.name_signed = true;
-    entry.name = facts.organization_name.clone();
+    if name_moved {
+        entry.name_signed = true;
+        entry.name = facts.organization_name.clone();
+    }
+
+    if marked {
+        entry.lock_marked = true;
+    }
+
     record.commit()
 }
 
@@ -1324,6 +1337,8 @@ mod tests {
                 turso_organization: None,
                 workspace_id: None,
                 name_signed: false,
+                lock_marked: false,
+                own_lock_latched: None,
             });
             record.commit().expect("the record");
             record.selected().cloned().expect("the entry")

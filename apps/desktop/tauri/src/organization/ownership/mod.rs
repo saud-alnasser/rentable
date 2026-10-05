@@ -978,6 +978,8 @@ mod tests {
             turso_organization: None,
             workspace_id: None,
             name_signed: false,
+            lock_marked: false,
+            own_lock_latched: None,
         }
     }
 
@@ -1078,6 +1080,15 @@ mod tests {
         )
         .await
         .expect("the invitation failed");
+        // every account starts locked (effort 851), and the acts these tests are about are an
+        // unlocked member's: unlocked by whoever made it, where they may, and left locked by a
+        // maker holding neither flag that unlocks, as it would be.
+        let _ = crate::organization::member::lock::unlocked_for_a_test(
+            store,
+            owner,
+            &invited.member_id,
+        )
+        .await;
         let mut session = sign_in(
             store,
             &joined_as(owner, &invited.member_id, role),
@@ -1378,6 +1389,12 @@ mod tests {
         .await
         .expect("the account could not open its link");
 
+        // every account starts locked (effort 851); the owner unlocks the manager once they have
+        // chosen their password, which is what these tests offer the organization to.
+        crate::organization::member::lock::unlocked_for_a_test(store, owner, &invited.member_id)
+            .await
+            .expect("the owner unlocks the manager");
+
         (invited, session, machine)
     }
 
@@ -1549,6 +1566,193 @@ mod tests {
                 .expect("the successions")
                 .is_some()
         );
+    }
+
+    /// Effort 851, requirement 35: **a handover leaves every member's lock reading as it did.**
+    /// The founder's root signed unlocks and a lock; the handover retires that root, and every one
+    /// of them is signed again under the new one, so the unlocked members stay unlocked and the
+    /// locked one locked, under locks that verify under the new key. One unlock is about another
+    /// manager, which the founder's certificate as a manager afterwards would not cover.
+    #[tokio::test]
+    async fn a_handover_leaves_every_members_lock_reading_as_it_did() {
+        let credentials = Memory::new();
+        let directory = scratch("accept-locks");
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
+        let (ada, mut ada_session, mut ada_machine) = a_settled_manager(
+            &credentials,
+            &directory,
+            &store,
+            &owner,
+            &link,
+            &workspace_id,
+            "ada.admin",
+            MANAGERS_PASSWORD,
+        )
+        .await;
+        let (sami, _) = a_member(
+            &store,
+            &owner,
+            &link,
+            "sami.staff",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+        let noor = an_unset_account(
+            &store,
+            &owner,
+            &link,
+            "noor.new",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+        let (max, _) = a_member(
+            &store,
+            &owner,
+            &link,
+            "max.manager",
+            permission::MANAGER,
+            &workspace_id,
+        )
+        .await;
+        let adas = ada.member_id.as_str();
+        let founder = owner.member_id.as_str();
+        let locks_under = |key: [u8; VERIFYING_KEY_BYTES]| {
+            let store = &store;
+
+            async move {
+                let mut locks: Vec<(String, bool)> = store
+                    .signed_member_locks(&key)
+                    .await
+                    .expect("the locks")
+                    .into_iter()
+                    // the two whose roles swap: the founder's marker and ada's own.
+                    .filter(|(_, lock)| lock.member_id != adas && lock.member_id != founder)
+                    .map(|(_, lock)| (lock.member_id, lock.locked))
+                    .collect();
+
+                locks.sort();
+                locks
+            }
+        };
+        let mut expected = vec![
+            (sami.member_id.clone(), false),
+            (noor.member_id.clone(), true),
+            (max.member_id.clone(), false),
+        ];
+
+        expected.sort();
+
+        assert_eq!(locks_under(owner.verifying_key).await, expected);
+
+        offer_ownership(&store, &owner, &ada.member_id, PASSWORD, NOW + 1)
+            .await
+            .expect("the offer failed");
+        accept_ownership(
+            &store,
+            &mut ada_session,
+            &mut ada_machine,
+            MANAGERS_PASSWORD,
+            NOW + 2,
+        )
+        .await
+        .expect("the acceptance failed");
+
+        let new_key = ada_session.verifying_key;
+
+        assert_ne!(new_key, owner.verifying_key);
+        assert_eq!(
+            locks_under(new_key).await,
+            expected,
+            "a lock the founder's root signed did not move under the new one"
+        );
+
+        for (member_id, locked) in &expected {
+            let member = store
+                .member(&new_key, member_id)
+                .await
+                .expect("the row")
+                .expect("the member");
+
+            assert_eq!(
+                store
+                    .member_locked(&new_key, &member, false)
+                    .await
+                    .expect("the lock"),
+                *locked
+            );
+        }
+    }
+
+    /// Effort 851, criterion 32: **a locked member is refused the acceptance of an offer**, as
+    /// they are every act of the organization, and nothing moves.
+    #[tokio::test]
+    async fn a_locked_member_is_refused_the_acceptance_and_nothing_moves() {
+        let credentials = Memory::new();
+        let directory = scratch("accept-locked");
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
+        let (ada, mut ada_session, mut ada_machine) = a_settled_manager(
+            &credentials,
+            &directory,
+            &store,
+            &owner,
+            &link,
+            &workspace_id,
+            "ada.admin",
+            MANAGERS_PASSWORD,
+        )
+        .await;
+        let (key, certificate) = crate::organization::workspace::signer_of(&store, &owner)
+            .await
+            .expect("the owner's signer");
+
+        // locked again, as a reset would leave them.
+        store
+            .write_member_lock(
+                &Signer {
+                    key: &key,
+                    certificate: &certificate,
+                },
+                &crate::organization::store::MemberLockRecord {
+                    member_id: ada.member_id.clone(),
+                    locked: true,
+                    updated_at: NOW + 1,
+                },
+            )
+            .await
+            .expect("the lock");
+        offer_ownership(&store, &owner, &ada.member_id, PASSWORD, NOW + 1)
+            .await
+            .expect("the offer failed");
+
+        let before = every_row(&store).await;
+        let refused = accept_ownership(
+            &store,
+            &mut ada_session,
+            &mut ada_machine,
+            MANAGERS_PASSWORD,
+            NOW + 2,
+        )
+        .await
+        .expect_err("a locked member took the organization");
+
+        assert!(
+            matches!(
+                refused,
+                Error::Refused {
+                    reason: RefusalReason::Locked,
+                    ..
+                }
+            ),
+            "{refused:?}"
+        );
+        assert_eq!(
+            every_row(&store).await,
+            before,
+            "a refused acceptance wrote"
+        );
+        assert_eq!(ada_session.verifying_key, owner.verifying_key);
     }
 
     /// **Criterion 22, the acceptance.** The organization is re-keyed under what the new owner's

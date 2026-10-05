@@ -343,5 +343,19 @@ export default {
 		.input(z.object({ memberId: z.string().trim().min(1) }))
 		.mutation(async ({ input, ctx }): Promise<SessionsEnded> => {
 			return ctx.host.organization.member.endSessions(input.memberId);
+		}),
+	/**
+	 * Unlock a member who has set a password of their own (effort 851, requirement 34).
+	 *
+	 * **`assignRole` or `overrideMember`**, either of the two flags that change what somebody
+	 * may do, which Rust asks of the reader's verified row with the rest: the rank above the
+	 * member, the reader's own account and the member's password not yet theirs are Rust's to
+	 * refuse, and so is a reader who is locked themselves.
+	 */
+	unlock: procedure
+		.permittedAny('assignRole', 'overrideMember')
+		.input(z.object({ memberId: z.string().trim().min(1) }))
+		.mutation(async ({ input, ctx }): Promise<void> => {
+			return ctx.host.organization.member.unlock(input.memberId);
 		})
 };

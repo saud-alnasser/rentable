@@ -92,6 +92,12 @@ export type MemberStanding = {
 	passwordSet: boolean;
 	/** whether a machine seen inside the presence window is signed in on the account. */
 	machineSignedIn: boolean;
+	/**
+	 * whether the account is locked until an owner or a manager unlocks it (effort 851,
+	 * requirement 33), off its signed lock as it reads now: what draws the locked badge, and with
+	 * `passwordSet` what offers the unlock.
+	 */
+	locked: boolean;
 };
 
 /**
@@ -232,6 +238,13 @@ export type MemberHost = {
 	 * nobody else's to end.
 	 */
 	endSessions: (memberId: string) => Promise<SessionsEnded>;
+	/**
+	 * unlock a member who has set a password of their own (effort 851, requirement 34). The
+	 * owner's, or a holder of `assignRole` or `overrideMember` who outranks them; rejects the
+	 * caller's own account (`notYourself`) and one whose password is not yet theirs
+	 * (`accountNotSetUp`).
+	 */
+	unlock: (memberId: string) => Promise<void>;
 	/**
 	 * rename a member: their row written back with the username re-sealed and signed by
 	 * whoever renamed them. Open to a holder of `renameMember`, on a row below their rank;

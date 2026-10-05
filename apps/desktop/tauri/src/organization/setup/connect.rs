@@ -238,6 +238,8 @@ where
             turso_organization: None,
             workspace_id: None,
             name_signed: false,
+            lock_marked: false,
+            own_lock_latched: None,
         };
         let mut session =
             sign_in_by_username(
@@ -877,6 +879,15 @@ mod tests {
         )
         .await
         .expect("the offer failed");
+        // every account starts locked (effort 851), and an offer is accepted by an unlocked
+        // member: the owner unlocks them once their password is their own.
+        crate::organization::member::lock::unlocked_for_a_test(
+            &replica,
+            &owner,
+            &invited.member_id,
+        )
+        .await
+        .expect("the owner unlocks them");
         crate::organization::ownership::accept_ownership(
             &replica,
             &mut their_session,

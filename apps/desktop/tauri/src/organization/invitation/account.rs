@@ -21,7 +21,7 @@ use crate::organization::{
     },
     session::{Actor, MemberSession, actor, rank_of, refuse_unsettled},
     setup::{ADMINISTRATOR_KEY_PURPOSE, credential_expiry},
-    store::{GrantRecord, MemberRecord, OrganizationStore, Signer},
+    store::{GrantRecord, MemberLockRecord, MemberRecord, OrganizationStore, Signer},
     workspace::{WORKSPACE_CREDENTIAL_LIFETIME, signer_of},
 };
 
@@ -196,7 +196,7 @@ pub async fn unset_password<P: TursoPlatform>(
 /// The account an act on somebody else's row is allowed to touch: in this organization, not the
 /// owner's, and not one that was removed. `owner_refusal` is what an act on the owner's row is
 /// told, because each of them has its own reason.
-pub(super) fn writable_account<'a>(
+pub(in crate::organization) fn writable_account<'a>(
     members: &'a [MemberRecord],
     member_id: &str,
     owner_refusal: &str,
@@ -595,6 +595,22 @@ async fn write_account<P: TursoPlatform>(
         )
         .await?;
 
+    // and locked, from its creation and again at a reset, until somebody above it unlocks it once
+    // its person has chosen a password (effort 851, requirements 31 and 37): a reset hands the
+    // account to whoever holds the next link. After the row, which the lock is judged by. Written
+    // whoever the actor is, since a lock the actor cannot sign reads locked all the same
+    // (`store::write_member_lock`).
+    store
+        .write_member_lock(
+            &signer,
+            &MemberLockRecord {
+                member_id: member_id.to_string(),
+                locked: true,
+                updated_at: now,
+            },
+        )
+        .await?;
+
     // the directory: the inviter's own credential on the organization database, re-sealed. It is
     // also what the link seals, so the person opening it can read the rows before any vault of
     // theirs is open.
@@ -739,6 +755,8 @@ mod tests {
             turso_organization: None,
             workspace_id: None,
             name_signed: false,
+            lock_marked: false,
+            own_lock_latched: None,
         }
     }
 
@@ -869,6 +887,10 @@ mod tests {
         )
         .await
         .expect("the account could not be opened");
+        // every account starts locked (effort 851), and the acts these tests are about are an
+        // unlocked member's: unlocked by whoever made the link, where they may.
+        let _ =
+            crate::organization::member::lock::unlocked_for_a_test(store, owner, member_id).await;
         let machine_id = machine.selected().expect("the record").machine_id.clone();
 
         (session, machine_id)
@@ -1257,6 +1279,10 @@ mod tests {
         .await
         .expect("the manager did not sign in");
         ada.must_change_password = false;
+        // every account starts locked (effort 851); these tests are about an unlocked one.
+        let _ =
+            crate::organization::member::lock::unlocked_for_a_test(&store, &owner, &ada.member_id)
+                .await;
 
         let bob = make_account_and_link(
             &store,
@@ -1403,6 +1429,13 @@ mod tests {
 
         let mut settled = ada;
         settled.must_change_password = false;
+        // every account starts locked (effort 851); these tests are about an unlocked one.
+        let _ = crate::organization::member::lock::unlocked_for_a_test(
+            &store,
+            &owner,
+            &settled.member_id,
+        )
+        .await;
 
         let member = make_account_and_link(
             &store,
@@ -1456,6 +1489,10 @@ mod tests {
         .await
         .expect("the member did not sign in");
         mo.must_change_password = false;
+        // every account starts locked (effort 851); these tests are about an unlocked one.
+        let _ =
+            crate::organization::member::lock::unlocked_for_a_test(&store, &owner, &mo.member_id)
+                .await;
 
         let refusal = make_account_and_link(
             &store,

@@ -652,6 +652,11 @@ mod tests {
         ownership::offer_ownership(&theirs, &founder, &ada, PASSWORD, CREATED_AT + 1)
             .await
             .expect("the offer failed");
+        // every account starts locked (effort 851), and an offer is accepted by an unlocked
+        // member: the owner unlocks them once their password is their own.
+        crate::organization::member::lock::unlocked_for_a_test(&theirs, &founder, &ada)
+            .await
+            .expect("the owner unlocks them");
         ownership::accept_ownership(
             &theirs,
             &mut ada_session,

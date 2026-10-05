@@ -1037,6 +1037,12 @@ mod tests {
             .await
             .expect("the member");
 
+        // written as an earlier build would, with no lock row: unlocked by the owner, since the
+        // organization is marked (effort 851).
+        crate::organization::member::lock::unlocked_for_a_test(store, owner, "member-b")
+            .await
+            .expect("the owner unlocks them");
+
         HeldOrganization {
             id: owner.organization_id.clone(),
             name: "Acme".to_string(),
@@ -1054,6 +1060,8 @@ mod tests {
             turso_organization: None,
             workspace_id: None,
             name_signed: false,
+            lock_marked: false,
+            own_lock_latched: None,
         }
     }
 
@@ -1101,6 +1109,12 @@ mod tests {
             .await
             .expect("the manager");
 
+        // written as an earlier build would, with no lock row: unlocked by the owner, since the
+        // organization is marked (effort 851).
+        crate::organization::member::lock::unlocked_for_a_test(store, owner, "member-admin")
+            .await
+            .expect("the owner unlocks them");
+
         HeldOrganization {
             id: owner.organization_id.clone(),
             name: "Acme".to_string(),
@@ -1118,6 +1132,8 @@ mod tests {
             turso_organization: None,
             workspace_id: None,
             name_signed: false,
+            lock_marked: false,
+            own_lock_latched: None,
         }
     }
 
@@ -2307,6 +2323,8 @@ mod tests {
             turso_organization: None,
             workspace_id: None,
             name_signed: false,
+            lock_marked: false,
+            own_lock_latched: None,
         }
     }
 

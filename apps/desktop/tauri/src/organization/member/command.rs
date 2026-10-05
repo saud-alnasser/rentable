@@ -1,5 +1,5 @@
 //! the commands on a member's row: the directory, a rename, a password changed, sessions ended,
-//! a removal and what a lock-out would cost, and the organization itself deleted.
+//! an unlock, a removal and what a lock-out would cost, and the organization itself deleted.
 
 use crate::{
     clock,
@@ -12,7 +12,7 @@ use crate::organization::{
     act::{Acting, Pull, as_member, signed_in_owner_platform},
     invitation::{self, MemberFacts, MemberStanding},
     member::{
-        password,
+        lock, password,
         removal::{self, LockOutCost, Removed},
     },
     session::{self, OrganizationState, SessionsEnded, state_of},
@@ -97,6 +97,24 @@ pub async fn organization_member_end_sessions(
         Ok(SessionsEnded {
             sent: session::end_member_sessions(store, member, &member_id, clock.now()).await?,
         })
+    })
+    .await
+}
+
+/// Unlock a member who has set a password of their own: the owner, or a holder of `assignRole` or
+/// `overrideMember` who outranks them (effort 851, requirement 34). Refused for the reader's own
+/// account and before the member's password is theirs (`lock::unlock_member`).
+///
+/// **After a pull**, because whether the member has set a password is on their row, which their
+/// own machine wrote when they chose it, and the lock row it replaces may have moved too.
+#[tauri::command(rename = "member_unlock")]
+pub async fn organization_member_unlock(
+    app_state: tauri::State<'_, Shared>,
+    clock: tauri::State<'_, clock::Shared>,
+    member_id: String,
+) -> Result<(), Error> {
+    as_member(&app_state, Pull::First, async |Acting { member, store }| {
+        lock::unlock_member(store, member, &member_id, clock.now()).await
     })
     .await
 }

@@ -117,6 +117,19 @@ pub struct HeldOrganization {
     /// never falls back to the unsigned one (effort 851, the plan's *The organization's signed
     /// name*). False on every entry until that lands.
     pub name_signed: bool,
+    /// whether this machine has read the organization's lock marker, the owner's own signed lock
+    /// row, after which a member with no lock row that verifies reads as locked here whatever the
+    /// replica later holds (effort 851, requirement 35). False on every entry until that lands.
+    pub lock_marked: bool,
+    /// the member who joined here by an invitation, whose own lock this machine holds them to
+    /// whether or not the organization is marked (effort 851, requirement 35): an invitation is
+    /// issued by a build that locks the member it names, so with no lock row of theirs that
+    /// verifies they read as locked here, and deleting their row and the marker from their
+    /// replica unlocks nobody. **Their own lock alone**: every other member is judged as the
+    /// marker says, so a member carried over with no row reads as the organization stands.
+    /// `None` on every entry no invitation was opened on.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub own_lock_latched: Option<String>,
 }
 
 pub struct RemoteSync {
@@ -1356,6 +1369,7 @@ mod tests {
         expected["tursoOrganization"] = released["tursoOrganization"].clone();
         expected["workspaceId"] = released["workspace"]["remoteId"].clone();
         expected["nameSigned"] = serde_json::Value::Bool(false);
+        expected["lockMarked"] = serde_json::Value::Bool(false);
 
         assert_eq!(
             written["heldOrganizations"],

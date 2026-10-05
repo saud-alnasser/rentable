@@ -158,7 +158,8 @@ export const tauri = {
 			invoke<OrganizationMember>('plugin:organization|ownership_offer', { memberId, password }),
 		withdrawOffer: () => invoke<void>('plugin:organization|ownership_withdraw_offer'),
 		endSessions: (memberId: string) =>
-			invoke<SessionsEnded>('plugin:organization|member_end_sessions', { memberId })
+			invoke<SessionsEnded>('plugin:organization|member_end_sessions', { memberId }),
+		unlock: (memberId: string) => invoke<void>('plugin:organization|member_unlock', { memberId })
 	},
 	invitation: {
 		accept: (link: string, code: string, password: string) =>

@@ -345,6 +345,12 @@ mod tests {
             .await
             .expect("the member");
 
+        // written as an earlier build would, with no lock row: unlocked by the owner, since the
+        // organization is marked (effort 851).
+        crate::organization::member::lock::unlocked_for_a_test(store, owner, id)
+            .await
+            .expect("the owner unlocks them");
+
         let (mask, rank) = store
             .role_standing(&owner.verifying_key, role)
             .await
@@ -386,6 +392,8 @@ mod tests {
             turso_organization: None,
             workspace_id: None,
             name_signed: false,
+            lock_marked: false,
+            own_lock_latched: None,
         };
 
         sign_in(store, &held, OTHER_PASSWORD, &slot())

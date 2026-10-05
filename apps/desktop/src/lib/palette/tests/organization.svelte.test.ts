@@ -118,7 +118,8 @@ beforeEach(() => {
 	answers.standings = [olivia, ada, sami].map((one) => ({
 		memberId: one.id,
 		passwordSet: true,
-		machineSignedIn: false
+		machineSignedIn: false,
+		locked: false
 	}));
 	resetOrganizationHost();
 });

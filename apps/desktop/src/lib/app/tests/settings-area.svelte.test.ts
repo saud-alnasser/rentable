@@ -1057,8 +1057,8 @@ const OWNER_AND_ADA = {
 		fakeOrganizationMember({ id: 'ada', username: 'ada', role: 'manager' })
 	],
 	standings: [
-		{ memberId: 'member-owner', passwordSet: true, machineSignedIn: true },
-		{ memberId: 'ada', passwordSet: true, machineSignedIn: false }
+		{ memberId: 'member-owner', passwordSet: true, machineSignedIn: true, locked: false },
+		{ memberId: 'ada', passwordSet: true, machineSignedIn: false, locked: false }
 	]
 };
 
@@ -1223,8 +1223,8 @@ test('with nobody to take it, the owner meets the handover refused, saying why',
 		section: 'organization',
 		members: OWNER_AND_ADA.members,
 		standings: [
-			{ memberId: 'member-owner', passwordSet: true, machineSignedIn: true },
-			{ memberId: 'ada', passwordSet: false, machineSignedIn: false }
+			{ memberId: 'member-owner', passwordSet: true, machineSignedIn: true, locked: false },
+			{ memberId: 'ada', passwordSet: false, machineSignedIn: false, locked: false }
 		]
 	});
 

@@ -1282,6 +1282,7 @@ mod tests {
             "DROP TABLE \"machine_sign_out\"",
             "DROP TABLE \"machine_name\"",
             "DROP TABLE \"organization_name\"",
+            "DROP TABLE \"member_lock\"",
             "DROP TABLE \"role\"",
             "DROP TABLE \"certificate\"",
             "DROP TABLE \"revocation\"",

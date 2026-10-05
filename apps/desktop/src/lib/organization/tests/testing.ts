@@ -73,7 +73,8 @@ export function fakeOrganizationHost(): OrganizationHost {
 			setWorkspaceOverride: refuse('organization.member.setWorkspaceOverride'),
 			offerOwnership: refuse('organization.member.offerOwnership'),
 			withdrawOffer: refuse('organization.member.withdrawOffer'),
-			endSessions: refuse('organization.member.endSessions')
+			endSessions: refuse('organization.member.endSessions'),
+			unlock: refuse('organization.member.unlock')
 		},
 		invitation: {
 			accept: refuse('organization.invitation.accept')
@@ -132,6 +133,7 @@ export function fakeOrganizationSession(
 		permissions: 0,
 		workspaces: [fakeOrganizationWorkspace()],
 		ownerUsername: 'olivia.owner',
+		locked: false,
 		ownershipOffered: false,
 		...overrides
 	};

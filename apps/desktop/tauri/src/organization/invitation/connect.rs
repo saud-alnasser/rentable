@@ -207,6 +207,8 @@ pub async fn record(
         turso_organization: None,
         workspace_id: None,
         name_signed: false,
+        lock_marked: false,
+        own_lock_latched: None,
     };
 
     machine.hold(held.clone());
