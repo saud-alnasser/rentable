@@ -221,6 +221,7 @@ export function fakeOrganizationState(
 		selected: held.id,
 		session: fakeOrganizationSession(),
 		holdsTursoAuthority: true,
+		setupConsented: false,
 		signedOutElsewhere: false,
 		...overrides
 	};

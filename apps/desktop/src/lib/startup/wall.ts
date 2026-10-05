@@ -84,6 +84,7 @@ export async function signOut(machine: StartupMachine) {
 			selected: null,
 			session: null,
 			holdsTursoAuthority: false,
+			setupConsented: false,
 			signedOutElsewhere: false
 		}
 	});

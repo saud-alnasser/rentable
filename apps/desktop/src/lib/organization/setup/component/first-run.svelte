@@ -255,7 +255,7 @@
 			// the machine stands is read again and decides, and a Turso that would take no group
 			// asks for one here.
 			const state = await stateQuery.refetch();
-			const back = refusalAfterFailedCreate(error, state.data?.holdsTursoAuthority ?? false);
+			const back = refusalAfterFailedCreate(error, state.data?.setupConsented ?? false);
 
 			if (back?.askGroup) {
 				// the consent is untouched and so is what they typed: one more field appears on
@@ -327,7 +327,7 @@
 	{askGroup}
 	{groupDetail}
 	{existingRefusal}
-	holdsTursoAuthority={stateQuery.data?.holdsTursoAuthority ?? false}
+	holdsTursoAuthority={stateQuery.data?.setupConsented ?? false}
 	isConnecting={beginConsent.isPending || inspectGroup.isPending}
 	isCreating={createOrganization.isPending || connectExisting.isPending || isHandingOver}
 	onConnect={() => void connect()}

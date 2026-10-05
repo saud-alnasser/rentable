@@ -252,6 +252,13 @@ export type OrganizationState = {
 	 */
 	holdsTursoAuthority: boolean;
 	/**
+	 * whether this machine holds a setup's own Turso consent, the one the setup walk grants and a
+	 * create or a connect to an existing organization spends (effort 851, requirement 39). The
+	 * walk reads this and never `holdsTursoAuthority`, which is the selected organization's, so
+	 * adding a second organization starts from its own consent.
+	 */
+	setupConsented: boolean;
+	/**
 	 * whether the wall is up because this member's sessions were ended from another machine.
 	 *
 	 * Read only while the wall is up, and what it changes is the sentence on it: a person who was

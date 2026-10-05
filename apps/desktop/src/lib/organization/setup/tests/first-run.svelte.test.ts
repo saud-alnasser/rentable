@@ -40,6 +40,7 @@ const hooks = vi.hoisted(() => ({
 	createWorkspace: vi.fn(),
 	goto: vi.fn(),
 	holdsTursoAuthority: true,
+	selectedHolds: false,
 	groupKind: 'empty' as 'empty' | 'held',
 	connectExisting: vi.fn(),
 	consentSession: null as (() => string | null) | null,
@@ -85,10 +86,11 @@ vi.mock('$lib/organization/query', async (original) => ({
 		data: {
 			organization: null,
 			session: null,
-			holdsTursoAuthority: hooks.holdsTursoAuthority,
+			holdsTursoAuthority: hooks.selectedHolds,
+			setupConsented: hooks.holdsTursoAuthority,
 			signedOutElsewhere: false
 		},
-		refetch: async () => ({ data: { holdsTursoAuthority: true } })
+		refetch: async () => ({ data: { holdsTursoAuthority: false, setupConsented: true } })
 	})
 }));
 
@@ -131,6 +133,7 @@ afterEach(() => {
 	hooks.createWorkspace.mockReset();
 	hooks.goto.mockReset();
 	hooks.holdsTursoAuthority = true;
+	hooks.selectedHolds = false;
 	hooks.groupKind = 'empty';
 	hooks.connectExisting.mockReset();
 	hooks.consentSession = null;
@@ -308,6 +311,25 @@ test('a first workspace that could not be made lands on the no-workspace surface
 // effort 824, requirement 2, held through effort 843's transitions: back from a consent still open
 // in the browser lets the poll go at once, before the address moves, so a navigation held inside
 // a view transition does not keep it asking.
+// effort 851, requirement 39, as the human found it on 2026-10-06: adding an organization on a
+// machine whose selected one holds its own consent starts the walk from the setup's own consent,
+// which is none, so the step asks for a connection rather than saying one is there.
+test('adding an organization beside one that holds its own consent starts from no consent', async () => {
+	hooks.holdsTursoAuthority = false;
+	hooks.selectedHolds = true;
+	await atTheWall();
+
+	render(
+		FirstRun,
+		{ startup: hooks.startup!, wayIn: '/' },
+		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } }
+	);
+
+	expect(screen.getByRole('button', { name: en.organization.setup.connect })).toBeTruthy();
+	expect(document.body.textContent).not.toContain(en.organization.setup.connected);
+	expect(screen.queryByRole('button', { name: en.organization.setup.continue })).toBeNull();
+});
+
 test('back while a consent is pending stops the poll at once, even with the navigation still running', async () => {
 	hooks.holdsTursoAuthority = false;
 	// a navigation that never completes, as one held open by a transition is while it runs.

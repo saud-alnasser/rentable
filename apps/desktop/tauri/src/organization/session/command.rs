@@ -12,6 +12,7 @@ use crate::{
     diagnostics,
     error::{Error, RefusalReason},
     organization::Shared,
+    turso::consent::{Account, holds_platform_token},
 };
 
 use super::{
@@ -78,6 +79,12 @@ pub struct OrganizationState {
     /// owner's machine after a consent. An owner restored on a new machine holds none until they
     /// repeat the consent, which is the one thing a restore cannot bring with it (requirement 5).
     pub holds_turso_authority: bool,
+    /// whether this machine holds a setup's own Turso consent, the one a consent in the setup walk
+    /// grants and a create or a connect to an existing organization spends (effort 851,
+    /// requirement 39). The walk reads this and never `holds_turso_authority`, which is the
+    /// selected organization's: adding a second organization starts its walk from its own consent,
+    /// not from the one the organization already held was made with.
+    pub setup_consented: bool,
     /// whether the wall is up because this member's sessions were ended from another machine
     /// (effort 826, requirement 22), which is a sentence the wall carries rather than a refusal
     /// anybody made here. False the moment somebody is signed in again.
@@ -214,6 +221,8 @@ pub(crate) async fn state_of(
     let holds_turso_authority = organizations
         .iter()
         .any(|held| Some(&held.id) == selected.as_ref() && held.holds_turso_authority);
+    let setup_consented =
+        holds_platform_token(credentials.as_ref(), &Account::Pending).unwrap_or(false);
 
     // the standing is only ever about a wall that is up: somebody signed in has answered it,
     // whichever way they got back in, so this one read clears it rather than five sign-in paths
@@ -229,6 +238,7 @@ pub(crate) async fn state_of(
         selected,
         session: session.map(|(facts, _)| facts),
         holds_turso_authority,
+        setup_consented,
         signed_out_elsewhere: app_state.signed_out_elsewhere.load(Ordering::SeqCst),
     })
 }
@@ -3042,6 +3052,8 @@ mod tests {
         );
         assert!(state.session.is_some(), "the launch did not resume");
         assert!(state.holds_turso_authority);
+        // the organization's own consent is not the setup's: a walk to add another starts with none.
+        assert!(!state.setup_consented);
         assert_eq!(
             platform_token(credentials.as_ref(), &Account::of(&organization_id)).as_deref(),
             Ok("a-platform-token")

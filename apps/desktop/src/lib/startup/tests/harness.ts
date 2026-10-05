@@ -33,6 +33,7 @@ export const nowhereToGo = (): OrganizationState => ({
 	selected: null,
 	session: null,
 	holdsTursoAuthority: false,
+	setupConsented: false,
 	signedOutElsewhere: false
 });
 /** a machine whose person is admitted to an organization with no workspace in it yet. */
