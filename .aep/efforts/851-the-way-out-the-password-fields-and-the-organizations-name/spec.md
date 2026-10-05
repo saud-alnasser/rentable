@@ -136,10 +136,11 @@ holds the same one, the same way, after the update.
    square, drawn as part of the wall's column in the way-in surface's own look, carrying the
    selected organization's tile and name and a chevron that says it opens. The organization's
    name is drawn once on the wall. The wall opens on the organization last signed in to.
-3. **Opening it lists every organization this machine holds**, each with its tile and name, the
-   selected one marked, then "add organization", then a way to remove one. Choosing another
-   organization makes it the wall's, and the wall asks for that organization's username and
-   password.
+3. **The switcher shows the chosen organization, answers a hover, and opens on a click into a
+   dropdown** listing every organization this machine holds, each with its tile and name, the
+   chosen one marked, and an x at the end of each row that removes that organization (requirement
+   5). The last option is "add organization" with a plus. Choosing another organization makes it
+   the wall's, and the wall asks for that organization's username and password.
 4. **"Add organization" goes through the same process as the welcome**: set up, or join by a link
    and its code. Leaving it without finishing brings back the wall of the organization that was
    selected; finishing selects the new one.
@@ -171,7 +172,10 @@ holds the same one, the same way, after the update.
     or sooner where the credential sealed inside it dies. The handover says when the pair lapses,
     with the time of day as well as the date. Today every link lasts a week
     (`INVITATION_LIFETIME_MS`) and the handover prints a date alone
-    (`organization/member/component/link-handover.svelte`).
+    (`organization/member/component/link-handover.svelte`). **A link the owner's machine makes
+    carries a database credential minted to die at the link's own lapse**, so once it lapses it
+    reaches nothing on Turso either; a link a manager makes carries the manager's own grant, as
+    today, since only the owner's machine can mint.
 12. **Adding an organization again takes a new link.** A person who removed an organization, or
     whose link was spent, comes back only by a link and code the owner or a manager makes for
     them, or, for the owner, by connecting the existing organization from set up. Nothing left on
@@ -192,8 +196,8 @@ holds the same one, the same way, after the update.
 
 17. **The owner's first password is asked for twice.** The walk's name step draws a confirmation
     field directly under the password, labelled as the join and change-password confirmations are.
-    The organization is not created while the two differ, and the refusal is a sentence under the
-    confirmation field, in the form's own error treatment.
+    The organization is not created while the two differ, and the refusal is the walk's own field
+    error on the confirmation field, saying the two differ.
 18. **Every surface that chooses a new password keeps asking twice.** Joining by a link and
     changing the password keep their confirmation fields and refusals unchanged.
 19. **Every password field carries an eye at its trailing end.** At rest it is a closed eye and the
@@ -238,9 +242,10 @@ holds the same one, the same way, after the update.
    produced; a first run into a group that already holds an organization is still refused.
 2. A component test of the wall with two held organizations finds the switcher above the username
    field, naming the organization last signed in to, and finds that name drawn once on the wall.
-3. Component tests: opening the switcher lists both organizations with the selected one marked,
-   then "add organization" and remove; choosing the other draws its wall asking for its username
-   and password.
+3. Component tests: the switcher names the chosen organization and opens on a click; the dropdown
+   lists both organizations with the chosen one marked and an x on each row, and "add organization"
+   with a plus last; pressing a row's x opens the remove confirm for that row's organization and
+   does not switch to it; choosing the other draws its wall asking for its username and password.
 4. Component tests: "add organization" shows set up and join by a link; going back restores the
    previous selection; a finished add selects the new organization.
 5. A Rust test with two organizations held, each with a workspace replica, a remembered key and,
@@ -265,7 +270,8 @@ holds the same one, the same way, after the update.
     and time. Rust tests: a link made with each of 1 hour, 3 days and 1 week carries an expiry of
     exactly that long after it was made, or the credential's death where sooner; a lifetime under
     an hour, over a week, or off the steps is refused by the shell; a link opened past its expiry
-    is refused as lapsed.
+    is refused as lapsed. A link the owner's machine makes seals a credential whose own expiry
+    equals the link's; a manager's seals the manager's grant.
 12. A Rust test removes an organization and opens the link that first added it: refused as in 10. A
     new link for the same account admits it.
 13. Rust tests: a link for an organization not held adds it; a link for a held organization selects
@@ -280,7 +286,7 @@ holds the same one, the same way, after the update.
     resumes with no password, no replica is deleted or pulled again, and an owner-only act reaches
     Turso.
 17. In the walk's name step, a password and a different confirmation do not create the
-    organization, and a sentence under the confirmation says they differ; matching values create it
+    organization, and the confirmation field carries the walk's field error saying they differ; matching values create it
     as today. Covered by a component test.
 18. The existing tests of the join and change-password confirmations pass unchanged.
 19. For every field in the scope table, a test shows `type="password"` at rest, `type="text"` while
@@ -369,12 +375,14 @@ holds the same one, the same way, after the update.
 
 # Risks
 
-- **A spent link's sealed credential still reaches the database until it lapses.** Turso has no
-  per-token revocation; rotating invalidates every token for the database
-  ([[references/turso]], under revocation). So "the link is expired too" holds inside the
-  application (requirement 10) and not on Turso: whoever holds both the link and its code could
-  read the credential out by hand until the link's own lapse, at most the week the longest choice allows. The plan may
-  shorten that window; it cannot close it without a rotation that signs out every machine.
+- **A manager's link carries a credential that outlives the link.** Turso has no per-token
+  revocation; rotating invalidates every token for the database ([[references/turso]], under
+  revocation). A manager's machine holds no Turso consent and cannot mint, so a manager's link
+  seals the manager's own grant, which lives up to four weeks from its mint whatever the link's
+  lifetime. Whoever holds both that link and its code could read the grant out by hand and reach
+  the organization database until the grant lapses, though the application refuses the link
+  itself once spent or lapsed (requirements 10 and 11). An owner's link does not carry this risk:
+  its credential is minted to die with the link.
 - **Remove deleting another organization's data.** Today's forget sweeps every replica file and the
   one consent token. Criterion 5 checks the other organization byte for byte for this reason.
 - **The update stranding an existing install.** Moving the record from one organization to many,
