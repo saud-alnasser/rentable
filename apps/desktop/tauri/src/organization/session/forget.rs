@@ -354,7 +354,7 @@ mod tests {
         )
         .await
         .expect("the first run failed");
-        let held = store.organization.clone().expect("the record");
+        let held = store.selected().cloned().expect("the record");
 
         (organization, held)
     }
@@ -411,10 +411,20 @@ mod tests {
             let mut remote_sync = app_state.remote_sync.write().await;
 
             remote_sync
-                .remember_replica("north", held.member_id.as_deref().expect("the owner"), 1)
+                .remember_replica(
+                    "north",
+                    held.member_id.as_deref().expect("the owner"),
+                    &held.id,
+                    1,
+                )
                 .expect("tracked");
             remote_sync
-                .remember_replica("south", held.member_id.as_deref().expect("the owner"), 1)
+                .remember_replica(
+                    "south",
+                    held.member_id.as_deref().expect("the owner"),
+                    &held.id,
+                    1,
+                )
                 .expect("tracked");
             remote_sync
                 .open_organization_workspace("north", "North", "", 0, "a-workspace-token")
@@ -465,9 +475,9 @@ mod tests {
         let mut remote_sync = app_state.remote_sync.write().await;
         let store = remote_sync.store_mut();
 
-        assert_eq!(store.organization, None);
+        assert_eq!(store.selected(), None);
         assert!(store.replicas.is_empty());
-        assert_eq!(store.turso_organization, None);
+        assert_eq!(store.consent_organization(), None);
         assert_eq!(store.workspace.remote_id, None);
         assert_eq!(store.workspace.remote_url, None);
 
@@ -552,7 +562,7 @@ mod tests {
                 .write()
                 .await
                 .store_mut()
-                .organization
+                .selected()
                 .is_none()
         );
         assert!(app_state.organization.read().await.is_none());

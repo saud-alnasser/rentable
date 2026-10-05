@@ -285,7 +285,7 @@ mod tests {
         )
         .await
         .expect("the first run failed");
-        let joined = store.organization.clone().expect("the record");
+        let joined = store.selected().cloned().expect("the record");
         let session = sign_in(&organization, &joined, PASSWORD, &slot())
             .await
             .expect("the owner did not sign in");
@@ -383,6 +383,9 @@ mod tests {
             joined_at: 1_757_000_000_001,
             format: None,
             machine_signed_out: 0,
+            turso_organization: None,
+            workspace_id: None,
+            name_signed: false,
         };
 
         sign_in(store, &held, OTHER_PASSWORD, &slot())

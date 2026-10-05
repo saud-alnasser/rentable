@@ -18,8 +18,8 @@ pub mod name;
 mod record;
 
 pub use record::{
-    CUSTOM, HeldOrganization, KINDS, MANAGER, MEMBER, OWNER, RemoteSync, RemoteSyncState,
-    RemoteSyncStore, RemoteSyncWorkspace, consented_organization,
+    CUSTOM, HeldOrganization, KINDS, LocalReplica, MANAGER, MEMBER, OWNER, RemoteSync,
+    RemoteSyncState, RemoteSyncStore, RemoteSyncWorkspace, consented_organization,
 };
 
 use std::{future::Future, path::PathBuf, pin::Pin, sync::Arc};

@@ -387,7 +387,7 @@ mod tests {
         )
         .await
         .expect("the first run failed");
-        let joined = store.organization.clone().expect("the record");
+        let joined = store.selected().cloned().expect("the record");
 
         (store, organization, joined)
     }
@@ -716,6 +716,9 @@ mod tests {
             joined_at: 1_757_000_000_001,
             format: None,
             machine_signed_out: 0,
+            turso_organization: None,
+            workspace_id: None,
+            name_signed: false,
         };
 
         // each opens with its own password and its own role.

@@ -47,7 +47,7 @@ pub(super) async fn resume_remembered(
     let held = {
         let mut remote_sync = app_state.remote_sync.write().await;
 
-        remote_sync.store_mut().organization.clone()
+        remote_sync.store_mut().selected().cloned()
     };
     let Some(held) = held.filter(|held| held.member_id.is_some()) else {
         return;
@@ -66,8 +66,8 @@ pub(super) async fn resume_remembered(
                     match ownership::follow_succession(&store, remote_sync.store_mut()).await {
                         Ok(Some(_)) => remote_sync
                             .store_mut()
-                            .organization
-                            .clone()
+                            .selected()
+                            .cloned()
                             .unwrap_or_else(|| held.clone()),
                         Ok(None) => held.clone(),
                         Err(refusal) => {
@@ -144,7 +144,7 @@ pub(super) async fn resume_remembered(
 pub(super) async fn machine_registered(app_state: &Shared) -> Result<(), Error> {
     let held = {
         let mut remote_sync = app_state.remote_sync.write().await;
-        let Some(held) = remote_sync.store_mut().organization.clone() else {
+        let Some(held) = remote_sync.store_mut().selected().cloned() else {
             return Ok(());
         };
 
@@ -158,7 +158,7 @@ pub(super) async fn machine_registered(app_state: &Shared) -> Result<(), Error> 
 
             let record = remote_sync.store_mut();
 
-            record.organization = Some(identified.clone());
+            record.hold(identified.clone());
             record.commit()?;
 
             diagnostics::info("organization.machine.identified")
@@ -214,7 +214,7 @@ pub(crate) async fn leave_registry(app_state: &Shared) {
     let held = {
         let mut remote_sync = app_state.remote_sync.write().await;
 
-        remote_sync.store_mut().organization.clone()
+        remote_sync.store_mut().selected().cloned()
     };
     let Some(held) = held.filter(|held| !held.machine_id.is_empty()) else {
         return;
@@ -339,11 +339,7 @@ async fn read_in_this_format(app_state: &Shared, held: &HeldOrganization) -> Res
     let mut remote_sync = app_state.remote_sync.write().await;
     let record = remote_sync.store_mut();
 
-    if let Some(organization) = record
-        .organization
-        .as_mut()
-        .filter(|organization| organization.id == held.id)
-    {
+    if let Some(organization) = record.held_mut(&held.id) {
         organization.format = Some(store::FORMAT_VERSION);
         record.commit()?;
     }
@@ -511,8 +507,8 @@ mod tests {
         let mut remote_sync = app_state.remote_sync.write().await;
         let held = remote_sync
             .store_mut()
-            .organization
-            .clone()
+            .selected()
+            .cloned()
             .expect("the record names no organization");
 
         (held.id, held.member_id.expect("the record names no member"))
@@ -538,8 +534,8 @@ mod tests {
 
         remote_sync
             .store_mut()
-            .organization
-            .clone()
+            .selected()
+            .cloned()
             .expect("the record names no organization")
     }
 
@@ -635,8 +631,8 @@ mod tests {
 
             remote_sync
                 .store_mut()
-                .organization
-                .clone()
+                .selected()
+                .cloned()
                 .expect("the record names no organization")
         };
         let theirs = elsewhere(directory, &held.id).await;
@@ -675,8 +671,7 @@ mod tests {
 
         remote_sync
             .store_mut()
-            .organization
-            .as_ref()
+            .selected()
             .expect("the record names no organization")
             .verifying_key
             .clone()
@@ -748,7 +743,7 @@ mod tests {
             let mut remote_sync = app_state.remote_sync.write().await;
             let record = remote_sync.store_mut();
 
-            if let Some(organization) = record.organization.as_mut() {
+            if let Some(organization) = record.selected_mut() {
                 organization.format = None;
             }
 
@@ -884,8 +879,8 @@ mod tests {
 
                 remote_sync
                     .store_mut()
-                    .organization
-                    .clone()
+                    .selected()
+                    .cloned()
                     .expect("the record")
             };
             let refused = open_replica(
@@ -952,8 +947,8 @@ mod tests {
 
             remote_sync
                 .store_mut()
-                .organization
-                .clone()
+                .selected()
+                .cloned()
                 .expect("the record")
         };
         let refused = open_replica(

@@ -479,7 +479,7 @@ mod tests {
         )
         .await
         .expect("the first run failed");
-        let joined = store.organization.clone().expect("the record");
+        let joined = store.selected().cloned().expect("the record");
 
         assert!(!joined.machine_id.is_empty(), "the first run drew no id");
 

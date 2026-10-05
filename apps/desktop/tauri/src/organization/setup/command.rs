@@ -101,9 +101,8 @@ pub(crate) async fn organization_setup_create(
     // would. One more derivation, and no second way of becoming signed in.
     let joined = remote_sync
         .store_mut()
-        .organization
-        .clone()
-        .filter(|held| held.id == created.organization_id)
+        .held(&created.organization_id)
+        .cloned()
         .ok_or_else(|| Error::Internal {
             message: "the organization was created and not recorded".to_string(),
         })?;

@@ -402,7 +402,7 @@ mod tests {
         )
         .await
         .expect("the first run failed");
-        let joined = store.organization.clone().expect("the record");
+        let joined = store.selected().cloned().expect("the record");
 
         (store, organization, joined)
     }

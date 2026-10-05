@@ -146,7 +146,7 @@ pub(super) async fn owner_platform(
     setup::authority(credentials.as_ref()).ok()?;
 
     let mut remote_sync = app_state.remote_sync.write().await;
-    let organization = remote_sync.store_mut().turso_organization.clone()?;
+    let organization = remote_sync.store_mut().consent_organization().cloned()?;
 
     Some(PlatformApi::new(
         PlatformEndpoint::production(),

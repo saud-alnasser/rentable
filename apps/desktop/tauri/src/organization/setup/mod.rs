@@ -340,7 +340,7 @@ where
             )
             .await?;
 
-            store.turso_organization = Some(first.organization.clone());
+            store.remember_consent_organization(first.organization.clone());
             store.commit()?;
 
             (first.organization, first.hostname)
@@ -548,7 +548,7 @@ async fn finish<P: TursoPlatform>(
 
     // the one organization this machine holds, from now: the owner's, with their member row
     // recorded from the outset.
-    store.organization = Some(HeldOrganization {
+    store.hold(HeldOrganization {
         id: organization_id.to_string(),
         name: name.to_string(),
         verifying_key: BASE64URL.encode(verifying_key),
@@ -561,6 +561,9 @@ async fn finish<P: TursoPlatform>(
         // 838, ticket 25).
         format: Some(FORMAT_VERSION),
         machine_signed_out,
+        turso_organization: None,
+        workspace_id: None,
+        name_signed: false,
     });
     store.commit()?;
 
@@ -599,7 +602,7 @@ fn abandon_the_consent(store: &mut Persisted<RemoteSyncStore>, credentials: &dyn
             .write();
     }
 
-    store.turso_organization = None;
+    store.forget_consent_organization();
 
     if let Err(error) = store.commit() {
         diagnostics::error("organization.setup.consentNotForgotten")
@@ -834,8 +837,8 @@ mod tests {
         // the organization row, where the machine learns what a link would carry: the id, the
         // remote and the key. The first run hands out nothing (effort 828, requirement 16).
         let held = store
-            .organization
-            .clone()
+            .selected()
+            .cloned()
             .expect("the first run recorded no organization");
 
         assert_eq!(held.id, outcome.organization_id);
@@ -964,7 +967,7 @@ mod tests {
         );
 
         // this machine holds it, with the name as typed and the owner as its member.
-        let joined = store.organization.clone().expect("the record");
+        let joined = store.selected().cloned().expect("the record");
 
         assert_eq!(joined.id, outcome.organization_id);
         assert_eq!(joined.name, "Acme Rentals");
@@ -974,7 +977,7 @@ mod tests {
 
         // and the slug was asked for once and remembered.
         assert_eq!(
-            store.turso_organization.as_ref().map(|o| o.slug.as_str()),
+            store.consent_organization().map(|o| o.slug.as_str()),
             Some("an-org")
         );
         assert_eq!(
@@ -1031,7 +1034,7 @@ mod tests {
             platform.databases().is_empty(),
             "the database was left behind"
         );
-        assert!(store.organization.is_none());
+        assert!(store.selected().is_none());
         assert!(
             !std::fs::read_dir(&directory)
                 .expect("the directory")

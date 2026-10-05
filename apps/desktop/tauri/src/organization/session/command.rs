@@ -141,8 +141,7 @@ pub(crate) async fn state_of(
 
         remote_sync
             .store_mut()
-            .organization
-            .as_ref()
+            .selected()
             .map(HeldOrganizationFacts::from)
     };
     // **and the one thing that can make this machine's key wrong** (effort 828, requirement 22).
@@ -217,16 +216,12 @@ pub(crate) async fn organization_session_sign_in(
     let held = {
         let mut remote_sync = app_state.remote_sync.write().await;
 
-        remote_sync
-            .store_mut()
-            .organization
-            .clone()
-            .ok_or_else(|| {
-                Error::refused(
-                    RefusalReason::NoOrganization,
-                    "this machine holds no organization to sign in to",
-                )
-            })?
+        remote_sync.store_mut().selected().cloned().ok_or_else(|| {
+            Error::refused(
+                RefusalReason::NoOrganization,
+                "this machine holds no organization to sign in to",
+            )
+        })?
     };
     // a session already open on this machine ends first, as a sign-out ends it: its remembered
     // key is deleted, the register stops naming it and its replica is let go of. Signing in over
@@ -255,7 +250,7 @@ pub(crate) async fn organization_session_sign_in(
         let mut remote_sync = app_state.remote_sync.write().await;
 
         match ownership::follow_succession(&store, remote_sync.store_mut()).await {
-            Ok(Some(_)) => remote_sync.store_mut().organization.clone().unwrap_or(held),
+            Ok(Some(_)) => remote_sync.store_mut().selected().cloned().unwrap_or(held),
             Ok(None) => held,
             Err(refusal) => {
                 diagnostics::warn("organization.succession.notFollowed")
@@ -325,7 +320,7 @@ pub(crate) async fn sign_out(app_state: &Shared, credentials: &dyn CredentialSto
 
     {
         let mut remote_sync = app_state.remote_sync.write().await;
-        let held = remote_sync.store_mut().organization.as_ref();
+        let held = remote_sync.store_mut().selected();
 
         if let Some((organization_id, member_id)) =
             held.and_then(|held| held.member_id.as_ref().map(|member| (&held.id, member)))
@@ -341,7 +336,7 @@ pub(crate) async fn sign_out(app_state: &Shared, credentials: &dyn CredentialSto
         let held = {
             let mut remote_sync = app_state.remote_sync.write().await;
 
-            remote_sync.store_mut().organization.clone()
+            remote_sync.store_mut().selected().cloned()
         };
         let organization = app_state.organization.read().await;
 
@@ -453,7 +448,7 @@ pub(crate) async fn organization_session_end_machine(
 async fn held_here(app_state: &Shared) -> Result<HeldOrganization, Error> {
     let mut remote_sync = app_state.remote_sync.write().await;
 
-    remote_sync.store_mut().organization.clone().ok_or_else(|| {
+    remote_sync.store_mut().selected().cloned().ok_or_else(|| {
         Error::refused(
             RefusalReason::NoOrganization,
             "this machine holds no organization",
@@ -812,8 +807,8 @@ mod tests {
         let mut remote_sync = app_state.remote_sync.write().await;
         let held = remote_sync
             .store_mut()
-            .organization
-            .clone()
+            .selected()
+            .cloned()
             .expect("the record names no organization");
 
         (held.id, held.member_id.expect("the record names no member"))
@@ -992,8 +987,8 @@ mod tests {
 
             remote_sync
                 .store_mut()
-                .organization
-                .clone()
+                .selected()
+                .cloned()
                 .expect("the record")
         };
         let (store, credential) = open_replica(

@@ -838,6 +838,9 @@ pub(crate) async fn older(name: &str) -> Older {
         joined_at: EARLIER,
         format: None,
         machine_signed_out: 0,
+        turso_organization: None,
+        workspace_id: None,
+        name_signed: false,
     };
     let certificates = [
         ("owner", owners),

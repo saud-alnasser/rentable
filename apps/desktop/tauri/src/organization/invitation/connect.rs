@@ -202,10 +202,18 @@ pub async fn record(
         // read is this build's (effort 838, ticket 25).
         format: Some(FORMAT_VERSION),
         machine_signed_out,
+        // a Turso organization the owner's consent was looked up over goes into the entry as it
+        // is recorded (`RemoteSyncStore::hold`); a link carries none.
+        turso_organization: None,
+        workspace_id: None,
+        name_signed: false,
     };
 
-    machine.organization = Some(held.clone());
+    machine.hold(held.clone());
     machine.commit()?;
+
+    // what was recorded, which is the entry with whatever `hold` gave it.
+    let held = machine.held(&held.id).cloned().unwrap_or(held);
 
     diagnostics::info("organization.connected")
         .with("organization", held.id.as_str())
@@ -236,10 +244,7 @@ pub(crate) fn refused_after_reaching(
     organization_id: &str,
     refusal: Error,
 ) -> Error {
-    let holds_it = machine
-        .organization
-        .as_ref()
-        .is_some_and(|held| held.id == organization_id);
+    let holds_it = machine.held(organization_id).is_some();
 
     if !holds_it {
         leave_no_replica(database_path, organization_id);
@@ -252,7 +257,7 @@ pub(crate) fn refused_after_reaching(
 /// the link is decoded or anything is reached: the way to another organization is a disconnect
 /// first.
 pub fn refuse_while_held(machine: &RemoteSyncStore) -> Result<(), Error> {
-    match machine.organization.as_ref() {
+    match machine.selected() {
         Some(held) => Err(Error::refused(
             RefusalReason::AnotherOrganizationHeld,
             format!(
@@ -312,10 +317,7 @@ mod tests {
         let machine = Persisted::<RemoteSyncStore>::load(directory.join("second-machine.json"))
             .expect("the store");
 
-        assert!(
-            machine.organization.is_none(),
-            "the machine has prior state"
-        );
+        assert!(machine.selected().is_none(), "the machine has prior state");
 
         machine
     }
@@ -371,8 +373,8 @@ mod tests {
         .await
         .expect("the first run failed");
         let held = store
-            .organization
-            .clone()
+            .selected()
+            .cloned()
             .expect("the first run recorded no organization");
 
         assert_eq!(held.id, created.organization_id);
@@ -411,7 +413,7 @@ mod tests {
         assert_eq!(held.joined_at, ISSUED_AT + 1);
 
         // on the record, once, and the same on disk.
-        assert_eq!(machine.organization.as_ref(), Some(&held));
+        assert_eq!(machine.selected(), Some(&held));
 
         let written =
             std::fs::read_to_string(directory.join("second-machine.json")).expect("the file");
@@ -430,8 +432,8 @@ mod tests {
         // its record left as it was: the owner still named as the member.
         let mut owners_machine = owners_machine;
         let before = owners_machine
-            .organization
-            .clone()
+            .selected()
+            .cloned()
             .expect("the owner's record");
 
         assert!(before.member_id.is_some());
@@ -443,7 +445,7 @@ mod tests {
             "{refused:?}"
         );
         assert_eq!(
-            owners_machine.organization.as_ref(),
+            owners_machine.selected(),
             Some(&before),
             "the refusal touched the owner's record"
         );
@@ -471,7 +473,7 @@ mod tests {
                 "{refused:?}"
             );
             assert!(
-                machine.organization.is_none(),
+                machine.selected().is_none(),
                 "a connect with no credential recorded an organization"
             );
         }
@@ -570,7 +572,7 @@ mod tests {
         )
         .await
         .expect("the owner did not sign in at the wall");
-        let signed_in = machine.organization.clone().expect("the record");
+        let signed_in = machine.selected().cloned().expect("the record");
         let after_sign_in = connected(ISSUED_AT + 2).await;
 
         assert_eq!(
@@ -651,7 +653,7 @@ mod tests {
             matches!(refused, Err(Error::Integrity { .. })),
             "a stranger's key connected: {refused:?}"
         );
-        assert!(machine.organization.is_none());
+        assert!(machine.selected().is_none());
 
         let another_id = Locator {
             organization_id: "somebody-elses".to_string(),
@@ -663,7 +665,7 @@ mod tests {
             matches!(refused, Err(Error::Integrity { .. })),
             "another organization's id connected: {refused:?}"
         );
-        assert!(machine.organization.is_none());
+        assert!(machine.selected().is_none());
     }
 
     /// Everything an organization database holds, table by table and row by row, as a test
@@ -752,7 +754,7 @@ mod tests {
                 "{name}: the refusal wrote to the organization"
             );
             assert!(
-                machine.organization.is_none(),
+                machine.selected().is_none(),
                 "{name}: a refused connect recorded the organization"
             );
         }

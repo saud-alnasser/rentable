@@ -90,7 +90,7 @@ pub(crate) async fn ended_elsewhere(app_state: &Shared, credentials: &dyn Creden
                 let held = {
                     let mut remote_sync = app_state.remote_sync.write().await;
 
-                    remote_sync.store_mut().organization.clone()
+                    remote_sync.store_mut().selected().cloned()
                 };
 
                 match held {
@@ -418,8 +418,8 @@ mod tests {
         let mut remote_sync = app_state.remote_sync.write().await;
         let held = remote_sync
             .store_mut()
-            .organization
-            .clone()
+            .selected()
+            .cloned()
             .expect("the record names no organization");
 
         (held.id, held.member_id.expect("the record names no member"))
@@ -531,8 +531,8 @@ mod tests {
 
             remote_sync
                 .store_mut()
-                .organization
-                .clone()
+                .selected()
+                .cloned()
                 .expect("the record names no organization")
         };
         let theirs = elsewhere(directory, &held.id).await;
@@ -571,8 +571,7 @@ mod tests {
 
         remote_sync
             .store_mut()
-            .organization
-            .as_ref()
+            .selected()
             .expect("the record names no organization")
             .verifying_key
             .clone()
@@ -614,8 +613,8 @@ mod tests {
 
             remote_sync
                 .store_mut()
-                .organization
-                .clone()
+                .selected()
+                .cloned()
                 .expect("the record names no organization")
         };
         let elsewhere = OrganizationStore::open(
@@ -706,8 +705,8 @@ mod tests {
 
             remote_sync
                 .store_mut()
-                .organization
-                .clone()
+                .selected()
+                .cloned()
                 .expect("the record names no organization")
         };
         let held_a = HeldOrganization {
@@ -813,8 +812,8 @@ mod tests {
             let mut remote_sync = app_state.remote_sync.write().await;
             let held = remote_sync
                 .store_mut()
-                .organization
-                .clone()
+                .selected()
+                .cloned()
                 .expect("the record");
 
             join::admit(
@@ -845,8 +844,7 @@ mod tests {
 
                 remote_sync
                     .store_mut()
-                    .organization
-                    .as_ref()
+                    .selected()
                     .map(|held| held.machine_signed_out)
             },
             Some(1),
@@ -880,8 +878,8 @@ mod tests {
 
             remote_sync
                 .store_mut()
-                .organization
-                .clone()
+                .selected()
+                .cloned()
                 .expect("the record names no organization")
         };
         let held_a = HeldOrganization {
@@ -991,8 +989,8 @@ mod tests {
         let mut remote_sync = app_state.remote_sync.write().await;
         let held = remote_sync
             .store_mut()
-            .organization
-            .clone()
+            .selected()
+            .cloned()
             .expect("the record names no organization");
         let store = elsewhere(directory, &held.id).await;
         let member = join::admit(
@@ -1009,8 +1007,8 @@ mod tests {
         .expect("the sign-in failed");
         let written = remote_sync
             .store_mut()
-            .organization
-            .clone()
+            .selected()
+            .cloned()
             .expect("the record");
 
         drop(remote_sync);
@@ -1047,8 +1045,8 @@ mod tests {
 
             remote_sync
                 .store_mut()
-                .organization
-                .clone()
+                .selected()
+                .cloned()
                 .expect("the record names no organization")
         };
         let held_a = HeldOrganization {
@@ -1088,8 +1086,8 @@ mod tests {
 
             remote_sync
                 .store_mut()
-                .organization
-                .clone()
+                .selected()
+                .cloned()
                 .expect("the record")
         };
 
@@ -1106,7 +1104,7 @@ mod tests {
             MANAGERS_PASSWORD,
         )
         .await;
-        let held_y = y_machine.organization.clone().expect("Y's record");
+        let held_y = y_machine.selected().cloned().expect("Y's record");
         let written = admitted(
             &app_state,
             &credentials,
@@ -1216,8 +1214,8 @@ mod tests {
 
             remote_sync
                 .store_mut()
-                .organization
-                .clone()
+                .selected()
+                .cloned()
                 .expect("the record names no organization")
         };
         let other = elsewhere(&directory, &organization_id).await;
@@ -1282,8 +1280,7 @@ mod tests {
 
                 remote_sync
                     .store_mut()
-                    .organization
-                    .as_ref()
+                    .selected()
                     .map(|held| held.machine_signed_out)
             },
             Some(1),
@@ -1307,9 +1304,9 @@ mod tests {
         {
             let mut remote_sync = app_state.remote_sync.write().await;
             let record = remote_sync.store_mut();
-            let held = record.organization.clone().expect("the record");
+            let held = record.selected().cloned().expect("the record");
 
-            record.organization = Some(HeldOrganization {
+            record.hold(HeldOrganization {
                 machine_id: String::new(),
                 ..held
             });
@@ -1330,8 +1327,8 @@ mod tests {
 
             remote_sync
                 .store_mut()
-                .organization
-                .clone()
+                .selected()
+                .cloned()
                 .expect("the record names no organization")
         };
 
@@ -1709,8 +1706,8 @@ mod tests {
 
             remote_sync
                 .store_mut()
-                .organization
-                .clone()
+                .selected()
+                .cloned()
                 .expect("the record names no organization")
         };
         let key = verifying_key_of(&held).expect("the pinned key");

@@ -31,14 +31,13 @@ pub const CUSTOM: &str = "custom";
 /// the kinds would be a module `organization` writes reaching back into it.*
 pub const KINDS: [&str; 4] = [OWNER, MANAGER, MEMBER, CUSTOM];
 
-/// The one organization this machine holds, as `remote-sync.json` keeps it.
+/// One organization this machine holds, as `remote-sync.json` keeps it.
 ///
 /// *Here, with the record it is part of, since effort 840; `organization` re-exports it.*
 ///
-/// **One or none, and the type says so** (effort 824, requirement 17): the record used to be a
-/// list of every organization the machine had joined, and the wall listed them. A machine now
-/// holds one, connected by the organization's link before anybody has signed in, and forgets it
-/// whole on a disconnect (`organization/session/forget.rs`).
+/// **An entry in the record's list** (effort 851, requirement 16): `heldOrganizations`, with the
+/// selected one also written under `organization` for an older build to read. It was the one
+/// organization a machine held, by type, from effort 824 until then.
 ///
 /// The verifying key is base64url, as the link spells it, and it is **the copy every
 /// verification on this machine uses**: pinned from the link at connect, never refreshed from the
@@ -94,6 +93,30 @@ pub struct HeldOrganization {
     /// database is replicated and this machine would be writing its own acknowledgement where the
     /// machines that end it write too.
     pub machine_signed_out: i64,
+    /// which Turso organization and group the consent on this machine was granted over, for this
+    /// organization (effort 851, requirement 14). It was one value at the top of the record until
+    /// then, and the record's load moves it here (`RemoteSyncStore::sanitize`).
+    ///
+    /// **Kept because it cannot be asked for twice cheaply.** A consented token carries neither
+    /// the organization slug nor anything that maps to one, and the only route to it is a lookup
+    /// against Turso's MCP server (`turso/discovery/`). That surface is versioned at `v0.1.0` and
+    /// documented for agents, so asking it once at setup and never again is what keeps a change
+    /// there off the provisioning path.
+    ///
+    /// **Not a credential, and deliberately not in the keyring.** A slug is a name that appears in
+    /// every Platform API URL this application builds; filing it as a secret would imply the URLs
+    /// were. It is not in the organization database either, because it is a fact about this
+    /// machine's grant rather than about the organization's members.
+    ///
+    /// Absent on every machine that has not granted a Turso consent for this organization.
+    pub turso_organization: Option<TursoOrganization>,
+    /// the organization's own id for the workspace this organization last had open on this
+    /// machine, so going back to it opens that workspace again. `None` where it has opened none.
+    pub workspace_id: Option<String>,
+    /// whether this machine has read the organization's name from its signed row, after which it
+    /// never falls back to the unsigned one (effort 851, the plan's *The organization's signed
+    /// name*). False on every entry until that lands.
+    pub name_signed: bool,
 }
 
 pub struct RemoteSync {
@@ -230,8 +253,14 @@ pub(super) struct LearnedWorkspace<'a> {
 /// *Documented rather than prevented (effort 840, ticket 67): the load is `Persisted`'s, generic
 /// over every persisted record, and the tests that build a machine from a file use it. `sanitize`
 /// filled both from the system clock until the clock became a port, earlier in the same effort.*
+///
+/// **Written through [`WrittenRecord`]**, which is what puts the selected organization under
+/// `organization` on every write: the key an older build reads, so a build the updater rolls back
+/// to finds the organization the person had chosen (effort 851, the plan's *The machine's record
+/// holds a list*). What is read under that key is the current release's one organization, which
+/// the load converts and nothing else reads.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase", into = "WrittenRecord")]
 pub struct RemoteSyncStore {
     pub workspace: RemoteSyncWorkspace,
     pub startup_prompt_enabled: bool,
@@ -252,23 +281,20 @@ pub struct RemoteSyncStore {
     ///
     /// A list because one machine can hold replicas for several accounts.
     pub replicas: Vec<LocalReplica>,
-    /// which Turso organization and group the consent on this machine was granted over.
+    /// which Turso organization and group a consent was granted over **before any organization
+    /// held here recorded it**: what a setup looked up and has not yet made an organization of.
+    /// Moved into the entry the next organization held here is recorded as ([`Self::hold`]).
     ///
-    /// **Kept because it cannot be asked for twice cheaply.** A consented token carries neither
-    /// the organization slug nor anything that maps to one, and the only route to it is a lookup
-    /// against Turso's MCP server (`turso/discovery/`). That surface is versioned at
-    /// `v0.1.0` and documented for agents, so asking it once at setup and never again is what
-    /// keeps a change there off the provisioning path.
+    /// *It was the one Turso organization of the one organization a machine held, until effort
+    /// 851 gave each held organization its own ([`HeldOrganization::turso_organization`]). A
+    /// record the current release wrote carries it here, and the load moves it into the entry.*
     ///
-    /// **Not a credential, and deliberately not in the keyring.** A slug is a name that appears
-    /// in every Platform API URL this application builds; filing it as a secret would imply the
-    /// URLs were. It is not in the organization database either, because it is a fact about this
-    /// machine's grant rather than about the organization's members.
-    ///
-    /// Absent on every machine that has not granted a Turso consent, which today is all of them.
+    /// **What is written under the key is the selected organization's** where it has one, as
+    /// `organization` is ([`WrittenRecord`]), so the load drops a value here that is that copy
+    /// rather than reading it as a setup's.
     pub turso_organization: Option<TursoOrganization>,
-    /// the one organization this machine holds, or none (effort 824, requirement 17). What the
-    /// wall names, and what tells sign-in which replica to open before a password is typed.
+    /// every organization this machine holds (effort 851, requirement 16). What the wall names,
+    /// and what tells sign-in which replica to open before a password is typed.
     ///
     /// **Facts about this machine, in the clear, and none of them a credential.** The name is
     /// the one the person typed or the link carried; the verifying key is the one the link
@@ -276,8 +302,22 @@ pub struct RemoteSyncStore {
     /// database it judges; the remote is where the replica syncs. What opens anything is the
     /// password, and it is nowhere.
     ///
-    /// *It was `organizations`, a list, until 2026-09-13.*
-    pub organization: Option<HeldOrganization>,
+    /// **Never written as `organizations`.** That key is the list effort 824 retired, and this
+    /// build's startup check and every older build read it as the shape they forget the machine
+    /// over (`upgrade/shape.rs`).
+    ///
+    /// *It was `organizations`, a list, until 2026-09-13, and `organization`, one or none, until
+    /// effort 851.*
+    pub held_organizations: Vec<HeldOrganization>,
+    /// the id of the organization the wall opens on: the one last signed in to (effort 851,
+    /// requirement 2). `None` where nothing is held; the load points it at the first entry where
+    /// it names none of them.
+    pub selected_organization: Option<String>,
+    /// the one organization a record the current release wrote holds, read to be converted
+    /// (`sanitize`) and never otherwise. What is written under the key is the selected entry
+    /// ([`WrittenRecord`]), so this is `None` from the first sanitize on and nothing reads it.
+    #[serde(rename = "organization")]
+    organization_of_the_current_release: Option<HeldOrganization>,
     /// what the record carried under `organizations` before a machine held one: the shape effort
     /// 824 retired, read and never interpreted.
     ///
@@ -316,7 +356,63 @@ pub struct LocalReplica {
     /// that name, and a record on disk is not renamed under it.*
     #[serde(alias = "accountId")]
     pub member_id: String,
+    /// the organization the workspace is of, so what is held for one organization is found
+    /// without asking another's replica (effort 851, requirement 5). Empty on an entry the
+    /// current release wrote, which the record's load fills from the one organization it held.
+    pub organization_id: String,
     pub created_at: i64,
+}
+
+/// `remote-sync.json` as this build writes it: the record, with the selected organization under
+/// `organization` as well as in the list, and the selected organization's Turso organization at
+/// the top as well as in its entry; where the selected organization has none, the top carries
+/// what a setup looked up, or nothing.
+///
+/// **The copy under `organization` is what keeps a rolled-back build working** (effort 851, the
+/// plan's *The machine's record holds a list*): the updater has a way back to the previous
+/// release, and that build reads this key and knows nothing of the list. It drops the list at its
+/// next commit, so after a rollback the other organizations' entries are gone while their files
+/// stay on disk; adding them again takes a link. **The copy under `tursoOrganization` is the same
+/// promise for the owner**: a rolled-back build reads the Turso organization its consent is over
+/// from there, and without it the owner's machine would hold no Turso authority.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WrittenRecord {
+    workspace: RemoteSyncWorkspace,
+    startup_prompt_enabled: bool,
+    device_id: String,
+    replicas: Vec<LocalReplica>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    turso_organization: Option<TursoOrganization>,
+    held_organizations: Vec<HeldOrganization>,
+    selected_organization: Option<String>,
+    organization: Option<HeldOrganization>,
+    #[serde(rename = "organizations", skip_serializing_if = "Vec::is_empty")]
+    organizations_of_the_old_shape: Vec<serde_json::Value>,
+    last_reached_at: Option<i64>,
+}
+
+impl From<RemoteSyncStore> for WrittenRecord {
+    fn from(store: RemoteSyncStore) -> Self {
+        let organization = store.selected().cloned();
+        let turso_organization = organization
+            .as_ref()
+            .and_then(|held| held.turso_organization.clone())
+            .or(store.turso_organization);
+
+        Self {
+            workspace: store.workspace,
+            startup_prompt_enabled: store.startup_prompt_enabled,
+            device_id: store.device_id,
+            replicas: store.replicas,
+            turso_organization,
+            held_organizations: store.held_organizations,
+            selected_organization: store.selected_organization,
+            organization,
+            organizations_of_the_old_shape: store.organizations_of_the_old_shape,
+            last_reached_at: store.last_reached_at,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -347,11 +443,138 @@ impl Default for RemoteSyncStore {
             device_id: String::new(),
             replicas: Vec::new(),
             turso_organization: None,
-            organization: None,
+            held_organizations: Vec::new(),
+            selected_organization: None,
+            organization_of_the_current_release: None,
             organizations_of_the_old_shape: Vec::new(),
             last_reached_at: None,
         }
     }
+}
+
+impl RemoteSyncStore {
+    /// the organization the wall opens on, where one is held.
+    pub fn selected(&self) -> Option<&HeldOrganization> {
+        let selected = self.selected_organization.as_deref()?;
+
+        self.held(selected)
+    }
+
+    /// the same, to change in place. The caller commits.
+    pub fn selected_mut(&mut self) -> Option<&mut HeldOrganization> {
+        let selected = self.selected_organization.clone()?;
+
+        self.held_mut(&selected)
+    }
+
+    /// the organization this machine holds by that id, where it holds it.
+    pub fn held(&self, organization_id: &str) -> Option<&HeldOrganization> {
+        self.held_organizations
+            .iter()
+            .find(|held| held.id == organization_id)
+    }
+
+    /// the same, to change in place. The caller commits.
+    pub fn held_mut(&mut self, organization_id: &str) -> Option<&mut HeldOrganization> {
+        self.held_organizations
+            .iter_mut()
+            .find(|held| held.id == organization_id)
+    }
+
+    /// Record `organization` as held, in place of any entry with its id, and select it. The caller
+    /// commits.
+    ///
+    /// **A Turso organization a setup looked up before anything was held goes with it**, where the
+    /// entry carries none of its own: the setup that looked it up is what records the organization
+    /// next, and what a consent was over stays known once the organization is.
+    pub fn hold(&mut self, mut organization: HeldOrganization) {
+        if organization.turso_organization.is_none() {
+            organization.turso_organization = self.turso_organization.take();
+        }
+
+        self.selected_organization = Some(organization.id.clone());
+
+        match self
+            .held_organizations
+            .iter_mut()
+            .find(|held| held.id == organization.id)
+        {
+            Some(held) => *held = organization,
+            None => self.held_organizations.push(organization),
+        }
+    }
+
+    /// which Turso organization the consent on this machine is over, as the record knows it: the
+    /// selected organization's, or, where none is selected, the one a setup looked up.
+    pub fn consent_organization(&self) -> Option<&TursoOrganization> {
+        match self.selected() {
+            Some(held) => held.turso_organization.as_ref(),
+            None => self.turso_organization.as_ref(),
+        }
+    }
+
+    /// Remember which Turso organization the consent is over, where
+    /// [`Self::consent_organization`] reads it. The caller commits.
+    pub fn remember_consent_organization(&mut self, organization: TursoOrganization) {
+        match self.selected_mut() {
+            Some(held) => held.turso_organization = Some(organization),
+            None => self.turso_organization = Some(organization),
+        }
+    }
+
+    /// Forget it, from where [`Self::consent_organization`] reads it. The caller commits.
+    pub fn forget_consent_organization(&mut self) {
+        match self.selected_mut() {
+            Some(held) => held.turso_organization = None,
+            None => self.turso_organization = None,
+        }
+    }
+
+    /// The current release's one organization, made the list's one entry and selected (effort
+    /// 851, requirement 16): the Turso organization its consent is over moves into it, the
+    /// workspace the machine has open is the one it last had open, and every replica entry with
+    /// no organization is its. Only where the list is empty, which is a record no build of the
+    /// list has written since an older one did.
+    fn convert_the_current_releases(&mut self) {
+        let Some(mut organization) = self.organization_of_the_current_release.take() else {
+            return;
+        };
+
+        if !self.held_organizations.is_empty() || !holdable(&organization) {
+            return;
+        }
+
+        if organization.turso_organization.is_none() {
+            organization.turso_organization = self.turso_organization.take();
+        }
+
+        if organization.workspace_id.is_none() {
+            organization.workspace_id = self.workspace.remote_id.clone();
+        }
+
+        for replica in &mut self.replicas {
+            if replica.organization_id.trim().is_empty() {
+                replica.organization_id = organization.id.clone();
+            }
+        }
+
+        self.selected_organization = Some(organization.id.clone());
+        self.held_organizations.push(organization);
+    }
+}
+
+/// whether an entry can be signed in to at all: an organization with no id, no key or no remote
+/// cannot, and a record saying otherwise would name a place on the wall that nobody can go.
+fn holdable(organization: &HeldOrganization) -> bool {
+    !(organization.id.trim().is_empty()
+        || organization.verifying_key.trim().is_empty()
+        || organization.remote_url.trim().is_empty())
+}
+
+/// a remembered Turso organization with no slug is not one, and every Platform API path this
+/// application builds would carry the hole into a URL.
+fn sanitize_turso_organization(organization: &mut Option<TursoOrganization>) {
+    organization.take_if(|organization| organization.slug.trim().is_empty());
 }
 
 impl Persistable for RemoteSyncStore {
@@ -380,25 +603,25 @@ impl Persistable for RemoteSyncStore {
         self.replicas
             .retain(|replica| !replica.workspace_id.trim().is_empty());
 
-        // a remembered organization with no slug is not one, and every Platform API path this
-        // application builds would carry the hole into a URL.
-        self.turso_organization
-            .take_if(|organization| organization.slug.trim().is_empty());
+        sanitize_turso_organization(&mut self.turso_organization);
 
-        // an organization with no id, no key or no remote cannot be signed in to, and a record
-        // saying otherwise would name a place on the wall that nobody can go.
-        self.organization.take_if(|organization| {
-            organization.id.trim().is_empty()
-                || organization.verifying_key.trim().is_empty()
-                || organization.remote_url.trim().is_empty()
-        });
+        // the current release's one organization becomes the list's one entry, before anything
+        // below reads the list. No keyring is needed for it, so it runs here, at load, and the
+        // load commits it at once.
+        self.convert_the_current_releases();
+
+        // an organization that cannot be signed in to is not held, and one id is held once.
+        let mut seen = std::collections::HashSet::new();
+
+        self.held_organizations
+            .retain(|organization| holdable(organization) && seen.insert(organization.id.clone()));
 
         // a member id of nothing is no member: the same answer as a machine that has connected
         // and not signed in, and it is spelled that way rather than two ways. A role that is no
         // kind of role is one an earlier build recorded, the manager's older name or `removed`
         // (effort 838, ticket 15): it is a display fact, so it reads as none rather than being
         // translated, and the next sign-in records the kind.
-        if let Some(organization) = self.organization.as_mut() {
+        for organization in &mut self.held_organizations {
             organization.member_id = organization
                 .member_id
                 .take()
@@ -407,6 +630,31 @@ impl Persistable for RemoteSyncStore {
                 .role
                 .take()
                 .filter(|role| KINDS.contains(&role.as_str()));
+            organization.workspace_id = organization
+                .workspace_id
+                .take()
+                .filter(|workspace_id| !workspace_id.trim().is_empty());
+            sanitize_turso_organization(&mut organization.turso_organization);
+        }
+
+        // a selection that names nothing held selects the first organization held, so a machine
+        // holding one always opens on it, and a machine holding none selects nothing.
+        if self.selected().is_none() {
+            self.selected_organization = self
+                .held_organizations
+                .first()
+                .map(|organization| organization.id.clone());
+        }
+
+        // the Turso organization at the top that is the selected organization's own, read back
+        // from the copy every write puts there, is that copy and not a setup's.
+        let the_selected_ones = self
+            .selected()
+            .and_then(|held| held.turso_organization.as_ref())
+            .is_some_and(|held| self.turso_organization.as_ref() == Some(held));
+
+        if the_selected_ones {
+            self.turso_organization = None;
         }
     }
 }
@@ -488,7 +736,7 @@ impl RemoteSync {
         self.store.commit()
     }
 
-    /// Forget the organization this machine holds, on the record: the organization itself, every
+    /// Forget every organization this machine holds, on the record: the organizations, every
     /// replica it tracked, the workspace it had open, the Turso organization its consent was
     /// over, and the old shape's list where the record still carried one. What is left is the
     /// record of a machine that has never held an organization, and the workspace is a fresh
@@ -505,7 +753,8 @@ impl RemoteSync {
         self.account_refusal = None;
         self.credential_refusal = None;
 
-        self.store.organization = None;
+        self.store.held_organizations.clear();
+        self.store.selected_organization = None;
         self.store.organizations_of_the_old_shape.clear();
         self.store.replicas.clear();
         self.store.turso_organization = None;
@@ -530,10 +779,16 @@ impl RemoteSync {
         self.store.workspace.remote_url = None;
         self.store.workspace.updated_at = self.clock.now();
 
+        // and the open organization stops naming it as the one to open again.
+        if let Some(held) = self.store.selected_mut() {
+            held.workspace_id = None;
+        }
+
         self.store.commit()
     }
 
-    /// Note that this machine holds a replica of `workspace_id` for `member_id`.
+    /// Note that this machine holds a replica of `workspace_id` for `member_id`, of the
+    /// organization `organization_id`.
     ///
     /// Idempotent, and it does **not** move `created_at` on a workspace already held: the record
     /// is of when this machine started keeping it, and re-recording it on every launch would make
@@ -542,6 +797,7 @@ impl RemoteSync {
         &mut self,
         workspace_id: &str,
         member_id: &str,
+        organization_id: &str,
         now: i64,
     ) -> Result<(), Error> {
         if self
@@ -556,6 +812,7 @@ impl RemoteSync {
         self.store.replicas.push(LocalReplica {
             workspace_id: workspace_id.to_string(),
             member_id: member_id.to_string(),
+            organization_id: organization_id.to_string(),
             created_at: now,
         });
 
@@ -660,6 +917,11 @@ impl RemoteSync {
         workspace.name = name;
         workspace.permissions = permissions;
         workspace.updated_at = self.clock.now();
+
+        // the workspace is the open organization's, and the one it last had open.
+        if let Some(held) = self.store.selected_mut() {
+            held.workspace_id = Some(learned.remote_id.to_string());
+        }
 
         self.store.commit()
     }
@@ -827,7 +1089,7 @@ pub async fn consented_organization(
     platform_token: &str,
     endpoint: &McpEndpoint,
 ) -> Result<Option<ConsentedGroup>, Error> {
-    if let Some(known) = store.turso_organization.clone() {
+    if let Some(known) = store.consent_organization().cloned() {
         return Ok(Some(ConsentedGroup {
             organization: known,
             databases: None,
@@ -839,7 +1101,7 @@ pub async fn consented_organization(
             organization,
             databases,
         } => {
-            store.turso_organization = Some(organization.clone());
+            store.remember_consent_organization(organization.clone());
             store.commit()?;
 
             Ok(Some(ConsentedGroup {
@@ -875,10 +1137,10 @@ mod tests {
         let mut remote_sync = a_remote_sync("track");
 
         remote_sync
-            .remember_replica("ws-1", "account-1", 1_000)
+            .remember_replica("ws-1", "account-1", "org-1", 1_000)
             .expect("remembering");
         remote_sync
-            .remember_replica("ws-1", "account-1", 9_999)
+            .remember_replica("ws-1", "account-1", "org-1", 9_999)
             .expect("remembering again");
 
         let held = remote_sync.local_replicas();
@@ -901,10 +1163,10 @@ mod tests {
         let mut remote_sync = a_remote_sync("forget");
 
         remote_sync
-            .remember_replica("ws-1", "account-1", 1_000)
+            .remember_replica("ws-1", "account-1", "org-1", 1_000)
             .expect("first");
         remote_sync
-            .remember_replica("ws-2", "account-2", 1_000)
+            .remember_replica("ws-2", "account-2", "org-2", 1_000)
             .expect("second");
 
         remote_sync.forget_replica("ws-1").expect("forgetting");
@@ -983,6 +1245,310 @@ mod tests {
         assert!(remote_sync.local_replicas().is_empty());
     }
 
+    /// `remote-sync.json` as release 0.19.0 writes it, frozen (effort 851, criterion 16): one
+    /// organization, signed in as its owner, with the Turso organization its consent is over, two
+    /// workspace replicas and the workspace it had open. Never edited: a record on disk is what the
+    /// conversion has to meet, and a fixture that followed the code would meet nothing.
+    ///
+    /// **Written out byte for byte here and in the tests of `organization/session/command.rs`**,
+    /// as a fixture used by more than one module is (`rules/testing`).
+    const RELEASED: &str = r#"{
+  "workspace": {
+    "id": "workspace-1759000000000",
+    "name": "Riyadh",
+    "localDatabasePath": "C:\\Users\\someone\\AppData\\Roaming\\rentable\\app.db",
+    "remoteId": "wks-north",
+    "remoteUrl": "libsql://rentable-wks-north-acme.aws-eu-west-1.turso.io",
+    "permissions": 63,
+    "lastError": null,
+    "createdAt": 1759000000000,
+    "updatedAt": 1759500000000
+  },
+  "startupPromptEnabled": false,
+  "deviceId": "device-1759000000000",
+  "replicas": [
+    {
+      "workspaceId": "wks-north",
+      "memberId": "mem-olivia",
+      "createdAt": 1759000100000
+    },
+    {
+      "workspaceId": "wks-south",
+      "memberId": "mem-olivia",
+      "createdAt": 1759000200000
+    }
+  ],
+  "tursoOrganization": {
+    "slug": "acme",
+    "group": "rentable"
+  },
+  "organization": {
+    "id": "org-acme",
+    "name": "Acme",
+    "verifyingKey": "c29tZS12ZXJpZnlpbmcta2V5LW9mLXRoaXJ0eS10d28tYnl0ZXM",
+    "remoteUrl": "libsql://rentable-org-acme-acme.aws-eu-west-1.turso.io",
+    "machineId": "mch-this-one",
+    "memberId": "mem-olivia",
+    "role": "owner",
+    "joinedAt": 1759000000000,
+    "format": 3,
+    "machineSignedOut": 3
+  },
+  "lastReachedAt": 1759600000000
+}
+"#;
+
+    /// The released record, written where a launch would find it, loaded as a launch loads it,
+    /// and read back off the disk.
+    fn released_record_loaded(name: &str) -> (Persisted<RemoteSyncStore>, serde_json::Value) {
+        let path = scratch(name).join(RemoteSync::FILENAME);
+
+        std::fs::write(&path, RELEASED).expect("the released record");
+
+        let store = Persisted::<RemoteSyncStore>::load(path.clone()).expect("the load");
+        let written: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).expect("the file"))
+                .expect("the written record");
+
+        (store, written)
+    }
+
+    /// **A record the current release wrote is converted in place at load, with nothing
+    /// forgotten** (effort 851, requirement 16, criterion 16). The one organization becomes the
+    /// list's only entry and the selected one; the Turso organization its consent is over moves
+    /// into it, with the workspace it had open; every replica entry takes its id. The load
+    /// commits the conversion at once, so the file says all of it.
+    #[test]
+    fn a_record_the_current_release_wrote_is_converted_in_place_with_nothing_forgotten() {
+        let released: serde_json::Value = serde_json::from_str(RELEASED).expect("the fixture");
+        let (_, written) = released_record_loaded("converted-released-record");
+
+        let mut expected = released["organization"].clone();
+        expected["tursoOrganization"] = released["tursoOrganization"].clone();
+        expected["workspaceId"] = released["workspace"]["remoteId"].clone();
+        expected["nameSigned"] = serde_json::Value::Bool(false);
+
+        assert_eq!(
+            written["heldOrganizations"],
+            serde_json::Value::Array(vec![expected.clone()]),
+            "the organization did not become the list's one entry: {written:#}"
+        );
+        assert_eq!(
+            written["selectedOrganization"],
+            released["organization"]["id"]
+        );
+        assert_eq!(
+            written["organization"], expected,
+            "the old key is not a copy of the selected entry"
+        );
+        assert!(
+            written.get("organizations").is_none(),
+            "the key older builds read as the shape they forget was written: {written:#}"
+        );
+        assert_eq!(
+            written["tursoOrganization"], released["tursoOrganization"],
+            "the top-level key is not a copy of the selected entry's Turso organization"
+        );
+
+        let replicas = written["replicas"].as_array().expect("the replicas");
+        let released_replicas = released["replicas"].as_array().expect("the replicas");
+
+        assert_eq!(
+            replicas.len(),
+            released_replicas.len(),
+            "a replica was lost"
+        );
+
+        for (replica, before) in replicas.iter().zip(released_replicas) {
+            assert_eq!(replica["organizationId"], released["organization"]["id"]);
+            assert_eq!(replica["workspaceId"], before["workspaceId"]);
+            assert_eq!(replica["memberId"], before["memberId"]);
+            assert_eq!(replica["createdAt"], before["createdAt"]);
+        }
+
+        for kept in [
+            "workspace",
+            "deviceId",
+            "startupPromptEnabled",
+            "lastReachedAt",
+        ] {
+            assert_eq!(
+                written[kept], released[kept],
+                "`{kept}` changed in the conversion"
+            );
+        }
+    }
+
+    /// The organization as release 0.19.0 reads it: the fields it knows and nothing else, which
+    /// is what a build the updater rolls back to makes of `organization`.
+    #[derive(Debug, PartialEq, Eq, serde::Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct OrganizationAsTheReleaseReadsIt {
+        id: String,
+        name: String,
+        verifying_key: String,
+        remote_url: String,
+        machine_id: String,
+        member_id: Option<String>,
+        role: Option<String>,
+        joined_at: i64,
+        format: Option<i64>,
+        machine_signed_out: i64,
+    }
+
+    #[derive(Debug, PartialEq, Eq, serde::Deserialize)]
+    struct TursoOrganizationAsTheReleaseReadsIt {
+        slug: String,
+        group: String,
+    }
+
+    #[derive(Debug, serde::Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct RecordAsTheReleaseReadsIt {
+        organization: Option<OrganizationAsTheReleaseReadsIt>,
+        turso_organization: Option<TursoOrganizationAsTheReleaseReadsIt>,
+    }
+
+    /// **A build that knows only the old key finds the selected organization intact** in a
+    /// converted record (effort 851, the plan's *The machine's record holds a list*): every field
+    /// it reads is what it wrote, so a rollback lands the person on the organization they had,
+    /// with the Turso organization its consent is over at the top where that build reads it.
+    #[test]
+    fn an_older_build_reading_a_converted_record_finds_the_selected_organization_intact() {
+        let released: RecordAsTheReleaseReadsIt =
+            serde_json::from_str(RELEASED).expect("the fixture");
+        let (_, written) = released_record_loaded("converted-read-by-the-release");
+        let read: RecordAsTheReleaseReadsIt =
+            serde_json::from_value(written).expect("the release could not read the record");
+
+        assert!(released.organization.is_some());
+        assert_eq!(read.organization, released.organization);
+
+        // and the Turso organization the owner's consent is over, where that build reads it, so a
+        // rolled-back owner's machine still holds its Turso authority.
+        assert!(released.turso_organization.is_some());
+        assert_eq!(read.turso_organization, released.turso_organization);
+    }
+
+    /// The conversion through the record's own interface: one entry, selected, carrying the
+    /// Turso organization and the workspace, and every replica of it.
+    #[test]
+    fn a_converted_record_holds_one_organization_selected_with_its_replicas() {
+        let (store, _) = released_record_loaded("converted-through-the-interface");
+
+        assert_eq!(store.held_organizations.len(), 1);
+
+        let held = store.selected().expect("nothing selected");
+
+        assert_eq!(held.id, "org-acme");
+        assert_eq!(held.member_id.as_deref(), Some("mem-olivia"));
+        assert_eq!(held.machine_signed_out, 3);
+        assert_eq!(held.workspace_id.as_deref(), Some("wks-north"));
+        assert_eq!(
+            store.consent_organization().map(|it| it.slug.as_str()),
+            Some("acme")
+        );
+        assert_eq!(store.turso_organization, None);
+        assert!(
+            store
+                .replicas
+                .iter()
+                .all(|replica| replica.organization_id == "org-acme")
+        );
+    }
+
+    /// **The conversion happens once.** A converted record loads unchanged, and a record whose
+    /// list was emptied stays empty: the copy under `organization` is never read back as an
+    /// organization to hold, which is what would bring a forgotten one back.
+    #[test]
+    fn a_converted_record_is_not_converted_again_and_an_emptied_one_stays_empty() {
+        let path = scratch("converted-once").join(RemoteSync::FILENAME);
+
+        std::fs::write(&path, RELEASED).expect("the released record");
+
+        let mut store = Persisted::<RemoteSyncStore>::load(path.clone()).expect("the load");
+        let converted = std::fs::read_to_string(&path).expect("the file");
+
+        drop(Persisted::<RemoteSyncStore>::load(path.clone()).expect("the second load"));
+
+        assert_eq!(
+            std::fs::read_to_string(&path).expect("the file"),
+            converted,
+            "a converted record changed on the next load"
+        );
+
+        store.held_organizations.clear();
+        store.selected_organization = None;
+        store.commit().expect("the commit");
+
+        let reloaded = Persisted::<RemoteSyncStore>::load(path).expect("the reload");
+
+        assert!(
+            reloaded.held_organizations.is_empty(),
+            "a forgotten organization came back"
+        );
+        assert_eq!(reloaded.selected(), None);
+    }
+
+    /// **A Turso organization a setup looked up before anything was held goes into the entry the
+    /// setup records**, and is written at the top of the record only until then.
+    #[test]
+    fn holding_an_organization_takes_the_turso_organization_a_setup_looked_up() {
+        let mut store = RemoteSyncStore::default();
+
+        store.remember_consent_organization(crate::turso::discovery::TursoOrganization {
+            slug: "acme".to_string(),
+            group: "rentable".to_string(),
+        });
+
+        let pending = serde_json::to_value(&store).expect("serialised");
+
+        assert_eq!(pending["tursoOrganization"]["slug"], "acme");
+
+        store.hold(super::HeldOrganization {
+            id: "org-acme".to_string(),
+            verifying_key: "k".to_string(),
+            remote_url: "libsql://a".to_string(),
+            ..Default::default()
+        });
+
+        assert_eq!(store.turso_organization, None);
+        assert_eq!(
+            store.consent_organization().map(|it| it.slug.as_str()),
+            Some("acme")
+        );
+        assert_eq!(store.selected_organization.as_deref(), Some("org-acme"));
+
+        let held = serde_json::to_value(&store).expect("serialised");
+
+        assert_eq!(held["tursoOrganization"]["slug"], "acme", "{held:#}");
+        assert_eq!(held["organization"]["tursoOrganization"]["slug"], "acme");
+
+        // and read back, the copy at the top is the entry's and not a setup's.
+        let mut reread: RemoteSyncStore = serde_json::from_value(held).expect("read back");
+
+        reread.sanitize();
+
+        assert_eq!(reread.turso_organization, None);
+        assert_eq!(
+            reread.consent_organization().map(|it| it.slug.as_str()),
+            Some("acme")
+        );
+    }
+
+    /// A selection naming nothing held selects the first organization held.
+    #[test]
+    fn a_selection_naming_nothing_held_selects_the_first() {
+        let mut store: RemoteSyncStore = serde_json::from_str(
+            r#"{"heldOrganizations":[{"id":"a","name":"Acme","verifyingKey":"k","remoteUrl":"libsql://a"},{"id":"b","name":"Beta","verifyingKey":"k","remoteUrl":"libsql://b"}],"selectedOrganization":"gone"}"#,
+        )
+        .expect("the record");
+
+        store.sanitize();
+
+        assert_eq!(store.selected().map(|held| held.id.as_str()), Some("a"));
+    }
+
     fn a_remote_sync(name: &str) -> RemoteSync {
         a_remote_sync_at(scratch(name).join("store.json"))
     }
@@ -1014,7 +1580,10 @@ mod tests {
 
         store.sanitize();
 
-        let held = store.organization.expect("the organization was dropped");
+        let held = store
+            .selected()
+            .cloned()
+            .expect("the organization was dropped");
 
         assert_eq!(held.member_id, None);
         assert_eq!(held.role, None);
@@ -1034,7 +1603,10 @@ mod tests {
 
             store.sanitize();
 
-            store.organization.expect("the organization was dropped")
+            store
+                .selected()
+                .cloned()
+                .expect("the organization was dropped")
         };
 
         let removed = read("removed");

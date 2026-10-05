@@ -598,6 +598,9 @@ mod tests {
             joined_at: 0,
             format: None,
             machine_signed_out: 0,
+            turso_organization: None,
+            workspace_id: None,
+            name_signed: false,
         }
     }
 
@@ -707,7 +710,7 @@ mod tests {
         )
         .await
         .expect("the first run failed");
-        let joined = machine.organization.clone().expect("the record");
+        let joined = machine.selected().cloned().expect("the record");
         let mut owner = sign_in(&store, &joined, OWNER_PASSWORD, &slot())
             .await
             .expect("the owner did not sign in");
@@ -1599,7 +1602,7 @@ mod tests {
         assert!(app_state.member.read().await.is_none());
         assert!(app_state.organization.read().await.is_none());
         assert_eq!(
-            app_state.remote_sync.write().await.store_mut().organization,
+            app_state.remote_sync.write().await.store_mut().selected(),
             None
         );
         assert_eq!(
@@ -1608,7 +1611,7 @@ mod tests {
                 .write()
                 .await
                 .store_mut()
-                .turso_organization,
+                .consent_organization(),
             None
         );
         assert!(

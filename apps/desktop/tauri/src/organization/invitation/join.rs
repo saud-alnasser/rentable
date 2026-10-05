@@ -194,7 +194,7 @@ where
     // anything is derived or reached, as `machine::connect` refuses one. The link's own
     // organization is not another one: opening it again where it is held is judged on its row
     // below, and refused as what it is.
-    if let Some(held) = machine.organization.as_ref()
+    if let Some(held) = machine.selected()
         && held.id != link.organization_id
     {
         return Err(Error::refused(
@@ -306,8 +306,7 @@ async fn accepted(
     // the name a refusal says: the record's where this machine holds the organization, and the
     // link's where it holds nothing, which is what the record would have been written from.
     let name = machine
-        .organization
-        .as_ref()
+        .selected()
         .map_or(link.organization_name.as_str(), |held| held.name.as_str())
         .to_string();
     let verifying_key = link.verifying_key_bytes()?;
@@ -345,7 +344,7 @@ async fn accepted(
     // the vault is open, so this is the first moment the organization is recorded on a machine
     // that holds nothing: the registry row and the record, naming nobody yet. A machine holding it
     // already keeps what it holds.
-    let held = match machine.organization.clone() {
+    let held = match machine.selected().cloned() {
         Some(held) => held,
         None => connect::connect(store, machine, &link.locator(), link_credential, now).await?,
     };
@@ -400,7 +399,7 @@ async fn accepted(
     let machine_signed_out =
         sign_outs_acknowledged(store, &held.machine_id, &session.member_id).await?;
 
-    machine.organization = Some(HeldOrganization {
+    machine.hold(HeldOrganization {
         member_id: Some(session.member_id.clone()),
         role: Some(session.role.clone()),
         format: Some(FORMAT_VERSION),
@@ -509,7 +508,7 @@ pub(crate) async fn admitted_after(
     machine_named(store, &filled, &session.content_key, now).await;
     machine_seen(store, &filled, Some(&session.member_id), now).await;
 
-    machine.organization = Some(filled);
+    machine.hold(filled);
     machine.commit()?;
 
     diagnostics::info("organization.signedIn")
@@ -604,7 +603,7 @@ mod tests {
             .expect("the store");
 
         assert!(
-            machine.organization.is_none(),
+            machine.selected().is_none(),
             "the second machine has prior state"
         );
 
@@ -677,7 +676,7 @@ mod tests {
         )
         .await
         .expect("the first run failed");
-        let joined = store.organization.clone().expect("the record");
+        let joined = store.selected().cloned().expect("the record");
         let mut owner = sign_in(&organization, &joined, PASSWORD, &slot())
             .await
             .expect("the owner did not sign in");
@@ -760,7 +759,7 @@ mod tests {
             .expect("the store");
 
         assert!(
-            machine.organization.is_none(),
+            machine.selected().is_none(),
             "the second machine has prior state"
         );
 
@@ -823,8 +822,8 @@ mod tests {
     /// What a machine's record names, once something has recorded an organization on it.
     fn held_by(machine: &Persisted<RemoteSyncStore>) -> HeldOrganization {
         machine
-            .organization
-            .clone()
+            .selected()
+            .cloned()
             .expect("the machine holds no organization")
     }
 
@@ -939,7 +938,7 @@ mod tests {
                 .as_deref()
         );
 
-        let recorded = machine.organization.as_ref().expect("the record");
+        let recorded = machine.selected().expect("the record");
 
         assert_eq!(recorded.id, link.organization_id);
         assert_eq!(recorded.verifying_key, link.verifying_key);
@@ -1010,7 +1009,7 @@ mod tests {
             "the invitation was not spent"
         );
 
-        let recorded = their_machine.organization.as_ref().expect("the record");
+        let recorded = their_machine.selected().expect("the record");
 
         assert_eq!(
             recorded.member_id.as_deref(),
@@ -1121,7 +1120,7 @@ mod tests {
             "{spent:?}"
         );
         assert!(
-            spent_machine.organization.is_none(),
+            spent_machine.selected().is_none(),
             "a spent link recorded the organization"
         );
     }
@@ -1196,8 +1195,7 @@ mod tests {
         );
         assert_eq!(
             machine
-                .organization
-                .as_ref()
+                .selected()
                 .and_then(|held| held.member_id.as_deref()),
             None,
             "a refusal recorded a member"
@@ -1241,7 +1239,7 @@ mod tests {
             scratch("accept-refused-elsewhere").join(RemoteSync::FILENAME),
         )
         .expect("the machine");
-        elsewhere.organization = Some(HeldOrganization {
+        elsewhere.hold(HeldOrganization {
             id: "another".to_string(),
             name: "Other".to_string(),
             ..held.clone()
@@ -1317,8 +1315,7 @@ mod tests {
         );
         assert_eq!(
             machine
-                .organization
-                .as_ref()
+                .selected()
                 .and_then(|held| held.member_id.as_deref()),
             None
         );
@@ -1381,7 +1378,7 @@ mod tests {
         // the code was right and the organization was reached, but the row is judged before
         // anything is recorded, so the machine holds nothing (effort 851, requirement 10).
         assert!(
-            machine.organization.is_none(),
+            machine.selected().is_none(),
             "a refused link recorded the organization"
         );
     }
@@ -1433,7 +1430,8 @@ mod tests {
         // refused on the link's own moment, before any key was derived, so nothing was reached and
         // the machine holds nothing (effort 828, requirement 1).
         assert_eq!(
-            machine.organization, None,
+            machine.selected(),
+            None,
             "a lapsed link reached the organization"
         );
         assert_eq!(
@@ -1604,7 +1602,7 @@ mod tests {
         )
         .await
         .expect("the owner did not sign in");
-        let signed_in = machine.organization.clone().expect("the record");
+        let signed_in = machine.selected().cloned().expect("the record");
 
         drop(machine);
 
@@ -1630,8 +1628,8 @@ mod tests {
             .write()
             .await
             .store_mut()
-            .organization
-            .clone();
+            .selected()
+            .cloned();
 
         assert_eq!(recorded.as_ref(), Some(&signed_in));
         assert_eq!(
@@ -1831,7 +1829,8 @@ mod tests {
         // none of the four reached anything: the machine holds no organization, because the
         // credential that would reach one is what the code was standing in front of.
         assert_eq!(
-            machine.organization, None,
+            machine.selected(),
+            None,
             "a refused code reached the organization"
         );
 
@@ -2140,7 +2139,7 @@ mod tests {
             "the first run's rows did not reach the account"
         );
 
-        let joined_a = store_a.organization.clone().expect("the record on A");
+        let joined_a = store_a.selected().cloned().expect("the record on A");
         let mut owner_a = sign_in(&organization_a, &joined_a, PASSWORD, &slot())
             .await
             .expect("the owner did not sign in on A");
@@ -2549,7 +2548,7 @@ mod tests {
             ),
             "{refused:?}"
         );
-        assert!(machine.organization.is_none(), "the spent link recorded");
+        assert!(machine.selected().is_none(), "the spent link recorded");
         assert_eq!(
             std::fs::read(elsewhere.join(RemoteSync::FILENAME)).expect("the record"),
             record,
@@ -2721,6 +2720,6 @@ mod tests {
             before,
             "the refusal wrote to the organization"
         );
-        assert!(machine.organization.is_none());
+        assert!(machine.selected().is_none());
     }
 }

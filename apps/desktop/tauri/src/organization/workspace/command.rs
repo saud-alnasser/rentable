@@ -193,9 +193,7 @@ pub(crate) async fn organization_workspace_open(
 
                 remote_sync
                     .store_mut()
-                    .organization
-                    .as_ref()
-                    .filter(|held| held.id == member.organization_id)
+                    .held(&member.organization_id)
                     .map(|held| held.remote_url.trim_start_matches("libsql://").to_string())
                     .unwrap_or_default()
             };

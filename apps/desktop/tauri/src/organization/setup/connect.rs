@@ -145,7 +145,7 @@ where
 
     // which account the consent is over, recorded now: it is what every Platform API path this
     // machine builds afterwards is made of, and it stays true whether or not this run connects.
-    store.turso_organization = Some(organization.clone());
+    store.remember_consent_organization(organization.clone());
     store.commit()?;
 
     let platform = platform_for(organization);
@@ -232,6 +232,9 @@ where
             // a record for the sign-in alone, with no machine yet: `connect::record` below draws
             // the machine and acknowledges for it.
             machine_signed_out: 0,
+            turso_organization: None,
+            workspace_id: None,
+            name_signed: false,
         };
         let mut session =
             sign_in_by_username(
@@ -569,10 +572,7 @@ mod tests {
         let machine = Persisted::<RemoteSyncStore>::load(directory.join(format!("{name}.json")))
             .expect("the store");
 
-        assert!(
-            machine.organization.is_none(),
-            "the machine has prior state"
-        );
+        assert!(machine.selected().is_none(), "the machine has prior state");
 
         machine
     }
@@ -615,7 +615,7 @@ mod tests {
 
         let directory = scratch("connect-existing");
         let (platform, replica, owners_machine) = an_organization(&credentials, &directory).await;
-        let held_before = owners_machine.organization.clone().expect("the record");
+        let held_before = owners_machine.selected().cloned().expect("the record");
         let owner = sign_in(&replica, &held_before, PASSWORD, &slot())
             .await
             .expect("the owner did not sign in");
@@ -651,7 +651,7 @@ mod tests {
         assert_eq!(held.member_id.as_deref(), Some(session.member_id.as_str()));
         assert_eq!(held.role.as_deref(), Some(OWNER_ROLE));
         assert!(!held.machine_id.is_empty(), "the machine drew no id");
-        assert_eq!(machine.organization.as_ref(), Some(&held));
+        assert_eq!(machine.selected(), Some(&held));
 
         // the owner is signed in, and what the machine pinned is what their password derived.
         assert_eq!(session.role, OWNER_ROLE);
@@ -730,7 +730,7 @@ mod tests {
         let (platform, replica, owners_machine) = an_organization(&credentials, &directory).await;
         let owner = sign_in(
             &replica,
-            &owners_machine.organization.clone().expect("the record"),
+            &owners_machine.selected().cloned().expect("the record"),
             PASSWORD,
             &slot(),
         )
@@ -803,7 +803,7 @@ mod tests {
             "{refused:?}"
         );
         assert!(
-            machine.organization.is_none(),
+            machine.selected().is_none(),
             "a refused connect left an organization on the machine"
         );
     }
@@ -820,7 +820,7 @@ mod tests {
         directory: &std::path::Path,
     ) -> (Arc<InMemoryPlatform>, AccountAndLink, MemberSession) {
         let (platform, replica, owners_machine) = an_organization(credentials, directory).await;
-        let held_before = owners_machine.organization.clone().expect("the record");
+        let held_before = owners_machine.selected().cloned().expect("the record");
         let owner = sign_in(&replica, &held_before, PASSWORD, &slot())
             .await
             .expect("the owner did not sign in");
@@ -993,7 +993,7 @@ mod tests {
             "{refused:?}"
         );
         assert!(
-            founders_machine.organization.is_none(),
+            founders_machine.selected().is_none(),
             "a refused connect left an organization on the machine"
         );
     }
@@ -1017,7 +1017,7 @@ mod tests {
 
         let directory = scratch("connect-existing-in-use");
         let (platform, replica, owners_machine) = an_organization(&credentials, &directory).await;
-        let held = owners_machine.organization.clone().expect("the record");
+        let held = owners_machine.selected().cloned().expect("the record");
         let owner = sign_in(&replica, &held, PASSWORD, &slot())
             .await
             .expect("the owner did not sign in");
@@ -1091,7 +1091,7 @@ mod tests {
 
         // the consent is kept, as it is on every connect that goes through.
         assert!(platform_token(&credentials).is_ok());
-        assert!(machine.turso_organization.is_some());
+        assert!(machine.consent_organization().is_some());
     }
 
     /// **The fourth case.** A wrong password and a username nobody holds are one refusal, and it
@@ -1146,7 +1146,7 @@ mod tests {
                 session::refused_by_name(ORGANIZATION_THIS_ACCOUNT_HOLDS).to_string(),
                 "{machine_name}"
             );
-            assert!(machine.organization.is_none(), "{machine_name}");
+            assert!(machine.selected().is_none(), "{machine_name}");
             assert!(
                 !OrganizationStore::replica_path(&directory.join("app.db"), HELD_ID).exists(),
                 "{machine_name} left the replica it pulled on disk"
@@ -1157,7 +1157,7 @@ mod tests {
             // the authority is exactly where it was.
             assert!(platform_token(&credentials).is_ok(), "{machine_name}");
             assert!(
-                machine.turso_organization.is_some(),
+                machine.consent_organization().is_some(),
                 "{machine_name} let the account the consent was over go"
             );
         }
@@ -1217,7 +1217,7 @@ mod tests {
         let directory = scratch("connect-existing-ended-alone");
         let theirs = scratch("connect-existing-ended-alone-b");
         let (platform, replica, owners_machine) = an_organization(&credentials, &directory).await;
-        let held_a = owners_machine.organization.clone().expect("the record");
+        let held_a = owners_machine.selected().cloned().expect("the record");
 
         drop(replica);
 

@@ -539,7 +539,7 @@ mod tests {
         );
         assert!(platform.minted().is_empty(), "a credential was minted");
         assert!(platform.deleted().is_empty(), "something was cleaned up");
-        assert!(store.organization.is_none());
+        assert!(store.selected().is_none());
 
         // and the consent is abandoned: the token is gone from the credential store, and so is
         // the slug it was read under, so the next consent is looked up rather than assumed.
@@ -547,7 +547,7 @@ mod tests {
             platform_token(&credentials).is_err(),
             "the refused consent left its authority on this machine"
         );
-        assert_eq!(store.turso_organization, None);
+        assert_eq!(store.consent_organization(), None);
     }
 
     /// **Ticket 17.** The group the person typed is the one the first create names, so a name
@@ -608,7 +608,7 @@ mod tests {
             platform.databases().is_empty(),
             "a database was created on a refused run"
         );
-        assert!(store.organization.is_none());
+        assert!(store.selected().is_none());
         assert!(platform_token(&credentials).is_ok());
     }
 
@@ -756,15 +756,14 @@ mod tests {
         assert!(databases[0].delete_protection);
         assert_eq!(
             store
-                .turso_organization
-                .as_ref()
+                .consent_organization()
                 .map(|o| (o.slug.as_str(), o.group.as_str())),
             Some(("acme-co", "rentable-empty"))
         );
 
         let held = store
-            .organization
-            .clone()
+            .selected()
+            .cloned()
             .expect("the first run recorded no organization");
 
         assert_eq!(
@@ -1018,8 +1017,8 @@ mod tests {
         // nothing was created, and the slug was not written down: there is no organization to
         // read one out of yet.
         assert!(platform.databases().is_empty());
-        assert!(store.organization.is_none());
-        assert_eq!(store.turso_organization, None);
+        assert!(store.selected().is_none());
+        assert_eq!(store.consent_organization(), None);
     }
 
     /// The other half of the same rule: a refusal that is not about the group is the answer, so

@@ -143,7 +143,7 @@ where
     // connected a machine, which is what happened, rather than as a machine that has to disconnect
     // first. `join::accept` reads a held organization the same way, and this said the wrong thing
     // where that says the right one.
-    if let Some(held) = machine.organization.as_ref()
+    if let Some(held) = machine.selected()
         && held.id != link.organization_id
     {
         return Err(Error::refused(
@@ -244,7 +244,7 @@ async fn connected(
 
     // the machine that already holds this organization keeps what it holds: the connect is what
     // records one, and there is nothing here to record a second time.
-    let held = match machine.organization.clone() {
+    let held = match machine.selected().cloned() {
         Some(held) => held,
         None => connect::connect(store, machine, &link.locator(), link_credential, now).await?,
     };
@@ -327,10 +327,7 @@ mod tests {
         let machine = Persisted::<RemoteSyncStore>::load(directory.join(RemoteSync::FILENAME))
             .expect("the store");
 
-        assert!(
-            machine.organization.is_none(),
-            "the machine has prior state"
-        );
+        assert!(machine.selected().is_none(), "the machine has prior state");
 
         machine
     }
@@ -392,7 +389,7 @@ mod tests {
         )
         .await
         .expect("the first run failed");
-        let joined = record.organization.clone().expect("the record");
+        let joined = record.selected().cloned().expect("the record");
         let owner = sign_in(&store, &joined, PASSWORD, &slot())
             .await
             .expect("the owner did not sign in");
@@ -562,7 +559,7 @@ mod tests {
         assert_eq!(held.role, None);
         assert_eq!(held.joined_at, ISSUED_AT + 3);
 
-        let recorded = machine.organization.as_ref().expect("the record");
+        let recorded = machine.selected().expect("the record");
 
         assert_eq!(recorded.member_id, None);
 
@@ -620,7 +617,7 @@ mod tests {
             "{refusal:?}"
         );
         assert!(
-            wrong_machine.organization.is_none(),
+            wrong_machine.selected().is_none(),
             "a wrong code recorded an organization"
         );
 
@@ -647,7 +644,7 @@ mod tests {
             ),
             "{refusal:?}"
         );
-        assert!(late_machine.organization.is_none());
+        assert!(late_machine.selected().is_none());
 
         // the machine the link was made for, which spends it.
         let first = scratch("once-first");
@@ -698,7 +695,7 @@ mod tests {
             "{refusal:?}"
         );
         assert!(
-            second_machine.organization.is_none(),
+            second_machine.selected().is_none(),
             "a spent link recorded an organization"
         );
 
@@ -880,7 +877,7 @@ mod tests {
             ),
             "{refused:?}"
         );
-        assert!(machine.organization.is_none(), "the spent link recorded");
+        assert!(machine.selected().is_none(), "the spent link recorded");
         assert_eq!(
             std::fs::read(elsewhere.join(RemoteSync::FILENAME)).expect("the record"),
             record,
@@ -1133,7 +1130,7 @@ mod tests {
             ),
             "{refused:?}"
         );
-        assert!(machine.organization.is_none(), "the machine recorded one");
+        assert!(machine.selected().is_none(), "the machine recorded one");
 
         // and the row written back, which is what a replica somebody rewrote carries: the account
         // itself is what refuses now, read off the rows the link's own key judges.
@@ -1170,7 +1167,7 @@ mod tests {
             !refused.to_string().contains("sami"),
             "the refusal names the account: {refused}"
         );
-        assert!(machine.organization.is_none(), "the machine recorded one");
+        assert!(machine.selected().is_none(), "the machine recorded one");
     }
 
     /// The other half of the same finding: **a reset takes an account's open machine links with
@@ -1233,7 +1230,7 @@ mod tests {
             ),
             "{refused:?}"
         );
-        assert!(machine.organization.is_none(), "the machine recorded one");
+        assert!(machine.selected().is_none(), "the machine recorded one");
     }
 
     /// Everything the organization database holds, table by table and row by row, as a test
@@ -1391,6 +1388,6 @@ mod tests {
             before,
             "the refusal wrote to the organization"
         );
-        assert!(machine.organization.is_none());
+        assert!(machine.selected().is_none());
     }
 }

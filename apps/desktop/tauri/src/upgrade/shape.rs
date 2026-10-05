@@ -182,7 +182,7 @@ async fn old_shape(app_state: &Shared, clock: &clock::Shared) -> Result<Option<O
 
         (
             store.organizations_of_the_old_shape.len(),
-            store.organization.clone(),
+            store.selected().cloned(),
         )
     };
 
@@ -281,7 +281,7 @@ mod tests {
             setup::{CreateOrganization, Remote, create_organization},
             store::OrganizationStore,
         },
-        persisted::Persisted,
+        persisted::{Persistable as _, Persisted},
         settings::Settings,
         sync::test::server::{ScriptedResponse, ScriptedServer},
         turso::{consent::TursoConsent, discovery::McpEndpoint, platform::InMemoryPlatform},
@@ -404,7 +404,7 @@ mod tests {
         )
         .await
         .expect("the first run failed");
-        let held = store.organization.clone().expect("the record");
+        let held = store.selected().cloned().expect("the record");
 
         (organization, held)
     }
@@ -512,7 +512,7 @@ mod tests {
                 .write()
                 .await
                 .store_mut()
-                .organization
+                .selected()
                 .is_none()
         );
 
@@ -595,7 +595,7 @@ mod tests {
                 .write()
                 .await
                 .store_mut()
-                .organization
+                .selected()
                 .is_none()
         );
 
@@ -642,7 +642,7 @@ mod tests {
                 .write()
                 .await
                 .store_mut()
-                .organization
+                .selected()
                 .is_none()
         );
 
@@ -690,7 +690,7 @@ mod tests {
                 .write()
                 .await
                 .store_mut()
-                .organization
+                .selected()
                 .is_none()
         );
 
@@ -739,7 +739,7 @@ mod tests {
                 .write()
                 .await
                 .store_mut()
-                .organization
+                .selected()
                 .is_none(),
             "the organization was not forgotten"
         );
@@ -821,13 +821,7 @@ mod tests {
             "the replica was swept"
         );
         assert_eq!(
-            app_state
-                .remote_sync
-                .write()
-                .await
-                .store_mut()
-                .organization
-                .as_ref(),
+            app_state.remote_sync.write().await.store_mut().selected(),
             Some(&held),
             "{} was forgotten",
             held.id
@@ -864,13 +858,7 @@ mod tests {
             None
         );
         assert_eq!(
-            app_state
-                .remote_sync
-                .write()
-                .await
-                .store_mut()
-                .organization
-                .as_ref(),
+            app_state.remote_sync.write().await.store_mut().selected(),
             Some(&held)
         );
         assert!(
@@ -921,10 +909,7 @@ mod tests {
         )
         .expect("a record of the old shape did not read");
 
-        assert_eq!(
-            store.organization, None,
-            "the list was read as the one held"
-        );
+        assert_eq!(store.selected(), None, "the list was read as the one held");
         assert_eq!(store.organizations_of_the_old_shape.len(), 2);
 
         let written = serde_json::to_string(&store).expect("serialised");
@@ -943,5 +928,37 @@ mod tests {
             "a record of the new shape carries the old key: {written}"
         );
         assert!(written.contains("\"organization\":null"), "{written}");
+    }
+
+    /// **The list this build writes is not the list it forgets the machine over** (effort 851).
+    /// `heldOrganizations` reads into the record's list and never into the old shape's sign, and
+    /// a record holding several organizations is written without the `organizations` key the
+    /// startup check and every older build read as the shape effort 824 retired.
+    #[test]
+    fn a_record_holding_a_list_of_this_builds_shape_is_never_read_as_the_old_shape() {
+        let mut store: RemoteSyncStore = serde_json::from_str(
+            r#"{"workspace":{"id":"workspace-1","name":"Riyadh"},"heldOrganizations":[{"id":"a","name":"Acme","verifyingKey":"k","remoteUrl":"libsql://a","memberId":"me","role":"owner","joinedAt":1},{"id":"b","name":"Beta","verifyingKey":"k","remoteUrl":"libsql://b","memberId":"me","role":"member","joinedAt":2}],"selectedOrganization":"b"}"#,
+        )
+        .expect("a record of this build's shape did not read");
+
+        store.sanitize();
+
+        assert!(
+            store.organizations_of_the_old_shape.is_empty(),
+            "the list was read as the old shape's sign"
+        );
+        assert_eq!(store.held_organizations.len(), 2);
+
+        let written = serde_json::to_string(&store).expect("serialised");
+
+        assert!(
+            !written.contains("\"organizations\""),
+            "a record of this build's shape carries the old key: {written}"
+        );
+        assert!(written.contains("\"heldOrganizations\":["), "{written}");
+        assert!(
+            written.contains("\"organization\":{\"id\":\"b\""),
+            "the selected organization is not under the old key: {written}"
+        );
     }
 }

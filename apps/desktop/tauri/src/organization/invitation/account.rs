@@ -736,6 +736,9 @@ mod tests {
             joined_at: 0,
             format: None,
             machine_signed_out: 0,
+            turso_organization: None,
+            workspace_id: None,
+            name_signed: false,
         }
     }
 
@@ -794,7 +797,7 @@ mod tests {
         )
         .await
         .expect("the first run failed");
-        let joined = store.organization.clone().expect("the record");
+        let joined = store.selected().cloned().expect("the record");
         let mut owner = sign_in(&organization, &joined, PASSWORD, &slot())
             .await
             .expect("the owner did not sign in");
@@ -823,10 +826,7 @@ mod tests {
         let machine = Persisted::<RemoteSyncStore>::load(directory.join("remote-sync.json"))
             .expect("the store");
 
-        assert!(
-            machine.organization.is_none(),
-            "the machine has prior state"
-        );
+        assert!(machine.selected().is_none(), "the machine has prior state");
 
         machine
     }
@@ -868,12 +868,7 @@ mod tests {
         )
         .await
         .expect("the account could not be opened");
-        let machine_id = machine
-            .organization
-            .as_ref()
-            .expect("the record")
-            .machine_id
-            .clone();
+        let machine_id = machine.selected().expect("the record").machine_id.clone();
 
         (session, machine_id)
     }
@@ -1005,7 +1000,7 @@ mod tests {
             .is_err(),
             "a lapsed link opened an account"
         );
-        assert!(late_machine.organization.is_none());
+        assert!(late_machine.selected().is_none());
 
         // the machine it was made for, which spends it and chooses the password.
         let theirs = scratch("account-theirs");
@@ -1054,7 +1049,7 @@ mod tests {
             "a spent link opened a second machine"
         );
         assert!(
-            second_machine.organization.is_none(),
+            second_machine.selected().is_none(),
             "a spent link recorded the organization"
         );
     }

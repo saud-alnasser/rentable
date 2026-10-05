@@ -475,7 +475,7 @@ pub async fn accept_ownership(
 ) -> Result<(), Error> {
     session.settled()?;
 
-    let held = machine.organization.clone().ok_or_else(|| {
+    let held = machine.selected().cloned().ok_or_else(|| {
         Error::refused(
             RefusalReason::NoOrganization,
             "this machine holds no organization",
@@ -781,7 +781,7 @@ pub async fn accept_ownership(
     session.role = permission::OWNER.to_string();
     session.permissions = permission::OWNER_ROLE.mask;
 
-    machine.organization = Some(HeldOrganization {
+    machine.hold(HeldOrganization {
         verifying_key: BASE64URL.encode(new_verifying_key),
         role: Some(permission::OWNER.to_string()),
         ..held
@@ -822,7 +822,7 @@ pub async fn follow_succession(
     store: &OrganizationStore,
     machine: &mut Persisted<RemoteSyncStore>,
 ) -> Result<Option<[u8; VERIFYING_KEY_BYTES]>, Error> {
-    let Some(held) = machine.organization.clone() else {
+    let Some(held) = machine.selected().cloned() else {
         return Ok(None);
     };
     let pinned = verifying_key_of(&held)?;
@@ -855,7 +855,7 @@ pub async fn follow_succession(
 
     let organization_id = held.id.clone();
 
-    machine.organization = Some(HeldOrganization {
+    machine.hold(HeldOrganization {
         verifying_key: BASE64URL.encode(key),
         ..held
     });
@@ -975,6 +975,9 @@ mod tests {
             joined_at: 0,
             format: None,
             machine_signed_out: 0,
+            turso_organization: None,
+            workspace_id: None,
+            name_signed: false,
         }
     }
 
@@ -1027,7 +1030,7 @@ mod tests {
         )
         .await
         .expect("the first run failed");
-        let joined = store.organization.clone().expect("the record");
+        let joined = store.selected().cloned().expect("the record");
         let mut owner = sign_in(&organization, &joined, PASSWORD, &slot())
             .await
             .expect("the owner did not sign in");
@@ -1267,7 +1270,7 @@ mod tests {
     ) -> Persisted<RemoteSyncStore> {
         let mut machine = fresh_machine(directory, name);
 
-        machine.organization = Some(HeldOrganization {
+        machine.hold(HeldOrganization {
             remote_url: "libsql://acme.test".to_string(),
             verifying_key: encoded(verifying_key),
             ..joined_as(owner, &owner.member_id, permission::OWNER)
@@ -1668,11 +1671,7 @@ mod tests {
             new_key
         );
         assert_eq!(
-            ada_machine
-                .organization
-                .as_ref()
-                .expect("the record")
-                .verifying_key,
+            ada_machine.selected().expect("the record").verifying_key,
             encoded(new_key)
         );
         assert_eq!(ada_session.role, permission::OWNER);
@@ -2085,11 +2084,7 @@ mod tests {
 
         assert_eq!(followed, new_key);
         assert_eq!(
-            third
-                .organization
-                .as_ref()
-                .expect("the record")
-                .verifying_key,
+            third.selected().expect("the record").verifying_key,
             encoded(new_key)
         );
 

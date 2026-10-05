@@ -293,7 +293,7 @@ mod tests {
         )
         .await
         .expect("the first run failed");
-        let joined = store.organization.clone().expect("the record");
+        let joined = store.selected().cloned().expect("the record");
         let mut owner = sign_in(&organization, &joined, PASSWORD, &slot())
             .await
             .expect("the owner did not sign in");
@@ -322,10 +322,7 @@ mod tests {
         let machine = Persisted::<RemoteSyncStore>::load(directory.join("remote-sync.json"))
             .expect("the store");
 
-        assert!(
-            machine.organization.is_none(),
-            "the machine has prior state"
-        );
+        assert!(machine.selected().is_none(), "the machine has prior state");
 
         machine
     }
@@ -419,13 +416,7 @@ mod tests {
         );
 
         store
-            .unregister_machine(
-                &their_machine
-                    .organization
-                    .as_ref()
-                    .expect("the record")
-                    .machine_id,
-            )
+            .unregister_machine(&their_machine.selected().expect("the record").machine_id)
             .await
             .expect("the machine could not be taken out of the register");
 
