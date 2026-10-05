@@ -188,6 +188,39 @@ returns normally), or the walk being torn down while `isCreating` holds. Ticket 
 failing test through the real path first ([[skills/implement/diagnosing]]), then fixes it where
 the cause is; the form state stays in the walk.
 
+## A new member starts locked
+
+*Added 2026-10-05 for requirements 31 to 37, while the effort was being built.*
+
+- **A new table, `member_lock`**, appended to `TABLES`/`SCHEMA` after `organization_name` and
+  completed by `complete_schema` with no format change, as `machine_sign_out` was: one row per
+  member, `member_id`, `locked`, `updated_at`, signer and signature. A field on `MemberAuthority`
+  was ruled out: it changes the member row's preimage, which breaks every existing signature and
+  needs a format bump.
+- **`Authority::MemberLock { member_id, locked, updated_at }`** with its own domain constant.
+  `covers`: the root, or a certificate holding `AssignRole` or `OverrideMember` that outranks the
+  member and is not the member's own, after `WorkspaceOverrideAuthority`'s arm. Re-signed at
+  handover with the other rows of certificates.
+- **Reading it.** A member with a verifying row reads what it says; a member with a row that does
+  not verify reads locked; a member with no row reads unlocked (the carried-over members, until
+  the backfill below says otherwise). The verified answer rides `SessionFacts` (`locked`) and the
+  roster's `MemberStanding` (`locked`).
+- **Writing it.** `write_account` writes a locked row beside the member row; `unset_password`
+  (the reset) writes a locked row; the new `member_unlock(member_id)` writes an unlocked row, and
+  is refused for a member whose password is not yet set, for the actor's own id, and for an actor
+  without the flags or the rank.
+- **The backfill**, beside `repair_owner_row`: the first machine of a member who could sign the
+  row and opens the organization writes a locked row for every member with no lock row whose
+  password is not set and who has no consumed invitation, and pushes.
+- **Enforcing it.** `acting_row` (or the `actor()` path every organization command goes through)
+  refuses a locked actor every act but sign-in, sign-out, the password change and reads, with a
+  new `RefusalReason::Locked`. On the frontend, `permissionsIn` masks a locked session's
+  permissions to the view flags, so every `procedure.permitted` record write refuses and every
+  control keyed on a flag is not drawn; the wall-to-workspace screens show the locked sentence.
+- **The card.** `organization/member/component/card.svelte` draws a `locked` outline badge beside
+  the existing footer badges, and the unlock where `acts.ts` says the reader may (a new
+  `canUnlock`), confirmed through the destructive-confirm pattern the directory already uses.
+
 ## The switcher
 
 **`organization/component/switcher.svelte`**, an application component (it reads `$LL` and the
@@ -310,6 +343,9 @@ Steps, in the order they land. *Cut on 2026-10-05 into eleven tickets under `tic
     changeset per user-visible ticket rides with it ([[references/changesets]]).
 11. **The group field keeps the form** (ticket 12, added 2026-10-05): built on the owner's
     confirmation, since both live in the walk's one form.
+12. **The lock** (tickets 13 and 14, added 2026-10-05): the signed row, the backfill and Rust's
+    refusal, built on the signed name since both append a table and an authority; then the badge,
+    the unlock and the read-only session.
 
 5 precedes 6 because every command in 6 reads the list; 6 precedes 7 because the switcher calls
 its commands; 8 precedes 9 because the rename writes the signed row.

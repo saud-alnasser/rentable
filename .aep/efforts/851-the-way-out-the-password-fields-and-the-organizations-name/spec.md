@@ -5,7 +5,8 @@ status: accepted
 # Problem
 
 Four things the human asked for on 2026-10-05, read against the code, and a fifth they added the
-same day while the effort was being built: the walk's group field.
+same day while the effort was being built: the walk's group field. A sixth followed that day: a
+new member starts locked.
 
 ## A machine holds one organization, and the wall hides the way off it
 
@@ -84,6 +85,24 @@ step grows a group field (`askGroup` in `organization/setup/component/first-run.
 human, 2026-10-05: when that field appears after the first submit, every other field is cleared,
 so the name, the username and the password have to be typed again. It should only add the new
 field, ask for it, and carry on from there.
+
+## A new member starts locked
+
+**A new account can act the moment its person signs in.** An invitation makes a signed member row
+with a generated password (`invitation/account.rs`, `write_account`); the person sets their own at
+the join or first sign-in, and from then on acts with every flag their role carries. Nobody who
+made the account sees that the right person got in and chose a password before the account can
+change anything. The human, 2026-10-05: a new member is locked by default, able to sign in, set
+the password and view data and nothing more, shown with a locked badge on their card, until a
+member able to change permissions (an owner or a manager) unlocks them. Members who already set
+their password are not locked; members invited but not yet in are.
+
+**What enforces a flag today.** Organization acts are refused in Rust off the actor's verified row
+(`session::actor`, `permission::require`). Record writes (complexes, units, tenants, contracts,
+payments) are refused by the frontend's procedures alone (`procedure.permitted` in `api/trpc.ts`);
+the SQL runs with the member's grant and Rust checks no flag on it. The only bar a modified client
+cannot pass is a read-only credential, which the owner alone mints. `must_change_password` is an
+unsigned column the member's own machine can rewrite, so it cannot carry a lock.
 
 ## The organization's name
 
@@ -250,6 +269,30 @@ holds the same one, the same way, after the update.
     its confirmation exactly as typed, adds the group field with its sentence, and puts the focus
     in it. Creating again sends the kept values with the group; nothing has to be retyped.
 
+## A new member starts locked
+
+31. **Every account made from now on starts locked.** An account an invitation makes is locked
+    from its creation, and stays locked through the join and the first password.
+32. **A locked member signs in, sets their password and views, and does nothing else.** They see
+    the records their role lets them view; every control that adds, edits, deletes or administers
+    is not drawn, and every such act is refused: organization acts in Rust, record writes by the
+    procedures that already refuse a missing flag. A sentence on their screen says the account is
+    locked until an owner or a manager unlocks it.
+33. **The member's card carries a locked badge** while they are locked, on every machine that
+    shows the directory.
+34. **Who unlocks.** The owner, or a member holding `AssignRole` or `OverrideMember` who outranks
+    the locked member, sees an unlock on the locked member's card once that member has set a
+    password, and unlocking asks for confirmation. Nobody unlocks themselves. Before the password
+    is set the card says the member has not signed in yet and offers no unlock.
+35. **The lock is signed.** Locked and unlocked are written under the signature of whoever set
+    them, as the mark and the overrides are, and a lock row that does not verify reads as locked.
+    A locked member cannot unlock themselves by writing to their own replica.
+36. **Existing members carry over.** A member who had set a password before this change is not
+    locked. A member invited before it who has not yet set one is locked, by the first machine of a
+    member able to unlock that opens the organization after the update.
+37. **A password reset locks again.** A reset hands the account to whoever holds the new link, so
+    the account is locked until it is unlocked again.
+
 # Acceptance Criteria
 
 1. A component test with no organization held draws today's welcome with set up and join by a
@@ -340,6 +383,25 @@ holds the same one, the same way, after the update.
     group asked for, and asserts the name, username, password and confirmation fields still hold
     what was typed, the group field is shown and focused, and a second create sends the kept
     values with the group.
+31. A Rust test: an account made by an invitation has a verifying locked row; after the join and
+    the first password it is still locked.
+32. A Rust test: a locked member's organization acts (an invite, a role change, a rename of a
+    workspace, an ownership offer) are refused with a locked refusal and change nothing; their
+    sign-in, password change and reads succeed. A component test: a locked session draws no write
+    control on a record list, and its procedures refuse a record write; the locked sentence shows.
+33. A component test of the directory draws the locked badge on a locked member's card and not on
+    an unlocked one's.
+34. A Rust test: the owner and an outranking manager holding `AssignRole` unlock a locked member who
+    set a password; a manager without either flag, a member who does not outrank, and the member
+    themselves are refused; an unlock before the password is set is refused. A component test: the
+    unlock is drawn only for those readers, opens a confirmation, and is absent before the password
+    is set.
+35. A Rust test writes an unlocked lock row straight into a replica without a valid signature and
+    asserts the member still reads as locked.
+36. A Rust test starts from an organization made before this change with one member who set a
+    password and one invited who has not: after an owner's machine opens it, the first is unlocked
+    and the second is locked.
+37. A Rust test resets an unlocked member's password and asserts they read as locked.
 
 # Constraints
 
@@ -379,6 +441,9 @@ holds the same one, the same way, after the update.
 - **One Turso group holding several organizations.** Unchanged.
 - **A reveal that stays on.** The eye shows only while held; no toggle and no preference.
 - **Password strength, password manager integration, or a reset flow.**
+- **Locking a member who is already unlocked by hand**, other than by a password reset.
+- **A read-only credential for a locked member.** The lock is held by Rust and the procedures, as
+  every record flag is today; see *Risks*.
 - **Renaming the Turso group or databases, renaming for anybody but the owner, rewriting links
   already handed out, or changing the mark or the organization's id.**
 
@@ -397,6 +462,11 @@ holds the same one, the same way, after the update.
 
 # Risks
 
+- **A modified client can write records while locked.** Record writes are refused by the
+  frontend's procedures, as every record flag is today; a member running a changed build with the
+  grant they hold could still write. Closing that needs a read-only credential while locked, which
+  only the owner can mint, and is left out (*Out of Scope*). Organization acts are refused in
+  Rust, and other machines verify the signed lock, so nobody can unlock themselves.
 - **A manager's link carries a credential that outlives the link.** Turso has no per-token
   revocation; rotating invalidates every token for the database ([[references/turso]], under
   revocation). A manager's machine holds no Turso consent and cannot mint, so a manager's link
