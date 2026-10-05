@@ -949,5 +949,4 @@ test('every sentence this screen added is written in both locales', () => {
 	}
 
 	expect(ar.common.actions.join).not.toEqual(en.common.actions.join);
-	expect(ar.layout.signIn.useALink).not.toEqual(en.layout.signIn.useALink);
 });

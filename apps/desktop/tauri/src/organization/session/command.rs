@@ -37,6 +37,12 @@ pub struct HeldOrganizationFacts {
     /// the kind of their role, as last read. A display fact; `None` with `member_id`.
     pub role: Option<String>,
     pub joined_at: i64,
+    /// whether this machine holds this organization's own Turso consent (effort 851, requirement
+    /// 14), which is what decides whether removing it forgets a Turso account: the switcher's
+    /// confirm says so only where it does (requirement 5). Read in [`state_of`]; `false` from the
+    /// record alone, which knows nothing of the keyring.
+    #[serde(default)]
+    pub holds_turso_authority: bool,
 }
 
 impl From<&HeldOrganization> for HeldOrganizationFacts {
@@ -47,6 +53,7 @@ impl From<&HeldOrganization> for HeldOrganizationFacts {
             member_id: held.member_id.clone(),
             role: held.role.clone(),
             joined_at: held.joined_at,
+            holds_turso_authority: false,
         }
     }
 }
@@ -58,13 +65,10 @@ impl From<&HeldOrganization> for HeldOrganizationFacts {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OrganizationState {
-    /// the selected organization, or `None` on a machine that holds nothing, which is what the
-    /// screen offering the two ways to connect is drawn on (requirement 18). *A list until
-    /// 2026-09-13, and the one organization a machine held until effort 851; kept beside
-    /// `organizations` until the shell reads the list (effort 851, ticket 08).*
-    pub organization: Option<HeldOrganizationFacts>,
     /// every organization this machine holds, in the order it came to hold them (effort 851,
-    /// requirement 3). Empty on a machine that holds nothing.
+    /// requirement 3). Empty on a machine that holds nothing, which is what the screen offering
+    /// the two ways to connect is drawn on (requirement 18). *`organization`, the one a machine
+    /// held, until effort 851's ticket 08 moved the shell onto the list.*
     pub organizations: Vec<HeldOrganizationFacts>,
     /// the id of the organization the wall opens on, the one last signed in to or chosen (effort
     /// 851, requirement 2); `None` where nothing is held.
@@ -80,7 +84,20 @@ pub struct OrganizationState {
     pub signed_out_elsewhere: bool,
 }
 
-/// Where this machine stands: the organization it holds and who is signed in.
+impl OrganizationState {
+    /// the held organization the selection names, as a test reads it: the one the wall opens on.
+    #[cfg(test)]
+    pub(crate) fn selected_organization(&self) -> Option<HeldOrganizationFacts> {
+        let selected = self.selected.as_deref()?;
+
+        self.organizations
+            .iter()
+            .find(|held| held.id == selected)
+            .cloned()
+    }
+}
+
+/// Where this machine stands: the organizations it holds, the one chosen, and who is signed in.
 ///
 /// **`public` on the other side for the same reason the sync state is**: it is what the wall
 /// admits on, so requiring a signed-in caller would make it answerable only to machines whose
@@ -173,13 +190,12 @@ pub(crate) async fn state_of(
         held_name_refreshed(app_state, read).await?;
     }
 
-    let (organization, organizations, selected) = {
+    let (mut organizations, selected): (Vec<HeldOrganizationFacts>, Option<String>) = {
         let mut remote_sync = app_state.remote_sync.write().await;
         let record = remote_sync.store_mut();
         let selected = record.selected();
 
         (
-            selected.map(HeldOrganizationFacts::from),
             record
                 .held_organizations
                 .iter()
@@ -188,13 +204,16 @@ pub(crate) async fn state_of(
             selected.map(|held| held.id.clone()),
         )
     };
-    // the selected organization's own consent, which is the one the wall and the session are of.
-    let holds_turso_authority = match selected.as_deref() {
-        Some(organization_id) => owner_platform(app_state, credentials, organization_id)
+    // each organization's own consent, which is what its remove says it forgets, and the selected
+    // one's, which is the one the wall and the session are of. A keyring read apiece, no network.
+    for held in &mut organizations {
+        held.holds_turso_authority = owner_platform(app_state, credentials, &held.id)
             .await
-            .is_some(),
-        None => false,
-    };
+            .is_some();
+    }
+    let holds_turso_authority = organizations
+        .iter()
+        .any(|held| Some(&held.id) == selected.as_ref() && held.holds_turso_authority);
 
     // the standing is only ever about a wall that is up: somebody signed in has answered it,
     // whichever way they got back in, so this one read clears it rather than five sign-in paths
@@ -206,7 +225,6 @@ pub(crate) async fn state_of(
     }
 
     Ok(OrganizationState {
-        organization,
         organizations,
         selected,
         session: session.map(|(facts, _)| facts),
@@ -1131,7 +1149,7 @@ mod tests {
 
         assert!(state.session.is_none(), "the wall did not come back up");
         assert_eq!(
-            state.organization.map(|held| held.member_id),
+            state.selected_organization().map(|held| held.member_id),
             Some(Some(member_id)),
             "the record forgot the member a sign-out keeps"
         );
@@ -1298,7 +1316,7 @@ mod tests {
 
         assert_eq!(state.selected.as_deref(), Some(first_id.as_str()));
         assert_eq!(
-            state.organization.map(|held| held.id),
+            state.selected_organization().map(|held| held.id),
             Some(first_id.clone()),
             "the state does not name the chosen organization"
         );
@@ -1383,9 +1401,54 @@ mod tests {
 
         assert!(state.session.is_none());
         assert!(app_state.organization.read().await.is_none());
-        assert_eq!(state.organization, None);
         assert!(state.organizations.is_empty());
         assert_eq!(state.selected, None);
+    }
+
+    /// **Effort 851, criterion 5: each held organization says whether this machine holds its own
+    /// Turso consent**, which is what the switcher's remove confirm says the account goes by. Two
+    /// organizations are held and only the first's consent is filed: the state says so of each,
+    /// and the top-level answer is the selected one's, which is the second.
+    #[tokio::test]
+    async fn each_held_organization_says_whether_this_machine_holds_its_consent() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let directory = scratch("consent-each");
+        let app_state = first_run(credentials.as_ref(), &directory).await;
+        let (first_id, _) = recorded(&app_state).await;
+        let second = another_organization(credentials.as_ref(), &directory, &app_state).await;
+
+        for id in [first_id.as_str(), second.id.as_str()] {
+            forget_platform_token(credentials.as_ref(), &Account::of(id)).expect("the forget");
+        }
+        store_platform_token(credentials.as_ref(), "token-a").expect("the consent");
+        move_pending_consent(credentials.as_ref(), &first_id).expect("the move");
+
+        let state = state_of(&app_state, &credentials, &crate::clock::System::shared())
+            .await
+            .expect("the state");
+        let holds = |id: &str| {
+            state
+                .organizations
+                .iter()
+                .find(|held| held.id == id)
+                .map(|held| held.holds_turso_authority)
+        };
+
+        assert_eq!(
+            holds(&first_id),
+            Some(true),
+            "the first's consent is not read"
+        );
+        assert_eq!(
+            holds(&second.id),
+            Some(false),
+            "the second reads another's consent"
+        );
+        assert_eq!(state.selected.as_deref(), Some(second.id.as_str()));
+        assert!(
+            !state.holds_turso_authority,
+            "the top-level answer is not the selected organization's"
+        );
     }
 
     /// **Criterion 1, the disconnect half.** A machine that has let go of the organization holds
@@ -1435,7 +1498,10 @@ mod tests {
             .await
             .expect("the state");
 
-        assert!(state.organization.is_some(), "the first run did not finish");
+        assert!(
+            state.selected_organization().is_some(),
+            "the first run did not finish"
+        );
         assert!(state.session.is_none(), "a launch with no key signed in");
     }
 
@@ -1780,12 +1846,14 @@ mod tests {
             .await
             .expect("the state");
 
+        let held = state.selected_organization().expect("nothing is held").name;
+
         (
             state
                 .session
                 .expect("nobody is signed in")
                 .organization_name,
-            state.organization.expect("nothing is held").name,
+            held,
         )
     }
 
@@ -2533,8 +2601,8 @@ mod tests {
             .expect("the state");
 
         assert_eq!(
-            state.organization.as_ref().map(|held| held.id.as_str()),
-            Some(ORGANIZATION),
+            state.selected_organization().map(|held| held.id),
+            Some(ORGANIZATION.to_owned()),
             "the released organization is not held"
         );
         assert_eq!(

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+	fakeHeldOrganization,
 	fakeOrganizationSession,
 	fakeOrganizationState,
 	fakeOrganizationWorkspace
@@ -14,8 +15,9 @@ import { harness, locked, unlocked, withoutWorkspace } from './harness.ts';
  * THE WALL, AS THE EIGHT PATHS MEET IT
  *
  * Paths 3, 4 and 7 of the eight `launch.test.ts` introduces: a password that does not open the
- * vault, one that does, and a sign-out, with the forget that is the wall's way out. Driven the
- * same way, through the harness, with no window and no module mocked.
+ * vault, one that does, and a sign-out, with the organization switcher's choice and remove (effort
+ * 851), which are the wall's way to another organization and its way out. Driven the same way,
+ * through the harness, with no window and no module mocked.
  */
 
 // --- 3. A password that does not open the vault -----------------------------------------
@@ -148,46 +150,184 @@ test('signing out puts the wall back up, locked, and clears what was drawn for w
 	assert.ok(journal.contextsForgotten > 0);
 });
 
-// requirement 20 of effort 824: the wall's disconnect forgets the organization on this machine,
-// and the wall comes back as a machine that holds nothing. The confirm is the screen's; what the
-// unit does is the call and the path after it.
-test('disconnecting from the wall forgets the organization, and the wall comes back with nothing on it', async () => {
-	const { startup, journal } = harness({ organization: locked() });
+// --- The switcher: choosing, and forgetting, one of several organizations (effort 851) --------
+
+const acme = fakeHeldOrganization({ id: 'acme', name: 'Acme Rentals' });
+const beta = fakeHeldOrganization({
+	id: 'beta',
+	name: 'Beta Lettings',
+	holdsTursoAuthority: false
+});
+
+/** two organizations held, `acme` chosen, nobody in. */
+const twoLocked = () =>
+	fakeOrganizationState({ organizations: [acme, beta], selected: 'acme', session: null });
+
+/** two organizations held, `acme` chosen and signed in to, with no workspace in it yet. */
+const twoWithoutWorkspace = () =>
+	fakeOrganizationState({
+		organizations: [acme, beta],
+		selected: 'acme',
+		session: fakeOrganizationSession({ organizationId: 'acme', workspaces: [] })
+	});
+
+// criterion 3: choosing the other organization at the wall puts its wall up, asking for its
+// username and password. The choice is the record's, so it is read back rather than held here.
+test('choosing another organization at the wall puts its wall up', async () => {
+	const { startup, journal } = harness({ organization: twoLocked() });
 
 	await startup.start();
+	await startup.select('beta');
+
+	assert.deepEqual(journal.selected, ['beta']);
+	assert.equal(journal.signedOut, 0, 'nobody was in to sign out');
+	assert.equal(startup.snapshot.state, 'sign-in');
 	assert.equal(startup.snapshot.signInReason, 'locked');
+	assert.equal(startup.snapshot.organization?.selected, 'beta');
+	assert.equal(startup.snapshot.error, null);
+});
+
+test('and choosing the one already chosen asks the shell nothing', async () => {
+	const { startup, journal } = harness({ organization: twoLocked() });
+
+	await startup.start();
+	await startup.select('acme');
+
+	assert.deepEqual(journal.selected, []);
+});
+
+// criterion 6: nothing is chosen or forgotten while the screen is busy, a sign-in on the wall and
+// a create on the no-workspace screen.
+test('nothing is chosen or forgotten while a password is being tried', async () => {
+	let answer: (state: ReturnType<typeof twoLocked>) => void = () => {};
+	const { startup, journal } = harness({
+		organization: twoLocked(),
+		signInWith: () => new Promise((resolve) => (answer = resolve))
+	});
+
+	await startup.start();
+
+	const signingIn = startup.signIn('olivia', 'a long enough password');
+
+	assert.equal(startup.snapshot.isSigningIn, true);
+	await startup.select('beta');
+	await startup.remove('beta');
+
+	assert.deepEqual(journal.selected, []);
+	assert.deepEqual(journal.removed, []);
+
+	answer(twoLocked());
+	await signingIn;
+});
+
+test('nor while a workspace is being created on the no-workspace screen', async () => {
+	const { startup, journal } = harness({ organization: twoWithoutWorkspace() });
+
+	await startup.start();
+	assert.equal(startup.snapshot.state, 'no-workspace');
+
+	await startup.select('beta', { isCreating: true });
+	await startup.remove('beta', { isCreating: true });
+
+	assert.deepEqual(journal.selected, []);
+	assert.deepEqual(journal.removed, []);
+	assert.equal(startup.snapshot.state, 'no-workspace');
+});
+
+// criterion 7 and requirement 8: switching happens signed out, so choosing from the no-workspace
+// screen signs the member out first and lands on the chosen organization's wall.
+test('choosing from the no-workspace screen signs out first, then puts the chosen wall up', async () => {
+	const { startup, journal } = harness({ organization: twoWithoutWorkspace() });
+
+	await startup.start();
+	assert.equal(startup.snapshot.state, 'no-workspace');
+
+	await startup.select('beta');
+
+	assert.equal(journal.signedOut, 1);
+	assert.deepEqual(journal.selected, ['beta']);
+	assert.equal(startup.snapshot.state, 'sign-in');
+	assert.equal(startup.snapshot.organization?.selected, 'beta');
+	assert.equal(startup.snapshot.organization?.session, null);
+});
+
+test('and removing another organization from there leaves the member in, where they were', async () => {
+	const { startup, journal } = harness({ organization: twoWithoutWorkspace() });
+
+	await startup.start();
+	await startup.remove('beta');
+
+	assert.deepEqual(journal.removed, ['beta']);
+	assert.equal(journal.signedOut, 0);
+	assert.equal(startup.snapshot.state, 'no-workspace');
+	assert.deepEqual(
+		startup.snapshot.organization?.organizations.map((held) => held.id),
+		['acme']
+	);
+});
+
+// criterion 5: removing one forgets that one alone; removing the chosen one moves the wall to
+// another, and removing the last brings the welcome back.
+test('removing the chosen organization at the wall puts the next one up', async () => {
+	const { startup, journal } = harness({ organization: twoLocked() });
+
+	await startup.start();
 
 	const clearedBefore = journal.cacheCleared;
-	await startup.disconnect();
+	await startup.remove('acme');
 
-	assert.equal(journal.disconnected, 1);
+	assert.deepEqual(journal.removed, ['acme']);
 	assert.equal(startup.snapshot.state, 'sign-in');
-	assert.equal(startup.snapshot.signInReason, 'noOrganization');
-	assert.equal(startup.snapshot.organization?.organization, null);
-	assert.equal(startup.snapshot.error, null);
-	assert.equal(
-		journal.cacheCleared,
-		clearedBefore + 1,
-		'nothing drawn for the organization survives'
-	);
-	// nothing behind the wall was opened on the way: no vault, so no workspace and no bootstrap.
+	assert.equal(startup.snapshot.signInReason, 'locked');
+	assert.equal(startup.snapshot.organization?.selected, 'beta');
+	assert.equal(journal.cacheCleared, clearedBefore + 1, 'nothing drawn for it survives');
 	assert.deepEqual(journal.workspacesOpened, []);
 	assert.equal(journal.bootstrapped, 0);
 });
 
-test('and a forget the shell refused leaves the wall as it was, with the sentence on it', async () => {
+test('and removing the last one held brings the welcome back', async () => {
+	const { startup } = harness({ organization: locked() });
+
+	await startup.start();
+	assert.equal(startup.snapshot.signInReason, 'locked');
+
+	await startup.remove('acme');
+
+	assert.equal(startup.snapshot.state, 'sign-in');
+	assert.equal(startup.snapshot.signInReason, 'noOrganization');
+	assert.deepEqual(startup.snapshot.organization?.organizations, []);
+	assert.equal(startup.snapshot.organization?.selected, null);
+});
+
+// the confirm is still open when the shell refuses, and it says the refusal in place.
+test('a remove the shell refused is thrown back to the confirm, and the wall is as it was', async () => {
 	const { startup, journal } = harness({
-		organization: locked(),
-		disconnect: async () => {
+		organization: twoLocked(),
+		remove: async () => {
 			throw new Error('a replica would not go');
 		}
 	});
 
 	await startup.start();
-	await startup.disconnect();
 
-	assert.equal(journal.disconnected, 1);
+	await assert.rejects(startup.remove('acme'), /a replica would not go/);
+	assert.deepEqual(journal.removed, ['acme']);
 	assert.equal(startup.snapshot.state, 'sign-in');
-	assert.equal(startup.snapshot.signInReason, 'locked', 'the organization is still held');
-	assert.equal(startup.snapshot.error, 'a replica would not go');
+	assert.equal(startup.snapshot.organization?.selected, 'acme', 'the organization is still held');
+});
+
+test('and a choice the shell refused is said on the wall the person is standing at', async () => {
+	const { startup } = harness({
+		organization: twoLocked(),
+		select: async () => {
+			throw new Error('that organization is not held here');
+		}
+	});
+
+	await startup.start();
+	await startup.select('beta');
+
+	assert.equal(startup.snapshot.state, 'sign-in');
+	assert.equal(startup.snapshot.organization?.selected, 'acme');
+	assert.equal(startup.snapshot.error, 'that organization is not held here');
 });

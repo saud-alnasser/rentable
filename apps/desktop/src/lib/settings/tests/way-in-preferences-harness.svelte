@@ -9,15 +9,12 @@
 	 * the language chosen, as the window draws one. Scaffolding for
 	 * `way-in-preferences.svelte.test.ts`.
 	 */
-	let {
-		extras = []
-	}: { extras?: { label: string; onSelect: () => void; destructive?: boolean }[] } = $props();
 </script>
 
 <div dir={localesMetadata[$locale].direction} data-harness-root>
 	<WayInSurface step="one" title={$LL.settings.title()}>
 		{#snippet foot()}
-			<WayInPreferences {extras} />
+			<WayInPreferences />
 		{/snippet}
 	</WayInSurface>
 </div>

@@ -678,7 +678,7 @@ mod tests {
             "the wall was not told which sign-out this was"
         );
         assert_eq!(
-            state.organization.map(|held| held.id),
+            state.selected_organization().map(|held| held.id),
             Some(organization_id),
             "the machine forgot the organization as well as the session"
         );

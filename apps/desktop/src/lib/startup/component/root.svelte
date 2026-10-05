@@ -137,6 +137,26 @@
 	// until they are brought in or dismissed (effort 838, requirement 18).
 	const earlier = useEarlierRecords(queryClient);
 
+	/**
+	 * Go to a walk to add an organization: the first run or the join.
+	 *
+	 * **Adding happens signed out** (effort 851, requirement 8). From the wall nobody is in; from
+	 * the no-workspace screen somebody is, and the address moves first, so the walk is what is drawn
+	 * (`startupScreen` lets that screen reach both walks), then they are signed out under it, which
+	 * leaves the selection where it was: leaving the walk unfinished lands on that organization's
+	 * wall, and finishing it selects the new one (requirement 4). A link the system hands over there
+	 * takes the same path.
+	 */
+	const walkTo = async (address: typeof THE_FIRST_RUN | typeof THE_JOIN) => {
+		const signedIn = shellState.state === 'no-workspace';
+
+		await goto(resolve(address));
+
+		if (signedIn) {
+			await startup.signOut();
+		}
+	};
+
 	const createFirstWorkspace = async (name: string) => {
 		try {
 			await createWorkspace.mutateAsync({ name });
@@ -196,7 +216,7 @@
 		let unlistenMigration: (() => void) | undefined;
 		const openConnectScreen = (link: string) => {
 			linkArrived(link);
-			void goto(resolve(THE_JOIN));
+			void walkTo(THE_JOIN);
 		};
 		const dayCrossingInterval = setInterval(() => {
 			void startup.reconcileOnDayCrossing();
@@ -313,22 +333,31 @@
 	{:else if screen === 'sign-in'}
 		<StartupSignIn
 			situation={shellState.signInReason}
-			organization={shellState.organization?.organization ?? null}
+			organizations={shellState.organization?.organizations ?? []}
+			selected={shellState.organization?.selected ?? null}
 			isSigningIn={shellState.isSigningIn}
 			errorMessage={shellState.error}
 			errorDetail={shellState.errorDetail}
 			earlier={earlier.offered}
 			onSignIn={(username, password) => void startup.signIn(username, password)}
-			onDisconnect={() => startup.disconnect()}
-			onSetUpOrganization={() => void goto(resolve(THE_FIRST_RUN))}
-			onJoinByLink={() => void goto(resolve(THE_JOIN))}
+			onSelect={(organizationId) => void startup.select(organizationId)}
+			onRemove={(organizationId) => startup.remove(organizationId)}
+			onSetUpOrganization={() => void walkTo(THE_FIRST_RUN)}
+			onJoinByLink={() => void walkTo(THE_JOIN)}
 		/>
 	{:else if screen === 'no-workspace'}
 		<StartupNoWorkspace
-			organizationName={shellState.organization?.session?.organizationName ?? ''}
+			organizations={shellState.organization?.organizations ?? []}
+			selected={shellState.organization?.selected ?? null}
 			canCreate={shellState.organization?.session?.role === 'owner'}
 			isCreating={createWorkspace.isPending}
 			onCreate={(name) => void createFirstWorkspace(name)}
+			onSelect={(organizationId) =>
+				void startup.select(organizationId, { isCreating: createWorkspace.isPending })}
+			onRemove={(organizationId) =>
+				startup.remove(organizationId, { isCreating: createWorkspace.isPending })}
+			onSetUpOrganization={() => void walkTo(THE_FIRST_RUN)}
+			onJoinByLink={() => void walkTo(THE_JOIN)}
 		/>
 	{:else if screen === 'recovery' && shellState.recovery}
 		<StartupRecovery recovery={shellState.recovery} onRetry={() => void startup.retry()} />

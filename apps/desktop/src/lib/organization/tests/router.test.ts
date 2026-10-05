@@ -67,7 +67,7 @@ function hostRecording(asked: string[]): Host {
 			disconnect: async () => {
 				asked.push('disconnect');
 
-				return fakeOrganizationState({ organization: null, session: null });
+				return fakeOrganizationState({ organizations: [], selected: null, session: null });
 			},
 			select: async (organizationId) => {
 				asked.push(`select:${organizationId}`);
@@ -77,7 +77,7 @@ function hostRecording(asked: string[]): Host {
 			remove: async (organizationId) => {
 				asked.push(`remove:${organizationId}`);
 
-				return fakeOrganizationState({ organization: null, session: null });
+				return fakeOrganizationState({ organizations: [], selected: null, session: null });
 			},
 			create: async (name, username, password, group) => {
 				asked.push(`create:${name}:${username}:${password.length}:${group}`);
@@ -93,7 +93,7 @@ function hostRecording(asked: string[]): Host {
 				asked.push(`connectExisting:${username}:${password.length}`);
 
 				return fakeOrganizationState({
-					organization: fakeHeldOrganization({ memberId: 'member-owner', role: 'owner' })
+					organizations: [fakeHeldOrganization({ memberId: 'member-owner', role: 'owner' })]
 				});
 			}
 		}
@@ -124,7 +124,7 @@ test('disconnecting reaches the host signed out, and answers with the state', as
 	const forgotten = await api.organization.disconnect();
 
 	assert.deepEqual(asked, ['disconnect']);
-	assert.equal(forgotten.organization, null);
+	assert.deepEqual(forgotten.organizations, []);
 });
 
 // effort 851, requirements 3 and 5: choosing an organization and removing one happen at the wall,
@@ -548,7 +548,7 @@ test('opening an invitation link reaches the host signed out, and a short passwo
 					asked.push(`accept:${link}:${code}:${password.length}`);
 
 					return fakeOrganizationState({
-						organization: fakeHeldOrganization({ memberId: 'member-2', role: 'member' })
+						organizations: [fakeHeldOrganization({ memberId: 'member-2', role: 'member' })]
 					});
 				}
 			}
@@ -562,7 +562,7 @@ test('opening an invitation link reaches the host signed out, and a short passwo
 		password: 'a password sami chose'
 	});
 
-	assert.equal(admitted.organization?.memberId, 'member-2');
+	assert.equal(admitted.organizations[0]?.memberId, 'member-2');
 	assert.deepEqual(asked, ['accept:rentable://join/abc:7K4M9Q:21']);
 
 	await assert.rejects(
@@ -664,7 +664,7 @@ test('making a link is held to inviteMember or resetPassword, and connecting wit
 				asked.push(`machineConnect:${link}:${code}`);
 
 				return fakeOrganizationState({
-					organization: fakeHeldOrganization({ memberId: null, role: null }),
+					organizations: [fakeHeldOrganization({ memberId: null, role: null })],
 					session: null
 				});
 			}
@@ -721,7 +721,7 @@ test('making a link is held to inviteMember or resetPassword, and connecting wit
 		code: '7K4M9Q'
 	});
 
-	assert.equal(connected.organization?.memberId, null, 'a connect recorded a member');
+	assert.equal(connected.organizations[0]?.memberId, null, 'a connect recorded a member');
 	assert.equal(connected.session, null, 'a connect opened a vault');
 	assert.deepEqual(asked, [
 		'linkMake:member-2:72',
@@ -906,7 +906,7 @@ test('deleting the organization needs deleteOrganization and a password, and rea
 			delete: async (password) => {
 				asked.push(`delete:${password}`);
 
-				return fakeOrganizationState({ organization: null, session: null });
+				return fakeOrganizationState({ organizations: [], selected: null, session: null });
 			}
 		}
 	});
@@ -914,7 +914,7 @@ test('deleting the organization needs deleteOrganization and a password, and rea
 	const owner = await permittedApi(host, 'deleteOrganization');
 	const deleted = await owner.organization.delete({ password: 'the owners password' });
 
-	assert.equal(deleted.organization, null);
+	assert.deepEqual(deleted.organizations, []);
 	assert.deepEqual(asked, ['delete:the owners password']);
 
 	await assert.rejects(owner.organization.delete({ password: '' }));
@@ -1076,7 +1076,7 @@ test('inspecting the group and connecting to what it holds reach the host signed
 	});
 
 	assert.deepEqual(group, { kind: 'held', organizationId: '7f3a' });
-	assert.equal(connected.organization?.role, 'owner');
+	assert.equal(connected.organizations[0]?.role, 'owner');
 	assert.deepEqual(asked, ['groupInspect', 'connectExisting:Olivia.Owner:19']);
 });
 

@@ -87,11 +87,11 @@ export type OrganizationCreated = {
 };
 
 /**
- * the one organization this machine holds, as the wall names it. No key.
+ * one organization this machine holds, as the wall and its switcher name it. No key.
  *
- * A machine that connected by the organization's link holds it and no member yet; a sign-in
- * fills `memberId` and `role`, and a sign-out keeps them. *`JoinedOrganization`, one of a list,
- * until 2026-09-13.*
+ * A machine that connected by a link holds it and no member yet; a sign-in fills `memberId` and
+ * `role`, and a sign-out keeps them. *`JoinedOrganization`, one of a list, until 2026-09-13, and
+ * the one organization a machine held from then until effort 851 made it one of a list again.*
  */
 export type HeldOrganization = {
 	id: string;
@@ -105,6 +105,11 @@ export type HeldOrganization = {
 	 */
 	role: RoleKind | null;
 	joinedAt: number;
+	/**
+	 * whether this machine holds this organization's own Turso consent (effort 851, requirement
+	 * 14), which is what its remove confirm says it forgets (requirement 5), and nothing else.
+	 */
+	holdsTursoAuthority: boolean;
 };
 
 /**
@@ -224,16 +229,25 @@ export type LinkShape = {
 export type GroupState = { kind: 'empty' } | { kind: 'held'; organizationId: string };
 
 /**
- * where this machine stands: the one organization it holds, or none, and who is signed in.
- * What the sign-in wall admits on.
+ * where this machine stands: the organizations it holds, the one the wall opens on, and who is
+ * signed in. What the sign-in wall admits on.
  */
 export type OrganizationState = {
-	/** the organization this machine holds; `null` on a machine that holds nothing. */
-	organization: HeldOrganization | null;
+	/**
+	 * every organization this machine holds, in the order it came to hold them (effort 851,
+	 * requirement 3); empty on a machine that holds nothing, which is the welcome. *It was
+	 * `organization`, the one a machine held, until effort 851's ticket 08.*
+	 */
+	organizations: HeldOrganization[];
+	/**
+	 * the id of the organization the wall opens on: the one last signed in to, or chosen at the
+	 * switcher (requirement 2). `null` where nothing is held.
+	 */
+	selected: string | null;
 	session: OrganizationSession | null;
 	/**
-	 * whether this machine holds the Turso authority and knows which account it is over: the
-	 * owner's machine after a consent. An owner restored on a new machine holds none until they
+	 * whether this machine holds the Turso authority over the selected organization and knows
+	 * which account it is over: the owner's machine after a consent. An owner restored on a new machine holds none until they
 	 * repeat the consent, which is the one thing a restore cannot bring with it.
 	 */
 	holdsTursoAuthority: boolean;
@@ -303,7 +317,7 @@ export type OrganizationHost = {
 	 * held on as many machines as its holder signs in on.
 	 */
 	connectExisting: (username: string, password: string) => Promise<OrganizationState>;
-	/** the organization this machine holds, and who is signed in. */
+	/** the organizations this machine holds, the one chosen, and who is signed in. */
 	getState: () => Promise<OrganizationState>;
 	/**
 	 * forget the organization this machine has open, or the one the wall stands on: sign out
@@ -338,7 +352,7 @@ export type OrganizationHost = {
 	 */
 	delete: (password: string) => Promise<OrganizationState>;
 	/**
-	 * sign in to the organization this machine holds, by username and password, with or
+	 * sign in to the organization chosen on this machine, by username and password, with or
 	 * without a network. The wrong password, a username nobody holds, and a username held by
 	 * somebody whose password this is not each reject with the same one sentence; nothing
 	 * says whether the username exists. A first sign-in on a handed password spends the

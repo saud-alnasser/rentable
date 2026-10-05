@@ -2023,10 +2023,6 @@ type RootTranslation = {
 			 */
 			noOrganizationSubtitle: string;
 			/**
-			 * s​i​g​n​ ​i​n​ ​t​o​ ​c​o​n​t​i​n​u​e​.
-			 */
-			subtitle: string;
-			/**
 			 * c​a​n​'​t​ ​s​i​g​n​ ​i​n​?
 			 */
 			help: string;
@@ -2079,10 +2075,6 @@ type RootTranslation = {
 			 */
 			signedOutElsewhere: string;
 			/**
-			 * u​s​e​ ​a​ ​l​i​n​k
-			 */
-			useALink: string;
-			/**
 			 * d​i​s​c​o​n​n​e​c​t​ ​t​h​i​s​ ​m​a​c​h​i​n​e
 			 */
 			disconnect: string;
@@ -2090,6 +2082,10 @@ type RootTranslation = {
 			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​d​e​l​e​t​e​s​ ​i​t​s​ ​c​o​p​y​ ​o​f​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​a​n​d​ ​i​t​s​ ​w​o​r​k​s​p​a​c​e​s​,​ ​a​n​d​ ​f​o​r​g​e​t​s​ ​t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​.​ ​n​o​t​h​i​n​g​ ​o​n​ ​T​u​r​s​o​ ​c​h​a​n​g​e​s​.​ ​t​h​e​ ​o​w​n​e​r​ ​c​o​n​n​e​c​t​s​ ​a​g​a​i​n​ ​w​i​t​h​ ​t​h​e​i​r​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​;​ ​a​n​y​o​n​e​ ​e​l​s​e​ ​n​e​e​d​s​ ​a​ ​n​e​w​ ​l​i​n​k​.
 			 */
 			disconnectDescription: string;
+			/**
+			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​d​e​l​e​t​e​s​ ​i​t​s​ ​c​o​p​y​ ​o​f​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​a​n​d​ ​i​t​s​ ​w​o​r​k​s​p​a​c​e​s​.​ ​n​o​t​h​i​n​g​ ​o​n​ ​T​u​r​s​o​ ​c​h​a​n​g​e​s​.​ ​t​h​e​ ​o​w​n​e​r​ ​c​o​n​n​e​c​t​s​ ​a​g​a​i​n​ ​w​i​t​h​ ​t​h​e​i​r​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​;​ ​a​n​y​o​n​e​ ​e​l​s​e​ ​n​e​e​d​s​ ​a​ ​n​e​w​ ​l​i​n​k​.
+			 */
+			disconnectDescriptionNoTurso: string;
 		};
 		startup: {
 			/**
@@ -3582,6 +3578,29 @@ type RootTranslation = {
 		workspaceUpToDate: string;
 	};
 	organization: {
+		switcher: {
+			/**
+			 * a​d​d​ ​o​r​g​a​n​i​z​a​t​i​o​n
+			 */
+			add: string;
+			/**
+			 * a​d​d​ ​a​n​ ​o​r​g​a​n​i​z​a​t​i​o​n
+			 */
+			addTitle: string;
+			/**
+			 * b​a​c​k
+			 */
+			back: string;
+			/**
+			 * c​h​o​s​e​n
+			 */
+			chosen: string;
+			/**
+			 * r​e​m​o​v​e​ ​{​n​a​m​e​}
+			 * @param {string} name
+			 */
+			remove: RequiredParams<'name'>;
+		};
 		mark: {
 			/**
 			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​s​t​a​m​p
@@ -7067,10 +7086,6 @@ export type TranslationFunctions = {
 			 */
 			noOrganizationSubtitle: () => LocalizedString;
 			/**
-			 * sign in to continue.
-			 */
-			subtitle: () => LocalizedString;
-			/**
 			 * can't sign in?
 			 */
 			help: () => LocalizedString;
@@ -7123,10 +7138,6 @@ export type TranslationFunctions = {
 			 */
 			signedOutElsewhere: () => LocalizedString;
 			/**
-			 * use a link
-			 */
-			useALink: () => LocalizedString;
-			/**
 			 * disconnect this machine
 			 */
 			disconnect: () => LocalizedString;
@@ -7134,6 +7145,10 @@ export type TranslationFunctions = {
 			 * this machine deletes its copy of the organization and its workspaces, and forgets the Turso account. nothing on Turso changes. the owner connects again with their Turso account; anyone else needs a new link.
 			 */
 			disconnectDescription: () => LocalizedString;
+			/**
+			 * this machine deletes its copy of the organization and its workspaces. nothing on Turso changes. the owner connects again with their Turso account; anyone else needs a new link.
+			 */
+			disconnectDescriptionNoTurso: () => LocalizedString;
 		};
 		startup: {
 			/**
@@ -8558,6 +8573,28 @@ export type TranslationFunctions = {
 		workspaceUpToDate: () => LocalizedString;
 	};
 	organization: {
+		switcher: {
+			/**
+			 * add organization
+			 */
+			add: () => LocalizedString;
+			/**
+			 * add an organization
+			 */
+			addTitle: () => LocalizedString;
+			/**
+			 * back
+			 */
+			back: () => LocalizedString;
+			/**
+			 * chosen
+			 */
+			chosen: () => LocalizedString;
+			/**
+			 * remove {name}
+			 */
+			remove: (arg: { name: string }) => LocalizedString;
+		};
 		mark: {
 			/**
 			 * the organization stamp

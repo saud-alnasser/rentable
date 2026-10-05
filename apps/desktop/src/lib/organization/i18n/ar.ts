@@ -7,6 +7,13 @@
 import type { Translation } from '../../i18n/i18n-types';
 
 export const organization = {
+	switcher: {
+		add: 'أضف مؤسسة',
+		addTitle: 'أضف مؤسسة',
+		back: 'رجوع',
+		chosen: 'المختارة',
+		remove: 'أزِل {name}'
+	},
 	mark: {
 		alt: 'ختم المؤسسة',
 		choose: 'اختيار صورة',

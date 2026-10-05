@@ -9,7 +9,6 @@ export const layout = {
 		// the product's own name, which the welcome draws as it is written.
 		noOrganizationTitle: 'rentable',
 		noOrganizationSubtitle: 'track rent, receipts and reminders.',
-		subtitle: 'sign in to continue.',
 		help: "can't sign in?",
 		helpAnswer: 'ask a manager or the owner of your organization for help.',
 		username: 'username',
@@ -24,10 +23,13 @@ export const layout = {
 		connectByLinkDescription: 'for anyone who was sent a link.',
 		signedOutElsewhere:
 			'you were signed out of this machine from another one. sign in again to carry on.',
-		useALink: 'use a link',
 		disconnect: 'disconnect this machine',
 		disconnectDescription:
-			'this machine deletes its copy of the organization and its workspaces, and forgets the Turso account. nothing on Turso changes. the owner connects again with their Turso account; anyone else needs a new link.'
+			'this machine deletes its copy of the organization and its workspaces, and forgets the Turso account. nothing on Turso changes. the owner connects again with their Turso account; anyone else needs a new link.',
+		// the same, for an organization whose Turso consent this machine does not hold, which has no
+		// account here to forget (effort 851, criterion 5).
+		disconnectDescriptionNoTurso:
+			'this machine deletes its copy of the organization and its workspaces. nothing on Turso changes. the owner connects again with their Turso account; anyone else needs a new link.'
 	}
 } satisfies BaseTranslation;
 

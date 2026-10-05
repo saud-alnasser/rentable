@@ -88,7 +88,7 @@ export function fakeOrganizationHost(): OrganizationHost {
 	};
 }
 
-/** the organization this machine holds, as the wall names it, with its member found. */
+/** an organization this machine holds, as the wall names it, with its member found. */
 export function fakeHeldOrganization(overrides: Partial<HeldOrganization> = {}): HeldOrganization {
 	return {
 		id: 'acme',
@@ -96,6 +96,7 @@ export function fakeHeldOrganization(overrides: Partial<HeldOrganization> = {}):
 		memberId: 'member-owner',
 		role: 'owner',
 		joinedAt: 0,
+		holdsTursoAuthority: true,
 		...overrides
 	};
 }
@@ -204,15 +205,18 @@ export function fakeOrganizationRoles(): OrganizationRole[] {
 }
 
 /**
- * where a machine stands with its organization. The default is a machine that holds one and
- * whose person is signed in to it, because that is what most paths behind the wall want; a test
- * about the wall itself says which side of it the machine is on.
+ * where a machine stands with its organizations. The default is a machine that holds one, selected,
+ * and whose person is signed in to it, because that is what most paths behind the wall want; a
+ * test about the wall itself says which side of it the machine is on.
  */
 export function fakeOrganizationState(
 	overrides: Partial<OrganizationState> = {}
 ): OrganizationState {
+	const held = fakeHeldOrganization();
+
 	return {
-		organization: fakeHeldOrganization(),
+		organizations: [held],
+		selected: held.id,
 		session: fakeOrganizationSession(),
 		holdsTursoAuthority: true,
 		signedOutElsewhere: false,

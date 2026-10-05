@@ -216,17 +216,22 @@ test('the address matches exactly, so nothing that merely starts with it is admi
 });
 
 // a member admitted to an organization with no workspace in it is in and going nowhere: the
-// surface says so over every address, because there is no workspace for any address to draw.
-test('a member with no workspace sees the no-workspace surface over every address', async () => {
+// surface says so over every address, because there is no workspace for any address to draw. The
+// two walks are the exception, since its switcher adds an organization through them (effort 851,
+// requirement 7, ticket 08), and neither reads a workspace.
+test('a member with no workspace sees the no-workspace surface over every address but the walks', async () => {
 	const { startup } = harness({ organization: withoutWorkspace() });
 
 	await startup.start();
 
 	assert.equal(startup.snapshot.state, 'no-workspace');
 
-	for (const address of [...ADDRESSES, '/settings', THE_FIRST_RUN]) {
+	for (const address of [...ADDRESSES, '/settings']) {
 		assert.equal(startupScreen(startup.snapshot, address), 'no-workspace', address);
 	}
+
+	assert.equal(startupScreen(startup.snapshot, THE_FIRST_RUN), 'route');
+	assert.equal(startupScreen(startup.snapshot, THE_JOIN), 'route');
 });
 
 // the first run is the one address that cannot be behind the wall it exists to get a person

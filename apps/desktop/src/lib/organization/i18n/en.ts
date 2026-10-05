@@ -6,6 +6,15 @@
 import type { BaseTranslation } from '../../i18n/i18n-types';
 
 export const organization = {
+	// the organizations this machine holds, at the head of the wall and the no-workspace screen
+	// (effort 851, requirements 2 to 7). `addTitle` heads the step that offers set up and join.
+	switcher: {
+		add: 'add organization',
+		addTitle: 'add an organization',
+		back: 'back',
+		chosen: 'chosen',
+		remove: 'remove {name:string}'
+	},
 	// the one image the organization prints at the foot of its pages (effort 835).
 	mark: {
 		alt: 'the organization stamp',

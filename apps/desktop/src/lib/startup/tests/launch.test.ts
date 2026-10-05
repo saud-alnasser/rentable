@@ -227,7 +227,7 @@ test('an arrive that fails still reads the standing and goes on', async () => {
 // naming that organization: the one a username and a password now open.
 test('and a machine that connected by a link, holding the organization and no member, meets the wall locked', async () => {
 	const connected = fakeOrganizationState({
-		organization: fakeHeldOrganization({ id: 'acme', name: 'Acme', memberId: null, role: null }),
+		organizations: [fakeHeldOrganization({ id: 'acme', name: 'Acme', memberId: null, role: null })],
 		session: null,
 		holdsTursoAuthority: false
 	});
@@ -243,8 +243,8 @@ test('and a machine that connected by a link, holding the organization and no me
 
 	assert.equal(startup.snapshot.state, 'sign-in');
 	assert.equal(startup.snapshot.signInReason, 'locked');
-	assert.equal(startup.snapshot.organization?.organization?.name, 'Acme');
-	assert.equal(startup.snapshot.organization?.organization?.memberId, null);
+	assert.equal(startup.snapshot.organization?.organizations[0]?.name, 'Acme');
+	assert.equal(startup.snapshot.organization?.organizations[0]?.memberId, null);
 	assert.equal(startup.snapshot.error, null);
 	// nothing behind the wall was opened: no vault, so no workspace and no bootstrap.
 	assert.deepEqual(journal.workspacesOpened, []);

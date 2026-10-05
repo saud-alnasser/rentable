@@ -21,6 +21,10 @@ const IRREVERSIBLE: readonly (readonly [string, string])[] = [
 	[
 		'layout.signIn.disconnectDescription',
 		'the disconnect dialog: it deletes every copy this machine keeps, and it has to say who can connect again and how.'
+	],
+	[
+		'layout.signIn.disconnectDescriptionNoTurso',
+		'the same dialog for an organization whose Turso consent this machine does not hold (effort 851): the same consequence, less the account.'
 	]
 ];
 

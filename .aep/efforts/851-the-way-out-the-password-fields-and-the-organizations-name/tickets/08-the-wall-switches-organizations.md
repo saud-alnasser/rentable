@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [07]
 ---
 
@@ -15,14 +15,14 @@ With no organization the welcome is today's. With one or more, the wall and the 
 
 Traces requirements 1 to 7 and 15, and criteria 1 (the component half), 2, 3, 4, 5 (the component half), 6, 7 and 15.
 
-- [ ] `OrganizationState` carries `organizations` and `selected` in Rust and TypeScript, `organization` is gone, and every fixture and test the plan's evidence lists builds the new shape; `admission.ts` reads `organizations.length`; `startup/wall.ts` gains `select(id)` and `remove(id)` guarded by `isSigningIn` and `isCreating`.
-- [ ] `organization/component/switcher.svelte` as the plan describes; component tests for criterion 3 (opens on a click, both organizations, check on the chosen, an x per row that opens the confirm for that row and does not switch, "add organization" last, choosing the other shows its wall).
-- [ ] The wall draws the switcher at the top of its content, its title is "sign in" and the organization's name appears once (criterion 2); the welcome with no organization has no switcher (criterion 1).
-- [ ] The no-workspace screen draws the switcher for owner and member (criterion 7); its select and add sign out first, removing another organization does not; `startupScreen` lets it reach the first run and the join.
-- [ ] Adding returns to the selected organization's wall when abandoned and selects the new one when finished (criterion 4); the switcher is disabled while signing in and while creating (criterion 6).
-- [ ] The remove confirm is `DisconnectDialog` named for the row's organization; its Turso clause appears only where that organization holds this machine's consent (criterion 5).
-- [ ] `way-in-preferences.svelte` loses `extras`; its test asserts language and appearance only (criterion 15).
-- [ ] Every new string in English and Arabic; a changeset.
+- [x] `OrganizationState` carries `organizations` and `selected` in Rust and TypeScript, `organization` is gone, and every fixture and test the plan's evidence lists builds the new shape; `admission.ts` reads `organizations.length`; `startup/wall.ts` gains `select(id)` and `remove(id)` guarded by `isSigningIn` and `isCreating`.
+- [x] `organization/component/switcher.svelte` as the plan describes; component tests for criterion 3 (opens on a click, both organizations, check on the chosen, an x per row that opens the confirm for that row and does not switch, "add organization" last, choosing the other shows its wall).
+- [x] The wall draws the switcher at the top of its content, its title is "sign in" and the organization's name appears once (criterion 2); the welcome with no organization has no switcher (criterion 1).
+- [x] The no-workspace screen draws the switcher for owner and member (criterion 7); its select and add sign out first, removing another organization does not; `startupScreen` lets it reach the first run and the join.
+- [x] Adding returns to the selected organization's wall when abandoned and selects the new one when finished (criterion 4); the switcher is disabled while signing in and while creating (criterion 6).
+- [x] The remove confirm is `DisconnectDialog` named for the row's organization; its Turso clause appears only where that organization holds this machine's consent (criterion 5).
+- [x] `way-in-preferences.svelte` loses `extras`; its test asserts language and appearance only (criterion 15).
+- [x] Every new string in English and Arabic; a changeset.
 
 ## Relevant areas
 

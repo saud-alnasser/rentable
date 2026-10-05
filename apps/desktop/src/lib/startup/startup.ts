@@ -4,7 +4,7 @@ import { StartupMachine } from './machine';
 import type { StartupPorts } from './ports';
 import type { StartupSnapshot } from './snapshot';
 import { switchWorkspace } from './switch';
-import { disconnect, signIn, signOut } from './wall';
+import { remove, select, signIn, signOut } from './wall';
 
 export type { SyncOutcome } from './heartbeat';
 export type { StartupPorts } from './ports';
@@ -95,9 +95,17 @@ export class Startup {
 		return signOut(this.#machine);
 	}
 
-	/** Forget the organization this machine holds, after the screen's confirm (`./wall`). */
-	disconnect() {
-		return disconnect(this.#machine);
+	/**
+	 * Choose the organization the wall opens on, at the switcher (`./wall`). `isCreating` is the
+	 * no-workspace screen's create running, which nothing is chosen under.
+	 */
+	select(organizationId: string, busy?: { isCreating?: boolean }) {
+		return select(this.#machine, organizationId, busy);
+	}
+
+	/** Forget one organization this machine holds, after the switcher's confirm (`./wall`). */
+	remove(organizationId: string, busy?: { isCreating?: boolean }) {
+		return remove(this.#machine, organizationId, busy);
 	}
 
 	/** What a sync manager reported (`./heartbeat`). */

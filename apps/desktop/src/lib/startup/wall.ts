@@ -3,10 +3,11 @@ import type { StartupMachine } from './machine';
 /**
  * THE WALL
  *
- * The three things a person does at the sign-in wall or to put it back up: sign in, sign out, and
- * forget the organization this machine holds. Each ends on the machine's own pass (`./machine`),
- * and each says a refusal on the wall the person is still standing at rather than on a failure
- * screen that would take the wall away with it.
+ * What a person does at the sign-in wall or to put it back up: sign in, sign out, and, at the
+ * organization switcher the wall and the no-workspace screen draw, choose another organization or
+ * forget one (effort 851). Each ends on the machine's own pass (`./machine`), and each says a
+ * refusal where the person is still standing, on the wall or in the remove's confirm, rather than
+ * on a failure screen that would take the wall away with it.
  */
 
 /**
@@ -79,7 +80,8 @@ export async function signOut(machine: StartupMachine) {
 	machine.set({
 		sync: await machine.ports.sync.getState().catch(() => null),
 		organization: organization ?? {
-			organization: null,
+			organizations: [],
+			selected: null,
 			session: null,
 			holdsTursoAuthority: false,
 			signedOutElsewhere: false
@@ -95,34 +97,96 @@ export async function signOut(machine: StartupMachine) {
 }
 
 /**
- * Forget the organization this machine holds: the wall's way out while signed out, and the
- * organization page's while signed in, where the shell signs out first.
- *
- * **The confirm is the screen's, and this runs after it.** The shell deletes every replica,
- * empties the record and clears the Turso authority in one call, and what follows is the path
- * `standingChanged` already takes: read where the machine stands again, which is now nothing,
- * and admit on it, which raises the wall as a machine with nothing on it. A refusal is said on
- * the wall the person is still standing at, as a wrong password is, rather than as a failure
- * screen that would take the wall away with it.
- *
- * Refused while a password is being tried: the shell is deriving a key against a vault this
- * would delete from under it.
+ * whether the screen the switcher is drawn on is busy: a password being tried on the wall, or a
+ * workspace being created on the no-workspace screen (effort 851, requirement 6). The first is
+ * the unit's own; the second is the root layout's mutation, so the caller says it.
  */
-export async function disconnect(machine: StartupMachine) {
-	if (machine.current.isSigningIn) {
+type Busy = { isCreating?: boolean };
+
+const isBusy = (machine: StartupMachine, { isCreating = false }: Busy) =>
+	machine.current.isSigningIn || isCreating;
+
+/**
+ * Choose the organization the wall opens on, from those this machine holds (effort 851,
+ * requirement 3), and put its wall up.
+ *
+ * **Switching happens signed out** (requirement 8). On the wall nobody is in; on the no-workspace
+ * screen somebody is, and they are signed out first, since the shell refuses a choice while a
+ * session is open. The choice is the record's rather than the screen's, so what follows is the
+ * path every change of standing takes: read where the machine stands again, and admit on it, which
+ * raises the chosen organization's wall asking for its username and password.
+ *
+ * Choosing the one already chosen changes nothing, and nothing is chosen while the screen is busy:
+ * a sign-in is deriving a key against the chosen organization's vault, and a create is writing to
+ * it. A refusal is said on the wall the person is standing at.
+ */
+export async function select(machine: StartupMachine, organizationId: string, busy: Busy = {}) {
+	if (isBusy(machine, busy) || machine.current.organization?.selected === organizationId) {
 		return;
 	}
 
+	let signedOut = false;
+
 	try {
-		await machine.ports.organization.disconnect();
+		if (machine.current.organization?.session) {
+			machine.ports.cache.forgetContext();
+			await machine.ports.organization.signOut();
+			signedOut = true;
+		}
+
+		await machine.ports.organization.select(organizationId);
 	} catch (error) {
+		// signed out and then refused: the screen is the wall of the organization still chosen.
+		if (signedOut) {
+			await standingRead(machine);
+		}
+
 		machine.set(machine.describe(error));
 
 		return;
 	}
 
-	// the forget emptied the machine's own sync record as well, so the workspace it named is
-	// not one the next sign-in should look for.
+	await standingRead(machine);
+}
+
+/**
+ * Forget one organization this machine holds, after the screen's confirm (effort 851,
+ * requirement 5): the switcher's x, on the wall and on the no-workspace screen.
+ *
+ * **The confirm is the screen's, and this runs after it.** The shell deletes that organization's
+ * replicas, entry, remembered sign-in and Turso consent, signing out first where it is the open
+ * one; removing another leaves whoever is in signed in, which is what lets the no-workspace screen
+ * remove another organization without leaving its own. What follows is the path every change of
+ * standing takes, which lands on the wall of whichever organization the record now selects, or on
+ * the welcome where none is left.
+ *
+ * **A refusal is thrown back to the confirm**, which is still open and says it in place, so the
+ * person is standing at the question when they read it. Nothing is removed while the screen is
+ * busy, for the reasons `select` gives.
+ */
+export async function remove(machine: StartupMachine, organizationId: string, busy: Busy = {}) {
+	if (isBusy(machine, busy)) {
+		return;
+	}
+
+	// the held context names a member of the organization going, where it is the open one.
+	if (machine.current.organization?.session?.organizationId === organizationId) {
+		machine.ports.cache.forgetContext();
+	}
+
+	await machine.ports.organization.remove(organizationId);
+
+	await standingRead(machine);
+}
+
+/**
+ * Read where the machine stands after the switcher changed it, and draw that.
+ *
+ * The sync record is read first: a remove empties the workspace it named where that was the
+ * removed organization's, and a choice moves it to the chosen one's, so it is not one the next
+ * sign-in should look for.
+ */
+async function standingRead(machine: StartupMachine) {
 	machine.set({ sync: await machine.ports.sync.getState().catch(() => null) });
 
 	await machine.standingChanged();

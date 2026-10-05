@@ -529,7 +529,7 @@ mod tests {
             .expect("the store would not answer")
     }
 
-    /// The record this machine keeps about the organization it holds.
+    /// The record this machine keeps about the organization it has chosen.
     async fn held(app_state: &Shared) -> HeldOrganization {
         let mut remote_sync = app_state.remote_sync.write().await;
 
@@ -874,7 +874,7 @@ mod tests {
                 "{name}: the launch resumed into an organization of another format"
             );
             assert_eq!(
-                state.organization.map(|held| held.id),
+                state.selected_organization().map(|held| held.id),
                 Some(organization_id.clone()),
                 "{name}: the launch forgot an organization it should refuse"
             );
@@ -943,7 +943,7 @@ mod tests {
 
         assert!(state.session.is_none());
         assert_eq!(
-            state.organization.map(|held| held.id),
+            state.selected_organization().map(|held| held.id),
             Some(organization_id),
             "a replica with no format table was forgotten"
         );
@@ -1006,7 +1006,7 @@ mod tests {
 
         assert!(state.session.is_none(), "a launch with no key signed in");
         assert!(
-            state.organization.is_some(),
+            state.selected_organization().is_some(),
             "the machine forgot what it holds"
         );
         assert!(app_state.member.read().await.is_none());
