@@ -271,13 +271,13 @@ it would be a second answer to "which organization" in the one state the shell r
 
 # Technical Approach
 
-Tickets, in the order they land; each is one commit on the effort branch.
+Steps, in the order they land. *Cut on 2026-10-05 into eleven tickets under `tickets/`: step 5 became tickets 05 (the record) and 06 (the consent), and the steps after it moved up one. The tickets' `blocked-by` is the order from here on.*
 
 1. **The password input block** and the eleven fields. Independent of everything else.
 2. **The owner's confirmation** in the walk.
 3. **Spent links refused before anything is recorded**, and the replica a refused link pulled
    deleted (for an organization not held). Lands before the multi-organization work because it is
-   a fix on today's single-organization shape, and the held short-circuit (ticket 6) builds on it.
+   a fix on today's single-organization shape, and the held short-circuit (ticket 07) builds on it.
 4. **The link's lifetime and the owner's minted credential**, with the making UI's choice and the
    handover's date and time.
 5. **The record holds a list**: the conversion, the mirror, the replica's organization id, the
@@ -344,9 +344,9 @@ its commands; 8 precedes 9 because the rename writes the signed row.
 
 - **The launch move of the consent runs before anything uses it**, or an owner-only act on the
   first launch would find no token. The cell's order (old shape, consent move, resume) is tested.
-- **Turso's `h` duration** may not be accepted; ticket 4 checks it against the reference and uses
+- **Turso's `h` duration** may not be accepted; ticket 04 checks it against the reference and uses
   minutes where it is not.
-- **Fixture churn**: about thirty test files build the old state shape. Ticket 7 moves them in
+- **Fixture churn**: about thirty test files build the old state shape. Ticket 08 moves them in
   one pass; a missed one fails typecheck rather than passing silently.
 - **Two stores over one file**: the held short-circuit must run before `reached` opens a store, or
   an accept for the open organization opens a second store over its live replica.
