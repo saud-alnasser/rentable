@@ -616,7 +616,7 @@ pub(crate) async fn open_session(
         organization_credential: Arc::clone(credential),
         workspace_credentials,
         lock_marked: AtomicBool::new(held.lock_marked),
-        own_lock_latched: held.own_lock_latched.as_deref() == Some(member.id.as_str()),
+        own_lock_latched: held.latches(&member.id),
     })
 }
 

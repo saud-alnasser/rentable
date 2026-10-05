@@ -581,7 +581,7 @@ async fn finish<P: TursoPlatform>(
         name_signed: false,
         name_signed_at: 0,
         lock_marked: false,
-        own_lock_latched: None,
+        own_lock_latched: Vec::new(),
     });
     store.commit()?;
 

@@ -135,9 +135,57 @@ pub struct HeldOrganization {
     /// verifies they read as locked here, and deleting their row and the marker from their
     /// replica unlocks nobody. **Their own lock alone**: every other member is judged as the
     /// marker says, so a member carried over with no row reads as the organization stands.
-    /// `None` on every entry no invitation was opened on.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub own_lock_latched: Option<String>,
+    /// Empty on every entry no invitation was opened on.
+    ///
+    /// **One entry per member latched, never one for the machine** (effort 851, review): a reset
+    /// link let through on a machine that holds the organization (requirement 13) latches the
+    /// member it names beside whoever was latched there before, so a second member's reset never
+    /// drops the first member's lock. Read and written through [`HeldOrganization::latches`] and
+    /// [`HeldOrganization::latching`]. *It held one id until that review, and a record that spelled
+    /// one reads as a list of it (`one_or_many`).*
+    #[serde(
+        skip_serializing_if = "Vec::is_empty",
+        deserialize_with = "one_or_many"
+    )]
+    pub own_lock_latched: Vec<String>,
+}
+
+impl HeldOrganization {
+    /// Whether this machine holds `member_id` to their own lock (effort 851, requirement 35).
+    pub fn latches(&self, member_id: &str) -> bool {
+        self.own_lock_latched
+            .iter()
+            .any(|latched| latched == member_id)
+    }
+
+    /// This entry with `member_id`'s own lock latched beside every one latched already.
+    pub fn latching(mut self, member_id: &str) -> Self {
+        if !self.latches(member_id) {
+            self.own_lock_latched.push(member_id.to_string());
+        }
+
+        self
+    }
+}
+
+/// The members whose own lock an entry latches, as a record spells them: a list, or the single
+/// id an earlier build of effort 851 wrote, or nothing.
+fn one_or_many<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Spelled {
+        One(String),
+        Many(Vec<String>),
+    }
+
+    Ok(match Option::<Spelled>::deserialize(deserializer)? {
+        Some(Spelled::One(member_id)) => vec![member_id],
+        Some(Spelled::Many(member_ids)) => member_ids,
+        None => Vec::new(),
+    })
 }
 
 pub struct RemoteSync {
@@ -2565,5 +2613,37 @@ mod tests {
             assert_eq!(found, None);
             assert_eq!(store.pending_turso_organization, None);
         }
+    }
+
+    /// Effort 851, the review of requirement 35: **an entry latches each member's own lock
+    /// beside the others**, and an entry an earlier build of the effort wrote with one member's id
+    /// reads as a list of that one. An entry latching nobody writes no field at all.
+    #[test]
+    fn an_entry_latches_each_member_and_reads_the_single_id_it_once_wrote() {
+        let one: super::HeldOrganization =
+            serde_json::from_str(r#"{"id":"org","ownLockLatched":"sami"}"#).expect("the entry");
+
+        assert_eq!(one.own_lock_latched, vec!["sami".to_string()]);
+
+        let none: super::HeldOrganization =
+            serde_json::from_str(r#"{"id":"org"}"#).expect("the entry");
+
+        assert!(none.own_lock_latched.is_empty());
+        assert!(
+            !serde_json::to_string(&none)
+                .expect("the entry")
+                .contains("ownLockLatched")
+        );
+
+        let two = one.latching("noor").latching("sami");
+        let read: super::HeldOrganization =
+            serde_json::from_str(&serde_json::to_string(&two).expect("the entry"))
+                .expect("the entry");
+
+        assert_eq!(
+            read.own_lock_latched,
+            vec!["sami".to_string(), "noor".to_string()]
+        );
+        assert!(read.latches("sami") && read.latches("noor") && !read.latches("olivia"));
     }
 }

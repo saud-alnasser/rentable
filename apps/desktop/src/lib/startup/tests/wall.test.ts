@@ -331,3 +331,69 @@ test('and a choice the shell refused is said on the wall the person is standing 
 	assert.equal(startup.snapshot.organization?.selected, 'acme');
 	assert.equal(startup.snapshot.error, 'that organization is not held here');
 });
+
+// --- A refused link, read in place (effort 851, the review of requirement 13) ---------------
+
+// a link for a held organization selects it where nobody is in, and is then refused: the wall
+// names the organization the link chose, with no loading pass over the refusal, and choosing the
+// first again at the switcher reaches the shell rather than reading as the one already chosen.
+test('a refused link is read in place, so the wall names the organization the link chose', async () => {
+	const { startup, journal, seen, standWith } = harness({ organization: twoLocked() });
+
+	await startup.start();
+
+	const before = seen.length;
+
+	// the shell selected the link's organization before it refused the link.
+	standWith({ ...twoLocked(), selected: 'beta' });
+	await startup.linkRefused();
+
+	assert.equal(startup.snapshot.state, 'sign-in');
+	assert.equal(startup.snapshot.organization?.selected, 'beta');
+	assert.ok(
+		seen.slice(before).every((snapshot) => snapshot.state !== 'loading'),
+		'a loading pass took the refusal away'
+	);
+
+	await startup.select('acme');
+
+	assert.deepEqual(journal.selected, ['acme']);
+	assert.equal(startup.snapshot.organization?.selected, 'acme');
+});
+
+// a link for the organization open now ends the session to be judged on its replica: the wall goes
+// up behind the refusal, and the held context is let go of.
+test('a refused link that ended the session puts the wall up behind it', async () => {
+	const { startup, journal, seen, standWith } = harness({ organization: twoWithoutWorkspace() });
+
+	await startup.start();
+	assert.equal(startup.snapshot.state, 'no-workspace');
+
+	const before = seen.length;
+	const forgotten = journal.contextsForgotten;
+
+	standWith(twoLocked());
+	await startup.linkRefused();
+
+	assert.equal(startup.snapshot.state, 'sign-in');
+	assert.equal(startup.snapshot.organization?.session, null);
+	assert.ok(journal.contextsForgotten > forgotten, 'the held context was kept');
+	assert.ok(seen.slice(before).every((snapshot) => snapshot.state !== 'loading'));
+});
+
+// and anywhere else the session is left open, and so is the screen the person is on.
+test('a refused link that left the session open leaves the person where they were', async () => {
+	const { startup, journal, seen } = harness({ organization: twoWithoutWorkspace() });
+
+	await startup.start();
+
+	const before = seen.length;
+	const forgotten = journal.contextsForgotten;
+
+	await startup.linkRefused();
+
+	assert.equal(startup.snapshot.state, 'no-workspace');
+	assert.equal(startup.snapshot.organization?.session?.organizationId, 'acme');
+	assert.equal(journal.contextsForgotten, forgotten);
+	assert.ok(seen.slice(before).every((snapshot) => snapshot.state !== 'loading'));
+});

@@ -27,7 +27,7 @@
 //! 851, requirement 1): what is recorded is a new entry in the record's list, and it is selected.
 //! **A link for an organization already held adds nothing** (requirement 13): [`selected_if_held`]
 //! selects its entry before anything is opened over a live replica, and each act judges the link
-//! from there; only a reset link for one of its members is let through (`join::accept`). *A
+//! from there; only a reset link for one of its members is let through (`join::accept_while`). *A
 //! connect while one organization was held was refused until effort 851, and reaching another was a
 //! disconnect first.*
 
@@ -223,7 +223,7 @@ pub async fn record(
         name_signed: false,
         name_signed_at: 0,
         lock_marked: false,
-        own_lock_latched: None,
+        own_lock_latched: Vec::new(),
     };
 
     if consented {
@@ -303,6 +303,51 @@ pub(crate) fn selected_if_held(
         .write();
 
     Ok(machine.held(organization_id).cloned())
+}
+
+/// Whether this machine holds the organization `organization_id`, selecting it as
+/// [`selected_if_held`] does where nobody is signed in here (effort 851, requirement 13).
+///
+/// **The selection waits where a session is open** (effort 851, review). Where nobody is in, a
+/// link for a held organization opens its wall whatever the link turns out to be. With somebody
+/// signed in, the selection is the open organization's, and moving it would carry the current
+/// workspace off the one in use while the session stayed on it; so the link is judged on what the
+/// record holds, the selection moves only where the link goes through, at [`connect`], and a
+/// refused link leaves the session, the selection and the wall as they were.
+pub(crate) fn held_here(
+    machine: &mut Persisted<RemoteSyncStore>,
+    organization_id: &str,
+    session_open: bool,
+) -> Result<bool, Error> {
+    if session_open {
+        return Ok(machine.held(organization_id).is_some());
+    }
+
+    Ok(selected_if_held(machine, organization_id)?.is_some())
+}
+
+/// Take back the registry row [`record`] wrote for `held`, where the act that recorded it is
+/// undone before anybody was admitted (effort 851, review): the row went out with the push that
+/// followed it, so it is deleted and the delete pushed, and the same link opened again registers
+/// this machine once rather than twice.
+///
+/// Best effort, as the undo it is part of is: a row that could not be deleted goes to the
+/// diagnostics log, and a delete that could not be sent goes with the next push.
+pub(crate) async fn unregistered(store: &OrganizationStore, held: &HeldOrganization) {
+    if let Err(error) = store.unregister_machine(&held.machine_id).await {
+        diagnostics::error("organization.machine.notUnregistered")
+            .with("organization", held.id.as_str())
+            .with("error", error.to_string())
+            .write();
+
+        return;
+    }
+
+    if !store.push().await {
+        diagnostics::warn("organization.machine.unregisteredNotYetSent")
+            .with("organization", held.id.as_str())
+            .write();
+    }
 }
 
 #[cfg(test)]

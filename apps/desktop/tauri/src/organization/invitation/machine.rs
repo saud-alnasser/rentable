@@ -103,8 +103,8 @@ fn no_longer_a_member(organization_name: &str) -> Error {
 /// Connect this machine with a link its member made for it, and leave it at the wall.
 ///
 /// `store_for` opens a replica of the organization the link names against a credential slot, the
-/// way `join::accept` reaches: after the unseal and never before it, because there is no legible
-/// credential to reach with. `machine` is this machine's record, which may hold other
+/// way `join::accept_while` reaches: after the unseal and never before it, because there is no
+/// legible credential to reach with. `machine` is this machine's record, which may hold other
 /// organizations.
 ///
 /// **The order is what this function is.** Select the organization where this machine holds it
@@ -119,6 +119,12 @@ fn no_longer_a_member(organization_name: &str) -> Error {
 /// **Nothing is signed in afterwards and nothing is kept.** The credential goes out of scope with
 /// the slot it was put in, and the member signs in at the wall with the username and password they
 /// already had, which is what fills the slot from their vault from then on.
+///
+/// **`session_open` is whether somebody is signed in here as the link is opened** (effort 851,
+/// review). Where they are, a link for a held organization is refused without selecting it
+/// (`connect::held_here`), so the refusal leaves their session and the record as they were; the
+/// command ends the session only once a link has recorded an organization.
+#[allow(clippy::too_many_arguments)]
 pub async fn connect<S, F, R>(
     store_for: S,
     machine: &mut Persisted<RemoteSyncStore>,
@@ -127,6 +133,7 @@ pub async fn connect<S, F, R>(
     code: &str,
     kdf_params: KdfParams,
     now: i64,
+    session_open: bool,
 ) -> Result<HeldOrganization, Error>
 where
     S: FnOnce(CredentialSlot) -> F,
@@ -148,8 +155,9 @@ where
     // a link for an organization this machine holds opens that organization's wall (effort 851,
     // requirement 13, as the human settled it on 2026-10-05): it is selected, and a machine link is
     // never what a machine already on that wall needs, so it is refused as already used before
-    // anything is derived or reached. `join::accept` lets a reset through; nothing else is.
-    if connect::selected_if_held(machine, &link.organization_id)?.is_some() {
+    // anything is derived or reached. `join::accept_while` lets a reset through; nothing else is.
+    // With somebody signed in here it is not selected, and nothing else is touched either.
+    if connect::held_here(machine, &link.organization_id, session_open)? {
         return Err(machine_link_refused(
             &link.organization_name,
             RefusalReason::Consumed,
@@ -262,10 +270,7 @@ async fn connected(
     // the one the seal names, never the unsigned row's, and a verifying unlock still reads first.
     let held = match locked_member {
         Some(member_id) => {
-            let latched = HeldOrganization {
-                own_lock_latched: Some(member_id.to_string()),
-                ..held
-            };
+            let latched = held.latching(member_id);
 
             machine.hold(latched.clone());
             machine.commit()?;
@@ -522,6 +527,7 @@ mod tests {
             code,
             test_cost(),
             now,
+            false,
         )
         .await
     }
@@ -944,8 +950,8 @@ mod tests {
 
         assert_eq!(held.member_id, None, "the connect recorded a member");
         assert_eq!(
-            held.own_lock_latched.as_deref(),
-            Some(member_id.as_str()),
+            held.own_lock_latched,
+            vec![member_id.clone()],
             "the connect did not latch sami's own lock"
         );
 
@@ -1005,7 +1011,8 @@ mod tests {
             .expect("the third machine did not connect");
 
         assert_eq!(
-            held.own_lock_latched, None,
+            held.own_lock_latched,
+            Vec::<String>::new(),
             "an unlocked member's link latched"
         );
     }
@@ -1062,6 +1069,7 @@ mod tests {
             &made.code,
             test_cost(),
             now,
+            false,
         )
         .await
     }

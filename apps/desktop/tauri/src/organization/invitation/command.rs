@@ -3,7 +3,12 @@
 
 use std::sync::Arc;
 
-use crate::{clock, credential::Credentials, error::Error, organization::Shared};
+use crate::{
+    clock,
+    credential::{CredentialStore, Credentials},
+    error::Error,
+    organization::Shared,
+};
 
 use crate::organization::{
     act::{Acting, Pull, as_member, signed_in_owner_platform},
@@ -12,6 +17,7 @@ use crate::organization::{
         link::{self, JoinLink, LinkShape},
         machine,
     },
+    member::vault::KdfParams,
     session::{CredentialSlot, OrganizationState, sign_out, state_of},
     setup,
     store::OrganizationStore,
@@ -149,8 +155,12 @@ pub(crate) async fn organization_invitation_password_unset(
 /// **A link for an organization this machine holds opens its wall** (effort 851, requirement 13,
 /// as the human settled it on 2026-10-05): its entry is selected, and the link is judged on that
 /// organization's own replica; a reset link for one of its members goes through, and anything else
-/// is refused as already used. **A session open here ends first**, as a sign-in ends one: the organization the link
-/// selects or adds is the one the machine opens next, and one organization is open at a time.
+/// is refused as already used.
+///
+/// **A session open here ends once the link has gone through** (effort 851, review), as a sign-in
+/// ends one: the organization the link adds or selects is the one the machine opens next, and one
+/// organization is open at a time. A refused link leaves the session, the selection and the wall as
+/// they were; [`accepted_here`] says where it ends sooner.
 ///
 /// **`public`, because it happens at the wall.** Neither the credential, the secret nor the
 /// password crosses back; what comes back is where the machine stands, with a session in it.
@@ -164,28 +174,89 @@ pub(crate) async fn organization_invitation_accept(
     password: String,
 ) -> Result<OrganizationState, Error> {
     let link = JoinLink::decode(&link)?;
-    let database_path = database_path(&app_state).await;
 
-    if app_state.member.read().await.is_some() {
-        sign_out(app_state.inner(), credentials.inner().as_ref()).await;
+    accepted_here(
+        app_state.inner(),
+        credentials.inner().as_ref(),
+        |credential| reached(&app_state, &clock, &link, credential),
+        &link,
+        &code,
+        &password,
+        setup::SHIPPING_KDF,
+        clock.now(),
+    )
+    .await?;
+
+    state_of(&app_state, &credentials, &clock).await
+}
+
+/// [`organization_invitation_accept`] past the decode, over the application's state: the accept,
+/// and the session it opens put where the application holds one.
+///
+/// **A session open here is signed out as late as the link allows** (effort 851, review). Where
+/// the link names the organization open now, that is before the reach, because the link is judged
+/// on that organization's own replica and a second store is never opened over a live one.
+/// Anywhere else it is once the accept has gone through, just before the new session takes its
+/// place, so a link refused for its code, its moment or its invitation's standing leaves the
+/// person signed in where they were. A failure past the record, which moved the selection, signs
+/// them out as a success would (`left_consistent`). *Until this review the session ended before
+/// anything was judged, so a refused link left the person signed out while the screen still had
+/// them in.*
+///
+/// `store_for` is how the link's organization is reached, which the command answers with
+/// [`reached`] and a test with a replica it holds.
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn accepted_here<S, F>(
+    app_state: &Shared,
+    credentials: &dyn CredentialStore,
+    store_for: S,
+    link: &JoinLink,
+    code: &str,
+    password: &str,
+    kdf_params: KdfParams,
+    now: i64,
+) -> Result<(), Error>
+where
+    S: FnOnce(CredentialSlot) -> F,
+    F: std::future::Future<Output = Result<OrganizationStore, Error>>,
+{
+    let database_path = database_path(app_state).await;
+
+    if open_organization(app_state).await.as_deref() == Some(link.organization_id.as_str()) {
+        sign_out(app_state, credentials).await;
     }
 
-    let (store, member) = {
+    let session_open = app_state.member.read().await.is_some();
+    let accepted = {
         let mut remote_sync = app_state.remote_sync.write().await;
 
-        join::accept(
-            credentials.inner().as_ref(),
-            |credential| reached(&app_state, &clock, &link, credential),
+        join::accept_while(
+            credentials,
+            store_for,
             remote_sync.store_mut(),
             &database_path,
-            &link,
-            &code,
-            &password,
-            setup::SHIPPING_KDF,
-            clock.now(),
+            link,
+            code,
+            password,
+            kdf_params,
+            now,
+            session_open,
         )
-        .await?
+        .await
     };
+    let (store, member) = match accepted {
+        Ok(accepted) => accepted,
+        Err(refusal) => {
+            left_consistent(app_state, credentials).await;
+
+            return Err(refusal);
+        }
+    };
+
+    // the session open on another organization ends here, now that this one admitted somebody.
+    if session_open {
+        sign_out(app_state, credentials).await;
+    }
 
     // best effort, under the member's own credential now.
     store.pull().await;
@@ -193,7 +264,7 @@ pub(crate) async fn organization_invitation_accept(
     *app_state.organization.write().await = Some(store);
     *app_state.member.write().await = Some(member);
 
-    state_of(&app_state, &credentials, &clock).await
+    Ok(())
 }
 
 /// Connect this machine with a machine-kind link, and leave it at the wall.
@@ -202,8 +273,9 @@ pub(crate) async fn organization_invitation_accept(
 /// invitation accept do. The code and the link's secret together unseal the member's own grant,
 /// the replica is opened under it, the organization is recorded with no member beside any others
 /// held and selected, and the row behind the link is spent. A link for an organization this machine
-/// holds selects it and is refused as already used (effort 851, requirement 13), and a session open
-/// here ends first, as it does for an invitation.
+/// holds is refused as already used (effort 851, requirement 13), and selected where nobody is in.
+/// A session open here ends once the link has recorded an organization, as it does for an
+/// invitation, and a refused link leaves it open ([`connected_here`]).
 ///
 /// **The credential is let go of with the replica.** Nobody is signed in here, so the store is
 /// dropped rather than kept, and the sign-in at the wall opens it again
@@ -217,28 +289,103 @@ pub(crate) async fn organization_invitation_machine_connect(
     code: String,
 ) -> Result<OrganizationState, Error> {
     let link = JoinLink::decode(&link)?;
-    let database_path = database_path(&app_state).await;
 
-    if app_state.member.read().await.is_some() {
-        sign_out(app_state.inner(), credentials.inner().as_ref()).await;
-    }
+    connected_here(
+        app_state.inner(),
+        credentials.inner().as_ref(),
+        |credential| reached(&app_state, &clock, &link, credential),
+        &link,
+        &code,
+        setup::SHIPPING_KDF,
+        clock.now(),
+    )
+    .await?;
 
-    {
+    state_of(&app_state, &credentials, &clock).await
+}
+
+/// [`organization_invitation_machine_connect`] past the decode, over the application's state.
+///
+/// **A session open here is signed out only once the link has recorded an organization** (effort
+/// 851, review). A machine link never reaches a replica this machine has open, since one for a
+/// held organization is refused before anything is reached, so nothing here ends a session before
+/// the link is judged, and a refused link leaves the person signed in where they were.
+pub(crate) async fn connected_here<S, F>(
+    app_state: &Shared,
+    credentials: &dyn CredentialStore,
+    store_for: S,
+    link: &JoinLink,
+    code: &str,
+    kdf_params: KdfParams,
+    now: i64,
+) -> Result<(), Error>
+where
+    S: FnOnce(CredentialSlot) -> F,
+    F: std::future::Future<Output = Result<OrganizationStore, Error>>,
+{
+    let database_path = database_path(app_state).await;
+    let session_open = app_state.member.read().await.is_some();
+    let connected = {
         let mut remote_sync = app_state.remote_sync.write().await;
 
         machine::connect(
-            |credential| reached(&app_state, &clock, &link, credential),
+            store_for,
             remote_sync.store_mut(),
             &database_path,
-            &link,
-            &code,
-            setup::SHIPPING_KDF,
-            clock.now(),
+            link,
+            code,
+            kdf_params,
+            now,
+            session_open,
         )
-        .await?;
+        .await
+    };
+
+    if let Err(refusal) = connected {
+        left_consistent(app_state, credentials).await;
+
+        return Err(refusal);
     }
 
-    state_of(&app_state, &credentials, &clock).await
+    // the machine is at the wall of the organization the link recorded, so a session open on
+    // another one ends.
+    if session_open {
+        sign_out(app_state, credentials).await;
+    }
+
+    Ok(())
+}
+
+/// The organization a session is open on here, if one is.
+async fn open_organization(app_state: &Shared) -> Option<String> {
+    app_state
+        .member
+        .read()
+        .await
+        .as_ref()
+        .map(|member| member.organization_id.clone())
+}
+
+/// After a link act failed: a session still open stays open where the record still selects its
+/// organization, and is signed out where the act moved the selection before it failed (effort
+/// 851, review). A link refused as it was judged never moves it with somebody signed in
+/// (`connect::held_here`); one that failed past the record has, and the machine then stands at the
+/// wall of the organization the link recorded, with one organization open at a time.
+async fn left_consistent(app_state: &Shared, credentials: &dyn CredentialStore) {
+    let Some(open) = open_organization(app_state).await else {
+        return;
+    };
+    let selected = app_state
+        .remote_sync
+        .write()
+        .await
+        .store_mut()
+        .selected()
+        .map(|held| held.id.clone());
+
+    if selected.as_deref() != Some(open.as_str()) {
+        sign_out(app_state, credentials).await;
+    }
 }
 
 /// The link the operating system handed this process, if one is waiting: a launch with a link

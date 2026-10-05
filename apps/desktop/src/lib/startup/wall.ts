@@ -180,6 +180,48 @@ export async function remove(machine: StartupMachine, organizationId: string, bu
 }
 
 /**
+ * Read where the machine stands after a link was refused, and draw it in place (effort 851, the
+ * review of requirement 13).
+ *
+ * **No loading pass, because the person is still reading the refusal.** The join screen says it
+ * on the address it is on, and the pass every other change of standing takes puts the loading
+ * surface up and takes the screen away, refusal and all. What a refused link can have moved is
+ * the selection, where nobody is in and the link named an organization this machine holds, whose
+ * wall then opens (requirement 13); and the session, where the link named the open organization,
+ * which the shell signs out to judge the link on its replica. So the organization and the sync
+ * record are read again, and the wall goes up where nobody is in any more; a session still open
+ * is left as it is. *Until the review nothing was read after a refusal, so the wall went on naming
+ * the organization chosen before, a sign-in there reached the one the link had chosen, and
+ * choosing the first again at the switcher did nothing.*
+ *
+ * A read that fails changes nothing: the refusal is already on screen, and the next pass reads
+ * again.
+ */
+export async function linkRefused(machine: StartupMachine) {
+	let organization;
+
+	try {
+		organization = await machine.ports.organization.getState();
+	} catch {
+		return;
+	}
+
+	const wasIn = Boolean(machine.current.organization?.session);
+
+	machine.set({
+		sync: await machine.ports.sync.getState().catch(() => machine.current.sync),
+		organization
+	});
+
+	// the held context named a member whose session the shell has just ended.
+	if (wasIn && !organization.session) {
+		machine.ports.cache.forgetContext();
+	}
+
+	await machine.admit();
+}
+
+/**
  * Read where the machine stands after the switcher changed it, and draw that.
  *
  * The sync record is read first: a remove empties the workspace it named where that was the

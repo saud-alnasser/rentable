@@ -4,7 +4,7 @@ import { StartupMachine } from './machine';
 import type { StartupPorts } from './ports';
 import type { StartupSnapshot } from './snapshot';
 import { switchWorkspace } from './switch';
-import { remove, select, signIn, signOut } from './wall';
+import { linkRefused, remove, select, signIn, signOut } from './wall';
 
 export type { SyncOutcome } from './heartbeat';
 export type { StartupPorts } from './ports';
@@ -80,6 +80,11 @@ export class Startup {
 	/** Where the machine stands changed under the shell: read it again and go on (`./machine`). */
 	standingChanged(passing?: { prepare?: () => Promise<unknown>; arrive?: () => Promise<unknown> }) {
 		return this.#machine.standingChanged(passing);
+	}
+
+	/** A link was refused: read where the machine stands again, in place, under it (`./wall`). */
+	linkRefused() {
+		return linkRefused(this.#machine);
 	}
 
 	/**
