@@ -372,10 +372,11 @@ test('a walk asked for the group with nothing to quote draws no detail line', ()
 
 /**
  * Criterion 3 of this ticket: **the group is asked for without costing the person anything they
- * already typed.** The route keeps its own name, username and password state across the refused
- * create and hands `askGroup` on the props, so what this asserts is the walk under exactly that
- * hand: the three values are in the fields before, and they are still in them after, with the
- * fourth field added beside them.
+ * already typed.** The walk holds the form, so the name, username and password outlive the route
+ * handing `askGroup` on the props after a refused create, and what this asserts is the walk under
+ * exactly that hand: the three values are in the fields before, and they are still in them after,
+ * with the fourth field added beside them. A rerender skips what the form does once its submit
+ * handler returns, so the reset that follows a refused create is `first-run.svelte.test.ts`'s.
  */
 test('the fields the person already filled survive the group being asked for', async () => {
 	loadLocale('en');

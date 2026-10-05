@@ -438,3 +438,74 @@ test('a create refused for want of the group keeps what was typed, asks for the 
 		group: 'rentals'
 	});
 });
+
+/**
+ * Effort 851, requirement 40: **a refused connect to the organization the account holds costs the
+ * owner nothing they typed.** Driven through the real connect and its refusal, as the group's test
+ * above is, because the fields were cleared by what the form does once its submit handler returns.
+ */
+test('a connect to an existing organization that is refused keeps what was typed and says why', async () => {
+	loadLocale('en');
+	setLocale('en');
+
+	hooks.groupKind = 'held';
+	hooks.connectExisting.mockImplementationOnce(async () => {
+		throw {
+			code: 'refused',
+			reason: 'credentialsWrong',
+			message: 'the username or the password does not open this organization'
+		};
+	});
+	await atTheWall();
+
+	render(
+		FirstRun,
+		{ startup: hooks.startup!, wayIn: '/' },
+		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } }
+	);
+
+	await fireEvent.click(screen.getByRole('button', { name: en.organization.setup.continue }));
+	await waitFor(() =>
+		expect(document.querySelector('[data-setup-step]')?.getAttribute('data-setup-step')).toBe(
+			'existing'
+		)
+	);
+
+	for (const [name, value] of [
+		['username', 'olivia.owner'],
+		['password', 'her own password']
+	]) {
+		await fireEvent.input(document.querySelector(`input[name="${name}"]`)!, {
+			target: { value }
+		});
+	}
+
+	await fireEvent.submit(document.querySelector('form')!);
+	await waitFor(() =>
+		expect(hooks.connectExisting).toHaveBeenCalledWith({
+			username: 'olivia.owner',
+			password: 'her own password'
+		})
+	);
+
+	// the refusal against the password, and both fields still holding what was typed.
+	await waitFor(() =>
+		expect(document.querySelector('[data-setup-existing-refusal]')?.textContent?.trim()).toBe(
+			en.common.refusals.host.credentialsWrong
+		)
+	);
+	await waitFor(() =>
+		expect(
+			[...document.querySelectorAll<HTMLInputElement>('form input')].map((input) => [
+				input.getAttribute('name'),
+				input.value
+			])
+		).toEqual([
+			['username', 'olivia.owner'],
+			['password', 'her own password']
+		])
+	);
+	expect(document.querySelector('[data-setup-step]')?.getAttribute('data-setup-step')).toBe(
+		'existing'
+	);
+});

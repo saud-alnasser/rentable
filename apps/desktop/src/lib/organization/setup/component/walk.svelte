@@ -301,6 +301,11 @@
 		id: 'setup-existing',
 		SPA: true,
 		validators: zod4(ExistingSchema),
+		// **never emptied by a submit** (effort 851, requirement 40), for the create form's reason:
+		// `onConnectExisting` returns normally from a refused connect, because the route catches
+		// the refusal to say it against the password, and a connect that succeeds hands over to
+		// the loading surface.
+		resetForm: false,
 		onUpdate: async ({ form }) => {
 			if (!form.valid) return;
 

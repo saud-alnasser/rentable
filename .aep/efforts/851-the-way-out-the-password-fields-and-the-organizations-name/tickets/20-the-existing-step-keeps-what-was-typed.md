@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(organization): the owner's connect to an existing organization keeps what they typed
@@ -14,9 +14,9 @@ A refused connect on the walk's existing step leaves the username and the passwo
 
 Traces requirement 40 and criterion 40.
 
-- [ ] **First, a failing test** of the first run through the real connect path (the `applyAction` the test owns, as ticket 12's), refusing the connect and asserting both fields keep what was typed.
-- [ ] The `setup-existing` form stops resetting after a caught refusal; the same test passes and shows the refusal.
-- [ ] `pnpm test` and `pnpm check` pass; a changeset.
+- [x] **First, a failing test** of the first run through the real connect path (the `applyAction` the test owns, as ticket 12's), refusing the connect and asserting both fields keep what was typed.
+- [x] The `setup-existing` form stops resetting after a caught refusal; the same test passes and shows the refusal.
+- [x] `pnpm test` and `pnpm check` pass; a changeset.
 
 ## Relevant areas
 
