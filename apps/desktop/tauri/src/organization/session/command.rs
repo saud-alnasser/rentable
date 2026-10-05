@@ -2959,6 +2959,303 @@ mod tests {
         );
     }
 
+    /// Every replica file under the directory whose name starts with `prefix`, the engine's
+    /// sidecars with it, by name and with its bytes.
+    fn files_of(
+        directory: &std::path::Path,
+        prefix: &str,
+    ) -> std::collections::BTreeMap<String, Vec<u8>> {
+        std::fs::read_dir(directory)
+            .expect("the directory")
+            .flatten()
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .filter(|name| name.starts_with(prefix))
+            .map(|name| {
+                let bytes = std::fs::read(directory.join(&name)).expect("the file");
+
+                (name, bytes)
+            })
+            .collect()
+    }
+
+    /// Every row the organization replica on disk holds, table by table, read through a store
+    /// opened on the file with no remote and let go of again.
+    async fn rows_of(path: &std::path::Path) -> Vec<(String, Vec<Vec<turso::Value>>)> {
+        let store = OrganizationStore::open(crate::clock::System::shared(), path, None, || async {
+            Ok::<String, turso::Error>(String::new())
+        })
+        .await
+        .expect("the replica");
+        let mut contents = Vec::new();
+
+        for table in store.tables().await.expect("the tables") {
+            let mut rows = store
+                .connection()
+                .query(&format!("SELECT * FROM \"{table}\" ORDER BY rowid"), ())
+                .await
+                .expect("the rows");
+            let mut values = Vec::new();
+
+            while let Some(row) = rows.next().await.expect("a row") {
+                values.push(
+                    (0..row.column_count())
+                        .map(|index| row.get_value(index).expect("a value"))
+                        .collect(),
+                );
+            }
+
+            contents.push((table, values));
+        }
+
+        contents
+    }
+
+    /// A workspace replica as the release left one: the engine's own file, holding a row of the
+    /// ledger, written once and closed.
+    async fn workspace_replica_left(directory: &std::path::Path, workspace_id: &str) {
+        let replica = Database::replica_path(&directory.join(Database::FILENAME), workspace_id);
+        let database = Database::open_replica(&crate::clock::System, &replica, None, || async {
+            Ok::<String, turso::Error>(String::new())
+        })
+        .await
+        .expect("the workspace replica");
+        let connection = database.connect().await.expect("a connection");
+
+        connection
+            .execute("CREATE TABLE ledger (line TEXT NOT NULL)", ())
+            .await
+            .expect("the table");
+        connection
+            .execute(
+                "INSERT INTO ledger (line) VALUES (?1)",
+                [format!("the rent {workspace_id} collected")],
+            )
+            .await
+            .expect("the row");
+    }
+
+    /// **Criterion 16, whole** (effort 851, requirement 16, ticket 17): the update a person meets.
+    /// A data directory the current release wrote, its record release 0.19.0's frozen one,
+    /// the organization's replica and both workspaces' replicas on disk beside it, and a keyring
+    /// holding the member key the release remembered and the owner's Turso consent where the
+    /// release filed it. This build's first launch converts the record with nothing forgotten,
+    /// moves the consent to the organization, and resumes the session with no password typed;
+    /// every replica is the file the release left, and an owner-only act reaches Turso.
+    ///
+    /// **The organization itself is a real one**, made by the first run here, because a resume
+    /// opens a vault and verifies signed rows, and the frozen record's organization has neither.
+    /// The record is the frozen one with the four values that name that organization written into
+    /// it (its id, its verifying key, its remote and the owner's member row), the replica entries'
+    /// member with them, and the open workspace's path in this data directory rather than in
+    /// another machine's; every other value in it is what the release wrote. The keyring is
+    /// a new one holding only what the release held.
+    #[tokio::test]
+    async fn an_install_from_the_current_release_updates_whole_with_nothing_typed_or_pulled_again()
+    {
+        let directory = scratch("updates-whole");
+        let made: Credentials = Arc::new(Memory::new());
+
+        drop(first_run(made.as_ref(), &directory).await);
+
+        let made_record: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(directory.join(RemoteSync::FILENAME)).expect("the record"),
+        )
+        .expect("the record");
+        let (organization_id, member_id, held, member_key) = {
+            let held = &made_record["heldOrganizations"][0];
+            let organization_id = held["id"].as_str().expect("the id").to_owned();
+            let member_id = held["memberId"].as_str().expect("the member").to_owned();
+            let member_key = made
+                .get(
+                    MEMBER_KEY_SERVICE,
+                    &format!("{organization_id}:{member_id}"),
+                )
+                .expect("the store")
+                .expect("the first run remembered no member key");
+
+            (organization_id, member_id, held.clone(), member_key)
+        };
+
+        // the record exactly as the release wrote it, naming this organization.
+        let mut released: serde_json::Value = serde_json::from_str(RELEASED).expect("the fixture");
+
+        released["organization"]["id"] = json!(organization_id);
+        released["organization"]["verifyingKey"] = held["verifyingKey"].clone();
+        released["organization"]["remoteUrl"] = held["remoteUrl"].clone();
+        released["organization"]["memberId"] = json!(member_id);
+        // and the data directory it wrote it in, which is this one.
+        released["workspace"]["localDatabasePath"] =
+            json!(directory.join(Database::FILENAME).to_string_lossy());
+
+        for replica in released["replicas"]
+            .as_array_mut()
+            .expect("the replicas")
+            .iter_mut()
+        {
+            replica["memberId"] = json!(member_id);
+        }
+
+        std::fs::write(
+            directory.join(RemoteSync::FILENAME),
+            serde_json::to_string_pretty(&released).expect("the record"),
+        )
+        .expect("the record");
+
+        // the keyring as the release left it: the remembered member key, and the owner's consent
+        // under `owner`, its one entry.
+        let credentials: Credentials = Arc::new(Memory::new());
+
+        credentials
+            .set(
+                MEMBER_KEY_SERVICE,
+                &format!("{organization_id}:{member_id}"),
+                &member_key,
+            )
+            .expect("the member key");
+        store_platform_token(credentials.as_ref(), "the-owners-consent").expect("the consent");
+
+        // the two workspaces the release replicated, beside the organization's replica.
+        for replica in released["replicas"].as_array().expect("the replicas") {
+            workspace_replica_left(
+                &directory,
+                replica["workspaceId"].as_str().expect("a workspace"),
+            )
+            .await;
+        }
+
+        let organization_replica =
+            OrganizationStore::replica_path(&directory.join(Database::FILENAME), &organization_id);
+        let organization_rows_before = rows_of(&organization_replica).await;
+        let workspaces_before = files_of(&directory, "ws-");
+
+        assert_eq!(
+            workspaces_before
+                .keys()
+                .filter(|name| name.ends_with(".db"))
+                .collect::<Vec<_>>(),
+            vec!["ws-wks-north.db", "ws-wks-south.db"],
+            "the release's workspace replicas were not laid down"
+        );
+
+        // this build's first launch: the load, and the first state read's cell.
+        let app_state = state_over(&directory).await;
+        let state = state_of(&app_state, &credentials, &crate::clock::System::shared())
+            .await
+            .expect("the state");
+
+        // the same organization is held and selected, and the session resumed with nothing typed.
+        assert_eq!(state.organizations.len(), 1, "{state:#?}");
+        assert_eq!(state.selected.as_deref(), Some(organization_id.as_str()));
+        let session = state.session.as_ref().expect("the launch did not resume");
+
+        assert_eq!(session.member_id, member_id);
+        assert_eq!(session.username, USERNAME);
+        assert_eq!(session.role, "owner");
+        assert!(!state.signed_out_elsewhere);
+
+        // the record converted, with nothing the release wrote forgotten.
+        let written: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(directory.join(RemoteSync::FILENAME)).expect("the record"),
+        )
+        .expect("the record");
+        let mut expected = released["organization"].clone();
+
+        expected["tursoOrganization"] = released["tursoOrganization"].clone();
+        expected["workspaceId"] = released["workspace"]["remoteId"].clone();
+
+        // every field the release wrote, and the two the conversion adds from it. `nameSigned`
+        // and `lockMarked` are this build's own, and the resume reads them from the replica.
+        let entry = &written["heldOrganizations"][0];
+
+        assert_eq!(
+            written["heldOrganizations"]
+                .as_array()
+                .map(Vec::len)
+                .unwrap_or_default(),
+            1
+        );
+        for (field, value) in expected.as_object().expect("the organization") {
+            assert_eq!(&entry[field], value, "`{field}` changed in the update");
+        }
+        assert_eq!(written["selectedOrganization"], json!(organization_id));
+        for kept in [
+            "workspace",
+            "deviceId",
+            "startupPromptEnabled",
+            "lastReachedAt",
+            "tursoOrganization",
+        ] {
+            assert_eq!(written[kept], released[kept], "`{kept}` changed");
+        }
+
+        let replicas = written["replicas"].as_array().expect("the replicas");
+        let released_replicas = released["replicas"].as_array().expect("the replicas");
+
+        assert_eq!(
+            replicas.len(),
+            released_replicas.len(),
+            "a replica was lost"
+        );
+        for (replica, before) in replicas.iter().zip(released_replicas) {
+            assert_eq!(replica["organizationId"], json!(organization_id));
+            assert_eq!(replica["workspaceId"], before["workspaceId"]);
+            assert_eq!(replica["memberId"], before["memberId"]);
+            assert_eq!(replica["createdAt"], before["createdAt"]);
+        }
+
+        // the consent is the organization's own, and `owner` is empty.
+        assert_eq!(
+            platform_token(credentials.as_ref(), &Account::of(&organization_id)).as_deref(),
+            Ok("the-owners-consent"),
+            "the consent is not under the organization"
+        );
+        assert!(
+            !holds_platform_token(credentials.as_ref(), &Account::Pending).expect("the store"),
+            "the consent is still under `owner`"
+        );
+        assert!(state.holds_turso_authority);
+
+        // nothing was pulled again: the workspaces' replicas are the release's bytes, and the
+        // organization's replica still holds every row it held, which a replica replaced by a
+        // fresh pull would not, there being no remote here to pull them from.
+        assert_eq!(
+            files_of(&directory, "ws-"),
+            workspaces_before,
+            "a workspace replica was touched by the launch"
+        );
+
+        drop(app_state);
+
+        let organization_rows_after = rows_of(&organization_replica).await;
+
+        for (table, rows) in &organization_rows_before {
+            let after = organization_rows_after
+                .iter()
+                .find(|(name, _)| name == table)
+                .map(|(_, rows)| rows)
+                .unwrap_or_else(|| panic!("the replica lost `{table}`"));
+
+            for row in rows {
+                assert!(
+                    after.contains(row),
+                    "the replica lost a row of `{table}` the release left: {row:?}"
+                );
+            }
+        }
+
+        // and an owner-only act reaches Turso with that consent, on the account the release
+        // recorded.
+        let app_state = state_over(&directory).await;
+
+        assert_eq!(
+            an_owner_only_act(&app_state, &credentials, &organization_id).await,
+            (
+                format!("/v1/organizations/acme/databases/org-{organization_id}/auth/tokens"),
+                "Bearer the-owners-consent".to_string()
+            )
+        );
+    }
+
     /// **Criterion 14** (effort 851): one machine holds two organizations owned on two Turso
     /// accounts. Each owner-only act reaches the Platform API with its own organization's token
     /// and slug, and forgetting one organization's consent leaves the other's.

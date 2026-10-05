@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # test(organization): an install from the current release updates whole, with nothing typed and nothing pulled again
@@ -14,8 +14,8 @@ One Rust test walks the whole update a user meets: a data directory written by t
 
 Traces requirement 16 and criterion 16.
 
-- [ ] A Rust test as the outcome describes, built from the frozen `remote-sync.0.19.0.json` and replica files laid down beside it, asserting: the record converted with nothing forgotten; the consent under `org:<id>` and `owner` empty; the session resumed with no password; each replica file's bytes or identity unchanged by the launch (no pull replaced it); an owner-only act reaching the in-memory or loopback platform with that consent.
-- [ ] The full Rust suite, `cargo fmt --check` and clippy pass with no new warnings.
+- [x] A Rust test as the outcome describes, built from the frozen `remote-sync.0.19.0.json` and replica files laid down beside it, asserting: the record converted with nothing forgotten; the consent under `org:<id>` and `owner` empty; the session resumed with no password; each replica file's bytes or identity unchanged by the launch (no pull replaced it); an owner-only act reaching the in-memory or loopback platform with that consent.
+- [x] The full Rust suite, `cargo fmt --check` and clippy pass with no new warnings.
 
 ## Relevant areas
 
