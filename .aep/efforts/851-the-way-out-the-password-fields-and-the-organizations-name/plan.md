@@ -216,7 +216,7 @@ the cause is; the form state stays in the walk.
   refuses a locked actor every act but sign-in, sign-out, the password change and reads, with a
   new `RefusalReason::Locked`. On the frontend, `permissionsIn` masks a locked session's
   permissions to the view flags, so every `procedure.permitted` record write refuses and every
-  control keyed on a flag is not drawn; the wall-to-workspace screens show the locked sentence.
+  control keyed on a flag is drawn dimmed with the locked reason ([[rules/interface]]); the wall-to-workspace screens show the locked sentence.
 - **The card.** `organization/member/component/card.svelte` draws a `locked` outline badge beside
   the existing footer badges, and the unlock where `acts.ts` says the reader may (a new
   `canUnlock`), confirmed through the destructive-confirm pattern the directory already uses.

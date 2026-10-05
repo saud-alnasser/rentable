@@ -279,8 +279,9 @@ holds the same one, the same way, after the update.
 31. **Every account made from now on starts locked.** An account an invitation makes is locked
     from its creation, and stays locked through the join and the first password.
 32. **A locked member signs in, sets their password and views, and does nothing else.** They see
-    the records their role lets them view; every control that adds, edits, deletes or administers
-    is not drawn, and every such act is refused: organization acts in Rust, record writes by the
+    the records their role lets them view, and the directory where their role shows it; every
+    control that adds, edits, deletes or administers is drawn dimmed with the locked reason, as
+    [[rules/interface]] draws every refused act, and every such act is refused: organization acts in Rust, record writes by the
     procedures that already refuse a missing flag. A sentence on their screen says the account is
     locked until an owner or a manager unlocks it.
 33. **The member's card carries a locked badge** while they are locked, on every machine that
@@ -394,8 +395,9 @@ holds the same one, the same way, after the update.
     the first password it is still locked.
 32. A Rust test: a locked member's organization acts (an invite, a role change, a rename of a
     workspace, an ownership offer) are refused with a locked refusal and change nothing; their
-    sign-in, password change and reads succeed. A component test: a locked session draws no write
-    control on a record list, and its procedures refuse a record write; the locked sentence shows.
+    sign-in, password change and reads succeed. A component test: a locked session draws every write
+    control on a record list dimmed with the locked reason, and its procedures refuse a record write;
+    the locked sentence shows.
 33. A component test of the directory draws the locked badge on a locked member's card and not on
     an unlocked one's.
 34. A Rust test: the owner and an outranking manager holding `AssignRole` unlock a locked member who

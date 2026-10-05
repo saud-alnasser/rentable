@@ -9,13 +9,13 @@ Authoritative: [[efforts/851-the-way-out-the-password-fields-and-the-organizatio
 
 ## Outcome
 
-A locked session views what its role allows and draws no write control; its record writes are refused by the procedures; a sentence says the account is locked until an owner or a manager unlocks it. The directory shows a locked badge on a locked member's card, and the unlock, with a confirmation, to those who may unlock once the member has set a password; before that the card says the member has not signed in yet.
+A locked session views what its role allows and draws every write control dimmed with the locked reason; its record writes are refused by the procedures; a sentence says the account is locked until an owner or a manager unlocks it. The directory shows a locked badge on a locked member's card, and the unlock, with a confirmation, to those who may unlock once the member has set a password; before that the card says the member has not signed in yet.
 
 ## Acceptance Criteria
 
 Traces requirements 32 (the frontend half), 33 and 34 (the frontend half), and criteria 32 (the component half), 33 and 34 (the component half).
 
-- [ ] `permissionsIn` masks a locked session's permissions to the view flags, so every `procedure.permitted` record write refuses and every control keyed on a write flag is not drawn. A component test of a record list under a locked session draws no write control, and a test of a procedure refuses a record write (criterion 32).
+- [ ] `permissionsIn` masks a locked session's permissions to the view flags, so every `procedure.permitted` record write refuses and every control keyed on a write flag is drawn dimmed with the locked reason. A component test of a record list under a locked session draws every write control dimmed with that reason, and a test of a procedure refuses a record write (criterion 32).
 - [ ] The locked sentence shows for a locked session where the workspace is drawn, in English and Arabic, and disappears once the session reads unlocked.
 - [ ] `card.svelte` draws a `locked` outline badge beside the existing footer badges for a locked member and none for an unlocked one (criterion 33).
 - [ ] `acts.ts` gains `canUnlock`; the unlock is drawn for the owner and an outranking holder of `AssignRole` or `OverrideMember`, never on the reader's own card, only once the member's password is set, and opens a confirmation before calling `member_unlock`; before the password is set the card says the member has not signed in yet (criterion 34).
