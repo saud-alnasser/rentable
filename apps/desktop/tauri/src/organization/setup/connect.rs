@@ -53,8 +53,41 @@ pub const ONLY_THE_OWNER_CONNECTS: &str = "only the owner can connect a machine 
 pub(super) const ORGANIZATION_THIS_ACCOUNT_HOLDS: &str =
     "the organization this turso account holds";
 
+/// What connecting to the organization the consented group holds came to (effort 851, requirement
+/// 13).
+#[derive(Debug)]
+pub(crate) enum ConnectedToExisting {
+    /// the owner connected this machine and is signed in: the entry recorded and selected, the
+    /// replica the connect opened, and the session. The entry is what a test reads; the command
+    /// answers with the whole state. The session is boxed, being most of the size.
+    Connected(
+        #[cfg_attr(not(test), allow(dead_code))] HeldOrganization,
+        OrganizationStore,
+        Box<MemberSession>,
+    ),
+    /// the organization is one this machine holds already: its entry is selected, nothing was
+    /// opened, and the wall is what follows.
+    Held(#[cfg_attr(not(test), allow(dead_code))] HeldOrganization),
+}
+
+#[cfg(test)]
+impl ConnectedToExisting {
+    /// The connection, for a test that expects one.
+    pub(crate) fn connected(self) -> (HeldOrganization, OrganizationStore, MemberSession) {
+        match self {
+            Self::Connected(held, store, session) => (held, store, *session),
+            Self::Held(held) => panic!("the connect selected {} and opened nothing", held.id),
+        }
+    }
+}
+
 /// Connect this machine to the organization the consented group already holds, and sign the owner
 /// in to it (effort 828, requirement 14).
+///
+/// **An organization this machine holds already is selected, and nothing else happens** (effort
+/// 851, requirement 13). The listing names it, and its entry is selected before a credential is
+/// minted or a replica opened, so nothing opens over the replica this machine works from. One it
+/// does not hold is added beside any others, and selected.
 ///
 /// **The order is what this function is**, and each step of it has to have passed before the next
 /// one is possible at all.
@@ -124,15 +157,11 @@ pub(crate) async fn connect_existing<P, F>(
     username: &str,
     password: &str,
     now: i64,
-) -> Result<(HeldOrganization, OrganizationStore, MemberSession), Error>
+) -> Result<ConnectedToExisting, Error>
 where
     P: TursoPlatform + Sync,
     F: Fn(TursoOrganization) -> P,
 {
-    // a machine holds one organization, so this is refused before the account is even asked what
-    // it holds. The way to another is a disconnect.
-    connect::refuse_while_held(store)?;
-
     let nothing_to_connect_to =
         || Error::refused(RefusalReason::NothingToConnectTo, NOTHING_TO_CONNECT_TO);
     let (organization, databases) = discovery::group_databases(platform_token, mcp)
@@ -145,6 +174,12 @@ where
     let organization_id = held_organization_id(&database.name)
         .ok_or_else(nothing_to_connect_to)?
         .to_string();
+
+    // the organization this account holds is one this machine holds already: it is selected, and
+    // nothing is minted, opened or recorded (effort 851, requirement 13).
+    if let Some(held) = connect::selected_if_held(store, &organization_id)? {
+        return Ok(ConnectedToExisting::Held(held));
+    }
 
     // which account the consent is over, recorded now: it is what every Platform API path this
     // machine builds afterwards is made of, and it stays true whether or not this run connects.
@@ -266,6 +301,7 @@ where
                 remote_url: remote_url.clone(),
             },
             Some((&session.member_id, &session.role)),
+            true,
             now,
         )
         .await?;
@@ -295,7 +331,7 @@ where
         Ok(connected) => connected,
         Err(refusal) => {
             // the replica is let go of before its files are: on Windows a file this process still
-            // has open cannot be deleted, which is the order `forget` keeps for the same reason.
+            // has open cannot be deleted, which is the order `forget_one` keeps for the same reason.
             drop(replica);
             leave_no_replica(database_path, &organization_id);
 
@@ -311,7 +347,11 @@ where
         .with("organization", held.id.as_str())
         .write();
 
-    Ok((held, replica, session))
+    Ok(ConnectedToExisting::Connected(
+        held,
+        replica,
+        Box::new(session),
+    ))
 }
 
 /// Find the vault `password` opens under `username`, and answer the organization key its secret
@@ -414,9 +454,10 @@ mod tests {
     use crate::organization::role::permission;
     use crate::organization::session::{self, CredentialSlot, MemberSession, sign_in};
     use crate::organization::setup::{
-        BASE64URL, CreateOrganization, ONLY_THE_OWNER_CONNECTS, ORGANIZATION_CREDENTIAL_LIFETIME,
-        ORGANIZATION_KEY_PURPOSE, ORGANIZATION_THIS_ACCOUNT_HOLDS, OWNER_ROLE, Remote,
-        connect_existing, create_organization, draw_these_ids_next,
+        BASE64URL, ConnectedToExisting, CreateOrganization, ONLY_THE_OWNER_CONNECTS,
+        ORGANIZATION_CREDENTIAL_LIFETIME, ORGANIZATION_KEY_PURPOSE,
+        ORGANIZATION_THIS_ACCOUNT_HOLDS, OWNER_ROLE, Remote, connect_existing, create_organization,
+        draw_these_ids_next,
     };
     use crate::organization::store::OrganizationStore;
     use crate::organization::workspace::WORKSPACE_CREDENTIAL_LIFETIME;
@@ -608,6 +649,113 @@ mod tests {
             .sealed_credential
     }
 
+    /// **Effort 851, criteria 1 and 13, for the owner's own account: connecting to an
+    /// organization is an add beside one already held, and a connect for one held is a
+    /// selection.**
+    ///
+    /// A machine holding another organization connects to the one the group holds: the owner is
+    /// signed in, both are held, the new one is selected, and the other's entry is as it was. Then,
+    /// with the other selected again, the same connect selects the held organization and does
+    /// nothing else: no credential is minted, nothing is opened or signed in, and the entry is the
+    /// one the first connect recorded.
+    #[tokio::test]
+    async fn the_owner_connects_beside_another_organization_and_a_held_one_is_selected() {
+        let credentials = Memory::new();
+
+        store_platform_token(&credentials, TOKEN)
+            .expect("the test credential store would not take the token");
+
+        let directory = scratch("connect-beside");
+        let (platform, replica, owners_machine) = an_organization(&credentials, &directory).await;
+        let template = owners_machine.selected().cloned().expect("the record");
+
+        drop(replica);
+
+        let another = crate::organization::HeldOrganization {
+            id: "another".to_string(),
+            name: "Other".to_string(),
+            machine_id: "machine-of-another".to_string(),
+            ..template
+        };
+        let mut machine = fresh_machine(&directory, "beside-machine");
+
+        machine.hold(another.clone());
+        machine.commit().expect("the record");
+
+        let mcp = ScriptedServer::start(holding_the_organization()).await;
+        let (held, replica, session) = connect_existing(
+            &credentials,
+            &crate::upgrade::Upgrader,
+            &crate::clock::System::shared(),
+            &mut machine,
+            TOKEN,
+            &McpEndpoint::at(&mcp.url("")),
+            |_| Arc::clone(&platform),
+            Remote::none(),
+            &directory.join("app.db"),
+            "olivia.owner",
+            PASSWORD,
+            ISSUED_AT + 1,
+        )
+        .await
+        .expect("a machine holding another organization could not connect")
+        .connected();
+
+        drop(replica);
+
+        assert_eq!(held.id, HELD_ID);
+        assert_eq!(session.organization_id, HELD_ID);
+        assert_eq!(
+            machine
+                .held_organizations
+                .iter()
+                .map(|held| held.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["another", HELD_ID]
+        );
+        assert_eq!(machine.selected(), Some(&held));
+        assert_eq!(machine.held("another"), Some(&another));
+
+        // the other selected again, and the same connect: the held organization is selected and
+        // nothing else happens.
+        assert!(machine.select("another"));
+        machine.commit().expect("the record");
+
+        let mints = platform.minted().len();
+        let mcp = ScriptedServer::start(holding_the_organization()).await;
+        let again = connect_existing(
+            &credentials,
+            &crate::upgrade::Upgrader,
+            &crate::clock::System::shared(),
+            &mut machine,
+            TOKEN,
+            &McpEndpoint::at(&mcp.url("")),
+            |_| Arc::clone(&platform),
+            Remote::none(),
+            &directory.join("app.db"),
+            "olivia.owner",
+            PASSWORD,
+            ISSUED_AT + 2,
+        )
+        .await;
+
+        assert!(
+            matches!(&again, Ok(ConnectedToExisting::Held(selected)) if selected == &held),
+            "{again:?}"
+        );
+        assert_eq!(
+            machine.selected(),
+            Some(&held),
+            "the held one was not selected"
+        );
+        assert_eq!(machine.held_organizations.len(), 2, "something was added");
+        assert_eq!(
+            platform.minted().len(),
+            mints,
+            "a credential was minted for an organization already held"
+        );
+    }
+
     /// **Criterion 14, the first of its four cases.** The consent meets a group that already
     /// holds an organization, the owner types their username and password, and this machine ends
     /// up holding the organization with the owner signed in and every grant renewed.
@@ -650,7 +798,8 @@ mod tests {
             ISSUED_AT + 1,
         )
         .await
-        .expect("the owner could not connect to their own organization");
+        .expect("the owner could not connect to their own organization")
+        .connected();
 
         // the machine holds it, under the name only an open vault could have read, at the address
         // the listing gave, and the record on disk says the same.
@@ -941,7 +1090,8 @@ mod tests {
             now,
         )
         .await
-        .expect("the new owner could not connect to the organization they were given");
+        .expect("the new owner could not connect to the organization they were given")
+        .connected();
 
         assert_eq!(held.id, HELD_ID);
         assert_eq!(held.name, "Acme Rentals");
@@ -1064,7 +1214,8 @@ mod tests {
             now,
         )
         .await
-        .expect("the register shut the owner out of their own organization");
+        .expect("the register shut the owner out of their own organization")
+        .connected();
 
         assert_eq!(second.id, HELD_ID);
         assert_eq!(second.role.as_deref(), Some(OWNER_ROLE));
@@ -1268,7 +1419,8 @@ mod tests {
             ISSUED_AT + 1,
         )
         .await
-        .expect("the owner could not connect to their own organization");
+        .expect("the owner could not connect to their own organization")
+        .connected();
 
         drop(machine);
 

@@ -29,6 +29,8 @@ export function fakeOrganizationHost(): OrganizationHost {
 		connectExisting: refuse('organization.connectExisting'),
 		getState: refuse('organization.getState'),
 		disconnect: refuse('organization.disconnect'),
+		select: refuse('organization.select'),
+		remove: refuse('organization.remove'),
 		delete: refuse('organization.delete'),
 		signIn: refuse('organization.signIn'),
 		signOut: refuse('organization.signOut'),

@@ -175,10 +175,8 @@
 				return $LL.organization.join.consumed();
 			case 'revoked':
 				return $LL.organization.join.revoked();
-			case 'replaced':
-				return $LL.organization.join.replaced();
 			default:
-				return $LL.organization.join.anotherOrganization();
+				return $LL.organization.join.replaced();
 		}
 	});
 

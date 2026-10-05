@@ -69,6 +69,16 @@ function hostRecording(asked: string[]): Host {
 
 				return fakeOrganizationState({ organization: null, session: null });
 			},
+			select: async (organizationId) => {
+				asked.push(`select:${organizationId}`);
+
+				return fakeOrganizationState({ session: null });
+			},
+			remove: async (organizationId) => {
+				asked.push(`remove:${organizationId}`);
+
+				return fakeOrganizationState({ organization: null, session: null });
+			},
 			create: async (name, username, password, group) => {
 				asked.push(`create:${name}:${username}:${password.length}:${group}`);
 
@@ -115,6 +125,22 @@ test('disconnecting reaches the host signed out, and answers with the state', as
 
 	assert.deepEqual(asked, ['disconnect']);
 	assert.equal(forgotten.organization, null);
+});
+
+// effort 851, requirements 3 and 5: choosing an organization and removing one happen at the wall,
+// so both are public, hand the organization's id to the host as given, and answer with the state.
+// An id that is empty is refused before the host is reached; whether the machine holds it, and
+// whether somebody is signed in, are Rust's.
+test('selecting and removing an organization reach the host signed out with its id, and an empty id is refused first', async () => {
+	const asked: string[] = [];
+	const api = await signedOutApi(hostRecording(asked));
+
+	await api.organization.select({ organizationId: 'org-b' });
+	await api.organization.remove({ organizationId: 'org-a' });
+
+	await assert.rejects(api.organization.select({ organizationId: '' }));
+	await assert.rejects(api.organization.remove({ organizationId: '' }));
+	assert.deepEqual(asked, ['select:org-b', 'remove:org-a']);
 });
 
 // effort 826's second correction to requirement 13: the group is optional, and **both shapes are
@@ -486,12 +512,14 @@ test('nothing here asks the host to list organizations', () => {
 		'member.withdrawOffer',
 		'ownershipAccept',
 		'password.change',
+		'remove',
 		'role.create',
 		'role.delete',
 		'role.list',
 		'role.move',
 		'role.rename',
 		'role.setMask',
+		'select',
 		'session.endElsewhere',
 		'session.endMachine',
 		'session.machines',
@@ -1155,11 +1183,13 @@ const COMMAND_OF: Record<string, string> = {
 	'member.withdrawOffer': 'plugin:organization|ownership_withdraw_offer',
 	ownershipAccept: 'plugin:organization|ownership_accept',
 	'password.change': 'plugin:organization|member_change_password',
+	remove: 'plugin:organization|session_remove',
 	'role.create': 'plugin:organization|role_create',
 	'role.delete': 'plugin:organization|role_delete',
 	'role.move': 'plugin:organization|role_move',
 	'role.rename': 'plugin:organization|role_rename',
 	'role.setMask': 'plugin:organization|role_set_mask',
+	select: 'plugin:organization|session_select',
 	'session.endElsewhere': 'plugin:organization|session_end_elsewhere',
 	'session.endMachine': 'plugin:organization|session_end_machine',
 	'workspace.create': 'plugin:organization|workspace_create',

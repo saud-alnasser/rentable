@@ -35,6 +35,8 @@ pub fn plugin() -> TauriPlugin<tauri::Wry> {
             super::setup::organization_setup_reconnect_authority,
             super::session::organization_session_replicate,
             super::session::organization_session_disconnect,
+            super::session::organization_session_select,
+            super::session::organization_session_remove,
             super::session::organization_session_state_get,
             super::session::organization_session_sign_in,
             super::session::organization_session_sign_out,

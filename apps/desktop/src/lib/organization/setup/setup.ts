@@ -233,7 +233,6 @@ export function refusalAfterFailedConnect(error: unknown): SetupRefusal | null {
  * and password.
  */
 const BACK_TO_THE_CONSENT: readonly TauriRefusalReason[] = [
-	'anotherOrganizationHeld',
 	'consentNeededAgain',
 	'groupEmpty',
 	'nothingToConnectTo',

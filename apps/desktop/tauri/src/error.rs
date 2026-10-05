@@ -109,8 +109,6 @@ pub enum RefusalReason {
     LinkNotAnInvitation,
     /// the link is an invitation, and was opened where a machine is connected.
     LinkNotForAMachine,
-    /// this machine already holds another organization.
-    AnotherOrganizationHeld,
     /// a link was asked to last something other than an hour to a day in hours, or a day to a
     /// week in days (effort 851, requirement 11).
     LinkLifetime,
@@ -124,8 +122,11 @@ pub enum RefusalReason {
     PasswordChangeRequired,
     /// nobody is signed in on this machine.
     SignedOut,
-    /// this machine holds no organization.
+    /// this machine holds no organization, or not the one named.
     NoOrganization,
+    /// somebody is signed in, and choosing another organization waits for them to sign out
+    /// (effort 851, requirement 8).
+    SessionOpen,
     /// this machine holds an organization and no member in it yet.
     NoMemberYet,
     /// the session's own row, or the key it remembers, is gone; signing in again answers it.

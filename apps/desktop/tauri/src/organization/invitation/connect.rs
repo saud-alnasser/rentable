@@ -23,9 +23,13 @@
 //! out of the database it judges; `authority/` says why the key travels this way. The one read
 //! made here, the organization row, is compared against the pinned key rather than trusted.
 //!
-//! **A machine holds one organization, so a connect while one is held is refused** before the
-//! link is looked at. Reaching another is a disconnect (`session/forget.rs`) and then a connect,
-//! which is requirement 17's shape and the reason the record is an `Option` rather than a list.
+//! **A machine holds as many organizations as its people need, and a connect adds one** (effort
+//! 851, requirement 1): what is recorded is a new entry in the record's list, and it is selected.
+//! **A link for an organization already held adds nothing** (requirement 13): [`selected_if_held`]
+//! selects its entry before anything is opened over a live replica, and each act judges the link
+//! from there; only a reset link for one of its members is let through (`join::accept`). *A
+//! connect while one organization was held was refused until effort 851, and reaching another was a
+//! disconnect first.*
 
 use std::path::Path;
 
@@ -70,7 +74,11 @@ pub async fn connect(
     credential: &str,
     now: i64,
 ) -> Result<HeldOrganization, Error> {
-    refuse_while_held(machine)?;
+    // an organization already held is selected and nothing is recorded a second time: its entry
+    // carries the member and the machine this machine already has there.
+    if let Some(held) = selected_if_held(machine, &locator.organization_id)? {
+        return Ok(held);
+    }
 
     if credential.trim().is_empty() {
         return Err(Error::refused(
@@ -125,6 +133,7 @@ pub async fn connect(
             remote_url: locator.remote_url.clone(),
         },
         None,
+        false,
         now,
     )
     .await
@@ -162,11 +171,16 @@ pub struct OrganizationFacts {
 /// `member` is the member and role signed in on this machine already, which is `None` for a
 /// connect by link, since nobody has signed in yet, and the owner for a connect on the account,
 /// where the session is what proved the machine could connect at all.
+///
+/// `consented` is whether the organization was found through the pending Turso consent, which is
+/// the connect on the owner's account and never a link: the Turso organization that consent is over
+/// then goes into the entry (`RemoteSyncStore::hold_consented`), and otherwise it stays pending.
 pub async fn record(
     store: &OrganizationStore,
     machine: &mut Persisted<RemoteSyncStore>,
     facts: OrganizationFacts,
     member: Option<(&str, &str)>,
+    consented: bool,
     now: i64,
 ) -> Result<HeldOrganization, Error> {
     let machine_id = random_id()?;
@@ -203,7 +217,7 @@ pub async fn record(
         format: Some(FORMAT_VERSION),
         machine_signed_out,
         // a Turso organization the owner's consent was looked up over goes into the entry as it
-        // is recorded (`RemoteSyncStore::hold`); a link carries none.
+        // is recorded, below; a link carries none.
         turso_organization: None,
         workspace_id: None,
         name_signed: false,
@@ -211,10 +225,15 @@ pub async fn record(
         own_lock_latched: None,
     };
 
-    machine.hold(held.clone());
+    if consented {
+        machine.hold_consented(held.clone());
+    } else {
+        machine.hold(held.clone());
+    }
+
     machine.commit()?;
 
-    // what was recorded, which is the entry with whatever `hold` gave it.
+    // what was recorded, which is the entry with whatever `hold_consented` gave it.
     let held = machine.held(&held.id).cloned().unwrap_or(held);
 
     diagnostics::info("organization.connected")
@@ -255,20 +274,34 @@ pub(crate) fn refused_after_reaching(
     refusal
 }
 
-/// The refusal a connect meets on a machine that already holds an organization, said before
-/// the link is decoded or anything is reached: the way to another organization is a disconnect
-/// first.
-pub fn refuse_while_held(machine: &RemoteSyncStore) -> Result<(), Error> {
-    match machine.selected() {
-        Some(held) => Err(Error::refused(
-            RefusalReason::AnotherOrganizationHeld,
-            format!(
-                "this machine already holds {}; disconnect it before connecting another",
-                held.name
-            ),
-        )),
-        None => Ok(()),
+/// Select the organization `organization_id` where this machine already holds it, and answer its
+/// entry; answer nothing where it does not (effort 851, requirement 13).
+///
+/// **What every way of adding an organization asks first, before anything is opened.** A link, a
+/// machine link and a connect on the owner's account each name an organization; one this machine
+/// holds already is not added again and the wall opens on it, and what each act does next is its
+/// own: a connect on the account admits nothing, a machine link is refused as already used, and an
+/// invitation link is judged on the held replica, letting a reset through. Answering here, before
+/// anything is opened and with any session signed out by the command, is what keeps a second store
+/// from opening over a live replica of an organization this machine holds. The record is written
+/// only where the selection moved.
+pub(crate) fn selected_if_held(
+    machine: &mut Persisted<RemoteSyncStore>,
+    organization_id: &str,
+) -> Result<Option<HeldOrganization>, Error> {
+    if machine.held(organization_id).is_none() {
+        return Ok(None);
     }
+
+    if machine.select(organization_id) {
+        machine.commit()?;
+    }
+
+    diagnostics::info("organization.alreadyHeld")
+        .with("organization", organization_id)
+        .write();
+
+    Ok(machine.held(organization_id).cloned())
 }
 
 #[cfg(test)]
@@ -430,26 +463,32 @@ mod tests {
             "a secret reached the record"
         );
 
-        // and the owner's own machine, which holds the organization already, is refused with
-        // its record left as it was: the owner still named as the member.
+        // and the owner's own machine, which holds the organization already, records nothing a
+        // second time (effort 851, requirement 13): its entry comes back as it was, the owner
+        // still named as the member, and the record is the same file.
         let mut owners_machine = owners_machine;
         let before = owners_machine
             .selected()
             .cloned()
             .expect("the owner's record");
+        let written = std::fs::read(owners_machine.path()).expect("the owner's record");
 
         assert!(before.member_id.is_some());
 
-        let refused = connect(&store, &mut owners_machine, &link, UNSEALED, ISSUED_AT + 2).await;
+        let again = connect(&store, &mut owners_machine, &link, UNSEALED, ISSUED_AT + 2)
+            .await
+            .expect("a connect for a held organization was refused");
 
-        assert!(
-            matches!(refused, Err(Error::Refused { reason: crate::error::RefusalReason::AnotherOrganizationHeld, ref message }) if message.contains("Acme")),
-            "{refused:?}"
-        );
+        assert_eq!(again, before, "the connect recorded the organization again");
         assert_eq!(
             owners_machine.selected(),
             Some(&before),
-            "the refusal touched the owner's record"
+            "the connect touched the owner's record"
+        );
+        assert_eq!(
+            std::fs::read(owners_machine.path()).expect("the owner's record"),
+            written,
+            "the connect wrote the owner's record"
         );
     }
 

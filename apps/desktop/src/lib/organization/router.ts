@@ -47,6 +47,29 @@ export default router({
 		return ctx.host.organization.disconnect();
 	}),
 	/**
+	 * Choose the organization the wall opens on (effort 851, requirement 3).
+	 *
+	 * **`public`, because it happens at the wall**, where nobody is signed in; Rust refuses it
+	 * while somebody is, since switching happens signed out. It does not reach `ctx.db`.
+	 */
+	select: procedure.public
+		.input(z.object({ organizationId: z.string().min(1) }))
+		.mutation(async ({ input, ctx }): Promise<OrganizationState> => {
+			return ctx.host.organization.select(input.organizationId);
+		}),
+	/**
+	 * Forget one organization this machine holds, and nothing else (effort 851, requirement 5).
+	 *
+	 * **`public` for the reason the disconnect is**: it is offered on the wall, and the host signs
+	 * out first where the organization removed is the open one. It does not reach `ctx.db`. The
+	 * one confirm before it is the screen's.
+	 */
+	remove: procedure.public
+		.input(z.object({ organizationId: z.string().min(1) }))
+		.mutation(async ({ input, ctx }): Promise<OrganizationState> => {
+			return ctx.host.organization.remove(input.organizationId);
+		}),
+	/**
 	 * Accept the organization that was offered to this reader: the second of the two acts a
 	 * handover is (effort 828, requirement 22).
 	 *

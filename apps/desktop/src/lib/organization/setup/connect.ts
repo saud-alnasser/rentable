@@ -91,15 +91,15 @@ export function normalizeCode(typed: string): string {
 export type CodeRefusal = 'wrong' | 'missing';
 
 /**
- * why a link admits nobody: the standings a link can be in and no longer open on, and a link for
- * an organization other than the one this machine holds.
+ * why a link admits nobody: the standings a link can be in and no longer open on.
  *
  * The first four are Rust's `RefusalReason`, spelled the same, and arrive on a rejection the
  * accept or the machine connect answered with; `replaced` is a second machine's alone, and means
- * the member made a newer link. The fifth is the connect's, and is the only one a link can meet
- * before any code is typed.
+ * the member made a newer link. *A fifth, `anotherOrganization`, was a machine already holding
+ * another organization, until effort 851 let a machine hold several: a link for another
+ * organization adds it, and one for an organization held selects it.*
  */
-export type JoinRefusal = LinkStanding | 'anotherOrganization';
+export type JoinRefusal = LinkStanding;
 
 /** the four standings a link can be refused on, as Rust's `RefusalReason` spells them. */
 const LINK_STANDINGS = ['lapsed', 'consumed', 'revoked', 'replaced'] as const;
@@ -300,10 +300,8 @@ export function afterRead(
 
 /**
  * the link could not be read. Which of the three it was is on the rejection: text that is not a
- * link is refused as `linkUnreadable`, which a link in the shape before effort 828 is; an
- * organization that could not be reached is `network`; and a machine already holding another
- * organization is refused as `anotherOrganizationHeld`, and the step says to disconnect first.
- * Anything else is shown as what it said.
+ * link is refused as `linkUnreadable`, which a link in the shape before effort 828 is; and an
+ * organization that could not be reached is `network`. Anything else is shown as what it said.
  *
  * **A decode refusal marks the link field**, on the form the person is already looking at, with
  * the code they typed still in it: the link is the half that is wrong, and saying so anywhere but
@@ -327,12 +325,6 @@ export function inspectionFailed(
 		return { ...pasting(link, code), isUnreadable: true, detail };
 	}
 
-	if (reason === 'anotherOrganizationHeld') {
-		// nothing was reached, so nothing was recorded: the read is a decode and refuses before any
-		// act runs.
-		return { kind: 'refused', link, refusal: 'anotherOrganization', detail };
-	}
-
 	return { kind: 'unreachable', link, code, detail };
 }
 
@@ -353,8 +345,7 @@ export function joinBegun(step: JoinStep): JoinStep {
  *
  * **Where each goes, and what says so.** A link the row refuses carries Rust's `reason`, which is
  * `lapsed`, `consumed`, `revoked` or `replaced`, and lands by that name on the refused step. A
- * machine that already holds another organization is `anotherOrganizationHeld` and is the fifth
- * refusal. A code that failed the seal is `codeWrong` and a code nobody typed is `codeMissing`,
+ * code that failed the seal is `codeWrong` and a code nobody typed is `codeMissing`,
  * and both hand the form back with the code field marked, since the field is where the person
  * answers them (effort 828, requirement 17). A connection that went is `network` and is the
  * unreachable step, which offers the same link again. Anything else keeps the person where they
@@ -378,10 +369,6 @@ export function joinFailed(
 
 	if (isLinkStanding(reason)) {
 		return { kind: 'refused', link: step.link, refusal: reason, detail };
-	}
-
-	if (reason === 'anotherOrganizationHeld') {
-		return { kind: 'refused', link: step.link, refusal: 'anotherOrganization', detail };
 	}
 
 	if (failure === 'network') {

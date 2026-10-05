@@ -12,7 +12,7 @@ use crate::organization::{
         link::{self, JoinLink, LinkShape},
         machine,
     },
-    session::{CredentialSlot, OrganizationState, state_of},
+    session::{CredentialSlot, OrganizationState, sign_out, state_of},
     setup,
     store::OrganizationStore,
 };
@@ -141,11 +141,16 @@ pub(crate) async fn organization_invitation_password_unset(
 /// **The code comes first and everything follows it.** The link carries no credential anybody can
 /// read, so the code and the link's secret together unseal the issuer's own grant and the vault
 /// password; the replica is opened under that grant; the invitation is judged and the vault
-/// opened; the organization is recorded on this machine where it holds none, which is why this
-/// works on a machine that never connected; and the password the person chose reseals their vault.
-/// A link naming an organization other than the one this machine holds is refused, and the way to
-/// it is a disconnect. A link refused once its replica was pulled takes that replica away again
-/// where this machine does not hold the organization (effort 851, requirement 10).
+/// opened; the organization is recorded on this machine beside any others it holds and selected,
+/// which is why this works on a machine that never connected; and the password the person chose
+/// reseals their vault. A link refused once its replica was pulled takes that replica away again
+/// (effort 851, requirement 10).
+///
+/// **A link for an organization this machine holds opens its wall** (effort 851, requirement 13,
+/// as the human settled it on 2026-10-05): its entry is selected, and the link is judged on that
+/// organization's own replica; a reset link for one of its members goes through, and anything else
+/// is refused as already used. **A session open here ends first**, as a sign-in ends one: the organization the link
+/// selects or adds is the one the machine opens next, and one organization is open at a time.
 ///
 /// **`public`, because it happens at the wall.** Neither the credential, the secret nor the
 /// password crosses back; what comes back is where the machine stands, with a session in it.
@@ -160,6 +165,11 @@ pub(crate) async fn organization_invitation_accept(
 ) -> Result<OrganizationState, Error> {
     let link = JoinLink::decode(&link)?;
     let database_path = database_path(&app_state).await;
+
+    if app_state.member.read().await.is_some() {
+        sign_out(app_state.inner(), credentials.inner().as_ref()).await;
+    }
+
     let (store, member) = {
         let mut remote_sync = app_state.remote_sync.write().await;
 
@@ -190,9 +200,10 @@ pub(crate) async fn organization_invitation_accept(
 ///
 /// **`public`, because it happens before there is anybody to act as**, exactly as a connect and an
 /// invitation accept do. The code and the link's secret together unseal the member's own grant,
-/// the replica is opened under it, the organization is recorded with no member, and the row behind
-/// the link is spent. A machine that already holds an organization is refused, and the way to
-/// another is a disconnect.
+/// the replica is opened under it, the organization is recorded with no member beside any others
+/// held and selected, and the row behind the link is spent. A link for an organization this machine
+/// holds selects it and is refused as already used (effort 851, requirement 13), and a session open
+/// here ends first, as it does for an invitation.
 ///
 /// **The credential is let go of with the replica.** Nobody is signed in here, so the store is
 /// dropped rather than kept, and the sign-in at the wall opens it again
@@ -207,6 +218,10 @@ pub(crate) async fn organization_invitation_machine_connect(
 ) -> Result<OrganizationState, Error> {
     let link = JoinLink::decode(&link)?;
     let database_path = database_path(&app_state).await;
+
+    if app_state.member.read().await.is_some() {
+        sign_out(app_state.inner(), credentials.inner().as_ref()).await;
+    }
 
     {
         let mut remote_sync = app_state.remote_sync.write().await;

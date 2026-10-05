@@ -306,11 +306,27 @@ export type OrganizationHost = {
 	/** the organization this machine holds, and who is signed in. */
 	getState: () => Promise<OrganizationState>;
 	/**
-	 * forget the organization this machine holds: sign out where somebody is in, delete every
-	 * replica on this machine, empty the record, and clear the Turso authority. The
+	 * forget the organization this machine has open, or the one the wall stands on: sign out
+	 * where somebody is in, delete its replica and its workspaces' replicas, forget its entry,
+	 * and clear its Turso consent. Every other organization held keeps all of its own. The
 	 * organization on Turso is untouched. The one confirm before it is the screen's.
 	 */
 	disconnect: () => Promise<OrganizationState>;
+	/**
+	 * choose the organization the wall opens on, from those this machine holds (effort 851,
+	 * requirement 3). Refuses with `sessionOpen` while somebody is signed in, since switching
+	 * happens signed out, and with `noOrganization` for an organization this machine does not
+	 * hold.
+	 */
+	select: (organizationId: string) => Promise<OrganizationState>;
+	/**
+	 * forget one organization this machine holds and nothing else (effort 851, requirement 5):
+	 * its replica, its workspaces' replicas, its remembered sign-in, its entry and its Turso
+	 * consent. Where it is the open one the machine signs out of it first; removing another
+	 * leaves the open one open. Refuses with `noOrganization` for one this machine does not
+	 * hold. The one confirm before it is the screen's.
+	 */
+	remove: (organizationId: string) => Promise<OrganizationState>;
 	/**
 	 * delete the organization, with the owner's password: every workspace database and the
 	 * organization's own directory are removed from the owner's Turso account, and this machine
@@ -399,21 +415,23 @@ export type OrganizationHost = {
 		/**
 		 * open an invitation link, with the code the issuer read out and a password of the
 		 * person's choosing: the code and the link's secret together unseal the credential and
-		 * the vault password, the organization is reached and recorded where this machine
-		 * holds none, the vault is resealed under the password, the invitation is spent, and
-		 * the person is signed in. Refuses a lapsed link and a lapsed, consumed or revoked
-		 * invitation by name, a wrong code with `codeWrong`, a missing code with `codeMissing`,
-		 * a password under the floor with `passwordTooShort`, and a link for another
-		 * organization than the one held with `anotherOrganizationHeld`.
+		 * the vault password, the organization is reached and recorded beside any others this
+		 * machine holds and selected, the vault is resealed under the password, the invitation is
+		 * spent, and the person is signed in. A link for an organization this machine holds
+		 * selects it and is judged there: a reset link for one of its members goes through, and
+		 * anything else is refused as `consumed`. Refuses a lapsed link and a
+		 * lapsed, consumed or revoked invitation by name, a wrong code with `codeWrong`, a missing
+		 * code with `codeMissing`, and a password under the floor with `passwordTooShort`.
 		 */
 		accept: (link: string, code: string, password: string) => Promise<OrganizationState>;
 	};
 	/**
 	 * connect this machine with a machine-kind link, and land at the wall. The code
 	 * and the link's secret together unseal the member's own grant, the organization is
-	 * recorded with no member, and the link is spent. Refuses a wrong or missing code with
-	 * `codeWrong` and `codeMissing`, a lapsed link and a replaced or already spent one by
-	 * name, and a machine that already holds an organization with `anotherOrganizationHeld`.
+	 * recorded with no member beside any others held and selected, and the link is spent. A
+	 * link for an organization this machine holds selects it and is refused as `consumed`. Refuses a
+	 * wrong or missing code with `codeWrong` and `codeMissing`, and a lapsed link and a
+	 * replaced or already spent one by name.
 	 */
 	machineConnect: (link: string, code: string) => Promise<OrganizationState>;
 	/**

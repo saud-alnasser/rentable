@@ -1076,10 +1076,6 @@ type RootTranslation = {
 				 */
 				linkNotForAMachine: string;
 				/**
-				 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​a​l​r​e​a​d​y​ ​h​o​l​d​s​ ​a​n​o​t​h​e​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​d​i​s​c​o​n​n​e​c​t​ ​i​t​ ​f​i​r​s​t​.
-				 */
-				anotherOrganizationHeld: string;
-				/**
 				 * a​ ​l​i​n​k​ ​l​a​s​t​s​ ​f​r​o​m​ ​a​n​ ​h​o​u​r​ ​t​o​ ​a​ ​w​e​e​k​.​ ​c​h​o​o​s​e​ ​o​n​e​ ​o​f​ ​t​h​e​ ​l​i​f​e​t​i​m​e​s​ ​o​f​f​e​r​e​d​.
 				 */
 				linkLifetime: string;
@@ -1103,6 +1099,10 @@ type RootTranslation = {
 				 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​h​o​l​d​s​ ​n​o​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​y​e​t​.
 				 */
 				noOrganization: string;
+				/**
+				 * s​i​g​n​ ​o​u​t​ ​b​e​f​o​r​e​ ​c​h​o​o​s​i​n​g​ ​a​n​o​t​h​e​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
+				 */
+				sessionOpen: string;
 				/**
 				 * n​o​b​o​d​y​ ​h​a​s​ ​s​i​g​n​e​d​ ​i​n​ ​t​o​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​y​e​t​.​ ​s​i​g​n​ ​i​n​ ​f​i​r​s​t​.
 				 */
@@ -3806,10 +3806,6 @@ type RootTranslation = {
 			 */
 			replaced: string;
 			/**
-			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​h​o​l​d​s​ ​a​n​o​t​h​e​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​d​i​s​c​o​n​n​e​c​t​ ​i​t​ ​a​t​ ​t​h​e​ ​s​i​g​n​-​i​n​ ​f​i​r​s​t​.
-			 */
-			anotherOrganization: string;
-			/**
 			 * c​h​o​o​s​e​ ​a​ ​p​a​s​s​w​o​r​d
 			 */
 			passwordTitle: string;
@@ -6139,10 +6135,6 @@ export type TranslationFunctions = {
 				 */
 				linkNotForAMachine: () => LocalizedString;
 				/**
-				 * this machine already holds another organization. disconnect it first.
-				 */
-				anotherOrganizationHeld: () => LocalizedString;
-				/**
 				 * a link lasts from an hour to a week. choose one of the lifetimes offered.
 				 */
 				linkLifetime: () => LocalizedString;
@@ -6166,6 +6158,10 @@ export type TranslationFunctions = {
 				 * this machine holds no organization yet.
 				 */
 				noOrganization: () => LocalizedString;
+				/**
+				 * sign out before choosing another organization.
+				 */
+				sessionOpen: () => LocalizedString;
 				/**
 				 * nobody has signed in to the organization on this machine yet. sign in first.
 				 */
@@ -8759,10 +8755,6 @@ export type TranslationFunctions = {
 			 * a newer link replaced this one. ask whoever sent it for the new one.
 			 */
 			replaced: () => LocalizedString;
-			/**
-			 * this machine holds another organization. disconnect it at the sign-in first.
-			 */
-			anotherOrganization: () => LocalizedString;
 			/**
 			 * choose a password
 			 */

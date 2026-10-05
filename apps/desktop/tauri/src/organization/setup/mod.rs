@@ -127,7 +127,7 @@ pub const ADMINISTRATOR_KEY_PURPOSE: &str = "administrator-key";
 ///
 /// **Every caller that needs the owner's key reads it through here**, so no second derivation can
 /// drift: `ownership::offer_ownership` and `ownership::accept_ownership` on a machine already signed in,
-/// and `setup::connect_existing` on a machine that holds nothing yet. *The acts that certify a
+/// and `setup::connect_existing` on a machine that does not hold the organization yet. *The acts that certify a
 /// signer read it too, through `ownership::organization_key_of`, until effort 838 issued every
 /// certificate from its issuer's own.* What comes back
 /// is compared or used to sign; it is never trusted because a column offered it.
@@ -564,9 +564,10 @@ async fn finish<P: TursoPlatform>(
     let machine_signed_out =
         session::sign_outs_acknowledged(&organization_store, &machine_id, &member_id).await?;
 
-    // the one organization this machine holds, from now: the owner's, with their member row
-    // recorded from the outset.
-    store.hold(HeldOrganization {
+    // an organization this machine holds from now, beside any others, and selected: the owner's,
+    // with their member row recorded from the outset, and the Turso organization the consent it
+    // was made on is over.
+    store.hold_consented(HeldOrganization {
         id: organization_id.to_string(),
         name: name.to_string(),
         verifying_key: BASE64URL.encode(verifying_key),
@@ -751,10 +752,11 @@ pub(crate) fn authority(credentials: &dyn CredentialStore) -> Result<String, Err
 #[cfg(test)]
 mod tests {
     use super::{
-        CreateOrganization, MINIMUM_PASSWORD_LENGTH, OWNER_ROLE, Remote, SHIPPING_KDF,
-        create_organization, credential_expiry,
+        CreateOrganization, MINIMUM_PASSWORD_LENGTH, ORGANIZATION_DATABASE_PREFIX, OWNER_ROLE,
+        OrganizationCreated, Remote, SHIPPING_KDF, create_organization, credential_expiry,
     };
     use crate::credential::Memory;
+    use crate::error::{Error, RefusalReason};
     use crate::machine::RemoteSyncStore;
     use crate::organization::authority::{AdministratorKey, OrganizationKey};
     use crate::organization::invitation::USERNAME_RULES;
@@ -1033,6 +1035,161 @@ mod tests {
             mcp.request_count(),
             2,
             "handshake and listing, and nothing else"
+        );
+    }
+
+    /// One first run on this machine's record, into the group `listing` names, on the Turso
+    /// organization `slug`.
+    async fn a_first_run(
+        credentials: &Memory,
+        store: &mut Persisted<RemoteSyncStore>,
+        directory: &std::path::Path,
+        listing: Vec<ScriptedResponse>,
+        slug: &str,
+        name: &str,
+    ) -> Result<OrganizationCreated, Error> {
+        let mcp = ScriptedServer::start(listing).await;
+        let platform = Arc::new(InMemoryPlatform::new(slug));
+
+        create_organization(
+            credentials,
+            &crate::clock::System::shared(),
+            store,
+            TOKEN,
+            &McpEndpoint::at(&mcp.url("")),
+            |_| Arc::clone(&platform),
+            Remote::none(),
+            &directory.join("app.db"),
+            CreateOrganization {
+                name,
+                username: "olivia",
+                password: PASSWORD,
+                group: None,
+            },
+            test_cost(),
+            1_757_000_000_000,
+        )
+        .await
+        .map(|(created, _)| created)
+    }
+
+    /// **Effort 851, criterion 1: setting up a second organization on a machine that holds one.**
+    ///
+    /// The first run succeeds beside the organization already held, the record holds both, the
+    /// new one is selected, and the first one's entry is as it was, its own Turso organization
+    /// included: each knows the account its own consent was over (requirement 14). **A first run
+    /// into a group that already holds an organization is still refused**, whatever else the
+    /// machine holds, and the record is left as it was.
+    #[tokio::test]
+    async fn a_machine_holding_an_organization_sets_up_another_and_a_held_group_is_still_refused() {
+        let credentials = Memory::new();
+        let directory = scratch("second-first-run");
+        let mut store = store(&directory);
+        let first = a_first_run(
+            &credentials,
+            &mut store,
+            &directory,
+            populated_group(),
+            "an-org",
+            "Acme",
+        )
+        .await
+        .expect("the first run failed");
+        let first_entry = store
+            .held(&first.organization_id)
+            .cloned()
+            .expect("the first organization");
+
+        let second = a_first_run(
+            &credentials,
+            &mut store,
+            &directory,
+            vec![
+                handshake(),
+                listing(json!([{
+                    "Name": "ledger",
+                    "hostname": "ledger-another-org.aws-eu-west-1.turso.io",
+                    "group": "elsewhere"
+                }])),
+            ],
+            "another-org",
+            "Beta",
+        )
+        .await
+        .expect("a second organization was refused on a machine holding one");
+
+        assert_eq!(
+            store
+                .held_organizations
+                .iter()
+                .map(|held| held.id.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                first.organization_id.as_str(),
+                second.organization_id.as_str()
+            ]
+        );
+        assert_eq!(
+            store.selected().map(|held| held.id.as_str()),
+            Some(second.organization_id.as_str()),
+            "the new organization is not selected"
+        );
+        assert_eq!(
+            store.held(&first.organization_id),
+            Some(&first_entry),
+            "the second first run touched the first organization's entry"
+        );
+        assert_eq!(
+            store
+                .consent_organization(Some(&second.organization_id))
+                .map(|organization| organization.slug.as_str()),
+            Some("another-org")
+        );
+        assert_eq!(
+            store
+                .consent_organization(Some(&first.organization_id))
+                .map(|organization| organization.slug.as_str()),
+            Some("an-org")
+        );
+
+        // a group that holds an organization already: refused, and nothing recorded.
+        let before = std::fs::read(store.path()).expect("the record");
+        let refused = a_first_run(
+            &credentials,
+            &mut store,
+            &directory,
+            vec![
+                handshake(),
+                listing(json!([{
+                    "Name": format!("{ORGANIZATION_DATABASE_PREFIX}7f3a"),
+                    "hostname": "org-7f3a-third-org.aws-eu-west-1.turso.io",
+                    "group": "taken"
+                }])),
+            ],
+            "third-org",
+            "Gamma",
+        )
+        .await;
+
+        assert!(
+            matches!(
+                refused,
+                Err(Error::Refused {
+                    reason: RefusalReason::GroupHoldsOrganization,
+                    ..
+                })
+            ),
+            "{refused:?}"
+        );
+        assert_eq!(store.held_organizations.len(), 2);
+        assert_eq!(
+            store.selected().map(|held| held.id.as_str()),
+            Some(second.organization_id.as_str())
+        );
+        assert_eq!(
+            std::fs::read(store.path()).expect("the record"),
+            before,
+            "the refused run wrote the record"
         );
     }
 

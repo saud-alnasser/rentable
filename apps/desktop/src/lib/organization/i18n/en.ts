@@ -76,8 +76,6 @@ export const organization = {
 		consumed: 'this link was already used; ask the owner or a manager for a new one.',
 		revoked: 'this link was withdrawn. ask whoever sent it for a new one.',
 		replaced: 'a newer link replaced this one. ask whoever sent it for the new one.',
-		anotherOrganization:
-			'this machine holds another organization. disconnect it at the sign-in first.',
 		passwordTitle: 'choose a password',
 		passwordDescription: "you'll use it to sign in. it can't be recovered.",
 		organizationLabel: 'organization',
@@ -605,14 +603,13 @@ export const refusals = {
 			'this link connects another machine rather than inviting you. sign in with your username and password instead.',
 		linkNotForAMachine:
 			'this link is an invitation rather than a link for another machine. open it where you accept an invitation.',
-		anotherOrganizationHeld:
-			'this machine already holds another organization. disconnect it first.',
 		linkLifetime: 'a link lasts from an hour to a week. choose one of the lifetimes offered.',
 		credentialsWrong: 'the username or password is wrong.',
 		passwordTooShort: 'the password needs at least 12 characters.',
 		passwordChangeRequired: 'change your password before doing anything else.',
 		signedOut: 'nobody is signed in on this machine. sign in and try again.',
 		noOrganization: 'this machine holds no organization yet.',
+		sessionOpen: 'sign out before choosing another organization.',
 		noMemberYet: 'nobody has signed in to the organization on this machine yet. sign in first.',
 		signInAgain: 'your account on this machine is out of date. sign in again.',
 		youWereRemoved: 'you were removed from this organization.',

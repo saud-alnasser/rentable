@@ -8,8 +8,11 @@
 //! is what reads it, so the field stays on the record. The spellings older installs wrote that no
 //! type claims any more, a `provider` of `"googleDrive"` or `"hosted"`, an `accounts` list and a
 //! `controlPlaneSession`, are dropped on read, and the tests at the foot of this file hold both.
-//! What this file holds is the check that reads those signs and forgets what the machine holds,
-//! through the one forget a disconnect uses (`organization/session/forget.rs`). *It was part of
+//! What this file holds is the check that reads those signs and forgets what each one concerns,
+//! through the one forget a disconnect uses (`organization/session/forget.rs`): the organizations
+//! the old list named, or the one held organization whose replica carries the sign. *It forgot
+//! everything the machine held, whichever sign it read, until effort 851 gave a machine several
+//! organizations, and one built before this build says nothing about the others.* *It was part of
 //! `organization/forget.rs`, and those tests of `sync/store.rs` and then `machine/record.rs`,
 //! until effort 840 (ticket 48).*
 //!
@@ -62,7 +65,11 @@ use crate::{
     diagnostics,
     error::Error,
     organization::Shared,
-    organization::{session::forget::forget, store::OrganizationStore},
+    organization::{
+        HeldOrganization,
+        session::forget::{forget_one, forget_the_old_list},
+        store::OrganizationStore,
+    },
     turso::consent::{Account, forget_platform_token},
 };
 
@@ -152,25 +159,57 @@ const SESSION_EPOCH_COLUMN: &str = "session_epoch";
 /// whose signatures no reader here can rebuild.
 const OWNER_SEED_COLUMN: &str = "owner_seed_sealed";
 
-/// Forget what the machine holds where its shape is the old one, and say which sign was read.
+/// Forget what the machine holds in the old shape, and say which sign was read first.
 ///
-/// The check reads the record and, where an organization is held, its replica's schema, and
-/// nothing else; it opens no vault and pulls nothing. `None` is a machine whose shape is this
-/// build's, held organization or not.
+/// The check reads the record and, for each organization held, its replica's schema, and nothing
+/// else; it opens no vault and pulls nothing. The old list is forgotten whole, and each held
+/// organization whose replica carries a sign is forgotten on its own; every other organization
+/// held keeps all of its own (effort 851, requirement 5). `None` is a machine whose shape is this
+/// build's, held organizations or not.
 pub(crate) async fn forget_old_shape(
     app_state: &Shared,
     credentials: &dyn CredentialStore,
     clock: &clock::Shared,
 ) -> Result<Option<OldShape>, Error> {
-    let Some(shape) = old_shape(app_state, clock).await? else {
+    let (listed, held) = {
+        let mut remote_sync = app_state.remote_sync.write().await;
+        let store = remote_sync.store_mut();
+
+        (
+            store.organizations_of_the_old_shape.len(),
+            store.held_organizations.clone(),
+        )
+    };
+    let mut first = None;
+
+    if listed > 0 {
+        let shape = OldShape::SeveralOrganizations(listed);
+
+        diagnostics::warn("organization.forgotten.oldShape")
+            .with("reason", shape.to_string())
+            .write();
+
+        forget_the_old_list(app_state, credentials).await?;
+        first = Some(shape);
+    }
+
+    for held in &held {
+        let Some(shape) = old_shape(app_state, clock, held).await? else {
+            continue;
+        };
+
+        diagnostics::warn("organization.forgotten.oldShape")
+            .with("organization", held.id.as_str())
+            .with("reason", shape.to_string())
+            .write();
+
+        forget_one(app_state, credentials, &held.id).await?;
+        first.get_or_insert(shape);
+    }
+
+    let Some(shape) = first else {
         return Ok(None);
     };
-
-    diagnostics::warn("organization.forgotten.oldShape")
-        .with("reason", shape.to_string())
-        .write();
-
-    forget(app_state, credentials).await?;
 
     // and the consent an earlier build filed for it, which this check runs before the launch moves
     // to its organization (`upgrade/consent.rs`): on this path the pending slot still holds the
@@ -181,25 +220,12 @@ pub(crate) async fn forget_old_shape(
     Ok(Some(shape))
 }
 
-/// The sign that what this machine holds was built before this build, where there is one.
-async fn old_shape(app_state: &Shared, clock: &clock::Shared) -> Result<Option<OldShape>, Error> {
-    let (listed, held) = {
-        let mut remote_sync = app_state.remote_sync.write().await;
-        let store = remote_sync.store_mut();
-
-        (
-            store.organizations_of_the_old_shape.len(),
-            store.selected().cloned(),
-        )
-    };
-
-    if listed > 0 {
-        return Ok(Some(OldShape::SeveralOrganizations(listed)));
-    }
-
-    let Some(held) = held else {
-        return Ok(None);
-    };
+/// The sign that the held organization `held` was built before this build, where there is one.
+async fn old_shape(
+    app_state: &Shared,
+    clock: &clock::Shared,
+    held: &HeldOrganization,
+) -> Result<Option<OldShape>, Error> {
     let database_path = { app_state.settings.read().await.database_path.clone() };
     let replica = OrganizationStore::replica_path(&database_path, &held.id);
 

@@ -199,10 +199,11 @@ pub(super) async fn machine_registered(app_state: &Shared) -> Result<(), Error> 
     Ok(())
 }
 
-/// Take this machine out of the registry, through the replica that carries the delete: what a
-/// disconnect does before it forgets the organization locally (effort 828, requirement 15).
+/// Take this machine out of the registry of the organization `organization_id`, through the
+/// replica that carries the delete: what forgetting the open organization does before it forgets
+/// it locally (effort 828, requirement 15).
 ///
-/// **The replica is taken rather than borrowed**, so the sign-out `forget` performs next finds
+/// **The replica is taken rather than borrowed**, so the sign-out `forget_one` performs next finds
 /// none and writes nothing back: a machine that deleted its row and then said it was still here
 /// would draw a standing line on its member's card for a week over a disconnect it performed
 /// itself.
@@ -210,11 +211,11 @@ pub(super) async fn machine_registered(app_state: &Shared) -> Result<(), Error> 
 /// A disconnect from the wall has no replica open and leaves the row where it is, which the
 /// seven-day window ages out. Nothing here is a refusal: the person asked to forget the
 /// organization and that is what happens either way.
-pub(crate) async fn leave_registry(app_state: &Shared) {
+pub(crate) async fn leave_registry(app_state: &Shared, organization_id: &str) {
     let held = {
         let mut remote_sync = app_state.remote_sync.write().await;
 
-        remote_sync.store_mut().selected().cloned()
+        remote_sync.store_mut().held(organization_id).cloned()
     };
     let Some(held) = held.filter(|held| !held.machine_id.is_empty()) else {
         return;

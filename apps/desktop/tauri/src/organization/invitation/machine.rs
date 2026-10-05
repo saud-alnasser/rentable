@@ -98,15 +98,16 @@ fn no_longer_a_member(organization_name: &str) -> Error {
 ///
 /// `store_for` opens a replica of the organization the link names against a credential slot, the
 /// way `join::accept` reaches: after the unseal and never before it, because there is no legible
-/// credential to reach with. `machine` is this machine's record, which has to hold nothing.
+/// credential to reach with. `machine` is this machine's record, which may hold other
+/// organizations.
 ///
-/// **The order is what this function is.** Refuse a link for another organization while one is
-/// held, since a machine holds one; refuse a link past its own moment before any key is derived,
+/// **The order is what this function is.** Select the organization where this machine holds it
+/// already, and refuse the link there as already used (effort 851, requirement 13); refuse a link past its own moment before any key is derived,
 /// because deriving for a dead link is a free pass to whoever is guessing; unseal the payload with
 /// the code and the link's secret together; reach the replica with what came out; judge the row,
 /// refusing a replaced, lapsed or spent one by name; refuse an account that is no longer in the
-/// organization; record the organization with no member where none is held; mark the row spent and
-/// send it.
+/// organization; record the organization with no member, beside any others held, and select it;
+/// mark the row spent and send it.
 ///
 /// **Nothing is signed in afterwards and nothing is kept.** The credential goes out of scope with
 /// the slot it was put in, and the member signs in at the wall with the username and password they
@@ -137,21 +138,14 @@ where
         return Err(not_for_a_machine());
     }
 
-    // a machine holds one organization, and another organization's link is refused here before
-    // anything is derived or reached. **The link's own organization is not another one**: opening
-    // a link again on the machine that already spent it is refused below as a link that already
-    // connected a machine, which is what happened, rather than as a machine that has to disconnect
-    // first. `join::accept` reads a held organization the same way, and this said the wrong thing
-    // where that says the right one.
-    if let Some(held) = machine.selected()
-        && held.id != link.organization_id
-    {
-        return Err(Error::refused(
-            RefusalReason::AnotherOrganizationHeld,
-            format!(
-                "this link is for {} and this machine holds {}; disconnect it first",
-                link.organization_name, held.name
-            ),
+    // a link for an organization this machine holds opens that organization's wall (effort 851,
+    // requirement 13, as the human settled it on 2026-10-05): it is selected, and a machine link is
+    // never what a machine already on that wall needs, so it is refused as already used before
+    // anything is derived or reached. `join::accept` lets a reset through; nothing else is.
+    if connect::selected_if_held(machine, &link.organization_id)?.is_some() {
+        return Err(machine_link_refused(
+            &link.organization_name,
+            RefusalReason::Consumed,
         ));
     }
 
@@ -242,12 +236,8 @@ async fn connected(
         return Err(no_longer_a_member(&link.organization_name));
     }
 
-    // the machine that already holds this organization keeps what it holds: the connect is what
-    // records one, and there is nothing here to record a second time.
-    let held = match machine.selected().cloned() {
-        Some(held) => held,
-        None => connect::connect(store, machine, &link.locator(), link_credential, now).await?,
-    };
+    // recorded beside any other organization this machine holds, and selected.
+    let held = connect::connect(store, machine, &link.locator(), link_credential, now).await?;
 
     store.consume_machine_link(&half.id, now).await?;
 
@@ -582,6 +572,104 @@ mod tests {
         );
     }
 
+    /// **Effort 851, criteria 1 and 12, for a machine link.** A machine that holds another
+    /// organization connects by the link, and holds both with the new one selected and the other's
+    /// entry as it was. Once the organization is removed from it, the link that first added it is
+    /// refused as already used and the record gains nothing; a new link for the same account
+    /// admits the machine again.
+    #[tokio::test]
+    async fn a_machine_link_adds_beside_another_and_after_a_removal_only_a_new_link_admits() {
+        let credentials = Memory::new();
+        let directory = scratch("beside");
+        let (store, owner, locator, member_id, _) = account(&credentials, &directory).await;
+        let made = make_link(
+            &store,
+            &owner,
+            no_platform(),
+            &locator,
+            &member_id,
+            crate::organization::invitation::TEST_LIFETIME_HOURS,
+            test_cost(),
+            ISSUED_AT + 2,
+        )
+        .await
+        .expect("the link could not be made");
+        let machine_directory = scratch("beside-machine");
+        let mut machine = fresh_machine(&machine_directory);
+        let another = HeldOrganization {
+            id: "another".to_string(),
+            name: "Other".to_string(),
+            verifying_key: locator.verifying_key.clone(),
+            remote_url: "libsql://org-another.example".to_string(),
+            machine_id: "machine-of-another".to_string(),
+            member_id: Some("member-of-another".to_string()),
+            ..HeldOrganization::default()
+        };
+
+        machine.hold(another.clone());
+        machine.commit().expect("the record");
+
+        let held = connect_on(&mut machine, &store, &made, &made.code, ISSUED_AT + 3)
+            .await
+            .expect("a machine holding another organization was refused");
+
+        assert_eq!(
+            machine
+                .held_organizations
+                .iter()
+                .map(|held| held.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["another", owner.organization_id.as_str()]
+        );
+        assert_eq!(machine.selected(), Some(&held));
+        assert_eq!(machine.held("another"), Some(&another));
+
+        // removed from this machine: the entry goes, and the other organization is selected.
+        machine.forget_held(&held.id, &[]);
+        machine.commit().expect("the record");
+
+        let record = std::fs::read(machine.path()).expect("the record");
+        let refused = connect_on(&mut machine, &store, &made, &made.code, ISSUED_AT + 4).await;
+
+        assert!(
+            matches!(
+                refused,
+                Err(Error::Refused {
+                    reason: RefusalReason::Consumed,
+                    ..
+                })
+            ),
+            "{refused:?}"
+        );
+        assert_eq!(
+            std::fs::read(machine.path()).expect("the record"),
+            record,
+            "the spent link wrote the record"
+        );
+        assert_eq!(machine.held(&owner.organization_id), None);
+
+        // a new link for the same account admits the machine again.
+        let fresh = make_link(
+            &store,
+            &owner,
+            no_platform(),
+            &locator,
+            &member_id,
+            crate::organization::invitation::TEST_LIFETIME_HOURS,
+            test_cost(),
+            ISSUED_AT + 5,
+        )
+        .await
+        .expect("the new link could not be made");
+        let again = connect_on(&mut machine, &store, &fresh, &fresh.code, ISSUED_AT + 6)
+            .await
+            .expect("a new link did not admit the machine");
+
+        assert_eq!(again.id, owner.organization_id);
+        assert_eq!(machine.selected(), Some(&again));
+        assert_eq!(machine.held_organizations.len(), 2);
+    }
+
     /// Effort 828, requirement 20: **the link admits one machine, once, and lapses on its own.**
     ///
     /// A second machine opening the same pair is refused as already spent, before anything is
@@ -589,7 +677,8 @@ mod tests {
     /// derived; and a wrong code is refused with the one sentence a wrong code gets, which is
     /// `CODE_REFUSED` and never a comparison. **And the machine that spent it, opening it again,
     /// is refused as spent too** rather than as a machine holding an organization, which is the
-    /// ordinary way a person meets this: they press the link in the message a second time.
+    /// ordinary way a person meets this: they press the link in the message a second time. The
+    /// machine holds the organization, so its wall is selected first (effort 851, requirement 13).
     #[tokio::test]
     async fn one_machine_once_and_a_lapsed_link_or_a_wrong_code_reaches_nothing() {
         let credentials = Memory::new();
@@ -702,11 +791,11 @@ mod tests {
             "a spent link recorded an organization"
         );
 
-        // and the same pair opened again on the machine that spent it. **It is refused as a link
-        // that already connected a machine**, which is what happened, rather than as a machine
-        // that has to disconnect first: `join::accept` reads a held organization the same way, and
-        // the sentence a person reads here is the one their own act earned. *This said `disconnect
-        // it first` until ticket 20, because the held check ran before the row was looked at.*
+        // and the same pair opened again on the machine that spent it, which holds the
+        // organization: **its wall, and the link refused as one that already connected a
+        // machine** (effort 851, requirement 13, as the human settled it). The record is the entry
+        // it was, and the sentence points at whoever keeps the accounts, never at a disconnect.
+        let before = first_machine.selected().cloned().expect("the record");
         let refusal = connect_on(&mut first_machine, &store, &made, &made.code, ISSUED_AT + 6)
             .await
             .expect_err("a spent link opened again on the machine that spent it");
@@ -722,15 +811,12 @@ mod tests {
             "{refusal:?}"
         );
         assert!(
-            !refusal.to_string().contains("disconnect"),
-            "the machine that used the link was told to disconnect: {refusal}"
-        );
-        assert!(
             refusal
                 .to_string()
                 .contains("ask whoever keeps the accounts"),
             "the refusal points somewhere the person cannot reach: {refusal}"
         );
+        assert_eq!(first_machine.selected(), Some(&before));
     }
 
     /// The organization's replica in `from`, copied into `to`: a machine's own replica, as a
@@ -829,23 +915,25 @@ mod tests {
             .await
             .expect("the machine did not connect");
 
-        // opened again on that machine, over the replica it works from.
+        // opened again on that machine, over the replica it works from: the organization is held,
+        // so it is selected and the link refused as already used, with nothing written (effort
+        // 851, requirements 10 and 13).
         replica_copied(&directory, &first);
 
         let theirs = replica_in(&first, &owner.organization_id).await;
         let record = std::fs::read(first.join(RemoteSync::FILENAME)).expect("the record");
-        let refused =
+        let again =
             connect_over_its_own(&mut first_machine, &first, theirs, &made, ISSUED_AT + 4).await;
 
         assert!(
             matches!(
-                refused,
+                &again,
                 Err(Error::Refused {
                     reason: RefusalReason::Consumed,
                     ..
                 })
             ),
-            "{refused:?}"
+            "{again:?}"
         );
         assert_eq!(
             std::fs::read(first.join(RemoteSync::FILENAME)).expect("the record"),

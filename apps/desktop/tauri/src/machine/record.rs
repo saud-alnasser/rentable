@@ -296,7 +296,8 @@ pub struct RemoteSyncStore {
     pub replicas: Vec<LocalReplica>,
     /// which Turso organization and group a consent was granted over **before any organization
     /// held here recorded it**: what a setup looked up and has not yet made an organization of.
-    /// Moved into the entry the next organization held here is recorded as ([`Self::hold`]).
+    /// Moved into the entry of the organization a setup or a connect on the owner's Turso account
+    /// records on that consent ([`Self::hold_consented`]), and into no other.
     ///
     /// *It was the one Turso organization of the one organization a machine held, until effort
     /// 851 gave each held organization its own ([`HeldOrganization::turso_organization`]). A
@@ -497,15 +498,14 @@ impl RemoteSyncStore {
     /// Record `organization` as held, in place of any entry with its id, and select it. The caller
     /// commits.
     ///
-    /// **A Turso organization a setup looked up before anything was held goes with it**, where the
-    /// entry carries none of its own: the setup that looked it up is what records the organization
-    /// next, and what a consent was over stays known once the organization is.
-    pub fn hold(&mut self, mut organization: HeldOrganization) {
-        if organization.turso_organization.is_none() {
-            organization.turso_organization = self.turso_organization.take();
-        }
-
-        self.selected_organization = Some(organization.id.clone());
+    /// **The pending consent's Turso organization stays pending.** Every sign-in, connect and
+    /// succession holds an entry again, so an entry held without a Turso organization of its own
+    /// is no sign that the pending consent was granted for it: a setup abandoned for another
+    /// organization would otherwise lend its slug to whichever organization was signed in to
+    /// next, and the launch would then file the pending token under that one (effort 851,
+    /// requirement 14). Only a path that consumes the consent moves it ([`Self::hold_consented`]).
+    pub fn hold(&mut self, organization: HeldOrganization) {
+        let before = self.selected_organization.replace(organization.id.clone());
 
         match self
             .held_organizations
@@ -515,6 +515,111 @@ impl RemoteSyncStore {
             Some(held) => *held = organization,
             None => self.held_organizations.push(organization),
         }
+
+        // another organization held beside the one selected before: the current workspace and
+        // what was last reached are that one's, and they follow the selection (effort 851). A
+        // machine that held nothing keeps what it had, which is today's first run.
+        if before.is_some() && before != self.selected_organization {
+            self.selection_followed();
+        }
+    }
+
+    /// Record `organization` as held, as [`Self::hold`] does, with the Turso organization a setup
+    /// looked up before anything was held moved into it where the entry carries none of its own.
+    /// The caller commits.
+    ///
+    /// **Only for the two paths that consume the pending consent**: the first run, which made the
+    /// organization on it, and the connect on the owner's Turso account, which found the
+    /// organization through it.
+    pub fn hold_consented(&mut self, mut organization: HeldOrganization) {
+        if organization.turso_organization.is_none() {
+            organization.turso_organization = self.turso_organization.take();
+        }
+
+        self.hold(organization);
+    }
+
+    /// Select the organization `organization_id`, where this machine holds it, and answer whether
+    /// the selection moved. The caller commits.
+    ///
+    /// **The current workspace and the moment last reached follow the selection** (effort 851,
+    /// the plan's *The machine's record holds a list*): both describe the organization that is
+    /// open, and a workspace left naming another organization's would be the one the wall opens
+    /// and the next sign-in judges.
+    pub fn select(&mut self, organization_id: &str) -> bool {
+        if self.held(organization_id).is_none()
+            || self.selected_organization.as_deref() == Some(organization_id)
+        {
+            return false;
+        }
+
+        self.selected_organization = Some(organization_id.to_string());
+        self.selection_followed();
+
+        true
+    }
+
+    /// Stop holding the organization `organization_id`: its entry and every replica entry of it,
+    /// with any workspace in `workspaces` besides, which is what a replica entry naming no
+    /// organization was found to be of. Where it was selected, the selection moves to the first
+    /// organization still held, or to none, which is the welcome. Answers whether it was the
+    /// selected one. The caller commits, and the files are the caller's.
+    pub fn forget_held(&mut self, organization_id: &str, workspaces: &[String]) -> bool {
+        let was_selected = self.selected_organization.as_deref() == Some(organization_id);
+
+        self.held_organizations
+            .retain(|held| held.id != organization_id);
+        self.replicas.retain(|replica| {
+            replica.organization_id != organization_id
+                && !workspaces.contains(&replica.workspace_id)
+        });
+
+        if was_selected {
+            self.selected_organization =
+                self.held_organizations.first().map(|held| held.id.clone());
+            self.selection_followed();
+        } else if self
+            .workspace
+            .remote_id
+            .as_ref()
+            .is_some_and(|current| workspaces.contains(current))
+        {
+            // a workspace of the forgotten organization still current, which nothing selected
+            // names: it goes with the organization.
+            self.workspace_follows(None);
+        }
+
+        was_selected
+    }
+
+    /// The current workspace becomes the one the selected organization last had open, where this
+    /// machine still holds a replica of it for that organization, or none; and the moment last
+    /// reached, which was the previous workspace's, goes.
+    fn selection_followed(&mut self) {
+        let workspace = self.selected().and_then(|held| {
+            held.workspace_id.clone().filter(|workspace_id| {
+                self.replicas.iter().any(|replica| {
+                    &replica.workspace_id == workspace_id && replica.organization_id == held.id
+                })
+            })
+        });
+
+        self.workspace_follows(workspace);
+        self.last_reached_at = None;
+    }
+
+    /// Make `workspace_id` the current workspace, as nothing is yet known about it but its id: no
+    /// remote, the default name and nothing administered, which is what a later opening fills in
+    /// (`RemoteSync::open_organization_workspace`). Nothing moves where it is already current.
+    fn workspace_follows(&mut self, workspace_id: Option<String>) {
+        if self.workspace.remote_id == workspace_id {
+            return;
+        }
+
+        self.workspace.remote_id = workspace_id;
+        self.workspace.remote_url = None;
+        self.workspace.name = DEFAULT_WORKSPACE_NAME.to_string();
+        self.workspace.permissions = 0;
     }
 
     /// which Turso organization a consent on this machine is over, as the record knows it: the
@@ -771,33 +876,92 @@ impl RemoteSync {
         self.store.commit()
     }
 
-    /// Forget every organization this machine holds, on the record: the organizations, every
-    /// replica it tracked, the workspace it had open, the Turso organization its consent was
-    /// over, and the old shape's list where the record still carried one. What is left is the
-    /// record of a machine that has never held an organization, and the workspace is a fresh
-    /// default named for now.
+    /// Forget one organization this machine holds, on the record: its entry, every replica entry
+    /// of it and of the workspaces in `workspaces`, and, where it was the selected one, the
+    /// selection, the workspace it had open and what this process held and heard for it. Every
+    /// other organization's entry and replica entries are left as they were (effort 851,
+    /// requirement 5). Answers whether it was the selected one.
     ///
-    /// **The files are the caller's** (`organization::forget`), which deletes them before this
-    /// runs; the credential this process held for the workspace goes here, since the workspace
-    /// it was for is gone, and so does whatever Turso last refused, since there is nothing left
-    /// for a refusal to stand against.
-    pub(crate) async fn forget_organization(&mut self) -> Result<(), Error> {
-        let database_path = self.current_database_path().await;
+    /// **The files are the caller's** (`organization::session::forget`), which deletes them before
+    /// this runs. A machine left holding nothing is left as one that never held an organization:
+    /// the workspace is a fresh default named for now.
+    pub(crate) async fn forget_held_organization(
+        &mut self,
+        organization_id: &str,
+        workspaces: &[String],
+    ) -> Result<bool, Error> {
+        let was_selected = self.store.forget_held(organization_id, workspaces);
 
-        self.workspace_token = None;
+        if was_selected {
+            self.forget_what_the_open_one_held();
+        }
+
+        if self.store.held_organizations.is_empty() {
+            let database_path = self.current_database_path().await;
+
+            self.store.workspace = Self::default_workspace(database_path, self.clock.now());
+            self.store.last_reached_at = None;
+        }
+
+        self.store.commit()?;
+
+        Ok(was_selected)
+    }
+
+    /// Select the organization `organization_id` for the wall to open on (effort 851, requirement
+    /// 3), and answer whether the selection moved. What this process held and heard for the open
+    /// organization goes either way, since nothing is open while one is selected.
+    pub(crate) fn select_organization(&mut self, organization_id: &str) -> Result<bool, Error> {
+        let moved = self.store.select(organization_id);
+
+        if moved {
+            self.store.workspace.updated_at = self.clock.now();
+        }
+
+        self.forget_what_the_open_one_held();
+        self.store.last_reached_at = None;
+        self.store.commit()?;
+
+        Ok(moved)
+    }
+
+    /// A sign-out: whatever Turso last refused and the moment last reached were the open
+    /// organization's, and nothing is open now (effort 851, the plan's *The machine's record holds
+    /// a list*).
+    pub(crate) fn note_signed_out(&mut self) -> Result<(), Error> {
         self.account_refusal = None;
         self.credential_refusal = None;
 
-        self.store.held_organizations.clear();
-        self.store.selected_organization = None;
-        self.store.organizations_of_the_old_shape.clear();
-        self.store.replicas.clear();
-        self.store.turso_organization = None;
-        self.store.workspace = Self::default_workspace(database_path, self.clock.now());
-        // the moment was about a workspace this machine no longer holds.
-        self.store.last_reached_at = None;
+        if self.store.last_reached_at.take().is_none() {
+            return Ok(());
+        }
 
         self.store.commit()
+    }
+
+    /// Stop carrying the old shape's list, which the startup check has read and forgotten
+    /// (`upgrade/shape.rs`); a machine holding nothing afterwards is left as one that never held
+    /// an organization.
+    pub(crate) async fn forget_the_old_shapes_list(&mut self) -> Result<(), Error> {
+        self.store.organizations_of_the_old_shape.clear();
+
+        if self.store.held_organizations.is_empty() {
+            let database_path = self.current_database_path().await;
+
+            self.store.workspace = Self::default_workspace(database_path, self.clock.now());
+            self.store.last_reached_at = None;
+        }
+
+        self.store.commit()
+    }
+
+    /// The credential this process held for the open organization's workspace, and what Turso
+    /// last refused it: each was the open organization's, and none of it is anybody's once that
+    /// organization is not open.
+    fn forget_what_the_open_one_held(&mut self) {
+        self.workspace_token = None;
+        self.account_refusal = None;
+        self.credential_refusal = None;
     }
 
     /// Stop naming a workspace this machine may no longer open.
@@ -1538,7 +1702,7 @@ mod tests {
     /// **A Turso organization a setup looked up before anything was held goes into the entry the
     /// setup records**, and is written at the top of the record only until then.
     #[test]
-    fn holding_an_organization_takes_the_turso_organization_a_setup_looked_up() {
+    fn holding_a_consented_organization_takes_the_turso_organization_a_setup_looked_up() {
         let mut store = RemoteSyncStore::default();
 
         store.remember_consent_organization(
@@ -1553,7 +1717,7 @@ mod tests {
 
         assert_eq!(pending["tursoOrganization"]["slug"], "acme");
 
-        store.hold(super::HeldOrganization {
+        store.hold_consented(super::HeldOrganization {
             id: "org-acme".to_string(),
             verifying_key: "k".to_string(),
             remote_url: "libsql://a".to_string(),

@@ -28,7 +28,7 @@
 //! and this machine forgets what it held. It is the owner's alone and it asks for their password
 //! first, because a machine left unlocked must not be able to delete what it is signed in to; the
 //! password is tried against the row's own vault, so a wrong one refuses before a single request
-//! is made. The other machines find out at their next launch, which is `forget`'s own sign for a
+//! is made. The other machines find out at their next launch, which is `forget_deleted_organization`'s sign for a
 //! database that is not on the platform any more.
 
 use serde::{Deserialize, Serialize};
@@ -308,8 +308,9 @@ pub const ONLY_THE_OWNER_DELETES: &str = "only the owner can delete the organiza
 /// this organization's own `org-` and `ws-` ones and the account may hold others that are the
 /// human's.
 ///
-/// **Then the machine forgets, exactly as a disconnect does**, through the one routine: signed
-/// out, every replica swept, the record emptied and the Turso authority cleared. The consent goes
+/// **Then the machine forgets it, exactly as a disconnect does**, through the one routine: signed
+/// out, its replica and its workspaces' replicas deleted, its entry forgotten and its Turso consent
+/// cleared, with every other organization this machine holds left as it was (effort 851). The consent goes
 /// with it because the group holds no organization for it to be over any more. Every other machine
 /// finds out at its next launch (`forget::forget_deleted_organization`).
 ///
@@ -326,7 +327,7 @@ pub(crate) async fn delete_organization<P: TursoPlatform>(
     platform: &P,
     password: &str,
 ) -> Result<(), Error> {
-    let (organization_database, workspace_databases) = {
+    let (organization_id, organization_database, workspace_databases) = {
         let member = app_state.member.read().await;
         let organization = app_state.organization.read().await;
         let (Some(session), Some(store)) = (member.as_ref(), organization.as_ref()) else {
@@ -377,7 +378,11 @@ pub(crate) async fn delete_organization<P: TursoPlatform>(
             databases.push(workspace.database_name);
         }
 
-        (format!("org-{}", session.organization_id), databases)
+        (
+            session.organization_id.clone(),
+            format!("org-{}", session.organization_id),
+            databases,
+        )
     };
 
     for database in &workspace_databases {
@@ -398,7 +403,7 @@ pub(crate) async fn delete_organization<P: TursoPlatform>(
         .with("workspaces", workspace_databases.len().to_string())
         .write();
 
-    forget::forget(app_state, credentials).await
+    forget::forget_one(app_state, credentials, &organization_id).await
 }
 
 /// The ordinary removal's writes, with nothing minted and nothing pushed: `member`'s grants go,

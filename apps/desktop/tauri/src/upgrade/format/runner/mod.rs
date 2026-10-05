@@ -1906,7 +1906,8 @@ mod tests {
             NOW,
         )
         .await
-        .expect("the owner's connect did not upgrade the organization");
+        .expect("the owner's connect did not upgrade the organization")
+        .connected();
 
         assert_eq!(held.id, ORGANIZATION_ID);
         assert_eq!(session.role, "owner");

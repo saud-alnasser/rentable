@@ -43,7 +43,7 @@ mod state;
 pub mod store;
 pub mod workspace;
 
-/// The one organization this machine holds, as this machine's record keeps it. Described with
+/// One organization this machine holds, as this machine's record keeps it. Described with
 /// the record (`machine`), which is what it is part of; named here, where the organization's own
 /// code reads and writes it.
 pub use crate::machine::HeldOrganization;
@@ -95,6 +95,8 @@ mod tests {
         ("setup_connect_existing", Gate::Public),
         ("session_state_get", Gate::Public),
         ("session_disconnect", Gate::ThisMachine),
+        ("session_select", Gate::ThisMachine),
+        ("session_remove", Gate::ThisMachine),
         (
             "member_organization_delete",
             Gate::Owner(Flag::DeleteOrganization),

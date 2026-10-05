@@ -505,9 +505,9 @@ test('an organization that could not be reached says so, shows what the shell sa
 });
 
 // effort 826, requirement 10; effort 828, requirement 1: a link that admits nobody is refused by
-// name, and the five are named from the code Rust rejected with rather than from prose the reader
-// has to interpret.
-test('each of the five refusals says its own sentence and asks for nothing', () => {
+// name, and the four are named from the code Rust rejected with rather than from prose the reader
+// has to interpret. *There were five until effort 851 let a machine hold several organizations.*
+test('each of the four refusals says its own sentence and asks for nothing', () => {
 	loadLocale('en');
 	setLocale('en');
 
@@ -515,8 +515,7 @@ test('each of the five refusals says its own sentence and asks for nothing', () 
 		['lapsed', en.organization.join.lapsed],
 		['consumed', en.organization.join.consumed],
 		['revoked', en.organization.join.revoked],
-		['replaced', en.organization.join.replaced],
-		['anotherOrganization', en.organization.join.anotherOrganization]
+		['replaced', en.organization.join.replaced]
 	] as const;
 
 	for (const [refusal, sentence] of refusals) {
@@ -582,46 +581,41 @@ test('a link already used says to ask the owner or a manager for a new one, and 
 	setLocale('en');
 });
 
-test('a link for another organization keeps what the shell said behind the disclosure under the sentence', async () => {
+test('a refused link keeps what the shell said behind the disclosure under the sentence', async () => {
 	loadLocale('en');
 	setLocale('en');
 	joinScreen({
 		kind: 'refused',
 		link: LINK,
-		refusal: 'anotherOrganization',
-		detail: 'this machine already holds Beta'
+		refusal: 'consumed',
+		detail: 'the invitation to Acme was already opened'
 	});
 
-	expect(inCallouts()).toEqual([en.organization.join.anotherOrganization]);
-	expect(screen.queryByText('this machine already holds Beta')).toBeNull();
+	expect(inCallouts()).toEqual([en.organization.join.consumed]);
+	expect(screen.queryByText('the invitation to Acme was already opened')).toBeNull();
 
 	await fireEvent.click(screen.getByRole('button', { name: en.common.actions.details }));
 
-	expect(screen.getByText('this machine already holds Beta')).toBeDefined();
+	expect(screen.getByText('the invitation to Acme was already opened')).toBeDefined();
 });
 
 // effort 832, requirement 19 and ticket 23: **every refusal is one line, and it names the next
 // step.** Before ticket 23 the screen drew its own sentence and the shell's translated one under
 // it, which said the same thing twice, and the sentences ran to two or three clauses of
-// explanation. Each of the six is now what happened and what to do, short enough to sit on one
-// line of the card, and it is the only line the step draws.
-test('each of the six refusals is one line, the only one drawn, and names the next step', () => {
-	const six = [
+// explanation. Each of them is now what happened and what to do, short enough to sit on one
+// line of the card, and it is the only line the step draws. *There were six until effort 851 took
+// `anotherOrganization` away.*
+test('each of the five refusals is one line, the only one drawn, and names the next step', () => {
+	const five = [
 		['lapsed', { kind: 'refused', refusal: 'lapsed' }],
 		['consumed', { kind: 'refused', refusal: 'consumed' }],
 		['revoked', { kind: 'refused', refusal: 'revoked' }],
 		['replaced', { kind: 'refused', refusal: 'replaced' }],
-		['anotherOrganization', { kind: 'refused', refusal: 'anotherOrganization' }],
 		['unreachable', { kind: 'unreachable', code: CODE }]
 	] as const;
 
 	// what the reader does next, one of which each english sentence names.
-	const nextSteps = [
-		'ask whoever sent it',
-		'ask the owner or a manager',
-		'disconnect it',
-		'try again'
-	];
+	const nextSteps = ['ask whoever sent it', 'ask the owner or a manager', 'try again'];
 
 	for (const [locale, strings, direction] of [
 		['en', en, 'ltr'],
@@ -630,7 +624,7 @@ test('each of the six refusals is one line, the only one drawn, and names the ne
 		loadLocale(locale);
 		setLocale(locale);
 
-		for (const [key, partial] of six) {
+		for (const [key, partial] of five) {
 			const sentence = strings.organization.join[key];
 			const named = `${locale}.${key}`;
 
@@ -900,13 +894,7 @@ test('the screen renders in arabic with the same one form, the same refusals and
 	expect(screen.getAllByRole('button', { name: ar.organization.join.back })).toHaveLength(1);
 	unreachable.unmount();
 
-	for (const refusal of [
-		'lapsed',
-		'consumed',
-		'revoked',
-		'replaced',
-		'anotherOrganization'
-	] as const) {
+	for (const refusal of ['lapsed', 'consumed', 'revoked', 'replaced'] as const) {
 		const rendered = joinScreen(
 			{ kind: 'refused', link: LINK, refusal, detail: null },
 			{ direction: 'rtl' }
@@ -944,7 +932,6 @@ test('every sentence this screen added is written in both locales', () => {
 		'consumed',
 		'revoked',
 		'replaced',
-		'anotherOrganization',
 		'passwordTitle',
 		'passwordDescription',
 		'codeLabel',

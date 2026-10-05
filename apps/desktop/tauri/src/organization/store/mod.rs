@@ -179,13 +179,13 @@ impl std::fmt::Debug for OrganizationStore {
 /// organization (`setup/`), and an invitation link or a machine link opened where the organization
 /// is not held (`invitation/join.rs`, `invitation/machine.rs`). The caller lets the store go
 /// first: on Windows a file this process still has open cannot be deleted, which is the order
-/// `forget` keeps for the same reason.
+/// `forget_one` keeps for the same reason.
 ///
 /// **It is never reached for an organization the machine holds.** The replica is then the one the
 /// machine works from, and a link for that organization opened again is refused with it left where
 /// it is; each caller says so where it calls.
 ///
-/// Best effort: what could not be removed is the sweep's to report at a disconnect, and it never
+/// Best effort: what could not be removed is the forget's to report at a removal, and it never
 /// takes the place of the refusal the person is about to read. *It was `setup/`'s alone until
 /// effort 851 gave the two link acts the same way out.*
 pub(crate) fn leave_no_replica(database_path: &Path, organization_id: &str) {
@@ -303,7 +303,7 @@ impl OrganizationStore {
     /// The same pull with the refusal kept, for the one caller that has to read it.
     ///
     /// **Every other caller wants the bool**, because a pull that did not go is the offline case
-    /// and the replica goes on serving what it holds (819's requirement 18). `forget` is the
+    /// and the replica goes on serving what it holds (819's requirement 18). `forget_deleted_organization` is the
     /// exception: a remote answering that the database is not there any more is a fact about the
     /// organization rather than about this machine's connection, and it is the only way a machine
     /// learns the owner deleted it (effort 828, requirement 18).
@@ -433,6 +433,37 @@ impl OrganizationStore {
         }
 
         Ok(names)
+    }
+
+    /// The id of every workspace this replica names, read without verifying anything: what tells a
+    /// machine forgetting the organization which of its workspace replicas are this
+    /// organization's where its record does not say (`organization/session/forget.rs`).
+    ///
+    /// **Only ever a second source.** A row nobody signed could name any id, so what is read here
+    /// decides nothing about who may do what; the forget asks it only of replica entries that name
+    /// no organization, and every entry that names one is answered by the record. A replica with no
+    /// workspace table names none.
+    pub(crate) async fn workspace_ids_unverified(&self) -> Result<Vec<String>, Error> {
+        if !self
+            .columns_of("workspace")
+            .await?
+            .iter()
+            .any(|column| column == "id")
+        {
+            return Ok(Vec::new());
+        }
+
+        let mut rows = self
+            .connection
+            .query("SELECT \"id\" FROM \"workspace\"", ())
+            .await?;
+        let mut ids = Vec::new();
+
+        while let Some(row) = rows.next().await? {
+            ids.push(text(&row, 0)?);
+        }
+
+        Ok(ids)
     }
 
     /// What the check before a change of format commits reads of this replica, inside that change's

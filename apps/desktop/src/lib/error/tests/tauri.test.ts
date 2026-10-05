@@ -107,8 +107,8 @@ test('nothing but a refused carries a reason, and an unknown word is no reason a
 test('a rejection from the host survives a procedure, and its code is read off the cause', async () => {
 	const rejected = {
 		code: 'refused',
-		reason: 'anotherOrganizationHeld',
-		message: 'this machine already holds Acme; disconnect it before connecting another'
+		reason: 'consentNeededAgain',
+		message: 'the consent was given back; grant it again'
 	};
 	const host = fakeHost({
 		organization: {
@@ -137,7 +137,7 @@ test('a rejection from the host survives a procedure, and its code is read off t
 
 	// and what this side reads regardless.
 	assert.equal(toTauriErrorCode(failure), 'refused');
-	assert.equal(toTauriRefusalReason(failure), 'anotherOrganizationHeld');
+	assert.equal(toTauriRefusalReason(failure), 'consentNeededAgain');
 	assert.equal(refusalAfterFailedConnect(failure)?.step, 'connect');
 });
 

@@ -51,17 +51,24 @@ impl From<&HeldOrganization> for HeldOrganizationFacts {
     }
 }
 
-/// Where this machine stands: the one organization it holds, if any, and who is signed in.
+/// Where this machine stands: the organizations it holds, the one selected, and who is signed in.
 ///
 /// What the sign-in wall admits on. `session` is `None` until a password has opened a vault in
 /// this process, and it carries facts and no credential.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OrganizationState {
-    /// the organization this machine holds, or `None` on a machine that holds nothing, which is
-    /// what the screen offering the two ways to connect is drawn on (requirement 18). *A list
-    /// until 2026-09-13.*
+    /// the selected organization, or `None` on a machine that holds nothing, which is what the
+    /// screen offering the two ways to connect is drawn on (requirement 18). *A list until
+    /// 2026-09-13, and the one organization a machine held until effort 851; kept beside
+    /// `organizations` until the shell reads the list (effort 851, ticket 08).*
     pub organization: Option<HeldOrganizationFacts>,
+    /// every organization this machine holds, in the order it came to hold them (effort 851,
+    /// requirement 3). Empty on a machine that holds nothing.
+    pub organizations: Vec<HeldOrganizationFacts>,
+    /// the id of the organization the wall opens on, the one last signed in to or chosen (effort
+    /// 851, requirement 2); `None` where nothing is held.
+    pub selected: Option<String>,
     pub session: Option<SessionFacts>,
     /// whether this machine holds the Turso authority and knows which account it is over: the
     /// owner's machine after a consent. An owner restored on a new machine holds none until they
@@ -166,12 +173,18 @@ pub(crate) async fn state_of(
         held_name_refreshed(app_state, read).await?;
     }
 
-    let (organization, selected) = {
+    let (organization, organizations, selected) = {
         let mut remote_sync = app_state.remote_sync.write().await;
-        let selected = remote_sync.store_mut().selected();
+        let record = remote_sync.store_mut();
+        let selected = record.selected();
 
         (
             selected.map(HeldOrganizationFacts::from),
+            record
+                .held_organizations
+                .iter()
+                .map(HeldOrganizationFacts::from)
+                .collect(),
             selected.map(|held| held.id.clone()),
         )
     };
@@ -194,29 +207,124 @@ pub(crate) async fn state_of(
 
     Ok(OrganizationState {
         organization,
+        organizations,
+        selected,
         session: session.map(|(facts, _)| facts),
         holds_turso_authority,
         signed_out_elsewhere: app_state.signed_out_elsewhere.load(Ordering::SeqCst),
     })
 }
 
-/// Forget the organization this machine holds (requirement 20): sign out where somebody is in,
-/// delete every replica under the data directory, empty the record, and clear the Turso
-/// authority. The organization on Turso is untouched, and the person can connect again by the
-/// link. The one confirm before it is the screen's; this asks nothing.
+/// Forget the organization this machine has open, or the one the wall stands on (requirement 20):
+/// sign out where somebody is in, delete its replica and its workspaces' replicas, forget its entry
+/// on the record, and clear its Turso consent. Every other organization held keeps all of its own
+/// (effort 851, requirement 5). The organization on Turso is untouched, and the person can connect
+/// again by a link. The one confirm before it is the screen's; this asks nothing.
 #[tauri::command(rename = "session_disconnect")]
 pub(crate) async fn organization_session_disconnect(
     app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
 ) -> Result<OrganizationState, Error> {
-    forget::forget(&app_state, credentials.inner().as_ref()).await?;
+    forget::forget_the_open_one(&app_state, credentials.inner().as_ref()).await?;
 
     state_of(&app_state, &credentials, &clock).await
 }
 
-/// Sign in to the organization this machine holds, with a username and a password (effort 824,
-/// requirement 19).
+/// Choose the organization the wall opens on, from those this machine holds (effort 851,
+/// requirement 3): the wall then asks for that organization's username and password.
+///
+/// **Refused while somebody is signed in** (requirement 8): switching happens signed out, so the
+/// one organization open is the selected one for as long as it is open, and a selection that moved
+/// under an open session would leave the shell answering for one organization with another's
+/// replica. Nothing is opened here; the sign-in that follows opens the selected one.
+///
+/// **What the wall said, what Turso last refused and when the workspace was last reached were the
+/// previous organization's**, so they go, and the current workspace becomes the one this
+/// organization last had open (`RemoteSyncStore::select`).
+#[tauri::command(rename = "session_select")]
+pub(crate) async fn organization_session_select(
+    app_state: tauri::State<'_, Shared>,
+    credentials: tauri::State<'_, Credentials>,
+    clock: tauri::State<'_, clock::Shared>,
+    organization_id: String,
+) -> Result<OrganizationState, Error> {
+    select(&app_state, &organization_id).await?;
+
+    state_of(&app_state, &credentials, &clock).await
+}
+
+/// [`organization_session_select`]'s act, with its two refusals.
+pub(crate) async fn select(app_state: &Shared, organization_id: &str) -> Result<(), Error> {
+    if app_state.member.read().await.is_some() || app_state.organization.read().await.is_some() {
+        return Err(Error::refused(
+            RefusalReason::SessionOpen,
+            "sign out before choosing another organization",
+        ));
+    }
+
+    let mut remote_sync = app_state.remote_sync.write().await;
+
+    if remote_sync.store_mut().held(organization_id).is_none() {
+        return Err(Error::refused(
+            RefusalReason::NoOrganization,
+            "this machine does not hold that organization",
+        ));
+    }
+
+    remote_sync.select_organization(organization_id)?;
+    app_state
+        .signed_out_elsewhere
+        .store(false, Ordering::SeqCst);
+
+    Ok(())
+}
+
+/// Forget one organization this machine holds, and nothing else (effort 851, requirement 5): the
+/// switcher's remove. Its replica, its workspaces' replicas, its remembered sign-in, its entry on
+/// the record and its Turso consent go; where it is the open one the machine signs out of it
+/// first. Removing the last one brings back the welcome. The one confirm before it is the
+/// screen's; this asks nothing.
+///
+/// **Removing another organization than the open one leaves the open one open**, which is how the
+/// no-workspace screen removes an organization without signing anybody out.
+#[tauri::command(rename = "session_remove")]
+pub(crate) async fn organization_session_remove(
+    app_state: tauri::State<'_, Shared>,
+    credentials: tauri::State<'_, Credentials>,
+    clock: tauri::State<'_, clock::Shared>,
+    organization_id: String,
+) -> Result<OrganizationState, Error> {
+    remove(&app_state, credentials.inner().as_ref(), &organization_id).await?;
+
+    state_of(&app_state, &credentials, &clock).await
+}
+
+/// [`organization_session_remove`]'s act: an organization this machine does not hold is refused,
+/// and one it holds is forgotten (`forget::forget_one`).
+pub(crate) async fn remove(
+    app_state: &Shared,
+    credentials: &dyn CredentialStore,
+    organization_id: &str,
+) -> Result<(), Error> {
+    let held = {
+        let mut remote_sync = app_state.remote_sync.write().await;
+
+        remote_sync.store_mut().held(organization_id).is_some()
+    };
+
+    if !held {
+        return Err(Error::refused(
+            RefusalReason::NoOrganization,
+            "this machine does not hold that organization",
+        ));
+    }
+
+    forget::forget_one(app_state, credentials, organization_id).await
+}
+
+/// Sign in to the organization the wall stands on, the selected one, with a username and a
+/// password (effort 824, requirement 19).
 ///
 /// **Works with the network down.** The replica on this machine is opened, its rows are verified
 /// against the key this machine pinned when it connected, and the password is tried against each
@@ -327,13 +435,14 @@ pub(crate) async fn organization_session_sign_out(
 
 /// The sign-out itself: the keys go, the organization replica is dropped, and the key this
 /// machine was staying signed in on is deleted. What `organization_session_sign_out` does, and what
-/// `forget` does first, so that letting go of the replica is one routine and the file it held can
+/// `forget::forget_one` does first for the open organization, so that letting go of the replica is one routine and the file it held can
 /// be deleted afterwards.
 ///
 /// **The remembered key goes here rather than in each caller**, which is what makes a disconnect
 /// forget it too: a machine that has let go of its organization must not keep the key that opened
-/// a member's vault in it. The record is read before it is emptied, which is why this runs before
-/// `forget` touches it.
+/// a member's vault in it. The record is read before the entry goes, which is why this runs before
+/// `forget::forget_one` touches it. **Only the open organization's**: every other organization
+/// held keeps its own remembered key (effort 851, criterion 8).
 pub(crate) async fn sign_out(app_state: &Shared, credentials: &dyn CredentialStore) {
     // a sign-out the person asked for answers the standing: they are at the wall because they
     // put themselves there. The heartbeat's own sign-out sets it again afterwards, which is the
@@ -342,35 +451,45 @@ pub(crate) async fn sign_out(app_state: &Shared, credentials: &dyn CredentialSto
         .signed_out_elsewhere
         .store(false, Ordering::SeqCst);
 
-    {
-        let mut remote_sync = app_state.remote_sync.write().await;
-        let held = remote_sync.store_mut().selected();
+    // the open organization, which is the member's where somebody is in and the one the wall
+    // stands on otherwise (effort 851): never another organization this machine holds.
+    let held = match forget::open_organization(app_state).await {
+        Some(organization_id) => {
+            let mut remote_sync = app_state.remote_sync.write().await;
 
-        if let Some((organization_id, member_id)) =
-            held.and_then(|held| held.member_id.as_ref().map(|member| (&held.id, member)))
-        {
-            session::forget_remembered(credentials, organization_id, member_id);
+            remote_sync.store_mut().held(&organization_id).cloned()
         }
+        None => None,
+    };
+
+    if let Some((organization_id, member_id)) = held
+        .as_ref()
+        .and_then(|held| held.member_id.as_ref().map(|member| (&held.id, member)))
+    {
+        session::forget_remembered(credentials, organization_id, member_id);
     }
 
     // the machine stays in the registry and stops naming anybody (effort 828, requirement 15):
     // it still holds the organization, and what ended is the session. Before the replica is let
     // go of below, since that is what carries the write.
     {
-        let held = {
-            let mut remote_sync = app_state.remote_sync.write().await;
-
-            remote_sync.store_mut().selected().cloned()
-        };
         let organization = app_state.organization.read().await;
 
-        if let (Some(held), Some(store)) = (held, organization.as_ref()) {
-            session::machine_seen(store, &held, None, store.clock().now()).await;
+        if let (Some(held), Some(store)) = (held.as_ref(), organization.as_ref()) {
+            session::machine_seen(store, held, None, store.clock().now()).await;
         }
     }
 
     *app_state.member.write().await = None;
     *app_state.organization.write().await = None;
+
+    // and what Turso last refused and when the workspace was last reached, which were the open
+    // organization's (effort 851). Nothing about the sign-out turns on the write.
+    if let Err(error) = app_state.remote_sync.write().await.note_signed_out() {
+        diagnostics::error("organization.session.signedOutNotRecorded")
+            .with("error", error.to_string())
+            .write();
+    }
 }
 
 /// The signed-in member's facts, re-read from the replica so a row that changed under them since
@@ -523,17 +642,20 @@ pub(crate) async fn organization_session_end_machine(
     .await
 }
 
-/// The organization this machine's record holds, for the acts that need to know which machine
-/// this is. Read before the member's lock is taken, so the record's lock is never held under it.
+/// This machine's entry for the organization it has open, for the acts that need to know which
+/// machine this is. Read before the member's lock is taken, so the record's lock is never held
+/// under it.
 async fn held_here(app_state: &Shared) -> Result<HeldOrganization, Error> {
+    let open = forget::open_organization(app_state).await;
     let mut remote_sync = app_state.remote_sync.write().await;
 
-    remote_sync.store_mut().selected().cloned().ok_or_else(|| {
-        Error::refused(
-            RefusalReason::NoOrganization,
-            "this machine holds no organization",
-        )
-    })
+    open.and_then(|organization_id| remote_sync.store_mut().held(&organization_id).cloned())
+        .ok_or_else(|| {
+            Error::refused(
+                RefusalReason::NoOrganization,
+                "this machine holds no organization",
+            )
+        })
 }
 
 /// Send what this machine wrote, then take what the others wrote.
@@ -1015,6 +1137,257 @@ mod tests {
         );
     }
 
+    /// A second organization made on the machine `app_state` is, beside the one it holds, by a
+    /// first run of its own: the owner's key filed for it, and it selected.
+    async fn another_organization(
+        credentials: &dyn CredentialStore,
+        directory: &std::path::Path,
+        app_state: &Shared,
+    ) -> HeldOrganization {
+        let mcp = ScriptedServer::start(vec![
+            ScriptedResponse::new(
+                200,
+                json!({ "jsonrpc": "2.0", "id": 1, "result": {} }).to_string(),
+            ),
+            ScriptedResponse::new(
+                200,
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": 3,
+                    "result": { "content": [{ "type": "text", "text": json!([{
+                        "Name": "ledger",
+                        "hostname": "ledger-another-org.aws-eu-west-1.turso.io",
+                        "group": "rentable"
+                    }]).to_string() }] }
+                })
+                .to_string(),
+            ),
+        ])
+        .await;
+        let platform = Arc::new(InMemoryPlatform::new("another-org"));
+        let mut remote_sync = app_state.remote_sync.write().await;
+        let (created, _) = create_organization(
+            credentials,
+            &crate::clock::System::shared(),
+            remote_sync.store_mut(),
+            "a-platform-token",
+            &McpEndpoint::at(&mcp.url("")),
+            |_| Arc::clone(&platform),
+            Remote::none(),
+            &directory.join(Database::FILENAME),
+            CreateOrganization {
+                name: "Beta",
+                username: USERNAME,
+                password: PASSWORD,
+                group: None,
+            },
+            test_cost(),
+            CREATED_AT,
+        )
+        .await
+        .expect("the second first run failed");
+
+        remote_sync
+            .store_mut()
+            .held(&created.organization_id)
+            .cloned()
+            .expect("the second organization was not recorded")
+    }
+
+    /// **Effort 851, criterion 8, and the selection.** A machine holds two organizations and is
+    /// signed in to the second, the one its last first run selected. Choosing another organization
+    /// is refused while somebody is in. The sign-out deletes the open organization's remembered
+    /// key alone, and the wall stands on it with both organizations listed. Choosing the first
+    /// then persists on the record, the state answers with it, and what the wall said, what Turso
+    /// last refused and when a workspace was last reached go with the selection.
+    #[tokio::test]
+    async fn a_sign_out_forgets_the_open_organizations_key_alone_and_a_selection_waits_for_it() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let directory = scratch("select");
+        let app_state = first_run(credentials.as_ref(), &directory).await;
+        let (first_id, first_member) = recorded(&app_state).await;
+        let second = another_organization(credentials.as_ref(), &directory, &app_state).await;
+        let second_member = second.member_id.clone().expect("the second owner");
+        let clock = crate::clock::System::shared();
+
+        let state = state_of(&app_state, &credentials, &clock)
+            .await
+            .expect("the state");
+
+        assert_eq!(
+            state
+                .session
+                .as_ref()
+                .map(|session| session.organization_id.as_str()),
+            Some(second.id.as_str()),
+            "the launch did not resume the selected organization"
+        );
+        assert_eq!(
+            state
+                .organizations
+                .iter()
+                .map(|held| held.id.as_str())
+                .collect::<Vec<_>>(),
+            vec![first_id.as_str(), second.id.as_str()]
+        );
+
+        // signed in: choosing another organization waits for the sign-out.
+        let refused = super::select(&app_state, &first_id).await;
+
+        assert!(
+            matches!(
+                refused,
+                Err(Error::Refused {
+                    reason: crate::error::RefusalReason::SessionOpen,
+                    ..
+                })
+            ),
+            "{refused:?}"
+        );
+        assert_eq!(
+            app_state
+                .remote_sync
+                .write()
+                .await
+                .store_mut()
+                .selected_organization
+                .as_deref(),
+            Some(second.id.as_str())
+        );
+
+        // the sign-out: the open organization's key goes, and the first's stays.
+        sign_out(&app_state, credentials.as_ref()).await;
+
+        assert_eq!(
+            filed(credentials.as_ref(), &second.id, &second_member),
+            None,
+            "the sign-out left the open organization's key"
+        );
+        assert!(
+            filed(credentials.as_ref(), &first_id, &first_member).is_some(),
+            "the sign-out took another organization's key"
+        );
+
+        let state = state_of(&app_state, &credentials, &clock)
+            .await
+            .expect("the state");
+
+        assert!(state.session.is_none());
+        assert_eq!(state.selected.as_deref(), Some(second.id.as_str()));
+        assert_eq!(state.organizations.len(), 2);
+
+        // what was the open organization's, to be cleared with the selection.
+        app_state
+            .signed_out_elsewhere
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+        {
+            let mut remote_sync = app_state.remote_sync.write().await;
+
+            remote_sync.note_account_refusal("over quota", 1);
+            remote_sync.note_credential_refusal(1);
+            remote_sync.note_reached(1).expect("the moment");
+        }
+
+        super::select(&app_state, &first_id)
+            .await
+            .expect("the selection was refused");
+
+        let state = state_of(&app_state, &credentials, &clock)
+            .await
+            .expect("the state");
+
+        assert_eq!(state.selected.as_deref(), Some(first_id.as_str()));
+        assert_eq!(
+            state.organization.map(|held| held.id),
+            Some(first_id.clone()),
+            "the state does not name the chosen organization"
+        );
+        assert!(!state.signed_out_elsewhere, "the wall's sentence stayed");
+
+        {
+            let mut remote_sync = app_state.remote_sync.write().await;
+
+            assert_eq!(remote_sync.account_refusal_detail(), None);
+            assert_eq!(
+                remote_sync
+                    .get_state()
+                    .await
+                    .expect("the sync state")
+                    .credential_refusal,
+                None
+            );
+            assert_eq!(remote_sync.store_mut().last_reached_at, None);
+        }
+
+        // on the record, on disk.
+        let written: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(directory.join(RemoteSync::FILENAME)).expect("the record"),
+        )
+        .expect("the record is json");
+
+        assert_eq!(written["selectedOrganization"], json!(first_id));
+
+        // and an organization this machine does not hold is refused.
+        assert!(matches!(
+            super::select(&app_state, "nobody-holds-this").await,
+            Err(Error::Refused {
+                reason: crate::error::RefusalReason::NoOrganization,
+                ..
+            })
+        ));
+    }
+
+    /// **Effort 851: removing the organization open forgets it and signs out of it; removing
+    /// another leaves the open one open.** The no-workspace screen removes an organization without
+    /// signing anybody out, and the wall removes the one it stands on.
+    #[tokio::test]
+    async fn removing_another_organization_leaves_the_open_one_open() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let directory = scratch("remove-other");
+        let app_state = first_run(credentials.as_ref(), &directory).await;
+        let (first_id, first_member) = recorded(&app_state).await;
+        let second = another_organization(credentials.as_ref(), &directory, &app_state).await;
+        let clock = crate::clock::System::shared();
+
+        state_of(&app_state, &credentials, &clock)
+            .await
+            .expect("the state")
+            .session
+            .expect("the launch did not resume");
+
+        super::remove(&app_state, credentials.as_ref(), &first_id)
+            .await
+            .expect("the remove failed");
+
+        let state = state_of(&app_state, &credentials, &clock)
+            .await
+            .expect("the state");
+
+        assert_eq!(
+            state.session.map(|session| session.organization_id),
+            Some(second.id.clone()),
+            "removing another organization signed the open one out"
+        );
+        assert_eq!(state.selected.as_deref(), Some(second.id.as_str()));
+        assert_eq!(state.organizations.len(), 1);
+        assert_eq!(filed(credentials.as_ref(), &first_id, &first_member), None);
+
+        // and the open one: signed out, and nothing left held.
+        super::remove(&app_state, credentials.as_ref(), &second.id)
+            .await
+            .expect("the remove failed");
+
+        let state = state_of(&app_state, &credentials, &clock)
+            .await
+            .expect("the state");
+
+        assert!(state.session.is_none());
+        assert!(app_state.organization.read().await.is_none());
+        assert_eq!(state.organization, None);
+        assert!(state.organizations.is_empty());
+        assert_eq!(state.selected, None);
+    }
+
     /// **Criterion 1, the disconnect half.** A machine that has let go of the organization holds
     /// no key to a vault in it either. The forget signs out first, which is where the entry goes.
     #[tokio::test]
@@ -1027,7 +1400,7 @@ mod tests {
         state_of(&app_state, &credentials, &crate::clock::System::shared())
             .await
             .expect("the state");
-        forget::forget(&app_state, credentials.as_ref())
+        forget::forget_the_open_one(&app_state, credentials.as_ref())
             .await
             .expect("the forget failed");
 
@@ -2317,5 +2690,69 @@ mod tests {
         );
         assert!(!holds_platform_token(credentials.as_ref(), &Account::of("org-a")).expect("a"));
         assert!(!holds_platform_token(credentials.as_ref(), &Account::of("org-b")).expect("b"));
+    }
+
+    /// **An abandoned setup's consent is lent to nobody** (effort 851, requirement 14). A setup
+    /// for another organization looked its Turso organization up and was left; the person signs
+    /// in to an organization held here with no Turso organization of its own, which records that
+    /// entry again. The slug and the token stay pending, and the next launch moves neither to it.
+    #[tokio::test]
+    async fn a_sign_in_after_an_abandoned_setup_leaves_its_consent_pending() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let directory = scratch("consent-abandoned-setup");
+        let app_state = state_over(&directory).await;
+        let held = HeldOrganization {
+            id: "org-a".to_string(),
+            name: "org-a".to_string(),
+            verifying_key: "k".to_string(),
+            remote_url: "libsql://org-a".to_string(),
+            ..Default::default()
+        };
+        let pending = TursoOrganization {
+            slug: "beta".to_string(),
+            group: "rentable".to_string(),
+        };
+
+        {
+            let mut remote_sync = app_state.remote_sync.write().await;
+            let record = remote_sync.store_mut();
+
+            record.hold(held.clone());
+            record.remember_consent_organization(None, pending.clone());
+            record.commit().expect("the record");
+        }
+
+        store_platform_token(credentials.as_ref(), "the-abandoned-consent").expect("the consent");
+
+        // the sign-in records the entry again with the member it found, as every sign-in does.
+        {
+            let mut remote_sync = app_state.remote_sync.write().await;
+            let record = remote_sync.store_mut();
+
+            record.hold(HeldOrganization {
+                member_id: Some("member-a".to_string()),
+                role: Some("member".to_string()),
+                ..held
+            });
+            record.commit().expect("the record");
+        }
+
+        crate::upgrade::consent::move_the_consent(&app_state, credentials.as_ref()).await;
+
+        let mut remote_sync = app_state.remote_sync.write().await;
+        let record = remote_sync.store_mut();
+
+        assert_eq!(
+            record.consent_organization(Some("org-a")),
+            None,
+            "the signed-in organization took the abandoned setup's Turso organization"
+        );
+        assert_eq!(record.consent_organization(None), Some(&pending));
+        assert_eq!(
+            platform_token(credentials.as_ref(), &Account::Pending).as_deref(),
+            Ok("the-abandoned-consent"),
+            "the launch moved the abandoned setup's consent"
+        );
+        assert!(!holds_platform_token(credentials.as_ref(), &Account::of("org-a")).expect("a"));
     }
 }

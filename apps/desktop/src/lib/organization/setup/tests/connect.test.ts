@@ -145,23 +145,6 @@ test('a lapsed, consumed, revoked or replaced link is refused by name, off the c
 			);
 		}
 
-		// a machine that holds another organization already, met by the act that takes the code
-		// rather than by the read, since the read reaches nothing.
-		assert.deepEqual(
-			joinFailed(
-				joining,
-				rejection('refused', 'this machine holds Beta', 'anotherOrganizationHeld'),
-				said
-			),
-			{
-				kind: 'refused',
-				link: LINK,
-				refusal: 'anotherOrganization',
-				detail: 'this machine holds Beta'
-			},
-			step.kind
-		);
-
 		// the accept and the machine connect both reach the organization, so both can fail to.
 		assert.deepEqual(
 			joinFailed(joining, rejection('network', 'Acme could not be reached'), said),
@@ -223,32 +206,6 @@ test('text that is not a link marks the link field, and an organization that can
 			(error) => (error as Error).message
 		),
 		{ kind: 'unreachable', link: LINK, code: CODE, detail: null }
-	);
-});
-
-// effort 826, requirement 3 of effort 824 still: a machine holds one organization, so a link for
-// another is refused where the connect meets it, with the shell's sentence naming both.
-test('an organization link met on a machine holding another is refused on the read, carrying what the shell said', () => {
-	const describe = said;
-
-	assert.deepEqual(
-		inspectionFailed(
-			LINK,
-			CODE,
-			{
-				code: 'refused',
-				reason: 'anotherOrganizationHeld',
-				message: 'this machine already holds Beta; disconnect it before connecting another'
-			},
-			describe
-		),
-		{
-			kind: 'refused',
-			link: LINK,
-			refusal: 'anotherOrganization',
-			// nothing was reached and nothing was recorded: the read is a decode.
-			detail: 'this machine already holds Beta; disconnect it before connecting another'
-		}
 	);
 });
 

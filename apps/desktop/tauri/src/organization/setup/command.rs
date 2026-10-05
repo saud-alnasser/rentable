@@ -11,9 +11,10 @@ use crate::{
 };
 
 use crate::organization::{
-    invitation::connect,
-    session::{self, CredentialSlot, OrganizationState, state_of},
-    setup::{self, CreateOrganization, GroupState, OrganizationCreated, Remote},
+    session::{self, CredentialSlot, OrganizationState, sign_out, state_of},
+    setup::{
+        self, ConnectedToExisting, CreateOrganization, GroupState, OrganizationCreated, Remote,
+    },
     workspace,
 };
 use crate::turso::{
@@ -44,6 +45,11 @@ use crate::turso::{
 /// A machine with no consent is refused before anything is asked of Turso, with an answer that
 /// says to connect the account first. Every failure after the database exists removes it, so a
 /// first run that did not finish leaves nothing behind; `setup/` says how.
+///
+/// **A machine holding other organizations holds this one beside them** (effort 851, requirement
+/// 1), and it is selected. A session open here ends first, as a sign-in ends one, since the owner
+/// is signed in to the new organization at the end. A group already holding an organization is
+/// still refused (`setup::one_organization_to_a_group`).
 #[tauri::command(rename = "setup_create")]
 pub(crate) async fn organization_setup_create(
     app_state: tauri::State<'_, Shared>,
@@ -61,16 +67,15 @@ pub(crate) async fn organization_setup_create(
         settings.database_path.clone()
     };
 
+    if app_state.member.read().await.is_some() {
+        sign_out(app_state.inner(), credentials.inner().as_ref()).await;
+    }
+
     // held across the creation, network round trips included. The record of what this machine
     // has joined and which Turso organization its consent is over is inside `RemoteSync`, and a
     // first run writes both, so nothing else reads the sync state until it is done. That is a
     // foreground act with a screen saying so, and the calls that wait are the sync manager's.
     let mut remote_sync = app_state.remote_sync.write().await;
-
-    // a machine holds one organization (requirement 17): the first run is offered only where
-    // none is held, and a route reached some other way is refused here rather than making a
-    // second organization on the account.
-    connect::refuse_while_held(remote_sync.store_mut())?;
 
     let (created, store) = setup::create_organization(
         credentials.inner().as_ref(),
@@ -162,6 +167,10 @@ pub(crate) async fn organization_setup_group_inspect(
 /// on 2026-09-20). This used to refuse while a machine an owner or an administrator was on had been
 /// seen inside the week, and point at the link that machine could make; the owner is handed no
 /// link, and an account is held on as many machines as its holder signs in on.
+///
+/// **An organization this machine already holds is selected and nothing is admitted** (effort 851,
+/// requirement 13): the wall is what comes back, and nothing is opened over its replica. One it
+/// does not hold is added beside any others and selected. A session open here ends first.
 #[tauri::command(rename = "setup_connect_existing")]
 pub(crate) async fn organization_setup_connect_existing(
     app_state: tauri::State<'_, Shared>,
@@ -177,13 +186,18 @@ pub(crate) async fn organization_setup_connect_existing(
         settings.database_path.clone()
     };
 
+    if app_state.member.read().await.is_some() {
+        sign_out(app_state.inner(), credentials.inner().as_ref()).await;
+    }
+
     // held across the connect, network round trips included, the way a first run holds it: the
     // record of what this machine holds and which Turso account its consent is over are both
     // inside `RemoteSync`, and this writes both. Dropped before the state is read back, because
     // that read takes the same lock.
-    let (store, session) = {
+    let connected = {
         let mut remote_sync = app_state.remote_sync.write().await;
-        let (_, store, session) = setup::connect_existing(
+
+        setup::connect_existing(
             credentials.inner().as_ref(),
             app_state.upgrade.as_ref(),
             &clock,
@@ -204,13 +218,14 @@ pub(crate) async fn organization_setup_connect_existing(
             &password,
             clock.now(),
         )
-        .await?;
-
-        (store, session)
+        .await?
+    };
+    let ConnectedToExisting::Connected(_, store, session) = connected else {
+        return state_of(&app_state, &credentials, &clock).await;
     };
 
     *app_state.organization.write().await = Some(store);
-    *app_state.member.write().await = Some(session);
+    *app_state.member.write().await = Some(*session);
 
     state_of(&app_state, &credentials, &clock).await
 }

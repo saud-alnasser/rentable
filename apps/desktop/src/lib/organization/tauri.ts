@@ -62,6 +62,10 @@ export const tauri = {
 		invoke<OrganizationState>('plugin:organization|setup_connect_existing', { username, password }),
 	getState: () => invoke<OrganizationState>('plugin:organization|session_state_get'),
 	disconnect: () => invoke<OrganizationState>('plugin:organization|session_disconnect'),
+	select: (organizationId: string) =>
+		invoke<OrganizationState>('plugin:organization|session_select', { organizationId }),
+	remove: (organizationId: string) =>
+		invoke<OrganizationState>('plugin:organization|session_remove', { organizationId }),
 	delete: (password: string) =>
 		invoke<OrganizationState>('plugin:organization|member_organization_delete', { password }),
 	signIn: (username: string, password: string) =>
