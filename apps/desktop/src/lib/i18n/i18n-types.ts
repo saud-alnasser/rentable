@@ -1044,7 +1044,7 @@ type RootTranslation = {
 				 */
 				lapsed: string;
 				/**
-				 * t​h​i​s​ ​l​i​n​k​ ​w​a​s​ ​a​l​r​e​a​d​y​ ​u​s​e​d​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​s​e​n​t​ ​i​t​ ​f​o​r​ ​a​ ​n​e​w​ ​o​n​e​.
+				 * t​h​i​s​ ​l​i​n​k​ ​w​a​s​ ​a​l​r​e​a​d​y​ ​u​s​e​d​;​ ​a​s​k​ ​t​h​e​ ​o​w​n​e​r​ ​o​r​ ​a​ ​m​a​n​a​g​e​r​ ​f​o​r​ ​a​ ​n​e​w​ ​o​n​e​.
 				 */
 				consumed: string;
 				/**
@@ -3786,13 +3786,9 @@ type RootTranslation = {
 			 */
 			lapsed: string;
 			/**
-			 * t​h​i​s​ ​l​i​n​k​ ​w​a​s​ ​a​l​r​e​a​d​y​ ​u​s​e​d​ ​h​e​r​e​.​ ​s​i​g​n​ ​i​n​ ​w​i​t​h​ ​t​h​e​ ​p​a​s​s​w​o​r​d​ ​y​o​u​ ​c​h​o​s​e​.
+			 * t​h​i​s​ ​l​i​n​k​ ​w​a​s​ ​a​l​r​e​a​d​y​ ​u​s​e​d​;​ ​a​s​k​ ​t​h​e​ ​o​w​n​e​r​ ​o​r​ ​a​ ​m​a​n​a​g​e​r​ ​f​o​r​ ​a​ ​n​e​w​ ​o​n​e​.
 			 */
 			consumed: string;
-			/**
-			 * t​h​i​s​ ​l​i​n​k​ ​w​a​s​ ​a​l​r​e​a​d​y​ ​u​s​e​d​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​s​e​n​t​ ​i​t​ ​f​o​r​ ​a​ ​n​e​w​ ​o​n​e​.
-			 */
-			consumedElsewhere: string;
 			/**
 			 * t​h​i​s​ ​l​i​n​k​ ​w​a​s​ ​w​i​t​h​d​r​a​w​n​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​s​e​n​t​ ​i​t​ ​f​o​r​ ​a​ ​n​e​w​ ​o​n​e​.
 			 */
@@ -3805,10 +3801,6 @@ type RootTranslation = {
 			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​h​o​l​d​s​ ​a​n​o​t​h​e​r​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​d​i​s​c​o​n​n​e​c​t​ ​i​t​ ​a​t​ ​t​h​e​ ​s​i​g​n​-​i​n​ ​f​i​r​s​t​.
 			 */
 			anotherOrganization: string;
-			/**
-			 * g​o​ ​t​o​ ​t​h​e​ ​s​i​g​n​-​i​n
-			 */
-			toSignIn: string;
 			/**
 			 * c​h​o​o​s​e​ ​a​ ​p​a​s​s​w​o​r​d
 			 */
@@ -6094,7 +6086,7 @@ export type TranslationFunctions = {
 				 */
 				lapsed: () => LocalizedString;
 				/**
-				 * this link was already used. ask whoever sent it for a new one.
+				 * this link was already used; ask the owner or a manager for a new one.
 				 */
 				consumed: () => LocalizedString;
 				/**
@@ -8727,13 +8719,9 @@ export type TranslationFunctions = {
 			 */
 			lapsed: () => LocalizedString;
 			/**
-			 * this link was already used here. sign in with the password you chose.
+			 * this link was already used; ask the owner or a manager for a new one.
 			 */
 			consumed: () => LocalizedString;
-			/**
-			 * this link was already used. ask whoever sent it for a new one.
-			 */
-			consumedElsewhere: () => LocalizedString;
 			/**
 			 * this link was withdrawn. ask whoever sent it for a new one.
 			 */
@@ -8746,10 +8734,6 @@ export type TranslationFunctions = {
 			 * this machine holds another organization. disconnect it at the sign-in first.
 			 */
 			anotherOrganization: () => LocalizedString;
-			/**
-			 * go to the sign-in
-			 */
-			toSignIn: () => LocalizedString;
 			/**
 			 * choose a password
 			 */

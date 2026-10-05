@@ -1365,6 +1365,7 @@ mod tests {
             credentials,
             |_| async { Ok::<_, Error>(store) },
             &mut machine,
+            &directory.join(username).join("app.db"),
             &JoinLink::decode(&invited.join_link).expect("the invitation link"),
             &invited.code,
             password,

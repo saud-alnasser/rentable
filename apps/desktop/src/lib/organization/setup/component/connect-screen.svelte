@@ -41,13 +41,14 @@
 	 *
 	 * **The code comes before anything is reached, so a refusal arrives after it.** Nothing looks at
 	 * the row behind a link until the code has unsealed what reaches the organization, which is why
-	 * a lapsed, consumed, revoked or replaced link is named here rather than on the read. A link
-	 * already opened is the ordinary way a person sets up a second machine, since a member signs in
-	 * on as many machines as they like and the link is spent on the first: it says so and offers
-	 * the wall, where the password they chose admits them.
+	 * a lapsed, consumed, revoked or replaced link is named here rather than on the read. **A link
+	 * already used admits nobody, on this machine or any other** (effort 851, requirement 10):
+	 * nothing was recorded, so it says the link was already used and to ask the owner or a manager
+	 * for a new one, and offers nothing else. *It offered the wall until effort 851, because an
+	 * invitation's accept recorded the organization before it judged the row.*
 	 *
 	 * **Every refusal is one line that names the next step** (effort 832, requirement 19): ask
-	 * whoever sent the link for a new one, sign in, disconnect at the sign-in, or try again. What
+	 * for a new link, disconnect at the sign-in, or try again. What
 	 * the shell said is behind a closed disclosure under it, never a second line beside it, because
 	 * the shell's refusals are translated from their reasons and the two would say the same thing
 	 * twice. It is the alert pattern of Apple's Human Interface Guidelines: a short statement of
@@ -80,7 +81,6 @@
 		step,
 		onConnect,
 		onJoin,
-		onSignIn,
 		onBack
 	}: {
 		step: JoinStep;
@@ -95,8 +95,6 @@
 		 * accept is the one act that asks for anything past the form.
 		 */
 		onJoin: (link: string, code: string, password: string) => void;
-		/** the wall, offered on a link that was already opened: the machine is connected. */
-		onSignIn: () => void;
 		/** the corner control, on every step; the route decides where each step goes back to. */
 		onBack: () => void;
 	} = $props();
@@ -172,13 +170,9 @@
 			case 'lapsed':
 				return $LL.organization.join.lapsed();
 			case 'consumed':
-				// what a spent link means depends on which act spent it: an invitation's accept had
-				// already recorded the organization here, so the wall is the way on; a machine link
-				// was read and refused with nothing recorded, so there is nowhere to go but back to
-				// whoever keeps the accounts.
-				return step.wasConnecting
-					? $LL.organization.join.consumed()
-					: $LL.organization.join.consumedElsewhere();
+				// either kind of link, on this machine or another: nothing was recorded, and a new
+				// link is the only way on.
+				return $LL.organization.join.consumed();
 			case 'revoked':
 				return $LL.organization.join.revoked();
 			case 'replaced':
@@ -349,16 +343,6 @@
 			</Button>
 		{:else if step.kind === 'refused'}
 			{@render shellRefusal(refusal, step.detail)}
-
-			{#if step.refusal === 'consumed' && step.wasConnecting}
-				<!-- the one control a spent link leads to, and only where the act that spent it
-				     recorded the organization first: the machine is connected, so the wall is the way
-				     on, and it is the wall that asks for the password this person chose. A machine
-				     link refuses before it records anything, so there is no wall to offer. -->
-				<Button size="lg" class="w-full" onclick={onSignIn}>
-					<span class="first-letter:uppercase">{$LL.organization.join.toSignIn()}</span>
-				</Button>
-			{/if}
 		{:else if step.kind === 'password'}
 			<!-- the one thing a link cannot carry: the password this person is choosing. The code
 			     was given on the form that took the link, and is held with it. -->

@@ -859,6 +859,7 @@ mod tests {
             credentials,
             |_| async { Ok::<_, Error>(store) },
             &mut machine,
+            &directory.join("app.db"),
             &JoinLink::decode(&made.link).expect("the link"),
             &made.code,
             CHOSEN,
@@ -993,6 +994,7 @@ mod tests {
                 &credentials,
                 |_| async { Ok::<_, Error>(&store) },
                 &mut late_machine,
+                &late.join("app.db"),
                 &decoded,
                 &made.code,
                 CHOSEN,
@@ -1012,6 +1014,7 @@ mod tests {
             &credentials,
             |_| async { Ok::<_, Error>(&store) },
             &mut their_machine,
+            &theirs.join("app.db"),
             &decoded,
             &made.code,
             CHOSEN,
@@ -1029,9 +1032,8 @@ mod tests {
             .await
             .expect("the chosen password did not admit them at the wall");
 
-        // a second machine with the same pair: the invitation was spent. The organization is
-        // recorded on it, because a link is judged after the replica it names has been reached,
-        // and no vault of theirs opens there.
+        // a second machine with the same pair: the invitation was spent, and it is refused with
+        // nothing recorded on that machine (effort 851, requirement 10).
         let second = scratch("account-second");
         let mut second_machine = fresh_machine(&second);
 
@@ -1040,6 +1042,7 @@ mod tests {
                 &credentials,
                 |_| async { Ok::<_, Error>(&store) },
                 &mut second_machine,
+                &second.join("app.db"),
                 &decoded,
                 &made.code,
                 "another password again",
@@ -1049,6 +1052,10 @@ mod tests {
             .await
             .is_err(),
             "a spent link opened a second machine"
+        );
+        assert!(
+            second_machine.organization.is_none(),
+            "a spent link recorded the organization"
         );
     }
 

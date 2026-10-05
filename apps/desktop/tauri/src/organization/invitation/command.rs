@@ -133,10 +133,12 @@ pub(crate) async fn organization_invitation_password_unset(
 ///
 /// **The code comes first and everything follows it.** The link carries no credential anybody can
 /// read, so the code and the link's secret together unseal the issuer's own grant and the vault
-/// password; the replica is opened under that grant; the organization is recorded on this machine
-/// where it holds none, which is why this works on a machine that never connected; the invitation
-/// is judged; and the password the person chose reseals their vault. A link naming an organization
-/// other than the one this machine holds is refused, and the way to it is a disconnect.
+/// password; the replica is opened under that grant; the invitation is judged and the vault
+/// opened; the organization is recorded on this machine where it holds none, which is why this
+/// works on a machine that never connected; and the password the person chose reseals their vault.
+/// A link naming an organization other than the one this machine holds is refused, and the way to
+/// it is a disconnect. A link refused once its replica was pulled takes that replica away again
+/// where this machine does not hold the organization (effort 851, requirement 10).
 ///
 /// **`public`, because it happens at the wall.** Neither the credential, the secret nor the
 /// password crosses back; what comes back is where the machine stands, with a session in it.
@@ -150,6 +152,7 @@ pub(crate) async fn organization_invitation_accept(
     password: String,
 ) -> Result<OrganizationState, Error> {
     let link = JoinLink::decode(&link)?;
+    let database_path = database_path(&app_state).await;
     let (store, member) = {
         let mut remote_sync = app_state.remote_sync.write().await;
 
@@ -157,6 +160,7 @@ pub(crate) async fn organization_invitation_accept(
             credentials.inner().as_ref(),
             |credential| reached(&app_state, &clock, &link, credential),
             remote_sync.store_mut(),
+            &database_path,
             &link,
             &code,
             &password,
@@ -195,6 +199,7 @@ pub(crate) async fn organization_invitation_machine_connect(
     code: String,
 ) -> Result<OrganizationState, Error> {
     let link = JoinLink::decode(&link)?;
+    let database_path = database_path(&app_state).await;
 
     {
         let mut remote_sync = app_state.remote_sync.write().await;
@@ -202,6 +207,7 @@ pub(crate) async fn organization_invitation_machine_connect(
         machine::connect(
             |credential| reached(&app_state, &clock, &link, credential),
             remote_sync.store_mut(),
+            &database_path,
             &link,
             &code,
             setup::SHIPPING_KDF,
@@ -261,11 +267,7 @@ async fn reached(
     link: &JoinLink,
     credential: CredentialSlot,
 ) -> Result<OrganizationStore, Error> {
-    let database_path = {
-        let settings = app_state.settings.read().await;
-
-        settings.database_path.clone()
-    };
+    let database_path = database_path(app_state).await;
     let slot = Arc::clone(&credential);
     let store = OrganizationStore::open(
         clock.clone(),
@@ -295,4 +297,12 @@ async fn reached(
     }
 
     Ok(store)
+}
+
+/// Where this machine keeps its data, read once per act: the replica a link reaches goes beside it,
+/// and a refused link takes that replica away from the same place (effort 851, requirement 10).
+async fn database_path(app_state: &Shared) -> std::path::PathBuf {
+    let settings = app_state.settings.read().await;
+
+    settings.database_path.clone()
 }

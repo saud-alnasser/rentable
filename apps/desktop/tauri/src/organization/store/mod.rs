@@ -162,6 +162,31 @@ impl std::fmt::Debug for OrganizationStore {
     }
 }
 
+/// Take away the replica an act pulled and did not keep: the file and every sidecar the engine
+/// wrote beside it.
+///
+/// **Every refusal after a pull goes through here** (effort 828, requirement 14; effort 851,
+/// requirement 10). An act that was refused left a copy of every sealed row of the organization on
+/// a machine that does not hold it: the first run's walk and its connect to an existing
+/// organization (`setup/`), and an invitation link or a machine link opened where the organization
+/// is not held (`invitation/join.rs`, `invitation/machine.rs`). The caller lets the store go
+/// first: on Windows a file this process still has open cannot be deleted, which is the order
+/// `forget` keeps for the same reason.
+///
+/// **It is never reached for an organization the machine holds.** The replica is then the one the
+/// machine works from, and a link for that organization opened again is refused with it left where
+/// it is; each caller says so where it calls.
+///
+/// Best effort: what could not be removed is the sweep's to report at a disconnect, and it never
+/// takes the place of the refusal the person is about to read. *It was `setup/`'s alone until
+/// effort 851 gave the two link acts the same way out.*
+pub(crate) fn leave_no_replica(database_path: &Path, organization_id: &str) {
+    Database::remove_replica_files(&OrganizationStore::replica_path(
+        database_path,
+        organization_id,
+    ));
+}
+
 impl OrganizationStore {
     /// Where one organization's replica lives: `org-<id>.db` beside `app.db` and beside every
     /// `ws-<id>.db`, for the reason `Database::replica_path` gives. Two organizations on one

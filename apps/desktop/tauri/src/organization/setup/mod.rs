@@ -73,7 +73,7 @@ use super::{
     session::{self, remember},
     store::{
         FORMAT_VERSION, GrantRecord, MemberRecord, OrganizationRecord, OrganizationStore,
-        RoleRecord, Signer,
+        RoleRecord, Signer, leave_no_replica,
     },
 };
 
@@ -628,24 +628,6 @@ async fn leave_nothing<P: TursoPlatform>(
     }
 
     leave_no_replica(database_path, organization_id);
-}
-
-/// Take away the replica a run pulled and did not keep: the file and every sidecar the engine
-/// wrote beside it.
-///
-/// **Every refusal after a pull goes through here** (effort 828, requirement 14). A run that was
-/// refused left a copy of every sealed row of the organization on a machine that does not hold it,
-/// and the wrong-password refusal is the one somebody would meet on purpose. The caller lets the
-/// store go first: on Windows a file this process still has open cannot be deleted, which is the
-/// order `forget` keeps for the same reason.
-///
-/// Best effort, like the delete beside it: what could not be removed is the sweep's to report at a
-/// disconnect, and it never takes the place of the refusal the person is about to read.
-fn leave_no_replica(database_path: &Path, organization_id: &str) {
-    crate::database::Database::remove_replica_files(&OrganizationStore::replica_path(
-        database_path,
-        organization_id,
-    ));
 }
 
 /// When a minted credential dies, read off its own `exp` claim, as milliseconds. `None` where the

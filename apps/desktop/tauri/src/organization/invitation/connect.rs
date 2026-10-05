@@ -27,6 +27,8 @@
 //! link is looked at. Reaching another is a disconnect (`session/forget.rs`) and then a connect,
 //! which is requirement 17's shape and the reason the record is an `Option` rather than a list.
 
+use std::path::Path;
+
 use crate::{
     diagnostics,
     error::{Error, RefusalReason},
@@ -38,7 +40,7 @@ use crate::organization::{
     HeldOrganization,
     invitation::{link::Locator, random_id},
     session,
-    store::{FORMAT_VERSION, OrganizationStore},
+    store::{FORMAT_VERSION, OrganizationStore, leave_no_replica},
 };
 
 /// Record the organization `locator` names on this machine, having reached its replica.
@@ -210,6 +212,40 @@ pub async fn record(
         .write();
 
     Ok(held)
+}
+
+/// A link act refused after it reached the organization's replica: the replica it pulled is taken
+/// away where this machine does not hold that organization, and the refusal goes back as it was.
+///
+/// **Both link acts end here on every refusal past the reach** (effort 851, requirement 10). An
+/// invitation link and a machine link are each judged on the replica their credential reached, so
+/// a spent, lapsed or revoked link, a wrong password inside the payload, or an organization of
+/// another format is refused with the replica already on disk; on a machine that holds nothing,
+/// or holds another organization, that file is a copy of every sealed row of an organization the
+/// machine was refused, and [`leave_no_replica`] takes it away. The caller has let its store go
+/// before calling, for the reason `leave_no_replica` gives.
+///
+/// **A machine holding this organization keeps its replica**, whatever was refused: that file is
+/// the one the machine works from, and a link for its own organization opened again is the
+/// ordinary way somebody meets a spent one. The record is read as it stands at the refusal, so an
+/// act that recorded the organization before it failed leaves the replica with the record that
+/// names it.
+pub(crate) fn refused_after_reaching(
+    machine: &RemoteSyncStore,
+    database_path: &Path,
+    organization_id: &str,
+    refusal: Error,
+) -> Error {
+    let holds_it = machine
+        .organization
+        .as_ref()
+        .is_some_and(|held| held.id == organization_id);
+
+    if !holds_it {
+        leave_no_replica(database_path, organization_id);
+    }
+
+    refusal
 }
 
 /// The refusal a connect meets on a machine that already holds an organization, said before

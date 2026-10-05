@@ -609,6 +609,7 @@ mod tests {
             credentials,
             |_| async { Ok::<_, crate::error::Error>(store) },
             &mut machine,
+            &theirs.join("app.db"),
             &JoinLink::decode(&invited.join_link).expect("the invitation link"),
             &invited.code,
             password,

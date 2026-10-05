@@ -207,7 +207,6 @@
 	{step}
 	onConnect={(link, code) => void connect(normalizeLink(link), code)}
 	onJoin={(link, code, password) => void join(link, code, password)}
-	onSignIn={standingChanged}
 	onBack={() => {
 		// the form is the screen's first step, so from it back is the wall the person came from.
 		// Every later step came from the form and returns to it, with what was typed still in it.

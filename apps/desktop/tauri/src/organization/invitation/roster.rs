@@ -392,6 +392,7 @@ mod tests {
             &credentials,
             |_| async { Ok::<_, Error>(&store) },
             &mut their_machine,
+            &theirs.join("app.db"),
             &JoinLink::decode(&made.link).expect("the link"),
             &made.code,
             CHOSEN,

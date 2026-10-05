@@ -27,7 +27,10 @@
 //! one reopens a spent link on one more machine that still lands at the wall. A test here rewrites
 //! it and shows exactly that, so the limit is recorded rather than found.
 
-use std::sync::{Arc, Mutex};
+use std::{
+    path::Path,
+    sync::{Arc, Mutex},
+};
 
 use crate::{
     diagnostics,
@@ -111,6 +114,7 @@ fn no_longer_a_member(organization_name: &str) -> Error {
 pub async fn connect<S, F, R>(
     store_for: S,
     machine: &mut Persisted<RemoteSyncStore>,
+    database_path: &Path,
     link: &JoinLink,
     code: &str,
     kdf_params: KdfParams,
@@ -160,9 +164,43 @@ where
 
     let payload = open_payload(code, &link.locator(), half, &link.credential, kdf_params)?;
     // the one pull this credential is for, in the slot the replica reads from and in nothing else.
+    // From here on a refusal has a replica on disk, so every one goes out through
+    // `refused_after_reaching`, with the replica let go of first (effort 851, requirement 10).
     let credential: CredentialSlot = Arc::new(Mutex::new(Some(payload.credential.clone())));
-    let reached = store_for(credential).await?;
-    let store = reached.borrow();
+    let reached = match store_for(credential).await {
+        Ok(reached) => reached,
+        Err(refusal) => {
+            return Err(connect::refused_after_reaching(
+                machine,
+                database_path,
+                &link.organization_id,
+                refusal,
+            ));
+        }
+    };
+    let connected = connected(reached.borrow(), machine, link, &payload.credential, now).await;
+
+    drop(reached);
+
+    connected.map_err(|refusal| {
+        connect::refused_after_reaching(machine, database_path, &link.organization_id, refusal)
+    })
+}
+
+/// [`connect`] past the reach: the row behind the link judged, the account it names checked, and
+/// only then the organization recorded and the row spent.
+///
+/// **Nothing is recorded before the row is judged**, which this kind of link always did and an
+/// invitation link does too since effort 851; a refusal here comes back to [`connect`], which
+/// takes away the replica where this machine does not hold the organization.
+async fn connected(
+    store: &OrganizationStore,
+    machine: &mut Persisted<RemoteSyncStore>,
+    link: &JoinLink,
+    link_credential: &str,
+    now: i64,
+) -> Result<HeldOrganization, Error> {
+    let half = &link.half;
 
     // an organization another version made is refused before its link's row is read (effort 838,
     // requirement 11).
@@ -208,7 +246,7 @@ where
     // records one, and there is nothing here to record a second time.
     let held = match machine.organization.clone() {
         Some(held) => held,
-        None => connect::connect(store, machine, &link.locator(), &payload.credential, now).await?,
+        None => connect::connect(store, machine, &link.locator(), link_credential, now).await?,
     };
 
     store.consume_machine_link(&half.id, now).await?;
@@ -249,7 +287,9 @@ mod tests {
             },
             member::vault::KdfParams,
             role::permission,
-            session::{CredentialSlot, MemberSession, sign_in, sign_in_by_username},
+            session::{
+                CredentialSlot, MEMBER_KEY_SERVICE, MemberSession, sign_in, sign_in_by_username,
+            },
             setup::{CreateOrganization, Remote, create_organization, credential_expiry},
             store::{MachineLinkRecord, OrganizationStore},
         },
@@ -393,6 +433,7 @@ mod tests {
             credentials,
             |_| async { Ok::<_, Error>(&store) },
             &mut their_machine,
+            &theirs.join("app.db"),
             &invitation,
             &first.code,
             CHOSEN,
@@ -446,10 +487,12 @@ mod tests {
         now: i64,
     ) -> Result<HeldOrganization, Error> {
         let link = JoinLink::decode(&made.link).expect("the machine link");
+        let database_path = machine.path().with_file_name("app.db");
 
         connect(
             |_| async { Ok::<_, Error>(store) },
             machine,
+            &database_path,
             &link,
             code,
             test_cost(),
@@ -687,6 +730,173 @@ mod tests {
                 .to_string()
                 .contains("ask whoever keeps the accounts"),
             "the refusal points somewhere the person cannot reach: {refusal}"
+        );
+    }
+
+    /// The organization's replica in `from`, copied into `to`: a machine's own replica, as a
+    /// link's credential would have pulled it, since nothing here serves a pull.
+    fn replica_copied(from: &std::path::Path, to: &std::path::Path) {
+        for name in replica_files_in(from) {
+            std::fs::copy(from.join(&name), to.join(&name)).expect("the copy");
+        }
+    }
+
+    /// Every file in `directory` that is an organization's replica or one of its sidecars.
+    fn replica_files_in(directory: &std::path::Path) -> Vec<String> {
+        std::fs::read_dir(directory)
+            .expect("the directory")
+            .filter_map(|entry| {
+                entry
+                    .expect("an entry")
+                    .file_name()
+                    .to_str()
+                    .map(str::to_string)
+            })
+            .filter(|name| name.starts_with("org-"))
+            .collect()
+    }
+
+    /// A replica of the organization opened from what `directory` holds, with no remote.
+    async fn replica_in(directory: &std::path::Path, organization_id: &str) -> OrganizationStore {
+        OrganizationStore::open(
+            crate::clock::System::shared(),
+            &OrganizationStore::replica_path(&directory.join("app.db"), organization_id),
+            None,
+            || async { Err(turso::Error::Misuse("no remote".into())) },
+        )
+        .await
+        .expect("the replica did not open")
+    }
+
+    /// The machine connect over a replica of the machine's own, beside its record: what the
+    /// application hands it, rather than the file every other test here shares.
+    async fn connect_over_its_own(
+        machine: &mut Persisted<RemoteSyncStore>,
+        directory: &std::path::Path,
+        replica: OrganizationStore,
+        made: &MadeLink,
+        now: i64,
+    ) -> Result<HeldOrganization, Error> {
+        connect(
+            move |_| async move { Ok::<_, Error>(replica) },
+            machine,
+            &directory.join("app.db"),
+            &JoinLink::decode(&made.link).expect("the machine link"),
+            &made.code,
+            test_cost(),
+            now,
+        )
+        .await
+    }
+
+    /// Effort 851, requirement 10 and criterion 10, for a machine link: **a link and its code
+    /// admit one machine, once.**
+    ///
+    /// Used once, then opened again on the machine that used it and on a machine holding nothing:
+    /// each second opening is refused as already used, the machine's record is the same file byte
+    /// for byte, and the remembered keys are as they were (a machine link opens no vault and is
+    /// handed no credential store, so this is the outcome by construction, asserted all the same).
+    /// **The machine that holds the organization keeps its replica**; the machine that holds
+    /// nothing is left with no `org-*` file, though the link's credential reached the
+    /// organization and pulled it.
+    #[tokio::test]
+    async fn a_spent_machine_link_records_nothing_on_either_machine() {
+        let credentials = Memory::new();
+        let directory = scratch("spent-machine");
+        let (store, owner, locator, member_id, _) = account(&credentials, &directory).await;
+        let made = make_link(
+            &store,
+            &owner,
+            no_platform(),
+            &locator,
+            &member_id,
+            test_cost(),
+            ISSUED_AT + 2,
+        )
+        .await
+        .expect("the link could not be made");
+        let account = format!("{}:{member_id}", owner.organization_id);
+        let filed = credentials
+            .get(MEMBER_KEY_SERVICE, &account)
+            .expect("the store would not answer");
+
+        // used once, on the machine it was made for.
+        let first = scratch("spent-machine-first");
+        let mut first_machine = fresh_machine(&first);
+
+        connect_on(&mut first_machine, &store, &made, &made.code, ISSUED_AT + 3)
+            .await
+            .expect("the machine did not connect");
+
+        // opened again on that machine, over the replica it works from.
+        replica_copied(&directory, &first);
+
+        let theirs = replica_in(&first, &owner.organization_id).await;
+        let record = std::fs::read(first.join(RemoteSync::FILENAME)).expect("the record");
+        let refused =
+            connect_over_its_own(&mut first_machine, &first, theirs, &made, ISSUED_AT + 4).await;
+
+        assert!(
+            matches!(
+                refused,
+                Err(Error::Refused {
+                    reason: RefusalReason::Consumed,
+                    ..
+                })
+            ),
+            "{refused:?}"
+        );
+        assert_eq!(
+            std::fs::read(first.join(RemoteSync::FILENAME)).expect("the record"),
+            record,
+            "the second opening changed the record"
+        );
+        assert!(
+            !replica_files_in(&first).is_empty(),
+            "a link for the organization this machine holds took its replica away"
+        );
+
+        // and on a machine holding nothing, with a replica the link's credential pulled.
+        let elsewhere = scratch("spent-machine-elsewhere");
+
+        replica_copied(&directory, &elsewhere);
+
+        let pulled = replica_in(&elsewhere, &owner.organization_id).await;
+        let mut machine = fresh_machine(&elsewhere);
+        let record = std::fs::read(elsewhere.join(RemoteSync::FILENAME)).expect("the record");
+
+        assert!(!replica_files_in(&elsewhere).is_empty());
+
+        let refused =
+            connect_over_its_own(&mut machine, &elsewhere, pulled, &made, ISSUED_AT + 5).await;
+
+        assert!(
+            matches!(
+                refused,
+                Err(Error::Refused {
+                    reason: RefusalReason::Consumed,
+                    ..
+                })
+            ),
+            "{refused:?}"
+        );
+        assert!(machine.organization.is_none(), "the spent link recorded");
+        assert_eq!(
+            std::fs::read(elsewhere.join(RemoteSync::FILENAME)).expect("the record"),
+            record,
+            "the spent link changed the record"
+        );
+        assert_eq!(
+            replica_files_in(&elsewhere),
+            Vec::<String>::new(),
+            "the spent link left the replica it pulled"
+        );
+        assert_eq!(
+            credentials
+                .get(MEMBER_KEY_SERVICE, &account)
+                .expect("the store would not answer"),
+            filed,
+            "a machine link filed a key"
         );
     }
 

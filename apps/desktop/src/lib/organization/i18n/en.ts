@@ -69,17 +69,15 @@ export const organization = {
 		reading: 'reading the link...',
 		unreadable:
 			'this is not a rentable link. paste the whole link, exactly as it was handed to you.',
-		// the seven refusals: one line each, and each names the next step (effort 832,
+		// the six refusals: one line each, and each names the next step (effort 832,
 		// requirement 19). What the shell said is behind the details disclosure under them.
 		unreachable: 'the organization could not be reached. check the connection and try again.',
 		lapsed: 'this link has lapsed. ask whoever sent it for a new one.',
-		consumed: 'this link was already used here. sign in with the password you chose.',
-		consumedElsewhere: 'this link was already used. ask whoever sent it for a new one.',
+		consumed: 'this link was already used; ask the owner or a manager for a new one.',
 		revoked: 'this link was withdrawn. ask whoever sent it for a new one.',
 		replaced: 'a newer link replaced this one. ask whoever sent it for the new one.',
 		anotherOrganization:
 			'this machine holds another organization. disconnect it at the sign-in first.',
-		toSignIn: 'go to the sign-in',
 		passwordTitle: 'choose a password',
 		passwordDescription: "you'll use it to sign in. it can't be recovered.",
 		organizationLabel: 'organization',
@@ -593,7 +591,7 @@ export const organization = {
 export const refusals = {
 	host: {
 		lapsed: 'this link has lapsed. ask whoever sent it for a new one.',
-		consumed: 'this link was already used. ask whoever sent it for a new one.',
+		consumed: 'this link was already used; ask the owner or a manager for a new one.',
 		revoked: 'this link was withdrawn. ask whoever sent it for a new one.',
 		replaced: 'a newer link replaced this one. ask whoever sent it for the new one.',
 		codeMissing: 'type the six-character code that came with the link.',

@@ -64,6 +64,12 @@ where
         }
     }
 
+    /// where the record is on disk, for a test that puts a machine's other files beside it.
+    #[cfg(test)]
+    pub(crate) fn path(&self) -> &std::path::Path {
+        &self.path
+    }
+
     /// commit/write changes to disk; only if any changes have been made.
     pub fn commit(&mut self) -> Result<(), Error> {
         if !self.dirty {

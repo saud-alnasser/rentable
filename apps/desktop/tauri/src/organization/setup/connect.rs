@@ -21,17 +21,14 @@ use crate::{
     },
 };
 
-use super::{
-    ORGANIZATION_CREDENTIAL_LIFETIME, Remote, held_organization_id, leave_no_replica,
-    owner_key_from,
-};
+use super::{ORGANIZATION_CREDENTIAL_LIFETIME, Remote, held_organization_id, owner_key_from};
 use crate::organization::{
     HeldOrganization,
     authority::VERIFYING_KEY_BYTES,
     invitation::connect::{self, OrganizationFacts},
     member::vault::{ContentKey, open_content, open_vault},
     session::{self, CredentialSlot, MemberSession, Upgrade, content_key_of, sign_in_by_username},
-    store::{FORMAT_VERSION, OrganizationRecord, OrganizationStore},
+    store::{FORMAT_VERSION, OrganizationRecord, OrganizationStore, leave_no_replica},
     workspace,
 };
 
@@ -767,6 +764,7 @@ mod tests {
             &credentials,
             |_| async { Ok::<_, Error>(&replica) },
             &mut their_machine,
+            &theirs.join("app.db"),
             &JoinLink::decode(&invited.join_link).expect("the invitation link"),
             &invited.code,
             MANAGERS_PASSWORD,
@@ -853,6 +851,7 @@ mod tests {
             credentials,
             |_| async { Ok::<_, Error>(&replica) },
             &mut their_machine,
+            &theirs.join("app.db"),
             &JoinLink::decode(&invited.join_link).expect("the invitation link"),
             &invited.code,
             MANAGERS_PASSWORD,
