@@ -298,6 +298,21 @@ holds the same one, the same way, after the update.
     member able to unlock that opens the organization after the update.
 37. **A password reset locks again.** A reset hands the account to whoever holds the new link, so
     the account is locked until it is unlocked again.
+38. **A machine added by a machine link keeps its member's lock.** A machine link made for a
+    locked member carries that the member was locked, and the machine it connects reads that
+    member locked with no lock row, as a machine that joined by an invitation does, until a
+    verifying unlock is read. *Added 2026-10-06 by the human from review round two.*
+39. **A setup interrupted by a restart keeps its Turso consent's details.** The Turso organization
+    a consent was granted over, while it waits for the organization it will belong to, is written
+    to the machine's record and read back at the next launch, apart from the copy kept for older
+    builds. *Added 2026-10-06 by the human from review round two.*
+
+## The walk's existing step
+
+40. **The owner's connect to an existing organization keeps what they typed.** A refused connect
+    on the walk's existing step leaves the username and the password in their fields with the
+    refusal beside them. *Added 2026-10-06 by the human; the same defect as requirement 30's, on
+    the step beside it, present on `main` before this effort.*
 
 # Acceptance Criteria
 
@@ -411,6 +426,14 @@ holds the same one, the same way, after the update.
     password and one invited who has not: after an owner's machine opens it, the first is unlocked
     and the second is locked.
 37. A Rust test resets an unlocked member's password and asserts they read as locked.
+38. A Rust test: a locked member's machine link, opened on a new machine after the member's lock
+    row and the owner's marker were deleted, leaves that member reading locked there and refused an
+    organization act; an unlocked member's machine link does not latch.
+39. A Rust test: a consent granted for an added organization, then a reload of the record before
+    the create, finds the pending Turso organization again, and the selected organization's own is
+    unchanged.
+40. A component test of the first run through the real connect path: a refused connect leaves the
+    username and password as typed and shows the refusal.
 
 # Constraints
 
@@ -471,6 +494,10 @@ holds the same one, the same way, after the update.
 
 # Risks
 
+- **A rolled-back build finds no Turso consent for an owner.** The consent moves from the keyring
+  account `owner` to `org:<id>` (requirement 14), and a build from before this effort reads only
+  `owner`, so after a rollback the owner reconnects Turso once; nothing in the organization is
+  lost. *Accepted by the human on 2026-10-06, from review round one.*
 - **A modified client can write records while locked.** Record writes are refused by the
   frontend's procedures, as every record flag is today; a member running a changed build with the
   grant they hold could still write. Closing that needs a read-only credential while locked, which

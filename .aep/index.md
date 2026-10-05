@@ -137,7 +137,7 @@ Start at [[protocol]].
 | 840-a-feature-plugs-in-and-lives-in-one-place | implemented | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]] | 2 | 0 | 77 |
 | 843-the-way-in-and-the-workspace-control-read-as-apple-would | implemented | [[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/spec]] | 1 | 1 | 22 |
 | 846-the-settings-and-the-record-cards-are-rethought | implemented | [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]] | 7 | 1 | 55 |
-| 851-the-way-out-the-password-fields-and-the-organizations-name | accepted | [[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/spec]] | 0 | 0 | 17 |
+| 851-the-way-out-the-password-fields-and-the-organizations-name | accepted | [[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/spec]] | 0 | 0 | 20 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -575,3 +575,6 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/tickets/15-the-disconnect-names-the-turso-consent-only-where-held]] fix(organization): the settings disconnect names the Turso consent only where this machine holds it | 851-the-way-out-the-password-fields-and-the-organizations-name | resolved | — |
 | [[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/tickets/16-a-locked-member-without-a-workspace-is-told]] fix(desktop): a locked member with no workspace is told the account is locked | 851-the-way-out-the-password-fields-and-the-organizations-name | resolved | — |
 | [[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/tickets/17-an-existing-install-updates-whole]] test(organization): an install from the current release updates whole, with nothing typed and nothing pulled again | 851-the-way-out-the-password-fields-and-the-organizations-name | resolved | — |
+| [[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/tickets/18-a-machine-link-keeps-its-members-lock]] fix(organization): a machine added by a machine link keeps its member's lock | 851-the-way-out-the-password-fields-and-the-organizations-name | open | — |
+| [[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/tickets/19-a-pending-consent-survives-a-restart]] fix(sync): a setup interrupted by a restart keeps its Turso consent's details | 851-the-way-out-the-password-fields-and-the-organizations-name | open | — |
+| [[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/tickets/20-the-existing-step-keeps-what-was-typed]] fix(organization): the owner's connect to an existing organization keeps what they typed | 851-the-way-out-the-password-fields-and-the-organizations-name | open | — |
