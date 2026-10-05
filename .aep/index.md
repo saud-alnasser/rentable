@@ -137,7 +137,7 @@ Start at [[protocol]].
 | 840-a-feature-plugs-in-and-lives-in-one-place | implemented | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]] | 2 | 0 | 77 |
 | 843-the-way-in-and-the-workspace-control-read-as-apple-would | implemented | [[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/spec]] | 1 | 1 | 22 |
 | 846-the-settings-and-the-record-cards-are-rethought | implemented | [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]] | 7 | 1 | 55 |
-| 851-the-way-out-the-password-fields-and-the-organizations-name | accepted | [[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/spec]] | 0 | 0 | 14 |
+| 851-the-way-out-the-password-fields-and-the-organizations-name | accepted | [[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/spec]] | 0 | 0 | 17 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -572,3 +572,6 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/tickets/12-the-group-field-keeps-the-form]] fix(organization): asking for the Turso group keeps what the owner typed | 851-the-way-out-the-password-fields-and-the-organizations-name | resolved | 02 |
 | [[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/tickets/13-a-new-member-starts-locked]] feat(organization): a new member starts locked until an owner or a manager unlocks them | 851-the-way-out-the-password-fields-and-the-organizations-name | resolved | 09 |
 | [[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/tickets/14-the-locked-badge-and-the-unlock]] feat(desktop): a locked member views only, wears a badge, and is unlocked from their card | 851-the-way-out-the-password-fields-and-the-organizations-name | resolved | 13 |
+| [[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/tickets/15-the-disconnect-names-the-turso-consent-only-where-held]] fix(organization): the settings disconnect names the Turso consent only where this machine holds it | 851-the-way-out-the-password-fields-and-the-organizations-name | open | — |
+| [[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/tickets/16-a-locked-member-without-a-workspace-is-told]] fix(desktop): a locked member with no workspace is told the account is locked | 851-the-way-out-the-password-fields-and-the-organizations-name | open | — |
+| [[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/tickets/17-an-existing-install-updates-whole]] test(organization): an install from the current release updates whole, with nothing typed and nothing pulled again | 851-the-way-out-the-password-fields-and-the-organizations-name | open | — |
