@@ -121,7 +121,11 @@ sentence from both.
   replica entry names its organization. It still writes `organization` and the top-level
   `tursoOrganization` as copies of the selected entry, so a build from before reads the selected
   organization intact, and never the key `organizations`, which those builds take for the shape
-  from before 2026-09-13 and forget. A record an earlier build wrote is converted in place at load
+  from before 2026-09-13 and forget. The Turso organization a consent was granted over while it
+  waits for the organization it will belong to is written under `pendingTursoOrganization`, a key
+  of its own, because the top-level copy cannot hold it while the selected organization has one
+  (requirement 39); a record written before that key reads it from the top where it differs from
+  the selected organization's. A record an earlier build wrote is converted in place at load
   (`machine/record.rs`, `sanitize`, against release 0.19.0's record, frozen as
   `machine/test/released.json`). Opening a workspace judges only the open organization's
   replicas, and only the open organization replicates. Removing an organization (`forget_one`)

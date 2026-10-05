@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(sync): a setup interrupted by a restart keeps its Turso consent's details
@@ -14,9 +14,9 @@ The machine's record writes the pending consent's Turso organization under a key
 
 Traces requirement 39 and criterion 39.
 
-- [ ] `remote-sync.json` carries the pending Turso organization under its own key (never `organizations`), written whenever it is set and cleared when a create or connect takes it; the top-level `tursoOrganization` still mirrors the selected organization's for older builds.
-- [ ] Criterion 39's Rust test: consent granted while another organization with its own Turso organization is selected, the record reloaded, the pending one found and the selected one unchanged; the existing record, consent-move and end-to-end update tests pass.
-- [ ] The full Rust suite, `cargo fmt --check` and clippy pass with no new warnings.
+- [x] `remote-sync.json` carries the pending Turso organization under its own key (never `organizations`), written whenever it is set and cleared when a create or connect takes it; the top-level `tursoOrganization` still mirrors the selected organization's for older builds.
+- [x] Criterion 39's Rust test: consent granted while another organization with its own Turso organization is selected, the record reloaded, the pending one found and the selected one unchanged; the existing record, consent-move and end-to-end update tests pass.
+- [x] The full Rust suite, `cargo fmt --check` and clippy pass with no new warnings.
 
 ## Relevant areas
 
