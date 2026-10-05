@@ -59,7 +59,8 @@ pub(super) const MEMBER_LOCK: &str = "CREATE TABLE IF NOT EXISTS \"member_lock\"
         \"signature\" BLOB NOT NULL)";
 
 /// A `member_lock` row: whose it is, whether they are locked, and when that was set. The whole of
-/// it is under signature.
+/// it is under signature, and the signing key the member's row holds with it, so a lock is about
+/// one run of the account and a reset leaves every earlier one reading locked.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MemberLockRecord {
     pub member_id: String,
@@ -586,11 +587,33 @@ impl OrganizationStore {
         lock: &MemberLockRecord,
     ) -> Result<(), Error> {
         if !lock.locked {
-            self.refuse_uncovered(signer, member_lock_authority(lock))
+            let member_key = self.member_lock_key(&lock.member_id).await?;
+
+            self.refuse_uncovered(signer, member_lock_authority(lock, &member_key))
                 .await?;
         }
 
         self.insert_member_lock(signer, lock).await
+    }
+
+    /// The key a lock about `member_id` is signed over: the signing key their row holds now, as
+    /// it lies, or nothing where there is no row (effort 851, requirements 35 and 37). Read as it
+    /// lies because a write only signs over it; the reader takes the key off the member's
+    /// verified row ([`OrganizationStore::member_locks`]), so a row somebody rewrote around the
+    /// store makes a lock signed over it read locked, and unlocks nobody.
+    async fn member_lock_key(&self, member_id: &str) -> Result<Vec<u8>, Error> {
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT \"signing_public_key\" FROM \"member\" WHERE \"id\" = ?",
+                vec![turso::Value::Text(member_id.to_string())],
+            )
+            .await?;
+
+        Ok(match rows.next().await? {
+            Some(row) => blob(&row, 0)?,
+            None => Vec::new(),
+        })
     }
 
     /// [`OrganizationStore::write_member_lock`] around its check, for a test writing the row a
@@ -614,7 +637,12 @@ impl OrganizationStore {
         signer: &Signer<'_>,
         lock: &MemberLockRecord,
     ) -> Result<(), Error> {
-        let signature = sign(signer.key, signer.certificate, member_lock_authority(lock))?;
+        let member_key = self.member_lock_key(&lock.member_id).await?;
+        let signature = sign(
+            signer.key,
+            signer.certificate,
+            member_lock_authority(lock, &member_key),
+        )?;
 
         self.connection
             .execute(
@@ -713,17 +741,26 @@ impl OrganizationStore {
             .iter()
             .find(|member| member.covered && member.role_id == permission::OWNER)
             .map(|member| member.id.clone());
+        // the key each lock is judged over: the one on the member's verified row. A row its
+        // certificate stopped covering is genuine and grants nothing, so its key unlocks nothing
+        // either; a lock about a member with no row verifies over nothing and reads locked.
+        let keys: HashMap<&str, &[u8]> = members
+            .iter()
+            .map(|member| (member.id.as_str(), &member.signing_public_key[..]))
+            .collect();
 
         Ok(rows
             .into_iter()
             .map(|row| {
-                let verified = chain
-                    .verify(
-                        &row.certificate_id,
-                        member_lock_authority(&row.record),
-                        &row.signature,
-                    )
-                    .is_ok();
+                let verified = keys.get(row.record.member_id.as_str()).is_some_and(|key| {
+                    chain
+                        .verify(
+                            &row.certificate_id,
+                            member_lock_authority(&row.record, key),
+                            &row.signature,
+                        )
+                        .is_ok()
+                });
 
                 JudgedLock {
                     about_the_owner: owner.as_deref() == Some(row.record.member_id.as_str()),

@@ -178,8 +178,10 @@ const MARK_DOMAIN: &[u8] = b"rentable.organization.authority.mark.v1";
 const ORGANIZATION_NAME_DOMAIN: &[u8] = b"rentable.organization.authority.organization-name.v1";
 
 /// Separates a `member_lock` row's preimage from every other row's: whether a member is locked,
-/// under the signature of whoever locked or unlocked them (effort 851, requirement 35).
-const MEMBER_LOCK_DOMAIN: &[u8] = b"rentable.organization.authority.member-lock.v1";
+/// under the signature of whoever locked or unlocked them (effort 851, requirement 35). `v2` since
+/// the bug hunt of 2026-10-06 put the member's signing key under it, so an unlock from before a
+/// reset does not verify after it; no `v1` row left a development build.
+const MEMBER_LOCK_DOMAIN: &[u8] = b"rentable.organization.authority.member-lock.v2";
 
 /// Separates a `workspace_override` row's preimage from every other row's (effort 838,
 /// requirement 12 as amended a third time).

@@ -14,10 +14,7 @@ use super::{
 use crate::organization::{
     invitation::MemberFacts,
     session::{MemberSession, actor, rank_of},
-    store::{
-        MemberLockRecord, MemberRecord, OrganizationStore, Signer, WorkspaceOverrideRecord,
-        locked_in, member_lock_authority, pins_of,
-    },
+    store::{MemberRecord, OrganizationStore, Signer, WorkspaceOverrideRecord, pins_of},
     workspace::signer_of,
 };
 
@@ -133,14 +130,8 @@ pub async fn assign_role(
         "that role is not below yours, so it is given by somebody who ranks above it",
     )?;
 
-    // the member's lock as it reads before the role moves (effort 851): a lock signed by somebody
-    // the new role reaches to or above would stop verifying and read locked, so it is signed again
-    // below, as it stood, by the assigner, who ranks above the role it gives.
-    let locks = store.member_locks(&session.verifying_key).await?;
-    let latched = locks.latch(&session.lock_marked);
-    let lock_held = locks.rows.contains_key(&member.id) || latched;
-    let was_locked = locked_in(&locks, member, latched);
-
+    // the member's lock goes with them as it stood, signed again by the assigner where the new
+    // role would put it out of its signer's reach ([`apply`], effort 851).
     apply(
         store,
         session,
@@ -155,27 +146,6 @@ pub async fn assign_role(
         now,
     )
     .await?;
-
-    if lock_held {
-        let lock = MemberLockRecord {
-            member_id: member.id.clone(),
-            locked: was_locked,
-            updated_at: now,
-        };
-        let (key, certificate) = signer_of(store, session).await?;
-        let signer = Signer {
-            key: &key,
-            certificate: &certificate,
-        };
-
-        if store.covered(&signer, member_lock_authority(&lock)).await? {
-            store.write_member_lock(&signer, &lock).await?;
-        } else {
-            diagnostics::warn("organization.member.lockNotCarried")
-                .with("member", member_id)
-                .write();
-        }
-    }
 
     sent(
         store,

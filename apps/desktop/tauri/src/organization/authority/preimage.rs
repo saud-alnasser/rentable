@@ -45,8 +45,17 @@ pub enum Authority<'a> {
     /// made. Signed by the root, or by a holder of `assignRole` or `overrideMember` who outranks
     /// the member and is not them ([`covers`](super::covers)); a reader takes a row that does not
     /// verify as locked, so a locked member writing an unlocked row of their own unlocks nobody.
+    ///
+    /// **`member_key` is the member's signing public key as their row holds it**, which a reset
+    /// draws afresh (`invitation::reseal_account`) and a password change keeps. It is not a column
+    /// of the lock row: the reader takes it off the member's verified row. So a lock belongs to one
+    /// run of the account, and an unlock somebody kept from before a reset and wrote back over the
+    /// reset's lock signs another key and reads locked (effort 851, requirements 35 and 37). *It
+    /// was `member-lock.v1`, over the member's id alone, until the bug hunt of 2026-10-06 replayed
+    /// exactly that unlock.*
     MemberLock {
         member_id: &'a str,
+        member_key: &'a [u8],
         locked: bool,
         updated_at: i64,
     },
@@ -343,12 +352,14 @@ pub(crate) fn preimage(certificate_id: &str, authority: Authority<'_>) -> Vec<u8
         }
         Authority::MemberLock {
             member_id,
+            member_key,
             locked,
             updated_at,
         } => {
             message.extend_from_slice(MEMBER_LOCK_DOMAIN);
             field(&mut message, certificate_id.as_bytes());
             field(&mut message, member_id.as_bytes());
+            field(&mut message, member_key);
             field(&mut message, &[u8::from(locked)]);
             field(&mut message, &updated_at.to_be_bytes());
         }
@@ -979,9 +990,10 @@ mod tests {
             )),
             concat!(
                 "72656e7461626c652e6f7267616e697a6174696f6e2e617574686f726974792e",
-                "6d656d6265722d6c6f636b2e7631000000000000000d63657274696669636174",
-                "652d3100000000000000086d656d6265722d3100000000000000010100000000",
-                "0000000800000199155c6200",
+                "6d656d6265722d6c6f636b2e7632000000000000000d63657274696669636174",
+                "652d3100000000000000086d656d6265722d3100000000000000203d4017c3e8",
+                "43895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c0000000000",
+                "00000101000000000000000800000199155c6200",
             ),
             "a member's lock covers a different set of fields"
         );
@@ -1156,10 +1168,20 @@ mod tests {
                 signed_name,
                 organization_name_authority(&sealed_credential, CHECKED_IN_NAMED_AT + 1),
             ),
-            // a member's lock: whose it is, whether they are locked, and when that was set
+            // a member's lock: whose it is, which run of their account, whether they are locked,
+            // and when that was set
             (
                 signed_lock,
                 member_lock_authority("member-2", true, CHECKED_IN_NAMED_AT),
+            ),
+            (
+                signed_lock,
+                Authority::MemberLock {
+                    member_id: CHECKED_IN_MEMBER_ID,
+                    member_key: &other_public_key,
+                    locked: true,
+                    updated_at: CHECKED_IN_NAMED_AT,
+                },
             ),
             (
                 signed_lock,
@@ -1463,10 +1485,12 @@ mod tests {
         }
     }
 
-    /// A member's signed lock (effort 851), about whoever the caller names.
+    /// A member's signed lock (effort 851), about whoever the caller names, in the run of their
+    /// account the checked-in signing key is.
     fn member_lock_authority(member_id: &str, locked: bool, updated_at: i64) -> Authority<'_> {
         Authority::MemberLock {
             member_id,
+            member_key: CHECKED_IN_MEMBER_SIGNING_PUBLIC_KEY,
             locked,
             updated_at,
         }
@@ -1566,12 +1590,12 @@ mod tests {
                 ),
             ),
             // added by effort 851 for a member's lock, from the same OpenSSL over the vector
-            // above.
+            // above, and regenerated for `member-lock.v2`, which signs the member's key too.
             (
                 member_lock_authority(CHECKED_IN_MEMBER_ID, true, CHECKED_IN_NAMED_AT),
                 concat!(
-                    "15d09f81d32055d8833051e5031f76060ec49427d529d8da13f3102a8d61e653",
-                    "c240e7e666287bbe57e3add90c2ec530cb81c5c520cab1e5b16abab6d5808f0b",
+                    "9fb4c565de98d2f28b6452d36877ab6a0fd4bcd2218ab42a1311a7240f4dff67",
+                    "6c6407f27fe4e11fa987fedd2ddc261b905a86a2d0f473a6917671fc30136306",
                 ),
             ),
         ] {

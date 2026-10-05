@@ -1981,6 +1981,7 @@ mod tests {
         );
         let about = |member_id: &'static str, locked: bool| Authority::MemberLock {
             member_id,
+            member_key: &[7; 32],
             locked,
             updated_at: 1_757_000_000_000,
         };

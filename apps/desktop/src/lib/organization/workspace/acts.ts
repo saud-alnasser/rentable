@@ -171,12 +171,13 @@ export function declareWorkspaceActs(host: WorkspaceHostRequests): WorkspaceAct[
 		}
 	];
 
-	// a locked reader meets every act their row carries, refused for the lock, save the export,
-	// which reads (effort 851, requirement 32).
+	// a locked reader meets every act their row carries, refused for the lock, save the two that
+	// read (effort 851, requirement 32): the export, and who is in the workspace, which only opens
+	// its page, where every act on a holder is refused for the lock in turn.
 	return refusedWhileLocked<WorkspaceActRecord, WorkspaceAct>(
 		acts,
 		({ context }) => context.locked,
-		['workspace.export']
+		['workspace.export', 'workspace.members']
 	);
 }
 

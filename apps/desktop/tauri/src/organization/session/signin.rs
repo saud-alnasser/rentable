@@ -104,8 +104,9 @@ pub async fn sign_in(
 /// (`ownership::sign_organization_name`, effort 851): every sign-in, resume and heartbeat passes
 /// through this one function, so the name is signed wherever the row is repaired. `held` is this
 /// machine's entry for the organization, whose latch says which name that is; where it is not
-/// known, nothing is signed. **And any machine able to sign a member's lock locks the members
-/// invited before it who never set a password** (`member::lock::lock_unset_accounts`).
+/// known, nothing is signed. *Any machine able to sign a member's lock locked the members invited
+/// before it who never set a password here too, until the bug hunt of 2026-10-06 found it judging
+/// rows the pull had not brought yet*: that is `member::lock::carry_locks_over`'s, after the pull.
 pub(super) async fn owner_row_repaired(
     store: &OrganizationStore,
     verifying_key: &[u8; VERIFYING_KEY_BYTES],
@@ -137,25 +138,6 @@ pub(super) async fn owner_row_repaired(
     .await
     {
         diagnostics::warn("organization.name.notSigned")
-            .with("reason", refusal.to_string())
-            .write();
-    }
-
-    // and the members invited before the lock who never set a password, locked by the first
-    // machine able to sign it (effort 851, requirement 36): the owner's, or an outranking holder
-    // of `assignRole` or `overrideMember`'s. Nothing is written elsewhere, and a lock that could
-    // not be written is a diagnostic, asked again at the next heartbeat.
-    if let Err(refusal) = crate::organization::member::lock::lock_unset_accounts(
-        store,
-        verifying_key,
-        &member.id,
-        secret,
-        held,
-        store.clock().now(),
-    )
-    .await
-    {
-        diagnostics::warn("organization.member.notLocked")
             .with("reason", refusal.to_string())
             .write();
     }

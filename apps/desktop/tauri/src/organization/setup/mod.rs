@@ -75,8 +75,8 @@ use super::{
     role::permission,
     session::{self, remember},
     store::{
-        FORMAT_VERSION, GrantRecord, MemberRecord, OrganizationNameRecord, OrganizationRecord,
-        OrganizationStore, RoleRecord, Signer, leave_no_replica,
+        FORMAT_VERSION, GrantRecord, MemberLockRecord, MemberRecord, OrganizationNameRecord,
+        OrganizationRecord, OrganizationStore, RoleRecord, Signer, leave_no_replica,
     },
 };
 
@@ -534,6 +534,21 @@ async fn finish<P: TursoPlatform>(
             &signer,
             &OrganizationNameRecord {
                 name_sealed,
+                updated_at: now,
+            },
+        )
+        .await?;
+
+    // and marked from the first (effort 851, requirement 35): the owner's own lock row, which says
+    // to every reader that a member with no row is somebody's deletion and reads locked. Here
+    // because nobody is carried over in an organization made a moment ago, and the backfill that
+    // writes it elsewhere runs only after a pull (`member::lock::carry_locks_over`).
+    organization_store
+        .write_member_lock(
+            &signer,
+            &MemberLockRecord {
+                member_id: member_id.clone(),
+                locked: false,
                 updated_at: now,
             },
         )

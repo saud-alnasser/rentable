@@ -51,7 +51,9 @@ pub(crate) async fn ended_elsewhere(app_state: &Shared, credentials: &dyn Creden
             return false;
         };
 
-        store.pull().await;
+        // whether it went, not whether it brought anything: the backfill of the members' locks
+        // below judges rows only once they are the remote's (effort 851, requirement 36).
+        let pulled = store.pulled().await.is_ok();
 
         // and out, which is what carries a bump made offline. `end_elsewhere` writes the number
         // on this machine's replica and pushes; a push that could not go left it there, and no
@@ -75,6 +77,12 @@ pub(crate) async fn ended_elsewhere(app_state: &Shared, credentials: &dyn Creden
         };
 
         session::repair_own_row(store, session, held.as_ref()).await;
+
+        // and the members carried over from before the lock, locked where their password is not
+        // their own, by the first machine able to sign it, over the rows just pulled (effort 851,
+        // requirement 36). A launch resumes through here, so a resume does it at once.
+        crate::organization::member::lock::carry_locks_over(store, session, held.as_ref(), pulled)
+            .await;
 
         let standing = match session::ended_elsewhere(store, session).await {
             Ok(ended) => Ok(ended),
@@ -1257,6 +1265,8 @@ mod tests {
                         .set_machine_signed_out(&held_m.machine_id, &x, 1, CREATED_AT + 1)
                         .await
                         .expect("A's sign-out of M");
+
+                    true
                 },
             )
             .await

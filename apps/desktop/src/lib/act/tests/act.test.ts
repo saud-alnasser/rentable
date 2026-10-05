@@ -1695,9 +1695,10 @@ test('who unlocks, and a locked reader offered nothing', () => {
 
 /**
  * Effort 851, requirement 32: a locked reader meets every role and workspace act their row carries,
- * refused for the lock, save a workspace's export, which reads.
+ * refused for the lock, save the two that read: a workspace's export, and who is in it, which
+ * opens the workspace's page and writes nothing.
  */
-test('a locked reader meets the role and workspace acts refused for the lock, and the export not', () => {
+test('a locked reader meets the role and workspace acts refused for the lock, and the reads not', () => {
 	const roleActs = declareRoleActs(recordingRoleHost().host);
 	const lockedManager = { ...ROLE_READERS.manager, locked: true };
 
@@ -1726,7 +1727,13 @@ test('a locked reader meets the role and workspace acts refused for the lock, an
 
 		if (id === 'workspace.export') continue;
 
+		if (id === 'workspace.members') {
+			assert.equal(action.unavailable, undefined, 'who is in a workspace was refused for the lock');
+			continue;
+		}
+
 		assert.equal(action.unavailable, translations.common.permission.locked(), String(id));
 	}
 	assert.ok(offered.some((action) => action.attributes?.['data-act'] === 'workspace.edit'));
+	assert.ok(offered.some((action) => action.attributes?.['data-act'] === 'workspace.members'));
 });

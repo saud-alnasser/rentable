@@ -28,7 +28,7 @@ use crate::organization::{
     },
     session::{MemberSession, actor, rank_of},
     setup::ADMINISTRATOR_KEY_PURPOSE,
-    store::{MemberLockRecord, OrganizationStore, Signer, member_lock_authority},
+    store::{MemberLockRecord, OrganizationStore, Signer, locked_in, member_lock_authority},
     workspace::signer_of,
 };
 
@@ -115,21 +115,57 @@ pub async fn unlock_member(
     Ok(())
 }
 
+/// [`lock_unset_accounts`] for the member signed in on this machine, **straight after a pull that
+/// went** (effort 851, requirement 36): the heartbeat's, which a resume runs at once, and the one a
+/// sign-in makes as the vault opens. Never over a replica the pull could not bring up to date, which
+/// would lock whoever set a password since this machine last pulled. A lock that could not be
+/// written is a diagnostic, asked again at the next heartbeat.
+pub(in crate::organization) async fn carry_locks_over(
+    store: &OrganizationStore,
+    session: &MemberSession,
+    held: Option<&HeldOrganization>,
+    pulled: bool,
+) {
+    if !pulled {
+        return;
+    }
+
+    if let Err(refusal) = lock_unset_accounts(
+        store,
+        &session.verifying_key,
+        &session.member_id,
+        &session.secret,
+        held,
+        store.clock().now(),
+    )
+    .await
+    {
+        diagnostics::warn("organization.member.notLocked")
+            .with("reason", refusal.to_string())
+            .write();
+    }
+}
+
 /// Write a lock row for every member who has none, and then the organization's marker (effort
 /// 851, requirements 35 and 36): what the machine of a member able to sign the rows does, with
-/// nobody acting, at a sign-in, a resume or a heartbeat, beside the repair of the owner's row.
+/// nobody acting, after the pull of a sign-in, a resume or a heartbeat ([`carry_locks_over`]).
 /// Answers how many rows it wrote.
 ///
 /// **Before the marker**, a member with no row is one carried over from before the lock: locked
-/// where their password is not yet their own and they hold no consumed invitation, which is what
-/// says the person arrived, and unlocked otherwise. **Once the organization is marked**, or this
+/// where their password is not yet their own, and unlocked otherwise. *A consumed invitation
+/// unlocked them too until the bug hunt of 2026-10-06*: a member reset before the update holds the
+/// consumed invitation of their first arrival, and the reset hands their account to whoever opens
+/// the next link (requirement 37), so the flag the reset sets is the whole of the answer.
+/// **Once the organization is marked**, or this
 /// machine has latched that it was (`held`), a member with no row is somebody's deletion and reads
 /// locked, so the row written is locked: writing it unlocked would undo the marker. The owner is
 /// never written, and a member with a row, verifying or not, already has what somebody chose.
 ///
 /// **Who writes**: the machine whose member's live certificate covers the row
 /// (`authority::covers`): the owner's, or an outranking holder of `assignRole` or
-/// `overrideMember`'s, so every row it writes verifies. **The marker is the owner's own lock row**,
+/// `overrideMember`'s, so every row it writes verifies; and never a machine whose member reads
+/// locked. **Only over rows just pulled** ([`carry_locks_over`]): a replica behind the remote
+/// holds a member who has since set a password as one who has not, and would lock them. **The marker is the owner's own lock row**,
 /// which only the root covers, so only the owner's machine writes it, and only once every member
 /// waiting has a row. Nothing is written where the replica lacks the table (one an earlier build
 /// made, before the pull that completes it).
@@ -164,13 +200,18 @@ pub(in crate::organization) async fn lock_unset_accounts(
     let members = store.members(verifying_key).await?;
     let locks = store.member_locks(verifying_key).await?;
     let marked = locks.marked || held.is_some_and(|held| held.lock_marked);
-    let arrived: Vec<String> = store
-        .invitations(verifying_key)
-        .await?
-        .into_iter()
-        .filter(|invitation| invitation.consumed_at.is_some())
-        .map(|invitation| invitation.member_id)
-        .collect();
+
+    // a locked member's machine writes nothing for anybody: the backfill is an act of the
+    // organization, and a locked member acts in none (requirement 32), whatever their
+    // certificate would cover.
+    if members
+        .iter()
+        .find(|member| member.id == member_id)
+        .is_none_or(|member| locked_in(&locks, member, marked))
+    {
+        return Ok(0);
+    }
+
     let mut written = 0;
 
     for member in members.iter().filter(|member| {
@@ -181,11 +222,17 @@ pub(in crate::organization) async fn lock_unset_accounts(
     }) {
         let lock = MemberLockRecord {
             member_id: member.id.clone(),
-            locked: marked || (member.must_change_password && !arrived.contains(&member.id)),
+            locked: marked || member.must_change_password,
             updated_at: now,
         };
 
-        if !store.covered(&signer, member_lock_authority(&lock)).await? {
+        if !store
+            .covered(
+                &signer,
+                member_lock_authority(&lock, &member.signing_public_key),
+            )
+            .await?
+        {
             continue;
         }
 
@@ -265,7 +312,7 @@ mod tests {
 
     use serde_json::json;
 
-    use super::unlock_member;
+    use super::{carry_locks_over, unlock_member};
     use crate::test::scratch;
     use crate::{
         credential::{CredentialStore, Memory},
@@ -1005,14 +1052,13 @@ mod tests {
             )
             .await
             .expect("sami before the lock");
-        sign_in(
-            &store,
-            &joined_as(&owner, &sami.id, permission::MEMBER),
-            CHOSEN,
-            &slot(),
-        )
-        .await
-        .expect("sami signs in");
+
+        let samis = joined_as(&owner, &sami.id, permission::MEMBER);
+        let sami_session = sign_in(&store, &samis, CHOSEN, &slot())
+            .await
+            .expect("sami signs in");
+
+        carry_locks_over(&store, &sami_session, Some(&samis), true).await;
 
         assert_eq!(
             verified_lock(&store, &owner, &noor.id).await,
@@ -1020,12 +1066,13 @@ mod tests {
             "a machine that covers no lock wrote one"
         );
 
-        // the owner's machine opens it.
+        // the owner's machine opens it, and pulls.
         let held = joined_as(&owner, &owner.member_id, permission::OWNER);
-
-        sign_in(&store, &held, OWNER_PASSWORD, &slot())
+        let opened = sign_in(&store, &held, OWNER_PASSWORD, &slot())
             .await
             .expect("the owner signs in");
+
+        carry_locks_over(&store, &opened, Some(&held), true).await;
 
         assert!(
             !locked(&store, &owner, &ada.id).await,
@@ -1180,9 +1227,12 @@ mod tests {
         let mut owners = joined_as(&owner, &owner.member_id, permission::OWNER);
 
         owners.lock_marked = true;
-        sign_in(&store, &owners, OWNER_PASSWORD, &slot())
+
+        let opened = sign_in(&store, &owners, OWNER_PASSWORD, &slot())
             .await
             .expect("the owner signs in");
+
+        carry_locks_over(&store, &opened, Some(&owners), true).await;
 
         assert_eq!(
             verified_lock(&store, &owner, &owner.member_id).await,
@@ -1321,5 +1371,296 @@ mod tests {
             locked(&store, &owner, &nora.id).await,
             "a lock nobody signed again read unlocked after the removal"
         );
+    }
+
+    /// The lock row about `member_id` as it lies: what anybody holding a replica can keep.
+    async fn kept_row(store: &OrganizationStore, member_id: &str) -> Vec<turso::Value> {
+        let mut rows = store
+            .connection()
+            .query(
+                "SELECT \"member_id\", \"locked\", \"updated_at\", \"certificate_id\", \
+                        \"signature\" \
+                 FROM \"member_lock\" WHERE \"member_id\" = ?",
+                vec![turso::Value::Text(member_id.to_string())],
+            )
+            .await
+            .expect("the row");
+        let row = rows.next().await.expect("a row").expect("the lock");
+
+        (0..5)
+            .map(|index| row.get_value(index).expect("a value"))
+            .collect()
+    }
+
+    /// **Requirements 35 and 37, a replay.** An unlock somebody kept from before a reset, written
+    /// back over the reset's lock, reads locked: the lock is signed over the key the reset drew
+    /// afresh, so the kept one belongs to an account that is gone. A password change, which keeps
+    /// the key, keeps the unlock.
+    #[tokio::test]
+    async fn an_unlock_kept_from_before_a_reset_and_written_back_reads_locked() {
+        let credentials = Memory::new();
+        let directory = scratch("lock-replay");
+        let (store, owner, north) = owned(&credentials, &directory).await;
+        let mut sami =
+            an_account(&store, &owner, "sami.staff", permission::MEMBER, 0, &north).await;
+
+        sami.chooses_a_password(&credentials, &store).await;
+        unlock_member(&store, &owner, &sami.id, AT + 2)
+            .await
+            .expect("the owner unlocks sami");
+        change_password(
+            &credentials,
+            &store,
+            &mut sami.session,
+            CHOSEN,
+            "another of their own",
+            test_cost(),
+            AT + 3,
+        )
+        .await
+        .expect("the second password");
+
+        assert!(
+            !locked(&store, &owner, &sami.id).await,
+            "a password change locked sami again"
+        );
+
+        let kept = kept_row(&store, &sami.id).await;
+
+        unset_password(&store, &owner, no_platform(), &sami.id, test_cost(), AT + 4)
+            .await
+            .expect("the reset");
+        assert!(locked(&store, &owner, &sami.id).await);
+
+        store
+            .connection()
+            .execute(
+                "INSERT OR REPLACE INTO \"member_lock\" (\"member_id\", \"locked\", \
+                 \"updated_at\", \"certificate_id\", \"signature\") VALUES (?, ?, ?, ?, ?)",
+                kept,
+            )
+            .await
+            .expect("the kept unlock written back");
+
+        assert!(
+            locked(&store, &owner, &sami.id).await,
+            "an unlock from before the reset unlocked the account it handed on"
+        );
+        assert_eq!(verified_lock(&store, &owner, &sami.id).await, None);
+    }
+
+    /// **Criterion 36, a reset before the update.** A member who arrived, set a password and was
+    /// then reset holds a consumed invitation and a password that is not theirs: carried over, they
+    /// are locked, as a reset leaves anybody (requirement 37).
+    #[tokio::test]
+    async fn a_member_reset_before_the_lock_is_carried_over_locked() {
+        let credentials = Memory::new();
+        let directory = scratch("lock-reset-carried");
+        let (store, owner, north) = owned(&credentials, &directory).await;
+        let mut sami =
+            an_account(&store, &owner, "sami.staff", permission::MEMBER, 0, &north).await;
+
+        sami.chooses_a_password(&credentials, &store).await;
+
+        // the person opened their link, as an accept spends it.
+        for invitation in store
+            .invitations(&owner.verifying_key)
+            .await
+            .expect("the invitations")
+            .into_iter()
+            .filter(|invitation| invitation.member_id == sami.id)
+        {
+            store
+                .consume_invitation(&invitation.id, AT + 1)
+                .await
+                .expect("the invitation spent");
+        }
+
+        unset_password(&store, &owner, no_platform(), &sami.id, test_cost(), AT + 3)
+            .await
+            .expect("the reset");
+
+        // what an organization made before this change holds: no lock at all.
+        store
+            .connection()
+            .execute("DELETE FROM \"member_lock\"", ())
+            .await
+            .expect("the organization before the lock");
+
+        let held = joined_as(&owner, &owner.member_id, permission::OWNER);
+        let opened = sign_in(&store, &held, OWNER_PASSWORD, &slot())
+            .await
+            .expect("the owner signs in");
+
+        carry_locks_over(&store, &opened, Some(&held), true).await;
+
+        assert!(
+            locked(&store, &owner, &sami.id).await,
+            "a member reset before the lock was carried over unlocked"
+        );
+        assert_eq!(verified_lock(&store, &owner, &sami.id).await, Some(true));
+    }
+
+    /// **A role moved does not lock again.** A lead holding `assignRole` unlocks a clerk; the owner
+    /// then moves the clerk's role above the lead's, which the lead's unlock no longer covers. The
+    /// lock is signed again by the owner as it stood, so the clerk stays unlocked; and a lead whose
+    /// role loses `assignRole` leaves the member they unlocked unlocked too.
+    #[tokio::test]
+    async fn a_role_moved_above_whoever_unlocked_its_holder_leaves_them_unlocked() {
+        let credentials = Memory::new();
+        let directory = scratch("lock-role-moved");
+        let (store, owner, north) = owned(&credentials, &directory).await;
+        let lead = crate::organization::role::create_role(
+            &store,
+            &owner,
+            "Lead",
+            permission::MEMBER_ROLE.mask | permission::mask_of(&[Flag::AssignRole]),
+            permission::MANAGER,
+            AT,
+        )
+        .await
+        .expect("the lead role")
+        .id;
+        let clerk = crate::organization::role::create_role(
+            &store,
+            &owner,
+            "Clerk",
+            permission::MEMBER_ROLE.mask,
+            &lead,
+            AT,
+        )
+        .await
+        .expect("the clerk role")
+        .id;
+        let mut leo = an_account(&store, &owner, "leo.lead", &lead, 0, &north).await;
+        let mut nora = an_account(&store, &owner, "nora.clerk", &clerk, 0, &north).await;
+        let mut sami =
+            an_account(&store, &owner, "sami.staff", permission::MEMBER, 0, &north).await;
+
+        for account in [&mut leo, &mut nora, &mut sami] {
+            account.chooses_a_password(&credentials, &store).await;
+        }
+
+        unlock_member(&store, &owner, &leo.id, AT + 2)
+            .await
+            .expect("the owner unlocks leo");
+
+        for unlocked in [&nora.id, &sami.id] {
+            unlock_member(&store, &leo.session, unlocked, AT + 3)
+                .await
+                .expect("leo unlocks them");
+        }
+
+        crate::organization::role::move_role(&store, &owner, &clerk, permission::MANAGER, AT + 4)
+            .await
+            .expect("the clerk role moved above the lead's");
+
+        assert!(
+            !locked(&store, &owner, &nora.id).await,
+            "moving nora's role above leo's locked her again"
+        );
+        assert_eq!(verified_lock(&store, &owner, &nora.id).await, Some(false));
+
+        crate::organization::role::set_role_mask(
+            &store,
+            &owner,
+            &lead,
+            permission::MEMBER_ROLE.mask,
+            AT + 5,
+        )
+        .await
+        .expect("the lead role loses assignRole");
+
+        assert!(
+            !locked(&store, &owner, &sami.id).await,
+            "narrowing the role of whoever unlocked sami locked sami again"
+        );
+        assert_eq!(verified_lock(&store, &owner, &sami.id).await, Some(false));
+    }
+
+    /// **Criterion 36, after a pull.** A sign-in writes no lock before its pull, and a backfill
+    /// whose pull did not go writes none either: a replica behind the remote holds a member who
+    /// has since set a password as one who has not. Once a pull went, the member who never set
+    /// one is locked.
+    #[tokio::test]
+    async fn the_backfill_waits_for_a_pull_that_went() {
+        let credentials = Memory::new();
+        let directory = scratch("lock-after-pull");
+        let (store, owner, north) = owned(&credentials, &directory).await;
+        let noor = an_account(&store, &owner, "noor.new", permission::MEMBER, 0, &north).await;
+
+        store
+            .connection()
+            .execute("DELETE FROM \"member_lock\"", ())
+            .await
+            .expect("the organization before the lock");
+
+        let held = joined_as(&owner, &owner.member_id, permission::OWNER);
+        let opened = sign_in(&store, &held, OWNER_PASSWORD, &slot())
+            .await
+            .expect("the owner signs in");
+
+        assert_eq!(
+            verified_lock(&store, &owner, &noor.id).await,
+            None,
+            "a sign-in locked somebody before its pull"
+        );
+
+        carry_locks_over(&store, &opened, Some(&held), false).await;
+
+        assert_eq!(
+            verified_lock(&store, &owner, &noor.id).await,
+            None,
+            "a backfill whose pull did not go locked somebody"
+        );
+
+        carry_locks_over(&store, &opened, Some(&held), true).await;
+
+        assert_eq!(verified_lock(&store, &owner, &noor.id).await, Some(true));
+    }
+
+    /// **A locked member's machine carries nobody over** (requirement 32): a locked manager whose
+    /// certificate would cover the row writes none; unlocked, they do.
+    #[tokio::test]
+    async fn a_locked_managers_machine_carries_nobody_over() {
+        let credentials = Memory::new();
+        let directory = scratch("lock-locked-backfill");
+        let (store, owner, north) = owned(&credentials, &directory).await;
+        let mut ada = an_account(
+            &store,
+            &owner,
+            "ada.manager",
+            permission::MANAGER,
+            0,
+            &north,
+        )
+        .await;
+        let noor = an_account(&store, &owner, "noor.new", permission::MEMBER, 0, &north).await;
+
+        ada.chooses_a_password(&credentials, &store).await;
+        store
+            .connection()
+            .execute(
+                "DELETE FROM \"member_lock\" WHERE \"member_id\" = ?",
+                vec![turso::Value::Text(noor.id.clone())],
+            )
+            .await
+            .expect("noor before the lock");
+
+        let adas = joined_as(&owner, &ada.id, permission::MANAGER);
+
+        assert!(locked(&store, &owner, &ada.id).await);
+        carry_locks_over(&store, &ada.session, Some(&adas), true).await;
+        assert_eq!(
+            verified_lock(&store, &owner, &noor.id).await,
+            None,
+            "a locked manager's machine wrote a lock"
+        );
+
+        unlock_member(&store, &owner, &ada.id, AT + 2)
+            .await
+            .expect("the owner unlocks ada");
+        carry_locks_over(&store, &ada.session, Some(&adas), true).await;
+        assert_eq!(verified_lock(&store, &owner, &noor.id).await, Some(true));
     }
 }

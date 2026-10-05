@@ -300,7 +300,17 @@ impl OrganizationStore {
         // reads, locked. A removal or a reset is never held up by somebody's lock.
         let member_locks: Vec<MemberLockRecord> = member_locks
             .into_iter()
-            .filter(|lock| chain.covers(signer.certificate, member_lock_authority(lock)))
+            .filter(|lock| {
+                all_members
+                    .iter()
+                    .find(|member| member.id == lock.member_id)
+                    .is_some_and(|member| {
+                        chain.covers(
+                            signer.certificate,
+                            member_lock_authority(lock, &member.signing_public_key),
+                        )
+                    })
+            })
             .collect();
 
         for authority in authorities {
@@ -432,10 +442,16 @@ pub(crate) fn organization_name_authority(name: &OrganizationNameRecord) -> Auth
     }
 }
 
-/// What a member's lock puts under signature, from the record.
-pub(crate) fn member_lock_authority(lock: &MemberLockRecord) -> Authority<'_> {
+/// What a member's lock puts under signature, from the record and the signing key the member's
+/// row holds (`member_key`), which is what ties the lock to this run of their account: a reset
+/// draws a new one (effort 851, requirements 35 and 37).
+pub(crate) fn member_lock_authority<'a>(
+    lock: &'a MemberLockRecord,
+    member_key: &'a [u8],
+) -> Authority<'a> {
     Authority::MemberLock {
         member_id: &lock.member_id,
+        member_key,
         locked: lock.locked,
         updated_at: lock.updated_at,
     }

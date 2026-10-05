@@ -1,13 +1,19 @@
 //! the one path a change to roles and members takes: the gates every act shares, and the change
 //! applied with its certificates following in the same transaction (effort 838, requirement 7).
 
-use crate::error::{Error, RefusalReason};
+use crate::{
+    diagnostics,
+    error::{Error, RefusalReason},
+};
 
 use super::permission::{self, CUSTOM};
 use super::{Standing, facts_of, in_one_transaction, reissue_within};
 use crate::organization::{
     session::{Actor, MemberSession},
-    store::{MemberRecord, OrganizationStore, RoleRecord, Signer},
+    store::{
+        MemberLockRecord, MemberRecord, OrganizationStore, RoleRecord, Signer, locked_in,
+        member_lock_authority,
+    },
     workspace::signer_of,
 };
 
@@ -247,7 +253,10 @@ struct Moved {
 /// Then each member still in is issued a fresh certificate from the actor's, with their new
 /// effective permissions and rank, and every older one retired ([`reissue_within`]). A member whose
 /// certificate the actor could not issue, or whose old one signed or issued something the actor
-/// could not, refuses the whole act by name and nothing moves.
+/// could not, refuses the whole act by name and nothing moves. **Last, each moved member's lock**,
+/// signed again by the actor as it read before the act (effort 851): a role moved up, given, or
+/// renumbered can put a member level with or above whoever unlocked them, and their unlock would
+/// otherwise stop verifying and lock them again with nobody having locked them.
 ///
 /// A member row the change names, or whose role it writes or deletes, is rewritten wherever its
 /// role, its override, what it grants or its rank moves. A removed member's row grants nothing
@@ -470,6 +479,25 @@ pub(super) async fn apply(
         }
     }
 
+    // each moved member's lock as it reads before anything moves (effort 851, requirements 34 and
+    // 35): a lock signed by somebody the member's new rank reaches to or above would stop
+    // verifying and read locked, so it is signed again below, as it stood, by the actor, who ranks
+    // above every role this moves. A member with no row, before the organization is marked, is
+    // carried over and left so.
+    let locks = store.member_locks(&session.verifying_key).await?;
+    let latched = locks.latch(&session.lock_marked);
+    let carried: Vec<MemberLockRecord> = moved
+        .iter()
+        .filter(|moving| {
+            moving.row.removed_at.is_none() && (locks.rows.contains_key(&moving.row.id) || latched)
+        })
+        .map(|moving| MemberLockRecord {
+            member_id: moving.row.id.clone(),
+            locked: locked_in(&locks, &moving.row, latched),
+            updated_at: now,
+        })
+        .collect();
+
     in_one_transaction(store, async {
         for member_id in &cleared {
             store.delete_workspace_overrides_of(member_id).await?;
@@ -519,6 +547,28 @@ pub(super) async fn apply(
                 now,
             )
             .await?;
+        }
+
+        // last, so each lock is judged against the ranks and the certificates this has just
+        // written. One the actor cannot sign (a member it may not lock, such as itself) stays as
+        // it lies.
+        for lock in &carried {
+            let member_key = moved
+                .iter()
+                .find(|moving| moving.row.id == lock.member_id)
+                .map(|moving| moving.row.signing_public_key)
+                .unwrap_or_default();
+
+            if store
+                .covered(&signer, member_lock_authority(lock, &member_key))
+                .await?
+            {
+                store.write_member_lock(&signer, lock).await?;
+            } else {
+                diagnostics::warn("organization.member.lockNotCarried")
+                    .with("member", lock.member_id.as_str())
+                    .write();
+            }
         }
 
         Ok(())

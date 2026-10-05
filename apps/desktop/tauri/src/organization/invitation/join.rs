@@ -663,16 +663,14 @@ pub(crate) async fn admit(
         password,
         credential,
         now,
-        async || {
-            store.pull().await;
-        },
+        async || store.pulled().await.is_ok(),
     )
     .await
 }
 
 /// [`admit`], with the pull that follows the vault's opening given rather than made: the one step
 /// a test stands in for, since nothing here serves a pull, so what a pull would bring is written
-/// where the pull is made.
+/// where the pull is made. It answers whether the pull went.
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn admitted_after(
     credentials: &dyn CredentialStore,
@@ -683,7 +681,7 @@ pub(crate) async fn admitted_after(
     password: &str,
     credential: &CredentialSlot,
     now: i64,
-    pull: impl AsyncFnOnce(),
+    pull: impl AsyncFnOnce() -> bool,
 ) -> Result<MemberSession, Error> {
     // a row still carrying `must_change_password` is one whose invitation link has not been
     // opened, and the wall refuses it inside the sign-in itself; every session that reaches here
@@ -693,7 +691,12 @@ pub(crate) async fn admitted_after(
 
     // the credential the vault just unsealed is what the pull goes out under, so this is the
     // first moment it can; what it brings is what the number below is read from.
-    pull().await;
+    let pulled = pull().await;
+
+    // and the members carried over from before the lock, locked by the first machine able to sign
+    // it, over the rows that pull brought and never over a replica it could not bring up to date
+    // (effort 851, requirement 36).
+    crate::organization::member::lock::carry_locks_over(store, &session, Some(held), pulled).await;
 
     // a sign-in reads the organization in this build's format and in no other, so the record keeps
     // that it has (effort 838, ticket 25); and it acknowledges whatever signed this machine out on
