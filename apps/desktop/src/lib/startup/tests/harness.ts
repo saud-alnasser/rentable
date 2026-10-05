@@ -135,6 +135,8 @@ export function harness(
 		select?: (organizationId: string) => Promise<void>;
 		/** what forgetting an organization meets, for the path where the shell refuses to. */
 		remove?: (organizationId: string) => Promise<void>;
+		/** what the forget meets once it has happened, for the path where the shell refuses late. */
+		afterRemove?: (organizationId: string) => Promise<void>;
 		/** what a whole-table reconcile waits on, for the path where two overlap. */
 		reconcile?: () => Promise<void>;
 		/** what else forgetting the held context does, for a test holding a real one. */
@@ -269,6 +271,8 @@ export function harness(
 				if (organizations.length === 0) {
 					state = syncing();
 				}
+
+				await overrides.afterRemove?.(organizationId);
 
 				return organization;
 			},

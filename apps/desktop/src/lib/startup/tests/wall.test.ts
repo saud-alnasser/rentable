@@ -316,6 +316,27 @@ test('a remove the shell refused is thrown back to the confirm, and the wall is 
 	assert.equal(startup.snapshot.organization?.selected, 'acme', 'the organization is still held');
 });
 
+// a refusal that comes after the shell has forgotten the organization still reaches the confirm,
+// and the switcher lists what the machine now holds rather than what it held before.
+test('a remove refused after the forget happened still reads where the machine stands', async () => {
+	const { startup } = harness({
+		organization: twoLocked(),
+		afterRemove: async () => {
+			throw new Error('a replica would not go');
+		}
+	});
+
+	await startup.start();
+
+	await assert.rejects(startup.remove('acme'), /a replica would not go/);
+	assert.deepEqual(
+		startup.snapshot.organization?.organizations.map((held) => held.id),
+		['beta'],
+		'the switcher still lists the organization the shell forgot'
+	);
+	assert.equal(startup.snapshot.organization?.selected, 'beta');
+});
+
 test('and a choice the shell refused is said on the wall the person is standing at', async () => {
 	const { startup } = harness({
 		organization: twoLocked(),

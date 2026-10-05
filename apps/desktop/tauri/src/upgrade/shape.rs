@@ -171,16 +171,18 @@ pub(crate) async fn forget_old_shape(
     credentials: &dyn CredentialStore,
     clock: &clock::Shared,
 ) -> Result<Option<OldShape>, Error> {
-    let (listed, held) = {
+    let (listed, held, to_move) = {
         let mut remote_sync = app_state.remote_sync.write().await;
         let store = remote_sync.store_mut();
 
         (
             store.organizations_of_the_old_shape.len(),
             store.held_organizations.clone(),
+            store.consent_to_move.clone(),
         )
     };
     let mut first = None;
+    let mut its_consent_forgotten = listed > 0;
 
     if listed > 0 {
         let shape = OldShape::SeveralOrganizations(listed);
@@ -205,17 +207,31 @@ pub(crate) async fn forget_old_shape(
 
         forget_one(app_state, credentials, &held.id).await?;
         first.get_or_insert(shape);
+        its_consent_forgotten |= to_move.as_deref() == Some(held.id.as_str());
     }
 
     let Some(shape) = first else {
         return Ok(None);
     };
 
-    // and the consent an earlier build filed for it, which this check runs before the launch moves
-    // to its organization (`upgrade/consent.rs`): on this path the pending slot still holds the
-    // consent of what was just forgotten, and nothing is left for it to move to (effort 851,
-    // requirement 14).
-    forget_platform_token(credentials, &Account::Pending)?;
+    // and the consent an earlier build filed for what was just forgotten, which this check runs
+    // before the launch moves it to its organization (`upgrade/consent.rs`): nothing is left for
+    // it to move to (effort 851, requirement 14). **Only where the pending slot is known to hold
+    // that consent**: the old list, which only a record from before 2026-09-13 carries, or the
+    // organization the load converted (`machine::RemoteSyncStore::consent_to_move`). Anywhere else
+    // the slot holds what a setup granted for an organization not made yet, and an organization
+    // held beside it reading as the old shape says nothing about it. The Turso organization looked
+    // up for the consent goes with it, so the next consent is not built on this one's account.
+    if its_consent_forgotten {
+        forget_platform_token(credentials, &Account::Pending)?;
+
+        let mut remote_sync = app_state.remote_sync.write().await;
+        let store = remote_sync.store_mut();
+
+        store.forget_consent_organization(None);
+        store.consent_to_move = None;
+        store.commit()?;
+    }
 
     Ok(Some(shape))
 }
@@ -317,7 +333,13 @@ mod tests {
         persisted::{Persistable as _, Persisted},
         settings::Settings,
         sync::test::server::{ScriptedResponse, ScriptedServer},
-        turso::{consent::TursoConsent, discovery::McpEndpoint, platform::InMemoryPlatform},
+        turso::{
+            consent::{
+                Account, TursoConsent, holds_platform_token, platform_token, store_platform_token,
+            },
+            discovery::{McpEndpoint, TursoOrganization},
+            platform::InMemoryPlatform,
+        },
         update::Update,
     };
 
@@ -899,6 +921,104 @@ mod tests {
                 .iter()
                 .any(|name| name == &format!("org-{}.db", held.id))
         );
+    }
+
+    /// **The pending consent goes with an organization read as the old shape only where it was
+    /// known to be that organization's** (effort 851, requirement 14). A setup for another
+    /// organization waits with its consent and its Turso organization while this build's record
+    /// holds one organization of this build's shape and one whose replica is gone: the second is
+    /// forgotten, and the setup's consent and its Turso organization are kept. Where the load
+    /// converted a record an earlier build wrote, the pending slot is that organization's consent,
+    /// and it goes with the organization, with whatever Turso organization the record named for it.
+    #[tokio::test]
+    async fn a_setups_consent_outlives_another_organization_read_as_the_old_shape() {
+        let setup = TursoOrganization {
+            slug: "beta".to_string(),
+            group: "rentable".to_string(),
+        };
+
+        // this build's record, mid "add organization".
+        let credentials = Memory::new();
+        let directory = scratch("pending-beside-missing");
+        let (organization, held) = created(&credentials, &directory).await;
+
+        drop(organization);
+
+        {
+            let mut store =
+                Persisted::<RemoteSyncStore>::load(directory.join(RemoteSync::FILENAME))
+                    .expect("the store");
+
+            store.hold(HeldOrganization {
+                id: "gone".to_string(),
+                name: "Gone".to_string(),
+                verifying_key: "k".to_string(),
+                remote_url: "libsql://org.example".to_string(),
+                ..Default::default()
+            });
+            store.select(&held.id);
+            store.remember_consent_organization(None, setup.clone());
+            store.commit().expect("the record");
+        }
+
+        store_platform_token(&credentials, "a-setups-consent").expect("the consent");
+
+        let app_state = state_over(&directory).await;
+        let forgotten = forget_old_shape(&app_state, &credentials, &crate::clock::System::shared())
+            .await
+            .expect("the check failed");
+
+        assert!(
+            matches!(forgotten, Some(OldShape::ReplicaMissing(_))),
+            "{forgotten:?}"
+        );
+        assert_eq!(
+            platform_token(&credentials, &Account::Pending).as_deref(),
+            Ok("a-setups-consent"),
+            "the setup's consent went with an organization it was never over"
+        );
+        {
+            let mut remote_sync = app_state.remote_sync.write().await;
+            let record = remote_sync.store_mut();
+
+            assert_eq!(record.held("gone"), None);
+            assert_eq!(record.consent_organization(None), Some(&setup));
+        }
+
+        // a record an earlier build wrote, converted at this load, whose one organization has no
+        // replica: the pending slot was its consent, and both go.
+        let credentials = Memory::new();
+        let directory = scratch("converted-missing");
+
+        std::fs::write(
+            directory.join(RemoteSync::FILENAME),
+            r#"{"tursoOrganization":{"slug":"acme","group":"rentable"},"pendingTursoOrganization":{"slug":"stale","group":"rentable"},"organization":{"id":"gone","name":"Acme","verifyingKey":"k","remoteUrl":"libsql://org.example","memberId":"me","role":"owner","joinedAt":1}}"#,
+        )
+        .expect("the record");
+        store_platform_token(&credentials, "the-releases-consent").expect("the consent");
+
+        let app_state = state_over(&directory).await;
+
+        assert!(
+            forget_old_shape(&app_state, &credentials, &crate::clock::System::shared())
+                .await
+                .expect("the check failed")
+                .is_some()
+        );
+        assert!(
+            !holds_platform_token(&credentials, &Account::Pending).expect("the store"),
+            "the forgotten organization's consent was kept"
+        );
+
+        let mut remote_sync = app_state.remote_sync.write().await;
+        let record = remote_sync.store_mut();
+
+        assert_eq!(
+            record.consent_organization(None),
+            None,
+            "the Turso organization outlived the consent it was looked up for"
+        );
+        assert_eq!(record.consent_to_move, None);
     }
 
     /// A store written by an older install, with a `provider` of `"googleDrive"` or `"hosted"`, an

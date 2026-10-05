@@ -112,6 +112,11 @@ vi.mock('$lib/organization/session/query', async (importOriginal) => ({
 	...(await import('$lib/organization/tests/host-hooks')).hostHooks
 }));
 
+vi.mock('$lib/organization/setup/query', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/organization/setup/query')>()),
+	...(await import('$lib/organization/tests/host-hooks')).hostHooks
+}));
+
 vi.mock('$lib/sync/query', async (importOriginal) => ({
 	...(await importOriginal<typeof import('$lib/sync/query')>()),
 	...(await import('$lib/organization/tests/host-hooks')).syncHooks
@@ -1015,6 +1020,15 @@ test('an owner holding the authority reads the turso account as connected, and f
 
 	expect(dialog.textContent).toContain(en.organization.dashboard.forgetAccountRevokes);
 	expect(dialog.textContent).toContain(en.organization.dashboard.forgetAccountRevokesAt);
+
+	// and confirmed, it forgets the organization's own consent, never the setup walk's pending one,
+	// which is what it reached until a review of effort 851 and which left the account held.
+	await fireEvent.click(
+		within(dialog).getByRole('button', { name: en.organization.dashboard.forgetAccount })
+	);
+	await expect
+		.poll(() => hostAnswers.writes)
+		.toEqual([{ hook: 'useForgetAuthority', input: undefined }]);
 });
 
 // and the owner whose machine does not: the row reads not held here and carries the reconnect, in

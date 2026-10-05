@@ -2982,6 +2982,28 @@ mod tests {
         )
     }
 
+    /// The record under `directory` as a build from before effort 851 writes it: the keys this
+    /// build adds taken out, so `organization` and `tursoOrganization` are all it says about what
+    /// the machine holds, and the next load converts it.
+    fn as_an_earlier_build_wrote_it(directory: &std::path::Path) {
+        let path = directory.join(RemoteSync::FILENAME);
+        let mut record: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).expect("the record"))
+                .expect("the record's json");
+        let keys = record.as_object_mut().expect("an object");
+
+        for added in [
+            "heldOrganizations",
+            "selectedOrganization",
+            "pendingTursoOrganization",
+            "consentToMove",
+        ] {
+            keys.remove(added);
+        }
+
+        std::fs::write(&path, record.to_string()).expect("the record written back");
+    }
+
     /// **The cell's order** (effort 851, the plan's *Each organization keeps its own Turso
     /// consent*): the old shape is checked while the consent is still where an earlier build filed
     /// it, the consent moves next, and the resume finds the owner's platform already there. A
@@ -2994,8 +3016,11 @@ mod tests {
         let app_state = first_run(credentials.as_ref(), &directory).await;
         let (organization_id, _) = recorded(&app_state).await;
 
-        // where an earlier build left the owner's consent: under `owner`, and nowhere else.
+        // where an earlier build left the owner's consent: under `owner`, and nowhere else; and the
+        // record as that build wrote it, which the next load converts.
         store_platform_token(credentials.as_ref(), "a-platform-token").expect("the consent");
+        drop(app_state);
+        as_an_earlier_build_wrote_it(&directory);
 
         let (next, steps) =
             launch_recording(&directory, &credentials, &organization_id, false).await;
@@ -3631,6 +3656,160 @@ mod tests {
             platform_token(credentials.as_ref(), &Account::Pending).as_deref(),
             Ok("the-abandoned-consent"),
             "the launch moved the abandoned setup's consent"
+        );
+        assert!(!holds_platform_token(credentials.as_ref(), &Account::of("org-a")).expect("a"));
+    }
+
+    /// Two organizations owned on two Turso accounts, each with its own consent, and a setup's
+    /// consent waiting in the pending slot, with the Turso organization it was looked up over.
+    async fn two_owned_and_a_setup(credentials: &Credentials, name: &str) -> Shared {
+        let directory = scratch(name);
+        let app_state = state_over(&directory).await;
+        let mut remote_sync = app_state.remote_sync.write().await;
+        let record = remote_sync.store_mut();
+
+        for (id, slug) in [("org-a", "alpha"), ("org-b", "beta")] {
+            record.hold(HeldOrganization {
+                id: id.to_string(),
+                name: id.to_string(),
+                verifying_key: "k".to_string(),
+                remote_url: format!("libsql://{id}"),
+                turso_organization: Some(TursoOrganization {
+                    slug: slug.to_string(),
+                    group: "rentable".to_string(),
+                }),
+                ..Default::default()
+            });
+            store_platform_token(credentials.as_ref(), &format!("token-{slug}"))
+                .expect("the consent");
+            move_pending_consent(credentials.as_ref(), id).expect("the move");
+        }
+
+        record.select("org-a");
+        record.remember_consent_organization(
+            None,
+            TursoOrganization {
+                slug: "gamma".to_string(),
+                group: "rentable".to_string(),
+            },
+        );
+        record.commit().expect("the record");
+        store_platform_token(credentials.as_ref(), "a-setups-consent").expect("the consent");
+        drop(remote_sync);
+
+        app_state
+    }
+
+    /// **"Forget Turso account" on the owner's leaving card forgets the open organization's own
+    /// consent** (effort 851, requirement 14): its `org:<id>` entry and the Turso organization it
+    /// was over go, so the machine reads as holding no authority for it, and the other
+    /// organization's consent and the setup's pending one stay. *It reached the setup walk's
+    /// disconnect until a review of effort 851, which forgot the pending slot alone and left the
+    /// organization's authority standing behind a toast saying it was gone.*
+    #[tokio::test]
+    async fn forgetting_the_turso_account_forgets_the_open_organizations_own_consent() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let app_state = two_owned_and_a_setup(&credentials, "forget-authority").await;
+
+        assert!(
+            owner_platform(&app_state, &credentials, "org-a")
+                .await
+                .is_some()
+        );
+
+        crate::organization::setup::forget_authority(&app_state, credentials.as_ref())
+            .await
+            .expect("the forget");
+
+        assert!(
+            owner_platform(&app_state, &credentials, "org-a")
+                .await
+                .is_none(),
+            "the organization still holds its authority"
+        );
+        assert!(!holds_platform_token(credentials.as_ref(), &Account::of("org-a")).expect("a"));
+        assert_eq!(
+            platform_token(credentials.as_ref(), &Account::of("org-b")).as_deref(),
+            Ok("token-beta"),
+            "another organization's consent went"
+        );
+        assert_eq!(
+            platform_token(credentials.as_ref(), &Account::Pending).as_deref(),
+            Ok("a-setups-consent"),
+            "the setup's consent went"
+        );
+
+        let mut remote_sync = app_state.remote_sync.write().await;
+        let record = remote_sync.store_mut();
+
+        assert_eq!(record.consent_organization(Some("org-a")), None);
+        assert!(record.consent_organization(Some("org-b")).is_some());
+        assert!(record.consent_organization(None).is_some());
+    }
+
+    /// **The setup walk's disconnect gives back the pending consent and nothing else**, and the
+    /// Turso organization looked up for it goes with it, so the next consent is not built on its
+    /// slug. Each organization's own stays.
+    #[tokio::test]
+    async fn the_walks_disconnect_gives_back_the_pending_consent_and_its_slug_alone() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let app_state = two_owned_and_a_setup(&credentials, "disconnect-pending").await;
+
+        crate::organization::setup::disconnect_pending(&app_state, credentials.as_ref())
+            .await
+            .expect("the disconnect");
+
+        assert!(!holds_platform_token(credentials.as_ref(), &Account::Pending).expect("pending"));
+        assert!(holds_platform_token(credentials.as_ref(), &Account::of("org-a")).expect("a"));
+        assert!(holds_platform_token(credentials.as_ref(), &Account::of("org-b")).expect("b"));
+
+        let mut remote_sync = app_state.remote_sync.write().await;
+        let record = remote_sync.store_mut();
+
+        assert_eq!(
+            record.consent_organization(None),
+            None,
+            "the abandoned consent's Turso organization was kept"
+        );
+        assert!(record.consent_organization(Some("org-a")).is_some());
+    }
+
+    /// **A launch that converted nothing moves nothing** (effort 851, requirement 14). The one
+    /// organization held carries a Turso organization and has no consent of its own, and a setup's
+    /// consent waits in the pending slot: an ordinary launch leaves it there, since only the load
+    /// that converted an earlier build's record knows the slot holds an organization's consent.
+    #[tokio::test]
+    async fn a_launch_that_converted_nothing_moves_no_consent() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let directory = scratch("consent-not-converted");
+        let app_state = state_over(&directory).await;
+
+        {
+            let mut remote_sync = app_state.remote_sync.write().await;
+            let record = remote_sync.store_mut();
+
+            record.hold(HeldOrganization {
+                id: "org-a".to_string(),
+                name: "org-a".to_string(),
+                verifying_key: "k".to_string(),
+                remote_url: "libsql://org-a".to_string(),
+                turso_organization: Some(TursoOrganization {
+                    slug: "alpha".to_string(),
+                    group: "rentable".to_string(),
+                }),
+                ..Default::default()
+            });
+            record.commit().expect("the record");
+        }
+
+        store_platform_token(credentials.as_ref(), "a-setups-consent").expect("the consent");
+
+        crate::upgrade::consent::move_the_consent(&app_state, credentials.as_ref()).await;
+
+        assert_eq!(
+            platform_token(credentials.as_ref(), &Account::Pending).as_deref(),
+            Ok("a-setups-consent"),
+            "a setup's consent was handed to an organization on a launch that converted nothing"
         );
         assert!(!holds_platform_token(credentials.as_ref(), &Account::of("org-a")).expect("a"));
     }

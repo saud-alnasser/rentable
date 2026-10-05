@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::{
     clock,
-    credential::Credentials,
+    credential::{CredentialStore, Credentials},
     error::{Error, RefusalReason},
     organization::Shared,
 };
@@ -20,7 +20,8 @@ use crate::organization::{
 };
 use crate::turso::{
     consent::{
-        Account, TursoConsentResult, TursoConsentStart, TursoEndpoints, move_pending_consent,
+        Account, TursoConsentResult, TursoConsentStart, TursoEndpoints, forget_platform_token,
+        move_pending_consent,
     },
     discovery::McpEndpoint,
     platform::{PlatformApi, PlatformEndpoint},
@@ -358,10 +359,14 @@ pub(crate) async fn organization_setup_consent_result(
         .await
 }
 
-/// Hand the Turso authority back.
+/// Hand the pending Turso authority back: the setup walk's disconnect, before the consent belongs
+/// to any organization.
 ///
 /// The token is removed from this machine's credential store and the consents this process
-/// started are dropped with it, so nothing is left that a later run could read as a grant.
+/// started are dropped with it, so nothing is left that a later run could read as a grant. The
+/// Turso organization looked up for it goes too, so the next consent, over another account
+/// perhaps, is not built on this one's slug. **An organization's own consent is not this act's**:
+/// the leaving card gives that back ([`organization_setup_forget_authority`]).
 ///
 /// **Nothing is revoked at Turso by this**, and the surface offering it has to say so. There
 /// is no revocation endpoint in the authorization server's metadata and the token carries no
@@ -380,7 +385,69 @@ pub(crate) async fn organization_setup_consent_disconnect(
     app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
 ) -> Result<(), Error> {
-    app_state.consent.disconnect(credentials.inner().as_ref())
+    disconnect_pending(&app_state, credentials.inner().as_ref()).await
+}
+
+/// [`organization_setup_consent_disconnect`]'s act, over the state a test holds as the plugin does.
+pub(crate) async fn disconnect_pending(
+    app_state: &Shared,
+    credentials: &dyn CredentialStore,
+) -> Result<(), Error> {
+    app_state.consent.disconnect(credentials)?;
+
+    let mut remote_sync = app_state.remote_sync.write().await;
+    let store = remote_sync.store_mut();
+
+    store.forget_consent_organization(None);
+    store.commit()
+}
+
+/// Give back the Turso account of the organization this machine has open: the owner's leaving
+/// card, "forget Turso account" (effort 846, requirement 13; effort 851, requirement 14).
+///
+/// **That organization's own consent, and the Turso organization it was over**: the `org:<id>`
+/// entry goes from the keyring, and its entry on the record forgets the slug, so a consent granted
+/// again is looked up afresh, perhaps over another account (`setup_reconnect_authority`). The
+/// pending slot, which is a setup's, and every other organization's consent are left as they are.
+/// *It reached the setup walk's disconnect until a review of effort 851, which gave back only the
+/// pending slot, so the card said the account was forgotten and the machine went on holding it.*
+///
+/// **Nothing is revoked at Turso by this**, for the reason the walk's disconnect gives, and the
+/// card says so. Forgetting a consent this machine does not hold is not an error. What answers is
+/// the whole state, which then says the organization's authority is not held here.
+#[tauri::command(rename = "setup_forget_authority")]
+pub(crate) async fn organization_setup_forget_authority(
+    app_state: tauri::State<'_, Shared>,
+    credentials: tauri::State<'_, Credentials>,
+    clock: tauri::State<'_, clock::Shared>,
+) -> Result<OrganizationState, Error> {
+    forget_authority(&app_state, credentials.inner().as_ref()).await?;
+
+    state_of(&app_state, &credentials, &clock).await
+}
+
+/// [`organization_setup_forget_authority`]'s act: the open organization's consent, or a refusal
+/// where none is open.
+pub(crate) async fn forget_authority(
+    app_state: &Shared,
+    credentials: &dyn CredentialStore,
+) -> Result<(), Error> {
+    let organization_id = session::forget::open_organization(app_state)
+        .await
+        .ok_or_else(|| {
+            Error::refused(
+                RefusalReason::NoOrganization,
+                "this machine holds no organization to forget the turso account of",
+            )
+        })?;
+
+    forget_platform_token(credentials, &Account::of(&organization_id))?;
+
+    let mut remote_sync = app_state.remote_sync.write().await;
+    let store = remote_sync.store_mut();
+
+    store.forget_consent_organization(Some(&organization_id));
+    store.commit()
 }
 
 /// Rename the organization, as its owner (effort 851, requirements 22 to 28).

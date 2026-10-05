@@ -4,7 +4,7 @@
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { tone } from '@rentable/design/tone.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import { useDisconnect } from '$lib/organization/setup/query';
+	import { useForgetAuthority } from '$lib/organization/setup/query';
 	import Link2OffIcon from '@lucide/svelte/icons/link-2-off';
 
 	/**
@@ -18,6 +18,11 @@
 	 * anybody out or renew credentials until the consent is granted again. Disconnecting the
 	 * machine from the organization is the leaving group's act and is a different one.
 	 *
+	 * **The token is the organization's own** (effort 851, requirement 14): its `org:<id>` consent
+	 * and the Turso organization it was over, through `useForgetAuthority`. The setup walk's
+	 * disconnect gives back the pending consent alone, and this row used it until a review of
+	 * effort 851 found that it said the account was forgotten while the machine still held it.
+	 *
 	 * **An act that ends something, so an ending row of its card, its button alone in the error
 	 * tone** (effort 846, requirements 2 and 13). The row's name is the act, and labels the button,
 	 * whose own word is the verb alone and carries no glyph: the row's glyph says what it is about,
@@ -30,7 +35,7 @@
 	 * they were not. The sentence names Turso's own dashboard, and `i18n/tests/organization.test.ts`
 	 * pins it in both locales.
 	 */
-	const disconnect = useDisconnect();
+	const forgetAuthority = useForgetAuthority();
 
 	let confirming = $state(false);
 </script>
@@ -70,7 +75,7 @@
 		confirming = value;
 	}}
 	onSubmit={async () => {
-		await disconnect.mutateAsync();
+		await forgetAuthority.mutateAsync();
 	}}
 	record={$LL.organization.dashboard.authorityTitle()}
 	title={$LL.organization.dashboard.forgetAccount()}

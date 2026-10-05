@@ -189,6 +189,7 @@ mod tests {
         ("setup_consent_begin", Gate::ThisMachine),
         ("setup_consent_result", Gate::ThisMachine),
         ("setup_consent_disconnect", Gate::ThisMachine),
+        ("setup_forget_authority", Gate::ThisMachine),
         // the heartbeat over this machine's own replicas; it asks nothing of a row, and a member
         // signed out elsewhere ends it before anything is pushed.
         ("session_replicate", Gate::ThisMachine),

@@ -13,7 +13,8 @@ import type { RemoteSyncState } from '$lib/sync/host';
  * Scaffolding rather than a test. The host in `organization/component/host.svelte` reads the
  * session and writes through the hooks in `organization/query.ts` and each sub-concept's own
  * (`member/query.ts`, `role/query.ts`, `access/query.ts`, `workspace/query.ts`,
- * `session/query.ts`), which reach a shell this runner has none of. A test of what a card's act
+ * `session/query.ts`, and `setup/query.ts` for the Turso account the leaving card forgets), which
+ * reach a shell this runner has none of. A test of what a card's act
  * opens or writes replaces those hooks with these, through a partial `vi.mock` of each query
  * module, and reads what was asked of them:
  *
@@ -149,7 +150,9 @@ export const hostHooks = {
 	useEndMachine: mutation('useEndMachine'),
 	useDeleteOrganization: mutation('useDeleteOrganization'),
 	useDisconnectOrganization: mutation('useDisconnectOrganization'),
-	useRenameOrganization: mutation('useRenameOrganization')
+	useRenameOrganization: mutation('useRenameOrganization'),
+	useForgetAuthority: mutation('useForgetAuthority'),
+	useDisconnect: mutation('useDisconnect')
 };
 
 /** what the sync query's read of the sync record is replaced with. */

@@ -369,8 +369,8 @@ pub struct RemoteSyncStore {
     /// record the current release wrote carries it here, and the load moves it into the entry.*
     /// A record a build of the list wrote before requirement 39 carries the pending consent's
     /// here wherever it differs from the selected organization's, and the load reads it as
-    /// pending. What this build writes under the key is the selected organization's, or the
-    /// pending one where the selected organization has none ([`WrittenRecord`]).
+    /// pending. What this build writes under the key is the selected organization's, and nothing
+    /// where the selected organization has none ([`WrittenRecord`]).
     #[serde(rename = "tursoOrganization")]
     turso_organization_of_older_builds: Option<TursoOrganization>,
     /// every organization this machine holds (effort 851, requirement 16). What the wall names,
@@ -422,6 +422,17 @@ pub struct RemoteSyncStore {
     /// moment in either case. A refusal is not a reach, so a refused replication leaves it where
     /// it was.
     pub last_reached_at: Option<i64>,
+    /// the organization whose consent an earlier build left in the pending slot, named by the
+    /// load that converted that build's record ([`Self::convert_the_current_releases`]), and
+    /// `None` once the launch has moved it or found nothing to move (`upgrade/consent.rs`).
+    ///
+    /// **Only the conversion names one**, because only then is the pending slot known to hold an
+    /// organization's consent rather than a setup's: on any later launch it holds what a setup
+    /// granted and has not yet made an organization of, and moving that, or dropping it with an
+    /// organization the startup check forgets (`upgrade/shape.rs`), would hand one organization's
+    /// authority to another or take a setup's from under it. On the record rather than in memory,
+    /// so a credential store that did not answer at that launch is tried again at the next.
+    pub consent_to_move: Option<String>,
 }
 
 /// one workspace replica on this machine, and the member whose grant keeps it.
@@ -446,9 +457,14 @@ pub struct LocalReplica {
 /// `remote-sync.json` as this build writes it: the record, with the selected organization under
 /// `organization` as well as in the list, and the selected organization's Turso organization at
 /// the top as well as in its entry; where the selected organization has none, the top carries
-/// what a setup looked up, or nothing. What a setup looked up is always written under
-/// `pendingTursoOrganization` besides, which is where this build reads it (effort 851,
-/// requirement 39): the top is a copy for older builds, and cannot hold both.
+/// nothing. What a setup looked up is written under `pendingTursoOrganization` alone, which is
+/// where this build reads it (effort 851, requirement 39).
+///
+/// **The top never carries a setup's.** A build rolled back to reads it as the Turso organization
+/// of the one organization it holds, and the load after the roll forward converts it into that
+/// organization's entry, so a setup's written there would become the selected organization's,
+/// over another account. An older build that finds nothing there looks its consent's up, as it
+/// does after its own first consent, and needs no copy of a setup's.
 ///
 /// **The copy under `organization` is what keeps a rolled-back build working** (effort 851, the
 /// plan's *The machine's record holds a list*): the updater has a way back to the previous
@@ -474,6 +490,8 @@ struct WrittenRecord {
     #[serde(rename = "organizations", skip_serializing_if = "Vec::is_empty")]
     organizations_of_the_old_shape: Vec<serde_json::Value>,
     last_reached_at: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    consent_to_move: Option<String>,
 }
 
 impl From<RemoteSyncStore> for WrittenRecord {
@@ -481,8 +499,7 @@ impl From<RemoteSyncStore> for WrittenRecord {
         let organization = store.selected().cloned();
         let turso_organization = organization
             .as_ref()
-            .and_then(|held| held.turso_organization.clone())
-            .or_else(|| store.pending_turso_organization.clone());
+            .and_then(|held| held.turso_organization.clone());
 
         Self {
             workspace: store.workspace,
@@ -496,6 +513,7 @@ impl From<RemoteSyncStore> for WrittenRecord {
             organization,
             organizations_of_the_old_shape: store.organizations_of_the_old_shape,
             last_reached_at: store.last_reached_at,
+            consent_to_move: store.consent_to_move,
         }
     }
 }
@@ -534,6 +552,7 @@ impl Default for RemoteSyncStore {
             organization_of_the_current_release: None,
             organizations_of_the_old_shape: Vec::new(),
             last_reached_at: None,
+            consent_to_move: None,
         }
     }
 }
@@ -770,6 +789,9 @@ impl RemoteSyncStore {
             }
         }
 
+        // the consent the earlier build filed in the pending slot was this organization's, and
+        // the launch moves it (`upgrade/consent.rs`): this load is the one moment that is known.
+        self.consent_to_move = Some(organization.id.clone());
         self.selected_organization = Some(organization.id.clone());
         self.held_organizations.push(organization);
     }
@@ -1808,7 +1830,8 @@ mod tests {
     }
 
     /// **A Turso organization a setup looked up before anything was held goes into the entry the
-    /// setup records**, and is written at the top of the record only until then.
+    /// setup records**, and is written under its own key until then, never at the top, which is
+    /// the copy of the selected organization's older builds read.
     #[test]
     fn holding_a_consented_organization_takes_the_turso_organization_a_setup_looked_up() {
         let mut store = RemoteSyncStore::default();
@@ -1823,7 +1846,10 @@ mod tests {
 
         let pending = serde_json::to_value(&store).expect("serialised");
 
-        assert_eq!(pending["tursoOrganization"]["slug"], "acme");
+        assert!(
+            pending.get("tursoOrganization").is_none(),
+            "a setup's Turso organization was written at the top: {pending:#}"
+        );
         assert_eq!(pending["pendingTursoOrganization"]["slug"], "acme");
 
         store.hold_consented(super::HeldOrganization {
@@ -1964,6 +1990,65 @@ mod tests {
                 "{name}"
             );
         }
+    }
+
+    /// **A rollback and a roll forward never give the selected organization a setup's Turso
+    /// organization.** The selected organization has none of its own and a setup's waits; the
+    /// record this build writes is read and written again by release 0.19.0, which keeps only the
+    /// keys it knows, and the next load of this build converts what that release left. The
+    /// converted organization has no Turso organization, and its consent is the one the launch
+    /// moves, named by the conversion alone.
+    #[test]
+    fn a_rollback_and_a_roll_forward_lend_no_setups_turso_organization() {
+        let path = scratch("rolled-back-and-forward").join(RemoteSync::FILENAME);
+
+        std::fs::write(
+            &path,
+            r#"{"heldOrganizations":[{"id":"org-acme","name":"Acme","verifyingKey":"k","remoteUrl":"libsql://a"}],"selectedOrganization":"org-acme"}"#,
+        )
+        .expect("the record");
+
+        let mut store = Persisted::<RemoteSyncStore>::load(path.clone()).expect("the load");
+
+        store.remember_consent_organization(None, a_turso_organization("beta"));
+        store.commit().expect("the commit");
+
+        // release 0.19.0 reads the record and writes back the keys it knows, and no others.
+        let written: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).expect("the file"))
+                .expect("the written record");
+        let released: serde_json::Map<String, serde_json::Value> = [
+            "workspace",
+            "startupPromptEnabled",
+            "deviceId",
+            "replicas",
+            "tursoOrganization",
+            "organization",
+            "lastReachedAt",
+        ]
+        .into_iter()
+        .filter_map(|key| Some((key.to_string(), written.get(key)?.clone())))
+        .collect();
+
+        std::fs::write(&path, serde_json::Value::Object(released).to_string())
+            .expect("the release's write");
+
+        let rolled_forward = Persisted::<RemoteSyncStore>::load(path).expect("the reload");
+
+        assert_eq!(
+            rolled_forward.selected_organization.as_deref(),
+            Some("org-acme")
+        );
+        assert_eq!(
+            rolled_forward.consent_organization(Some("org-acme")),
+            None,
+            "the selected organization took the setup's Turso organization"
+        );
+        assert_eq!(
+            rolled_forward.consent_to_move.as_deref(),
+            Some("org-acme"),
+            "the conversion did not name the organization whose consent the launch moves"
+        );
     }
 
     /// A selection naming nothing held selects the first organization held.

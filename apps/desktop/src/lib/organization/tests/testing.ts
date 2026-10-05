@@ -43,6 +43,7 @@ export function fakeOrganizationHost(): OrganizationHost {
 		onMigration: refuse('organization.onMigration'),
 		linkRead: refuse('organization.linkRead'),
 		reconnectAuthority: refuse('organization.reconnectAuthority'),
+		forgetAuthority: refuse('organization.forgetAuthority'),
 		renewDue: refuse('organization.renewDue'),
 		roles: refuse('organization.roles'),
 		role: {

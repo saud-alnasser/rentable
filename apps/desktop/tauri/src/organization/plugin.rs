@@ -33,6 +33,7 @@ pub fn plugin() -> TauriPlugin<tauri::Wry> {
             super::setup::organization_setup_connect_existing,
             super::setup::organization_setup_account_refusal_detail,
             super::setup::organization_setup_reconnect_authority,
+            super::setup::organization_setup_forget_authority,
             super::setup::organization_setup_rename,
             super::session::organization_session_replicate,
             super::session::organization_session_disconnect,

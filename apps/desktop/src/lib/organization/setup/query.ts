@@ -80,9 +80,26 @@ export const useReconnectAuthority = declareMutation({
 });
 
 /**
- * forget the Turso authority this machine holds, and refresh where the machine stands, which
- * the first run reads to open its connect step as granted: a walk that read the authority as
- * held would otherwise go on reading it that way after it was given back.
+ * forget the open organization's own Turso consent, from the owner's leaving card, and refresh
+ * where the machine stands, which then says the authority is not held here. The pending consent a
+ * setup holds is the walk's, `useDisconnect`'s; this one never touches it.
+ */
+export const useForgetAuthority = declareMutation({
+	mutate: () => tauri.forgetAuthority(),
+	touches: 'none',
+	toast: {
+		success: () => get(LL).organization.dashboard.accountForgotten(),
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
+	},
+	invalidates: [keys.state]
+});
+
+/**
+ * forget the pending Turso consent the setup walk holds, and refresh where the machine stands,
+ * which the first run reads to open its connect step as granted: a walk that read the authority
+ * as held would otherwise go on reading it that way after it was given back. An organization's
+ * own consent is `useForgetAuthority`'s.
  */
 export const useDisconnect = declareMutation({
 	mutate: () => api.organization.consent.disconnect(),

@@ -162,7 +162,9 @@ export async function select(machine: StartupMachine, organizationId: string, bu
  *
  * **A refusal is thrown back to the confirm**, which is still open and says it in place, so the
  * person is standing at the question when they read it. Nothing is removed while the screen is
- * busy, for the reasons `select` gives.
+ * busy, for the reasons `select` gives. **Where the machine stands is read again either way**: a
+ * refusal can come after the shell has done part of the forget, and a switcher still listing an
+ * organization the record no longer holds would offer to sign in to nothing.
  */
 export async function remove(machine: StartupMachine, organizationId: string, busy: Busy = {}) {
 	if (isBusy(machine, busy)) {
@@ -174,9 +176,11 @@ export async function remove(machine: StartupMachine, organizationId: string, bu
 		machine.ports.cache.forgetContext();
 	}
 
-	await machine.ports.organization.remove(organizationId);
-
-	await standingRead(machine);
+	try {
+		await machine.ports.organization.remove(organizationId);
+	} finally {
+		await standingRead(machine);
+	}
 }
 
 /**

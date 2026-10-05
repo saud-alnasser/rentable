@@ -22,8 +22,9 @@
 //! closed, the organization replica is dropped and the workspace engine is released through the
 //! same paths a sign-out and `workspace::open_database` use, and only then are its files removed;
 //! an engine left on one of its workspaces at the wall is released the same way. A file that still
-//! will not go is reported by name rather than pretended away; the record forgets the organization
-//! regardless, so the machine does not go on naming an organization whose replica it half holds.
+//! will not go is written to the diagnostics log by name rather than pretended away; the record
+//! forgets the organization regardless, so the machine does not go on naming an organization whose
+//! replica it half holds, and the forget answers as done, because it is.
 //!
 //! **One sign is not a shape at all**, and it is [`forget_deleted_organization`]: the owner deleted
 //! the organization on their Turso account, so the database this machine's replica syncs against is
@@ -52,8 +53,13 @@ use crate::{
 /// engine first, as a sign-out does. Then the remembered key of the member its entry names goes,
 /// `org-<id>.db` and its sidecars go, each workspace replica its replica entries name goes with its
 /// sidecars, the record forgets the entry and those replica entries
-/// (`RemoteSync::forget_held_organization`), and the `org:<id>` consent goes from the keyring. A
-/// file that could not be removed is reported after all of that has run, by name.
+/// (`RemoteSync::forget_held_organization`), and the `org:<id>` consent goes from the keyring.
+///
+/// **Once the record has forgotten the entry, the forget has happened**, and it answers so: a
+/// file that would not go and a consent the keyring would not give up are written to the
+/// diagnostics log by name, never returned. An error here would tell the switcher the
+/// organization is still held when the record no longer holds it. Only a forget the record did
+/// not take is refused.
 ///
 /// **Where a replica entry names no organization**, which only an entry an older build tracked
 /// can, the open organization's replica is asked which workspaces are its, and an entry it names
@@ -73,9 +79,8 @@ pub(crate) async fn forget_one(
 ) -> Result<(), Error> {
     let database_path = { app_state.settings.read().await.database_path.clone() };
     let open = open_organization(app_state).await.as_deref() == Some(organization_id);
-    let (held, tracked, unnamed, current) = {
+    let (held, tracked, unnamed) = {
         let mut remote_sync = app_state.remote_sync.write().await;
-        let current = remote_sync.workspace().remote_id;
         let record = remote_sync.store_mut();
         let tracked: Vec<String> = record
             .replicas
@@ -90,12 +95,7 @@ pub(crate) async fn forget_one(
             .map(|replica| replica.workspace_id.clone())
             .collect();
 
-        (
-            record.held(organization_id).cloned(),
-            tracked,
-            unnamed,
-            current,
-        )
+        (record.held(organization_id).cloned(), tracked, unnamed)
     };
     let mut workspaces = tracked;
 
@@ -118,14 +118,20 @@ pub(crate) async fn forget_one(
     }
 
     // the workspace engine, released the way `open_database` releases it before opening the next,
-    // where it is the open organization's or holds a file about to go. Nothing reopens it here: what
-    // the machine opens next is the wall's to say.
-    if open
-        || current
-            .as_ref()
-            .is_some_and(|current| workspaces.contains(current))
+    // where it is the open organization's or holds a file about to go. **The engine is asked which
+    // file it holds**, never the record: a sign-out leaves the engine on the workspace it had open,
+    // and a choice of another organization at the wall then moves the record's current workspace
+    // to that one's while the engine still holds this one's. Nothing reopens it here: what the
+    // machine opens next is the wall's to say.
     {
-        app_state.db.write().await.disconnect().await;
+        let mut db = app_state.db.write().await;
+        let holds_one_going = workspaces.iter().any(|workspace_id| {
+            db.holds_replica(&Database::replica_path(&database_path, workspace_id))
+        });
+
+        if open || holds_one_going {
+            db.disconnect().await;
+        }
     }
 
     // the remembered sign-in, which `sign_out` already took where the organization was open.
@@ -162,7 +168,13 @@ pub(crate) async fn forget_one(
             .store(false, std::sync::atomic::Ordering::SeqCst);
     }
 
-    forget_platform_token(credentials, &Account::of(organization_id))?;
+    // from here on the organization is forgotten, whatever the keyring and the disk say below.
+    if let Err(error) = forget_platform_token(credentials, &Account::of(organization_id)) {
+        diagnostics::error("organization.forgotten.consentKept")
+            .with("organization", organization_id)
+            .with("error", error.to_string())
+            .write();
+    }
 
     diagnostics::info("organization.forgotten")
         .with("organization", organization_id)
@@ -170,24 +182,20 @@ pub(crate) async fn forget_one(
         .with("left", left.len().to_string())
         .write();
 
-    if left.is_empty() {
-        return Ok(());
+    if !left.is_empty() {
+        diagnostics::warn("organization.forgotten.filesLeft")
+            .with("organization", organization_id)
+            .with(
+                "files",
+                left.iter()
+                    .map(|path| path.display().to_string())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            )
+            .write();
     }
 
-    Err(Error::Io {
-        message: format!(
-            "the organization was forgotten and {} could not be removed: {}",
-            if left.len() == 1 {
-                "one file"
-            } else {
-                "these files"
-            },
-            left.iter()
-                .map(|path| path.display().to_string())
-                .collect::<Vec<_>>()
-                .join(", ")
-        ),
-    })
+    Ok(())
 }
 
 /// Forget the organization this machine has open, or, at the wall, the one it is on: what a
@@ -862,6 +870,131 @@ mod tests {
         assert_eq!(
             platform_token(&credentials, &Account::Pending).as_deref(),
             Ok("a-pending-consent")
+        );
+    }
+
+    /// **A forget the record took answers as done, whatever the disk says after it.** A workspace
+    /// replica that will not go (a directory stands where its file would be, which no file removal
+    /// takes) is left on disk and written to the log, and the remove answers `Ok` with the
+    /// organization no longer held. *It answered with an error until a review of effort 851, and
+    /// the switcher went on listing an organization the record had forgotten.*
+    #[tokio::test]
+    async fn a_forget_the_record_took_answers_as_done_with_a_file_left_behind() {
+        let credentials = Memory::new();
+        let directory = scratch("file-left");
+        let (store, held) = created(&credentials, &directory).await;
+
+        drop(store);
+
+        let stuck = Database::replica_path(&directory.join(Database::FILENAME), "stuck");
+
+        std::fs::create_dir_all(stuck.join("inside")).expect("a directory where the file goes");
+
+        let app_state = state_over(&directory).await;
+
+        app_state
+            .remote_sync
+            .write()
+            .await
+            .remember_replica(
+                "stuck",
+                held.member_id.as_deref().expect("the owner"),
+                &held.id,
+                1,
+            )
+            .expect("tracked");
+
+        super::super::remove(&app_state, &credentials, &held.id)
+            .await
+            .expect("a forget the record took was reported as failed");
+
+        assert!(stuck.exists(), "the test's stuck file went after all");
+
+        let mut remote_sync = app_state.remote_sync.write().await;
+        let record = remote_sync.store_mut();
+
+        assert_eq!(
+            record.held(&held.id),
+            None,
+            "the organization is still held"
+        );
+        assert!(record.replicas.is_empty());
+    }
+
+    /// **The workspace engine is released wherever it holds a file about to go**, not where the
+    /// record's current workspace says. A sign-out leaves the engine on the first organization's
+    /// workspace, and choosing the second at the wall moves the record's current workspace to that
+    /// one's; removing the first then lets go of the engine before its workspace's files are
+    /// deleted, and they are.
+    #[tokio::test]
+    async fn removing_an_organization_releases_the_engine_left_on_its_workspace() {
+        let credentials = Memory::new();
+        let directory = scratch("engine-left");
+        let (first_store, first) = created(&credentials, &directory).await;
+        let (second_store, second) = created(&credentials, &directory).await;
+
+        drop(first_store);
+        drop(second_store);
+
+        a_workspace_replica(&directory, "north").await;
+
+        let app_state = state_over(&directory).await;
+        let north = Database::replica_path(&directory.join(Database::FILENAME), "north");
+
+        {
+            let mut remote_sync = app_state.remote_sync.write().await;
+
+            remote_sync
+                .remember_replica(
+                    "north",
+                    first.member_id.as_deref().expect("the owner"),
+                    &first.id,
+                    1,
+                )
+                .expect("tracked");
+            remote_sync
+                .select_organization(&second.id)
+                .expect("the second chosen");
+        }
+
+        // the engine as the first organization's sign-out left it: on its workspace, nobody in.
+        app_state
+            .db
+            .write()
+            .await
+            .connect_workspace("north", None, || async {
+                Ok::<String, turso::Error>(String::new())
+            })
+            .await
+            .expect("the engine on the first organization's workspace");
+
+        assert!(app_state.db.read().await.holds_replica(&north));
+        assert_ne!(
+            app_state
+                .remote_sync
+                .read()
+                .await
+                .workspace()
+                .remote_id
+                .as_deref(),
+            Some("north"),
+            "the record still names the first organization's workspace"
+        );
+
+        super::super::remove(&app_state, &credentials, &first.id)
+            .await
+            .expect("the remove failed");
+
+        assert!(
+            !app_state.db.read().await.holds_replica(&north),
+            "the engine still holds the removed organization's workspace"
+        );
+        assert!(
+            !replica_files(&directory)
+                .iter()
+                .any(|name| name.starts_with("ws-north")),
+            "the removed organization's workspace survived: {:?}",
+            replica_files(&directory)
         );
     }
 

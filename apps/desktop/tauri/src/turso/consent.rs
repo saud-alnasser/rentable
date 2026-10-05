@@ -522,7 +522,8 @@ impl TursoConsent {
 
     /// Give the pending authority back: the setup walk's disconnect, before the consent belongs
     /// to any organization. An organization's own consent goes when the organization is forgotten
-    /// (`organization::session::forget`), and this leaves every one of those alone.
+    /// (`organization::session::forget`) or its owner's leaving card forgets the account
+    /// (`organization::setup::forget_authority`), and this leaves every one of those alone.
     ///
     /// **It forgets the token here and revokes nothing**, because there is nothing to call:
     /// Turso's authorization server metadata advertises no revocation endpoint, and the token

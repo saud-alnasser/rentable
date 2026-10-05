@@ -281,7 +281,10 @@ export type OrganizationHost = {
 	consentBegin: () => Promise<OrganizationConsentStart>;
 	/** how far the consent has got. Polled while `pending`. */
 	consentResult: (sessionId: string) => Promise<OrganizationConsentResult>;
-	/** forget the Turso authority this machine holds, and nothing else. Nothing is revoked at Turso. */
+	/**
+	 * forget the pending Turso consent the setup walk holds, and nothing else; an organization's own
+	 * is `forgetAuthority`'s. Nothing is revoked at Turso.
+	 */
 	consentDisconnect: () => Promise<void>;
 	/**
 	 * create an organization on the consented account from the three things a first run
@@ -411,6 +414,12 @@ export type OrganizationHost = {
 	 * so the machine can act as the owner's again. Rejects where no consent stands.
 	 */
 	reconnectAuthority: () => Promise<OrganizationState>;
+	/**
+	 * forget the open organization's own Turso consent and the account it was over, from the
+	 * owner's leaving card. Nothing is revoked at Turso; the pending consent a setup holds and every
+	 * other organization's are left alone.
+	 */
+	forgetAuthority: () => Promise<OrganizationState>;
 	/**
 	 * renew this organization's credentials if any is close to lapsing, on the owner's machine,
 	 * best effort. Answers whether it renewed. A machine that is not the owner's, holds no

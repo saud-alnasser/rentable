@@ -53,7 +53,9 @@ vi.mock('$lib/organization/setup/query', () => {
 			}
 		}),
 		useReconnectAuthority: () => ({ ...idle, mutateAsync: async () => undefined }),
-		useDisconnect: () => ({
+		// the organization's own consent, never the walk's pending one (`useDisconnect`), which
+		// this module therefore does not stand in for.
+		useForgetAuthority: () => ({
 			...idle,
 			mutateAsync: async () => {
 				answers.forgotten += 1;

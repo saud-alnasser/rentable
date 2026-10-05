@@ -85,6 +85,7 @@ export const tauri = {
 		invoke<LinkShape>('plugin:organization|invitation_link_read', { link }),
 	reconnectAuthority: () =>
 		invoke<OrganizationState>('plugin:organization|setup_reconnect_authority'),
+	forgetAuthority: () => invoke<OrganizationState>('plugin:organization|setup_forget_authority'),
 	renewDue: () => invoke<boolean>('plugin:organization|workspace_renew_due'),
 	roles: () => invoke<OrganizationRole[]>('plugin:organization|role_list'),
 	role: {
