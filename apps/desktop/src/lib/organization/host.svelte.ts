@@ -35,15 +35,15 @@ import { openOrganizationDialog } from '$lib/organization/dialogs.svelte';
  * callback per act; the route owned the removal's confirm because it reads a query.*
  */
 
-/** A member act that runs on the press: the host runs the write and says what came of it. */
-export type MemberPress = 'makeLink' | 'unsetPassword' | 'endSessions' | 'withdrawOffer';
-
 /**
  * A member act that ends something and so asks first, in the confirm dialog, before the host runs
  * its write ([[rules/interface]], *Delete and confirm*): the reset, the sign-out from
  * every machine and the withdrawal of an offer.
+ *
+ * *The link ran on the press beside these until effort 851 had its maker choose how long it lasts
+ * (requirement 11); it opens its own surface now, `member.linking`.*
  */
-export type MemberAsk = Exclude<MemberPress, 'makeLink'>;
+export type MemberAsk = 'unsetPassword' | 'endSessions' | 'withdrawOffer';
 
 type OrganizationHostState = {
 	member: {
@@ -55,8 +55,8 @@ type OrganizationHostState = {
 		removing: { record: MemberActRecord; lockOut: boolean } | null;
 		/** a write that ends something, being asked about before it runs. */
 		asking: { kind: MemberAsk; record: MemberActRecord } | null;
-		/** a write asked for on the press, waiting for the host to run it. */
-		pressed: { kind: MemberPress; memberId: string } | null;
+		/** the member a link is being made for, while how long it lasts is chosen. */
+		linking: MemberActRecord | null;
 		/** the member each write is running for, while it runs. */
 		pending: {
 			linking: string | null;
@@ -100,7 +100,7 @@ const idle = (): OrganizationHostState => ({
 		offering: null,
 		removing: null,
 		asking: null,
-		pressed: null,
+		linking: null,
 		pending: {
 			linking: null,
 			unsetting: null,
@@ -135,10 +135,6 @@ export function memberPending(): MemberPending {
 	};
 }
 
-const press = (kind: MemberPress) => (record: MemberActRecord) => {
-	organizationHostState.member.pressed = { kind, memberId: record.member.id };
-};
-
 const ask = (kind: MemberAsk) => (record: MemberActRecord) => {
 	organizationHostState.member.asking = { kind, record };
 };
@@ -152,7 +148,9 @@ export const memberActs = declareMemberActs({
 		organizationHostState.member.offering = record;
 	},
 	withdrawOffer: ask('withdrawOffer'),
-	makeLink: press('makeLink'),
+	makeLink: (record) => {
+		organizationHostState.member.linking = record;
+	},
 	unsetPassword: ask('unsetPassword'),
 	endSessions: ask('endSessions'),
 	confirmRemoval: (record, lockOut) => {

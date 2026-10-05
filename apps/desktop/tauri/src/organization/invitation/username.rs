@@ -424,6 +424,7 @@ mod tests {
             no_platform(),
             link,
             member_id,
+            crate::organization::invitation::TEST_LIFETIME_HOURS,
             test_cost(),
             now,
         )

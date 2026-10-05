@@ -649,7 +649,7 @@ mod tests {
     use crate::organization::HeldOrganization;
     use crate::organization::invitation::link::{HalfKind, JoinLink, Locator, open_payload};
     use crate::organization::invitation::{
-        AccountAndLink, INVITATION_LIFETIME_MS, Invitation, WorkspaceGrant, create_account,
+        AccountAndLink, Invitation, TEST_LIFETIME_MS, WorkspaceGrant, create_account,
         generate_password, locator, make_account_and_link, make_link, reset_account,
         unset_password,
     };
@@ -848,6 +848,7 @@ mod tests {
             no_platform(),
             link,
             member_id,
+            crate::organization::invitation::TEST_LIFETIME_HOURS,
             test_cost(),
             now,
         )
@@ -952,6 +953,7 @@ mod tests {
             no_platform(),
             &link,
             &account.id,
+            crate::organization::invitation::TEST_LIFETIME_HOURS,
             test_cost(),
             NOW,
         )
@@ -964,7 +966,7 @@ mod tests {
             HalfKind::Invitation,
             "an account whose password is not set got a link that opens no vault"
         );
-        assert_eq!(made.expires_at, NOW + INVITATION_LIFETIME_MS);
+        assert_eq!(made.expires_at, NOW + TEST_LIFETIME_MS);
         assert!(
             open_payload(
                 &made.code,
@@ -1628,6 +1630,7 @@ mod tests {
                     no_platform(),
                     &link,
                     &mo.id,
+                    crate::organization::invitation::TEST_LIFETIME_HOURS,
                     test_cost(),
                     NOW + 2,
                 )

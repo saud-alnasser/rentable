@@ -96,9 +96,10 @@
 //! credential is out, and a code that lapsed would then be a fresh link to re-send.*
 //!
 //! **The link and the credential inside it both lapse** (effort 828, requirement 2). A link
-//! stands for a week, or until the maker's own grant on the organization database dies, whichever
-//! is sooner, and the row behind it carries that same moment, so the link and the row lapse
-//! together. Making another drops the one that did not stand, so one link admits one machine at a
+//! stands for as long as its maker chose, an hour to a week (effort 851, requirement 11), or until
+//! the credential sealed in it dies, whichever is sooner, and the row behind it carries that same
+//! moment, so the link and the row lapse together. On the owner's machine that credential is
+//! minted to die at the link's own lapse; elsewhere it is the maker's own grant. Making another drops the one that did not stand, so one link admits one machine at a
 //! time.
 //!
 //! **Revoking takes back what a pending link made** (effort 826, requirement 15). A person who
@@ -150,9 +151,66 @@ use super::{
 };
 use link::{Half, HalfKind, LinkPayload, Locator, seal_payload};
 
-/// How long an invitation stands: a week, which is long enough to send a link on Friday and have
-/// it opened on Monday, and short enough that a link in an old message is not a way in.
-pub const INVITATION_LIFETIME_MS: i64 = 7 * 24 * 60 * 60 * 1000;
+/// How long a link and its code last, as the person making it chose (effort 851, requirement 11).
+///
+/// **Every hour from one to twenty-three, then every day from one to six, then a week, and
+/// nothing else.** One lifetime covers the link and the code, since the code is half of the key
+/// that opens the link and the pair lapses together. The interface offers exactly these and starts
+/// at three days; this is where anything else is refused, whoever sent it. *Every link lasted a
+/// week (`INVITATION_LIFETIME_MS`) until effort 851 let its maker choose.*
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LinkLifetime {
+    hours: i64,
+}
+
+const HOUR_MS: i64 = 60 * 60 * 1000;
+
+impl LinkLifetime {
+    /// The lifetime `hours` names, or the refusal where it is not one of the steps.
+    pub fn of_hours(hours: i64) -> Result<Self, Error> {
+        let by_the_hour = (1..24).contains(&hours);
+        let by_the_day = hours % 24 == 0 && (1..=7).contains(&(hours / 24));
+
+        if by_the_hour || by_the_day {
+            Ok(Self { hours })
+        } else {
+            Err(Error::refused(
+                RefusalReason::LinkLifetime,
+                format!(
+                    "a link lasts every hour from 1 to 23, every day from 1 to 6, or a week; \
+                     {hours} hours is none of them"
+                ),
+            ))
+        }
+    }
+
+    pub fn millis(self) -> i64 {
+        self.hours * HOUR_MS
+    }
+
+    /// The lifetime in Turso's own duration spelling, for a credential minted to die with the
+    /// link. **Days as `d`, and hours as minutes.** Turso documents the spelling by one example,
+    /// `2w1d30m`, which names weeks, days and minutes and not hours; `3d` was measured live to give
+    /// exactly three days ([[references/turso]]). So a lifetime of whole days is written in days and
+    /// one under a day in minutes, `300m` for five hours, which leans on nothing Turso has not said.
+    pub fn turso_expiration(self) -> String {
+        if self.hours % 24 == 0 {
+            format!("{}d", self.hours / 24)
+        } else {
+            format!("{}m", self.hours * 60)
+        }
+    }
+}
+
+/// The lifetime the tests make their links with: a week, the longest step, which is what every
+/// link lasted before its maker chose, so a test about something else reads the moment it always
+/// read.
+#[cfg(test)]
+pub(crate) const TEST_LIFETIME_HOURS: i64 = 7 * 24;
+
+/// [`TEST_LIFETIME_HOURS`] in milliseconds, which is what a test adds to the moment a link was made.
+#[cfg(test)]
+pub(crate) const TEST_LIFETIME_MS: i64 = TEST_LIFETIME_HOURS * HOUR_MS;
 
 /// The alphabet a confirmation code is spelled in: digits and upper-case letters with the four
 /// that read alike removed, `I`, `L`, `O` and `U`, so a code read out on a call is the code
@@ -190,9 +248,10 @@ pub struct MadeLink {
     /// so it is read out on a call or in person and never sent beside the link, and it lives
     /// exactly as long as the link does.
     pub code: String,
-    /// when the link lapses: a week out, or when the maker's own grant on the organization
-    /// database dies, whichever is sooner (effort 828, requirement 2). The row behind the link
-    /// carries the same moment, so the link and the row lapse together.
+    /// when the link lapses: as long after it was made as its maker chose, or when the credential
+    /// sealed inside it dies, whichever is sooner (effort 828, requirement 2; effort 851,
+    /// requirement 11). The row behind the link carries the same moment, so the link and the row
+    /// lapse together.
     pub expires_at: i64,
     /// the workspaces the link could not carry over, named so the maker can say whom to ask. A
     /// link for an account with no password yet re-seals its grants to the fresh vault, and a
@@ -261,9 +320,19 @@ impl InvitationStanding {
 /// does that. The register (requirement 15) is read here for nothing, and the standing line on the
 /// card is a fact about the account rather than the reason a link is missing.
 ///
-/// **Neither kind mints anything**, so whoever may make one makes either: what the link seals is
-/// the maker's own grant on the organization database, which dies within four weeks whatever
-/// happens to the link.
+/// **Its maker chooses how long it lasts** (effort 851, requirement 11): `lifetime_hours` is one of
+/// [`LinkLifetime`]'s steps or the act is refused before anything is read, and the link lapses that
+/// long after `now` or when the credential inside it dies, whichever is sooner.
+///
+/// **An owner's link carries a credential minted for it; a manager's carries the manager's
+/// grant.** Where this machine holds the organization's Turso consent, which is what `platform`
+/// answering means, the act mints a full-access token on the organization database that Turso
+/// itself expires at the link's lifetime, and seals that, so a lapsed owner's link reaches nothing
+/// on Turso either. Anywhere else nothing can mint, and the link seals the maker's own grant, which
+/// lives up to four weeks whatever the link's lifetime; the spec carries that under *Risks*. A mint
+/// that fails refuses the act, offline included, and is never answered by sealing the grant
+/// instead: an owner's link that quietly outlived its lifetime on Turso is the thing this exists to
+/// prevent. *Until effort 851 neither kind minted anything.*
 ///
 /// **It is `inviteMember`'s or `resetPassword`'s** (the human's word, 2026-09-16, striking the
 /// spec's risk on it). A link is how a machine joins an account, which is what making an account
@@ -277,15 +346,19 @@ impl InvitationStanding {
 /// link for an account with no password yet writes its row again, which only a certificate ranked
 /// above it signs, and a machine link is held to the same line so that who may hand an account a
 /// way in does not turn on which of the two it is.
+#[allow(clippy::too_many_arguments)]
 pub async fn make_link<P: TursoPlatform>(
     store: &OrganizationStore,
     session: &MemberSession,
     platform: Option<&P>,
     locator: &Locator,
     member_id: &str,
+    lifetime_hours: i64,
     kdf_params: KdfParams,
     now: i64,
 ) -> Result<MadeLink, Error> {
+    let lifetime = LinkLifetime::of_hours(lifetime_hours)?;
+
     session.settled()?;
 
     let actor = actor(store, session).await?;
@@ -309,8 +382,10 @@ pub async fn make_link<P: TursoPlatform>(
          them",
     )?;
 
-    let credential = held_credential(session)?;
-    let expires_at = link_expiry(&credential, now);
+    // minted before anything is written, so an owner's link refused for want of Turso leaves no
+    // row behind it.
+    let (credential, minted) = link_credential(session, platform, lifetime).await?;
+    let expires_at = link_expiry(&credential, now, lifetime);
     let id = random_id()?;
     let link_secret = generate_link_secret()?;
     let code = generate_code()?;
@@ -401,6 +476,7 @@ pub async fn make_link<P: TursoPlatform>(
                 "machine"
             },
         )
+        .with("credential", if minted { "minted" } else { "grant" })
         .write();
 
     Ok(MadeLink {
@@ -452,9 +528,10 @@ fn issuer_copy(password: &str, link_secret: &str, code: &str) -> String {
 /// The issuer's own grant on the organization database, out of the slot this session pushes
 /// under: what a link seals in place of a legible credential (effort 828, requirement 1).
 ///
-/// **Only what the issuer already holds.** Minting is the owner's machine's and nothing here
-/// mints, so a manager's invitation and a member's own link both carry the grant their
-/// vault already unsealed, which is minted for four weeks and renewed on the owner's machine.
+/// **Only what the issuer already holds.** Minting is the owner's machine's, so a link made where
+/// nothing can mint carries the grant the maker's vault already unsealed, which is minted for four
+/// weeks and renewed on the owner's machine; the owner's own link carries a credential minted for
+/// it instead (`link_credential`). Making an account seals this grant to the account as well.
 pub(super) fn held_credential(session: &MemberSession) -> Result<String, Error> {
     session
         .organization_credential
@@ -469,19 +546,46 @@ pub(super) fn held_credential(session: &MemberSession) -> Result<String, Error> 
         })
 }
 
-/// When a link made now lapses: a week out, or when the credential inside it dies, whichever is
-/// sooner (effort 828, requirement 2).
+/// What a link seals in place of a legible credential, and whether it was minted for the link
+/// (effort 851, requirement 11).
 ///
-/// A credential whose text carries no expiry at all leaves the week standing on its own, which is
-/// the shorter of the two either way. Nothing this application holds is minted without one now
-/// (effort 828, requirement 16), so the fallback is for a token shaped in a way this cannot read
-/// rather than for a credential that genuinely never lapses.
-pub(super) fn link_expiry(credential: &str, now: i64) -> i64 {
-    let week = now + INVITATION_LIFETIME_MS;
+/// **Minted where this machine holds the consent**: a full-access token on the organization
+/// database that Turso expires at the link's own lifetime, so the credential and the link die
+/// together. Elsewhere, the maker's own grant ([`held_credential`]). A mint that fails is the act's
+/// failure, never a reason to seal the grant.
+async fn link_credential<P: TursoPlatform>(
+    session: &MemberSession,
+    platform: Option<&P>,
+    lifetime: LinkLifetime,
+) -> Result<(String, bool), Error> {
+    match platform {
+        Some(platform) => Ok((
+            platform
+                .mint_token(
+                    &format!("org-{}", session.organization_id),
+                    &lifetime.turso_expiration(),
+                    AccessLevel::FullAccess,
+                )
+                .await?,
+            true,
+        )),
+        None => Ok((held_credential(session)?, false)),
+    }
+}
+
+/// When a link made now lapses: as long out as its maker chose, or when the credential inside it
+/// dies, whichever is sooner (effort 828, requirement 2; effort 851, requirement 11).
+///
+/// A credential whose text carries no expiry at all leaves the lifetime standing on its own.
+/// Nothing this application holds is minted without one now (effort 828, requirement 16), so the
+/// fallback is for a token shaped in a way this cannot read rather than for a credential that
+/// genuinely never lapses.
+pub(super) fn link_expiry(credential: &str, now: i64, lifetime: LinkLifetime) -> i64 {
+    let chosen = now + lifetime.millis();
 
     credential_expiry(credential)
         .and_then(|moment| moment.parse::<i64>().ok())
-        .map_or(week, |moment| week.min(moment))
+        .map_or(chosen, |moment| chosen.min(moment))
 }
 
 /// The vault password an invitation was made under, opened the way the person holding the link
@@ -620,6 +724,7 @@ pub(crate) async fn make_account_and_link<P: TursoPlatform>(
         platform,
         locator,
         &account.id,
+        TEST_LIFETIME_HOURS,
         kdf_params,
         now,
     )
@@ -646,7 +751,14 @@ pub(crate) async fn reset_account<P: TursoPlatform>(
 ) -> Result<AccountAndLink, Error> {
     let unreachable = unset_password(store, session, platform, member_id, kdf_params, now).await?;
     let made = make_link(
-        store, session, platform, locator, member_id, kdf_params, now,
+        store,
+        session,
+        platform,
+        locator,
+        member_id,
+        TEST_LIFETIME_HOURS,
+        kdf_params,
+        now,
     )
     .await?;
     let username = members(store, session)
@@ -684,8 +796,8 @@ fn with_link(
 #[cfg(test)]
 mod tests {
     use super::{
-        CODE_LENGTH, INVITATION_LIFETIME_MS, Invitation, InvitationStanding, make_account_and_link,
-        reset_account, unset_password,
+        CODE_LENGTH, Invitation, InvitationStanding, TEST_LIFETIME_HOURS, TEST_LIFETIME_MS,
+        make_account_and_link, reset_account, unset_password,
     };
     use crate::credential::{CredentialStore, Memory};
     use crate::error::Error;
@@ -894,6 +1006,7 @@ mod tests {
             no_platform(),
             link,
             member_id,
+            TEST_LIFETIME_HOURS,
             test_cost(),
             now,
         )
@@ -1020,6 +1133,7 @@ mod tests {
             no_platform(),
             &link,
             &subject.id,
+            TEST_LIFETIME_HOURS,
             test_cost(),
             NOW + 4,
         )
@@ -1034,6 +1148,7 @@ mod tests {
             no_platform(),
             &link,
             &resetter.id,
+            TEST_LIFETIME_HOURS,
             test_cost(),
             NOW + 5,
         )
@@ -1082,6 +1197,7 @@ mod tests {
             no_platform(),
             &link,
             &account.id,
+            TEST_LIFETIME_HOURS,
             test_cost(),
             NOW,
         )
@@ -1122,6 +1238,7 @@ mod tests {
             no_platform(),
             &link,
             &account.id,
+            TEST_LIFETIME_HOURS,
             test_cost(),
             NOW + 3,
         )
@@ -1172,6 +1289,7 @@ mod tests {
             no_platform(),
             &link,
             &account.id,
+            TEST_LIFETIME_HOURS,
             test_cost(),
             NOW + 5,
         )
@@ -1242,10 +1360,7 @@ mod tests {
         .await
         .expect("the invitation failed");
 
-        assert_eq!(
-            invited.expires_at,
-            1_757_000_000_000 + INVITATION_LIFETIME_MS
-        );
+        assert_eq!(invited.expires_at, 1_757_000_000_000 + TEST_LIFETIME_MS);
 
         // the link is the organization's locator with a sealed payload in place of the credential
         // and the invitation's half beside it: the organization, its name, the invitation's id and
@@ -1408,11 +1523,7 @@ mod tests {
             Some(InvitationStanding::Open)
         );
         assert_eq!(
-            standing(
-                invited.invitation_id.clone(),
-                issued_at + INVITATION_LIFETIME_MS
-            )
-            .await,
+            standing(invited.invitation_id.clone(), issued_at + TEST_LIFETIME_MS).await,
             Some(InvitationStanding::Lapsed)
         );
 
@@ -1700,7 +1811,7 @@ mod tests {
         .await
         .expect("the second invitation failed");
 
-        assert_eq!(later.expires_at, now + INVITATION_LIFETIME_MS);
+        assert_eq!(later.expires_at, now + TEST_LIFETIME_MS);
 
         // and the locator every one of these was built from carries nothing to read the
         // organization with (effort 828, requirement 16): a field of it holding the grant would be
@@ -1772,6 +1883,7 @@ mod tests {
             no_platform(),
             &link,
             &account.id,
+            TEST_LIFETIME_HOURS,
             test_cost(),
             3,
         )
@@ -1816,6 +1928,7 @@ mod tests {
             no_platform(),
             &link,
             &account.id,
+            TEST_LIFETIME_HOURS,
             test_cost(),
             5,
         )
@@ -1823,5 +1936,412 @@ mod tests {
         .expect("the link");
 
         assert!(made.unreachable_workspaces.is_empty());
+    }
+
+    const HOUR: i64 = 60 * 60 * 1000;
+
+    /// Everything a made link's code opens, as the person holding it opens it.
+    fn sealed_in(made: &super::MadeLink) -> LinkPayload {
+        let link = JoinLink::decode(&made.link).expect("the link");
+
+        open_payload(
+            &made.code,
+            &link.locator(),
+            &link.half,
+            &link.credential,
+            test_cost(),
+        )
+        .expect("the code did not open the payload")
+    }
+
+    /// The moment a credential's own claims say it dies.
+    fn death_of(credential: &str) -> i64 {
+        credential_expiry(credential)
+            .and_then(|moment| moment.parse::<i64>().ok())
+            .expect("the credential carries no expiry")
+    }
+
+    /// An account nobody has opened yet, made by the owner, for a link to be made on.
+    async fn unopened(store: &OrganizationStore, owner: &MemberSession, username: &str) -> String {
+        create_account(
+            store,
+            owner,
+            no_platform(),
+            username,
+            permission::MEMBER,
+            0,
+            &[],
+            test_cost(),
+            NOW,
+        )
+        .await
+        .expect("the account could not be made")
+        .id
+    }
+
+    /// Effort 851, requirement 11 and criterion 11: **a link lasts exactly as long as its maker
+    /// chose, or until the credential sealed in it dies where that is sooner.**
+    ///
+    /// An hour, three days and a week, each made at the same moment under a grant with four weeks
+    /// left, lapse exactly that long after it; the row behind the link and the link's own half say
+    /// the same moment. Under a grant with two days left, the three-day and the week-long link lapse
+    /// with the grant, and the hour still lapses in an hour.
+    #[tokio::test]
+    async fn a_link_lapses_when_its_maker_said_or_when_its_credential_dies_if_sooner() {
+        let credentials = Memory::new();
+        let directory = scratch("lifetime-chosen");
+        let (store, owner, link, _, _) = owned(&credentials, &directory).await;
+        let account = unopened(&store, &owner, "sami.staff").await;
+        let make = |hours: i64| {
+            let (store, owner, link, account) = (&store, &owner, &link, &account);
+
+            async move {
+                make_link(
+                    store,
+                    owner,
+                    no_platform(),
+                    link,
+                    account,
+                    hours,
+                    test_cost(),
+                    NOW,
+                )
+                .await
+                .expect("the link could not be made")
+            }
+        };
+
+        *owner.organization_credential.lock().expect("the slot") =
+            Some(grant_dying_at(NOW + 28 * 24 * HOUR));
+
+        for hours in [1, 72, 168] {
+            let made = make(hours).await;
+
+            assert_eq!(made.expires_at, NOW + hours * HOUR, "{hours} hours");
+            assert_eq!(
+                JoinLink::decode(&made.link)
+                    .expect("the link")
+                    .half
+                    .expires_at,
+                NOW + hours * HOUR,
+                "{hours} hours: the link's own half"
+            );
+
+            let row = store
+                .invitations(&owner.verifying_key)
+                .await
+                .expect("the invitations")
+                .into_iter()
+                .find(|invitation| invitation.member_id == account)
+                .expect("no invitation stands behind the link");
+
+            assert_eq!(row.expires_at, made.expires_at, "{hours} hours: the row");
+        }
+
+        let dies_at = NOW + 2 * 24 * HOUR;
+
+        *owner.organization_credential.lock().expect("the slot") = Some(grant_dying_at(dies_at));
+
+        assert_eq!(make(72).await.expires_at, dies_at);
+        assert_eq!(make(168).await.expires_at, dies_at);
+        assert_eq!(make(1).await.expires_at, NOW + HOUR);
+    }
+
+    /// Effort 851, requirement 11: **the shell refuses a lifetime off the steps**, whoever sent it,
+    /// with its own reason and before anything is written. The steps are every hour from one to
+    /// twenty-three, every day from one to six and a week: thirty of them, and nothing else
+    /// between nothing and two hundred hours.
+    #[tokio::test]
+    async fn a_lifetime_off_the_steps_is_refused_before_anything_is_written() {
+        let steps: Vec<i64> = (0..=200)
+            .filter(|hours| super::LinkLifetime::of_hours(*hours).is_ok())
+            .collect();
+        let expected: Vec<i64> = (1..=23).chain((1..=7).map(|days| days * 24)).collect();
+
+        assert_eq!(steps, expected);
+        assert!(super::LinkLifetime::of_hours(-24).is_err());
+
+        let credentials = Memory::new();
+        let directory = scratch("lifetime-refused");
+        let (store, owner, link, _, _) = owned(&credentials, &directory).await;
+        let account = unopened(&store, &owner, "sami.staff").await;
+
+        for hours in [0, 25, 169, 200] {
+            let refused = make_link(
+                &store,
+                &owner,
+                no_platform(),
+                &link,
+                &account,
+                hours,
+                test_cost(),
+                NOW,
+            )
+            .await
+            .expect_err("a lifetime off the steps made a link");
+
+            assert!(
+                matches!(
+                    &refused,
+                    Error::Refused {
+                        reason: crate::error::RefusalReason::LinkLifetime,
+                        ..
+                    }
+                ),
+                "{hours} hours: {refused:?}"
+            );
+        }
+
+        assert!(
+            !store
+                .invitations(&owner.verifying_key)
+                .await
+                .expect("the invitations")
+                .iter()
+                .any(|invitation| invitation.member_id == account),
+            "a refused lifetime left a row behind"
+        );
+    }
+
+    /// Effort 851, requirement 11: **the lifetime is spelled for Turso in days where it is whole
+    /// days, and in minutes under a day**, since Turso documents `w`, `d` and `m` and not `h`
+    /// ([[references/turso]]).
+    #[test]
+    fn a_lifetime_is_spelled_in_the_units_turso_documents() {
+        let spelled = |hours: i64| {
+            super::LinkLifetime::of_hours(hours)
+                .expect("a step")
+                .turso_expiration()
+        };
+
+        assert_eq!(spelled(1), "60m");
+        assert_eq!(spelled(5), "300m");
+        assert_eq!(spelled(23), "1380m");
+        assert_eq!(spelled(24), "1d");
+        assert_eq!(spelled(72), "3d");
+        assert_eq!(spelled(144), "6d");
+        assert_eq!(spelled(168), "7d");
+    }
+
+    /// Effort 851, requirement 11 and criterion 11: **a link opened past the moment its maker
+    /// chose is refused as lapsed**, and one opened a moment before it admits.
+    #[tokio::test]
+    async fn a_link_opened_past_its_chosen_lapse_is_refused_as_lapsed() {
+        let credentials = Memory::new();
+        let directory = scratch("lifetime-lapsed");
+        let (store, owner, link, _, _) = owned(&credentials, &directory).await;
+        let account = unopened(&store, &owner, "sami.staff").await;
+        let made = make_link(
+            &store,
+            &owner,
+            no_platform(),
+            &link,
+            &account,
+            1,
+            test_cost(),
+            NOW,
+        )
+        .await
+        .expect("the link could not be made");
+        let decoded = JoinLink::decode(&made.link).expect("the link");
+        let open_at = |name: &str, now: i64| {
+            let directory = scratch(name);
+            let (store, decoded, code) = (&store, &decoded, &made.code);
+            let credentials = &credentials;
+
+            async move {
+                let mut machine = fresh_machine(&directory);
+                let opened = crate::organization::invitation::join::accept(
+                    credentials,
+                    |_| async { Ok::<_, Error>(store) },
+                    &mut machine,
+                    &directory.join("app.db"),
+                    decoded,
+                    code,
+                    CHOSEN,
+                    test_cost(),
+                    now,
+                )
+                .await
+                .map(|_| ());
+
+                (opened, machine.selected().is_some())
+            }
+        };
+
+        let (refused, recorded) = open_at("lifetime-lapsed-late", NOW + HOUR).await;
+
+        assert!(
+            matches!(
+                refused,
+                Err(Error::Refused {
+                    reason: crate::error::RefusalReason::Lapsed,
+                    ..
+                })
+            ),
+            "{refused:?}"
+        );
+        assert!(!recorded, "a lapsed link recorded the organization");
+
+        let (admitted, recorded) = open_at("lifetime-lapsed-early", NOW + HOUR - 1).await;
+
+        assert!(admitted.is_ok(), "{admitted:?}");
+        assert!(recorded);
+    }
+
+    /// Effort 851, requirement 11 and criterion 11: **the owner's machine seals a credential minted
+    /// to die with the link, and a manager's seals the manager's own grant.**
+    ///
+    /// Where the platform answers, the act mints a full-access token on the organization database
+    /// for exactly the lifetime, in Turso's spelling, and that token's own `exp` is the link's
+    /// expiry; the owner's held grant is not what is sealed. A manager, whose machine holds no
+    /// consent, seals the grant their session holds, and nothing is minted.
+    #[tokio::test]
+    async fn an_owners_link_seals_a_credential_minted_to_die_with_it_and_a_managers_its_grant() {
+        let credentials = Memory::new();
+        let directory = scratch("lifetime-minted");
+        let (store, owner, link, _, platform) = owned(&credentials, &directory).await;
+        let held = grant_dying_at(NOW + 28 * 24 * HOUR);
+
+        *owner.organization_credential.lock().expect("the slot") = Some(held.clone());
+        platform.minting_expiring_tokens(NOW);
+
+        let account = unopened(&store, &owner, "sami.staff").await;
+
+        for (hours, spelled) in [(72, "3d"), (5, "300m"), (168, "7d")] {
+            let made = make_link(
+                &store,
+                &owner,
+                Some(&*platform),
+                &link,
+                &account,
+                hours,
+                test_cost(),
+                NOW,
+            )
+            .await
+            .expect("the owner's link could not be made");
+            let sealed = sealed_in(&made);
+
+            assert_ne!(sealed.credential, held, "{hours} hours sealed the grant");
+            assert_eq!(made.expires_at, NOW + hours * HOUR, "{hours} hours");
+            assert_eq!(
+                death_of(&sealed.credential),
+                made.expires_at,
+                "{hours} hours: the sealed credential does not die with the link"
+            );
+            assert_eq!(
+                platform.minted().last(),
+                Some(&(
+                    format!("org-{}", owner.organization_id),
+                    spelled.to_string(),
+                    AccessLevel::FullAccess
+                )),
+                "{hours} hours"
+            );
+        }
+
+        // a manager, whose machine holds no consent, seals their own grant and mints nothing.
+        let manager = make_account_and_link(
+            &store,
+            &owner,
+            no_platform(),
+            &link,
+            Invitation {
+                username: "ada.manager",
+                role: permission::MANAGER,
+                workspaces: &[],
+            },
+            test_cost(),
+            NOW,
+        )
+        .await
+        .expect("the manager");
+        let mut ada = sign_in(
+            &store,
+            &joined_as(&owner, &manager.member_id, permission::MANAGER),
+            &secret_of(&manager),
+            &slot(),
+        )
+        .await
+        .expect("the manager did not sign in");
+        ada.must_change_password = false;
+
+        let adas_grant = grant_dying_at(NOW + 20 * 24 * HOUR);
+
+        *ada.organization_credential.lock().expect("the slot") = Some(adas_grant.clone());
+
+        let minted = platform.minted().len();
+        let theirs = create_account(
+            &store,
+            &ada,
+            no_platform(),
+            "rana.staff",
+            permission::MEMBER,
+            0,
+            &[],
+            test_cost(),
+            NOW,
+        )
+        .await
+        .expect("the manager's account");
+        let made = make_link(
+            &store,
+            &ada,
+            no_platform(),
+            &link,
+            &theirs.id,
+            72,
+            test_cost(),
+            NOW,
+        )
+        .await
+        .expect("the manager's link could not be made");
+
+        assert_eq!(sealed_in(&made).credential, adas_grant);
+        assert_eq!(made.expires_at, NOW + 72 * HOUR);
+        assert_eq!(platform.minted().len(), minted, "a manager's link minted");
+    }
+
+    /// Effort 851, requirement 11: **offline, an owner's link is refused with the network
+    /// sentence and never sealed with the grant instead**, and nothing is written behind it.
+    #[tokio::test]
+    async fn an_owners_link_that_cannot_mint_is_refused_and_never_falls_back_to_the_grant() {
+        let credentials = Memory::new();
+        let directory = scratch("lifetime-offline");
+        let (store, owner, link, _, platform) = owned(&credentials, &directory).await;
+
+        *owner.organization_credential.lock().expect("the slot") =
+            Some(grant_dying_at(NOW + 28 * 24 * HOUR));
+
+        let account = unopened(&store, &owner, "sami.staff").await;
+
+        platform.refuse_next(crate::turso::platform::unreachable(
+            "mint a token for this workspace",
+        ));
+
+        let refused = make_link(
+            &store,
+            &owner,
+            Some(&*platform),
+            &link,
+            &account,
+            72,
+            test_cost(),
+            NOW,
+        )
+        .await
+        .expect_err("an owner's link was made with no mint");
+
+        assert!(matches!(refused, Error::Network { .. }), "{refused:?}");
+        assert!(
+            !store
+                .invitations(&owner.verifying_key)
+                .await
+                .expect("the invitations")
+                .iter()
+                .any(|invitation| invitation.member_id == account),
+            "a link refused offline left a row behind"
+        );
     }
 }

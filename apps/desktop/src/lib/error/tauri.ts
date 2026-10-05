@@ -62,6 +62,7 @@ export const TAURI_REFUSAL_REASONS = [
 	'linkNotAnInvitation',
 	'linkNotForAMachine',
 	'anotherOrganizationHeld',
+	'linkLifetime',
 	'credentialsWrong',
 	'passwordTooShort',
 	'passwordChangeRequired',

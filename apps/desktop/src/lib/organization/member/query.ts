@@ -252,7 +252,8 @@ export const useAcceptOwnership = declareMutation({
  * because an invitation-kind link leaves a pending mark on the account's row.
  */
 export const useMakeMemberLink = declareMutation({
-	mutate: ({ memberId }: { memberId: string }) => api.organization.member.linkMake({ memberId }),
+	mutate: ({ memberId, lifetimeHours }: { memberId: string; lifetimeHours: number }) =>
+		api.organization.member.linkMake({ memberId, lifetimeHours }),
 	touches: 'none',
 	toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() },
 	invalidates: [keys.members],

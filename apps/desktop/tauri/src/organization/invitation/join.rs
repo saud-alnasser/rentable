@@ -537,7 +537,7 @@ mod tests {
         organization::{
             HeldOrganization,
             invitation::{
-                INVITATION_LIFETIME_MS, Invitation, WorkspaceGrant, connect,
+                Invitation, TEST_LIFETIME_MS, WorkspaceGrant, connect,
                 link::{
                     CODE_MISSING, CODE_REFUSED, Half, HalfKind, JoinLink, LinkKind, Locator,
                     open_payload,
@@ -866,7 +866,7 @@ mod tests {
         assert_eq!(shape.kind, LinkKind::Invitation);
         assert_eq!(
             shape.expires_at,
-            ISSUED_AT + INVITATION_LIFETIME_MS,
+            ISSUED_AT + TEST_LIFETIME_MS,
             "the invitation link does not lapse with its row"
         );
 
@@ -1005,7 +1005,7 @@ mod tests {
         );
         assert_eq!(
             invitation_of(&store, &owner, &member.member_id).await,
-            Some((ISSUED_AT + INVITATION_LIFETIME_MS, Some(ISSUED_AT + 3))),
+            Some((ISSUED_AT + TEST_LIFETIME_MS, Some(ISSUED_AT + 3))),
             "the invitation was not spent"
         );
 
@@ -1089,7 +1089,7 @@ mod tests {
         );
         assert_eq!(
             invitation_of(&store, &owner, &member.member_id).await,
-            Some((ISSUED_AT + INVITATION_LIFETIME_MS, Some(ISSUED_AT + 3))),
+            Some((ISSUED_AT + TEST_LIFETIME_MS, Some(ISSUED_AT + 3))),
             "the second opening moved the invitation"
         );
 
@@ -1202,7 +1202,7 @@ mod tests {
         );
         assert_eq!(
             invitation_of(&store, &owner, &member_id).await,
-            Some((ISSUED_AT + INVITATION_LIFETIME_MS, Some(ISSUED_AT + 2))),
+            Some((ISSUED_AT + TEST_LIFETIME_MS, Some(ISSUED_AT + 2))),
             "a refusal moved the invitation"
         );
     }
@@ -1321,7 +1321,7 @@ mod tests {
         );
         assert_eq!(
             invitation_of(&store, &owner, &member_id).await,
-            Some((ISSUED_AT + INVITATION_LIFETIME_MS, None)),
+            Some((ISSUED_AT + TEST_LIFETIME_MS, None)),
             "a refusal spent the invitation"
         );
     }
@@ -1408,7 +1408,7 @@ mod tests {
         .await
         .expect("the second invitation failed");
         let their_link = JoinLink::decode(&late.join_link).expect("the link");
-        let after = ISSUED_AT + INVITATION_LIFETIME_MS;
+        let after = ISSUED_AT + TEST_LIFETIME_MS;
         let theirs = scratch("lapsed-machine");
 
         let (mut machine, refused) = opened(
@@ -1491,7 +1491,7 @@ mod tests {
         assert!(!member.must_change_password);
         assert_eq!(
             invitation_of(&store, &owner, &late.member_id).await,
-            Some((after + INVITATION_LIFETIME_MS, Some(after + 1)))
+            Some((after + TEST_LIFETIME_MS, Some(after + 1)))
         );
     }
 
@@ -1709,7 +1709,7 @@ mod tests {
         let sealed = invitation.credential.clone();
         let theirs = scratch("code-machine");
 
-        assert_eq!(half.expires_at, ISSUED_AT + INVITATION_LIFETIME_MS);
+        assert_eq!(half.expires_at, ISSUED_AT + TEST_LIFETIME_MS);
         assert_eq!(code.chars().count(), 6, "the code is not six characters");
         assert!(
             code.chars().all(|character| character.is_ascii_digit()

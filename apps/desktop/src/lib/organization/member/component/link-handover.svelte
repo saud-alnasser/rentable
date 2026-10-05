@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
-	import { formatRecordDate } from '$lib/date';
+	import { formatLocaleMoment } from '$lib/platform/locale';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import CopyIcon from '@lucide/svelte/icons/copy';
 
@@ -11,7 +11,7 @@
 	 * **One block for both kinds of link** (effort 828, requirements 1 and 20). A link for an
 	 * account whose password is not yet set and one for an account that has a password end the
 	 * same way: one link that is sent and one code that is read out, lapsing together on a date
-	 * this prints. Drawing them twice is how the two drift, and the half that would drift first is
+	 * this prints with its time of day. Drawing them twice is how the two drift, and the half that would drift first is
 	 * the one sentence on the panel a person has to act on.
 	 *
 	 * **The code has no copy control, and that is the point.** Copying it is how it ends up pasted
@@ -20,8 +20,10 @@
 	 * in one place is a link that opens on its own. The one affordance the code gets is being
 	 * large enough to read out loud.
 	 *
-	 * **A date rather than a countdown.** A code lives exactly as long as the link it came with, a
-	 * week or less, so what the person handing it over needs is the day it stops working. What
+	 * **A date and a time rather than a countdown.** A code lives exactly as long as the link it came
+	 * with, an hour to a week as its maker chose, so what the person handing it over needs is the
+	 * moment it stops working, to the minute where the link lasts hours (effort 851, requirement
+	 * 11). What
 	 * actually refuses a lapsed link is the other machine's read of the link's own moment, so this
 	 * is a fact and never the barrier. *Effort 826 drew a ninety-second countdown and a fresh-code
 	 * control; a fresh code would be a fresh link text to re-send.*
@@ -55,15 +57,15 @@
 		linkLabel: string;
 		link: string;
 		code: string;
-		/** the moment the link and the code lapse together, printed as a date. */
+		/** the moment the link and the code lapse together, printed as a date and a time. */
 		expiresAt: number;
 		/** whether the link was just copied, so the control can say so. */
 		copied: boolean;
 		onCopy: () => void;
 	} = $props();
 
-	/** the date the pair lapses, in the reader's own locale. */
-	const lapsesOn = $derived(formatRecordDate($locale, expiresAt));
+	/** the moment the pair lapses, with its time of day, in the reader's own locale. */
+	const lapsesOn = $derived(formatLocaleMoment($locale, expiresAt));
 </script>
 
 <div class="space-y-4" data-link-handover>

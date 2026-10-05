@@ -121,8 +121,8 @@ export const tauri = {
 				overrideMask: override,
 				workspaces
 			}),
-		linkMake: (memberId: string) =>
-			invoke<MadeLink>('plugin:organization|invitation_link_make', { memberId }),
+		linkMake: (memberId: string, lifetimeHours: number) =>
+			invoke<MadeLink>('plugin:organization|invitation_link_make', { memberId, lifetimeHours }),
 		unsetPassword: (memberId: string) =>
 			invoke<UnreachableWorkspace[]>('plugin:organization|invitation_password_unset', { memberId }),
 		remove: (memberId: string, lockOut: boolean) =>

@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [03]
 ---
 
@@ -15,12 +15,12 @@ Making a link asks how long it and its code last, from one hour to one week in t
 
 Traces requirement 11 and criterion 11.
 
-- [ ] `make_link` and its command and router take `lifetimeHours`; Rust refuses any value outside {1..23, 24, 48, 72, 96, 120, 144, 168} with a new `RefusalReason::LinkLifetime`; the router's zod schema says the same; `INVITATION_LIFETIME_MS` retires and `link_expiry` is `min(now + lifetime, credential expiry)`.
-- [ ] Where `owner_platform` answers for the maker's organization, `make_link` mints a token for the organization database with `expiration` equal to the lifetime and seals it in place of the maker's grant; otherwise it seals the maker's grant. The Turso duration for hours is checked against [[references/turso]] and written in minutes where `h` is not accepted; the reference records what was confirmed.
-- [ ] Rust tests: links made with 1 hour, 72 hours and 168 hours carry exactly that expiry, or the credential's death where sooner; 0, 25, 169 and 200 hours are refused; a link opened past its expiry is refused as lapsed; on an owner's machine (in-memory platform) the sealed credential's own `exp` equals the link's expiry, on a manager's it is the manager's grant.
-- [ ] The link act offers the lifetime as a choice (`primitive/select`, per [[contexts/desktop/components]], *choose a value*) listing 1 to 23 hours, 1 to 6 days and 1 week in that order, starting at 3 days, in English and Arabic with the reader's digits; the handover (`link-handover.svelte`) prints the lapse with date and time in the reader's locale. Component tests cover both.
-- [ ] Offline, an owner's link is refused with the network sentence the link act already uses, never sealed with the grant instead.
-- [ ] A changeset.
+- [x] `make_link` and its command and router take `lifetimeHours`; Rust refuses any value outside {1..23, 24, 48, 72, 96, 120, 144, 168} with a new `RefusalReason::LinkLifetime`; the router's zod schema says the same; `INVITATION_LIFETIME_MS` retires and `link_expiry` is `min(now + lifetime, credential expiry)`.
+- [x] Where `owner_platform` answers for the maker's organization, `make_link` mints a token for the organization database with `expiration` equal to the lifetime and seals it in place of the maker's grant; otherwise it seals the maker's grant. The Turso duration for hours is checked against [[references/turso]] and written in minutes where `h` is not accepted; the reference records what was confirmed.
+- [x] Rust tests: links made with 1 hour, 72 hours and 168 hours carry exactly that expiry, or the credential's death where sooner; 0, 25, 169 and 200 hours are refused; a link opened past its expiry is refused as lapsed; on an owner's machine (in-memory platform) the sealed credential's own `exp` equals the link's expiry, on a manager's it is the manager's grant.
+- [x] The link act offers the lifetime as a choice (`primitive/select`, per [[contexts/desktop/components]], *choose a value*) listing 1 to 23 hours, 1 to 6 days and 1 week in that order, starting at 3 days, in English and Arabic with the reader's digits; the handover (`link-handover.svelte`) prints the lapse with date and time in the reader's locale. Component tests cover both.
+- [x] Offline, an owner's link is refused with the network sentence the link act already uses, never sealed with the grant instead.
+- [x] A changeset.
 
 ## Relevant areas
 

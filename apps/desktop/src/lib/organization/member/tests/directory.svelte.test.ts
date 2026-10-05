@@ -1034,9 +1034,16 @@ test('signing a member out of every machine is offered behind reset password, an
 test('a card hands its own account to the link, the reset and the removals', async () => {
 	list();
 
+	// the link asks how long it lasts first, at three days until changed (effort 851, requirement
+	// 11), and is made once that is answered.
 	await press('sami', 'link');
+	expect(written('useMakeMemberLink')).toEqual([]);
+	expect(document.querySelector('[data-link-lifetime]')?.getAttribute('data-link-lifetime')).toBe(
+		'72'
+	);
+	await fireEvent.click(screen.getByRole('button', { name: en.organization.dashboard.makeLink }));
 	await waitFor(() => {
-		expect(written('useMakeMemberLink')).toEqual([{ memberId: 'sami' }]);
+		expect(written('useMakeMemberLink')).toEqual([{ memberId: 'sami', lifetimeHours: 72 }]);
 	});
 	// the link is shown once, on the one panel the shell holds for it.
 	await waitFor(() => {

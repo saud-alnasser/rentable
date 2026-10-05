@@ -1080,6 +1080,10 @@ type RootTranslation = {
 				 */
 				anotherOrganizationHeld: string;
 				/**
+				 * a​ ​l​i​n​k​ ​l​a​s​t​s​ ​f​r​o​m​ ​a​n​ ​h​o​u​r​ ​t​o​ ​a​ ​w​e​e​k​.​ ​c​h​o​o​s​e​ ​o​n​e​ ​o​f​ ​t​h​e​ ​l​i​f​e​t​i​m​e​s​ ​o​f​f​e​r​e​d​.
+				 */
+				linkLifetime: string;
+				/**
 				 * t​h​e​ ​u​s​e​r​n​a​m​e​ ​o​r​ ​p​a​s​s​w​o​r​d​ ​i​s​ ​w​r​o​n​g​.
 				 */
 				credentialsWrong: string;
@@ -4063,6 +4067,19 @@ type RootTranslation = {
 			 */
 			makeLink: string;
 			/**
+			 * f​o​r​ ​{​u​s​e​r​n​a​m​e​}
+			 * @param {string} username
+			 */
+			linkFor: RequiredParams<'username'>;
+			/**
+			 * l​a​s​t​s
+			 */
+			linkLifetime: string;
+			/**
+			 * t​h​e​ ​l​i​n​k​ ​a​n​d​ ​i​t​s​ ​c​o​d​e​ ​s​t​o​p​ ​w​o​r​k​i​n​g​ ​t​o​g​e​t​h​e​r​ ​a​f​t​e​r​ ​t​h​i​s​.
+			 */
+			linkLifetimeDescription: string;
+			/**
 			 * t​r​a​n​s​f​e​r​ ​o​w​n​e​r​s​h​i​p
 			 */
 			transferOwnership: string;
@@ -6121,6 +6138,10 @@ export type TranslationFunctions = {
 				 * this machine already holds another organization. disconnect it first.
 				 */
 				anotherOrganizationHeld: () => LocalizedString;
+				/**
+				 * a link lasts from an hour to a week. choose one of the lifetimes offered.
+				 */
+				linkLifetime: () => LocalizedString;
 				/**
 				 * the username or password is wrong.
 				 */
@@ -8990,6 +9011,18 @@ export type TranslationFunctions = {
 			 * make a link
 			 */
 			makeLink: () => LocalizedString;
+			/**
+			 * for {username}
+			 */
+			linkFor: (arg: { username: string }) => LocalizedString;
+			/**
+			 * lasts
+			 */
+			linkLifetime: () => LocalizedString;
+			/**
+			 * the link and its code stop working together after this.
+			 */
+			linkLifetimeDescription: () => LocalizedString;
 			/**
 			 * transfer ownership
 			 */

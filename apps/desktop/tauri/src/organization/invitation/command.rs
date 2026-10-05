@@ -63,7 +63,9 @@ pub(crate) async fn organization_invitation_member_create(
 /// password is not yet set gets an invitation-kind link, which asks the person opening it to
 /// choose a password; one that has a password gets a machine-kind link, which lands the machine at
 /// the wall. No standing refuses it: an account is held on as many machines as it is given links
-/// for, and each link admits one of them, once.
+/// for, and each link admits one of them, once. **The caller chooses how long it lasts**,
+/// `lifetimeHours` on the wire, and `invitation::make_link` refuses a lifetime off the steps
+/// (effort 851, requirement 11).
 ///
 /// **Both halves cross, and neither is a credential** ([[rules/credentials]], *Client boundary*).
 /// The link's text carries the credential sealed and the code is what the person reads off the
@@ -75,7 +77,11 @@ pub(crate) async fn organization_invitation_link_make(
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
     member_id: String,
+    lifetime_hours: i64,
 ) -> Result<MadeLink, Error> {
+    // where this machine holds the organization's consent the link carries a credential minted to
+    // die with it, so the platform decides what is sealed as well as what is granted (effort 851,
+    // requirement 11).
     let platform = owner_platform(&app_state, &credentials).await;
     // an invitation-kind link writes the account's row back whole, and that row carries the
     // session epoch, so it is read after a pull rather than off this machine's last sight of it
@@ -90,6 +96,7 @@ pub(crate) async fn organization_invitation_link_make(
             platform.as_ref(),
             &locator,
             &member_id,
+            lifetime_hours,
             invitation::INVITED_KDF,
             clock.now(),
         )

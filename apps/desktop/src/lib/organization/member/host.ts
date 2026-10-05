@@ -107,7 +107,10 @@ export type MadeLink = {
 	link: string;
 	/** six characters from the alphabet with the letters that read alike taken out. */
 	code: string;
-	/** the earlier of a week out and the moment the maker's own grant on the database dies. */
+	/**
+	 * the earlier of the lifetime its maker chose and the moment the credential sealed in it dies
+	 * (effort 851, requirement 11).
+	 */
 	expiresAt: number;
 	/**
 	 * the workspaces the link could not carry over, taken off the account's row: a grant the
@@ -152,9 +155,11 @@ export type MemberHost = {
 	 * make the one link that admits a machine to an account. The account's standing chooses
 	 * the kind: one whose password is not yet set gets a link that asks the person to
 	 * choose one, and one that has a password gets a link that lands the machine at the
-	 * wall. No standing refuses it, and each link admits one more machine, once.
+	 * wall. No standing refuses it, and each link admits one more machine, once. It lasts
+	 * `lifetimeHours`, one of `LINK_LIFETIME_HOURS` (`./link-lifetime.ts`), which Rust refuses
+	 * anything else of (effort 851, requirement 11).
 	 */
-	linkMake: (memberId: string) => Promise<MadeLink>;
+	linkMake: (memberId: string, lifetimeHours: number) => Promise<MadeLink>;
 	/**
 	 * unset a member's password: a fresh vault under a fresh secret, everything the
 	 * resetting member reaches re-sealed to it, and the requirement to choose a

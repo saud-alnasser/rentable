@@ -75,6 +75,13 @@ export function formatLocaleDate(
 export const formatRecordDate = (locale: Locales, value: number | string | Date) =>
 	formatLocaleDate(locale, value, { dateStyle: 'medium', timeZone: 'UTC' });
 
+/**
+ * A moment as a date and the time of day, in the reader's own time zone: when something lapses,
+ * which is a moment rather than one of the domain's whole UTC days (effort 851, requirement 11).
+ */
+export const formatLocaleMoment = (locale: Locales, value: number | string | Date) =>
+	formatLocaleDate(locale, value, { dateStyle: 'medium', timeStyle: 'short' });
+
 const SECOND = 1_000;
 const MINUTE = 60 * SECOND;
 const HOUR = 60 * MINUTE;

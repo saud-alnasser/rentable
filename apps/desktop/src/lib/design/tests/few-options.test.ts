@@ -55,6 +55,11 @@ function fewOptionSelects(source: string) {
  */
 const DRAWN_ALLOWED = [
 	{
+		label: 'lib/organization/member/component/link-form.svelte',
+		drawnFrom: 'LINK_LIFETIME_HOURS',
+		why: 'thirty lifetimes a link may last, every hour to a day, every day to a week, and a week'
+	},
+	{
 		label: 'lib/organization/member/component/offer-ownership.svelte',
 		drawnFrom: 'accounts',
 		why: 'another record: every account the organization could be handed to'

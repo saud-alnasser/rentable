@@ -111,6 +111,9 @@ pub enum RefusalReason {
     LinkNotForAMachine,
     /// this machine already holds another organization.
     AnotherOrganizationHeld,
+    /// a link was asked to last something other than an hour to a day in hours, or a day to a
+    /// week in days (effort 851, requirement 11).
+    LinkLifetime,
 
     // signing in, and the session behind it.
     /// the username and password do not open a place in the organization.

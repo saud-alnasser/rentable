@@ -281,7 +281,7 @@ mod tests {
         organization::{
             HeldOrganization,
             invitation::{
-                INVITATION_LIFETIME_MS, MadeLink, create_account, join,
+                MadeLink, TEST_LIFETIME_MS, create_account, join,
                 link::{CODE_REFUSED, JoinLink, LinkKind, LinkPayload, Locator, open_payload},
                 locator, make_link,
             },
@@ -415,6 +415,7 @@ mod tests {
             no_platform(),
             &locator,
             &account.id,
+            crate::organization::invitation::TEST_LIFETIME_HOURS,
             test_cost(),
             ISSUED_AT,
         )
@@ -518,6 +519,7 @@ mod tests {
             no_platform(),
             &locator,
             &member_id,
+            crate::organization::invitation::TEST_LIFETIME_HOURS,
             test_cost(),
             ISSUED_AT + 2,
         )
@@ -526,7 +528,7 @@ mod tests {
 
         assert_eq!(
             made.expires_at,
-            ISSUED_AT + 2 + INVITATION_LIFETIME_MS,
+            ISSUED_AT + 2 + TEST_LIFETIME_MS,
             "a link the grant does not cut short lapses a week out"
         );
         assert_eq!(
@@ -599,6 +601,7 @@ mod tests {
             no_platform(),
             &locator,
             &member_id,
+            crate::organization::invitation::TEST_LIFETIME_HOURS,
             test_cost(),
             ISSUED_AT + 2,
         )
@@ -807,6 +810,7 @@ mod tests {
             no_platform(),
             &locator,
             &member_id,
+            crate::organization::invitation::TEST_LIFETIME_HOURS,
             test_cost(),
             ISSUED_AT + 2,
         )
@@ -915,6 +919,7 @@ mod tests {
             no_platform(),
             &locator,
             &member_id,
+            crate::organization::invitation::TEST_LIFETIME_HOURS,
             test_cost(),
             ISSUED_AT + 2,
         )
@@ -995,6 +1000,7 @@ mod tests {
             no_platform(),
             &locator,
             &member_id,
+            crate::organization::invitation::TEST_LIFETIME_HOURS,
             test_cost(),
             now,
         )
@@ -1048,6 +1054,7 @@ mod tests {
             no_platform(),
             &locator,
             &member_id,
+            crate::organization::invitation::TEST_LIFETIME_HOURS,
             test_cost(),
             now + 1,
         )
@@ -1086,6 +1093,7 @@ mod tests {
             no_platform(),
             &locator,
             &member_id,
+            crate::organization::invitation::TEST_LIFETIME_HOURS,
             test_cost(),
             ISSUED_AT + 2,
         )
@@ -1138,7 +1146,7 @@ mod tests {
             .write_machine_link(&MachineLinkRecord {
                 id: half.id.clone(),
                 member_id: member_id.clone(),
-                expires_at: ISSUED_AT + INVITATION_LIFETIME_MS,
+                expires_at: ISSUED_AT + TEST_LIFETIME_MS,
                 consumed_at: None,
                 created_at: ISSUED_AT + 2,
             })
@@ -1187,6 +1195,7 @@ mod tests {
             no_platform(),
             &locator,
             &member_id,
+            crate::organization::invitation::TEST_LIFETIME_HOURS,
             test_cost(),
             ISSUED_AT + 2,
         )
@@ -1361,6 +1370,7 @@ mod tests {
             no_platform(),
             &locator,
             &member_id,
+            crate::organization::invitation::TEST_LIFETIME_HOURS,
             test_cost(),
             ISSUED_AT + 2,
         )

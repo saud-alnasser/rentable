@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/svelte';
 import { expect, test } from 'vitest';
 
 import { formatRecordDate } from '$lib/date';
+import { formatLocaleMoment } from '$lib/platform/locale';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import MadeLink from '$lib/organization/member/component/made-link.svelte';
@@ -30,8 +31,8 @@ const inProvider = (direction: 'ltr' | 'rtl') => ({
 	wrapperProps: { strings, direction }
 });
 
-/** when the link and its code lapse: a week out, which is what a link stands for. */
-const LAPSES_AT = Date.UTC(2026, 8, 22);
+/** when the link and its code lapse: a moment with a time of day, as a link lasting hours has. */
+const LAPSES_AT = Date.UTC(2026, 8, 22, 14, 30);
 
 const made = {
 	link: 'rentable://join/abc',
@@ -107,12 +108,14 @@ test('the code is under the link, with the date the pair lapses and no control t
 	expect(screen.getByText(en.organization.dashboard.codeTitle)).toBeDefined();
 	expect(screen.getByText(en.organization.dashboard.codeDescription)).toBeDefined();
 
-	// the date the link and the code lapse, said as the locale says a date.
+	// the moment the link and the code lapse, said as the locale says a date and a time of day:
+	// a link may last an hour, so the day alone is not when it stops (effort 851, requirement 11).
+	const lapses = formatLocaleMoment('en', LAPSES_AT);
+
+	expect(lapses).not.toBe(formatRecordDate('en', LAPSES_AT));
+	expect(lapses).toMatch(/\d{1,2}:\d{2}/);
 	expect(document.querySelector('[data-invited-expiry]')?.textContent?.trim()).toBe(
-		en.organization.dashboard.invitationExpires.replace(
-			'{date:string}',
-			formatRecordDate('en', LAPSES_AT)
-		)
+		en.organization.dashboard.invitationExpires.replace('{date:string}', lapses)
 	);
 
 	// no countdown, no fresh-code control, and no copy control for the code: the link has the only
@@ -133,6 +136,15 @@ test('the same panel in arabic says the same, and the link still reads left to r
 	expect(document.querySelector('[data-slot=form-surface]')?.getAttribute('dir')).toBe('rtl');
 	expect(document.querySelector('[data-invited-link]')?.getAttribute('dir')).toBe('ltr');
 	expect(screen.getByRole('button', { name: ar.organization.setup.copyLink })).toBeDefined();
+
+	// the lapse in the reader's own locale, with its time, in western digits.
+	const lapses = formatLocaleMoment('ar', LAPSES_AT);
+
+	expect(lapses).toMatch(/\d{1,2}:\d{2}/);
+	expect(lapses).not.toMatch(/[٠-٩]/);
+	expect(document.querySelector('[data-invited-expiry]')?.textContent?.trim()).toBe(
+		ar.organization.dashboard.invitationExpires.replace('{date}', lapses)
+	);
 
 	setLocale('en');
 });

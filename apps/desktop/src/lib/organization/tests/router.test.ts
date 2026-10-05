@@ -620,8 +620,8 @@ test('making a link is held to inviteMember or resetPassword, and connecting wit
 			...fakeHost().organization,
 			member: {
 				...fakeHost().organization.member,
-				linkMake: async (memberId) => {
-					asked.push(`linkMake:${memberId}`);
+				linkMake: async (memberId, lifetimeHours) => {
+					asked.push(`linkMake:${memberId}:${lifetimeHours}`);
 
 					return {
 						link: 'rentable://join/abc',
@@ -644,7 +644,7 @@ test('making a link is held to inviteMember or resetPassword, and connecting wit
 	const signedOut = await signedOutApi(host);
 
 	await assert.rejects(
-		signedOut.organization.member.linkMake({ memberId: 'member-2' }),
+		signedOut.organization.member.linkMake({ memberId: 'member-2', lifetimeHours: 72 }),
 		'a link was made by nobody'
 	);
 	assert.deepEqual(asked, []);
@@ -652,24 +652,40 @@ test('making a link is held to inviteMember or resetPassword, and connecting wit
 	// a member with no act of their own is refused before the host is reached.
 	const member = await permittedApi(host);
 
-	await assert.rejects(member.organization.member.linkMake({ memberId: 'member-2' }));
+	await assert.rejects(
+		member.organization.member.linkMake({ memberId: 'member-2', lifetimeHours: 72 })
+	);
 	assert.deepEqual(asked, []);
 
 	const inviting = await permittedApi(host, 'inviteMember');
-	const made = await inviting.organization.member.linkMake({ memberId: 'member-2' });
+	const made = await inviting.organization.member.linkMake({
+		memberId: 'member-2',
+		lifetimeHours: 72
+	});
 
 	assert.equal(made.code, '7K4M9Q');
 	assert.equal(made.link, 'rentable://join/abc');
-	assert.deepEqual(asked, ['linkMake:member-2']);
+	assert.deepEqual(asked, ['linkMake:member-2:72']);
+
+	// effort 851, requirement 11: the lifetime is one of the steps, every hour to a day, every day
+	// to a week, and a week; anything else is refused before the host is reached, as Rust refuses it.
+	for (const lifetimeHours of [0, 25, 169, 200, 1.5, -24]) {
+		await assert.rejects(
+			inviting.organization.member.linkMake({ memberId: 'member-2', lifetimeHours }),
+			`${lifetimeHours} hours made a link`
+		);
+	}
+
+	assert.deepEqual(asked, ['linkMake:member-2:72']);
 
 	// and a holder of the other act alone, who is whoever can take the password away.
 	const resetting = await permittedApi(host, 'resetPassword');
 
 	assert.equal(
-		(await resetting.organization.member.linkMake({ memberId: 'member-3' })).code,
+		(await resetting.organization.member.linkMake({ memberId: 'member-3', lifetimeHours: 1 })).code,
 		'7K4M9Q'
 	);
-	assert.deepEqual(asked, ['linkMake:member-2', 'linkMake:member-3']);
+	assert.deepEqual(asked, ['linkMake:member-2:72', 'linkMake:member-3:1']);
 
 	const connected = await signedOut.organization.machine.connect({
 		link: ' rentable://join/abc ',
@@ -679,8 +695,8 @@ test('making a link is held to inviteMember or resetPassword, and connecting wit
 	assert.equal(connected.organization?.memberId, null, 'a connect recorded a member');
 	assert.equal(connected.session, null, 'a connect opened a vault');
 	assert.deepEqual(asked, [
-		'linkMake:member-2',
-		'linkMake:member-3',
+		'linkMake:member-2:72',
+		'linkMake:member-3:1',
 		'machineConnect:rentable://join/abc:7K4M9Q'
 	]);
 
@@ -692,8 +708,8 @@ test('making a link is held to inviteMember or resetPassword, and connecting wit
 
 	await assert.rejects(signedOut.organization.machine.connect({ link: '  ', code: '7K4M9Q' }));
 	assert.deepEqual(asked, [
-		'linkMake:member-2',
-		'linkMake:member-3',
+		'linkMake:member-2:72',
+		'linkMake:member-3:1',
 		'machineConnect:rentable://join/abc:7K4M9Q'
 	]);
 });

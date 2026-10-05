@@ -69,7 +69,7 @@ export type MemberReader = {
 	canGrantWorkspace: boolean;
 };
 
-/** the member acts that run on the press and are waiting on the shell, while they are. */
+/** the member acts waiting on the shell, while they are. */
 export type MemberPending = {
 	linking: boolean;
 	unsetting: boolean;

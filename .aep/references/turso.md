@@ -97,7 +97,17 @@ GET    /v1/organizations/{org}/databases/{database}/configuration
 ```
 
 `expiration` takes Turso's own duration spelling — `2w1d30m` — and defaults to `never`, which
-is never what this repository wants. `authorization` is `full-access` or `read-only` and
+is never what this repository wants.
+
+**Hours are written in minutes** *(checked 2026-10-05, effort 851, requirement 11)*. The create-token
+page (<https://docs.turso.tech/api-reference/databases/create-token>) documents the spelling by that
+one example and lists no units, so what it confirms is `w`, `d` and `m`. `h` is not documented:
+the `1h` token minted live on 2026-09-11 (below) was accepted, but nobody read its `exp - iat`, so
+whether `h` means an hour was never measured. A link's credential, which `invitation::make_link`
+mints on the owner's machine to die with the link, is therefore written `<n>d` for a lifetime of
+whole days (`3d` was measured exactly, below) and `<n×60>m` under a day (`300m` for five hours),
+by `invitation::LinkLifetime::turso_expiration`. The other `1h` mints in the code are tests and
+copies and were left as they are. `authorization` is `full-access` or `read-only` and
 nothing finer; decision 01 found the fine-grained flags the CLI documents are not on this
 endpoint.
 

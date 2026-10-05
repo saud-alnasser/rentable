@@ -1954,6 +1954,7 @@ mod tests {
             no_platform(),
             &link,
             &account.id,
+            crate::organization::invitation::TEST_LIFETIME_HOURS,
             test_cost(),
             AT,
         )

@@ -194,6 +194,10 @@ export const organization = {
 		// the card menu's words, one or two apiece: a menu is read at a glance, and the
 		// sentence a dialog opens with is the dialog's rather than the entry's.
 		makeLink: 'make a link',
+		// effort 851, requirement 11: the one choice a link is made with, and what it does.
+		linkFor: 'for {username:string}',
+		linkLifetime: 'lasts',
+		linkLifetimeDescription: 'the link and its code stop working together after this.',
 		// requirement 22: the two entries on the owner's own card, one at a time, and the
 		// acceptance the other person meets. Two plain words each, and the sentences that
 		// say what changes belong to the surfaces they open.
@@ -603,6 +607,7 @@ export const refusals = {
 			'this link is an invitation rather than a link for another machine. open it where you accept an invitation.',
 		anotherOrganizationHeld:
 			'this machine already holds another organization. disconnect it first.',
+		linkLifetime: 'a link lasts from an hour to a week. choose one of the lifetimes offered.',
 		credentialsWrong: 'the username or password is wrong.',
 		passwordTooShort: 'the password needs at least 12 characters.',
 		passwordChangeRequired: 'change your password before doing anything else.',

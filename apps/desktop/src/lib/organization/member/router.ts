@@ -22,6 +22,7 @@ import {
 import z from 'zod';
 
 import { MASK, ROLE_ID, refuseWriteWithoutView } from '../role/router';
+import { isLinkLifetime } from './link-lifetime';
 import { USERNAME_MAX, USERNAME_MIN, USERNAME_PATTERN } from './username-form';
 
 /**
@@ -134,9 +135,16 @@ export default {
 	 */
 	linkMake: procedure
 		.permittedAny('inviteMember', 'resetPassword')
-		.input(z.object({ memberId: z.string().trim().min(1) }))
+		.input(
+			z.object({
+				memberId: z.string().trim().min(1),
+				// one of the steps the maker is offered (effort 851, requirement 11); Rust refuses
+				// anything else as `linkLifetime`, and this is the earlier refusal.
+				lifetimeHours: z.number().int().refine(isLinkLifetime)
+			})
+		)
 		.mutation(async ({ input, ctx }): Promise<MadeLink> => {
-			return ctx.host.organization.member.linkMake(input.memberId);
+			return ctx.host.organization.member.linkMake(input.memberId, input.lifetimeHours);
 		}),
 	/**
 	 * A reset: the account's password unset, so the next link asks for a new one. It is
