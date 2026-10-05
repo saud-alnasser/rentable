@@ -26,17 +26,22 @@
 	 * **It asks once, through the one confirm the wall also mounts** (`disconnect-dialog.svelte`),
 	 * so the question reads the same on both surfaces. What happens after the confirm is the
 	 * route's: it calls the shell and the startup unit reads where the machine stands again, which
-	 * raises the screen a machine with nothing shows.
+	 * raises the screen a machine with nothing shows. The confirm says the Turso account goes only
+	 * where this machine holds the organization's consent (effort 851, criterion 5), so a member,
+	 * and an owner whose consent is not held here, are not told it.
 	 */
 	let {
 		organizationName,
 		isOwner = false,
+		holdsTursoAuthority = false,
 		onDisconnect
 	}: {
 		/** the organization this machine holds, which the confirm names. */
 		organizationName: string;
 		/** whether the reader owns the organization, which decides how the consequence reads. */
 		isOwner?: boolean;
+		/** whether this machine holds the organization's Turso consent, which the confirm says goes. */
+		holdsTursoAuthority?: boolean;
 		/** forget the organization on this machine; rejects with what the shared handler has said. */
 		onDisconnect: () => Promise<void>;
 	} = $props();
@@ -84,5 +89,6 @@
 		confirming = open;
 	}}
 	{organizationName}
+	forgetsTurso={holdsTursoAuthority}
 	{onDisconnect}
 />

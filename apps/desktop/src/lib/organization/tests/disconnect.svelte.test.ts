@@ -73,10 +73,12 @@ test('the owner reads that nothing on Turso changes', () => {
 	);
 });
 
+// an owner whose machine holds the organization's Turso consent is told it goes (effort 851,
+// criterion 5); without it the sentence leaves the account out, as the arabic case below reads.
 test('pressing the control asks once, naming the organization and what it costs', async () => {
 	loadLocale('en');
 	setLocale('en');
-	section();
+	section({ isOwner: true, holdsTursoAuthority: true });
 
 	await fireEvent.click(document.querySelector('[data-disconnect-open]')!);
 
@@ -174,7 +176,8 @@ test('and in arabic, the section and the confirm read in their own words', async
 	expect(document.querySelector('[data-slot="dialog-title"]')?.textContent).toBe(
 		ar.layout.signIn.disconnect
 	);
-	expect(paragraphs()[1]?.textContent?.trim()).toBe(ar.layout.signIn.disconnectDescription);
+	// a member holds no Turso consent, so the confirm does not say the account goes.
+	expect(paragraphs()[1]?.textContent?.trim()).toBe(ar.layout.signIn.disconnectDescriptionNoTurso);
 	expect(footer().at(-1)?.textContent?.trim()).toBe(ar.layout.signIn.disconnect);
 
 	setLocale('en');

@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(organization): the settings disconnect names the Turso consent only where this machine holds it
@@ -14,9 +14,9 @@ The disconnect in the organization tab's leaving card asks through the same conf
 
 Traces requirement 5 and criterion 5.
 
-- [ ] `organization/component/disconnect.svelte` takes whether this machine holds the organization's consent and passes it to `DisconnectDialog` as `forgetsTurso`; `leaving.svelte` passes its `holdsTursoAuthority`.
-- [ ] A component test: the leaving card's disconnect confirm carries the Turso clause for an owner holding the consent, and not for a member nor for an owner without it.
-- [ ] `pnpm test` and `pnpm check` pass.
+- [x] `organization/component/disconnect.svelte` takes whether this machine holds the organization's consent and passes it to `DisconnectDialog` as `forgetsTurso`; `leaving.svelte` passes its `holdsTursoAuthority`.
+- [x] A component test: the leaving card's disconnect confirm carries the Turso clause for an owner holding the consent, and not for a member nor for an owner without it.
+- [x] `pnpm test` and `pnpm check` pass.
 
 ## Relevant areas
 

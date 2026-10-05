@@ -1137,6 +1137,45 @@ test('a member leaves with the disconnect alone, its glyph and its consequence l
 	}
 });
 
+// effort 851, criterion 5: the leaving card's disconnect asks through the wall's confirm, and says
+// the Turso account is forgotten only where this machine holds the organization's consent. An
+// owner holding it is told; a member, and an owner whose consent is not here, are not.
+test('the disconnect confirm says the turso account goes only where this machine holds it', async () => {
+	const readers = [
+		{ role: 'owner', holdsTursoAuthority: true, forgetsTurso: true },
+		{ role: 'owner', holdsTursoAuthority: false, forgetsTurso: false },
+		{ role: 'member', holdsTursoAuthority: false, forgetsTurso: false }
+	] as const;
+
+	for (const { role, holdsTursoAuthority, forgetsTurso } of readers) {
+		const reader = `${role} ${holdsTursoAuthority ? 'holding' : 'without'} the consent`;
+
+		at('?section=organization');
+		const { unmount } = area({
+			section: 'organization',
+			session: fakeOrganizationSession({ role, permissions: BUILT_IN[role].mask }),
+			holdsTursoAuthority,
+			...OWNER_AND_ADA
+		});
+
+		await fireEvent.click(
+			document.querySelector<HTMLElement>('[data-leaving] [data-disconnect-open]')!
+		);
+
+		const dialog = await screen.findByRole('dialog');
+		const text = dialog.textContent ?? '';
+
+		expect(text, reader).toContain(fakeOrganizationSession().organizationName);
+		expect(text.includes(en.layout.signIn.disconnectDescription), reader).toBe(forgetsTurso);
+		expect(text.includes(en.layout.signIn.disconnectDescriptionNoTurso), reader).toBe(
+			!forgetsTurso
+		);
+
+		unmount();
+		await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+	}
+});
+
 // and an owner's holds the Turso account's row, then the transfer, the forget, the disconnect
 // and the delete, the acts as the group's error rows after its separator, the delete last and
 // saying nothing undoes it. No two share a glyph or a line, and every act's button is red words
