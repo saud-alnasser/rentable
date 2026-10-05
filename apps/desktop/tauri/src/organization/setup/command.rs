@@ -410,9 +410,12 @@ pub(crate) async fn rename(
     clock: &clock::Shared,
     name: &str,
 ) -> Result<OrganizationState, Error> {
+    // one moment for the signed row and this machine's latch on it, so the owner's own read of
+    // the row it just wrote is never older than what the entry holds.
+    let now = clock.now();
     let (organization_id, renamed) =
         as_member(app_state, Pull::No, async |Acting { member, store }| {
-            let renamed = setup::rename_organization(store, member, name, clock.now()).await?;
+            let renamed = setup::rename_organization(store, member, name, now).await?;
 
             Ok((member.organization_id.clone(), renamed))
         })
@@ -422,7 +425,7 @@ pub(crate) async fn rename(
         .remote_sync
         .write()
         .await
-        .rename_held_organization(&organization_id, &renamed)?;
+        .rename_held_organization(&organization_id, &renamed, now)?;
 
     state_of(app_state, credentials, clock).await
 }

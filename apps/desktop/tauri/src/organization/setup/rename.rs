@@ -54,13 +54,18 @@ pub(crate) fn organization_name(name: &str) -> Result<&str, Error> {
 /// of this build reads, under the root's signature, so a name nobody but the owner wrote is never
 /// shown (requirement 29). The unsigned column on `organization` gets the same sealed bytes, so a
 /// member on an earlier build, which reads only the column, sees the rename too, and a link made
-/// after it carries the new name, since a link names the organization from that column
+/// after it carries the new name, which a link reads from the signed row
 /// (`invitation::locator`, requirement 28). A link made before it still joins: it carries the
 /// organization's id and key, and the name in it is only what a refusal is said in the name of
 /// (requirement 27).
 ///
 /// A replica made before the signed name (one an earlier build pulled, not yet completed) is
 /// completed first, so the signed row has a table to go in.
+///
+/// **The new name is signed after the one it replaces**, at `now` or just past the name that
+/// verifies, whichever is later: a machine reads a signed name older than the last one it read as
+/// rolled back (`HeldOrganization::name_signed_at`), so a rename from an owner's machine whose
+/// clock runs behind would otherwise be read as one.
 pub async fn rename_organization(
     store: &OrganizationStore,
     session: &MemberSession,
@@ -92,6 +97,10 @@ pub async fn rename_organization(
         store.complete_schema().await?;
     }
 
+    let signed_at = match store.organization_name(&session.verifying_key).await? {
+        Some(current) => now.max(current.updated_at.saturating_add(1)),
+        None => now,
+    };
     let (key, certificate) = signer_of(store, session).await?;
     let name_sealed = seal_content(
         &session.content_key,
@@ -107,7 +116,7 @@ pub async fn rename_organization(
             },
             &OrganizationNameRecord {
                 name_sealed: name_sealed.clone(),
-                updated_at: now,
+                updated_at: signed_at,
             },
         )
         .await?;

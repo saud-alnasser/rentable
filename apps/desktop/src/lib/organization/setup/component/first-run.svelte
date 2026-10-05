@@ -163,8 +163,10 @@
 			const started = await beginConsent.mutateAsync();
 
 			// whatever refused the last one is answered by starting another, which is what this is,
-			// and that includes what Turso said about a group this consent may not even be over.
+			// and that includes what Turso said about a group this consent may not even be over, and
+			// the group field it asked for with it.
 			refusal = null;
+			askGroup = false;
 			groupDetail = null;
 			sessionId = started.sessionId;
 			await tauri.opener.openUrl(started.authorizationUrl);

@@ -651,6 +651,10 @@ pub const INVITED_KDF: KdfParams = SHIPPING_KDF;
 /// until requirement 16 retired that, and it answered a legible read-only credential off
 /// `organization.link_credential_sealed` that every caller but the link itself unsealed and threw
 /// away.*
+///
+/// **The name is the one the owner signed** (effort 851, requirements 28 and 29), where a signed
+/// row verifies; only an organization whose name nobody has signed yet names the unsigned
+/// `organization.name_sealed`, which every member can write.
 pub async fn locator(store: &OrganizationStore, session: &MemberSession) -> Result<Locator, Error> {
     let organization = store
         .organization()
@@ -658,11 +662,11 @@ pub async fn locator(store: &OrganizationStore, session: &MemberSession) -> Resu
         .ok_or_else(|| Error::Integrity {
             message: "the organization replica holds no organization row".to_string(),
         })?;
-    let name = opened(
-        session,
-        "organization.name_sealed",
-        &organization.name_sealed,
-    )?;
+    let name_sealed = match store.organization_name(&session.verifying_key).await? {
+        Some(signed) => signed.name_sealed,
+        None => organization.name_sealed,
+    };
+    let name = opened(session, "organization.name_sealed", &name_sealed)?;
 
     Ok(Locator::new(
         &organization.id,
@@ -905,6 +909,7 @@ mod tests {
             turso_organization: None,
             workspace_id: None,
             name_signed: false,
+            name_signed_at: 0,
             lock_marked: false,
             own_lock_latched: None,
         }

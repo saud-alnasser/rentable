@@ -7,7 +7,7 @@
 	import { Input } from '@rentable/design/primitive/input/index.js';
 	import DetailDisclosure from '$lib/error/component/detail-disclosure.svelte';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import { tick } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import type { SuperForm } from 'sveltekit-superforms';
 
 	import type { SetupField } from '../setup';
@@ -56,11 +56,14 @@
 
 	// the group field appears on the step the owner is already on, after a create Turso refused
 	// for want of it, and it is the one thing left to type: the cursor goes there, with everything
-	// else still as it was typed (effort 851, requirement 30).
+	// else still as it was typed (effort 851, requirement 30). **Only when it appears.** Arriving
+	// at the step with the group already asked for, after going back and on again, is arriving,
+	// and the cursor goes to the first field as it does on every arrival.
 	let groupField = $state<HTMLInputElement | null>(null);
+	const askedOnArrival = untrack(() => askGroup);
 
 	$effect(() => {
-		if (!groupField) return;
+		if (!groupField || askedOnArrival) return;
 
 		void tick().then(() => groupField?.focus());
 	});

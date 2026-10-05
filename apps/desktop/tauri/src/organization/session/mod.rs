@@ -686,12 +686,21 @@ pub async fn refresh_credentials(
 /// - **Where none verifies and `held.name_signed` is true**, the name `held` carries: a row that
 ///   is missing or forged, or an unsigned `name_sealed` written straight into the replica, is
 ///   never shown, and the last name that verified stays.
+///
+/// **A row the owner signed before the name this machine last read reads as one that does not
+/// verify** (`HeldOrganization::name_signed_at`). It is the owner's signature, but any member who
+/// can write the replica could have put an old row back, and it would roll every machine's name
+/// back with it. Reading a newer one moves the latch to it.
 pub(crate) async fn organization_name_of(
     store: &OrganizationStore,
     session: &MemberSession,
     held: &mut HeldOrganization,
 ) -> Result<String, Error> {
-    if let Some(signed) = store.organization_name(&session.verifying_key).await? {
+    if let Some(signed) = store
+        .organization_name(&session.verifying_key)
+        .await?
+        .filter(|signed| !held.name_signed || signed.updated_at >= held.name_signed_at)
+    {
         let name = opened(
             &session.content_key,
             "organization.name_sealed",
@@ -699,6 +708,7 @@ pub(crate) async fn organization_name_of(
         )?;
 
         held.name_signed = true;
+        held.name_signed_at = signed.updated_at;
 
         return Ok(name);
     }

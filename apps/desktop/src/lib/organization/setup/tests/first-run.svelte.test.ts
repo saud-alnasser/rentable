@@ -440,6 +440,54 @@ test('a create refused for want of the group keeps what was typed, asks for the 
 });
 
 /**
+ * Effort 843, requirement 8, beside effort 851's requirement 30: **arriving at the name step puts
+ * the cursor in its first field, even with the group already asked for.** The group field takes
+ * the cursor when it appears on the step the owner is on, and not again when they go back to the
+ * consent and on to the step.
+ */
+test('going back and on again after the group was asked for puts the cursor in the first field', async () => {
+	loadLocale('en');
+	setLocale('en');
+
+	await atTheWall();
+
+	hooks.createOrganization.mockImplementationOnce(async () => {
+		throw {
+			code: 'refused',
+			reason: 'groupNeeded',
+			message: 'turso refused every group this application could name on its own'
+		};
+	});
+
+	await walkToCreate();
+
+	await waitFor(() =>
+		expect(document.activeElement).toBe(document.querySelector('input[name="group"]'))
+	);
+
+	await fireEvent.click(screen.getByRole('button', { name: en.organization.setup.back }));
+	await waitFor(() => {
+		expect(document.querySelector('[data-setup-step]')?.getAttribute('data-setup-step')).toBe(
+			'connect'
+		);
+	});
+	await fireEvent.click(screen.getByRole('button', { name: en.organization.setup.continue }));
+	await waitFor(() => {
+		expect(document.querySelector('[data-setup-step]')?.getAttribute('data-setup-step')).toBe(
+			'name'
+		);
+	});
+
+	// the group is still asked for, and the cursor is in the first field all the same.
+	expect(document.querySelector('input[name="group"]')).not.toBeNull();
+	await waitFor(() =>
+		expect(document.activeElement).toBe(document.querySelector('input[name="name"]'))
+	);
+	await new Promise((resolve) => setTimeout(resolve, 20));
+	expect(document.activeElement).toBe(document.querySelector('input[name="name"]'));
+});
+
+/**
  * Effort 851, requirement 40: **a refused connect to the organization the account holds costs the
  * owner nothing they typed.** Driven through the real connect and its refusal, as the group's test
  * above is, because the fields were cleared by what the form does once its submit handler returns.

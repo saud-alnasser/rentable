@@ -579,6 +579,7 @@ async fn finish<P: TursoPlatform>(
         turso_organization: None,
         workspace_id: None,
         name_signed: false,
+        name_signed_at: 0,
         lock_marked: false,
         own_lock_latched: None,
     });

@@ -117,6 +117,14 @@ pub struct HeldOrganization {
     /// never falls back to the unsigned one (effort 851, the plan's *The organization's signed
     /// name*). False on every entry until that lands.
     pub name_signed: bool,
+    /// when the owner signed the name this machine last read signed, the signed row's own
+    /// `updated_at`, after which a row signed earlier reads as one that does not verify here: the
+    /// owner signed it, but a member who can write the replica could put it back, and every
+    /// machine would name what the organization was called before (effort 851, requirement 29).
+    /// The owner's machine signs its own name again over such a row
+    /// (`ownership::sign_organization_name`). 0 on an entry written before this field existed,
+    /// which the next signed name read sets.
+    pub name_signed_at: i64,
     /// whether this machine has read the organization's lock marker, the owner's own signed lock
     /// row, after which a member with no lock row that verifies reads as locked here whatever the
     /// replica later holds (effort 851, requirement 35). False on every entry until that lands.
@@ -902,24 +910,27 @@ impl RemoteSync {
 
     /// The name the owner just gave the organization, on this machine's own entry for it, so the
     /// wall and the switcher read it before anything is read again (effort 851, requirement 25).
-    /// The name is the one the owner signed, so the entry is latched to signed names as a read of
-    /// the signed row latches it (`HeldOrganization::name_signed`). An organization this machine
-    /// does not hold changes nothing.
+    /// The name is the one the owner signed at `signed_at`, so the entry is latched to signed
+    /// names, and to none signed before it, as a read of the signed row latches it
+    /// (`HeldOrganization::name_signed`, `HeldOrganization::name_signed_at`). An organization this
+    /// machine does not hold changes nothing.
     pub(crate) fn rename_held_organization(
         &mut self,
         organization_id: &str,
         name: &str,
+        signed_at: i64,
     ) -> Result<(), Error> {
         let Some(entry) = self.store.held_mut(organization_id) else {
             return Ok(());
         };
 
-        if entry.name == name && entry.name_signed {
+        if entry.name == name && entry.name_signed && entry.name_signed_at == signed_at {
             return Ok(());
         }
 
         entry.name = name.to_string();
         entry.name_signed = true;
+        entry.name_signed_at = signed_at;
 
         self.store.commit()
     }
@@ -1581,6 +1592,7 @@ mod tests {
         expected["tursoOrganization"] = released["tursoOrganization"].clone();
         expected["workspaceId"] = released["workspace"]["remoteId"].clone();
         expected["nameSigned"] = serde_json::Value::Bool(false);
+        expected["nameSignedAt"] = serde_json::Value::from(0);
         expected["lockMarked"] = serde_json::Value::Bool(false);
 
         assert_eq!(

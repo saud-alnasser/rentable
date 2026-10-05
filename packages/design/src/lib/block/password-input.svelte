@@ -176,3 +176,13 @@
 		</InputGroup.Button>
 	</InputGroup.Addon>
 </InputGroup.Root>
+
+<style>
+	/* Edge draws an eye of its own inside a password field, and WebView2 is Edge: a second eye
+	   beside this one, and a toggle that stays open where this one shows only while held
+	   (requirement 19). So it is not drawn, nor the clear button Edge draws beside it. */
+	:global([data-password-input] input::-ms-reveal),
+	:global([data-password-input] input::-ms-clear) {
+		display: none;
+	}
+</style>

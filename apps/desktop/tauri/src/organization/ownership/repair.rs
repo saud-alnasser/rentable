@@ -130,6 +130,12 @@ pub(in crate::organization) async fn repair_owner_row(
 /// pinned key, and the root certificate that names its signing key is live. Nothing is written
 /// where `held` is not known, where the replica lacks the table (one an earlier build made, before
 /// the pull that completes it), or where a signed name already verifies.
+///
+/// **A signed name older than the one this machine last read is signed over**
+/// (`HeldOrganization::name_signed_at`): it verifies, but it is a row the owner signed before, put
+/// back by a member who can write the replica, and every other machine reads it as one that does
+/// not verify. So the owner's machine signs the name its entry holds again, no earlier than the
+/// latch, and the name every machine shows moves forward to it.
 pub(in crate::organization) async fn sign_organization_name(
     store: &OrganizationStore,
     verifying_key: &[u8; VERIFYING_KEY_BYTES],
@@ -151,7 +157,10 @@ pub(in crate::organization) async fn sign_organization_name(
         .await?
         .iter()
         .any(|table| table == "organization_name")
-        || store.organization_name(verifying_key).await?.is_some()
+        || store
+            .organization_name(verifying_key)
+            .await?
+            .is_some_and(|signed| !held.name_signed || signed.updated_at >= held.name_signed_at)
     {
         return Ok(false);
     }
@@ -198,7 +207,8 @@ pub(in crate::organization) async fn sign_organization_name(
             },
             &OrganizationNameRecord {
                 name_sealed: name_sealed.clone(),
-                updated_at: now,
+                // never before the name this machine last read, which it would read as rolled back.
+                updated_at: now.max(held.name_signed_at),
             },
         )
         .await?;
@@ -322,6 +332,7 @@ mod tests {
             turso_organization: None,
             workspace_id: None,
             name_signed: false,
+            name_signed_at: 0,
             lock_marked: false,
             own_lock_latched: None,
         }
