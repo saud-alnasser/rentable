@@ -71,14 +71,19 @@ export const IMPORT_FLAGS: readonly CreateFlagOf<RecordKind>[] = RECORD_KINDS.ma
  * `workspacePermissionsIn`), and how their grant reaches this workspace. Both are kept, rather
  * than the folded value alone, because they give two different reasons: a flag the role and
  * overrides do not carry, and a flag a read-only grant took away.
+ *
+ * `locked` is the third reason (effort 851, requirement 32): a locked account holds the view flags
+ * alone, which `workspacePermissionsIn` has already folded into `permissions`, and is told why.
  */
-export type Standing = { permissions: number; accessLevel: AccessLevel };
+export type Standing = { permissions: number; accessLevel: AccessLevel; locked?: boolean };
 
 /**
  * Why the reader may not use a flag in the workspace open, in one line, or nothing where they may.
  *
  * **A read-only grant is the reason for every write**, whatever the role says: the grant is what
  * stands in the way, and a member told their role lacks a flag would ask for the wrong thing.
+ * **A lock comes before it**, for the same reason and one more: it is the account's and holds in
+ * every workspace, and it is what the notice at the top of the workspace already names.
  *
  * **Nothing is refused before the standing is known.** The session and the open workspace arrive
  * with the first reads after startup; refusing every record control until then would draw each
@@ -91,6 +96,10 @@ export function refusalOf(
 ): string | undefined {
 	if (!standing || permits(effectiveIn(standing.permissions, standing.accessLevel), flag)) {
 		return undefined;
+	}
+
+	if (standing.locked && WRITE_FLAGS.includes(flag)) {
+		return t.common.permission.locked();
 	}
 
 	if (standing.accessLevel === 'read-only' && WRITE_FLAGS.includes(flag)) {

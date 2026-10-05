@@ -106,6 +106,7 @@ vi.mock('$app/navigation', async (importOriginal) => ({
 const OWNER: RoleReader = {
 	rank: BUILT_IN.owner.rank,
 	canManageRoles: true,
+	locked: false,
 	permissions: BUILT_IN.owner.mask
 };
 
@@ -483,7 +484,7 @@ test('a reader without manageRoles is refused every act, naming the flag', async
 		en.organization.flags.manageRoles
 	);
 
-	block({ rank: 0, canManageRoles: false, permissions: BUILT_IN.member.mask });
+	block({ rank: 0, canManageRoles: false, locked: false, permissions: BUILT_IN.member.mask });
 
 	const edit = (await openTo('collector', 'role.edit'))!;
 
@@ -503,7 +504,7 @@ test('a reader without manageRoles is refused every act, naming the flag', async
 
 // the rank: a reader in the supervisor's role changes the roles below it and none at or above.
 test('a role not below the reader is refused, saying so', async () => {
-	block({ rank: 750_000, canManageRoles: true, permissions: BUILT_IN.manager.mask });
+	block({ rank: 750_000, canManageRoles: true, locked: false, permissions: BUILT_IN.manager.mask });
 
 	const edit = (await openTo('supervisor', 'role.edit'))!;
 
@@ -523,6 +524,7 @@ test('in the editor, a flag the reader does not hold is refused at its switch', 
 	block({
 		rank: BUILT_IN.manager.rank,
 		canManageRoles: true,
+		locked: false,
 		permissions: BUILT_IN.manager.mask - maskOf('deleteContract')
 	});
 
@@ -549,7 +551,7 @@ test('a new role opens on the member flags less the ones its maker does not hold
 	const held = BUILT_IN.manager.mask - maskOf('editPayment');
 
 	hostAnswers.session = fakeOrganizationSession({ permissions: held });
-	block({ rank: BUILT_IN.manager.rank, canManageRoles: true, permissions: held });
+	block({ rank: BUILT_IN.manager.rank, canManageRoles: true, locked: false, permissions: held });
 
 	await fireEvent.click(document.querySelector<HTMLElement>('[data-role-add]')!);
 	await unfold();
@@ -592,9 +594,11 @@ const lina = fakeOrganizationMember({
 test('a delete that would move a holder flag the reader does not hold is refused, naming both', async () => {
 	const held = BUILT_IN.manager.mask - maskOf('deleteTenant');
 
-	block({ rank: BUILT_IN.manager.rank, canManageRoles: true, permissions: held }, undefined, [
-		lina
-	]);
+	block(
+		{ rank: BUILT_IN.manager.rank, canManageRoles: true, locked: false, permissions: held },
+		undefined,
+		[lina]
+	);
 
 	const remove = (await openTo('collector', 'role.delete'))!;
 

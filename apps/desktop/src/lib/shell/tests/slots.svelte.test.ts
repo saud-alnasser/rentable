@@ -2,6 +2,7 @@ import { expect, test } from 'vitest';
 
 import { slotsAt } from '$lib/app/surfaces';
 import OrganizationDialogs from '$lib/organization/component/dialogs.svelte';
+import OrganizationLockedNotice from '$lib/organization/component/locked-notice.svelte';
 import OrganizationRailRow from '$lib/organization/component/rail-row.svelte';
 import WorkspaceRailRow from '$lib/workspace/component/rail-row.svelte';
 
@@ -25,4 +26,8 @@ test('the foot of the rail is the account row', () => {
 
 test('beside the frame are the organization dialogs', () => {
 	expect(slotsAt('dialogs')).toEqual([OrganizationDialogs]);
+});
+
+test('above every screen is the locked notice', () => {
+	expect(slotsAt('notice')).toEqual([OrganizationLockedNotice]);
 });

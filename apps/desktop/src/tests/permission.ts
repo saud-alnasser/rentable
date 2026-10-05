@@ -25,6 +25,18 @@ export function holdReadOnly() {
 	memberPermissions.hold({ permissions: maskOf(...EVERY_FLAG), accessLevel: 'read-only' });
 }
 
+/**
+ * hold a locked reader whose role carries every flag, on a full-access grant: what the frame holds
+ * for them, the view flags alone, folded as the context folds them (effort 851, requirement 32).
+ */
+export function holdLocked() {
+	memberPermissions.hold({
+		permissions: maskOf(...EVERY_FLAG.filter((flag) => flag.startsWith('view'))),
+		accessLevel: 'full-access',
+		locked: true
+	});
+}
+
 /** forget the reader, as signing out does. */
 export function forgetReader() {
 	memberPermissions.hold(null);

@@ -148,6 +148,22 @@ export const useEndMemberSessions = declareMutation({
 });
 
 /**
+ * unlock a member who has set a password of their own (effort 851, requirement 34), so they may do
+ * what their role allows. Their card's standing is under the members' key, so the badge goes with
+ * the list read again.
+ */
+export const useUnlockMember = declareMutation({
+	mutate: ({ memberId }: { memberId: string }) => api.organization.member.unlock({ memberId }),
+	touches: 'none',
+	toast: {
+		success: () => get(LL).organization.dashboard.unlocked(),
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
+	},
+	invalidates: [keys.members]
+});
+
+/**
  * give a member a role (effort 838, requirement 5), and the override with it where one is given,
  * as one act (ticket 14). The refusals a person can act on (the member or the role ranking at or
  * above the reader, a flag the reader does not hold) arrive as the shell's refusals and read as

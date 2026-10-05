@@ -10,6 +10,7 @@
 	import { toCardActions } from '$lib/act';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { lacking, type RoleActRecord, type RoleReader } from '$lib/organization/role/acts';
+	import { lockedRefusal } from '$lib/organization/locked';
 	import DirectoryTray from '$lib/organization/component/directory-tray.svelte';
 	import DirectoryGrid from '$lib/organization/component/directory-grid.svelte';
 	import { toRoleDirectory } from '$lib/organization/directory';
@@ -137,7 +138,8 @@
 	<CreateControl
 		label={$LL.organization.roleList.add()}
 		onCreate={() => roleHost.create()}
-		unavailable={reader.canManageRoles ? undefined : lacking($LL, 'manageRoles')}
+		unavailable={lockedRefusal(reader.locked, $LL) ??
+			(reader.canManageRoles ? undefined : lacking($LL, 'manageRoles'))}
 		data-role-add
 	/>
 {/snippet}

@@ -28,7 +28,8 @@
 			session && workspace
 				? {
 						permissions: workspacePermissionsIn(session, workspace.remoteId),
-						accessLevel: accessIn(session, workspace.remoteId)
+						accessLevel: accessIn(session, workspace.remoteId),
+						locked: session.locked
 					}
 				: null
 		);

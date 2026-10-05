@@ -35,6 +35,7 @@
 	import CalendarPlusIcon from '@lucide/svelte/icons/calendar-plus';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 	import UsersIcon from '@lucide/svelte/icons/users';
+	import { lockedRefusal } from '$lib/organization/locked';
 	import { permits } from '@rentable/workspace-permission';
 	import AddSheet, { type HolderCandidate } from './add-sheet.svelte';
 	import Holders, { type HolderCard } from './holders.svelte';
@@ -192,9 +193,11 @@
 				givable: workspace?.accessLevel === 'full-access'
 			},
 			'none',
-			session && permits(session.permissions, 'grantWorkspace')
-				? null
-				: lacking($LL, 'grantWorkspace'),
+			// a locked reader is told the lock, the reason that holds whatever their row carries.
+			(session && lockedRefusal(session.locked, $LL)) ??
+				(session && permits(session.permissions, 'grantWorkspace')
+					? null
+					: lacking($LL, 'grantWorkspace')),
 			$LL.organization.workspaceSwitches.notHeld()
 		)
 	);

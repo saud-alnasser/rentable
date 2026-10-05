@@ -921,6 +921,10 @@ type RootTranslation = {
 			 * y​o​u​r​ ​a​c​c​e​s​s​ ​t​o​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​i​s​ ​r​e​a​d​ ​o​n​l​y​,​ ​s​o​ ​n​o​t​h​i​n​g​ ​i​n​ ​i​t​ ​c​a​n​ ​b​e​ ​c​h​a​n​g​e​d​.
 			 */
 			readOnly: string;
+			/**
+			 * y​o​u​r​ ​a​c​c​o​u​n​t​ ​i​s​ ​l​o​c​k​e​d​,​ ​s​o​ ​n​o​t​h​i​n​g​ ​c​a​n​ ​b​e​ ​c​h​a​n​g​e​d​ ​u​n​t​i​l​ ​a​n​ ​o​w​n​e​r​ ​o​r​ ​a​ ​m​a​n​a​g​e​r​ ​u​n​l​o​c​k​s​ ​i​t​.
+			 */
+			locked: string;
 		};
 		refusals: {
 			complex: {
@@ -4016,6 +4020,14 @@ type RootTranslation = {
 				 * o​f​f​e​r​e​d​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n
 				 */
 				offered: string;
+				/**
+				 * l​o​c​k​e​d
+				 */
+				locked: string;
+				/**
+				 * n​o​t​ ​s​i​g​n​e​d​ ​i​n​ ​y​e​t
+				 */
+				notSignedInYet: string;
 			};
 			/**
 			 * a​ ​n​e​w​ ​m​e​m​b​e​r
@@ -4165,6 +4177,18 @@ type RootTranslation = {
 			 * t​h​e​y​ ​w​e​r​e​ ​s​i​g​n​e​d​ ​o​u​t​ ​o​f​ ​e​v​e​r​y​ ​m​a​c​h​i​n​e​.
 			 */
 			sessionsEnded: string;
+			/**
+			 * u​n​l​o​c​k
+			 */
+			unlock: string;
+			/**
+			 * t​h​e​y​ ​c​a​n​ ​a​d​d​,​ ​e​d​i​t​ ​a​n​d​ ​d​e​l​e​t​e​ ​w​h​a​t​ ​t​h​e​i​r​ ​r​o​l​e​ ​a​l​l​o​w​s​.​ ​a​ ​p​a​s​s​w​o​r​d​ ​r​e​s​e​t​ ​l​o​c​k​s​ ​t​h​e​m​ ​a​g​a​i​n​.
+			 */
+			unlockAsks: string;
+			/**
+			 * t​h​e​y​ ​w​e​r​e​ ​u​n​l​o​c​k​e​d​.​ ​t​h​e​y​ ​c​a​n​ ​d​o​ ​w​h​a​t​ ​t​h​e​i​r​ ​r​o​l​e​ ​a​l​l​o​w​s​.
+			 */
+			unlocked: string;
 			/**
 			 * t​h​i​s​ ​m​a​c​h​i​n​e​ ​i​s​ ​o​f​f​l​i​n​e​;​ ​t​h​e​ ​s​i​g​n​-​o​u​t​ ​r​e​a​c​h​e​s​ ​t​h​e​i​r​ ​m​a​c​h​i​n​e​s​ ​o​n​c​e​ ​i​t​ ​i​s​ ​b​a​c​k​ ​o​n​l​i​n​e​.
 			 */
@@ -5987,6 +6011,10 @@ export type TranslationFunctions = {
 			 * your access to this workspace is read only, so nothing in it can be changed.
 			 */
 			readOnly: () => LocalizedString;
+			/**
+			 * your account is locked, so nothing can be changed until an owner or a manager unlocks it.
+			 */
+			locked: () => LocalizedString;
 		};
 		refusals: {
 			complex: {
@@ -8962,6 +8990,14 @@ export type TranslationFunctions = {
 				 * offered the organization
 				 */
 				offered: () => LocalizedString;
+				/**
+				 * locked
+				 */
+				locked: () => LocalizedString;
+				/**
+				 * not signed in yet
+				 */
+				notSignedInYet: () => LocalizedString;
 			};
 			/**
 			 * a new member
@@ -9107,6 +9143,18 @@ export type TranslationFunctions = {
 			 * they were signed out of every machine.
 			 */
 			sessionsEnded: () => LocalizedString;
+			/**
+			 * unlock
+			 */
+			unlock: () => LocalizedString;
+			/**
+			 * they can add, edit and delete what their role allows. a password reset locks them again.
+			 */
+			unlockAsks: () => LocalizedString;
+			/**
+			 * they were unlocked. they can do what their role allows.
+			 */
+			unlocked: () => LocalizedString;
 			/**
 			 * this machine is offline; the sign-out reaches their machines once it is back online.
 			 */

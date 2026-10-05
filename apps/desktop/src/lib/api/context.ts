@@ -1,6 +1,10 @@
 import {
 	effectiveIn,
 	effectiveInWorkspace,
+	FAMILIES,
+	FLAGS,
+	permits,
+	RECORD_KINDS,
 	type AccessLevel
 } from '@rentable/workspace-permission';
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy';
@@ -90,7 +94,8 @@ export type Identity = {
 	 * record flags pinned in the workspace open, and `effectiveIn` clears every create, edit and
 	 * delete where their grant on it is read-only, or where there is no grant or no workspace open
 	 * to read. The organization's own flags are not a workspace's to pin or clear and pass through
-	 * as the session has them ([`permissionsIn`]).
+	 * as the session has them ([`permissionsIn`]). A locked member holds the view flags alone, so
+	 * every gate but a read refuses them (effort 851, requirement 32).
 	 *
 	 * **Here because it is a fact about who is acting**, which is what `Identity` is for, and not
 	 * on the context beside `db` and `host`, which carry ambient capabilities and never business
@@ -211,14 +216,45 @@ export async function openWorkspace(host: Host): Promise<string | null> {
  * the workspace's `permissions`: the two are the same number, which the shared table holds Rust
  * and the package to, and this way the organization's own flags always come from the session.
  * Exported so the interface reads the same value a procedure is answered by.
+ *
+ * **A locked member holds the view flags alone** (effort 851, requirement 32), masked after the
+ * pins are set, since a write pinned on in this workspace would otherwise come back through them.
  */
 export function workspacePermissionsIn(
 	session: OrganizationSession,
 	openWorkspaceId: string | null
 ): number {
 	const grant = session.workspaces.find((workspace) => workspace.id === openWorkspaceId);
+	const inWorkspace = effectiveInWorkspace(
+		session.permissions,
+		grant?.pinned ?? 0,
+		grant?.granted ?? 0
+	);
 
-	return effectiveInWorkspace(session.permissions, grant?.pinned ?? 0, grant?.granted ?? 0);
+	return session.locked ? viewsOf(inWorkspace) : inWorkspace;
+}
+
+/**
+ * what a member may do across the organization, as the interface gates an organization act on
+ * it: their permissions off the verified row, or the view flags among them alone while they are
+ * locked (effort 851, requirement 32).
+ *
+ * **A locked member signs in, changes their password and views, and does nothing else.** Rust
+ * refuses every other act of theirs (`Locked`). The member, role and workspace acts are drawn for
+ * what the row carries and refused for the lock (`organization/locked.ts`); this is for a control
+ * that is drawn plain rather than refused where it is not the reader's, as the mark is.
+ */
+export function heldPermissions(session: OrganizationSession): number {
+	return session.locked ? viewsOf(session.permissions) : session.permissions;
+}
+
+/** the view flags among these permissions: seeing each kind of record, and nothing else. */
+function viewsOf(permissions: number): number {
+	return RECORD_KINDS.reduce((views, kind) => {
+		const view = FAMILIES[kind][0];
+
+		return permits(permissions, view) ? views + 2 ** FLAGS[view] : views;
+	}, 0);
 }
 
 /**

@@ -141,6 +141,7 @@ export const hostHooks = {
 	useMakeMemberLink: mutation('useMakeMemberLink'),
 	useUnsetMemberPassword: mutation('useUnsetMemberPassword'),
 	useEndMemberSessions: mutation('useEndMemberSessions'),
+	useUnlockMember: mutation('useUnlockMember'),
 	useDeleteWorkspace: mutation('useDeleteWorkspace'),
 	useChangePassword: mutation('useChangePassword'),
 	useAcceptOwnership: mutation('useAcceptOwnership'),

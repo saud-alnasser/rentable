@@ -20,6 +20,7 @@
 		useRemoveMember,
 		useRenameMember,
 		useSetOverride,
+		useUnlockMember,
 		useUnsetMemberPassword,
 		useWithdrawOffer
 	} from '$lib/organization/member/query';
@@ -70,6 +71,7 @@
 	const makeMemberLink = useMakeMemberLink();
 	const unsetMemberPassword = useUnsetMemberPassword();
 	const endMemberSessions = useEndMemberSessions();
+	const unlockMember = useUnlockMember();
 
 	// ----- the member's sheet
 
@@ -382,8 +384,9 @@
 	/**
 	 * one write a card asked for, and the member it ran for marked while it runs. The reset, the
 	 * sign-out from every machine and the withdrawal end something, so each runs from here once its
-	 * question is answered (below). What each did is announced by its hook, the only place a toast is
-	 * raised ([[rules/frontend]], *Data access*).
+	 * question is answered (below), and so does the unlock, which hands a member every write their
+	 * role allows (effort 851, requirement 34). What each did is announced by its hook, the only
+	 * place a toast is raised ([[rules/frontend]], *Data access*).
 	 */
 	const runAsked = async (kind: MemberAsk, memberId: string) => {
 		const { pending } = organizationHostState.member;
@@ -402,6 +405,10 @@
 					pending.withdrawing = true;
 					await withdrawOffer.mutateAsync();
 					break;
+				case 'unlock':
+					pending.unlocking = memberId;
+					await unlockMember.mutateAsync({ memberId });
+					break;
 			}
 		} catch {
 			// said by the shared handler.
@@ -409,6 +416,7 @@
 			pending.unsetting = kind === 'unsetPassword' ? null : pending.unsetting;
 			pending.endingSessions = kind === 'endSessions' ? null : pending.endingSessions;
 			pending.withdrawing = kind === 'withdrawOffer' ? false : pending.withdrawing;
+			pending.unlocking = kind === 'unlock' ? null : pending.unlocking;
 		}
 	};
 
@@ -428,6 +436,11 @@
 				return {
 					act: $LL.organization.dashboard.endSessions(),
 					description: $LL.organization.dashboard.endSessionsAsks()
+				};
+			case 'unlock':
+				return {
+					act: $LL.organization.dashboard.unlock(),
+					description: $LL.organization.dashboard.unlockAsks()
 				};
 			case 'withdrawOffer':
 			case undefined:
@@ -531,7 +544,8 @@
 />
 
 <!-- the reset, the sign-out from every machine and the withdrawal end something, so each asks
-     first under its own verb, naming the member, what ends and what brings it back. -->
+     first under its own verb, naming the member, what ends and what brings it back. the unlock
+     asks too, in the plain tone, since it ends nothing (effort 851, requirement 34). -->
 <ConfirmDialog
 	open={asking !== null}
 	onOpenChange={(open) => {
@@ -542,6 +556,7 @@
 	title={askingCopy.act}
 	description={askingCopy.description}
 	confirmLabel={askingCopy.act}
+	tone={asking?.kind === 'unlock' ? 'neutral' : 'error'}
 	confirmLoadingLabel={$LL.common.actions.working()}
 />
 

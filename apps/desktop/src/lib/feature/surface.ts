@@ -281,6 +281,9 @@ export type AnySection = { [On in SectionTarget]: Section<On> }[SectionTarget];
  * - **`account-menu`** is the foot of the rail, the row naming who is signed in.
  * - **`dialogs`** is beside the frame, inside the providers, for surfaces opened from places that
  *   share no parent. It is drawn while the rail is up and a session is held.
+ * - **`notice`** is above whatever a route draws, inside the frame while the rail is up: a
+ *   standing about the reader's own account that holds on every screen, as a lock does (effort
+ *   851, requirement 32). It draws nothing where there is nothing to say.
  */
 export type ShellSlotProps = {
 	'workspace-menu': {
@@ -289,6 +292,7 @@ export type ShellSlotProps = {
 	};
 	'account-menu': Record<string, never>;
 	dialogs: Record<string, never>;
+	notice: Record<string, never>;
 };
 
 /** A place in the shell, by name. */

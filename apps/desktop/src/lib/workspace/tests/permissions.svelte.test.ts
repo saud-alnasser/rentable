@@ -109,7 +109,8 @@ test('the standing held is the session folded for the workspace open, and goes w
 
 	expect(memberPermissions.standing).toEqual({
 		permissions: maskOf(...EVERY_FLAG),
-		accessLevel: 'full-access'
+		accessLevel: 'full-access',
+		locked: false
 	});
 	expect(memberPermissions.views('tenant')).toBe(true);
 
@@ -126,6 +127,32 @@ test('in a workspace the reader holds a read-only grant on, every write is refus
 
 	expect(memberPermissions.standing?.accessLevel).toBe('read-only');
 	expect(memberPermissions.views('payment')).toBe(true);
+});
+
+// effort 851, requirement 32: a locked session is held as the view flags alone, marked locked, so
+// every write is refused for the lock and viewing goes on; once the session reads unlocked, what
+// the role carries is held again.
+test('a locked session is held as the view flags alone, and as the role once unlocked', () => {
+	reads.session = { ...everyFlagOnTwoWorkspaces(), locked: true };
+
+	const { unmount } = render(WorkspacePermissions);
+
+	expect(memberPermissions.standing).toEqual({
+		permissions: maskOf('viewComplex', 'viewUnit', 'viewTenant', 'viewContract', 'viewPayment'),
+		accessLevel: 'full-access',
+		locked: true
+	});
+	expect(memberPermissions.views('payment')).toBe(true);
+	expect(memberPermissions.refusal('createPayment', i18nObject('en'))).toBe(
+		en.common.permission.locked
+	);
+
+	reads.session = everyFlagOnTwoWorkspaces();
+	unmount();
+	render(WorkspacePermissions);
+
+	expect(memberPermissions.standing?.locked).toBe(false);
+	expect(memberPermissions.refusal('createPayment', i18nObject('en'))).toBeUndefined();
 });
 
 test('nothing is held before the session has arrived', () => {

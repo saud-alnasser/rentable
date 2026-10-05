@@ -30,6 +30,10 @@ export const common = {
 			editPayment: 'you do not have permission to edit payments.',
 			deletePayment: 'you do not have permission to delete payments.'
 		},
-		readOnly: 'your access to this workspace is read only, so nothing in it can be changed.'
+		readOnly: 'your access to this workspace is read only, so nothing in it can be changed.',
+		// a locked account (effort 851, requirement 32): it views, and changes nothing until it is
+		// unlocked, whatever its role and its grant say.
+		locked:
+			'your account is locked, so nothing can be changed until an owner or a manager unlocks it.'
 	}
 } satisfies BaseTranslation;

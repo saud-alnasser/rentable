@@ -5,6 +5,7 @@ import { RECORD_PARAM, withSection } from '$lib/settings';
 import { workspacePageOf } from './workspace/address';
 import dialogs from './component/dialogs.svelte';
 import host from './component/host.svelte';
+import lockedNotice from './component/locked-notice.svelte';
 import railRow from './component/rail-row.svelte';
 import { useOrganizationOfferings } from './palette';
 import { useFetchOrganizationState } from './query';
@@ -32,7 +33,8 @@ import SettingsWorkspaces from './component/settings-workspaces.svelte';
  * **The account's row at the foot of the rail and the dialogs beside the frame are slots** the
  * shell draws at its own places, so the shell names no organization component: making an account,
  * creating a workspace and the link an account's act produces are drawn beside the frame by
- * `component/dialogs.svelte`, and who is signed in by `component/rail-row.svelte`.
+ * `component/dialogs.svelte`, and who is signed in by `component/rail-row.svelte`. A locked
+ * account is said above every screen by `component/locked-notice.svelte` (effort 851).
  *
  * **The workspace reads the session through what the organization contributes to it**: its row at
  * the top of the rail and its permissions in the frame read who is signed in and who holds what,
@@ -87,7 +89,8 @@ export default defineSurface({
 	],
 	slots: [
 		{ slot: 'account-menu', component: railRow },
-		{ slot: 'dialogs', component: dialogs }
+		{ slot: 'dialogs', component: dialogs },
+		{ slot: 'notice', component: lockedNotice }
 	],
 	contributes: {
 		workspace: {

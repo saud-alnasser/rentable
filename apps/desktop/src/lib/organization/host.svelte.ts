@@ -38,12 +38,13 @@ import { openOrganizationDialog } from '$lib/organization/dialogs.svelte';
 /**
  * A member act that ends something and so asks first, in the confirm dialog, before the host runs
  * its write ([[rules/interface]], *Delete and confirm*): the reset, the sign-out from
- * every machine and the withdrawal of an offer.
+ * every machine, the withdrawal of an offer, and the unlock (effort 851, requirement 34), which ends
+ * nothing but hands a member every write their role allows.
  *
  * *The link ran on the press beside these until effort 851 had its maker choose how long it lasts
  * (requirement 11); it opens its own surface now, `member.linking`.*
  */
-export type MemberAsk = 'unsetPassword' | 'endSessions' | 'withdrawOffer';
+export type MemberAsk = 'unsetPassword' | 'endSessions' | 'withdrawOffer' | 'unlock';
 
 type OrganizationHostState = {
 	member: {
@@ -64,6 +65,7 @@ type OrganizationHostState = {
 			endingSessions: string | null;
 			offering: boolean;
 			withdrawing: boolean;
+			unlocking: string | null;
 		};
 	};
 	workspace: {
@@ -106,7 +108,8 @@ const idle = (): OrganizationHostState => ({
 			unsetting: null,
 			endingSessions: null,
 			offering: false,
-			withdrawing: false
+			withdrawing: false,
+			unlocking: null
 		}
 	},
 	workspace: {
@@ -131,7 +134,8 @@ export function memberPending(): MemberPending {
 		unsetting: pending.unsetting !== null,
 		endingSessions: pending.endingSessions !== null,
 		offering: pending.offering,
-		withdrawing: pending.withdrawing
+		withdrawing: pending.withdrawing,
+		unlocking: pending.unlocking !== null
 	};
 }
 
@@ -153,6 +157,7 @@ export const memberActs = declareMemberActs({
 	},
 	unsetPassword: ask('unsetPassword'),
 	endSessions: ask('endSessions'),
+	unlock: ask('unlock'),
 	confirmRemoval: (record, lockOut) => {
 		organizationHostState.member.removing = { record, lockOut };
 	}

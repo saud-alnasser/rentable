@@ -38,6 +38,7 @@
 	import { useFetchRoles } from '$lib/organization/role/query';
 	import { administersMembers } from '$lib/organization/member/member';
 	import { useFetchRemoteSyncState } from '$lib/sync/ui';
+	import { heldPermissions } from '$lib/api/context';
 	import { permits } from '@rentable/workspace-permission';
 
 	/**
@@ -105,7 +106,7 @@
 
 		<!-- what the organization prints on its pages: everybody sees it, and whoever holds the
 		     flag to manage it changes it (effort 835, requirement 13; effort 838). -->
-		<OrganizationMark setsMark={permits(session.permissions, 'manageMark')} />
+		<OrganizationMark setsMark={permits(heldPermissions(session), 'manageMark')} />
 
 		<!-- the roles, before the people who hold them: what each kind of person may do, read by
 		     everybody and changed by whoever holds the flag to (effort 838, requirement 12). The

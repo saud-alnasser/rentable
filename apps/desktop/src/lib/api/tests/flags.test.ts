@@ -491,3 +491,62 @@ test('a record procedure answers by what is pinned for the member in the workspa
 	await inSouth.complex.create({ name: 'south', location: 'riyadh' });
 	assert.deepEqual(await inSouth.tenant.search({ term: 'nobody' }), []);
 });
+
+/**
+ * LOCKED
+ *
+ * Effort 851, criterion 32: a locked member views and writes nothing, whatever their role and
+ * their grant say. The context masks what they hold to the view flags (`permissionsIn`), so every
+ * procedure asking for a create, an edit or a delete refuses them by the flag, as it refuses a
+ * member who lacks it, and every read still answers. A manager on a full-access grant is the
+ * reader, so nothing but the lock stands in the way.
+ */
+function lockedManager(): Host {
+	const session = fakeOrganizationSession({
+		role: 'manager',
+		roleId: BUILT_IN.manager.id,
+		rank: BUILT_IN.manager.rank,
+		permissions: BUILT_IN.manager.mask,
+		locked: true,
+		workspaces: [fakeOrganizationWorkspace({ id: 'north', accessLevel: 'full-access' })]
+	});
+	const state = fakeOrganizationState({ session });
+
+	return fakeHost({
+		organization: { ...fakeHost().organization, getState: async () => state },
+		sync: {
+			...fakeHost().sync,
+			getState: async () => fakeSyncState({ workspace: fakeWorkspace({ remoteId: 'north' }) })
+		}
+	});
+}
+
+test('a locked member is refused every create, edit and delete, and still reads', async () => {
+	const api = caller(appRouter)(
+		await context({
+			db: createMemoryDatabase(),
+			clock: { now: () => NOW },
+			host: lockedManager()
+		})
+	);
+	const writes = procedures.filter(({ meta }) =>
+		meta.flags?.some((flag) => WRITE_FLAGS.includes(flag))
+	);
+
+	assert.ok(writes.length > 30, `the walk found ${writes.length} writes`);
+
+	for (const { path } of writes) {
+		const refusal = await refusalFrom(callAt(api, path));
+
+		assert.equal(refusal?.code, 'FORBIDDEN', `${path} while locked`);
+	}
+
+	// the organization's own acts that the procedures gate on a flag are refused too, before Rust
+	// refuses them as locked.
+	assert.equal(
+		(await refusalFrom(api.organization.member.unlock({ memberId: 'sami' })))?.code,
+		'FORBIDDEN'
+	);
+
+	assert.deepEqual(await api.tenant.search({ term: 'nobody' }), []);
+});

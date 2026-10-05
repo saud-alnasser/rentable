@@ -11,6 +11,7 @@
 	import type { ListSort } from '@rentable/design/sort.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { lacking } from '$lib/organization/role/acts';
+	import { lockedRefusal } from '$lib/organization/locked';
 	import { toMemberActContext, type MemberActRecord } from '$lib/organization/member/acts';
 	import MemberCard, { MEMBER_TILE_HEIGHT } from '$lib/organization/member/component/card.svelte';
 	import DirectoryTray from '$lib/organization/component/directory-tray.svelte';
@@ -117,6 +118,8 @@
 		canAssignRole,
 		canOverride,
 		canGrantWorkspace,
+		canUnlock,
+		locked,
 		isOwner,
 		selfId,
 		rank,
@@ -146,6 +149,13 @@
 		canOverride: boolean;
 		/** whether the reader's row carries `grantWorkspace`. */
 		canGrantWorkspace: boolean;
+		/**
+		 * whether the reader may unlock a locked member below them: the owner, or a holder of
+		 * `assignRole` or `overrideMember` (effort 851, requirement 34).
+		 */
+		canUnlock: boolean;
+		/** whether the reader is locked: every act here is drawn refused for it (effort 851). */
+		locked: boolean;
 		/** whether the reader is the owner: signing acts and read-only grants are theirs alone. */
 		isOwner: boolean;
 		/** the reader's own member id, whose card offers nothing that writes it. */
@@ -186,7 +196,9 @@
 				canRename,
 				canAssignRole,
 				canOverride,
-				canGrantWorkspace
+				canGrantWorkspace,
+				canUnlock,
+				locked
 			},
 			members,
 			standings,
@@ -251,7 +263,8 @@
 		<CreateControl
 			label={$LL.organization.dashboard.addMember()}
 			onCreate={() => memberHost.create()}
-			unavailable={canGrantWorkspace ? undefined : lacking($LL, 'grantWorkspace')}
+			unavailable={lockedRefusal(locked, $LL) ??
+				(canGrantWorkspace ? undefined : lacking($LL, 'grantWorkspace'))}
 			data-invite-open
 		/>
 	{/if}

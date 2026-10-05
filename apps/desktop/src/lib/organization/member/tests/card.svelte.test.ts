@@ -205,6 +205,52 @@ test('the marks at the foot are badges, drawn only where they mark the member ou
 	expect(document.querySelector('[data-member-marks]')).toBeNull();
 });
 
+// effort 851, criterion 33: a locked member wears a locked badge first at the foot, an outline
+// badge with a closed lock like its neighbours, and an unlocked one wears none. Until their
+// password is set, the foot also says they have not signed in yet, which is why no unlock is
+// offered (criterion 34).
+test('a locked member wears the locked badge, and an unlocked one none', () => {
+	draw(fakeOrganizationMember({ ...ADA, override: 4 }), standing({ locked: true }));
+
+	expect(marks()).toEqual([card.locked, card.ownPermissions]);
+	expect(glyphOf(document.querySelector('[data-member-locked] svg'))).toBe('lock-keyhole');
+	// drawn as its neighbour is, the same outline badge.
+	expect(document.querySelector('[data-member-locked]')?.className).toBe(
+		document.querySelector('[data-member-own-permissions]')?.className
+	);
+	expect(document.querySelector('[data-member-not-signed-in]')).toBeNull();
+
+	document.body.innerHTML = '';
+	draw(ADA, standing({ locked: true, passwordSet: false }));
+
+	expect(marks()).toEqual([card.locked]);
+	expect(document.querySelector('[data-member-not-signed-in]')?.textContent?.trim()).toBe(
+		card.notSignedInYet
+	);
+
+	document.body.innerHTML = '';
+	draw(ADA, standing({ locked: false }));
+
+	expect(document.querySelector('[data-member-locked]')).toBeNull();
+	expect(document.querySelector('[data-member-marks]')).toBeNull();
+
+	// nothing is said of the lock before the standing is answered.
+	document.body.innerHTML = '';
+	draw(ADA, null);
+
+	expect(document.querySelector('[data-member-locked]')).toBeNull();
+});
+
+test('in arabic, the lock reads in its own words', () => {
+	setLocale('ar');
+	draw(ADA, standing({ locked: true, passwordSet: false }), 'rtl');
+
+	expect(marks()).toEqual([ar.organization.dashboard.memberCard.locked]);
+	expect(document.querySelector('[data-member-not-signed-in]')?.textContent?.trim()).toBe(
+		ar.organization.dashboard.memberCard.notSignedInYet
+	);
+});
+
 test('in arabic, the four fields read in their own words, right to left', () => {
 	setLocale('ar');
 

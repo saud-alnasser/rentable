@@ -12,6 +12,7 @@ import UserMinusIcon from '@lucide/svelte/icons/user-minus';
 import UsersIcon from '@lucide/svelte/icons/users';
 
 import type { MemberActRecord } from '../member/acts';
+import { refusedWhileLocked } from '../locked';
 import { lacking } from '../role/acts';
 
 /**
@@ -31,6 +32,8 @@ export type WorkspaceActContext = {
 	canGrantWorkspace: boolean;
 	/** the owner, refused again in Rust (`require_owner`). */
 	canDelete: boolean;
+	/** whether the reader is locked, which refuses every act that writes first (effort 851). */
+	locked: boolean;
 	/**
 	 * where the reader stands in one workspace, by its id: what they may do there and how their
 	 * grant reaches it, or `null` where that is not known yet. Read per workspace rather than off
@@ -49,7 +52,8 @@ export type WorkspaceActContext = {
 export function standingIn(session: OrganizationSession, workspaceId: string): Standing {
 	return {
 		permissions: workspacePermissionsIn(session, workspaceId),
-		accessLevel: accessIn(session, workspaceId)
+		accessLevel: accessIn(session, workspaceId),
+		locked: session.locked
 	};
 }
 
@@ -67,6 +71,7 @@ export function workspaceContextOf(
 		canRename: permits(session.permissions, 'renameWorkspace'),
 		canGrantWorkspace: permits(session.permissions, 'grantWorkspace'),
 		canDelete: session.role === 'owner',
+		locked: session.locked,
 		standingOf: (workspaceId) => standingIn(session, workspaceId)
 	};
 }
@@ -104,7 +109,7 @@ export type WorkspaceAct = RecordAct<WorkspaceActRecord> & { id: WorkspaceActId 
  * it.
  */
 export function declareWorkspaceActs(host: WorkspaceHostRequests): WorkspaceAct[] {
-	return [
+	const acts: WorkspaceAct[] = [
 		{
 			// the open workspace's alone: `sync.rename` renames this machine's workspace, and
 			// no command renames one from a distance.
@@ -165,6 +170,14 @@ export function declareWorkspaceActs(host: WorkspaceHostRequests): WorkspaceAct[
 			run: host.confirmDelete
 		}
 	];
+
+	// a locked reader meets every act their row carries, refused for the lock, save the export,
+	// which reads (effort 851, requirement 32).
+	return refusedWhileLocked<WorkspaceActRecord, WorkspaceAct>(
+		acts,
+		({ context }) => context.locked,
+		['workspace.export']
+	);
 }
 
 /**
@@ -207,7 +220,7 @@ export type HolderAct = RecordAct<HolderActRecord> & { id: HolderActId };
  * reader holding the workspace read only may still make.
  */
 export function declareHolderActs(host: HolderHostRequests): HolderAct[] {
-	return [
+	const acts: HolderAct[] = [
 		{
 			id: 'holder.permissions',
 			label: (t) => t.organization.workspacePage.editPermissions(),
@@ -239,4 +252,10 @@ export function declareHolderActs(host: HolderHostRequests): HolderAct[] {
 			run: host.confirmRemove
 		}
 	];
+
+	// both write, so a locked reader meets them refused for the lock (effort 851).
+	return refusedWhileLocked<HolderActRecord, HolderAct>(
+		acts,
+		({ holder }) => holder.context.locked
+	);
 }

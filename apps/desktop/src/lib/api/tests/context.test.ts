@@ -23,7 +23,7 @@ import {
 	permits
 } from '@rentable/workspace-permission';
 
-import { context } from '../context.ts';
+import { context, heldPermissions, permissionsIn } from '../context.ts';
 
 // a shell reporting whose vault is open on this machine, or nobody's.
 //
@@ -401,4 +401,49 @@ test("the workspace open sets what is pinned there, and the organization's flags
 			'read-only'
 		)
 	);
+});
+
+/**
+ * **A locked member holds the view flags alone** (effort 851, requirement 32, criterion 32). What
+ * every `procedure.permitted` gate is answered by is masked, so every record write refuses, and
+ * so is what the interface gates an organization act on; a write pinned on in the workspace open
+ * does not come back through the pins, and unlocking gives back what the role carries.
+ */
+test('a locked member holds the view flags alone, in the workspace open and across the organization', async () => {
+	const VIEWS = maskOf('viewComplex', 'viewUnit', 'viewTenant', 'viewContract', 'viewPayment');
+	const lockedManager = (locked: boolean) =>
+		fakeOrganizationSession({
+			role: 'manager',
+			roleId: BUILT_IN.manager.id,
+			rank: BUILT_IN.manager.rank,
+			permissions: BUILT_IN.manager.mask,
+			locked,
+			workspaces: [
+				fakeOrganizationWorkspace({
+					id: 'north',
+					accessLevel: 'full-access',
+					// adding payments pinned on: the pins must not hand a write back.
+					pinned: maskOf('createPayment'),
+					granted: maskOf('createPayment')
+				})
+			]
+		});
+
+	const actor = await actorFrom({
+		db: createMemoryDatabase(),
+		clock: { now: () => 0 },
+		host: shellOpenOn('north', lockedManager(true))
+	});
+
+	assert.equal(actor?.permissions, VIEWS);
+	assert.equal(permissionsIn(lockedManager(true), 'north'), VIEWS);
+	assert.equal(heldPermissions(lockedManager(true)), VIEWS);
+
+	for (const flag of WRITE_FLAGS) {
+		assert.ok(!permits(actor?.permissions ?? 0, flag), `${flag} was held while locked`);
+	}
+
+	// unlocked, the same member holds what the role carries again.
+	assert.equal(heldPermissions(lockedManager(false)), BUILT_IN.manager.mask);
+	assert.ok(permits(permissionsIn(lockedManager(false), 'north'), 'createPayment'));
 });

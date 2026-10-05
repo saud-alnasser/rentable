@@ -171,7 +171,10 @@ export const organization = {
 			noWorkspaces: 'none',
 			joined: 'joined',
 			ownPermissions: 'permissions of their own',
-			offered: 'offered the organization'
+			offered: 'offered the organization',
+			// a locked member (effort 851, requirement 33), and one whose link is not opened yet.
+			locked: 'locked',
+			notSignedInYet: 'not signed in yet'
 		},
 
 		memberTitle: 'a new member',
@@ -227,6 +230,11 @@ export const organization = {
 		endSessions: 'sign out everywhere',
 		endSessionsAsks: 'they are signed out of every machine. signing in again brings them back.',
 		sessionsEnded: 'they were signed out of every machine.',
+		// a locked member's unlock (effort 851, requirement 34), asked first, and what it said.
+		unlock: 'unlock',
+		unlockAsks:
+			'they can add, edit and delete what their role allows. a password reset locks them again.',
+		unlocked: 'they were unlocked. they can do what their role allows.',
 		sessionsEndedPending:
 			'this machine is offline; the sign-out reaches their machines once it is back online.',
 		rename: 'rename',
