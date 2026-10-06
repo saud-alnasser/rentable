@@ -115,6 +115,9 @@
 			: $LL.common.labels.contract()
 	);
 	const tenantName = $derived(contractQuery.data?.tenantName?.trim() ?? '');
+	// what a workspace file calls the contract, which is what the ledger's own import resolves it
+	// from, so a ledger written out reads back whether the contract has a number or not.
+	const contractReference = $derived(contractQuery.data?.reference ?? contractName);
 	// why this contract takes no new payment, where it takes none: the create act's reason, which
 	// the create control shows on hover and focus in place of a paragraph above the ledger. A
 	// terminated contract is read-only; a satisfied one still takes corrections to what it already
@@ -265,7 +268,7 @@
 				toChosenLabel(PERIOD_FILTER, filters, $LL) ?? ''
 			]),
 			// what a row belongs to, then the row as the payments sheet writes it.
-			columns: paymentLedgerColumns($LL, contractName, tenantName)
+			columns: paymentLedgerColumns($LL, contractReference, tenantName)
 		}}
 		onImport={() => void importDialog?.choose()}
 		importUnavailable={memberPermissions.refusalOfEvery(IMPORT_FLAGS, $LL) ?? createUnavailable}

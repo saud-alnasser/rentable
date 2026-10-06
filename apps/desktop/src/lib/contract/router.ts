@@ -23,6 +23,7 @@ import {
 import { reconcile, reconcileTouched } from '$lib/contract/reconcile';
 import { selectAssignmentsForUnits, selectPaymentsForContract } from '$lib/contract/row';
 import { serializeContract, withRank } from '$lib/contract/serialize';
+import { referencesOf } from '$lib/contract/transfer';
 import { toUnitReference, UNIT_LIST_SEPARATOR } from '$lib/transfer';
 import { eq, inArray, sql } from 'drizzle-orm';
 import z from 'zod';
@@ -415,7 +416,8 @@ export default router({
 	...directory._def.record,
 
 	// one contract, with the rank it is filed under today, so the record page's acts gate on it
-	// as a card's do.
+	// as a card's do, and the reference a workspace file calls it by, so what its page exports
+	// names it as the import reads it back.
 	get: procedure
 		.permitted('viewContract')
 		.input(ContractSchema.pick({ id: true, govId: true }).partial())
@@ -437,8 +439,12 @@ export default router({
 			}
 
 			const { endingSoonNoticeDays } = await ctx.host.settings.get();
+			const reference = (await referencesOf(ctx.db)).get(contract.id)!;
 
-			return withRank(serializeContract(contract), ctx.clock.now(), endingSoonNoticeDays);
+			return {
+				...withRank(serializeContract(contract), ctx.clock.now(), endingSoonNoticeDays),
+				reference
+			};
 		}),
 
 	...schedule._def.record,

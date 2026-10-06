@@ -144,6 +144,24 @@ async function run<TVariables, TResult, TCaptured>(
 	return result;
 }
 
+/**
+ * a contract as its own read answers with it, less the reference a workspace file calls it by: a
+ * mutation's answer never carried that, and what these tests compare is the record itself.
+ */
+async function readContract(id: string) {
+	const read = await caller.contract.get({ id });
+
+	if (!read) {
+		return read;
+	}
+
+	const { reference, ...contract } = read;
+
+	assert.ok(reference, 'a contract read names the reference a file calls it by');
+
+	return contract;
+}
+
 beforeEach(async () => {
 	inverseStack.clear();
 	caller = await createApi();
@@ -366,7 +384,7 @@ describe('undoing a record change', () => {
 		assert.equal(await caller.contract.get({ id: successor.id }), undefined);
 		// the contract that was renewed is untouched by the renewal and by taking it back. Its read
 		// also carries the rank it is filed under today: begun a month ago and unpaid, it owes.
-		assert.deepEqual(await caller.contract.get({ id: contract.id }), {
+		assert.deepEqual(await readContract(contract.id), {
 			...contract,
 			rank: 'owing'
 		});
@@ -376,7 +394,7 @@ describe('undoing a record change', () => {
 		);
 
 		await inverseStack.redo();
-		assert.deepEqual(await caller.contract.get({ id: successor.id }), successor);
+		assert.deepEqual(await readContract(successor.id), successor);
 		assert.deepEqual(
 			(await caller.contract.units.getMany({ contractId: successor.id })).map((held) => held.id),
 			[unit.id]
@@ -404,7 +422,7 @@ describe('undoing a record change', () => {
 
 		await inverseStack.redo();
 		// read with the rank it is filed under today: begun a month ago and unpaid, it owes.
-		assert.deepEqual(await caller.contract.get({ id: contract.id }), {
+		assert.deepEqual(await readContract(contract.id), {
 			...contract,
 			rank: 'owing'
 		});

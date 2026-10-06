@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(desktop): a contract's payments ledger exported to a file imports back
@@ -14,8 +14,8 @@ A ledger exported from a contract's page names its contract by the reference the
 
 Traces requirement 30 (the human: importing and exporting give back the same state, no defects).
 
-- [ ] The ledger's Contract cell writes the contract's transfer reference (`toContractReferences`), which a contract with a government number reads as that number, as today.
-- [ ] `payment/tests/ledger-export.test.ts` exports the ledger of a contract with no government number and imports it into the workspace it came from, getting every field back; the doc comment on `paymentLedgerColumns` and the test header state only what is true.
+- [x] The ledger's Contract cell writes the contract's transfer reference (`toContractReferences`), which a contract with a government number reads as that number, as today.
+- [x] `payment/tests/ledger-export.test.ts` exports the ledger of a contract with no government number and imports it into the workspace it came from, getting every field back; the doc comment on `paymentLedgerColumns` and the test header state only what is true.
 
 ## Relevant areas
 

@@ -93,8 +93,10 @@ function isTerminated(status: string) {
 /**
  * the reference a file calls each contract by, by its id: every contract with a tenant, and never
  * a filtered part of them, since whether one needs more than its bare spelling depends on the rest.
+ * The contract's own read answers with its reference too, so a ledger exported from its page names
+ * it as this sheet does and reads back through the same import.
  */
-async function referencesOf(db: Database) {
+export async function referencesOf(db: Database) {
 	return toContractReferences(
 		await db
 			.select({

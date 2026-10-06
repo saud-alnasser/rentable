@@ -101,15 +101,19 @@ export function paymentLedgerMonths<P extends PaymentLike>(payments: readonly P[
  *
  * The contract and the tenant come first because a ledger read on screen sits under the contract's
  * own page and needs neither; the same rows in a file have left that page behind, and two ledgers
- * in one folder are indistinguishable without them.
+ * in one folder are indistinguishable without them. The contract is written as the reference a
+ * workspace file calls it by (`toContractReferences`), which is what the import resolves it from:
+ * its government number where it has one, and otherwise its tenant's national id and the day its
+ * term started, spelled further where another contract shares both. The tenant is for the reader
+ * and the import does not read it.
  */
 export function paymentLedgerColumns(
 	t: TranslationFunctions,
-	contract: string,
+	reference: string,
 	tenant: string
 ): ExportColumn<Payment>[] {
 	return [
-		{ header: t.common.labels.contract(), value: () => contract },
+		{ header: t.common.labels.contract(), value: () => reference },
 		{ header: t.common.labels.tenant(), value: () => tenant },
 		{
 			header: t.common.labels.paymentDate(),
