@@ -2248,6 +2248,10 @@ type RootTranslation = {
 			 * o​u​t​s​t​a​n​d​i​n​g
 			 */
 			outstanding: string;
+			/**
+			 * r​e​t​u​r​n​e​d
+			 */
+			returned: string;
 		};
 		sections: {
 			/**
@@ -7425,6 +7429,10 @@ export type TranslationFunctions = {
 			 * outstanding
 			 */
 			outstanding: () => LocalizedString;
+			/**
+			 * returned
+			 */
+			returned: () => LocalizedString;
 		};
 		sections: {
 			/**

@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [20]
 ---
 
@@ -15,8 +15,8 @@ Collected stays every payment received in the period, and a returned figure, the
 
 Traces requirement 28 and criterion 28.
 
-- [ ] `collected` counts received rows only; `returned` sums refunds; `money.returned` present only above zero; the landing shows it.
-- [ ] Router and component tests per criterion 28.
+- [x] `collected` counts received rows only; `returned` sums refunds; `money.returned` present only above zero; the landing shows it.
+- [x] Router and component tests per criterion 28.
 
 ## Relevant areas
 

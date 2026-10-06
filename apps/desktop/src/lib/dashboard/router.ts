@@ -76,7 +76,12 @@ type DashboardSummary = {
 	 * Named for what they are rather than for a month: the screen used to be able to answer about
 	 * the current one and nothing else, so *this month* was part of what the figures meant.
 	 */
-	money: { due?: number; collected?: number };
+	/**
+	 * `collected` is every payment received in the period, as recorded, a contract terminated
+	 * since included, and `returned` the refunds dated in it. Neither is netted from the other,
+	 * and `returned` is answered only when something was (effort 854, requirement 28).
+	 */
+	money: { due?: number; collected?: number; returned?: number };
 	occupancy?: { totalUnits: number; occupiedUnits: number };
 };
 
@@ -209,13 +214,24 @@ const get = procedure.member
 		// intention are two chances to write it differently. It also fixes what the pair of bounds
 		// here used to do — `<= end` at midnight dropped every payment made during the last day of
 		// the month.
-		const collected = !views('viewPayment')
+		//
+		// one sum per direction, so money paid back to a tenant is its own figure rather than
+		// counted as money that came in.
+		const moved = !views('viewPayment')
 			? undefined
 			: await ctx.db
-					.select({ amount: sql<number>`coalesce(sum(${s.payment.amount}), 0)` })
+					.select({
+						direction: s.payment.direction,
+						amount: sql<number>`coalesce(sum(${s.payment.amount}), 0)`
+					})
 					.from(s.payment)
 					.where(isWithinPeriod(s.payment.date, input?.period ?? 'this-month', now))
-					.get();
+					.groupBy(s.payment.direction);
+
+		const movedIn = (direction: s.PaymentDirection) =>
+			moved?.find((sum) => sum.direction === direction)?.amount ?? 0;
+		const collected = movedIn('received');
+		const returned = movedIn('refund');
 
 		const occupancy = !views('viewUnit')
 			? undefined
@@ -234,7 +250,8 @@ const get = procedure.member
 			summary: {
 				money: {
 					...(views('viewContract') ? { due } : {}),
-					...(views('viewPayment') ? { collected: collected?.amount ?? 0 } : {})
+					...(views('viewPayment') ? { collected } : {}),
+					...(views('viewPayment') && returned > 0 ? { returned } : {})
 				},
 				...(views('viewUnit')
 					? {

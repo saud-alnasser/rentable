@@ -403,3 +403,40 @@ test('the ending-soon parameter opens the control and is cleared from the addres
 	);
 	expect(host.went).toEqual([{ address: '/', replaceState: true }]);
 });
+
+/**
+ * MONEY RETURNED BESIDE MONEY COLLECTED
+ *
+ * Effort 854, requirement 28: the money card states the refunds dated in the period beside what
+ * was collected, named, and only when there were any. Collected is shown as the read answers it,
+ * with nothing taken off for what went back.
+ */
+const answerWithMoney = (money: Dashboard['summary']['money']): Dashboard => ({
+	...answer(MONEY_RANKS, MONEY_QUEUE),
+	summary: { money, occupancy: { totalUnits: 0, occupiedUnits: 0 } }
+});
+
+/** the money card: the card the collected label heads. */
+const moneyCard = () =>
+	screen.getByText('collected').closest<HTMLElement>('.rounded-2xl')?.textContent ?? '';
+
+test('a period with a refund shows what was returned beside what was collected', async () => {
+	reads(answerWithMoney({ due: 1000, collected: 800, returned: 200 }));
+	renderLanding();
+	await screen.findByRole('heading', { name: 'owing' });
+
+	const card = moneyCard();
+
+	expect(card).toContain(formatLocaleMoney('en', 800));
+	expect(card).toContain('returned');
+	expect(card).toContain(formatLocaleMoney('en', 200));
+});
+
+test('a period with no refund shows no returned figure', async () => {
+	reads(answerWithMoney({ due: 1000, collected: 800 }));
+	renderLanding();
+	await screen.findByRole('heading', { name: 'owing' });
+
+	expect(moneyCard()).toContain(formatLocaleMoney('en', 800));
+	expect(moneyCard()).not.toContain('returned');
+});

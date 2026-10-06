@@ -6,6 +6,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
+import { sql } from 'drizzle-orm';
+
 import { FLAGS, type Flag } from '@rentable/workspace-permission';
 
 import {
@@ -484,6 +486,74 @@ test('and they agree about a payment made during the last day of the period', as
 });
 
 /**
+ * MONEY RETURNED STANDS BESIDE MONEY COLLECTED
+ *
+ * Effort 854, requirement 28: collected stays every payment received in the period, as recorded,
+ * and the refunds dated in it are a figure of their own, answered only when there is one. Neither
+ * is netted from the other. A refund is recorded here by turning a payment's direction, since the
+ * act that records one is a later ticket's.
+ */
+async function refund(db: ReturnType<typeof createMemoryDatabase>, id: string) {
+	await db.run(sql`update payment set direction = 'refund' where id = ${id}`);
+}
+
+test('a refund in the period is returned, and collected is unchanged by it', async () => {
+	const db = createMemoryDatabase();
+	const api = await createApi({ db });
+	const contract = await seedPayableContract(api);
+
+	await api.payment.create({ contractId: contract.id, date: dayOf(0, 1), amount: 500 });
+	await api.payment.create({ contractId: contract.id, date: dayOf(0, 1), amount: 300 });
+
+	const before = await api.dashboard.get();
+	const returned = await api.payment.create({
+		contractId: contract.id,
+		date: dayOf(0, 1),
+		amount: 200
+	});
+	await refund(db, returned.id);
+
+	const { summary } = await api.dashboard.get();
+
+	assert.equal(before.summary.money.collected, 800);
+	assert.equal(summary.money.collected, 800);
+	assert.equal(summary.money.returned, 200);
+});
+
+test('a refund dated outside the period is not returned in it', async () => {
+	const db = createMemoryDatabase();
+	const api = await createApi({ db });
+	const contract = await seedPayableContract(api);
+
+	await api.payment.create({ contractId: contract.id, date: dayOf(0, 1), amount: 500 });
+	const earlier = await api.payment.create({
+		contractId: contract.id,
+		date: dayOf(-1, 2),
+		amount: 150
+	});
+	await refund(db, earlier.id);
+
+	const thisMonth = await api.dashboard.get({ period: 'this-month' });
+	const lastMonth = await api.dashboard.get({ period: 'last-month' });
+
+	assert.equal('returned' in thisMonth.summary.money, false);
+	assert.equal(lastMonth.summary.money.returned, 150);
+	assert.equal(lastMonth.summary.money.collected, 0);
+});
+
+test('with no refund in the period, no returned figure is answered', async () => {
+	const api = await createApi();
+	const contract = await seedPayableContract(api);
+
+	await api.payment.create({ contractId: contract.id, date: dayOf(0, 1), amount: 500 });
+
+	const { summary } = await api.dashboard.get();
+
+	assert.equal(summary.money.collected, 500);
+	assert.equal('returned' in summary.money, false);
+});
+
+/**
  * WHAT A MEMBER MAY NOT VIEW IS LEFT OUT
  *
  * Effort 838, requirement 10: the landing screen is open to every member, and each figure is
@@ -515,6 +585,26 @@ test('a member who may not view payments is told nothing collected', async () =>
 	assert.equal(lacking.summary.money.due, everything.summary.money.due);
 	assert.deepEqual(lacking.queue, everything.queue);
 	assert.deepEqual(lacking.summary.occupancy, everything.summary.occupancy);
+});
+
+test('a member who may not view payments is told nothing returned', async () => {
+	const db = createMemoryDatabase();
+	const contract = await seedPayableContract(await createApi({ db }));
+	const api = await createApi({ db });
+	const returned = await api.payment.create({
+		contractId: contract.id,
+		date: dayOf(0, 1),
+		amount: 200
+	});
+	await refund(db, returned.id);
+
+	const lacking = await createApi({
+		db,
+		identity: fakeIdentity({ permissions: EVERY_RECORD_ACT - 2 ** FLAGS.viewPayment })
+	});
+
+	assert.equal((await api.dashboard.get()).summary.money.returned, 200);
+	assert.equal('returned' in (await lacking.dashboard.get()).summary.money, false);
 });
 
 test('a member who may not view contracts is told of no contract', async () => {
