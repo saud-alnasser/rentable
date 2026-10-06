@@ -4,8 +4,8 @@ use tauri::plugin::{Builder, TauriPlugin};
 use tauri::{Manager, async_runtime};
 use tokio::sync::RwLock;
 
-use crate::settings;
 use crate::update::{Shared, Update};
+use crate::{clock, settings};
 
 /// the update's one command, which records the route back before an install, and the update
 /// manager it writes through: made in the plugin's setup from the route back the last launch
@@ -20,9 +20,10 @@ pub fn plugin() -> TauriPlugin<tauri::Wry> {
         .invoke_handler(tauri::generate_handler![super::update_prepare])
         .setup(|app, _api| {
             let settings = app.state::<settings::Shared>().inner().clone();
+            let clock = app.state::<clock::Shared>().inner().clone();
 
-            let update = async_runtime::block_on(Update::new(settings))
-                .expect("failed to create update manager");
+            // an error here is the launch's to show, naming the file (`lib.rs`).
+            let update = async_runtime::block_on(Update::new(settings, clock.as_ref()))?;
 
             app.manage::<Shared>(Arc::new(RwLock::new(update)));
 

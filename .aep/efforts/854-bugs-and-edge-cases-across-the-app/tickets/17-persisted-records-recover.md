@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(desktop): a damaged settings or sync file no longer stops the app
@@ -14,9 +14,9 @@ Records are fsynced before the rename and keep a last good copy; a record whose 
 
 Traces requirement 17 and criterion 17.
 
-- [ ] `Persisted::commit` fsyncs and writes `.bak` after the primary; `Persisted::recover` sets a bad file aside as `.corrupt-<ms>` and recovers.
-- [ ] The three plugin setups use `recover` and return I/O errors to a native message and exit instead of `.expect`.
-- [ ] Rust tests per criterion 17, including `remote-sync.json` recovering two held organizations from `.bak`, and a locked file left untouched.
+- [x] `Persisted::commit` fsyncs and writes `.bak` after the primary; `Persisted::recover` sets a bad file aside as `.corrupt-<ms>` and recovers.
+- [x] The three plugin setups use `recover` and return I/O errors to a native message and exit instead of `.expect`.
+- [x] Rust tests per criterion 17, including `remote-sync.json` recovering two held organizations from `.bak`, and a locked file left untouched.
 
 ## Relevant areas
 

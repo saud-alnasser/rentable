@@ -143,6 +143,10 @@ bytes = { version = "1.12.1" }
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-updater = "2.10.0"
+# the message a launch that cannot start shows (`lib.rs`), before any window or plugin exists to
+# show one. The version and features are the ones `tauri-plugin-dialog` already links, so nothing
+# new is compiled.
+rfd = { version = "0.16.0", default-features = false, features = ["gtk3", "common-controls-v6"] }
 
 # printing without the webview's browser preview (`src/print/`): WebView2's own `PrintToPdf` and the
 # system print dialog, reached through the controller Tauri hands over. The versions are the ones

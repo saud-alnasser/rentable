@@ -5,6 +5,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::{
+    clock::Clock,
     error::Error,
     persisted::{Persistable, Persisted},
     settings::{self, Settings},
@@ -122,9 +123,12 @@ impl Update {
     /// is.
     pub const FILENAME: &'static str = Settings::RECOVERY_FILENAME;
 
-    pub async fn new(settings: Arc<RwLock<Persisted<Settings>>>) -> Result<Self, Error> {
+    pub async fn new(
+        settings: Arc<RwLock<Persisted<Settings>>>,
+        clock: &dyn Clock,
+    ) -> Result<Self, Error> {
         let settings = settings.read().await;
-        let recovery = Persisted::<Recovery>::load(settings.recovery_path.clone())?;
+        let recovery = Persisted::<Recovery>::recover(settings.recovery_path.clone(), clock)?;
 
         Ok(Self { recovery })
     }
@@ -269,7 +273,7 @@ mod tests {
             .await
             .expect("failed to create the test schema");
 
-        let update = Update::new(settings.clone())
+        let update = Update::new(settings.clone(), &crate::clock::System)
             .await
             .expect("failed to create update manager");
 
@@ -434,7 +438,7 @@ mod tests {
                     .expect("failed to prepare the update");
 
                 // a second process over the same file, which is what the installed new version is.
-                let installed = Update::new(settings)
+                let installed = Update::new(settings, &crate::clock::System)
                     .await
                     .expect("failed to load the recovery record");
                 let recovery: &Recovery = installed.recovery();
@@ -445,6 +449,37 @@ mod tests {
                 assert_eq!(
                     recovery.previous_release_url,
                     "https://github.com/saud-alnasser/rentable/releases/tag/%40rentable%2Fdesktop%400.5.1"
+                );
+
+                db.write().await.disconnect().await;
+                let _ = std::fs::remove_dir_all(root);
+            });
+    }
+
+    /// **A route back that cannot be read does not stop the launch** (effort 854, criterion 17):
+    /// it starts empty, which is what a machine with no update outstanding holds, and the
+    /// damaged file is kept beside it.
+    #[test]
+    fn a_zero_filled_route_back_starts_empty_and_is_kept_aside() {
+        Runtime::new()
+            .expect("failed to create tokio runtime")
+            .block_on(async {
+                let root = scratch("update-zero-filled-recovery");
+                let (_, db, settings) = setup_update(&root).await;
+                let recovery_path = root.join(Update::FILENAME);
+
+                std::fs::write(&recovery_path, [0u8; 128]).expect("the zero-filled record");
+                let _ = std::fs::remove_file(root.join("recovery.json.bak"));
+
+                let update = Update::new(settings, &crate::clock::Fixed(1_700_000_000_000))
+                    .await
+                    .expect("a zero-filled route back stopped the launch");
+
+                assert!(!update.recovery().has_data());
+                assert_eq!(
+                    std::fs::read(root.join("recovery.json.corrupt-1700000000000"))
+                        .expect("the damaged record was not kept"),
+                    [0u8; 128]
                 );
 
                 db.write().await.disconnect().await;

@@ -909,7 +909,9 @@ impl RemoteSync {
         path: PathBuf,
         clock: clock::Shared,
     ) -> Result<Self, Error> {
-        let store = Persisted::<RemoteSyncStore>::load(path)?;
+        // recovered rather than loaded: a record cut short comes back from its last good copy,
+        // with every organization it held (effort 854, requirement 17).
+        let store = Persisted::<RemoteSyncStore>::recover(path, clock.as_ref())?;
         let mut this = Self {
             database_path,
             store,
@@ -2132,6 +2134,50 @@ mod tests {
         for kind in ["owner", "manager", "member", "custom"] {
             assert_eq!(read(kind).role.as_deref(), Some(kind));
         }
+    }
+
+    /// **A record cut short comes back from its last good copy with every organization it held**
+    /// (effort 854, criterion 17). The record is what this machine knows of the organizations it
+    /// holds, and starting from the defaults would forget them; the damaged file is kept beside it.
+    #[test]
+    fn a_truncated_record_comes_back_holding_both_organizations_from_its_copy() {
+        Runtime::new()
+            .expect("failed to create tokio runtime")
+            .block_on(async {
+                let root = scratch("remote-sync-recovers-from-copy");
+                let path = root.join(RemoteSync::FILENAME);
+                let held = r#"{"heldOrganizations":[{"id":"a","name":"Acme","verifyingKey":"k","remoteUrl":"libsql://a"},{"id":"b","name":"Beta","verifyingKey":"k","remoteUrl":"libsql://b"}],"selectedOrganization":"a"}"#;
+
+                std::fs::write(&path, &held[..40]).expect("the truncated record");
+                std::fs::write(root.join("remote-sync.json.bak"), held).expect("the copy");
+
+                let settings = Arc::new(RwLock::new(
+                    Persisted::<Settings>::load(root.join(Settings::FILENAME)).expect("settings"),
+                ));
+                let mut remote_sync = RemoteSync::new(
+                    settings,
+                    path.clone(),
+                    crate::clock::Fixed::shared(1_700_000_000_000),
+                )
+                .await
+                .expect("a truncated record stopped the launch");
+
+                let ids = remote_sync
+                    .store_mut()
+                    .held_organizations
+                    .iter()
+                    .map(|held| held.id.clone())
+                    .collect::<Vec<_>>();
+
+                assert_eq!(ids, ["a", "b"], "an organization was forgotten");
+                assert_eq!(
+                    std::fs::read_to_string(root.join("remote-sync.json.corrupt-1700000000000"))
+                        .expect("the damaged record was not kept"),
+                    &held[..40]
+                );
+
+                let _ = std::fs::remove_dir_all(&root);
+            });
     }
 
     #[test]

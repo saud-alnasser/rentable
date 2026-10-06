@@ -44,7 +44,7 @@ pub fn run() {
         updater_plugin = updater_plugin.pubkey(public_key);
     }
 
-    tauri::Builder::default()
+    let launched = tauri::Builder::default()
         // the credential store, managed before any plugin so that whatever reads it finds it.
         .manage::<credential::Credentials>(Arc::new(credential::Os))
         // the clock, managed the same way and for the same reason.
@@ -117,6 +117,41 @@ pub fn run() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .run(tauri::generate_context!());
+
+    if let Err(error) = launched {
+        cannot_start(&error);
+    }
+}
+
+/// **A launch that cannot start says why, and stops** (effort 854, requirement 17).
+///
+/// A plugin's setup returns its error rather than panicking, and the one a person can meet is a
+/// record the system will not let the application open: `remote-sync.json` locked by another
+/// process, or a file with no permission. That record is never started over, since it holds every
+/// organization this machine has, so the launch shows a message naming the file and the reason,
+/// and exits non-zero.
+///
+/// The message is the operating system's own, through `rfd`, because nothing of Tauri's is left
+/// to show one: no window has been made, and the dialog plugin's setup has not run.
+fn cannot_start(error: &tauri::Error) -> ! {
+    let reason = match error {
+        tauri::Error::PluginInitialization(_, reason) => reason.clone(),
+        error => error.to_string(),
+    };
+
+    diagnostics::error("startup.failed")
+        .with("error", reason.clone())
+        .write();
+    eprintln!("rentable could not start: {reason}");
+
+    #[cfg(any(target_os = "macos", windows, target_os = "linux"))]
+    rfd::MessageDialog::new()
+        .set_level(rfd::MessageLevel::Error)
+        .set_title("rentable could not start")
+        .set_description(reason)
+        .set_buttons(rfd::MessageButtons::Ok)
+        .show();
+
+    std::process::exit(1);
 }
