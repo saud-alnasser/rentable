@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(desktop): an update download survives leaving the settings tab
@@ -14,9 +14,9 @@ Leaving the general settings tab while an update downloads neither cancels nor f
 
 Traces requirement 13 and criterion 13.
 
-- [ ] Update state lives in a module-level `settings/update-download.svelte.ts`; the card no longer closes the handle on destroy.
-- [ ] Restart is disabled while its mutation is pending.
-- [ ] A Vitest test per criterion 13.
+- [x] Update state lives in a module-level `settings/update-download.svelte.ts`; the card no longer closes the handle on destroy.
+- [x] Restart is disabled while its mutation is pending.
+- [x] A Vitest test per criterion 13.
 
 ## Relevant areas
 

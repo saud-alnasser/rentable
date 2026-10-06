@@ -26,6 +26,7 @@ import { fakeSettings } from '$lib/settings/tests/testing.ts';
 import { fakeSyncState } from '$lib/sync/tests/testing.ts';
 import SettingsArea from '$lib/settings/component/area.svelte';
 import { SECTION_GLYPH } from '$lib/settings/glyph';
+import { resetUpdateDownload } from '$lib/settings/update-download.svelte';
 import settingsSurface from '$lib/settings/surface';
 import type { AddressableSection } from '$lib/settings/section';
 import Providers from '#tests/providers.svelte';
@@ -125,6 +126,9 @@ vi.mock('$lib/sync/query', async (importOriginal) => ({
 beforeEach(() => {
 	resetHostAnswers();
 	updater.next = null;
+	// where the update stands outlives the card, so each test starts from a session that has asked
+	// nothing yet.
+	resetUpdateDownload();
 	// the workspaces directory lays its tiles in as many columns as its width holds, which it
 	// measures.
 	layOutLists();
