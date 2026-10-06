@@ -465,16 +465,33 @@ export const useSetContractUnits = declareMutation({
 	touches: ['contracts', 'units'],
 	// the set the contract held before the change, which is what makes the inverse another set
 	// rather than a sequence of removals and additions to replay in order.
-	capture: (variables) => api.contract.units.getMany({ contractId: variables.contractId }),
+	// and the contract itself, read for its name: an assignment is on the contract's account.
+	capture: async (variables) => ({
+		units: await api.contract.units.getMany({ contractId: variables.contractId }),
+		contract: await api.contract.get({ id: variables.contractId })
+	}),
 	inverse: ({ variables, captured }) => ({
 		describe: (t) => t.common.undo.assigned({ record: t.common.labels.contract() }),
 		flags: { undo: ['editContract'], redo: ['editContract'] },
 		undo: () =>
 			api.contract.units.set({
 				contractId: variables.contractId,
-				unitIds: captured.map((unit) => unit.id)
+				unitIds: captured.units.map((unit) => unit.id)
 			}),
-		redo: () => api.contract.units.set(variables)
+		redo: () => api.contract.units.set(variables),
+		// both directions set the contract's units, so both are an assignment.
+		records: () => ({
+			concept: 'contract',
+			recordId: variables.contractId,
+			action: 'assigned',
+			record: toContractName(captured.contract ?? {})
+		})
+	}),
+	records: ({ variables, captured }) => ({
+		concept: 'contract',
+		recordId: variables.contractId,
+		action: 'assigned',
+		record: toContractName(captured.contract ?? {})
 	}),
 	// no success message: the row landing in the other pane is the confirmation, and a surface
 	// announcing what the reader just watched happen is noise (ADR 0029). A refusal still speaks,

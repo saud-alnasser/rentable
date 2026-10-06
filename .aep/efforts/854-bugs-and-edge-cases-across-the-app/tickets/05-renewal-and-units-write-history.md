@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [04]
 ---
 
@@ -15,9 +15,9 @@ Renewing a contract records `renewed` on the predecessor and the successor, and 
 
 Traces requirement 23 and criterion 23.
 
-- [ ] `useRenewContract` writes `renewed` on both contracts; its undo writes `deleted` on the successor.
-- [ ] `useSetContractUnits` captures the contract and writes `assigned`, and its inverse records too.
-- [ ] A history test renews a contract and changes its units and finds `renewed` and `assigned`.
+- [x] `useRenewContract` writes `renewed` on both contracts; its undo writes `deleted` on the successor.
+- [x] `useSetContractUnits` captures the contract and writes `assigned`, and its inverse records too.
+- [x] A history test renews a contract and changes its units and finds `renewed` and `assigned`.
 
 ## Relevant areas
 
