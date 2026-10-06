@@ -150,6 +150,75 @@ test('signing out puts the wall back up, locked, and clears what was drawn for w
 	assert.ok(journal.contextsForgotten > 0);
 });
 
+// effort 851, at the human's word on 2026-10-06: signing out goes straight to the wall, with no
+// refresh. The wall is the first thing the reader sees change, before the shell has signed anybody
+// out and before the cache under the page is cleared, and no loading pass comes between.
+test('signing out puts the wall up first, then signs out and clears the cache behind it', async () => {
+	const { startup, journal } = harness();
+
+	await startup.start();
+	assert.equal(startup.snapshot.state, 'ready');
+
+	const changes: { state: string; signedOut: number; cacheCleared: number }[] = [];
+	const stop = startup.observe((snapshot) => {
+		changes.push({
+			state: snapshot.state,
+			signedOut: journal.signedOut,
+			cacheCleared: journal.cacheCleared
+		});
+	});
+	const before = { signedOut: journal.signedOut, cacheCleared: journal.cacheCleared };
+	changes.length = 0;
+
+	await startup.signOut();
+	stop();
+
+	assert.deepEqual(changes[0], { state: 'sign-in', ...before }, 'the wall, before anything else');
+	assert.ok(
+		changes.every((change) => change.state === 'sign-in'),
+		'no loading pass and no page between the page and the wall'
+	);
+	assert.equal(journal.signedOut, before.signedOut + 1);
+	assert.equal(journal.cacheCleared, before.cacheCleared + 1);
+});
+
+test('a sign-out that has to leave its address covers it with the wall until it has left', async () => {
+	const { startup } = harness();
+
+	await startup.start();
+
+	let leaving: boolean | null = null;
+	let stateWhileLeaving: string | null = null;
+
+	await startup.signOut({
+		arrive: async () => {
+			leaving = startup.snapshot.leavingForTheWall;
+			stateWhileLeaving = startup.snapshot.state;
+		}
+	});
+
+	assert.equal(stateWhileLeaving, 'sign-in', 'the wall is up while the address moves');
+	assert.equal(leaving, true);
+	assert.equal(startup.snapshot.leavingForTheWall, false, 'and the cover is lifted once it lands');
+	assert.equal(startup.snapshot.state, 'sign-in');
+	assert.equal(startup.snapshot.signInReason, 'locked');
+});
+
+test('a move that fails still signs out, and lifts the cover', async () => {
+	const { startup, journal } = harness();
+
+	await startup.start();
+	await startup.signOut({
+		arrive: async () => {
+			throw new Error('the navigation was refused');
+		}
+	});
+
+	assert.equal(journal.signedOut, 1);
+	assert.equal(startup.snapshot.state, 'sign-in');
+	assert.equal(startup.snapshot.leavingForTheWall, false);
+});
+
 // --- The switcher: choosing, and forgetting, one of several organizations (effort 851) --------
 
 const acme = fakeHeldOrganization({ id: 'acme', name: 'Acme Rentals' });

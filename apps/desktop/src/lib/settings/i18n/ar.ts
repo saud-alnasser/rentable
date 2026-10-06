@@ -110,8 +110,7 @@ export const settings = {
 			consequence: 'إن قبلتها صرت المالك وصار هو مديرًا.'
 		},
 		thisMachine: {
-			signOut: 'سجّل الخروج من هذا الجهاز',
-			asks: 'يُسجَّل خروجك هنا، وتبقى المؤسسة على هذا الجهاز. تسجيل الدخول من جديد يعيدك.'
+			signOut: 'سجّل الخروج من هذا الجهاز'
 		}
 	}
 } satisfies Translation['settings'];

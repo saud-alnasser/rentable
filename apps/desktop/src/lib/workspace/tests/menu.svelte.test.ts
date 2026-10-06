@@ -17,7 +17,7 @@ import RailProviders from '$lib/shell/tests/rail-providers.svelte';
  *
  * What the control at the top of the rail puts in the document: a trigger naming the workspace
  * that is open and nothing else, and once it is open, one row per workspace the member holds with
- * the open one checked, a separator, and "workspace settings" to the workspaces section of the
+ * the open one checked, a separator, and "manage workspaces" to the workspaces section of the
  * settings area. That is the whole of it, which is criteria 10 and 11 of effort 843. It is driven
  * from the keyboard as a menu is, which is that effort's criterion 13. A choice of another row is
  * handed back as that workspace's id, and a switch redraws the menu rather than replacing it,
@@ -231,9 +231,10 @@ test('a new open id redraws the menu rather than replacing it', async () => {
 });
 
 // requirement 9 of effort 828: one row, and it is the only thing the menu offers besides the
-// switch. It leads where the "workspaces" row did. Ticket 55 of effort 846 gave it the words
-// "workspace settings", with no ellipsis, because it goes to a place and asks nothing more.
-test('workspace settings leads to the settings area at the workspaces section', async () => {
+// switch. It leads where the "workspaces" row did. Ticket 55 of effort 846 gave it words with no
+// ellipsis, because it goes to a place and asks nothing more, and the human asked on 2026-10-06
+// that they be "manage workspaces" (effort 851).
+test('manage workspaces leads to the settings area at the workspaces section', async () => {
 	menu();
 	await open();
 
@@ -242,8 +243,8 @@ test('workspace settings leads to the settings area at the workspaces section', 
 	expect(rows).toHaveLength(1);
 	expect(rows[0]?.getAttribute('href')).toBe('/settings?section=workspaces');
 	expect(rows[0]?.textContent).toContain(en.layout.workspaceMenu.manage);
-	expect(en.layout.workspaceMenu.manage).toBe('workspace settings');
-	expect(ar.layout.workspaceMenu.manage).toBe('إعدادات مساحات العمل');
+	expect(en.layout.workspaceMenu.manage).toBe('manage workspaces');
+	expect(ar.layout.workspaceMenu.manage).toBe('إدارة مساحات العمل');
 	expect(`${en.layout.workspaceMenu.manage}${ar.layout.workspaceMenu.manage}`).not.toContain('…');
 	// nothing in the menu reaches the page the row used to open.
 	expect(document.querySelector('a[href="/workspace"]')).toBeNull();
@@ -288,8 +289,8 @@ function recordScrolls() {
 const nameOf = (row: Element | undefined) => row?.querySelector('span.truncate')?.textContent;
 
 // ticket 55 of effort 846: past five workspaces the rows scroll inside a list capped at five and
-// a half rows, and the separator and "workspace settings" stay outside the scroll, below it.
-test('past five workspaces the rows scroll in a capped list, and workspace settings stays outside it', async () => {
+// a half rows, and the separator and "manage workspaces" stay outside the scroll, below it.
+test('past five workspaces the rows scroll in a capped list, and manage workspaces stays outside it', async () => {
 	recordScrolls();
 	menu({ workspaces: held(9), openId: 'ws-1' });
 

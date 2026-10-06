@@ -777,49 +777,27 @@ test('the account section has one machines card, and the password card acts from
 	expect(here.querySelector('[data-machine-menu=machine-here]')).not.toBeNull();
 });
 
-// requirement 2 as revised on 2026-10-02, at the human's word: every dangerous act asks first,
-// signing this machine out included, though signing in undoes it. The question names who is signed
-// out and that signing in again brings them back; leaving it signs nobody out, and answering it
-// asks the shell, the way the rail's menu does.
-test('signing out of this machine asks first, and asks the shell only once answered', async () => {
+// effort 851, at the human's word on 2026-10-06: "sign out is simple, just sign out". Signing this
+// machine out from its row's menu asks nothing and asks the shell at once, the way the rail's menu
+// does, and signing in again is what undoes it.
+test('signing out of this machine asks no question and asks the shell at once', async () => {
 	at('?section=account');
 	hostAnswers.machines = HERE_AND_LAPTOP();
 	area({ section: 'account' });
-
-	// this machine's row menu, and the entry that signs it out (ticket 46).
-	const signOutHere = async () => {
-		await fireEvent.click(document.querySelector('[data-machine-menu=machine-here]')!);
-		await fireEvent.click(
-			document.querySelector('[data-slot=dropdown-menu-item][data-sign-out-open]')!
-		);
-	};
 
 	let asked = 0;
 	const stop = listenForSignOut(() => {
 		asked += 1;
 	});
 
-	const question = () => document.querySelector<HTMLElement>('[data-confirm-dialog]');
-	const control = (words: string) =>
-		[...(question()?.querySelectorAll<HTMLButtonElement>('button') ?? [])].find(
-			(button) => button.textContent?.trim() === words
-		);
-
-	await signOutHere();
-	await waitFor(() => expect(question()).not.toBeNull());
-
-	expect(asked).toBe(0);
-	expect(question()?.textContent).toContain(en.settings.you.thisMachine.asks);
-
-	await fireEvent.click(control('{cancel}')!);
-	await waitFor(() => expect(question()).toBeNull());
-	expect(asked).toBe(0);
-
-	await signOutHere();
-	await waitFor(() => expect(control(en.common.actions.signOut)).toBeDefined());
-	await fireEvent.click(control(en.common.actions.signOut)!);
+	// this machine's row menu, and the entry that signs it out (ticket 46).
+	await fireEvent.click(document.querySelector('[data-machine-menu=machine-here]')!);
+	await fireEvent.click(
+		document.querySelector('[data-slot=dropdown-menu-item][data-sign-out-open]')!
+	);
 
 	await waitFor(() => expect(asked).toBe(1));
+	expect(document.querySelector('[data-confirm-dialog]')).toBeNull();
 	stop();
 });
 

@@ -67,13 +67,45 @@ export async function signIn(machine: StartupMachine, username: string, password
 /**
  * Somebody signed out, here or on another window.
  *
+ * **The wall goes up first, in place, and everything else happens behind it** (effort 851, at the
+ * human's word on 2026-10-06: no refresh, straight to the wall). The page being left stayed drawn
+ * while the shell let go of the member, and the query cache was cleared under it, so a reader
+ * watched the page go back to loading before the wall arrived; from `/settings`, which has to be
+ * left, they watched home load too. Now the frame changes once: the wall replaces the page, with
+ * no loading pass, and the shell signs out, the address moves and the cache is cleared with
+ * nothing drawn from any of them.
+ *
+ * `arrive` moves the address off one that opens signed out, and the wall covers that address
+ * until the move has landed (`leavingForTheWall`). A move that fails leaves the address where it
+ * was, and what the standing says is drawn over it.
+ *
  * The keys this process held are dropped by the shell, and the held context names a member
  * whose vault is no longer open, which nothing else in the process would ever notice. The wall
- * goes up in whichever of its two states the machine is now in, which after a sign-out is
+ * stays up in whichever of its two states the machine is now in, which after a sign-out is
  * locked: the organization is still joined, and a password opens it again.
  */
-export async function signOut(machine: StartupMachine) {
+export async function signOut(
+	machine: StartupMachine,
+	{ arrive }: { arrive?: () => Promise<unknown> } = {}
+) {
 	machine.ports.cache.forgetContext();
+	machine.set({
+		state: 'sign-in',
+		signInReason: 'locked',
+		error: null,
+		recovery: null,
+		leavingForTheWall: arrive !== undefined
+	});
+
+	if (arrive) {
+		try {
+			await arrive();
+		} catch {
+			// the address stays where it was, and the standing below decides what is drawn over it.
+		} finally {
+			machine.set({ leavingForTheWall: false });
+		}
+	}
 
 	const organization = await machine.ports.organization.signOut().catch(() => null);
 
@@ -93,7 +125,7 @@ export async function signOut(machine: StartupMachine) {
 		return;
 	}
 
-	// the shell said nobody signed out. The wall goes up regardless: this was asked for.
+	// the shell said nobody signed out. The wall stays up regardless: this was asked for.
 	await machine.raiseSignInWall('locked');
 }
 

@@ -7,9 +7,9 @@
 	import { useSidebar } from '@rentable/design/primitive/sidebar/index.js';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { localesMetadata } from '$lib/platform/locale';
-	import { THE_SETTINGS_AREA } from '$lib/settings';
-	import { accountInitials } from '$lib/sync';
-	import SignOutDialog from './sign-out-dialog.svelte';
+	import { THE_SETTINGS_AREA, withSection } from '$lib/settings';
+	import { SECTION_GLYPH } from '$lib/settings/ui';
+	import { accountInitials, requestSignOut } from '$lib/sync';
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
@@ -22,12 +22,20 @@
 	 * person it belongs to. Settings is one row inside this menu because it is reached monthly and
 	 * was occupying a place in the list of things reached hourly.
 	 *
-	 * **Signing out lives here and nowhere else.** It used to be a row in the settings page's
-	 * account group, which made settings the door for identity as well as the place for
-	 * preferences. It asks first (`sign-out-dialog.svelte`, effort 846, requirement 2), and once
-	 * answered the call is unchanged, including its refusal to do anything with the state it
-	 * gets back: signing out announces itself and the layout is what answers, because this
-	 * component is about to be behind the wall it raises.
+	 * **Settings, then the three sections the organization contributes to it, then the way out**
+	 * (effort 851, at the human's word on 2026-10-06). Settings opens the area at its front, which
+	 * is general; account, organization and workspaces each open the area on their own section, at
+	 * the address the section switch and the command menu open it at. The area offers those three
+	 * to anybody signed in (`sectionsFor`; none of them declares a `shows`), and this menu is drawn
+	 * only while somebody is, so it offers all three and refuses nobody. A section that ever comes
+	 * to be held back from a reader is held back here by the same answer. *Effort 826 took the
+	 * section rows out, as a fourth route to sections already open at three; the human asked for
+	 * them back, since the person at the foot of the rail is where they look for their account.*
+	 *
+	 * **Signing out lives here**, and in this machine's row of the account section. It asks
+	 * nothing (effort 851, at the human's word on 2026-10-06: "sign out is simple, just sign
+	 * out"), since signing in again undoes it; it announces itself and the layout is what
+	 * answers, putting the wall up in place, because this component is about to be behind it.
 	 *
 	 * **The picture is drawn from bytes this machine holds** (#630), never from Google's URL, so
 	 * this row looks the same offline as online. Initials stand in where an account has none.
@@ -52,11 +60,8 @@
 
 	const initials = $derived(accountInitials(session.username));
 
-	// the shell owns the wall, so the menu asks and the shell signs out; nothing is awaited here.
-	let signingOut = $state(false);
-	const signOut = () => {
-		signingOut = true;
-	};
+	/** the sections the organization contributes to the settings area, in the area's order. */
+	const sections = ['account', 'organization', 'workspaces'] as const;
 </script>
 
 {#snippet identity()}
@@ -101,12 +106,8 @@
 
 				<DropdownMenu.Separator />
 
-				<!-- settings, and then the way out. Nothing else: the organization row and the account
-				     row went with the pages they opened, and the row for the person went the same way
-				     on the human's first run of the finished build (requirement 17 of effort 826). The
-				     `you` section stayed where it was and is reached from the settings rail, the
-				     palette and the address, so the row was a fourth route to a section already open
-				     at three, taking a place in a menu whose whole job is settings and the way out. -->
+				<!-- settings and its three sections, one group, since each is a door to the same
+				     area; then the way out, set apart because it is the one row that is not a place. -->
 				<DropdownMenu.Item>
 					{#snippet child({ props })}
 						<a href={resolve(THE_SETTINGS_AREA)} data-account-menu-settings {...props}>
@@ -116,9 +117,27 @@
 					{/snippet}
 				</DropdownMenu.Item>
 
+				{#each sections as section (section)}
+					{@const Glyph = SECTION_GLYPH[section]}
+					<DropdownMenu.Item>
+						{#snippet child({ props })}
+							<a
+								href={resolve(withSection(section))}
+								data-account-menu-section={section}
+								{...props}
+							>
+								<Glyph class="size-4 shrink-0" />
+								<span class="capitalize">{$LL.settings.section[section]()}</span>
+							</a>
+						{/snippet}
+					</DropdownMenu.Item>
+				{/each}
+
 				<DropdownMenu.Separator />
 
-				<DropdownMenu.Item onSelect={signOut}>
+				<!-- no question: signing in again undoes it (effort 851). The shell owns the wall, so
+				     the menu asks and the shell signs out; nothing is awaited here. -->
+				<DropdownMenu.Item onSelect={() => requestSignOut()} data-account-menu-sign-out>
 					<LogOutIcon class="size-4 shrink-0" />
 					<span class="capitalize">
 						{$LL.common.actions.signOut()}
@@ -128,11 +147,3 @@
 		</DropdownMenu.Root>
 	</Sidebar.MenuItem>
 </Sidebar.Menu>
-
-<SignOutDialog
-	open={signingOut}
-	onOpenChange={(value) => {
-		signingOut = value;
-	}}
-	username={session.username}
-/>

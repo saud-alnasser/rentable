@@ -73,6 +73,17 @@ export type StartupSnapshot = {
 	 * as the application starting (effort 843, requirement 12).
 	 */
 	switching: string | null;
+	/**
+	 * whether a sign-out is moving the address off one that opens signed out, from the moment the
+	 * wall goes up until the move has landed.
+	 *
+	 * **It is what lets the wall go up before the address moves** (effort 851). The wall is drawn
+	 * over every address but the three that open signed out, so a sign-out from `/settings` has to
+	 * leave it; leaving first drew the home page behind it signed in, loading, and putting the wall
+	 * up first drew the settings of nobody for as long as the move took. While this holds, the wall
+	 * covers those three as well, so a sign-out is one change on screen from wherever it starts.
+	 */
+	leavingForTheWall: boolean;
 };
 
 export const INITIAL: StartupSnapshot = {
@@ -87,7 +98,8 @@ export const INITIAL: StartupSnapshot = {
 	isI18nReady: false,
 	hasFailedUnreadable: false,
 	isSigningIn: false,
-	switching: null
+	switching: null,
+	leavingForTheWall: false
 };
 
 /**

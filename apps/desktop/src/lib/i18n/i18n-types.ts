@@ -1979,7 +1979,7 @@ type RootTranslation = {
 			 */
 			open: string;
 			/**
-			 * w​o​r​k​s​p​a​c​e​ ​s​e​t​t​i​n​g​s
+			 * m​a​n​a​g​e​ ​w​o​r​k​s​p​a​c​e​s
 			 */
 			manage: string;
 			/**
@@ -2549,10 +2549,6 @@ type RootTranslation = {
 				 * s​i​g​n​ ​o​u​t​ ​o​f​ ​t​h​i​s​ ​m​a​c​h​i​n​e
 				 */
 				signOut: string;
-				/**
-				 * y​o​u​ ​a​r​e​ ​s​i​g​n​e​d​ ​o​u​t​ ​h​e​r​e​,​ ​a​n​d​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​s​t​a​y​s​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​.​ ​s​i​g​n​i​n​g​ ​i​n​ ​a​g​a​i​n​ ​b​r​i​n​g​s​ ​y​o​u​ ​b​a​c​k​.
-				 */
-				asks: string;
 			};
 		};
 	};
@@ -7068,7 +7064,7 @@ export type TranslationFunctions = {
 			 */
 			open: () => LocalizedString;
 			/**
-			 * workspace settings
+			 * manage workspaces
 			 */
 			manage: () => LocalizedString;
 			/**
@@ -7622,10 +7618,6 @@ export type TranslationFunctions = {
 				 * sign out of this machine
 				 */
 				signOut: () => LocalizedString;
-				/**
-				 * you are signed out here, and the organization stays on this machine. signing in again brings you back.
-				 */
-				asks: () => LocalizedString;
 			};
 		};
 	};

@@ -95,9 +95,12 @@ export class Startup {
 		return switchWorkspace(this.#machine, workspaceId, passing);
 	}
 
-	/** Somebody signed out, here or on another window (`./wall`). */
-	signOut() {
-		return signOut(this.#machine);
+	/**
+	 * Somebody signed out, here or on another window (`./wall`): the wall goes up at once, and
+	 * `arrive` moves the address off one that opens signed out behind it.
+	 */
+	signOut(passing?: { arrive?: () => Promise<unknown> }) {
+		return signOut(this.#machine, passing);
 	}
 
 	/**

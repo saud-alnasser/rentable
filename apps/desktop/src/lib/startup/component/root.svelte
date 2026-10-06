@@ -193,21 +193,17 @@
 			onSessionEnded: sessionEnded
 		});
 		const stopListeningForSessionEnded = listenForSessionEnded(() => void sessionEnded());
-		// leaving first, and reading where the machine stands afterwards. The wall is drawn in place
-		// of the route, so on the three addresses that open signed out there is no wall to draw and
-		// signing out from `/settings` left the settings of a machine nobody is signed in on still
-		// on screen. `addressAfterSignOut` says where to go, and it says nothing from anywhere else,
-		// which is what keeps the reader's place on every address the card covers by itself.
+		// the wall first, in place, and leaving behind it (effort 851): signing out is one change on
+		// screen, the page to the wall, with no loading pass and no page drawn on the way. The wall
+		// is drawn in place of the route, so on the three addresses that open signed out there is
+		// no wall to draw, and signing out from `/settings` left the settings of a machine nobody is
+		// signed in on still on screen; `addressAfterSignOut` says where to go, the wall covers the
+		// address until the move lands, and it says nothing from anywhere else, which is what keeps
+		// the reader's place on every address the card covers by itself.
 		const stopListeningForSignOut = listenForSignOut(() => {
-			void (async () => {
-				const destination = addressAfterSignOut(page.url.pathname);
+			const destination = addressAfterSignOut(page.url.pathname);
 
-				if (destination) {
-					await goto(resolve(destination));
-				}
-
-				await startup.signOut();
-			})();
+			void startup.signOut(destination ? { arrive: () => goto(resolve(destination)) } : undefined);
 		});
 		// a `rentable://` link the operating system handed the process: held where the join screen
 		// takes it, and the screen put on. The one it was launched with is taken once the shell is

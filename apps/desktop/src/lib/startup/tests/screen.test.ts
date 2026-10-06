@@ -135,6 +135,27 @@ test('and the wall is what the frame draws once a sign-out has landed there', as
 	assert.equal(startupScreen(startup.snapshot, addressAfterSignOut('/settings')!), 'sign-in');
 });
 
+// effort 851: the wall goes up before the address moves, so while a sign-out is leaving an
+// address that opens signed out, the wall covers that address too, and the settings of nobody are
+// never drawn on the way.
+test('while a sign-out is leaving settings, the wall covers it', async () => {
+	const { startup } = harness();
+
+	await startup.start();
+
+	let drawn: string | null = null;
+
+	await startup.signOut({
+		arrive: async () => {
+			drawn = startupScreen(startup.snapshot, '/settings');
+		}
+	});
+
+	assert.equal(drawn, 'sign-in');
+	// and once it has left, settings opens signed out again, as the way in reaches it.
+	assert.equal(startupScreen(startup.snapshot, '/settings'), 'route');
+});
+
 test('and signing back in returns the reader to the address they were on', async () => {
 	// there is no navigation to assert on, which is the point: the card is drawn over the route, so
 	// the address never moved and the route underneath it draws again.
