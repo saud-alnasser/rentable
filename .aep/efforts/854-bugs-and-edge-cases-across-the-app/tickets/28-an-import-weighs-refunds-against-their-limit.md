@@ -1,5 +1,5 @@
 ---
-status: open
+status: obsolete
 ---
 
 # fix(desktop): an imported refund is held to the same limit as one recorded by hand
@@ -27,3 +27,7 @@ Traces requirement 26 and criterion 26, and requirement 30.
 
 - Write the failing test first, at the level `rules/testing` fixes, and see it fail for the defect before the fix ([[skills/tdd]]).
 - A changeset for `@rentable/desktop` in a user's words, in the same commit ([[references/changesets]]), unless the change has nothing a user can observe; say so in Notes if none.
+
+## Notes
+
+Obsolete (review round 1, 2026-10-07): built and then withdrawn. Weighing an imported refund against the limit by state refused a state the app reaches on its own (a refunded terminated contract restored, requirement 27), so an export of it could not be imported back (requirement 30). The limit governs recording a refund; import keeps ticket 26's check that refunds stay within what was received.

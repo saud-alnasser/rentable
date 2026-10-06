@@ -7,6 +7,7 @@ import { get } from 'svelte/store';
 import {
 	type Api,
 	createApi,
+	identityWithout,
 	monthsFromNow,
 	seedTenant,
 	refusedWith
@@ -1068,4 +1069,55 @@ it('asks for deleting units on taking back a complex only where it has some', as
 
 	await run(useCreateComplex, { name: 'Full Court', location: 'Riyadh', units: [{ name: 'F1' }] });
 	assert.ok(inverseStack.refusal('undo', get(LL)), 'a complex with units takes them with it');
+});
+
+// effort 854, criterion 24: not only offered but carried out. The member is held without the flag
+// on the client and is the caller the procedures answer, so the undo goes through the same check
+// the server makes.
+it('takes back a complex created with no units for a member who may not delete units', async (context) => {
+	context.after(() => memberPermissions.hold(null));
+	memberPermissions.hold({
+		permissions: maskOf(...EVERY_FLAG.filter((flag) => flag !== 'deleteUnit')),
+		accessLevel: 'full-access'
+	});
+	caller = await createApi({ identity: identityWithout('deleteUnit') });
+
+	const complex = await run(useCreateComplex, { name: 'Empty Court', location: 'Riyadh' });
+
+	assert.ok(await caller.complex.get({ id: complex.id }));
+
+	await applyUndo(useQueryClient());
+
+	assert.equal(await caller.complex.get({ id: complex.id }), undefined);
+	assert.ok(!inverseStack.undoable, 'the entry was taken, not kept to be pressed again');
+});
+
+// effort 854, criterion 25: a refund on a terminated contract is not locked with it, so the undo
+// of recording one removes it.
+it('takes back a refund recorded on a terminated contract', async () => {
+	const tenant = await seedTenant(caller);
+	const contract = await caller.contract.create({
+		tenantId: tenant.id,
+		start: monthsFromNow(-1),
+		end: monthsFromNow(11),
+		interval: '12m',
+		cost: 1000
+	});
+
+	await caller.payment.create({ contractId: contract.id, date: monthsFromNow(0), amount: 600 });
+	await caller.contract.terminate({ id: contract.id });
+
+	const refund = await run(useCreatePayment, {
+		contractId: contract.id,
+		date: monthsFromNow(0),
+		amount: 200,
+		direction: 'refund'
+	});
+
+	assert.equal((await caller.payment.get({ id: refund.id }))?.direction, 'refund');
+
+	await applyUndo(useQueryClient());
+
+	assert.equal(await caller.payment.get({ id: refund.id }), undefined);
+	assert.equal((await caller.contract.get({ id: contract.id }))?.status, 'terminated');
 });

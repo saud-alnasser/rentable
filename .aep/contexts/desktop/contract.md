@@ -33,7 +33,12 @@ contract counts as _paid_, and it is never part of what the landing page reports
 which is every payment received as recorded. How much may be refunded depends on the contract's
 state: on one not terminated, only what it received past its total cost, so a refund never makes
 it owe; on a terminated one, up to what it received. Each less earlier refunds
-(`getRefundableAmount`).
+(`getRefundableAmount`). A file is the one place a refund is written as a negative amount, the
+workspace file and a contract's ledger export alike, with its method, reference and note beside
+it as a payment received has them. A file's refunds on one contract, weighed together with what
+the contract already holds, may not exceed what it received; the limit by state governs recording a
+refund, not reproducing one, since a restored contract may hold refunds past it and still be
+exported and imported back.
 _Avoid_: a negative payment, a reversal
 
 **Voucher**:
@@ -153,8 +158,8 @@ presentation concern rather than a status. Nothing is owed on it yet, so it adds
 _outstanding_; a contract that owes today and has a cycle coming due is _owing_ only.
 _Avoid_: مستحق for it in Arabic, which is _owing_'s word
 
-None of these reaches a terminated contract, whatever it owes: termination locks the contract,
-so the debt is a closed matter rather than work.
+None of these reaches a terminated contract, whatever it owes: termination locks the contract
+and the payments it received, so the debt is a closed matter rather than work.
 
 **Contract status**:
 Derived from the period and whether the contract is paid in full — nothing else.
@@ -184,13 +189,16 @@ contract derives to `active`, `fulfilled`, or `defaulted`. Otherwise `vacant`.
   because it is a question about contracts.
 - **A contract's tenant is fixed at creation. Its units are mutable only until a payment
   exists** — the first payment locks the assignment set.
-- **A terminated contract is locked.** `terminated` is the one status a user sets, and no
-  derivation overrides it.
+- **A terminated contract is locked, and so are the payments it received; its refunds are
+  not.** `terminated` is the one status a user sets, and no derivation overrides it. Nothing
+  about the contract changes and no payment is received on it, but a refund on it is recorded,
+  edited and deleted directly, since returning money is what is left to do once it has ended.
 - **Transfer keeps a terminated contract terminated.** It is the one status a workspace file's
   `Status` column is read for; every other status is derived again once the import lands. A
   whole-workspace import writes the contract live, writes its payments, and lands the termination
-  at the end of the same batch, so its payments come back with it. Payments a file adds to a
-  contract the workspace already holds terminated are still refused.
+  at the end of the same batch, so its payments come back with it. A payment received that a
+  file adds to a contract the workspace already holds terminated is still refused; a refund is
+  taken, as it is by hand.
 
 ## Constraints
 

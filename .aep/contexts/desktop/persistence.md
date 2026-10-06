@@ -2,6 +2,7 @@
 paths:
   - apps/desktop/src/lib/platform/database/**
   - apps/desktop/tauri/src/database/**
+  - apps/desktop/tauri/src/persisted.rs
   - packages/workspace-migrations/**
 use-when: "the request touches the schema, migrations, or how queries reach SQLite"
 ---
@@ -62,6 +63,12 @@ that can exceed 2⁵³−1 is silently wrong, and no guarantee here covers it. T
 agree exactly, which is the one piece of good news — a router test pins this faithfully, unlike
 the asymmetric cases below.
 
+**Persisted record**:
+A small JSON file the engine keeps beside the databases rather than in one: `settings.json`, and
+`remote-sync.json`, which holds every organization this machine knows. Read and written through
+`Persisted` (`tauri/src/persisted.rs`).
+_Avoid_: a store, which here is the organization's replica
+
 **Only Rust tests reach the Rust half.** The TypeScript harness executes under Node, so a
 router test can pass over a conversion that is broken in the running application.
 
@@ -108,3 +115,15 @@ router test can pass over a conversion that is broken in the running application
   carry belongs to the HTTP client. Adding a direct dependency on the bindings to influence
   the build is the shape this deliberately does not have — it forces an exact version that
   must then track the driver's own range by hand.
+- **A persisted record is never lost to a damaged file, and never written over a good one.**
+  *Effort 854, requirement 17.* A write goes to a staging file that is synced to the disk before
+  it is renamed over the record, so the record on disk is the old content or the new, never half
+  of either. `<name>.bak` is written after the record, never before, and is the last good copy: a
+  copy of the content before a write would undo that write if it were restored, and that write is
+  often a forget. Content that does not parse is set aside as `<name>.corrupt-<ms>`, the replicas'
+  convention, kept rather than deleted, and the record comes back from its `.bak`, or from the
+  defaults where there is none; a record whose file has gone comes back from its `.bak` and is
+  written back from it before anything else. A file the system will not let the application open,
+  locked by another process or without permission, is never recovered or written over, since its
+  content may be good: the launch names the file and the reason in the operating system's own
+  message and stops. The log says which of these happened (`persisted.*`).
