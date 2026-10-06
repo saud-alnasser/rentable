@@ -684,6 +684,33 @@ test('a payment stored without the three reads them as nothing, and edits and sa
 	assert.deepEqual([saved?.method, saved?.reference, saved?.note], [null, null, null]);
 });
 
+// effort 854, ticket 20: a row written by a build before migration 0006 names no direction, and
+// reads as money received, so no figure moves; one recorded now is received unless it says not.
+test('a payment stored without a direction reads as received, as does one recorded now', async () => {
+	const db = createMemoryDatabase();
+	const api = await createApi({ db });
+	const contract = await seedContract(api, { cost: 100000 });
+	const id = unusedId();
+
+	await db.run(
+		sql`insert into payment (id, date, amount, contract_id) values (${id}, ${monthsFromNow(0)}, ${500}, ${contract.id})`
+	);
+
+	assert.equal((await api.payment.get({ id }))?.direction, 'received');
+
+	const recorded = await api.payment.create({
+		contractId: contract.id,
+		date: monthsFromNow(0),
+		amount: 300
+	});
+
+	assert.equal(recorded.direction, 'received');
+	assert.deepEqual(
+		(await api.payment.getMany({ contractId: contract.id })).map((payment) => payment.direction),
+		['received', 'received']
+	);
+});
+
 // criterion 3: `SADAD-7731` is found by `7731`, and by the same four digits in Arabic-Indic.
 test('a payment is found by a part of its reference, in either spelling of its digits', async () => {
 	const api = await createApi();

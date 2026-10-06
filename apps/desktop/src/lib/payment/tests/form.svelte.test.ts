@@ -84,7 +84,12 @@ afterEach(() => {
 	submitted.length = 0;
 });
 
-type Opened = { contractId: string; date: number; amount: number } & Record<string, unknown>;
+type Opened = {
+	contractId: string;
+	date: number;
+	amount: number;
+	direction: 'received' | 'refund';
+} & Record<string, unknown>;
 
 const open = (value?: Opened) =>
 	render(
@@ -214,6 +219,7 @@ test('an edit opens on what the payment holds, and clearing it saves nothing in 
 		contractId: 'contract-1',
 		date: Date.UTC(2026, 2, 1),
 		amount: 1500,
+		direction: 'received',
 		method: 'bank-transfer',
 		reference: 'TRF-9',
 		note: 'for March'
@@ -246,6 +252,7 @@ test('a payment holding none of the three opens with none chosen and saves', asy
 		contractId: 'contract-1',
 		date: Date.UTC(2026, 2, 1),
 		amount: 1500,
+		direction: 'received',
 		method: null,
 		reference: null,
 		note: null

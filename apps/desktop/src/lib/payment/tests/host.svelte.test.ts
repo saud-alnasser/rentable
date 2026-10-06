@@ -20,6 +20,7 @@ const payment: PaymentActRecord = {
 	date: Date.UTC(2026, 2, 1),
 	amount: 2377,
 	contractId: 'contract-1',
+	direction: 'received',
 	contractStatus: 'terminated'
 };
 

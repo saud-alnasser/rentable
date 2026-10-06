@@ -277,6 +277,7 @@ test('a payment asks first from its card, and is deleted once answered', async (
 				date: Date.UTC(2026, 1, 1),
 				amount: 1500,
 				contractId: 'contract-1',
+				direction: 'received',
 				contractStatus: 'active'
 			}),
 		'deletePayment:payment-1'

@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [11]
 ---
 
@@ -15,9 +15,9 @@ Payments carry a direction, received or refund, added by migration 0006 with eve
 
 Traces requirement 25.
 
-- [ ] Schema, `PaymentSchema` and `serializePayment` carry `direction`; `0006_*.sql` generated and hand-finished.
-- [ ] The Rust lease seeds gain `SEEDED_AT_SIX` with every payment carried as received.
-- [ ] Every existing test passes; a migration test finds existing payments read as received.
+- [x] Schema, `PaymentSchema` and `serializePayment` carry `direction`; `0006_*.sql` generated and hand-finished.
+- [x] The Rust lease seeds gain `SEEDED_AT_SIX` with every payment carried as received.
+- [x] Every existing test passes; a migration test finds existing payments read as received.
 
 ## Relevant areas
 

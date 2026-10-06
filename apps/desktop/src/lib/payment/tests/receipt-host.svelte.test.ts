@@ -74,6 +74,7 @@ const PAYMENT: PaymentActRecord = {
 	contractId: 'contract-1',
 	date: Date.UTC(2026, 3, 1),
 	amount: 4500,
+	direction: 'received',
 	contractStatus: 'active'
 };
 

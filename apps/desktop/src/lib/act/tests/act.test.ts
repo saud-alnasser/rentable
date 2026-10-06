@@ -492,6 +492,7 @@ function paymentAgainst(contractStatus: ContractActRecord['status'] | undefined)
 		date: Date.UTC(2026, 2, 1),
 		amount: 1500,
 		contractId: 'contract-1',
+		direction: 'received' as const,
 		contractStatus
 	};
 }

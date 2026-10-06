@@ -33,6 +33,7 @@ const VALUE: PrintedReceiptValue = {
 		contractId: 'contract-1',
 		date: day('2026-04-01'),
 		amount: 4500,
+		direction: 'received',
 		method: 'bank-transfer',
 		reference: 'SADAD-7731',
 		note: 'paid at the office'
