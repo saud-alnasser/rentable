@@ -419,8 +419,10 @@ export default router({
 				.where(eq(s.payment.id, input.id))
 				.get();
 
+			// one somebody else deleted first is refused rather than answered with nothing, which read
+			// as success: to an undo of its creation, and to a deletion of what is already gone.
 			if (!existingPayment) {
-				return existingPayment;
+				throw refuse('payment.missing');
 			}
 
 			const contract = await ctx.db

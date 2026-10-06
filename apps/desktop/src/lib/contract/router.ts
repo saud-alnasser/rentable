@@ -381,8 +381,10 @@ export default router({
 				.where(eq(s.contract.id, input.id))
 				.get();
 
+			// one somebody else deleted first is refused rather than answered with nothing, which read
+			// as success: to an undo of its creation, and to a deletion of what is already gone.
 			if (!existingContract) {
-				return undefined;
+				throw refuse('contract.missing');
 			}
 
 			const payments = await selectPaymentsForContract(ctx.db, input.id);

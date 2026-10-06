@@ -134,16 +134,30 @@ export const useDeleteManyContracts = declareMutation({
 	inverse: ({ result }) =>
 		result.deleted.length === 0
 			? undefined
-			: {
-					describe: (t) => t.common.undo.deletedMany({ count: result.deleted.length }),
-					flags: { undo: ['editContract'], redo: ['deleteContract'] },
-					undo: () => api.contract.restoreMany({ contracts: result.deleted }),
-					redo: () => api.contract.deleteMany({ ids: toContractIds(result.deleted) }),
-					records: (direction) =>
-						result.deleted.map((contract) =>
-							toContractHistoryEntry(contract, direction === 'undo' ? 'unterminated' : 'deleted')
-						)
-				},
+			: (() => {
+					// what the last deletion took, which the next undo puts back: a redo is refused whatever
+					// has come to hold one since and removes the rest, so the undo after it puts back only
+					// those, and nothing where it removed nothing.
+					let removed = result.deleted;
+
+					return {
+						describe: (t) => t.common.undo.deletedMany({ count: removed.length }),
+						flags: { undo: ['editContract'], redo: ['deleteContract'] },
+						undo: async () => {
+							if (removed.length > 0) {
+								await api.contract.restoreMany({ contracts: removed });
+							}
+						},
+						redo: async () => {
+							removed = (await api.contract.deleteMany({ ids: toContractIds(result.deleted) }))
+								.deleted;
+						},
+						records: (direction) =>
+							removed.map((contract) =>
+								toContractHistoryEntry(contract, direction === 'undo' ? 'unterminated' : 'deleted')
+							)
+					};
+				})(),
 	// the names are frozen here for the reason the whole entry is: a moment later the records are
 	// gone, and an account that could only name what still exists could not report a deletion.
 	records: ({ result }) =>

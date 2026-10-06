@@ -230,6 +230,17 @@ test('reading a payment that does not exist answers with nothing rather than fai
 	assert.equal(await api.payment.get({ id: unusedId() }), undefined);
 });
 
+// effort 854, requirement 8: an undo of a creation deletes, and a record somebody else deleted
+// first is refused rather than answered with nothing, which read as success.
+test('deleting a missing payment is refused', async () => {
+	const api = await createApi();
+
+	await assert.rejects(
+		() => api.payment.delete({ id: unusedId() }),
+		refusedWith('payment.missing')
+	);
+});
+
 test('recording a payment increases the contract paid amount', async () => {
 	const api = await createApi();
 	const contract = await seedContract(api);

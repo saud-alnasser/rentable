@@ -157,16 +157,30 @@ export const useDeleteManyUnits = declareMutation({
 	inverse: ({ result }) =>
 		result.deleted.length === 0
 			? undefined
-			: {
-					describe: (t) => t.common.undo.deletedMany({ count: result.deleted.length }),
-					flags: { undo: ['createUnit'], redo: ['deleteUnit'] },
-					undo: () => api.complex.units.createMany({ units: result.deleted }),
-					redo: () => api.complex.units.deleteMany({ ids: toIds(result.deleted) }),
-					records: (direction) =>
-						result.deleted.map((unit) =>
-							toHistoryEntry('unit', unit, direction === 'undo' ? 'created' : 'deleted')
-						)
-				},
+			: (() => {
+					// what the last deletion took, which the next undo puts back: a redo is refused whatever
+					// has come to hold one since and removes the rest, so the undo after it puts back only
+					// those, and nothing where it removed nothing.
+					let removed = result.deleted;
+
+					return {
+						describe: (t) => t.common.undo.deletedMany({ count: removed.length }),
+						flags: { undo: ['createUnit'], redo: ['deleteUnit'] },
+						undo: async () => {
+							if (removed.length > 0) {
+								await api.complex.units.createMany({ units: removed });
+							}
+						},
+						redo: async () => {
+							removed = (await api.complex.units.deleteMany({ ids: toIds(result.deleted) }))
+								.deleted;
+						},
+						records: (direction) =>
+							removed.map((unit) =>
+								toHistoryEntry('unit', unit, direction === 'undo' ? 'created' : 'deleted')
+							)
+					};
+				})(),
 	records: ({ result }) => result.deleted.map((unit) => toHistoryEntry('unit', unit, 'deleted')),
 	notice: ({ variables, result }) =>
 		describeOutcomeChange(variables.foreseen, result.refused, (refusal) => refusal.name.trim()),

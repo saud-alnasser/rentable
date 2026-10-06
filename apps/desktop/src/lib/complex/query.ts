@@ -179,7 +179,8 @@ export const useCreateComplex = declareMutation({
 		return {
 			describe: (t) => t.common.undo.created({ record: t.common.labels.complex() }),
 			flags: {
-				undo: ['deleteUnit', 'deleteComplex'],
+				// as the redo does: a complex made with no units is taken back by deleting it alone.
+				undo: result.units.length === 0 ? ['deleteComplex'] : ['deleteUnit', 'deleteComplex'],
 				redo: result.units.length === 0 ? ['createComplex'] : ['createComplex', 'createUnit']
 			},
 			// one delete, the units with it, refused where a contract has come to hold one of them.
@@ -276,18 +277,24 @@ export const useDeleteManyComplexes = declareMutation({
 		result.deleted.length === 0
 			? undefined
 			: (() => {
-					// what the last deletion took, which the next undo puts back, as for one complex.
+					// what the last deletion took, which the next undo puts back, as for one complex: a redo
+					// is refused whatever a contract has come to hold since, so the undo after it puts back
+					// only what it removed, and nothing where it removed nothing.
 					let removed = result.deleted;
 
 					return {
-						describe: (t) => t.common.undo.deletedMany({ count: result.deleted.length }),
+						describe: (t) => t.common.undo.deletedMany({ count: removed.length }),
 						flags: flagsToPutBack(result.deleted.flatMap((complex) => complex.units)),
-						undo: () => api.complex.createMany({ complexes: removed }),
+						undo: async () => {
+							if (removed.length > 0) {
+								await api.complex.createMany({ complexes: removed });
+							}
+						},
 						redo: async () => {
 							removed = (await api.complex.deleteMany({ ids: toIds(result.deleted) })).deleted;
 						},
 						records: (direction) =>
-							result.deleted.map((complex) =>
+							removed.map((complex) =>
 								toHistoryEntry('complex', complex, direction === 'undo' ? 'created' : 'deleted')
 							)
 					};

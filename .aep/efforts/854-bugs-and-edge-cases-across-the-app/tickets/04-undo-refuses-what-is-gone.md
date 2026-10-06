@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [01]
 ---
 
@@ -15,10 +15,10 @@ Undoing a creation whose record was deleted elsewhere fails visibly and can neve
 
 Traces requirements 8, 9 and 24, and criteria 8, 9 and 24.
 
-- [ ] `complex.units.delete`, `complex.delete`, `contract.delete` and `payment.delete` refuse a missing row with their existing keys, as `tenant.delete` does.
-- [ ] The bulk-delete declarations for tenants, units, payments, contracts (and the complex `records`) keep what the last redo removed; an undo after a redo that removed nothing does nothing.
-- [ ] `useCreateComplex`'s undo asks for `deleteUnit` only when the complex has units.
-- [ ] `api/tests/undo.test.ts` covers criterion 8 for units, contracts, renewals, payments and complexes; criterion 9 for each bulk kind; criterion 24 both ways. Each router gains "deleting a missing record is refused".
+- [x] `complex.units.delete`, `complex.delete`, `contract.delete` and `payment.delete` refuse a missing row with their existing keys, as `tenant.delete` does.
+- [x] The bulk-delete declarations for tenants, units, payments, contracts (and the complex `records`) keep what the last redo removed; an undo after a redo that removed nothing does nothing.
+- [x] `useCreateComplex`'s undo asks for `deleteUnit` only when the complex has units.
+- [x] `api/tests/undo.test.ts` covers criterion 8 for units, contracts, renewals, payments and complexes; criterion 9 for each bulk kind; criterion 24 both ways. Each router gains "deleting a missing record is refused".
 
 ## Relevant areas
 

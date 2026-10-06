@@ -195,6 +195,14 @@ test('deleting a unit assigned to a contract is rejected', async () => {
 	);
 });
 
+// effort 854, requirement 8: an undo of a creation deletes, and a record somebody else deleted
+// first is refused rather than answered with nothing, which read as success.
+test('deleting a missing unit is refused', async () => {
+	const api = await createApi();
+
+	await assert.rejects(() => api.complex.units.delete({ id: newId() }), refusedWith('unit.gone'));
+});
+
 // --- Derived unit status -------------------------------------------------------------
 //
 // This pins the complex router's copy of the unit-status derivation (one of the duplicated

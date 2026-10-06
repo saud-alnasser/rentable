@@ -297,6 +297,17 @@ test('a contract carrying a payment is still refused deletion, and keeps its uni
 	);
 });
 
+// effort 854, requirement 8: an undo of a creation deletes, and a record somebody else deleted
+// first is refused rather than answered with nothing, which read as success.
+test('deleting a missing contract is refused', async () => {
+	const api = await createApi();
+
+	await assert.rejects(
+		() => api.contract.delete({ id: unusedId() }),
+		refusedWith('contract.missing')
+	);
+});
+
 // ticket 41: undoing a deletion puts the rows back as they were. A terminated contract comes back
 // terminated, holding its unit, and the unit reads as it did before the deletion rather than
 // occupied by a contract a create would have made active again.
