@@ -1133,6 +1133,78 @@ test('on a restored contract a refund is lowered whatever the limit, and not rai
 	);
 });
 
+// ticket 40 of effort 854, the human's ruling of 2026-10-07: an undo or a redo takes a change back
+// to the state before it, so a write it replays is weighed only that refunds stay within what was
+// received. A write by hand keeps the limit the contract's state sets.
+test('on a restored contract an undo puts back the refund it lowered or deleted, and a hand write keeps the limit', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api, { cost: 100000 });
+
+	await api.payment.create({ contractId: contract.id, date: monthsFromNow(0), amount: 5000 });
+	await api.contract.terminate({ id: contract.id });
+
+	const recorded = await refund(api, contract.id, 3000);
+
+	await api.contract.unterminate({ id: contract.id });
+	await api.payment.update({ id: recorded.id, date: recorded.date, amount: 2000 });
+
+	// by hand, raising it back is weighed against the limit.
+	await assert.rejects(
+		() => api.payment.update({ id: recorded.id, date: recorded.date, amount: 3000 }),
+		refusedWith('contract.refundAboveLimit', { limit: 2000 })
+	);
+
+	// the undo of the edit puts back what was recorded.
+	const undone = await api.payment.update({ ...recorded, replay: true });
+
+	assert.equal(undone.amount, 3000);
+	assert.equal((await api.contract.get({ id: contract.id }))?.paidAmount, 2000);
+
+	// and the undo of its deletion brings it back.
+	await api.payment.delete({ id: recorded.id });
+
+	const restored = await api.payment.create({ ...recorded, replay: true });
+
+	assert.equal(restored.amount, 3000);
+	assert.equal(restored.direction, 'refund');
+	assert.equal((await api.contract.get({ id: contract.id }))?.paidAmount, 2000);
+
+	// a new refund by hand is still refused above the limit.
+	await assert.rejects(
+		() => refund(api, contract.id, 1),
+		refusedWith('contract.refundAboveLimit', { limit: 0 })
+	);
+});
+
+test('a replayed write is still refused where refunds would pass what the contract received', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api, { cost: 100000 });
+
+	await api.payment.create({ contractId: contract.id, date: monthsFromNow(0), amount: 5000 });
+	await api.contract.terminate({ id: contract.id });
+
+	const recorded = await refund(api, contract.id, 3000);
+
+	await api.contract.unterminate({ id: contract.id });
+
+	await assert.rejects(
+		() => api.payment.update({ ...recorded, amount: 5001, replay: true }),
+		refusedWith('contract.refundsExceedReceived')
+	);
+	await assert.rejects(
+		() =>
+			api.payment.create({
+				contractId: contract.id,
+				date: monthsFromNow(0),
+				amount: 2001,
+				direction: 'refund',
+				replay: true
+			}),
+		refusedWith('contract.refundsExceedReceived')
+	);
+	assert.equal((await api.payment.get({ id: recorded.id }))?.amount, 3000);
+});
+
 test('a received payment on a live contract is lowered or deleted only while refunds stay covered', async () => {
 	const api = await createApi();
 	const contract = await seedContract(api);

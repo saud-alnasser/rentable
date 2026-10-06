@@ -107,7 +107,7 @@ const {
 const { useRenewContract } = await import('$lib/contract/renewal/query');
 const { getContractRenewalTerm } = await import('$lib/contract/renewal/renewal');
 const { useDeleteManyContracts } = await import('$lib/contract/selection/query');
-const { useCreatePayment, useDeletePayment, useDeleteManyPayments } =
+const { useCreatePayment, useUpdatePayment, useDeletePayment, useDeleteManyPayments } =
 	await import('$lib/payment/query');
 const { memberPermissions } = await import('$lib/permission');
 const { EVERY_FLAG, maskOf } = await import('@rentable/workspace-permission');
@@ -1122,4 +1122,101 @@ it('takes back a refund recorded on a terminated contract', async () => {
 
 	assert.equal(await caller.payment.get({ id: refund.id }), undefined);
 	assert.equal((await caller.contract.get({ id: contract.id }))?.status, 'terminated');
+});
+
+// ticket 40 of effort 854, the human's ruling of 2026-10-07: an undo takes a change back to the
+// state before it. A restored contract may hold refunds past what a live one may return, so undoing
+// the edit or the deletion of one puts back exactly what was recorded, while refunds still never
+// pass what the contract received.
+describe('undoing a refund change on a restored contract', () => {
+	/** received 5,000, terminated, refunded 3,000, and restored: live, and owing what it returned. */
+	async function seedRestoredRefund() {
+		const tenant = await seedTenant(caller);
+		const contract = await caller.contract.create({
+			tenantId: tenant.id,
+			start: monthsFromNow(-1),
+			end: monthsFromNow(11),
+			interval: '12m',
+			cost: 100000
+		});
+		const received = await caller.payment.create({
+			contractId: contract.id,
+			date: monthsFromNow(0),
+			amount: 5000
+		});
+
+		await caller.contract.terminate({ id: contract.id });
+
+		const refund = await caller.payment.create({
+			contractId: contract.id,
+			date: monthsFromNow(0),
+			amount: 3000,
+			direction: 'refund'
+		});
+
+		await caller.contract.unterminate({ id: contract.id });
+
+		return { contract, received, refund };
+	}
+
+	it('puts back the amount a lowered refund was recorded at, and lowers it again on redo', async () => {
+		const { contract, refund } = await seedRestoredRefund();
+
+		await run(useUpdatePayment, { id: refund.id, date: refund.date, amount: 2000 });
+		assert.equal((await caller.payment.get({ id: refund.id }))?.amount, 2000);
+
+		await inverseStack.undo();
+		assert.equal((await caller.payment.get({ id: refund.id }))?.amount, 3000);
+		assert.equal((await caller.contract.get({ id: contract.id }))?.paidAmount, 2000);
+
+		await inverseStack.redo();
+		assert.equal((await caller.payment.get({ id: refund.id }))?.amount, 2000);
+	});
+
+	it('brings a deleted refund back, one or a selection', async () => {
+		const { contract, refund } = await seedRestoredRefund();
+
+		await run(useDeletePayment, refund.id);
+		await inverseStack.undo();
+		assert.equal((await caller.payment.get({ id: refund.id }))?.amount, 3000);
+
+		await run(useDeleteManyPayments, { ids: [refund.id], foreseen: [] });
+		assert.equal(await caller.payment.get({ id: refund.id }), undefined);
+
+		await inverseStack.undo();
+		assert.equal((await caller.payment.get({ id: refund.id }))?.amount, 3000);
+		assert.equal((await caller.contract.get({ id: contract.id }))?.paidAmount, 2000);
+	});
+
+	it('still refuses a new refund, or raising one, by hand above the limit', async () => {
+		const { contract, refund } = await seedRestoredRefund();
+
+		await assert.rejects(
+			() =>
+				run(useCreatePayment, {
+					contractId: contract.id,
+					date: monthsFromNow(0),
+					amount: 1,
+					direction: 'refund'
+				}),
+			refusedWith('contract.refundAboveLimit', { limit: 0 })
+		);
+		await assert.rejects(
+			() => run(useUpdatePayment, { id: refund.id, date: refund.date, amount: 3001 }),
+			refusedWith('contract.refundAboveLimit', { limit: 3000 })
+		);
+	});
+
+	it('refuses an undo that would take refunds past what the contract received', async () => {
+		const { contract, received, refund } = await seedRestoredRefund();
+
+		await run(useDeletePayment, refund.id);
+		// another device lowers what was received in the meantime.
+		await caller.payment.update({ id: received.id, date: received.date, amount: 2000 });
+
+		await assert.rejects(() => inverseStack.undo(), refusedWith('contract.refundsExceedReceived'));
+		assert.equal(await caller.payment.get({ id: refund.id }), undefined);
+		assert.equal((await caller.contract.get({ id: contract.id }))?.paidAmount, 2000);
+		assert.ok(inverseStack.undoable, 'the inverse stays, so the user can see what failed');
+	});
 });

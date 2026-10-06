@@ -77,6 +77,17 @@ function paymentOrderBy(sort: z.infer<typeof PaymentSortSchema> | undefined): SQ
 	return [chosen, ...statementOrder];
 }
 
+/**
+ * Whether a write is one an undo or a redo replays rather than one a person makes by hand.
+ *
+ * A refund change is taken back to the state before it, so the payment's rule weighs a replayed
+ * refund only against what the contract received, never against the limit its state sets (ticket
+ * 40 of effort 854, the human's ruling of 2026-10-07). Only the undo declarations pass it; a form
+ * leaves it out, and what a hand write answers to is unchanged. Permissions and the terminated
+ * lock on payments received are asked the same either way.
+ */
+const ReplaySchema = z.object({ replay: z.boolean().optional() });
+
 export default router({
 	/**
 	 * One payment, carrying the contract it was made against and whose tenant holds it.
@@ -342,14 +353,16 @@ export default router({
 	// and the engine assigns one.
 	//
 	// a direction, so a refund is recorded here too (effort 854, requirements 25 and 26), on the
-	// terms the payment's own rule sets (`ensurePaymentWritable`). An undo putting a deleted refund
-	// back comes through here with its id and is weighed against the limit again, as one put back
-	// by `createMany` is.
+	// terms the payment's own rule sets (`ensurePaymentWritable`).
+	//
+	// `replay`, which an undo or a redo passes and a form never does, so the rule weighs a refund
+	// it puts back only against what the contract received, as one put back by `createMany` is
+	// (ticket 40 of effort 854): an undo takes a change back to the state before it.
 	create: procedure
 		.permitted('createPayment')
 		.use(autosync())
-		.input(PaymentSchema.partial({ id: true }))
-		.mutation(async ({ input, ctx }) => {
+		.input(PaymentSchema.partial({ id: true }).extend(ReplaySchema.shape))
+		.mutation(async ({ input: { replay, ...input }, ctx }) => {
 			const now = ctx.clock.now();
 
 			ensureIdFree(
@@ -373,7 +386,7 @@ export default router({
 				.from(s.payment)
 				.where(eq(s.payment.contractId, contract.id));
 
-			ensurePaymentWritable(contract, registered, { act: 'create', payments: [input] });
+			ensurePaymentWritable(contract, registered, { act: 'create', payments: [input], replay });
 
 			ensureValidPaymentAmount(input.amount);
 			ensurePaymentIsNotInTheFuture(input.date, now);
@@ -399,7 +412,7 @@ export default router({
 		.permitted('editPayment')
 		.use(autosync())
 		// every field the payment's form sets, so the inverse an undo replays through here puts all of
-		// them back rather than the date and the amount alone.
+		// them back rather than the date and the amount alone, and whether it is that replay.
 		.input(
 			PaymentSchema.pick({
 				id: true,
@@ -408,9 +421,9 @@ export default router({
 				method: true,
 				reference: true,
 				note: true
-			})
+			}).extend(ReplaySchema.shape)
 		)
-		.mutation(async ({ input, ctx }) => {
+		.mutation(async ({ input: { replay, ...input }, ctx }) => {
 			const now = ctx.clock.now();
 
 			const existingPayment = await ctx.db
@@ -446,7 +459,8 @@ export default router({
 			ensurePaymentWritable(contract, others, {
 				act: 'update',
 				payment: existingPayment,
-				amount: input.amount
+				amount: input.amount,
+				replay
 			});
 
 			const updated = await ctx.db

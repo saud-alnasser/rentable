@@ -241,7 +241,8 @@ export const useCreatePayment = declareMutation({
 		describe: (t) => t.common.undo.created({ record: toPaymentNoun(result, t) }),
 		flags: { undo: ['deletePayment'], redo: ['createPayment'] },
 		undo: () => api.payment.delete({ id: result.id }),
-		redo: () => api.payment.create(result),
+		// a redo replays the recording, so a refund is weighed as an undo's is (ticket 40).
+		redo: () => api.payment.create({ ...result, replay: true }),
 		records: (direction) =>
 			toPaymentHistoryEntry(result, direction === 'undo' ? 'deleted' : 'created')
 	}),
@@ -264,8 +265,10 @@ export const useUpdatePayment = declareMutation({
 		captured && {
 			describe: (t) => t.common.undo.edited({ record: toPaymentNoun(captured, t) }),
 			flags: { undo: ['editPayment'], redo: ['editPayment'] },
-			undo: () => api.payment.update(captured),
-			redo: () => api.payment.update(variables),
+			// both replay a change rather than make one, so a refund goes back to what was recorded
+			// even past the limit a restored contract now sets (ticket 40 of effort 854).
+			undo: () => api.payment.update({ ...captured, replay: true }),
+			redo: () => api.payment.update({ ...variables, replay: true }),
 			// both directions are an edit, as a contract's are. The amount named is the one the
 			// payment holds once that direction has run, since the amount is what names a payment
 			// and an edit is often a change to exactly that.
@@ -364,7 +367,7 @@ export const useDeletePayment = declareMutation({
 		result && {
 			describe: (t) => t.common.undo.deleted({ record: toPaymentNoun(result, t) }),
 			flags: { undo: ['createPayment'], redo: ['deletePayment'] },
-			undo: () => api.payment.create(result),
+			undo: () => api.payment.create({ ...result, replay: true }),
 			redo: () => api.payment.delete({ id: result.id }),
 			records: (direction) =>
 				toPaymentHistoryEntry(result, direction === 'undo' ? 'created' : 'deleted')

@@ -203,11 +203,13 @@ export default router({
 	 * contract at all right now.
 	 *
 	 * **Those gates are the payments received's** (effort 854, requirement 25). A refund the set puts
-	 * back goes onto a terminated contract as well, and is weighed against the most the contract's
-	 * state lets it return, the refunds of the set together and against the payments received the
-	 * set puts back beside them: the same limit `create` weighs one refund put back against, so
-	 * undoing one deletion and undoing many agree (ticket 33). Both are the payment's one rule,
-	 * `ensurePaymentWritable`, asked once per contract.
+	 * back goes onto a terminated contract as well, and since putting a deleted set back is an
+	 * undo, which takes a change back to the state before it (ticket 40, the human's ruling of
+	 * 2026-10-07), it is weighed only that the contract's refunds, the set's together with what it
+	 * holds, stay within what it received, the payments received the set puts back beside them
+	 * included. That is how `create` weighs one refund an undo puts back, so undoing one deletion
+	 * and undoing many agree. Both are the payment's one rule, `ensurePaymentWritable`, asked once
+	 * per contract as a replay: nothing but an undo calls this.
 	 */
 	createMany: procedure
 		.permitted('createPayment')
@@ -254,7 +256,8 @@ export default router({
 			for (const contract of contracts) {
 				ensurePaymentWritable(contract, registeredByContractId.get(contract.id) ?? [], {
 					act: 'create',
-					payments: namedByContractId.get(contract.id) ?? []
+					payments: namedByContractId.get(contract.id) ?? [],
+					replay: true
 				});
 			}
 

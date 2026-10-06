@@ -34,7 +34,12 @@ which is every payment received as recorded. How much may be refunded depends on
 state: on one not terminated, only what it received past its total cost, so a refund never makes
 it owe; on a terminated one, up to what it received. Each less earlier refunds
 (`getRefundableAmount`). An edited refund may always keep or lower its amount, even past that
-limit, since a restored contract may already hold refunds past it; only raising one is weighed. A file is the one place a refund is written as a negative amount, the
+limit, since a restored contract may already hold refunds past it; only raising one is weighed.
+That limit is for changes a person makes. An undo or a redo replays a change rather than making
+one, and is held only to refunds staying within what the contract received: undoing a refund's
+edit or deletion puts back exactly what was recorded, past the limit or not. An intended change is
+reversed by another change, which the limit weighs; an unintended one is undone back to the state
+before it (the human's ruling of 2026-10-07). A file is the one place a refund is written as a negative amount, the
 workspace file and a contract's ledger export alike, with its method, reference and note beside
 it as a payment received has them. A file's refunds on one contract, weighed together with what
 the contract already holds, may not exceed what it received; the limit by state governs recording a

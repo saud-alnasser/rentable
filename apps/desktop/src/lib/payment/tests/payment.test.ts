@@ -142,3 +142,54 @@ test('ensurePaymentWritable weighs refunds put back together, and never refuses 
 		refusedWith('contract.refundAboveLimit', { limit: 3000 })
 	);
 });
+
+// ticket 40 of effort 854: a write an undo or a redo replays is weighed only that refunds stay
+// within what was received, so a restored contract's refund goes back to what was recorded.
+test('ensurePaymentWritable weighs a replayed refund only against what was received', () => {
+	const live = {
+		status: 'active' as const,
+		start: new Date('2026-01-01T00:00:00.000Z'),
+		end: new Date('2026-12-31T00:00:00.000Z'),
+		interval: '12m' as const,
+		cost: 100000
+	};
+	const restored = [{ amount: 5000, date: 0 }];
+	const refund = (amount: number) => ({ amount, date: 0, direction: 'refund' as const });
+
+	assert.doesNotThrow(() =>
+		ensurePaymentWritable(live, restored, {
+			act: 'update',
+			payment: refund(2000),
+			amount: 3000,
+			replay: true
+		})
+	);
+	assert.doesNotThrow(() =>
+		ensurePaymentWritable(live, restored, { act: 'create', payments: [refund(3000)], replay: true })
+	);
+	assert.throws(
+		() =>
+			ensurePaymentWritable(live, restored, {
+				act: 'update',
+				payment: refund(2000),
+				amount: 5001,
+				replay: true
+			}),
+		refusedWith('contract.refundsExceedReceived')
+	);
+	assert.throws(
+		() =>
+			ensurePaymentWritable(live, restored, {
+				act: 'create',
+				payments: [refund(5001)],
+				replay: true
+			}),
+		refusedWith('contract.refundsExceedReceived')
+	);
+	// the same writes by hand keep the limit by state.
+	assert.throws(
+		() =>
+			ensurePaymentWritable(live, restored, { act: 'update', payment: refund(2000), amount: 3000 }),
+		refusedWith('contract.refundAboveLimit', { limit: 2000 })
+	);
+});

@@ -377,9 +377,11 @@ test('on a terminated contract a refund is deleted and put back, while a payment
 	);
 });
 
-// ticket 33 of effort 854: putting refunds back is weighed against the limit the contract's state
-// sets, as putting one back through `payment.create` is, so the two undo paths agree.
-test('putting refunds back is refused past what the contract may return, naming the limit', async () => {
+// ticket 40 of effort 854: putting refunds back is what undoing a bulk deletion does, and an undo
+// takes a change back to the state before it (the human's ruling of 2026-10-07). So it is weighed
+// only that refunds stay within what the contract received, as an undo through `payment.create` is,
+// and the two undo paths agree.
+test('putting refunds back is refused past what the contract received', async () => {
 	const api = await createApi();
 	const contract = await seedContract(api, { cost: 100000 });
 
@@ -392,12 +394,12 @@ test('putting refunds back is refused past what the contract may return, naming 
 					{ contractId: contract.id, date: monthsFromNow(0), amount: 501, direction: 'refund' }
 				]
 			}),
-		refusedWith('contract.refundAboveLimit', { limit: 0 })
+		refusedWith('contract.refundsExceedReceived')
 	);
 	assert.equal((await api.payment.getMany({ contractId: contract.id })).length, 1);
 });
 
-test('undoing a bulk deletion of a refund is refused once another refund took its place', async () => {
+test('undoing a bulk deletion of a refund is refused once another refund took what was received', async () => {
 	const api = await createApi();
 	const contract = await seedContract(api, { cost: 12000 });
 
@@ -408,18 +410,47 @@ test('undoing a bulk deletion of a refund is refused once another refund took it
 
 	assert.deepEqual(toIds(deleted.deleted), [returned.id]);
 
-	await seedRefund(api, contract.id, 1000);
+	await api.contract.terminate({ id: contract.id });
+	await seedRefund(api, contract.id, 13000);
 
 	await assert.rejects(
 		() => api.payment.createMany({ payments: deleted.deleted }),
-		refusedWith('contract.refundAboveLimit', { limit: 0 })
+		refusedWith('contract.refundsExceedReceived')
 	);
 
 	const after = await api.contract.get({ id: contract.id });
 
 	assert.equal((await api.payment.getMany({ contractId: contract.id })).length, 2);
-	assert.equal(after?.paidAmount, 12000);
-	assert.equal(after?.status, 'fulfilled');
+	assert.equal(after?.paidAmount, 0);
+	assert.equal(after?.status, 'terminated');
+});
+
+test('on a restored contract undoing a bulk deletion puts back a refund past its live limit', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api, { cost: 100000 });
+
+	await seedPayment(api, contract.id, 5000);
+	await api.contract.terminate({ id: contract.id });
+
+	const returned = await seedRefund(api, contract.id, 3000);
+
+	await api.contract.unterminate({ id: contract.id });
+
+	const deleted = await api.payment.deleteMany({ ids: [returned.id] });
+
+	assert.deepEqual(toIds(deleted.deleted), [returned.id]);
+
+	// by hand, nothing more may be returned on the live contract.
+	await assert.rejects(
+		() => seedRefund(api, contract.id, 3000),
+		refusedWith('contract.refundAboveLimit', { limit: 0 })
+	);
+
+	const restored = await api.payment.createMany({ payments: deleted.deleted });
+
+	assert.deepEqual(toIds(restored), [returned.id]);
+	assert.equal(restored[0]?.amount, 3000);
+	assert.equal((await api.contract.get({ id: contract.id }))?.paidAmount, 2000);
 });
 
 test('a bulk undo putting payments received and refunds back weighs the refunds against them', async () => {

@@ -121,10 +121,13 @@ export function ensurePaymentUnlocked(
  * A write to a contract's payments, as {@link ensurePaymentWritable} weighs it: the payments a
  * creation puts in (one recorded, or a set an undo puts back), the payment an edit changes to a
  * new amount, or the payment a deletion takes out. An edit never changes a payment's direction.
+ *
+ * `replay` marks a creation or an edit that an undo or a redo replays, rather than one a person
+ * makes by hand: it takes a change back to the state before it, so it is weighed differently.
  */
 export type PaymentWrite =
-	| { act: 'create'; payments: PaymentLike[] }
-	| { act: 'update'; payment: PaymentLike; amount: number }
+	| { act: 'create'; payments: PaymentLike[]; replay?: boolean }
+	| { act: 'update'; payment: PaymentLike; amount: number; replay?: boolean }
 	| { act: 'delete'; payment: PaymentLike };
 
 /**
@@ -144,6 +147,11 @@ export type PaymentWrite =
  *   a refund returns whatever the limit, because a restored contract may hold refunds past what a
  *   live one may return (requirement 27), and raising it is weighed like a new one. Deleting a
  *   refund only returns less, so it always goes through.
+ * - **a refund an undo or a redo replays** is weighed only that the contract's refunds stay within
+ *   what it received, never against the limit by state (ticket 40, the human's ruling of
+ *   2026-10-07). An intended change is reversed only by another change, made by hand and held to
+ *   the limit; an undo takes a mistaken one back to the state before it, so undoing the edit or
+ *   the deletion of a refund on a restored contract puts back exactly what was recorded.
  */
 export function ensurePaymentWritable(
 	contract: ContractLike,
@@ -163,13 +171,21 @@ export function ensurePaymentWritable(
 				ensureContractPaymentsCreatable(contract, kept);
 			}
 
-			if (refunds.length) {
+			if (refunds.length && write.replay) {
+				ensureRefundsCovered([...kept, ...write.payments]);
+			} else if (refunds.length) {
 				ensureRefundWithinLimit(contract, [...kept, ...received], getRefundedAmount(refunds));
 			}
 
 			return;
 		}
 		case 'update': {
+			if (isRefund(write.payment) && write.replay) {
+				ensureRefundsCovered([...kept, { ...write.payment, amount: write.amount }]);
+
+				return;
+			}
+
 			if (isRefund(write.payment)) {
 				ensureRefundWithinLimit(contract, kept, write.amount, write.payment.amount);
 
