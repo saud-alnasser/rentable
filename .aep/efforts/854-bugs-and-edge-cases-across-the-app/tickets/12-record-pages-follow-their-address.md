@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(desktop): record pages follow their address
@@ -14,8 +14,8 @@ Every record page shows the record its address names, after a renewal, a palette
 
 Traces requirement 2 and criterion 2.
 
-- [ ] The six record routes read `$derived(page.params.id)` inside `{#key}`, as `settings/workspaces/[id]` does.
-- [ ] A Vitest route test per criterion 2 changes the parameter and sees the second record.
+- [x] The six record routes read `$derived(page.params.id)` inside `{#key}`, as `settings/workspaces/[id]` does.
+- [x] A Vitest route test per criterion 2 changes the parameter and sees the second record.
 
 ## Relevant areas
 
