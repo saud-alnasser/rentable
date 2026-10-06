@@ -554,6 +554,33 @@ so it probably does not. Criterion 15 measures this. **If the "another query run
 stop and return to plan.** The fallback is to hold one long-lived connection per engine rather
 than one per query.
 
+**Measured, and replanned (2026-10-06).** The assertion fails: `connect()` takes the sync
+engine's synchronous mutex, which a stalled pull holds for its whole network wait, and blocks the
+thread rather than yielding, so not even a `tokio::time::timeout` around it fires. A connection
+opened before the stall runs a query and an insert in 50 ms
+([[efforts/854-bugs-and-edge-cases-across-the-app/evidence/research/a-stalled-sync-holds-connect]]).
+So the fallback is taken, in this shape:
+
+4. **The workspace arm holds its connections; it never calls `connect()` once the engine is
+   open.** `Engine::Workspace` keeps, beside the engine, a small fixed set of connections opened
+   when the engine is built, before any push or pull can run. A request checks one out
+   exclusively and returns it when done, so a batch's transaction is never shared between two
+   callers and a query never waits on the engine's mutex; a request that finds every connection
+   out waits for one to come back, which is a wait on local work only. `execute_single_sql`,
+   `execute_batch_sql` (through `watched`) and `is_replica_ready` draw from the set. `first_read`
+   runs before the engine is handed out, so it may still `connect()`. The set's size is the
+   implementer's to choose and state; four is the starting point, since the interface rarely has
+   more than a handful of requests in flight. A connection whose use reports corruption is handled
+   as `corrupt.rs` handles it today; the set does not change what a corrupt read means.
+5. Steps 1 to 3 stand: the bound still decides when a sync reads as offline, and the write lock is
+   still let go before the first pull, since a held `db.write()` would stall queries whatever
+   connection they use.
+
+The test in `database/mod.rs` that runs `select 1` while `replicate` waits now runs on a replica
+whose pull is stalled against the silent server, and must complete well inside the bound. A second
+test checks out every connection, holds them, and shows a further request waits and then
+completes once one is returned.
+
 **Tests (Rust, `--test-threads=1`).** Add a shared helper `sync/test/server.rs::SilentServer`:
 a `std::net::TcpListener` that is bound and never accepted. The kernel completes the handshake and
 nothing ever answers. Then:
