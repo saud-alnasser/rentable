@@ -2,6 +2,7 @@
 	import type { HeldOrganization } from '$lib/organization';
 	import WayInSurface from '@rentable/design/block/way-in-surface.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
+	import { surfaceForm } from '$lib/form';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { OrganizationLockedNotice, OrganizationSwitcher } from '$lib/organization/ui';
 	import { WayInPreferences } from '$lib/settings/ui';
@@ -83,9 +84,11 @@
 	const WorkspaceSchema = workspaceFormSchema($LL);
 
 	let { form, constraints, errors, enhance, ...rest } = superForm(defaults(zod4(WorkspaceSchema)), {
+		// the shared surface's options, and `resetForm: false` is the one that matters here: a create
+		// that fails leaves the screen up, with the name still in it (effort 854, requirement 11).
+		...surfaceForm,
 		// named apart from the walk's and the dialog's forms off the same schema (see `setup-walk`).
 		id: 'startup-workspace',
-		SPA: true,
 		validators: zod4(WorkspaceSchema),
 		onUpdate: ({ form }) => {
 			if (!form.valid || !canCreate || isCreating) return;

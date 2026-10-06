@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(desktop): the way in shows its failures and keeps the workspace name
@@ -14,9 +14,9 @@ A failure opening the workspace after sign-in, first-run or no-workspace setup r
 
 Traces requirements 10 and 11, and criteria 10 and 11.
 
-- [ ] `signIn` and `standingChanged` send a throw to `machine.fail`.
-- [ ] The workspace dialog and the no-workspace screen spread `surfaceForm`.
-- [ ] Startup harness tests end in `error`, never `loading` or a silent wall; Vitest tests fail a create from both surfaces and find the name kept.
+- [x] `signIn` and `standingChanged` send a throw to `machine.fail`.
+- [x] The workspace dialog and the no-workspace screen spread `surfaceForm`.
+- [x] Startup harness tests end in `error`, never `loading` or a silent wall; Vitest tests fail a create from both surfaces and find the name kept.
 
 ## Relevant areas
 

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import FormSurface, { insetControl } from '@rentable/design/block/form-surface.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
+	import { surfaceForm } from '$lib/form';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { WorkspaceFields } from '$lib/workspace/ui';
 	import { workspaceFormSchema } from '$lib/workspace';
@@ -44,9 +45,12 @@
 	let { form, constraints, errors, enhance, reset, ...rest } = superForm(
 		defaults(zod4(WorkspaceSchema)),
 		{
+			// the shared surface's options, and `resetForm: false` is the one that matters here: a
+			// create that fails leaves the dialog open, with the name still in it (effort 854,
+			// requirement 11). The reset on open below still starts a fresh dialog blank.
+			...surfaceForm,
 			// named apart from the walk's and the no-workspace surface's forms off the same schema.
 			id: 'workspace-dialog',
-			SPA: true,
 			validators: zod4(WorkspaceSchema),
 			onUpdate: ({ form }) => {
 				if (!form.valid || isCreating) return;

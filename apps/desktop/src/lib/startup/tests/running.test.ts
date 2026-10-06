@@ -381,6 +381,32 @@ test('and a workspace the shell would not open is the ordinary failure, with not
 	assert.equal(journal.bootstrapped, 1, 'nothing behind the open ran');
 });
 
+// effort 854, requirement 10: the first run or the no-workspace screen changed where the machine
+// stands, and the workspace it reached would not open. The loading surface is already up, so the
+// failure is said on the error screen rather than left under a surface with nothing to load.
+test('and a workspace that would not open after the standing changed is the ordinary failure', async () => {
+	const opening = { refuses: false };
+	const { startup, journal } = harness({
+		openWorkspace: async () => {
+			if (opening.refuses) {
+				throw new Error('the replica would not open');
+			}
+		}
+	});
+
+	await startup.start();
+	assert.equal(startup.snapshot.state, 'ready');
+
+	opening.refuses = true;
+	let rejected = false;
+	await startup.standingChanged().catch(() => (rejected = true));
+
+	assert.equal(rejected, false, 'the failure is said on screen, not thrown at the caller');
+	assert.equal(startup.snapshot.state, 'error');
+	assert.equal(startup.snapshot.error, 'the replica would not open');
+	assert.deepEqual(journal.failures, ['the replica would not open']);
+});
+
 test('and a switch asked for while one is loading, or while a password is being tried, does nothing', async () => {
 	const loading = holdingTwo();
 

@@ -139,6 +139,27 @@ test('and a member with a workspace reaches it after the sign-in, re-entering at
 	assert.deepEqual(journal.stages.slice(-3), ['workspace', 'changes', 'records']);
 });
 
+// effort 854, requirement 10: the sign-in succeeded and the workspace would not open. The wall
+// has nothing left to say about the password, so the failure is the ordinary one, on the error
+// screen, rather than a wall left standing with the card reopened and nothing said.
+test('and a workspace that would not open after the sign-in is the ordinary failure', async () => {
+	const { startup, journal } = harness({
+		organization: locked(),
+		signInWith: async () => unlocked(),
+		openWorkspace: async () => {
+			throw new Error('the replica would not open');
+		}
+	});
+
+	await startup.start();
+	await startup.signIn('olivia', 'a long enough password');
+
+	assert.equal(startup.snapshot.state, 'error');
+	assert.equal(startup.snapshot.error, 'the replica would not open');
+	assert.deepEqual(journal.failures, ['the replica would not open']);
+	assert.equal(startup.snapshot.isSigningIn, false);
+});
+
 // --- 7. A sign-out while the application is running ------------------------------------
 
 test('signing out puts the wall back up, locked, and clears what was drawn for whoever left', async () => {
