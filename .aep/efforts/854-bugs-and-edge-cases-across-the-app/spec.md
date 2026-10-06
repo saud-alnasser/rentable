@@ -132,13 +132,22 @@ The human's rulings of 2026-10-06, after
     no later than today, and the same optional method, reference and note a payment does. It
     shows in the ledger as money going out, distinct from money received, and can be undone and
     deleted like a payment. Ordinary payments on a terminated contract stay locked.
+    A refund on a terminated contract can be edited and deleted directly, within the limit: a
+    refund is how a terminated contract is settled, and making the reader restore the contract to
+    correct one would turn it live and owing for a moment for no reason. Where a payment on a
+    terminated contract is locked, the ledger says why and how to change it (restore the
+    contract), rather than only hiding the control.
 26. **How much may be refunded depends on the contract's state.** On a contract that is not
     terminated, a refund may return only what the contract has received beyond its total cost,
     less earlier refunds, so it never makes the contract owe; a payment made by mistake is
     deleted, as today. On a terminated contract, a refund may return up to what the contract
-    has received, less earlier refunds. A refund above the limit is refused, saying the limit.
+    has received, less earlier refunds. A refund above the limit is refused, saying the limit, and the refund form shows the most
+    that may be refunded before the reader types an amount, so the app guides toward a valid
+    entry rather than only refusing one. Where nothing may be refunded, the form says why.
 27. **What a contract counts as paid is net of its refunds**: received less refunded. A
-    terminated contract stays terminated and owes nothing after a refund. Every figure that
+    terminated contract stays terminated and owes nothing after a refund. Restoring a refunded
+    terminated contract, directly or by undo, goes through, and the contract then owes what was
+    returned: the figures follow what happened, in the order it happened. Every figure that
     sums a contract's payments (status, schedule and allocation, outstanding, paid in full, the
     directory's paid amount, receipts) reads the same net amount.
 28. **The landing page shows money returned beside money collected.** Collected stays every
@@ -148,8 +157,12 @@ The human's rulings of 2026-10-06, after
     in Arabic or English: a voucher number taken from the refund's identity, the tenant, the
     contract, the amount, the date, the method and reference where recorded, the note as the
     reason, and a line for the tenant's signature. It is not a tax document.
-30. Refunds travel through workspace export and import with their direction, and a file
-    exported before this effort imports with every row read as money received.
+30. **Export then import reproduces the state that was exported.** Exporting a workspace and
+    importing the file into an empty one gives back every complex, unit, tenant, contract and
+    payment with every field a person entered: a contract's terminated status and its units, and
+    a payment's direction, method, reference and note included. Only what is derived on read
+    (statuses other than terminated, paid and expected amounts) is recomputed, and it comes out
+    the same. A file exported before this effort imports with every payment read as received.
 
 ## Rust shell
 
@@ -159,10 +172,13 @@ The human's rulings of 2026-10-06, after
 16. The Turso consent callback survives a connection that opens and sends nothing, or sends its
     request in pieces. It keeps listening until the real callback arrives or the consent times
     out.
-17. A settings, sync or update record that cannot be read never stops the app from starting.
+17. A settings, sync or update record whose content cannot be read (empty, truncated, not
+    valid) never stops the app from starting.
     The unreadable file is set aside rather than deleted, and the app starts from the last good
-    copy where one exists, or from defaults where none does, and logs what happened. Writes reach
-    the disk before the rename that commits them.
+    copy where one exists, or from defaults where none does, and logs what happened. Writes reach the disk before the rename that commits them. A record the
+    system will not let the app open at all (locked, no permission) is never overwritten with
+    defaults, which would forget every organization held: the app says which file it cannot open
+    and why, and stops, rather than panicking.
 18. A failed update download can be retried in the same session. An update recovery record
     whose target is not the running version, after a restart, no longer blocks later updates.
 19. When the credential store cannot answer, a Turso act reports that, not "not connected".
@@ -211,8 +227,8 @@ The human's rulings of 2026-10-06, after
 16. A Rust test opens a silent connection, then a split request to the callback. The consent
     settles from the second and is not failed by the first.
 17. A Rust test loads an empty, a truncated and a zero-filled record of each kind. The app state
-    comes up from the last good copy or the defaults, and the bad file is kept beside it under a
-    new name.
+    comes up from the last good copy or the defaults, and the bad file is kept beside it under a new name. A record that cannot be opened (a
+    locked file) leaves the original untouched and ends in a message naming it, never a panic.
 18. Rust tests: prepare after a failed download in the same session succeeds; bootstrap with a
     pending record whose target is not the running version clears it.
 19. A Rust test with a credential store that fails (not absent) sees a credential error, not
@@ -225,11 +241,13 @@ The human's rulings of 2026-10-06, after
     history.
 25. Tests record a refund on an active and on a terminated contract, see it in the ledger as
     money going out, undo it and delete it, and find every existing payment untouched; a
-    payment on the terminated contract is still refused.
+    payment on the terminated contract is still refused. A refund on the terminated contract is
+    edited in place, and a locked payment's row says why it is locked and how to change it.
 26. Tests: on a live contract paid 1,000 beyond its total, a refund of 1,000 goes through and
     one of 1,001 is refused naming the limit; on a live contract paid exactly its total, any
     refund is refused; on a terminated contract that received 5,000, refunds of 3,000 then
-    2,000 go through and a further 1 is refused.
+    2,000 go through and a further 1 is refused. The refund form shows 1,000, 0 (with why) and 5,000 as the most
+    that may be refunded in those three cases.
 27. Tests: after a refund, the contract's paid amount, status, schedule, outstanding and the
     directory row all read received less refunded; a terminated contract refunded in full stays
     terminated with nothing outstanding.
@@ -237,8 +255,11 @@ The human's rulings of 2026-10-06, after
     refund and returned equal to it; with no refund, no returned figure is shown.
 29. A test prints a refund's voucher in Arabic and in English and finds every field named in
     requirement 29, and a payment's receipt is unchanged.
-30. Tests round-trip a workspace holding refunds and find them still refunds, and import a file
-    exported at c9d9c4ba with every payment read as received.
+30. A test builds a workspace holding every record kind and every field (a terminated contract
+    whose unit a later contract holds, a numberless contract, payments with method, reference
+    and note, refunds on a live and a terminated contract), exports it, imports it into an empty
+    workspace, and compares the two field by field, ids aside. A file exported at c9d9c4ba imports
+    with every payment read as received.
 24. A test undoes the creation of a complex with no units as a member without the unit-deletion
     permission, and the undo is not refused.
 
@@ -265,8 +286,12 @@ The human's rulings of 2026-10-06, after
 
 - Storing money as integer minor units. Requirement 3 fixes the comparison. Changing the type is
   a migration of every amount, and its own effort.
-- Carrying a payment's method, reference and note through transfer: effort 835 recorded it as
-  noted and not changed.
+- Carrying the history log through transfer: an import is a new workspace's first act, and
+  history it did not witness would be invented. Records and their fields round-trip; their
+  history starts at the import.
+- *Carrying a payment's method, reference and note through transfer was left out by effort 835;
+  the human's ruling of 2026-10-06 that a round trip must give back the same state brings it in
+  (requirement 30).*
 - Rolling "today" over at local midnight rather than the UTC day: by design.
 - The CSV reader's handling of multi-line cells: not reachable today.
 - Expenses: money the organization spends on a complex or unit. A separate concept in every
@@ -281,8 +306,8 @@ The human's rulings of 2026-10-06, after
 - The undo of a terminate (`unterminate` reached through undo) is refused like a direct restore
   when a unit has been taken since (requirement 4). Unlike a deletion's undo, it is not
   restoring rows; it is making a terminated contract live again.
-- A bound of about 30 to 60 seconds for replica network calls matches what the platform API
-  calls already use (30 s). The plan fixes the number.
+- A replica network call is bounded by 30 seconds without progress (what the platform API calls
+  already use), under a ten-minute ceiling, so a large first pull on a slow link is not cut.
 - The six record routes are the only ones that read a route parameter once. The plan confirms
   this by search.
 
