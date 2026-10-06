@@ -27,11 +27,20 @@ export const keys = {
 } as const;
 
 /**
- * the members and the roles read again after a write to either: a role's holders are counted on the
- * roles, and a member's effective permissions and rank are read off their role, so a change to one
- * is a change to what the other says.
+ * What every write to the organization's database reads again: the members (their standings sit
+ * under them), the roles and where this machine stands, together.
+ *
+ * **All three, whatever the write named**, because each is drawn from rows the others change and
+ * the cards say it at once. A role's holders are counted on the roles, so removing a member moves
+ * a role card; a member's workspaces are read off the members, so creating or deleting a workspace
+ * moves a member card and the workspace card's count of who holds it; and the workspaces this
+ * reader holds, with their names, are part of the state, so renaming one moves its card. A write
+ * that named only the key it thought of left the others showing the old row until the section was
+ * drawn again, which is how a renamed workspace's card kept its old name until the reader switched
+ * tabs away and back (fixed with effort 851). One refresh for every write is the cost of a local
+ * read or two; a card one change behind is the cost of naming them one at a time.
  */
-export const rolesAndMembersChanged = [keys.members, keys.roles];
+export const organizationChanged = { together: [keys.members, keys.roles, keys.state] } as const;
 
 /**
  * forget the organization this machine holds: the shell signs out where somebody is in, deletes
@@ -88,7 +97,7 @@ export const useRenameOrganization = declareMutation({
 		unexpected: () => get(LL).common.messages.unexpectedError()
 	},
 	sets: ({ result }) => [{ key: keys.state, data: result }],
-	invalidates: [keys.state]
+	invalidates: [organizationChanged]
 });
 
 /** where this machine stands: the organizations it joined and who is in. */

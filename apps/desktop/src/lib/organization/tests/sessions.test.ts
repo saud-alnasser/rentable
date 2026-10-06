@@ -298,6 +298,7 @@ describe('changing what a member may open', () => {
 
 		assert.deepEqual(invalidated, [
 			['organization', 'members'],
+			['organization', 'roles'],
 			['organization', 'state']
 		]);
 	});
@@ -315,6 +316,7 @@ describe('changing what a member may open', () => {
 		);
 		assert.deepEqual(invalidated, [
 			['organization', 'members'],
+			['organization', 'roles'],
 			['organization', 'state']
 		]);
 	});
