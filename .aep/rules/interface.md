@@ -1096,12 +1096,20 @@ organization's did.
 | a permission, in a role's editor or on a member's card | switch |
 | a workspace a member is in | switch |
 | a choice of five or more | select, or a combobox when searched |
+| a length of time from fixed steps | slider, with the chosen value written beside it |
 | another record | combobox over its search |
 | a date | the popover calendar, given the reader's locale |
 | money | the input group with the riyal sign as adornment, `inputmode="decimal"` |
 | a phone | country select plus number, `dir="ltr"` |
 | a status | the status icon cell |
 | a count | the count cell |
+
+**A length of time from fixed steps is a slider**, its thumb running over the steps by their place
+in the list rather than by their size, the label's row ending with the value it stands on in words,
+and its two ends named under the track. A link's lifetime is one: thirty steps from an hour to a
+week (`organization/member/component/link-form.svelte`). *The human's word on 2026-10-06, during
+[[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/spec]] (requirement 11),
+that the lifetime is picked with a slider rather than the select its thirty values first took.*
 
 **A permission is a switch, although it takes effect when its editor is saved.** The role editor
 and a member's card draw one list of them (`organization/role/component/permission-switches.svelte`):

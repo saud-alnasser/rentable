@@ -1,9 +1,8 @@
 <script lang="ts">
-	import FormSurface, { insetControl } from '@rentable/design/block/form-surface.svelte';
+	import FormSurface from '@rentable/design/block/form-surface.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
-	import * as Select from '@rentable/design/primitive/select/index.js';
-	import { cn } from '@rentable/design/tailwind.js';
+	import { Slider } from '@rentable/design/primitive/slider/index.js';
 	import { onSubmit } from '$lib/form';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import {
@@ -19,9 +18,12 @@
 	 *
 	 * **One choice, and it starts where most people would leave it.** Every hour from one to
 	 * twenty-three, every day from one to six, then a week, shortest first, at three days until
-	 * changed. Thirty values is a select ([[rules/interface]], *Field kinds*), and the sentence under
-	 * it says what the choice does: the pair stops working together. What is made is shown on the
-	 * handover panel (`made-link.svelte`), which prints the moment it lapses.
+	 * changed. A length of time from fixed steps is a slider with the chosen value written beside it
+	 * ([[rules/interface]], *Field kinds*): the thumb runs over the thirty steps by their place in
+	 * the list, the label's row ends with the lifetime it stands on, the two ends are named under the
+	 * track, and the sentence under them says what the choice does: the pair stops working together.
+	 * What is made is shown on the handover panel (`made-link.svelte`), which prints the moment it
+	 * lapses.
 	 *
 	 * **Light, on the shared form surface** ([[rules/interface]], *Form surface*): one value, declared
 	 * rather than measured.
@@ -45,15 +47,22 @@
 		onMake: (lifetimeHours: number) => void;
 	} = $props();
 
-	let chosen = $state(String(DEFAULT_LINK_LIFETIME_HOURS));
+	const DEFAULT_STEP = LINK_LIFETIME_HOURS.indexOf(DEFAULT_LINK_LIFETIME_HOURS);
+	const LAST_STEP = LINK_LIFETIME_HOURS.length - 1;
+
+	/** where the thumb stands: a place in `LINK_LIFETIME_HOURS`, not a number of hours. */
+	let step = $state(DEFAULT_STEP);
+
+	const chosen = $derived(LINK_LIFETIME_HOURS[step]);
+	const shown = $derived(formatLinkLifetime($locale, chosen));
 
 	// every link starts at the default: a lifetime chosen for one account is not a setting.
 	$effect(() => {
-		if (!open) chosen = String(DEFAULT_LINK_LIFETIME_HOURS);
+		if (!open) step = DEFAULT_STEP;
 	});
 
 	const enhance = onSubmit(() => {
-		if (!isMaking) onMake(Number(chosen));
+		if (!isMaking) onMake(chosen);
 	});
 </script>
 
@@ -66,30 +75,30 @@
 	description={$LL.organization.dashboard.linkFor({ username })}
 >
 	<Field.Field data-link-lifetime={chosen}>
-		<Field.Label for="link-lifetime">{$LL.organization.dashboard.linkLifetime()}</Field.Label>
-		<Select.Root
-			type="single"
-			value={chosen}
-			onValueChange={(value) => {
-				if (value) chosen = value;
-			}}
+		<div class="flex items-baseline justify-between gap-4">
+			<Field.Label id="link-lifetime-label">
+				{$LL.organization.dashboard.linkLifetime()}
+			</Field.Label>
+			<span data-link-lifetime-shown class="text-sm font-medium tabular-nums">{shown}</span>
+		</div>
+		<Slider
+			bind:value={step}
+			min={0}
+			max={LAST_STEP}
+			step={1}
 			disabled={isMaking}
-		>
-			<Select.Trigger id="link-lifetime" class={cn('w-full', insetControl)}>
-				{formatLinkLifetime($locale, Number(chosen))}
-			</Select.Trigger>
-			<Select.Content>
-				{#each LINK_LIFETIME_HOURS as hours (hours)}
-					<Select.Item
-						value={String(hours)}
-						label={formatLinkLifetime($locale, hours)}
-						data-link-lifetime-option={hours}
-					>
-						{formatLinkLifetime($locale, hours)}
-					</Select.Item>
-				{/each}
-			</Select.Content>
-		</Select.Root>
+			thumbLabelledby="link-lifetime-label"
+			valueText={shown}
+			class="py-2"
+		/>
+		<div class="-mt-1 flex justify-between gap-4 text-xs text-muted-foreground">
+			<span data-link-lifetime-end="first">
+				{formatLinkLifetime($locale, LINK_LIFETIME_HOURS[0])}
+			</span>
+			<span data-link-lifetime-end="last">
+				{formatLinkLifetime($locale, LINK_LIFETIME_HOURS[LAST_STEP])}
+			</span>
+		</div>
 		<Field.Description>{$LL.organization.dashboard.linkLifetimeDescription()}</Field.Description>
 	</Field.Field>
 
