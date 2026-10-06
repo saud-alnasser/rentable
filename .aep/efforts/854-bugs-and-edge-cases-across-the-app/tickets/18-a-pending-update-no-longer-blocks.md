@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [17]
 ---
 
@@ -15,8 +15,8 @@ A failed download can be retried in the same session, and a pending recovery rec
 
 Traces requirement 18 and criterion 18.
 
-- [ ] `Update::settle_at_launch` resolves records whose target is not the running version; `prepare` refuses only while the target is the running version.
-- [ ] Rust tests per criterion 18; the existing pending test is rewritten to seed the target as running.
+- [x] `Update::settle_at_launch` resolves records whose target is not the running version; `prepare` refuses only while the target is the running version.
+- [x] Rust tests per criterion 18; the existing pending test is rewritten to seed the target as running.
 
 ## Relevant areas
 

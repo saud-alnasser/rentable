@@ -6,6 +6,7 @@ use tokio::sync::RwLock;
 
 use crate::{
     clock::Clock,
+    diagnostics,
     error::Error,
     persisted::{Persistable, Persisted},
     settings::{self, Settings},
@@ -133,6 +134,52 @@ impl Update {
         Ok(Self { recovery })
     }
 
+    /// Settle, at launch, a record the running version cannot be judged by.
+    ///
+    /// **A pending record whose target is not the running version is over** (effort 854,
+    /// requirement 18). Either this machine is back on the release it came from, because the
+    /// user took the route back or the install never happened, or it is on a third version
+    /// altogether, and in neither case is there a new build here to judge. Until 2026-10-06 only
+    /// the first was resolved, and a record left by an update that never completed refused every
+    /// update after it.
+    ///
+    /// *The record the running version is the target of is left alone:* `bootstrap` resolves or
+    /// fails that one once it has tried the workspace.
+    pub fn settle_at_launch(&mut self, running: &str) -> Result<(), Error> {
+        let running = normalize_version(running);
+
+        if self.recovery.status != RecoveryStatus::Pending
+            || !self.recovery.has_data()
+            || self.recovery.target_version == running
+        {
+            return Ok(());
+        }
+
+        let target_version = self.recovery.target_version.clone();
+        let previous_version = self.recovery.previous_version.clone();
+
+        if previous_version != running {
+            diagnostics::info("startup.recovery.elsewhere")
+                .with("targetVersion", target_version)
+                .with("previousVersion", previous_version)
+                .with("version", running)
+                .write();
+        } else if let Some(error) = self.recovery.update_error.clone() {
+            diagnostics::warn("startup.recovery.wentBack")
+                .with("targetVersion", target_version)
+                .with("previousVersion", previous_version)
+                .with("error", error)
+                .write();
+        } else {
+            diagnostics::info("startup.recovery.notInstalled")
+                .with("targetVersion", target_version)
+                .with("previousVersion", previous_version)
+                .write();
+        }
+
+        self.resolve()
+    }
+
     pub const fn recovery(&self) -> &Persisted<Recovery> {
         &self.recovery
     }
@@ -157,7 +204,13 @@ impl Update {
             });
         }
 
-        if self.recovery.status == RecoveryStatus::Pending && self.recovery.has_data() {
+        // only the route back on screen holds an update up: a pending record whose target is
+        // not the version running is one that never installed, a failed download among them, and
+        // trying again overwrites it.
+        if self.recovery.status == RecoveryStatus::Pending
+            && self.recovery.has_data()
+            && self.recovery.target_version == previous_version
+        {
             return Err(Error::Busy {
                 message: "cannot prepare update while another recovery is still pending"
                     .to_string(),
@@ -280,8 +333,10 @@ mod tests {
         (update, db, settings)
     }
 
+    /// The route back is on screen: the running version is the target of an update that has
+    /// not said how it went, so a further update waits until the user has dealt with it.
     #[test]
-    fn prepare_rejects_when_recovery_is_already_pending() {
+    fn prepare_rejects_while_the_running_version_is_the_pending_target() {
         Runtime::new()
             .expect("failed to create tokio runtime")
             .block_on(async {
@@ -289,8 +344,8 @@ mod tests {
                 let (mut update, db, _) = setup_update(&root).await;
 
                 update.recovery.status = RecoveryStatus::Pending;
-                update.recovery.target_version = "0.5.2".to_string();
-                update.recovery.previous_version = "0.5.1".to_string();
+                update.recovery.target_version = "0.5.1".to_string();
+                update.recovery.previous_version = "0.5.0".to_string();
                 update
                     .recovery
                     .commit()
@@ -302,7 +357,100 @@ mod tests {
                     .expect_err("expected prepare to reject existing pending recovery");
 
                 assert!(matches!(error, Error::Busy { .. }), "got {error:?}");
-                assert_eq!(update.recovery.target_version, "0.5.2");
+                assert_eq!(update.recovery.target_version, "0.5.1");
+
+                db.write().await.disconnect().await;
+                let _ = std::fs::remove_dir_all(root);
+            });
+    }
+
+    /// **A failed download can be tried again** (effort 854, criterion 18): the first attempt
+    /// wrote its route back and never installed, and the second attempt in the same session
+    /// overwrites it rather than being refused for it.
+    #[test]
+    fn prepare_after_a_failed_download_in_the_same_session_succeeds() {
+        Runtime::new()
+            .expect("failed to create tokio runtime")
+            .block_on(async {
+                let root = scratch("update-prepare-retry");
+                let (mut update, db, _) = setup_update(&root).await;
+
+                update
+                    .prepare("0.5.1", "0.5.2")
+                    .await
+                    .expect("failed to prepare the first attempt");
+
+                let recovery = update
+                    .prepare("0.5.1", "0.5.2")
+                    .await
+                    .expect("a second attempt after a failed download was refused");
+
+                assert_eq!(recovery.status, RecoveryStatus::Pending);
+                assert_eq!(recovery.target_version, "0.5.2");
+                assert_eq!(recovery.previous_version, "0.5.1");
+
+                db.write().await.disconnect().await;
+                let _ = std::fs::remove_dir_all(root);
+            });
+    }
+
+    /// **A record for an update this machine is not running is over** (effort 854, criterion
+    /// 18): whatever became of it, the running version is neither the one it left nor the one
+    /// it aimed at, so it is resolved at launch and blocks nothing after.
+    #[test]
+    fn settling_at_launch_resolves_a_record_whose_target_is_not_running() {
+        Runtime::new()
+            .expect("failed to create tokio runtime")
+            .block_on(async {
+                let root = scratch("update-settle-elsewhere");
+                let (mut update, db, settings) = setup_update(&root).await;
+
+                update.recovery.status = RecoveryStatus::Pending;
+                update.recovery.target_version = "0.9.9".to_string();
+                update.recovery.previous_version = "0.5.0".to_string();
+                update
+                    .recovery
+                    .commit()
+                    .expect("failed to seed pending recovery");
+
+                update
+                    .settle_at_launch("0.6.0")
+                    .expect("failed to settle the record");
+
+                assert_eq!(update.recovery().status, RecoveryStatus::Obsolete);
+
+                // and on disk, so the next launch reads it settled too.
+                let reread = Update::new(settings, &crate::clock::System)
+                    .await
+                    .expect("failed to reread the record");
+                assert_eq!(reread.recovery().status, RecoveryStatus::Obsolete);
+
+                db.write().await.disconnect().await;
+                let _ = std::fs::remove_dir_all(root);
+            });
+    }
+
+    /// The record the running version is the target of is the one `bootstrap` judges after it
+    /// has tried the workspace, so settling at launch leaves it pending.
+    #[test]
+    fn settling_at_launch_leaves_the_record_the_running_version_is_the_target_of() {
+        Runtime::new()
+            .expect("failed to create tokio runtime")
+            .block_on(async {
+                let root = scratch("update-settle-running-target");
+                let (mut update, db, _) = setup_update(&root).await;
+
+                update
+                    .prepare("0.5.1", "0.5.2")
+                    .await
+                    .expect("failed to prepare the update");
+
+                update
+                    .settle_at_launch("0.5.2")
+                    .expect("failed to settle the record");
+
+                assert_eq!(update.recovery().status, RecoveryStatus::Pending);
+                assert_eq!(update.recovery().target_version, "0.5.2");
 
                 db.write().await.disconnect().await;
                 let _ = std::fs::remove_dir_all(root);
