@@ -262,6 +262,52 @@ test('a workspace exported and imported into an empty one is the same workspace'
 	assert.deepEqual(await target.transfer.get(), written);
 });
 
+// ticket 33 of effort 854, requirement 27: restoring a refunded terminated contract goes through and
+// the contract then owes what was returned, so a live contract holding refunds past what a live one
+// may return is a state the app reaches on its own. The file it writes for that state reads back.
+test('a restored contract holding refunds past its live limit round-trips, still owing', async () => {
+	const db = createMemoryDatabase();
+	const source = await createApi({ db });
+	const tenant = await source.tenant.create({
+		name: 'Rana Restored',
+		nationalId: '1434567893',
+		phone: '+966555678901'
+	});
+	const contract = await source.contract.create({
+		govId: 'GOV-9',
+		tenantId: tenant.id,
+		start: monthsFromNow(-2),
+		end: monthsFromNow(10),
+		interval: '12m',
+		cost: 12_000
+	});
+
+	await source.payment.create({ contractId: contract.id, date: monthsFromNow(-2), amount: 5_000 });
+	await source.contract.terminate({ id: contract.id });
+	await source.payment.create({
+		contractId: contract.id,
+		date: monthsFromNow(-1),
+		amount: 3_000,
+		direction: 'refund'
+	});
+	await source.contract.unterminate({ id: contract.id });
+
+	const before = await snapshot(db);
+
+	assert.equal(before.contracts.length, 1);
+	assert.notEqual(before.contracts[0].status, 'terminated');
+	assert.equal(before.contracts[0].paidAmount, 2_000);
+	assert.equal(before.contracts[0].expectedAmount, 12_000);
+
+	const written = await source.transfer.get();
+	const { db: copied, target } = await roundTrip(written);
+	const after = await snapshot(copied);
+
+	assert.deepEqual(after.contracts, before.contracts);
+	assert.deepEqual(after.payments, before.payments);
+	assert.deepEqual(await target.transfer.get(), written);
+});
+
 test('a refund is written to the file as a negative amount, beside its method, reference and note', async () => {
 	const source = await createApi();
 

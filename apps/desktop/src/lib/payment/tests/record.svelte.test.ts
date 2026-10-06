@@ -192,15 +192,11 @@ test('on a terminated contract the acts that write are shown refused, with the r
 		).toBe(true);
 	}
 
-	// a duplicate is a new payment, refused as one is; an edit or a delete says why the payment is
-	// locked and what unlocks it (effort 854, requirement 25).
+	// a duplicate, an edit and a delete are refused by the one lock, and each says why the payment
+	// is locked and what unlocks it (effort 854, requirement 25, and its ticket 33).
 	for (const control of refused) {
 		expect(control.getAttribute('aria-disabled')).toBe('true');
-		expect(describedBy(control)).toBe(
-			control.textContent?.trim().startsWith(en.common.actions.duplicate)
-				? en.contracts.payments.terminatedNotice
-				: en.contracts.payments.refund.locked
-		);
+		expect(describedBy(control)).toBe(en.contracts.payments.refund.locked);
 	}
 });
 

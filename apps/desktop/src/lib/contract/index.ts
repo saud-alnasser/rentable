@@ -20,6 +20,7 @@ export {
 	getAmountDueThisCycle,
 	getPaidAmount,
 	getRefundableFromTotals,
+	getRefundedAmount,
 	getRemainingContractBalance,
 	hasSatisfiedContractPaymentRequirement,
 	isRefund,

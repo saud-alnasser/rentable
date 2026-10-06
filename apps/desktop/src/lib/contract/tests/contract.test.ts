@@ -99,6 +99,21 @@ test("getRefundableFromTotals reads the limit the rows give off the contract's t
 
 	// a refund being edited is not weighed against itself: its own amount is back within reach.
 	assert.equal(getRefundableFromTotals(totals('active', overpaid), 500), 2000);
+
+	// a restored contract that returned 600 of 1,000 owes, so it may return nothing more, and the
+	// refund it holds may still be lowered: the most it may be edited to is what it already returns
+	// (ticket 33 of effort 854).
+	const restored = [{ amount: 1000, date: 0 }];
+
+	assert.equal(getRefundableAmount(live, restored), 0);
+	assert.equal(getRefundableAmount(live, restored, 600), 600);
+	assert.equal(
+		getRefundableFromTotals(
+			totals('active', [...restored, { amount: 600, date: 0, direction: 'refund' }]),
+			600
+		),
+		600
+	);
 });
 
 test('a refund takes a contract out of paid in full, and its status follows the net', () => {

@@ -1101,6 +1101,38 @@ test('restoring a refunded terminated contract goes through, and it then owes wh
 	assert.equal(restored.expectedAmount, 1000);
 });
 
+// ticket 33 of effort 854, requirement 27: a restored contract may hold refunds past what a live one
+// would let it return. Lowering one of them only returns less, so it is never refused; raising one
+// is still weighed, and the most it may then return is what it already returns.
+test('on a restored contract a refund is lowered whatever the limit, and not raised past it', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api, { cost: 100000 });
+
+	await api.payment.create({ contractId: contract.id, date: monthsFromNow(0), amount: 5000 });
+	await api.contract.terminate({ id: contract.id });
+
+	const recorded = await refund(api, contract.id, 3000);
+
+	await api.contract.unterminate({ id: contract.id });
+
+	const lowered = await api.payment.update({
+		id: recorded.id,
+		date: monthsFromNow(0),
+		amount: 2000
+	});
+
+	assert.equal(lowered.amount, 2000);
+	assert.equal((await api.contract.get({ id: contract.id }))?.paidAmount, 3000);
+	await assert.rejects(
+		() => api.payment.update({ id: recorded.id, date: monthsFromNow(0), amount: 2001 }),
+		refusedWith('contract.refundAboveLimit', { limit: 2000 })
+	);
+	await assert.rejects(
+		() => refund(api, contract.id, 1),
+		refusedWith('contract.refundAboveLimit', { limit: 0 })
+	);
+});
+
 test('a received payment on a live contract is lowered or deleted only while refunds stay covered', async () => {
 	const api = await createApi();
 	const contract = await seedContract(api);

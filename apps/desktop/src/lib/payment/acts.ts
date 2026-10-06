@@ -79,11 +79,13 @@ const toWriteUnavailable = (payment: PaymentActRecord, t: TranslationFunctions) 
 		: undefined;
 
 /**
- * Why the payment cannot be duplicated now, or nothing where it can. A duplicate is a new payment,
- * so it is refused for what refuses creating one ({@link toPaymentCreateUnavailable}): a contract
- * paid in full takes no new payment either way it is asked for. A refund's duplicate is a new
- * refund, refused for what refuses one ({@link toRefundCreateUnavailable}). Where the surface has
- * not read what the contract is paid, only its status can refuse, and only a received payment.
+ * Why the payment cannot be duplicated now, or nothing where it can. A payment received on a
+ * terminated contract meets the same lock an edit or a delete does, so it says the same
+ * ({@link toWriteUnavailable}): why, and what unlocks it. Otherwise a duplicate is a new payment,
+ * refused for what refuses creating one ({@link toPaymentCreateUnavailable}): a contract paid in
+ * full takes no new payment either way it is asked for. A refund's duplicate is a new refund,
+ * refused for what refuses one ({@link toRefundCreateUnavailable}). Where the surface has not read
+ * what the contract is paid, only the lock can refuse.
  */
 function toDuplicateUnavailable(payment: PaymentActRecord, t: TranslationFunctions) {
 	const {
@@ -91,11 +93,10 @@ function toDuplicateUnavailable(payment: PaymentActRecord, t: TranslationFunctio
 		contractPaidAmount: paidAmount,
 		contractExpectedAmount: expectedAmount
 	} = payment;
+	const locked = toWriteUnavailable(payment, t);
 
-	if (status === undefined || paidAmount === undefined || expectedAmount === undefined) {
-		return isRefund(payment) || status !== 'terminated'
-			? undefined
-			: t.contracts.payments.terminatedNotice();
+	if (locked || status === undefined || paidAmount === undefined || expectedAmount === undefined) {
+		return locked;
 	}
 
 	// a refund's duplicate is a new refund, refused where nothing more may be refunded.
@@ -216,8 +217,25 @@ export function toRefundCreateUnavailable(
 ): string | undefined {
 	const refused = memberPermissions.refusal('createPayment', t);
 
-	if (refused || !contract || getRefundableFromTotals(contract) > 0) {
-		return refused;
+	return refused || (contract && whyNothingIsRefundable(contract, t));
+}
+
+/**
+ * Why nothing may be refunded from the contract, or nothing where something may: the choice the
+ * refund act makes ({@link toRefundCreateUnavailable}) and the refund form states under the limit,
+ * made here once so the two read the same sentence. A terminated contract has returned all it
+ * received, and a live one was paid nothing beyond its total.
+ *
+ * `editing` is the amount of a refund being edited, which may always stay what it is
+ * (`getRefundableFromTotals`), so an edit is never told that nothing may be refunded.
+ */
+export function whyNothingIsRefundable(
+	contract: PaymentCreateContract,
+	t: TranslationFunctions,
+	editing = 0
+): string | undefined {
+	if (getRefundableFromTotals(contract, editing) > 0) {
+		return undefined;
 	}
 
 	return contract.status === 'terminated'

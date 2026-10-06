@@ -323,8 +323,12 @@ test('every contract, a terminated one included, offers to print its schedule an
 const { declareTenantActs } = await import('$lib/tenant/acts');
 const { declareComplexActs } = await import('$lib/complex/acts');
 const { declareUnitActs } = await import('$lib/complex/unit/acts');
-const { declarePaymentActs, toPaymentCreateUnavailable, toRefundCreateUnavailable } =
-	await import('$lib/payment/acts');
+const {
+	declarePaymentActs,
+	toPaymentCreateUnavailable,
+	toRefundCreateUnavailable,
+	whyNothingIsRefundable
+} = await import('$lib/payment/acts');
 const { UnitSchema } = await import('$lib/platform/database/schema.ts');
 
 type RecordActs<T> = import('$lib/act').RecordAct<T>[];
@@ -520,10 +524,10 @@ for (const status of [...STATUSES, undefined]) {
 		]);
 
 		// a terminated contract's received payments are read-only: copying and the receipt are reads
-		// and run, and what writes is shown refused (ticket 33). A duplicate is a new payment and is
-		// refused as creating one is; an edit or a delete says why and what unlocks it (effort 854,
-		// requirement 25). Every payment has a receipt (effort 835, criterion 8), so it is never
-		// refused.
+		// and run, and what writes is shown refused (ticket 33). A duplicate, an edit and a delete
+		// are refused by the one lock, so each says the same: why, and what unlocks it (effort 854,
+		// requirement 25, and its ticket 33). Every payment has a receipt (effort 835, criterion 8),
+		// so it is never refused.
 		const refused = toPageActions(acts, paymentAgainst(status), translations)
 			.filter((act) => act.unavailable)
 			.map((act) => [act.id, act.unavailable]);
@@ -532,7 +536,7 @@ for (const status of [...STATUSES, undefined]) {
 			refused,
 			status === 'terminated'
 				? [
-						['payment.duplicate', translations.contracts.payments.terminatedNotice()],
+						['payment.duplicate', translations.contracts.payments.refund.locked()],
 						['payment.edit', translations.contracts.payments.refund.locked()],
 						['payment.delete', translations.contracts.payments.refund.locked()]
 					]
@@ -1120,6 +1124,33 @@ test('a refund is refused only where nothing may be refunded, and says why', () 
 		toRefundCreateUnavailable({ ...live, status: 'terminated', paidAmount: 0 }, translations),
 		translations.contracts.payments.refund.unavailable.nothingLeftToRefund()
 	);
+});
+
+// ticket 33 of effort 854: the refund form says why nothing may be refunded from the same choice the
+// refund act makes, and an edit of a refund the contract holds is never told nothing may be.
+test('the refund form and the refund act give one reason where nothing may be refunded', () => {
+	const live = { status: 'active' as const, paidAmount: 19000, expectedAmount: 18000 };
+
+	for (const contract of [
+		live,
+		{ ...live, status: 'fulfilled' as const, paidAmount: 18000 },
+		{ ...live, status: 'terminated' as const, paidAmount: 5000 },
+		{ ...live, status: 'terminated' as const, paidAmount: 0 }
+	]) {
+		assert.equal(
+			whyNothingIsRefundable(contract, translations),
+			toRefundCreateUnavailable(contract, translations)
+		);
+	}
+
+	// a restored contract that returned 3,000 of 5,000 owes, and the refund it holds may be lowered.
+	const restored = { status: 'active' as const, paidAmount: 2000, expectedAmount: 18000 };
+
+	assert.equal(
+		whyNothingIsRefundable(restored, translations),
+		translations.contracts.payments.refund.unavailable.nothingToRefund()
+	);
+	assert.equal(whyNothingIsRefundable(restored, translations, 3000), undefined);
 });
 
 test("a refund on a terminated contract takes its edit and delete, and its duplicate is a refund's", () => {

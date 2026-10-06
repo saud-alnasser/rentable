@@ -377,7 +377,9 @@ test('on a terminated contract a refund is deleted and put back, while a payment
 	);
 });
 
-test('putting refunds back is refused where they would exceed what the contract received', async () => {
+// ticket 33 of effort 854: putting refunds back is weighed against the limit the contract's state
+// sets, as putting one back through `payment.create` is, so the two undo paths agree.
+test('putting refunds back is refused past what the contract may return, naming the limit', async () => {
 	const api = await createApi();
 	const contract = await seedContract(api, { cost: 100000 });
 
@@ -390,7 +392,47 @@ test('putting refunds back is refused where they would exceed what the contract 
 					{ contractId: contract.id, date: monthsFromNow(0), amount: 501, direction: 'refund' }
 				]
 			}),
-		refusedWith('contract.refundsExceedReceived')
+		refusedWith('contract.refundAboveLimit', { limit: 0 })
 	);
 	assert.equal((await api.payment.getMany({ contractId: contract.id })).length, 1);
+});
+
+test('undoing a bulk deletion of a refund is refused once another refund took its place', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api, { cost: 12000 });
+
+	await api.payment.create({ contractId: contract.id, date: monthsFromNow(0), amount: 13000 });
+
+	const returned = await seedRefund(api, contract.id, 1000);
+	const deleted = await api.payment.deleteMany({ ids: [returned.id] });
+
+	assert.deepEqual(toIds(deleted.deleted), [returned.id]);
+
+	await seedRefund(api, contract.id, 1000);
+
+	await assert.rejects(
+		() => api.payment.createMany({ payments: deleted.deleted }),
+		refusedWith('contract.refundAboveLimit', { limit: 0 })
+	);
+
+	const after = await api.contract.get({ id: contract.id });
+
+	assert.equal((await api.payment.getMany({ contractId: contract.id })).length, 2);
+	assert.equal(after?.paidAmount, 12000);
+	assert.equal(after?.status, 'fulfilled');
+});
+
+test('a bulk undo putting payments received and refunds back weighs the refunds against them', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api, { cost: 12000 });
+	const received = await seedPayment(api, contract.id, 13000);
+	const returned = await seedRefund(api, contract.id, 1000);
+	const deleted = await api.payment.deleteMany({ ids: [received.id, returned.id] });
+
+	assert.deepEqual(toIds(deleted.deleted), [received.id, returned.id]);
+
+	const restored = await api.payment.createMany({ payments: deleted.deleted });
+
+	assert.deepEqual(toIds(restored), [received.id, returned.id]);
+	assert.equal((await api.contract.get({ id: contract.id }))?.paidAmount, 12000);
 });

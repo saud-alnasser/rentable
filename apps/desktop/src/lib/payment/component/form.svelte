@@ -34,6 +34,7 @@
 	import { onMutationError } from '$lib/mutation/ui';
 	import { fieldOfFailure, toRefusalText } from '$lib/error/refusal';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
+	import { whyNothingIsRefundable } from '$lib/payment/acts';
 	import { paymentMethods } from '$lib/payment/method';
 	import { useCreatePayment, useUpdatePayment } from '$lib/payment/query';
 	import { DateFormatter, type CalendarDate } from '@internationalized/date';
@@ -307,17 +308,13 @@
 			? getRefundableFromTotals(contractQuery.data, value?.id ? value.amount : 0)
 			: undefined
 	);
-	// why nothing may be refunded, where nothing may: a terminated contract has returned all it
-	// received, and a live one was paid nothing beyond its total.
-	const refundWhy = $derived.by(() => {
-		if (refundable !== 0 || !contractQuery.data) {
-			return undefined;
-		}
-
-		return contractQuery.data.status === 'terminated'
-			? $LL.contracts.payments.refund.unavailable.nothingLeftToRefund()
-			: $LL.contracts.payments.refund.unavailable.nothingToRefund();
-	});
+	// why nothing may be refunded, where nothing may: the refund act's own choice, so the form and
+	// the act read the same sentence.
+	const refundWhy = $derived(
+		contractQuery.data && isRefund
+			? whyNothingIsRefundable(contractQuery.data, $LL, value?.id ? value.amount : 0)
+			: undefined
+	);
 </script>
 
 <FormSurface

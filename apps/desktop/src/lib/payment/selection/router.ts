@@ -4,16 +4,11 @@ import * as s from '$lib/platform/database/schema';
 import { PaymentSchema } from '$lib/platform/database/schema';
 import { refuse } from '$lib/api/refusal';
 import { autosync, procedure, router } from '$lib/api/trpc';
-import {
-	areRefundsCovered,
-	ensureContractIsNotTerminated,
-	ensureContractPaymentsCreatable,
-	ensureRefundsCovered,
-	reconcileTouched
-} from '$lib/contract';
+import { areRefundsCovered, reconcileTouched } from '$lib/contract';
 import type { Database } from '$lib/api/context';
 import {
 	ensurePaymentIsNotInTheFuture,
+	ensurePaymentWritable,
 	ensureValidPaymentAmount,
 	groupPaymentsByContractId,
 	whatRefusesPaymentDeletion,
@@ -208,9 +203,11 @@ export default router({
 	 * contract at all right now.
 	 *
 	 * **Those gates are the payments received's** (effort 854, requirement 25). A refund the set puts
-	 * back goes onto a terminated contract as well, since it was recorded there legitimately and an
-	 * undo restores rows; what holds it is the one rule every refund keeps, that the contract has not
-	 * returned more than it received, asked of the set together with what each contract holds.
+	 * back goes onto a terminated contract as well, and is weighed against the most the contract's
+	 * state lets it return, the refunds of the set together and against the payments received the
+	 * set puts back beside them: the same limit `create` weighs one refund put back against, so
+	 * undoing one deletion and undoing many agree (ticket 33). Both are the payment's one rule,
+	 * `ensurePaymentWritable`, asked once per contract.
 	 */
 	createMany: procedure
 		.permitted('createPayment')
@@ -255,17 +252,10 @@ export default router({
 			const namedByContractId = groupPaymentsByContractId(named);
 
 			for (const contract of contracts) {
-				const arriving = namedByContractId.get(contract.id) ?? [];
-				const registeredForContract = registeredByContractId.get(contract.id) ?? [];
-
-				if (arriving.some((payment) => payment.direction !== 'refund')) {
-					ensureContractIsNotTerminated(contract.status);
-					ensureContractPaymentsCreatable(contract, registeredForContract);
-				}
-
-				if (arriving.some((payment) => payment.direction === 'refund')) {
-					ensureRefundsCovered([...registeredForContract, ...arriving]);
-				}
+				ensurePaymentWritable(contract, registeredByContractId.get(contract.id) ?? [], {
+					act: 'create',
+					payments: namedByContractId.get(contract.id) ?? []
+				});
 			}
 
 			for (const payment of named) {

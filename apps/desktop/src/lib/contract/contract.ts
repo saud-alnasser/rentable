@@ -108,8 +108,13 @@ export function getContractPaymentSummary(contract: ContractLike, payments: Paym
  * A terminated contract may return what it received, less what it already returned. One that is
  * not terminated may return only what it received past its total cost, less what it already
  * returned, so a refund never makes it owe. Never below nothing.
+ *
+ * `editing` is the amount of a refund being edited, which `payments` leaves out. It may always stay
+ * what it is or be lowered, since returning less never takes the contract further past its limit:
+ * a restored contract may hold refunds past what a live one may return (requirement 27), and the
+ * reader still corrects them (ticket 33 of the effort).
  */
-export function getRefundableAmount(contract: ContractLike, payments: PaymentLike[]) {
+export function getRefundableAmount(contract: ContractLike, payments: PaymentLike[], editing = 0) {
 	const received = getReceivedAmount(payments);
 	const refunded = getRefundedAmount(payments);
 	const returnable =
@@ -117,7 +122,7 @@ export function getRefundableAmount(contract: ContractLike, payments: PaymentLik
 			? received - refunded
 			: received - getContractTotalCost(contract) - refunded;
 
-	return Math.max(0, returnable);
+	return Math.max(0, returnable, editing);
 }
 
 /**
@@ -126,7 +131,8 @@ export function getRefundableAmount(contract: ContractLike, payments: PaymentLik
  * less what it returned, and what it expects is its total cost. The ledger and the refund form read
  * it to say how much may be refunded before the reader types; the procedure still weighs the rows.
  *
- * `editing` is the amount of a refund being edited, which is not weighed against itself.
+ * `editing` is the amount of a refund being edited, which is not weighed against itself and may
+ * always stay what it is, as {@link getRefundableAmount} lets it.
  */
 export function getRefundableFromTotals(
 	contract: Pick<Contract, 'status' | 'paidAmount' | 'expectedAmount'>,
@@ -136,7 +142,7 @@ export function getRefundableFromTotals(
 	const returnable = contract.status === 'terminated' ? paid : paid - contract.expectedAmount;
 
 	// to the halala the form takes, as the refusal states it, so float dust is never a limit.
-	return Math.max(0, Math.round(returnable * 100) / 100);
+	return Math.max(0, Math.round(returnable * 100) / 100, editing);
 }
 
 export function hasSatisfiedContractPaymentRequirement(paidAmount: number, expectedAmount: number) {
@@ -397,15 +403,18 @@ export function ensureContractPaymentsCreatable(contract: ContractLike, payments
 
 /**
  * A refund may return no more than the contract's state lets it ({@link getRefundableAmount}),
- * weighed against every payment it holds other than the refund being written. The refusal names
- * the limit, rounded to the halala the form takes, so the reader is told the figure to stay within.
+ * weighed against every payment it holds other than the refunds being written, of which `amount`
+ * is the sum. `editing` is what a refund being edited returns now, which it may keep or lower. The
+ * refusal names the limit, rounded to the halala the form takes, so the reader is told the figure
+ * to stay within.
  */
 export function ensureRefundWithinLimit(
 	contract: ContractLike,
 	payments: PaymentLike[],
-	amount: number
+	amount: number,
+	editing = 0
 ) {
-	const limit = getRefundableAmount(contract, payments);
+	const limit = getRefundableAmount(contract, payments, editing);
 
 	if (amount > limit + EPSILON) {
 		throw refuse('contract.refundAboveLimit', { limit: Math.round(limit * 100) / 100 });

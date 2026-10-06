@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(desktop): a refund is judged by one rule wherever it is written
@@ -14,10 +14,10 @@ Whether a payment may be written is decided in the payment and contract modules,
 
 Traces requirements 25, 26 and 30, and criteria 25, 26 and 30.
 
-- [ ] The rule that a refund escapes the terminated lock, and the limit check, live in one domain function the payment procedures ask (`rules/api-layer`, *Where things live*); `payment.delete` no longer restates it inline.
-- [ ] `payments.createMany` (the undo of a bulk deletion) checks returning refunds against the limit as `payment.create` does, so both undo paths agree; a router test reproduces the reviewer's case (cost 12,000, received 13,000, refund deleted in bulk, another refund recorded, the undo refused).
-- [ ] Editing a refund to a smaller amount is never refused, even where the contract already holds refunds past its limit (a restored contract); raising it past the limit still is; a router test covers both on a restored contract.
-- [ ] `transfer/tests/round-trip.test.ts` round-trips a contract that received 5,000, was terminated, refunded 3,000 and restored, and gets it back owing; the duplicate act on a terminated contract and the edit refusal read the same sentence, and the form's zero-limit reason comes from the same choice the act makes.
+- [x] The rule that a refund escapes the terminated lock, and the limit check, live in one domain function the payment procedures ask (`rules/api-layer`, *Where things live*); `payment.delete` no longer restates it inline.
+- [x] `payments.createMany` (the undo of a bulk deletion) checks returning refunds against the limit as `payment.create` does, so both undo paths agree; a router test reproduces the reviewer's case (cost 12,000, received 13,000, refund deleted in bulk, another refund recorded, the undo refused).
+- [x] Editing a refund to a smaller amount is never refused, even where the contract already holds refunds past its limit (a restored contract); raising it past the limit still is; a router test covers both on a restored contract.
+- [x] `transfer/tests/round-trip.test.ts` round-trips a contract that received 5,000, was terminated, refunded 3,000 and restored, and gets it back owing; the duplicate act on a terminated contract and the edit refusal read the same sentence, and the form's zero-limit reason comes from the same choice the act makes.
 
 ## Relevant areas
 
