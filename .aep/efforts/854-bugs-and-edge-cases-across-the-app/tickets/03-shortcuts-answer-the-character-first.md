@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(design): shortcuts answer the character the layout produces
@@ -14,8 +14,8 @@ A shortcut matches the character the keyboard layout produces first, and falls b
 
 Traces requirement 14 and criterion 14.
 
-- [ ] `matchesShortcutKey` in `packages/design/src/lib/shortcut.ts` follows the plan's three steps.
-- [ ] node tests: `key: y, code: KeyZ` with Ctrl does not undo; `key: w, code: KeyZ` does not undo; an Arabic-layout Ctrl with `code: KeyZ` undoes; Ctrl+Shift+`Z`, every row of the plan's Arabic table, `ArrowDown` and `Enter` all match.
+- [x] `matchesShortcutKey` in `packages/design/src/lib/shortcut.ts` follows the plan's three steps.
+- [x] node tests: `key: y, code: KeyZ` with Ctrl does not undo; `key: w, code: KeyZ` does not undo; an Arabic-layout Ctrl with `code: KeyZ` undoes; Ctrl+Shift+`Z`, every row of the plan's Arabic table, `ArrowDown` and `Enter` all match.
 
 ## Relevant areas
 

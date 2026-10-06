@@ -18,7 +18,7 @@ test('the physical key is matched, so an arabic layout fires too', () => {
 	assert.equal(matchesShortcutKey({ key: 'ب', code: 'KeyB' }, 'b'), true);
 });
 
-test('a layout that moves the character keeps working, because either half is enough', () => {
+test('a layout that moves the character keeps working, because the character it types decides', () => {
 	assert.equal(matchesShortcutKey({ key: 'b', code: 'KeyN' }, 'b'), true);
 });
 
@@ -47,6 +47,62 @@ test('a punctuation key is matched by the key it sits on as well as the mark it 
 	assert.equal(matchesShortcutKey({ key: '/', code: 'Slash' }, '/'), true);
 	assert.equal(matchesShortcutKey({ key: 'ؤ', code: 'Slash' }, '/'), true);
 	assert.equal(matchesShortcutKey({ key: '.', code: 'Period' }, '/'), false);
+});
+
+/** undo as the application registers it: ctrl or command with z, and shift not held. */
+const undo = { key: 'z', command: true, shift: false };
+
+/** redo as the application registers it on its second combination. */
+const redo = { key: 'z', command: true, shift: true };
+
+const ctrl = { ctrlKey: true, metaKey: false, shiftKey: false };
+
+// on QWERTZ the key where QWERTY has Z types y, and on AZERTY it types w. The layout produced a
+// latin letter, so that letter is the shortcut and the physical key is not consulted.
+test('a latin layout that types another letter on the z key does not undo', () => {
+	assert.equal(matchesShortcut({ ...ctrl, key: 'y', code: 'KeyZ' }, undo), false);
+	assert.equal(matchesShortcut({ ...ctrl, key: 'w', code: 'KeyZ' }, undo), false);
+});
+
+test('the letter a latin layout types is the shortcut, wherever its key sits', () => {
+	assert.equal(matchesShortcutKey({ key: 'y', code: 'KeyZ' }, 'y'), true);
+	assert.equal(matchesShortcutKey({ key: 'n', code: 'KeyB' }, 'b'), false);
+});
+
+test('an arabic layout falls back to the physical key, so undo still answers', () => {
+	assert.equal(matchesShortcut({ ...ctrl, key: 'ئ', code: 'KeyZ' }, undo), true);
+});
+
+// shift reports the capital, which is still the letter the shortcut names.
+test('ctrl shift z reports a capital and still redoes', () => {
+	assert.equal(matchesShortcut({ ...ctrl, shiftKey: true, key: 'Z', code: 'KeyZ' }, redo), true);
+});
+
+// every shortcut the application registers, with the character an arabic layout reports on its
+// key. Each one is non-latin, or names no character at all, so each falls back to the key.
+test('every registered shortcut answers on an arabic layout', () => {
+	const arabic: [Pick<KeyboardEvent, 'key' | 'code'>, string][] = [
+		[{ key: 'ى', code: 'KeyN' }, 'n'],
+		[{ key: 'ن', code: 'KeyK' }, 'k'],
+		[{ key: 'لا', code: 'KeyB' }, 'b'],
+		[{ key: 'ئ', code: 'KeyZ' }, 'z'],
+		[{ key: 'آ', code: 'KeyZ' }, 'z'],
+		[{ key: 'غ', code: 'KeyY' }, 'y'],
+		[{ key: 'ظ', code: 'Slash' }, '/'],
+		[{ key: 'ArrowUp', code: 'ArrowUp' }, 'ArrowUp'],
+		[{ key: 'ArrowDown', code: 'ArrowDown' }, 'ArrowDown'],
+		[{ key: 'Enter', code: 'Enter' }, 'Enter']
+	];
+
+	for (const [event, character] of arabic) {
+		assert.equal(matchesShortcutKey(event, character), true, `${event.key} on ${event.code}`);
+	}
+});
+
+test('a key that produces nothing printable falls back to the physical key', () => {
+	assert.equal(matchesShortcutKey({ key: 'Dead', code: 'KeyZ' }, 'z'), true);
+	assert.equal(matchesShortcutKey({ key: 'Process', code: 'KeyZ' }, 'z'), true);
+	assert.equal(matchesShortcutKey({ key: 'Unidentified', code: 'KeyZ' }, 'z'), true);
 });
 
 /**
