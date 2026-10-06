@@ -274,10 +274,17 @@ pub(crate) async fn workspace_execute_batch_sql(
     // the statements run on `connection`, which is the connection the transaction is open on, so
     // that the reads inside it are watched ones (`corrupt.rs`).
     match workspace_batch(connection, queries).await {
-        Ok(results) => {
-            transaction.commit().await?;
-            Ok(results)
-        }
+        Ok(results) => match committed(transaction).await {
+            Ok(()) => Ok(results),
+            Err(error) => {
+                // **A COMMIT that fails leaves the transaction open**, and the drop of it only
+                // marks it for the connection's next use, as below. Until then it would hold the
+                // replica's write lock on a connection back in the held set, and every other
+                // connection's writes would be refused (ticket 38).
+                rolled_back(connection).await;
+                Err(error.into())
+            }
+        },
         Err(error) => {
             // Rolled back here rather than left to the drop. Dropping an unfinished transaction
             // only *records* what should happen to it, on `Connection::dangling_tx`, and acts on
@@ -288,6 +295,40 @@ pub(crate) async fn workspace_execute_batch_sql(
             Err(error)
         }
     }
+}
+
+/// Commit a batch's transaction.
+///
+/// A test can make the next one on its thread fail ([`FAILING_COMMIT`]), leaving the transaction
+/// unfinished as a COMMIT the engine refused leaves it.
+async fn committed(transaction: turso::transaction::Transaction<'_>) -> Result<(), turso::Error> {
+    #[cfg(test)]
+    if FAILING_COMMIT.with(|failing| failing.replace(false)) {
+        drop(transaction);
+        return Err(turso::Error::Busy("database is locked".to_string()));
+    }
+
+    transaction.commit().await
+}
+
+/// Roll back whatever transaction is still open on `connection`, so it goes back to the held set
+/// with nothing open.
+///
+/// **The ROLLBACK is asked for even where it may answer an error.** The engine first finishes the
+/// transaction the drop marked, then runs this statement, which then finds nothing to roll back;
+/// a transaction nothing marked is rolled back by the statement itself.
+async fn rolled_back(connection: &super::corrupt::Watched) {
+    if connection.is_autocommit().unwrap_or(false) {
+        return;
+    }
+
+    let _ = connection.execute("ROLLBACK", ()).await;
+}
+
+#[cfg(test)]
+thread_local! {
+    /// whether the next batch committed on this thread fails at its COMMIT.
+    static FAILING_COMMIT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 /// The statements of a batch, run in order on an open transaction.
@@ -741,6 +782,65 @@ mod tests {
         );
 
         drop(connection);
+        drop(replica);
+        let _ = std::fs::remove_dir_all(&directory);
+    }
+
+    /// **A batch whose COMMIT fails leaves nothing open on its connection** (effort 854,
+    /// requirement 15, ticket 38). The connection goes back to the held set, and a transaction
+    /// left on it would hold the replica's write lock until that connection happened to be used
+    /// again, refusing every other connection's writes meanwhile.
+    #[tokio::test]
+    async fn a_batch_whose_commit_fails_leaves_no_transaction_open() {
+        let directory = scratch("proxy-batch-failed-commit");
+        let replica = replica_holding(
+            &directory.join("app.db"),
+            &["create table t (id integer primary key)"],
+        )
+        .await;
+        let held = crate::database::held::Held::open(&replica, &Default::default(), 1)
+            .await
+            .expect("the held connection");
+
+        let checkout = held.checkout().await.expect("the connection");
+        super::FAILING_COMMIT.with(|failing| failing.set(true));
+        let refusal = workspace_execute_batch_sql(
+            &checkout,
+            vec![SQLQuery {
+                sql: "insert into t (id) values (?)".to_string(),
+                params: vec![json!(1)],
+            }],
+        )
+        .await;
+        drop(checkout);
+
+        assert!(refusal.is_err(), "a batch whose commit failed was accepted");
+
+        let next = held.checkout().await.expect("the connection again");
+        assert!(
+            next.is_autocommit().expect("the connection's state"),
+            "the next request found the failed batch's transaction still open"
+        );
+        assert_eq!(
+            workspace_execute_single_sql(
+                &next,
+                SQLQuery {
+                    sql: "select count(*) from t".to_string(),
+                    params: vec![],
+                },
+            )
+            .await
+            .expect("count")
+            .into_iter()
+            .next()
+            .expect("one row")
+            .rows,
+            vec![json!(0)],
+            "the batch whose commit failed was kept"
+        );
+
+        drop(next);
+        drop(held);
         drop(replica);
         let _ = std::fs::remove_dir_all(&directory);
     }

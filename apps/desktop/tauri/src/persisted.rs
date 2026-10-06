@@ -143,9 +143,7 @@ where
             dirty: true,
         };
 
-        if let Err(error) = this.commit() {
-            return Err(unopenable(&this.path, error));
-        }
+        this.commit_at_launch()?;
 
         diagnostics::warn("persisted.restored")
             .with("record", this.path.display().to_string())
@@ -192,9 +190,7 @@ where
             dirty: true,
         };
 
-        if let Err(error) = this.commit() {
-            return Err(unopenable(&this.path, error));
-        }
+        this.commit_at_launch()?;
 
         diagnostics::warn(event)
             .with("record", this.path.display().to_string())
@@ -234,6 +230,14 @@ where
         self.back_up(contents.as_bytes());
 
         Ok(())
+    }
+
+    /// [`Self::commit`], for a launch: a failure to write names the file as a failure to open it
+    /// does, so the message the launch shows names it too (`lib.rs`, ticket 38). What a launch
+    /// fills in after the record loads (the settings' places, the sync record's device) is
+    /// committed through this.
+    pub fn commit_at_launch(&mut self) -> Result<(), Error> {
+        self.commit().map_err(|error| unopenable(&self.path, error))
     }
 
     pub const fn inner(&self) -> &T {
@@ -621,6 +625,53 @@ mod tests {
             fs::read(directory.join(format!("data.json.bak.corrupt-{AT}")))
                 .expect("the damaged copy was not kept"),
             b"{"
+        );
+
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    /// **A record that cannot be written back from its copy is named** (ticket 38), as one that
+    /// cannot be opened is. A directory where the commit stages its write makes the commit fail.
+    #[test]
+    fn a_missing_record_that_cannot_be_written_back_is_named() {
+        let directory = scratch("persisted-recover-missing-unwritable");
+        let path = directory.join("data.json");
+        fs::write(directory.join("data.json.bak"), r#"{"value":42}"#).expect("the copy");
+        fs::create_dir(directory.join("data.json.tmp")).expect("the blocked staging file");
+
+        let error = match Persisted::<TestData>::recover(path.clone(), &Fixed(AT)) {
+            Ok(_) => panic!("a record that could not be written was recovered"),
+            Err(error) => error,
+        };
+
+        assert_eq!(
+            super::unopenable_record(&error.to_string()),
+            Some(path.as_path()),
+            "the launch cannot name the file: {error}"
+        );
+
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    /// **A record committed at launch that cannot be written is named** (ticket 38): the settings
+    /// fill in this machine's places, and the sync record its device, after the record loads.
+    #[test]
+    fn a_commit_at_launch_that_cannot_be_written_is_named() {
+        let directory = scratch("persisted-launch-commit-unwritable");
+        let path = directory.join("data.json");
+        let mut persisted = Persisted::<TestData>::load(path.clone()).expect("the record");
+        fs::create_dir(directory.join("data.json.tmp")).expect("the blocked staging file");
+        persisted.value = 9;
+
+        let error = match persisted.commit_at_launch() {
+            Ok(()) => panic!("a commit that could not be written went through"),
+            Err(error) => error,
+        };
+
+        assert_eq!(
+            super::unopenable_record(&error.to_string()),
+            Some(path.as_path()),
+            "the launch cannot name the file: {error}"
         );
 
         let _ = fs::remove_dir_all(directory);

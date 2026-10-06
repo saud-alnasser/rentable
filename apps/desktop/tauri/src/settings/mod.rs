@@ -226,7 +226,8 @@ pub async fn settings_set_inner(
 /// whatever directory a previous launch happened to start in.
 ///
 /// A `settings.json` whose content cannot be read is recovered rather than refused, and one that
-/// cannot be opened at all is the error, naming the file ([`Persisted::recover`]).
+/// cannot be opened at all is the error, naming the file ([`Persisted::recover`]), as is one that
+/// cannot be written ([`Persisted::commit_at_launch`]).
 pub fn open(
     data_dir: &Path,
     db_dir: &Path,
@@ -241,7 +242,7 @@ pub fn open(
     settings.diagnostics_dir = data_dir.join(diagnostics::DIRECTORY_NAME);
     settings.version = env!("CARGO_PKG_VERSION").to_string();
 
-    settings.commit()?;
+    settings.commit_at_launch()?;
 
     Ok(settings)
 }
@@ -275,6 +276,30 @@ mod tests {
             std::fs::read(data_dir.join("settings.json.corrupt-1700000000000"))
                 .expect("the empty file was not kept"),
             b""
+        );
+
+        let _ = std::fs::remove_dir_all(data_dir);
+    }
+
+    /// **A `settings.json` that cannot be written at launch is named** (effort 854, requirement
+    /// 17, ticket 38), as one that cannot be opened is: the launch reads the file back out of the
+    /// error to show it. A directory where the commit stages its write makes the commit fail.
+    #[test]
+    fn a_settings_file_that_cannot_be_written_at_launch_is_named() {
+        let data_dir = scratch("settings-open-unwritable");
+        let path = data_dir.join(Settings::FILENAME);
+        crate::persisted::Persisted::<Settings>::load(path.clone()).expect("the settings");
+        std::fs::create_dir(data_dir.join("settings.json.tmp")).expect("the blocked staging file");
+
+        let error = match super::open(&data_dir, &data_dir, &Fixed(1_700_000_000_000)) {
+            Ok(_) => panic!("settings that could not be written were opened"),
+            Err(error) => error,
+        };
+
+        assert_eq!(
+            crate::persisted::unopenable_record(&error.to_string()),
+            Some(path.as_path()),
+            "the launch cannot name the file: {error}"
         );
 
         let _ = std::fs::remove_dir_all(data_dir);

@@ -920,7 +920,10 @@ impl RemoteSync {
             credential_refusal: None,
             clock,
         };
-        this.reconcile().await?;
+        // committed as a launch commits, so a record that cannot be written is named (ticket 38).
+        if this.reconciled().await {
+            this.store.commit_at_launch()?;
+        }
         Ok(this)
     }
 
@@ -1257,6 +1260,16 @@ impl RemoteSync {
     }
 
     async fn reconcile(&mut self) -> Result<(), Error> {
+        if self.reconciled().await {
+            self.store.commit()?;
+        }
+
+        Ok(())
+    }
+
+    /// Bring the record in line with this machine, and say whether anything changed, which the
+    /// caller commits.
+    async fn reconciled(&mut self) -> bool {
         let current_database_path = self.current_database_path().await;
         let now = self.clock.now();
         let mut changed = false;
@@ -1299,11 +1312,7 @@ impl RemoteSync {
             changed = true;
         }
 
-        if changed {
-            self.store.commit()?;
-        }
-
-        Ok(())
+        changed
     }
 
     pub(super) async fn current_database_path(&self) -> PathBuf {
@@ -2174,6 +2183,44 @@ mod tests {
                     std::fs::read_to_string(root.join("remote-sync.json.corrupt-1700000000000"))
                         .expect("the damaged record was not kept"),
                     &held[..40]
+                );
+
+                let _ = std::fs::remove_dir_all(&root);
+            });
+    }
+
+    /// **A `remote-sync.json` that cannot be written at launch is named** (effort 854, ticket
+    /// 38): the reconcile fills in this machine's device and commits, and a failure there is shown
+    /// as one to open the file is. A directory where the commit stages its write makes it fail.
+    #[test]
+    fn a_record_that_cannot_be_written_at_launch_is_named() {
+        Runtime::new()
+            .expect("failed to create tokio runtime")
+            .block_on(async {
+                let root = scratch("remote-sync-unwritable-at-launch");
+                let path = root.join(RemoteSync::FILENAME);
+                Persisted::<RemoteSyncStore>::load(path.clone()).expect("the record");
+                std::fs::create_dir(root.join("remote-sync.json.tmp"))
+                    .expect("the blocked staging file");
+
+                let settings = Arc::new(RwLock::new(
+                    Persisted::<Settings>::load(root.join(Settings::FILENAME)).expect("settings"),
+                ));
+                let error = match RemoteSync::new(
+                    settings,
+                    path.clone(),
+                    crate::clock::Fixed::shared(1_700_000_000_000),
+                )
+                .await
+                {
+                    Ok(_) => panic!("a record that could not be written was opened"),
+                    Err(error) => error,
+                };
+
+                assert_eq!(
+                    crate::persisted::unopenable_record(&error.to_string()),
+                    Some(path.as_path()),
+                    "the launch cannot name the file: {error}"
                 );
 
                 let _ = std::fs::remove_dir_all(&root);

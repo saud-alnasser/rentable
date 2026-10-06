@@ -181,14 +181,14 @@ fn notice(reason: &str) -> Notice {
         Some(path) => format!(
             "تعذّر على rentable فتح ملف يحتاجه ليبدأ. أغلق أي برنامج آخر قد يستخدم هذا الملف، \
              أو تأكد من أن لديك إذنًا بفتحه، ثم افتح rentable مرة أخرى.\n\n\
-             rentable could not open a file it needs to start. Close any other program that may \
+             rentable could not open a file it needs to start. close any other program that may \
              be using this file, or make sure you are allowed to open it, then open rentable \
              again.\n\n{}",
             path.display()
         ),
         None => "تعذّر على rentable أن يبدأ. افتح rentable مرة أخرى، وإن تكرر ذلك فأعد تشغيل \
                  الجهاز ثم حاول مجددًا.\n\n\
-                 rentable could not start. Open rentable again, and if this keeps happening, \
+                 rentable could not start. open rentable again, and if this keeps happening, \
                  restart the computer and try once more."
             .to_string(),
     };
@@ -213,6 +213,16 @@ mod tests {
 
     fn english(text: &str) -> bool {
         text.contains("rentable could not")
+    }
+
+    /// **Lower case throughout**, as `rules/frontend` asks of every description: a capital on a
+    /// second sentence beside a first in lower case reads as two styles. `named` is a file the
+    /// message shows as it is, whatever its case.
+    fn lower_case(text: &str, named: &str) -> bool {
+        !text
+            .replace(named, "")
+            .chars()
+            .any(|c| c.is_ascii_uppercase())
     }
 
     /// **A locked record is named, in both languages, and the reason stays in the log** (effort
@@ -246,6 +256,11 @@ mod tests {
             !notice.description.contains("could not be opened:"),
             "the developer's message is shown: {notice:?}"
         );
+        assert!(
+            lower_case(&notice.title, "")
+                && lower_case(&notice.description, &path.display().to_string()),
+            "a sentence opens with a capital: {notice:?}"
+        );
     }
 
     /// a launch that failed on anything else says so in both languages, and shows no reason.
@@ -260,5 +275,9 @@ mod tests {
         assert!(arabic(&notice.description), "{notice:?}");
         assert!(english(&notice.description), "{notice:?}");
         assert!(!notice.description.contains("malformed"), "{notice:?}");
+        assert!(
+            lower_case(&notice.title, "") && lower_case(&notice.description, ""),
+            "a sentence opens with a capital: {notice:?}"
+        );
     }
 }
