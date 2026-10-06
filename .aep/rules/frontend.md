@@ -558,7 +558,8 @@ the create control, which has been the create capability's own `create/component
 since effort 840. **They stay because each reads a module of this
 application, not a contract the package could be handed.** The create control reads the create key
 (`create/key.ts`) and registers with what answers it (`create/target.svelte.ts`),
-which is what makes it the one control [[rules/interface]] *Create* says draws a create and the one
+which is what makes it the one control [[rules/interface]] *Create* says draws a create, but the
+contract's refund, and the one
 the key finds. `search-field` registers the list's search shortcut (`list/keyboard.ts`) in
 this application's shortcut capability (`$lib/shortcut`), which reaches `$lib/platform` to record a collision, and
 `list-toolbar` draws `search-field`, so both are on the application's side of the reach test under

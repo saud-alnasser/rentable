@@ -27,3 +27,7 @@ Traces requirement 17 and criterion 17.
 - Rust tests run with `--test-threads=1` and a `CARGO_TARGET_DIR` of the implementer's own outside the worktree path (Windows path limit).
 - A changeset only where a user observes something no entry of this effort already says; otherwise extend nothing and say so in Notes ([[references/changesets]]).
 - Write the failing test first, at the level `rules/testing` fixes, and see it fail for the defect before the fix ([[skills/tdd]]).
+
+## Notes
+
+No changeset: `a-damaged-settings-file-no-longer-stops-the-app.md`, ticket 17's entry, already tells the user the file is named in a message instead of a crash; this ticket changes how that message reads, not what the user is told happens.

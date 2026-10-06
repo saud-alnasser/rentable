@@ -125,5 +125,7 @@ router test can pass over a conversion that is broken in the running application
   defaults where there is none; a record whose file has gone comes back from its `.bak` and is
   written back from it before anything else. A file the system will not let the application open,
   locked by another process or without permission, is never recovered or written over, since its
-  content may be good: the launch names the file and the reason in the operating system's own
-  message and stops. The log says which of these happened (`persisted.*`).
+  content may be good, and the same holds where the launch cannot write a recovered or defaulted
+  record back: the launch names the file, in Arabic and English, with what to do, in the operating
+  system's own message and stops, and the reason goes to the log under `startup.failed`. The log
+  says which of these happened (`persisted.*`).

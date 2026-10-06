@@ -33,7 +33,8 @@ contract counts as _paid_, and it is never part of what the landing page reports
 which is every payment received as recorded. How much may be refunded depends on the contract's
 state: on one not terminated, only what it received past its total cost, so a refund never makes
 it owe; on a terminated one, up to what it received. Each less earlier refunds
-(`getRefundableAmount`). A file is the one place a refund is written as a negative amount, the
+(`getRefundableAmount`). An edited refund may always keep or lower its amount, even past that
+limit, since a restored contract may already hold refunds past it; only raising one is weighed. A file is the one place a refund is written as a negative amount, the
 workspace file and a contract's ledger export alike, with its method, reference and note beside
 it as a payment received has them. A file's refunds on one contract, weighed together with what
 the contract already holds, may not exceed what it received; the limit by state governs recording a
