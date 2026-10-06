@@ -39,10 +39,11 @@
 //! **What is watched is named, and it is not every read.** The proxy's single and batch statements
 //! and the organization store's own `query` and `execute` run on a [`Watched`] connection, and
 //! every push and pull is passed through [`Watch::note`], so the kinds are matched here and
-//! nowhere else. A few reads go through the engine's connection unwatched:
-//! `Database::is_replica_ready`, `OrganizationStore::found`, `lease_connection` and `install`.
-//! Damage one of them meets is refused as any error is, and marks nothing until a watched read
-//! meets it.
+//! nowhere else. A few reads go through the engine's connection unwatched: the workspace
+//! readiness check (`Database::is_ready`), which checks out a held connection (`held.rs`) and asks
+//! its question of the engine's connection beneath it, and `OrganizationStore::found`,
+//! `lease_connection` and `install`. Damage one of them meets is refused as any error is, and
+//! marks nothing until a watched read meets it.
 //!
 //! **A replica the sync engine is restoring is left to it.** The engine replaces a replica's base
 //! by copying each of its files to a backup and writing a marker, `<name>-replace-base-apply`,

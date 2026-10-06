@@ -536,11 +536,11 @@ list, and the composed object, so a new string for one concept goes in its piece
 added to the shared list is added to the test's list too.
 
 **One exception: text handed to a tenant in the language chosen for it.** The printed schedule, the
-receipt, the name a saved one is offered under, and the WhatsApp reminder are written in the
-language picked in their preview, which need not be the one the application shows, so they read it
-through `i18nObject(locale)`, which startup has already loaded, and a page sets that language's
-`lang` and `dir` on itself. Everything drawn for the reader of the screen still reads the store
-(effort 835).
+receipt, the payment voucher a refund prints (`payment/component/voucher.svelte`, effort 854), the
+name a saved one is offered under, and the WhatsApp reminder are written in the language picked in
+their preview, which need not be the one the application shows, so they read it through
+`i18nObject(locale)`, which startup has already loaded, and a page sets that language's `lang` and
+`dir` on itself. Everything drawn for the reader of the screen still reads the store (effort 835).
 
 **A packaged component reads neither the store nor the locale metadata**, and this rule stops at
 the package boundary. `@rentable/design` imports nothing that names this application, so its

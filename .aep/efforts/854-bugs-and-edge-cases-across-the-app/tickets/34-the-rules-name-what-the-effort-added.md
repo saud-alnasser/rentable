@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # docs(desktop): the rules name what the effort added
@@ -14,9 +14,9 @@ The interface, frontend and component rules say what is now true of undo, the re
 
 Traces requirements 1, 12, 25 and 29.
 
-- [ ] [[rules/interface]] *Undo* says a workspace switch, a sign-out, the wall and a change of organization forget the stack, and that undo and redo stand down under a cover as well as in a text field.
-- [ ] [[rules/interface]] *Create* and [[contexts/desktop/components]] record the record refund control on the ledger's balance footer as the one create drawn outside the bar, and why; [[rules/interface]] *Guidance* records the terminated contract's locked-row note as the one standing explanation of a refusal, and why (spec requirement 25).
-- [ ] [[rules/frontend]] *i18n* lists the voucher among the text handed to a tenant in the language chosen for it; the module comment in `tauri/src/database/corrupt.rs` no longer lists `Database::is_replica_ready` among reads it does not describe truly.
+- [x] [[rules/interface]] *Undo* says a workspace switch, a sign-out, the wall and a change of organization forget the stack, and that undo and redo stand down under a cover as well as in a text field.
+- [x] [[rules/interface]] *Create* and [[contexts/desktop/components]] record the record refund control on the ledger's balance footer as the one create drawn outside the bar, and why; [[rules/interface]] *Guidance* records the terminated contract's locked-row note as the one standing explanation of a refusal, and why (spec requirement 25).
+- [x] [[rules/frontend]] *i18n* lists the voucher among the text handed to a tenant in the language chosen for it; the module comment in `tauri/src/database/corrupt.rs` no longer lists `Database::is_replica_ready` among reads it does not describe truly.
 
 ## Relevant areas
 
