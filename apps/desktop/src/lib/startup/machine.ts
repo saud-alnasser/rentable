@@ -103,6 +103,8 @@ export class StartupMachine {
 	 */
 	async raiseSignInWall(reason: SignInReason) {
 		this.ports.cache.clear();
+		// nothing done in the session behind the wall may be undone in the next one.
+		this.ports.undo.forget();
 		this.set({
 			error: null,
 			recovery: null,

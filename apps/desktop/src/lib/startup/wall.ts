@@ -89,6 +89,7 @@ export async function signOut(
 	{ arrive }: { arrive?: () => Promise<unknown> } = {}
 ) {
 	machine.ports.cache.forgetContext();
+	machine.ports.undo.forget();
 	machine.set({
 		state: 'sign-in',
 		signInReason: 'locked',
@@ -158,6 +159,9 @@ export async function select(machine: StartupMachine, organizationId: string, bu
 		return;
 	}
 
+	// whatever happens next is another organization's, or a refusal on the way to one.
+	machine.ports.undo.forget();
+
 	let signedOut = false;
 
 	try {
@@ -203,6 +207,9 @@ export async function remove(machine: StartupMachine, organizationId: string, bu
 	if (isBusy(machine, busy)) {
 		return;
 	}
+
+	// even where another organization goes and the member stays in (effort 854, requirement 1).
+	machine.ports.undo.forget();
 
 	// the held context names a member of the organization going, where it is the open one.
 	if (machine.current.organization?.session?.organizationId === organizationId) {

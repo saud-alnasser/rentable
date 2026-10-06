@@ -71,7 +71,7 @@ mock.module('@tanstack/svelte-query', {
 });
 
 const { declareMutation } = await import('$lib/mutation/ui');
-const { applyRedo, applyUndo } = await import('$lib/undo');
+const { applyRedo, applyUndo, forgetEveryChange } = await import('$lib/undo');
 const { inverseStack } = await import('$lib/undo/undo');
 const { memberPermissions } = await import('$lib/permission');
 const { EVERY_FLAG, maskOf } = await import('@rentable/workspace-permission');
@@ -255,6 +255,21 @@ describe('the offer to take a change back', () => {
 
 		assert.deepEqual(calls, []);
 		assert.equal(raised.length, 1);
+	});
+
+	// effort 854, requirement 1: what leaving a workspace or a session calls, through startup's
+	// port. It is the clear above, so the offer on screen goes with it.
+	it('leaves when every change is forgotten, as leaving a workspace or a session does', async () => {
+		const { mutation } = bind(takeBackable('deleting a tenant'));
+
+		await mutation.onSuccess(undefined, undefined, undefined);
+		const offered = raised.length;
+
+		forgetEveryChange();
+
+		assert.deepEqual(dismissed, [offered]);
+		assert.equal(inverseStack.undoable, null);
+		assert.equal(inverseStack.redoable, null);
 	});
 
 	it('reaches the keyboard, which names no change and moves whatever is on top', async () => {

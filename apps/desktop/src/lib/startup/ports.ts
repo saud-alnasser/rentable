@@ -91,6 +91,14 @@ export type StartupPorts = {
 		 */
 		forgetContext(): void;
 	};
+	undo: {
+		/**
+		 * every change the session could undo or redo, and the offer on screen to do either. An
+		 * inverse is a statement about the workspace and the session it was made in, so leaving
+		 * either forgets them.
+		 */
+		forget(): void;
+	};
 	/** a thrown value as a reader should see it. The route's translations, from outside. */
 	describeError(error: unknown): string;
 	/** what the shell said behind a thrown value, kept for a disclosure; `null` where nothing. */

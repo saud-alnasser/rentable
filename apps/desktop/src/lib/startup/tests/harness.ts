@@ -5,6 +5,7 @@ import { fakeSyncState } from '$lib/sync/tests/testing.ts';
 import type { RemoteSyncState } from '$lib/sync/host.ts';
 import type { Recovery } from '$lib/update/host.ts';
 import type { OrganizationState } from '$lib/organization/host.ts';
+import { inverseStack } from '$lib/undo/undo.ts';
 
 /**
  * Shared harness for driving startup with no window.
@@ -42,6 +43,34 @@ export const withoutWorkspace = () =>
 		session: { ...fakeOrganizationState().session!, workspaces: [] }
 	});
 
+/**
+ * Leave the session's real stack holding a change in each direction: two recorded, and the newer
+ * taken back, so undo and redo both have something to move. A test pairs it with
+ * `forgetUndo: forgetRealUndo`, so the port the unit calls empties this same stack.
+ */
+export async function holdUndoInBothDirections() {
+	const change = (name: string) => ({
+		describe: () => name,
+		flags: { undo: [], redo: [] },
+		undo: async () => undefined,
+		redo: async () => undefined
+	});
+
+	inverseStack.clear();
+	inverseStack.record(change('adding a tenant'));
+	inverseStack.record(change('deleting a tenant'));
+	await inverseStack.undo();
+}
+
+/** whatever the session could still undo and redo, `null` in each where nothing. */
+export const heldUndo = () => ({
+	undoable: inverseStack.undoable,
+	redoable: inverseStack.redoable
+});
+
+/** what a test holding the real stack hands the harness as `forgetUndo`. */
+export const forgetRealUndo = () => inverseStack.clear();
+
 export function fakeRecovery(overrides: Partial<Recovery> = {}): Recovery {
 	return {
 		targetVersion: '',
@@ -78,6 +107,8 @@ export type Journal = {
 	/** every state the rail's query was seeded with, in order. */
 	remembered: RemoteSyncState[];
 	contextsForgotten: number;
+	/** how many times every change the session could undo or redo was forgotten. */
+	undoForgotten: number;
 	/** how many times what is drawn from the organization was told it is stale. */
 	organizationInvalidated: number;
 	/** the organizations the shell was told to choose at the switcher, in order. */
@@ -142,6 +173,8 @@ export function harness(
 		reconcile?: () => Promise<void>;
 		/** what else forgetting the held context does, for a test holding a real one. */
 		forgetContext?: () => void;
+		/** what else forgetting every change to undo does, for a test holding the real stack. */
+		forgetUndo?: () => void;
 		/** what else dropping the undrawn queries does, for a test asking what was on screen. */
 		dropUndrawn?: () => void;
 	} = {}
@@ -165,6 +198,7 @@ export function harness(
 		remoteSyncInvalidated: 0,
 		remembered: [],
 		contextsForgotten: 0,
+		undoForgotten: 0,
 		organizationInvalidated: 0,
 		selected: [],
 		removed: [],
@@ -345,6 +379,12 @@ export function harness(
 			forgetContext: () => {
 				journal.contextsForgotten += 1;
 				overrides.forgetContext?.();
+			}
+		},
+		undo: {
+			forget: () => {
+				journal.undoForgotten += 1;
+				overrides.forgetUndo?.();
 			}
 		},
 		describeError: (error) => (error instanceof Error ? error.message : String(error)),

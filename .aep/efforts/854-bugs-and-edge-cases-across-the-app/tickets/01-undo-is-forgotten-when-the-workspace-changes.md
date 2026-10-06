@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(desktop): undo is forgotten when the workspace or session changes
@@ -14,10 +14,10 @@ Nothing recorded in one workspace or session can be undone or redone in another:
 
 Traces requirement 1 and criterion 1.
 
-- [ ] `forgetEveryChange()` exported from `undo/index.ts` and reached by startup through a new `undo.forget()` port wired in `startup/browser.ts`.
-- [ ] Called in `switchWorkspace` before `openWorkspace`, in `raiseSignInWall`, in `signOut`, and in the wall's `select` and `remove`.
-- [ ] Startup harness tests record an inverse, run each of the five acts, and find `undoable` and `redoable` both null; `undo/tests/move.test.ts` pins that clearing withdraws an outstanding offer.
-- [ ] The comments in `undo/undo.ts` and `undo/move.ts` that say nothing clears the stack are corrected.
+- [x] `forgetEveryChange()` exported from `undo/index.ts` and reached by startup through a new `undo.forget()` port wired in `startup/browser.ts`.
+- [x] Called in `switchWorkspace` before `openWorkspace`, in `raiseSignInWall`, in `signOut`, and in the wall's `select` and `remove`.
+- [x] Startup harness tests record an inverse, run each of the five acts, and find `undoable` and `redoable` both null; `undo/tests/move.test.ts` pins that clearing withdraws an outstanding offer.
+- [x] The comments in `undo/undo.ts` and `undo/move.ts` that say nothing clears the stack are corrected.
 
 ## Relevant areas
 

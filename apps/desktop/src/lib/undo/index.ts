@@ -14,7 +14,7 @@
  * The key pair's registration, which the frame mounts once, is rendered through `ui.ts` and is
  * never re-exported here (plan, *Components*).
  */
-export type { Inverse } from './undo';
+export { forgetEveryChange, type Inverse } from './undo';
 export {
 	announceWithOffer,
 	applyRedo,

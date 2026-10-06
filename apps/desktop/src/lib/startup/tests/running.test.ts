@@ -15,7 +15,16 @@ import { maskOf } from '@rentable/workspace-permission';
 
 import { startupScreen } from '$lib/startup/screen.ts';
 
-import { A_DAY, AT, harness, locked, unlocked } from './harness.ts';
+import {
+	A_DAY,
+	AT,
+	forgetRealUndo,
+	harness,
+	heldUndo,
+	holdUndoInBothDirections,
+	locked,
+	unlocked
+} from './harness.ts';
 
 /**
  * A RUNNING APPLICATION
@@ -202,8 +211,9 @@ test('and rows that land while a day-crossing reconcile is out are announced onc
 // --- A switch between workspaces, from inside the application -----------------------------
 
 /** a member holding two workspaces, with the first one open. */
-const holdingTwo = () =>
+const holdingTwo = (overrides: Parameters<typeof harness>[0] = {}) =>
 	harness({
+		...overrides,
 		organization: fakeOrganizationState({
 			session: fakeOrganizationSession({
 				workspaces: [
@@ -466,4 +476,36 @@ test('a switch to a workspace the session does not hold does nothing', async () 
 	assert.deepEqual(journal.workspacesOpened, before);
 	assert.equal(startup.snapshot.state, 'ready');
 	assert.equal(startup.snapshot.switching, null);
+});
+
+// effort 854, requirement 1: an inverse is a statement about the workspace it was taken in, so a
+// switch forgets every change there was to move, and does so before the other one is opened.
+test('a switch forgets every change there was to undo or redo in the workspace it left', async () => {
+	const { startup, journal } = holdingTwo({ forgetUndo: forgetRealUndo });
+
+	await startup.start();
+	await holdUndoInBothDirections();
+	await startup.switchWorkspace('south');
+
+	assert.equal(startup.snapshot.state, 'ready');
+	assert.deepEqual(journal.workspacesOpened, ['north', 'south']);
+	assert.deepEqual(heldUndo(), { undoable: null, redoable: null });
+});
+
+test('and a switch the shell would not open forgets them all the same', async () => {
+	const { startup } = holdingTwo({
+		forgetUndo: forgetRealUndo,
+		openWorkspace: async (workspaceId) => {
+			if (workspaceId === 'south') {
+				throw new Error('the replica would not open');
+			}
+		}
+	});
+
+	await startup.start();
+	await holdUndoInBothDirections();
+	await startup.switchWorkspace('south');
+
+	assert.equal(startup.snapshot.state, 'error');
+	assert.deepEqual(heldUndo(), { undoable: null, redoable: null });
 });

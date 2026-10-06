@@ -9,7 +9,15 @@ import {
 } from '$lib/organization/tests/testing.ts';
 import { fakeSyncState, fakeWorkspace } from '$lib/sync/tests/testing.ts';
 
-import { harness, locked, unlocked, withoutWorkspace } from './harness.ts';
+import {
+	forgetRealUndo,
+	harness,
+	heldUndo,
+	holdUndoInBothDirections,
+	locked,
+	unlocked,
+	withoutWorkspace
+} from './harness.ts';
 
 /**
  * THE WALL, AS THE EIGHT PATHS MEET IT
@@ -486,4 +494,57 @@ test('a refused link that left the session open leaves the person where they wer
 	assert.equal(startup.snapshot.organization?.session?.organizationId, 'acme');
 	assert.equal(journal.contextsForgotten, forgotten);
 	assert.ok(seen.slice(before).every((snapshot) => snapshot.state !== 'loading'));
+});
+
+// --- Undo does not cross a session or an organization ------------------------------------
+
+// effort 854, requirement 1: an inverse is a statement about one workspace and one session, and
+// replaying it after the person left either would write into somebody else's records. Each way
+// off the wall's side of the application empties both directions.
+
+const nothingToMove = { undoable: null, redoable: null };
+
+test('signing out forgets every change there was to undo or redo', async () => {
+	const { startup } = harness({ forgetUndo: forgetRealUndo });
+
+	await startup.start();
+	await holdUndoInBothDirections();
+	await startup.signOut();
+
+	assert.deepEqual(heldUndo(), nothingToMove);
+});
+
+test('and so does the wall going up because the session ended', async () => {
+	const { startup, standWith } = harness({ forgetUndo: forgetRealUndo });
+
+	await startup.start();
+	assert.equal(startup.snapshot.state, 'ready');
+
+	await holdUndoInBothDirections();
+	standWith(locked());
+	await startup.standingChanged();
+
+	assert.equal(startup.snapshot.state, 'sign-in');
+	assert.deepEqual(heldUndo(), nothingToMove);
+});
+
+test('and so does choosing another organization at the switcher', async () => {
+	const { startup } = harness({ organization: twoWithoutWorkspace(), forgetUndo: forgetRealUndo });
+
+	await startup.start();
+	await holdUndoInBothDirections();
+	await startup.select('beta');
+
+	assert.deepEqual(heldUndo(), nothingToMove);
+});
+
+test('and so does removing an organization, even one the member is not in', async () => {
+	const { startup } = harness({ organization: twoWithoutWorkspace(), forgetUndo: forgetRealUndo });
+
+	await startup.start();
+	await holdUndoInBothDirections();
+	await startup.remove('beta');
+
+	assert.equal(startup.snapshot.state, 'no-workspace', 'the member is still in');
+	assert.deepEqual(heldUndo(), nothingToMove);
 });
