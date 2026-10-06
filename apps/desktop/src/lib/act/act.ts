@@ -64,7 +64,12 @@ type RecordActTone =
 export type RecordAct<T> = RecordActTone & {
 	/** stable, and the palette's key: `contract.renew`. */
 	id: string;
-	label: (t: TranslationFunctions) => string;
+	/**
+	 * what the act is called: given the record where a surface holds one, so an act can name what it
+	 * does to that record (a refund's print names a voucher), and nothing in the command menu before
+	 * a record is chosen.
+	 */
+	label: (t: TranslationFunctions, record?: T) => string;
 	icon: IconComponent;
 	/** separators, and the order across concepts: the `destructive` group comes last. */
 	group?: RecordActGroup;
@@ -134,7 +139,7 @@ export function toCardActions<T>(
 	t: TranslationFunctions
 ): RecordCardAction[] {
 	return applying(acts, record).map((act) => ({
-		label: act.label(t),
+		label: act.label(t, record),
 		icon: act.icon,
 		tone: act.tone ?? 'neutral',
 		shortcut: act.shortcut,
@@ -166,7 +171,7 @@ export function toPageActions<T>(
 ): PageAction[] {
 	return applying(acts, record).map((act) => ({
 		id: act.id,
-		label: act.label(t),
+		label: act.label(t, record),
 		icon: act.icon,
 		tone: act.tone ?? 'neutral',
 		shortcut: act.shortcut,
@@ -203,7 +208,7 @@ export function toPaletteVerbs<T>(
 ): PaletteVerb[] {
 	return applying(acts, record).map((act) => ({
 		id: act.id,
-		label: act.label(t),
+		label: act.label(t, record),
 		icon: act.icon,
 		tone: act.tone ?? 'neutral',
 		hints: toHints(act.shortcut, isAppleKeyboard),

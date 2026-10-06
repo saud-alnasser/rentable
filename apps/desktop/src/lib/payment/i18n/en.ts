@@ -69,7 +69,18 @@ export const payments = {
 	terminatedSummary: 'this contract is terminated and locked. payment records are read-only.',
 	title: 'payments',
 	titleFor: 'payments for {govId}',
-	trackSummary: 'track contract payments and add new payment records here.'
+	trackSummary: 'track contract payments and add new payment records here.',
+	// a refund's voucher, the statement that money was paid out to the tenant (effort 854,
+	// requirement 29), printed in the language chosen. It is not a tax document.
+	voucher: {
+		amount: 'amount paid',
+		number: 'voucher number',
+		paidTo: 'paid to',
+		print: 'print voucher',
+		reason: 'reason',
+		signature: 'recipient signature',
+		title: 'payment voucher'
+	}
 } satisfies BaseTranslation;
 
 export const refusals = {

@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [22, 24]
 ---
 
@@ -15,8 +15,8 @@ A refund prints a payment voucher (سند صرف) from the receipt's print previ
 
 Traces requirement 29 and criterion 29.
 
-- [ ] `payment.receipt` answers a voucher for a refund; `voucher.svelte` renders it through the same print path.
-- [ ] Tests per criterion 29 in both languages; existing receipt tests unchanged.
+- [x] `payment.receipt` answers a voucher for a refund; `voucher.svelte` renders it through the same print path.
+- [x] Tests per criterion 29 in both languages; existing receipt tests unchanged.
 
 ## Relevant areas
 

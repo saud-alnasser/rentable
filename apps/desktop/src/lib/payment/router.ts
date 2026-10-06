@@ -15,6 +15,7 @@ import {
 	ensureContractPaymentsCreatable,
 	ensureRefundsCovered,
 	ensureRefundWithinLimit,
+	isRefund,
 	reconcileTouched
 } from '$lib/contract';
 import { allocateReceipt, toReceiptReference } from '$lib/payment/receipt';
@@ -143,6 +144,12 @@ export default router({
 	 * paid without `viewTenant`, the contract and what remains of it without `viewContract`, the
 	 * units without `viewUnit`, and the complex holding each without `viewComplex`. The cycles are
 	 * the payment's, what it covers, and stay.
+	 *
+	 * **A refund answers a voucher instead** (effort 854, requirement 29), the statement that the
+	 * money was paid out (سند صرف): marked `kind: 'voucher'`, numbered from the refund's identity
+	 * as a receipt is from the payment's, naming the tenant it was paid to, the contract and its
+	 * units on the same terms. It covers no cycle, so its cycles are empty, and it states nothing
+	 * remaining, which is a receipt's to say. A payment received answers exactly as before.
 	 */
 	receipt: procedure
 		.permitted('viewPayment')
@@ -163,7 +170,10 @@ export default router({
 			const views = (flag: Flag) => permits(ctx.identity.permissions, flag);
 
 			const [payments, units] = await Promise.all([
-				ctx.db.select().from(s.payment).where(eq(s.payment.contractId, row.contract.id)),
+				// a voucher allocates nothing, so a refund has no need of its contract's payments.
+				isRefund(row.payment)
+					? []
+					: ctx.db.select().from(s.payment).where(eq(s.payment.contractId, row.contract.id)),
 				!views('viewUnit')
 					? undefined
 					: ctx.db
@@ -175,6 +185,38 @@ export default router({
 							.orderBy(asc(s.complex.name), asc(s.unit.name), asc(s.unit.id))
 			]);
 
+			if (isRefund(row.payment)) {
+				const voucher = {
+					kind: 'voucher' as const,
+					reference: toReceiptReference(row.payment.id),
+					payment: serializePayment(row.payment),
+					...(views('viewTenant')
+						? { tenant: { name: row.tenant.name, nationalId: row.tenant.nationalId } }
+						: {}),
+					...(views('viewContract')
+						? {
+								contract: {
+									govId: row.contract.govId ?? '',
+									start: row.contract.start.getTime(),
+									end: row.contract.end.getTime()
+								}
+							}
+						: {}),
+					...(units
+						? {
+								units: units.map(({ name, complexName }) =>
+									views('viewComplex') ? { name, complexName } : { name }
+								)
+							}
+						: {}),
+					cycles: [] as { index: number; due: number }[]
+				};
+
+				// each answer names, as absent, what only the other carries, so a reader of either asks
+				// `kind` or `remaining` without first telling the two apart.
+				return voucher as typeof voucher & { remaining?: undefined };
+			}
+
 			const { cycles, remaining } = allocateReceipt(
 				row.contract,
 				payments,
@@ -182,7 +224,7 @@ export default router({
 				ctx.clock.now()
 			);
 
-			return {
+			const receipt = {
 				reference: toReceiptReference(row.payment.id),
 				payment: serializePayment(row.payment),
 				...(views('viewTenant')
@@ -208,6 +250,8 @@ export default router({
 				// cycles cross as timestamps, as a contract's dates do.
 				cycles: cycles.map((cycle) => ({ index: cycle.index, due: cycle.due.getTime() }))
 			};
+
+			return receipt as typeof receipt & { kind?: undefined };
 		}),
 
 	/**

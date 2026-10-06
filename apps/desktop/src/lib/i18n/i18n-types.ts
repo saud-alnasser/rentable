@@ -1014,7 +1014,7 @@ type RootTranslation = {
 				 * t​h​e​ ​r​e​f​u​n​d​s​ ​o​n​ ​{​n​a​m​e​d​}​ ​w​o​u​l​d​ ​e​x​c​e​e​d​ ​w​h​a​t​ ​i​t​ ​r​e​c​e​i​v​e​d​.​ ​r​e​m​o​v​e​ ​a​ ​r​e​f​u​n​d​ ​f​i​r​s​t​.
 				 * @param {string} named
 				 */
-				refundsExceedReceivedNamed: RequiredParams<'named'>;
+				refundsExceedReceivedNamed: RequiredParams<'named'>
 				/**
 				 * e​n​d​ ​d​a​t​e​ ​m​u​s​t​ ​s​t​a​y​ ​w​i​t​h​i​n​ ​{​d​a​y​s​}​ ​d​a​y​s​ ​b​e​f​o​r​e​ ​o​r​ ​a​f​t​e​r​ ​t​h​e​ ​c​a​l​c​u​l​a​t​e​d​ ​{​i​n​t​e​r​v​a​l​}​ ​c​y​c​l​e​ ​e​n​d​ ​d​a​t​e​.
 				 * @param {number} days
@@ -3672,6 +3672,36 @@ type RootTranslation = {
 			 * t​r​a​c​k​ ​c​o​n​t​r​a​c​t​ ​p​a​y​m​e​n​t​s​ ​a​n​d​ ​a​d​d​ ​n​e​w​ ​p​a​y​m​e​n​t​ ​r​e​c​o​r​d​s​ ​h​e​r​e​.
 			 */
 			trackSummary: string
+			voucher: {
+				/**
+				 * a​m​o​u​n​t​ ​p​a​i​d
+				 */
+				amount: string
+				/**
+				 * v​o​u​c​h​e​r​ ​n​u​m​b​e​r
+				 */
+				number: string
+				/**
+				 * p​a​i​d​ ​t​o
+				 */
+				paidTo: string
+				/**
+				 * p​r​i​n​t​ ​v​o​u​c​h​e​r
+				 */
+				print: string
+				/**
+				 * r​e​a​s​o​n
+				 */
+				reason: string
+				/**
+				 * r​e​c​i​p​i​e​n​t​ ​s​i​g​n​a​t​u​r​e
+				 */
+				signature: string
+				/**
+				 * p​a​y​m​e​n​t​ ​v​o​u​c​h​e​r
+				 */
+				title: string
+			}
 		}
 	}
 	print: {
@@ -6331,7 +6361,7 @@ export type TranslationFunctions = {
 				/**
 				 * the refunds on {named} would exceed what it received. remove a refund first.
 				 */
-				refundsExceedReceivedNamed: (arg: { named: string }) => LocalizedString;
+				refundsExceedReceivedNamed: (arg: { named: string }) => LocalizedString
 				/**
 				 * end date must stay within {days} days before or after the calculated {interval} cycle end date.
 				 */
@@ -8851,6 +8881,36 @@ export type TranslationFunctions = {
 			 * track contract payments and add new payment records here.
 			 */
 			trackSummary: () => LocalizedString
+			voucher: {
+				/**
+				 * amount paid
+				 */
+				amount: () => LocalizedString
+				/**
+				 * voucher number
+				 */
+				number: () => LocalizedString
+				/**
+				 * paid to
+				 */
+				paidTo: () => LocalizedString
+				/**
+				 * print voucher
+				 */
+				print: () => LocalizedString
+				/**
+				 * reason
+				 */
+				reason: () => LocalizedString
+				/**
+				 * recipient signature
+				 */
+				signature: () => LocalizedString
+				/**
+				 * payment voucher
+				 */
+				title: () => LocalizedString
+			}
 		}
 	}
 	print: {

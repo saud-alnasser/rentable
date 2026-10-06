@@ -1189,3 +1189,84 @@ test('a palette search says which way each payment it finds went', async () => {
 		].sort()
 	);
 });
+
+// --- A refund's voucher --------------------------------------------------------------
+//
+// Effort 854, requirement 29 and the router half of criterion 29: a refund printed answers a
+// voucher, the statement that money was paid out, rather than a receipt. It carries the number
+// taken from the refund's identity, the tenant, the contract, its units and the refund as it
+// stands; it covers no cycles and states nothing remaining. A payment's receipt is unchanged.
+
+test("a refund's receipt answers a voucher: its number, the tenant, the contract and the refund", async () => {
+	const api = await createApi();
+	const { tenant, contract, payment } = await seedReceiptedPayment(api);
+
+	await api.contract.terminate({ id: contract.id });
+
+	const recorded = await api.payment.create({
+		contractId: contract.id,
+		date: monthsFromNow(0),
+		amount: 1500,
+		direction: 'refund',
+		method: 'bank-transfer',
+		reference: 'TRF-2201',
+		note: 'deposit returned on leaving'
+	});
+
+	const voucher = await api.payment.receipt({ id: recorded.id });
+
+	assert.equal(voucher.kind, 'voucher');
+	assert.match(voucher.reference, /^[0-9A-Z]{4}(-[0-9A-Z]{4}){3}$/);
+	assert.equal(voucher.payment.direction, 'refund');
+	assert.deepEqual(
+		{
+			amount: voucher.payment.amount,
+			method: voucher.payment.method,
+			reference: voucher.payment.reference,
+			note: voucher.payment.note
+		},
+		{
+			amount: 1500,
+			method: 'bank-transfer',
+			reference: 'TRF-2201',
+			note: 'deposit returned on leaving'
+		}
+	);
+	assert.deepEqual(voucher.tenant, { name: tenant.name, nationalId: tenant.nationalId });
+	assert.equal(voucher.contract?.govId, '20471133');
+	assert.deepEqual(voucher.units, [{ name: 'A-12', complexName: 'Al Nakheel' }]);
+	// a refund covers no cycle, and what remains of the contract is a receipt's to state.
+	assert.deepEqual(voucher.cycles, []);
+	assert.equal('remaining' in voucher, false);
+
+	// the payment received beside it still answers its receipt.
+	const receipt = await api.payment.receipt({ id: payment.id });
+
+	assert.equal('kind' in receipt, false);
+	assert.ok(receipt.cycles.length > 0);
+	assert.equal(typeof receipt.remaining, 'number');
+});
+
+test('a voucher leaves off what the member may not view, as a receipt does', async () => {
+	const db = createMemoryDatabase();
+	const api = await createApi({ db });
+	const { contract } = await seedReceiptedPayment(api);
+
+	await api.contract.terminate({ id: contract.id });
+
+	const recorded = await api.payment.create({
+		contractId: contract.id,
+		date: monthsFromNow(0),
+		amount: 1500,
+		direction: 'refund'
+	});
+
+	const withoutTenants = await createApi({ db, identity: identityWithout('viewTenant') });
+	const withoutContracts = await createApi({ db, identity: identityWithout('viewContract') });
+	const withoutUnits = await createApi({ db, identity: identityWithout('viewUnit') });
+
+	assert.equal('tenant' in (await withoutTenants.payment.receipt({ id: recorded.id })), false);
+	assert.equal('contract' in (await withoutContracts.payment.receipt({ id: recorded.id })), false);
+	assert.equal('units' in (await withoutUnits.payment.receipt({ id: recorded.id })), false);
+	assert.equal((await withoutUnits.payment.receipt({ id: recorded.id })).kind, 'voucher');
+});

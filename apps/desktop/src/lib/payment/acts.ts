@@ -118,9 +118,13 @@ export function declarePaymentActs(host: PaymentHostRequests): PaymentAct[] {
 			run: host.copyDetails
 		},
 		{
-			// a read: every payment has a receipt, a terminated contract's included.
+			// a read: every payment has a receipt, a terminated contract's included. A refund's is
+			// a voucher (effort 854, requirement 29), and the act says so where it names one.
 			id: 'payment.receipt',
-			label: (t) => t.contracts.payments.receipt.print(),
+			label: (t, payment) =>
+				payment && isRefund(payment)
+					? t.contracts.payments.voucher.print()
+					: t.contracts.payments.receipt.print(),
 			// the glyph every printing act draws, as the schedule's does.
 			icon: PrinterIcon,
 			group: 'primary',

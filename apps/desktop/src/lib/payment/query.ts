@@ -153,8 +153,17 @@ export function useReadPaymentReceipt() {
 		});
 }
 
-/** What a payment's receipt states, as `payment.receipt` answers. */
-export type PaymentReceipt = Awaited<ReturnType<typeof api.payment.receipt>>;
+/**
+ * What `payment.receipt` answers: a receipt for a payment received, or a voucher for a refund
+ * (effort 854, requirement 29), told apart by `kind`.
+ */
+export type PaymentPrintout = Awaited<ReturnType<typeof api.payment.receipt>>;
+
+/** What a payment's receipt states, as `payment.receipt` answers for a payment received. */
+export type PaymentReceipt = Exclude<PaymentPrintout, { kind: 'voucher' }>;
+
+/** What a refund's voucher states, as `payment.receipt` answers for a refund. */
+export type PaymentVoucher = Extract<PaymentPrintout, { kind: 'voucher' }>;
 
 export function useFetchContractPayments(
 	contractId: () => string,

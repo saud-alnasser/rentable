@@ -65,7 +65,16 @@ export const payments = {
 	terminatedSummary: 'العقد منتهي والمدفوعات للقراءة فقط.',
 	title: 'المدفوعات',
 	titleFor: 'مدفوعات {govId}',
-	trackSummary: 'تتبع المدفوعات وإضافة دفعات جديدة.'
+	trackSummary: 'تتبع المدفوعات وإضافة دفعات جديدة.',
+	voucher: {
+		amount: 'المبلغ المصروف',
+		number: 'رقم السند',
+		paidTo: 'صرفنا إلى',
+		print: 'طباعة سند الصرف',
+		reason: 'البيان',
+		signature: 'توقيع المستلم',
+		title: 'سند صرف'
+	}
 } satisfies Translation['contracts']['payments'];
 
 export const refusals = {

@@ -35,6 +35,7 @@
 	import { onDestroy, untrack } from 'svelte';
 	import PaymentForm from './form.svelte';
 	import PrintedReceipt, { type PrintedReceiptValue } from './receipt.svelte';
+	import PrintedVoucher, { type PrintedVoucherValue } from './voucher.svelte';
 
 	/**
 	 * The payment form and the payment's delete, mounted once for the whole shell. A delete asks
@@ -131,9 +132,10 @@
 
 	/**
 	 * the receipt being previewed, the language it is shown in, and whether it is on its way to
-	 * paper or a file. Raw, because a receipt is only ever replaced.
+	 * paper or a file. Raw, because a receipt is only ever replaced. A refund's is a voucher
+	 * (effort 854, requirement 29), previewed and sent the same way.
 	 */
-	let receipt = $state.raw<PrintedReceiptValue | null>(null);
+	let receipt = $state.raw<PrintedReceiptValue | PrintedVoucherValue | null>(null);
 	let receiptOpen = $state(false);
 	let receiptLocale = $state<Locales>('en');
 	let sending = $state(false);
@@ -175,7 +177,8 @@
 		sending = true;
 
 		try {
-			const title = i18nObject(receiptLocale).contracts.payments.receipt.title();
+			const printed = i18nObject(receiptLocale).contracts.payments;
+			const title = receipt.kind === 'voucher' ? printed.voucher.title() : printed.receipt.title();
 			// the preview is closed, and gone, before the page is laid out for paper.
 			const outcome = await sendPage(
 				printedReceipt,
@@ -331,13 +334,13 @@
 </script>
 
 {#snippet printedReceipt()}
-	{#if receipt}
-		<PrintedReceipt value={receipt} locale={receiptLocale} />
-	{/if}
+	{@render receiptPage(receiptLocale)}
 {/snippet}
 
 {#snippet receiptPage(pageLocale: Locales)}
-	{#if receipt}
+	{#if receipt?.kind === 'voucher'}
+		<PrintedVoucher value={receipt} locale={pageLocale} />
+	{:else if receipt}
 		<PrintedReceipt value={receipt} locale={pageLocale} />
 	{/if}
 {/snippet}
@@ -347,7 +350,9 @@
 	onOpenChange={(isOpen) => {
 		if (!isOpen) receiptOpen = false;
 	}}
-	title={$LL.contracts.payments.receipt.print()}
+	title={receipt?.kind === 'voucher'
+		? $LL.contracts.payments.voucher.print()
+		: $LL.contracts.payments.receipt.print()}
 	bind:locale={receiptLocale}
 	page={receiptPage}
 	busy={sending}
