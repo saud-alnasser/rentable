@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(desktop): the Turso consent keeps listening and trusts only its own callback
@@ -14,9 +14,9 @@ The consent callback survives a silent or piecemeal connection and keeps listeni
 
 Traces requirements 16 and 20, and criteria 16 and 20.
 
-- [ ] A reader thread per accepted connection with blocking reads to the end of the headers; a failed connection never settles the consent.
-- [ ] `state` is checked first; a mismatch is answered with a neutral page and the consent stays open; `escape_html` on every message.
-- [ ] Rust tests per criteria 16 and 20, and a `read_head` test with a request in three pieces.
+- [x] A reader thread per accepted connection with blocking reads to the end of the headers; a failed connection never settles the consent.
+- [x] `state` is checked first; a mismatch is answered with a neutral page and the consent stays open; `escape_html` on every message.
+- [x] Rust tests per criteria 16 and 20, and a `read_head` test with a request in three pieces.
 
 ## Relevant areas
 

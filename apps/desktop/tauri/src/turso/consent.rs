@@ -36,7 +36,7 @@ use crate::{
 use super::oauth::{
     OAuthConfig,
     authorization::build_authorization_url,
-    loopback::{LoopbackCallback, LoopbackWait},
+    loopback::{Judged, LoopbackCallback, LoopbackWait, STRANGER_PAGE},
     pkce::{pkce_challenge, random_url_safe_token},
     token::{OAuthTokenResponse, authorization_code_form, parse_token_response},
 };
@@ -243,6 +243,9 @@ enum ConsentOutcome {
     /// the person answered the consent screen with no, or never answered at all.
     Declined,
     Failed(String),
+    /// the callback carried somebody else's `state`, or none. It is not this consent's to
+    /// settle, whatever else it carried, and the consent goes on waiting for its own.
+    Stranger,
 }
 
 /// One consent, from the authorization request to whatever settles it.
@@ -268,19 +271,21 @@ struct ConsentSession {
 impl ConsentSession {
     /// Read what a callback's query says, against the state this session issued. Pure: it
     /// decides nothing about the session's own status.
+    ///
+    /// **`state` is read before anything else** (requirement 20). Until it matches, nothing in
+    /// the query is this consent's: an `error` on a stranger's request would otherwise fail a
+    /// consent the person is still answering.
     fn read_callback(&self, query: &HashMap<String, String>) -> ConsentOutcome {
+        if query.get("state").map(String::as_str) != Some(self.expected_state.as_str()) {
+            return ConsentOutcome::Stranger;
+        }
+
         if let Some(error) = query.get("error") {
             return if error.trim() == OAUTH_ACCESS_DENIED {
                 ConsentOutcome::Declined
             } else {
                 ConsentOutcome::Failed(error.clone())
             };
-        }
-
-        if query.get("state").map(String::as_str) != Some(self.expected_state.as_str()) {
-            return ConsentOutcome::Failed(
-                "the consent callback state did not match the session that started it".to_string(),
-            );
         }
 
         let authorization_code = query
@@ -320,6 +325,7 @@ impl ConsentSession {
                 self.status = TursoConsentStatus::Failed;
                 self.error = Some(message);
             }
+            ConsentOutcome::Stranger => return false,
         }
 
         true
@@ -706,29 +712,50 @@ fn handle_consent_callback(
     let started_at = Instant::now();
     let mut ran_out_of_patience = false;
 
-    let waited = callback.accept(|| {
-        let status = {
-            let consents = consents.lock().map_err(|_| consents_poisoned())?;
+    let waited = callback.accept(
+        || {
+            let status = {
+                let consents = consents.lock().map_err(|_| consents_poisoned())?;
 
-            consents.get(session_id).map(|session| session.status)
-        };
+                consents.get(session_id).map(|session| session.status)
+            };
 
-        match status {
-            Some(TursoConsentStatus::Pending) => {
-                if started_at.elapsed() >= patience {
-                    ran_out_of_patience = true;
+            match status {
+                Some(TursoConsentStatus::Pending) => {
+                    if started_at.elapsed() >= patience {
+                        ran_out_of_patience = true;
 
-                    return Ok(LoopbackWait::Abandon);
+                        return Ok(LoopbackWait::Abandon);
+                    }
+
+                    // the listener paces the wait itself, so this only says whether it goes on.
+                    Ok(LoopbackWait::Continue)
                 }
-
-                // the listener paces the wait itself, so this only says whether it goes on.
-                Ok(LoopbackWait::Continue)
+                // the consent ended some other way, or the session is gone. Either way nothing
+                // is waiting for this port any more.
+                Some(_) | None => Ok(LoopbackWait::Abandon),
             }
-            // the consent ended some other way, or the session is gone. Either way nothing
-            // is waiting for this port any more.
-            Some(_) | None => Ok(LoopbackWait::Abandon),
-        }
-    })?;
+        },
+        // a request is this consent's when its state is. One that is not is answered by the
+        // loopback with a page that says nothing, and the wait goes on (requirement 20).
+        |query| {
+            let stranger = consents
+                .lock()
+                .ok()
+                .and_then(|consents| {
+                    consents
+                        .get(session_id)
+                        .map(|session| session.read_callback(query))
+                })
+                .is_none_or(|outcome| outcome == ConsentOutcome::Stranger);
+
+            if stranger {
+                Judged::Stranger
+            } else {
+                Judged::Ours
+            }
+        },
+    )?;
 
     let Some(request) = waited else {
         if ran_out_of_patience
@@ -775,6 +802,8 @@ fn callback_page_message(outcome: &ConsentOutcome) -> String {
         ConsentOutcome::Failed(message) => {
             format!("Connecting your Turso account failed: {message}. You can close this window.")
         }
+        // the loopback answers a stranger itself, and this is the page it answers with.
+        ConsentOutcome::Stranger => STRANGER_PAGE.to_string(),
     }
 }
 
@@ -1076,8 +1105,8 @@ mod tests {
     }
 
     /// arrive on the loopback redirect the way a browser would, carrying what Turso would
-    /// have put on it.
-    async fn arrive_at_the_callback(authorization_url: &str, pairs: &[(&str, &str)]) {
+    /// have put on it, and read the page the tab is left showing.
+    async fn arrive_at_the_callback(authorization_url: &str, pairs: &[(&str, &str)]) -> String {
         let parameters = authorization_parameters(authorization_url);
         let redirect_uri = parameters
             .get("redirect_uri")
@@ -1109,7 +1138,35 @@ mod tests {
             .get(callback.as_str())
             .send()
             .await
-            .expect("the loopback callback refused the browser");
+            .expect("the loopback callback refused the browser")
+            .text()
+            .await
+            .expect("the loopback callback sent no page")
+    }
+
+    /// where the consent waits for its callback, as a socket address, and the state it issued.
+    fn the_callback_and_its_state(authorization_url: &str) -> (String, String, String) {
+        let parameters = authorization_parameters(authorization_url);
+        let redirect = url::Url::parse(
+            parameters
+                .get("redirect_uri")
+                .expect("the authorization url carried no redirect"),
+        )
+        .expect("the redirect did not parse");
+        let address = format!(
+            "{}:{}",
+            redirect.host_str().expect("the redirect named no host"),
+            redirect.port().expect("the redirect named no port")
+        );
+
+        (
+            address,
+            redirect.path().to_string(),
+            parameters
+                .get("state")
+                .expect("the authorization url carried no state")
+                .clone(),
+        )
     }
 
     /// poll the way the interface does, until the consent stops being pending.
@@ -1670,7 +1727,11 @@ mod tests {
             .await
             .expect("failed to begin the consent");
 
-        arrive_at_the_callback(&started.authorization_url, &[("error", "access_denied")]).await;
+        arrive_at_the_callback(
+            &started.authorization_url,
+            &[("error", "access_denied"), ("state", "")],
+        )
+        .await;
 
         let result = settled(&consent, &credentials, &started.session_id).await;
 
@@ -1692,7 +1753,11 @@ mod tests {
             .await
             .expect("failed to begin the consent");
 
-        arrive_at_the_callback(&started.authorization_url, &[("error", "access_denied")]).await;
+        arrive_at_the_callback(
+            &started.authorization_url,
+            &[("error", "access_denied"), ("state", "")],
+        )
+        .await;
 
         assert_eq!(
             settled(&consent, &credentials, &started.session_id)
@@ -1736,7 +1801,11 @@ mod tests {
             .await
             .expect("failed to begin the consent");
 
-        arrive_at_the_callback(&started.authorization_url, &[("error", "invalid_scope")]).await;
+        arrive_at_the_callback(
+            &started.authorization_url,
+            &[("error", "invalid_scope"), ("state", "")],
+        )
+        .await;
 
         let result = settled(&consent, &credentials, &started.session_id).await;
 
@@ -1766,12 +1835,57 @@ mod tests {
     }
 
     /// a callback carrying somebody else's state is not this consent's, and a code redeemed
-    /// off one would be a code this application did not ask for.
+    /// off one would be a code this application did not ask for. **Nor does it end the
+    /// consent** (requirement 20): a page anybody can point at the loopback port must not be
+    /// able to fail the owner's consent, so the stranger gets a page that says nothing and the
+    /// consent goes on waiting for its own callback.
     #[tokio::test]
-    async fn a_callback_whose_state_does_not_match_fails_without_redeeming_anything() {
+    async fn a_callback_whose_state_does_not_match_redeems_nothing_and_leaves_the_consent_open() {
         let credentials = Memory::new();
 
-        let server = ScriptedServer::start(vec![registration_answer()]).await;
+        let server = ScriptedServer::start(vec![registration_answer(), token_answer()]).await;
+        let consent = TursoConsent::new();
+        let started = consent
+            .begin(TursoEndpoints::at(&server.url("")))
+            .await
+            .expect("failed to begin the consent");
+
+        let page = arrive_at_the_callback(
+            &started.authorization_url,
+            &[("code", "somebody-elses-code"), ("state", "not-the-state")],
+        )
+        .await;
+
+        let meanwhile = consent
+            .result(&started.session_id, &credentials)
+            .await
+            .expect("failed to read the consent");
+
+        assert_eq!(meanwhile.status, TursoConsentStatus::Pending);
+        assert_eq!(server.request_count(), 1, "a mismatched state was redeemed");
+        assert!(
+            page.contains("not part of a connection"),
+            "the stranger was not given the neutral page: {page}"
+        );
+
+        arrive_at_the_callback(
+            &started.authorization_url,
+            &[("code", "the-authorization-code"), ("state", "")],
+        )
+        .await;
+
+        let result = settled(&consent, &credentials, &started.session_id).await;
+
+        assert_eq!(result.status, TursoConsentStatus::Granted);
+    }
+
+    /// **`state` is read before `error`** (criterion 20): a refusal carrying somebody else's
+    /// state is a stranger's, and it leaves the consent open for the callback that is this one's.
+    #[tokio::test]
+    async fn a_refusal_whose_state_does_not_match_leaves_the_consent_open() {
+        let credentials = Memory::new();
+
+        let server = ScriptedServer::start(vec![registration_answer(), token_answer()]).await;
         let consent = TursoConsent::new();
         let started = consent
             .begin(TursoEndpoints::at(&server.url("")))
@@ -1780,15 +1894,102 @@ mod tests {
 
         arrive_at_the_callback(
             &started.authorization_url,
-            &[("code", "somebody-elses-code"), ("state", "not-the-state")],
+            &[("error", "server_error"), ("state", "not-the-state")],
+        )
+        .await;
+
+        let meanwhile = consent
+            .result(&started.session_id, &credentials)
+            .await
+            .expect("failed to read the consent");
+
+        assert_eq!(meanwhile.status, TursoConsentStatus::Pending);
+        assert_eq!(meanwhile.error, None);
+
+        arrive_at_the_callback(
+            &started.authorization_url,
+            &[("code", "the-authorization-code"), ("state", "")],
         )
         .await;
 
         let result = settled(&consent, &credentials, &started.session_id).await;
 
-        assert_eq!(result.status, TursoConsentStatus::Failed);
-        assert_eq!(stored_token(&credentials), None);
-        assert_eq!(server.request_count(), 1, "a mismatched state was redeemed");
+        assert_eq!(result.status, TursoConsentStatus::Granted);
+    }
+
+    /// what Turso put in `error` is echoed into the page the tab shows, so it is escaped there
+    /// rather than handed to the browser as markup (criterion 20).
+    #[tokio::test]
+    async fn a_refusal_holding_markup_is_escaped_in_the_page() {
+        let server = ScriptedServer::start(vec![registration_answer()]).await;
+        let consent = TursoConsent::new();
+        let started = consent
+            .begin(TursoEndpoints::at(&server.url("")))
+            .await
+            .expect("failed to begin the consent");
+
+        let page = arrive_at_the_callback(
+            &started.authorization_url,
+            &[("error", "<script>x</script>"), ("state", "")],
+        )
+        .await;
+
+        assert!(
+            page.contains("&lt;script&gt;x&lt;/script&gt;"),
+            "the refusal was not escaped: {page}"
+        );
+        assert!(
+            !page.contains("<script>"),
+            "the refusal reached the page as markup: {page}"
+        );
+    }
+
+    /// **A browser on Windows opens a connection before it has anything to send**, and sends
+    /// the redirect it is given on another, sometimes in pieces (criterion 16). The silent one
+    /// is not the callback and must not fail the consent; the piecemeal one is, and settles it.
+    #[tokio::test]
+    async fn a_silent_connection_and_a_split_request_still_settle_the_consent() {
+        use std::io::Write;
+
+        let credentials = Memory::new();
+
+        let server = ScriptedServer::start(vec![registration_answer(), token_answer()]).await;
+        let consent = TursoConsent::new();
+        let started = consent
+            .begin(TursoEndpoints::at(&server.url("")))
+            .await
+            .expect("failed to begin the consent");
+        let (address, path, state) = the_callback_and_its_state(&started.authorization_url);
+
+        let silent =
+            std::net::TcpStream::connect(&address).expect("the silent connection was refused");
+
+        tokio::time::sleep(Duration::from_millis(500)).await;
+
+        let mut split =
+            std::net::TcpStream::connect(&address).expect("the split connection was refused");
+
+        split
+            .write_all(
+                format!("GET {path}?code=the-authorization-code&state={state} HTTP/1.1\r\n")
+                    .as_bytes(),
+            )
+            .expect("the first half of the request was not written");
+        split.flush().expect("the first half was not sent");
+
+        tokio::time::sleep(Duration::from_millis(400)).await;
+
+        split
+            .write_all(format!("Host: {address}\r\n\r\n").as_bytes())
+            .expect("the second half of the request was not written");
+        split.flush().expect("the second half was not sent");
+
+        let result = settled(&consent, &credentials, &started.session_id).await;
+
+        assert_eq!(result.status, TursoConsentStatus::Granted);
+        assert_eq!(result.error, None);
+
+        drop(silent);
     }
 
     /// the exchange itself refusing is the other way a consent fails after the person has
