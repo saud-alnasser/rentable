@@ -24,6 +24,7 @@ export type ContractRefusalCode =
 	| 'contract.periodOverlapsUnits'
 	| 'contract.unitsUnavailable'
 	| 'contract.unitsTaken'
+	| 'contract.unitsTakenNamed'
 	| 'contract.renewalBeforeEnd'
 	| 'contract.missing'
 	| 'contract.tenantMissing'

@@ -17,11 +17,13 @@ import {
 import {
 	ensurePeriodDoesNotOverlapAssignments,
 	ensureUnitsAssignable,
+	ensureUnitsFreeToRestore,
 	hasSameUtcDateRange
 } from '$lib/contract/assignment/assignment';
 import { reconcile, reconcileTouched } from '$lib/contract/reconcile';
 import { selectAssignmentsForUnits, selectPaymentsForContract } from '$lib/contract/row';
 import { serializeContract, withRank } from '$lib/contract/serialize';
+import { toUnitReference, UNIT_LIST_SEPARATOR } from '$lib/transfer';
 import { eq, inArray, sql } from 'drizzle-orm';
 import z from 'zod';
 import assignment from './assignment/router';
@@ -329,6 +331,25 @@ export default router({
 			}
 
 			ensureContractUnterminable(existingContract.status);
+
+			// restoring makes the contract live again, so a unit another contract took while it was
+			// terminated refuses it, named the way the reader knows a unit.
+			const held = await ctx.db
+				.select({ id: s.unit.id, unit: s.unit.name, complex: s.complex.name })
+				.from(s.contractUnit)
+				.innerJoin(s.unit, eq(s.contractUnit.unitId, s.unit.id))
+				.innerJoin(s.complex, eq(s.unit.complexId, s.complex.id))
+				.where(eq(s.contractUnit.contractId, input.id));
+			const referenceOf = new Map(
+				held.map((unit) => [unit.id, toUnitReference(unit.complex, unit.unit)])
+			);
+
+			ensureUnitsFreeToRestore(
+				await selectAssignmentsForUnits(ctx.db, [...referenceOf.keys()]),
+				existingContract,
+				input.id,
+				(unitIds) => unitIds.map((unitId) => referenceOf.get(unitId)).join(UNIT_LIST_SEPARATOR)
+			);
 
 			const payments = await selectPaymentsForContract(ctx.db, input.id);
 			const restoredStatus = deriveContractStatus(

@@ -157,6 +157,7 @@ export const contracts = {
 		refusedMissing: '{count|number} are no longer in the workspace',
 		refusedNotRestorable: '{count|number} are not terminated',
 		refusedNotTerminable: '{count|number} cannot be terminated by hand',
+		refusedUnitsTaken: '{count|number} hold a unit another contract now holds',
 		restoreSummary: '{count|number} {{contract|contracts}} will be restored',
 		restoreTitle: 'restore contracts',
 		terminateSummary: '{count|number} {{contract|contracts}} will be terminated',
@@ -217,6 +218,8 @@ export const refusals = {
 			'one or more of these units are no longer in the workspace. reload to see what changed.',
 		unitsTaken:
 			'another contract holds one or more of the chosen units over this term. choose other units or a different term.',
+		unitsTakenNamed:
+			'another contract now holds {named:string} over these dates. free it before restoring this one.',
 		unitsUnavailable:
 			'another contract holds one or more of these units over the selected term. choose a different term.'
 	}

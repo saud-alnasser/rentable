@@ -149,6 +149,7 @@ export const contracts = {
 		refusedMissing: '{count|number} لم تعد موجودة في مساحة العمل',
 		refusedNotRestorable: '{count|number} ليست منتهية',
 		refusedNotTerminable: '{count|number} لا يمكن إنهاؤها يدوياً',
+		refusedUnitsTaken: '{count|number} تشغل وحدة يشغلها الآن عقد آخر',
 		restoreSummary: 'سيتم استعادة {count|number} عقد',
 		restoreTitle: 'استعادة العقود',
 		terminateSummary: 'سيتم إنهاء {count|number} عقد',
@@ -207,6 +208,8 @@ export const refusals = {
 			'لم تعد واحدة أو أكثر من هذه الوحدات موجودة في مساحة العمل. أعد التحميل لترى ما تغيّر.',
 		unitsTaken:
 			'يحتفظ عقد آخر بواحدة أو أكثر من الوحدات المختارة خلال هذه المدة. اختر وحدات أخرى أو مدة أخرى.',
+		unitsTakenNamed:
+			'يحتفظ عقد آخر الآن بـ {named} خلال هذه التواريخ. حرّرها قبل استعادة هذا العقد.',
 		unitsUnavailable:
 			'يحتفظ عقد آخر بواحدة أو أكثر من هذه الوحدات خلال المدة المحددة. اختر مدة أخرى.'
 	}

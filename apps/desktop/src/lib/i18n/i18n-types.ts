@@ -1038,6 +1038,11 @@ type RootTranslation = {
 				 */
 				unitsTaken: string;
 				/**
+				 * a​n​o​t​h​e​r​ ​c​o​n​t​r​a​c​t​ ​n​o​w​ ​h​o​l​d​s​ ​{​n​a​m​e​d​}​ ​o​v​e​r​ ​t​h​e​s​e​ ​d​a​t​e​s​.​ ​f​r​e​e​ ​i​t​ ​b​e​f​o​r​e​ ​r​e​s​t​o​r​i​n​g​ ​t​h​i​s​ ​o​n​e​.
+				 * @param {string} named
+				 */
+				unitsTakenNamed: RequiredParams<'named'>;
+				/**
 				 * a​n​o​t​h​e​r​ ​c​o​n​t​r​a​c​t​ ​h​o​l​d​s​ ​o​n​e​ ​o​r​ ​m​o​r​e​ ​o​f​ ​t​h​e​s​e​ ​u​n​i​t​s​ ​o​v​e​r​ ​t​h​e​ ​s​e​l​e​c​t​e​d​ ​t​e​r​m​.​ ​c​h​o​o​s​e​ ​a​ ​d​i​f​f​e​r​e​n​t​ ​t​e​r​m​.
 				 */
 				unitsUnavailable: string;
@@ -3324,6 +3329,11 @@ type RootTranslation = {
 			 * @param {unknown} count
 			 */
 			refusedNotTerminable: RequiredParams<'count|number'>;
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​h​o​l​d​ ​a​ ​u​n​i​t​ ​a​n​o​t​h​e​r​ ​c​o​n​t​r​a​c​t​ ​n​o​w​ ​h​o​l​d​s
+			 * @param {unknown} count
+			 */
+			refusedUnitsTaken: RequiredParams<'count|number'>;
 			/**
 			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​c​o​n​t​r​a​c​t​|​c​o​n​t​r​a​c​t​s​}​}​ ​w​i​l​l​ ​b​e​ ​r​e​s​t​o​r​e​d
 			 * @param {string | number | boolean} count
@@ -6232,6 +6242,10 @@ export type TranslationFunctions = {
 				 */
 				unitsTaken: () => LocalizedString;
 				/**
+				 * another contract now holds {named} over these dates. free it before restoring this one.
+				 */
+				unitsTakenNamed: (arg: { named: string }) => LocalizedString;
+				/**
 				 * another contract holds one or more of these units over the selected term. choose a different term.
 				 */
 				unitsUnavailable: () => LocalizedString;
@@ -8420,6 +8434,10 @@ export type TranslationFunctions = {
 			 * {count|number} cannot be terminated by hand
 			 */
 			refusedNotTerminable: (arg: { count: unknown }) => LocalizedString;
+			/**
+			 * {count|number} hold a unit another contract now holds
+			 */
+			refusedUnitsTaken: (arg: { count: unknown }) => LocalizedString;
 			/**
 			 * {count|number} {{contract|contracts}} will be restored
 			 */

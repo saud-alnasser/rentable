@@ -379,7 +379,7 @@ export type ContractSelectionAction = (typeof CONTRACT_SELECTION_ACTIONS)[number
 
 /** Why one contract would be turned away from one of those actions. */
 export type ContractRefusalReason =
-	'missing' | 'not-terminable' | 'not-restorable' | ContractDeletionBlocker;
+	'missing' | 'not-terminable' | 'not-restorable' | 'units-taken' | ContractDeletionBlocker;
 
 /**
  * Why this action would turn this contract away, or `undefined` where it would go through.
@@ -392,7 +392,11 @@ export function whatRefusesContractAction(
 	action: ContractSelectionAction,
 	contract: ContractLike,
 	payments: PaymentLike[],
-	now: DateLike
+	now: DateLike,
+	// whether another live contract holds one of its units over its term, which only a restore
+	// asks: the caller reads the assignments and answers it (`assignment/assignment.ts`), since the
+	// rule about holding a unit is the assignment's.
+	{ unitsTaken = false }: { unitsTaken?: boolean } = {}
 ): ContractRefusalReason | undefined {
 	switch (action) {
 		case 'terminate':
@@ -403,7 +407,11 @@ export function whatRefusesContractAction(
 				? undefined
 				: 'not-terminable';
 		case 'restore':
-			return canUnterminateContractStatus(contract.status) ? undefined : 'not-restorable';
+			if (!canUnterminateContractStatus(contract.status)) {
+				return 'not-restorable';
+			}
+
+			return unitsTaken ? 'units-taken' : undefined;
 		case 'delete':
 			return whatBlocksContractDeletion(payments);
 	}

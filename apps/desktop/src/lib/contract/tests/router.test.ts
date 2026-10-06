@@ -351,6 +351,53 @@ test('a deleted contract is undone holding its unit after another contract took 
 	assert.equal((await api.complex.units.get({ id: unit.id }))?.status, 'occupied');
 });
 
+// --- Restoring a terminated contract -------------------------------------------------
+
+// effort 854, requirement 4: a terminated contract holds its units without occupying them, so
+// another contract may take one over the same term. Restoring the first would then double-book
+// the unit, and it is refused naming the unit, leaving the contract terminated.
+test('restoring a terminated contract is refused a unit another contract took since, naming it', async () => {
+	const api = await createApi();
+	const { unit } = await seedComplexWithUnit(api, 'Restore-Held');
+	const terminated = await seedContract(api, { unitIds: [unit.id] });
+
+	await api.contract.terminate({ id: terminated.id });
+	await seedContract(api, { unitIds: [unit.id] });
+
+	await assert.rejects(
+		() => api.contract.unterminate({ id: terminated.id }),
+		refusedWith('contract.unitsTakenNamed', { named: 'Complex Restore-Held / Unit Restore-Held' })
+	);
+	assert.equal((await api.contract.get({ id: terminated.id }))?.status, 'terminated');
+});
+
+test('restoring a terminated contract takes back a unit another contract holds over a later term', async () => {
+	const api = await createApi();
+	const { unit } = await seedComplexWithUnit(api, 'Restore-Later');
+	const terminated = await seedContract(api, { unitIds: [unit.id] });
+
+	await api.contract.terminate({ id: terminated.id });
+	await seedContract(api, { start: monthsFromNow(12), end: monthsFromNow(24), unitIds: [unit.id] });
+
+	const restored = await api.contract.unterminate({ id: terminated.id });
+
+	assert.notEqual(restored.status, 'terminated');
+});
+
+test('the refusal of a restore names the unit inside its Arabic sentence', async () => {
+	const api = await createApi();
+	const { unit } = await seedComplexWithUnit(api, 'Restore-Ar');
+	const terminated = await seedContract(api, { unitIds: [unit.id] });
+
+	await api.contract.terminate({ id: terminated.id });
+	await seedContract(api, { unitIds: [unit.id] });
+
+	assert.match(
+		await refusalReadIn(() => api.contract.unterminate({ id: terminated.id })),
+		/Complex Restore-Ar \/ Unit Restore-Ar/
+	);
+});
+
 // --- Update --------------------------------------------------------------------------
 
 test('updating a contract changes its stored fields', async () => {

@@ -133,15 +133,21 @@ test('the held pane lists a unit an overlapping contract also holds, as the cont
 	const contract = await seedContract(api);
 	const other = await seedContract(api);
 
-	// two overlapping contracts come to hold one unit: the first holds it and is terminated,
-	// which frees the unit for the second, and restoring the first does not give it back.
+	// two overlapping contracts come to hold one unit: the first holds it and is deleted, which
+	// frees the unit for the second, and undoing the deletion puts the first back as it was,
+	// holding it too ([[rules/data]], under *Undo*). Restoring a terminated contract no longer
+	// reaches this shape, since it is refused a unit taken since (effort 854, requirement 4).
 	await api.contract.units.set({ contractId: contract.id, unitIds: [shared.unit.id] });
-	await api.contract.terminate({ id: contract.id });
+
+	const deleted = await api.contract.delete({ id: contract.id });
+
+	assert.ok(deleted);
+
 	await api.contract.units.set({
 		contractId: other.id,
 		unitIds: [shared.unit.id, theirs.unit.id]
 	});
-	await api.contract.unterminate({ id: contract.id });
+	await api.contract.restoreMany({ contracts: [deleted] });
 
 	const assignable = await api.contract.units.getAssignableMany({ contractId: contract.id });
 	const byId = new Map(assignable.map((unit) => [unit.id, unit]));

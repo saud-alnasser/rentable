@@ -159,6 +159,54 @@ export function ensureUnitsAssignable(
 	}
 }
 
+// --- Restoring a terminated contract ----------------------------------------------------
+//
+// A terminated contract keeps its units but holds none of them, so another contract may take one
+// over the same term. Restoring it makes it live again, and the overlap rule applies to it then
+// exactly as it does to a new contract. Undoing a deletion is not this: it puts rows back as they
+// were and asks nothing of the workspace ([[rules/data]], under *Undo*).
+
+/**
+ * The units this contract holds that another live contract holds over its term.
+ *
+ * `assignments` may cover more units than this contract's, as a selection reads them once for
+ * every contract in it; the contract's own rows among them say which units are its.
+ */
+export function unitsTakenFromRestore(
+	assignments: UnitAssignmentLike[],
+	contract: ContractRangeLike,
+	contractId: string
+) {
+	const held = new Set(
+		assignments
+			.filter((assignment) => assignment.contractId === contractId)
+			.map((assignment) => assignment.unitId)
+	);
+
+	return [...getConflictingAssignedUnitIds(assignments, contract, contractId)].filter((unitId) =>
+		held.has(unitId)
+	);
+}
+
+/**
+ * Refuses restoring a terminated contract where another live contract holds one of its units over
+ * its term, naming those units.
+ *
+ * @param name how the units are named to the reader, given their ids.
+ */
+export function ensureUnitsFreeToRestore(
+	assignments: UnitAssignmentLike[],
+	contract: ContractRangeLike,
+	contractId: string,
+	name: (unitIds: string[]) => string
+) {
+	const taken = unitsTakenFromRestore(assignments, contract, contractId);
+
+	if (taken.length > 0) {
+		throw refuse('contract.unitsTakenNamed', { named: name(taken) });
+	}
+}
+
 // --- Moving one unit ------------------------------------------------------------------
 //
 // A move between the panes commits on its own as a whole-set write (ADR 0029), so the set is

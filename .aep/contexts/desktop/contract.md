@@ -95,7 +95,12 @@ length, so a period agreed as "one month" rarely lands on the computed boundary.
 outside the tolerance is not a valid period for that interval.
 
 **Overlap**:
-Two contracts competing for the same unit over intersecting dates. Rejected.
+Two contracts competing for the same unit over intersecting dates. Rejected. A terminated
+contract keeps its units but holds none of them, so another contract may take one meanwhile;
+restoring the terminated contract, singly, in a selection or by undoing its termination, makes it
+live again and obeys this rule, refused naming the unit. Two terminated contracts on one unit
+restored together restore the first and refuse the second. Undoing a _deletion_ is the exception:
+it puts rows back as they were (`contract.restoreMany`, [[rules/data]] under *Undo*).
 _Avoid_: conflict — that word belongs to remote sync
 
 **Ending soon**:

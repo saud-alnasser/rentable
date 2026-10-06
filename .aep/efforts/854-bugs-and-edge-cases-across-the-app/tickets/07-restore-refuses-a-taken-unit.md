@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(desktop): restoring a terminated contract refuses a unit taken since
@@ -14,9 +14,9 @@ Restoring a terminated contract, singly, in a selection, or by undoing a termina
 
 Traces requirement 4 and criterion 4.
 
-- [ ] `unterminate` and `unterminateMany` check assignments through a single helper in `assignment/assignment.ts`; new refusal `contract.unitsTakenNamed` and selection reason `units-taken`, with sentences in both languages.
-- [ ] Router and selection tests per criterion 4, including two overlapping terminated contracts selected together; an undo test shows the undone terminate refused and left on the stack; a test pins `restoreMany` unchanged.
-- [ ] [[contexts/desktop/contract]] says restoring a terminated contract obeys the overlap rule.
+- [x] `unterminate` and `unterminateMany` check assignments through a single helper in `assignment/assignment.ts`; new refusal `contract.unitsTakenNamed` and selection reason `units-taken`, with sentences in both languages.
+- [x] Router and selection tests per criterion 4, including two overlapping terminated contracts selected together; an undo test shows the undone terminate refused and left on the stack; a test pins `restoreMany` unchanged.
+- [x] [[contexts/desktop/contract]] says restoring a terminated contract obeys the overlap rule.
 
 ## Relevant areas
 

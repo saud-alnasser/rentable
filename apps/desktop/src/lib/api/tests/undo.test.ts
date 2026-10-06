@@ -566,6 +566,37 @@ describe('undoing a record change', () => {
 		assert.equal((await caller.contract.get({ id: contract.id }))?.status, 'terminated');
 	});
 
+	// effort 854, requirement 4: undoing a terminate makes the contract live again, so it is
+	// refused where another contract took one of its units since, and the entry stays to be
+	// pressed again once the unit is freed.
+	it('refuses taking back a termination once another contract took the unit, keeping the entry', async () => {
+		const tenant = await seedTenant(caller);
+		const complex = await caller.complex.create({ name: 'Taken Tower', location: 'Riyadh' });
+		const unit = await caller.complex.units.create({ name: 'T1', complexId: complex.id });
+		const term = {
+			tenantId: tenant.id,
+			start: monthsFromNow(-1),
+			end: monthsFromNow(11),
+			interval: '12m' as const,
+			cost: 1000,
+			unitIds: [unit.id]
+		};
+		const contract = await caller.contract.create(term);
+
+		await run(useTerminateContract, contract.id);
+
+		const entry = inverseStack.undoable;
+
+		await caller.contract.create(term);
+
+		await assert.rejects(
+			() => inverseStack.undo(),
+			refusedWith('contract.unitsTakenNamed', { named: 'Taken Tower / T1' })
+		);
+		assert.equal((await caller.contract.get({ id: contract.id }))?.status, 'terminated');
+		assert.equal(inverseStack.undoable, entry);
+	});
+
 	it('takes back reinstating a contract as readily as terminating one', async () => {
 		const tenant = await seedTenant(caller);
 		const contract = await run(useCreateContract, {
