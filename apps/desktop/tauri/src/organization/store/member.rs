@@ -1,18 +1,25 @@
 //! The `member` table: who belongs, their vault and keys, their role and override, and the
-//! two unsigned writes a member makes on their own row.
+//! two unsigned writes a member makes on their own row; and the `member_lock` table beside it,
+//! whether a member is locked (effort 851).
+
+use std::{
+    collections::HashMap,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 use crate::{
     error::{Error, RefusalReason},
     organization::{
         authority::{Chain, Reading, VERIFYING_KEY_BYTES, sign},
         member::vault::{KDF_SALT_BYTES, KdfParams, PUBLIC_KEY_BYTES, Vault},
+        role::permission,
     },
 };
 
 use super::{
-    OrganizationStore, Signer, blob, fixed, integer, nullable_blob, nullable_integer,
-    role::{effective_of, standings},
-    signature::{member_authority, member_of},
+    OrganizationStore, SignedRow, Signer, blob, fixed, integer, nullable_blob, nullable_integer,
+    role::{effective_of, ranks_of_members, standings},
+    signature::{member_authority, member_lock_authority, member_of},
     text,
 };
 
@@ -35,6 +42,80 @@ pub(super) const MEMBER: &str = "CREATE TABLE IF NOT EXISTS \"member\" (\
         \"updated_at\" INTEGER NOT NULL, \
         \"session_epoch\" INTEGER NOT NULL DEFAULT 0, \
         \"owner_seed_sealed\" BLOB)";
+
+/// Whether a member is locked (effort 851, requirements 31 to 37): one row per member, signed by
+/// whoever locked or unlocked them. A locked member signs in, changes their password and reads,
+/// and every other act of the organization refuses them (`session::acting_row`).
+///
+/// **A table of its own rather than a field of the member row**, which would move the member
+/// preimage and break every signature already made. It goes last in [`super::TABLES`], completed on
+/// every replica of this format after a pull, so no change of format is needed and a build before
+/// it never reads it.
+pub(super) const MEMBER_LOCK: &str = "CREATE TABLE IF NOT EXISTS \"member_lock\" (\
+        \"member_id\" TEXT PRIMARY KEY NOT NULL, \
+        \"locked\" INTEGER NOT NULL, \
+        \"updated_at\" INTEGER NOT NULL, \
+        \"certificate_id\" TEXT NOT NULL, \
+        \"signature\" BLOB NOT NULL)";
+
+/// A `member_lock` row: whose it is, whether they are locked, and when that was set. The whole of
+/// it is under signature, and the signing key the member's row holds with it, so a lock is about
+/// one run of the account and a reset leaves every earlier one reading locked.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MemberLockRecord {
+    pub member_id: String,
+    pub locked: bool,
+    pub updated_at: i64,
+}
+
+/// Every member's lock as one read found it (effort 851, requirement 35): what each row says by
+/// member id, locked where the row does not verify, and whether the organization is **marked**.
+///
+/// **The marker is the owner's own lock row**, which only the root covers (nobody outranks the
+/// owner), so one that verifies was written by the owner's machine, and it writes it only once
+/// every member it found had a lock row of their own (`member::lock::lock_unset_accounts`).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct MemberLocks {
+    pub rows: HashMap<String, bool>,
+    pub marked: bool,
+}
+
+impl MemberLocks {
+    /// Whether a reader has seen the organization's lock marker, latching `seen` where this read
+    /// carries it: what a session passes to [`locked_in`] (`session::MemberSession::lock_marked`).
+    pub fn latch(&self, seen: &AtomicBool) -> bool {
+        if self.marked {
+            seen.store(true, Ordering::Relaxed);
+        }
+
+        seen.load(Ordering::Relaxed)
+    }
+}
+
+/// Whether `member` reads as locked out of `locks` (effort 851, requirement 35): what their row
+/// says where it verifies, and locked where it does not. **A member with no row** reads locked
+/// where the organization is marked, or where `latched` says this machine once saw the marker
+/// (`HeldOrganization::lock_marked`), so deleting a row, the marker with it, unlocks nobody on a
+/// machine that saw it; and unlocked before that, which is every member carried over from before
+/// the table until the backfill writes their row.
+///
+/// **The owner is never locked.** Nothing locks the owner (their account is made by no invitation
+/// and reset by nobody), and nobody outranks them to unlock them, so a row about them is the
+/// marker or somebody writing around the commands, and reading it would take every act of the
+/// organization from the one member who holds the Turso account. A member row naming the owner's
+/// role verifies only as the root's about its holder (`authority::covers`), so `covered` is what
+/// makes it theirs.
+pub fn locked_in(locks: &MemberLocks, member: &MemberRecord, latched: bool) -> bool {
+    if member.covered && member.role_id == permission::OWNER {
+        return false;
+    }
+
+    locks
+        .rows
+        .get(&member.id)
+        .copied()
+        .unwrap_or(locks.marked || latched)
+}
 
 /// A `member` row as a caller writes and reads it. The certificate and the signature are the
 /// store's: put on by [`OrganizationStore::write_member`] and checked by
@@ -488,4 +569,252 @@ impl OrganizationStore {
 
         Ok(members)
     }
+}
+
+impl OrganizationStore {
+    /// Write a member's lock, signed by `signer` over the whole of it (effort 851).
+    ///
+    /// **An unlock is refused, with nothing written, where the signer's certificate does not cover
+    /// it** ([`OrganizationStore::refuse_uncovered`]): `assignRole` or `overrideMember`, a rank
+    /// above the member, and not the signer's own. **A lock is written whoever signs it**, because
+    /// a lock row that does not verify reads locked all the same ([`locked_in`]): making an account
+    /// takes `inviteMember` and a reset `resetPassword`, either of which may be held without the
+    /// two flags that sign a lock, and the account they make is locked from its creation
+    /// (requirements 31 and 37) whoever made it. An unlock by somebody covering it replaces it.
+    pub async fn write_member_lock(
+        &self,
+        signer: &Signer<'_>,
+        lock: &MemberLockRecord,
+    ) -> Result<(), Error> {
+        if !lock.locked {
+            let member_key = self.member_lock_key(&lock.member_id).await?;
+
+            self.refuse_uncovered(signer, member_lock_authority(lock, &member_key))
+                .await?;
+        }
+
+        self.insert_member_lock(signer, lock).await
+    }
+
+    /// The key a lock about `member_id` is signed over: the signing key their row holds now, as
+    /// it lies, or nothing where there is no row (effort 851, requirements 35 and 37). Read as it
+    /// lies because a write only signs over it; the reader takes the key off the member's
+    /// verified row ([`OrganizationStore::member_locks`]), so a row somebody rewrote around the
+    /// store makes a lock signed over it read locked, and unlocks nobody.
+    async fn member_lock_key(&self, member_id: &str) -> Result<Vec<u8>, Error> {
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT \"signing_public_key\" FROM \"member\" WHERE \"id\" = ?",
+                vec![turso::Value::Text(member_id.to_string())],
+            )
+            .await?;
+
+        Ok(match rows.next().await? {
+            Some(row) => blob(&row, 0)?,
+            None => Vec::new(),
+        })
+    }
+
+    /// [`OrganizationStore::write_member_lock`] around its check, for a test writing the row a
+    /// member holding the credential writes around the store: what every reader has to read as
+    /// locked.
+    #[cfg(test)]
+    pub(crate) async fn write_member_lock_around_the_check(
+        &self,
+        signer: &Signer<'_>,
+        lock: &MemberLockRecord,
+    ) -> Result<(), Error> {
+        self.insert_member_lock(signer, lock).await
+    }
+
+    /// The write behind [`OrganizationStore::write_member_lock`], with no check: what a re-sign
+    /// writes a lock back with, having judged it against the chain it read the rows under
+    /// (`re_sign_rows_of_certificates_but`), since the organization row's key a check would read
+    /// by is the one a handover is leaving.
+    pub(super) async fn insert_member_lock(
+        &self,
+        signer: &Signer<'_>,
+        lock: &MemberLockRecord,
+    ) -> Result<(), Error> {
+        let member_key = self.member_lock_key(&lock.member_id).await?;
+        let signature = sign(
+            signer.key,
+            signer.certificate,
+            member_lock_authority(lock, &member_key),
+        )?;
+
+        self.connection
+            .execute(
+                "INSERT OR REPLACE INTO \"member_lock\" \
+                 (\"member_id\", \"locked\", \"updated_at\", \"certificate_id\", \"signature\") \
+                 VALUES (?, ?, ?, ?, ?)",
+                vec![
+                    turso::Value::Text(lock.member_id.clone()),
+                    turso::Value::Integer(i64::from(lock.locked)),
+                    turso::Value::Integer(lock.updated_at),
+                    turso::Value::Text(signer.certificate.id.clone()),
+                    turso::Value::Blob(signature),
+                ],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Every member's lock as it reads (effort 851, requirement 35): what a row says where it
+    /// verifies, locked where it does not, and whether the owner's marker verifies
+    /// ([`MemberLocks`]). A member with no row is not in it ([`locked_in`]).
+    ///
+    /// **A row that does not verify is not logged**, unlike a grant or a mark left out
+    /// (`signature::read_or_left_out`): it is read, as locked, and a lock written by a maker of an
+    /// account who holds neither flag that signs one is such a row on purpose
+    /// ([`OrganizationStore::write_member_lock`]), read on every act.
+    pub async fn member_locks(
+        &self,
+        organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
+    ) -> Result<MemberLocks, Error> {
+        let mut locks = MemberLocks::default();
+
+        for judged in self.judged_member_locks(organization_verifying_key).await? {
+            locks.marked |= judged.verified && judged.about_the_owner;
+            locks.rows.insert(
+                judged.row.record.member_id,
+                !judged.verified || judged.row.record.locked,
+            );
+        }
+
+        Ok(locks)
+    }
+
+    /// Whether one member reads as locked ([`locked_in`]), off every lock as it reads and
+    /// whether this machine has `latched` the marker.
+    pub async fn member_locked(
+        &self,
+        organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
+        member: &MemberRecord,
+        latched: bool,
+    ) -> Result<bool, Error> {
+        Ok(locked_in(
+            &self.member_locks(organization_verifying_key).await?,
+            member,
+            latched,
+        ))
+    }
+
+    /// Every lock that verifies, paired with the id of the certificate that signed it: what a
+    /// re-signing moves (`re_sign_rows_of_certificates_but`). One that does not verify is not
+    /// re-signed, and reads locked whoever signs next.
+    pub(crate) async fn signed_member_locks(
+        &self,
+        organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
+    ) -> Result<Vec<(String, MemberLockRecord)>, Error> {
+        Ok(self
+            .judged_member_locks(organization_verifying_key)
+            .await?
+            .into_iter()
+            .filter(|judged| judged.verified)
+            .map(|judged| (judged.row.certificate_id, judged.row.record))
+            .collect())
+    }
+
+    /// Every lock row with whether it verifies. Judged by the rank each member stands at by the
+    /// role their verified row names, as a workspace override is, so the members are read first.
+    async fn judged_member_locks(
+        &self,
+        organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
+    ) -> Result<Vec<JudgedLock>, Error> {
+        let rows = self.member_lock_rows().await?;
+
+        if rows.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let roles = self.roles(organization_verifying_key).await?;
+        let members = self.members(organization_verifying_key).await?;
+        let (certificates, revocations) = self.chain_rows().await?;
+        let chain = Chain::new(organization_verifying_key, &certificates, &revocations)
+            .with_roles(standings(&roles))
+            .with_members(ranks_of_members(&members, &roles));
+
+        let owner = members
+            .iter()
+            .find(|member| member.covered && member.role_id == permission::OWNER)
+            .map(|member| member.id.clone());
+        // the key each lock is judged over: the one on the member's verified row. A row its
+        // certificate stopped covering is genuine and grants nothing, so its key unlocks nothing
+        // either; a lock about a member with no row verifies over nothing and reads locked.
+        let keys: HashMap<&str, &[u8]> = members
+            .iter()
+            .map(|member| (member.id.as_str(), &member.signing_public_key[..]))
+            .collect();
+
+        Ok(rows
+            .into_iter()
+            .map(|row| {
+                let verified = keys.get(row.record.member_id.as_str()).is_some_and(|key| {
+                    chain
+                        .verify(
+                            &row.certificate_id,
+                            member_lock_authority(&row.record, key),
+                            &row.signature,
+                        )
+                        .is_ok()
+                });
+
+                JudgedLock {
+                    about_the_owner: owner.as_deref() == Some(row.record.member_id.as_str()),
+                    row,
+                    verified,
+                }
+            })
+            .collect())
+    }
+
+    /// Every lock row as it lies, verified by nobody. **A replica without the table reads as
+    /// holding none**: one an earlier build made, not yet completed by a pull
+    /// ([`OrganizationStore::complete_schema`]).
+    async fn member_lock_rows(&self) -> Result<Vec<SignedRow<MemberLockRecord>>, Error> {
+        if !self
+            .tables()
+            .await?
+            .iter()
+            .any(|table| table == "member_lock")
+        {
+            return Ok(Vec::new());
+        }
+
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT \"member_id\", \"locked\", \"updated_at\", \"certificate_id\", \
+                        \"signature\" \
+                 FROM \"member_lock\" ORDER BY \"member_id\"",
+                (),
+            )
+            .await?;
+        let mut locks = Vec::new();
+
+        while let Some(row) = rows.next().await? {
+            locks.push(SignedRow {
+                record: MemberLockRecord {
+                    member_id: text(&row, 0)?,
+                    locked: integer(&row, 1)? != 0,
+                    updated_at: integer(&row, 2)?,
+                },
+                certificate_id: text(&row, 3)?,
+                signature: blob(&row, 4)?,
+            });
+        }
+
+        Ok(locks)
+    }
+}
+
+/// One lock row as a read judged it: whether it verifies, and whether it is about the owner,
+/// which makes a verifying one the organization's marker ([`MemberLocks`]).
+struct JudgedLock {
+    row: SignedRow<MemberLockRecord>,
+    verified: bool,
+    about_the_owner: bool,
 }

@@ -77,7 +77,7 @@ export function organizationAdmission(state: OrganizationState | null | undefine
 		return { kind: 'admitted', session: state.session };
 	}
 
-	if (state.organization === null) {
+	if (state.organizations.length === 0) {
 		return { kind: 'signInRequired', reason: 'noOrganization' };
 	}
 

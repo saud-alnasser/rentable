@@ -23,9 +23,15 @@
 //! out of the database it judges; `authority/` says why the key travels this way. The one read
 //! made here, the organization row, is compared against the pinned key rather than trusted.
 //!
-//! **A machine holds one organization, so a connect while one is held is refused** before the
-//! link is looked at. Reaching another is a disconnect (`session/forget.rs`) and then a connect,
-//! which is requirement 17's shape and the reason the record is an `Option` rather than a list.
+//! **A machine holds as many organizations as its people need, and a connect adds one** (effort
+//! 851, requirement 1): what is recorded is a new entry in the record's list, and it is selected.
+//! **A link for an organization already held adds nothing** (requirement 13): [`selected_if_held`]
+//! selects its entry before anything is opened over a live replica, and each act judges the link
+//! from there; only a reset link for one of its members is let through (`join::accept_while`). *A
+//! connect while one organization was held was refused until effort 851, and reaching another was a
+//! disconnect first.*
+
+use std::path::Path;
 
 use crate::{
     diagnostics,
@@ -38,7 +44,7 @@ use crate::organization::{
     HeldOrganization,
     invitation::{link::Locator, random_id},
     session,
-    store::{FORMAT_VERSION, OrganizationStore},
+    store::{FORMAT_VERSION, OrganizationStore, leave_no_replica},
 };
 
 /// Record the organization `locator` names on this machine, having reached its replica.
@@ -68,7 +74,11 @@ pub async fn connect(
     credential: &str,
     now: i64,
 ) -> Result<HeldOrganization, Error> {
-    refuse_while_held(machine)?;
+    // an organization already held is selected and nothing is recorded a second time: its entry
+    // carries the member and the machine this machine already has there.
+    if let Some(held) = selected_if_held(machine, &locator.organization_id)? {
+        return Ok(held);
+    }
 
     if credential.trim().is_empty() {
         return Err(Error::refused(
@@ -123,6 +133,7 @@ pub async fn connect(
             remote_url: locator.remote_url.clone(),
         },
         None,
+        false,
         now,
     )
     .await
@@ -160,11 +171,16 @@ pub struct OrganizationFacts {
 /// `member` is the member and role signed in on this machine already, which is `None` for a
 /// connect by link, since nobody has signed in yet, and the owner for a connect on the account,
 /// where the session is what proved the machine could connect at all.
+///
+/// `consented` is whether the organization was found through the pending Turso consent, which is
+/// the connect on the owner's account and never a link: the Turso organization that consent is over
+/// then goes into the entry (`RemoteSyncStore::hold_consented`), and otherwise it stays pending.
 pub async fn record(
     store: &OrganizationStore,
     machine: &mut Persisted<RemoteSyncStore>,
     facts: OrganizationFacts,
     member: Option<(&str, &str)>,
+    consented: bool,
     now: i64,
 ) -> Result<HeldOrganization, Error> {
     let machine_id = random_id()?;
@@ -200,10 +216,26 @@ pub async fn record(
         // read is this build's (effort 838, ticket 25).
         format: Some(FORMAT_VERSION),
         machine_signed_out,
+        // a Turso organization the owner's consent was looked up over goes into the entry as it
+        // is recorded, below; a link carries none.
+        turso_organization: None,
+        workspace_id: None,
+        name_signed: false,
+        name_signed_at: 0,
+        lock_marked: false,
+        own_lock_latched: Vec::new(),
     };
 
-    machine.organization = Some(held.clone());
+    if consented {
+        machine.hold_consented(held.clone());
+    } else {
+        machine.hold(held.clone());
+    }
+
     machine.commit()?;
+
+    // what was recorded, which is the entry with whatever `hold_consented` gave it.
+    let held = machine.held(&held.id).cloned().unwrap_or(held);
 
     diagnostics::info("organization.connected")
         .with("organization", held.id.as_str())
@@ -212,19 +244,109 @@ pub async fn record(
     Ok(held)
 }
 
-/// The refusal a connect meets on a machine that already holds an organization, said before
-/// the link is decoded or anything is reached: the way to another organization is a disconnect
-/// first.
-pub fn refuse_while_held(machine: &RemoteSyncStore) -> Result<(), Error> {
-    match machine.organization.as_ref() {
-        Some(held) => Err(Error::refused(
-            RefusalReason::AnotherOrganizationHeld,
-            format!(
-                "this machine already holds {}; disconnect it before connecting another",
-                held.name
-            ),
-        )),
-        None => Ok(()),
+/// A link act refused after it reached the organization's replica: the replica it pulled is taken
+/// away where this machine does not hold that organization, and the refusal goes back as it was.
+///
+/// **Both link acts end here on every refusal past the reach** (effort 851, requirement 10). An
+/// invitation link and a machine link are each judged on the replica their credential reached, so
+/// a spent, lapsed or revoked link, a wrong password inside the payload, or an organization of
+/// another format is refused with the replica already on disk; on a machine that holds nothing,
+/// or holds another organization, that file is a copy of every sealed row of an organization the
+/// machine was refused, and [`leave_no_replica`] takes it away. The caller has let its store go
+/// before calling, for the reason `leave_no_replica` gives.
+///
+/// **A machine holding this organization keeps its replica**, whatever was refused: that file is
+/// the one the machine works from, and a link for its own organization opened again is the
+/// ordinary way somebody meets a spent one. The record is read as it stands at the refusal, so an
+/// act that recorded the organization before it failed leaves the replica with the record that
+/// names it.
+pub(crate) fn refused_after_reaching(
+    machine: &RemoteSyncStore,
+    database_path: &Path,
+    organization_id: &str,
+    refusal: Error,
+) -> Error {
+    let holds_it = machine.held(organization_id).is_some();
+
+    if !holds_it {
+        leave_no_replica(database_path, organization_id);
+    }
+
+    refusal
+}
+
+/// Select the organization `organization_id` where this machine already holds it, and answer its
+/// entry; answer nothing where it does not (effort 851, requirement 13).
+///
+/// **What every way of adding an organization asks first, before anything is opened.** A link, a
+/// machine link and a connect on the owner's account each name an organization; one this machine
+/// holds already is not added again and the wall opens on it, and what each act does next is its
+/// own: a connect on the account admits nothing, a machine link is refused as already used, and an
+/// invitation link is judged on the held replica, letting a reset through. Answering here, before
+/// anything is opened and with any session signed out by the command, is what keeps a second store
+/// from opening over a live replica of an organization this machine holds. The record is written
+/// only where the selection moved.
+pub(crate) fn selected_if_held(
+    machine: &mut Persisted<RemoteSyncStore>,
+    organization_id: &str,
+) -> Result<Option<HeldOrganization>, Error> {
+    if machine.held(organization_id).is_none() {
+        return Ok(None);
+    }
+
+    if machine.select(organization_id) {
+        machine.commit()?;
+    }
+
+    diagnostics::info("organization.alreadyHeld")
+        .with("organization", organization_id)
+        .write();
+
+    Ok(machine.held(organization_id).cloned())
+}
+
+/// Whether this machine holds the organization `organization_id`, selecting it as
+/// [`selected_if_held`] does where nobody is signed in here (effort 851, requirement 13).
+///
+/// **The selection waits where a session is open** (effort 851, review). Where nobody is in, a
+/// link for a held organization opens its wall whatever the link turns out to be. With somebody
+/// signed in, the selection is the open organization's, and moving it would carry the current
+/// workspace off the one in use while the session stayed on it; so the link is judged on what the
+/// record holds, the selection moves only where the link goes through, at [`connect`], and a
+/// refused link leaves the session, the selection and the wall as they were.
+pub(crate) fn held_here(
+    machine: &mut Persisted<RemoteSyncStore>,
+    organization_id: &str,
+    session_open: bool,
+) -> Result<bool, Error> {
+    if session_open {
+        return Ok(machine.held(organization_id).is_some());
+    }
+
+    Ok(selected_if_held(machine, organization_id)?.is_some())
+}
+
+/// Take back the registry row [`record`] wrote for `held`, where the act that recorded it is
+/// undone before anybody was admitted (effort 851, review): the row went out with the push that
+/// followed it, so it is deleted and the delete pushed, and the same link opened again registers
+/// this machine once rather than twice.
+///
+/// Best effort, as the undo it is part of is: a row that could not be deleted goes to the
+/// diagnostics log, and a delete that could not be sent goes with the next push.
+pub(crate) async fn unregistered(store: &OrganizationStore, held: &HeldOrganization) {
+    if let Err(error) = store.unregister_machine(&held.machine_id).await {
+        diagnostics::error("organization.machine.notUnregistered")
+            .with("organization", held.id.as_str())
+            .with("error", error.to_string())
+            .write();
+
+        return;
+    }
+
+    if !store.push().await {
+        diagnostics::warn("organization.machine.unregisteredNotYetSent")
+            .with("organization", held.id.as_str())
+            .write();
     }
 }
 
@@ -276,10 +398,7 @@ mod tests {
         let machine = Persisted::<RemoteSyncStore>::load(directory.join("second-machine.json"))
             .expect("the store");
 
-        assert!(
-            machine.organization.is_none(),
-            "the machine has prior state"
-        );
+        assert!(machine.selected().is_none(), "the machine has prior state");
 
         machine
     }
@@ -335,8 +454,8 @@ mod tests {
         .await
         .expect("the first run failed");
         let held = store
-            .organization
-            .clone()
+            .selected()
+            .cloned()
             .expect("the first run recorded no organization");
 
         assert_eq!(held.id, created.organization_id);
@@ -375,7 +494,7 @@ mod tests {
         assert_eq!(held.joined_at, ISSUED_AT + 1);
 
         // on the record, once, and the same on disk.
-        assert_eq!(machine.organization.as_ref(), Some(&held));
+        assert_eq!(machine.selected(), Some(&held));
 
         let written =
             std::fs::read_to_string(directory.join("second-machine.json")).expect("the file");
@@ -390,26 +509,32 @@ mod tests {
             "a secret reached the record"
         );
 
-        // and the owner's own machine, which holds the organization already, is refused with
-        // its record left as it was: the owner still named as the member.
+        // and the owner's own machine, which holds the organization already, records nothing a
+        // second time (effort 851, requirement 13): its entry comes back as it was, the owner
+        // still named as the member, and the record is the same file.
         let mut owners_machine = owners_machine;
         let before = owners_machine
-            .organization
-            .clone()
+            .selected()
+            .cloned()
             .expect("the owner's record");
+        let written = std::fs::read(owners_machine.path()).expect("the owner's record");
 
         assert!(before.member_id.is_some());
 
-        let refused = connect(&store, &mut owners_machine, &link, UNSEALED, ISSUED_AT + 2).await;
+        let again = connect(&store, &mut owners_machine, &link, UNSEALED, ISSUED_AT + 2)
+            .await
+            .expect("a connect for a held organization was refused");
 
-        assert!(
-            matches!(refused, Err(Error::Refused { reason: crate::error::RefusalReason::AnotherOrganizationHeld, ref message }) if message.contains("Acme")),
-            "{refused:?}"
+        assert_eq!(again, before, "the connect recorded the organization again");
+        assert_eq!(
+            owners_machine.selected(),
+            Some(&before),
+            "the connect touched the owner's record"
         );
         assert_eq!(
-            owners_machine.organization.as_ref(),
-            Some(&before),
-            "the refusal touched the owner's record"
+            std::fs::read(owners_machine.path()).expect("the owner's record"),
+            written,
+            "the connect wrote the owner's record"
         );
     }
 
@@ -435,7 +560,7 @@ mod tests {
                 "{refused:?}"
             );
             assert!(
-                machine.organization.is_none(),
+                machine.selected().is_none(),
                 "a connect with no credential recorded an organization"
             );
         }
@@ -534,7 +659,7 @@ mod tests {
         )
         .await
         .expect("the owner did not sign in at the wall");
-        let signed_in = machine.organization.clone().expect("the record");
+        let signed_in = machine.selected().cloned().expect("the record");
         let after_sign_in = connected(ISSUED_AT + 2).await;
 
         assert_eq!(
@@ -615,7 +740,7 @@ mod tests {
             matches!(refused, Err(Error::Integrity { .. })),
             "a stranger's key connected: {refused:?}"
         );
-        assert!(machine.organization.is_none());
+        assert!(machine.selected().is_none());
 
         let another_id = Locator {
             organization_id: "somebody-elses".to_string(),
@@ -627,7 +752,7 @@ mod tests {
             matches!(refused, Err(Error::Integrity { .. })),
             "another organization's id connected: {refused:?}"
         );
-        assert!(machine.organization.is_none());
+        assert!(machine.selected().is_none());
     }
 
     /// Everything an organization database holds, table by table and row by row, as a test
@@ -716,7 +841,7 @@ mod tests {
                 "{name}: the refusal wrote to the organization"
             );
             assert!(
-                machine.organization.is_none(),
+                machine.selected().is_none(),
                 "{name}: a refused connect recorded the organization"
             );
         }

@@ -47,7 +47,7 @@ pub(super) async fn resume_remembered(
     let held = {
         let mut remote_sync = app_state.remote_sync.write().await;
 
-        remote_sync.store_mut().organization.clone()
+        remote_sync.store_mut().selected().cloned()
     };
     let Some(held) = held.filter(|held| held.member_id.is_some()) else {
         return;
@@ -66,8 +66,8 @@ pub(super) async fn resume_remembered(
                     match ownership::follow_succession(&store, remote_sync.store_mut()).await {
                         Ok(Some(_)) => remote_sync
                             .store_mut()
-                            .organization
-                            .clone()
+                            .selected()
+                            .cloned()
                             .unwrap_or_else(|| held.clone()),
                         Ok(None) => held.clone(),
                         Err(refusal) => {
@@ -144,7 +144,7 @@ pub(super) async fn resume_remembered(
 pub(super) async fn machine_registered(app_state: &Shared) -> Result<(), Error> {
     let held = {
         let mut remote_sync = app_state.remote_sync.write().await;
-        let Some(held) = remote_sync.store_mut().organization.clone() else {
+        let Some(held) = remote_sync.store_mut().selected().cloned() else {
             return Ok(());
         };
 
@@ -158,7 +158,7 @@ pub(super) async fn machine_registered(app_state: &Shared) -> Result<(), Error> 
 
             let record = remote_sync.store_mut();
 
-            record.organization = Some(identified.clone());
+            record.hold(identified.clone());
             record.commit()?;
 
             diagnostics::info("organization.machine.identified")
@@ -199,10 +199,11 @@ pub(super) async fn machine_registered(app_state: &Shared) -> Result<(), Error> 
     Ok(())
 }
 
-/// Take this machine out of the registry, through the replica that carries the delete: what a
-/// disconnect does before it forgets the organization locally (effort 828, requirement 15).
+/// Take this machine out of the registry of the organization `organization_id`, through the
+/// replica that carries the delete: what forgetting the open organization does before it forgets
+/// it locally (effort 828, requirement 15).
 ///
-/// **The replica is taken rather than borrowed**, so the sign-out `forget` performs next finds
+/// **The replica is taken rather than borrowed**, so the sign-out `forget_one` performs next finds
 /// none and writes nothing back: a machine that deleted its row and then said it was still here
 /// would draw a standing line on its member's card for a week over a disconnect it performed
 /// itself.
@@ -210,11 +211,11 @@ pub(super) async fn machine_registered(app_state: &Shared) -> Result<(), Error> 
 /// A disconnect from the wall has no replica open and leaves the row where it is, which the
 /// seven-day window ages out. Nothing here is a refusal: the person asked to forget the
 /// organization and that is what happens either way.
-pub(crate) async fn leave_registry(app_state: &Shared) {
+pub(crate) async fn leave_registry(app_state: &Shared, organization_id: &str) {
     let held = {
         let mut remote_sync = app_state.remote_sync.write().await;
 
-        remote_sync.store_mut().organization.clone()
+        remote_sync.store_mut().held(organization_id).cloned()
     };
     let Some(held) = held.filter(|held| !held.machine_id.is_empty()) else {
         return;
@@ -289,7 +290,7 @@ pub(super) async fn open_replica(
     // the owner's account, where this machine holds its authority: what renews a lapsed grant
     // before the owner's upgrade pushes (ticket 25). It mints only for the owner, whom the upgrade
     // finds by key, and only where the grant is lapsed or gone.
-    let account = owner_platform(app_state, credentials).await;
+    let account = owner_platform(app_state, credentials, &held.id).await;
 
     match opening {
         Opening::Password { username, password } => {
@@ -339,11 +340,7 @@ async fn read_in_this_format(app_state: &Shared, held: &HeldOrganization) -> Res
     let mut remote_sync = app_state.remote_sync.write().await;
     let record = remote_sync.store_mut();
 
-    if let Some(organization) = record
-        .organization
-        .as_mut()
-        .filter(|organization| organization.id == held.id)
-    {
+    if let Some(organization) = record.held_mut(&held.id) {
         organization.format = Some(store::FORMAT_VERSION);
         record.commit()?;
     }
@@ -511,8 +508,8 @@ mod tests {
         let mut remote_sync = app_state.remote_sync.write().await;
         let held = remote_sync
             .store_mut()
-            .organization
-            .clone()
+            .selected()
+            .cloned()
             .expect("the record names no organization");
 
         (held.id, held.member_id.expect("the record names no member"))
@@ -532,14 +529,14 @@ mod tests {
             .expect("the store would not answer")
     }
 
-    /// The record this machine keeps about the organization it holds.
+    /// The record this machine keeps about the organization it has chosen.
     async fn held(app_state: &Shared) -> HeldOrganization {
         let mut remote_sync = app_state.remote_sync.write().await;
 
         remote_sync
             .store_mut()
-            .organization
-            .clone()
+            .selected()
+            .cloned()
             .expect("the record names no organization")
     }
 
@@ -609,6 +606,7 @@ mod tests {
             credentials,
             |_| async { Ok::<_, crate::error::Error>(store) },
             &mut machine,
+            &theirs.join("app.db"),
             &JoinLink::decode(&invited.join_link).expect("the invitation link"),
             &invited.code,
             password,
@@ -634,8 +632,8 @@ mod tests {
 
             remote_sync
                 .store_mut()
-                .organization
-                .clone()
+                .selected()
+                .cloned()
                 .expect("the record names no organization")
         };
         let theirs = elsewhere(directory, &held.id).await;
@@ -655,6 +653,11 @@ mod tests {
         ownership::offer_ownership(&theirs, &founder, &ada, PASSWORD, CREATED_AT + 1)
             .await
             .expect("the offer failed");
+        // every account starts locked (effort 851), and an offer is accepted by an unlocked
+        // member: the owner unlocks them once their password is their own.
+        crate::organization::member::lock::unlocked_for_a_test(&theirs, &founder, &ada)
+            .await
+            .expect("the owner unlocks them");
         ownership::accept_ownership(
             &theirs,
             &mut ada_session,
@@ -674,8 +677,7 @@ mod tests {
 
         remote_sync
             .store_mut()
-            .organization
-            .as_ref()
+            .selected()
             .expect("the record names no organization")
             .verifying_key
             .clone()
@@ -747,7 +749,7 @@ mod tests {
             let mut remote_sync = app_state.remote_sync.write().await;
             let record = remote_sync.store_mut();
 
-            if let Some(organization) = record.organization.as_mut() {
+            if let Some(organization) = record.selected_mut() {
                 organization.format = None;
             }
 
@@ -872,7 +874,7 @@ mod tests {
                 "{name}: the launch resumed into an organization of another format"
             );
             assert_eq!(
-                state.organization.map(|held| held.id),
+                state.selected_organization().map(|held| held.id),
                 Some(organization_id.clone()),
                 "{name}: the launch forgot an organization it should refuse"
             );
@@ -883,8 +885,8 @@ mod tests {
 
                 remote_sync
                     .store_mut()
-                    .organization
-                    .clone()
+                    .selected()
+                    .cloned()
                     .expect("the record")
             };
             let refused = open_replica(
@@ -941,7 +943,7 @@ mod tests {
 
         assert!(state.session.is_none());
         assert_eq!(
-            state.organization.map(|held| held.id),
+            state.selected_organization().map(|held| held.id),
             Some(organization_id),
             "a replica with no format table was forgotten"
         );
@@ -951,8 +953,8 @@ mod tests {
 
             remote_sync
                 .store_mut()
-                .organization
-                .clone()
+                .selected()
+                .cloned()
                 .expect("the record")
         };
         let refused = open_replica(
@@ -1004,7 +1006,7 @@ mod tests {
 
         assert!(state.session.is_none(), "a launch with no key signed in");
         assert!(
-            state.organization.is_some(),
+            state.selected_organization().is_some(),
             "the machine forgot what it holds"
         );
         assert!(app_state.member.read().await.is_none());

@@ -190,6 +190,16 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
 
 ## Constraints
 
+- **The application has users.** *Stated by the human on 2026-10-05.* Real organizations, their
+  members and their records live on people's machines and on owners' own Turso accounts, so
+  anything that changes data at rest, a replicated schema, an organization's format, the vault,
+  the keyring, or a machine's own record carries what is already there across to the new shape
+  ([[rules/migrations]]). **Resetting an organization, asking a person to set up again, or
+  dropping a replica is not a way to land a change.** *Until this date it was still being done
+  in development, as on 2026-09-16 when an organization made by an earlier build was reset
+  rather than migrated.* A change to the way in is held to the same bar: a build that strands a
+  person at the wall, or forgets an organization they held, is a lost customer and not a
+  restart.
 - **Offline-first, from the second run onwards.** *Superseded 2026-08-20 (#573); it read "The
   application is fully usable with no network. Remote sync is optional and additive, never a
   dependency of ordinary use."* Both halves of that stopped being true when the record of truth

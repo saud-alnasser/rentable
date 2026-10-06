@@ -273,6 +273,7 @@ const list = (
 			canDelete: true,
 			canRename: true,
 			canGrantWorkspace: true,
+			locked: false,
 			isOwner: true,
 			standingOf: holdingEverything,
 			refusal: null,

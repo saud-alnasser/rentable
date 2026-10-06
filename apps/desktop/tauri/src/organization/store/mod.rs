@@ -33,12 +33,13 @@
 //! **One type, a file per sub-concept** (effort 840, ticket 50). Each file below holds one
 //! sub-concept's tables and an `impl OrganizationStore` block of its methods: `member`, `role`,
 //! `invitation`, `workspace` (with its grants and overrides), `ownership`, `session` (the machine
-//! links and the machine registry), `setup` (the organization row), `authority` (certificates
-//! and revocations), `mark` and `lease`. `signature` is the sealing every one of them signs and
-//! verifies through, and `format` the format policy and format 1's readers the owner's upgrade
-//! runs. This file keeps the type, its construction and connection, the schema as one list, and
-//! the row helpers. *Not a store per sub-concept*, because a write that crosses them, re-signing
-//! every row a certificate signed above all, runs in one transaction over one connection.
+//! links and the machine registry), `setup` (the organization row and its signed name),
+//! `authority` (certificates and revocations), `mark` and `lease`. `signature` is the sealing
+//! every one of them signs and verifies through, and `format` the format policy and format 1's
+//! readers the owner's upgrade runs. This file keeps the type, its construction and connection,
+//! the schema as one list, and the row helpers. *Not a store per sub-concept*, because a write
+//! that crosses them, re-signing every row a certificate signed above all, runs in one
+//! transaction over one connection.
 
 use std::path::{Path, PathBuf};
 
@@ -69,25 +70,28 @@ pub use format::{
 pub use invitation::InvitationRecord;
 pub use lease::MigrationLeaseRecord;
 pub use mark::MarkRecord;
-pub use member::MemberRecord;
+pub use member::{MemberLockRecord, MemberLocks, MemberRecord, locked_in};
 pub use ownership::SuccessionRecord;
 pub use role::RoleRecord;
 pub use session::{MACHINE_PRESENCE_WINDOW, MachineLinkRecord, MachineNameRecord, MachineRecord};
-pub use setup::OrganizationRecord;
+pub use setup::{OrganizationNameRecord, OrganizationRecord};
 pub use signature::{SignedRow, Signer};
 pub(crate) use signature::{
-    grant_authority, invitation_authority, mark_authority, role_authority, workspace_authority,
+    grant_authority, invitation_authority, mark_authority, member_lock_authority,
+    organization_name_authority, role_authority, workspace_authority,
 };
 pub use workspace::{GrantRecord, WorkspaceOverrideRecord, WorkspaceRecord, pins_of};
 
-/// The seventeen tables, in the order the schema creates them. A test pins this list against what
+/// The nineteen tables, in the order the schema creates them. A test pins this list against what
 /// the database reports, so a table added anywhere is added here or fails there.
 ///
 /// **A table added after format 3 goes last, with no change of format** (effort 846): the two
 /// tables a machine is signed out on its own by are created on every replica of this format by
 /// [`OrganizationStore::complete_schema`] after a pull, and by the change to format 3 with
 /// `workspace_override`, so a walk arriving at this format builds what a fresh one is built with.
-pub const TABLES: [&str; 17] = [
+/// `organization_name` came after them the same way (effort 851), and `member_lock` after it, and
+/// the next table goes after that.
+pub const TABLES: [&str; 19] = [
     "format",
     "organization",
     "role",
@@ -105,11 +109,13 @@ pub const TABLES: [&str; 17] = [
     "workspace_override",
     "machine_sign_out",
     "machine_name",
+    "organization_name",
+    "member_lock",
 ];
 
 /// How many of [`TABLES`] format 2 held: every one but `workspace_override`, which format 3 adds
-/// (`upgrade/format/overriding.rs`), and the two tables of effort 846 after it, which the change
-/// to format 3 creates with it.
+/// (`upgrade/format/overriding.rs`), and the tables effort 846 and effort 851 added after it, which
+/// the change to format 3 creates with it.
 const FORMAT_TWO_TABLES: usize = 14;
 
 /// The schema, as the plan's data model gives it.
@@ -121,7 +127,7 @@ const FORMAT_TWO_TABLES: usize = 14;
 ///
 /// `grant` is quoted everywhere because it is a keyword in most dialects, and a statement that
 /// works in SQLite and fails elsewhere is a statement worth spelling defensively once.
-const SCHEMA: [&str; 17] = [
+const SCHEMA: [&str; 19] = [
     format::FORMAT,
     setup::ORGANIZATION,
     role::ROLE,
@@ -139,6 +145,8 @@ const SCHEMA: [&str; 17] = [
     workspace::WORKSPACE_OVERRIDE,
     session::MACHINE_SIGN_OUT,
     session::MACHINE_NAME,
+    setup::ORGANIZATION_NAME,
+    member::MEMBER_LOCK,
 ];
 
 /// The organization replica on this machine.
@@ -160,6 +168,31 @@ impl std::fmt::Debug for OrganizationStore {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter.write_str("OrganizationStore")
     }
+}
+
+/// Take away the replica an act pulled and did not keep: the file and every sidecar the engine
+/// wrote beside it.
+///
+/// **Every refusal after a pull goes through here** (effort 828, requirement 14; effort 851,
+/// requirement 10). An act that was refused left a copy of every sealed row of the organization on
+/// a machine that does not hold it: the first run's walk and its connect to an existing
+/// organization (`setup/`), and an invitation link or a machine link opened where the organization
+/// is not held (`invitation/join.rs`, `invitation/machine.rs`). The caller lets the store go
+/// first: on Windows a file this process still has open cannot be deleted, which is the order
+/// `forget_one` keeps for the same reason.
+///
+/// **It is never reached for an organization the machine holds.** The replica is then the one the
+/// machine works from, and a link for that organization opened again is refused with it left where
+/// it is; each caller says so where it calls.
+///
+/// Best effort: what could not be removed is the forget's to report at a removal, and it never
+/// takes the place of the refusal the person is about to read. *It was `setup/`'s alone until
+/// effort 851 gave the two link acts the same way out.*
+pub(crate) fn leave_no_replica(database_path: &Path, organization_id: &str) {
+    Database::remove_replica_files(&OrganizationStore::replica_path(
+        database_path,
+        organization_id,
+    ));
 }
 
 impl OrganizationStore {
@@ -270,7 +303,7 @@ impl OrganizationStore {
     /// The same pull with the refusal kept, for the one caller that has to read it.
     ///
     /// **Every other caller wants the bool**, because a pull that did not go is the offline case
-    /// and the replica goes on serving what it holds (819's requirement 18). `forget` is the
+    /// and the replica goes on serving what it holds (819's requirement 18). `forget_deleted_organization` is the
     /// exception: a remote answering that the database is not there any more is a fact about the
     /// organization rather than about this machine's connection, and it is the only way a machine
     /// learns the owner deleted it (effort 828, requirement 18).
@@ -402,6 +435,37 @@ impl OrganizationStore {
         Ok(names)
     }
 
+    /// The id of every workspace this replica names, read without verifying anything: what tells a
+    /// machine forgetting the organization which of its workspace replicas are this
+    /// organization's where its record does not say (`organization/session/forget.rs`).
+    ///
+    /// **Only ever a second source.** A row nobody signed could name any id, so what is read here
+    /// decides nothing about who may do what; the forget asks it only of replica entries that name
+    /// no organization, and every entry that names one is answered by the record. A replica with no
+    /// workspace table names none.
+    pub(crate) async fn workspace_ids_unverified(&self) -> Result<Vec<String>, Error> {
+        if !self
+            .columns_of("workspace")
+            .await?
+            .iter()
+            .any(|column| column == "id")
+        {
+            return Ok(Vec::new());
+        }
+
+        let mut rows = self
+            .connection
+            .query("SELECT \"id\" FROM \"workspace\"", ())
+            .await?;
+        let mut ids = Vec::new();
+
+        while let Some(row) = rows.next().await? {
+            ids.push(text(&row, 0)?);
+        }
+
+        Ok(ids)
+    }
+
     /// What the check before a change of format commits reads of this replica, inside that change's
     /// transaction (effort 838, ticket 33; `schema/`).
     pub(crate) async fn found(&self) -> Result<schema::Found, Error> {
@@ -415,7 +479,7 @@ impl OrganizationStore {
     }
 }
 
-/// Create the seventeen tables on `connection` where they do not exist: what
+/// Create the nineteen tables on `connection` where they do not exist: what
 /// [`OrganizationStore::install_schema`] runs on the replica, and what a change of format arriving
 /// at this format builds a fresh organization with, to check an upgraded one against
 /// (`upgrade::format::Transition::built`, ticket 33).
@@ -439,8 +503,10 @@ pub(crate) async fn install_format_two(connection: &turso::Connection) -> Result
 }
 
 /// Create what format 3 adds, where it is missing: the `workspace_override` table (effort 838,
-/// ticket 53), and the two tables a machine is signed out on its own by (effort 846), which came
-/// after it with no change of format. What `upgrade/format/overriding.rs` runs.
+/// ticket 53), the two tables a machine is signed out on its own by (effort 846), and the signed
+/// organization name and the members' locks (effort 851), which came after it with no change of
+/// format. What
+/// `upgrade/format/overriding.rs` runs.
 pub(crate) async fn install_format_three(connection: &turso::Connection) -> Result<(), Error> {
     for statement in &SCHEMA[FORMAT_TWO_TABLES..] {
         connection.execute(statement, ()).await?;
@@ -567,8 +633,8 @@ mod tests {
     use std::path::PathBuf;
 
     use super::{
-        FORMAT_VERSION, GrantRecord, MarkRecord, MemberRecord, OrganizationRecord,
-        OrganizationStore, RoleRecord, Signer, TABLES, WorkspaceRecord,
+        FORMAT_VERSION, GrantRecord, MarkRecord, MemberRecord, OrganizationNameRecord,
+        OrganizationRecord, OrganizationStore, RoleRecord, Signer, TABLES, WorkspaceRecord,
     };
     use crate::error::{Error, RefusalReason};
     use crate::organization::{
@@ -834,7 +900,9 @@ mod tests {
     /// format 3 that lacks them**, as the schema reaches other machines: as pages, so a build that
     /// names a new table completes it on every machine after a pull. Format 3's replica as the build
     /// before this one made it, `workspace_override` and all, gains both and says so, and the
-    /// `machine` table they sit beside keeps its four columns.
+    /// `machine` table they sit beside keeps its four columns. **Effort 851's signed organization
+    /// name and the members' locks came after them the same way**, and reach the same replica with
+    /// them.
     #[tokio::test]
     async fn a_format_three_replica_without_the_machine_tables_gains_both() {
         let directory = scratch("schema-machine-tables");
@@ -847,13 +915,19 @@ mod tests {
         .await
         .expect("the store");
 
-        assert_eq!(TABLES.len(), 17);
+        assert_eq!(TABLES.len(), 19);
         assert_eq!(
-            &TABLES[TABLES.len() - 3..],
-            &["workspace_override", "machine_sign_out", "machine_name"]
+            &TABLES[TABLES.len() - 5..],
+            &[
+                "workspace_override",
+                "machine_sign_out",
+                "machine_name",
+                "organization_name",
+                "member_lock"
+            ]
         );
 
-        for statement in &super::SCHEMA[..super::SCHEMA.len() - 2] {
+        for statement in &super::SCHEMA[..super::SCHEMA.len() - 4] {
             store
                 .connection
                 .execute(statement, ())
@@ -873,7 +947,12 @@ mod tests {
 
         let tables = store.tables().await.expect("the tables");
 
-        for table in ["machine_sign_out", "machine_name"] {
+        for table in [
+            "machine_sign_out",
+            "machine_name",
+            "organization_name",
+            "member_lock",
+        ] {
             assert!(tables.iter().any(|t| t == table), "{table} was not created");
         }
         assert_eq!(
@@ -891,6 +970,50 @@ mod tests {
         assert_eq!(
             store.columns_of("machine_name").await.expect("the columns"),
             vec!["id", "name", "named_at"]
+        );
+        assert_eq!(
+            store
+                .columns_of("organization_name")
+                .await
+                .expect("the columns"),
+            vec![
+                "id",
+                "name_sealed",
+                "updated_at",
+                "certificate_id",
+                "signature"
+            ]
+        );
+        assert_eq!(
+            store.columns_of("member_lock").await.expect("the columns"),
+            vec![
+                "member_id",
+                "locked",
+                "updated_at",
+                "certificate_id",
+                "signature"
+            ]
+        );
+        assert_eq!(
+            store.columns_of("organization").await.expect("the columns"),
+            vec![
+                "id",
+                "name_sealed",
+                "verifying_key",
+                "remote_url",
+                "created_at"
+            ],
+            "the organization table was altered"
+        );
+        assert_eq!(
+            store.columns_of("member").await.expect("the columns").len(),
+            18,
+            "the member table was altered"
+        );
+        assert_eq!(
+            store.format().await.expect("the format"),
+            Some(FORMAT_VERSION),
+            "the format moved"
         );
     }
 
@@ -2197,6 +2320,54 @@ mod tests {
         (key, certificate)
     }
 
+    /// Effort 851, requirement 29: **the organization's name reads only as the owner signed it.**
+    /// None is read before anybody signs; the root's reads back; a row written straight into the
+    /// replica under the root's id with another name is left out and reads as none, as is one
+    /// whose sealed name was swapped under the root's signature.
+    #[tokio::test]
+    async fn the_organizations_name_reads_only_as_the_owner_signed_it() {
+        let directory = scratch("organization-name");
+        let store = open(&directory).await;
+        let chain = Chain::new();
+        let key = chain.verifying_key();
+
+        populated(&store, &chain).await;
+
+        assert_eq!(store.organization_name(&key).await.expect("the read"), None);
+
+        let signed = OrganizationNameRecord {
+            name_sealed: chain.sealed("organization.name_sealed", "Acme Rentals"),
+            updated_at: 1_757_000_000_000,
+        };
+
+        store
+            .write_organization_name(&chain.signer(), &signed)
+            .await
+            .expect("the root's name");
+
+        assert_eq!(
+            store.organization_name(&key).await.expect("the read"),
+            Some(signed.clone())
+        );
+
+        store
+            .connection()
+            .execute(
+                "UPDATE \"organization_name\" SET \"name_sealed\" = ?",
+                vec![turso::Value::Blob(
+                    chain.sealed("organization.name_sealed", "Forged Rentals"),
+                )],
+            )
+            .await
+            .expect("a forged name");
+
+        assert_eq!(
+            store.organization_name(&key).await.expect("the read"),
+            None,
+            "a name nobody signed was read as the organization's"
+        );
+    }
+
     /// Effort 838, ticket 04: **the mark and the role rows move with everything else.** A manager
     /// sets the mark and makes a role; revoked without re-signing, the mark reads as none (ticket
     /// 25 leaves it out) and the roles refuse; re-signed under the owner first, the mark is still
@@ -2437,7 +2608,7 @@ mod tests {
         };
         let own = chain.member("member-narrow", "nick.staff", "member");
         let before = every_row(&store).await;
-        let attempts: [(&str, Result<(), Error>); 7] = [
+        let attempts: [(&str, Result<(), Error>); 8] = [
             (
                 "grantWorkspace",
                 store
@@ -2500,6 +2671,18 @@ mod tests {
                             image_sealed: b"an image".to_vec(),
                             media_type: "image/png".to_string(),
                             updated_by: "member-narrow".to_string(),
+                            updated_at: 1_757_000_000_000,
+                        },
+                    )
+                    .await,
+            ),
+            (
+                "the owner's certificate",
+                store
+                    .write_organization_name(
+                        &signer,
+                        &OrganizationNameRecord {
+                            name_sealed: chain.sealed("organization.name_sealed", "Not Acme"),
                             updated_at: 1_757_000_000_000,
                         },
                     )
@@ -2936,7 +3119,7 @@ mod tests {
     #[ignore = "reaches a live Turso account and creates a database; see the doc comment"]
     async fn organization_live_a_second_machine_reads_what_the_first_wrote() {
         use crate::turso::{
-            consent::store_platform_token,
+            consent::{Account, store_platform_token},
             discovery::TursoOrganization,
             platform::{DeletionIntent, PlatformApi, PlatformEndpoint, TursoPlatform},
         };
@@ -2966,6 +3149,7 @@ mod tests {
                 slug: read("TURSO_ORG"),
                 group: read("TURSO_GROUP"),
             },
+            Account::Pending,
             credentials.clone(),
         );
         let nonce = std::time::SystemTime::now()

@@ -247,6 +247,11 @@ impl Watch {
         Watch(Some(Arc::from(replica)))
     }
 
+    /// Whether this is the watch over `replica`.
+    pub(crate) fn is_over(&self, replica: &Path) -> bool {
+        self.0.as_deref() == Some(replica)
+    }
+
     /// Pass `answer` through, having recorded any damage it reports ([`met`]).
     pub(crate) fn note<T>(&self, answer: Result<T, turso::Error>) -> Result<T, turso::Error> {
         if let (Some(replica), Err(error)) = (self.0.as_deref(), &answer) {

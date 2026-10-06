@@ -1,12 +1,13 @@
 <script lang="ts">
 	import FieldError from '@rentable/design/block/field-error.svelte';
+	import PasswordInput from '@rentable/design/block/password-input.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
 	import * as Form from '@rentable/design/primitive/form/index.js';
 	import { Input } from '@rentable/design/primitive/input/index.js';
 	import DetailDisclosure from '$lib/error/component/detail-disclosure.svelte';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import { tick } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import type { SuperForm } from 'sveltekit-superforms';
 
 	import type { SetupField } from '../setup';
@@ -23,8 +24,14 @@
 		groupDetail,
 		isCreating
 	}: {
-		/** the walk's form for the organization's name, the owner's username and password. */
-		superform: SuperForm<{ name: string; username: string; password: string; group: string }>;
+		/** the walk's form for the organization's name, the owner's username and password, typed twice. */
+		superform: SuperForm<{
+			name: string;
+			username: string;
+			password: string;
+			confirmation: string;
+			group: string;
+		}>;
 		/** the fields the walk presents, in its description's order. */
 		fields: readonly SetupField[];
 		/** whether the step has to ask for the Turso group. */
@@ -46,9 +53,23 @@
 
 		void tick().then(() => firstField?.focus());
 	});
+
+	// the group field appears on the step the owner is already on, after a create Turso refused
+	// for want of it, and it is the one thing left to type: the cursor goes there, with everything
+	// else still as it was typed (effort 851, requirement 30). **Only when it appears.** Arriving
+	// at the step with the group already asked for, after going back and on again, is arriving,
+	// and the cursor goes to the first field as it does on every arrival.
+	let groupField = $state<HTMLInputElement | null>(null);
+	const askedOnArrival = untrack(() => askGroup);
+
+	$effect(() => {
+		if (!groupField || askedOnArrival) return;
+
+		void tick().then(() => groupField?.focus());
+	});
 </script>
 
-<!-- the three fields, and they are the three the walk description names. A fourth would
+<!-- the four fields, and they are the four the walk description names. A fifth would
      render here only if it were added to `SETUP_WALK`, which is what the test reads,
      or where Turso has left the group to be asked for, which is the block at the foot
      of the form. Each is its label and its input, with no glyph (effort 843,
@@ -103,9 +124,8 @@
 		<Form.Field form={superform} name="password" class="group relative">
 			<Form.Control>
 				<Form.Label>{$LL.organization.setup.passwordLabel()}</Form.Label>
-				<Input
+				<PasswordInput
 					name="password"
-					type="password"
 					bind:value={$form.password}
 					autocomplete="new-password"
 					disabled={isCreating}
@@ -115,6 +135,26 @@
 				/>
 			</Form.Control>
 			<Form.Description>{$LL.organization.setup.passwordFloor()}</Form.Description>
+			<FieldError />
+		</Form.Field>
+	{/if}
+
+	{#if fields.includes('confirmation')}
+		<!-- the password again, under it, labelled and refused as the join's confirmation is
+		     (effort 851, requirement 17). -->
+		<Form.Field form={superform} name="confirmation" class="group relative">
+			<Form.Control>
+				<Form.Label>{$LL.organization.join.confirmLabel()}</Form.Label>
+				<PasswordInput
+					name="confirmation"
+					bind:value={$form.confirmation}
+					autocomplete="new-password"
+					disabled={isCreating}
+					aria-invalid={$errors.confirmation ? 'true' : undefined}
+					{...$constraints.confirmation}
+					class="h-9"
+				/>
+			</Form.Control>
 			<FieldError />
 		</Form.Field>
 	{/if}
@@ -153,6 +193,7 @@
 						aria-invalid={$errors.group ? 'true' : undefined}
 						{...$constraints.group}
 						class="h-9"
+						bind:ref={groupField}
 					/>
 				</Form.Control>
 				<Form.Description>{$LL.organization.setup.groupDescription()}</Form.Description>

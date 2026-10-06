@@ -84,6 +84,7 @@ for (const glyph of [
 	'laptop',
 	'link',
 	'lock',
+	'lock-keyhole-open',
 	'message-circle',
 	'printer',
 	'refresh-cw',

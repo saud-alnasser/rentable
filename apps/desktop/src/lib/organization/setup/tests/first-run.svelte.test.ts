@@ -14,6 +14,7 @@ import {
 	fakeOrganizationWorkspace
 } from '$lib/organization/tests/testing';
 import type { Startup } from '$lib/startup';
+import type { Writable } from 'svelte/store';
 import FirstRun from '../component/first-run.svelte';
 
 /**
@@ -39,14 +40,33 @@ const hooks = vi.hoisted(() => ({
 	createWorkspace: vi.fn(),
 	goto: vi.fn(),
 	holdsTursoAuthority: true,
+	selectedHolds: false,
 	groupKind: 'empty' as 'empty' | 'held',
 	connectExisting: vi.fn(),
-	consentSession: null as (() => string | null) | null
+	consentSession: null as (() => string | null) | null,
+	page: null as Writable<Record<string, unknown>> | null
 }));
+
+// **The form's own answer to a submit is applied as SvelteKit applies it**: what `applyAction` does
+// with a result that is not an error is set the page's `form` and `status`, and superforms reads
+// the page and resets a valid form on a success. A no-op here skipped that, and with it the reset
+// that cleared what the owner typed when Turso asked for the group (effort 851, requirement 30).
+// The page is a store of this file's own, since this runner has no application root to hold one.
+vi.mock('$app/stores', async (original) => {
+	const { writable } = await import('svelte/store');
+
+	hooks.page = writable<Record<string, unknown>>({});
+
+	return { ...(await original<Record<string, unknown>>()), page: hooks.page };
+});
 
 vi.mock('$app/forms', async (original) => ({
 	...(await original<Record<string, unknown>>()),
-	applyAction: async () => {}
+	applyAction: async (result: { type: string; status?: number; data?: unknown }) => {
+		if (result.type === 'error' || result.type === 'redirect') return;
+
+		hooks.page?.update((page) => ({ ...page, form: result.data, status: result.status }));
+	}
 }));
 
 vi.mock('$app/navigation', async (original) => ({
@@ -66,10 +86,11 @@ vi.mock('$lib/organization/query', async (original) => ({
 		data: {
 			organization: null,
 			session: null,
-			holdsTursoAuthority: hooks.holdsTursoAuthority,
+			holdsTursoAuthority: hooks.selectedHolds,
+			setupConsented: hooks.holdsTursoAuthority,
 			signedOutElsewhere: false
 		},
-		refetch: async () => ({ data: { holdsTursoAuthority: true } })
+		refetch: async () => ({ data: { holdsTursoAuthority: false, setupConsented: true } })
 	})
 }));
 
@@ -112,6 +133,7 @@ afterEach(() => {
 	hooks.createWorkspace.mockReset();
 	hooks.goto.mockReset();
 	hooks.holdsTursoAuthority = true;
+	hooks.selectedHolds = false;
 	hooks.groupKind = 'empty';
 	hooks.connectExisting.mockReset();
 	hooks.consentSession = null;
@@ -163,7 +185,8 @@ async function walkToCreate() {
 	for (const [name, value] of [
 		['name', 'Acme Rentals'],
 		['username', 'olivia.owner'],
-		['password', 'a long enough password']
+		['password', 'a long enough password'],
+		['confirmation', 'a long enough password']
 	]) {
 		await fireEvent.input(document.querySelector(`input[name="${name}"]`)!, {
 			target: { value }
@@ -288,6 +311,25 @@ test('a first workspace that could not be made lands on the no-workspace surface
 // effort 824, requirement 2, held through effort 843's transitions: back from a consent still open
 // in the browser lets the poll go at once, before the address moves, so a navigation held inside
 // a view transition does not keep it asking.
+// effort 851, requirement 39, as the human found it on 2026-10-06: adding an organization on a
+// machine whose selected one holds its own consent starts the walk from the setup's own consent,
+// which is none, so the step asks for a connection rather than saying one is there.
+test('adding an organization beside one that holds its own consent starts from no consent', async () => {
+	hooks.holdsTursoAuthority = false;
+	hooks.selectedHolds = true;
+	await atTheWall();
+
+	render(
+		FirstRun,
+		{ startup: hooks.startup!, wayIn: '/' },
+		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } }
+	);
+
+	expect(screen.getByRole('button', { name: en.organization.setup.connect })).toBeTruthy();
+	expect(document.body.textContent).not.toContain(en.organization.setup.connected);
+	expect(screen.queryByRole('button', { name: en.organization.setup.continue })).toBeNull();
+});
+
 test('back while a consent is pending stops the poll at once, even with the navigation still running', async () => {
 	hooks.holdsTursoAuthority = false;
 	// a navigation that never completes, as one held open by a transition is while it runs.
@@ -358,4 +400,182 @@ test('connecting to an existing organization holds the walk until the loading, a
 		).toBeDefined()
 	);
 	expect(hooks.goto).not.toHaveBeenCalled();
+});
+
+/**
+ * Effort 851, requirement 30: **asking for the group costs the owner nothing they typed.** Driven
+ * through the real create and its refusal rather than a rerender of the walk with new props,
+ * because the rerender skips what the form does once its submit handler returns, and that is
+ * where the fields were being cleared.
+ */
+test('a create refused for want of the group keeps what was typed, asks for the group, and sends all of it again', async () => {
+	loadLocale('en');
+	setLocale('en');
+
+	await atTheWall();
+
+	hooks.createOrganization.mockImplementationOnce(async () => {
+		throw {
+			code: 'refused',
+			reason: 'groupNeeded',
+			message: 'turso refused every group this application could name on its own'
+		};
+	});
+
+	await walkToCreate();
+
+	await waitFor(() => expect(document.querySelector('input[name="group"]')).not.toBeNull());
+
+	const values = () =>
+		[...document.querySelectorAll<HTMLInputElement>('form input')].map((input) => [
+			input.getAttribute('name'),
+			input.value
+		]);
+
+	// the four fields as typed, and the group beside them, empty and with the cursor in it.
+	await waitFor(() => {
+		expect(values()).toEqual([
+			['name', 'Acme Rentals'],
+			['username', 'olivia.owner'],
+			['password', 'a long enough password'],
+			['confirmation', 'a long enough password'],
+			['group', '']
+		]);
+		expect(document.activeElement).toBe(document.querySelector('input[name="group"]'));
+	});
+	expect(screen.getByText(en.organization.setup.groupNeeded)).toBeDefined();
+
+	// the group typed, and the create sent again with nothing retyped.
+	hooks.createOrganization.mockImplementationOnce(async () => {});
+	await fireEvent.input(document.querySelector('input[name="group"]')!, {
+		target: { value: 'rentals' }
+	});
+	await fireEvent.submit(document.querySelector('form')!);
+
+	await waitFor(() => expect(hooks.createOrganization).toHaveBeenCalledTimes(2));
+	expect(hooks.createOrganization).toHaveBeenLastCalledWith({
+		name: 'Acme Rentals',
+		username: 'olivia.owner',
+		password: 'a long enough password',
+		group: 'rentals'
+	});
+});
+
+/**
+ * Effort 843, requirement 8, beside effort 851's requirement 30: **arriving at the name step puts
+ * the cursor in its first field, even with the group already asked for.** The group field takes
+ * the cursor when it appears on the step the owner is on, and not again when they go back to the
+ * consent and on to the step.
+ */
+test('going back and on again after the group was asked for puts the cursor in the first field', async () => {
+	loadLocale('en');
+	setLocale('en');
+
+	await atTheWall();
+
+	hooks.createOrganization.mockImplementationOnce(async () => {
+		throw {
+			code: 'refused',
+			reason: 'groupNeeded',
+			message: 'turso refused every group this application could name on its own'
+		};
+	});
+
+	await walkToCreate();
+
+	await waitFor(() =>
+		expect(document.activeElement).toBe(document.querySelector('input[name="group"]'))
+	);
+
+	await fireEvent.click(screen.getByRole('button', { name: en.organization.setup.back }));
+	await waitFor(() => {
+		expect(document.querySelector('[data-setup-step]')?.getAttribute('data-setup-step')).toBe(
+			'connect'
+		);
+	});
+	await fireEvent.click(screen.getByRole('button', { name: en.organization.setup.continue }));
+	await waitFor(() => {
+		expect(document.querySelector('[data-setup-step]')?.getAttribute('data-setup-step')).toBe(
+			'name'
+		);
+	});
+
+	// the group is still asked for, and the cursor is in the first field all the same.
+	expect(document.querySelector('input[name="group"]')).not.toBeNull();
+	await waitFor(() =>
+		expect(document.activeElement).toBe(document.querySelector('input[name="name"]'))
+	);
+	await new Promise((resolve) => setTimeout(resolve, 20));
+	expect(document.activeElement).toBe(document.querySelector('input[name="name"]'));
+});
+
+/**
+ * Effort 851, requirement 40: **a refused connect to the organization the account holds costs the
+ * owner nothing they typed.** Driven through the real connect and its refusal, as the group's test
+ * above is, because the fields were cleared by what the form does once its submit handler returns.
+ */
+test('a connect to an existing organization that is refused keeps what was typed and says why', async () => {
+	loadLocale('en');
+	setLocale('en');
+
+	hooks.groupKind = 'held';
+	hooks.connectExisting.mockImplementationOnce(async () => {
+		throw {
+			code: 'refused',
+			reason: 'credentialsWrong',
+			message: 'the username or the password does not open this organization'
+		};
+	});
+	await atTheWall();
+
+	render(
+		FirstRun,
+		{ startup: hooks.startup!, wayIn: '/' },
+		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } }
+	);
+
+	await fireEvent.click(screen.getByRole('button', { name: en.organization.setup.continue }));
+	await waitFor(() =>
+		expect(document.querySelector('[data-setup-step]')?.getAttribute('data-setup-step')).toBe(
+			'existing'
+		)
+	);
+
+	for (const [name, value] of [
+		['username', 'olivia.owner'],
+		['password', 'her own password']
+	]) {
+		await fireEvent.input(document.querySelector(`input[name="${name}"]`)!, {
+			target: { value }
+		});
+	}
+
+	await fireEvent.submit(document.querySelector('form')!);
+	await waitFor(() =>
+		expect(hooks.connectExisting).toHaveBeenCalledWith({
+			username: 'olivia.owner',
+			password: 'her own password'
+		})
+	);
+
+	// the refusal against the password, and both fields still holding what was typed.
+	await waitFor(() =>
+		expect(document.querySelector('[data-setup-existing-refusal]')?.textContent?.trim()).toBe(
+			en.common.refusals.host.credentialsWrong
+		)
+	);
+	await waitFor(() =>
+		expect(
+			[...document.querySelectorAll<HTMLInputElement>('form input')].map((input) => [
+				input.getAttribute('name'),
+				input.value
+			])
+		).toEqual([
+			['username', 'olivia.owner'],
+			['password', 'her own password']
+		])
+	);
+	expect(document.querySelector('[data-setup-step]')?.getAttribute('data-setup-step')).toBe(
+		'existing'
+	);
 });

@@ -10,23 +10,27 @@ import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import StartupNoWorkspace from '$lib/startup/component/no-workspace.svelte';
 import StartupSignIn from '$lib/startup/component/sign-in.svelte';
 import { fakeHeldOrganization } from '$lib/organization/tests/testing.ts';
+import type { HeldOrganization } from '$lib/organization/host.ts';
 import { fakeSettings } from '$lib/settings/tests/testing.ts';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import Providers from '#tests/providers.svelte';
+import { expectTheEye } from '#tests/password-eye.ts';
 
 /**
  * THE WELCOME AND THE WALL, RENDERED
  *
  * What the first step of the way in puts in the document for each of its situations, in both
  * locales (effort 843, ticket 05). With no organization it is the welcome: the product's name, one
- * line, and two ways in of one size. Locked, it is the login page of the one organization this
- * machine holds (effort 824, requirement 7): the name as the title, a username and a password, one
- * prominent "sign in", and "can't sign in?" answered with a sentence. The two ways out of a jam,
- * the link and disconnect, are in the foot control's popover, and disconnect asks once before it
- * forgets the organization (requirement 20).
+ * line, and two ways in of one size, and no switcher (effort 851, criterion 1). Locked, it is the
+ * login page of the organization the record selects (effort 851, criterion 2): "sign in" as the
+ * title, the organization switcher above a username and a password, one prominent "sign in", and
+ * "can't sign in?" answered with a sentence. The switcher chooses another organization, adds one
+ * through the welcome's two ways in, and removes one after the disconnect confirm (criteria 3 to
+ * 6); the foot control carries the language and the appearance alone (criterion 15). The
+ * no-workspace screen carries the same switcher (criterion 7).
  *
  * Rendered under the shared providers: the foot control reads the settings through a query, and
- * the disconnect's confirm is the design package's delete dialog, which reads the string contract.
+ * the remove's confirm is the design package's confirm dialog, which reads the string contract.
  */
 
 // the one piece of SvelteKit a superforms submit reaches that this runner cannot supply, as the
@@ -59,6 +63,16 @@ beforeAll(() => {
 
 const noop = () => {};
 
+const acme = fakeHeldOrganization({ id: 'acme', name: 'Acme Rentals' });
+const beta = fakeHeldOrganization({
+	id: 'beta',
+	name: 'Beta Lettings',
+	holdsTursoAuthority: false
+});
+
+/** nothing held: the welcome's props. */
+const nothingHeld = { organizations: [] as HeldOrganization[], selected: null };
+
 const card = (
 	situation: 'noOrganization' | 'locked' | 'signedOutElsewhere',
 	overrides: Partial<Parameters<typeof render<typeof StartupSignIn>>[1]> = {}
@@ -67,17 +81,27 @@ const card = (
 		StartupSignIn,
 		{
 			situation,
-			organization: fakeHeldOrganization(),
+			organizations: [acme],
+			selected: 'acme',
 			isSigningIn: false,
 			errorMessage: null,
 			onSignIn: noop,
-			onDisconnect: noop,
+			onSelect: noop,
+			onRemove: noop,
 			onSetUpOrganization: noop,
 			onJoinByLink: noop,
 			...overrides
 		},
 		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } }
 	);
+
+const switcher = () => document.querySelector<HTMLButtonElement>('[data-organization-switcher]');
+
+/** open the switcher the way a pointer does. */
+const openTheSwitcher = async () => {
+	await fireEvent.click(switcher()!);
+	await tick();
+};
 
 const inputsOnScreen = () =>
 	Array.from(document.querySelectorAll<HTMLInputElement>('input, textarea, select'));
@@ -90,7 +114,7 @@ const help = () => document.querySelector<HTMLButtonElement>('[data-sign-in-help
 const stepButtons = () =>
 	Array.from(document.querySelectorAll<HTMLButtonElement>('[data-way-in-content] button'));
 
-/** open the foot control, which on the wall is where both ways out of a jam are. */
+/** open the foot control: the language and the appearance. */
 const openTheFoot = async () => {
 	await fireEvent.click(document.querySelector<HTMLElement>('[data-way-in-preferences]')!);
 	await tick();
@@ -122,7 +146,7 @@ test('a machine signed out from another one reads the same wall with the reason 
 			inputsOnScreen().map((input) => input.getAttribute('name')),
 			locale
 		).toEqual(['username', 'password']);
-		expect(screen.getByText(strings.common.actions.signIn)).toBeDefined();
+		expect(screen.getByRole('button', { name: strings.common.actions.signIn })).toBeDefined();
 
 		rendered.unmount();
 	}
@@ -135,45 +159,72 @@ test('a machine signed out from another one reads the same wall with the reason 
 	expect(document.querySelector('[data-sign-in-signed-out-elsewhere]')).toBeNull();
 });
 
-// effort 826, requirement 11 as corrected on 2026-09-15: the organization this machine holds is
-// the title, drawn as it is written, with one line under it saying what to do.
-test('the wall is headed by the organization it holds, and asks for a username and a password', () => {
+// effort 851, criterion 2: with two held, the wall is titled "sign in", the switcher sits above
+// the username naming the organization last signed in to, and that name is drawn once on the wall.
+test('the wall is titled sign in, with the switcher above the username naming the chosen organization once', () => {
 	loadLocale('en');
 	setLocale('en');
-	card('locked');
+	card('locked', { organizations: [acme, beta], selected: 'beta' });
 
 	const inputs = inputsOnScreen();
 
 	expect(inputs.map((input) => input.getAttribute('name'))).toEqual(['username', 'password']);
 	expect(inputs[1]?.type).toBe('password');
 	expect(screen.queryAllByRole('radio')).toEqual([]);
-	expect(screen.getByRole('heading').textContent?.trim()).toBe('Acme Rentals');
+	expect(screen.getByRole('heading').textContent?.trim()).toBe(en.common.actions.signIn);
+	// a phrase rather than a name, so it is raised to sentence case where it renders.
 	expect(
 		document.querySelector('[data-way-in-title]')?.classList.contains('first-letter:uppercase')
-	).toBe(false);
-	expect(screen.getByText(en.layout.signIn.subtitle)).toBeDefined();
-	expect(screen.getAllByText('Acme Rentals')).toHaveLength(1);
-	expect(document.querySelector('[data-sign-in-organization="acme"]')).not.toBeNull();
+	).toBe(true);
+	expect(document.querySelector('[data-way-in-description]')).toBeNull();
+
+	// the switcher, above the username, naming the chosen organization and not the other.
+	expect(switcher()).not.toBeNull();
+	expect(
+		switcher()!.compareDocumentPosition(inputs[0]!) & Node.DOCUMENT_POSITION_FOLLOWING
+	).toBeTruthy();
+	expect(switcher()?.textContent).toContain('Beta Lettings');
+	expect(screen.getAllByText('Beta Lettings')).toHaveLength(1);
+	expect(screen.queryByText('Acme Rentals')).toBeNull();
+	expect(document.querySelector('[data-sign-in-organization="beta"]')).not.toBeNull();
 	expect(screen.queryByText(en.layout.signIn.roleOwner)).toBeNull();
 	expect(
 		Array.from(document.querySelectorAll('label')).map((label) => label.textContent?.trim())
 	).toEqual([en.layout.signIn.username, en.layout.signIn.password]);
 });
 
-test('the wall renders in arabic with the same two fields and its own line', () => {
+test('the wall renders in arabic with the same two fields under its own title', () => {
 	loadLocale('ar');
 	setLocale('ar');
 	card('locked');
 
-	expect(screen.getByRole('heading').textContent?.trim()).toBe('Acme Rentals');
+	expect(screen.getByRole('heading').textContent?.trim()).toBe(ar.common.actions.signIn);
+	expect(ar.common.actions.signIn).not.toEqual(en.common.actions.signIn);
+	expect(switcher()?.textContent).toContain('Acme Rentals');
 	expect(inputsOnScreen().map((input) => input.getAttribute('name'))).toEqual([
 		'username',
 		'password'
 	]);
 	expect(screen.getByText(ar.layout.signIn.username)).toBeDefined();
-	expect(screen.getByText(ar.layout.signIn.subtitle)).toBeDefined();
-	expect(ar.layout.signIn.subtitle).not.toEqual(en.layout.signIn.subtitle);
 	expect(screen.getByRole('button', { name: ar.common.actions.signIn })).toBeDefined();
+
+	setLocale('en');
+});
+
+// effort 851, criteria 19 and 20: the wall's password carries the eye in both locales, named by
+// the string contract's word for it, which the window supplies in the reader's language.
+test("the wall's password field carries the eye, in both locales", async () => {
+	for (const locale of ['en', 'ar'] as const) {
+		loadLocale(locale);
+		setLocale(locale);
+		const rendered = card('locked');
+
+		await expectTheEye(
+			document.querySelector<HTMLInputElement>('#sign-in-password'),
+			strings.showPassword
+		);
+		rendered.unmount();
+	}
 
 	setLocale('en');
 });
@@ -213,9 +264,11 @@ test('the welcome offers two ways in, one size, each saying whose it is', () => 
 		loadLocale(locale);
 		setLocale(locale);
 
-		const rendered = card('noOrganization', { organization: null });
+		const rendered = card('noOrganization', nothingHeld);
 
 		expect(inputsOnScreen(), locale).toEqual([]);
+		// nothing held, so nothing to switch between (effort 851, criterion 1).
+		expect(switcher(), locale).toBeNull();
 		expect(screen.getByRole('heading').textContent?.trim(), locale).toBe('rentable');
 		expect(
 			document.querySelector('[data-way-in-title]')?.classList.contains('first-letter:uppercase'),
@@ -258,7 +311,7 @@ test('the welcome and the wall each draw exactly one prominent button', () => {
 	loadLocale('en');
 	setLocale('en');
 
-	const welcome = card('noOrganization', { organization: null });
+	const welcome = card('noOrganization', nothingHeld);
 
 	expect(stepButtons().filter(isProminent)).toHaveLength(1);
 	welcome.unmount();
@@ -278,10 +331,21 @@ test('neither screen draws a glyph in a field or on its buttons, nor a back or a
 	setLocale('en');
 
 	for (const situation of ['noOrganization', 'locked'] as const) {
-		const rendered = card(situation, situation === 'noOrganization' ? { organization: null } : {});
+		const rendered = card(situation, situation === 'noOrganization' ? nothingHeld : {});
 
-		expect(document.querySelector('[data-slot=input-group-addon]'), situation).toBeNull();
-		expect(document.querySelector('[data-way-in-content] button svg'), situation).toBeNull();
+		// the one glyph a field carries is the password's eye at its trailing end, which is a
+		// control rather than a decoration (effort 851, requirement 19); nothing leads a field. The
+		// switcher's chevron says it opens a choice, as the workspace control's does.
+		expect(
+			document.querySelector('[data-slot=input-group-addon][data-align=inline-start]'),
+			situation
+		).toBeNull();
+		expect(
+			document.querySelector(
+				'[data-way-in-content] button:not([data-password-eye]):not([data-organization-switcher]) svg'
+			),
+			situation
+		).toBeNull();
 		expect(document.querySelector('[data-back-control]'), situation).toBeNull();
 		expect(document.querySelector('[data-way-in-position]'), situation).toBeNull();
 
@@ -321,63 +385,49 @@ test("pressing can't sign in? replaces it with the one sentence, said as a statu
 	setLocale('en');
 });
 
-// criterion 10 of ticket 05: the foot control is the only thing at the foot, and the wall alone
-// hands it the two ways out of a jam.
-test('the foot is the preferences control, and only the wall hands it the link and disconnect', async () => {
+// criterion 10 of ticket 05, and effort 851's criterion 15: the foot control is the only thing at
+// the foot, and on the welcome and the wall alike it opens the language and the appearance and no
+// other act. "Use a link" and "disconnect this machine" left it for the switcher.
+test('the foot is the preferences control, and it opens the language and the appearance alone', async () => {
 	loadLocale('en');
 	setLocale('en');
 
-	const welcome = card('noOrganization', { organization: null });
-	const welcomeFoot = document.querySelector('[data-way-in-foot]');
+	for (const situation of ['noOrganization', 'locked'] as const) {
+		document.body.innerHTML = '';
 
-	expect(welcomeFoot?.querySelectorAll('button')).toHaveLength(1);
-	expect(welcomeFoot?.querySelector('[data-way-in-preferences]')).not.toBeNull();
+		const rendered = card(situation, situation === 'noOrganization' ? nothingHeld : {});
+		const foot = document.querySelector('[data-way-in-foot]');
 
-	await openTheFoot();
+		expect(foot?.querySelectorAll('button'), situation).toHaveLength(1);
+		expect(foot?.querySelector('[data-way-in-preferences]'), situation).not.toBeNull();
 
-	expect(screen.queryByRole('button', { name: en.layout.signIn.useALink })).toBeNull();
-	expect(screen.queryByRole('button', { name: en.layout.signIn.disconnect })).toBeNull();
-	welcome.unmount();
-	document.body.innerHTML = '';
+		await openTheFoot();
 
-	let joined = 0;
+		const content = document.querySelector('[data-slot=popover-content]');
 
-	card('locked', { onJoinByLink: () => void joined++ });
+		expect(content?.querySelector('[data-language-choice]'), situation).not.toBeNull();
+		expect(content?.querySelector('[data-appearance="dark"]'), situation).not.toBeNull();
+		expect(content?.textContent, situation).not.toContain(en.layout.signIn.disconnect);
+		expect(content?.textContent, situation).not.toContain(en.layout.signIn.connectByLink);
+		expect(content?.querySelector('[data-slot=separator]'), situation).toBeNull();
 
-	const wallFoot = document.querySelector('[data-way-in-foot]');
-
-	expect(wallFoot?.querySelectorAll('button')).toHaveLength(1);
-
-	await openTheFoot();
-
-	const link = screen.getByRole('button', { name: en.layout.signIn.useALink });
-
-	expect(screen.getByRole('button', { name: en.layout.signIn.disconnect })).toBeDefined();
-	// nothing about either is on the step itself.
-	expect(document.querySelector('[data-way-in-content]')?.textContent).not.toContain(
-		en.layout.signIn.useALink
-	);
-
-	await fireEvent.click(link);
-
-	expect(joined).toBe(1);
+		rendered.unmount();
+	}
 });
 
-// review round 1 of effort 843: a sign-in is a key derivation and then a workspace open, which
-// take seconds, and neither way out of a jam may race it.
-test('while a sign-in runs, the foot offers the link and disconnect disabled', async () => {
+// effort 851, criterion 6: while a sign-in runs the switcher is disabled, and opens nothing.
+test('while a sign-in runs, the switcher is disabled and opens nothing', async () => {
 	loadLocale('en');
 	setLocale('en');
 	document.body.innerHTML = '';
 
-	card('locked', { isSigningIn: true });
-	await openTheFoot();
+	card('locked', { organizations: [acme, beta], isSigningIn: true });
 
-	const link = screen.getByRole('button', { name: en.layout.signIn.useALink });
-	const disconnect = screen.getByRole('button', { name: en.layout.signIn.disconnect });
+	expect(switcher()?.disabled).toBe(true);
 
-	expect((link as HTMLButtonElement).disabled).toBe(true);
-	expect((disconnect as HTMLButtonElement).disabled).toBe(true);
+	await openTheSwitcher();
+
+	expect(document.querySelector('[role="menu"]')).toBeNull();
 });
 
 // review round 1 of effort 843: both fields are disabled while a sign-in runs, which drops the
@@ -434,51 +484,96 @@ test('what the shell said behind a failure is behind details, closed, in arabic'
 	setLocale('en');
 });
 
-// effort 824, requirement 20: a person with neither a username nor a password still takes this
-// machine out of the organization, from the foot control, and it asks once before it runs.
-test('disconnect is in the foot, asks once naming the organization, and confirming runs it', async () => {
+// effort 851, criterion 3: choosing the other organization draws its wall, asking for its username
+// and password. The choice is the record's, so the wall is drawn again from what the record says.
+test('choosing the other organization draws its wall, asking for its username and password', async () => {
 	loadLocale('en');
 	setLocale('en');
 	document.body.innerHTML = '';
-	let disconnected = 0;
-	card('locked', { onDisconnect: () => void disconnected++ });
-	await openTheFoot();
+
+	const chosen: string[] = [];
+	const rendered = card('locked', {
+		organizations: [acme, beta],
+		onSelect: (id) => void chosen.push(id)
+	});
+
+	await fireEvent.input(inputsOnScreen()[0]!, { target: { value: 'olivia' } });
+	await openTheSwitcher();
+	await fireEvent.click(screen.getByRole('menuitemradio', { name: /Beta Lettings/ }));
+
+	expect(chosen).toEqual(['beta']);
+
+	// what the startup unit does with the choice: the record selects it, and the wall goes up anew.
+	rendered.unmount();
+	card('locked', { organizations: [acme, beta], selected: 'beta' });
+
+	expect(switcher()?.textContent).toContain('Beta Lettings');
+	expect(screen.getByRole('heading').textContent?.trim()).toBe(en.common.actions.signIn);
+	expect(inputsOnScreen().map((input) => [input.getAttribute('name'), input.value])).toEqual([
+		['username', ''],
+		['password', '']
+	]);
+});
+
+// effort 851, criterion 5, the component half: the x asks once, naming that row's organization, and
+// only confirming removes it; the wall stays on the organization it was on.
+test("a row's x asks once naming that organization, and confirming removes it alone", async () => {
+	loadLocale('en');
+	setLocale('en');
+	document.body.innerHTML = '';
+
+	const removed: string[] = [];
+	const chosen: string[] = [];
+
+	card('locked', {
+		organizations: [acme, beta],
+		onSelect: (id) => void chosen.push(id),
+		onRemove: (id) => void removed.push(id)
+	});
+	await openTheSwitcher();
 
 	expect(dialog()).toBeNull();
 
-	await fireEvent.click(screen.getByRole('button', { name: en.layout.signIn.disconnect }));
-	await tick();
+	await fireEvent.click(
+		document.querySelector<HTMLElement>('[data-organization-switcher-remove="beta"]')!
+	);
+	await waitFor(() => expect(dialog()).not.toBeNull());
 
-	expect(dialog()).not.toBeNull();
 	expect(dialog()?.querySelector('[data-slot=dialog-title]')?.textContent).toBe(
 		toTitleCase(en.layout.signIn.disconnect)
 	);
-	expect(dialog()?.textContent).toContain('Acme Rentals');
-	expect(dialog()?.textContent).toContain(en.layout.signIn.disconnectDescription);
-	// nothing ran on opening the question.
-	expect(disconnected).toBe(0);
+	expect(dialog()?.textContent).toContain('Beta Lettings');
+	// this machine holds no Turso consent for that one, so its line does not say one goes.
+	expect(dialog()?.textContent).toContain(en.layout.signIn.disconnectDescriptionNoTurso);
+	expect(removed).toEqual([]);
+	expect(chosen).toEqual([]);
 
 	const confirm = dialogFooter().find(
 		(button) => button.textContent?.trim() === en.layout.signIn.disconnect
 	);
 
-	expect(confirm).toBeDefined();
 	await fireEvent.click(confirm!);
-	await tick();
-
-	expect(disconnected).toBe(1);
+	await waitFor(() => expect(removed).toEqual(['beta']));
+	expect(chosen).toEqual([]);
+	expect(switcher()?.textContent).toContain('Acme Rentals');
 });
 
-test('and leaving the question runs nothing', async () => {
+test('and leaving the question removes nothing', async () => {
 	loadLocale('en');
 	setLocale('en');
 	document.body.innerHTML = '';
-	let disconnected = 0;
-	card('locked', { onDisconnect: () => void disconnected++ });
-	await openTheFoot();
 
-	await fireEvent.click(screen.getByRole('button', { name: en.layout.signIn.disconnect }));
-	await tick();
+	const removed: string[] = [];
+
+	card('locked', { onRemove: (id) => void removed.push(id) });
+	await openTheSwitcher();
+	await fireEvent.click(
+		document.querySelector<HTMLElement>('[data-organization-switcher-remove="acme"]')!
+	);
+	await waitFor(() => expect(dialog()).not.toBeNull());
+
+	// the one organization held is the chosen one, whose consent this machine holds.
+	expect(dialog()?.textContent).toContain(en.layout.signIn.disconnectDescription);
 
 	const leave = dialogFooter().find(
 		(button) => button.textContent?.trim() !== en.layout.signIn.disconnect
@@ -487,7 +582,81 @@ test('and leaving the question runs nothing', async () => {
 	await fireEvent.click(leave!);
 	await tick();
 
-	expect(disconnected).toBe(0);
+	expect(removed).toEqual([]);
+});
+
+// effort 851, criterion 4: "add organization" shows set up and join by a link, and going back
+// restores the wall of the organization that was chosen. Each way in goes where the welcome's does.
+test('"add organization" shows set up and join, and back restores the wall it came from', async () => {
+	loadLocale('en');
+	setLocale('en');
+	document.body.innerHTML = '';
+
+	const went: string[] = [];
+
+	card('locked', {
+		organizations: [acme, beta],
+		onSetUpOrganization: () => void went.push('set up'),
+		onJoinByLink: () => void went.push('join')
+	});
+	await openTheSwitcher();
+	await fireEvent.click(document.querySelector<HTMLElement>('[data-organization-switcher-add]')!);
+	await tick();
+
+	expect(screen.getByRole('heading').textContent?.trim()).toBe(en.organization.switcher.addTitle);
+	expect(inputsOnScreen()).toEqual([]);
+	expect(switcher()).toBeNull();
+
+	const setUp = document.querySelector<HTMLElement>('[data-sign-in-set-up]')!;
+	const join = document.querySelector<HTMLElement>('[data-sign-in-join]')!;
+
+	expect(setUp.textContent).toContain(en.layout.signIn.setUp);
+	expect(join.textContent).toContain(en.layout.signIn.connectByLink);
+
+	await fireEvent.click(setUp);
+	await fireEvent.click(join);
+
+	expect(went).toEqual(['set up', 'join']);
+
+	// back is the shared control, and it lands on the wall of the organization still chosen.
+	await fireEvent.click(document.querySelector<HTMLElement>('[data-back-control]')!);
+	await tick();
+
+	expect(screen.getByRole('heading').textContent?.trim()).toBe(en.common.actions.signIn);
+	expect(switcher()?.textContent).toContain('Acme Rentals');
+	expect(inputsOnScreen().map((input) => input.getAttribute('name'))).toEqual([
+		'username',
+		'password'
+	]);
+});
+
+// effort 851, criterion 4: a finished add has selected the new organization in the record, so the
+// wall that comes up after it is the new one's, with the earlier ones still in the switcher.
+test("after a finished add, the wall is the new organization's, with every held one in the switcher", async () => {
+	loadLocale('en');
+	setLocale('en');
+	document.body.innerHTML = '';
+
+	const gamma = fakeHeldOrganization({ id: 'gamma', name: 'Gamma Homes' });
+
+	card('locked', { organizations: [acme, beta, gamma], selected: 'gamma' });
+
+	expect(switcher()?.textContent).toContain('Gamma Homes');
+
+	await openTheSwitcher();
+
+	expect(
+		screen
+			.getAllByRole('menuitemradio')
+			.map((row) => [
+				row.querySelector('span.truncate')?.textContent,
+				row.getAttribute('aria-checked')
+			])
+	).toEqual([
+		['Acme Rentals', 'false'],
+		['Beta Lettings', 'false'],
+		['Gamma Homes', 'true']
+	]);
 });
 
 /** the no-workspace screen, under the providers its foot control and surface read. */
@@ -497,10 +666,15 @@ const noWorkspace = (
 	render(
 		StartupNoWorkspace,
 		{
-			organizationName: 'Acme Rentals',
+			organizations: [acme, beta],
+			selected: 'acme',
 			canCreate: true,
 			isCreating: false,
 			onCreate: () => {},
+			onSelect: noop,
+			onRemove: noop,
+			onSetUpOrganization: noop,
+			onJoinByLink: noop,
 			...props
 		},
 		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } }
@@ -516,7 +690,7 @@ test('a member with no workspace is told so, by organization name, on the way-in
 	expect(document.querySelector('[data-way-in-surface]')).not.toBeNull();
 	expect(screen.getByRole('heading').textContent?.trim()).toBe(en.layout.noWorkspace.title);
 	expect(screen.getByText(en.layout.noWorkspace.description)).toBeDefined();
-	expect(screen.getByText('Acme Rentals')).toBeDefined();
+	expect(switcher()?.textContent).toContain('Acme Rentals');
 	// the owner is offered the one way past it: a name, and a create.
 	expect(inputsOnScreen().map((input) => input.getAttribute('name'))).toEqual(['name']);
 	expect(document.querySelector('[data-slot=input-group-addon]')).toBeNull();
@@ -530,13 +704,17 @@ test('a member with no workspace is told so, by organization name, on the way-in
 test('and in arabic, a member who is not the owner is told whose act it is', () => {
 	loadLocale('ar');
 	setLocale('ar');
-	noWorkspace({ organizationName: 'شركة', canCreate: false });
+	noWorkspace({
+		organizations: [fakeHeldOrganization({ id: 'acme', name: 'شركة' })],
+		canCreate: false
+	});
 
 	expect(screen.getByRole('heading').textContent?.trim()).toBe(ar.layout.noWorkspace.title);
-	expect(screen.getByText('شركة')).toBeDefined();
+	expect(switcher()?.textContent).toContain('شركة');
 	expect(inputsOnScreen()).toEqual([]);
 	expect(screen.getByText(ar.layout.noWorkspace.ownerOnly)).toBeDefined();
-	expect(stepButtons()).toEqual([]);
+	// the switcher is the one control on the step: nothing here is the member's to press but it.
+	expect(stepButtons()).toEqual([switcher()]);
 
 	setLocale('en');
 });
@@ -577,7 +755,7 @@ test('the foot offers no way to all settings, on the welcome or the no-workspace
 	setLocale('en');
 	document.body.innerHTML = '';
 
-	const welcome = card('noOrganization', { organization: null });
+	const welcome = card('noOrganization', nothingHeld);
 	await openTheFoot();
 
 	expect(document.querySelector('[data-language-choice]')).not.toBeNull();
@@ -623,4 +801,75 @@ test('the earlier records are one line on the wall, and only where there are som
 			withRecords.unmount();
 		}
 	}
+});
+
+// effort 851, criterion 7: the no-workspace screen carries the switcher for the owner and for every
+// other member, with switch, add and remove; choosing and adding are handed back to the root, which
+// signs out first, and removing another leaves the screen where it is.
+test('the no-workspace screen carries the switcher with switch, add and remove, for the owner and a member', async () => {
+	loadLocale('en');
+	setLocale('en');
+
+	for (const canCreate of [true, false]) {
+		document.body.innerHTML = '';
+
+		const asked: string[] = [];
+		const rendered = noWorkspace({
+			canCreate,
+			onSelect: (id) => void asked.push(`select:${id}`),
+			onRemove: (id) => void asked.push(`remove:${id}`),
+			onSetUpOrganization: () => void asked.push('set up'),
+			onJoinByLink: () => void asked.push('join')
+		});
+
+		expect(switcher(), `${canCreate}`).not.toBeNull();
+
+		await openTheSwitcher();
+		await fireEvent.click(screen.getByRole('menuitemradio', { name: /Beta Lettings/ }));
+
+		await openTheSwitcher();
+		await fireEvent.click(
+			document.querySelector<HTMLElement>('[data-organization-switcher-remove="beta"]')!
+		);
+		await waitFor(() => expect(dialog()).not.toBeNull());
+		await fireEvent.click(
+			dialogFooter().find((button) => button.textContent?.trim() === en.layout.signIn.disconnect)!
+		);
+		await waitFor(() => expect(asked).toContain('remove:beta'));
+		await waitFor(() => expect(dialog()).toBeNull());
+
+		await openTheSwitcher();
+		await fireEvent.click(document.querySelector<HTMLElement>('[data-organization-switcher-add]')!);
+		await tick();
+
+		expect(screen.getByRole('heading').textContent?.trim()).toBe(en.organization.switcher.addTitle);
+
+		await fireEvent.click(document.querySelector<HTMLElement>('[data-sign-in-set-up]')!);
+		await fireEvent.click(document.querySelector<HTMLElement>('[data-sign-in-join]')!);
+
+		expect(asked, `${canCreate}`).toEqual(['select:beta', 'remove:beta', 'set up', 'join']);
+
+		// back is the screen it came from.
+		await fireEvent.click(document.querySelector<HTMLElement>('[data-back-control]')!);
+		await tick();
+
+		expect(screen.getByRole('heading').textContent?.trim()).toBe(en.layout.noWorkspace.title);
+
+		rendered.unmount();
+	}
+});
+
+// effort 851, criterion 6: while a workspace is being created the switcher is disabled.
+test('while a workspace is being created, the no-workspace switcher is disabled', async () => {
+	loadLocale('en');
+	setLocale('en');
+	document.body.innerHTML = '';
+
+	noWorkspace({ isCreating: true });
+
+	expect(switcher()?.disabled).toBe(true);
+
+	await openTheSwitcher();
+
+	expect(document.querySelector('[role="menu"]')).toBeNull();
 });

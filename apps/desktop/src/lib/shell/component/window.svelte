@@ -101,6 +101,7 @@
 		recordNotFound: $LL.common.messages.recordNotFound(),
 		recordNotFoundDescription: $LL.common.messages.recordNotFoundDescription(),
 		refusal: (failure: unknown) => toRefusalText(failure, $LL),
+		showPassword: $LL.common.ui.showPassword(),
 		sidebar: $LL.common.ui.sidebar(),
 		toggleSidebar: $LL.common.ui.toggleSidebar(),
 		unexpectedError: $LL.common.messages.unexpectedError(),

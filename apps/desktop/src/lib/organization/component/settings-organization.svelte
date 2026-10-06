@@ -28,16 +28,24 @@
 	import SettingsGrid from '@rentable/design/block/settings-grid.svelte';
 	import OrganizationLeaving from '$lib/organization/component/leaving.svelte';
 	import OrganizationMark from '$lib/organization/component/mark.svelte';
+	import OrganizationName from '$lib/organization/component/name.svelte';
+	import OrganizationLinks from '$lib/organization/member/component/links.svelte';
 	import OrganizationMembers from '$lib/organization/member/component/directory.svelte';
 	import OrganizationRoles from '$lib/organization/role/component/directory.svelte';
 	import OrganizationStanding from '$lib/organization/component/standing.svelte';
 	import { memberReaderOf } from '$lib/organization/member/acts';
 	import { roleReaderOf } from '$lib/organization/role/acts';
 	import { useFetchOrganizationState } from '$lib/organization/query';
-	import { useFetchMemberStandings, useFetchMembers } from '$lib/organization/member/query';
+	import {
+		useFetchMemberLinks,
+		useFetchMemberStandings,
+		useFetchMembers,
+		useRevokeLink
+	} from '$lib/organization/member/query';
 	import { useFetchRoles } from '$lib/organization/role/query';
-	import { administersMembers } from '$lib/organization/member/member';
+	import { administersMembers, keepsLinks } from '$lib/organization/member/member';
 	import { useFetchRemoteSyncState } from '$lib/sync/ui';
+	import { heldPermissions } from '$lib/api/context';
 	import { permits } from '@rentable/workspace-permission';
 
 	/**
@@ -55,8 +63,9 @@
 	 * organization.*
 	 *
 	 * **Inside the section: what it is about, then what it holds, then what ends something, at the
-	 * foot**, each a card in the section's grid (effort 846, *Everything in a tab is a card*). *Settled by the human on the real organization.* It opens with how this machine
-	 * stands to the organization and closes with leaving it. What each block is gated on did not
+	 * foot**, each a card in the section's grid (effort 846, *Everything in a tab is a card*). *Settled by the human on the real organization.* It opens with the organization's
+	 * name, which its owner renames there (effort 851), then how this machine stands to the
+	 * organization, and closes with leaving it. What each block is gated on did not
 	 * change with the order, and Rust refuses every one of them again.
 	 */
 	let { leaveForTheWall }: SettingsSectionProps = $props();
@@ -83,13 +92,18 @@
 	// the directory is this section's own gate: it was a section of its own, and what admitted a
 	// reader to that section now decides whether the block is drawn.
 	const administers = $derived(administersMembers(session));
+	// the links waiting to be opened are read and drawn only for whoever could make one, unlocked
+	// (effort 851): the shell refuses anybody else, and a card that could only fail is not drawn.
+	const linksKept = $derived(keepsLinks(session));
+	const linksQuery = useFetchMemberLinks(() => linksKept);
+	const revokeLink = useRevokeLink();
 </script>
 
 {#if session}
 	<!-- each block is a card, one under the next in the section's column (effort 846, *Everything
-	     in a tab is a card*, and requirement 1 as revised on 2026-10-02): how this machine stands
-	     to the organization first, since it is what the section is about and what a reader who
-	     came here worried is looking for; then the signature or seal; then the roles and the
+	     in a tab is a card*, and requirement 1 as revised on 2026-10-02): the organization's name
+	     first (effort 851); then how this machine stands to the organization, since it is what a
+	     reader who came here worried is looking for; then the signature or seal; then the roles and the
 	     people, two directories never boxed, since their records are cards already; then the
 	     ways a reader steps away, last, which for an owner holds the Turso account. *The
 	     directory stood first until the human read the four sections and asked for the elements in
@@ -97,6 +111,10 @@
 	     under the next; the Turso account was a card of its own until ticket 38 folded it into
 	     leaving.* -->
 	<SettingsGrid>
+		<!-- what the organization is called, first: the tab is about the organization, and its
+		     owner renames it here and nobody else does (effort 851, requirements 22 and 25). -->
+		<OrganizationName {session} />
+
 		{#if syncQuery.data}
 			<div data-standing-block class="contents">
 				<OrganizationStanding syncState={syncQuery.data} {session} {needsAuthority} />
@@ -105,7 +123,7 @@
 
 		<!-- what the organization prints on its pages: everybody sees it, and whoever holds the
 		     flag to manage it changes it (effort 835, requirement 13; effort 838). -->
-		<OrganizationMark setsMark={permits(session.permissions, 'manageMark')} />
+		<OrganizationMark setsMark={permits(heldPermissions(session), 'manageMark')} />
 
 		<!-- the roles, before the people who hold them: what each kind of person may do, read by
 		     everybody and changed by whoever holds the flag to (effort 838, requirement 12). The
@@ -132,6 +150,18 @@
 					{...memberReaderOf(session)}
 				/>
 			</div>
+		{/if}
+
+		<!-- the links waiting to be opened, under the people they are for, for whoever could make
+		     one: each revoked from its row's menu, asked first (effort 851, at the human's word).
+		     Drawn once read, since a list not known yet is not an empty one. -->
+		{#if linksKept && linksQuery.data}
+			<OrganizationLinks
+				links={linksQuery.data}
+				onRevoke={async (linkId) => {
+					await revokeLink.mutateAsync({ linkId });
+				}}
+			/>
 		{/if}
 
 		<!-- and the foot: the ways a reader steps away, told apart by who is reading (effort 846,

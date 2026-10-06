@@ -5,7 +5,7 @@
 	import * as Form from '@rentable/design/primitive/form/index.js';
 	import { Input } from '@rentable/design/primitive/input/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
-	import { useRenameWorkspace } from '$lib/workspace/ui';
+	import { useRenameWorkspace } from '$lib/organization/workspace/query';
 	import { WORKSPACE_NAME_LIMIT } from '$lib/sync';
 	import SaveIcon from '@lucide/svelte/icons/save';
 	import { surfaceForm } from '$lib/form';

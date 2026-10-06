@@ -61,7 +61,9 @@ settings area (`Section` in `feature/surface.ts`). A route asks `sectionsOn(<tar
 
 **Slot**:
 Something a feature draws at one of the shell's own places: `workspace-menu`, `account-menu`,
-`dialogs` (`ShellSlot` in `feature/surface.ts`, gathered by `slotsAt` in `app/surfaces.ts`).
+`dialogs`, and `notice`, above whatever a route draws, for a standing about the reader's own
+account such as a lock (effort 851) (`ShellSlot` in `feature/surface.ts`, gathered by `slotsAt` in
+`app/surfaces.ts`).
 
 **Contribution**:
 What a depended-on feature needs of a feature depending on it, declared as a type by the one in

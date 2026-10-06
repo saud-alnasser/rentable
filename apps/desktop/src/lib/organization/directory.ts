@@ -3,6 +3,7 @@ import { matchesTerm } from '$lib/palette';
 import { byRank } from '$lib/organization/role/role';
 import type {
 	OrganizationMember,
+	OutstandingLink,
 	OrganizationRole,
 	OrganizationWorkspace
 } from '$lib/organization/host';
@@ -148,4 +149,21 @@ export function toRoleDirectory(
 		// the most authority first, as the members directory's *role* order is.
 		return (other.rank - one.rank) * factor;
 	});
+}
+
+/**
+ * The pending links the organization tab's card shows: those the term finds by the username they
+ * are for, the soonest to lapse first (effort 851, at the human's word on a long list).
+ *
+ * **The soonest to lapse leads** because it is the one that needs a word or a revoke before it goes
+ * on its own; two lapsing at the same moment stand by username, so the order never shuffles between
+ * two reads of the same list. The card offers no other order: it is a handful of links read for
+ * what is about to run out, not a directory ordered by what a reader chooses.
+ */
+export function toLinkList(links: readonly OutstandingLink[], term: string): OutstandingLink[] {
+	return links
+		.filter((link) => matchesTerm(link.username, term))
+		.sort(
+			(one, other) => one.expiresAt - other.expiresAt || compareText(one.username, other.username)
+		);
 }

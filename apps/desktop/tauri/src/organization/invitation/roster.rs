@@ -8,7 +8,7 @@ use crate::{error::Error, turso::platform::AccessLevel};
 use super::opened;
 use crate::organization::{
     session::MemberSession,
-    store::{OrganizationStore, pins_of},
+    store::{OrganizationStore, locked_in, pins_of},
 };
 
 /// One workspace a member is in, as the members list draws it: the access their grant holds on it,
@@ -152,6 +152,10 @@ pub struct MemberStanding {
     pub password_set: bool,
     /// whether a machine that was seen inside the window is signed in on the account.
     pub machine_signed_in: bool,
+    /// whether the account is locked (effort 851, requirement 33), off its signed lock as it reads
+    /// now (`store::locked_in`): what draws the locked badge on the card, and with `password_set`
+    /// what offers the unlock.
+    pub locked: bool,
 }
 
 /// Every member's standing, in the order [`members`] answers them.
@@ -168,6 +172,8 @@ pub async fn standings(
     let machines = store
         .connected_machines(&session.verifying_key, now)
         .await?;
+    let locks = store.member_locks(&session.verifying_key).await?;
+    let latched = locks.latch(&session.lock_marked);
 
     Ok(store
         .members(&session.verifying_key)
@@ -177,6 +183,7 @@ pub async fn standings(
         // still hold it, and the directory lists who is in.
         .filter(|member| member.removed_at.is_none())
         .map(|member| MemberStanding {
+            locked: locked_in(&locks, &member, latched),
             password_set: !member.must_change_password,
             machine_signed_in: machines
                 .iter()
@@ -293,7 +300,7 @@ mod tests {
         )
         .await
         .expect("the first run failed");
-        let joined = store.organization.clone().expect("the record");
+        let joined = store.selected().cloned().expect("the record");
         let mut owner = sign_in(&organization, &joined, PASSWORD, &slot())
             .await
             .expect("the owner did not sign in");
@@ -322,10 +329,7 @@ mod tests {
         let machine = Persisted::<RemoteSyncStore>::load(directory.join("remote-sync.json"))
             .expect("the store");
 
-        assert!(
-            machine.organization.is_none(),
-            "the machine has prior state"
-        );
+        assert!(machine.selected().is_none(), "the machine has prior state");
 
         machine
     }
@@ -380,6 +384,7 @@ mod tests {
             no_platform(),
             &link,
             &account.id,
+            crate::organization::invitation::TEST_LIFETIME_HOURS,
             test_cost(),
             NOW,
         )
@@ -392,6 +397,7 @@ mod tests {
             &credentials,
             |_| async { Ok::<_, Error>(&store) },
             &mut their_machine,
+            &theirs.join("app.db"),
             &JoinLink::decode(&made.link).expect("the link"),
             &made.code,
             CHOSEN,
@@ -418,13 +424,7 @@ mod tests {
         );
 
         store
-            .unregister_machine(
-                &their_machine
-                    .organization
-                    .as_ref()
-                    .expect("the record")
-                    .machine_id,
-            )
+            .unregister_machine(&their_machine.selected().expect("the record").machine_id)
             .await
             .expect("the machine could not be taken out of the register");
 

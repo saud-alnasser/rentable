@@ -135,6 +135,27 @@ test('and the wall is what the frame draws once a sign-out has landed there', as
 	assert.equal(startupScreen(startup.snapshot, addressAfterSignOut('/settings')!), 'sign-in');
 });
 
+// effort 851: the wall goes up before the address moves, so while a sign-out is leaving an
+// address that opens signed out, the wall covers that address too, and the settings of nobody are
+// never drawn on the way.
+test('while a sign-out is leaving settings, the wall covers it', async () => {
+	const { startup } = harness();
+
+	await startup.start();
+
+	let drawn: string | null = null;
+
+	await startup.signOut({
+		arrive: async () => {
+			drawn = startupScreen(startup.snapshot, '/settings');
+		}
+	});
+
+	assert.equal(drawn, 'sign-in');
+	// and once it has left, settings opens signed out again, as the way in reaches it.
+	assert.equal(startupScreen(startup.snapshot, '/settings'), 'route');
+});
+
 test('and signing back in returns the reader to the address they were on', async () => {
 	// there is no navigation to assert on, which is the point: the card is drawn over the route, so
 	// the address never moved and the route underneath it draws again.
@@ -216,17 +237,22 @@ test('the address matches exactly, so nothing that merely starts with it is admi
 });
 
 // a member admitted to an organization with no workspace in it is in and going nowhere: the
-// surface says so over every address, because there is no workspace for any address to draw.
-test('a member with no workspace sees the no-workspace surface over every address', async () => {
+// surface says so over every address, because there is no workspace for any address to draw. The
+// two walks are the exception, since its switcher adds an organization through them (effort 851,
+// requirement 7, ticket 08), and neither reads a workspace.
+test('a member with no workspace sees the no-workspace surface over every address but the walks', async () => {
 	const { startup } = harness({ organization: withoutWorkspace() });
 
 	await startup.start();
 
 	assert.equal(startup.snapshot.state, 'no-workspace');
 
-	for (const address of [...ADDRESSES, '/settings', THE_FIRST_RUN]) {
+	for (const address of [...ADDRESSES, '/settings']) {
 		assert.equal(startupScreen(startup.snapshot, address), 'no-workspace', address);
 	}
+
+	assert.equal(startupScreen(startup.snapshot, THE_FIRST_RUN), 'route');
+	assert.equal(startupScreen(startup.snapshot, THE_JOIN), 'route');
 });
 
 // the first run is the one address that cannot be behind the wall it exists to get a person

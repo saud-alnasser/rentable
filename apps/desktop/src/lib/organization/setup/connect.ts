@@ -22,7 +22,7 @@ import type { LinkShape } from '$lib/organization/host';
  * machine's link is connected with the code in the same wait, and its member's own password is
  * what the wall then asks for. An invitation link is the
  * one that asks for anything more: the screen names the organization and takes the password this
- * person is choosing, and the accept unseals, reaches, records and judges. Which kind it is, is
+ * person is choosing, and the accept unseals, reaches, judges and records. Which kind it is, is
  * `linkKind` below, off the shape Rust decoded. *It was read off a standing Rust answered by
  * reaching the organization with the link's clear credential; there is no clear credential to do
  * that with, so reading a link is a decode.*
@@ -31,12 +31,13 @@ import type { LinkShape } from '$lib/organization/host';
  * organization's own link, carried a legible credential and ran a connect of its own with nothing
  * asked for; requirement 16 retired it, because the owner's Turso account is what recovers an
  * organization whose every machine is gone. Every link left is recorded by the act that takes the
- * code, since the credential that reaches the organization is inside the payload; a spent link
- * still connects the machine that way, which is how a person setting up a second machine gets to
- * the wall rather than to a dead end.
+ * code, since the credential that reaches the organization is inside the payload. **A spent link
+ * records nothing** (effort 851, requirement 10): a link and its code admit one machine, once, and
+ * the person holding a spent one is told to ask the owner or a manager for a new one. *A spent
+ * invitation link connected the machine until then, and the screen offered the wall from it.*
  *
  * **Nothing is judged before the code, so every standing arrives as a refusal.** A lapsed,
- * consumed, revoked or replaced link comes back from the accept or the machine connect rather than
+ * consumed or revoked link comes back from the accept or the machine connect rather than
  * from the read, and Rust names which on the rejection's own `reason` (`refused`, in
  * `error/tauri.ts`). `joinFailed` is where that word becomes the step a person lands on, and the
  * sentence they read is this side's, said in their language. *The screen read the standing off the
@@ -90,18 +91,19 @@ export function normalizeCode(typed: string): string {
 export type CodeRefusal = 'wrong' | 'missing';
 
 /**
- * why a link admits nobody: the standings a link can be in and no longer open on, and a link for
- * an organization other than the one this machine holds.
+ * why a link admits nobody: the standings a link can be in and no longer open on.
  *
- * The first four are Rust's `RefusalReason`, spelled the same, and arrive on a rejection the
- * accept or the machine connect answered with; `replaced` is a second machine's alone, and means
- * the member made a newer link. The fifth is the connect's, and is the only one a link can meet
- * before any code is typed.
+ * All three are Rust's `RefusalReason`, spelled the same, and arrive on a rejection the accept or
+ * the machine connect answered with. *A fourth, `replaced`, was a second machine's link whose row a
+ * newer link took the place of, until effort 851 let a link be revoked and a gone row read
+ * `revoked` for either kind. A fifth, `anotherOrganization`, was a machine already holding another
+ * organization, until effort 851 let a machine hold several: a link for another organization adds
+ * it, and one for an organization held selects it.*
  */
-export type JoinRefusal = LinkStanding | 'anotherOrganization';
+export type JoinRefusal = LinkStanding;
 
-/** the four standings a link can be refused on, as Rust's `RefusalReason` spells them. */
-const LINK_STANDINGS = ['lapsed', 'consumed', 'revoked', 'replaced'] as const;
+/** the three standings a link can be refused on, as Rust's `RefusalReason` spells them. */
+const LINK_STANDINGS = ['lapsed', 'consumed', 'revoked'] as const;
 
 type LinkStanding = (typeof LINK_STANDINGS)[number];
 
@@ -171,24 +173,17 @@ export type JoinStep =
 	 * disclosure, since a standing that changed while the person was typing is worth quoting in
 	 * Rust's words.
 	 *
-	 * **This machine may or may not be connected here**, and `wasConnecting` is which. The two
-	 * kinds of link judge their row at different moments: an invitation's accept unseals, reaches
-	 * the organization and records it before it looks at the invitation, so a spent one lands the
-	 * machine connected and the wall is its way on; a machine link reads its row first and refuses
-	 * a spent one with nothing recorded and nothing pulled. *The screen offered the wall on every
-	 * spent link and told the person this machine was connected, which was false on the second of
-	 * the two and left them pressing a control that led nowhere.*
+	 * **Nothing was recorded on this machine**, whichever kind of link it was: both judge their row
+	 * before anything is recorded and leave no replica behind (effort 851, requirement 10), so a
+	 * refusal has no way on but a new link. *A `wasConnecting` flag said whether an invitation's
+	 * accept had recorded the organization first, and the screen offered the wall where it had,
+	 * until effort 851 made a spent link record nothing.*
 	 */
 	| {
 			kind: 'refused';
 			link: string;
 			refusal: JoinRefusal;
 			detail: string | null;
-			/**
-			 * whether the act that was refused had already recorded the organization on this
-			 * machine, which is the invitation's accept and never the machine connect.
-			 */
-			wasConnecting: boolean;
 	  }
 	/**
 	 * an invitation that was read: which organization, and the password this person is choosing.
@@ -306,10 +301,8 @@ export function afterRead(
 
 /**
  * the link could not be read. Which of the three it was is on the rejection: text that is not a
- * link is refused as `linkUnreadable`, which a link in the shape before effort 828 is; an
- * organization that could not be reached is `network`; and a machine already holding another
- * organization is refused as `anotherOrganizationHeld`, and the step says to disconnect first.
- * Anything else is shown as what it said.
+ * link is refused as `linkUnreadable`, which a link in the shape before effort 828 is; and an
+ * organization that could not be reached is `network`. Anything else is shown as what it said.
  *
  * **A decode refusal marks the link field**, on the form the person is already looking at, with
  * the code they typed still in it: the link is the half that is wrong, and saying so anywhere but
@@ -333,18 +326,6 @@ export function inspectionFailed(
 		return { ...pasting(link, code), isUnreadable: true, detail };
 	}
 
-	if (reason === 'anotherOrganizationHeld') {
-		// nothing was reached, so nothing was recorded: the read is a decode and refuses before any
-		// act runs.
-		return {
-			kind: 'refused',
-			link,
-			refusal: 'anotherOrganization',
-			detail,
-			wasConnecting: false
-		};
-	}
-
 	return { kind: 'unreachable', link, code, detail };
 }
 
@@ -364,9 +345,8 @@ export function joinBegun(step: JoinStep): JoinStep {
  * connect, in the wait the read runs in.
  *
  * **Where each goes, and what says so.** A link the row refuses carries Rust's `reason`, which is
- * `lapsed`, `consumed`, `revoked` or `replaced`, and lands by that name on the refused step. A
- * machine that already holds another organization is `anotherOrganizationHeld` and is the fifth
- * refusal. A code that failed the seal is `codeWrong` and a code nobody typed is `codeMissing`,
+ * `lapsed`, `consumed` or `revoked`, and lands by that name on the refused step. A
+ * code that failed the seal is `codeWrong` and a code nobody typed is `codeMissing`,
  * and both hand the form back with the code field marked, since the field is where the person
  * answers them (effort 828, requirement 17). A connection that went is `network` and is the
  * unreachable step, which offers the same link again. Anything else keeps the person where they
@@ -388,24 +368,8 @@ export function joinFailed(
 	const detail = detailOf(error, describe);
 	const reason = toTauriRefusalReason(error);
 
-	// which act was refused, which is what says whether the organization was recorded first: the
-	// password step is the invitation's accept, which reaches and records before it judges the row,
-	// and the reading step is the machine connect, which judges its row before anything is
-	// recorded.
-	const wasConnecting = step.kind === 'password';
-
 	if (isLinkStanding(reason)) {
-		return { kind: 'refused', link: step.link, refusal: reason, detail, wasConnecting };
-	}
-
-	if (reason === 'anotherOrganizationHeld') {
-		return {
-			kind: 'refused',
-			link: step.link,
-			refusal: 'anotherOrganization',
-			detail,
-			wasConnecting
-		};
+		return { kind: 'refused', link: step.link, refusal: reason, detail };
 	}
 
 	if (failure === 'network') {

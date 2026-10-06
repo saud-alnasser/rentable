@@ -5,19 +5,24 @@ use std::sync::{Arc, Mutex};
 
 use crate::{
     clock,
-    credential::Credentials,
+    credential::{CredentialStore, Credentials},
     error::{Error, RefusalReason},
     organization::Shared,
 };
 
 use crate::organization::{
-    invitation::connect,
-    session::{self, CredentialSlot, OrganizationState, state_of},
-    setup::{self, CreateOrganization, GroupState, OrganizationCreated, Remote},
+    act::{Acting, Pull, as_member},
+    session::{self, CredentialSlot, OrganizationState, sign_out, state_of},
+    setup::{
+        self, ConnectedToExisting, CreateOrganization, GroupState, OrganizationCreated, Remote,
+    },
     workspace,
 };
 use crate::turso::{
-    consent::{TursoConsentResult, TursoConsentStart, TursoEndpoints},
+    consent::{
+        Account, TursoConsentResult, TursoConsentStart, TursoEndpoints, forget_platform_token,
+        move_pending_consent,
+    },
     discovery::McpEndpoint,
     platform::{PlatformApi, PlatformEndpoint},
 };
@@ -42,6 +47,11 @@ use crate::turso::{
 /// A machine with no consent is refused before anything is asked of Turso, with an answer that
 /// says to connect the account first. Every failure after the database exists removes it, so a
 /// first run that did not finish leaves nothing behind; `setup/` says how.
+///
+/// **A machine holding other organizations holds this one beside them** (effort 851, requirement
+/// 1), and it is selected. A session open here ends first, as a sign-in ends one, since the owner
+/// is signed in to the new organization at the end. A group already holding an organization is
+/// still refused (`setup::one_organization_to_a_group`).
 #[tauri::command(rename = "setup_create")]
 pub(crate) async fn organization_setup_create(
     app_state: tauri::State<'_, Shared>,
@@ -59,16 +69,15 @@ pub(crate) async fn organization_setup_create(
         settings.database_path.clone()
     };
 
+    if app_state.member.read().await.is_some() {
+        sign_out(app_state.inner(), credentials.inner().as_ref()).await;
+    }
+
     // held across the creation, network round trips included. The record of what this machine
     // has joined and which Turso organization its consent is over is inside `RemoteSync`, and a
     // first run writes both, so nothing else reads the sync state until it is done. That is a
     // foreground act with a screen saying so, and the calls that wait are the sync manager's.
     let mut remote_sync = app_state.remote_sync.write().await;
-
-    // a machine holds one organization (requirement 17): the first run is offered only where
-    // none is held, and a route reached some other way is refused here rather than making a
-    // second organization on the account.
-    connect::refuse_while_held(remote_sync.store_mut())?;
 
     let (created, store) = setup::create_organization(
         credentials.inner().as_ref(),
@@ -80,6 +89,7 @@ pub(crate) async fn organization_setup_create(
             PlatformApi::new(
                 PlatformEndpoint::production(),
                 organization,
+                Account::Pending,
                 credentials.inner().clone(),
             )
         },
@@ -101,9 +111,8 @@ pub(crate) async fn organization_setup_create(
     // would. One more derivation, and no second way of becoming signed in.
     let joined = remote_sync
         .store_mut()
-        .organization
-        .clone()
-        .filter(|held| held.id == created.organization_id)
+        .held(&created.organization_id)
+        .cloned()
         .ok_or_else(|| Error::Internal {
             message: "the organization was created and not recorded".to_string(),
         })?;
@@ -160,6 +169,10 @@ pub(crate) async fn organization_setup_group_inspect(
 /// on 2026-09-20). This used to refuse while a machine an owner or an administrator was on had been
 /// seen inside the week, and point at the link that machine could make; the owner is handed no
 /// link, and an account is held on as many machines as its holder signs in on.
+///
+/// **An organization this machine already holds is selected and nothing is admitted** (effort 851,
+/// requirement 13): the wall is what comes back, and nothing is opened over its replica. One it
+/// does not hold is added beside any others and selected. A session open here ends first.
 #[tauri::command(rename = "setup_connect_existing")]
 pub(crate) async fn organization_setup_connect_existing(
     app_state: tauri::State<'_, Shared>,
@@ -175,13 +188,18 @@ pub(crate) async fn organization_setup_connect_existing(
         settings.database_path.clone()
     };
 
+    if app_state.member.read().await.is_some() {
+        sign_out(app_state.inner(), credentials.inner().as_ref()).await;
+    }
+
     // held across the connect, network round trips included, the way a first run holds it: the
     // record of what this machine holds and which Turso account its consent is over are both
     // inside `RemoteSync`, and this writes both. Dropped before the state is read back, because
     // that read takes the same lock.
-    let (store, session) = {
+    let connected = {
         let mut remote_sync = app_state.remote_sync.write().await;
-        let (_, store, session) = setup::connect_existing(
+
+        setup::connect_existing(
             credentials.inner().as_ref(),
             app_state.upgrade.as_ref(),
             &clock,
@@ -192,6 +210,7 @@ pub(crate) async fn organization_setup_connect_existing(
                 PlatformApi::new(
                     PlatformEndpoint::production(),
                     organization,
+                    Account::Pending,
                     credentials.inner().clone(),
                 )
             },
@@ -201,13 +220,14 @@ pub(crate) async fn organization_setup_connect_existing(
             &password,
             clock.now(),
         )
-        .await?;
-
-        (store, session)
+        .await?
+    };
+    let ConnectedToExisting::Connected(_, store, session) = connected else {
+        return state_of(&app_state, &credentials, &clock).await;
     };
 
     *app_state.organization.write().await = Some(store);
-    *app_state.member.write().await = Some(session);
+    *app_state.member.write().await = Some(*session);
 
     state_of(&app_state, &credentials, &clock).await
 }
@@ -254,6 +274,12 @@ pub async fn organization_setup_account_refusal_detail(
 /// machine can build the Platform API client again: what an owner restored on a new machine
 /// does after repeating the consent. The account is discovered the way the first run
 /// discovered it, and nothing about it was restored from anywhere.
+///
+/// **The consent becomes the selected organization's own** (effort 851, requirement 14): the
+/// consent filed it in the pending slot, and it is moved to the organization's entry here, read,
+/// set, read back and deleted, once the account it is over is known. Selecting another
+/// organization is refused while a session is open, so the selected one is the one the owner is
+/// in. A move that did not finish is refused, and leaves the consent pending for the next try.
 #[tauri::command(rename = "setup_reconnect_authority")]
 pub(crate) async fn organization_setup_reconnect_authority(
     app_state: tauri::State<'_, Shared>,
@@ -264,9 +290,20 @@ pub(crate) async fn organization_setup_reconnect_authority(
 
     {
         let mut remote_sync = app_state.remote_sync.write().await;
+        let organization_id = remote_sync
+            .store_mut()
+            .selected()
+            .map(|held| held.id.clone())
+            .ok_or_else(|| {
+                Error::refused(
+                    RefusalReason::NoOrganization,
+                    "this machine holds no organization to reconnect the turso account to",
+                )
+            })?;
 
         if crate::machine::consented_organization(
             remote_sync.store_mut(),
+            Some(&organization_id),
             &platform_token,
             &McpEndpoint::production(),
         )
@@ -278,6 +315,8 @@ pub(crate) async fn organization_setup_reconnect_authority(
                 "the consent was granted over a group with no database in it, and the                           organization is not there. grant it over the group that holds the                           organization",
             ));
         }
+
+        move_pending_consent(credentials.inner().as_ref(), &organization_id)?;
     }
 
     state_of(&app_state, &credentials, &clock).await
@@ -320,10 +359,14 @@ pub(crate) async fn organization_setup_consent_result(
         .await
 }
 
-/// Hand the Turso authority back.
+/// Hand the pending Turso authority back: the setup walk's disconnect, before the consent belongs
+/// to any organization.
 ///
 /// The token is removed from this machine's credential store and the consents this process
-/// started are dropped with it, so nothing is left that a later run could read as a grant.
+/// started are dropped with it, so nothing is left that a later run could read as a grant. The
+/// Turso organization looked up for it goes too, so the next consent, over another account
+/// perhaps, is not built on this one's slug. **An organization's own consent is not this act's**:
+/// the leaving card gives that back ([`organization_setup_forget_authority`]).
 ///
 /// **Nothing is revoked at Turso by this**, and the surface offering it has to say so. There
 /// is no revocation endpoint in the authorization server's metadata and the token carries no
@@ -342,5 +385,114 @@ pub(crate) async fn organization_setup_consent_disconnect(
     app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
 ) -> Result<(), Error> {
-    app_state.consent.disconnect(credentials.inner().as_ref())
+    disconnect_pending(&app_state, credentials.inner().as_ref()).await
+}
+
+/// [`organization_setup_consent_disconnect`]'s act, over the state a test holds as the plugin does.
+pub(crate) async fn disconnect_pending(
+    app_state: &Shared,
+    credentials: &dyn CredentialStore,
+) -> Result<(), Error> {
+    app_state.consent.disconnect(credentials)?;
+
+    let mut remote_sync = app_state.remote_sync.write().await;
+    let store = remote_sync.store_mut();
+
+    store.forget_consent_organization(None);
+    store.commit()
+}
+
+/// Give back the Turso account of the organization this machine has open: the owner's leaving
+/// card, "forget Turso account" (effort 846, requirement 13; effort 851, requirement 14).
+///
+/// **That organization's own consent, and the Turso organization it was over**: the `org:<id>`
+/// entry goes from the keyring, and its entry on the record forgets the slug, so a consent granted
+/// again is looked up afresh, perhaps over another account (`setup_reconnect_authority`). The
+/// pending slot, which is a setup's, and every other organization's consent are left as they are.
+/// *It reached the setup walk's disconnect until a review of effort 851, which gave back only the
+/// pending slot, so the card said the account was forgotten and the machine went on holding it.*
+///
+/// **Nothing is revoked at Turso by this**, for the reason the walk's disconnect gives, and the
+/// card says so. Forgetting a consent this machine does not hold is not an error. What answers is
+/// the whole state, which then says the organization's authority is not held here.
+#[tauri::command(rename = "setup_forget_authority")]
+pub(crate) async fn organization_setup_forget_authority(
+    app_state: tauri::State<'_, Shared>,
+    credentials: tauri::State<'_, Credentials>,
+    clock: tauri::State<'_, clock::Shared>,
+) -> Result<OrganizationState, Error> {
+    forget_authority(&app_state, credentials.inner().as_ref()).await?;
+
+    state_of(&app_state, &credentials, &clock).await
+}
+
+/// [`organization_setup_forget_authority`]'s act: the open organization's consent, or a refusal
+/// where none is open.
+pub(crate) async fn forget_authority(
+    app_state: &Shared,
+    credentials: &dyn CredentialStore,
+) -> Result<(), Error> {
+    let organization_id = session::forget::open_organization(app_state)
+        .await
+        .ok_or_else(|| {
+            Error::refused(
+                RefusalReason::NoOrganization,
+                "this machine holds no organization to forget the turso account of",
+            )
+        })?;
+
+    forget_platform_token(credentials, &Account::of(&organization_id))?;
+
+    let mut remote_sync = app_state.remote_sync.write().await;
+    let store = remote_sync.store_mut();
+
+    store.forget_consent_organization(Some(&organization_id));
+    store.commit()
+}
+
+/// Rename the organization, as its owner (effort 851, requirements 22 to 28).
+///
+/// **One command for the whole act, and the screens observe it.** The signed name and the unsigned
+/// column are written and sent (`setup::rename_organization`), this machine's own entry names the
+/// new name at once, so the wall and the switcher read it with no restart, and what answers is the
+/// whole state, so the settings tab and the shell read the name just set rather than the one they
+/// had (requirement 25). Every other member's machine follows once it has synced while signed in
+/// (requirement 26, `session::state_of`).
+///
+/// The name is validated by the form first and again by Rust, which is what stores it.
+#[tauri::command(rename = "setup_rename")]
+pub(crate) async fn organization_setup_rename(
+    app_state: tauri::State<'_, Shared>,
+    credentials: tauri::State<'_, Credentials>,
+    clock: tauri::State<'_, clock::Shared>,
+    name: String,
+) -> Result<OrganizationState, Error> {
+    rename(&app_state, &credentials, &clock, &name).await
+}
+
+/// [`organization_setup_rename`]'s act, over the state a test holds as the plugin does.
+pub(crate) async fn rename(
+    app_state: &Shared,
+    credentials: &Credentials,
+    clock: &clock::Shared,
+    name: &str,
+) -> Result<OrganizationState, Error> {
+    // one moment for the signed row and this machine's latch on it, so the owner's own read of
+    // the row it just wrote is never older than what the entry holds.
+    let now = clock.now();
+    let (organization_id, renamed) =
+        as_member(app_state, Pull::No, async |Acting { member, store }| {
+            let renamed = setup::rename_organization(store, member, name, now).await?;
+
+            Ok((member.organization_id.clone(), renamed))
+        })
+        .await?;
+
+    app_state
+        .remote_sync
+        .write()
+        .await
+        .rename_held_organization(&organization_id, &renamed, now)?;
+
+    state_of(app_state, credentials, clock).await
 }

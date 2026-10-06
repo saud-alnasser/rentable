@@ -229,8 +229,9 @@ meta line under a row's name and a badge beside it where one marks the row; then
 separator, the acts that end something, the error tone on the act's button alone, never on the
 row's glyph or name, the card's edge or a band (an ending act on one row of a growing list, such as one machine's sign-out, is an
 entry in that row's record menu instead, confirmed and in the menu's default tone, so the card's
-red stays on one act: this machine's own sign-out is such an entry in its row's menu, and the
-account has no card for this machine); then an optional footer of one note, one progress bar or one act. Every card takes the column's
+red stays on one act, as revoking one of the organization tab's links waiting to be opened is (effort
+851): this machine's own sign-out is such an entry in its row's menu, the one
+that asks nothing (*Delete and confirm*), and the account has no card for this machine); then an optional footer of one note, one progress bar or one act. Every card takes the column's
 width, and those that end something are written last. The roles, members and workspaces
 directories are not boxed: their heading takes the card's header, the tray sits under it, the
 record cards follow, so no box sits in a box. A notice waiting on the reader, the ownership offer,
@@ -247,7 +248,10 @@ its connection on this machine (connected, or not held here with *reconnect* in 
 acts, *transfer ownership* (its button *transfer*, refused with its reason where nobody can take
 it), *forget Turso account* (confirmed, naming where the token is revoked), *disconnect this
 machine*, and *delete organization* last and set apart; a member meets the disconnect alone. There
-is no Turso account card. A choice explains itself, with no
+is no Turso account card. The disconnect forgets this organization alone and leaves any other the
+machine holds; the wall's switcher reaches the same act, confirmed the same way, for any held
+organization, and the organization tab opens on the name card, whose edit the owner alone sees
+(effort 851). A choice explains itself, with no
 sentence under it; where one segment's effect is not in its word (appearance's *system*), that
 segment alone says it in a tooltip. A value not yet known is not drawn, never a word standing in
 for one (the available version before a check). An icon control may show what it is doing with its
@@ -656,14 +660,16 @@ its page, the command menu, a selection's bar, and every row of the settings are
 records' deletes (tenant, complex, unit, contract, payment), terminating a contract, the
 organization's acts (deleting a workspace, removing a member or locking one out, resetting a
 member's password, signing a member out everywhere, deleting a role, withdrawing an ownership
-offer, transferring ownership), signing out another machine or every other one, signing this
-machine out, disconnecting it, forgetting the Turso account (in settings and in setup), deleting
+offer, transferring ownership, revoking a link waiting to be opened), signing out another machine
+or every other one, disconnecting
+this machine, forgetting the Turso account (in settings and in setup), deleting
 the organization, and removing the organization stamp. Leaving the question does nothing.
 
 **The question names what ends and whether anything brings it back.** The record leads, as the
 surface names it; the line under it says what goes and what puts it back: undo while the
 application is open for a record's delete, restoring for a termination, signing in again for a
-sign-out, a new link for a member's reset, offering again for a withdrawn offer, and *nothing* where
+sign-out, a new link for a member's reset or a revoked link, offering again for a withdrawn offer,
+and *nothing* where
 nothing does. A record's delete still lands inside undo once answered, and its announcement still
 carries the undo control (*Undo*).
 
@@ -698,9 +704,11 @@ no destructive control. The procedure refuses it either way. **A selection asks 
 titled and labelled with its own verb: terminate, restore, sign out, forget the account, disconnect,
 withdraw. It has no default title or button word, so a caller cannot fall back to *delete*. Its
 control is destructive for an act that takes something away, and the ordinary primary control for
-one that gives something back (restore). Signing this machine out asks in it from both its routes,
-the account section's last card and the account menu at the foot of the rail
-(`organization/session/component/sign-out-dialog.svelte`).
+one that gives something back (restore). **Signing this machine out asks nothing**, from the account
+menu at the foot of the rail and from the account section alike, and goes straight to the wall: a
+password brings it back and nothing else is lost. *The human's word on 2026-10-06 (effort 851,
+requirement 45): "it's simple it should just signout". It asked in
+`organization/session/component/sign-out-dialog.svelte` from 2026-10-02 until then.*
 
 *Why: the human walked the built application on 2026-10-02 and asked, in their words, to "make sure
 deangours actions have confirmation dialog even in domain records deletes have confirmation dialong
@@ -1093,12 +1101,20 @@ organization's did.
 | a permission, in a role's editor or on a member's card | switch |
 | a workspace a member is in | switch |
 | a choice of five or more | select, or a combobox when searched |
+| a length of time from fixed steps | slider, with the chosen value written beside it |
 | another record | combobox over its search |
 | a date | the popover calendar, given the reader's locale |
 | money | the input group with the riyal sign as adornment, `inputmode="decimal"` |
 | a phone | country select plus number, `dir="ltr"` |
 | a status | the status icon cell |
 | a count | the count cell |
+
+**A length of time from fixed steps is a slider**, its thumb running over the steps by their place
+in the list rather than by their size, the label's row ending with the value it stands on in words,
+and its two ends named under the track. A link's lifetime is one: thirty steps from an hour to a
+week (`organization/member/component/link-form.svelte`). *The human's word on 2026-10-06, during
+[[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/spec]] (requirement 11),
+that the lifetime is picked with a slider rather than the select its thirty values first took.*
 
 **A permission is a switch, although it takes effect when its editor is saved.** The role editor
 and a member's card draw one list of them (`organization/role/component/permission-switches.svelte`):

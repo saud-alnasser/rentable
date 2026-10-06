@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { palette, surfaces } from '$lib/app/surfaces';
+	import { palette, slotsAt, surfaces } from '$lib/app/surfaces';
 	import { PrintSheet } from '$lib/print/ui';
 	import { tauri } from '$lib/platform/tauri';
 	import { Button } from '@rentable/design/primitive/button/index.js';
@@ -63,6 +63,10 @@
 	} = $props();
 
 	const hasRail = $derived(shell === 'full');
+
+	// what a feature says above every screen about the reader's own account, read once: the lock
+	// (effort 851, requirement 32) is the one so far.
+	const notices = slotsAt('notice');
 
 	const hasBreadcrumb = $derived(toBreadcrumbTrail(page.route.id).length > 0);
 
@@ -205,6 +209,9 @@
 			<Sidebar.Inset>
 				{@render titlebar()}
 				<div class="@container/main flex min-h-0 flex-1 flex-col overflow-y-auto">
+					{#each notices as Notice, index (index)}
+						<Notice />
+					{/each}
 					{@render content()}
 				</div>
 			</Sidebar.Inset>

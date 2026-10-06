@@ -12,11 +12,13 @@ import Providers from '#tests/providers.svelte';
 import {
 	forgetReader,
 	holdEveryFlagBut,
+	holdLocked,
 	holdReadOnly,
 	layOutLists,
 	openPalette,
 	paletteRow,
-	refusedControl
+	refusedControl,
+	refusedControls
 } from '#tests/permission.ts';
 
 /**
@@ -118,4 +120,39 @@ test('on a read-only grant the edit and the delete read as refused for the grant
 
 	expect(refusedControl(en.common.actions.edit)?.reason).toBe(en.common.permission.readOnly);
 	expect(refusedControl(en.common.actions.delete)?.reason).toBe(en.common.permission.readOnly);
+});
+
+/**
+ * Effort 851, criterion 32: a locked reader holds the view flags alone. The directory still lists
+ * what their role lets them view, and every control that would add, edit or delete is refused, for
+ * the lock, so none of them can be pressed into a write: dimmed and saying why, as every refused
+ * control here does ([[rules/interface]], *An act that cannot run says why at the control*).
+ */
+test('a locked reader is offered no write: the create, the edit and the delete are refused for the lock', () => {
+	holdLocked();
+	render(ComplexDirectory, {}, providers);
+
+	expect(refusedControl(en.common.actions.newComplex)?.reason).toBe(en.common.permission.locked);
+	expect(document.querySelector('[data-create-control]')?.getAttribute('aria-disabled')).toBe(
+		'true'
+	);
+
+	document.body.innerHTML = '';
+	page();
+
+	expect(refusedControl(en.common.actions.edit)?.reason).toBe(en.common.permission.locked);
+	expect(refusedControl(en.common.actions.delete)?.reason).toBe(en.common.permission.locked);
+	// what is left to press reads and writes nothing.
+	expect(refusedControl(en.common.actions.copyDetails)).toBeUndefined();
+	for (const control of refusedControls()) {
+		expect(control.ariaDisabled, control.text).toBe('true');
+	}
+});
+
+test('the command menu offers a locked reader no complex act that writes', async () => {
+	holdLocked();
+	await openPalette();
+
+	expect(paletteRow('complex.edit')).toBeNull();
+	expect(paletteRow('complex.delete')).toBeNull();
 });

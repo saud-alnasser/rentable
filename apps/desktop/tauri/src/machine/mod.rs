@@ -10,7 +10,7 @@
 //!
 //! **A module of its own, below the modules that write it.** It was `sync/store.rs` until effort
 //! 840, and `organization` reached into `sync` for it while `sync`'s commands reached back into
-//! `organization`. It names neither: the organization this machine holds is described here
+//! `organization`. It names neither: each organization this machine holds is described here
 //! (`HeldOrganization`), with the kinds a role is recorded as, because that is what the record
 //! keeps; `organization` re-exports both where its own code names them.
 
@@ -18,8 +18,8 @@ pub mod name;
 mod record;
 
 pub use record::{
-    CUSTOM, HeldOrganization, KINDS, MANAGER, MEMBER, OWNER, RemoteSync, RemoteSyncState,
-    RemoteSyncStore, RemoteSyncWorkspace, consented_organization,
+    CUSTOM, HeldOrganization, KINDS, LocalReplica, MANAGER, MEMBER, OWNER, RemoteSync,
+    RemoteSyncState, RemoteSyncStore, RemoteSyncWorkspace, consented_organization,
 };
 
 use std::{future::Future, path::PathBuf, pin::Pin, sync::Arc};

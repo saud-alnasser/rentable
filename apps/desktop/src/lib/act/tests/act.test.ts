@@ -4,7 +4,12 @@ import { mock, test } from 'node:test';
 import { i18nObject } from '$lib/i18n/i18n-util.ts';
 import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
 import { ContractSchema } from '$lib/platform/database/schema.ts';
-import { fakeOrganizationMember, fakeOrganizationRoles } from '$lib/organization/tests/testing.ts';
+import {
+	fakeOrganizationMember,
+	fakeOrganizationRoles,
+	fakeOrganizationSession,
+	fakeOrganizationWorkspace
+} from '$lib/organization/tests/testing.ts';
 
 /**
  * Requirement 8 of effort 832, criterion 8: a record's acts are declared once, and the card's menu
@@ -553,6 +558,7 @@ const ORGANIZATION_GLYPHS = [
 	'laptop',
 	'link',
 	'lock',
+	'lock-keyhole-open',
 	'refresh-cw',
 	'sliders-horizontal',
 	'square-pen',
@@ -569,7 +575,7 @@ for (const glyph of ORGANIZATION_GLYPHS.filter((declared) => !GLYPHS.includes(de
 	});
 }
 
-const { declareMemberActs } = await import('$lib/organization/member/acts');
+const { declareMemberActs, memberReaderOf } = await import('$lib/organization/member/acts');
 const { declareRoleActs, lacking: lackingFlag } = await import('$lib/organization/role/acts');
 const { declareWorkspaceActs } = await import('$lib/organization/workspace/acts');
 const { BUILT_IN } = await import('@rentable/workspace-permission');
@@ -598,6 +604,7 @@ function recordingOrganizationHost() {
 			makeLink: onMember('makeLink'),
 			unsetPassword: onMember('unsetPassword'),
 			endSessions: onMember('endSessions'),
+			unlock: onMember('unlock'),
 			confirmRemoval: (record: MemberActRecord, lockOut: boolean) =>
 				asked.push(`${lockOut ? 'confirm.lockOut' : 'confirm.remove'}:${record.member.id}`)
 		},
@@ -622,7 +629,9 @@ const NONE_HELD = {
 	canRename: false,
 	canAssignRole: false,
 	canOverride: false,
-	canGrantWorkspace: false
+	canGrantWorkspace: false,
+	canUnlock: false,
+	locked: false
 };
 
 const EVERY_HELD = {
@@ -633,7 +642,9 @@ const EVERY_HELD = {
 	canRename: true,
 	canAssignRole: true,
 	canOverride: true,
-	canGrantWorkspace: true
+	canGrantWorkspace: true,
+	canUnlock: true,
+	locked: false
 };
 
 const IDLE = {
@@ -641,7 +652,8 @@ const IDLE = {
 	unsetting: false,
 	endingSessions: false,
 	offering: false,
-	withdrawing: false
+	withdrawing: false,
+	unlocking: false
 };
 
 /** the readers a member's card is read by, each in the organization olivia owns. */
@@ -862,6 +874,7 @@ const WORKSPACE_READERS: Record<string, WorkspaceActContext> = {
 		canRename: true,
 		canGrantWorkspace: true,
 		canDelete: true,
+		locked: false,
 		standingOf: holdingEverything
 	},
 	manager: {
@@ -869,6 +882,7 @@ const WORKSPACE_READERS: Record<string, WorkspaceActContext> = {
 		canRename: true,
 		canGrantWorkspace: true,
 		canDelete: false,
+		locked: false,
 		standingOf: holdingEverything
 	},
 	'member widened by renameWorkspace': {
@@ -876,6 +890,7 @@ const WORKSPACE_READERS: Record<string, WorkspaceActContext> = {
 		canRename: true,
 		canGrantWorkspace: false,
 		canDelete: false,
+		locked: false,
 		standingOf: holdingNothing
 	},
 	'member holding nothing': {
@@ -883,6 +898,7 @@ const WORKSPACE_READERS: Record<string, WorkspaceActContext> = {
 		canRename: false,
 		canGrantWorkspace: false,
 		canDelete: false,
+		locked: false,
 		standingOf: holdingNothing
 	},
 	// effort 846, requirement 15: every flag, but a read-only grant on ws-2, the card not open.
@@ -891,6 +907,7 @@ const WORKSPACE_READERS: Record<string, WorkspaceActContext> = {
 		canRename: false,
 		canGrantWorkspace: false,
 		canDelete: false,
+		locked: false,
 		standingOf: (workspaceId) => ({
 			permissions: maskOf(...EVERY_FLAG),
 			accessLevel: workspaceId === 'ws-2' ? 'read-only' : 'full-access'
@@ -1152,14 +1169,25 @@ function recordingRoleHost() {
 }
 
 const ROLE_READERS = {
-	owner: { rank: BUILT_IN.owner.rank, canManageRoles: true, permissions: BUILT_IN.owner.mask },
+	owner: {
+		rank: BUILT_IN.owner.rank,
+		canManageRoles: true,
+		permissions: BUILT_IN.owner.mask,
+		locked: false
+	},
 	manager: {
 		rank: BUILT_IN.manager.rank,
 		canManageRoles: true,
-		permissions: BUILT_IN.manager.mask
+		permissions: BUILT_IN.manager.mask,
+		locked: false
 	},
-	supervisor: { rank: 750_000, canManageRoles: true, permissions: BUILT_IN.manager.mask },
-	member: { rank: 0, canManageRoles: false, permissions: BUILT_IN.member.mask }
+	supervisor: {
+		rank: 750_000,
+		canManageRoles: true,
+		permissions: BUILT_IN.manager.mask,
+		locked: false
+	},
+	member: { rank: 0, canManageRoles: false, permissions: BUILT_IN.member.mask, locked: false }
 };
 
 const roleRecord = (
@@ -1541,7 +1569,8 @@ test('a reset and a link that builds the account again name grantWorkspace where
 	const standingOf = (memberId: string, passwordSet: boolean) => ({
 		memberId,
 		passwordSet,
-		machineSignedIn: false
+		machineSignedIn: false,
+		locked: false
 	});
 	const unset = memberOf('sami', 'member');
 	const set = memberOf('noor', 'member');
@@ -1576,4 +1605,135 @@ test('a reset and a link that builds the account again name grantWorkspace where
 			id
 		);
 	}
+});
+
+/**
+ * Effort 851, requirement 34: the owner and a holder of either flag that changes what somebody may
+ * do unlock a locked member who set a password, below them and never themselves. A locked reader
+ * holds nothing to give or to take (requirement 32), so they are offered no act at all.
+ */
+test('who unlocks, and a locked reader offered nothing', () => {
+	const acts = declareMemberActs(recordingOrganizationHost().member);
+	const lockedStanding = (memberId: string, passwordSet: boolean) => ({
+		memberId,
+		passwordSet,
+		machineSignedIn: false,
+		locked: true
+	});
+	const offersUnlock = (
+		context: MemberActContext,
+		member: OrganizationMember,
+		passwordSet = true
+	) =>
+		toCardActions(
+			acts,
+			{ member, context, standing: lockedStanding(member.id, passwordSet) },
+			translations
+		).some((action) => action.attributes?.['data-act'] === 'member.unlock');
+	const sami = memberOf('sami', 'member');
+	const ada = memberOf('ada', 'manager');
+
+	assert.ok(offersUnlock(MEMBER_READERS.owner, sami));
+	assert.ok(offersUnlock(MEMBER_READERS.owner, ada));
+	assert.ok(offersUnlock(MEMBER_READERS.manager, sami));
+	// not below the reader, the reader's own card, nobody holding either flag, and no password yet.
+	assert.ok(!offersUnlock({ ...MEMBER_READERS.manager, selfId: 'zoe' }, ada));
+	assert.ok(!offersUnlock(MEMBER_READERS.manager, ada));
+	assert.ok(!offersUnlock({ ...MEMBER_READERS.manager, canUnlock: false }, sami));
+	assert.ok(!offersUnlock(MEMBER_READERS.owner, sami, false));
+	// and an unlocked member is offered no unlock.
+	assert.ok(
+		!toCardActions(
+			acts,
+			{
+				member: sami,
+				context: MEMBER_READERS.owner,
+				standing: { ...lockedStanding('sami', true), locked: false }
+			},
+			translations
+		).some((action) => action.attributes?.['data-act'] === 'member.unlock')
+	);
+
+	// the reader's gate, off the session: the owner, a holder of either flag, and nobody locked.
+	const reader = (role: 'owner' | 'manager' | 'member', permissions: number, locked = false) =>
+		memberReaderOf(
+			fakeOrganizationSession({
+				role,
+				roleId: BUILT_IN[role].id,
+				rank: BUILT_IN[role].rank,
+				permissions,
+				locked
+			})
+		);
+
+	assert.equal(reader('owner', BUILT_IN.owner.mask).canUnlock, true);
+	assert.equal(reader('manager', maskOf('assignRole')).canUnlock, true);
+	assert.equal(reader('manager', maskOf('overrideMember')).canUnlock, true);
+	assert.equal(reader('member', BUILT_IN.member.mask).canUnlock, false);
+
+	// a locked manager is offered what their row carries, every act refused for the lock.
+	const locked = { ...MEMBER_READERS.manager, ...reader('manager', BUILT_IN.manager.mask, true) };
+
+	assert.equal(locked.locked, true);
+	assert.equal(locked.canInvite, true);
+
+	const offered = toCardActions(
+		acts,
+		{ member: sami, context: locked, standing: lockedStanding('sami', true) },
+		translations
+	);
+
+	assert.ok(offered.length > 0);
+	for (const action of offered) {
+		assert.equal(
+			action.unavailable,
+			translations.common.permission.locked(),
+			String(action.attributes?.['data-act'])
+		);
+	}
+});
+
+/**
+ * Effort 851, requirement 32: a locked reader meets every role and workspace act their row carries,
+ * refused for the lock, save the two that read: a workspace's export, and who is in it, which
+ * opens the workspace's page and writes nothing.
+ */
+test('a locked reader meets the role and workspace acts refused for the lock, and the reads not', () => {
+	const roleActs = declareRoleActs(recordingRoleHost().host);
+	const lockedManager = { ...ROLE_READERS.manager, locked: true };
+
+	for (const action of toCardActions(
+		roleActs,
+		roleRecord('collector', lockedManager),
+		translations
+	)) {
+		assert.equal(action.unavailable, translations.common.permission.locked());
+	}
+
+	const workspaceActs = declareWorkspaceActs(recordingOrganizationHost().workspace);
+	const context: WorkspaceActContext = {
+		...WORKSPACE_READERS.manager,
+		locked: true,
+		standingOf: () => ({ permissions: 0, accessLevel: 'full-access', locked: true })
+	};
+	const offered = toCardActions(
+		workspaceActs,
+		{ workspace: fakeOrganizationWorkspace({ id: 'ws-1' }), context },
+		translations
+	);
+
+	for (const action of offered) {
+		const id = action.attributes?.['data-act'];
+
+		if (id === 'workspace.export') continue;
+
+		if (id === 'workspace.members') {
+			assert.equal(action.unavailable, undefined, 'who is in a workspace was refused for the lock');
+			continue;
+		}
+
+		assert.equal(action.unavailable, translations.common.permission.locked(), String(id));
+	}
+	assert.ok(offered.some((action) => action.attributes?.['data-act'] === 'workspace.edit'));
+	assert.ok(offered.some((action) => action.attributes?.['data-act'] === 'workspace.members'));
 });

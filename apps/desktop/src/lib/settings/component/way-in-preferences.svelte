@@ -7,7 +7,6 @@
 	import { useFetchSettings, useSetLocale } from '$lib/settings/query';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Popover from '@rentable/design/primitive/popover/index.js';
-	import { Separator } from '@rentable/design/primitive/separator/index.js';
 	import LanguagesIcon from '@lucide/svelte/icons/languages';
 
 	/**
@@ -22,10 +21,11 @@
 	 * **Both choices are the settings area's own, drawn unchanged**, so a language or an appearance
 	 * chosen here is the same act as in settings: drawn at once, then written.
 	 *
-	 * **The wall hands in two more**, "use a link" and "disconnect this machine", which were the
-	 * wall's way out of a jam before "can't sign in?" became a sentence (ticket 01's look). Every
-	 * other step hands in none. An act the step cannot take right now, as the wall's two cannot while
-	 * a sign-in runs, is drawn disabled rather than left to race the step.
+	 * **It carries those two and nothing else, on every step** (effort 851, requirement 15). The
+	 * wall handed in two more, "use a link" and "disconnect this machine", as its way out of a jam,
+	 * and nobody could tell they were inside a control named for a language. The organization
+	 * switcher above the wall's fields carries both now, in sight, as "add organization" and its x,
+	 * so the `extras` this took went with them.
 	 *
 	 * **Only the language and the appearance, and no way to all the settings** (at the human's word
 	 * on 2026-10-01). The settings a machine has before anybody is in are those two; everything else
@@ -33,13 +33,6 @@
 	 * appearance is its three buttons with nothing above them. *It carried a link to all settings
 	 * from ticket 04 until the human's walk.*
 	 */
-	let {
-		extras = []
-	}: {
-		/** acts only the step drawing this has, below the choices; `disabled` while it cannot take one. */
-		extras?: { label: string; onSelect: () => void; destructive?: boolean; disabled?: boolean }[];
-	} = $props();
-
 	let open = $state(false);
 
 	const settingsQuery = useFetchSettings();
@@ -77,26 +70,5 @@
 		/>
 
 		<SettingsAppearance {stored} bare />
-
-		{#if extras.length > 0}
-			<Separator />
-
-			<div class="flex flex-col gap-1">
-				{#each extras as extra (extra.label)}
-					<Button
-						variant="ghost"
-						size="sm"
-						class="justify-start {extra.destructive ? 'text-destructive' : ''}"
-						disabled={extra.disabled}
-						onclick={() => {
-							open = false;
-							extra.onSelect();
-						}}
-					>
-						<span class="first-letter:uppercase">{extra.label}</span>
-					</Button>
-				{/each}
-			</div>
-		{/if}
 	</Popover.Content>
 </Popover.Root>

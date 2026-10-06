@@ -89,7 +89,7 @@ use std::{
     collections::HashMap,
     future::Future,
     pin::Pin,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, atomic::AtomicBool},
 };
 
 use serde::{Deserialize, Serialize};
@@ -111,7 +111,7 @@ use super::{
     },
     role::permission::{self},
     setup::Remote,
-    store::{MemberRecord, OrganizationStore, pins_of},
+    store::{MemberRecord, OrganizationStore, locked_in, pins_of},
 };
 
 /// What a remembered member key is filed under. One service for every organization a machine
@@ -156,6 +156,16 @@ pub struct MemberSession {
     /// every workspace credential this member's grants held, unsealed, by workspace id. What a
     /// member can open is exactly this map, and nothing adds to it but a grant the vault opens.
     pub workspace_credentials: HashMap<String, WorkspaceCredential>,
+    /// whether this session has seen the organization's lock marker, from this machine's entry
+    /// when it opened (`HeldOrganization::lock_marked`) or from a read since (effort 851,
+    /// requirement 35): once it has, a member with no lock row that verifies reads locked here,
+    /// whatever the replica holds afterwards. Set through a shared reference, by every gate.
+    pub lock_marked: AtomicBool,
+    /// whether this machine holds this member to their own lock whatever the marker says, having
+    /// joined here by their invitation (`HeldOrganization::own_lock_latched`, effort 851,
+    /// requirement 35). Read only where their own lock is judged: [`acting_row`] and the facts
+    /// the screen draws, never for another member's.
+    pub own_lock_latched: bool,
 }
 
 /// One unsealed workspace credential and what it is good for.
@@ -243,7 +253,39 @@ pub struct SessionsEnded {
 /// **A machine signed out on its own is refused the same way** (effort 846, requirement 10): its
 /// row in `machine_sign_out` above the number this session opened under, which `end_machine` on
 /// another of the member's machines moved and a pull brought.
+///
+/// **And a locked member is refused** (effort 851, requirement 32), with [`RefusalReason::Locked`],
+/// off the lock as it reads now (`store::locked_in`), so an unlock reaches an open session at the
+/// next pull as a narrowing does. Every act of the organization reads its actor here, so this is
+/// every act but the ones a locked member keeps: signing in and changing their password reach no
+/// acting row, reads ask for none, and signing their own machines out reads [`own_row`] instead.
 pub async fn acting_row(
+    store: &OrganizationStore,
+    session: &MemberSession,
+) -> Result<MemberRecord, Error> {
+    let member = own_row(store, session).await?;
+    let locks = store.member_locks(&session.verifying_key).await?;
+
+    if locked_in(
+        &locks,
+        &member,
+        locks.latch(&session.lock_marked) || session.own_lock_latched,
+    ) {
+        return Err(Error::refused(RefusalReason::Locked, LOCKED));
+    }
+
+    Ok(member)
+}
+
+/// What a locked member meets at every act but signing in, changing their password, reading and
+/// signing their own machines out (effort 851, requirement 32).
+pub const LOCKED: &str = "your account is locked until an owner or a manager unlocks it. you can \
+     sign in, change your password and view what your role shows, and nothing else";
+
+/// The acting member's own row with [`acting_row`]'s refusals in front of it but the lock: what
+/// signing the member's own machines out, and listing them, read (effort 851, requirement 32). A
+/// sign-out is one of the acts a locked member keeps, and so is reading where they are signed in.
+pub async fn own_row(
     store: &OrganizationStore,
     session: &MemberSession,
 ) -> Result<MemberRecord, Error> {
@@ -459,6 +501,11 @@ pub struct SessionFacts {
     /// the owner's username, opened with the content key: whom a member is told to tell when
     /// the organization's account needs attention (requirement 25), and nothing else about them.
     pub owner_username: String,
+    /// whether this member is locked (effort 851, requirement 32), off the lock as it reads now
+    /// (`store::locked_in`): what masks their permissions to viewing in the interface and draws
+    /// the sentence saying so. Every act it masks is refused in Rust as well (`acting_row`), so
+    /// this draws and gates nothing on its own.
+    pub locked: bool,
     /// whether this reader has been offered the organization and has not accepted yet (effort
     /// 828, requirement 22), which is what puts the acceptance in their account section.
     ///
@@ -568,6 +615,8 @@ pub(crate) async fn open_session(
         content_key,
         organization_credential: Arc::clone(credential),
         workspace_credentials,
+        lock_marked: AtomicBool::new(held.lock_marked),
+        own_lock_latched: held.latches(&member.id),
     })
 }
 
@@ -626,12 +675,70 @@ pub async fn refresh_credentials(
     Ok(moved)
 }
 
+/// The organization's name as this machine shows it (effort 851, requirements 26 and 29).
+///
+/// - **The signed row, where it verifies**, opened with the session's content key; reading it
+///   sets `held.name_signed`, and from then on this machine never trusts the unsigned column.
+/// - **Where none verifies and `held.name_signed` is false**, the unsigned
+///   `organization.name_sealed`, which is what every machine showed before the owner signed:
+///   an organization made before this change keeps naming its name until the owner's machine
+///   signs it (`ownership::sign_organization_name`).
+/// - **Where none verifies and `held.name_signed` is true**, the name `held` carries: a row that
+///   is missing or forged, or an unsigned `name_sealed` written straight into the replica, is
+///   never shown, and the last name that verified stays.
+///
+/// **A row the owner signed before the name this machine last read reads as one that does not
+/// verify** (`HeldOrganization::name_signed_at`). It is the owner's signature, but any member who
+/// can write the replica could have put an old row back, and it would roll every machine's name
+/// back with it. Reading a newer one moves the latch to it.
+pub(crate) async fn organization_name_of(
+    store: &OrganizationStore,
+    session: &MemberSession,
+    held: &mut HeldOrganization,
+) -> Result<String, Error> {
+    if let Some(signed) = store
+        .organization_name(&session.verifying_key)
+        .await?
+        .filter(|signed| !held.name_signed || signed.updated_at >= held.name_signed_at)
+    {
+        let name = opened(
+            &session.content_key,
+            "organization.name_sealed",
+            &signed.name_sealed,
+        )?;
+
+        held.name_signed = true;
+        held.name_signed_at = signed.updated_at;
+
+        return Ok(name);
+    }
+
+    if held.name_signed {
+        return Ok(held.name.clone());
+    }
+
+    match store.organization().await? {
+        Some(organization) => opened(
+            &session.content_key,
+            "organization.name_sealed",
+            &organization.name_sealed,
+        ),
+        None => Ok(held.name.clone()),
+    }
+}
+
 /// What the web layer is told about `session`, read off the replica now rather than remembered
 /// from sign-in, so a row that changed under the member is what the screen shows. Every row is
 /// verified on the way, and the names are opened with the content key the session holds.
+///
+/// **The organization's name is the one the owner signed** (effort 851, requirement 29), read
+/// through [`organization_name_of`] against `held`, this machine's entry for the organization,
+/// whose `name_signed` it sets once a signed name has been read. What the entry's name becomes is
+/// the caller's to write (`state_of`).
 pub async fn facts_of(
     store: &OrganizationStore,
     session: &MemberSession,
+    held: &mut HeldOrganization,
 ) -> Result<SessionFacts, Error> {
     let key = &session.verifying_key;
     let members = store.members(key).await?;
@@ -688,14 +795,7 @@ pub async fn facts_of(
         })
         .collect::<Result<Vec<_>, Error>>()?;
 
-    let organization_name = match store.organization().await? {
-        Some(organization) => opened(
-            &session.content_key,
-            "organization.name_sealed",
-            &organization.name_sealed,
-        )?,
-        None => String::new(),
-    };
+    let organization_name = organization_name_of(store, session, held).await?;
 
     let owner_username = match members
         .iter()
@@ -726,6 +826,16 @@ pub async fn facts_of(
         override_mask: member.override_mask,
         permissions: member.effective,
         workspaces: workspace_facts,
+        locked: {
+            let locks = store.member_locks(key).await?;
+            let latched = locks.latch(&session.lock_marked) || held.lock_marked;
+
+            // and this machine's entry latches it with the session, written by `state_of`.
+            held.lock_marked = latched;
+
+            // and their own lock as the join latched it, which this entry does not mark.
+            locked_in(&locks, member, latched || session.own_lock_latched)
+        },
         ownership_offered: super::ownership::standing_offer(store, key)
             .await?
             .is_some_and(|offer| offer.offered_member_id == member.id),
@@ -844,6 +954,15 @@ pub(crate) trait Upgrade: Send + Sync {
         state: &'a Shared,
         credentials: &'a dyn CredentialStore,
         clock: &'a clock::Shared,
+    ) -> Upgrading<'a>;
+
+    /// Move the Turso consent an earlier build filed under its one keyring entry to the
+    /// organization it was granted for (effort 851, requirement 14): the second thing the launch's
+    /// first state read does, after the old shape and before the resume (`upgrade/consent.rs`).
+    fn move_the_consent<'a>(
+        &'a self,
+        state: &'a Shared,
+        credentials: &'a dyn CredentialStore,
     ) -> Upgrading<'a>;
 }
 

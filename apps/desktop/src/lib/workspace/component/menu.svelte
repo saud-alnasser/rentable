@@ -28,11 +28,13 @@
 	 * Xcode's scheme menu and Safari's profiles do.
 	 *
 	 * **The menu is the switch, then one command** (requirement 11): the workspaces the member
-	 * holds, the open one checked, a separator, and "workspace settings", which leads to the
+	 * holds, the open one checked, a separator, and "manage workspaces", which leads to the
 	 * workspaces section of the settings area. It carries no ellipsis: it goes to a place rather than
 	 * asking for more before it acts (Apple's HIG, *Menus*). It read "manage workspaces…" until
 	 * ticket 55 of [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], when the
-	 * human asked for better words on 2026-10-03. There is no header and no heading: the header repeated the trigger, and a
+	 * human asked for better words on 2026-10-03, and "workspace settings" until the human asked
+	 * for "manage workspaces" on 2026-10-06 (effort 851). There is no header and no heading: the
+	 * header repeated the trigger, and a
 	 * "switch to" heading over a list of one promised a switch the list could not make. Nothing here
 	 * invites anybody and nothing here makes a workspace, so the menu carries no permission and
 	 * refuses nobody.
@@ -51,7 +53,7 @@
 	 * **Past five workspaces the list scrolls, and the command under it does not** (ticket 55 of
 	 * effort 846, at the human's word of 2026-10-03). The radio group is its own scroll container,
 	 * capped at five and a half rows: the half-shown sixth row is the cue that more is below, as a
-	 * macOS menu gives it, and the separator and "workspace settings" stay in view beneath it. Five
+	 * macOS menu gives it, and the separator and "manage workspaces" stay in view beneath it. Five
 	 * or fewer draw no cap at all, so a short list keeps exactly its own height. Opening scrolls the
 	 * open workspace into view, and the arrow keys keep the row they reach in view: the menu
 	 * primitive focuses a row with `preventScroll`, so a row past the fold would be highlighted out
@@ -191,10 +193,11 @@
 
 				<DropdownMenu.Separator />
 
-				<!-- "workspace settings": the workspaces section of the settings area, at the foot and
+				<!-- "manage workspaces": the workspaces section of the settings area, at the foot and
 				     outside the list's scroll, since it is the one thing the menu offers besides the
 				     switch. It read "workspaces" until effort 843, then "manage workspaces…" until
-				     ticket 55 of effort 846; it goes to a place and asks nothing more before it does,
+				     ticket 55 of effort 846, then "workspace settings" until effort 851; it goes to a
+				     place and asks nothing more before it does,
 				     so it carries no ellipsis (Apple's HIG, *Menus*). It opened the
 				     workspace page until 2026-09-14, which was one workspace; the section is the list
 				     of the ones this member holds, which is what a menu about workspaces should reach.

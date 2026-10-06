@@ -28,6 +28,7 @@
 	import CrownIcon from '@lucide/svelte/icons/crown';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 	import LaptopIcon from '@lucide/svelte/icons/laptop';
+	import LockKeyholeIcon from '@lucide/svelte/icons/lock-keyhole';
 	import SlidersHorizontalIcon from '@lucide/svelte/icons/sliders-horizontal';
 	import UserCogIcon from '@lucide/svelte/icons/user-cog';
 
@@ -65,6 +66,12 @@
 	 * *custom here* where what they may do in that workspace is tailored (`tailoredHere`, effort
 	 * 846, ticket 50), with the glyph its *edit permissions* act carries.
 	 *
+	 * **A locked member wears *locked* first in the foot** (effort 851, requirement 33), the same
+	 * outline badge with a closed lock, read off their standing, so it waits for the standing as
+	 * the password and the machine do. Until their password is set, *not signed in yet* follows it
+	 * in the muted words of a value saying nothing is there: it is why nobody is offered the unlock
+	 * yet (requirement 34), and it says what the member has to do rather than what is missing.
+	 *
 	 * The joining is a moment rather than a domain day, so it is said in the reader's own time
 	 * zone, as the machines a reader holds are, and not through `Cell.Date`, which reads whole UTC
 	 * days.
@@ -93,6 +100,7 @@
 	const workspaceCount = $derived(member.workspaces.length);
 	const joined = $derived(formatLocaleDate($locale, member.createdAt, { dateStyle: 'medium' }));
 	const ownPermissions = $derived(member.override !== 0);
+	const locked = $derived(standing?.locked === true);
 </script>
 
 <!-- one field: the glyph and the name on its first line, the value under them. Both lines set a
@@ -162,11 +170,27 @@
 			{/if}
 		</div>
 
-		{#if ownPermissions || member.offeredOwnership || tailoredHere}
+		{#if locked || ownPermissions || member.offeredOwnership || tailoredHere}
 			<div
 				data-member-marks
 				class="pointer-events-none relative mt-auto flex h-5 min-w-0 items-center gap-1.5 overflow-hidden"
 			>
+				{#if locked}
+					<Badge variant="outline" class="h-5 leading-4 text-muted-foreground" data-member-locked>
+						<LockKeyholeIcon aria-hidden="true" />
+						{$LL.organization.dashboard.memberCard.locked()}
+					</Badge>
+
+					{#if !standing?.passwordSet}
+						<span
+							class="min-w-0 truncate text-xs leading-5 text-muted-foreground"
+							data-member-not-signed-in
+						>
+							{$LL.organization.dashboard.memberCard.notSignedInYet()}
+						</span>
+					{/if}
+				{/if}
+
 				{#if tailoredHere}
 					<Badge
 						variant="outline"

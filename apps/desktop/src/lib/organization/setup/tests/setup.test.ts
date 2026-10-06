@@ -72,8 +72,10 @@ const setupRust = async () =>
  * `walk.svelte.test.ts` where a person can be shown it.
  */
 
-test('the only fields the walk presents are the name, a username and a password', () => {
-	assert.deepEqual(fieldsPresented(), ['name', 'username', 'password']);
+// effort 851, requirement 17: the password is asked for twice, and the second is the same text
+// typed again rather than anything new.
+test('the only fields the walk presents are the name, a username and a password, typed twice', () => {
+	assert.deepEqual(fieldsPresented(), ['name', 'username', 'password', 'confirmation']);
 });
 
 // effort 843, requirement 3: the consent is one line and asks for nothing. The facts it carried
@@ -96,10 +98,10 @@ test('the walk is two steps: the consent, then the name', () => {
 // effort 824, requirement 21: the owner sets their own username on the step that creates the
 // organization, beside its name and their password, and nowhere else. All three are the person's
 // own words, and nothing Turso wants is beside them.
-test('the name step asks for the name, the username and the password, in that order', () => {
+test('the name step asks for the name, the username and the password twice, in that order', () => {
 	const naming = SETUP_WALK.find((step) => step.step === 'name');
 
-	assert.deepEqual(naming?.fields, ['name', 'username', 'password']);
+	assert.deepEqual(naming?.fields, ['name', 'username', 'password', 'confirmation']);
 	assert.equal(
 		SETUP_WALK.filter((step) => step.fields.includes('username')).length,
 		1,
@@ -581,7 +583,7 @@ test('the connect-existing way is two steps and is not the walk that creates', (
 		!SETUP_WALK.some((step) => step.step === 'existing'),
 		'the existing step is presented by the walk that creates'
 	);
-	assert.deepEqual(fieldsPresented(), ['name', 'username', 'password']);
+	assert.deepEqual(fieldsPresented(), ['name', 'username', 'password', 'confirmation']);
 });
 
 /**

@@ -109,10 +109,22 @@ const TURSO_CONSENT_SCOPES: [&str; 3] = ["read", "db:create", "db:mint-token"];
 /// this application has that is not a file it wrote.
 const TURSO_PLATFORM_KEYRING_SERVICE: &str = "rentable.turso-platform";
 
-/// The one entry under that service. There is one Turso account behind an installation, and
-/// the token is re-obtainable by repeating the consent, so nothing is keyed by an account
-/// this application would first have to learn the name of.
-const TURSO_PLATFORM_KEYRING_ACCOUNT: &str = "owner";
+/// The pending entry under that service: where a consent files its token before the organization
+/// it is for exists, or before this machine knows which one that is. A setup and a connect move it
+/// to that organization's own entry ([`ORGANIZATION_ACCOUNT_PREFIX`]) once the id is known, and the
+/// first launch on effort 851's build moves the one an earlier build left here
+/// (`upgrade/consent.rs`).
+///
+/// *It was the one entry until effort 851 (requirement 14): one Turso account behind an
+/// installation, so nothing was keyed by anything this application would first have to learn the
+/// name of. The name is data on installed machines, which is why it is the pending slot now
+/// rather than renamed.*
+const PENDING_ACCOUNT: &str = "owner";
+
+/// What an organization's own entry is called, before its id: `org:<organization id>`. Each
+/// organization a machine holds keeps the consent it was granted over its own Turso account here,
+/// so two organizations on two accounts each spend their own (effort 851, requirement 14).
+const ORGANIZATION_ACCOUNT_PREFIX: &str = "org:";
 
 /// The path Turso redirects back to. It is registered with the authorization server at every
 /// consent, so it is this application's to choose and Turso's to echo.
@@ -482,9 +494,11 @@ impl TursoConsent {
             // reported as a grant and discovered as a failure at the first provisioning. One
             // that took the write and refuses the read is told to let go of it, so a consent
             // reported as failed leaves no authority behind that a later run could spend.
-            platform_token(credentials).map(|_| ()).inspect_err(|_| {
-                let _ = forget_platform_token(credentials);
-            })
+            platform_token(credentials, &Account::Pending)
+                .map(|_| ())
+                .inspect_err(|_| {
+                    let _ = forget_platform_token(credentials, &Account::Pending);
+                })
         });
 
         let mut sessions = self.sessions.lock().map_err(|_| consents_poisoned())?;
@@ -506,7 +520,10 @@ impl TursoConsent {
         Ok(session.report())
     }
 
-    /// Give the authority back.
+    /// Give the pending authority back: the setup walk's disconnect, before the consent belongs
+    /// to any organization. An organization's own consent goes when the organization is forgotten
+    /// (`organization::session::forget`) or its owner's leaving card forgets the account
+    /// (`organization::setup::forget_authority`), and this leaves every one of those alone.
     ///
     /// **It forgets the token here and revokes nothing**, because there is nothing to call:
     /// Turso's authorization server metadata advertises no revocation endpoint, and the token
@@ -520,7 +537,7 @@ impl TursoConsent {
     /// Disconnecting twice is not an error. There is no state to be in beyond holding the
     /// token or not, and a person pressing the button again means the same thing both times.
     pub(crate) fn disconnect(&self, credentials: &dyn CredentialStore) -> Result<(), Error> {
-        forget_platform_token(credentials)?;
+        forget_platform_token(credentials, &Account::Pending)?;
 
         self.sessions
             .lock()
@@ -761,24 +778,56 @@ fn callback_page_message(outcome: &ConsentOutcome) -> String {
     }
 }
 
-/// File the token where the next run will look for it.
+/// Which entry under the service a token is read from or filed in.
 ///
-/// **The two names above are the whole of what this module knows about the store**, and
-/// the store handed in is the whole of how it reaches one: the platform's own store at launch,
-/// and a test's own in-memory one in a test (`crate::credential`). It is `pub(crate)` because a
-/// test of anything that spends the authority has to file one first.
+/// **The pending slot, or one organization's.** A consent fills the pending slot, because it
+/// finishes before setup or connect-existing has an organization id; everything that spends the
+/// authority for an organization this machine holds reads that organization's own entry, and never
+/// another's.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Account {
+    /// what a consent filed and nothing has claimed yet.
+    Pending,
+    /// the consent of the organization with this id.
+    Organization(String),
+}
+
+impl Account {
+    /// the organization with this id's own entry.
+    pub(crate) fn of(organization_id: &str) -> Self {
+        Self::Organization(organization_id.to_string())
+    }
+
+    /// the keyring account name the entry is filed under.
+    fn name(&self) -> String {
+        match self {
+            Self::Pending => PENDING_ACCOUNT.to_string(),
+            Self::Organization(organization_id) => {
+                format!("{ORGANIZATION_ACCOUNT_PREFIX}{organization_id}")
+            }
+        }
+    }
+}
+
+/// File the token where the next run will look for it: the pending slot, which is the only place a
+/// consent writes.
+///
+/// **The names above are the whole of what this module knows about the store**, and the store
+/// handed in is the whole of how it reaches one: the platform's own store at launch, and a test's
+/// own in-memory one in a test (`crate::credential`). It is `pub(crate)` because a test of
+/// anything that spends the authority has to file one first.
 pub(crate) fn store_platform_token(
     credentials: &dyn CredentialStore,
     platform_token: &str,
 ) -> Result<(), Error> {
     credentials.set(
         TURSO_PLATFORM_KEYRING_SERVICE,
-        TURSO_PLATFORM_KEYRING_ACCOUNT,
+        &Account::Pending.name(),
         platform_token,
     )
 }
 
-/// The authority this machine holds, for whatever is about to spend it.
+/// The authority filed under `account`, for whatever is about to spend it.
 ///
 /// **No authority is a refusal rather than an absence**, and it is `Refused` with
 /// `TursoNotConnected` because that is a thing somebody can do something about: grant the consent
@@ -786,27 +835,143 @@ pub(crate) fn store_platform_token(
 /// at every call site, and the one that forgot would send an empty bearer token to Turso and report
 /// whatever Turso said about it. The store answering nothing and the store not answering stay
 /// apart on the way through: only the first is this refusal.
-pub(crate) fn platform_token(credentials: &dyn CredentialStore) -> Result<String, Error> {
+pub(crate) fn platform_token(
+    credentials: &dyn CredentialStore,
+    account: &Account,
+) -> Result<String, Error> {
     credentials
-        .get(
-            TURSO_PLATFORM_KEYRING_SERVICE,
-            TURSO_PLATFORM_KEYRING_ACCOUNT,
-        )?
+        .get(TURSO_PLATFORM_KEYRING_SERVICE, &account.name())?
         .ok_or_else(no_platform_authority)
 }
 
-/// Forget the token, and leave nothing a later run could read as a grant.
+/// Whether anything is filed under `account`. The store not answering is an error, and never
+/// read as an absence.
+pub(crate) fn holds_platform_token(
+    credentials: &dyn CredentialStore,
+    account: &Account,
+) -> Result<bool, Error> {
+    Ok(credentials
+        .get(TURSO_PLATFORM_KEYRING_SERVICE, &account.name())?
+        .is_some())
+}
+
+/// Forget the token under `account`, and leave nothing a later run could read as a grant there.
 ///
-/// **The disconnect's path, and the first run's.** Giving the authority back is what a person
-/// asks for on the settings surface, and it is also what a first run does to itself when the
-/// consented group turns out to already hold an organization (requirement 21 of effort 826):
-/// the grant is no use where it landed, and abandoning it is what lets the person consent again
-/// over another group or another Turso account.
-pub(crate) fn forget_platform_token(credentials: &dyn CredentialStore) -> Result<(), Error> {
-    credentials.delete(
-        TURSO_PLATFORM_KEYRING_SERVICE,
-        TURSO_PLATFORM_KEYRING_ACCOUNT,
-    )
+/// **Only that entry.** Giving the pending consent back is the setup walk's (a disconnect, or a
+/// first run whose consented group already holds an organization, requirement 21 of effort 826);
+/// forgetting an organization gives back that organization's and nobody else's, so an owner of
+/// two organizations on two accounts keeps the other's (effort 851, requirement 14).
+pub(crate) fn forget_platform_token(
+    credentials: &dyn CredentialStore,
+    account: &Account,
+) -> Result<(), Error> {
+    credentials.delete(TURSO_PLATFORM_KEYRING_SERVICE, &account.name())
+}
+
+/// Move the pending consent to the organization `organization_id`, once its id is known. Answers
+/// whether there was anything to move.
+///
+/// **Read, set, read back, delete**, as [`TursoConsent::result`] files a grant: the pending entry
+/// is deleted only once the organization's has been read back with the same token in it, so a
+/// store that took the write and kept nothing leaves the consent where it was. **A move that did
+/// not finish leaves the pending slot holding the token and the organization's entry as it found
+/// it**: what was written is taken back, so the token never has two homes, and a later move (the
+/// next launch, `upgrade/consent.rs`) finds it where it was.
+pub(crate) fn move_pending_consent(
+    credentials: &dyn CredentialStore,
+    organization_id: &str,
+) -> Result<bool, Error> {
+    let pending = Account::Pending.name();
+    let organization = Account::of(organization_id).name();
+
+    let Some(token) = credentials.get(TURSO_PLATFORM_KEYRING_SERVICE, &pending)? else {
+        return Ok(false);
+    };
+    let before = credentials.get(TURSO_PLATFORM_KEYRING_SERVICE, &organization)?;
+
+    let moved = credentials
+        .set(TURSO_PLATFORM_KEYRING_SERVICE, &organization, &token)
+        .and_then(
+            |()| match credentials.get(TURSO_PLATFORM_KEYRING_SERVICE, &organization)? {
+                Some(read) if read == token => Ok(()),
+                _ => Err(Error::Internal {
+                    message: "the credential store did not keep the moved turso consent"
+                        .to_string(),
+                }),
+            },
+        )
+        .and_then(|()| credentials.delete(TURSO_PLATFORM_KEYRING_SERVICE, &pending));
+
+    match moved {
+        Ok(()) => Ok(true),
+        Err(error) => {
+            // best effort: the error that stopped the move is what the caller is told.
+            let _ = match before.as_deref() {
+                Some(before) => {
+                    credentials.set(TURSO_PLATFORM_KEYRING_SERVICE, &organization, before)
+                }
+                None => credentials.delete(TURSO_PLATFORM_KEYRING_SERVICE, &organization),
+            };
+
+            Err(error)
+        }
+    }
+}
+
+/// File the pending consent as the organization `organization_id`'s too, and keep it pending.
+/// Answers whether anything changed.
+///
+/// **For an organization this machine already holds over the same Turso organization and group as
+/// the consent just granted** (`setup::share_the_consent`). Turso was seen to stop accepting an
+/// owner's earlier consent after they granted another on the same account (2026-10-06,
+/// [[references/turso]], *Failure handling*), so the organization's own entry would otherwise hold
+/// a token Turso refuses while a working one for the same group sat in the pending slot.
+///
+/// **Set, then read back**, as [`move_pending_consent`] files: a store that took the write and
+/// kept something else has the organization's entry put back as it was found, and the error is the
+/// answer. Nothing is written where the entry already holds this token.
+pub(crate) fn copy_pending_consent(
+    credentials: &dyn CredentialStore,
+    organization_id: &str,
+) -> Result<bool, Error> {
+    let pending = Account::Pending.name();
+    let organization = Account::of(organization_id).name();
+
+    let Some(token) = credentials.get(TURSO_PLATFORM_KEYRING_SERVICE, &pending)? else {
+        return Ok(false);
+    };
+    let before = credentials.get(TURSO_PLATFORM_KEYRING_SERVICE, &organization)?;
+
+    if before.as_deref() == Some(token.as_str()) {
+        return Ok(false);
+    }
+
+    let copied = credentials
+        .set(TURSO_PLATFORM_KEYRING_SERVICE, &organization, &token)
+        .and_then(
+            |()| match credentials.get(TURSO_PLATFORM_KEYRING_SERVICE, &organization)? {
+                Some(read) if read == token => Ok(()),
+                _ => Err(Error::Internal {
+                    message: "the credential store did not keep the shared turso consent"
+                        .to_string(),
+                }),
+            },
+        );
+
+    match copied {
+        Ok(()) => Ok(true),
+        Err(error) => {
+            // best effort: the error that stopped the copy is what the caller is told.
+            let _ = match before.as_deref() {
+                Some(before) => {
+                    credentials.set(TURSO_PLATFORM_KEYRING_SERVICE, &organization, before)
+                }
+                None => credentials.delete(TURSO_PLATFORM_KEYRING_SERVICE, &organization),
+            };
+
+            Err(error)
+        }
+    }
 }
 
 /// the consents map is only ever held for a field read or write, so a poisoned lock means a
@@ -845,8 +1010,10 @@ mod tests {
     };
 
     use super::{
-        TURSO_CONSENT_SCOPES, TURSO_PLATFORM_KEYRING_ACCOUNT, TURSO_PLATFORM_KEYRING_SERVICE,
-        TURSO_RESOURCE_INDICATOR, TursoConsent, TursoConsentStatus, TursoEndpoints, platform_token,
+        Account, ORGANIZATION_ACCOUNT_PREFIX, PENDING_ACCOUNT, TURSO_CONSENT_SCOPES,
+        TURSO_PLATFORM_KEYRING_SERVICE, TURSO_RESOURCE_INDICATOR, TursoConsent, TursoConsentStatus,
+        TursoEndpoints, copy_pending_consent, forget_platform_token, holds_platform_token,
+        move_pending_consent, platform_token, store_platform_token,
     };
 
     const ACCESS_TOKEN: &str = "the-platform-api-token";
@@ -871,11 +1038,13 @@ mod tests {
     /// read out of the store this module files into, rather than out of a copy of it, so what
     /// the assertion sees is what a later run would find.
     fn stored_token(credentials: &Memory) -> Option<String> {
+        filed(credentials, PENDING_ACCOUNT)
+    }
+
+    /// what is filed under one account name of the service, read the same way.
+    fn filed(credentials: &dyn CredentialStore, account: &str) -> Option<String> {
         credentials
-            .get(
-                TURSO_PLATFORM_KEYRING_SERVICE,
-                TURSO_PLATFORM_KEYRING_ACCOUNT,
-            )
+            .get(TURSO_PLATFORM_KEYRING_SERVICE, account)
             .expect("the test credential store would not answer")
     }
 
@@ -1277,13 +1446,20 @@ mod tests {
     ///
     /// It reads the source rather than the behaviour on purpose. A schema that grew a column
     /// for the token, or a diagnostic that logged it, would pass every other test here.
+    ///
+    /// **Widened for effort 851** (requirement 14): the service has two kinds of account now, the
+    /// pending slot and one per organization, and neither name is spelled outside this module
+    /// either, so nothing else can file a consent somewhere this module does not look.
     #[test]
     fn nothing_but_this_module_names_the_platform_token_service() {
         let crate_root = Path::new(env!("CARGO_MANIFEST_DIR"));
         let mut named = Vec::new();
+        let organization_account = format!("\"{ORGANIZATION_ACCOUNT_PREFIX}");
 
         visit(&crate_root.join("src"), &mut |path, source| {
-            if source.contains(TURSO_PLATFORM_KEYRING_SERVICE) {
+            if source.contains(TURSO_PLATFORM_KEYRING_SERVICE)
+                || source.contains(&organization_account)
+            {
                 named.push(
                     path.strip_prefix(crate_root)
                         .unwrap_or(path)
@@ -1299,7 +1475,165 @@ mod tests {
             "the platform token's keyring service is named outside the module that owns it"
         );
         assert_eq!(TURSO_PLATFORM_KEYRING_SERVICE, "rentable.turso-platform");
-        assert_eq!(TURSO_PLATFORM_KEYRING_ACCOUNT, "owner");
+        assert_eq!(PENDING_ACCOUNT, "owner");
+        assert_eq!(Account::Pending.name(), "owner");
+        assert_eq!(Account::of("an-org-id").name(), "org:an-org-id");
+    }
+
+    /// **The pending consent moves to its organization whole** (effort 851, requirement 14): the
+    /// organization's entry holds the token, the pending slot is empty, and the token is never in
+    /// both.
+    #[test]
+    fn the_pending_consent_moves_to_its_organization() {
+        let credentials = Memory::new();
+
+        store_platform_token(&credentials, ACCESS_TOKEN).expect("the consent");
+
+        assert!(move_pending_consent(&credentials, "org-1").expect("the move"));
+        assert_eq!(
+            filed(&credentials, "org:org-1").as_deref(),
+            Some(ACCESS_TOKEN)
+        );
+        assert_eq!(
+            stored_token(&credentials),
+            None,
+            "the pending slot kept the token"
+        );
+        assert_eq!(
+            platform_token(&credentials, &Account::of("org-1")).as_deref(),
+            Ok(ACCESS_TOKEN)
+        );
+        assert!(
+            platform_token(&credentials, &Account::Pending).is_err(),
+            "the pending slot still reads as an authority"
+        );
+
+        // nothing pending is nothing to move, and the organization's entry is untouched.
+        assert!(!move_pending_consent(&credentials, "org-1").expect("the second move"));
+        assert_eq!(
+            filed(&credentials, "org:org-1").as_deref(),
+            Some(ACCESS_TOKEN)
+        );
+    }
+
+    /// A store that took the write and kept nothing: the move is refused, and the consent is
+    /// still where the move found it, so a later move can try again.
+    #[test]
+    fn a_move_the_store_did_not_keep_leaves_the_consent_pending() {
+        let credentials = Forgetful {
+            inner: Memory::new(),
+            forgets: "org:org-1".to_string(),
+        };
+
+        store_platform_token(&credentials, ACCESS_TOKEN).expect("the consent");
+
+        move_pending_consent(&credentials, "org-1").expect_err("a move nothing kept succeeded");
+
+        assert_eq!(
+            filed(&credentials, PENDING_ACCOUNT).as_deref(),
+            Some(ACCESS_TOKEN)
+        );
+        assert_eq!(filed(&credentials, "org:org-1"), None);
+    }
+
+    /// **A consent granted over a held organization's group becomes its own as well** (the link
+    /// refused on 2026-10-06): the organization's entry holds the new token in place of the one
+    /// Turso stopped accepting, and the pending slot keeps it for the walk that granted it.
+    #[test]
+    fn the_pending_consent_is_copied_over_an_organizations_older_one() {
+        let credentials = Memory::new();
+
+        store_platform_token(&credentials, "the-older-consent").expect("the first consent");
+        move_pending_consent(&credentials, "org-1").expect("the move");
+        store_platform_token(&credentials, ACCESS_TOKEN).expect("the newer consent");
+
+        assert!(copy_pending_consent(&credentials, "org-1").expect("the copy"));
+        assert_eq!(
+            filed(&credentials, "org:org-1").as_deref(),
+            Some(ACCESS_TOKEN)
+        );
+        assert_eq!(stored_token(&credentials).as_deref(), Some(ACCESS_TOKEN));
+
+        // the same token again changes nothing, and nothing pending is nothing to copy.
+        assert!(!copy_pending_consent(&credentials, "org-1").expect("the second copy"));
+        forget_platform_token(&credentials, &Account::Pending).expect("the forget");
+        assert!(!copy_pending_consent(&credentials, "org-1").expect("the third copy"));
+        assert_eq!(
+            filed(&credentials, "org:org-1").as_deref(),
+            Some(ACCESS_TOKEN)
+        );
+    }
+
+    /// A store that took the copy and kept nothing: the copy is refused and the organization's
+    /// entry is put back to what it held.
+    #[test]
+    fn a_copy_the_store_did_not_keep_leaves_both_entries_as_they_were() {
+        let credentials = Forgetful {
+            inner: Memory::new(),
+            forgets: "org:org-1".to_string(),
+        };
+
+        store_platform_token(&credentials, ACCESS_TOKEN).expect("the consent");
+
+        copy_pending_consent(&credentials, "org-1").expect_err("a copy nothing kept succeeded");
+
+        assert_eq!(
+            filed(&credentials, PENDING_ACCOUNT).as_deref(),
+            Some(ACCESS_TOKEN)
+        );
+        assert_eq!(
+            credentials
+                .inner
+                .get(TURSO_PLATFORM_KEYRING_SERVICE, "org:org-1")
+                .expect("the store"),
+            None
+        );
+    }
+
+    /// Forgetting one organization's consent forgets that entry alone: another organization's
+    /// and the pending slot are what they were.
+    #[test]
+    fn forgetting_one_organizations_consent_leaves_every_other() {
+        let credentials = Memory::new();
+
+        store_platform_token(&credentials, "token-a").expect("the first consent");
+        move_pending_consent(&credentials, "org-a").expect("the first move");
+        store_platform_token(&credentials, "token-b").expect("the second consent");
+        move_pending_consent(&credentials, "org-b").expect("the second move");
+        store_platform_token(&credentials, "token-pending").expect("a third consent");
+
+        forget_platform_token(&credentials, &Account::of("org-a")).expect("the forget");
+
+        assert!(!holds_platform_token(&credentials, &Account::of("org-a")).expect("the read"));
+        assert_eq!(filed(&credentials, "org:org-b").as_deref(), Some("token-b"));
+        assert_eq!(
+            filed(&credentials, PENDING_ACCOUNT).as_deref(),
+            Some("token-pending")
+        );
+    }
+
+    /// a credential store that accepts every write and keeps nothing under one account.
+    struct Forgetful {
+        inner: Memory,
+        forgets: String,
+    }
+
+    impl CredentialStore for Forgetful {
+        fn get(&self, service: &str, account: &str) -> Result<Option<String>, Error> {
+            if account == self.forgets {
+                return Ok(None);
+            }
+
+            self.inner.get(service, account)
+        }
+
+        fn set(&self, service: &str, account: &str, secret: &str) -> Result<(), Error> {
+            self.inner.set(service, account, secret)
+        }
+
+        fn delete(&self, service: &str, account: &str) -> Result<(), Error> {
+            self.inner.delete(service, account)
+        }
     }
 
     /// the other half of the same criterion: this module writes the token nowhere a reader
@@ -1532,7 +1866,7 @@ mod tests {
         );
         assert_eq!(stored_token(&credentials).as_deref(), Some(ACCESS_TOKEN));
         assert!(
-            platform_token(&credentials).is_ok(),
+            platform_token(&credentials, &Account::Pending).is_ok(),
             "a granted consent left nothing for a provisioning call to spend"
         );
 
@@ -1546,7 +1880,8 @@ mod tests {
             "the keyring entry outlived the disconnect"
         );
 
-        let refusal = platform_token(&credentials).expect_err("authority survived the disconnect");
+        let refusal = platform_token(&credentials, &Account::Pending)
+            .expect_err("authority survived the disconnect");
 
         assert!(
             matches!(

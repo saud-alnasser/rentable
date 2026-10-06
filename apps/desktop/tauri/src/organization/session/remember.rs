@@ -184,7 +184,7 @@ async fn resumed(
         Err(_) if member.removed_at.is_some() => return Err(removed()),
         Err(refusal) => return Err(refusal),
     };
-    let repaired = owner_row_repaired(store, &verifying_key, member, &secret).await;
+    let repaired = owner_row_repaired(store, &verifying_key, member, &secret, Some(held)).await;
     let member = repaired.as_ref().unwrap_or(member);
 
     if member.removed_at.is_some() {
@@ -402,7 +402,7 @@ mod tests {
         )
         .await
         .expect("the first run failed");
-        let joined = store.organization.clone().expect("the record");
+        let joined = store.selected().cloned().expect("the record");
 
         (store, organization, joined)
     }

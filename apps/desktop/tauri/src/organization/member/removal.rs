@@ -28,7 +28,7 @@
 //! and this machine forgets what it held. It is the owner's alone and it asks for their password
 //! first, because a machine left unlocked must not be able to delete what it is signed in to; the
 //! password is tried against the row's own vault, so a wrong one refuses before a single request
-//! is made. The other machines find out at their next launch, which is `forget`'s own sign for a
+//! is made. The other machines find out at their next launch, which is `forget_deleted_organization`'s sign for a
 //! database that is not on the platform any more.
 
 use serde::{Deserialize, Serialize};
@@ -308,8 +308,9 @@ pub const ONLY_THE_OWNER_DELETES: &str = "only the owner can delete the organiza
 /// this organization's own `org-` and `ws-` ones and the account may hold others that are the
 /// human's.
 ///
-/// **Then the machine forgets, exactly as a disconnect does**, through the one routine: signed
-/// out, every replica swept, the record emptied and the Turso authority cleared. The consent goes
+/// **Then the machine forgets it, exactly as a disconnect does**, through the one routine: signed
+/// out, its replica and its workspaces' replicas deleted, its entry forgotten and its Turso consent
+/// cleared, with every other organization this machine holds left as it was (effort 851). The consent goes
 /// with it because the group holds no organization for it to be over any more. Every other machine
 /// finds out at its next launch (`forget::forget_deleted_organization`).
 ///
@@ -326,7 +327,7 @@ pub(crate) async fn delete_organization<P: TursoPlatform>(
     platform: &P,
     password: &str,
 ) -> Result<(), Error> {
-    let (organization_database, workspace_databases) = {
+    let (organization_id, organization_database, workspace_databases) = {
         let member = app_state.member.read().await;
         let organization = app_state.organization.read().await;
         let (Some(session), Some(store)) = (member.as_ref(), organization.as_ref()) else {
@@ -377,7 +378,11 @@ pub(crate) async fn delete_organization<P: TursoPlatform>(
             databases.push(workspace.database_name);
         }
 
-        (format!("org-{}", session.organization_id), databases)
+        (
+            session.organization_id.clone(),
+            format!("org-{}", session.organization_id),
+            databases,
+        )
     };
 
     for database in &workspace_databases {
@@ -398,7 +403,7 @@ pub(crate) async fn delete_organization<P: TursoPlatform>(
         .with("workspaces", workspace_databases.len().to_string())
         .write();
 
-    forget::forget(app_state, credentials).await
+    forget::forget_one(app_state, credentials, &organization_id).await
 }
 
 /// The ordinary removal's writes, with nothing minted and nothing pushed: `member`'s grants go,
@@ -534,7 +539,9 @@ mod tests {
         settings::Settings,
         sync::test::server::{ScriptedResponse, ScriptedServer},
         turso::{
-            consent::{TursoConsent, platform_token, store_platform_token},
+            consent::{
+                Account, TursoConsent, move_pending_consent, platform_token, store_platform_token,
+            },
             discovery::McpEndpoint,
             platform::{AccessLevel, DeletionIntent, InMemoryPlatform},
         },
@@ -598,6 +605,12 @@ mod tests {
             joined_at: 0,
             format: None,
             machine_signed_out: 0,
+            turso_organization: None,
+            workspace_id: None,
+            name_signed: false,
+            name_signed_at: 0,
+            lock_marked: false,
+            own_lock_latched: Vec::new(),
         }
     }
 
@@ -707,7 +720,7 @@ mod tests {
         )
         .await
         .expect("the first run failed");
-        let joined = machine.organization.clone().expect("the record");
+        let joined = machine.selected().cloned().expect("the record");
         let mut owner = sign_in(&store, &joined, OWNER_PASSWORD, &slot())
             .await
             .expect("the owner did not sign in");
@@ -763,6 +776,13 @@ mod tests {
         )
         .await
         .expect("the member");
+
+        // every account starts locked (effort 851), and these tests are about unlocked ones.
+        for made in [&manager.member_id, &member.member_id] {
+            crate::organization::member::lock::unlocked_for_a_test(&store, &owner, made)
+                .await
+                .expect("the owner unlocks them");
+        }
 
         let manager = (manager.member_id.clone(), secret_of(&manager));
         let member = (member.member_id.clone(), secret_of(&member));
@@ -1543,9 +1563,6 @@ mod tests {
         let database = org.database.clone();
         let north = org.north.clone();
         let south = org.south.clone();
-
-        store_platform_token(&credentials, "a-platform-token").expect("the authority");
-
         let held_before: Vec<String> = platform
             .databases()
             .into_iter()
@@ -1555,6 +1572,19 @@ mod tests {
         assert!(held_before.contains(&database), "{held_before:?}");
 
         let app_state = machine_holding(&directory, org.store, org.owner).await;
+        let organization_id = app_state
+            .remote_sync
+            .write()
+            .await
+            .store_mut()
+            .selected()
+            .map(|held| held.id.clone())
+            .expect("the record names no organization");
+
+        // the owner's consent, filed where a consent files it and moved to the organization as a
+        // first run moves it (effort 851, requirement 14).
+        store_platform_token(&credentials, "a-platform-token").expect("the authority");
+        move_pending_consent(&credentials, &organization_id).expect("the move");
 
         assert!(
             replica_files(&directory)
@@ -1599,7 +1629,7 @@ mod tests {
         assert!(app_state.member.read().await.is_none());
         assert!(app_state.organization.read().await.is_none());
         assert_eq!(
-            app_state.remote_sync.write().await.store_mut().organization,
+            app_state.remote_sync.write().await.store_mut().selected(),
             None
         );
         assert_eq!(
@@ -1608,11 +1638,11 @@ mod tests {
                 .write()
                 .await
                 .store_mut()
-                .turso_organization,
+                .consent_organization(Some(&organization_id)),
             None
         );
         assert!(
-            platform_token(&credentials).is_err(),
+            platform_token(&credentials, &Account::of(&organization_id)).is_err(),
             "the consent survived the delete, with no organization left for it to be over"
         );
     }
@@ -1736,7 +1766,7 @@ mod tests {
         use crate::{
             organization::workspace::MIGRATION_CREDENTIAL_LIFETIME,
             turso::{
-                consent::store_platform_token,
+                consent::{Account, store_platform_token},
                 discovery::TursoOrganization,
                 platform::{
                     AccessLevel, DeletionIntent, PlatformApi, PlatformEndpoint, TursoPlatform,
@@ -1769,6 +1799,7 @@ mod tests {
                 slug: read("TURSO_ORG"),
                 group: read("TURSO_GROUP"),
             },
+            Account::Pending,
             credentials.clone(),
         );
         let nonce = std::time::SystemTime::now()
@@ -1951,6 +1982,7 @@ mod tests {
             no_platform(),
             &link,
             &account.id,
+            crate::organization::invitation::TEST_LIFETIME_HOURS,
             test_cost(),
             AT,
         )
@@ -1968,6 +2000,10 @@ mod tests {
         .expect("the account did not sign in");
 
         session.must_change_password = false;
+        // every account starts locked (effort 851): unlocked by its maker, where they may.
+        let _ =
+            crate::organization::member::lock::unlocked_for_a_test(&org.store, maker, &account.id)
+                .await;
 
         session
     }

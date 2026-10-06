@@ -31,9 +31,10 @@ import type { AddressableSection } from '$lib/settings/section';
 import Providers from '#tests/providers.svelte';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { pressSearchKey } from '$lib/list/tests/search';
-import { BUILT_IN } from '@rentable/workspace-permission';
+import { BUILT_IN, EVERY_FLAG, maskOf } from '@rentable/workspace-permission';
 import { listenForSignOut } from '$lib/sync';
 import { layOutLists } from '#tests/permission.ts';
+import { expectTheEye } from '#tests/password-eye.ts';
 
 /**
  * THE SETTINGS AREA, RENDERED
@@ -108,6 +109,11 @@ vi.mock('$lib/organization/workspace/query', async (importOriginal) => ({
 
 vi.mock('$lib/organization/session/query', async (importOriginal) => ({
 	...(await importOriginal<typeof import('$lib/organization/session/query')>()),
+	...(await import('$lib/organization/tests/host-hooks')).hostHooks
+}));
+
+vi.mock('$lib/organization/setup/query', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/organization/setup/query')>()),
 	...(await import('$lib/organization/tests/host-hooks')).hostHooks
 }));
 
@@ -466,16 +472,17 @@ test('the organization section carries the directory, the account block and the 
 	expect(document.querySelector('[data-workspace]')).toBeNull();
 });
 
-// how this machine stands to the organization, then the people, then the ways out, the Turso
-// account the databases sit on first among them and the heaviest act last. Settled by the human on
-// the real organization; the Turso account folded into leaving by ticket 38 ("Fold it into
-// Leaving").
-test('the organization section is ordered: standing, people, leaving with the account in it', () => {
+// the organization's name, then how this machine stands to the organization, then the people,
+// then the ways out, the Turso account the databases sit on first among them and the heaviest act
+// last. Settled by the human on the real organization; the Turso account folded into leaving by
+// ticket 38 ("Fold it into Leaving"); the name put first by effort 851.
+test('the organization section is ordered: name, standing, people, leaving with the account in it', () => {
 	at('?section=organization');
 	area({ section: 'organization' });
 
 	expect(
 		orderOf(
+			'data-organization-name',
 			'data-standing-block',
 			'data-members',
 			'data-leaving',
@@ -485,6 +492,7 @@ test('the organization section is ordered: standing, people, leaving with the ac
 			'data-delete-organization'
 		)
 	).toEqual([
+		'data-organization-name',
 		'data-standing-block',
 		'data-members',
 		'data-leaving',
@@ -508,6 +516,48 @@ test('the organization section is ordered: standing, people, leaving with the ac
 	expect(
 		[...document.querySelectorAll('[data-settings-group] h2')].map((h) => h.textContent?.trim())
 	).not.toContain(en.organization.dashboard.authorityTitle);
+});
+
+// effort 851, criterion 22: the tab opens on the organization's name, and the edit that renames it
+// is drawn for an owner session and for nobody else, neither a manager nor a member holding every
+// flag, since no flag carries it.
+test("the organization section opens on the organization's name, and the owner alone meets its edit", () => {
+	at('?section=organization');
+
+	for (const [session, drawn] of [
+		[fakeOrganizationSession({ role: 'owner', permissions: BUILT_IN.owner.mask }), true],
+		[
+			fakeOrganizationSession({
+				role: 'manager',
+				roleId: 'manager',
+				permissions: BUILT_IN.manager.mask
+			}),
+			false
+		],
+		[
+			fakeOrganizationSession({
+				role: 'member',
+				roleId: 'member',
+				permissions: maskOf(...EVERY_FLAG)
+			}),
+			false
+		]
+	] as const) {
+		const { unmount } = area({ section: 'organization', session });
+		const name = document.querySelector<HTMLElement>('[data-organization-name]')!;
+
+		expect(orderOf('data-organization-name', 'data-standing-block', 'data-leaving')).toEqual([
+			'data-organization-name',
+			'data-standing-block',
+			'data-leaving'
+		]);
+		expect(name.querySelector('h2')?.textContent?.trim()).toBe(session.organizationName);
+		expect(name.querySelector('[data-organization-rename-open]') !== null, session.role).toBe(
+			drawn
+		);
+
+		unmount();
+	}
 });
 
 // criterion 12 of effort 846, from the area's side: the section opens with the sync group, a
@@ -727,49 +777,27 @@ test('the account section has one machines card, and the password card acts from
 	expect(here.querySelector('[data-machine-menu=machine-here]')).not.toBeNull();
 });
 
-// requirement 2 as revised on 2026-10-02, at the human's word: every dangerous act asks first,
-// signing this machine out included, though signing in undoes it. The question names who is signed
-// out and that signing in again brings them back; leaving it signs nobody out, and answering it
-// asks the shell, the way the rail's menu does.
-test('signing out of this machine asks first, and asks the shell only once answered', async () => {
+// effort 851, at the human's word on 2026-10-06: "sign out is simple, just sign out". Signing this
+// machine out from its row's menu asks nothing and asks the shell at once, the way the rail's menu
+// does, and signing in again is what undoes it.
+test('signing out of this machine asks no question and asks the shell at once', async () => {
 	at('?section=account');
 	hostAnswers.machines = HERE_AND_LAPTOP();
 	area({ section: 'account' });
-
-	// this machine's row menu, and the entry that signs it out (ticket 46).
-	const signOutHere = async () => {
-		await fireEvent.click(document.querySelector('[data-machine-menu=machine-here]')!);
-		await fireEvent.click(
-			document.querySelector('[data-slot=dropdown-menu-item][data-sign-out-open]')!
-		);
-	};
 
 	let asked = 0;
 	const stop = listenForSignOut(() => {
 		asked += 1;
 	});
 
-	const question = () => document.querySelector<HTMLElement>('[data-confirm-dialog]');
-	const control = (words: string) =>
-		[...(question()?.querySelectorAll<HTMLButtonElement>('button') ?? [])].find(
-			(button) => button.textContent?.trim() === words
-		);
-
-	await signOutHere();
-	await waitFor(() => expect(question()).not.toBeNull());
-
-	expect(asked).toBe(0);
-	expect(question()?.textContent).toContain(en.settings.you.thisMachine.asks);
-
-	await fireEvent.click(control('{cancel}')!);
-	await waitFor(() => expect(question()).toBeNull());
-	expect(asked).toBe(0);
-
-	await signOutHere();
-	await waitFor(() => expect(control(en.common.actions.signOut)).toBeDefined());
-	await fireEvent.click(control(en.common.actions.signOut)!);
+	// this machine's row menu, and the entry that signs it out (ticket 46).
+	await fireEvent.click(document.querySelector('[data-machine-menu=machine-here]')!);
+	await fireEvent.click(
+		document.querySelector('[data-slot=dropdown-menu-item][data-sign-out-open]')!
+	);
 
 	await waitFor(() => expect(asked).toBe(1));
+	expect(document.querySelector('[data-confirm-dialog]')).toBeNull();
 	stop();
 });
 
@@ -865,6 +893,11 @@ test('the owner is offered the delete, on a surface that says what goes and take
 	expect(document.querySelector('[data-slot=form-surface]')).not.toBeNull();
 	expect(document.querySelectorAll('input[type=password]')).toHaveLength(1);
 	expect(screen.getByText(en.organization.setup.passwordLabel)).toBeDefined();
+	// effort 851, criterion 19: the password carries the eye.
+	await expectTheEye(
+		document.querySelector<HTMLInputElement>('#delete-organization-password'),
+		strings.showPassword
+	);
 });
 
 // the delete is the owner's whichever block it sits in: it stood in the account block and stands at
@@ -965,6 +998,15 @@ test('an owner holding the authority reads the turso account as connected, and f
 
 	expect(dialog.textContent).toContain(en.organization.dashboard.forgetAccountRevokes);
 	expect(dialog.textContent).toContain(en.organization.dashboard.forgetAccountRevokesAt);
+
+	// and confirmed, it forgets the organization's own consent, never the setup walk's pending one,
+	// which is what it reached until a review of effort 851 and which left the account held.
+	await fireEvent.click(
+		within(dialog).getByRole('button', { name: en.organization.dashboard.forgetAccount })
+	);
+	await expect
+		.poll(() => hostAnswers.writes)
+		.toEqual([{ hook: 'useForgetAuthority', input: undefined }]);
 });
 
 // and the owner whose machine does not: the row reads not held here and carries the reconnect, in
@@ -1039,6 +1081,70 @@ test('a plain member reads the standing and the disconnect, and no directory or 
 	expect(document.querySelector('[data-delete-organization]')).toBeNull();
 });
 
+// effort 851, at the human's word ("there should be a menu to manage invites to revoke them from
+// the app for who has the permissions for it"): the links waiting to be opened are a card under
+// the people, drawn for a holder of either flag that makes a link, and for nobody else: not a
+// member holding neither, and not a reader who holds them and is locked, whom the shell refuses.
+test('the links waiting to be opened are drawn for whoever could make one, unlocked, and nobody else', () => {
+	hostAnswers.links = [
+		{
+			id: 'link-sami',
+			memberId: 'sami',
+			username: 'sami.staff',
+			purpose: 'join',
+			madeBy: 'olivia',
+			madeAt: Date.now(),
+			expiresAt: Date.now() + 3 * 24 * 60 * 60 * 1000
+		}
+	];
+
+	for (const flag of ['inviteMember', 'resetPassword'] as const) {
+		at('?section=organization');
+		const holder = area({
+			section: 'organization',
+			session: fakeOrganizationSession({
+				role: 'custom',
+				rank: 500_000,
+				permissions: maskOf(flag)
+			})
+		});
+		const card = document.querySelector('[data-links] [data-settings-group]');
+
+		expect(card, flag).not.toBeNull();
+		expect(card?.querySelector('h2')?.textContent?.trim()).toBe(en.organization.links.title);
+		expect(card?.querySelector('[data-link="link-sami"]')).not.toBeNull();
+		// under the people, and before the ways out.
+		expect(orderOf('data-members', 'data-links', 'data-leaving')).toEqual([
+			'data-members',
+			'data-links',
+			'data-leaving'
+		]);
+		holder.unmount();
+	}
+
+	at('?section=organization');
+	const member = area({
+		section: 'organization',
+		session: fakeOrganizationSession({ role: 'member', permissions: BUILT_IN.member.mask })
+	});
+
+	expect(document.querySelector('[data-links]')).toBeNull();
+	member.unmount();
+
+	at('?section=organization');
+	area({
+		section: 'organization',
+		session: fakeOrganizationSession({
+			role: 'manager',
+			rank: 1_000_000,
+			permissions: BUILT_IN.manager.mask,
+			locked: true
+		})
+	});
+
+	expect(document.querySelector('[data-links]')).toBeNull();
+});
+
 /** the leaving group's rows, in order. */
 const leavingRows = () => [
 	...document.querySelectorAll<HTMLElement>('[data-leaving] [data-settings-row]')
@@ -1051,8 +1157,8 @@ const OWNER_AND_ADA = {
 		fakeOrganizationMember({ id: 'ada', username: 'ada', role: 'manager' })
 	],
 	standings: [
-		{ memberId: 'member-owner', passwordSet: true, machineSignedIn: true },
-		{ memberId: 'ada', passwordSet: true, machineSignedIn: false }
+		{ memberId: 'member-owner', passwordSet: true, machineSignedIn: true, locked: false },
+		{ memberId: 'ada', passwordSet: true, machineSignedIn: false, locked: false }
 	]
 };
 
@@ -1084,6 +1190,45 @@ test('a member leaves with the disconnect alone, its glyph and its consequence l
 		expect(document.querySelector('[data-forget-account-open]')).toBeNull();
 
 		unmount();
+	}
+});
+
+// effort 851, criterion 5: the leaving card's disconnect asks through the wall's confirm, and says
+// the Turso account is forgotten only where this machine holds the organization's consent. An
+// owner holding it is told; a member, and an owner whose consent is not here, are not.
+test('the disconnect confirm says the turso account goes only where this machine holds it', async () => {
+	const readers = [
+		{ role: 'owner', holdsTursoAuthority: true, forgetsTurso: true },
+		{ role: 'owner', holdsTursoAuthority: false, forgetsTurso: false },
+		{ role: 'member', holdsTursoAuthority: false, forgetsTurso: false }
+	] as const;
+
+	for (const { role, holdsTursoAuthority, forgetsTurso } of readers) {
+		const reader = `${role} ${holdsTursoAuthority ? 'holding' : 'without'} the consent`;
+
+		at('?section=organization');
+		const { unmount } = area({
+			section: 'organization',
+			session: fakeOrganizationSession({ role, permissions: BUILT_IN[role].mask }),
+			holdsTursoAuthority,
+			...OWNER_AND_ADA
+		});
+
+		await fireEvent.click(
+			document.querySelector<HTMLElement>('[data-leaving] [data-disconnect-open]')!
+		);
+
+		const dialog = await screen.findByRole('dialog');
+		const text = dialog.textContent ?? '';
+
+		expect(text, reader).toContain(fakeOrganizationSession().organizationName);
+		expect(text.includes(en.layout.signIn.disconnectDescription), reader).toBe(forgetsTurso);
+		expect(text.includes(en.layout.signIn.disconnectDescriptionNoTurso), reader).toBe(
+			!forgetsTurso
+		);
+
+		unmount();
+		await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
 	}
 });
 
@@ -1217,8 +1362,8 @@ test('with nobody to take it, the owner meets the handover refused, saying why',
 		section: 'organization',
 		members: OWNER_AND_ADA.members,
 		standings: [
-			{ memberId: 'member-owner', passwordSet: true, machineSignedIn: true },
-			{ memberId: 'ada', passwordSet: false, machineSignedIn: false }
+			{ memberId: 'member-owner', passwordSet: true, machineSignedIn: true, locked: false },
+			{ memberId: 'ada', passwordSet: false, machineSignedIn: false, locked: false }
 		]
 	});
 
@@ -1397,6 +1542,11 @@ test('the account section draws the offer and its acceptance for the member it s
 
 	expect(form).not.toBeNull();
 	expect(form?.querySelector('input[type=password]')).not.toBeNull();
+	// effort 851, criterion 19: the password carries the eye.
+	await expectTheEye(
+		document.querySelector<HTMLInputElement>('#accept-ownership-password'),
+		strings.showPassword
+	);
 	expect(document.querySelector('[data-accept-ownership-authority]')?.textContent?.trim()).toBe(
 		en.organization.dashboard.acceptOwnershipAuthority
 	);
@@ -1432,10 +1582,12 @@ const SECTION_MARKS = [
 	'data-identity',
 	'data-password',
 	'data-machines',
+	'data-organization-name',
 	'data-standing-block',
 	'data-organization-mark',
 	'data-roles',
 	'data-members',
+	'data-links',
 	'data-leaving',
 	'data-workspaces'
 ];
@@ -1514,12 +1666,15 @@ test('each section is one column of cards in source order, the ends last', () =>
 	at('?section=organization');
 	const organization = area({ section: 'organization' });
 
-	// the Turso account is a row of leaving, not a card of its own (ticket 38).
+	// the Turso account is a row of leaving, not a card of its own (ticket 38); the links waiting to
+	// be opened stand under the people they are for (effort 851).
 	expect(laidOut()).toEqual([
+		'data-organization-name',
 		'data-standing-block',
 		'data-organization-mark',
 		'data-roles',
 		'data-members',
+		'data-links',
 		'data-leaving'
 	]);
 	organization.unmount();
@@ -1533,6 +1688,7 @@ test('each section is one column of cards in source order, the ends last', () =>
 	});
 
 	expect(laidOut()).toEqual([
+		'data-organization-name',
 		'data-standing-block',
 		'data-organization-mark',
 		'data-roles',

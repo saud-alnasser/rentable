@@ -1582,7 +1582,7 @@ mod tests {
         let mut machine = Persisted::<RemoteSyncStore>::load(older.directory.join("m.json"))
             .expect("the machine");
 
-        machine.organization = Some(stale);
+        machine.hold(stale);
 
         assert_eq!(
             follow_succession(&store, &mut machine)
@@ -1591,7 +1591,7 @@ mod tests {
             Some(older.pinned())
         );
 
-        let held = machine.organization.clone().expect("the record");
+        let held = machine.selected().cloned().expect("the record");
         let session = sign_in_by_username(
             &credentials,
             &store,
@@ -1701,7 +1701,7 @@ mod tests {
             Some(RefusalReason::OrganizationOlder),
             "{refused:?}"
         );
-        assert!(machine.organization.is_none());
+        assert!(machine.selected().is_none());
 
         // and the refusal every way in meets says whose it is to open.
         let refused = store.refuse_another_format().await;
@@ -1853,7 +1853,7 @@ mod tests {
             Some(RefusalReason::OrganizationOlder),
             "{refused:?}"
         );
-        assert!(machine.organization.is_none());
+        assert!(machine.selected().is_none());
 
         // the owner's, offline.
         let offline = older("connect-offline").await;
@@ -1883,7 +1883,7 @@ mod tests {
             Some(RefusalReason::OrganizationUpgradeOffline),
             "{refused:?}"
         );
-        assert!(machine.organization.is_none());
+        assert!(machine.selected().is_none());
 
         // and the owner's, online.
         let older = older("connect-owner").await;
@@ -1906,7 +1906,8 @@ mod tests {
             NOW,
         )
         .await
-        .expect("the owner's connect did not upgrade the organization");
+        .expect("the owner's connect did not upgrade the organization")
+        .connected();
 
         assert_eq!(held.id, ORGANIZATION_ID);
         assert_eq!(session.role, "owner");

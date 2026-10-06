@@ -285,7 +285,7 @@ mod tests {
         )
         .await
         .expect("the first run failed");
-        let joined = store.organization.clone().expect("the record");
+        let joined = store.selected().cloned().expect("the record");
         let session = sign_in(&organization, &joined, PASSWORD, &slot())
             .await
             .expect("the owner did not sign in");
@@ -345,6 +345,12 @@ mod tests {
             .await
             .expect("the member");
 
+        // written as an earlier build would, with no lock row: unlocked by the owner, since the
+        // organization is marked (effort 851).
+        crate::organization::member::lock::unlocked_for_a_test(store, owner, id)
+            .await
+            .expect("the owner unlocks them");
+
         let (mask, rank) = store
             .role_standing(&owner.verifying_key, role)
             .await
@@ -383,6 +389,12 @@ mod tests {
             joined_at: 1_757_000_000_001,
             format: None,
             machine_signed_out: 0,
+            turso_organization: None,
+            workspace_id: None,
+            name_signed: false,
+            name_signed_at: 0,
+            lock_marked: false,
+            own_lock_latched: Vec::new(),
         };
 
         sign_in(store, &held, OTHER_PASSWORD, &slot())

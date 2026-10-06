@@ -8,8 +8,11 @@
 //! is what reads it, so the field stays on the record. The spellings older installs wrote that no
 //! type claims any more, a `provider` of `"googleDrive"` or `"hosted"`, an `accounts` list and a
 //! `controlPlaneSession`, are dropped on read, and the tests at the foot of this file hold both.
-//! What this file holds is the check that reads those signs and forgets what the machine holds,
-//! through the one forget a disconnect uses (`organization/session/forget.rs`). *It was part of
+//! What this file holds is the check that reads those signs and forgets what each one concerns,
+//! through the one forget a disconnect uses (`organization/session/forget.rs`): the organizations
+//! the old list named, or the one held organization whose replica carries the sign. *It forgot
+//! everything the machine held, whichever sign it read, until effort 851 gave a machine several
+//! organizations, and one built before this build says nothing about the others.* *It was part of
 //! `organization/forget.rs`, and those tests of `sync/store.rs` and then `machine/record.rs`,
 //! until effort 840 (ticket 48).*
 //!
@@ -62,7 +65,12 @@ use crate::{
     diagnostics,
     error::Error,
     organization::Shared,
-    organization::{session::forget::forget, store::OrganizationStore},
+    organization::{
+        HeldOrganization,
+        session::forget::{forget_one, forget_the_old_list},
+        store::OrganizationStore,
+    },
+    turso::consent::{Account, forget_platform_token},
 };
 
 /// Why the startup check forgot what the machine held: the sign it read.
@@ -151,48 +159,89 @@ const SESSION_EPOCH_COLUMN: &str = "session_epoch";
 /// whose signatures no reader here can rebuild.
 const OWNER_SEED_COLUMN: &str = "owner_seed_sealed";
 
-/// Forget what the machine holds where its shape is the old one, and say which sign was read.
+/// Forget what the machine holds in the old shape, and say which sign was read first.
 ///
-/// The check reads the record and, where an organization is held, its replica's schema, and
-/// nothing else; it opens no vault and pulls nothing. `None` is a machine whose shape is this
-/// build's, held organization or not.
+/// The check reads the record and, for each organization held, its replica's schema, and nothing
+/// else; it opens no vault and pulls nothing. The old list is forgotten whole, and each held
+/// organization whose replica carries a sign is forgotten on its own; every other organization
+/// held keeps all of its own (effort 851, requirement 5). `None` is a machine whose shape is this
+/// build's, held organizations or not.
 pub(crate) async fn forget_old_shape(
     app_state: &Shared,
     credentials: &dyn CredentialStore,
     clock: &clock::Shared,
 ) -> Result<Option<OldShape>, Error> {
-    let Some(shape) = old_shape(app_state, clock).await? else {
-        return Ok(None);
-    };
-
-    diagnostics::warn("organization.forgotten.oldShape")
-        .with("reason", shape.to_string())
-        .write();
-
-    forget(app_state, credentials).await?;
-
-    Ok(Some(shape))
-}
-
-/// The sign that what this machine holds was built before this build, where there is one.
-async fn old_shape(app_state: &Shared, clock: &clock::Shared) -> Result<Option<OldShape>, Error> {
-    let (listed, held) = {
+    let (listed, held, to_move) = {
         let mut remote_sync = app_state.remote_sync.write().await;
         let store = remote_sync.store_mut();
 
         (
             store.organizations_of_the_old_shape.len(),
-            store.organization.clone(),
+            store.held_organizations.clone(),
+            store.consent_to_move.clone(),
         )
     };
+    let mut first = None;
+    let mut its_consent_forgotten = listed > 0;
 
     if listed > 0 {
-        return Ok(Some(OldShape::SeveralOrganizations(listed)));
+        let shape = OldShape::SeveralOrganizations(listed);
+
+        diagnostics::warn("organization.forgotten.oldShape")
+            .with("reason", shape.to_string())
+            .write();
+
+        forget_the_old_list(app_state, credentials).await?;
+        first = Some(shape);
     }
 
-    let Some(held) = held else {
+    for held in &held {
+        let Some(shape) = old_shape(app_state, clock, held).await? else {
+            continue;
+        };
+
+        diagnostics::warn("organization.forgotten.oldShape")
+            .with("organization", held.id.as_str())
+            .with("reason", shape.to_string())
+            .write();
+
+        forget_one(app_state, credentials, &held.id).await?;
+        first.get_or_insert(shape);
+        its_consent_forgotten |= to_move.as_deref() == Some(held.id.as_str());
+    }
+
+    let Some(shape) = first else {
         return Ok(None);
     };
+
+    // and the consent an earlier build filed for what was just forgotten, which this check runs
+    // before the launch moves it to its organization (`upgrade/consent.rs`): nothing is left for
+    // it to move to (effort 851, requirement 14). **Only where the pending slot is known to hold
+    // that consent**: the old list, which only a record from before 2026-09-13 carries, or the
+    // organization the load converted (`machine::RemoteSyncStore::consent_to_move`). Anywhere else
+    // the slot holds what a setup granted for an organization not made yet, and an organization
+    // held beside it reading as the old shape says nothing about it. The Turso organization looked
+    // up for the consent goes with it, so the next consent is not built on this one's account.
+    if its_consent_forgotten {
+        forget_platform_token(credentials, &Account::Pending)?;
+
+        let mut remote_sync = app_state.remote_sync.write().await;
+        let store = remote_sync.store_mut();
+
+        store.forget_consent_organization(None);
+        store.consent_to_move = None;
+        store.commit()?;
+    }
+
+    Ok(Some(shape))
+}
+
+/// The sign that the held organization `held` was built before this build, where there is one.
+async fn old_shape(
+    app_state: &Shared,
+    clock: &clock::Shared,
+    held: &HeldOrganization,
+) -> Result<Option<OldShape>, Error> {
     let database_path = { app_state.settings.read().await.database_path.clone() };
     let replica = OrganizationStore::replica_path(&database_path, &held.id);
 
@@ -281,10 +330,16 @@ mod tests {
             setup::{CreateOrganization, Remote, create_organization},
             store::OrganizationStore,
         },
-        persisted::Persisted,
+        persisted::{Persistable as _, Persisted},
         settings::Settings,
         sync::test::server::{ScriptedResponse, ScriptedServer},
-        turso::{consent::TursoConsent, discovery::McpEndpoint, platform::InMemoryPlatform},
+        turso::{
+            consent::{
+                Account, TursoConsent, holds_platform_token, platform_token, store_platform_token,
+            },
+            discovery::{McpEndpoint, TursoOrganization},
+            platform::InMemoryPlatform,
+        },
         update::Update,
     };
 
@@ -404,7 +459,7 @@ mod tests {
         )
         .await
         .expect("the first run failed");
-        let held = store.organization.clone().expect("the record");
+        let held = store.selected().cloned().expect("the record");
 
         (organization, held)
     }
@@ -512,7 +567,7 @@ mod tests {
                 .write()
                 .await
                 .store_mut()
-                .organization
+                .selected()
                 .is_none()
         );
 
@@ -595,7 +650,7 @@ mod tests {
                 .write()
                 .await
                 .store_mut()
-                .organization
+                .selected()
                 .is_none()
         );
 
@@ -642,7 +697,7 @@ mod tests {
                 .write()
                 .await
                 .store_mut()
-                .organization
+                .selected()
                 .is_none()
         );
 
@@ -690,7 +745,7 @@ mod tests {
                 .write()
                 .await
                 .store_mut()
-                .organization
+                .selected()
                 .is_none()
         );
 
@@ -739,7 +794,7 @@ mod tests {
                 .write()
                 .await
                 .store_mut()
-                .organization
+                .selected()
                 .is_none(),
             "the organization was not forgotten"
         );
@@ -821,13 +876,7 @@ mod tests {
             "the replica was swept"
         );
         assert_eq!(
-            app_state
-                .remote_sync
-                .write()
-                .await
-                .store_mut()
-                .organization
-                .as_ref(),
+            app_state.remote_sync.write().await.store_mut().selected(),
             Some(&held),
             "{} was forgotten",
             held.id
@@ -864,13 +913,7 @@ mod tests {
             None
         );
         assert_eq!(
-            app_state
-                .remote_sync
-                .write()
-                .await
-                .store_mut()
-                .organization
-                .as_ref(),
+            app_state.remote_sync.write().await.store_mut().selected(),
             Some(&held)
         );
         assert!(
@@ -878,6 +921,104 @@ mod tests {
                 .iter()
                 .any(|name| name == &format!("org-{}.db", held.id))
         );
+    }
+
+    /// **The pending consent goes with an organization read as the old shape only where it was
+    /// known to be that organization's** (effort 851, requirement 14). A setup for another
+    /// organization waits with its consent and its Turso organization while this build's record
+    /// holds one organization of this build's shape and one whose replica is gone: the second is
+    /// forgotten, and the setup's consent and its Turso organization are kept. Where the load
+    /// converted a record an earlier build wrote, the pending slot is that organization's consent,
+    /// and it goes with the organization, with whatever Turso organization the record named for it.
+    #[tokio::test]
+    async fn a_setups_consent_outlives_another_organization_read_as_the_old_shape() {
+        let setup = TursoOrganization {
+            slug: "beta".to_string(),
+            group: "rentable".to_string(),
+        };
+
+        // this build's record, mid "add organization".
+        let credentials = Memory::new();
+        let directory = scratch("pending-beside-missing");
+        let (organization, held) = created(&credentials, &directory).await;
+
+        drop(organization);
+
+        {
+            let mut store =
+                Persisted::<RemoteSyncStore>::load(directory.join(RemoteSync::FILENAME))
+                    .expect("the store");
+
+            store.hold(HeldOrganization {
+                id: "gone".to_string(),
+                name: "Gone".to_string(),
+                verifying_key: "k".to_string(),
+                remote_url: "libsql://org.example".to_string(),
+                ..Default::default()
+            });
+            store.select(&held.id);
+            store.remember_consent_organization(None, setup.clone());
+            store.commit().expect("the record");
+        }
+
+        store_platform_token(&credentials, "a-setups-consent").expect("the consent");
+
+        let app_state = state_over(&directory).await;
+        let forgotten = forget_old_shape(&app_state, &credentials, &crate::clock::System::shared())
+            .await
+            .expect("the check failed");
+
+        assert!(
+            matches!(forgotten, Some(OldShape::ReplicaMissing(_))),
+            "{forgotten:?}"
+        );
+        assert_eq!(
+            platform_token(&credentials, &Account::Pending).as_deref(),
+            Ok("a-setups-consent"),
+            "the setup's consent went with an organization it was never over"
+        );
+        {
+            let mut remote_sync = app_state.remote_sync.write().await;
+            let record = remote_sync.store_mut();
+
+            assert_eq!(record.held("gone"), None);
+            assert_eq!(record.consent_organization(None), Some(&setup));
+        }
+
+        // a record an earlier build wrote, converted at this load, whose one organization has no
+        // replica: the pending slot was its consent, and both go.
+        let credentials = Memory::new();
+        let directory = scratch("converted-missing");
+
+        std::fs::write(
+            directory.join(RemoteSync::FILENAME),
+            r#"{"tursoOrganization":{"slug":"acme","group":"rentable"},"pendingTursoOrganization":{"slug":"stale","group":"rentable"},"organization":{"id":"gone","name":"Acme","verifyingKey":"k","remoteUrl":"libsql://org.example","memberId":"me","role":"owner","joinedAt":1}}"#,
+        )
+        .expect("the record");
+        store_platform_token(&credentials, "the-releases-consent").expect("the consent");
+
+        let app_state = state_over(&directory).await;
+
+        assert!(
+            forget_old_shape(&app_state, &credentials, &crate::clock::System::shared())
+                .await
+                .expect("the check failed")
+                .is_some()
+        );
+        assert!(
+            !holds_platform_token(&credentials, &Account::Pending).expect("the store"),
+            "the forgotten organization's consent was kept"
+        );
+
+        let mut remote_sync = app_state.remote_sync.write().await;
+        let record = remote_sync.store_mut();
+
+        assert_eq!(
+            record.consent_organization(None),
+            None,
+            "the Turso organization outlived the consent it was looked up for"
+        );
+        assert_eq!(record.consent_to_move, None);
     }
 
     /// A store written by an older install, with a `provider` of `"googleDrive"` or `"hosted"`, an
@@ -921,10 +1062,7 @@ mod tests {
         )
         .expect("a record of the old shape did not read");
 
-        assert_eq!(
-            store.organization, None,
-            "the list was read as the one held"
-        );
+        assert_eq!(store.selected(), None, "the list was read as the one held");
         assert_eq!(store.organizations_of_the_old_shape.len(), 2);
 
         let written = serde_json::to_string(&store).expect("serialised");
@@ -943,5 +1081,37 @@ mod tests {
             "a record of the new shape carries the old key: {written}"
         );
         assert!(written.contains("\"organization\":null"), "{written}");
+    }
+
+    /// **The list this build writes is not the list it forgets the machine over** (effort 851).
+    /// `heldOrganizations` reads into the record's list and never into the old shape's sign, and
+    /// a record holding several organizations is written without the `organizations` key the
+    /// startup check and every older build read as the shape effort 824 retired.
+    #[test]
+    fn a_record_holding_a_list_of_this_builds_shape_is_never_read_as_the_old_shape() {
+        let mut store: RemoteSyncStore = serde_json::from_str(
+            r#"{"workspace":{"id":"workspace-1","name":"Riyadh"},"heldOrganizations":[{"id":"a","name":"Acme","verifyingKey":"k","remoteUrl":"libsql://a","memberId":"me","role":"owner","joinedAt":1},{"id":"b","name":"Beta","verifyingKey":"k","remoteUrl":"libsql://b","memberId":"me","role":"member","joinedAt":2}],"selectedOrganization":"b"}"#,
+        )
+        .expect("a record of this build's shape did not read");
+
+        store.sanitize();
+
+        assert!(
+            store.organizations_of_the_old_shape.is_empty(),
+            "the list was read as the old shape's sign"
+        );
+        assert_eq!(store.held_organizations.len(), 2);
+
+        let written = serde_json::to_string(&store).expect("serialised");
+
+        assert!(
+            !written.contains("\"organizations\""),
+            "a record of this build's shape carries the old key: {written}"
+        );
+        assert!(written.contains("\"heldOrganizations\":["), "{written}");
+        assert!(
+            written.contains("\"organization\":{\"id\":\"b\""),
+            "the selected organization is not under the old key: {written}"
+        );
     }
 }

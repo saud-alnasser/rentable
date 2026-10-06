@@ -2,7 +2,8 @@ import api from '$lib/api/caller';
 import { declareMutation } from '$lib/mutation/ui';
 import { LL } from '$lib/i18n/i18n-svelte';
 import { tauri } from '$lib/organization/tauri';
-import { createQuery, useQueryClient } from '@tanstack/svelte-query';
+import { toTauriRefusalReason } from '$lib/error/tauri';
+import { createQuery, useQueryClient, type QueryClient } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
 
 /**
@@ -21,17 +22,50 @@ export const keys = {
 	machines: ['organization', 'machines'],
 	mark: ['organization', 'mark'],
 	members: ['organization', 'members'],
+	/**
+	 * the links waiting to be opened (effort 851), under the members' key so every organization
+	 * write reads them again with the list: making a link, a reset and a removal each move them.
+	 */
+	memberLinks: ['organization', 'members', 'links'],
 	memberStandings: ['organization', 'members', 'standings'],
 	roles: ['organization', 'roles'],
 	state: ['organization', 'state']
 } as const;
 
 /**
- * the members and the roles read again after a write to either: a role's holders are counted on the
- * roles, and a member's effective permissions and rank are read off their role, so a change to one
- * is a change to what the other says.
+ * What every write to the organization's database reads again: the members (their standings and
+ * the links waiting to be opened sit under them), the roles and where this machine stands,
+ * together.
+ *
+ * **All three, whatever the write named**, because each is drawn from rows the others change and
+ * the cards say it at once. A role's holders are counted on the roles, so removing a member moves
+ * a role card; a member's workspaces are read off the members, so creating or deleting a workspace
+ * moves a member card and the workspace card's count of who holds it; and the workspaces this
+ * reader holds, with their names, are part of the state, so renaming one moves its card. A write
+ * that named only the key it thought of left the others showing the old row until the section was
+ * drawn again, which is how a renamed workspace's card kept its old name until the reader switched
+ * tabs away and back (fixed with effort 851). One refresh for every write is the cost of a local
+ * read or two; a card one change behind is the cost of naming them one at a time.
  */
-export const rolesAndMembersChanged = [keys.members, keys.roles];
+export const organizationChanged = { together: [keys.members, keys.roles, keys.state] } as const;
+
+/**
+ * the state read again where Turso no longer accepts the organization's consent, for every write
+ * that spends it.
+ *
+ * Rust lets the consent go as it refuses (`turso/platform/live.rs`), so the organization holds no
+ * Turso authority any more; reading the state again is what puts the connect card in its settings,
+ * the place the refusal's sentence sends the owner, rather than leaving the acts it gated on offer
+ * until a relaunch. Any other refusal reads nothing again.
+ */
+export async function consentLostRereadsTheState(
+	{ error }: { error: unknown },
+	client: Pick<QueryClient, 'invalidateQueries'>
+) {
+	if (toTauriRefusalReason(error) !== 'tursoConsentLost') return;
+
+	await client.invalidateQueries({ queryKey: keys.state });
+}
 
 /**
  * forget the organization this machine holds: the shell signs out where somebody is in, deletes
@@ -70,7 +104,26 @@ export const useDeleteOrganization = declareMutation({
 		success: () => get(LL).organization.dashboard.organizationDeleted(),
 		error: true,
 		unexpected: () => get(LL).common.messages.unexpectedError()
-	}
+	},
+	failed: consentLostRereadsTheState
+});
+
+/**
+ * rename the organization, as its owner (effort 851, requirements 22 to 25). The shell answers
+ * with the whole state, which is written under the state's key before anything is read again, so
+ * the organization tab, the rail and the record the switcher draws from name the new name at
+ * once rather than after a round trip.
+ */
+export const useRenameOrganization = declareMutation({
+	mutate: ({ name }: { name: string }) => api.organization.rename({ name }),
+	touches: 'none',
+	toast: {
+		success: () => get(LL).organization.name.renamed(),
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
+	},
+	sets: ({ result }) => [{ key: keys.state, data: result }],
+	invalidates: [organizationChanged]
 });
 
 /** where this machine stands: the organizations it joined and who is in. */

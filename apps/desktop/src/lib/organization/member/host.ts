@@ -92,6 +92,12 @@ export type MemberStanding = {
 	passwordSet: boolean;
 	/** whether a machine seen inside the presence window is signed in on the account. */
 	machineSignedIn: boolean;
+	/**
+	 * whether the account is locked until an owner or a manager unlocks it (effort 851,
+	 * requirement 33), off its signed lock as it reads now: what draws the locked badge, and with
+	 * `passwordSet` what offers the unlock.
+	 */
+	locked: boolean;
 };
 
 /**
@@ -107,7 +113,10 @@ export type MadeLink = {
 	link: string;
 	/** six characters from the alphabet with the letters that read alike taken out. */
 	code: string;
-	/** the earlier of a week out and the moment the maker's own grant on the database dies. */
+	/**
+	 * the earlier of the lifetime its maker chose and the moment the credential sealed in it dies
+	 * (effort 851, requirement 11).
+	 */
 	expiresAt: number;
 	/**
 	 * the workspaces the link could not carry over, taken off the account's row: a grant the
@@ -115,6 +124,30 @@ export type MadeLink = {
 	 * is told rather than the person finding a workspace missing.
 	 */
 	unreachableWorkspaces: { id: string; name: string }[];
+};
+
+/**
+ * one link waiting to be opened, as the settings list draws it (effort 851): whom it is for, what
+ * opening it does, who made it where the row says, and when it lapses.
+ *
+ * **Facts about a link and nothing that opens it** ([[rules/credentials]], *Client boundary*): no
+ * text, no code, no secret. `id` is what a revoke names, and on its own it opens nothing.
+ */
+export type OutstandingLink = {
+	id: string;
+	memberId: string;
+	username: string;
+	/**
+	 * what opening it does: `join`, the account was never opened and its person joins and chooses
+	 * a password; `reset`, the account's password was reset and its person chooses a new one;
+	 * `machine`, the account has a password and the link adds a machine.
+	 */
+	purpose: 'join' | 'reset' | 'machine';
+	/** the username of whoever made it, where the row records one: an invitation does, a machine link does not. */
+	madeBy: string | null;
+	madeAt: number;
+	/** when the link and its code stop working. */
+	expiresAt: number;
 };
 
 /**
@@ -152,9 +185,23 @@ export type MemberHost = {
 	 * make the one link that admits a machine to an account. The account's standing chooses
 	 * the kind: one whose password is not yet set gets a link that asks the person to
 	 * choose one, and one that has a password gets a link that lands the machine at the
-	 * wall. No standing refuses it, and each link admits one more machine, once.
+	 * wall. No standing refuses it, and each link admits one more machine, once. It lasts
+	 * `lifetimeHours`, one of `LINK_LIFETIME_HOURS` (`./link-lifetime.ts`), which Rust refuses
+	 * anything else of (effort 851, requirement 11).
 	 */
-	linkMake: (memberId: string) => Promise<MadeLink>;
+	linkMake: (memberId: string, lifetimeHours: number) => Promise<MadeLink>;
+	/**
+	 * the links waiting to be opened that the reader could have made: `inviteMember` or
+	 * `resetPassword`, on the accounts ranked below them, the owner's answer holding every one.
+	 * Rejects a locked reader (`locked`) and one holding neither flag (`roleLacksAct`).
+	 */
+	links: () => Promise<OutstandingLink[]>;
+	/**
+	 * revoke one link waiting to be opened: the row behind it goes, so opening it is refused as
+	 * revoked. Under the list's gate; rejects an account at or above the reader (`rankNotAbove`)
+	 * and a link that was used, lapsed or revoked already (`linkNotOutstanding`).
+	 */
+	linkRevoke: (linkId: string) => Promise<void>;
 	/**
 	 * unset a member's password: a fresh vault under a fresh secret, everything the
 	 * resetting member reaches re-sealed to it, and the requirement to choose a
@@ -227,6 +274,13 @@ export type MemberHost = {
 	 * nobody else's to end.
 	 */
 	endSessions: (memberId: string) => Promise<SessionsEnded>;
+	/**
+	 * unlock a member who has set a password of their own (effort 851, requirement 34). The
+	 * owner's, or a holder of `assignRole` or `overrideMember` who outranks them; rejects the
+	 * caller's own account (`notYourself`) and one whose password is not yet theirs
+	 * (`accountNotSetUp`).
+	 */
+	unlock: (memberId: string) => Promise<void>;
 	/**
 	 * rename a member: their row written back with the username re-sealed and signed by
 	 * whoever renamed them. Open to a holder of `renameMember`, on a row below their rank;

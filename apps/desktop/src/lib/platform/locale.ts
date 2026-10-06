@@ -75,6 +75,13 @@ export function formatLocaleDate(
 export const formatRecordDate = (locale: Locales, value: number | string | Date) =>
 	formatLocaleDate(locale, value, { dateStyle: 'medium', timeZone: 'UTC' });
 
+/**
+ * A moment as a date and the time of day, in the reader's own time zone: when something lapses,
+ * which is a moment rather than one of the domain's whole UTC days (effort 851, requirement 11).
+ */
+export const formatLocaleMoment = (locale: Locales, value: number | string | Date) =>
+	formatLocaleDate(locale, value, { dateStyle: 'medium', timeStyle: 'short' });
+
 const SECOND = 1_000;
 const MINUTE = 60 * SECOND;
 const HOUR = 60 * MINUTE;
@@ -100,6 +107,27 @@ export function formatLocaleRelativeTime(locale: Locales, value: number | Date, 
 	if (elapsed < DAY) return formatter.format(-Math.floor(elapsed / HOUR), 'hour');
 
 	return formatter.format(-Math.floor(elapsed / DAY), 'day');
+}
+
+/**
+ * A moment ahead, said relative to `now` in the reader's own words: "in 3 days", "خلال ساعتين".
+ * What a link waiting to be opened says of when it lapses (effort 851).
+ *
+ * **The mirror of {@link formatLocaleRelativeTime}**, on the same units and the same `Intl`: the
+ * largest unit the gap fills, up to a day, counted down rather than rounded up, so a link with two
+ * days and twenty hours left reads "in 2 days" rather than promising a third. A moment under a
+ * minute away, or already behind, reads as "now".
+ */
+export function formatLocaleTimeUntil(locale: Locales, value: number | Date, now: number) {
+	const moment = value instanceof Date ? value.getTime() : value;
+	const remaining = Math.max(0, moment - now);
+	const formatter = new Intl.RelativeTimeFormat(getIntlLocale(locale), { numeric: 'auto' });
+
+	if (remaining < MINUTE) return formatter.format(0, 'second');
+	if (remaining < HOUR) return formatter.format(Math.floor(remaining / MINUTE), 'minute');
+	if (remaining < DAY) return formatter.format(Math.floor(remaining / HOUR), 'hour');
+
+	return formatter.format(Math.floor(remaining / DAY), 'day');
 }
 
 /**

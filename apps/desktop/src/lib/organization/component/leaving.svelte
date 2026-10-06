@@ -222,6 +222,7 @@
 	<OrganizationDisconnect
 		organizationName={session.organizationName}
 		{isOwner}
+		{holdsTursoAuthority}
 		onDisconnect={disconnect}
 	/>
 

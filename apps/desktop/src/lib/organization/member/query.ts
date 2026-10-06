@@ -2,7 +2,7 @@ import api from '$lib/api/caller';
 import { declareMutation } from '$lib/mutation/ui';
 import { LL } from '$lib/i18n/i18n-svelte';
 import type { MemberRemoved, SessionsEnded } from '$lib/organization/host';
-import { keys, rolesAndMembersChanged } from '$lib/organization/query';
+import { consentLostRereadsTheState, keys, organizationChanged } from '$lib/organization/query';
 import { createQuery } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
 
@@ -66,8 +66,36 @@ export function useFetchMemberStandings(enabled: () => boolean = () => true) {
 }
 
 /**
+ * the links waiting to be opened that the reader could have made (effort 851). Asked only where
+ * the reader holds `inviteMember` or `resetPassword` and is not locked, since the shell refuses
+ * anybody else; under the members' key, so making a link, a reset or a removal reads it again.
+ */
+export function useFetchMemberLinks(enabled: () => boolean = () => true) {
+	return createQuery(() => ({
+		queryKey: keys.memberLinks,
+		queryFn: () => api.organization.member.links(),
+		enabled: enabled()
+	}));
+}
+
+/**
+ * revoke one link waiting to be opened: opening it is refused as revoked from then on, and the
+ * account stays as it was. It asked first, in the list's confirm; what it says after is the toast.
+ */
+export const useRevokeLink = declareMutation({
+	mutate: ({ linkId }: { linkId: string }) => api.organization.member.linkRevoke({ linkId }),
+	touches: 'none',
+	toast: {
+		success: () => get(LL).organization.links.revoked(),
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
+	},
+	invalidates: [organizationChanged]
+});
+
+/**
  * make an account. It hands over nothing: the account holds no password until a link is made for
- * it, so this only refreshes the list it changed.
+ * it, so what it refreshes is what every organization write refreshes (`organizationChanged`).
  */
 export const useCreateAccount = declareMutation({
 	mutate: ({
@@ -84,7 +112,8 @@ export const useCreateAccount = declareMutation({
 	touches: 'none',
 	toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() },
 	// a role's count of holders moves with an account made in it.
-	invalidates: [keys.members, keys.roles]
+	invalidates: [organizationChanged],
+	failed: consentLostRereadsTheState
 });
 
 /**
@@ -99,7 +128,8 @@ export const useRemoveMember = declareMutation({
 		api.organization.member.remove({ memberId, lockOut }),
 	touches: 'none',
 	toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() },
-	invalidates: [keys.members],
+	invalidates: [organizationChanged],
+	failed: consentLostRereadsTheState,
 	announces: ({ result }) => removedSentence(result)
 });
 
@@ -117,7 +147,7 @@ export const useRenameMember = declareMutation({
 		error: true,
 		unexpected: () => get(LL).common.messages.unexpectedError()
 	},
-	invalidates: [keys.members]
+	invalidates: [organizationChanged]
 });
 
 /** what locking a member out would cost, read for the dialog that asks before it is done. */
@@ -143,8 +173,24 @@ export const useEndMemberSessions = declareMutation({
 	mutate: ({ memberId }: { memberId: string }) => api.organization.member.endSessions({ memberId }),
 	touches: 'none',
 	toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() },
-	invalidates: [keys.members],
+	invalidates: [organizationChanged],
 	announces: ({ result }) => memberSessionsEndedSentence(result)
+});
+
+/**
+ * unlock a member who has set a password of their own (effort 851, requirement 34), so they may do
+ * what their role allows. Their card's standing is under the members' key, so the badge goes with
+ * the list read again.
+ */
+export const useUnlockMember = declareMutation({
+	mutate: ({ memberId }: { memberId: string }) => api.organization.member.unlock({ memberId }),
+	touches: 'none',
+	toast: {
+		success: () => get(LL).organization.dashboard.unlocked(),
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
+	},
+	invalidates: [organizationChanged]
 });
 
 /**
@@ -169,7 +215,7 @@ export const useAssignRole = declareMutation({
 		error: true,
 		unexpected: () => get(LL).common.messages.unexpectedError()
 	},
-	invalidates: rolesAndMembersChanged
+	invalidates: [organizationChanged]
 });
 
 /** set the flags switched for one member alone (effort 838, requirement 6). */
@@ -182,16 +228,17 @@ export const useSetOverride = declareMutation({
 		error: true,
 		unexpected: () => get(LL).common.messages.unexpectedError()
 	},
-	invalidates: rolesAndMembersChanged
+	invalidates: [organizationChanged]
 });
 
 /**
  * offer the organization to another account: the first of the two acts a handover is (effort 828,
  * requirement 22).
  *
- * **Only the list is refreshed.** Nothing about the organization moves on an offer, so the
- * reader is still the owner and the sections the settings area draws them are unchanged; what
- * changes is that one card now carries the offer, which is on the list.
+ * **Nothing about the organization moves on an offer**, so the reader is still the owner and the
+ * sections the settings area draws them are unchanged; what changes is that one card now carries
+ * the offer, which is on the list, and the list is read again with the rest of what every
+ * organization write refreshes.
  *
  * The refusal a person can act on is a password that does not open their vault, and the surface
  * marks it on the field ([[rules/interface]], *Validation errors*), so the caller reads the
@@ -206,7 +253,7 @@ export const useOfferOwnership = declareMutation({
 		error: true,
 		unexpected: () => get(LL).common.messages.unexpectedError()
 	},
-	invalidates: [keys.members]
+	invalidates: [organizationChanged]
 });
 
 /** take the offer back, which leaves the organization exactly where it was. */
@@ -218,16 +265,17 @@ export const useWithdrawOffer = declareMutation({
 		error: true,
 		unexpected: () => get(LL).common.messages.unexpectedError()
 	},
-	invalidates: [keys.members]
+	invalidates: [organizationChanged]
 });
 
 /**
  * accept the organization that was offered to this reader (effort 828, requirement 22).
  *
- * **The state key is refreshed beside the list**, because the reader's own role changes with the
- * act: they are the owner the moment it goes through, and the sections the settings area offers
- * them, the acts its cards carry and the rail's menus are all read off that. Without it the
- * screen would go on drawing a member's controls until a relaunch.
+ * **The state key is refreshed beside the list**, as every organization write refreshes it, and
+ * here it matters most, because the reader's own role changes with the act: they are the owner the
+ * moment it goes through, and the sections the settings area offers them, the acts its cards carry
+ * and the rail's menus are all read off that. Without it the screen would go on drawing a member's
+ * controls until a relaunch.
  *
  * The refusal a person can act on is a password that does not open their vault, and the surface
  * marks it on the field ([[rules/interface]], *Validation errors*).
@@ -240,7 +288,7 @@ export const useAcceptOwnership = declareMutation({
 		error: true,
 		unexpected: () => get(LL).common.messages.unexpectedError()
 	},
-	invalidates: [keys.members, keys.state]
+	invalidates: [organizationChanged]
 });
 
 /**
@@ -252,10 +300,12 @@ export const useAcceptOwnership = declareMutation({
  * because an invitation-kind link leaves a pending mark on the account's row.
  */
 export const useMakeMemberLink = declareMutation({
-	mutate: ({ memberId }: { memberId: string }) => api.organization.member.linkMake({ memberId }),
+	mutate: ({ memberId, lifetimeHours }: { memberId: string; lifetimeHours: number }) =>
+		api.organization.member.linkMake({ memberId, lifetimeHours }),
 	touches: 'none',
 	toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() },
-	invalidates: [keys.members],
+	invalidates: [organizationChanged],
+	failed: consentLostRereadsTheState,
 	// a workspace the link could not carry over is said, as a reset says it: the grant is off the
 	// row, and the person opening the link would otherwise find it missing with nobody told.
 	announces: ({ result }) =>
@@ -278,7 +328,8 @@ export const useUnsetMemberPassword = declareMutation({
 		api.organization.member.unsetPassword({ memberId }),
 	touches: 'none',
 	toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() },
-	invalidates: [keys.members],
+	invalidates: [organizationChanged],
+	failed: consentLostRereadsTheState,
 	announces: ({ result }) => unsetSentence(result)
 });
 

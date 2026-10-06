@@ -206,6 +206,12 @@ mod tests {
             joined_at: 0,
             format: None,
             machine_signed_out: 0,
+            turso_organization: None,
+            workspace_id: None,
+            name_signed: false,
+            name_signed_at: 0,
+            lock_marked: false,
+            own_lock_latched: Vec::new(),
         }
     }
 
@@ -296,7 +302,7 @@ mod tests {
         )
         .await
         .expect("the first run failed");
-        let joined = machine.organization.clone().expect("the record");
+        let joined = machine.selected().cloned().expect("the record");
         let mut owner = sign_in(&store, &joined, OWNER_PASSWORD, &slot())
             .await
             .expect("the owner did not sign in");
@@ -352,6 +358,13 @@ mod tests {
         )
         .await
         .expect("the member");
+
+        // every account starts locked (effort 851), and these tests are about unlocked ones.
+        for made in [&manager.member_id, &member.member_id] {
+            crate::organization::member::lock::unlocked_for_a_test(&store, &owner, made)
+                .await
+                .expect("the owner unlocks them");
+        }
 
         let manager = (manager.member_id.clone(), secret_of(&manager));
         let member = (member.member_id.clone(), secret_of(&member));

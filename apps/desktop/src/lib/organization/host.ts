@@ -20,6 +20,7 @@ import type {
 	MemberStanding,
 	MemberWorkspace,
 	OrganizationMember,
+	OutstandingLink,
 	UnreachableWorkspace,
 	WorkspaceGrant
 } from './member/host';
@@ -39,6 +40,7 @@ export type {
 	OrganizationMember,
 	OrganizationRole,
 	OrganizationWorkspace,
+	OutstandingLink,
 	UnreachableWorkspace,
 	WorkspaceGrant,
 	WorkspaceStatement
@@ -87,11 +89,11 @@ export type OrganizationCreated = {
 };
 
 /**
- * the one organization this machine holds, as the wall names it. No key.
+ * one organization this machine holds, as the wall and its switcher name it. No key.
  *
- * A machine that connected by the organization's link holds it and no member yet; a sign-in
- * fills `memberId` and `role`, and a sign-out keeps them. *`JoinedOrganization`, one of a list,
- * until 2026-09-13.*
+ * A machine that connected by a link holds it and no member yet; a sign-in fills `memberId` and
+ * `role`, and a sign-out keeps them. *`JoinedOrganization`, one of a list, until 2026-09-13, and
+ * the one organization a machine held from then until effort 851 made it one of a list again.*
  */
 export type HeldOrganization = {
 	id: string;
@@ -105,6 +107,11 @@ export type HeldOrganization = {
 	 */
 	role: RoleKind | null;
 	joinedAt: number;
+	/**
+	 * whether this machine holds this organization's own Turso consent (effort 851, requirement
+	 * 14), which is what its remove confirm says it forgets (requirement 5), and nothing else.
+	 */
+	holdsTursoAuthority: boolean;
 };
 
 /**
@@ -137,6 +144,13 @@ export type OrganizationSession = {
 	workspaces: OrganizationWorkspace[];
 	/** the owner's username: whom a member is told to tell when the account needs attention. */
 	ownerUsername: string;
+	/**
+	 * whether this member is locked until an owner or a manager unlocks them (effort 851,
+	 * requirement 32), off their signed lock as it reads now. A locked member signs in, changes
+	 * their password and views; every other act of the organization is refused in Rust
+	 * (`locked`), and the interface masks their permissions to the view flags.
+	 */
+	locked: boolean;
 	/**
 	 * whether this reader has been offered the organization and has not accepted yet (effort 828,
 	 * requirement 22), which is what draws the acceptance in their account section. A fact about a
@@ -217,19 +231,35 @@ export type LinkShape = {
 export type GroupState = { kind: 'empty' } | { kind: 'held'; organizationId: string };
 
 /**
- * where this machine stands: the one organization it holds, or none, and who is signed in.
- * What the sign-in wall admits on.
+ * where this machine stands: the organizations it holds, the one the wall opens on, and who is
+ * signed in. What the sign-in wall admits on.
  */
 export type OrganizationState = {
-	/** the organization this machine holds; `null` on a machine that holds nothing. */
-	organization: HeldOrganization | null;
+	/**
+	 * every organization this machine holds, in the order it came to hold them (effort 851,
+	 * requirement 3); empty on a machine that holds nothing, which is the welcome. *It was
+	 * `organization`, the one a machine held, until effort 851's ticket 08.*
+	 */
+	organizations: HeldOrganization[];
+	/**
+	 * the id of the organization the wall opens on: the one last signed in to, or chosen at the
+	 * switcher (requirement 2). `null` where nothing is held.
+	 */
+	selected: string | null;
 	session: OrganizationSession | null;
 	/**
-	 * whether this machine holds the Turso authority and knows which account it is over: the
-	 * owner's machine after a consent. An owner restored on a new machine holds none until they
+	 * whether this machine holds the Turso authority over the selected organization and knows
+	 * which account it is over: the owner's machine after a consent. An owner restored on a new machine holds none until they
 	 * repeat the consent, which is the one thing a restore cannot bring with it.
 	 */
 	holdsTursoAuthority: boolean;
+	/**
+	 * whether this machine holds a setup's own Turso consent, the one the setup walk grants and a
+	 * create or a connect to an existing organization spends (effort 851, requirement 39). The
+	 * walk reads this and never `holdsTursoAuthority`, which is the selected organization's, so
+	 * adding a second organization starts from its own consent.
+	 */
+	setupConsented: boolean;
 	/**
 	 * whether the wall is up because this member's sessions were ended from another machine.
 	 *
@@ -260,7 +290,10 @@ export type OrganizationHost = {
 	consentBegin: () => Promise<OrganizationConsentStart>;
 	/** how far the consent has got. Polled while `pending`. */
 	consentResult: (sessionId: string) => Promise<OrganizationConsentResult>;
-	/** forget the Turso authority this machine holds, and nothing else. Nothing is revoked at Turso. */
+	/**
+	 * forget the pending Turso consent the setup walk holds, and nothing else; an organization's own
+	 * is `forgetAuthority`'s. Nothing is revoked at Turso.
+	 */
 	consentDisconnect: () => Promise<void>;
 	/**
 	 * create an organization on the consented account from the three things a first run
@@ -296,14 +329,38 @@ export type OrganizationHost = {
 	 * held on as many machines as its holder signs in on.
 	 */
 	connectExisting: (username: string, password: string) => Promise<OrganizationState>;
-	/** the organization this machine holds, and who is signed in. */
+	/** the organizations this machine holds, the one chosen, and who is signed in. */
 	getState: () => Promise<OrganizationState>;
 	/**
-	 * forget the organization this machine holds: sign out where somebody is in, delete every
-	 * replica on this machine, empty the record, and clear the Turso authority. The
+	 * forget the organization this machine has open, or the one the wall stands on: sign out
+	 * where somebody is in, delete its replica and its workspaces' replicas, forget its entry,
+	 * and clear its Turso consent. Every other organization held keeps all of its own. The
 	 * organization on Turso is untouched. The one confirm before it is the screen's.
 	 */
 	disconnect: () => Promise<OrganizationState>;
+	/**
+	 * choose the organization the wall opens on, from those this machine holds (effort 851,
+	 * requirement 3). Refuses with `sessionOpen` while somebody is signed in, since switching
+	 * happens signed out, and with `noOrganization` for an organization this machine does not
+	 * hold.
+	 */
+	select: (organizationId: string) => Promise<OrganizationState>;
+	/**
+	 * forget one organization this machine holds and nothing else (effort 851, requirement 5):
+	 * its replica, its workspaces' replicas, its remembered sign-in, its entry and its Turso
+	 * consent. Where it is the open one the machine signs out of it first; removing another
+	 * leaves the open one open. Refuses with `noOrganization` for one this machine does not
+	 * hold. The one confirm before it is the screen's.
+	 */
+	remove: (organizationId: string) => Promise<OrganizationState>;
+	/**
+	 * rename the organization, as its owner (effort 851, requirements 22 to 28): trimmed, sealed
+	 * and signed by Rust, written to the signed name and the unsigned column, and sent. Answers
+	 * the whole state, so the tab, the shell and the switcher read the new name at once. Refuses
+	 * with `ownerOnly` for anybody else, and with `organizationNameMissing` or
+	 * `organizationNameTooLong` for a name outside the walk's rules; nothing is written on any.
+	 */
+	rename: (name: string) => Promise<OrganizationState>;
 	/**
 	 * delete the organization, with the owner's password: every workspace database and the
 	 * organization's own directory are removed from the owner's Turso account, and this machine
@@ -315,7 +372,7 @@ export type OrganizationHost = {
 	 */
 	delete: (password: string) => Promise<OrganizationState>;
 	/**
-	 * sign in to the organization this machine holds, by username and password, with or
+	 * sign in to the organization chosen on this machine, by username and password, with or
 	 * without a network. The wrong password, a username nobody holds, and a username held by
 	 * somebody whose password this is not each reject with the same one sentence; nothing
 	 * says whether the username exists. A first sign-in on a handed password spends the
@@ -367,6 +424,12 @@ export type OrganizationHost = {
 	 */
 	reconnectAuthority: () => Promise<OrganizationState>;
 	/**
+	 * forget the open organization's own Turso consent and the account it was over, from the
+	 * owner's leaving card. Nothing is revoked at Turso; the pending consent a setup holds and every
+	 * other organization's are left alone.
+	 */
+	forgetAuthority: () => Promise<OrganizationState>;
+	/**
 	 * renew this organization's credentials if any is close to lapsing, on the owner's machine,
 	 * best effort. Answers whether it renewed. A machine that is not the owner's, holds no
 	 * authority, or has nothing due answers `false` and does nothing, so a caller fires it and
@@ -392,21 +455,23 @@ export type OrganizationHost = {
 		/**
 		 * open an invitation link, with the code the issuer read out and a password of the
 		 * person's choosing: the code and the link's secret together unseal the credential and
-		 * the vault password, the organization is reached and recorded where this machine
-		 * holds none, the vault is resealed under the password, the invitation is spent, and
-		 * the person is signed in. Refuses a lapsed link and a lapsed, consumed or revoked
-		 * invitation by name, a wrong code with `codeWrong`, a missing code with `codeMissing`,
-		 * a password under the floor with `passwordTooShort`, and a link for another
-		 * organization than the one held with `anotherOrganizationHeld`.
+		 * the vault password, the organization is reached and recorded beside any others this
+		 * machine holds and selected, the vault is resealed under the password, the invitation is
+		 * spent, and the person is signed in. A link for an organization this machine holds
+		 * selects it and is judged there: a reset link for one of its members goes through, and
+		 * anything else is refused as `consumed`. Refuses a lapsed link and a
+		 * lapsed, consumed or revoked invitation by name, a wrong code with `codeWrong`, a missing
+		 * code with `codeMissing`, and a password under the floor with `passwordTooShort`.
 		 */
 		accept: (link: string, code: string, password: string) => Promise<OrganizationState>;
 	};
 	/**
 	 * connect this machine with a machine-kind link, and land at the wall. The code
 	 * and the link's secret together unseal the member's own grant, the organization is
-	 * recorded with no member, and the link is spent. Refuses a wrong or missing code with
-	 * `codeWrong` and `codeMissing`, a lapsed link and a replaced or already spent one by
-	 * name, and a machine that already holds an organization with `anotherOrganizationHeld`.
+	 * recorded with no member beside any others held and selected, and the link is spent. A
+	 * link for an organization this machine holds selects it and is refused as `consumed`. Refuses a
+	 * wrong or missing code with `codeWrong` and `codeMissing`, and a lapsed link and a
+	 * replaced or already spent one by name.
 	 */
 	machineConnect: (link: string, code: string) => Promise<OrganizationState>;
 	/**

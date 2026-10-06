@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/svelte';
+import { fireEvent, render } from '@testing-library/svelte';
 import { afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest';
 
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
@@ -14,8 +14,8 @@ import Providers from '#tests/providers.svelte';
  * LANGUAGE AND APPEARANCE ON THE WAY IN
  *
  * Criterion 7 of effort 843, the half about what stays reachable (ticket 04): the foot of a step
- * opens the language, the appearance and all the settings, and a change shows at once on the step
- * the person is on.
+ * opens the language and the appearance, and a change shows at once on the step the person is on.
+ * Criterion 15 of effort 851: the two are all it opens, on every step, the wall's included.
  */
 
 const host = vi.hoisted(() => ({ settings: null as ReturnType<typeof fakeSettingsHost> | null }));
@@ -91,6 +91,19 @@ test('the foot names the language, and opens the language and the appearance alo
 	).toBe('appearance');
 	expect(document.querySelector('a[href="/settings"]')).toBeNull();
 	expect(document.querySelector('[data-slot=separator]')).toBeNull();
+	// and no other act: the wall's "use a link" and "disconnect this machine" left it for the
+	// organization switcher (effort 851, criterion 15). The appearance's three are its only buttons.
+	const content = document.querySelector('[data-slot=popover-content]');
+	const buttons = [...(content?.querySelectorAll('button') ?? [])].filter(
+		(button) => !button.closest('[data-language-choice]')
+	);
+
+	expect(buttons.map((button) => button.getAttribute('data-appearance'))).toEqual([
+		'system',
+		'light',
+		'dark'
+	]);
+	expect(content?.textContent).not.toContain(en.layout.signIn.disconnect);
 });
 
 test('choosing another language redraws the step in it, and turns the reading direction', async () => {
@@ -118,24 +131,4 @@ test('choosing dark draws dark at once', async () => {
 	await fireEvent.click(document.querySelector<HTMLElement>('[data-appearance="dark"]')!);
 
 	expect(document.documentElement.classList.contains('dark')).toBe(true);
-});
-
-test('a step with acts of its own lists them below the choices, and nothing else does', async () => {
-	const chosen: string[] = [];
-
-	draw({
-		extras: [
-			{ label: 'use a link', onSelect: () => chosen.push('link') },
-			{
-				label: 'disconnect this machine',
-				onSelect: () => chosen.push('disconnect'),
-				destructive: true
-			}
-		]
-	});
-
-	await openThePreferences();
-	await fireEvent.click(screen.getByRole('button', { name: 'disconnect this machine' }));
-
-	expect(chosen).toEqual(['disconnect']);
 });

@@ -9,6 +9,7 @@ import en from '$lib/i18n/en';
 import { toTitleCase } from '@rentable/design/title-case.js';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
+import { expectTheEye } from '#tests/password-eye.ts';
 
 /**
  * CHOOSING A PASSWORD, RENDERED
@@ -148,5 +149,16 @@ test('the change button carries its verb, and each password field leads with a m
 		expect(addon?.getAttribute('data-slot')).toBe('input-group-addon');
 		expect(addon?.querySelector('svg')).not.toBeNull();
 		expect(addon?.className).toContain('text-muted-foreground');
+	}
+});
+
+// effort 851, criterion 19: each of the three fields carries the eye at its trailing end.
+test('the current, the new and the confirmation each carry the eye', async () => {
+	loadLocale('en');
+	setLocale('en');
+	dialog();
+
+	for (const id of ['#password-current', '#password-next', '#password-confirmation']) {
+		await expectTheEye(document.querySelector<HTMLInputElement>(id), strings.showPassword);
 	}
 });

@@ -8,6 +8,7 @@ import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import { harness, nowhereToGo } from '$lib/startup/tests/harness';
 import Providers from '#tests/providers.svelte';
 import {
+	fakeHeldOrganization,
 	fakeOrganizationSession,
 	fakeOrganizationState,
 	fakeOrganizationWorkspace
@@ -244,6 +245,46 @@ test('an accept refused as lapsed stays on the screen, in one line, with no load
 	expect(document.body.textContent?.split(en.organization.join.lapsed).length).toBe(2);
 	expect(document.querySelectorAll('[data-slot=callout]')).toHaveLength(1);
 	expect(document.querySelector('[data-error-detail="join"]')).not.toBeNull();
+});
+
+// effort 851, the review of requirement 13: a link for an organization this machine holds selects
+// it in the shell where nobody is in, and is then refused as already used. The refusal stays on
+// the screen, and the startup unit reads the standing under it, so the wall the person goes back
+// to names the link's organization rather than the one chosen before.
+test('an accept refused for a held organization leaves the wall naming that organization', async () => {
+	loadLocale('en');
+	setLocale('en');
+
+	const acme = fakeHeldOrganization({ id: 'acme', name: 'Acme Rentals' });
+	const beta = fakeHeldOrganization({ id: 'beta', name: 'Beta Lettings' });
+	const twoHeld = (selected: string) =>
+		fakeOrganizationState({ organizations: [acme, beta], selected, session: null });
+	const driven = harness({ organization: twoHeld('acme') });
+
+	await driven.startup.start();
+	hooks.startup = driven.startup;
+
+	hooks.linkRead.mockResolvedValue({
+		organizationId: 'beta',
+		organizationName: 'Beta Lettings',
+		kind: 'invitation',
+		expiresAt: 1
+	});
+	hooks.accept.mockImplementation(async () => {
+		driven.standWith(twoHeld('beta'));
+
+		throw { code: 'refused', reason: 'consumed', message: 'the invitation was already opened' };
+	});
+
+	await walkToJoin();
+
+	await waitFor(() => expect(driven.startup.snapshot.organization?.selected).toBe('beta'));
+
+	expect(document.querySelector('[data-join-step]')?.getAttribute('data-join-step')).toBe(
+		'refused'
+	);
+	expect(driven.startup.snapshot.state).toBe('sign-in');
+	expect(hooks.goto).not.toHaveBeenCalled();
 });
 
 // effort 843, ticket 07: a `rentable://` link the operating system hands the running application

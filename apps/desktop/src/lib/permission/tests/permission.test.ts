@@ -8,7 +8,7 @@ import {
 	WRITE_FLAGS,
 	maskOf
 } from '@rentable/workspace-permission';
-import { accessIn } from '$lib/api/context';
+import { accessIn, workspacePermissionsIn } from '$lib/api/context';
 import { i18nObject } from '$lib/i18n/i18n-util.ts';
 import { loadLocale } from '$lib/i18n/i18n-util.sync.ts';
 import {
@@ -184,4 +184,35 @@ test('the access folded is the one the context folds: the grant on the workspace
 	assert.equal(accessIn(session, 'ws-read'), 'read-only');
 	assert.equal(accessIn(session, 'ws-elsewhere'), 'read-only');
 	assert.equal(accessIn(session, null), 'read-only');
+});
+
+/**
+ * Effort 851, requirement 32: a locked account's standing holds the view flags alone, folded by
+ * `workspacePermissionsIn` as the context folds them, and every write is refused for the lock, on
+ * either grant and in both languages, while viewing is not refused.
+ */
+test('a locked reader is refused every create, edit and delete for the lock, and viewing is not', () => {
+	const session = fakeOrganizationSession({
+		permissions: EVERY,
+		locked: true,
+		workspaces: [fakeOrganizationWorkspace({ id: 'north', accessLevel: 'full-access' })]
+	});
+
+	for (const accessLevel of ['full-access', 'read-only'] as const) {
+		const standing = {
+			permissions: workspacePermissionsIn(session, 'north'),
+			accessLevel,
+			locked: true
+		};
+
+		for (const flag of RECORD_FLAGS) {
+			assert.equal(
+				refusalOf(flag, standing, en),
+				WRITE_FLAGS.includes(flag) ? en.common.permission.locked() : undefined,
+				`${flag}, ${accessLevel}`
+			);
+		}
+
+		assert.equal(refusalOf('createPayment', standing, ar), ar.common.permission.locked());
+	}
 });

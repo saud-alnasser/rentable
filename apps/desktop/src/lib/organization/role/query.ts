@@ -1,7 +1,7 @@
 import api from '$lib/api/caller';
 import { declareMutation } from '$lib/mutation/ui';
 import { LL } from '$lib/i18n/i18n-svelte';
-import { keys, rolesAndMembersChanged } from '$lib/organization/query';
+import { keys, organizationChanged } from '$lib/organization/query';
 import { createQuery } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
 
@@ -36,7 +36,7 @@ export const useCreateRole = declareMutation({
 		api.organization.role.create(input),
 	touches: 'none',
 	toast: roleWrite(() => get(LL).organization.roleList.created()),
-	invalidates: rolesAndMembersChanged
+	invalidates: [organizationChanged]
 });
 
 /** rename a custom role. */
@@ -44,7 +44,7 @@ export const useRenameRole = declareMutation({
 	mutate: (input: { roleId: string; name: string }) => api.organization.role.rename(input),
 	touches: 'none',
 	toast: roleWrite(() => get(LL).organization.roleList.saved()),
-	invalidates: rolesAndMembersChanged
+	invalidates: [organizationChanged]
 });
 
 /** change what a role carries; every holder's permissions follow. */
@@ -52,7 +52,7 @@ export const useSetRoleMask = declareMutation({
 	mutate: (input: { roleId: string; mask: number }) => api.organization.role.setMask(input),
 	touches: 'none',
 	toast: roleWrite(() => get(LL).organization.roleList.saved()),
-	invalidates: rolesAndMembersChanged
+	invalidates: [organizationChanged]
 });
 
 /** move a custom role to directly below another. */
@@ -60,7 +60,7 @@ export const useMoveRole = declareMutation({
 	mutate: (input: { roleId: string; afterRoleId: string }) => api.organization.role.move(input),
 	touches: 'none',
 	toast: roleWrite(() => get(LL).organization.roleList.moved()),
-	invalidates: rolesAndMembersChanged
+	invalidates: [organizationChanged]
 });
 
 /** delete a custom role; whoever held it holds the member role. */
@@ -68,5 +68,5 @@ export const useDeleteRole = declareMutation({
 	mutate: (input: { roleId: string }) => api.organization.role.delete(input),
 	touches: 'none',
 	toast: roleWrite(() => get(LL).organization.roleList.deleted()),
-	invalidates: rolesAndMembersChanged
+	invalidates: [organizationChanged]
 });

@@ -233,6 +233,49 @@ impl OrganizationStore {
         Ok(())
     }
 
+    /// Every machine link the replica holds, spent and lapsed ones included, oldest first: what
+    /// the list of links waiting to be opened reads (`invitation::outstanding`). Unsigned, as
+    /// [`OrganizationStore::machine_link`] is, for the reason [`MachineLinkRecord`] gives.
+    pub async fn machine_links(&self) -> Result<Vec<MachineLinkRecord>, Error> {
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT \"id\", \"member_id\", \"expires_at\", \"consumed_at\", \"created_at\" \
+                 FROM \"machine_link\" ORDER BY \"created_at\", \"id\"",
+                (),
+            )
+            .await?;
+        let mut links = Vec::new();
+
+        while let Some(row) = rows.next().await? {
+            links.push(MachineLinkRecord {
+                id: text(&row, 0)?,
+                member_id: text(&row, 1)?,
+                expires_at: integer(&row, 2)?,
+                consumed_at: match row.get_value(3)? {
+                    turso::Value::Integer(value) => Some(value),
+                    _ => None,
+                },
+                created_at: integer(&row, 4)?,
+            });
+        }
+
+        Ok(links)
+    }
+
+    /// Revoke one machine link: its row goes, and the link that named it finds nothing, which the
+    /// connect refuses as revoked (`invitation::machine`).
+    pub async fn delete_machine_link(&self, id: &str) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "DELETE FROM \"machine_link\" WHERE \"id\" = ?",
+                vec![turso::Value::Text(id.to_string())],
+            )
+            .await?;
+
+        Ok(())
+    }
+
     /// Put this machine in the registry: it holds the organization from now on.
     ///
     /// **Unsigned**, for the reason [`MachineRecord`] gives, and so is every other write here.

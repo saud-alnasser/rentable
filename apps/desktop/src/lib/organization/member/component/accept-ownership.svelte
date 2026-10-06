@@ -1,12 +1,11 @@
 <script lang="ts">
 	import FormSurface, { insetControl } from '@rentable/design/block/form-surface.svelte';
+	import PasswordInput from '@rentable/design/block/password-input.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
-	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
 	import { onSubmit } from '$lib/form';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import CrownIcon from '@lucide/svelte/icons/crown';
-	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 
 	/**
 	 * Accepting the organization that was offered to this reader: the second of the two acts a
@@ -96,20 +95,16 @@
 			<Field.Label for="accept-ownership-password">
 				{$LL.organization.setup.passwordLabel()}
 			</Field.Label>
-			<InputGroup.Root class={insetControl} data-disabled={isAccepting ? 'true' : undefined}>
-				<InputGroup.Addon>
-					<KeyRoundIcon />
-				</InputGroup.Addon>
-				<InputGroup.Input
-					id="accept-ownership-password"
-					name="password"
-					type="password"
-					autocomplete="current-password"
-					bind:value={password}
-					disabled={isAccepting}
-					aria-invalid={errorMessage ? 'true' : undefined}
-				/>
-			</InputGroup.Root>
+			<PasswordInput
+				id="accept-ownership-password"
+				name="password"
+				autocomplete="current-password"
+				bind:value={password}
+				disabled={isAccepting}
+				aria-invalid={errorMessage ? 'true' : undefined}
+				class={insetControl}
+				lead
+			/>
 			{#if errorMessage}
 				<Field.Error>{errorMessage}</Field.Error>
 			{/if}

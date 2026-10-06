@@ -12,6 +12,7 @@ use crate::{
     diagnostics,
     error::{Error, RefusalReason},
     organization::Shared,
+    turso::consent::{Account, holds_platform_token},
 };
 
 use super::{
@@ -37,6 +38,12 @@ pub struct HeldOrganizationFacts {
     /// the kind of their role, as last read. A display fact; `None` with `member_id`.
     pub role: Option<String>,
     pub joined_at: i64,
+    /// whether this machine holds this organization's own Turso consent (effort 851, requirement
+    /// 14), which is what decides whether removing it forgets a Turso account: the switcher's
+    /// confirm says so only where it does (requirement 5). Read in [`state_of`]; `false` from the
+    /// record alone, which knows nothing of the keyring.
+    #[serde(default)]
+    pub holds_turso_authority: bool,
 }
 
 impl From<&HeldOrganization> for HeldOrganizationFacts {
@@ -47,33 +54,57 @@ impl From<&HeldOrganization> for HeldOrganizationFacts {
             member_id: held.member_id.clone(),
             role: held.role.clone(),
             joined_at: held.joined_at,
+            holds_turso_authority: false,
         }
     }
 }
 
-/// Where this machine stands: the one organization it holds, if any, and who is signed in.
+/// Where this machine stands: the organizations it holds, the one selected, and who is signed in.
 ///
 /// What the sign-in wall admits on. `session` is `None` until a password has opened a vault in
 /// this process, and it carries facts and no credential.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OrganizationState {
-    /// the organization this machine holds, or `None` on a machine that holds nothing, which is
-    /// what the screen offering the two ways to connect is drawn on (requirement 18). *A list
-    /// until 2026-09-13.*
-    pub organization: Option<HeldOrganizationFacts>,
+    /// every organization this machine holds, in the order it came to hold them (effort 851,
+    /// requirement 3). Empty on a machine that holds nothing, which is what the screen offering
+    /// the two ways to connect is drawn on (requirement 18). *`organization`, the one a machine
+    /// held, until effort 851's ticket 08 moved the shell onto the list.*
+    pub organizations: Vec<HeldOrganizationFacts>,
+    /// the id of the organization the wall opens on, the one last signed in to or chosen (effort
+    /// 851, requirement 2); `None` where nothing is held.
+    pub selected: Option<String>,
     pub session: Option<SessionFacts>,
     /// whether this machine holds the Turso authority and knows which account it is over: the
     /// owner's machine after a consent. An owner restored on a new machine holds none until they
     /// repeat the consent, which is the one thing a restore cannot bring with it (requirement 5).
     pub holds_turso_authority: bool,
+    /// whether this machine holds a setup's own Turso consent, the one a consent in the setup walk
+    /// grants and a create or a connect to an existing organization spends (effort 851,
+    /// requirement 39). The walk reads this and never `holds_turso_authority`, which is the
+    /// selected organization's: adding a second organization starts its walk from its own consent,
+    /// not from the one the organization already held was made with.
+    pub setup_consented: bool,
     /// whether the wall is up because this member's sessions were ended from another machine
     /// (effort 826, requirement 22), which is a sentence the wall carries rather than a refusal
     /// anybody made here. False the moment somebody is signed in again.
     pub signed_out_elsewhere: bool,
 }
 
-/// Where this machine stands: the organization it holds and who is signed in.
+impl OrganizationState {
+    /// the held organization the selection names, as a test reads it: the one the wall opens on.
+    #[cfg(test)]
+    pub(crate) fn selected_organization(&self) -> Option<HeldOrganizationFacts> {
+        let selected = self.selected.as_deref()?;
+
+        self.organizations
+            .iter()
+            .find(|held| held.id == selected)
+            .cloned()
+    }
+}
+
+/// Where this machine stands: the organizations it holds, the one chosen, and who is signed in.
 ///
 /// **`public` on the other side for the same reason the sync state is**: it is what the wall
 /// admits on, so requiring a signed-in caller would make it answerable only to machines whose
@@ -107,6 +138,12 @@ pub(crate) async fn organization_session_state_get(
 /// happens once a launch and is last for the same reason: the resume is what opens the replica
 /// the row is written through, so a machine that came back signed in refreshes its row here
 /// without anybody typing a password.
+///
+/// **Between the check and the resume, the Turso consent an earlier build filed moves to its
+/// organization** (effort 851, requirement 14, `upgrade/consent.rs`). After the check, because a
+/// machine whose shape is forgotten has no organization left to move it to; before the resume,
+/// because the resume is the first thing that asks for the owner's platform, and it would find
+/// none on the first launch of this build.
 pub(crate) async fn state_of(
     app_state: &Shared,
     credentials: &Credentials,
@@ -118,6 +155,10 @@ pub(crate) async fn state_of(
             app_state
                 .upgrade
                 .forget_old_shape(app_state, credentials.as_ref(), clock)
+                .await?;
+            app_state
+                .upgrade
+                .move_the_consent(app_state, credentials.as_ref())
                 .await?;
             resume_remembered(app_state, credentials, clock).await;
 
@@ -136,15 +177,6 @@ pub(crate) async fn state_of(
         })
         .await?;
 
-    let organization = {
-        let mut remote_sync = app_state.remote_sync.write().await;
-
-        remote_sync
-            .store_mut()
-            .organization
-            .as_ref()
-            .map(HeldOrganizationFacts::from)
-    };
     // **and the one thing that can make this machine's key wrong** (effort 828, requirement 22).
     // A handover somebody else accepted arrives here as rows this machine cannot verify, which is
     // what the read below refuses with. So a refusal is the sign, and the succession is followed
@@ -158,7 +190,39 @@ pub(crate) async fn state_of(
             current_facts(app_state).await?
         }
     };
-    let holds_turso_authority = owner_platform(app_state, credentials).await.is_some();
+    // the name this machine holds follows the one the owner signed (effort 851, requirement 26),
+    // so the wall and the switcher name what the shell does. After the read, which is what verified
+    // it, and before the held organization is read for the answer.
+    if let Some(read) = &session {
+        held_name_refreshed(app_state, read).await?;
+    }
+
+    let (mut organizations, selected): (Vec<HeldOrganizationFacts>, Option<String>) = {
+        let mut remote_sync = app_state.remote_sync.write().await;
+        let record = remote_sync.store_mut();
+        let selected = record.selected();
+
+        (
+            record
+                .held_organizations
+                .iter()
+                .map(HeldOrganizationFacts::from)
+                .collect(),
+            selected.map(|held| held.id.clone()),
+        )
+    };
+    // each organization's own consent, which is what its remove says it forgets, and the selected
+    // one's, which is the one the wall and the session are of. A keyring read apiece, no network.
+    for held in &mut organizations {
+        held.holds_turso_authority = owner_platform(app_state, credentials, &held.id)
+            .await
+            .is_some();
+    }
+    let holds_turso_authority = organizations
+        .iter()
+        .any(|held| Some(&held.id) == selected.as_ref() && held.holds_turso_authority);
+    let setup_consented =
+        holds_platform_token(credentials.as_ref(), &Account::Pending).unwrap_or(false);
 
     // the standing is only ever about a wall that is up: somebody signed in has answered it,
     // whichever way they got back in, so this one read clears it rather than five sign-in paths
@@ -170,30 +234,125 @@ pub(crate) async fn state_of(
     }
 
     Ok(OrganizationState {
-        organization,
-        session,
+        organizations,
+        selected,
+        session: session.map(|(facts, _)| facts),
         holds_turso_authority,
+        setup_consented,
         signed_out_elsewhere: app_state.signed_out_elsewhere.load(Ordering::SeqCst),
     })
 }
 
-/// Forget the organization this machine holds (requirement 20): sign out where somebody is in,
-/// delete every replica under the data directory, empty the record, and clear the Turso
-/// authority. The organization on Turso is untouched, and the person can connect again by the
-/// link. The one confirm before it is the screen's; this asks nothing.
+/// Forget the organization this machine has open, or the one the wall stands on (requirement 20):
+/// sign out where somebody is in, delete its replica and its workspaces' replicas, forget its entry
+/// on the record, and clear its Turso consent. Every other organization held keeps all of its own
+/// (effort 851, requirement 5). The organization on Turso is untouched, and the person can connect
+/// again by a link. The one confirm before it is the screen's; this asks nothing.
 #[tauri::command(rename = "session_disconnect")]
 pub(crate) async fn organization_session_disconnect(
     app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
 ) -> Result<OrganizationState, Error> {
-    forget::forget(&app_state, credentials.inner().as_ref()).await?;
+    forget::forget_the_open_one(&app_state, credentials.inner().as_ref()).await?;
 
     state_of(&app_state, &credentials, &clock).await
 }
 
-/// Sign in to the organization this machine holds, with a username and a password (effort 824,
-/// requirement 19).
+/// Choose the organization the wall opens on, from those this machine holds (effort 851,
+/// requirement 3): the wall then asks for that organization's username and password.
+///
+/// **Refused while somebody is signed in** (requirement 8): switching happens signed out, so the
+/// one organization open is the selected one for as long as it is open, and a selection that moved
+/// under an open session would leave the shell answering for one organization with another's
+/// replica. Nothing is opened here; the sign-in that follows opens the selected one.
+///
+/// **What the wall said, what Turso last refused and when the workspace was last reached were the
+/// previous organization's**, so they go, and the current workspace becomes the one this
+/// organization last had open (`RemoteSyncStore::select`).
+#[tauri::command(rename = "session_select")]
+pub(crate) async fn organization_session_select(
+    app_state: tauri::State<'_, Shared>,
+    credentials: tauri::State<'_, Credentials>,
+    clock: tauri::State<'_, clock::Shared>,
+    organization_id: String,
+) -> Result<OrganizationState, Error> {
+    select(&app_state, &organization_id).await?;
+
+    state_of(&app_state, &credentials, &clock).await
+}
+
+/// [`organization_session_select`]'s act, with its two refusals.
+pub(crate) async fn select(app_state: &Shared, organization_id: &str) -> Result<(), Error> {
+    if app_state.member.read().await.is_some() || app_state.organization.read().await.is_some() {
+        return Err(Error::refused(
+            RefusalReason::SessionOpen,
+            "sign out before choosing another organization",
+        ));
+    }
+
+    let mut remote_sync = app_state.remote_sync.write().await;
+
+    if remote_sync.store_mut().held(organization_id).is_none() {
+        return Err(Error::refused(
+            RefusalReason::NoOrganization,
+            "this machine does not hold that organization",
+        ));
+    }
+
+    remote_sync.select_organization(organization_id)?;
+    app_state
+        .signed_out_elsewhere
+        .store(false, Ordering::SeqCst);
+
+    Ok(())
+}
+
+/// Forget one organization this machine holds, and nothing else (effort 851, requirement 5): the
+/// switcher's remove. Its replica, its workspaces' replicas, its remembered sign-in, its entry on
+/// the record and its Turso consent go; where it is the open one the machine signs out of it
+/// first. Removing the last one brings back the welcome. The one confirm before it is the
+/// screen's; this asks nothing.
+///
+/// **Removing another organization than the open one leaves the open one open**, which is how the
+/// no-workspace screen removes an organization without signing anybody out.
+#[tauri::command(rename = "session_remove")]
+pub(crate) async fn organization_session_remove(
+    app_state: tauri::State<'_, Shared>,
+    credentials: tauri::State<'_, Credentials>,
+    clock: tauri::State<'_, clock::Shared>,
+    organization_id: String,
+) -> Result<OrganizationState, Error> {
+    remove(&app_state, credentials.inner().as_ref(), &organization_id).await?;
+
+    state_of(&app_state, &credentials, &clock).await
+}
+
+/// [`organization_session_remove`]'s act: an organization this machine does not hold is refused,
+/// and one it holds is forgotten (`forget::forget_one`).
+pub(crate) async fn remove(
+    app_state: &Shared,
+    credentials: &dyn CredentialStore,
+    organization_id: &str,
+) -> Result<(), Error> {
+    let held = {
+        let mut remote_sync = app_state.remote_sync.write().await;
+
+        remote_sync.store_mut().held(organization_id).is_some()
+    };
+
+    if !held {
+        return Err(Error::refused(
+            RefusalReason::NoOrganization,
+            "this machine does not hold that organization",
+        ));
+    }
+
+    forget::forget_one(app_state, credentials, organization_id).await
+}
+
+/// Sign in to the organization the wall stands on, the selected one, with a username and a
+/// password (effort 824, requirement 19).
 ///
 /// **Works with the network down.** The replica on this machine is opened, its rows are verified
 /// against the key this machine pinned when it connected, and the password is tried against each
@@ -217,16 +376,12 @@ pub(crate) async fn organization_session_sign_in(
     let held = {
         let mut remote_sync = app_state.remote_sync.write().await;
 
-        remote_sync
-            .store_mut()
-            .organization
-            .clone()
-            .ok_or_else(|| {
-                Error::refused(
-                    RefusalReason::NoOrganization,
-                    "this machine holds no organization to sign in to",
-                )
-            })?
+        remote_sync.store_mut().selected().cloned().ok_or_else(|| {
+            Error::refused(
+                RefusalReason::NoOrganization,
+                "this machine holds no organization to sign in to",
+            )
+        })?
     };
     // a session already open on this machine ends first, as a sign-out ends it: its remembered
     // key is deleted, the register stops naming it and its replica is let go of. Signing in over
@@ -255,7 +410,7 @@ pub(crate) async fn organization_session_sign_in(
         let mut remote_sync = app_state.remote_sync.write().await;
 
         match ownership::follow_succession(&store, remote_sync.store_mut()).await {
-            Ok(Some(_)) => remote_sync.store_mut().organization.clone().unwrap_or(held),
+            Ok(Some(_)) => remote_sync.store_mut().selected().cloned().unwrap_or(held),
             Ok(None) => held,
             Err(refusal) => {
                 diagnostics::warn("organization.succession.notFollowed")
@@ -308,13 +463,14 @@ pub(crate) async fn organization_session_sign_out(
 
 /// The sign-out itself: the keys go, the organization replica is dropped, and the key this
 /// machine was staying signed in on is deleted. What `organization_session_sign_out` does, and what
-/// `forget` does first, so that letting go of the replica is one routine and the file it held can
+/// `forget::forget_one` does first for the open organization, so that letting go of the replica is one routine and the file it held can
 /// be deleted afterwards.
 ///
 /// **The remembered key goes here rather than in each caller**, which is what makes a disconnect
 /// forget it too: a machine that has let go of its organization must not keep the key that opened
-/// a member's vault in it. The record is read before it is emptied, which is why this runs before
-/// `forget` touches it.
+/// a member's vault in it. The record is read before the entry goes, which is why this runs before
+/// `forget::forget_one` touches it. **Only the open organization's**: every other organization
+/// held keeps its own remembered key (effort 851, criterion 8).
 pub(crate) async fn sign_out(app_state: &Shared, credentials: &dyn CredentialStore) {
     // a sign-out the person asked for answers the standing: they are at the wall because they
     // put themselves there. The heartbeat's own sign-out sets it again afterwards, which is the
@@ -323,48 +479,119 @@ pub(crate) async fn sign_out(app_state: &Shared, credentials: &dyn CredentialSto
         .signed_out_elsewhere
         .store(false, Ordering::SeqCst);
 
-    {
-        let mut remote_sync = app_state.remote_sync.write().await;
-        let held = remote_sync.store_mut().organization.as_ref();
+    // the open organization, which is the member's where somebody is in and the one the wall
+    // stands on otherwise (effort 851): never another organization this machine holds.
+    let held = match forget::open_organization(app_state).await {
+        Some(organization_id) => {
+            let mut remote_sync = app_state.remote_sync.write().await;
 
-        if let Some((organization_id, member_id)) =
-            held.and_then(|held| held.member_id.as_ref().map(|member| (&held.id, member)))
-        {
-            session::forget_remembered(credentials, organization_id, member_id);
+            remote_sync.store_mut().held(&organization_id).cloned()
         }
+        None => None,
+    };
+
+    if let Some((organization_id, member_id)) = held
+        .as_ref()
+        .and_then(|held| held.member_id.as_ref().map(|member| (&held.id, member)))
+    {
+        session::forget_remembered(credentials, organization_id, member_id);
     }
 
     // the machine stays in the registry and stops naming anybody (effort 828, requirement 15):
     // it still holds the organization, and what ended is the session. Before the replica is let
     // go of below, since that is what carries the write.
     {
-        let held = {
-            let mut remote_sync = app_state.remote_sync.write().await;
-
-            remote_sync.store_mut().organization.clone()
-        };
         let organization = app_state.organization.read().await;
 
-        if let (Some(held), Some(store)) = (held, organization.as_ref()) {
-            session::machine_seen(store, &held, None, store.clock().now()).await;
+        if let (Some(held), Some(store)) = (held.as_ref(), organization.as_ref()) {
+            session::machine_seen(store, held, None, store.clock().now()).await;
         }
     }
 
     *app_state.member.write().await = None;
     *app_state.organization.write().await = None;
+
+    // and what Turso last refused and when the workspace was last reached, which were the open
+    // organization's (effort 851). Nothing about the sign-out turns on the write.
+    if let Err(error) = app_state.remote_sync.write().await.note_signed_out() {
+        diagnostics::error("organization.session.signedOutNotRecorded")
+            .with("error", error.to_string())
+            .write();
+    }
 }
 
 /// The signed-in member's facts, re-read from the replica so a row that changed under them since
-/// sign-in is what the screen shows.
-async fn current_facts(app_state: &Shared) -> Result<Option<SessionFacts>, Error> {
+/// sign-in is what the screen shows, with this machine's entry for the organization as the read
+/// left it: `name_signed` set where a signed name was read (`session::organization_name_of`).
+async fn current_facts(
+    app_state: &Shared,
+) -> Result<Option<(SessionFacts, HeldOrganization)>, Error> {
     let member = app_state.member.read().await;
     let organization = app_state.organization.read().await;
 
     let (Some(member), Some(store)) = (member.as_ref(), organization.as_ref()) else {
         return Ok(None);
     };
+    let held = {
+        let mut remote_sync = app_state.remote_sync.write().await;
 
-    session::facts_of(store, member).await.map(Some)
+        remote_sync
+            .store_mut()
+            .held(&member.organization_id)
+            .cloned()
+    };
+    let Some(mut held) = held else {
+        return Ok(None);
+    };
+
+    let facts = session::facts_of(store, member, &mut held).await?;
+
+    Ok(Some((facts, held)))
+}
+
+/// Write this machine's entry for the organization where the read changed it (effort 851,
+/// requirements 26 and 29): `name_signed` once a signed name has been read, and the name the owner
+/// signed, with when they signed it, where either differs from the one held. **Only a signed name
+/// is written**: an unsigned one, read before the owner has signed, changes nothing the record
+/// holds, and neither does one signed before the name the record holds, which a read made before
+/// the record moved could carry. **And `lock_marked`** once the organization's lock marker has been
+/// read, which is never cleared (effort 851, requirement 35).
+async fn held_name_refreshed(
+    app_state: &Shared,
+    (facts, read): &(SessionFacts, HeldOrganization),
+) -> Result<(), Error> {
+    if !read.name_signed && !read.lock_marked {
+        return Ok(());
+    }
+
+    let mut remote_sync = app_state.remote_sync.write().await;
+    let record = remote_sync.store_mut();
+    let Some(entry) = record.held_mut(&read.id) else {
+        return Ok(());
+    };
+    let name_moved = read.name_signed
+        && !(entry.name_signed
+            && entry.name == facts.organization_name
+            && entry.name_signed_at == read.name_signed_at)
+        && !(entry.name_signed && read.name_signed_at < entry.name_signed_at);
+    // and the lock marker, once read, latched for good (effort 851, requirement 35).
+    let marked = read.lock_marked && !entry.lock_marked;
+
+    if !name_moved && !marked {
+        return Ok(());
+    }
+
+    if name_moved {
+        entry.name_signed = true;
+        entry.name_signed_at = read.name_signed_at;
+        entry.name = facts.organization_name.clone();
+    }
+
+    if marked {
+        entry.lock_marked = true;
+    }
+
+    record.commit()
 }
 
 /// Sign this member out of every machine but the one they are at (effort 826, requirement 22).
@@ -448,17 +675,20 @@ pub(crate) async fn organization_session_end_machine(
     .await
 }
 
-/// The organization this machine's record holds, for the acts that need to know which machine
-/// this is. Read before the member's lock is taken, so the record's lock is never held under it.
+/// This machine's entry for the organization it has open, for the acts that need to know which
+/// machine this is. Read before the member's lock is taken, so the record's lock is never held
+/// under it.
 async fn held_here(app_state: &Shared) -> Result<HeldOrganization, Error> {
+    let open = forget::open_organization(app_state).await;
     let mut remote_sync = app_state.remote_sync.write().await;
 
-    remote_sync.store_mut().organization.clone().ok_or_else(|| {
-        Error::refused(
-            RefusalReason::NoOrganization,
-            "this machine holds no organization",
-        )
-    })
+    open.and_then(|organization_id| remote_sync.store_mut().held(&organization_id).cloned())
+        .ok_or_else(|| {
+            Error::refused(
+                RefusalReason::NoOrganization,
+                "this machine holds no organization",
+            )
+        })
 }
 
 /// Send what this machine wrote, then take what the others wrote.
@@ -687,14 +917,30 @@ mod tests {
 
     use super::{Opening, open_replica, sign_out, state_of};
     use crate::error::Error;
+    use crate::organization::HeldOrganization;
     use crate::organization::Shared;
+    use crate::organization::act::{owner_platform, owner_platform_at};
+    use crate::organization::invitation::link::JoinLink;
+    use crate::organization::invitation::{
+        Invitation, locator, make_account_and_link, vault_password_of,
+    };
+    use crate::organization::member::vault::{open_content, seal_content};
+    use crate::organization::role::permission;
+    use crate::organization::session::{AccountCopy, CredentialSlot, Upgrade, Upgrading};
+    use crate::organization::session::{MemberSession, sign_in};
+    use crate::organization::store::{OrganizationNameRecord, OrganizationStore, SignedRow};
     use crate::persisted::Persisted;
     use crate::settings::Settings;
     use crate::sync::test::server::{ScriptedResponse, ScriptedServer};
     use crate::test::scratch;
-    use crate::turso::consent::TursoConsent;
-    use crate::turso::discovery::McpEndpoint;
-    use crate::turso::platform::InMemoryPlatform;
+    use crate::turso::consent::{
+        Account, TursoConsent, forget_platform_token, holds_platform_token, move_pending_consent,
+        platform_token, store_platform_token,
+    };
+    use crate::turso::discovery::{McpEndpoint, TursoOrganization};
+    use crate::turso::platform::{
+        AccessLevel, InMemoryPlatform, PlatformApi, PlatformEndpoint, TursoPlatform,
+    };
     use crate::update::Update;
     use serde_json::json;
 
@@ -812,8 +1058,8 @@ mod tests {
         let mut remote_sync = app_state.remote_sync.write().await;
         let held = remote_sync
             .store_mut()
-            .organization
-            .clone()
+            .selected()
+            .cloned()
             .expect("the record names no organization");
 
         (held.id, held.member_id.expect("the record names no member"))
@@ -916,9 +1162,366 @@ mod tests {
 
         assert!(state.session.is_none(), "the wall did not come back up");
         assert_eq!(
-            state.organization.map(|held| held.member_id),
+            state.selected_organization().map(|held| held.member_id),
             Some(Some(member_id)),
             "the record forgot the member a sign-out keeps"
+        );
+    }
+
+    /// A second organization made on the machine `app_state` is, beside the one it holds, by a
+    /// first run of its own: the owner's key filed for it, and it selected.
+    async fn another_organization(
+        credentials: &dyn CredentialStore,
+        directory: &std::path::Path,
+        app_state: &Shared,
+    ) -> HeldOrganization {
+        let mcp = ScriptedServer::start(vec![
+            ScriptedResponse::new(
+                200,
+                json!({ "jsonrpc": "2.0", "id": 1, "result": {} }).to_string(),
+            ),
+            ScriptedResponse::new(
+                200,
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": 3,
+                    "result": { "content": [{ "type": "text", "text": json!([{
+                        "Name": "ledger",
+                        "hostname": "ledger-another-org.aws-eu-west-1.turso.io",
+                        "group": "rentable"
+                    }]).to_string() }] }
+                })
+                .to_string(),
+            ),
+        ])
+        .await;
+        let platform = Arc::new(InMemoryPlatform::new("another-org"));
+        let mut remote_sync = app_state.remote_sync.write().await;
+        let (created, _) = create_organization(
+            credentials,
+            &crate::clock::System::shared(),
+            remote_sync.store_mut(),
+            "a-platform-token",
+            &McpEndpoint::at(&mcp.url("")),
+            |_| Arc::clone(&platform),
+            Remote::none(),
+            &directory.join(Database::FILENAME),
+            CreateOrganization {
+                name: "Beta",
+                username: USERNAME,
+                password: PASSWORD,
+                group: None,
+            },
+            test_cost(),
+            CREATED_AT,
+        )
+        .await
+        .expect("the second first run failed");
+
+        remote_sync
+            .store_mut()
+            .held(&created.organization_id)
+            .cloned()
+            .expect("the second organization was not recorded")
+    }
+
+    /// **Effort 851, criterion 8, and the selection.** A machine holds two organizations and is
+    /// signed in to the second, the one its last first run selected. Choosing another organization
+    /// is refused while somebody is in. The sign-out deletes the open organization's remembered
+    /// key alone, and the wall stands on it with both organizations listed. Choosing the first
+    /// then persists on the record, the state answers with it, and what the wall said, what Turso
+    /// last refused and when a workspace was last reached go with the selection.
+    #[tokio::test]
+    async fn a_sign_out_forgets_the_open_organizations_key_alone_and_a_selection_waits_for_it() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let directory = scratch("select");
+        let app_state = first_run(credentials.as_ref(), &directory).await;
+        let (first_id, first_member) = recorded(&app_state).await;
+        let second = another_organization(credentials.as_ref(), &directory, &app_state).await;
+        let second_member = second.member_id.clone().expect("the second owner");
+        let clock = crate::clock::System::shared();
+
+        let state = state_of(&app_state, &credentials, &clock)
+            .await
+            .expect("the state");
+
+        assert_eq!(
+            state
+                .session
+                .as_ref()
+                .map(|session| session.organization_id.as_str()),
+            Some(second.id.as_str()),
+            "the launch did not resume the selected organization"
+        );
+        assert_eq!(
+            state
+                .organizations
+                .iter()
+                .map(|held| held.id.as_str())
+                .collect::<Vec<_>>(),
+            vec![first_id.as_str(), second.id.as_str()]
+        );
+
+        // signed in: choosing another organization waits for the sign-out.
+        let refused = super::select(&app_state, &first_id).await;
+
+        assert!(
+            matches!(
+                refused,
+                Err(Error::Refused {
+                    reason: crate::error::RefusalReason::SessionOpen,
+                    ..
+                })
+            ),
+            "{refused:?}"
+        );
+        assert_eq!(
+            app_state
+                .remote_sync
+                .write()
+                .await
+                .store_mut()
+                .selected_organization
+                .as_deref(),
+            Some(second.id.as_str())
+        );
+
+        // the sign-out: the open organization's key goes, and the first's stays.
+        sign_out(&app_state, credentials.as_ref()).await;
+
+        assert_eq!(
+            filed(credentials.as_ref(), &second.id, &second_member),
+            None,
+            "the sign-out left the open organization's key"
+        );
+        assert!(
+            filed(credentials.as_ref(), &first_id, &first_member).is_some(),
+            "the sign-out took another organization's key"
+        );
+
+        let state = state_of(&app_state, &credentials, &clock)
+            .await
+            .expect("the state");
+
+        assert!(state.session.is_none());
+        assert_eq!(state.selected.as_deref(), Some(second.id.as_str()));
+        assert_eq!(state.organizations.len(), 2);
+
+        // what was the open organization's, to be cleared with the selection.
+        app_state
+            .signed_out_elsewhere
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+        {
+            let mut remote_sync = app_state.remote_sync.write().await;
+
+            remote_sync.note_account_refusal("over quota", 1);
+            remote_sync.note_credential_refusal(1);
+            remote_sync.note_reached(1).expect("the moment");
+        }
+
+        super::select(&app_state, &first_id)
+            .await
+            .expect("the selection was refused");
+
+        let state = state_of(&app_state, &credentials, &clock)
+            .await
+            .expect("the state");
+
+        assert_eq!(state.selected.as_deref(), Some(first_id.as_str()));
+        assert_eq!(
+            state.selected_organization().map(|held| held.id),
+            Some(first_id.clone()),
+            "the state does not name the chosen organization"
+        );
+        assert!(!state.signed_out_elsewhere, "the wall's sentence stayed");
+
+        {
+            let mut remote_sync = app_state.remote_sync.write().await;
+
+            assert_eq!(remote_sync.account_refusal_detail(), None);
+            assert_eq!(
+                remote_sync
+                    .get_state()
+                    .await
+                    .expect("the sync state")
+                    .credential_refusal,
+                None
+            );
+            assert_eq!(remote_sync.store_mut().last_reached_at, None);
+        }
+
+        // on the record, on disk.
+        let written: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(directory.join(RemoteSync::FILENAME)).expect("the record"),
+        )
+        .expect("the record is json");
+
+        assert_eq!(written["selectedOrganization"], json!(first_id));
+
+        // and an organization this machine does not hold is refused.
+        assert!(matches!(
+            super::select(&app_state, "nobody-holds-this").await,
+            Err(Error::Refused {
+                reason: crate::error::RefusalReason::NoOrganization,
+                ..
+            })
+        ));
+    }
+
+    /// **Effort 851: removing the organization open forgets it and signs out of it; removing
+    /// another leaves the open one open.** The no-workspace screen removes an organization without
+    /// signing anybody out, and the wall removes the one it stands on.
+    #[tokio::test]
+    async fn removing_another_organization_leaves_the_open_one_open() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let directory = scratch("remove-other");
+        let app_state = first_run(credentials.as_ref(), &directory).await;
+        let (first_id, first_member) = recorded(&app_state).await;
+        let second = another_organization(credentials.as_ref(), &directory, &app_state).await;
+        let clock = crate::clock::System::shared();
+
+        state_of(&app_state, &credentials, &clock)
+            .await
+            .expect("the state")
+            .session
+            .expect("the launch did not resume");
+
+        super::remove(&app_state, credentials.as_ref(), &first_id)
+            .await
+            .expect("the remove failed");
+
+        let state = state_of(&app_state, &credentials, &clock)
+            .await
+            .expect("the state");
+
+        assert_eq!(
+            state.session.map(|session| session.organization_id),
+            Some(second.id.clone()),
+            "removing another organization signed the open one out"
+        );
+        assert_eq!(state.selected.as_deref(), Some(second.id.as_str()));
+        assert_eq!(state.organizations.len(), 1);
+        assert_eq!(filed(credentials.as_ref(), &first_id, &first_member), None);
+
+        // and the open one: signed out, and nothing left held.
+        super::remove(&app_state, credentials.as_ref(), &second.id)
+            .await
+            .expect("the remove failed");
+
+        let state = state_of(&app_state, &credentials, &clock)
+            .await
+            .expect("the state");
+
+        assert!(state.session.is_none());
+        assert!(app_state.organization.read().await.is_none());
+        assert!(state.organizations.is_empty());
+        assert_eq!(state.selected, None);
+    }
+
+    /// **Effort 851, criterion 5: each held organization says whether this machine holds its own
+    /// Turso consent**, which is what the switcher's remove confirm says the account goes by. Two
+    /// organizations are held and only the first's consent is filed: the state says so of each,
+    /// and the top-level answer is the selected one's, which is the second.
+    #[tokio::test]
+    async fn each_held_organization_says_whether_this_machine_holds_its_consent() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let directory = scratch("consent-each");
+        let app_state = first_run(credentials.as_ref(), &directory).await;
+        let (first_id, _) = recorded(&app_state).await;
+        let second = another_organization(credentials.as_ref(), &directory, &app_state).await;
+
+        for id in [first_id.as_str(), second.id.as_str()] {
+            forget_platform_token(credentials.as_ref(), &Account::of(id)).expect("the forget");
+        }
+        store_platform_token(credentials.as_ref(), "token-a").expect("the consent");
+        move_pending_consent(credentials.as_ref(), &first_id).expect("the move");
+
+        let state = state_of(&app_state, &credentials, &crate::clock::System::shared())
+            .await
+            .expect("the state");
+        let holds = |id: &str| {
+            state
+                .organizations
+                .iter()
+                .find(|held| held.id == id)
+                .map(|held| held.holds_turso_authority)
+        };
+
+        assert_eq!(
+            holds(&first_id),
+            Some(true),
+            "the first's consent is not read"
+        );
+        assert_eq!(
+            holds(&second.id),
+            Some(false),
+            "the second reads another's consent"
+        );
+        assert_eq!(state.selected.as_deref(), Some(second.id.as_str()));
+        assert!(
+            !state.holds_turso_authority,
+            "the top-level answer is not the selected organization's"
+        );
+    }
+
+    /// **The owner is never left stuck on a consent Turso no longer accepts** (the link refused on
+    /// 2026-10-06). An act spending the organization's own consent is refused as `invalid api
+    /// token`; the answer tells the owner to connect Turso again, and the state reads the
+    /// organization as holding no authority, which is what puts the connect card in its settings.
+    #[tokio::test]
+    async fn a_consent_turso_no_longer_accepts_reads_as_not_connected() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let directory = scratch("consent-lost");
+        let app_state = first_run(credentials.as_ref(), &directory).await;
+        let (organization_id, _) = recorded(&app_state).await;
+
+        store_platform_token(credentials.as_ref(), "a-revoked-consent").expect("the consent");
+        move_pending_consent(credentials.as_ref(), &organization_id).expect("the move");
+
+        let server = ScriptedServer::start(vec![ScriptedResponse::new(
+            401,
+            json!({ "error": "invalid api token" }).to_string(),
+        )])
+        .await;
+        let platform = owner_platform_at(
+            &app_state,
+            &credentials,
+            &organization_id,
+            PlatformEndpoint::at(&server.url("")),
+        )
+        .await
+        .expect("the machine holds the organization's consent");
+
+        let refused = platform
+            .mint_token(
+                &format!("org-{organization_id}"),
+                "3d",
+                AccessLevel::FullAccess,
+            )
+            .await
+            .expect_err("a refused consent minted a credential");
+
+        assert!(matches!(
+            refused,
+            Error::Refused {
+                reason: crate::error::RefusalReason::TursoConsentLost,
+                ..
+            }
+        ));
+
+        let state = state_of(&app_state, &credentials, &crate::clock::System::shared())
+            .await
+            .expect("the state");
+
+        assert_eq!(state.selected.as_deref(), Some(organization_id.as_str()));
+        assert!(
+            !state.holds_turso_authority,
+            "the settings would still offer acts on a consent Turso refuses"
+        );
+        assert!(
+            owner_platform(&app_state, &credentials, &organization_id)
+                .await
+                .is_none()
         );
     }
 
@@ -934,7 +1537,7 @@ mod tests {
         state_of(&app_state, &credentials, &crate::clock::System::shared())
             .await
             .expect("the state");
-        forget::forget(&app_state, credentials.as_ref())
+        forget::forget_the_open_one(&app_state, credentials.as_ref())
             .await
             .expect("the forget failed");
 
@@ -969,7 +1572,10 @@ mod tests {
             .await
             .expect("the state");
 
-        assert!(state.organization.is_some(), "the first run did not finish");
+        assert!(
+            state.selected_organization().is_some(),
+            "the first run did not finish"
+        );
         assert!(state.session.is_none(), "a launch with no key signed in");
     }
 
@@ -992,8 +1598,8 @@ mod tests {
 
             remote_sync
                 .store_mut()
-                .organization
-                .clone()
+                .selected()
+                .cloned()
                 .expect("the record")
         };
         let (store, credential) = open_replica(
@@ -1096,5 +1702,2188 @@ mod tests {
             directory.join(RemoteSync::FILENAME).is_file(),
             "the record was not among the files the sweep read"
         );
+    }
+    // -------------------------------------------------------------------------------------
+    // Effort 851, requirements 26 and 29: the organization's name is the one the owner signed.
+    // -------------------------------------------------------------------------------------
+
+    /// A replica of the organization `store` holds, on another machine whose data directory is
+    /// `directory`, carrying every row `store` holds.
+    async fn replica_beside(
+        store: &OrganizationStore,
+        directory: &std::path::Path,
+        organization_id: &str,
+    ) -> OrganizationStore {
+        std::fs::create_dir_all(directory).expect("the data directory");
+
+        let replica = OrganizationStore::open(
+            crate::clock::System::shared(),
+            &OrganizationStore::replica_path(&directory.join(Database::FILENAME), organization_id),
+            None,
+            || async { Ok::<String, turso::Error>(String::new()) },
+        )
+        .await
+        .expect("the second replica");
+
+        replica.install_schema().await.expect("the schema");
+        synced(store, &replica).await;
+
+        replica
+    }
+
+    /// What a pull brings, with no remote to bring it from: every row of every table `from` holds,
+    /// in place of what `to` holds there. A table `to` lacks is what an earlier build's replica
+    /// lacks, and is left out, as a pull leaves it to `complete_schema`.
+    async fn synced(from: &OrganizationStore, to: &OrganizationStore) {
+        let present = to.tables().await.expect("the tables");
+
+        for table in from.tables().await.expect("the tables") {
+            if !present.contains(&table) {
+                continue;
+            }
+
+            to.connection()
+                .execute(&format!("DELETE FROM \"{table}\""), ())
+                .await
+                .expect("the old rows");
+
+            let mut rows = from
+                .connection()
+                .query(&format!("SELECT * FROM \"{table}\""), ())
+                .await
+                .expect("the rows");
+
+            while let Some(row) = rows.next().await.expect("a row") {
+                let values: Vec<turso::Value> = (0..row.column_count())
+                    .map(|index| row.get_value(index).expect("a value"))
+                    .collect();
+                let placeholders = vec!["?"; values.len()].join(", ");
+
+                to.connection()
+                    .execute(
+                        &format!("INSERT INTO \"{table}\" VALUES ({placeholders})"),
+                        values,
+                    )
+                    .await
+                    .expect("the row");
+            }
+        }
+    }
+
+    /// The organization's replica on `app_state`'s machine, opened as a test reads it.
+    async fn replica_of(app_state: &Shared) -> OrganizationStore {
+        let (organization_id, _) = recorded(app_state).await;
+        let database_path = app_state.settings.read().await.database_path.clone();
+
+        OrganizationStore::open(
+            crate::clock::System::shared(),
+            &OrganizationStore::replica_path(&database_path, &organization_id),
+            None,
+            || async { Ok::<String, turso::Error>(String::new()) },
+        )
+        .await
+        .expect("the replica")
+    }
+
+    /// The owner signed in on the first run's replica, as a test acts for them.
+    async fn the_owner(store: &OrganizationStore, app_state: &Shared) -> MemberSession {
+        let held = {
+            let mut remote_sync = app_state.remote_sync.write().await;
+
+            remote_sync
+                .store_mut()
+                .selected()
+                .cloned()
+                .expect("the entry")
+        };
+
+        sign_in(store, &held, PASSWORD, &Arc::new(Mutex::new(None)))
+            .await
+            .expect("the owner did not sign in")
+    }
+
+    /// A member's machine: invited by `owner` on `owner_store`, holding a replica of it in
+    /// `directory`, signed in there, and past its launch's checks. What the state reads of it is
+    /// what a member's screen shows.
+    async fn a_members_machine(
+        owner_store: &OrganizationStore,
+        owner: &MemberSession,
+        directory: &std::path::Path,
+        username: &'static str,
+    ) -> Shared {
+        let link = locator(owner_store, owner).await.expect("the link");
+        let invited = make_account_and_link(
+            owner_store,
+            owner,
+            None::<&InMemoryPlatform>,
+            &link,
+            Invitation {
+                username,
+                role: permission::MEMBER,
+                workspaces: &[],
+            },
+            test_cost(),
+            CREATED_AT + 1,
+        )
+        .await
+        .expect("the invitation");
+        let replica = replica_beside(owner_store, directory, &owner.organization_id).await;
+        let app_state = state_over(directory).await;
+        let held = {
+            let mut remote_sync = app_state.remote_sync.write().await;
+            let record = remote_sync.store_mut();
+
+            record.hold(HeldOrganization {
+                id: owner.organization_id.clone(),
+                name: "Acme".to_string(),
+                verifying_key: base64::Engine::encode(
+                    &base64::engine::general_purpose::URL_SAFE_NO_PAD,
+                    owner.verifying_key,
+                ),
+                remote_url: "libsql://org-acme.turso.io".to_string(),
+                machine_id: format!("machine-{username}"),
+                member_id: Some(invited.member_id.clone()),
+                role: Some(permission::MEMBER.to_string()),
+                joined_at: CREATED_AT + 1,
+                format: None,
+                machine_signed_out: 0,
+                turso_organization: None,
+                workspace_id: None,
+                name_signed: false,
+                name_signed_at: 0,
+                lock_marked: false,
+                own_lock_latched: Vec::new(),
+            });
+            record.commit().expect("the record");
+            record.selected().cloned().expect("the entry")
+        };
+        let member = sign_in(
+            &replica,
+            &held,
+            &vault_password_of(&invited.join_link, &invited.code, test_cost()),
+            &Arc::new(Mutex::new(None)),
+        )
+        .await
+        .expect("the member did not sign in");
+
+        *app_state.organization.write().await = Some(replica);
+        *app_state.member.write().await = Some(member);
+        app_state
+            .old_shape_check
+            .set(())
+            .expect("the launch's checks had run");
+
+        app_state
+    }
+
+    /// The owner renames the organization through the rename itself (effort 851, ticket 10): the
+    /// signed row and the unsigned column, with the same sealed name.
+    async fn renamed(store: &OrganizationStore, owner: &MemberSession, name: &str, at: i64) {
+        crate::organization::setup::rename_organization(store, owner, name, at)
+            .await
+            .expect("the owner's rename");
+    }
+
+    /// What `app_state`'s machine names the organization: in the session, and in the record the
+    /// wall and the switcher draw from.
+    async fn names_on(app_state: &Shared, credentials: &Credentials) -> (String, String) {
+        let state = state_of(app_state, credentials, &crate::clock::System::shared())
+            .await
+            .expect("the state");
+
+        let held = state.selected_organization().expect("nothing is held").name;
+
+        (
+            state
+                .session
+                .expect("nobody is signed in")
+                .organization_name,
+            held,
+        )
+    }
+
+    /// Whether `app_state`'s record has read a signed name.
+    async fn read_signed(app_state: &Shared) -> bool {
+        let mut remote_sync = app_state.remote_sync.write().await;
+
+        remote_sync
+            .store_mut()
+            .selected()
+            .expect("the entry")
+            .name_signed
+    }
+
+    /// The pair a machine names when the session and the record both say `name`.
+    fn both(name: &str) -> (String, String) {
+        (name.to_string(), name.to_string())
+    }
+
+    /// **Criterion 26.** The owner renames; a member's machine whose replica syncs while they are
+    /// signed in names the new name in its session and its record, and a member's machine that has
+    /// not synced still names the old one.
+    #[tokio::test]
+    async fn a_members_machine_names_the_new_name_once_it_has_synced() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let elsewhere: Credentials = Arc::new(Memory::new());
+        let directory = scratch("signed-name-follows");
+        let owners = first_run(credentials.as_ref(), &directory.join("owner")).await;
+        let store = replica_of(&owners).await;
+        let owner = the_owner(&store, &owners).await;
+        let syncs = a_members_machine(&store, &owner, &directory.join("syncs"), "sami.staff").await;
+        let behind =
+            a_members_machine(&store, &owner, &directory.join("behind"), "bea.staff").await;
+
+        assert_eq!(names_on(&syncs, &elsewhere).await, both("Acme"));
+        assert!(read_signed(&syncs).await, "the signed name was not latched");
+
+        renamed(&store, &owner, "Acme Rentals", CREATED_AT + 10).await;
+
+        // before its replica has synced, the member's machine names the name it has.
+        assert_eq!(names_on(&syncs, &elsewhere).await, both("Acme"));
+
+        {
+            let organization = syncs.organization.read().await;
+
+            synced(&store, organization.as_ref().expect("the replica")).await;
+        }
+
+        assert_eq!(
+            names_on(&syncs, &elsewhere).await,
+            both("Acme Rentals"),
+            "the member's machine did not follow the rename"
+        );
+        assert_eq!(
+            names_on(&behind, &elsewhere).await,
+            both("Acme"),
+            "a machine that has not synced named a name it never received"
+        );
+    }
+
+    /// **Criterion 29, a forged name.** Once a member's machine has read the name the owner signed,
+    /// a new `name_sealed` written straight into its replica without the owner's signature is not
+    /// shown; neither is a signed row whose name somebody swapped, nor the unsigned column once
+    /// the signed row is deleted. It keeps naming the last name that verified.
+    #[tokio::test]
+    async fn a_name_the_owner_did_not_sign_is_not_shown() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let elsewhere: Credentials = Arc::new(Memory::new());
+        let directory = scratch("signed-name-forged");
+        let owners = first_run(credentials.as_ref(), &directory.join("owner")).await;
+        let store = replica_of(&owners).await;
+        let owner = the_owner(&store, &owners).await;
+        let member =
+            a_members_machine(&store, &owner, &directory.join("member"), "sami.staff").await;
+        let forged = seal_content(
+            &owner.content_key,
+            "organization.name_sealed",
+            b"Forged Rentals",
+        )
+        .expect("the sealed name");
+
+        assert_eq!(names_on(&member, &elsewhere).await, both("Acme"));
+
+        for (statement, what) in [
+            (
+                "UPDATE \"organization\" SET \"name_sealed\" = ?",
+                "an unsigned name written straight into the replica",
+            ),
+            (
+                "UPDATE \"organization_name\" SET \"name_sealed\" = ?",
+                "a signed row with its name swapped",
+            ),
+            (
+                "DELETE FROM \"organization_name\" WHERE \"name_sealed\" = ?",
+                "the signed row deleted",
+            ),
+        ] {
+            {
+                let organization = member.organization.read().await;
+
+                organization
+                    .as_ref()
+                    .expect("the replica")
+                    .connection()
+                    .execute(statement, vec![turso::Value::Blob(forged.clone())])
+                    .await
+                    .unwrap_or_else(|error| panic!("{what}: {error}"));
+            }
+
+            assert_eq!(
+                names_on(&member, &elsewhere).await,
+                both("Acme"),
+                "{what} was shown"
+            );
+        }
+    }
+
+    /// The owner's signed name row `old`, put back into `replica` as it lay, which is all a
+    /// member who can write the replica needs to roll the name back.
+    async fn put_back(replica: &OrganizationStore, old: &SignedRow<OrganizationNameRecord>) {
+        replica
+            .connection()
+            .execute(
+                "UPDATE \"organization_name\" SET \"name_sealed\" = ?, \"updated_at\" = ?,                  \"certificate_id\" = ?, \"signature\" = ?",
+                vec![
+                    turso::Value::Blob(old.record.name_sealed.clone()),
+                    turso::Value::Integer(old.record.updated_at),
+                    turso::Value::Text(old.certificate_id.clone()),
+                    turso::Value::Blob(old.signature.clone()),
+                ],
+            )
+            .await
+            .expect("the old row put back");
+    }
+
+    /// **Criterion 29, a name rolled back.** A row the owner signed before the name a machine
+    /// last read verifies, but a member's machine that has read the newer one keeps naming it when
+    /// the old row is put back into its replica, and the owner's machine signs its own name again
+    /// over the old row, so every machine moves forward to it. A row that is current is left as
+    /// it is.
+    #[tokio::test]
+    async fn a_name_the_owner_signed_before_is_not_put_back() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let elsewhere: Credentials = Arc::new(Memory::new());
+        let directory = scratch("signed-name-rolled-back");
+        let owners = first_run(credentials.as_ref(), &directory.join("owner")).await;
+        let store = replica_of(&owners).await;
+        let owner = the_owner(&store, &owners).await;
+        let member =
+            a_members_machine(&store, &owner, &directory.join("member"), "sami.staff").await;
+
+        assert_eq!(names_on(&member, &elsewhere).await, both("Acme"));
+
+        let old = store
+            .organization_name_row()
+            .await
+            .expect("the read")
+            .expect("the signed row");
+
+        renamed(&store, &owner, "Acme Rentals", CREATED_AT + 10).await;
+
+        {
+            let organization = member.organization.read().await;
+
+            synced(&store, organization.as_ref().expect("the replica")).await;
+        }
+
+        assert_eq!(names_on(&member, &elsewhere).await, both("Acme Rentals"));
+
+        {
+            let organization = member.organization.read().await;
+
+            put_back(organization.as_ref().expect("the replica"), &old).await;
+        }
+
+        assert_eq!(
+            names_on(&member, &elsewhere).await,
+            both("Acme Rentals"),
+            "the name the owner signed before was put back"
+        );
+
+        // the owner's machine, latched on the name it gave, finds the old row put back.
+        let latched = store
+            .organization_name(&owner.verifying_key)
+            .await
+            .expect("the read")
+            .expect("the renamed row")
+            .updated_at;
+        let held = {
+            let mut remote_sync = owners.remote_sync.write().await;
+
+            HeldOrganization {
+                name: "Acme Rentals".to_string(),
+                name_signed: true,
+                name_signed_at: latched,
+                ..remote_sync
+                    .store_mut()
+                    .selected()
+                    .cloned()
+                    .expect("the entry")
+            }
+        };
+
+        put_back(&store, &old).await;
+
+        assert!(
+            crate::organization::ownership::sign_organization_name(
+                &store,
+                &owner.verifying_key,
+                &owner.member_id,
+                &owner.secret,
+                Some(&held),
+                CREATED_AT + 20,
+            )
+            .await
+            .expect("the signing"),
+            "the owner's machine left the old row in place"
+        );
+
+        let signed = store
+            .organization_name(&owner.verifying_key)
+            .await
+            .expect("the read")
+            .expect("the owner's machine signed nothing");
+
+        assert!(
+            signed.updated_at >= latched,
+            "the name was signed before the one the owner's machine last read"
+        );
+        assert_eq!(
+            open_content(
+                &owner.content_key,
+                "organization.name_sealed",
+                &signed.name_sealed
+            )
+            .expect("the name opens"),
+            b"Acme Rentals",
+            "the owner's machine signed another name than its own"
+        );
+
+        {
+            let organization = member.organization.read().await;
+
+            synced(&store, organization.as_ref().expect("the replica")).await;
+        }
+
+        assert_eq!(names_on(&member, &elsewhere).await, both("Acme Rentals"));
+        assert!(
+            !crate::organization::ownership::sign_organization_name(
+                &store,
+                &owner.verifying_key,
+                &owner.member_id,
+                &owner.secret,
+                Some(&held),
+                CREATED_AT + 30,
+            )
+            .await
+            .expect("the signing"),
+            "the owner's machine signed over a name that is current"
+        );
+    }
+
+    /// **Criterion 29, an organization made before this change.** Its replicas hold no signed
+    /// name, and a member's of an earlier build not even the table: the member's machine opens it
+    /// and names its name from the unsigned column. The owner's next launch signs that same name,
+    /// and the member's machine, once it has synced, reads it signed and names the same name.
+    #[tokio::test]
+    async fn an_organization_made_before_the_signed_name_names_its_name_before_and_after_it_is_signed()
+     {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let elsewhere: Credentials = Arc::new(Memory::new());
+        let directory = scratch("signed-name-before");
+        let owners = first_run(credentials.as_ref(), &directory.join("owner")).await;
+        let member = {
+            let store = replica_of(&owners).await;
+            let owner = the_owner(&store, &owners).await;
+
+            // what an organization made before this change holds: no signed name.
+            store
+                .connection()
+                .execute("DELETE FROM \"organization_name\"", ())
+                .await
+                .expect("the organization before the signed name");
+
+            let member =
+                a_members_machine(&store, &owner, &directory.join("member"), "sami.staff").await;
+
+            {
+                let organization = member.organization.read().await;
+
+                organization
+                    .as_ref()
+                    .expect("the replica")
+                    .connection()
+                    .execute("DROP TABLE \"organization_name\"", ())
+                    .await
+                    .expect("a replica an earlier build made");
+            }
+
+            member
+        };
+
+        assert_eq!(
+            names_on(&member, &elsewhere).await,
+            both("Acme"),
+            "an organization made before the signed name lost its name"
+        );
+        assert!(!read_signed(&member).await, "an unsigned name was latched");
+
+        // the owner's next launch resumes the owner, and their machine signs the name.
+        assert_eq!(names_on(&owners, &credentials).await, both("Acme"));
+
+        {
+            let organization = owners.organization.read().await;
+            let store = organization.as_ref().expect("the owner's replica");
+            let row = store
+                .organization()
+                .await
+                .expect("the row")
+                .expect("the organization");
+            let name = store
+                .organization_name(&row.verifying_key)
+                .await
+                .expect("the read")
+                .expect("the owner's machine did not sign the name");
+
+            assert_eq!(
+                name.name_sealed, row.name_sealed,
+                "the name signed is not the one the organization carried"
+            );
+
+            let theirs = member.organization.read().await;
+            let replica = theirs.as_ref().expect("the replica");
+
+            assert!(
+                replica.complete_schema().await.expect("the completion"),
+                "the earlier build's replica was not completed"
+            );
+            synced(store, replica).await;
+        }
+
+        assert_eq!(names_on(&member, &elsewhere).await, both("Acme"));
+        assert!(
+            read_signed(&member).await,
+            "the signed name was not latched"
+        );
+        assert!(
+            read_signed(&owners).await,
+            "the owner's own machine did not latch"
+        );
+    }
+
+    /// **Criterion 29, a forgery before the owner's machine first signs.** An organization made
+    /// before the signed name, whose unsigned column a member rewrote before the owner's first
+    /// sign-in on this build: the owner's machine signs the name its own entry holds, never the
+    /// column's, and writes the column back with it, so every machine names the owner's name.
+    #[tokio::test]
+    async fn the_owners_first_signing_never_signs_a_column_somebody_rewrote() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let elsewhere: Credentials = Arc::new(Memory::new());
+        let directory = scratch("signed-name-forged-before");
+        let owners = first_run(credentials.as_ref(), &directory.join("owner")).await;
+        let (member, owner) = {
+            let store = replica_of(&owners).await;
+            let owner = the_owner(&store, &owners).await;
+            let forged = seal_content(
+                &owner.content_key,
+                "organization.name_sealed",
+                b"Forged Rentals",
+            )
+            .expect("the sealed name");
+
+            // what an organization made before this change holds, no signed name, with the
+            // unsigned column rewritten by a member holding the credential.
+            store
+                .connection()
+                .execute("DELETE FROM \"organization_name\"", ())
+                .await
+                .expect("the organization before the signed name");
+            store
+                .connection()
+                .execute(
+                    "UPDATE \"organization\" SET \"name_sealed\" = ?",
+                    vec![turso::Value::Blob(forged)],
+                )
+                .await
+                .expect("the forged column");
+
+            let member =
+                a_members_machine(&store, &owner, &directory.join("member"), "sami.staff").await;
+
+            (member, owner)
+        };
+
+        assert!(
+            !read_signed(&owners).await,
+            "the owner's machine had read a signed name before its first signing"
+        );
+
+        // the owner's next launch resumes the owner, and their machine signs the name.
+        assert_eq!(
+            names_on(&owners, &credentials).await,
+            both("Acme"),
+            "the owner's machine named the forged column"
+        );
+
+        let name_of = |sealed: &[u8]| {
+            String::from_utf8(
+                open_content(&owner.content_key, "organization.name_sealed", sealed)
+                    .expect("the name opens"),
+            )
+            .expect("a name")
+        };
+
+        {
+            let organization = owners.organization.read().await;
+            let store = organization.as_ref().expect("the owner's replica");
+            let signed = store
+                .organization_name(&owner.verifying_key)
+                .await
+                .expect("the read")
+                .expect("the owner's machine did not sign the name");
+
+            assert_eq!(
+                name_of(&signed.name_sealed),
+                "Acme",
+                "the owner's machine signed the forged column"
+            );
+            assert_eq!(
+                name_of(
+                    &store
+                        .organization()
+                        .await
+                        .expect("the row")
+                        .expect("the organization")
+                        .name_sealed
+                ),
+                "Acme",
+                "the unsigned column was left forged"
+            );
+
+            let theirs = member.organization.read().await;
+
+            synced(store, theirs.as_ref().expect("the replica")).await;
+        }
+
+        assert_eq!(names_on(&member, &elsewhere).await, both("Acme"));
+        assert!(
+            read_signed(&member).await,
+            "the signed name was not latched"
+        );
+    }
+
+    /// **Criterion 29, the owner's machine after a forgery.** Once a signed name has been seen, a
+    /// member deletes the signed row and rewrites `name_sealed`: the owner's next sign-in writes a
+    /// signed row naming the previous name, and the unsigned column with it, never the forged one,
+    /// and no machine shows the forged name.
+    #[tokio::test]
+    async fn the_owners_machine_never_signs_a_name_written_around_the_signed_row() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let elsewhere: Credentials = Arc::new(Memory::new());
+        let directory = scratch("signed-name-not-laundered");
+        let owners = first_run(credentials.as_ref(), &directory.join("owner")).await;
+
+        // the owner's launch reads the signed name, and their record latches it.
+        assert_eq!(names_on(&owners, &credentials).await, both("Acme"));
+        assert!(
+            read_signed(&owners).await,
+            "the owner's machine did not latch"
+        );
+
+        let (member, verifying_key) = {
+            let organization = owners.organization.read().await;
+            let store = organization.as_ref().expect("the owner's replica");
+            let session = owners.member.read().await;
+            let owner = session.as_ref().expect("the owner's session");
+            let member =
+                a_members_machine(store, owner, &directory.join("member"), "sami.staff").await;
+
+            // the member's machine reads the signed name too, and latches it.
+            assert_eq!(names_on(&member, &elsewhere).await, both("Acme"));
+
+            let forged = seal_content(
+                &owner.content_key,
+                "organization.name_sealed",
+                b"Forged Rentals",
+            )
+            .expect("the sealed name");
+
+            // a member holding the credential: the signed row deleted, the column rewritten.
+            store
+                .connection()
+                .execute("DELETE FROM \"organization_name\"", ())
+                .await
+                .expect("the deletion");
+            store
+                .connection()
+                .execute(
+                    "UPDATE \"organization\" SET \"name_sealed\" = ?",
+                    vec![turso::Value::Blob(forged)],
+                )
+                .await
+                .expect("the forged column");
+
+            {
+                let theirs = member.organization.read().await;
+
+                synced(store, theirs.as_ref().expect("the replica")).await;
+            }
+
+            assert_eq!(
+                names_on(&member, &elsewhere).await,
+                both("Acme"),
+                "the forged name reached the member's screen"
+            );
+
+            (member, owner.verifying_key)
+        };
+
+        // the owner signs out, and signs in again.
+        sign_out(&owners, credentials.as_ref()).await;
+
+        let store = replica_of(&owners).await;
+        let owner = the_owner(&store, &owners).await;
+        let name_of = |sealed: &[u8]| {
+            String::from_utf8(
+                open_content(&owner.content_key, "organization.name_sealed", sealed)
+                    .expect("the name opens"),
+            )
+            .expect("a name")
+        };
+        let signed = store
+            .organization_name(&verifying_key)
+            .await
+            .expect("the read")
+            .expect("the owner's sign-in signed no name");
+
+        assert_eq!(
+            name_of(&signed.name_sealed),
+            "Acme",
+            "the owner's machine signed the forged name"
+        );
+        assert_eq!(
+            name_of(
+                &store
+                    .organization()
+                    .await
+                    .expect("the row")
+                    .expect("the organization")
+                    .name_sealed
+            ),
+            "Acme",
+            "the unsigned column was left forged"
+        );
+
+        // and the member's machine, synced before and after, names the previous name throughout.
+        assert_eq!(names_on(&member, &elsewhere).await, both("Acme"));
+
+        {
+            let organization = member.organization.read().await;
+
+            synced(&store, organization.as_ref().expect("the replica")).await;
+        }
+
+        assert_eq!(names_on(&member, &elsewhere).await, both("Acme"));
+    }
+
+    // -------------------------------------------------------------------------------------
+    // Effort 851, requirements 23 to 28: the owner renames the organization.
+    // -------------------------------------------------------------------------------------
+
+    /// The owner signed in on the first run's machine, as the shell holds them after a sign-in.
+    async fn owner_signed_in(owners: &Shared) {
+        let store = replica_of(owners).await;
+        let owner = the_owner(&store, owners).await;
+
+        *owners.organization.write().await = Some(store);
+        *owners.member.write().await = Some(owner);
+        owners
+            .old_shape_check
+            .set(())
+            .expect("the launch's checks had run");
+    }
+
+    /// The account and its link the signed-in owner on `owners` makes for `username`: the link's
+    /// text and its code.
+    async fn link_for(owners: &Shared, username: &'static str) -> (String, String) {
+        let organization = owners.organization.read().await;
+        let member = owners.member.read().await;
+        let (store, owner) = (
+            organization.as_ref().expect("the replica"),
+            member.as_ref().expect("the owner"),
+        );
+        let link = locator(store, owner).await.expect("the link");
+        let invited = make_account_and_link(
+            store,
+            owner,
+            None::<&InMemoryPlatform>,
+            &link,
+            Invitation {
+                username,
+                role: permission::MEMBER,
+                workspaces: &[],
+            },
+            test_cost(),
+            CREATED_AT + 1,
+        )
+        .await
+        .expect("the invitation");
+
+        (invited.join_link, invited.code)
+    }
+
+    /// The name a link carries in the clear.
+    fn named_by(link: &str) -> String {
+        JoinLink::decode(link).expect("the link").organization_name
+    }
+
+    /// A machine that holds nothing, joined by `link` with its code and a password chosen there,
+    /// over a replica of what the owner's machine holds, and past its launch's checks.
+    async fn joined_by(
+        owners: &Shared,
+        credentials: &Credentials,
+        directory: &std::path::Path,
+        (link, code): &(String, String),
+    ) -> Shared {
+        let link = JoinLink::decode(link).expect("the link");
+        let replica = {
+            let organization = owners.organization.read().await;
+
+            replica_beside(
+                organization.as_ref().expect("the replica"),
+                directory,
+                &link.organization_id,
+            )
+            .await
+        };
+        let app_state = state_over(directory).await;
+        let database_path = app_state.settings.read().await.database_path.clone();
+        let (replica, member) = {
+            let mut remote_sync = app_state.remote_sync.write().await;
+
+            join::accept(
+                credentials.as_ref(),
+                |_| async { Ok::<_, Error>(replica) },
+                remote_sync.store_mut(),
+                &database_path,
+                &link,
+                code,
+                "a password sami chose",
+                test_cost(),
+                CREATED_AT + 20,
+            )
+            .await
+            .expect("the link did not join")
+        };
+
+        *app_state.organization.write().await = Some(replica);
+        *app_state.member.write().await = Some(member);
+        app_state
+            .old_shape_check
+            .set(())
+            .expect("the launch's checks had run");
+
+        app_state
+    }
+
+    /// The organization's name on `app_state`'s replica as it lies: the unsigned column, and the
+    /// signed row's sealed name where there is one.
+    async fn name_rows(app_state: &Shared) -> (Vec<u8>, Option<Vec<u8>>) {
+        let organization = app_state.organization.read().await;
+        let store = organization.as_ref().expect("the replica");
+
+        (
+            store
+                .organization()
+                .await
+                .expect("the row")
+                .expect("the organization")
+                .name_sealed,
+            store
+                .organization_name_row()
+                .await
+                .expect("the signed row")
+                .map(|row| row.record.name_sealed),
+        )
+    }
+
+    /// What `app_state`'s record names, as the wall and the switcher read it, with no state read
+    /// first, and whether it is latched to signed names.
+    async fn held_name(app_state: &Shared) -> (String, bool) {
+        let mut remote_sync = app_state.remote_sync.write().await;
+        let held = remote_sync.store_mut().selected().expect("the entry");
+
+        (held.name.clone(), held.name_signed)
+    }
+
+    fn reason_of(refusal: Error) -> crate::error::RefusalReason {
+        match refusal {
+            Error::Refused { reason, .. } => reason,
+            other => panic!("not a refusal: {other:?}"),
+        }
+    }
+
+    /// **Criteria 23 and 25.** The owner's rename is held to the walk's rules in the shell: blank,
+    /// whitespace and one character past the limit are refused and change neither half of the
+    /// name. A name inside them is trimmed, sealed once into the signed row and the unsigned
+    /// column, and named at once by the state the rename answers (the session the tab and the
+    /// shell read, the held organization the switcher reads) and by the record, with no restart.
+    #[tokio::test]
+    async fn the_owners_rename_is_trimmed_signed_and_named_at_once_and_a_refused_one_changes_nothing()
+     {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let clock = crate::clock::System::shared();
+        let directory = scratch("rename-owner");
+        let owners = first_run(credentials.as_ref(), &directory).await;
+
+        owner_signed_in(&owners).await;
+
+        let before = name_rows(&owners).await;
+        let too_long = "n".repeat(crate::organization::setup::ORGANIZATION_NAME_LIMIT + 1);
+
+        for (name, reason) in [
+            ("", crate::error::RefusalReason::OrganizationNameMissing),
+            ("   ", crate::error::RefusalReason::OrganizationNameMissing),
+            (
+                too_long.as_str(),
+                crate::error::RefusalReason::OrganizationNameTooLong,
+            ),
+        ] {
+            let refusal = crate::organization::setup::rename(&owners, &credentials, &clock, name)
+                .await
+                .expect_err(name);
+
+            assert_eq!(reason_of(refusal), reason, "{name:?}");
+            assert_eq!(name_rows(&owners).await, before, "{name:?} wrote a name");
+        }
+
+        let state =
+            crate::organization::setup::rename(&owners, &credentials, &clock, "  Acme Rentals  ")
+                .await
+                .expect("the owner's rename");
+
+        assert_eq!(
+            state.session.as_ref().expect("the owner").organization_name,
+            "Acme Rentals",
+            "the tab and the shell read the old name"
+        );
+        assert_eq!(
+            state.selected_organization().expect("the entry").name,
+            "Acme Rentals",
+            "the switcher reads the old name"
+        );
+        assert_eq!(
+            held_name(&owners).await,
+            ("Acme Rentals".to_string(), true),
+            "the record names the old name"
+        );
+
+        let (column, signed) = name_rows(&owners).await;
+
+        assert_eq!(Some(column.clone()), signed, "the two halves differ");
+
+        let organization = owners.organization.read().await;
+        let member = owners.member.read().await;
+        let (store, owner) = (
+            organization.as_ref().expect("the replica"),
+            member.as_ref().expect("the owner"),
+        );
+
+        assert_eq!(
+            open_content(&owner.content_key, "organization.name_sealed", &column)
+                .expect("the name opens"),
+            b"Acme Rentals",
+            "the name was not trimmed"
+        );
+        assert!(
+            store
+                .organization_name(&owner.verifying_key)
+                .await
+                .expect("the signed name")
+                .is_some(),
+            "the signed row does not verify"
+        );
+    }
+
+    /// **Criterion 24.** A rename sent by anybody but the owner is refused in the shell, whatever
+    /// the interface drew, and changes nothing: a member locked as their link leaves them, and the
+    /// same member unlocked and made a manager, holding every flag but the owner's.
+    #[tokio::test]
+    async fn a_rename_by_anybody_but_the_owner_is_refused_and_changes_nothing() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let elsewhere: Credentials = Arc::new(Memory::new());
+        let clock = crate::clock::System::shared();
+        let directory = scratch("rename-not-owner");
+        let owners = first_run(credentials.as_ref(), &directory.join("owner")).await;
+
+        owner_signed_in(&owners).await;
+
+        let link = link_for(&owners, "sami.staff").await;
+        let member = joined_by(&owners, &elsewhere, &directory.join("member"), &link).await;
+        let member_id = member
+            .member
+            .read()
+            .await
+            .as_ref()
+            .expect("the member")
+            .member_id
+            .clone();
+        let before = name_rows(&member).await;
+
+        let locked = crate::organization::setup::rename(&member, &elsewhere, &clock, "Forged")
+            .await
+            .expect_err("a locked member renamed the organization");
+
+        assert_eq!(reason_of(locked), crate::error::RefusalReason::Locked);
+        assert_eq!(name_rows(&member).await, before);
+
+        {
+            let organization = owners.organization.read().await;
+            let owner = owners.member.read().await;
+            let (store, owner) = (
+                organization.as_ref().expect("the replica"),
+                owner.as_ref().expect("the owner"),
+            );
+
+            crate::organization::member::lock::unlocked_for_a_test(store, owner, &member_id)
+                .await
+                .expect("the owner unlocks them");
+            crate::organization::role::assign_role(
+                store,
+                owner,
+                &member_id,
+                permission::MANAGER,
+                None,
+                CREATED_AT + 30,
+            )
+            .await
+            .expect("the owner makes them a manager");
+
+            let replica = member.organization.read().await;
+
+            synced(store, replica.as_ref().expect("the member's replica")).await;
+        }
+
+        let before = name_rows(&member).await;
+        let refused = crate::organization::setup::rename(&member, &elsewhere, &clock, "Forged")
+            .await
+            .expect_err("a manager renamed the organization");
+
+        assert_eq!(reason_of(refused), crate::error::RefusalReason::OwnerOnly);
+        assert_eq!(name_rows(&member).await, before, "a refused rename wrote");
+        assert_eq!(names_on(&member, &elsewhere).await, both("Acme"));
+    }
+
+    /// **Criterion 27.** A link made before the rename still joins once the organization has been
+    /// renamed. The link names the old name, and the machine it joins names the current one once
+    /// it is in: the session, and the record the wall and the switcher read.
+    #[tokio::test]
+    async fn a_link_made_before_the_rename_still_joins_and_its_machine_names_the_new_name() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let elsewhere: Credentials = Arc::new(Memory::new());
+        let clock = crate::clock::System::shared();
+        let directory = scratch("rename-old-link");
+        let owners = first_run(credentials.as_ref(), &directory.join("owner")).await;
+
+        owner_signed_in(&owners).await;
+
+        let link = link_for(&owners, "sami.staff").await;
+
+        assert_eq!(named_by(&link.0), "Acme");
+
+        crate::organization::setup::rename(&owners, &credentials, &clock, "Acme Rentals")
+            .await
+            .expect("the owner's rename");
+
+        let joined = joined_by(&owners, &elsewhere, &directory.join("joined"), &link).await;
+
+        assert_eq!(
+            names_on(&joined, &elsewhere).await,
+            both("Acme Rentals"),
+            "the joined machine names the name the link carried"
+        );
+        assert_eq!(held_name(&joined).await, ("Acme Rentals".to_string(), true));
+    }
+
+    /// **Criterion 28.** A link made after the rename carries the new name, and the machine it
+    /// joins names it from the moment it is recorded, before anything reads the state.
+    #[tokio::test]
+    async fn a_link_made_after_the_rename_carries_the_new_name() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let elsewhere: Credentials = Arc::new(Memory::new());
+        let clock = crate::clock::System::shared();
+        let directory = scratch("rename-new-link");
+        let owners = first_run(credentials.as_ref(), &directory.join("owner")).await;
+
+        owner_signed_in(&owners).await;
+        crate::organization::setup::rename(&owners, &credentials, &clock, "Acme Rentals")
+            .await
+            .expect("the owner's rename");
+
+        let link = link_for(&owners, "sami.staff").await;
+
+        assert_eq!(named_by(&link.0), "Acme Rentals");
+
+        let joined = joined_by(&owners, &elsewhere, &directory.join("joined"), &link).await;
+
+        assert_eq!(held_name(&joined).await.0, "Acme Rentals");
+        assert_eq!(names_on(&joined, &elsewhere).await, both("Acme Rentals"));
+    }
+
+    /// **Criteria 28 and 29, a link and the unsigned column.** A link names the organization by
+    /// the name the owner signed, never by the unsigned column a member rewrote; an organization
+    /// whose name nobody has signed yet names the column.
+    #[tokio::test]
+    async fn a_link_carries_the_signed_name_and_never_a_column_somebody_rewrote() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let directory = scratch("link-signed-name");
+        let owners = first_run(credentials.as_ref(), &directory.join("owner")).await;
+        let store = replica_of(&owners).await;
+        let owner = the_owner(&store, &owners).await;
+        let forged = seal_content(
+            &owner.content_key,
+            "organization.name_sealed",
+            b"Forged Rentals",
+        )
+        .expect("the sealed name");
+
+        store
+            .connection()
+            .execute(
+                "UPDATE \"organization\" SET \"name_sealed\" = ?",
+                vec![turso::Value::Blob(forged)],
+            )
+            .await
+            .expect("the forged column");
+
+        assert_eq!(
+            locator(&store, &owner)
+                .await
+                .expect("the link")
+                .organization_name,
+            "Acme",
+            "a link named the column a member rewrote"
+        );
+
+        // an organization made before the signed name names the column it has.
+        store
+            .connection()
+            .execute("DELETE FROM \"organization_name\"", ())
+            .await
+            .expect("the organization before the signed name");
+
+        assert_eq!(
+            locator(&store, &owner)
+                .await
+                .expect("the link")
+                .organization_name,
+            "Forged Rentals"
+        );
+    }
+
+    // -------------------------------------------------------------------------------------
+    // Effort 851, requirement 14: each organization keeps its own Turso consent.
+    // -------------------------------------------------------------------------------------
+
+    /// what the launch's cell did, in the order it did it, and what each step found.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    enum Step {
+        /// the old shape was checked, with the pending slot and the organization's entry holding
+        /// a token or not.
+        OldShape { pending: bool, organization: bool },
+        /// the consent was moved.
+        Moved,
+        /// the resume reached the upgrade, with the owner's platform in hand or not.
+        Resumed { account: bool },
+    }
+
+    /// The upgrade a launch runs, with every step the cell takes written down as it is taken:
+    /// what pins the cell's order. It hands each step to the real upgrade unless told to stop the
+    /// resume there, which a machine whose remembered key is not in the store needs.
+    struct Recording {
+        organization_id: String,
+        credentials: Credentials,
+        steps: Arc<Mutex<Vec<Step>>>,
+        stop_the_resume: bool,
+    }
+
+    impl Recording {
+        fn note(&self, step: Step) {
+            self.steps.lock().expect("the steps").push(step);
+        }
+    }
+
+    impl Upgrade for Recording {
+        fn with_password<'a>(
+            &'a self,
+            store: &'a OrganizationStore,
+            account: Option<PlatformApi>,
+            held: &'a HeldOrganization,
+            username: &'a str,
+            password: &'a str,
+            credential: &'a CredentialSlot,
+            now: i64,
+        ) -> Upgrading<'a> {
+            crate::upgrade::Upgrader
+                .with_password(store, account, held, username, password, credential, now)
+        }
+
+        fn with_remembered_key<'a>(
+            &'a self,
+            credentials: &'a dyn CredentialStore,
+            store: &'a OrganizationStore,
+            account: Option<PlatformApi>,
+            held: &'a HeldOrganization,
+            credential: &'a CredentialSlot,
+            now: i64,
+        ) -> Upgrading<'a> {
+            self.note(Step::Resumed {
+                account: account.is_some(),
+            });
+
+            if self.stop_the_resume {
+                return Box::pin(async {
+                    Err(Error::refused(
+                        crate::error::RefusalReason::SignInAgain,
+                        "the test stops the resume here",
+                    ))
+                });
+            }
+
+            crate::upgrade::Upgrader.with_remembered_key(
+                credentials,
+                store,
+                account,
+                held,
+                credential,
+                now,
+            )
+        }
+
+        fn on_connect<'a>(
+            &'a self,
+            store: &'a OrganizationStore,
+            remote: Remote,
+            account: &'a dyn AccountCopy,
+            username: &'a str,
+            password: &'a str,
+            credential: &'a CredentialSlot,
+            now: i64,
+            refused: &'a (dyn Fn() -> Error + Send + Sync),
+        ) -> Upgrading<'a> {
+            crate::upgrade::Upgrader.on_connect(
+                store, remote, account, username, password, credential, now, refused,
+            )
+        }
+
+        fn forget_old_shape<'a>(
+            &'a self,
+            state: &'a Shared,
+            credentials: &'a dyn CredentialStore,
+            clock: &'a crate::clock::Shared,
+        ) -> Upgrading<'a> {
+            let holds = |account: &Account| {
+                holds_platform_token(self.credentials.as_ref(), account).expect("the store")
+            };
+
+            self.note(Step::OldShape {
+                pending: holds(&Account::Pending),
+                organization: holds(&Account::of(&self.organization_id)),
+            });
+
+            crate::upgrade::Upgrader.forget_old_shape(state, credentials, clock)
+        }
+
+        fn move_the_consent<'a>(
+            &'a self,
+            state: &'a Shared,
+            credentials: &'a dyn CredentialStore,
+        ) -> Upgrading<'a> {
+            self.note(Step::Moved);
+
+            crate::upgrade::Upgrader.move_the_consent(state, credentials)
+        }
+    }
+
+    /// The state a launch builds over `directory`, with the recording upgrade in place of the
+    /// real one, and the steps it will write down.
+    async fn launch_recording(
+        directory: &std::path::Path,
+        credentials: &Credentials,
+        organization_id: &str,
+        stop_the_resume: bool,
+    ) -> (Shared, Arc<Mutex<Vec<Step>>>) {
+        let steps = Arc::new(Mutex::new(Vec::new()));
+        let mut app_state = state_over(directory).await;
+
+        app_state.upgrade = Arc::new(Recording {
+            organization_id: organization_id.to_string(),
+            credentials: Arc::clone(credentials),
+            steps: Arc::clone(&steps),
+            stop_the_resume,
+        });
+
+        (app_state, steps)
+    }
+
+    /// What the Platform API answers a mint with.
+    fn minted() -> ScriptedResponse {
+        ScriptedResponse::new(200, json!({ "jwt": "a-minted-credential" }).to_string())
+    }
+
+    /// Mint once through the owner's platform for `organization_id`, against a loopback Platform
+    /// API, and answer what reached it: the request's path and its bearer token.
+    async fn an_owner_only_act(
+        app_state: &Shared,
+        credentials: &Credentials,
+        organization_id: &str,
+    ) -> (String, String) {
+        let server = ScriptedServer::start(vec![minted()]).await;
+        let platform = owner_platform_at(
+            app_state,
+            credentials,
+            organization_id,
+            PlatformEndpoint::at(&server.url("")),
+        )
+        .await
+        .expect("the machine holds no authority for the organization");
+
+        platform
+            .mint_token(
+                &format!("org-{organization_id}"),
+                "4w",
+                AccessLevel::FullAccess,
+            )
+            .await
+            .expect("the act did not reach the platform");
+
+        let request = server.request(0);
+
+        (
+            request
+                .target
+                .split('?')
+                .next()
+                .unwrap_or_default()
+                .to_string(),
+            request
+                .header("authorization")
+                .unwrap_or_default()
+                .to_string(),
+        )
+    }
+
+    /// The record under `directory` as a build from before effort 851 writes it: the keys this
+    /// build adds taken out, so `organization` and `tursoOrganization` are all it says about what
+    /// the machine holds, and the next load converts it.
+    fn as_an_earlier_build_wrote_it(directory: &std::path::Path) {
+        let path = directory.join(RemoteSync::FILENAME);
+        let mut record: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).expect("the record"))
+                .expect("the record's json");
+        let keys = record.as_object_mut().expect("an object");
+
+        for added in [
+            "heldOrganizations",
+            "selectedOrganization",
+            "pendingTursoOrganization",
+            "consentToMove",
+        ] {
+            keys.remove(added);
+        }
+
+        std::fs::write(&path, record.to_string()).expect("the record written back");
+    }
+
+    /// **The cell's order** (effort 851, the plan's *Each organization keeps its own Turso
+    /// consent*): the old shape is checked while the consent is still where an earlier build filed
+    /// it, the consent moves next, and the resume finds the owner's platform already there. A
+    /// machine made by the first run of an earlier build, signed in, resumes on this one with its
+    /// consent moved and nothing typed.
+    #[tokio::test]
+    async fn the_launch_moves_the_consent_after_the_old_shape_and_before_the_resume() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let directory = scratch("consent-order");
+        let app_state = first_run(credentials.as_ref(), &directory).await;
+        let (organization_id, _) = recorded(&app_state).await;
+
+        // where an earlier build left the owner's consent: under `owner`, and nowhere else; and the
+        // record as that build wrote it, which the next load converts.
+        store_platform_token(credentials.as_ref(), "a-platform-token").expect("the consent");
+        drop(app_state);
+        as_an_earlier_build_wrote_it(&directory);
+
+        let (next, steps) =
+            launch_recording(&directory, &credentials, &organization_id, false).await;
+        let state = state_of(&next, &credentials, &crate::clock::System::shared())
+            .await
+            .expect("the state");
+
+        assert_eq!(
+            *steps.lock().expect("the steps"),
+            vec![
+                Step::OldShape {
+                    pending: true,
+                    organization: false,
+                },
+                Step::Moved,
+                Step::Resumed { account: true },
+            ],
+            "the cell ran out of order"
+        );
+        assert!(state.session.is_some(), "the launch did not resume");
+        assert!(state.holds_turso_authority);
+        // the organization's own consent is not the setup's: a walk to add another starts with none.
+        assert!(!state.setup_consented);
+        assert_eq!(
+            platform_token(credentials.as_ref(), &Account::of(&organization_id)).as_deref(),
+            Ok("a-platform-token")
+        );
+        assert!(!holds_platform_token(credentials.as_ref(), &Account::Pending).expect("the store"));
+    }
+
+    /// `remote-sync.json` as release 0.19.0 writes it, frozen (effort 851, criterion 16): one
+    /// organization, signed in as its owner, with the Turso organization its consent is over, two
+    /// workspace replicas and the workspace it had open. Never edited: a record on disk is what the
+    /// conversion has to meet, and a fixture that followed the code would meet nothing.
+    ///
+    /// **Written out byte for byte here and in the tests of `machine/record.rs`**,
+    /// as a fixture used by more than one module is (`rules/testing`).
+    const RELEASED: &str = r#"{
+  "workspace": {
+    "id": "workspace-1759000000000",
+    "name": "Riyadh",
+    "localDatabasePath": "C:\\Users\\someone\\AppData\\Roaming\\rentable\\app.db",
+    "remoteId": "wks-north",
+    "remoteUrl": "libsql://rentable-wks-north-acme.aws-eu-west-1.turso.io",
+    "permissions": 63,
+    "lastError": null,
+    "createdAt": 1759000000000,
+    "updatedAt": 1759500000000
+  },
+  "startupPromptEnabled": false,
+  "deviceId": "device-1759000000000",
+  "replicas": [
+    {
+      "workspaceId": "wks-north",
+      "memberId": "mem-olivia",
+      "createdAt": 1759000100000
+    },
+    {
+      "workspaceId": "wks-south",
+      "memberId": "mem-olivia",
+      "createdAt": 1759000200000
+    }
+  ],
+  "tursoOrganization": {
+    "slug": "acme",
+    "group": "rentable"
+  },
+  "organization": {
+    "id": "org-acme",
+    "name": "Acme",
+    "verifyingKey": "c29tZS12ZXJpZnlpbmcta2V5LW9mLXRoaXJ0eS10d28tYnl0ZXM",
+    "remoteUrl": "libsql://rentable-org-acme-acme.aws-eu-west-1.turso.io",
+    "machineId": "mch-this-one",
+    "memberId": "mem-olivia",
+    "role": "owner",
+    "joinedAt": 1759000000000,
+    "format": 3,
+    "machineSignedOut": 3
+  },
+  "lastReachedAt": 1759600000000
+}
+"#;
+
+    /// **Criterion 16, the keyring half** (effort 851): the record release 0.19.0 wrote, frozen,
+    /// with the owner's consent where that release filed it and the replica on disk. After the
+    /// load and the launch's cell the consent is the organization's own, the pending slot is
+    /// empty, and an owner-only act reaches the platform with that token and the slug the
+    /// release recorded.
+    #[tokio::test]
+    async fn a_released_owners_consent_is_its_organizations_after_the_launch() {
+        const ORGANIZATION: &str = "org-acme";
+
+        let credentials: Credentials = Arc::new(Memory::new());
+        let directory = scratch("consent-released");
+
+        std::fs::write(directory.join(RemoteSync::FILENAME), RELEASED).expect("the record");
+        store_platform_token(credentials.as_ref(), "the-owners-consent").expect("the consent");
+
+        // the replica the release left, in this build's shape, so the check keeps what it finds.
+        let replica = OrganizationStore::open(
+            crate::clock::System::shared(),
+            &OrganizationStore::replica_path(&directory.join(Database::FILENAME), ORGANIZATION),
+            None,
+            || async { Ok::<String, turso::Error>(String::new()) },
+        )
+        .await
+        .expect("the replica");
+
+        replica.install_schema().await.expect("the schema");
+        replica.write_format().await.expect("the format");
+        drop(replica);
+
+        // no remembered key is filed for the release's member here, so the resume stops at the
+        // upgrade rather than going on to a remote this test has no stand-in for.
+        let (app_state, steps) =
+            launch_recording(&directory, &credentials, ORGANIZATION, true).await;
+        let state = state_of(&app_state, &credentials, &crate::clock::System::shared())
+            .await
+            .expect("the state");
+
+        assert_eq!(
+            state.selected_organization().map(|held| held.id),
+            Some(ORGANIZATION.to_owned()),
+            "the released organization is not held"
+        );
+        assert_eq!(
+            *steps.lock().expect("the steps"),
+            vec![
+                Step::OldShape {
+                    pending: true,
+                    organization: false,
+                },
+                Step::Moved,
+                Step::Resumed { account: true },
+            ]
+        );
+        assert_eq!(
+            platform_token(credentials.as_ref(), &Account::of(ORGANIZATION)).as_deref(),
+            Ok("the-owners-consent"),
+            "the consent is not under the organization"
+        );
+        assert!(
+            !holds_platform_token(credentials.as_ref(), &Account::Pending).expect("the store"),
+            "the consent is still under `owner`"
+        );
+        assert!(state.holds_turso_authority);
+        assert_eq!(
+            an_owner_only_act(&app_state, &credentials, ORGANIZATION).await,
+            (
+                format!("/v1/organizations/acme/databases/org-{ORGANIZATION}/auth/tokens"),
+                "Bearer the-owners-consent".to_string()
+            )
+        );
+
+        // and the next launch finds nothing left to move, and moves nothing.
+        let (again, _) = launch_recording(&directory, &credentials, ORGANIZATION, true).await;
+
+        state_of(&again, &credentials, &crate::clock::System::shared())
+            .await
+            .expect("the second launch");
+
+        assert_eq!(
+            platform_token(credentials.as_ref(), &Account::of(ORGANIZATION)).as_deref(),
+            Ok("the-owners-consent")
+        );
+    }
+
+    /// Every replica file under the directory whose name starts with `prefix`, the engine's
+    /// sidecars with it, by name and with its bytes.
+    fn files_of(
+        directory: &std::path::Path,
+        prefix: &str,
+    ) -> std::collections::BTreeMap<String, Vec<u8>> {
+        std::fs::read_dir(directory)
+            .expect("the directory")
+            .flatten()
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .filter(|name| name.starts_with(prefix))
+            .map(|name| {
+                let bytes = std::fs::read(directory.join(&name)).expect("the file");
+
+                (name, bytes)
+            })
+            .collect()
+    }
+
+    /// Every row the organization replica on disk holds, table by table, read through a store
+    /// opened on the file with no remote and let go of again.
+    async fn rows_of(path: &std::path::Path) -> Vec<(String, Vec<Vec<turso::Value>>)> {
+        let store = OrganizationStore::open(crate::clock::System::shared(), path, None, || async {
+            Ok::<String, turso::Error>(String::new())
+        })
+        .await
+        .expect("the replica");
+        let mut contents = Vec::new();
+
+        for table in store.tables().await.expect("the tables") {
+            let mut rows = store
+                .connection()
+                .query(&format!("SELECT * FROM \"{table}\" ORDER BY rowid"), ())
+                .await
+                .expect("the rows");
+            let mut values = Vec::new();
+
+            while let Some(row) = rows.next().await.expect("a row") {
+                values.push(
+                    (0..row.column_count())
+                        .map(|index| row.get_value(index).expect("a value"))
+                        .collect(),
+                );
+            }
+
+            contents.push((table, values));
+        }
+
+        contents
+    }
+
+    /// A workspace replica as the release left one: the engine's own file, holding a row of the
+    /// ledger, written once and closed.
+    async fn workspace_replica_left(directory: &std::path::Path, workspace_id: &str) {
+        let replica = Database::replica_path(&directory.join(Database::FILENAME), workspace_id);
+        let database = Database::open_replica(&crate::clock::System, &replica, None, || async {
+            Ok::<String, turso::Error>(String::new())
+        })
+        .await
+        .expect("the workspace replica");
+        let connection = database.connect().await.expect("a connection");
+
+        connection
+            .execute("CREATE TABLE ledger (line TEXT NOT NULL)", ())
+            .await
+            .expect("the table");
+        connection
+            .execute(
+                "INSERT INTO ledger (line) VALUES (?1)",
+                [format!("the rent {workspace_id} collected")],
+            )
+            .await
+            .expect("the row");
+    }
+
+    /// **Criterion 16, whole** (effort 851, requirement 16, ticket 17): the update a person meets.
+    /// A data directory the current release wrote, its record release 0.19.0's frozen one,
+    /// the organization's replica and both workspaces' replicas on disk beside it, and a keyring
+    /// holding the member key the release remembered and the owner's Turso consent where the
+    /// release filed it. This build's first launch converts the record with nothing forgotten,
+    /// moves the consent to the organization, and resumes the session with no password typed;
+    /// every replica is the file the release left, and an owner-only act reaches Turso.
+    ///
+    /// **The organization itself is a real one**, made by the first run here, because a resume
+    /// opens a vault and verifies signed rows, and the frozen record's organization has neither.
+    /// The record is the frozen one with the four values that name that organization written into
+    /// it (its id, its verifying key, its remote and the owner's member row), the replica entries'
+    /// member with them, and the open workspace's path in this data directory rather than in
+    /// another machine's; every other value in it is what the release wrote. The keyring is
+    /// a new one holding only what the release held.
+    #[tokio::test]
+    async fn an_install_from_the_current_release_updates_whole_with_nothing_typed_or_pulled_again()
+    {
+        let directory = scratch("updates-whole");
+        let made: Credentials = Arc::new(Memory::new());
+
+        drop(first_run(made.as_ref(), &directory).await);
+
+        let made_record: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(directory.join(RemoteSync::FILENAME)).expect("the record"),
+        )
+        .expect("the record");
+        let (organization_id, member_id, held, member_key) = {
+            let held = &made_record["heldOrganizations"][0];
+            let organization_id = held["id"].as_str().expect("the id").to_owned();
+            let member_id = held["memberId"].as_str().expect("the member").to_owned();
+            let member_key = made
+                .get(
+                    MEMBER_KEY_SERVICE,
+                    &format!("{organization_id}:{member_id}"),
+                )
+                .expect("the store")
+                .expect("the first run remembered no member key");
+
+            (organization_id, member_id, held.clone(), member_key)
+        };
+
+        // the record exactly as the release wrote it, naming this organization.
+        let mut released: serde_json::Value = serde_json::from_str(RELEASED).expect("the fixture");
+
+        released["organization"]["id"] = json!(organization_id);
+        released["organization"]["verifyingKey"] = held["verifyingKey"].clone();
+        released["organization"]["remoteUrl"] = held["remoteUrl"].clone();
+        released["organization"]["memberId"] = json!(member_id);
+        // and the data directory it wrote it in, which is this one.
+        released["workspace"]["localDatabasePath"] =
+            json!(directory.join(Database::FILENAME).to_string_lossy());
+
+        for replica in released["replicas"]
+            .as_array_mut()
+            .expect("the replicas")
+            .iter_mut()
+        {
+            replica["memberId"] = json!(member_id);
+        }
+
+        std::fs::write(
+            directory.join(RemoteSync::FILENAME),
+            serde_json::to_string_pretty(&released).expect("the record"),
+        )
+        .expect("the record");
+
+        // the keyring as the release left it: the remembered member key, and the owner's consent
+        // under `owner`, its one entry.
+        let credentials: Credentials = Arc::new(Memory::new());
+
+        credentials
+            .set(
+                MEMBER_KEY_SERVICE,
+                &format!("{organization_id}:{member_id}"),
+                &member_key,
+            )
+            .expect("the member key");
+        store_platform_token(credentials.as_ref(), "the-owners-consent").expect("the consent");
+
+        // the two workspaces the release replicated, beside the organization's replica.
+        for replica in released["replicas"].as_array().expect("the replicas") {
+            workspace_replica_left(
+                &directory,
+                replica["workspaceId"].as_str().expect("a workspace"),
+            )
+            .await;
+        }
+
+        let organization_replica =
+            OrganizationStore::replica_path(&directory.join(Database::FILENAME), &organization_id);
+        let organization_rows_before = rows_of(&organization_replica).await;
+        let workspaces_before = files_of(&directory, "ws-");
+
+        assert_eq!(
+            workspaces_before
+                .keys()
+                .filter(|name| name.ends_with(".db"))
+                .collect::<Vec<_>>(),
+            vec!["ws-wks-north.db", "ws-wks-south.db"],
+            "the release's workspace replicas were not laid down"
+        );
+
+        // this build's first launch: the load, and the first state read's cell.
+        let app_state = state_over(&directory).await;
+        let state = state_of(&app_state, &credentials, &crate::clock::System::shared())
+            .await
+            .expect("the state");
+
+        // the same organization is held and selected, and the session resumed with nothing typed.
+        assert_eq!(state.organizations.len(), 1, "{state:#?}");
+        assert_eq!(state.selected.as_deref(), Some(organization_id.as_str()));
+        let session = state.session.as_ref().expect("the launch did not resume");
+
+        assert_eq!(session.member_id, member_id);
+        assert_eq!(session.username, USERNAME);
+        assert_eq!(session.role, "owner");
+        assert!(!state.signed_out_elsewhere);
+
+        // the record converted, with nothing the release wrote forgotten.
+        let written: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(directory.join(RemoteSync::FILENAME)).expect("the record"),
+        )
+        .expect("the record");
+        let mut expected = released["organization"].clone();
+
+        expected["tursoOrganization"] = released["tursoOrganization"].clone();
+        expected["workspaceId"] = released["workspace"]["remoteId"].clone();
+
+        // every field the release wrote, and the two the conversion adds from it. `nameSigned`
+        // and `lockMarked` are this build's own, and the resume reads them from the replica.
+        let entry = &written["heldOrganizations"][0];
+
+        assert_eq!(
+            written["heldOrganizations"]
+                .as_array()
+                .map(Vec::len)
+                .unwrap_or_default(),
+            1
+        );
+        for (field, value) in expected.as_object().expect("the organization") {
+            assert_eq!(&entry[field], value, "`{field}` changed in the update");
+        }
+        assert_eq!(written["selectedOrganization"], json!(organization_id));
+        for kept in [
+            "workspace",
+            "deviceId",
+            "startupPromptEnabled",
+            "lastReachedAt",
+            "tursoOrganization",
+        ] {
+            assert_eq!(written[kept], released[kept], "`{kept}` changed");
+        }
+
+        let replicas = written["replicas"].as_array().expect("the replicas");
+        let released_replicas = released["replicas"].as_array().expect("the replicas");
+
+        assert_eq!(
+            replicas.len(),
+            released_replicas.len(),
+            "a replica was lost"
+        );
+        for (replica, before) in replicas.iter().zip(released_replicas) {
+            assert_eq!(replica["organizationId"], json!(organization_id));
+            assert_eq!(replica["workspaceId"], before["workspaceId"]);
+            assert_eq!(replica["memberId"], before["memberId"]);
+            assert_eq!(replica["createdAt"], before["createdAt"]);
+        }
+
+        // the consent is the organization's own, and `owner` is empty.
+        assert_eq!(
+            platform_token(credentials.as_ref(), &Account::of(&organization_id)).as_deref(),
+            Ok("the-owners-consent"),
+            "the consent is not under the organization"
+        );
+        assert!(
+            !holds_platform_token(credentials.as_ref(), &Account::Pending).expect("the store"),
+            "the consent is still under `owner`"
+        );
+        assert!(state.holds_turso_authority);
+
+        // nothing was pulled again: the workspaces' replicas are the release's bytes, and the
+        // organization's replica still holds every row it held, which a replica replaced by a
+        // fresh pull would not, there being no remote here to pull them from.
+        assert_eq!(
+            files_of(&directory, "ws-"),
+            workspaces_before,
+            "a workspace replica was touched by the launch"
+        );
+
+        drop(app_state);
+
+        let organization_rows_after = rows_of(&organization_replica).await;
+
+        for (table, rows) in &organization_rows_before {
+            let after = organization_rows_after
+                .iter()
+                .find(|(name, _)| name == table)
+                .map(|(_, rows)| rows)
+                .unwrap_or_else(|| panic!("the replica lost `{table}`"));
+
+            for row in rows {
+                assert!(
+                    after.contains(row),
+                    "the replica lost a row of `{table}` the release left: {row:?}"
+                );
+            }
+        }
+
+        // and an owner-only act reaches Turso with that consent, on the account the release
+        // recorded.
+        let app_state = state_over(&directory).await;
+
+        assert_eq!(
+            an_owner_only_act(&app_state, &credentials, &organization_id).await,
+            (
+                format!("/v1/organizations/acme/databases/org-{organization_id}/auth/tokens"),
+                "Bearer the-owners-consent".to_string()
+            )
+        );
+    }
+
+    /// **Criterion 14** (effort 851): one machine holds two organizations owned on two Turso
+    /// accounts. Each owner-only act reaches the Platform API with its own organization's token
+    /// and slug, and forgetting one organization's consent leaves the other's.
+    #[tokio::test]
+    async fn two_organizations_on_two_turso_accounts_each_act_with_their_own_consent() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let directory = scratch("consent-two-accounts");
+        let app_state = state_over(&directory).await;
+
+        {
+            let mut remote_sync = app_state.remote_sync.write().await;
+            let record = remote_sync.store_mut();
+
+            for (id, slug) in [("org-a", "alpha"), ("org-b", "beta")] {
+                record.hold(HeldOrganization {
+                    id: id.to_string(),
+                    name: id.to_string(),
+                    verifying_key: "k".to_string(),
+                    remote_url: format!("libsql://{id}"),
+                    turso_organization: Some(TursoOrganization {
+                        slug: slug.to_string(),
+                        group: "rentable".to_string(),
+                    }),
+                    ..Default::default()
+                });
+            }
+
+            record.commit().expect("the record");
+        }
+
+        // each consent is granted into the pending slot and moved to its organization, as a
+        // first run moves it.
+        for (id, token) in [("org-a", "token-a"), ("org-b", "token-b")] {
+            store_platform_token(credentials.as_ref(), token).expect("the consent");
+            move_pending_consent(credentials.as_ref(), id).expect("the move");
+        }
+
+        assert_eq!(
+            an_owner_only_act(&app_state, &credentials, "org-a").await,
+            (
+                "/v1/organizations/alpha/databases/org-org-a/auth/tokens".to_string(),
+                "Bearer token-a".to_string()
+            )
+        );
+        assert_eq!(
+            an_owner_only_act(&app_state, &credentials, "org-b").await,
+            (
+                "/v1/organizations/beta/databases/org-org-b/auth/tokens".to_string(),
+                "Bearer token-b".to_string()
+            )
+        );
+
+        forget_platform_token(credentials.as_ref(), &Account::of("org-a")).expect("the forget");
+
+        assert!(
+            owner_platform(&app_state, &credentials, "org-a")
+                .await
+                .is_none(),
+            "the forgotten organization still reads as holding its authority"
+        );
+        assert_eq!(
+            an_owner_only_act(&app_state, &credentials, "org-b").await,
+            (
+                "/v1/organizations/beta/databases/org-org-b/auth/tokens".to_string(),
+                "Bearer token-b".to_string()
+            ),
+            "forgetting one organization's consent took the other's"
+        );
+    }
+
+    /// The launch moves nothing where the consent cannot be told apart: two held organizations
+    /// on Turso accounts and neither with a consent of its own is no record any build wrote, and
+    /// guessing would hand one organization's authority to the other.
+    #[tokio::test]
+    async fn the_launch_moves_no_consent_it_cannot_place() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let directory = scratch("consent-unplaced");
+        let app_state = state_over(&directory).await;
+
+        {
+            let mut remote_sync = app_state.remote_sync.write().await;
+            let record = remote_sync.store_mut();
+
+            for (id, slug) in [("org-a", "alpha"), ("org-b", "beta")] {
+                record.hold(HeldOrganization {
+                    id: id.to_string(),
+                    name: id.to_string(),
+                    verifying_key: "k".to_string(),
+                    remote_url: format!("libsql://{id}"),
+                    turso_organization: Some(TursoOrganization {
+                        slug: slug.to_string(),
+                        group: "rentable".to_string(),
+                    }),
+                    ..Default::default()
+                });
+            }
+
+            record.commit().expect("the record");
+        }
+
+        store_platform_token(credentials.as_ref(), "a-platform-token").expect("the consent");
+
+        crate::upgrade::consent::move_the_consent(&app_state, credentials.as_ref()).await;
+
+        assert_eq!(
+            platform_token(credentials.as_ref(), &Account::Pending).as_deref(),
+            Ok("a-platform-token"),
+            "a consent with two places it could go was moved to one of them"
+        );
+        assert!(!holds_platform_token(credentials.as_ref(), &Account::of("org-a")).expect("a"));
+        assert!(!holds_platform_token(credentials.as_ref(), &Account::of("org-b")).expect("b"));
+    }
+
+    /// **An abandoned setup's consent is lent to nobody** (effort 851, requirement 14). A setup
+    /// for another organization looked its Turso organization up and was left; the person signs
+    /// in to an organization held here with no Turso organization of its own, which records that
+    /// entry again. The slug and the token stay pending, and the next launch moves neither to it.
+    #[tokio::test]
+    async fn a_sign_in_after_an_abandoned_setup_leaves_its_consent_pending() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let directory = scratch("consent-abandoned-setup");
+        let app_state = state_over(&directory).await;
+        let held = HeldOrganization {
+            id: "org-a".to_string(),
+            name: "org-a".to_string(),
+            verifying_key: "k".to_string(),
+            remote_url: "libsql://org-a".to_string(),
+            ..Default::default()
+        };
+        let pending = TursoOrganization {
+            slug: "beta".to_string(),
+            group: "rentable".to_string(),
+        };
+
+        {
+            let mut remote_sync = app_state.remote_sync.write().await;
+            let record = remote_sync.store_mut();
+
+            record.hold(held.clone());
+            record.remember_consent_organization(None, pending.clone());
+            record.commit().expect("the record");
+        }
+
+        store_platform_token(credentials.as_ref(), "the-abandoned-consent").expect("the consent");
+
+        // the sign-in records the entry again with the member it found, as every sign-in does.
+        {
+            let mut remote_sync = app_state.remote_sync.write().await;
+            let record = remote_sync.store_mut();
+
+            record.hold(HeldOrganization {
+                member_id: Some("member-a".to_string()),
+                role: Some("member".to_string()),
+                ..held
+            });
+            record.commit().expect("the record");
+        }
+
+        crate::upgrade::consent::move_the_consent(&app_state, credentials.as_ref()).await;
+
+        let mut remote_sync = app_state.remote_sync.write().await;
+        let record = remote_sync.store_mut();
+
+        assert_eq!(
+            record.consent_organization(Some("org-a")),
+            None,
+            "the signed-in organization took the abandoned setup's Turso organization"
+        );
+        assert_eq!(record.consent_organization(None), Some(&pending));
+        assert_eq!(
+            platform_token(credentials.as_ref(), &Account::Pending).as_deref(),
+            Ok("the-abandoned-consent"),
+            "the launch moved the abandoned setup's consent"
+        );
+        assert!(!holds_platform_token(credentials.as_ref(), &Account::of("org-a")).expect("a"));
+    }
+
+    /// Two organizations owned on two Turso accounts, each with its own consent, and a setup's
+    /// consent waiting in the pending slot, with the Turso organization it was looked up over.
+    async fn two_owned_and_a_setup(credentials: &Credentials, name: &str) -> Shared {
+        let directory = scratch(name);
+        let app_state = state_over(&directory).await;
+        let mut remote_sync = app_state.remote_sync.write().await;
+        let record = remote_sync.store_mut();
+
+        for (id, slug) in [("org-a", "alpha"), ("org-b", "beta")] {
+            record.hold(HeldOrganization {
+                id: id.to_string(),
+                name: id.to_string(),
+                verifying_key: "k".to_string(),
+                remote_url: format!("libsql://{id}"),
+                turso_organization: Some(TursoOrganization {
+                    slug: slug.to_string(),
+                    group: "rentable".to_string(),
+                }),
+                ..Default::default()
+            });
+            store_platform_token(credentials.as_ref(), &format!("token-{slug}"))
+                .expect("the consent");
+            move_pending_consent(credentials.as_ref(), id).expect("the move");
+        }
+
+        record.select("org-a");
+        record.remember_consent_organization(
+            None,
+            TursoOrganization {
+                slug: "gamma".to_string(),
+                group: "rentable".to_string(),
+            },
+        );
+        record.commit().expect("the record");
+        store_platform_token(credentials.as_ref(), "a-setups-consent").expect("the consent");
+        drop(remote_sync);
+
+        app_state
+    }
+
+    /// **"Forget Turso account" on the owner's leaving card forgets the open organization's own
+    /// consent** (effort 851, requirement 14): its `org:<id>` entry and the Turso organization it
+    /// was over go, so the machine reads as holding no authority for it, and the other
+    /// organization's consent and the setup's pending one stay. *It reached the setup walk's
+    /// disconnect until a review of effort 851, which forgot the pending slot alone and left the
+    /// organization's authority standing behind a toast saying it was gone.*
+    #[tokio::test]
+    async fn forgetting_the_turso_account_forgets_the_open_organizations_own_consent() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let app_state = two_owned_and_a_setup(&credentials, "forget-authority").await;
+
+        assert!(
+            owner_platform(&app_state, &credentials, "org-a")
+                .await
+                .is_some()
+        );
+
+        crate::organization::setup::forget_authority(&app_state, credentials.as_ref())
+            .await
+            .expect("the forget");
+
+        assert!(
+            owner_platform(&app_state, &credentials, "org-a")
+                .await
+                .is_none(),
+            "the organization still holds its authority"
+        );
+        assert!(!holds_platform_token(credentials.as_ref(), &Account::of("org-a")).expect("a"));
+        assert_eq!(
+            platform_token(credentials.as_ref(), &Account::of("org-b")).as_deref(),
+            Ok("token-beta"),
+            "another organization's consent went"
+        );
+        assert_eq!(
+            platform_token(credentials.as_ref(), &Account::Pending).as_deref(),
+            Ok("a-setups-consent"),
+            "the setup's consent went"
+        );
+
+        let mut remote_sync = app_state.remote_sync.write().await;
+        let record = remote_sync.store_mut();
+
+        assert_eq!(record.consent_organization(Some("org-a")), None);
+        assert!(record.consent_organization(Some("org-b")).is_some());
+        assert!(record.consent_organization(None).is_some());
+    }
+
+    /// **The setup walk's disconnect gives back the pending consent and nothing else**, and the
+    /// Turso organization looked up for it goes with it, so the next consent is not built on its
+    /// slug. Each organization's own stays.
+    #[tokio::test]
+    async fn the_walks_disconnect_gives_back_the_pending_consent_and_its_slug_alone() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let app_state = two_owned_and_a_setup(&credentials, "disconnect-pending").await;
+
+        crate::organization::setup::disconnect_pending(&app_state, credentials.as_ref())
+            .await
+            .expect("the disconnect");
+
+        assert!(!holds_platform_token(credentials.as_ref(), &Account::Pending).expect("pending"));
+        assert!(holds_platform_token(credentials.as_ref(), &Account::of("org-a")).expect("a"));
+        assert!(holds_platform_token(credentials.as_ref(), &Account::of("org-b")).expect("b"));
+
+        let mut remote_sync = app_state.remote_sync.write().await;
+        let record = remote_sync.store_mut();
+
+        assert_eq!(
+            record.consent_organization(None),
+            None,
+            "the abandoned consent's Turso organization was kept"
+        );
+        assert!(record.consent_organization(Some("org-a")).is_some());
+    }
+
+    /// **A launch that converted nothing moves nothing** (effort 851, requirement 14). The one
+    /// organization held carries a Turso organization and has no consent of its own, and a setup's
+    /// consent waits in the pending slot: an ordinary launch leaves it there, since only the load
+    /// that converted an earlier build's record knows the slot holds an organization's consent.
+    #[tokio::test]
+    async fn a_launch_that_converted_nothing_moves_no_consent() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let directory = scratch("consent-not-converted");
+        let app_state = state_over(&directory).await;
+
+        {
+            let mut remote_sync = app_state.remote_sync.write().await;
+            let record = remote_sync.store_mut();
+
+            record.hold(HeldOrganization {
+                id: "org-a".to_string(),
+                name: "org-a".to_string(),
+                verifying_key: "k".to_string(),
+                remote_url: "libsql://org-a".to_string(),
+                turso_organization: Some(TursoOrganization {
+                    slug: "alpha".to_string(),
+                    group: "rentable".to_string(),
+                }),
+                ..Default::default()
+            });
+            record.commit().expect("the record");
+        }
+
+        store_platform_token(credentials.as_ref(), "a-setups-consent").expect("the consent");
+
+        crate::upgrade::consent::move_the_consent(&app_state, credentials.as_ref()).await;
+
+        assert_eq!(
+            platform_token(credentials.as_ref(), &Account::Pending).as_deref(),
+            Ok("a-setups-consent"),
+            "a setup's consent was handed to an organization on a launch that converted nothing"
+        );
+        assert!(!holds_platform_token(credentials.as_ref(), &Account::of("org-a")).expect("a"));
     }
 }

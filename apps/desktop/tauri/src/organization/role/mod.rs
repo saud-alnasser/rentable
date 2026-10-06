@@ -612,6 +612,12 @@ mod tests {
             joined_at: 0,
             format: None,
             machine_signed_out: 0,
+            turso_organization: None,
+            workspace_id: None,
+            name_signed: false,
+            name_signed_at: 0,
+            lock_marked: false,
+            own_lock_latched: Vec::new(),
         }
     }
 
@@ -664,7 +670,7 @@ mod tests {
         )
         .await
         .expect("the first run failed");
-        let joined = store.organization.clone().expect("the record");
+        let joined = store.selected().cloned().expect("the record");
         let mut owner = sign_in(&organization, &joined, PASSWORD, &slot())
             .await
             .expect("the owner did not sign in");
@@ -712,6 +718,15 @@ mod tests {
         )
         .await
         .expect("the invitation failed");
+        // every account starts locked (effort 851), and the acts these tests are about are an
+        // unlocked member's: unlocked by whoever made it, where they may, and left locked by a
+        // maker holding neither flag that unlocks, as it would be.
+        let _ = crate::organization::member::lock::unlocked_for_a_test(
+            store,
+            owner,
+            &invited.member_id,
+        )
+        .await;
         let mut session = sign_in(
             store,
             &joined_as(owner, &invited.member_id, role),
@@ -1118,9 +1133,13 @@ mod tests {
             )
         );
 
-        let facts = crate::organization::session::facts_of(&store, &held)
-            .await
-            .expect("the session's facts");
+        let facts = crate::organization::session::facts_of(
+            &store,
+            &held,
+            &mut joined_as(&held, &held.member_id, &held.role),
+        )
+        .await
+        .expect("the session's facts");
 
         assert_eq!(facts.role, "custom");
         assert_eq!(facts.role_id, bookkeeper);
@@ -1141,9 +1160,13 @@ mod tests {
         )
         .await
         .expect("the assignment failed");
-        let facts = crate::organization::session::facts_of(&store, &held)
-            .await
-            .expect("the session's facts");
+        let facts = crate::organization::session::facts_of(
+            &store,
+            &held,
+            &mut joined_as(&held, &held.member_id, &held.role),
+        )
+        .await
+        .expect("the session's facts");
 
         assert_eq!(facts.role, permission::MANAGER);
         assert_eq!(facts.role_name, "");
@@ -3333,6 +3356,10 @@ mod tests {
         let lena = holding_role(&store, &owner, &link, "lena", &lead, &workspace_id).await;
         let (sami, sami_session) =
             a_member(&store, &lena, &link, "sami", &clerk, &workspace_id).await;
+        // the lead holds neither flag that unlocks, so the owner does (effort 851).
+        crate::organization::member::lock::unlocked_for_a_test(&store, &owner, &sami.member_id)
+            .await
+            .expect("the owner unlocks sami");
         let issued = the_certificate(&store, &owner, &sami.member_id).await;
         let lead_rank = the_certificate(&store, &owner, &lena.member_id).await.rank;
 
@@ -4876,9 +4903,13 @@ mod tests {
         assert!(permission::permits(held.permissions, Flag::ViewPayment));
 
         // the member's own session reads the same off the replica.
-        let facts = crate::organization::session::facts_of(&store, &sami_session)
-            .await
-            .expect("sami's facts");
+        let facts = crate::organization::session::facts_of(
+            &store,
+            &sami_session,
+            &mut joined_as(&sami_session, &sami_session.member_id, &sami_session.role),
+        )
+        .await
+        .expect("sami's facts");
         let theirs = facts
             .workspaces
             .iter()

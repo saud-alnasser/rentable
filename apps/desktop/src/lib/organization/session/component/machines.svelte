@@ -34,8 +34,8 @@
 	 * settings row's own, the record menu a record card draws, as the components context's *a
 	 * secondary act on a row of a growing list* names it: the quiet ellipsis control, named for the
 	 * machine. Another machine's holds *sign out*; this one's holds *sign out of this machine*,
-	 * which the section asks about and the shell carries out (`onSignOut`). *Until 2026-10-02 each
-	 * row carried its own error-tone sign-out button; the human decided at converge that it moves off
+	 * which the section hands the shell with no question (`onSignOut`, effort 851). *Until
+	 * 2026-10-02 each row carried its own error-tone sign-out button; the human decided at converge that it moves off
 	 * the row ("Move it off the rows"). Until 2026-10-03 this machine's sign-out was a card of its
 	 * own under this one; the human asked that the two be merged, "simpley an otpoin to login out of
 	 * the mecahine" (ticket 46).* A machine that has not run this version would not read a sign-out
@@ -64,7 +64,7 @@
 		onEndMachine: (machineId: string) => Promise<void>;
 		/** sign every other machine out; rejects with what the shared handler has said. */
 		onEndOtherSessions: () => Promise<void>;
-		/** ask to sign this machine out: the section asks first, and the shell signs out. */
+		/** sign this machine out: the section hands it to the shell, which asks nothing first. */
 		onSignOut: () => void;
 	} = $props();
 

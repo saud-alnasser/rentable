@@ -6,6 +6,15 @@
 import type { BaseTranslation } from '../../i18n/i18n-types';
 
 export const organization = {
+	// the organizations this machine holds, at the head of the wall and the no-workspace screen
+	// (effort 851, requirements 2 to 7). `addTitle` heads the step that offers set up and join.
+	switcher: {
+		add: 'add organization',
+		addTitle: 'add an organization',
+		back: 'back',
+		chosen: 'chosen',
+		remove: 'remove {name:string}'
+	},
 	// the one image the organization prints at the foot of its pages (effort 835).
 	mark: {
 		alt: 'the organization stamp',
@@ -23,6 +32,37 @@ export const organization = {
 		replace: 'replace image',
 		saved: 'organization stamp saved',
 		title: 'organization stamp'
+	},
+	// the organization tab's first card: the organization's name, and for the owner alone the edit
+	// that renames it (effort 851, requirements 22 to 25).
+	name: {
+		description: 'what every member sees it called, at sign-in and across rentable.',
+		edit: 'edit organization name',
+		readOnly: 'only the owner can change it.',
+		renameDescription: "what this organization is called, on every member's machine once it syncs.",
+		renamed: 'the organization was renamed.'
+	},
+	// the links waiting to be opened, in the organization tab, for whoever could make one (effort
+	// 851, at the human's word). Each row says whom it is for, what opening it does and when it
+	// lapses; its revoke asks first and says that a new link brings the person in.
+	links: {
+		title: 'pending links',
+		description: "links made from a member's card that nobody has opened yet.",
+		noneTitle: 'no links waiting',
+		noneDescription: "a link you make from a member's card shows here until it is used or lapses.",
+		join: 'joins as a new member',
+		reset: 'chooses a new password',
+		machine: 'adds a machine',
+		lapses: 'lapses {moment:string}',
+		madeBy: 'made by {username:string}',
+		menu: 'actions for the link for {username:string}',
+		revoke: 'revoke link',
+		confirmLabel: 'revoke',
+		confirmDescription:
+			'the link and its code stop working at once. a new link from their card brings them in.',
+		revoked: 'link revoked.',
+		count: '{count|number} {{link|links}}',
+		searchPlaceholder: 'find a link by username'
 	},
 	setup: {
 		connectTitle: 'connect Turso',
@@ -69,17 +109,12 @@ export const organization = {
 		reading: 'reading the link...',
 		unreadable:
 			'this is not a rentable link. paste the whole link, exactly as it was handed to you.',
-		// the seven refusals: one line each, and each names the next step (effort 832,
+		// the refusals: one line each, and each names the next step (effort 832,
 		// requirement 19). What the shell said is behind the details disclosure under them.
 		unreachable: 'the organization could not be reached. check the connection and try again.',
 		lapsed: 'this link has lapsed. ask whoever sent it for a new one.',
-		consumed: 'this link was already used here. sign in with the password you chose.',
-		consumedElsewhere: 'this link was already used. ask whoever sent it for a new one.',
+		consumed: 'this link was already used; ask the owner or a manager for a new one.',
 		revoked: 'this link was withdrawn. ask whoever sent it for a new one.',
-		replaced: 'a newer link replaced this one. ask whoever sent it for the new one.',
-		anotherOrganization:
-			'this machine holds another organization. disconnect it at the sign-in first.',
-		toSignIn: 'go to the sign-in',
 		passwordTitle: 'choose a password',
 		passwordDescription: "you'll use it to sign in. it can't be recovered.",
 		organizationLabel: 'organization',
@@ -175,7 +210,10 @@ export const organization = {
 			noWorkspaces: 'none',
 			joined: 'joined',
 			ownPermissions: 'permissions of their own',
-			offered: 'offered the organization'
+			offered: 'offered the organization',
+			// a locked member (effort 851, requirement 33), and one whose link is not opened yet.
+			locked: 'locked',
+			notSignedInYet: 'not signed in yet'
 		},
 
 		memberTitle: 'a new member',
@@ -196,6 +234,10 @@ export const organization = {
 		// the card menu's words, one or two apiece: a menu is read at a glance, and the
 		// sentence a dialog opens with is the dialog's rather than the entry's.
 		makeLink: 'make a link',
+		// effort 851, requirement 11: the one choice a link is made with, and what it does.
+		linkFor: 'for {username:string}',
+		linkLifetime: 'lasts',
+		linkLifetimeDescription: 'the link and its code stop working together after this.',
 		// requirement 22: the two entries on the owner's own card, one at a time, and the
 		// acceptance the other person meets. Two plain words each, and the sentences that
 		// say what changes belong to the surfaces they open.
@@ -227,6 +269,11 @@ export const organization = {
 		endSessions: 'sign out everywhere',
 		endSessionsAsks: 'they are signed out of every machine. signing in again brings them back.',
 		sessionsEnded: 'they were signed out of every machine.',
+		// a locked member's unlock (effort 851, requirement 34), asked first, and what it said.
+		unlock: 'unlock',
+		unlockAsks:
+			'they can add, edit and delete what their role allows. a password reset locks them again.',
+		unlocked: 'they were unlocked. they can do what their role allows.',
 		sessionsEndedPending:
 			'this machine is offline; the sign-out reaches their machines once it is back online.',
 		rename: 'rename',
@@ -593,9 +640,8 @@ export const organization = {
 export const refusals = {
 	host: {
 		lapsed: 'this link has lapsed. ask whoever sent it for a new one.',
-		consumed: 'this link was already used. ask whoever sent it for a new one.',
+		consumed: 'this link was already used; ask the owner or a manager for a new one.',
 		revoked: 'this link was withdrawn. ask whoever sent it for a new one.',
-		replaced: 'a newer link replaced this one. ask whoever sent it for the new one.',
 		codeMissing: 'type the six-character code that came with the link.',
 		codeWrong: 'the code is wrong. ask whoever sent the link to read it out again.',
 		linkUnreadable: 'this is not a rentable join link. copy the whole link and try again.',
@@ -603,19 +649,23 @@ export const refusals = {
 			'this link connects another machine rather than inviting you. sign in with your username and password instead.',
 		linkNotForAMachine:
 			'this link is an invitation rather than a link for another machine. open it where you accept an invitation.',
-		anotherOrganizationHeld:
-			'this machine already holds another organization. disconnect it first.',
+		linkLifetime: 'a link lasts from an hour to a week. choose one of the lifetimes offered.',
+		linkNotOutstanding:
+			'that link was already used, lapsed or revoked, so there is nothing to revoke.',
 		credentialsWrong: 'the username or password is wrong.',
 		passwordTooShort: 'the password needs at least 12 characters.',
 		passwordChangeRequired: 'change your password before doing anything else.',
 		signedOut: 'nobody is signed in on this machine. sign in and try again.',
 		noOrganization: 'this machine holds no organization yet.',
+		sessionOpen: 'sign out before choosing another organization.',
 		noMemberYet: 'nobody has signed in to the organization on this machine yet. sign in first.',
 		signInAgain: 'your account on this machine is out of date. sign in again.',
 		youWereRemoved: 'you were removed from this organization.',
 		sessionsEnded: 'your sessions were ended from another machine. sign in again.',
 		keyNotInForce: 'the organization was handed over, so only its new owner can do this.',
 		machineMissing: 'that machine is no longer signed in as you. reload to see what changed.',
+		locked:
+			'your account is locked until an owner or a manager unlocks it. you can still view, and change your password.',
 		machineNotUpdated:
 			'that machine has not run this version yet, so it is not signed out alone. sign out others instead.',
 		usernameInvalid:
@@ -648,13 +698,14 @@ export const refusals = {
 			'a workspace changes only what may be done to its records. set the rest across the organization.',
 		alreadyOwner: 'you are the owner already. choose the account that is to have it.',
 		accountNotSetUp:
-			'that account has no password of its own yet. once they open their link and choose one, offer it again.',
+			'that account has no password of its own yet. once they open their link and choose one, try again.',
 		offerPending: 'the organization is already offered to an account. withdraw that offer first.',
 		offerAccepted:
 			'the offer was already accepted, and the organization is theirs now. nothing was changed.',
 		nothingOffered: 'no offer of this organization stands.',
 		offererGone: 'the account that offered you the organization is no longer in it.',
 		organizationNameMissing: 'the organization needs a name.',
+		organizationNameTooLong: 'that name is too long.',
 		workspaceNameMissing: 'the workspace needs a name.',
 		workspaceMissing:
 			'that workspace is no longer in this organization. reload to see what changed.',
@@ -701,7 +752,9 @@ export const refusals = {
 		createRefused: "Turso would not create the organization's database.",
 		tursoRefused: 'Turso refused the request. trying again will not help.',
 		tursoAccountRefused:
-			"Turso refused the request because of the account itself. check the account's plan in Turso."
+			"Turso refused the request because of the account itself. check the account's plan in Turso.",
+		tursoConsentLost:
+			"Turso no longer accepts this organization's connection. connect Turso again from the organization's settings."
 	}
 } satisfies BaseTranslation;
 

@@ -38,10 +38,12 @@
 mod command;
 mod connect;
 mod group;
+mod rename;
 
 pub use command::*;
 pub use connect::*;
 pub use group::*;
+pub use rename::*;
 
 use std::path::Path;
 
@@ -56,6 +58,7 @@ use crate::{
     machine::{RemoteSyncStore, consented_organization},
     persisted::Persisted,
     turso::{
+        consent::{Account, copy_pending_consent, move_pending_consent},
         discovery::{McpEndpoint, TursoOrganization},
         platform::{AccessLevel, DeletionIntent, TursoPlatform},
     },
@@ -72,8 +75,8 @@ use super::{
     role::permission,
     session::{self, remember},
     store::{
-        FORMAT_VERSION, GrantRecord, MemberRecord, OrganizationRecord, OrganizationStore,
-        RoleRecord, Signer,
+        FORMAT_VERSION, GrantRecord, MemberLockRecord, MemberRecord, OrganizationNameRecord,
+        OrganizationRecord, OrganizationStore, RoleRecord, Signer, leave_no_replica,
     },
 };
 
@@ -126,7 +129,7 @@ pub const ADMINISTRATOR_KEY_PURPOSE: &str = "administrator-key";
 ///
 /// **Every caller that needs the owner's key reads it through here**, so no second derivation can
 /// drift: `ownership::offer_ownership` and `ownership::accept_ownership` on a machine already signed in,
-/// and `setup::connect_existing` on a machine that holds nothing yet. *The acts that certify a
+/// and `setup::connect_existing` on a machine that does not hold the organization yet. *The acts that certify a
 /// signer read it too, through `ownership::organization_key_of`, until effort 838 issued every
 /// certificate from its issuer's own.* What comes back
 /// is compared or used to sign; it is never trusted because a column offered it.
@@ -248,7 +251,8 @@ where
     P: TursoPlatform,
     F: Fn(TursoOrganization) -> P,
 {
-    let name = request.name.trim();
+    // the name is held to the rule a rename is (effort 851, requirement 23).
+    let name = organization_name(request.name)?;
     let username = request.username.trim();
     // a field that was drawn and left blank is a field that was not answered, and the walk only
     // draws it after Turso has refused everything else: there is nothing to refuse it with here
@@ -257,13 +261,6 @@ where
         .group
         .map(str::trim)
         .filter(|group| !group.is_empty());
-
-    if name.is_empty() {
-        return Err(Error::refused(
-            RefusalReason::OrganizationNameMissing,
-            "the organization needs a name",
-        ));
-    }
 
     // the owner is the first member, so nobody holds the username yet; the shape is the whole
     // check, and it is the same check an invitation makes.
@@ -282,9 +279,17 @@ where
     let organization_id = random_id()?;
     let database_name = format!("{ORGANIZATION_DATABASE_PREFIX}{organization_id}");
 
-    // the database, and the slug it is created under or read from.
-    let (organization, hostname) = match consented_organization(store, platform_token, mcp).await? {
+    // the database, and the slug it is created under or read from: the pending consent's, never
+    // that of an organization this machine already holds, since the one being made is none of them
+    // (effort 851, requirement 14).
+    let consented = consented_organization(store, None, platform_token, mcp).await?;
+    let (organization, hostname) = match consented {
         Some(consented) => {
+            // an organization this machine holds over the same group takes this consent as its
+            // own before anything here can refuse, since Turso has been seen to stop accepting
+            // the one it had once this one was granted.
+            share_the_consent(store, credentials, &consented.organization);
+
             // **a group that was typed is checked first, and the check keeps the consent.** What
             // the consent is over is already known here, from the listing or from this machine's
             // own store, so a name that is not it is a typing mistake rather than a wrong
@@ -340,7 +345,7 @@ where
             )
             .await?;
 
-            store.turso_organization = Some(first.organization.clone());
+            store.remember_consent_organization(None, first.organization.clone());
             store.commit()?;
 
             (first.organization, first.hostname)
@@ -444,10 +449,12 @@ async fn finish<P: TursoPlatform>(
 
     organization_store.install_schema().await?;
     organization_store.write_format().await?;
+    let name_sealed = seal_content(&content_key, "organization.name_sealed", name.as_bytes())?;
+
     organization_store
         .write_organization(&OrganizationRecord {
             id: organization_id.to_string(),
-            name_sealed: seal_content(&content_key, "organization.name_sealed", name.as_bytes())?,
+            name_sealed: name_sealed.clone(),
             verifying_key,
             remote_url: remote_url.clone(),
             created_at: now,
@@ -525,6 +532,33 @@ async fn finish<P: TursoPlatform>(
         )
         .await?;
 
+    // the name under the root's signature from the first (effort 851, requirement 29): the same
+    // sealed bytes as the organization row, which builds before the signed name go on reading.
+    organization_store
+        .write_organization_name(
+            &signer,
+            &OrganizationNameRecord {
+                name_sealed,
+                updated_at: now,
+            },
+        )
+        .await?;
+
+    // and marked from the first (effort 851, requirement 35): the owner's own lock row, which says
+    // to every reader that a member with no row is somebody's deletion and reads locked. Here
+    // because nobody is carried over in an organization made a moment ago, and the backfill that
+    // writes it elsewhere runs only after a pull (`member::lock::carry_locks_over`).
+    organization_store
+        .write_member_lock(
+            &signer,
+            &MemberLockRecord {
+                member_id: member_id.clone(),
+                locked: false,
+                updated_at: now,
+            },
+        )
+        .await?;
+
     // best effort, as every push here is: what could not be sent stays captured and goes with
     // the next one. The answer says which, because a link handed out before the rows arrived
     // opens an empty directory until they do.
@@ -546,9 +580,10 @@ async fn finish<P: TursoPlatform>(
     let machine_signed_out =
         session::sign_outs_acknowledged(&organization_store, &machine_id, &member_id).await?;
 
-    // the one organization this machine holds, from now: the owner's, with their member row
-    // recorded from the outset.
-    store.organization = Some(HeldOrganization {
+    // an organization this machine holds from now, beside any others, and selected: the owner's,
+    // with their member row recorded from the outset, and the Turso organization the consent it
+    // was made on is over.
+    store.hold_consented(HeldOrganization {
         id: organization_id.to_string(),
         name: name.to_string(),
         verifying_key: BASE64URL.encode(verifying_key),
@@ -561,6 +596,12 @@ async fn finish<P: TursoPlatform>(
         // 838, ticket 25).
         format: Some(FORMAT_VERSION),
         machine_signed_out,
+        turso_organization: None,
+        workspace_id: None,
+        name_signed: false,
+        name_signed_at: 0,
+        lock_marked: false,
+        own_lock_latched: Vec::new(),
     });
     store.commit()?;
 
@@ -568,6 +609,10 @@ async fn finish<P: TursoPlatform>(
     // record is committed, because the entry is read back against what the record names.
     // the first epoch, the one the owner's row was just written with.
     remember(credentials, organization_id, &member_id, 0, &member_key);
+
+    // and the consent this was made on becomes the organization's own (effort 851, requirement
+    // 14), now that its id is known and the record holds it.
+    settle_the_consent(credentials, organization_id);
 
     diagnostics::info("organization.created")
         .with("organization", organization_id)
@@ -582,7 +627,9 @@ async fn finish<P: TursoPlatform>(
     ))
 }
 
-/// Give the consent back, so the person can grant another one over another group or account.
+/// Give the pending consent back, so the person can grant another one over another group or
+/// account. Only the pending slot and the Turso organization looked up for it: an organization this
+/// machine already holds keeps its own consent (effort 851, requirement 14).
 ///
 /// **The token and the slug go together.** The slug is a fact about the consent that is being
 /// abandoned, and a machine that kept it would build every Platform API path of the next
@@ -593,16 +640,73 @@ async fn finish<P: TursoPlatform>(
 /// a credential store that would not empty goes to the diagnostics log rather than taking the
 /// refusal's place on the screen.
 fn abandon_the_consent(store: &mut Persisted<RemoteSyncStore>, credentials: &dyn CredentialStore) {
-    if let Err(error) = crate::turso::consent::forget_platform_token(credentials) {
+    if let Err(error) = crate::turso::consent::forget_platform_token(credentials, &Account::Pending)
+    {
         diagnostics::error("organization.setup.consentNotForgotten")
             .with("error", error.to_string())
             .write();
     }
 
-    store.turso_organization = None;
+    store.forget_consent_organization(None);
 
     if let Err(error) = store.commit() {
         diagnostics::error("organization.setup.consentNotForgotten")
+            .with("error", error.to_string())
+            .write();
+    }
+}
+
+/// File the pending consent as the own consent of every organization this machine holds over
+/// `over`, the Turso organization and group a setup or a connect just learned it is granted over.
+///
+/// **Turso appears to keep one consent per account working**, which one owner's machine suggests
+/// and nothing has measured: the organization's own token was refused as `invalid api token` on
+/// 2026-10-06 after its owner granted a second consent on the same account in an add-organization
+/// walk ([[references/turso]], *Failure handling*). The consent just granted is the one Turso
+/// surely accepts, so an organization already held over the same group is handed it as soon as the
+/// walk knows that, whether or not the walk goes on to make or connect anything.
+///
+/// **The same group, not only the same slug.** A consent is scoped to the group picked on Turso's
+/// screen, so a token over another group of the same account cannot mint over this organization's
+/// database; handing it over would trade a refusal the app recovers from for one it cannot.
+///
+/// Best effort: what could not be filed goes to the diagnostics log, never the token, and the
+/// organization keeps what it had.
+pub(crate) fn share_the_consent(
+    store: &RemoteSyncStore,
+    credentials: &dyn CredentialStore,
+    over: &TursoOrganization,
+) {
+    for held in store
+        .held_organizations
+        .iter()
+        .filter(|held| held.turso_organization.as_ref() == Some(over))
+    {
+        match copy_pending_consent(credentials, &held.id) {
+            Ok(true) => diagnostics::info("organization.setup.consentShared")
+                .with("organization", held.id.as_str())
+                .write(),
+            Ok(false) => {}
+            Err(error) => diagnostics::error("organization.setup.consentNotShared")
+                .with("organization", held.id.as_str())
+                .with("error", error.to_string())
+                .write(),
+        }
+    }
+}
+
+/// Move the pending consent to the organization `organization_id`, which a first run, a connect and
+/// a reconnect do once the organization is held (effort 851, requirement 14).
+///
+/// **Best effort, after the record is committed**, because nothing about the organization is
+/// undone for it: a move that did not finish leaves the token in the pending slot
+/// (`turso::consent::move_pending_consent`), the next launch moves it (`upgrade/consent.rs`), and
+/// until then this machine reads as holding no authority for the organization. What went wrong goes
+/// to the diagnostics log, never the token.
+pub(crate) fn settle_the_consent(credentials: &dyn CredentialStore, organization_id: &str) {
+    if let Err(error) = move_pending_consent(credentials, organization_id) {
+        diagnostics::error("organization.setup.consentNotMoved")
+            .with("organization", organization_id)
             .with("error", error.to_string())
             .write();
     }
@@ -628,24 +732,6 @@ async fn leave_nothing<P: TursoPlatform>(
     }
 
     leave_no_replica(database_path, organization_id);
-}
-
-/// Take away the replica a run pulled and did not keep: the file and every sidecar the engine
-/// wrote beside it.
-///
-/// **Every refusal after a pull goes through here** (effort 828, requirement 14). A run that was
-/// refused left a copy of every sealed row of the organization on a machine that does not hold it,
-/// and the wrong-password refusal is the one somebody would meet on purpose. The caller lets the
-/// store go first: on Windows a file this process still has open cannot be deleted, which is the
-/// order `forget` keeps for the same reason.
-///
-/// Best effort, like the delete beside it: what could not be removed is the sweep's to report at a
-/// disconnect, and it never takes the place of the refusal the person is about to read.
-fn leave_no_replica(database_path: &Path, organization_id: &str) {
-    crate::database::Database::remove_replica_files(&OrganizationStore::replica_path(
-        database_path,
-        organization_id,
-    ));
 }
 
 /// When a minted credential dies, read off its own `exp` claim, as milliseconds. `None` where the
@@ -700,14 +786,17 @@ fn draw_these_ids_next(ids: &[&str]) {
     });
 }
 
-/// The authority this machine holds, for a first run.
+/// The authority this machine holds, for a first run: the pending consent, which is the one a
+/// setup, a connect and a reconnect run on, because each of them runs before the consent belongs
+/// to an organization this machine holds (effort 851, requirement 14). They move it to the
+/// organization's own entry once its id is known ([`settle_the_consent`]).
 ///
 /// **Refused before anything is asked of anybody.** A consent the person abandoned filed no
 /// token, so a first run reached without one stops here, having created nothing, and the answer
 /// says what to do: grant the consent. Requirement 5's re-consent, at the one place a first run
 /// spends the authority.
 pub(crate) fn authority(credentials: &dyn CredentialStore) -> Result<String, Error> {
-    crate::turso::consent::platform_token(credentials).map_err(|_| {
+    crate::turso::consent::platform_token(credentials, &Account::Pending).map_err(|_| {
         Error::refused(
             RefusalReason::TursoNotConnected,
             "this machine holds no turso authority. connect the turso account first, then \
@@ -719,10 +808,12 @@ pub(crate) fn authority(credentials: &dyn CredentialStore) -> Result<String, Err
 #[cfg(test)]
 mod tests {
     use super::{
-        CreateOrganization, MINIMUM_PASSWORD_LENGTH, OWNER_ROLE, Remote, SHIPPING_KDF,
+        CreateOrganization, MINIMUM_PASSWORD_LENGTH, ORGANIZATION_DATABASE_PREFIX,
+        ORGANIZATION_NAME_LIMIT, OWNER_ROLE, OrganizationCreated, Remote, SHIPPING_KDF,
         create_organization, credential_expiry,
     };
     use crate::credential::Memory;
+    use crate::error::{Error, RefusalReason};
     use crate::machine::RemoteSyncStore;
     use crate::organization::authority::{AdministratorKey, OrganizationKey};
     use crate::organization::invitation::USERNAME_RULES;
@@ -852,8 +943,8 @@ mod tests {
         // the organization row, where the machine learns what a link would carry: the id, the
         // remote and the key. The first run hands out nothing (effort 828, requirement 16).
         let held = store
-            .organization
-            .clone()
+            .selected()
+            .cloned()
             .expect("the first run recorded no organization");
 
         assert_eq!(held.id, outcome.organization_id);
@@ -982,7 +1073,7 @@ mod tests {
         );
 
         // this machine holds it, with the name as typed and the owner as its member.
-        let joined = store.organization.clone().expect("the record");
+        let joined = store.selected().cloned().expect("the record");
 
         assert_eq!(joined.id, outcome.organization_id);
         assert_eq!(joined.name, "Acme Rentals");
@@ -992,13 +1083,246 @@ mod tests {
 
         // and the slug was asked for once and remembered.
         assert_eq!(
-            store.turso_organization.as_ref().map(|o| o.slug.as_str()),
+            store
+                .consent_organization(Some(&joined.id))
+                .map(|o| o.slug.as_str()),
             Some("an-org")
         );
         assert_eq!(
             mcp.request_count(),
             2,
             "handshake and listing, and nothing else"
+        );
+    }
+
+    /// One first run on this machine's record, into the group `listing` names, on the Turso
+    /// organization `slug`.
+    async fn a_first_run(
+        credentials: &Memory,
+        store: &mut Persisted<RemoteSyncStore>,
+        directory: &std::path::Path,
+        listing: Vec<ScriptedResponse>,
+        slug: &str,
+        name: &str,
+    ) -> Result<OrganizationCreated, Error> {
+        let mcp = ScriptedServer::start(listing).await;
+        let platform = Arc::new(InMemoryPlatform::new(slug));
+
+        create_organization(
+            credentials,
+            &crate::clock::System::shared(),
+            store,
+            TOKEN,
+            &McpEndpoint::at(&mcp.url("")),
+            |_| Arc::clone(&platform),
+            Remote::none(),
+            &directory.join("app.db"),
+            CreateOrganization {
+                name,
+                username: "olivia",
+                password: PASSWORD,
+                group: None,
+            },
+            test_cost(),
+            1_757_000_000_000,
+        )
+        .await
+        .map(|(created, _)| created)
+    }
+
+    /// **Effort 851, criterion 1: setting up a second organization on a machine that holds one.**
+    ///
+    /// The first run succeeds beside the organization already held, the record holds both, the
+    /// new one is selected, and the first one's entry is as it was, its own Turso organization
+    /// included: each knows the account its own consent was over (requirement 14). **A first run
+    /// into a group that already holds an organization is still refused**, whatever else the
+    /// machine holds, and the record is left as it was.
+    #[tokio::test]
+    async fn a_machine_holding_an_organization_sets_up_another_and_a_held_group_is_still_refused() {
+        let credentials = Memory::new();
+        let directory = scratch("second-first-run");
+        let mut store = store(&directory);
+        let first = a_first_run(
+            &credentials,
+            &mut store,
+            &directory,
+            populated_group(),
+            "an-org",
+            "Acme",
+        )
+        .await
+        .expect("the first run failed");
+        let first_entry = store
+            .held(&first.organization_id)
+            .cloned()
+            .expect("the first organization");
+
+        let second = a_first_run(
+            &credentials,
+            &mut store,
+            &directory,
+            vec![
+                handshake(),
+                listing(json!([{
+                    "Name": "ledger",
+                    "hostname": "ledger-another-org.aws-eu-west-1.turso.io",
+                    "group": "elsewhere"
+                }])),
+            ],
+            "another-org",
+            "Beta",
+        )
+        .await
+        .expect("a second organization was refused on a machine holding one");
+
+        assert_eq!(
+            store
+                .held_organizations
+                .iter()
+                .map(|held| held.id.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                first.organization_id.as_str(),
+                second.organization_id.as_str()
+            ]
+        );
+        assert_eq!(
+            store.selected().map(|held| held.id.as_str()),
+            Some(second.organization_id.as_str()),
+            "the new organization is not selected"
+        );
+        assert_eq!(
+            store.held(&first.organization_id),
+            Some(&first_entry),
+            "the second first run touched the first organization's entry"
+        );
+        assert_eq!(
+            store
+                .consent_organization(Some(&second.organization_id))
+                .map(|organization| organization.slug.as_str()),
+            Some("another-org")
+        );
+        assert_eq!(
+            store
+                .consent_organization(Some(&first.organization_id))
+                .map(|organization| organization.slug.as_str()),
+            Some("an-org")
+        );
+
+        // a group that holds an organization already: refused, and nothing recorded.
+        let before = std::fs::read(store.path()).expect("the record");
+        let refused = a_first_run(
+            &credentials,
+            &mut store,
+            &directory,
+            vec![
+                handshake(),
+                listing(json!([{
+                    "Name": format!("{ORGANIZATION_DATABASE_PREFIX}7f3a"),
+                    "hostname": "org-7f3a-third-org.aws-eu-west-1.turso.io",
+                    "group": "taken"
+                }])),
+            ],
+            "third-org",
+            "Gamma",
+        )
+        .await;
+
+        assert!(
+            matches!(
+                refused,
+                Err(Error::Refused {
+                    reason: RefusalReason::GroupHoldsOrganization,
+                    ..
+                })
+            ),
+            "{refused:?}"
+        );
+        assert_eq!(store.held_organizations.len(), 2);
+        assert_eq!(
+            store.selected().map(|held| held.id.as_str()),
+            Some(second.organization_id.as_str())
+        );
+        assert_eq!(
+            std::fs::read(store.path()).expect("the record"),
+            before,
+            "the refused run wrote the record"
+        );
+    }
+
+    /// **A consent granted over a held organization's group becomes that organization's own,
+    /// even where the first run is refused** (the link refused on 2026-10-06). An owner adding an
+    /// organization grants a second consent on the same Turso account over the group the first
+    /// one lives in, and Turso stops accepting the first's: the run is refused as the group
+    /// already holding an organization and gives the pending consent back, and the organization
+    /// keeps the newer consent as its own.
+    #[tokio::test]
+    async fn a_consent_over_a_held_organizations_group_becomes_its_own_though_the_run_is_refused() {
+        use crate::turso::consent::{
+            Account, holds_platform_token, platform_token, store_platform_token,
+        };
+
+        let credentials = Memory::new();
+        let directory = scratch("first-run-shares");
+        let mut store = store(&directory);
+
+        store_platform_token(&credentials, "the-older-consent").expect("the first consent");
+
+        let first = a_first_run(
+            &credentials,
+            &mut store,
+            &directory,
+            populated_group(),
+            "an-org",
+            "Acme",
+        )
+        .await
+        .expect("the first run failed");
+        let own = Account::of(&first.organization_id);
+
+        assert_eq!(
+            platform_token(&credentials, &own).as_deref(),
+            Ok("the-older-consent")
+        );
+
+        store_platform_token(&credentials, "a-newer-consent").expect("the newer consent");
+
+        let database = format!("{ORGANIZATION_DATABASE_PREFIX}{}", first.organization_id);
+        let refused = a_first_run(
+            &credentials,
+            &mut store,
+            &directory,
+            vec![
+                handshake(),
+                listing(json!([{
+                    "Name": database,
+                    "hostname": format!("{database}-an-org.aws-eu-west-1.turso.io"),
+                    "group": "rentable"
+                }])),
+            ],
+            "an-org",
+            "Beta",
+        )
+        .await;
+
+        assert!(
+            matches!(
+                refused,
+                Err(Error::Refused {
+                    reason: RefusalReason::GroupHoldsOrganization,
+                    ..
+                })
+            ),
+            "{refused:?}"
+        );
+        assert_eq!(
+            platform_token(&credentials, &own).as_deref(),
+            Ok("a-newer-consent"),
+            "the organization kept a consent Turso no longer accepts"
+        );
+        assert!(
+            !holds_platform_token(&credentials, &Account::Pending).expect("the store"),
+            "the refused run kept the pending consent"
         );
     }
 
@@ -1049,7 +1373,7 @@ mod tests {
             platform.databases().is_empty(),
             "the database was left behind"
         );
-        assert!(store.organization.is_none());
+        assert!(store.selected().is_none());
         assert!(
             !std::fs::read_dir(&directory)
                 .expect("the directory")
@@ -1060,7 +1384,9 @@ mod tests {
     }
 
     /// The three things typed are checked before anything is asked of Turso, and a username
-    /// outside requirement 21's rules is refused with the sentence an invitation refuses with.
+    /// outside requirement 21's rules is refused with the sentence an invitation refuses with. A
+    /// name one character past `ORGANIZATION_NAME_LIMIT` is refused as a rename refuses it
+    /// (effort 851, criterion 23).
     /// **The group is not among them**: it is asked for only after Turso has refused every name
     /// this application can work out, so a run that carries none is the ordinary one.
     #[tokio::test]
@@ -1073,9 +1399,11 @@ mod tests {
         let database_path = directory.join("app.db");
         let too_short = "a".repeat(MINIMUM_PASSWORD_LENGTH - 1);
         let too_long = "o".repeat(33);
+        let name_too_long = "n".repeat(ORGANIZATION_NAME_LIMIT + 1);
 
         for (name, username, password) in [
             ("   ", "olivia", PASSWORD),
+            (name_too_long.as_str(), "olivia", PASSWORD),
             ("Acme", "olivia", too_short.as_str()),
             ("Acme", "ol", PASSWORD),
             ("Acme", too_long.as_str(), PASSWORD),
@@ -1110,6 +1438,19 @@ mod tests {
 
             if username != "olivia" {
                 assert_eq!(error.to_string(), USERNAME_RULES, "{username:?}");
+            }
+
+            if name == name_too_long {
+                assert!(
+                    matches!(
+                        error,
+                        Error::Refused {
+                            reason: RefusalReason::OrganizationNameTooLong,
+                            ..
+                        }
+                    ),
+                    "{error:?}"
+                );
             }
         }
 

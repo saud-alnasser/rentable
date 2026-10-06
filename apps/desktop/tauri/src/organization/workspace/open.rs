@@ -6,7 +6,7 @@
 //! the workspace this machine has open, and the credential their vault unsealed for it. The
 //! diagnostics it writes keep the `startup.` names they had when the startup held it.
 
-use crate::{clock::Clock, diagnostics, error::Error, organization::Shared};
+use crate::{clock::Clock, diagnostics, error::Error, machine::LocalReplica, organization::Shared};
 
 /// Where the current workspace stands for the member who is in.
 enum WorkspaceStanding {
@@ -139,16 +139,21 @@ pub(crate) async fn open_database(app_state: &Shared, clock: &dyn Clock) -> Opti
     // which workspace is *current*, and a machine can hold replicas for members nobody is signed
     // in as.
     {
-        let member_id = app_state
+        let member = app_state
             .member
             .read()
             .await
             .as_ref()
-            .map(|member| member.member_id.clone());
+            .map(|member| (member.member_id.clone(), member.organization_id.clone()));
         let mut remote_sync = app_state.remote_sync.write().await;
 
-        if let Some(member_id) = member_id
-            && let Err(error) = remote_sync.remember_replica(&workspace_id, &member_id, clock.now())
+        if let Some((member_id, organization_id)) = member
+            && let Err(error) = remote_sync.remember_replica(
+                &workspace_id,
+                &member_id,
+                &organization_id,
+                clock.now(),
+            )
         {
             diagnostics::error("startup.replica.notTracked")
                 .with("error", error.to_string())
@@ -225,26 +230,30 @@ async fn release_replica(app_state: &Shared, workspace_id: &str) {
 /// **A replica held for somebody else is left alone**, which is most of them after a sign-out:
 /// only the member whose vault is open can be asked what they hold, and a question that cannot be
 /// put is not an answer that the grant ended. A replica this member held and holds no grant on
-/// any more goes.
+/// any more goes. **So is a replica of another organization**, which the member's vault cannot
+/// answer for either (effort 851, requirement 5).
 async fn release_replicas_grant_ended(app_state: &Shared, current: Option<&str>) {
     let held = { app_state.remote_sync.read().await.local_replicas() };
-    let (member_id, granted): (Option<String>, Vec<String>) = {
+    let (member, granted): (Option<(String, String)>, Vec<String>) = {
         let member = app_state.member.read().await;
 
         match member.as_ref() {
             Some(member) => (
-                Some(member.member_id.clone()),
+                Some((member.member_id.clone(), member.organization_id.clone())),
                 member.workspace_credentials.keys().cloned().collect(),
             ),
             None => (None, Vec::new()),
         }
     };
-    let Some(member_id) = member_id else {
+    let Some((member_id, organization_id)) = member else {
         return;
     };
 
     for replica in held {
-        if current == Some(replica.workspace_id.as_str()) || replica.member_id != member_id {
+        if current == Some(replica.workspace_id.as_str())
+            || replica.member_id != member_id
+            || of_another_organization(&replica, &organization_id)
+        {
             continue;
         }
 
@@ -305,6 +314,18 @@ async fn organization_standing(app_state: &Shared) -> WorkspaceStanding {
     let Some(remote_id) = workspace.remote_id.as_deref() else {
         return WorkspaceStanding::Nothing;
     };
+
+    // **a workspace of another organization is not this member's to judge** (effort 851, the
+    // plan's *The machine's record holds a list*): their vault holds no grant on it because it is
+    // not of their organization, not because a grant ended, and reading that as an end would
+    // delete the other organization's replica.
+    if remote_sync.local_replicas().iter().any(|replica| {
+        replica.workspace_id == remote_id
+            && of_another_organization(replica, &member.organization_id)
+    }) {
+        return WorkspaceStanding::Nothing;
+    }
+
     let Some(held) = member.workspace_credentials.get(remote_id) else {
         return WorkspaceStanding::GrantEnded;
     };
@@ -315,4 +336,249 @@ async fn organization_standing(app_state: &Shared) -> WorkspaceStanding {
     remote_sync.hold_organization_workspace_token(&held.token);
 
     WorkspaceStanding::Held(url)
+}
+
+/// whether a replica entry names an organization other than `organization_id`. An entry naming
+/// none is one an earlier build tracked, which the record's load gives the one organization it
+/// held, so it is nobody else's.
+fn of_another_organization(replica: &LocalReplica, organization_id: &str) -> bool {
+    !replica.organization_id.is_empty() && replica.organization_id != organization_id
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Arc, Mutex};
+
+    use serde_json::json;
+    use tokio::sync::RwLock;
+
+    use super::open_database;
+    use crate::test::scratch;
+    use crate::{
+        credential::Memory,
+        database::Database,
+        machine::{RemoteSync, RemoteSyncStore},
+        organization::Shared,
+        organization::{
+            HeldOrganization,
+            member::vault::KdfParams,
+            session::{CredentialSlot, sign_in},
+            setup::{CreateOrganization, Remote, create_organization},
+            store::OrganizationStore,
+        },
+        persisted::Persisted,
+        settings::Settings,
+        sync::test::server::{ScriptedResponse, ScriptedServer},
+        turso::{consent::TursoConsent, discovery::McpEndpoint, platform::InMemoryPlatform},
+        update::Update,
+    };
+
+    const PASSWORD: &str = "the owners password";
+    const ISSUED_AT: i64 = 1_757_000_000_000;
+    /// an organization this machine holds beside the one signed in to.
+    const ANOTHER: &str = "org-another";
+
+    fn test_cost() -> KdfParams {
+        KdfParams {
+            memory_kib: 1024,
+            iterations: 2,
+            lanes: 1,
+        }
+    }
+
+    /// The organization's state over one data directory, as the plugins' setups build it, with
+    /// nothing open and nobody in.
+    async fn state_over(directory: &std::path::Path) -> Shared {
+        let mut settings =
+            Persisted::<Settings>::load(directory.join(Settings::FILENAME)).expect("the settings");
+        settings.database_path = directory.join(Database::FILENAME);
+        settings.recovery_path = directory.join(Update::FILENAME);
+        settings.commit().expect("the settings");
+
+        let settings = Arc::new(RwLock::new(settings));
+        let remote_sync = RemoteSync::new(
+            settings.clone(),
+            directory.join(RemoteSync::FILENAME),
+            crate::clock::System::shared(),
+        )
+        .await
+        .expect("the sync record");
+        Update::new(settings.clone()).await.expect("the update");
+
+        Shared {
+            db: Arc::new(RwLock::new(Database::new(
+                settings.clone(),
+                crate::clock::System::shared(),
+            ))),
+            settings,
+            remote_sync: Arc::new(RwLock::new(remote_sync)),
+            upgrade: Arc::new(crate::upgrade::Upgrader),
+            credentials: Arc::new(Memory::new()),
+            consent: Arc::new(TursoConsent::new()),
+            organization: Arc::new(RwLock::new(None)),
+            member: Arc::new(RwLock::new(None)),
+            arriving_link: Arc::new(Mutex::new(None)),
+            signed_out_elsewhere: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            old_shape_check: tokio::sync::OnceCell::new(),
+        }
+    }
+
+    /// An organization created in `directory` by a first run, with the owner as its member.
+    async fn created(directory: &std::path::Path) -> (OrganizationStore, HeldOrganization) {
+        let mut store = Persisted::<RemoteSyncStore>::load(directory.join(RemoteSync::FILENAME))
+            .expect("the store");
+        let mcp = ScriptedServer::start(vec![
+            ScriptedResponse::new(
+                200,
+                json!({ "jsonrpc": "2.0", "id": 1, "result": {} }).to_string(),
+            ),
+            ScriptedResponse::new(
+                200,
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": 3,
+                    "result": { "content": [{ "type": "text", "text": json!([{
+                        "Name": "ledger",
+                        "hostname": "ledger-an-org.aws-eu-west-1.turso.io",
+                        "group": "rentable"
+                    }]).to_string() }] }
+                })
+                .to_string(),
+            ),
+        ])
+        .await;
+        let platform = Arc::new(InMemoryPlatform::new("an-org"));
+        let (_, organization) = create_organization(
+            &Memory::new(),
+            &crate::clock::System::shared(),
+            &mut store,
+            "a-platform-token",
+            &McpEndpoint::at(&mcp.url("")),
+            |_| Arc::clone(&platform),
+            Remote::none(),
+            &directory.join(Database::FILENAME),
+            CreateOrganization {
+                name: "Acme",
+                username: "olivia",
+                password: PASSWORD,
+                group: None,
+            },
+            test_cost(),
+            ISSUED_AT,
+        )
+        .await
+        .expect("the first run failed");
+        let held = store.selected().cloned().expect("the record");
+
+        (organization, held)
+    }
+
+    /// A workspace replica on disk under `ws-<id>.db`.
+    async fn a_workspace_replica(directory: &std::path::Path, id: &str) -> std::path::PathBuf {
+        let path = Database::replica_path(&directory.join(Database::FILENAME), id);
+        let replica = Database::open_replica(&crate::clock::System, &path, None, || async {
+            Ok::<String, turso::Error>(String::new())
+        })
+        .await
+        .expect("the workspace replica");
+        let connection = replica.connect().await.expect("a connection");
+
+        connection
+            .execute(
+                "CREATE TABLE IF NOT EXISTS \"unit\" (\"id\" TEXT PRIMARY KEY)",
+                (),
+            )
+            .await
+            .expect("a table");
+
+        drop(connection);
+        drop(replica);
+
+        assert!(path.exists(), "the workspace replica was not written");
+
+        path
+    }
+
+    /// The owner of one organization signed in, with the machine's current workspace `south` and
+    /// a replica of it and of `east` on disk, each tracked for the owner and for the organization
+    /// `organization_of` names. The owner's vault holds a grant on neither.
+    async fn signed_in_with(
+        name: &str,
+        organization_of: impl Fn(&HeldOrganization) -> String,
+    ) -> (Shared, std::path::PathBuf, std::path::PathBuf) {
+        let directory = scratch(name);
+        let (organization, held) = created(&directory).await;
+        let current = a_workspace_replica(&directory, "south").await;
+        let other = a_workspace_replica(&directory, "east").await;
+        let app_state = state_over(&directory).await;
+        let slot: CredentialSlot = Arc::new(Mutex::new(None));
+        let member = sign_in(&organization, &held, PASSWORD, &slot)
+            .await
+            .expect("the owner did not sign in");
+
+        assert!(member.workspace_credentials.is_empty());
+
+        *app_state.member.write().await = Some(member);
+        *app_state.organization.write().await = Some(organization);
+
+        {
+            let mut remote_sync = app_state.remote_sync.write().await;
+            let member_id = held.member_id.clone().expect("the owner");
+            let organization_id = organization_of(&held);
+
+            for workspace in ["south", "east"] {
+                remote_sync
+                    .remember_replica(workspace, &member_id, &organization_id, 1)
+                    .expect("tracked");
+            }
+
+            let record = remote_sync.store_mut();
+
+            record.workspace.remote_id = Some("south".to_string());
+            record.workspace.remote_url = None;
+            record.commit().expect("the record");
+        }
+
+        (app_state, current, other)
+    }
+
+    /// **Opening a workspace never judges another organization's replica** (effort 851, the
+    /// plan's *The machine's record holds a list*). The member signed in holds no grant on a
+    /// workspace of another organization because it is not of theirs, and reading that as a grant
+    /// that ended would delete the other organization's file, current or not.
+    #[tokio::test]
+    async fn a_replica_of_another_organization_is_not_released_when_a_workspace_opens() {
+        let (app_state, current, other) =
+            signed_in_with("open-another-organization", |_| ANOTHER.to_string()).await;
+
+        open_database(&app_state, &crate::clock::System).await;
+        app_state.db.write().await.disconnect().await;
+
+        assert!(
+            current.exists(),
+            "the other organization's current replica was released"
+        );
+        assert!(
+            other.exists(),
+            "the other organization's replica was released"
+        );
+        assert_eq!(
+            app_state.remote_sync.read().await.local_replicas().len(),
+            2,
+            "the other organization's replicas stopped being tracked"
+        );
+    }
+
+    /// And the same replica, tracked as the signed-in organization's, is released, which is what
+    /// shows the test above watches the guard rather than a release that never runs.
+    #[tokio::test]
+    async fn a_replica_of_the_signed_in_organization_with_no_grant_is_released() {
+        let (app_state, current, _) =
+            signed_in_with("open-own-organization", |held| held.id.clone()).await;
+
+        open_database(&app_state, &crate::clock::System).await;
+        app_state.db.write().await.disconnect().await;
+
+        assert!(!current.exists(), "a replica whose grant ended was kept");
+    }
 }

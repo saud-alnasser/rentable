@@ -11,6 +11,7 @@ import en from '$lib/i18n/en';
 import ar from '$lib/i18n/ar';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import Providers from '#tests/providers.svelte';
+import { expectTheEye } from '#tests/password-eye.ts';
 
 /**
  * THE CONNECT SCREEN, RENDERED
@@ -57,7 +58,6 @@ const joinScreen = (
 	overrides: {
 		onConnect?: (link: string, code: string) => void;
 		onJoin?: (link: string, code: string, password: string) => void;
-		onSignIn?: () => void;
 		onBack?: () => void;
 		direction?: 'ltr' | 'rtl';
 	} = {}
@@ -68,7 +68,6 @@ const joinScreen = (
 			step,
 			onConnect: overrides.onConnect ?? noop,
 			onJoin: overrides.onJoin ?? noop,
-			onSignIn: overrides.onSignIn ?? noop,
 			onBack: overrides.onBack ?? noop
 		},
 		{
@@ -113,7 +112,7 @@ const everyStep: JoinStep[] = [
 	{ ...pasting('nope', CODE), isUnreadable: true },
 	{ kind: 'reading', link: LINK, code: CODE },
 	{ kind: 'unreachable', link: LINK, code: CODE, detail: 'offline' },
-	{ kind: 'refused', link: LINK, refusal: 'lapsed', detail: null, wasConnecting: false },
+	{ kind: 'refused', link: LINK, refusal: 'lapsed', detail: null },
 	stepOf({ kind: 'invitation', expiresAt: 1 })
 ];
 
@@ -378,11 +377,26 @@ test('the password step draws its two fields and its join with no glyph', () => 
 	expect(
 		screen.getByRole('button', { name: en.common.actions.join }).querySelector('svg')
 	).toBeNull();
-	expect(document.querySelector('[data-slot=input-group-addon]')).toBeNull();
+	// the one glyph a field carries is the password's eye at its trailing end, which is a control
+	// rather than a decoration (effort 851, requirement 19); nothing leads a field.
+	expect(
+		document.querySelector('[data-slot=input-group-addon][data-align=inline-start]')
+	).toBeNull();
 	expect(inputsOnScreen().map((input) => input.getAttribute('name'))).toEqual([
 		'password',
 		'confirmation'
 	]);
+});
+
+// effort 851, criterion 19: both of the password step's fields carry the eye.
+test('the password and its confirmation each carry the eye', async () => {
+	loadLocale('en');
+	setLocale('en');
+	joinScreen(stepOf({ kind: 'invitation', expiresAt: 1 }));
+
+	for (const id of ['#join-password', '#join-confirmation']) {
+		await expectTheEye(document.querySelector<HTMLInputElement>(id), strings.showPassword);
+	}
 });
 
 test('while the accept is out the fields are held and the wait is said on the primary', () => {
@@ -491,18 +505,18 @@ test('an organization that could not be reached says so, shows what the shell sa
 });
 
 // effort 826, requirement 10; effort 828, requirement 1: a link that admits nobody is refused by
-// name, and the five are named from the code Rust rejected with rather than from prose the reader
-// has to interpret.
-test('each of the five refusals says its own sentence and asks for nothing', () => {
+// name, and the three are named from the code Rust rejected with rather than from prose the reader
+// has to interpret. *There were five until effort 851 let a machine hold several organizations, and
+// four until the same effort let a link be revoked, when a machine link whose row was gone stopped
+// reading `replaced`.*
+test('each of the three refusals says its own sentence and asks for nothing', () => {
 	loadLocale('en');
 	setLocale('en');
 
 	const refusals = [
 		['lapsed', en.organization.join.lapsed],
 		['consumed', en.organization.join.consumed],
-		['revoked', en.organization.join.revoked],
-		['replaced', en.organization.join.replaced],
-		['anotherOrganization', en.organization.join.anotherOrganization]
+		['revoked', en.organization.join.revoked]
 	] as const;
 
 	for (const [refusal, sentence] of refusals) {
@@ -510,8 +524,7 @@ test('each of the five refusals says its own sentence and asks for nothing', () 
 			kind: 'refused',
 			link: LINK,
 			refusal,
-			detail: null,
-			wasConnecting: true
+			detail: null
 		});
 
 		expect(screen.getByText(sentence), refusal).toBeDefined();
@@ -529,109 +542,80 @@ test('a lapsed and a revoked link both send the reader for a new one, and neithe
 			kind: 'refused',
 			link: LINK,
 			refusal,
-			detail: null,
-			wasConnecting: true
+			detail: null
 		});
 
 		expect(screen.getByText(en.organization.join[refusal]).textContent, refusal).toContain(
 			'ask whoever sent it for a new one'
 		);
-		expect(
-			screen.queryByRole('button', { name: en.organization.join.toSignIn }),
-			refusal
-		).toBeNull();
+		expect(stepButtons().filter(isProminent), refusal).toEqual([]);
 		rendered.unmount();
 	}
 });
 
-// a member signs in on as many machines as they like under one username, and the invitation is
-// spent on the first: the second machine is connected by the same link and its way on is the
-// wall, where the password they already chose admits them. *Which act answers the consumed
-// standing is ticket 05's; what the step draws is this one's, so the step is written out here
-// rather than taken from a read that no longer judges rows.*
-test('a link already opened offers the wall, and pressing it hands the shell back', async () => {
-	loadLocale('en');
+// effort 851, requirement 10: **a link and its code admit one machine, once.** Neither kind of
+// link records anything before its row is judged, so a link already used has nowhere to lead: the
+// step says so in one sentence, sends the reader to the owner or a manager for a new one, and
+// offers no way on. *It offered the wall where an invitation's accept had recorded the
+// organization first, and said something else for a machine link, until effort 851.*
+test('a link already used says to ask the owner or a manager for a new one, and offers no way on', () => {
+	for (const [locale, strings, direction] of [
+		['en', en, 'ltr'],
+		['ar', ar, 'rtl']
+	] as const) {
+		loadLocale(locale);
+		setLocale(locale);
+
+		const rendered = joinScreen(
+			{ kind: 'refused', link: LINK, refusal: 'consumed', detail: null },
+			{ direction }
+		);
+
+		expect(inCallouts(), locale).toEqual([strings.organization.join.consumed]);
+		expect(inputsOnScreen(), locale).toEqual([]);
+		expect(stepButtons().filter(isProminent), locale).toEqual([]);
+		rendered.unmount();
+	}
+
+	expect(en.organization.join.consumed).toContain('already used');
+	expect(en.organization.join.consumed).toContain('ask the owner or a manager for a new one');
 	setLocale('en');
-
-	const onSignIn = vi.fn();
-
-	joinScreen(
-		{ kind: 'refused', link: LINK, refusal: 'consumed', detail: null, wasConnecting: true },
-		{ onSignIn }
-	);
-
-	expect(screen.getByText(en.organization.join.consumed)).toBeDefined();
-
-	const toSignIn = screen.getByRole('button', { name: en.organization.join.toSignIn });
-
-	expect(isProminent(toSignIn)).toBe(true);
-	await fireEvent.click(toSignIn);
-
-	expect(onSignIn).toHaveBeenCalledTimes(1);
 });
 
-// ticket 20, the review's eighth finding: **the wall is offered only where the act that spent the
-// link recorded the organization first.** An invitation's accept reaches and records before it
-// looks at the row, so a spent one lands the machine connected; a machine link reads its row first
-// and refuses with nothing recorded and nothing pulled, so telling that person *this machine is
-// connected* was false and the control under it led nowhere.
-test('a spent machine link says what is true and offers no wall', () => {
-	loadLocale('en');
-	setLocale('en');
-
-	const onSignIn = vi.fn();
-
-	joinScreen(
-		{ kind: 'refused', link: LINK, refusal: 'consumed', detail: null, wasConnecting: false },
-		{ onSignIn }
-	);
-
-	expect(screen.getByText(en.organization.join.consumedElsewhere)).toBeDefined();
-	expect(screen.queryByText(en.organization.join.consumed)).toBeNull();
-	expect(screen.queryByRole('button', { name: en.organization.join.toSignIn })).toBeNull();
-	expect(onSignIn).not.toHaveBeenCalled();
-});
-
-test('a link for another organization keeps what the shell said behind the disclosure under the sentence', async () => {
+test('a refused link keeps what the shell said behind the disclosure under the sentence', async () => {
 	loadLocale('en');
 	setLocale('en');
 	joinScreen({
 		kind: 'refused',
 		link: LINK,
-		refusal: 'anotherOrganization',
-		detail: 'this machine already holds Beta',
-		wasConnecting: false
+		refusal: 'consumed',
+		detail: 'the invitation to Acme was already opened'
 	});
 
-	expect(inCallouts()).toEqual([en.organization.join.anotherOrganization]);
-	expect(screen.queryByText('this machine already holds Beta')).toBeNull();
+	expect(inCallouts()).toEqual([en.organization.join.consumed]);
+	expect(screen.queryByText('the invitation to Acme was already opened')).toBeNull();
 
 	await fireEvent.click(screen.getByRole('button', { name: en.common.actions.details }));
 
-	expect(screen.getByText('this machine already holds Beta')).toBeDefined();
+	expect(screen.getByText('the invitation to Acme was already opened')).toBeDefined();
 });
 
 // effort 832, requirement 19 and ticket 23: **every refusal is one line, and it names the next
 // step.** Before ticket 23 the screen drew its own sentence and the shell's translated one under
 // it, which said the same thing twice, and the sentences ran to two or three clauses of
-// explanation. Each of the seven is now what happened and what to do, short enough to sit on one
-// line of the card, and it is the only line the step draws.
-test('each of the seven refusals is one line, the only one drawn, and names the next step', () => {
-	const seven = [
-		['lapsed', { kind: 'refused', refusal: 'lapsed', wasConnecting: false }],
-		['consumed', { kind: 'refused', refusal: 'consumed', wasConnecting: true }],
-		['consumedElsewhere', { kind: 'refused', refusal: 'consumed', wasConnecting: false }],
-		['revoked', { kind: 'refused', refusal: 'revoked', wasConnecting: false }],
-		['replaced', { kind: 'refused', refusal: 'replaced', wasConnecting: false }],
-		[
-			'anotherOrganization',
-			{ kind: 'refused', refusal: 'anotherOrganization', wasConnecting: false }
-		],
+// explanation. Each of them is now what happened and what to do, short enough to sit on one
+// line of the card, and it is the only line the step draws. *There were six until effort 851 took
+// `anotherOrganization` away, and five until the same effort took `replaced`.*
+test('each of the four refusals is one line, the only one drawn, and names the next step', () => {
+	const four = [
+		['lapsed', { kind: 'refused', refusal: 'lapsed' }],
+		['consumed', { kind: 'refused', refusal: 'consumed' }],
+		['revoked', { kind: 'refused', refusal: 'revoked' }],
 		['unreachable', { kind: 'unreachable', code: CODE }]
 	] as const;
 
 	// what the reader does next, one of which each english sentence names.
-	const nextSteps = ['ask whoever sent it', 'sign in', 'disconnect it', 'try again'];
+	const nextSteps = ['ask whoever sent it', 'ask the owner or a manager', 'try again'];
 
 	for (const [locale, strings, direction] of [
 		['en', en, 'ltr'],
@@ -640,7 +624,7 @@ test('each of the seven refusals is one line, the only one drawn, and names the 
 		loadLocale(locale);
 		setLocale(locale);
 
-		for (const [key, partial] of seven) {
+		for (const [key, partial] of four) {
 			const sentence = strings.organization.join[key];
 			const named = `${locale}.${key}`;
 
@@ -738,10 +722,6 @@ test('every step with an act draws exactly one prominent button', () => {
 	const steps: [string, JoinStep][] = [
 		['paste', pasting(LINK, CODE)],
 		['unreachable', { kind: 'unreachable', link: LINK, code: CODE, detail: null }],
-		[
-			'refused, consumed here',
-			{ kind: 'refused', link: LINK, refusal: 'consumed', detail: null, wasConnecting: true }
-		],
 		['password', stepOf({ kind: 'invitation', expiresAt: 1 })]
 	];
 
@@ -914,15 +894,9 @@ test('the screen renders in arabic with the same one form, the same refusals and
 	expect(screen.getAllByRole('button', { name: ar.organization.join.back })).toHaveLength(1);
 	unreachable.unmount();
 
-	for (const refusal of [
-		'lapsed',
-		'consumed',
-		'revoked',
-		'replaced',
-		'anotherOrganization'
-	] as const) {
+	for (const refusal of ['lapsed', 'consumed', 'revoked'] as const) {
 		const rendered = joinScreen(
-			{ kind: 'refused', link: LINK, refusal, detail: null, wasConnecting: true },
+			{ kind: 'refused', link: LINK, refusal, detail: null },
 			{ direction: 'rtl' }
 		);
 
@@ -956,11 +930,7 @@ test('every sentence this screen added is written in both locales', () => {
 		'unreachable',
 		'lapsed',
 		'consumed',
-		'consumedElsewhere',
 		'revoked',
-		'replaced',
-		'anotherOrganization',
-		'toSignIn',
 		'passwordTitle',
 		'passwordDescription',
 		'codeLabel',
@@ -978,5 +948,4 @@ test('every sentence this screen added is written in both locales', () => {
 	}
 
 	expect(ar.common.actions.join).not.toEqual(en.common.actions.join);
-	expect(ar.layout.signIn.useALink).not.toEqual(en.layout.signIn.useALink);
 });

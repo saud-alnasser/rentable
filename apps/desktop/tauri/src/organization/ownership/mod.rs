@@ -19,7 +19,7 @@ mod command;
 mod repair;
 
 pub use command::*;
-pub(in crate::organization) use repair::repair_owner_row;
+pub(in crate::organization) use repair::{repair_owner_row, sign_organization_name};
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64URL};
 
@@ -475,7 +475,7 @@ pub async fn accept_ownership(
 ) -> Result<(), Error> {
     session.settled()?;
 
-    let held = machine.organization.clone().ok_or_else(|| {
+    let held = machine.selected().cloned().ok_or_else(|| {
         Error::refused(
             RefusalReason::NoOrganization,
             "this machine holds no organization",
@@ -781,7 +781,7 @@ pub async fn accept_ownership(
     session.role = permission::OWNER.to_string();
     session.permissions = permission::OWNER_ROLE.mask;
 
-    machine.organization = Some(HeldOrganization {
+    machine.hold(HeldOrganization {
         verifying_key: BASE64URL.encode(new_verifying_key),
         role: Some(permission::OWNER.to_string()),
         ..held
@@ -822,7 +822,7 @@ pub async fn follow_succession(
     store: &OrganizationStore,
     machine: &mut Persisted<RemoteSyncStore>,
 ) -> Result<Option<[u8; VERIFYING_KEY_BYTES]>, Error> {
-    let Some(held) = machine.organization.clone() else {
+    let Some(held) = machine.selected().cloned() else {
         return Ok(None);
     };
     let pinned = verifying_key_of(&held)?;
@@ -855,7 +855,7 @@ pub async fn follow_succession(
 
     let organization_id = held.id.clone();
 
-    machine.organization = Some(HeldOrganization {
+    machine.hold(HeldOrganization {
         verifying_key: BASE64URL.encode(key),
         ..held
     });
@@ -975,6 +975,12 @@ mod tests {
             joined_at: 0,
             format: None,
             machine_signed_out: 0,
+            turso_organization: None,
+            workspace_id: None,
+            name_signed: false,
+            name_signed_at: 0,
+            lock_marked: false,
+            own_lock_latched: Vec::new(),
         }
     }
 
@@ -1027,7 +1033,7 @@ mod tests {
         )
         .await
         .expect("the first run failed");
-        let joined = store.organization.clone().expect("the record");
+        let joined = store.selected().cloned().expect("the record");
         let mut owner = sign_in(&organization, &joined, PASSWORD, &slot())
             .await
             .expect("the owner did not sign in");
@@ -1075,6 +1081,15 @@ mod tests {
         )
         .await
         .expect("the invitation failed");
+        // every account starts locked (effort 851), and the acts these tests are about are an
+        // unlocked member's: unlocked by whoever made it, where they may, and left locked by a
+        // maker holding neither flag that unlocks, as it would be.
+        let _ = crate::organization::member::lock::unlocked_for_a_test(
+            store,
+            owner,
+            &invited.member_id,
+        )
+        .await;
         let mut session = sign_in(
             store,
             &joined_as(owner, &invited.member_id, role),
@@ -1267,7 +1282,7 @@ mod tests {
     ) -> Persisted<RemoteSyncStore> {
         let mut machine = fresh_machine(directory, name);
 
-        machine.organization = Some(HeldOrganization {
+        machine.hold(HeldOrganization {
             remote_url: "libsql://acme.test".to_string(),
             verifying_key: encoded(verifying_key),
             ..joined_as(owner, &owner.member_id, permission::OWNER)
@@ -1365,6 +1380,7 @@ mod tests {
             credentials,
             |_| async { Ok::<_, Error>(store) },
             &mut machine,
+            &directory.join(username).join("app.db"),
             &JoinLink::decode(&invited.join_link).expect("the invitation link"),
             &invited.code,
             password,
@@ -1373,6 +1389,12 @@ mod tests {
         )
         .await
         .expect("the account could not open its link");
+
+        // every account starts locked (effort 851); the owner unlocks the manager once they have
+        // chosen their password, which is what these tests offer the organization to.
+        crate::organization::member::lock::unlocked_for_a_test(store, owner, &invited.member_id)
+            .await
+            .expect("the owner unlocks the manager");
 
         (invited, session, machine)
     }
@@ -1547,6 +1569,193 @@ mod tests {
         );
     }
 
+    /// Effort 851, requirement 35: **a handover leaves every member's lock reading as it did.**
+    /// The founder's root signed unlocks and a lock; the handover retires that root, and every one
+    /// of them is signed again under the new one, so the unlocked members stay unlocked and the
+    /// locked one locked, under locks that verify under the new key. One unlock is about another
+    /// manager, which the founder's certificate as a manager afterwards would not cover.
+    #[tokio::test]
+    async fn a_handover_leaves_every_members_lock_reading_as_it_did() {
+        let credentials = Memory::new();
+        let directory = scratch("accept-locks");
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
+        let (ada, mut ada_session, mut ada_machine) = a_settled_manager(
+            &credentials,
+            &directory,
+            &store,
+            &owner,
+            &link,
+            &workspace_id,
+            "ada.admin",
+            MANAGERS_PASSWORD,
+        )
+        .await;
+        let (sami, _) = a_member(
+            &store,
+            &owner,
+            &link,
+            "sami.staff",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+        let noor = an_unset_account(
+            &store,
+            &owner,
+            &link,
+            "noor.new",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+        let (max, _) = a_member(
+            &store,
+            &owner,
+            &link,
+            "max.manager",
+            permission::MANAGER,
+            &workspace_id,
+        )
+        .await;
+        let adas = ada.member_id.as_str();
+        let founder = owner.member_id.as_str();
+        let locks_under = |key: [u8; VERIFYING_KEY_BYTES]| {
+            let store = &store;
+
+            async move {
+                let mut locks: Vec<(String, bool)> = store
+                    .signed_member_locks(&key)
+                    .await
+                    .expect("the locks")
+                    .into_iter()
+                    // the two whose roles swap: the founder's marker and ada's own.
+                    .filter(|(_, lock)| lock.member_id != adas && lock.member_id != founder)
+                    .map(|(_, lock)| (lock.member_id, lock.locked))
+                    .collect();
+
+                locks.sort();
+                locks
+            }
+        };
+        let mut expected = vec![
+            (sami.member_id.clone(), false),
+            (noor.member_id.clone(), true),
+            (max.member_id.clone(), false),
+        ];
+
+        expected.sort();
+
+        assert_eq!(locks_under(owner.verifying_key).await, expected);
+
+        offer_ownership(&store, &owner, &ada.member_id, PASSWORD, NOW + 1)
+            .await
+            .expect("the offer failed");
+        accept_ownership(
+            &store,
+            &mut ada_session,
+            &mut ada_machine,
+            MANAGERS_PASSWORD,
+            NOW + 2,
+        )
+        .await
+        .expect("the acceptance failed");
+
+        let new_key = ada_session.verifying_key;
+
+        assert_ne!(new_key, owner.verifying_key);
+        assert_eq!(
+            locks_under(new_key).await,
+            expected,
+            "a lock the founder's root signed did not move under the new one"
+        );
+
+        for (member_id, locked) in &expected {
+            let member = store
+                .member(&new_key, member_id)
+                .await
+                .expect("the row")
+                .expect("the member");
+
+            assert_eq!(
+                store
+                    .member_locked(&new_key, &member, false)
+                    .await
+                    .expect("the lock"),
+                *locked
+            );
+        }
+    }
+
+    /// Effort 851, criterion 32: **a locked member is refused the acceptance of an offer**, as
+    /// they are every act of the organization, and nothing moves.
+    #[tokio::test]
+    async fn a_locked_member_is_refused_the_acceptance_and_nothing_moves() {
+        let credentials = Memory::new();
+        let directory = scratch("accept-locked");
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
+        let (ada, mut ada_session, mut ada_machine) = a_settled_manager(
+            &credentials,
+            &directory,
+            &store,
+            &owner,
+            &link,
+            &workspace_id,
+            "ada.admin",
+            MANAGERS_PASSWORD,
+        )
+        .await;
+        let (key, certificate) = crate::organization::workspace::signer_of(&store, &owner)
+            .await
+            .expect("the owner's signer");
+
+        // locked again, as a reset would leave them.
+        store
+            .write_member_lock(
+                &Signer {
+                    key: &key,
+                    certificate: &certificate,
+                },
+                &crate::organization::store::MemberLockRecord {
+                    member_id: ada.member_id.clone(),
+                    locked: true,
+                    updated_at: NOW + 1,
+                },
+            )
+            .await
+            .expect("the lock");
+        offer_ownership(&store, &owner, &ada.member_id, PASSWORD, NOW + 1)
+            .await
+            .expect("the offer failed");
+
+        let before = every_row(&store).await;
+        let refused = accept_ownership(
+            &store,
+            &mut ada_session,
+            &mut ada_machine,
+            MANAGERS_PASSWORD,
+            NOW + 2,
+        )
+        .await
+        .expect_err("a locked member took the organization");
+
+        assert!(
+            matches!(
+                refused,
+                Error::Refused {
+                    reason: RefusalReason::Locked,
+                    ..
+                }
+            ),
+            "{refused:?}"
+        );
+        assert_eq!(
+            every_row(&store).await,
+            before,
+            "a refused acceptance wrote"
+        );
+        assert_eq!(ada_session.verifying_key, owner.verifying_key);
+    }
+
     /// **Criterion 22, the acceptance.** The organization is re-keyed under what the new owner's
     /// own vault derives, every row of every signed table and every certificate verifies under the
     /// new key, the organization row carries it, the roles are swapped and the seal is gone.
@@ -1667,11 +1876,7 @@ mod tests {
             new_key
         );
         assert_eq!(
-            ada_machine
-                .organization
-                .as_ref()
-                .expect("the record")
-                .verifying_key,
+            ada_machine.selected().expect("the record").verifying_key,
             encoded(new_key)
         );
         assert_eq!(ada_session.role, permission::OWNER);
@@ -1711,9 +1916,9 @@ mod tests {
     /// live under the key being left is live under the new pinned key; each the founder issued
     /// directly is issued again from the new owner's root, under its id and signing key, and the
     /// one a manager issued keeps its issuer. The founder's own certificate is a manager's, their
-    /// row names the manager role with no override and reads the manager's mask, and the roles and
-    /// the mark verify under the new key. What the founder revoked as the owner stays revoked, and
-    /// the new owner's session carries every flag.
+    /// row names the manager role with no override and reads the manager's mask, and the roles,
+    /// the mark and the organization's signed name verify under the new key. What the founder
+    /// revoked as the owner stays revoked, and the new owner's session carries every flag.
     #[tokio::test]
     async fn after_a_handover_every_certificate_walks_to_the_new_key_and_the_founder_is_a_manager()
     {
@@ -2022,6 +2227,16 @@ mod tests {
                 .expect("the mark does not verify under the new key")
                 .is_some()
         );
+        // and the organization's name, which the founder's root signed and only a root may
+        // (effort 851, requirement 29): signed again by the new owner's.
+        assert!(
+            store
+                .organization_name(&new_key)
+                .await
+                .expect("the name's read")
+                .is_some(),
+            "the organization's name does not verify under the new key"
+        );
         store
             .grants(&new_key)
             .await
@@ -2084,11 +2299,7 @@ mod tests {
 
         assert_eq!(followed, new_key);
         assert_eq!(
-            third
-                .organization
-                .as_ref()
-                .expect("the record")
-                .verifying_key,
+            third.selected().expect("the record").verifying_key,
             encoded(new_key)
         );
 

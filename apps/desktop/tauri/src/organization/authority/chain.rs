@@ -41,6 +41,8 @@ pub enum Reading {
 /// | `workspace` | hold `renameWorkspace` or `grantWorkspace` |
 /// | `invitation` | hold `inviteMember` or `resetPassword` |
 /// | `mark` | hold `manageMark` |
+/// | `organization_name` | be the root: the owner, which no flag stands for (effort 851, requirement 29) |
+/// | `member_lock` | hold `assignRole` or `overrideMember`, outrank the member as a member row's signer does, and not be the member's own; or be the root (effort 851, requirement 35) |
 /// | `workspace_override` | pin record flags alone and grant none it does not pin, be about a member who is in and is not the certificate's own, and hold `overrideMember`, outrank that member as a member row's signer does, and hold every flag it pins; or be the root |
 ///
 /// Certificates and revocations are judged by the walk, and a succession by the organization key,
@@ -121,6 +123,21 @@ pub fn covers(
         Authority::Workspace(_) => holds_any(&[Flag::RenameWorkspace, Flag::GrantWorkspace]),
         Authority::Invitation(_) => holds_any(&[Flag::InviteMember, Flag::ResetPassword]),
         Authority::Mark(_) => holds(Flag::ManageMark),
+        Authority::OrganizationName { .. } => certificate.is_root(),
+        // whether a member is locked: the owner's, or the call of somebody who may change what
+        // the member may do, from above them and never about themselves (effort 851, requirement
+        // 34). Judged on the member's rank as the workspace override's is, so a member the reader
+        // does not know as in is locked or unlocked by the root alone.
+        Authority::MemberLock { member_id, .. } => {
+            certificate.is_root()
+                || (holds_any(&[Flag::AssignRole, Flag::OverrideMember])
+                    && certificate.member_id != member_id
+                    && rank_of_member(member_id).is_some_and(|rank| {
+                        certificate.rank > rank
+                            && certified_rank_of(member_id)
+                                .is_none_or(|certified| certificate.rank > certified)
+                    }))
+        }
         Authority::WorkspaceOverride(workspace_override) => {
             permission::first_beyond_records(workspace_override.pinned).is_none()
                 && workspace_override.granted & !workspace_override.pinned == 0
@@ -189,6 +206,10 @@ pub fn needed_for(authority: Authority<'_>) -> &'static str {
         Authority::Workspace(_) => "renameWorkspace or grantWorkspace",
         Authority::Invitation(_) => "inviteMember or resetPassword",
         Authority::Mark(_) => "manageMark",
+        Authority::OrganizationName { .. } => "the owner's certificate",
+        Authority::MemberLock { .. } => {
+            "assignRole or overrideMember, a rank above the member, and not to be the member's own"
+        }
         Authority::WorkspaceOverride(_) => {
             "overrideMember, a rank above the member, every flag the override pins, record flags \
              alone, and not to be the member's own"
@@ -1870,6 +1891,174 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// Effort 851, requirement 29: the organization's name is the root's to sign and nobody
+    /// else's, a delegated certificate carrying every flag there is included, and a refusal names
+    /// the owner's certificate.
+    #[test]
+    fn the_organizations_name_is_the_roots_alone() {
+        let organization = an_organization();
+        let sealed = hex(CHECKED_IN_SEALED_CREDENTIAL);
+        let authority = Authority::OrganizationName {
+            name_sealed: &sealed,
+            updated_at: 1_757_000_000_000,
+        };
+        let (key, everything) = delegate(
+            &organization.administrator_key,
+            &organization.certificate,
+            "everything",
+            permission::OWNER_ROLE.mask,
+            MANAGER_ROLE.rank,
+        );
+        let certificates = [organization.certificate.clone(), everything.clone()];
+
+        let signature = sign(
+            &organization.administrator_key,
+            &organization.certificate,
+            authority,
+        )
+        .expect("failed to sign");
+
+        assert_eq!(
+            verify(
+                &organization.verifying_key,
+                &certificates,
+                &[],
+                &organization.certificate,
+                authority,
+                &signature
+            ),
+            Ok(())
+        );
+
+        let signature = sign(&key, &everything, authority).expect("failed to sign");
+
+        assert_eq!(
+            verify(
+                &organization.verifying_key,
+                &certificates,
+                &[],
+                &everything,
+                authority,
+                &signature
+            ),
+            Err(Error::Integrity {
+                message: BEYOND_ITS_CERTIFICATE.to_string(),
+            })
+        );
+        assert_eq!(needed_for(authority), "the owner's certificate");
+    }
+
+    /// Effort 851, requirement 34: **a member's lock is the root's, or the call of a holder of
+    /// `assignRole` or `overrideMember` above the member who is not them.** Either flag will do; a
+    /// certificate holding neither, one not above the member by their role or as they are
+    /// certified, the member's own and a member the reader does not know as in are covered by
+    /// nobody but the root; and signed, it verifies through a chain that knows the member's rank.
+    #[test]
+    fn a_members_lock_is_the_roots_or_an_outranking_holder_of_assign_role_or_override_member() {
+        let organization = an_organization();
+        let (assigner_key, assigner) = delegate(
+            &organization.administrator_key,
+            &organization.certificate,
+            "lead",
+            MEMBER_ROLE.mask | permission::mask_of(&[Flag::AssignRole]),
+            500_000,
+        );
+        let (_, overrider) = delegate(
+            &organization.administrator_key,
+            &organization.certificate,
+            "overrider",
+            MEMBER_ROLE.mask | permission::mask_of(&[Flag::OverrideMember]),
+            500_000,
+        );
+        let (_, inviter) = delegate(
+            &organization.administrator_key,
+            &organization.certificate,
+            "inviter",
+            MEMBER_ROLE.mask | permission::mask_of(&[Flag::InviteMember, Flag::ResetPassword]),
+            500_000,
+        );
+        let about = |member_id: &'static str, locked: bool| Authority::MemberLock {
+            member_id,
+            member_key: &[7; 32],
+            locked,
+            updated_at: 1_757_000_000_000,
+        };
+        let ranks = |member_id: &str| match member_id {
+            "member-sami" => Some(MEMBER_ROLE.rank),
+            "member-ada" => Some(MANAGER_ROLE.rank),
+            "member-lead" => Some(500_000),
+            _ => None,
+        };
+        let covered = |certificate: &Certificate, authority: Authority<'_>| {
+            covers(certificate, authority, |_| None, |_| None, ranks)
+        };
+
+        assert!(covered(
+            &organization.certificate,
+            about("member-sami", true)
+        ));
+        assert!(covered(
+            &organization.certificate,
+            about("member-ada", false)
+        ));
+        assert!(covered(
+            &organization.certificate,
+            about("member-gone", false)
+        ));
+        assert!(covered(&assigner, about("member-sami", false)));
+        assert!(covered(&overrider, about("member-sami", false)));
+        assert!(covered(&assigner, about("member-sami", true)));
+        // holding neither flag, whatever else administers members.
+        assert!(!covered(&inviter, about("member-sami", false)));
+        assert!(!covered(&inviter, about("member-sami", true)));
+        // above the member, by their role and as they are certified.
+        assert!(!covered(&assigner, about("member-ada", false)));
+        assert!(!covers(
+            &assigner,
+            about("member-sami", false),
+            |_| None,
+            |_| Some(500_000),
+            ranks
+        ));
+        // never the signer's own.
+        assert!(!covered(&assigner, about("member-lead", false)));
+        // about a member the reader knows as in.
+        assert!(!covered(&assigner, about("member-gone", false)));
+        assert_eq!(
+            needed_for(about("member-sami", false)),
+            "assignRole or overrideMember, a rank above the member, and not to be the member's own"
+        );
+
+        // and signed, it verifies through the chain, which knows the member's rank.
+        let certificates = [organization.certificate.clone(), assigner.clone()];
+        let authority = about("member-sami", false);
+        let signature = sign(&assigner_key, &assigner, authority).expect("failed to sign");
+        let chain = Chain::new(&organization.verifying_key, &certificates, &[])
+            .with_roles(built_in_roles())
+            .with_members(HashMap::from([(
+                "member-sami".to_string(),
+                MEMBER_ROLE.rank,
+            )]));
+
+        assert_eq!(chain.verify(&assigner.id, authority, &signature), Ok(()));
+        assert_eq!(
+            chain.verify(&assigner.id, about("member-sami", true), &signature),
+            Err(Error::Integrity {
+                message: FORGED_ROW.to_string(),
+            }),
+            "an unlock read back as a lock under the same signature"
+        );
+        assert_eq!(
+            Chain::new(&organization.verifying_key, &certificates, &[])
+                .with_roles(built_in_roles())
+                .verify(&assigner.id, authority, &signature),
+            Err(Error::Integrity {
+                message: BEYOND_ITS_CERTIFICATE.to_string(),
+            }),
+            "a chain that does not know the member unlocked them"
+        );
     }
 
     #[test]

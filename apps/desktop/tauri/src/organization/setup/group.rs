@@ -295,7 +295,7 @@ mod tests {
     use crate::persisted::Persisted;
     use crate::sync::test::server::{ScriptedResponse, ScriptedServer};
     use crate::test::scratch;
-    use crate::turso::consent::{platform_token, store_platform_token};
+    use crate::turso::consent::{Account, platform_token, store_platform_token};
     use crate::turso::discovery::McpEndpoint;
     use crate::turso::platform::InMemoryPlatform;
     use base64::Engine as _;
@@ -539,15 +539,15 @@ mod tests {
         );
         assert!(platform.minted().is_empty(), "a credential was minted");
         assert!(platform.deleted().is_empty(), "something was cleaned up");
-        assert!(store.organization.is_none());
+        assert!(store.selected().is_none());
 
         // and the consent is abandoned: the token is gone from the credential store, and so is
         // the slug it was read under, so the next consent is looked up rather than assumed.
         assert!(
-            platform_token(&credentials).is_err(),
+            platform_token(&credentials, &Account::Pending).is_err(),
             "the refused consent left its authority on this machine"
         );
-        assert_eq!(store.turso_organization, None);
+        assert_eq!(store.consent_organization(None), None);
     }
 
     /// **Ticket 17.** The group the person typed is the one the first create names, so a name
@@ -608,8 +608,8 @@ mod tests {
             platform.databases().is_empty(),
             "a database was created on a refused run"
         );
-        assert!(store.organization.is_none());
-        assert!(platform_token(&credentials).is_ok());
+        assert!(store.selected().is_none());
+        assert!(platform_token(&credentials, &Account::Pending).is_ok());
     }
 
     /// The other half of the same rule: a group holding databases of the person's own is the
@@ -677,8 +677,13 @@ mod tests {
             platform.databases()[0].name,
             format!("org-{}", created.organization_id)
         );
-        // and the authority the run spent is still this machine's, because nothing was refused.
-        assert!(platform_token(&credentials).is_ok());
+        // and the authority the run spent is still this machine's, because nothing was refused,
+        // and it is the organization's own now (effort 851, requirement 14).
+        assert!(platform_token(&credentials, &Account::of(&created.organization_id)).is_ok());
+        assert!(
+            platform_token(&credentials, &Account::Pending).is_err(),
+            "the consent the first run spent is still pending"
+        );
     }
 
     /// Requirement 3's ordinary first run: an empty group, so the first database is created
@@ -756,15 +761,14 @@ mod tests {
         assert!(databases[0].delete_protection);
         assert_eq!(
             store
-                .turso_organization
-                .as_ref()
+                .consent_organization(store.selected().map(|held| held.id.as_str()))
                 .map(|o| (o.slug.as_str(), o.group.as_str())),
             Some(("acme-co", "rentable-empty"))
         );
 
         let held = store
-            .organization
-            .clone()
+            .selected()
+            .cloned()
             .expect("the first run recorded no organization");
 
         assert_eq!(
@@ -1018,8 +1022,8 @@ mod tests {
         // nothing was created, and the slug was not written down: there is no organization to
         // read one out of yet.
         assert!(platform.databases().is_empty());
-        assert!(store.organization.is_none());
-        assert_eq!(store.turso_organization, None);
+        assert!(store.selected().is_none());
+        assert_eq!(store.consent_organization(None), None);
     }
 
     /// The other half of the same rule: a refusal that is not about the group is the answer, so

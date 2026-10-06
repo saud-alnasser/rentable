@@ -58,6 +58,11 @@ consent is named below, and the Turso account is the only thing called an accoun
 requirement 3): the owner's consent is `connect Turso`, the title of the step that asks for it,
 and the one button under that title says connect. `forget Turso account` is still how the owner
 gives the authority back.*
+*Corrected 2026-10-05 ([[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/spec]],
+requirements 1 to 9): a machine holds several organizations and one is open at a time. The wall's
+switcher picks which, signed out; adding one is the first run or a link, and removing one forgets
+that organization alone. From effort 825 to 851 a machine held one organization or none, and
+reaching another meant disconnecting first.*
 
 **Credential**:
 The Turso token a replica syncs with. Sealed to the member's public key on a `grant` row in the
@@ -111,6 +116,24 @@ sentence from both.
   machine's record, `remote-sync.json`, kept by `tauri/src/machine/` (`sync/store.rs` until effort
   840, when the record left `sync`, and the replication, the rename and the Turso consent's
   commands moved to `organization` under the same command names).
+  *Since effort 851 the record holds `heldOrganizations` and `selectedOrganization`, each entry with
+  its own Turso organization, last workspace and `name_signed` and `lock_marked` latches, and every
+  replica entry names its organization. It still writes `organization` and the top-level
+  `tursoOrganization` as copies of the selected entry, so a build from before reads the selected
+  organization intact, and never the key `organizations`, which those builds take for the shape
+  from before 2026-09-13 and forget. The Turso organization a consent was granted over while it
+  waits for the organization it will belong to is written under `pendingTursoOrganization`, a key
+  of its own, because the top-level copy cannot hold it while the selected organization has one
+  (requirement 39), and it is never copied to the top, so a rolled-back build cannot lend it to the
+  selected organization; a record written before that key reads it from the top where it differs
+  from the selected organization's. A record an earlier build wrote is converted in place at load
+  (`machine/record.rs`, `sanitize`, against release 0.19.0's record, frozen as
+  `machine/test/released.json`), and only that load marks the converted organization
+  (`consentToMove`) as the one the pending consent may move to; a launch that converted nothing
+  moves and forgets no consent. Opening a workspace judges only the open organization's
+  replicas, and only the open organization replicates. Removing an organization (`forget_one`)
+  deletes that organization's replica files, remembered key, entry and Turso consent and nothing
+  else; until 851 the forget swept every `org-*` and `ws-*` file on the machine.*
 - **A replica that has never pulled has no schema, and the application says so rather than failing
   on the next statement.** Opening does not block on a pull, which is requirement 7, but a first
   run has nothing to read until one succeeds, so the startup path pulls once and then asks whether
@@ -153,7 +176,13 @@ sentence from both.
   is made at the resume and before every act, an act refused for it putting the wall up at once
   (ticket 24). A heartbeat that ends nothing writes this machine's sealed `machine_name` where it
   differs and its `seen_at` at most hourly, and pushes what it wrote;
-  [[contexts/desktop/organization]] has the sign-out of one machine whole.*
+  [[contexts/desktop/organization]] has the sign-out of one machine whole.* *Since effort 851
+  (requirement 14) the Turso consent is each organization's own: the keyring service
+  `rentable.turso-platform` files it under the account `org:<organization id>`, and `owner`, the
+  one account every consent used to share, is now only where a consent waits until its organization
+  exists. The first launch of this build moves a consent an earlier build left there to its
+  organization (read, set, read back, then delete; `upgrade/consent.rs`), after the old-shape check
+  and before the resume.*
 - **A flow is one command, and the interface observes it rather than sequencing it.** The caller
   asks to sign in, join, or restore and gets back the state that resulted; it does not open a
   session, poll it, redeem a code and hold the pieces in between. A flow outstanding for as long

@@ -130,6 +130,8 @@ pub async fn assign_role(
         "that role is not below yours, so it is given by somebody who ranks above it",
     )?;
 
+    // the member's lock goes with them as it stood, signed again by the assigner where the new
+    // role would put it out of its signer's reach ([`apply`], effort 851).
     apply(
         store,
         session,

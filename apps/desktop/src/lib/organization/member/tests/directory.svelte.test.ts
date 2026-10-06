@@ -37,6 +37,7 @@ import {
 import { BUILT_IN, WRITE_FLAGS, maskOf, type Flag } from '@rentable/workspace-permission';
 
 import { layOutLists } from '#tests/permission.ts';
+import { expectTheEye } from '#tests/password-eye.ts';
 
 import { hostAnswers, resetHostAnswers } from '$lib/organization/tests/host-hooks';
 import HostProviders from '$lib/organization/tests/host-providers.svelte';
@@ -195,6 +196,7 @@ const members = [
 const standing = (overrides: Partial<MemberStanding> & { memberId: string }): MemberStanding => ({
 	passwordSet: true,
 	machineSignedIn: false,
+	locked: false,
 	...overrides
 });
 
@@ -222,6 +224,8 @@ const list = (
 			canAssignRole: true,
 			canOverride: true,
 			canGrantWorkspace: true,
+			canUnlock: true,
+			locked: false,
 			isOwner: true,
 			selfId: 'owner',
 			rank: BUILT_IN.owner.rank,
@@ -236,6 +240,7 @@ const KINDS = {
 	'member.withdrawOffer': 'withdraw-offer',
 	'member.offerOwnership': 'transfer',
 	'member.edit': 'edit',
+	'member.unlock': 'unlock',
 	'member.makeLink': 'link',
 	'member.unsetPassword': 'unset-password',
 	'member.endSessions': 'end-sessions',
@@ -770,6 +775,11 @@ test('the offer opens a heavy form surface naming what changes and taking the pa
 		en.organization.dashboard.transferOwnershipAuthority
 	);
 	expect(form?.querySelector('input[type=password]')).not.toBeNull();
+	// effort 851, criterion 19: the password carries the eye.
+	await expectTheEye(
+		document.querySelector<HTMLInputElement>('#transfer-ownership-password'),
+		strings.showPassword
+	);
 });
 
 // the account the organization goes to is chosen on the surface, and the owner's own row is not
@@ -1028,9 +1038,16 @@ test('signing a member out of every machine is offered behind reset password, an
 test('a card hands its own account to the link, the reset and the removals', async () => {
 	list();
 
+	// the link asks how long it lasts first, at three days until changed (effort 851, requirement
+	// 11), and is made once that is answered.
 	await press('sami', 'link');
+	expect(written('useMakeMemberLink')).toEqual([]);
+	expect(document.querySelector('[data-link-lifetime]')?.getAttribute('data-link-lifetime')).toBe(
+		'72'
+	);
+	await fireEvent.click(screen.getByRole('button', { name: en.organization.dashboard.makeLink }));
 	await waitFor(() => {
-		expect(written('useMakeMemberLink')).toEqual([{ memberId: 'sami' }]);
+		expect(written('useMakeMemberLink')).toEqual([{ memberId: 'sami', lifetimeHours: 72 }]);
 	});
 	// the link is shown once, on the one panel the shell holds for it.
 	await waitFor(() => {
@@ -1706,4 +1723,129 @@ test('the tray orders search, count, what reads the set, sort and create as the 
 	expect(document.querySelector('[data-directory-description]')?.className).toContain(
 		'text-muted-foreground'
 	);
+});
+
+/**
+ * LOCKED, AND UNLOCKED FROM THE CARD
+ *
+ * Effort 851, criteria 33 and 34: a locked member's card wears the locked badge and an unlocked
+ * one's does not; the unlock is drawn for the owner and for a holder of `assignRole` or
+ * `overrideMember` who outranks the member, never on the reader's own card, and only once the
+ * member's password is set, before which the card says they have not signed in yet. It asks
+ * first, and unlocks once answered.
+ */
+const lockedStandings = (passwordSet: boolean): MemberStanding[] => [
+	standing({ memberId: 'owner', machineSignedIn: true }),
+	standing({ memberId: 'ada', locked: true }),
+	standing({ memberId: 'sami', locked: true, passwordSet })
+];
+
+test('a locked member card wears the locked badge, and an unlocked one does not', () => {
+	list({ standings: lockedStandings(true) });
+
+	expect(card('ada')?.querySelector('[data-member-locked]')?.textContent?.trim()).toBe(
+		en.organization.dashboard.memberCard.locked
+	);
+	expect(card('sami')?.querySelector('[data-member-locked]')).not.toBeNull();
+	expect(card('owner')?.querySelector('[data-member-locked]')).toBeNull();
+});
+
+test('the unlock is drawn for the owner and an outranking holder, and never on the reader own card', async () => {
+	const owner = list({ standings: lockedStandings(true) });
+
+	expect(await actsOn('sami')).toContain('unlock');
+	expect(await actsOn('ada')).toContain('unlock');
+	owner.unmount();
+
+	// a manager outranks sami and not themselves.
+	const manager = list({
+		standings: lockedStandings(true),
+		isOwner: false,
+		canLockOut: false,
+		selfId: 'ada',
+		rank: BUILT_IN.manager.rank
+	});
+
+	expect(await actsOn('sami')).toContain('unlock');
+	expect(await actsOn('ada')).not.toContain('unlock');
+	manager.unmount();
+
+	// at a manager's rank, ada is not below the reader.
+	const peer = list({
+		standings: lockedStandings(true),
+		isOwner: false,
+		canLockOut: false,
+		selfId: 'zoe',
+		rank: BUILT_IN.manager.rank
+	});
+
+	expect(await actsOn('ada')).not.toContain('unlock');
+	expect(await actsOn('sami')).toContain('unlock');
+	peer.unmount();
+
+	// a reader holding neither flag.
+	list({
+		standings: lockedStandings(true),
+		isOwner: false,
+		canLockOut: false,
+		canUnlock: false,
+		selfId: 'zoe',
+		rank: BUILT_IN.manager.rank
+	});
+
+	expect(await actsOn('sami')).not.toContain('unlock');
+});
+
+test('before the password is set the card says they have not signed in yet, and offers no unlock', async () => {
+	list({ standings: lockedStandings(false) });
+
+	expect(await actsOn('sami')).not.toContain('unlock');
+	expect(card('sami')?.querySelector('[data-member-not-signed-in]')?.textContent?.trim()).toBe(
+		en.organization.dashboard.memberCard.notSignedInYet
+	);
+	expect(card('ada')?.querySelector('[data-member-not-signed-in]')).toBeNull();
+});
+
+test('the unlock asks first, naming the member, and unlocks once answered', async () => {
+	list({ standings: lockedStandings(true) });
+
+	await press('sami', 'unlock');
+
+	expect(written('useUnlockMember')).toEqual([]);
+
+	const question = document.querySelector<HTMLElement>('[data-confirm-dialog]');
+
+	expect(question?.textContent).toContain('sami');
+	expect(question?.textContent).toContain(en.organization.dashboard.unlockAsks);
+
+	await answer(en.organization.dashboard.unlock);
+	await waitFor(() => {
+		expect(written('useUnlockMember')).toEqual([{ memberId: 'sami' }]);
+	});
+});
+
+// effort 851, requirement 32: a locked manager still meets the directory their role shows them,
+// every act on it drawn as for them unlocked and refused for the lock, the add with it.
+test('a locked reader meets the directory, its acts and its add refused for the lock', async () => {
+	list({
+		locked: true,
+		isOwner: false,
+		canLockOut: false,
+		selfId: 'ada',
+		rank: BUILT_IN.manager.rank
+	});
+
+	expect(await actsOn('sami')).toEqual(expect.arrayContaining(['edit', 'link', 'remove']));
+
+	const entry = await openTo('sami', 'edit');
+
+	expect(entry?.getAttribute('aria-disabled')).toBe('true');
+	expect((await reasonOf(entry!)).trim()).toBe(en.common.permission.locked);
+
+	await fireEvent.click(entry!);
+	expect(organizationHostState.member.editing).toBeNull();
+
+	const add = document.querySelector('[data-invite-open]');
+
+	expect(add?.getAttribute('aria-disabled')).toBe('true');
 });

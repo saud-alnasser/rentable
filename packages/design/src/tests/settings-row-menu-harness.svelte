@@ -10,11 +10,15 @@
 	import * as Tooltip from '#lib/primitive/tooltip/index.js';
 	import LaptopIcon from '@lucide/svelte/icons/laptop';
 
-	let { name = 'the laptop', menu }: { name?: string; menu?: SettingsRowMenu } = $props();
+	let {
+		name = 'the laptop',
+		nameAsWritten = false,
+		menu
+	}: { name?: string; nameAsWritten?: boolean; menu?: SettingsRowMenu } = $props();
 </script>
 
 <Tooltip.Provider delayDuration={0}>
 	<div role="list">
-		<SettingsRow icon={LaptopIcon} {name} meta="last seen today" {menu} />
+		<SettingsRow icon={LaptopIcon} {name} {nameAsWritten} meta="last seen today" {menu} />
 	</div>
 </Tooltip.Provider>

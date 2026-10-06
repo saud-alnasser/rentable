@@ -51,7 +51,9 @@ pub(crate) async fn ended_elsewhere(app_state: &Shared, credentials: &dyn Creden
             return false;
         };
 
-        store.pull().await;
+        // whether it went, not whether it brought anything: the backfill of the members' locks
+        // below judges rows only once they are the remote's (effort 851, requirement 36).
+        let pulled = store.pulled().await.is_ok();
 
         // and out, which is what carries a bump made offline. `end_elsewhere` writes the number
         // on this machine's replica and pushes; a push that could not go left it there, and no
@@ -65,7 +67,22 @@ pub(crate) async fn ended_elsewhere(app_state: &Shared, credentials: &dyn Creden
         // command: the owner's machine holds the root and writes it again, with nobody acting
         // (effort 838, the human's decision after review round two). Every other machine writes
         // nothing here.
-        session::repair_own_row(store, session).await;
+        let held = {
+            let mut remote_sync = app_state.remote_sync.write().await;
+
+            remote_sync
+                .store_mut()
+                .held(&session.organization_id)
+                .cloned()
+        };
+
+        session::repair_own_row(store, session, held.as_ref()).await;
+
+        // and the members carried over from before the lock, locked where their password is not
+        // their own, by the first machine able to sign it, over the rows just pulled (effort 851,
+        // requirement 36). A launch resumes through here, so a resume does it at once.
+        crate::organization::member::lock::carry_locks_over(store, session, held.as_ref(), pulled)
+            .await;
 
         let standing = match session::ended_elsewhere(store, session).await {
             Ok(ended) => Ok(ended),
@@ -87,12 +104,8 @@ pub(crate) async fn ended_elsewhere(app_state: &Shared, credentials: &dyn Creden
             // acknowledged. Where it was not, the heartbeat keeps the machine's name and its last
             // seen, which is what the member's list of machines reads.
             Ok(false) => {
-                let held = {
-                    let mut remote_sync = app_state.remote_sync.write().await;
-
-                    remote_sync.store_mut().organization.clone()
-                };
-
+                // the open organization's own entry, read above: never the selected one's by
+                // position, though the two are the same while a session is open (effort 851).
                 match held {
                     Some(held) => {
                         match session::signed_out_here(store, &held, &session.member_id).await {
@@ -418,8 +431,8 @@ mod tests {
         let mut remote_sync = app_state.remote_sync.write().await;
         let held = remote_sync
             .store_mut()
-            .organization
-            .clone()
+            .selected()
+            .cloned()
             .expect("the record names no organization");
 
         (held.id, held.member_id.expect("the record names no member"))
@@ -505,6 +518,7 @@ mod tests {
             credentials,
             |_| async { Ok::<_, crate::error::Error>(store) },
             &mut machine,
+            &theirs.join("app.db"),
             &JoinLink::decode(&invited.join_link).expect("the invitation link"),
             &invited.code,
             password,
@@ -530,8 +544,8 @@ mod tests {
 
             remote_sync
                 .store_mut()
-                .organization
-                .clone()
+                .selected()
+                .cloned()
                 .expect("the record names no organization")
         };
         let theirs = elsewhere(directory, &held.id).await;
@@ -551,6 +565,11 @@ mod tests {
         ownership::offer_ownership(&theirs, &founder, &ada, PASSWORD, CREATED_AT + 1)
             .await
             .expect("the offer failed");
+        // every account starts locked (effort 851), and an offer is accepted by an unlocked
+        // member: the owner unlocks them once their password is their own.
+        crate::organization::member::lock::unlocked_for_a_test(&theirs, &founder, &ada)
+            .await
+            .expect("the owner unlocks them");
         ownership::accept_ownership(
             &theirs,
             &mut ada_session,
@@ -570,8 +589,7 @@ mod tests {
 
         remote_sync
             .store_mut()
-            .organization
-            .as_ref()
+            .selected()
             .expect("the record names no organization")
             .verifying_key
             .clone()
@@ -613,8 +631,8 @@ mod tests {
 
             remote_sync
                 .store_mut()
-                .organization
-                .clone()
+                .selected()
+                .cloned()
                 .expect("the record names no organization")
         };
         let elsewhere = OrganizationStore::open(
@@ -668,7 +686,7 @@ mod tests {
             "the wall was not told which sign-out this was"
         );
         assert_eq!(
-            state.organization.map(|held| held.id),
+            state.selected_organization().map(|held| held.id),
             Some(organization_id),
             "the machine forgot the organization as well as the session"
         );
@@ -705,8 +723,8 @@ mod tests {
 
             remote_sync
                 .store_mut()
-                .organization
-                .clone()
+                .selected()
+                .cloned()
                 .expect("the record names no organization")
         };
         let held_a = HeldOrganization {
@@ -812,8 +830,8 @@ mod tests {
             let mut remote_sync = app_state.remote_sync.write().await;
             let held = remote_sync
                 .store_mut()
-                .organization
-                .clone()
+                .selected()
+                .cloned()
                 .expect("the record");
 
             join::admit(
@@ -844,8 +862,7 @@ mod tests {
 
                 remote_sync
                     .store_mut()
-                    .organization
-                    .as_ref()
+                    .selected()
                     .map(|held| held.machine_signed_out)
             },
             Some(1),
@@ -879,8 +896,8 @@ mod tests {
 
             remote_sync
                 .store_mut()
-                .organization
-                .clone()
+                .selected()
+                .cloned()
                 .expect("the record names no organization")
         };
         let held_a = HeldOrganization {
@@ -990,8 +1007,8 @@ mod tests {
         let mut remote_sync = app_state.remote_sync.write().await;
         let held = remote_sync
             .store_mut()
-            .organization
-            .clone()
+            .selected()
+            .cloned()
             .expect("the record names no organization");
         let store = elsewhere(directory, &held.id).await;
         let member = join::admit(
@@ -1008,8 +1025,8 @@ mod tests {
         .expect("the sign-in failed");
         let written = remote_sync
             .store_mut()
-            .organization
-            .clone()
+            .selected()
+            .cloned()
             .expect("the record");
 
         drop(remote_sync);
@@ -1046,8 +1063,8 @@ mod tests {
 
             remote_sync
                 .store_mut()
-                .organization
-                .clone()
+                .selected()
+                .cloned()
                 .expect("the record names no organization")
         };
         let held_a = HeldOrganization {
@@ -1087,8 +1104,8 @@ mod tests {
 
             remote_sync
                 .store_mut()
-                .organization
-                .clone()
+                .selected()
+                .cloned()
                 .expect("the record")
         };
 
@@ -1105,7 +1122,7 @@ mod tests {
             MANAGERS_PASSWORD,
         )
         .await;
-        let held_y = y_machine.organization.clone().expect("Y's record");
+        let held_y = y_machine.selected().cloned().expect("Y's record");
         let written = admitted(
             &app_state,
             &credentials,
@@ -1215,8 +1232,8 @@ mod tests {
 
             remote_sync
                 .store_mut()
-                .organization
-                .clone()
+                .selected()
+                .cloned()
                 .expect("the record names no organization")
         };
         let other = elsewhere(&directory, &organization_id).await;
@@ -1248,6 +1265,8 @@ mod tests {
                         .set_machine_signed_out(&held_m.machine_id, &x, 1, CREATED_AT + 1)
                         .await
                         .expect("A's sign-out of M");
+
+                    true
                 },
             )
             .await
@@ -1281,8 +1300,7 @@ mod tests {
 
                 remote_sync
                     .store_mut()
-                    .organization
-                    .as_ref()
+                    .selected()
                     .map(|held| held.machine_signed_out)
             },
             Some(1),
@@ -1306,9 +1324,9 @@ mod tests {
         {
             let mut remote_sync = app_state.remote_sync.write().await;
             let record = remote_sync.store_mut();
-            let held = record.organization.clone().expect("the record");
+            let held = record.selected().cloned().expect("the record");
 
-            record.organization = Some(HeldOrganization {
+            record.hold(HeldOrganization {
                 machine_id: String::new(),
                 ..held
             });
@@ -1329,8 +1347,8 @@ mod tests {
 
             remote_sync
                 .store_mut()
-                .organization
-                .clone()
+                .selected()
+                .cloned()
                 .expect("the record names no organization")
         };
 
@@ -1470,6 +1488,242 @@ mod tests {
             server.request(1).target,
             "/pull-updates",
             "the heartbeat pulled twice and pushed nothing"
+        );
+    }
+
+    /// A second organization created on the machine `app_state` is, beside the one it holds: the
+    /// owner's key filed for it as for the first, and it selected, as a first run leaves it.
+    async fn another_organization(
+        credentials: &Credentials,
+        directory: &std::path::Path,
+        app_state: &Shared,
+    ) -> HeldOrganization {
+        let mcp = ScriptedServer::start(vec![
+            ScriptedResponse::new(
+                200,
+                json!({ "jsonrpc": "2.0", "id": 1, "result": {} }).to_string(),
+            ),
+            ScriptedResponse::new(
+                200,
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": 3,
+                    "result": { "content": [{ "type": "text", "text": json!([{
+                        "Name": "ledger",
+                        "hostname": "ledger-another-org.aws-eu-west-1.turso.io",
+                        "group": "rentable"
+                    }]).to_string() }] }
+                })
+                .to_string(),
+            ),
+        ])
+        .await;
+        let platform = Arc::new(InMemoryPlatform::new("another-org"));
+        let mut remote_sync = app_state.remote_sync.write().await;
+        let (created, _) = create_organization(
+            credentials.as_ref(),
+            &crate::clock::System::shared(),
+            remote_sync.store_mut(),
+            "a-platform-token",
+            &McpEndpoint::at(&mcp.url("")),
+            |_| Arc::clone(&platform),
+            Remote::none(),
+            &directory.join(Database::FILENAME),
+            CreateOrganization {
+                name: "Beta",
+                username: USERNAME,
+                password: PASSWORD,
+                group: None,
+            },
+            test_cost(),
+            CREATED_AT,
+        )
+        .await
+        .expect("the second first run failed");
+
+        remote_sync
+            .store_mut()
+            .held(&created.organization_id)
+            .cloned()
+            .expect("the second organization was not recorded")
+    }
+
+    /// **Effort 851, criterion 9: one organization is open, and only it replicates.**
+    ///
+    /// A machine holds two organizations and is signed in to the first. Each organization's remote
+    /// is a server of its own; one heartbeat pulls and pushes the open organization's replica and
+    /// sends nothing at all to the other's, which stays on disk as it was.
+    #[tokio::test]
+    async fn the_heartbeat_replicates_the_open_organization_only() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let directory = scratch("heartbeat-open-only");
+        let app_state = first_run(&credentials, &directory).await;
+        let (open_id, _) = recorded(&app_state).await;
+        let other = another_organization(&credentials, &directory, &app_state).await;
+        let other_server =
+            ScriptedServer::start((0..8).map(|_| ScriptedResponse::hangup()).collect()).await;
+
+        // the other organization's remote is a server that counts what reaches it, and the wall
+        // stands on the first, which the launch resumes.
+        {
+            let mut remote_sync = app_state.remote_sync.write().await;
+            let record = remote_sync.store_mut();
+
+            record
+                .held_mut(&other.id)
+                .expect("the other organization")
+                .remote_url = other_server.url("");
+            assert!(record.select(&open_id));
+            record.commit().expect("the record");
+        }
+
+        let state = state_of(&app_state, &credentials, &crate::clock::System::shared())
+            .await
+            .expect("the state");
+
+        assert_eq!(
+            state.session.map(|session| session.organization_id),
+            Some(open_id.clone()),
+            "the launch did not open the selected organization"
+        );
+        assert_eq!(state.organizations.len(), 2);
+
+        let other_replica = std::fs::read(OrganizationStore::replica_path(
+            &directory.join(Database::FILENAME),
+            &other.id,
+        ))
+        .expect("the other organization's replica");
+
+        // the open replica, reopened against a remote of its own, as the push test does.
+        let open_server =
+            ScriptedServer::start((0..8).map(|_| ScriptedResponse::hangup()).collect()).await;
+        {
+            let mut organization = app_state.organization.write().await;
+
+            *organization = None;
+            *organization = Some(
+                OrganizationStore::open(
+                    crate::clock::System::shared(),
+                    &OrganizationStore::replica_path(&directory.join(Database::FILENAME), &open_id),
+                    Some(open_server.url("")),
+                    || async { Ok::<String, turso::Error>("a-credential".to_string()) },
+                )
+                .await
+                .expect("the replica did not reopen against the remote"),
+            );
+        }
+
+        assert!(!super::ended_elsewhere(&app_state, credentials.as_ref()).await);
+        assert!(
+            open_server.request_count() >= 2,
+            "the open organization was not pulled and pushed: {} request(s)",
+            open_server.request_count()
+        );
+        assert_eq!(
+            other_server.request_count(),
+            0,
+            "the heartbeat reached an organization that is not open"
+        );
+        assert_eq!(
+            std::fs::read(OrganizationStore::replica_path(
+                &directory.join(Database::FILENAME),
+                &other.id,
+            ))
+            .expect("the other organization's replica"),
+            other_replica,
+            "the heartbeat wrote to an organization that is not open"
+        );
+    }
+
+    /// **Effort 851, criterion 9: an organization signed out from elsewhere while it was not open
+    /// shows as signed out when it is next opened.**
+    ///
+    /// A machine holds two organizations and stayed signed in to the first when it closed. While
+    /// it is closed, the member ends their other sessions from another machine. The next launch
+    /// opens the selected organization alone: the wall comes up saying the session was ended from
+    /// elsewhere, the remembered key of that organization is gone, and the other organization's
+    /// key and entry are as they were.
+    #[tokio::test]
+    async fn an_organization_signed_out_elsewhere_while_not_open_shows_signed_out_when_next_opened()
+    {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let directory = scratch("signed-out-not-open");
+        let app_state = first_run(&credentials, &directory).await;
+        let (first_id, member_id) = recorded(&app_state).await;
+        let other = another_organization(&credentials, &directory, &app_state).await;
+        let other_member = other.member_id.clone().expect("the other owner");
+
+        // the wall stands on the first organization, and nothing is open: the process is closed.
+        {
+            let mut remote_sync = app_state.remote_sync.write().await;
+            let record = remote_sync.store_mut();
+
+            assert!(record.select(&first_id));
+            record.commit().expect("the record");
+        }
+
+        let held = {
+            let mut remote_sync = app_state.remote_sync.write().await;
+
+            remote_sync
+                .store_mut()
+                .held(&first_id)
+                .cloned()
+                .expect("the first organization")
+        };
+        let other_entry = other.clone();
+
+        drop(app_state);
+
+        // another machine ends every other session of the first organization's member. Its
+        // keyring is its own: the key it files at the new epoch is not this machine's.
+        {
+            let theirs = elsewhere(&directory, &first_id).await;
+            let mut session = session::sign_in(&theirs, &held, PASSWORD, &slot())
+                .await
+                .expect("the other machine did not sign in");
+
+            session::end_elsewhere(
+                &Memory::new(),
+                &theirs,
+                &mut session,
+                "machine-elsewhere",
+                CREATED_AT + 1,
+            )
+            .await
+            .expect("ending the other sessions failed");
+        }
+
+        // the next launch.
+        let next = state_over(&credentials, &directory).await;
+        let state = state_of(&next, &credentials, &crate::clock::System::shared())
+            .await
+            .expect("the state");
+
+        assert!(state.session.is_none(), "the launch signed in");
+        assert!(
+            state.signed_out_elsewhere,
+            "the wall did not say the session was ended from elsewhere"
+        );
+        assert_eq!(state.selected.as_deref(), Some(first_id.as_str()));
+        assert_eq!(
+            filed(credentials.as_ref(), &first_id, &member_id),
+            None,
+            "the ended session's key survived"
+        );
+        assert!(
+            filed(credentials.as_ref(), &other.id, &other_member).is_some(),
+            "the other organization's key went with it"
+        );
+        assert_eq!(
+            next.remote_sync
+                .write()
+                .await
+                .store_mut()
+                .held(&other.id)
+                .cloned(),
+            Some(other_entry),
+            "the other organization's entry changed"
         );
     }
 
@@ -1708,8 +1962,8 @@ mod tests {
 
             remote_sync
                 .store_mut()
-                .organization
-                .clone()
+                .selected()
+                .cloned()
                 .expect("the record names no organization")
         };
         let key = verifying_key_of(&held).expect("the pinned key");

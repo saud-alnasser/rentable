@@ -11,7 +11,6 @@ export const layout = {
 		// اسم المنتج نفسه، كما يُكتب، في الترحيب.
 		noOrganizationTitle: 'rentable',
 		noOrganizationSubtitle: 'تابع الإيجارات والإيصالات والتذكيرات.',
-		subtitle: 'سجّل الدخول للمتابعة.',
 		help: 'لا تستطيع تسجيل الدخول؟',
 		helpAnswer: 'اطلب المساعدة من مدير أو من مالك مؤسستك.',
 		username: 'اسم المستخدم',
@@ -25,10 +24,11 @@ export const layout = {
 		connectByLink: 'انضم برابط',
 		connectByLinkDescription: 'لمن وصله رابط.',
 		signedOutElsewhere: 'سُجّل خروجك من هذا الجهاز من جهاز آخر. سجّل الدخول مجددًا للمتابعة.',
-		useALink: 'افتح رابطًا لديك',
 		disconnect: 'افصل هذا الجهاز',
 		disconnectDescription:
-			'يحذف هذا الجهاز نسخته من المؤسسة ومساحات عملها، وينسى حساب Turso. لا يتغير شيء على Turso. يعيد المالك الربط بحساب Turso الخاص به، ويحتاج غيره إلى رابط جديد.'
+			'يحذف هذا الجهاز نسخته من المؤسسة ومساحات عملها، وينسى حساب Turso. لا يتغير شيء على Turso. يعيد المالك الربط بحساب Turso الخاص به، ويحتاج غيره إلى رابط جديد.',
+		disconnectDescriptionNoTurso:
+			'يحذف هذا الجهاز نسخته من المؤسسة ومساحات عملها. لا يتغير شيء على Turso. يعيد المالك الربط بحساب Turso الخاص به، ويحتاج غيره إلى رابط جديد.'
 	}
 } satisfies Pick<Translation['layout'], 'signIn'>;
 

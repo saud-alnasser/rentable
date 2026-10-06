@@ -148,6 +148,7 @@
 		canCreate,
 		canDelete,
 		canRename,
+		locked,
 		canGrantWorkspace,
 		isOwner,
 		standingOf,
@@ -165,6 +166,8 @@
 		canDelete: boolean;
 		/** whether the reader's row carries `renameWorkspace`. */
 		canRename: boolean;
+		/** whether the reader is locked: every act that writes is refused for it (effort 851). */
+		locked: boolean;
 		/** whether the reader's row carries `grantWorkspace`. */
 		canGrantWorkspace: boolean;
 		/** whether the reader owns the organization, which is what every card then says they are. */
@@ -213,6 +216,7 @@
 		canRename,
 		canGrantWorkspace,
 		canDelete,
+		locked,
 		standingOf
 	});
 

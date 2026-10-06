@@ -43,7 +43,7 @@ mod state;
 pub mod store;
 pub mod workspace;
 
-/// The one organization this machine holds, as this machine's record keeps it. Described with
+/// One organization this machine holds, as this machine's record keeps it. Described with
 /// the record (`machine`), which is what it is part of; named here, where the organization's own
 /// code reads and writes it.
 pub use crate::machine::HeldOrganization;
@@ -86,6 +86,10 @@ mod tests {
         /// the owner's verified row, carrying the flag: the acts that need the Turso authority
         /// or hand the organization on (`session::Actor::require_owner`).
         Owner(Flag),
+        /// the owner's verified row, by its role alone and with no flag: an act no role and no
+        /// override could be given, because only the owner performs it, as renaming the
+        /// organization (effort 851, requirement 24; `workspace::require_owner_alone`).
+        OwnerAlone,
     }
 
     /// Every command the sub-concepts declare, with its gate.
@@ -95,6 +99,8 @@ mod tests {
         ("setup_connect_existing", Gate::Public),
         ("session_state_get", Gate::Public),
         ("session_disconnect", Gate::ThisMachine),
+        ("session_select", Gate::ThisMachine),
+        ("session_remove", Gate::ThisMachine),
         (
             "member_organization_delete",
             Gate::Owner(Flag::DeleteOrganization),
@@ -122,6 +128,16 @@ mod tests {
         ),
         (
             "invitation_link_make",
+            Gate::AnyFlag(&[Flag::InviteMember, Flag::ResetPassword]),
+        ),
+        // whoever could make a link sees it waiting and revokes it, on the accounts below them
+        // (effort 851).
+        (
+            "invitation_link_list",
+            Gate::AnyFlag(&[Flag::InviteMember, Flag::ResetPassword]),
+        ),
+        (
+            "invitation_link_revoke",
             Gate::AnyFlag(&[Flag::InviteMember, Flag::ResetPassword]),
         ),
         (
@@ -160,6 +176,12 @@ mod tests {
         ("session_machines", Gate::Own),
         ("session_end_machine", Gate::Own),
         ("member_end_sessions", Gate::Flag(Flag::ResetPassword)),
+        // and from above the member, once their password is their own (effort 851, requirement
+        // 34).
+        (
+            "member_unlock",
+            Gate::AnyFlag(&[Flag::AssignRole, Flag::OverrideMember]),
+        ),
         ("member_lock_out_cost", Gate::Flag(Flag::RemoveMember)),
         ("member_remove", Gate::Flag(Flag::RemoveMember)),
         (
@@ -177,10 +199,12 @@ mod tests {
         ("setup_consent_begin", Gate::ThisMachine),
         ("setup_consent_result", Gate::ThisMachine),
         ("setup_consent_disconnect", Gate::ThisMachine),
+        ("setup_forget_authority", Gate::ThisMachine),
         // the heartbeat over this machine's own replicas; it asks nothing of a row, and a member
         // signed out elsewhere ends it before anything is pushed.
         ("session_replicate", Gate::ThisMachine),
         ("workspace_rename", Gate::Flag(Flag::RenameWorkspace)),
+        ("setup_rename", Gate::OwnerAlone),
     ];
 
     /// Every command the sub-concepts declare, read off their source by walking `organization/`,
@@ -291,7 +315,11 @@ mod tests {
             let flags: Vec<Flag> = match gate {
                 Gate::Flag(flag) | Gate::Owner(flag) => vec![*flag],
                 Gate::AnyFlag(flags) | Gate::AllFlags(flags) => flags.to_vec(),
-                Gate::Public | Gate::ThisMachine | Gate::Own | Gate::SignedIn => Vec::new(),
+                Gate::Public
+                | Gate::ThisMachine
+                | Gate::Own
+                | Gate::SignedIn
+                | Gate::OwnerAlone => Vec::new(),
             };
 
             for flag in flags {

@@ -163,8 +163,10 @@
 			const started = await beginConsent.mutateAsync();
 
 			// whatever refused the last one is answered by starting another, which is what this is,
-			// and that includes what Turso said about a group this consent may not even be over.
+			// and that includes what Turso said about a group this consent may not even be over, and
+			// the group field it asked for with it.
 			refusal = null;
+			askGroup = false;
 			groupDetail = null;
 			sessionId = started.sessionId;
 			await tauri.opener.openUrl(started.authorizationUrl);
@@ -253,7 +255,7 @@
 			// the machine stands is read again and decides, and a Turso that would take no group
 			// asks for one here.
 			const state = await stateQuery.refetch();
-			const back = refusalAfterFailedCreate(error, state.data?.holdsTursoAuthority ?? false);
+			const back = refusalAfterFailedCreate(error, state.data?.setupConsented ?? false);
 
 			if (back?.askGroup) {
 				// the consent is untouched and so is what they typed: one more field appears on
@@ -325,7 +327,7 @@
 	{askGroup}
 	{groupDetail}
 	{existingRefusal}
-	holdsTursoAuthority={stateQuery.data?.holdsTursoAuthority ?? false}
+	holdsTursoAuthority={stateQuery.data?.setupConsented ?? false}
 	isConnecting={beginConsent.isPending || inspectGroup.isPending}
 	isCreating={createOrganization.isPending || connectExisting.isPending || isHandingOver}
 	onConnect={() => void connect()}

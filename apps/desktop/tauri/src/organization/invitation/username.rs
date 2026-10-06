@@ -312,6 +312,12 @@ mod tests {
             joined_at: 0,
             format: None,
             machine_signed_out: 0,
+            turso_organization: None,
+            workspace_id: None,
+            name_signed: false,
+            name_signed_at: 0,
+            lock_marked: false,
+            own_lock_latched: Vec::new(),
         }
     }
 
@@ -370,7 +376,7 @@ mod tests {
         )
         .await
         .expect("the first run failed");
-        let joined = store.organization.clone().expect("the record");
+        let joined = store.selected().cloned().expect("the record");
         let mut owner = sign_in(&organization, &joined, PASSWORD, &slot())
             .await
             .expect("the owner did not sign in");
@@ -399,10 +405,7 @@ mod tests {
         let machine = Persisted::<RemoteSyncStore>::load(directory.join("remote-sync.json"))
             .expect("the store");
 
-        assert!(
-            machine.organization.is_none(),
-            "the machine has prior state"
-        );
+        assert!(machine.selected().is_none(), "the machine has prior state");
 
         machine
     }
@@ -424,6 +427,7 @@ mod tests {
             no_platform(),
             link,
             member_id,
+            crate::organization::invitation::TEST_LIFETIME_HOURS,
             test_cost(),
             now,
         )
@@ -435,6 +439,7 @@ mod tests {
             credentials,
             |_| async { Ok::<_, Error>(store) },
             &mut machine,
+            &directory.join("app.db"),
             &JoinLink::decode(&made.link).expect("the link"),
             &made.code,
             CHOSEN,
@@ -443,12 +448,11 @@ mod tests {
         )
         .await
         .expect("the account could not be opened");
-        let machine_id = machine
-            .organization
-            .as_ref()
-            .expect("the record")
-            .machine_id
-            .clone();
+        // every account starts locked (effort 851), and the acts these tests are about are an
+        // unlocked member's: unlocked by whoever made the link, where they may.
+        let _ =
+            crate::organization::member::lock::unlocked_for_a_test(store, owner, member_id).await;
+        let machine_id = machine.selected().expect("the record").machine_id.clone();
 
         (session, machine_id)
     }
@@ -646,6 +650,10 @@ mod tests {
         .await
         .expect("the manager did not sign in");
         ada.must_change_password = false;
+        // every account starts locked (effort 851); these tests are about an unlocked one.
+        let _ =
+            crate::organization::member::lock::unlocked_for_a_test(&store, &owner, &ada.member_id)
+                .await;
 
         let sami = make_account_and_link(
             &store,
@@ -826,6 +834,13 @@ mod tests {
         .await
         .expect("the member did not sign in");
         member.must_change_password = false;
+        // every account starts locked (effort 851); these tests are about an unlocked one.
+        let _ = crate::organization::member::lock::unlocked_for_a_test(
+            &store,
+            &owner,
+            &member.member_id,
+        )
+        .await;
 
         let error = rename_member(&store, &member, &bob.member_id, "robert", 2)
             .await

@@ -5,6 +5,7 @@ import type {
 	OrganizationRole,
 	OrganizationSession
 } from '$lib/organization/host';
+import { lockedRefusal } from '../locked';
 import { effective, permits, type Flag } from '@rentable/workspace-permission';
 import ArrowDownIcon from '@lucide/svelte/icons/arrow-down';
 import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
@@ -33,6 +34,8 @@ export type RoleReader = {
 	canManageRoles: boolean;
 	/** what the reader may do, which is what they may put in a role. */
 	permissions: number;
+	/** whether the reader is locked, which refuses every role act first (effort 851). */
+	locked: boolean;
 };
 
 /** the role acts that run on the press and are waiting on the shell, while they are. */
@@ -56,7 +59,8 @@ export type RoleActRecord = {
 export const roleReaderOf = (session: OrganizationSession): RoleReader => ({
 	rank: session.rank,
 	canManageRoles: permits(session.permissions, 'manageRoles'),
-	permissions: session.permissions
+	permissions: session.permissions,
+	locked: session.locked
 });
 
 /** Every role act, by the id it is keyed on. */
@@ -76,10 +80,14 @@ export type RoleHostRequests = {
 export type RoleAct = RecordAct<RoleActRecord> & { id: RoleActId };
 
 /**
- * why a role act cannot run at all: the reader lacks `manageRoles`, or the role is not below them.
+ * why a role act cannot run at all: the reader is locked, lacks `manageRoles`, or the role is not
+ * below them.
  * The flag first, because it refuses every role alike.
  */
 const roleRefusal = ({ role, reader }: RoleActRecord, t: TranslationFunctions) => {
+	const locked = lockedRefusal(reader.locked, t);
+
+	if (locked) return locked;
 	if (!reader.canManageRoles) return lacking(t, 'manageRoles');
 
 	return role.rank >= reader.rank ? t.organization.roleList.notBelowYou() : undefined;

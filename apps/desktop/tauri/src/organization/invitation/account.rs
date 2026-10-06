@@ -21,7 +21,7 @@ use crate::organization::{
     },
     session::{Actor, MemberSession, actor, rank_of, refuse_unsettled},
     setup::{ADMINISTRATOR_KEY_PURPOSE, credential_expiry},
-    store::{GrantRecord, MemberRecord, OrganizationStore, Signer},
+    store::{GrantRecord, MemberLockRecord, MemberRecord, OrganizationStore, Signer},
     workspace::{WORKSPACE_CREDENTIAL_LIFETIME, signer_of},
 };
 
@@ -196,7 +196,7 @@ pub async fn unset_password<P: TursoPlatform>(
 /// The account an act on somebody else's row is allowed to touch: in this organization, not the
 /// owner's, and not one that was removed. `owner_refusal` is what an act on the owner's row is
 /// told, because each of them has its own reason.
-pub(super) fn writable_account<'a>(
+pub(in crate::organization) fn writable_account<'a>(
     members: &'a [MemberRecord],
     member_id: &str,
     owner_refusal: &str,
@@ -595,6 +595,22 @@ async fn write_account<P: TursoPlatform>(
         )
         .await?;
 
+    // and locked, from its creation and again at a reset, until somebody above it unlocks it once
+    // its person has chosen a password (effort 851, requirements 31 and 37): a reset hands the
+    // account to whoever holds the next link. After the row, which the lock is judged by. Written
+    // whoever the actor is, since a lock the actor cannot sign reads locked all the same
+    // (`store::write_member_lock`).
+    store
+        .write_member_lock(
+            &signer,
+            &MemberLockRecord {
+                member_id: member_id.to_string(),
+                locked: true,
+                updated_at: now,
+            },
+        )
+        .await?;
+
     // the directory: the inviter's own credential on the organization database, re-sealed. It is
     // also what the link seals, so the person opening it can read the rows before any vault of
     // theirs is open.
@@ -649,7 +665,7 @@ mod tests {
     use crate::organization::HeldOrganization;
     use crate::organization::invitation::link::{HalfKind, JoinLink, Locator, open_payload};
     use crate::organization::invitation::{
-        AccountAndLink, INVITATION_LIFETIME_MS, Invitation, WorkspaceGrant, create_account,
+        AccountAndLink, Invitation, TEST_LIFETIME_MS, WorkspaceGrant, create_account,
         generate_password, locator, make_account_and_link, make_link, reset_account,
         unset_password,
     };
@@ -736,6 +752,12 @@ mod tests {
             joined_at: 0,
             format: None,
             machine_signed_out: 0,
+            turso_organization: None,
+            workspace_id: None,
+            name_signed: false,
+            name_signed_at: 0,
+            lock_marked: false,
+            own_lock_latched: Vec::new(),
         }
     }
 
@@ -794,7 +816,7 @@ mod tests {
         )
         .await
         .expect("the first run failed");
-        let joined = store.organization.clone().expect("the record");
+        let joined = store.selected().cloned().expect("the record");
         let mut owner = sign_in(&organization, &joined, PASSWORD, &slot())
             .await
             .expect("the owner did not sign in");
@@ -823,10 +845,7 @@ mod tests {
         let machine = Persisted::<RemoteSyncStore>::load(directory.join("remote-sync.json"))
             .expect("the store");
 
-        assert!(
-            machine.organization.is_none(),
-            "the machine has prior state"
-        );
+        assert!(machine.selected().is_none(), "the machine has prior state");
 
         machine
     }
@@ -848,6 +867,7 @@ mod tests {
             no_platform(),
             link,
             member_id,
+            crate::organization::invitation::TEST_LIFETIME_HOURS,
             test_cost(),
             now,
         )
@@ -859,6 +879,7 @@ mod tests {
             credentials,
             |_| async { Ok::<_, Error>(store) },
             &mut machine,
+            &directory.join("app.db"),
             &JoinLink::decode(&made.link).expect("the link"),
             &made.code,
             CHOSEN,
@@ -867,12 +888,11 @@ mod tests {
         )
         .await
         .expect("the account could not be opened");
-        let machine_id = machine
-            .organization
-            .as_ref()
-            .expect("the record")
-            .machine_id
-            .clone();
+        // every account starts locked (effort 851), and the acts these tests are about are an
+        // unlocked member's: unlocked by whoever made the link, where they may.
+        let _ =
+            crate::organization::member::lock::unlocked_for_a_test(store, owner, member_id).await;
+        let machine_id = machine.selected().expect("the record").machine_id.clone();
 
         (session, machine_id)
     }
@@ -956,6 +976,7 @@ mod tests {
             no_platform(),
             &link,
             &account.id,
+            crate::organization::invitation::TEST_LIFETIME_HOURS,
             test_cost(),
             NOW,
         )
@@ -968,7 +989,7 @@ mod tests {
             HalfKind::Invitation,
             "an account whose password is not set got a link that opens no vault"
         );
-        assert_eq!(made.expires_at, NOW + INVITATION_LIFETIME_MS);
+        assert_eq!(made.expires_at, NOW + TEST_LIFETIME_MS);
         assert!(
             open_payload(
                 &made.code,
@@ -993,6 +1014,7 @@ mod tests {
                 &credentials,
                 |_| async { Ok::<_, Error>(&store) },
                 &mut late_machine,
+                &late.join("app.db"),
                 &decoded,
                 &made.code,
                 CHOSEN,
@@ -1003,7 +1025,7 @@ mod tests {
             .is_err(),
             "a lapsed link opened an account"
         );
-        assert!(late_machine.organization.is_none());
+        assert!(late_machine.selected().is_none());
 
         // the machine it was made for, which spends it and chooses the password.
         let theirs = scratch("account-theirs");
@@ -1012,6 +1034,7 @@ mod tests {
             &credentials,
             |_| async { Ok::<_, Error>(&store) },
             &mut their_machine,
+            &theirs.join("app.db"),
             &decoded,
             &made.code,
             CHOSEN,
@@ -1029,9 +1052,8 @@ mod tests {
             .await
             .expect("the chosen password did not admit them at the wall");
 
-        // a second machine with the same pair: the invitation was spent. The organization is
-        // recorded on it, because a link is judged after the replica it names has been reached,
-        // and no vault of theirs opens there.
+        // a second machine with the same pair: the invitation was spent, and it is refused with
+        // nothing recorded on that machine (effort 851, requirement 10).
         let second = scratch("account-second");
         let mut second_machine = fresh_machine(&second);
 
@@ -1040,6 +1062,7 @@ mod tests {
                 &credentials,
                 |_| async { Ok::<_, Error>(&store) },
                 &mut second_machine,
+                &second.join("app.db"),
                 &decoded,
                 &made.code,
                 "another password again",
@@ -1049,6 +1072,10 @@ mod tests {
             .await
             .is_err(),
             "a spent link opened a second machine"
+        );
+        assert!(
+            second_machine.selected().is_none(),
+            "a spent link recorded the organization"
         );
     }
 
@@ -1253,6 +1280,10 @@ mod tests {
         .await
         .expect("the manager did not sign in");
         ada.must_change_password = false;
+        // every account starts locked (effort 851); these tests are about an unlocked one.
+        let _ =
+            crate::organization::member::lock::unlocked_for_a_test(&store, &owner, &ada.member_id)
+                .await;
 
         let bob = make_account_and_link(
             &store,
@@ -1399,6 +1430,13 @@ mod tests {
 
         let mut settled = ada;
         settled.must_change_password = false;
+        // every account starts locked (effort 851); these tests are about an unlocked one.
+        let _ = crate::organization::member::lock::unlocked_for_a_test(
+            &store,
+            &owner,
+            &settled.member_id,
+        )
+        .await;
 
         let member = make_account_and_link(
             &store,
@@ -1452,6 +1490,10 @@ mod tests {
         .await
         .expect("the member did not sign in");
         mo.must_change_password = false;
+        // every account starts locked (effort 851); these tests are about an unlocked one.
+        let _ =
+            crate::organization::member::lock::unlocked_for_a_test(&store, &owner, &mo.member_id)
+                .await;
 
         let refusal = make_account_and_link(
             &store,
@@ -1626,6 +1668,7 @@ mod tests {
                     no_platform(),
                     &link,
                     &mo.id,
+                    crate::organization::invitation::TEST_LIFETIME_HOURS,
                     test_cost(),
                     NOW + 2,
                 )

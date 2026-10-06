@@ -2,12 +2,13 @@ import api from '$lib/api/caller';
 import { type MutationOptions } from '$lib/mutation';
 import { declareMutation } from '$lib/mutation/ui';
 import { LL } from '$lib/i18n/i18n-svelte';
-import { keys } from '$lib/organization/query';
+import { consentLostRereadsTheState, organizationChanged } from '$lib/organization/query';
+import { syncKeys } from '$lib/sync/ui';
 import type { QueryClient } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
 
 /**
- * THE ORGANIZATION'S WORKSPACES, CREATED AND DELETED
+ * THE ORGANIZATION'S WORKSPACES, CREATED, RENAMED AND DELETED
  *
  * Granting and withdrawing one is the access sub-concept's (`../access/query.ts`); opening one is
  * the sign-in path's.
@@ -21,7 +22,8 @@ const createWorkspace = declareMutation({
 		error: true,
 		unexpected: () => get(LL).common.messages.unexpectedError()
 	},
-	invalidates: [keys.state]
+	invalidates: [organizationChanged],
+	failed: consentLostRereadsTheState
 });
 
 /**
@@ -51,7 +53,8 @@ export function useCreateWorkspace(queryClient?: QueryClient, opts?: MutationOpt
  *
  * It invalidates where the machine stands rather than a list of workspaces, because there is no
  * such list: the workspaces a member holds are part of the session the state query answers with,
- * and the rail's switcher reads the same key.
+ * and the rail's switcher reads the same key. The members are read with it, since each member's
+ * grants and every card's count of who holds a workspace are read off them (`organizationChanged`).
  */
 export const useDeleteWorkspace = declareMutation({
 	mutate: ({ workspaceId }: { workspaceId: string }) =>
@@ -62,5 +65,40 @@ export const useDeleteWorkspace = declareMutation({
 		error: true,
 		unexpected: () => get(LL).common.messages.unexpectedError()
 	},
-	invalidates: [keys.state]
+	invalidates: [organizationChanged],
+	failed: consentLostRereadsTheState
+});
+
+/**
+ * Call this machine's workspace something else.
+ *
+ * **It refreshes the replica's state and the organization's, rather than a workspace key.** The
+ * sidebar header and the workspace menu draw the name from the one query `sync/query.ts` holds,
+ * and the workspaces section's cards, the rail's switcher and the workspace page draw it from the
+ * workspaces the session lists, which is the organization's state: the name is a row of the
+ * organization's database, and the rename writes it there. Refreshing the replica's alone left the
+ * card on the old name until the section was drawn again, and that is why it is declared here,
+ * beside the organization's other writes, rather than in `workspace/query.ts`, where it sat from
+ * effort 840 (ticket 38) until effort 851. It sat beside `useSyncWorkspace` in
+ * `settings/query.ts` before that.
+ *
+ * The refusal is the shared handler's: the procedure's own bound raises `BAD_REQUEST`, which
+ * reaches the reader as the message it was raised with, and anything else reads as an unexpected
+ * failure. What a reader actually meets for a name that is empty or too long is the form's own
+ * validation, on the field they typed in, before any of this runs.
+ */
+export const useRenameWorkspace = declareMutation({
+	mutate: ({ name }: { name: string }) => api.sync.rename({ name }),
+	touches: 'none',
+	toast: {
+		success: () => get(LL).workspace.renamed(),
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
+	},
+	// the replica's state written before the invalidation as well as after it: the surfaces drawing
+	// the name from it are on screen while this resolves, and the refetch is a round trip they would
+	// otherwise spend showing the old one. The rename answers with the replica's state alone, so the
+	// organization's is read again rather than written, with the members and the roles.
+	sets: ({ result }) => [{ key: syncKeys.remoteSync, data: result }],
+	invalidates: [syncKeys.remoteSync, organizationChanged]
 });

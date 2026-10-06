@@ -10,7 +10,6 @@
 	import OrganizationChangePasswordDialog from '$lib/organization/session/component/change-password-dialog.svelte';
 	import OrganizationIdentity from '$lib/organization/session/component/identity.svelte';
 	import OrganizationMachines from '$lib/organization/session/component/machines.svelte';
-	import OrganizationSignOutDialog from '$lib/organization/session/component/sign-out-dialog.svelte';
 	import { useAcceptOwnership } from '$lib/organization/member/query';
 	import {
 		useChangePassword,
@@ -19,6 +18,7 @@
 		useFetchMachines
 	} from '$lib/organization/session/query';
 	import { useFetchOrganizationState } from '$lib/organization/query';
+	import { requestSignOut } from '$lib/sync';
 	import CrownIcon from '@lucide/svelte/icons/crown';
 	import KeyRoundIcon from '@lucide/svelte/icons/key-round';
 
@@ -40,9 +40,11 @@
 	 * password and the machines, each a card one under the next in the section's column in the
 	 * manner of Apple's and Google's account pages (*Everything in a tab is a card*; "each card
 	 * needs to be in a sequeintal order", the human on 2026-10-02). Signing out of this machine is
-	 * an entry in its own row's menu in the machines card, and it asks first (effort 846,
-	 * requirement 2 as revised 2026-10-02). *It was a card of its own, last, until ticket 46, when
-	 * the human asked that the machines and this machine be merged.*
+	 * an entry in its own row's menu in the machines card, and it asks nothing, as the account
+	 * menu's does not (effort 851, at the human's word on 2026-10-06: "sign out is simple, just
+	 * sign out"); it asked from effort 846's requirement 2 as revised 2026-10-02 until then. *It
+	 * was a card of its own, last, until ticket 46, when the human asked that the machines and
+	 * this machine be merged.*
 	 */
 	// what the area hands every section it draws. Nothing this section does lets go of the
 	// organization, so it reads none of it; declared so the section is typed as one.
@@ -81,8 +83,6 @@
 			passwordRefusal = toErrorText(error, $LL);
 		}
 	};
-
-	let signingOut = $state(false);
 
 	let acceptingOwnership = $state(false);
 	/** what the shell refused the last acceptance with, marked on its password field. */
@@ -131,7 +131,8 @@
 {#if session}
 	<!-- the reader's sign-in and security, in the order requirement 8 of effort 846 gives: the
 	     offer where one stands, who is signed in, the password and the machines. Each is a card in
-	     the section's column, and each act that ends something asks first (requirement 2). -->
+	     the section's column, and each act that ends something asks first (requirement 2), but
+	     signing this machine out, which signing in again undoes (effort 851). -->
 	<SettingsGrid>
 		<!-- the offer first, and only where one stands: it is the one thing in this section
 		     waiting on the reader, and everything under it is a fact about their account that
@@ -192,9 +193,7 @@
 			onEndOtherSessions={async () => {
 				await endOtherSessions.mutateAsync();
 			}}
-			onSignOut={() => {
-				signingOut = true;
-			}}
+			onSignOut={() => requestSignOut()}
 		/>
 	</SettingsGrid>
 
@@ -223,13 +222,5 @@
 		isAccepting={acceptOwnershipMutation.isPending}
 		errorMessage={acceptRefusal}
 		onAccept={(password) => void acceptOwnership(password)}
-	/>
-
-	<OrganizationSignOutDialog
-		open={signingOut}
-		onOpenChange={(open) => {
-			signingOut = open;
-		}}
-		username={session.username}
 	/>
 {/if}

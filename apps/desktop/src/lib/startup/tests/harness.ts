@@ -29,9 +29,11 @@ export const unlocked = () => fakeOrganizationState();
 export const locked = () => fakeOrganizationState({ session: null });
 /** a machine that holds nothing. */
 export const nowhereToGo = (): OrganizationState => ({
-	organization: null,
+	organizations: [],
+	selected: null,
 	session: null,
 	holdsTursoAuthority: false,
+	setupConsented: false,
 	signedOutElsewhere: false
 });
 /** a machine whose person is admitted to an organization with no workspace in it yet. */
@@ -78,8 +80,12 @@ export type Journal = {
 	contextsForgotten: number;
 	/** how many times what is drawn from the organization was told it is stale. */
 	organizationInvalidated: number;
-	/** how many times the shell was told to forget the organization it holds. */
-	disconnected: number;
+	/** the organizations the shell was told to choose at the switcher, in order. */
+	selected: string[];
+	/** the organizations the shell was told to forget, in order. */
+	removed: string[];
+	/** how many times the shell was told to sign out. */
+	signedOut: number;
 	failures: string[];
 	localesLoaded: string[];
 	localeSet: string | null;
@@ -126,8 +132,12 @@ export function harness(
 		signInWith?: (username: string, password: string) => Promise<OrganizationState>;
 		/** what opening a workspace meets, for the path where the shell refuses to. */
 		openWorkspace?: (workspaceId: string) => Promise<void>;
-		/** what forgetting the organization meets, for the path where the shell refuses to. */
-		disconnect?: () => Promise<void>;
+		/** what choosing an organization meets, for the path where the shell refuses to. */
+		select?: (organizationId: string) => Promise<void>;
+		/** what forgetting an organization meets, for the path where the shell refuses to. */
+		remove?: (organizationId: string) => Promise<void>;
+		/** what the forget meets once it has happened, for the path where the shell refuses late. */
+		afterRemove?: (organizationId: string) => Promise<void>;
 		/** what a whole-table reconcile waits on, for the path where two overlap. */
 		reconcile?: () => Promise<void>;
 		/** what else forgetting the held context does, for a test holding a real one. */
@@ -156,7 +166,9 @@ export function harness(
 		remembered: [],
 		contextsForgotten: 0,
 		organizationInvalidated: 0,
-		disconnected: 0,
+		selected: [],
+		removed: [],
+		signedOut: 0,
 		failures: [],
 		localesLoaded: [],
 		localeSet: null,
@@ -216,16 +228,52 @@ export function harness(
 				return organization;
 			},
 			signOut: async () => {
+				journal.signedOut += 1;
 				organization = { ...organization, session: null };
 
 				return organization;
 			},
-			// the forget leaves the machine holding nothing, and the next `getState` reads that.
-			disconnect: async () => {
-				journal.disconnected += 1;
-				await overrides.disconnect?.();
-				organization = nowhereToGo();
-				state = syncing();
+			// the choice is the record's, so the next `getState` reads it; refused, as Rust is, while
+			// somebody is signed in.
+			select: async (organizationId) => {
+				journal.selected.push(organizationId);
+				await overrides.select?.(organizationId);
+
+				if (organization.session) {
+					throw new Error('sign out before choosing another organization');
+				}
+
+				organization = { ...organization, selected: organizationId, signedOutElsewhere: false };
+
+				return organization;
+			},
+			// the forget leaves the machine without that organization, signed out of it where it was
+			// the open one, and the selection on the first left or on none, as Rust does.
+			remove: async (organizationId) => {
+				journal.removed.push(organizationId);
+				await overrides.remove?.(organizationId);
+
+				const organizations = organization.organizations.filter(
+					(held) => held.id !== organizationId
+				);
+				const wasOpen = organization.session?.organizationId === organizationId;
+				const selected =
+					organization.selected === organizationId
+						? (organizations[0]?.id ?? null)
+						: organization.selected;
+
+				organization = {
+					...organization,
+					organizations,
+					selected,
+					session: wasOpen ? null : organization.session
+				};
+
+				if (organizations.length === 0) {
+					state = syncing();
+				}
+
+				await overrides.afterRemove?.(organizationId);
 
 				return organization;
 			},

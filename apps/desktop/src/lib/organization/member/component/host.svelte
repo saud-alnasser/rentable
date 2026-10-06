@@ -9,6 +9,7 @@
 	import { pinnedAcross } from '$lib/organization/access/access';
 	import MemberSheet, { type MemberEdit } from '$lib/organization/member/component/sheet.svelte';
 	import OfferOwnership from '$lib/organization/member/component/offer-ownership.svelte';
+	import LinkForm from '$lib/organization/member/component/link-form.svelte';
 	import { memberWritesOf } from '$lib/organization/member/member';
 	import {
 		useAssignRole,
@@ -19,11 +20,12 @@
 		useRemoveMember,
 		useRenameMember,
 		useSetOverride,
+		useUnlockMember,
 		useUnsetMemberPassword,
 		useWithdrawOffer
 	} from '$lib/organization/member/query';
 	import { showMadeLink } from '$lib/organization/dialogs.svelte';
-	import { organizationHostState, type MemberPress } from '$lib/organization/host.svelte';
+	import { organizationHostState, type MemberAsk } from '$lib/organization/host.svelte';
 	import type {
 		OrganizationMember,
 		OrganizationRole,
@@ -33,7 +35,8 @@
 
 	/**
 	 * Every surface a member act opens, and every write one runs: the member's sheet, the handover,
-	 * the removal, the link on the press, and the reset, the sign-out and the withdrawal once asked.
+	 * the removal, the link once its lifetime is chosen, and the reset, the sign-out and the
+	 * withdrawal once asked.
 	 * Mounted by the organization host (`../../component/host.svelte`), which reads the session and
 	 * the roles once for every part of it and resets what is here as it goes.
 	 */
@@ -68,6 +71,7 @@
 	const makeMemberLink = useMakeMemberLink();
 	const unsetMemberPassword = useUnsetMemberPassword();
 	const endMemberSessions = useEndMemberSessions();
+	const unlockMember = useUnlockMember();
 
 	// ----- the member's sheet
 
@@ -346,25 +350,49 @@
 		}
 	};
 
-	// ----- the writes that run on the press
+	// ----- the link
+
+	const linking = $derived(member.linking);
 
 	/**
-	 * one write asked for on a card's press, and the member it ran for marked while it runs.
-	 *
-	 * The link runs on the press, since it ends nothing and is shown once on the one panel that shows
-	 * a link and a code. The reset, the sign-out from every machine and the withdrawal end something,
-	 * so each runs from here once its question is answered (below). What each did is announced by
-	 * its hook, the only place a toast is raised ([[rules/frontend]], *Data access*).
+	 * the link, made once its maker has chosen how long it lasts (effort 851, requirement 11), and
+	 * shown once on the one panel that shows a link and a code. The choosing surface closes when the
+	 * link is made; a refusal is said by the shared handler and leaves it open on the choice.
 	 */
-	const runPressed = async (kind: MemberPress, memberId: string) => {
+	const makeLink = async (lifetimeHours: number) => {
+		if (!linking) return;
+
+		const { pending } = organizationHostState.member;
+		const memberId = linking.member.id;
+
+		pending.linking = memberId;
+
+		try {
+			const made = await makeMemberLink.mutateAsync({ memberId, lifetimeHours });
+
+			organizationHostState.member.linking = null;
+			showMadeLink(made);
+		} catch {
+			// said by the shared handler.
+		} finally {
+			pending.linking = null;
+		}
+	};
+
+	// ----- the writes that end something, run once asked
+
+	/**
+	 * one write a card asked for, and the member it ran for marked while it runs. The reset, the
+	 * sign-out from every machine and the withdrawal end something, so each runs from here once its
+	 * question is answered (below), and so does the unlock, which hands a member every write their
+	 * role allows (effort 851, requirement 34). What each did is announced by its hook, the only
+	 * place a toast is raised ([[rules/frontend]], *Data access*).
+	 */
+	const runAsked = async (kind: MemberAsk, memberId: string) => {
 		const { pending } = organizationHostState.member;
 
 		try {
 			switch (kind) {
-				case 'makeLink':
-					pending.linking = memberId;
-					showMadeLink(await makeMemberLink.mutateAsync({ memberId }));
-					break;
 				case 'unsetPassword':
 					pending.unsetting = memberId;
 					await unsetMemberPassword.mutateAsync({ memberId });
@@ -377,28 +405,20 @@
 					pending.withdrawing = true;
 					await withdrawOffer.mutateAsync();
 					break;
+				case 'unlock':
+					pending.unlocking = memberId;
+					await unlockMember.mutateAsync({ memberId });
+					break;
 			}
 		} catch {
 			// said by the shared handler.
 		} finally {
-			pending.linking = kind === 'makeLink' ? null : pending.linking;
 			pending.unsetting = kind === 'unsetPassword' ? null : pending.unsetting;
 			pending.endingSessions = kind === 'endSessions' ? null : pending.endingSessions;
 			pending.withdrawing = kind === 'withdrawOffer' ? false : pending.withdrawing;
+			pending.unlocking = kind === 'unlock' ? null : pending.unlocking;
 		}
 	};
-
-	// answered once and cleared first, so a write cannot be asked twice by the effect running again
-	// while it waits. Untracked past the read, because the work writes state this would otherwise
-	// start depending on.
-	$effect(() => {
-		const pressed = organizationHostState.member.pressed;
-
-		if (!pressed) return;
-
-		organizationHostState.member.pressed = null;
-		untrack(() => void runPressed(pressed.kind, pressed.memberId));
-	});
 
 	// ----- the writes that end something, asked first
 
@@ -417,6 +437,11 @@
 					act: $LL.organization.dashboard.endSessions(),
 					description: $LL.organization.dashboard.endSessionsAsks()
 				};
+			case 'unlock':
+				return {
+					act: $LL.organization.dashboard.unlock(),
+					description: $LL.organization.dashboard.unlockAsks()
+				};
 			case 'withdrawOffer':
 			case undefined:
 				return {
@@ -429,7 +454,7 @@
 	const confirmAsked = async () => {
 		if (!asking) return;
 
-		await runPressed(asking.kind, asking.record.member.id);
+		await runAsked(asking.kind, asking.record.member.id);
 	};
 
 	// ----- the removal
@@ -506,8 +531,21 @@
 	onOffer={(memberId, password) => void offer(memberId, password)}
 />
 
+<!-- a link is made once its maker has chosen how long it lasts; the pair is shown on the shell's one
+     handover panel. -->
+<LinkForm
+	open={linking !== null}
+	onOpenChange={(open) => {
+		if (!open && !member.pending.linking) organizationHostState.member.linking = null;
+	}}
+	username={linking?.member.username ?? ''}
+	isMaking={member.pending.linking !== null}
+	onMake={(lifetimeHours) => void makeLink(lifetimeHours)}
+/>
+
 <!-- the reset, the sign-out from every machine and the withdrawal end something, so each asks
-     first under its own verb, naming the member, what ends and what brings it back. -->
+     first under its own verb, naming the member, what ends and what brings it back. the unlock
+     asks too, in the plain tone, since it ends nothing (effort 851, requirement 34). -->
 <ConfirmDialog
 	open={asking !== null}
 	onOpenChange={(open) => {
@@ -518,6 +556,7 @@
 	title={askingCopy.act}
 	description={askingCopy.description}
 	confirmLabel={askingCopy.act}
+	tone={asking?.kind === 'unlock' ? 'neutral' : 'error'}
 	confirmLoadingLabel={$LL.common.actions.working()}
 />
 

@@ -20,10 +20,10 @@ import RailProviders from '$lib/shell/tests/rail-providers.svelte';
  * the spec's criterion 24 is read for the rail; the members list's rows are read in
  * `organization/member/tests/directory.svelte.test.ts`.
  *
- * And its two rows, once it is open (requirement 17 of effort 826, as corrected on the human's
- * first run): the settings area, and the way out. The organization row and the account row went
- * with the pages they opened, and the row for the person followed them, because the `you` section
- * is reached from the settings rail, the palette and the address without it.
+ * And its rows, once it is open (effort 851, at the human's word on 2026-10-06): the settings area,
+ * then its account, organization and workspaces sections, each opening the area on that section,
+ * then the way out, which asks nothing. *Effort 826 had taken the section rows out; the human asked
+ * for them back.*
  *
  * The control is props and a session, no query and no client, so nothing here provides one.
  *
@@ -78,8 +78,8 @@ const open = async () => {
 const row = (mark: string) => document.querySelector<HTMLElement>(`[data-account-menu-${mark}]`);
 
 /**
- * the span a row draws its label in, found by the label, since only the settings row carries a
- * mark of its own and the casing is a claim about all of them.
+ * the span a row draws its label in, found by the label, since the rows carry different marks and
+ * the casing is a claim about all of them.
  */
 const label = (text: string) =>
 	[...document.querySelectorAll<HTMLElement>('[role="menuitem"] span')].find(
@@ -100,29 +100,17 @@ test('the control names the username beside the avatar', () => {
 	expect(screen.getByRole('button', { expanded: false }).textContent).not.toContain('Acme Rentals');
 });
 
-test('the menu offers settings and the way out, in that order, and nothing else', async () => {
+test('the menu offers settings, its three sections, and the way out, in that order', async () => {
 	menu('ada.lovelace');
 	await open();
 
 	expect(screen.getAllByRole('menuitem').map((item) => item.textContent?.trim())).toEqual([
 		en.common.nav.settings,
+		en.settings.section.account,
+		en.settings.section.organization,
+		en.settings.section.workspaces,
 		en.common.actions.signOut
 	]);
-});
-
-test('no row names the section about the person', async () => {
-	menu('ada.lovelace');
-	await open();
-
-	expect(row('you')).toBeNull();
-	expect(row('account')).toBeNull();
-	// the section it named is called account since requirement 24 of effort 828, and neither word
-	// is a row here.
-	expect(document.querySelector('a[href="/settings?section=you"]')).toBeNull();
-	expect(document.querySelector('a[href="/settings?section=account"]')).toBeNull();
-	expect(screen.getAllByRole('menuitem').map((item) => item.textContent?.trim())).not.toContain(
-		en.settings.section.account
-	);
 });
 
 test('settings opens the settings area at its front', async () => {
@@ -135,6 +123,31 @@ test('settings opens the settings area at its front', async () => {
 	expect(document.querySelector('a[href="/account"]')).toBeNull();
 });
 
+test('account, organization and workspaces each open the settings area on that section', async () => {
+	menu('ada.lovelace');
+	await open();
+
+	for (const section of ['account', 'organization', 'workspaces']) {
+		const entry = document.querySelector<HTMLElement>(`[data-account-menu-section=${section}]`);
+
+		expect(entry?.getAttribute('href'), section).toBe(`/settings?section=${section}`);
+		// each wears its section's glyph, as the section switch draws it.
+		expect(entry?.querySelector('svg'), section).not.toBeNull();
+	}
+});
+
+test('the way out stands apart from the places, after a separator', async () => {
+	menu('ada.lovelace');
+	await open();
+
+	const content = document.querySelector<HTMLElement>('[data-slot=dropdown-menu-content]')!;
+	const children = [...content.children];
+	const signOut = children.findIndex((child) => child.hasAttribute('data-account-menu-sign-out'));
+
+	expect(signOut).toBeGreaterThan(0);
+	expect(children[signOut - 1]?.getAttribute('data-slot')).toBe('dropdown-menu-separator');
+});
+
 test('the way out is cased like the settings row beside it', async () => {
 	menu('ada.lovelace');
 	await open();
@@ -145,10 +158,9 @@ test('the way out is cased like the settings row beside it', async () => {
 	expect(label(en.common.actions.signOut)?.className).toBe(settings?.className);
 });
 
-// effort 846, requirement 2 as revised on 2026-10-02: every dangerous act asks first, signing this
-// machine out included. Choosing the way out asks, naming who is signed out and what brings them
-// back; leaving the question signs nobody out, and answering it asks the shell.
-test('the way out asks first, and asks the shell to sign out only once answered', async () => {
+// effort 851, at the human's word on 2026-10-06: "sign out is simple, just sign out". Choosing the
+// way out asks nothing and asks the shell at once, which puts the wall up in place.
+test('the way out asks no question and asks the shell to sign out at once', async () => {
 	menu('ada.lovelace');
 	await open();
 
@@ -157,28 +169,9 @@ test('the way out asks first, and asks the shell to sign out only once answered'
 		asked += 1;
 	});
 
-	const question = () => document.querySelector<HTMLElement>('[data-confirm-dialog]');
-	const control = (words: string) =>
-		[...(question()?.querySelectorAll<HTMLButtonElement>('button') ?? [])].find(
-			(button) => button.textContent?.trim() === words
-		);
-
 	await fireEvent.click(screen.getByRole('menuitem', { name: en.common.actions.signOut }));
-	await waitFor(() => expect(question()).not.toBeNull());
-
-	expect(asked).toBe(0);
-	expect(question()?.textContent).toContain('ada.lovelace');
-	expect(question()?.textContent).toContain(en.settings.you.thisMachine.asks);
-
-	await fireEvent.click(control('{cancel}')!);
-	await waitFor(() => expect(question()).toBeNull());
-	expect(asked).toBe(0);
-
-	await open();
-	await fireEvent.click(screen.getByRole('menuitem', { name: en.common.actions.signOut }));
-	await waitFor(() => expect(control(en.common.actions.signOut)).toBeDefined());
-	await fireEvent.click(control(en.common.actions.signOut)!);
 
 	await waitFor(() => expect(asked).toBe(1));
+	expect(document.querySelector('[data-confirm-dialog]')).toBeNull();
 	stop();
 });

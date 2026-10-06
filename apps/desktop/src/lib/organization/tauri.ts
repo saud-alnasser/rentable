@@ -19,6 +19,7 @@ import type {
 	OrganizationRole,
 	OrganizationState,
 	OrganizationWorkspace,
+	OutstandingLink,
 	SessionsEnded,
 	UnreachableWorkspace,
 	WorkspaceGrant,
@@ -62,6 +63,11 @@ export const tauri = {
 		invoke<OrganizationState>('plugin:organization|setup_connect_existing', { username, password }),
 	getState: () => invoke<OrganizationState>('plugin:organization|session_state_get'),
 	disconnect: () => invoke<OrganizationState>('plugin:organization|session_disconnect'),
+	select: (organizationId: string) =>
+		invoke<OrganizationState>('plugin:organization|session_select', { organizationId }),
+	remove: (organizationId: string) =>
+		invoke<OrganizationState>('plugin:organization|session_remove', { organizationId }),
+	rename: (name: string) => invoke<OrganizationState>('plugin:organization|setup_rename', { name }),
 	delete: (password: string) =>
 		invoke<OrganizationState>('plugin:organization|member_organization_delete', { password }),
 	signIn: (username: string, password: string) =>
@@ -80,6 +86,7 @@ export const tauri = {
 		invoke<LinkShape>('plugin:organization|invitation_link_read', { link }),
 	reconnectAuthority: () =>
 		invoke<OrganizationState>('plugin:organization|setup_reconnect_authority'),
+	forgetAuthority: () => invoke<OrganizationState>('plugin:organization|setup_forget_authority'),
 	renewDue: () => invoke<boolean>('plugin:organization|workspace_renew_due'),
 	roles: () => invoke<OrganizationRole[]>('plugin:organization|role_list'),
 	role: {
@@ -121,8 +128,11 @@ export const tauri = {
 				overrideMask: override,
 				workspaces
 			}),
-		linkMake: (memberId: string) =>
-			invoke<MadeLink>('plugin:organization|invitation_link_make', { memberId }),
+		linkMake: (memberId: string, lifetimeHours: number) =>
+			invoke<MadeLink>('plugin:organization|invitation_link_make', { memberId, lifetimeHours }),
+		links: () => invoke<OutstandingLink[]>('plugin:organization|invitation_link_list'),
+		linkRevoke: (linkId: string) =>
+			invoke<void>('plugin:organization|invitation_link_revoke', { linkId }),
 		unsetPassword: (memberId: string) =>
 			invoke<UnreachableWorkspace[]>('plugin:organization|invitation_password_unset', { memberId }),
 		remove: (memberId: string, lockOut: boolean) =>
@@ -158,7 +168,8 @@ export const tauri = {
 			invoke<OrganizationMember>('plugin:organization|ownership_offer', { memberId, password }),
 		withdrawOffer: () => invoke<void>('plugin:organization|ownership_withdraw_offer'),
 		endSessions: (memberId: string) =>
-			invoke<SessionsEnded>('plugin:organization|member_end_sessions', { memberId })
+			invoke<SessionsEnded>('plugin:organization|member_end_sessions', { memberId }),
+		unlock: (memberId: string) => invoke<void>('plugin:organization|member_unlock', { memberId })
 	},
 	invitation: {
 		accept: (link: string, code: string, password: string) =>

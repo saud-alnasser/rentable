@@ -805,6 +805,29 @@ pub(super) async fn require_owner(
     Ok(actor.row)
 }
 
+/// The refusal anybody but the owner meets for an act that is the owner's by role alone and names
+/// no flag: renaming the organization (effort 851, requirement 24). Answers the acting member's
+/// verified row, as [`require_owner`] does and for its reason.
+///
+/// **No flag, on purpose.** The owner's role always carries everything, so a flag for an act only
+/// the owner performs would be a bit no role and no override could be given; the spec keeps the
+/// rename off the flag vocabulary (*Constraints*). What is asked is the row naming the owner's role,
+/// which only the root signs about its own holder, read under the pinned key every time, so a
+/// session opened as the owner that has since handed the organization over is refused here.
+pub(super) async fn require_owner_alone(
+    store: &OrganizationStore,
+    session: &MemberSession,
+    refusal: &str,
+) -> Result<MemberRecord, Error> {
+    let actor = super::session::actor(store, session).await?;
+
+    if actor.row.role_id != permission::OWNER {
+        return Err(Error::refused(RefusalReason::OwnerOnly, refusal));
+    }
+
+    Ok(actor.row)
+}
+
 /// Refuse a grant to a member who has been removed: renewal skips them, and a first grant should
 /// not reach them either.
 fn refuse_removed(member: &MemberRecord) -> Result<(), Error> {
@@ -986,7 +1009,7 @@ mod tests {
         )
         .await
         .expect("the first run failed");
-        let joined = store.organization.clone().expect("the record");
+        let joined = store.selected().cloned().expect("the record");
         let session = sign_in(&organization, &joined, PASSWORD, &slot())
             .await
             .expect("the owner did not sign in");
@@ -1037,6 +1060,12 @@ mod tests {
             .await
             .expect("the member");
 
+        // written as an earlier build would, with no lock row: unlocked by the owner, since the
+        // organization is marked (effort 851).
+        crate::organization::member::lock::unlocked_for_a_test(store, owner, "member-b")
+            .await
+            .expect("the owner unlocks them");
+
         HeldOrganization {
             id: owner.organization_id.clone(),
             name: "Acme".to_string(),
@@ -1051,6 +1080,12 @@ mod tests {
             joined_at: 1_757_000_000_001,
             format: None,
             machine_signed_out: 0,
+            turso_organization: None,
+            workspace_id: None,
+            name_signed: false,
+            name_signed_at: 0,
+            lock_marked: false,
+            own_lock_latched: Vec::new(),
         }
     }
 
@@ -1098,6 +1133,12 @@ mod tests {
             .await
             .expect("the manager");
 
+        // written as an earlier build would, with no lock row: unlocked by the owner, since the
+        // organization is marked (effort 851).
+        crate::organization::member::lock::unlocked_for_a_test(store, owner, "member-admin")
+            .await
+            .expect("the owner unlocks them");
+
         HeldOrganization {
             id: owner.organization_id.clone(),
             name: "Acme".to_string(),
@@ -1112,6 +1153,12 @@ mod tests {
             joined_at: 1_757_000_000_002,
             format: None,
             machine_signed_out: 0,
+            turso_organization: None,
+            workspace_id: None,
+            name_signed: false,
+            name_signed_at: 0,
+            lock_marked: false,
+            own_lock_latched: Vec::new(),
         }
     }
 
@@ -2298,6 +2345,12 @@ mod tests {
             joined_at: 0,
             format: None,
             machine_signed_out: 0,
+            turso_organization: None,
+            workspace_id: None,
+            name_signed: false,
+            name_signed_at: 0,
+            lock_marked: false,
+            own_lock_latched: Vec::new(),
         }
     }
 
@@ -2854,7 +2907,7 @@ mod tests {
     #[ignore = "reaches a live Turso account and creates a database; see the doc comment"]
     async fn workspace_live_a_read_only_credential_is_refused_by_turso_and_a_full_one_is_not() {
         use crate::turso::{
-            consent::store_platform_token,
+            consent::{Account, store_platform_token},
             discovery::TursoOrganization,
             platform::{PlatformApi, PlatformEndpoint, TursoPlatform},
         };
@@ -2884,6 +2937,7 @@ mod tests {
                 slug: read("TURSO_ORG"),
                 group: read("TURSO_GROUP"),
             },
+            Account::Pending,
             credentials.clone(),
         );
         let nonce = std::time::SystemTime::now()

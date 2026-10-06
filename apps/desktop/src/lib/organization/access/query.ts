@@ -1,7 +1,7 @@
 import api from '$lib/api/caller';
 import { declareMutation } from '$lib/mutation/ui';
 import { LL } from '$lib/i18n/i18n-svelte';
-import { keys, rolesAndMembersChanged } from '$lib/organization/query';
+import { organizationChanged } from '$lib/organization/query';
 import { get } from 'svelte/store';
 
 /**
@@ -40,7 +40,7 @@ export const useSetWorkspaceOverride = declareMutation({
 		error: true,
 		unexpected: () => get(LL).common.messages.unexpectedError()
 	},
-	invalidates: rolesAndMembersChanged
+	invalidates: [organizationChanged]
 });
 
 /**
@@ -66,10 +66,10 @@ export type AccessChange = {
  * rather than the last of several, and the writes that had already gone through stand. Minting a
  * read-only credential is the owner's and is refused by name, which the shared handler shows.
  *
- * The session's own workspaces are read from the state key, so it is refreshed beside the list: a
- * reader who granted themselves a workspace should find it on the switcher without a relaunch.
- * Both are refreshed whether the set went through or was refused part way, since what was written
- * before the refusal stands.
+ * The session's own workspaces are read from the state key, which every organization write
+ * refreshes beside the list (`organizationChanged`): a reader who granted themselves a workspace
+ * should find it on the switcher without a relaunch. Both are refreshed whether the set went
+ * through or was refused part way, since what was written before the refusal stands.
  */
 export const useChangeAccess = declareMutation({
 	mutate: async ({ changes }: { changes: AccessChange[] }) => {
@@ -96,5 +96,5 @@ export const useChangeAccess = declareMutation({
 	},
 	// on a refusal part way as much as on success: the writes before the refusal stand, and a
 	// list left as it was would show the reader an access the row no longer has.
-	settled: [keys.members, keys.state]
+	settled: [organizationChanged]
 });

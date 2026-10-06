@@ -252,6 +252,8 @@ const en = {
 			previous: 'previous',
 			previousSlide: 'previous slide',
 			search: 'search',
+			// the eye at a password field's end, which shows what was typed while held (effort 851).
+			showPassword: 'show password',
 			sidebar: 'sidebar',
 			toggleSidebar: 'toggle sidebar'
 		},

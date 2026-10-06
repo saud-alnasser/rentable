@@ -7,7 +7,7 @@ use crate::{
     error::{Error, RefusalReason},
 };
 
-use super::{MemberSession, acting_row, actor, rank_of, refuse_unsettled, remember::refile};
+use super::{MemberSession, actor, own_row, rank_of, refuse_unsettled, remember::refile};
 use crate::organization::{
     role::permission::{self, Flag},
     store::OrganizationStore,
@@ -80,7 +80,10 @@ pub(crate) async fn end_elsewhere(
     // which is what makes the row the organization's rather than this machine's last sight of
     // it, and `store::set_session_epoch` refuses to write a number below the row's whatever this
     // arithmetic produced.
-    let member = acting_row(store, session).await?;
+    //
+    // **A locked member signs their other machines out too** (effort 851, requirement 32): it is
+    // a sign-out, so the row is read without the lock (`own_row`).
+    let member = own_row(store, session).await?;
     let epoch = member.session_epoch + 1;
 
     store
@@ -315,7 +318,7 @@ mod tests {
         )
         .await
         .expect("the first run failed");
-        let joined = store.organization.clone().expect("the record");
+        let joined = store.selected().cloned().expect("the record");
 
         (store, organization, joined)
     }
@@ -375,6 +378,12 @@ mod tests {
             )
             .await
             .expect("the member row");
+
+        // written as an earlier build would, with no lock row: unlocked by the owner, since the
+        // organization is marked (effort 851).
+        crate::organization::member::lock::unlocked_for_a_test(store, owner, id)
+            .await
+            .expect("the owner unlocks them");
 
         let verifying_key =
             crate::organization::session::verifying_key_of(joined).expect("the key");

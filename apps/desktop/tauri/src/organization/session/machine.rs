@@ -30,7 +30,7 @@ use crate::{
     machine::name,
 };
 
-use super::{MemberSession, acting_row, opened};
+use super::{MemberSession, opened, own_row};
 use crate::organization::{
     HeldOrganization,
     member::vault::{ContentKey, seal_content},
@@ -107,7 +107,7 @@ pub(crate) async fn signed_out_here(
 
 /// Whether another machine signed this one out on its own since `session` opened (effort 846,
 /// requirement 10): [`signed_out_here`] asked of the open session, which carries the number it
-/// opened under, so every act asks it ([`acting_row`]) without taking the machine record's lock.
+/// opened under, so every act asks it ([`acting_row`](super::acting_row)) without taking the machine record's lock.
 pub(crate) async fn ended_alone(
     store: &OrganizationStore,
     session: &MemberSession,
@@ -254,7 +254,8 @@ pub async fn machines(
     held: &HeldOrganization,
 ) -> Result<Vec<MachineView>, Error> {
     session.settled()?;
-    acting_row(store, session).await?;
+    // a read, which a locked member keeps (effort 851, requirement 32).
+    own_row(store, session).await?;
 
     let names = store.machine_names().await?;
     let mut machines: Vec<MachineView> = store
@@ -306,8 +307,9 @@ pub(crate) async fn end_machine(
     session.settled()?;
 
     // the acting row, with a session behind its epoch refused, as `end_elsewhere` refuses it: a
-    // machine whose sessions were ended has nothing left to end anybody else's with.
-    acting_row(store, session).await?;
+    // machine whose sessions were ended has nothing left to end anybody else's with. Without the
+    // lock, since a sign-out is one of the acts a locked member keeps (effort 851, requirement 32).
+    own_row(store, session).await?;
 
     if machine_id == held.machine_id {
         return Err(Error::refused(
@@ -479,7 +481,7 @@ mod tests {
         )
         .await
         .expect("the first run failed");
-        let joined = store.organization.clone().expect("the record");
+        let joined = store.selected().cloned().expect("the record");
 
         assert!(!joined.machine_id.is_empty(), "the first run drew no id");
 

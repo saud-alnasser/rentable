@@ -1,13 +1,22 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { toMemberDirectory, toRoleDirectory, toWorkspaceDirectory } from '../directory.ts';
+import {
+	toLinkList,
+	toMemberDirectory,
+	toRoleDirectory,
+	toWorkspaceDirectory
+} from '../directory.ts';
 import {
 	fakeOrganizationMember,
 	fakeOrganizationRoles,
 	fakeOrganizationWorkspace
 } from '$lib/organization/tests/testing.ts';
-import type { OrganizationMember, OrganizationRole } from '$lib/organization/host.ts';
+import type {
+	OrganizationMember,
+	OrganizationRole,
+	OutstandingLink
+} from '$lib/organization/host.ts';
 
 /**
  * THE SETTINGS DIRECTORIES, SEARCHED AND ORDERED
@@ -122,4 +131,34 @@ test('roles order by name, and by rank the other way round', () => {
 		ids(toRoleDirectory(roles, '', { columnId: 'rank', direction: 'desc' }, roleName)),
 		['member', 'collector', 'supervisor', 'manager', 'owner']
 	);
+});
+
+const pending = (id: string, username: string, expiresAt: number): OutstandingLink => ({
+	id,
+	memberId: id,
+	username,
+	purpose: 'join',
+	madeBy: null,
+	madeAt: 0,
+	expiresAt
+});
+
+const links = [
+	pending('late', 'zaid', 3_000),
+	pending('tie-b', 'basel', 1_000),
+	pending('soon', 'rami', 500),
+	pending('tie-a', 'Amal', 1_000)
+];
+
+test('the pending links stand soonest to lapse first, two at the same moment by username', () => {
+	assert.deepEqual(ids(toLinkList(links, '')), ['soon', 'tie-a', 'tie-b', 'late']);
+	// the list it was handed is left as it came.
+	assert.deepEqual(ids(links), ['late', 'tie-b', 'soon', 'tie-a']);
+});
+
+test('a pending link is found by the username it is for, whatever case or digits are typed', () => {
+	assert.deepEqual(ids(toLinkList(links, 'AMA')), ['tie-a']);
+	assert.deepEqual(ids(toLinkList(links, 'a')), ['soon', 'tie-a', 'tie-b', 'late']);
+	assert.deepEqual(ids(toLinkList([pending('ada', 'ada2026', 1)], '٢٠٢٦')), ['ada']);
+	assert.deepEqual(ids(toLinkList(links, 'nobody')), []);
 });

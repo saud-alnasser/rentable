@@ -81,9 +81,11 @@ pub enum Error {
 /// The one variant holding anything is [`RefusalReason::NeedsViewing`], whose kind of record is
 /// part of its word rather than a value beside it, so it crosses as one word like the rest.
 ///
-/// The first four are a link's standing after its code was right (effort 828): an invitation is
-/// `Lapsed`, `Consumed` or `Revoked`, and a machine link is `Lapsed`, `Consumed` or `Replaced`.
-/// The connect screen routes on those four by name. Every other word was added by effort 832,
+/// The first three are a link's standing after its code was right (effort 828): either kind of
+/// link is `Lapsed`, `Consumed` or `Revoked`. The connect screen routes on those three by name.
+/// *A machine link whose row was gone read `Replaced` until effort 851 let a link be revoked from
+/// the list of links waiting to be opened; a gone row names nobody to ask whether it was replaced,
+/// so both kinds read `Revoked`.* Every other word was added by effort 832,
 /// but the two for the organization's format, the one for a rank and the six for roles, which
 /// effort 838 added.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -93,10 +95,9 @@ pub enum RefusalReason {
     Lapsed,
     /// opened once already, and it admits one.
     Consumed,
-    /// withdrawn: the invitation it was made for is gone, or the member it named is.
+    /// withdrawn: the row behind it is gone (revoked, replaced by a newer link, or taken by a reset
+    /// or a removal), or the member it named is.
     Revoked,
-    /// no row stands behind it, because a newer link took its place.
-    Replaced,
 
     // a link and the code read out with it.
     /// no code was typed beside the link.
@@ -109,8 +110,12 @@ pub enum RefusalReason {
     LinkNotAnInvitation,
     /// the link is an invitation, and was opened where a machine is connected.
     LinkNotForAMachine,
-    /// this machine already holds another organization.
-    AnotherOrganizationHeld,
+    /// a link was asked to last something other than an hour to a day in hours, or a day to a
+    /// week in days (effort 851, requirement 11).
+    LinkLifetime,
+    /// the link asked to be revoked is not waiting to be opened any more: it was used, it lapsed,
+    /// or somebody revoked it first (effort 851).
+    LinkNotOutstanding,
 
     // signing in, and the session behind it.
     /// the username and password do not open a place in the organization.
@@ -121,8 +126,11 @@ pub enum RefusalReason {
     PasswordChangeRequired,
     /// nobody is signed in on this machine.
     SignedOut,
-    /// this machine holds no organization.
+    /// this machine holds no organization, or not the one named.
     NoOrganization,
+    /// somebody is signed in, and choosing another organization waits for them to sign out
+    /// (effort 851, requirement 8).
+    SessionOpen,
     /// this machine holds an organization and no member in it yet.
     NoMemberYet,
     /// the session's own row, or the key it remembers, is gone; signing in again answers it.
@@ -139,6 +147,9 @@ pub enum RefusalReason {
     /// the machine acted on has not run this version, so it would not read a sign-out of its own;
     /// signing every other machine out is what reaches it (effort 846, requirement 10).
     MachineNotUpdated,
+    /// the reader's account is locked until an owner or a manager unlocks it: they sign in, change
+    /// their password and read, and do nothing else (effort 851, requirement 32).
+    Locked,
 
     // members and what may be done to them.
     /// the username is not three to thirty-two letters, digits, dots, underscores or hyphens.
@@ -199,7 +210,8 @@ pub enum RefusalReason {
     // handing the organization over.
     /// the owner offered the organization to themselves.
     AlreadyOwner,
-    /// the account offered the organization has no password of its own yet.
+    /// the account acted on has no password of its own yet: the organization is not offered to it,
+    /// and it is not unlocked (effort 851, requirement 34), until it has.
     AccountNotSetUp,
     /// an offer already stands.
     OfferPending,
@@ -213,6 +225,9 @@ pub enum RefusalReason {
     // workspaces and grants.
     /// the organization was given no name.
     OrganizationNameMissing,
+    /// the organization's name is longer than `setup::ORGANIZATION_NAME_LIMIT` (effort 851,
+    /// requirement 23).
+    OrganizationNameTooLong,
     /// the workspace was given no name.
     WorkspaceNameMissing,
     /// the workspace acted on is not in this organization.
@@ -290,6 +305,9 @@ pub enum RefusalReason {
     TursoRefused,
     /// Turso refused a request over the account itself: its plan, its standing or its limits.
     TursoAccountRefused,
+    /// Turso no longer accepts the consent an organization this machine holds was granted, so
+    /// this machine let it go and the owner connects Turso again from the organization's settings.
+    TursoConsentLost,
 
     // the organization's mark.
     /// the image is over the size a mark may be.
@@ -465,7 +483,6 @@ mod tests {
             (RefusalReason::Lapsed, "lapsed"),
             (RefusalReason::Consumed, "consumed"),
             (RefusalReason::Revoked, "revoked"),
-            (RefusalReason::Replaced, "replaced"),
         ];
 
         for (reason, spelling) in reasons {
@@ -496,6 +513,7 @@ mod tests {
             (RefusalReason::OwnerOnly, "ownerOnly"),
             (RefusalReason::GroupNeeded, "groupNeeded"),
             (RefusalReason::TursoNotConnected, "tursoNotConnected"),
+            (RefusalReason::TursoConsentLost, "tursoConsentLost"),
             (RefusalReason::LinkNotForAMachine, "linkNotForAMachine"),
         ];
 

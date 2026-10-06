@@ -6,7 +6,8 @@ import {
 	formatLocaleMoney,
 	formatLocaleMoneyRange,
 	formatLocaleRangeWithUnit,
-	formatLocaleRelativeTime
+	formatLocaleRelativeTime,
+	formatLocaleTimeUntil
 } from '../locale.ts';
 
 const LTR_ISOLATE = '⁦';
@@ -80,4 +81,18 @@ test('a moment ahead of the clock reads as now', () => {
 	const now = Date.UTC(2026, 8, 15, 14, 0, 0);
 
 	assert.equal(formatLocaleRelativeTime('en', now + 3 * 60_000, now), 'now');
+});
+
+// a moment ahead in the reader's own words, as a link waiting to be opened says when it lapses
+// (effort 851): counted down, so two days and twenty hours is "in 2 days" and never a third.
+test('a moment ahead reads relative to now, counted down, in the words of each locale', () => {
+	const now = Date.UTC(2026, 8, 15, 14, 0, 0);
+
+	assert.equal(formatLocaleTimeUntil('en', now + 20_000, now), 'now');
+	assert.equal(formatLocaleTimeUntil('en', now - 60_000, now), 'now');
+	assert.equal(formatLocaleTimeUntil('en', now + 5 * 60_000, now), 'in 5 minutes');
+	assert.equal(formatLocaleTimeUntil('en', now + 3 * 3_600_000, now), 'in 3 hours');
+	assert.equal(formatLocaleTimeUntil('en', now + (2 * 24 + 20) * 3_600_000, now), 'in 2 days');
+	assert.equal(formatLocaleTimeUntil('en', now + 24 * 3_600_000, now), 'tomorrow');
+	assert.equal(formatLocaleTimeUntil('ar', now + 2 * 3_600_000, now), 'خلال ساعتين');
 });

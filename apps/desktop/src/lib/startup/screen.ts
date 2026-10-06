@@ -238,12 +238,16 @@ export function startupScreen(snapshot: StartupSnapshot, pathname: string): Star
 		// application starting (effort 843, requirement 12).
 		case 'loading':
 			return snapshot.switching === null ? 'loading' : 'switching';
+		// a sign-out leaving an address that opens signed out draws the wall over it until it has
+		// left, so the route under it is never drawn for nobody (effort 851).
 		case 'sign-in':
-			return opensSignedOut(pathname) ? 'route' : 'sign-in';
-		// over every address, the first run's included: a person is in, and there is no workspace
-		// for any address to draw from, so no address changes the answer.
+			return opensSignedOut(pathname) && !snapshot.leavingForTheWall ? 'route' : 'sign-in';
+		// over every address but the two walks: a person is in, and there is no workspace for any
+		// address to draw from. The first run and the join are how its switcher adds an
+		// organization (effort 851, requirement 7), and the screen signs out as it moves there,
+		// since adding happens signed out; neither reads a workspace.
 		case 'no-workspace':
-			return 'no-workspace';
+			return pathname === THE_FIRST_RUN || pathname === THE_JOIN ? 'route' : 'no-workspace';
 		case 'recovery':
 			return snapshot.recovery ? 'recovery' : 'route';
 		case 'error':

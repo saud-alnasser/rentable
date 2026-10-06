@@ -4,7 +4,7 @@ import test from 'node:test';
 import { appRouter } from '$lib/app/router.ts';
 import { caller, context, type Meta } from '$lib/api/trpc.ts';
 import organization from '$lib/organization/router.ts';
-import { PASSWORD_FLOOR } from '$lib/organization/setup/setup.ts';
+import { ORGANIZATION_NAME_LIMIT, PASSWORD_FLOOR } from '$lib/organization/setup/setup.ts';
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import { fakeHost } from '$lib/app/tests/host.ts';
 import {
@@ -67,7 +67,17 @@ function hostRecording(asked: string[]): Host {
 			disconnect: async () => {
 				asked.push('disconnect');
 
-				return fakeOrganizationState({ organization: null, session: null });
+				return fakeOrganizationState({ organizations: [], selected: null, session: null });
+			},
+			select: async (organizationId) => {
+				asked.push(`select:${organizationId}`);
+
+				return fakeOrganizationState({ session: null });
+			},
+			remove: async (organizationId) => {
+				asked.push(`remove:${organizationId}`);
+
+				return fakeOrganizationState({ organizations: [], selected: null, session: null });
 			},
 			create: async (name, username, password, group) => {
 				asked.push(`create:${name}:${username}:${password.length}:${group}`);
@@ -83,7 +93,7 @@ function hostRecording(asked: string[]): Host {
 				asked.push(`connectExisting:${username}:${password.length}`);
 
 				return fakeOrganizationState({
-					organization: fakeHeldOrganization({ memberId: 'member-owner', role: 'owner' })
+					organizations: [fakeHeldOrganization({ memberId: 'member-owner', role: 'owner' })]
 				});
 			}
 		}
@@ -114,7 +124,23 @@ test('disconnecting reaches the host signed out, and answers with the state', as
 	const forgotten = await api.organization.disconnect();
 
 	assert.deepEqual(asked, ['disconnect']);
-	assert.equal(forgotten.organization, null);
+	assert.deepEqual(forgotten.organizations, []);
+});
+
+// effort 851, requirements 3 and 5: choosing an organization and removing one happen at the wall,
+// so both are public, hand the organization's id to the host as given, and answer with the state.
+// An id that is empty is refused before the host is reached; whether the machine holds it, and
+// whether somebody is signed in, are Rust's.
+test('selecting and removing an organization reach the host signed out with its id, and an empty id is refused first', async () => {
+	const asked: string[] = [];
+	const api = await signedOutApi(hostRecording(asked));
+
+	await api.organization.select({ organizationId: 'org-b' });
+	await api.organization.remove({ organizationId: 'org-a' });
+
+	await assert.rejects(api.organization.select({ organizationId: '' }));
+	await assert.rejects(api.organization.remove({ organizationId: '' }));
+	assert.deepEqual(asked, ['select:org-b', 'remove:org-a']);
 });
 
 // effort 826's second correction to requirement 13: the group is optional, and **both shapes are
@@ -473,6 +499,8 @@ test('nothing here asks the host to list organizations', () => {
 		'member.create',
 		'member.endSessions',
 		'member.linkMake',
+		'member.linkRevoke',
+		'member.links',
 		'member.list',
 		'member.lockOutCost',
 		'member.offerOwnership',
@@ -481,16 +509,20 @@ test('nothing here asks the host to list organizations', () => {
 		'member.setOverride',
 		'member.setWorkspaceOverride',
 		'member.standings',
+		'member.unlock',
 		'member.unsetPassword',
 		'member.withdrawOffer',
 		'ownershipAccept',
 		'password.change',
+		'remove',
+		'rename',
 		'role.create',
 		'role.delete',
 		'role.list',
 		'role.move',
 		'role.rename',
 		'role.setMask',
+		'select',
 		'session.endElsewhere',
 		'session.endMachine',
 		'session.machines',
@@ -519,7 +551,7 @@ test('opening an invitation link reaches the host signed out, and a short passwo
 					asked.push(`accept:${link}:${code}:${password.length}`);
 
 					return fakeOrganizationState({
-						organization: fakeHeldOrganization({ memberId: 'member-2', role: 'member' })
+						organizations: [fakeHeldOrganization({ memberId: 'member-2', role: 'member' })]
 					});
 				}
 			}
@@ -533,7 +565,7 @@ test('opening an invitation link reaches the host signed out, and a short passwo
 		password: 'a password sami chose'
 	});
 
-	assert.equal(admitted.organization?.memberId, 'member-2');
+	assert.equal(admitted.organizations[0]?.memberId, 'member-2');
 	assert.deepEqual(asked, ['accept:rentable://join/abc:7K4M9Q:21']);
 
 	await assert.rejects(
@@ -580,8 +612,8 @@ test('where each account stands is answered for every member, to any signed-in m
 					asked += 1;
 
 					return [
-						{ memberId: 'member-1', passwordSet: true, machineSignedIn: true },
-						{ memberId: 'member-2', passwordSet: false, machineSignedIn: false }
+						{ memberId: 'member-1', passwordSet: true, machineSignedIn: true, locked: false },
+						{ memberId: 'member-2', passwordSet: false, machineSignedIn: false, locked: false }
 					];
 				}
 			}
@@ -593,8 +625,8 @@ test('where each account stands is answered for every member, to any signed-in m
 	const standings = await member.organization.member.standings();
 
 	assert.deepEqual(standings, [
-		{ memberId: 'member-1', passwordSet: true, machineSignedIn: true },
-		{ memberId: 'member-2', passwordSet: false, machineSignedIn: false }
+		{ memberId: 'member-1', passwordSet: true, machineSignedIn: true, locked: false },
+		{ memberId: 'member-2', passwordSet: false, machineSignedIn: false, locked: false }
 	]);
 	assert.equal(asked, 1);
 
@@ -620,8 +652,8 @@ test('making a link is held to inviteMember or resetPassword, and connecting wit
 			...fakeHost().organization,
 			member: {
 				...fakeHost().organization.member,
-				linkMake: async (memberId) => {
-					asked.push(`linkMake:${memberId}`);
+				linkMake: async (memberId, lifetimeHours) => {
+					asked.push(`linkMake:${memberId}:${lifetimeHours}`);
 
 					return {
 						link: 'rentable://join/abc',
@@ -635,7 +667,7 @@ test('making a link is held to inviteMember or resetPassword, and connecting wit
 				asked.push(`machineConnect:${link}:${code}`);
 
 				return fakeOrganizationState({
-					organization: fakeHeldOrganization({ memberId: null, role: null }),
+					organizations: [fakeHeldOrganization({ memberId: null, role: null })],
 					session: null
 				});
 			}
@@ -644,7 +676,7 @@ test('making a link is held to inviteMember or resetPassword, and connecting wit
 	const signedOut = await signedOutApi(host);
 
 	await assert.rejects(
-		signedOut.organization.member.linkMake({ memberId: 'member-2' }),
+		signedOut.organization.member.linkMake({ memberId: 'member-2', lifetimeHours: 72 }),
 		'a link was made by nobody'
 	);
 	assert.deepEqual(asked, []);
@@ -652,35 +684,51 @@ test('making a link is held to inviteMember or resetPassword, and connecting wit
 	// a member with no act of their own is refused before the host is reached.
 	const member = await permittedApi(host);
 
-	await assert.rejects(member.organization.member.linkMake({ memberId: 'member-2' }));
+	await assert.rejects(
+		member.organization.member.linkMake({ memberId: 'member-2', lifetimeHours: 72 })
+	);
 	assert.deepEqual(asked, []);
 
 	const inviting = await permittedApi(host, 'inviteMember');
-	const made = await inviting.organization.member.linkMake({ memberId: 'member-2' });
+	const made = await inviting.organization.member.linkMake({
+		memberId: 'member-2',
+		lifetimeHours: 72
+	});
 
 	assert.equal(made.code, '7K4M9Q');
 	assert.equal(made.link, 'rentable://join/abc');
-	assert.deepEqual(asked, ['linkMake:member-2']);
+	assert.deepEqual(asked, ['linkMake:member-2:72']);
+
+	// effort 851, requirement 11: the lifetime is one of the steps, every hour to a day, every day
+	// to a week, and a week; anything else is refused before the host is reached, as Rust refuses it.
+	for (const lifetimeHours of [0, 25, 169, 200, 1.5, -24]) {
+		await assert.rejects(
+			inviting.organization.member.linkMake({ memberId: 'member-2', lifetimeHours }),
+			`${lifetimeHours} hours made a link`
+		);
+	}
+
+	assert.deepEqual(asked, ['linkMake:member-2:72']);
 
 	// and a holder of the other act alone, who is whoever can take the password away.
 	const resetting = await permittedApi(host, 'resetPassword');
 
 	assert.equal(
-		(await resetting.organization.member.linkMake({ memberId: 'member-3' })).code,
+		(await resetting.organization.member.linkMake({ memberId: 'member-3', lifetimeHours: 1 })).code,
 		'7K4M9Q'
 	);
-	assert.deepEqual(asked, ['linkMake:member-2', 'linkMake:member-3']);
+	assert.deepEqual(asked, ['linkMake:member-2:72', 'linkMake:member-3:1']);
 
 	const connected = await signedOut.organization.machine.connect({
 		link: ' rentable://join/abc ',
 		code: '7K4M9Q'
 	});
 
-	assert.equal(connected.organization?.memberId, null, 'a connect recorded a member');
+	assert.equal(connected.organizations[0]?.memberId, null, 'a connect recorded a member');
 	assert.equal(connected.session, null, 'a connect opened a vault');
 	assert.deepEqual(asked, [
-		'linkMake:member-2',
-		'linkMake:member-3',
+		'linkMake:member-2:72',
+		'linkMake:member-3:1',
 		'machineConnect:rentable://join/abc:7K4M9Q'
 	]);
 
@@ -692,8 +740,8 @@ test('making a link is held to inviteMember or resetPassword, and connecting wit
 
 	await assert.rejects(signedOut.organization.machine.connect({ link: '  ', code: '7K4M9Q' }));
 	assert.deepEqual(asked, [
-		'linkMake:member-2',
-		'linkMake:member-3',
+		'linkMake:member-2:72',
+		'linkMake:member-3:1',
 		'machineConnect:rentable://join/abc:7K4M9Q'
 	]);
 });
@@ -848,6 +896,40 @@ test('ending sessions reaches the host behind reset password, and ending your ow
 	assert.deepEqual(asked, ['endSessions:member-2', 'endElsewhere', 'endElsewhere']);
 });
 
+// effort 851, requirements 23 and 24: renaming the organization needs somebody signed in and no
+// flag, since whether they are the owner is Rust's alone. The name is held to the walk's rules
+// before the host is reached: blank, whitespace and one character past the limit are refused,
+// and a name inside them arrives trimmed.
+test('renaming the organization reaches the host trimmed for anybody signed in, and a name past the rules does not', async () => {
+	const asked: string[] = [];
+	const host = fakeHost({
+		organization: {
+			...fakeHost().organization,
+			rename: async (name) => {
+				asked.push(`rename:${name}`);
+
+				return fakeOrganizationState();
+			}
+		}
+	});
+	const signedIn = await permittedApi(host);
+
+	for (const name of ['', '   ', 'n'.repeat(ORGANIZATION_NAME_LIMIT + 1)]) {
+		await assert.rejects(signedIn.organization.rename({ name }), JSON.stringify(name));
+	}
+
+	assert.deepEqual(asked, []);
+
+	await signedIn.organization.rename({ name: '  Acme Rentals  ' });
+	await signedIn.organization.rename({ name: ` ${'n'.repeat(ORGANIZATION_NAME_LIMIT)} ` });
+
+	assert.deepEqual(asked, ['rename:Acme Rentals', `rename:${'n'.repeat(ORGANIZATION_NAME_LIMIT)}`]);
+
+	// and nobody signed in renames nothing.
+	await assert.rejects((await signedOutApi(host)).organization.rename({ name: 'Acme Rentals' }));
+	assert.equal(asked.length, 2);
+});
+
 // effort 828, requirement 18: deleting the organization needs somebody signed in and a password,
 // and it hands both on as given. It is the owner's `deleteOrganization` here as it is in Rust
 // (ticket 17 of effort 838), and whether the password opens the owner's vault is Rust's. A caller
@@ -861,7 +943,7 @@ test('deleting the organization needs deleteOrganization and a password, and rea
 			delete: async (password) => {
 				asked.push(`delete:${password}`);
 
-				return fakeOrganizationState({ organization: null, session: null });
+				return fakeOrganizationState({ organizations: [], selected: null, session: null });
 			}
 		}
 	});
@@ -869,7 +951,7 @@ test('deleting the organization needs deleteOrganization and a password, and rea
 	const owner = await permittedApi(host, 'deleteOrganization');
 	const deleted = await owner.organization.delete({ password: 'the owners password' });
 
-	assert.equal(deleted.organization, null);
+	assert.deepEqual(deleted.organizations, []);
 	assert.deepEqual(asked, ['delete:the owners password']);
 
 	await assert.rejects(owner.organization.delete({ password: '' }));
@@ -1031,7 +1113,7 @@ test('inspecting the group and connecting to what it holds reach the host signed
 	});
 
 	assert.deepEqual(group, { kind: 'held', organizationId: '7f3a' });
-	assert.equal(connected.organization?.role, 'owner');
+	assert.equal(connected.organizations[0]?.role, 'owner');
 	assert.deepEqual(asked, ['groupInspect', 'connectExisting:Olivia.Owner:19']);
 });
 
@@ -1128,20 +1210,25 @@ const COMMAND_OF: Record<string, string> = {
 	'member.create': 'plugin:organization|invitation_member_create',
 	'member.endSessions': 'plugin:organization|member_end_sessions',
 	'member.linkMake': 'plugin:organization|invitation_link_make',
+	'member.linkRevoke': 'plugin:organization|invitation_link_revoke',
 	'member.offerOwnership': 'plugin:organization|ownership_offer',
 	'member.remove': 'plugin:organization|member_remove',
 	'member.rename': 'plugin:organization|member_rename',
 	'member.setOverride': 'plugin:organization|role_set_override',
 	'member.setWorkspaceOverride': 'plugin:organization|role_set_workspace_override',
+	'member.unlock': 'plugin:organization|member_unlock',
 	'member.unsetPassword': 'plugin:organization|invitation_password_unset',
 	'member.withdrawOffer': 'plugin:organization|ownership_withdraw_offer',
 	ownershipAccept: 'plugin:organization|ownership_accept',
 	'password.change': 'plugin:organization|member_change_password',
+	remove: 'plugin:organization|session_remove',
+	rename: 'plugin:organization|setup_rename',
 	'role.create': 'plugin:organization|role_create',
 	'role.delete': 'plugin:organization|role_delete',
 	'role.move': 'plugin:organization|role_move',
 	'role.rename': 'plugin:organization|role_rename',
 	'role.setMask': 'plugin:organization|role_set_mask',
+	select: 'plugin:organization|session_select',
 	'session.endElsewhere': 'plugin:organization|session_end_elsewhere',
 	'session.endMachine': 'plugin:organization|session_end_machine',
 	'workspace.create': 'plugin:organization|workspace_create',
@@ -1169,8 +1256,11 @@ function metaFor(path: string, gate: Gate): Meta {
 		case 'Public':
 		case 'ThisMachine':
 			return { public: true };
+		// `OwnerAlone` is the owner's by role alone, with no flag to name (effort 851, requirement
+		// 24): the check is Rust's, and the router asks only that somebody is signed in.
 		case 'Own':
 		case 'SignedIn':
+		case 'OwnerAlone':
 			return { member: true };
 		case 'AnyFlag':
 			return { anyOf: gate.flags };

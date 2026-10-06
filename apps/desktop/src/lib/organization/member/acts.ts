@@ -5,11 +5,13 @@ import type {
 	OrganizationMember,
 	OrganizationSession
 } from '$lib/organization/host';
+import { refusedWhileLocked } from '../locked';
 import { permits } from '@rentable/workspace-permission';
 import CrownIcon from '@lucide/svelte/icons/crown';
 import LaptopIcon from '@lucide/svelte/icons/laptop';
 import LinkIcon from '@lucide/svelte/icons/link';
 import LockIcon from '@lucide/svelte/icons/lock';
+import LockKeyholeOpenIcon from '@lucide/svelte/icons/lock-keyhole-open';
 import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 import SquarePenIcon from '@lucide/svelte/icons/square-pen';
 import UserMinusIcon from '@lucide/svelte/icons/user-minus';
@@ -67,15 +69,27 @@ export type MemberReader = {
 	canOverride: boolean;
 	/** `grantWorkspace`. */
 	canGrantWorkspace: boolean;
+	/**
+	 * the owner, or a holder of `assignRole` or `overrideMember`: either flag that changes what
+	 * somebody may do, which is who unlocks a locked member (effort 851, requirement 34). The rank
+	 * above the member is the card's to read, as every other act's is.
+	 */
+	canUnlock: boolean;
+	/**
+	 * whether the reader is locked (effort 851, requirement 32): every act here is still drawn for
+	 * what their row carries, and refused for the lock.
+	 */
+	locked: boolean;
 };
 
-/** the member acts that run on the press and are waiting on the shell, while they are. */
+/** the member acts waiting on the shell, while they are. */
 export type MemberPending = {
 	linking: boolean;
 	unsetting: boolean;
 	endingSessions: boolean;
 	offering: boolean;
 	withdrawing: boolean;
+	unlocking: boolean;
 };
 
 /** what the directory knows about the whole organization that a member act is gated on. */
@@ -121,7 +135,12 @@ export function memberReaderOf(session: OrganizationSession): MemberReader {
 		canRename: permits(session.permissions, 'renameMember'),
 		canAssignRole: permits(session.permissions, 'assignRole'),
 		canOverride: permits(session.permissions, 'overrideMember'),
-		canGrantWorkspace: permits(session.permissions, 'grantWorkspace')
+		canGrantWorkspace: permits(session.permissions, 'grantWorkspace'),
+		canUnlock:
+			isOwner ||
+			permits(session.permissions, 'assignRole') ||
+			permits(session.permissions, 'overrideMember'),
+		locked: session.locked
 	};
 }
 
@@ -172,7 +191,8 @@ export type MemberActId =
 	| 'member.unsetPassword'
 	| 'member.endSessions'
 	| 'member.remove'
-	| 'member.lockOut';
+	| 'member.lockOut'
+	| 'member.unlock';
 
 /**
  * What the member acts ask of the organization host. Each one opens something the host owns or
@@ -196,6 +216,8 @@ export type MemberHostRequests = {
 	endSessions: (record: MemberActRecord) => void;
 	/** ask before removing the member, at either speed. */
 	confirmRemoval: (record: MemberActRecord, lockOut: boolean) => void;
+	/** unlock a locked member, once the reader has answered the question the host asks. */
+	unlock: (record: MemberActRecord) => void;
 };
 
 /** A member act, with the id narrowed to the ones declared here. */
@@ -229,7 +251,7 @@ const ownersOwn = ({ member, context }: MemberActRecord) =>
  * list can be read and run without the host mounted.
  */
 export function declareMemberActs(host: MemberHostRequests): MemberAct[] {
-	return [
+	const acts: MemberAct[] = [
 		{
 			// the owner's own card, and the one act on it (requirement 22). While an offer stands the
 			// act is withdrawing it, in the offer's place: there is one offer at a time.
@@ -286,6 +308,27 @@ export function declareMemberActs(host: MemberHostRequests): MemberAct[] {
 					? t.organization.dashboard.yourOwn()
 					: notBelow(record, t),
 			run: host.edit
+		},
+		{
+			// a locked member's way to the rest of what their role allows (effort 851, requirement
+			// 34). Drawn only where it can run: for the owner or an outranking holder of either flag
+			// that changes what somebody may do, never on the reader's own card, and only once the
+			// member has set a password of their own, since unlocking an account whose link has not
+			// been opened would unlock whoever opens it. Before that the card says they have not
+			// signed in yet. It asks first, naming what the member will be able to do.
+			id: 'member.unlock',
+			label: (t) => t.organization.dashboard.unlock(),
+			icon: LockKeyholeOpenIcon,
+			group: 'primary',
+			appliesTo: (record) =>
+				record.context.canUnlock &&
+				writable(record) &&
+				record.member.rank < record.context.rank &&
+				record.standing?.locked === true &&
+				record.standing.passwordSet,
+			unavailable: (record, t) =>
+				record.context.pending.unlocking ? t.common.actions.working() : undefined,
+			run: host.unlock
 		},
 		{
 			// the one link act (effort 828, requirement 20), offered to a holder of either act, as
@@ -364,4 +407,7 @@ export function declareMemberActs(host: MemberHostRequests): MemberAct[] {
 			run: (record) => host.confirmRemoval(record, true)
 		}
 	];
+
+	// a locked reader meets every act their row carries, refused for the lock (effort 851).
+	return refusedWhileLocked<MemberActRecord, MemberAct>(acts, (record) => record.context.locked);
 }

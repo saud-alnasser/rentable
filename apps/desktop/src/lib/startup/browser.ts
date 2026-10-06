@@ -64,7 +64,8 @@ export function browserStartupPorts(
 			getState: () => organization.getState(),
 			signIn: (username, password) => organization.signIn(username, password),
 			signOut: () => organization.signOut(),
-			disconnect: () => organization.disconnect(),
+			select: (organizationId) => organization.select(organizationId),
+			remove: (organizationId) => organization.remove(organizationId),
 			openWorkspace: (workspaceId) => organization.workspace.open(workspaceId),
 			renewDue: () => organization.renewDue()
 		},

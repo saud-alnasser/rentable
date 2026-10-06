@@ -29,6 +29,9 @@ export function fakeOrganizationHost(): OrganizationHost {
 		connectExisting: refuse('organization.connectExisting'),
 		getState: refuse('organization.getState'),
 		disconnect: refuse('organization.disconnect'),
+		select: refuse('organization.select'),
+		remove: refuse('organization.remove'),
+		rename: refuse('organization.rename'),
 		delete: refuse('organization.delete'),
 		signIn: refuse('organization.signIn'),
 		signOut: refuse('organization.signOut'),
@@ -40,6 +43,7 @@ export function fakeOrganizationHost(): OrganizationHost {
 		onMigration: refuse('organization.onMigration'),
 		linkRead: refuse('organization.linkRead'),
 		reconnectAuthority: refuse('organization.reconnectAuthority'),
+		forgetAuthority: refuse('organization.forgetAuthority'),
 		renewDue: refuse('organization.renewDue'),
 		roles: refuse('organization.roles'),
 		role: {
@@ -64,6 +68,8 @@ export function fakeOrganizationHost(): OrganizationHost {
 			standings: refuse('organization.member.standings'),
 			create: refuse('organization.member.create'),
 			linkMake: refuse('organization.member.linkMake'),
+			links: refuse('organization.member.links'),
+			linkRevoke: refuse('organization.member.linkRevoke'),
 			unsetPassword: refuse('organization.member.unsetPassword'),
 			remove: refuse('organization.member.remove'),
 			lockOutCost: refuse('organization.member.lockOutCost'),
@@ -73,7 +79,8 @@ export function fakeOrganizationHost(): OrganizationHost {
 			setWorkspaceOverride: refuse('organization.member.setWorkspaceOverride'),
 			offerOwnership: refuse('organization.member.offerOwnership'),
 			withdrawOffer: refuse('organization.member.withdrawOffer'),
-			endSessions: refuse('organization.member.endSessions')
+			endSessions: refuse('organization.member.endSessions'),
+			unlock: refuse('organization.member.unlock')
 		},
 		invitation: {
 			accept: refuse('organization.invitation.accept')
@@ -85,7 +92,7 @@ export function fakeOrganizationHost(): OrganizationHost {
 	};
 }
 
-/** the organization this machine holds, as the wall names it, with its member found. */
+/** an organization this machine holds, as the wall names it, with its member found. */
 export function fakeHeldOrganization(overrides: Partial<HeldOrganization> = {}): HeldOrganization {
 	return {
 		id: 'acme',
@@ -93,6 +100,7 @@ export function fakeHeldOrganization(overrides: Partial<HeldOrganization> = {}):
 		memberId: 'member-owner',
 		role: 'owner',
 		joinedAt: 0,
+		holdsTursoAuthority: true,
 		...overrides
 	};
 }
@@ -132,6 +140,7 @@ export function fakeOrganizationSession(
 		permissions: 0,
 		workspaces: [fakeOrganizationWorkspace()],
 		ownerUsername: 'olivia.owner',
+		locked: false,
 		ownershipOffered: false,
 		...overrides
 	};
@@ -200,17 +209,21 @@ export function fakeOrganizationRoles(): OrganizationRole[] {
 }
 
 /**
- * where a machine stands with its organization. The default is a machine that holds one and
- * whose person is signed in to it, because that is what most paths behind the wall want; a test
- * about the wall itself says which side of it the machine is on.
+ * where a machine stands with its organizations. The default is a machine that holds one, selected,
+ * and whose person is signed in to it, because that is what most paths behind the wall want; a
+ * test about the wall itself says which side of it the machine is on.
  */
 export function fakeOrganizationState(
 	overrides: Partial<OrganizationState> = {}
 ): OrganizationState {
+	const held = fakeHeldOrganization();
+
 	return {
-		organization: fakeHeldOrganization(),
+		organizations: [held],
+		selected: held.id,
 		session: fakeOrganizationSession(),
 		holdsTursoAuthority: true,
+		setupConsented: false,
 		signedOutElsewhere: false,
 		...overrides
 	};

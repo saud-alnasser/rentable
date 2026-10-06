@@ -129,9 +129,7 @@ export const settings = {
 		},
 		// effort 846, requirement 8: the last group of the section, and the one way out of it.
 		thisMachine: {
-			signOut: 'sign out of this machine',
-			// the question signing out asks first (effort 846, requirement 2 as revised 2026-10-02).
-			asks: 'you are signed out here, and the organization stays on this machine. signing in again brings you back.'
+			signOut: 'sign out of this machine'
 		}
 	}
 } satisfies BaseTranslation;

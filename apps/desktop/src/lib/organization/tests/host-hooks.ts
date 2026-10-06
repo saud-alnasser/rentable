@@ -2,6 +2,7 @@ import type {
 	MachineView,
 	MemberStanding,
 	OrganizationMember,
+	OutstandingLink,
 	OrganizationRole,
 	OrganizationSession
 } from '$lib/organization/host';
@@ -13,7 +14,8 @@ import type { RemoteSyncState } from '$lib/sync/host';
  * Scaffolding rather than a test. The host in `organization/component/host.svelte` reads the
  * session and writes through the hooks in `organization/query.ts` and each sub-concept's own
  * (`member/query.ts`, `role/query.ts`, `access/query.ts`, `workspace/query.ts`,
- * `session/query.ts`), which reach a shell this runner has none of. A test of what a card's act
+ * `session/query.ts`, and `setup/query.ts` for the Turso account the leaving card forgets), which
+ * reach a shell this runner has none of. A test of what a card's act
  * opens or writes replaces those hooks with these, through a partial `vi.mock` of each query
  * module, and reads what was asked of them:
  *
@@ -53,6 +55,8 @@ export const hostAnswers = {
 	members: [] as OrganizationMember[],
 	/** where each member stands, as the members section draws it in a line. */
 	standings: [] as MemberStanding[],
+	/** the links waiting to be opened, as the organization tab lists them for whoever keeps them. */
+	links: [] as OutstandingLink[],
 	roles: [] as OrganizationRole[],
 	/** the reader's machines, this one first, as the account section lists them. */
 	machines: [] as MachineView[],
@@ -68,6 +72,7 @@ export function resetHostAnswers() {
 	hostAnswers.holdsTursoAuthority = false;
 	hostAnswers.members = [];
 	hostAnswers.standings = [];
+	hostAnswers.links = [];
 	hostAnswers.roles = [];
 	hostAnswers.machines = [];
 	hostAnswers.syncState = null;
@@ -114,6 +119,11 @@ export const hostHooks = {
 			return hostAnswers.standings;
 		}
 	}),
+	useFetchMemberLinks: () => ({
+		get data() {
+			return hostAnswers.links;
+		}
+	}),
 	useFetchRoles: () => ({
 		get data() {
 			return hostAnswers.roles;
@@ -139,15 +149,20 @@ export const hostHooks = {
 	useWithdrawOffer: mutation('useWithdrawOffer'),
 	useRemoveMember: mutation('useRemoveMember'),
 	useMakeMemberLink: mutation('useMakeMemberLink'),
+	useRevokeLink: mutation('useRevokeLink'),
 	useUnsetMemberPassword: mutation('useUnsetMemberPassword'),
 	useEndMemberSessions: mutation('useEndMemberSessions'),
+	useUnlockMember: mutation('useUnlockMember'),
 	useDeleteWorkspace: mutation('useDeleteWorkspace'),
 	useChangePassword: mutation('useChangePassword'),
 	useAcceptOwnership: mutation('useAcceptOwnership'),
 	useEndOtherSessions: mutation('useEndOtherSessions'),
 	useEndMachine: mutation('useEndMachine'),
 	useDeleteOrganization: mutation('useDeleteOrganization'),
-	useDisconnectOrganization: mutation('useDisconnectOrganization')
+	useDisconnectOrganization: mutation('useDisconnectOrganization'),
+	useRenameOrganization: mutation('useRenameOrganization'),
+	useForgetAuthority: mutation('useForgetAuthority'),
+	useDisconnect: mutation('useDisconnect')
 };
 
 /** what the sync query's read of the sync record is replaced with. */

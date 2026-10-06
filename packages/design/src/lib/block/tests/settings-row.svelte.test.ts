@@ -117,3 +117,23 @@ test('a row with no acts, or none to offer, draws no menu control', () => {
 
 	expect(row().querySelector('button')).toBeNull();
 });
+
+// a username is somebody's own word: drawn exactly as written, never with its first letter raised,
+// and isolated so a Latin name keeps its direction in an Arabic row (effort 851, the links waiting
+// to be opened, named for the member each is for).
+test('a name given as written keeps its first letter and its direction', () => {
+	show({ name: 'sami.staff', nameAsWritten: true });
+
+	const name = row().querySelector('[data-slot=item-title] > span:first-child')!;
+
+	expect(name.className).not.toContain('first-letter:uppercase');
+	expect(name.querySelector('bdi')?.textContent).toBe('sami.staff');
+
+	cleanup();
+
+	show({ name: 'the laptop' });
+
+	expect(row().querySelector('[data-slot=item-title] > span:first-child')?.className).toContain(
+		'first-letter:uppercase'
+	);
+});

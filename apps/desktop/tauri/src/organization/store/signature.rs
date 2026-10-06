@@ -15,8 +15,9 @@ use crate::{
 };
 
 use super::{
-    GrantRecord, InvitationRecord, MarkRecord, MemberRecord, OrganizationStore, RoleRecord,
-    WorkspaceOverrideRecord, WorkspaceRecord,
+    GrantRecord, InvitationRecord, MarkRecord, MemberLockRecord, MemberRecord,
+    OrganizationNameRecord, OrganizationStore, RoleRecord, WorkspaceOverrideRecord,
+    WorkspaceRecord,
     role::{rank_in, ranks_of_members, standings},
 };
 
@@ -65,9 +66,32 @@ impl OrganizationStore {
         signer: &Signer<'_>,
         authority: Authority<'_>,
     ) -> Result<(), Error> {
+        if self.covered(signer, authority).await? {
+            return Ok(());
+        }
+
+        Err(Error::refused(
+            RefusalReason::RoleLacksAct,
+            format!(
+                "this writes a row that needs {} to sign, and your certificate does not carry it. \
+                 nothing was written",
+                needed_for(authority)
+            ),
+        ))
+    }
+
+    /// Whether `signer`'s certificate covers a row, judged as [`OrganizationStore::refuse_uncovered`]
+    /// judges it: what a write that is not refused asks before it writes, as the backfill of the
+    /// members' locks does (`member::lock::lock_unset_accounts`, effort 851).
+    pub async fn covered(
+        &self,
+        signer: &Signer<'_>,
+        authority: Authority<'_>,
+    ) -> Result<bool, Error> {
         let about = match authority {
             Authority::Member(member) => Some(member.id),
             Authority::WorkspaceOverride(workspace_override) => Some(workspace_override.member_id),
+            Authority::MemberLock { member_id, .. } => Some(member_id),
             _ => None,
         };
         let organization = match about {
@@ -87,34 +111,27 @@ impl OrganizationStore {
             Some(_) => standings(&self.roles_unverified().await?),
             None => HashMap::new(),
         };
-        // the member a workspace override is about, as their row reads under the organization
-        // row's key: in, and granted something, or nobody to override (effort 838, ticket 53).
+        // the member a workspace override or a lock is about, as their row reads under the
+        // organization row's key: in, and granted something, or nobody to override (effort 838,
+        // ticket 53) or to unlock (effort 851).
         let member_rank = match (&organization, authority) {
-            (Some(organization), Authority::WorkspaceOverride(workspace_override)) => self
-                .member(&organization.verifying_key, workspace_override.member_id)
+            (
+                Some(organization),
+                Authority::WorkspaceOverride(_) | Authority::MemberLock { .. },
+            ) => self
+                .member(&organization.verifying_key, about.unwrap_or_default())
                 .await?
                 .filter(|member| member.covered && member.removed_at.is_none())
                 .and_then(|member| rank_in(&member.role_id, &roles)),
             _ => None,
         };
 
-        if covers(
+        Ok(covers(
             signer.certificate,
             authority,
             |role_id| roles.get(role_id).copied(),
             |_| certified_rank,
             |_| member_rank,
-        ) {
-            return Ok(());
-        }
-
-        Err(Error::refused(
-            RefusalReason::RoleLacksAct,
-            format!(
-                "this writes a row that needs {} to sign, and your certificate does not carry it. \
-                 nothing was written",
-                needed_for(authority)
-            ),
         ))
     }
 
@@ -229,6 +246,23 @@ impl OrganizationStore {
             .filter(|(signed_by, _)| of(signed_by))
             .map(|(_, workspace_override)| workspace_override)
             .collect();
+        // the organization's signed name, which only the root signs: the handover retires the
+        // founder's root, and the new owner's signs it again (effort 851, requirement 29).
+        let organization_name = self
+            .signed_organization_name(organization_verifying_key)
+            .await?
+            .filter(|(signed_by, _)| of(signed_by))
+            .map(|(_, name)| name);
+        // every member's lock the certificate signed, locked or not (effort 851, requirement 35):
+        // a lock left behind under a retired certificate reads locked, and an unlock would be
+        // undone by the act that retired its signer. Those the signer cannot sign are left below.
+        let member_locks: Vec<MemberLockRecord> = self
+            .signed_member_locks(organization_verifying_key)
+            .await?
+            .into_iter()
+            .filter(|(signed_by, _)| of(signed_by))
+            .map(|(_, lock)| lock)
+            .collect();
 
         // a member row its certificate no longer covers is not signed again under anybody: that
         // would make the role somebody below the member named real under a signer who covers it
@@ -259,7 +293,25 @@ impl OrganizationStore {
             .chain(grants.iter().map(grant_authority))
             .chain(invitations.iter().map(invitation_authority))
             .chain(mark.iter().map(mark_authority))
-            .chain(workspace_overrides.iter().map(workspace_override_authority));
+            .chain(workspace_overrides.iter().map(workspace_override_authority))
+            .chain(organization_name.iter().map(organization_name_authority));
+        // **a lock the signer cannot sign again never refuses the act** (effort 851): it is left
+        // as it lies, and once its certificate is retired it reads as a row that does not verify
+        // reads, locked. A removal or a reset is never held up by somebody's lock.
+        let member_locks: Vec<MemberLockRecord> = member_locks
+            .into_iter()
+            .filter(|lock| {
+                all_members
+                    .iter()
+                    .find(|member| member.id == lock.member_id)
+                    .is_some_and(|member| {
+                        chain.covers(
+                            signer.certificate,
+                            member_lock_authority(lock, &member.signing_public_key),
+                        )
+                    })
+            })
+            .collect();
 
         for authority in authorities {
             if !chain.covers(signer.certificate, authority) {
@@ -303,13 +355,26 @@ impl OrganizationStore {
                 .await?;
         }
 
+        if let Some(name) = &organization_name {
+            self.write_organization_name(signer, name).await?;
+        }
+
+        // judged against the chain above, under the key the rows were read by; a check against
+        // the organization row would read them under the key a handover is leaving, over roles
+        // this pass has already moved.
+        for lock in &member_locks {
+            self.insert_member_lock(signer, lock).await?;
+        }
+
         Ok(roles.len()
             + members.len()
             + workspaces.len()
             + grants.len()
             + invitations.len()
             + usize::from(mark.is_some())
-            + workspace_overrides.len())
+            + workspace_overrides.len()
+            + usize::from(organization_name.is_some())
+            + member_locks.len())
     }
 }
 
@@ -367,6 +432,29 @@ pub(crate) fn mark_authority(mark: &MarkRecord) -> Authority<'_> {
         updated_by: &mark.updated_by,
         updated_at: mark.updated_at,
     })
+}
+
+/// What the organization's signed name puts under signature, from the record.
+pub(crate) fn organization_name_authority(name: &OrganizationNameRecord) -> Authority<'_> {
+    Authority::OrganizationName {
+        name_sealed: &name.name_sealed,
+        updated_at: name.updated_at,
+    }
+}
+
+/// What a member's lock puts under signature, from the record and the signing key the member's
+/// row holds (`member_key`), which is what ties the lock to this run of their account: a reset
+/// draws a new one (effort 851, requirements 35 and 37).
+pub(crate) fn member_lock_authority<'a>(
+    lock: &'a MemberLockRecord,
+    member_key: &'a [u8],
+) -> Authority<'a> {
+    Authority::MemberLock {
+        member_id: &lock.member_id,
+        member_key,
+        locked: lock.locked,
+        updated_at: lock.updated_at,
+    }
 }
 
 /// What a workspace override row puts under signature, from the record.

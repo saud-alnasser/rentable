@@ -32,6 +32,9 @@ struct InMemoryState {
     refuse_at: Option<(usize, Error)>,
     /// what this account calls the consented group, where the caller said it has one to find.
     group_name: Option<String>,
+    /// the moment, in milliseconds, a mint is taken to be issued at where a test asked for tokens
+    /// that carry their own expiry; `None` mints the plain spelling every other test reads.
+    issuing_at: Option<i64>,
 }
 
 #[cfg(test)]
@@ -68,6 +71,14 @@ impl InMemoryPlatform {
     /// the owner's username and the one a first run has to find the group some other way on.
     pub(crate) fn naming_the_group(&self, name: &str) {
         self.locked().group_name = Some(name.to_string());
+    }
+
+    /// every mint from now on answers a token shaped as Turso's are, a JWT whose `iat` is
+    /// `issued_at` and whose `exp` is that plus the expiration it was asked for, so a caller that
+    /// reads a credential's own expiry (`setup::credential_expiry`) reads the one Turso would
+    /// have set (effort 851, requirement 11).
+    pub(crate) fn minting_expiring_tokens(&self, issued_at: i64) {
+        self.locked().issuing_at = Some(issued_at);
     }
 
     /// the next operation fails with `error`, and the one after it is answered normally.
@@ -197,6 +208,10 @@ impl TursoPlatform for InMemoryPlatform {
             .minted
             .push((database_name.to_string(), expiration.to_string(), access));
 
+        if let Some(issued_at) = state.issuing_at {
+            return Ok(expiring_token(database_name, issued_at, expiration));
+        }
+
         Ok(if rotations == 0 {
             format!("token-for-{database_name}-{expiration}-{}", access.as_str())
         } else {
@@ -280,6 +295,57 @@ impl TursoPlatform for InMemoryPlatform {
 
         Ok(())
     }
+}
+
+/// A token shaped as Turso mints one: a JWT whose claims name the database and carry `iat` and
+/// `exp` in seconds, `exp` being `issued_at` plus `expiration` in Turso's duration spelling.
+#[cfg(test)]
+fn expiring_token(database_name: &str, issued_at: i64, expiration: &str) -> String {
+    use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64URL};
+
+    let issued = issued_at / 1000;
+    let claims = serde_json::json!({
+        "id": database_name,
+        "iat": issued,
+        "exp": issued + duration_seconds(expiration),
+    });
+
+    format!("header.{}.signature", BASE64URL.encode(claims.to_string()))
+}
+
+/// Turso's duration spelling, `2w1d30m` and the like, in seconds. A unit this does not know
+/// panics, since a test asking for one is asking for something Turso was never shown to take.
+#[cfg(test)]
+fn duration_seconds(expiration: &str) -> i64 {
+    let mut seconds = 0;
+    let mut digits = String::new();
+
+    for character in expiration.chars() {
+        if character.is_ascii_digit() {
+            digits.push(character);
+            continue;
+        }
+
+        let count: i64 = digits.parse().expect("a duration unit with no count");
+        let unit = match character {
+            'w' => 7 * 24 * 60 * 60,
+            'd' => 24 * 60 * 60,
+            'h' => 60 * 60,
+            'm' => 60,
+            's' => 1,
+            other => panic!("a duration unit Turso was not shown to take: {other}"),
+        };
+
+        seconds += count * unit;
+        digits.clear();
+    }
+
+    assert!(
+        digits.is_empty(),
+        "a duration ending in a bare count: {expiration}"
+    );
+
+    seconds
 }
 
 #[cfg(test)]

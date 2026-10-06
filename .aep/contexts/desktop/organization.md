@@ -26,13 +26,14 @@ change, the link and the Turso account, keep their history.*
 ## Language
 
 **Organization**:
-One database on the owner's Turso account, `org-<id>`, holding seventeen tables (`store::TABLES`):
+One database on the owner's Turso account, `org-<id>`, holding nineteen tables (`store::TABLES`):
 its format, the organization, the roles, the members, the certificates, the revocations, the
 workspaces, the grants, the invitations, the migration lease, the machine links, the register of
 the machines that hold it, the successions a handover writes, its mark, the workspace
-overrides, the sign-outs of one machine, and each machine's name (the last two by effort 846,
-with no change of format: `complete_schema` creates them after a pull, and the change to format 3
-with `workspace_override`). Every username and name
+overrides, the sign-outs of one machine, each machine's name (those two by effort 846), the
+organization's signed name and each member's lock (those two by effort 851). The four came with no
+change of format: `complete_schema` creates them after a pull, and the change to format 3 came
+with `workspace_override`. *It read seventeen tables until effort 851 (2026-10-05).* Every username and name
 in it is sealed under the content key; every authority field is signed along a chain rooted at a
 key the member's machine pinned. Every member's machine keeps a replica.
 _Avoid_: "the control plane" and "the account" for it. There is no service of ours, and the
@@ -190,6 +191,35 @@ mark and never printed. Checked by its first bytes, never its file name, and rea
 open dialog chose, so the image does not cross IPC on its way in.
 _Avoid_: "logo" or "letterhead", which the organization does not keep.
 
+**Organization name**:
+What the organization is called, sealed under the content key in two places: the unsigned
+`organization.name_sealed` column a build from before effort 851 reads, and the one
+`organization_name` row, signed by the root alone (`Authority::OrganizationName`). The owner sets
+it at the first run and renames it from the organization tab of settings
+(`setup_rename`, the owner alone, no flag), which writes both with one sealed value. A
+machine reads the signed row where it verifies; one that has never seen a signed name falls back to
+the column, and once it has (`name_signed` on its held entry) a missing or forged row shows the name
+it holds. Where no signed row verifies, the owner's machine signs at its next sign-in, resume or
+heartbeat the name its own held entry carries, never the column's, and rewrites the column to that
+name where the two differ, so a member who deletes the row or rewrites the column never gets the
+owner to sign their name. Each machine keeps
+the name in the clear on its record entry so the wall names it before anybody unlocks, and a link
+carries the name as it stood when made. *Unsigned until effort 851 (2026-10-05).*
+
+**Lock**:
+A member's standing between joining and being trusted to change anything, by effort 851
+(requirements 31 to 37). An account an invitation makes, and one whose password is reset, is
+locked; a locked member signs in, sets their password and views what their role shows, and every
+other act is refused (`RefusalReason::Locked`) and drawn dimmed with that reason. The owner, or a
+holder of `assignRole` or `overrideMember` who outranks the member, unlocks them from their card
+once they have set a password (`member_unlock`); nobody unlocks themselves, and the owner is never
+locked. One `member_lock` row per member, signed (`Authority::MemberLock`): a row that does not
+verify reads locked. Before the owner's machine has written its backfill and the root-signed
+marker (the owner's own lock row), a member with no row reads unlocked, which is how members who
+had set a password before 851 carried over; after it, or on a machine that latched it
+(`lock_marked`), no row reads locked, so deleting one's own row unlocks nothing; and a machine that joined by an invitation or a machine link reads each member it latched locked with no row from the first join (`own_lock_latched`, a list), without judging anybody else by it. The row is signed over the member's signing key as well (`member-lock.v2`), and a reset draws a new key, so an unlock kept from before a reset and written back reads locked. The backfill locks every member whose password is not their own, runs only after a pull that went, and never on a machine whose own member reads locked. Any role change (`role/apply.rs`) re-signs the locks of the members it moves under the actor where the actor covers them.
+_Avoid_: "suspended" or "disabled", which this application does not do.
+
 **Vault**:
 A member's X25519 keypair, sealed under a key Argon2id derives from their password, on their own
 row. The password opens it on any machine, with or without a network; what it unseals is the
@@ -242,7 +272,8 @@ and a certificate that is not the member's own, or the root, and a row naming th
 the root about its own holder, with no override; a role row `manageRoles`, a rank above the role and
 every flag its mask carries; a grant `grantWorkspace`, a read-only one the root; a workspace row
 `renameWorkspace` or `grantWorkspace`; an invitation `inviteMember` or `resetPassword`; the mark
-`manageMark`; a workspace override record flags alone and nothing granted it does not pin, about
+`manageMark`; the organization's name the root alone; a member's lock the root, or `assignRole` or
+`overrideMember` with a rank above the member and a certificate not the member's own; a workspace override record flags alone and nothing granted it does not pin, about
 a member who is in and not the certificate's own, and `overrideMember`, a rank above that member
 and every flag it pins, or the root. So a member holding the credential who signs around a command gets no further than
 their certificate: rows of the kinds its ceiling names, about people ranked below them, switching
@@ -297,14 +328,33 @@ credential, and a required `half` naming what stands behind it, an invitation or
 What a link holds is the issuer's own four-week grant on the organization database and, where it
 opens a vault, that vault's generated password, sealed under a key Argon2id derives from a
 six-character code and the half's secret together; the code is read out beside the link. It admits
-whoever opens it first, once, and lapses at the earlier of seven days and its credential's own
-death. `connect` and `disconnect` are a machine and the organization; `sign in` and `sign out` are
+whoever opens it first, once, and lapses at the earlier of the lifetime its maker chose and its
+credential's own death: one to twenty-three hours, one to six days, or a week, three days unless
+changed (`lifetimeHours`). An owner's link carries a credential minted to die with it; a manager's
+carries the manager's four-week grant, an accepted risk. A spent, lapsed or revoked link is refused
+before anything is recorded on the machine, and the replica it pulled is deleted unless the machine
+holds that organization. A link for an organization the machine already holds selects it, and is
+judged on that organization's own replica with no session open: a reset link for one of its members
+admits them, anything else is refused as already used. **Every link waiting to be opened is
+listed for whoever could have made it and revoked there** (`invitation/outstanding.rs`, effort
+851): a holder of `inviteMember` or `resetPassword` sees the links of the accounts ranked below
+them, the owner every one, each with its member, what opening it does (joins, chooses a new
+password, adds a machine), its maker where an invitation names one, and its lapse; a locked member
+is refused both. A revoke deletes the row, so opening the link reads revoked, and the account
+stays. The list is a card under the people in the organization tab (`member/component/links.svelte`),
+the soonest to lapse first, its count in the header, four rows in view with the rest scrolled inside
+the card, and past four a search by username.
+A machine link whose row is gone reads revoked as an invitation's does; it read `Replaced` until
+the revoke, since a gone row names nobody to ask whether a newer link took its place. *It lapsed
+at seven days, and a spent invitation link still recorded the organization, until effort 851
+(2026-10-05).* `connect` and `disconnect` are a machine and the organization; `sign in` and `sign out` are
 the member. *There was an organization link carrying a never-expiring read-only credential until
 828's requirement 16 retired it; what recovers an organization whose every machine is gone is the
 owner's Turso account and their password.*
 
 **Authority**:
-The Platform API token a consent produced, in the keyring on the owner's machine and nowhere else.
+The Platform API token a consent produced, in the keyring on the owner's machine and nowhere else,
+one per organization (`org:<id>`, effort 851; [[contexts/desktop/remote-sync]]).
 Creating and deleting a workspace, minting a read-only grant, locking out, renewing credentials and
 the Turso account need it, and they are `OWNER_ONLY` flags besides, checked on the owner's verified
 row rather than the session's snapshot (`session::Actor::require_owner`). An owner restored on a new
@@ -378,6 +428,17 @@ refused unless what it yields is the key this machine pinned, and the directory 
   key. The member's list is every `machine` row naming them, with no presence window, this machine
   first and then by `seen_at`, which the heartbeat refreshes at most hourly (`SEEN_REFRESH`).
   *Unsigned, as the epoch is, and under the same accepted limit.*
+- **A machine holds several organizations, and one is open at a time** (effort 851). The wall's
+  switcher, signed out, picks which; `session_select` is refused while a session is open, and
+  `session_remove` forgets one organization's replicas, remembered key, record entry and Turso
+  consent and nothing of the others. Set up, connect-existing, an invitation and a machine link
+  each add an organization and select it. Only the open organization replicates; one signed out
+  elsewhere while not open shows signed out when next opened.
+- **The lock is held by the member's own build, as every record flag is.** Organization acts are
+  refused in Rust and record writes at the procedure, so a modified client gets past it, and anybody
+  holding the database's credential can write a lock row that reads locked, which an unlock answers
+  (851, *Risks*). A machine that never read the marker, and loses both the member's row and the
+  marker, reads the carry-over.
 - **One Turso group holds one organization, and a group that holds one is connected to.** A group
   holding an `org-` database sends the walk to a step where the owner types their username and
   password, and this machine joins the organization that is there. **Only the owner can**, because

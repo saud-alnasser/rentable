@@ -40,9 +40,11 @@ test('a machine signed out from another one is locked, with the reason said', ()
 	);
 	assert.deepEqual(
 		organizationAdmission({
-			organization: null,
+			organizations: [],
+			selected: null,
 			session: null,
 			holdsTursoAuthority: false,
+			setupConsented: false,
 			signedOutElsewhere: true
 		}),
 		{ kind: 'signInRequired', reason: 'noOrganization' }
@@ -54,9 +56,11 @@ test('a machine signed out from another one is locked, with the reason said', ()
 test('a machine that holds no organization is stopped at the door, and told why', () => {
 	assert.deepEqual(
 		organizationAdmission({
-			organization: null,
+			organizations: [],
+			selected: null,
 			session: null,
 			holdsTursoAuthority: false,
+			setupConsented: false,
 			signedOutElsewhere: false
 		}),
 		{
@@ -78,7 +82,7 @@ test('a machine that holds one and no open vault is locked', () => {
 // member is found.
 test('a machine that connected by link and has not signed in yet is locked, not empty', () => {
 	const state = fakeOrganizationState({
-		organization: fakeHeldOrganization({ memberId: null, role: null }),
+		organizations: [fakeHeldOrganization({ memberId: null, role: null })],
 		session: null
 	});
 

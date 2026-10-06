@@ -724,6 +724,12 @@ mod tests {
             joined_at: 0,
             format: None,
             machine_signed_out: 0,
+            turso_organization: None,
+            workspace_id: None,
+            name_signed: false,
+            name_signed_at: 0,
+            lock_marked: false,
+            own_lock_latched: Vec::new(),
         }
     }
 
@@ -775,7 +781,7 @@ mod tests {
         )
         .await
         .expect("the first run failed");
-        let joined = machine.organization.clone().expect("the record");
+        let joined = machine.selected().cloned().expect("the record");
         let mut owner = sign_in(&store, &joined, OWNER_PASSWORD, &slot())
             .await
             .expect("the owner did not sign in");

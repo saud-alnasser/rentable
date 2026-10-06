@@ -112,6 +112,17 @@
 	};
 
 	/**
+	 * where every refused link ends: the refusal stays on this screen, and the startup unit reads
+	 * where the machine stands under it, in place (effort 851, the review of requirement 13). A
+	 * link for an organization this machine holds selects it where nobody is in, so the wall the
+	 * person goes back to is that one's; and one for the organization open now ends the session
+	 * to be judged, so the unit puts the wall up behind this screen rather than go on as signed in.
+	 */
+	const refused = () => {
+		void startup.linkRefused();
+	};
+
+	/**
 	 * what every refusal is said in: one sentence in the reader's language, from the refusal's
 	 * reason where it carried one, and never with the shell's own words spliced after it. Those are
 	 * the detail each step keeps behind a disclosure.
@@ -157,6 +168,8 @@
 				step = joinFailed(waiting, error, describe);
 			}
 
+			refused();
+
 			return;
 		}
 
@@ -195,6 +208,7 @@
 			await host.invitation.accept(link, code, password);
 		} catch (error) {
 			step = joinFailed(step, error, describe);
+			refused();
 
 			return;
 		}
@@ -207,7 +221,6 @@
 	{step}
 	onConnect={(link, code) => void connect(normalizeLink(link), code)}
 	onJoin={(link, code, password) => void join(link, code, password)}
-	onSignIn={standingChanged}
 	onBack={() => {
 		// the form is the screen's first step, so from it back is the wall the person came from.
 		// Every later step came from the form and returns to it, with what was typed still in it.

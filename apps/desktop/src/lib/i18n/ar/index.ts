@@ -247,6 +247,7 @@ const ar = {
 			previous: 'السابق',
 			previousSlide: 'الشريحة السابقة',
 			search: 'بحث',
+			showPassword: 'أظهر كلمة المرور',
 			sidebar: 'الشريط الجانبي',
 			toggleSidebar: 'تبديل الشريط الجانبي'
 		},

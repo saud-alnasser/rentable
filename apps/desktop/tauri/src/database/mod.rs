@@ -465,6 +465,13 @@ impl Database {
         rows.next().await.map(|_| ())
     }
 
+    /// Whether the engine has the replica at `replica` open: what a forget asks before it deletes
+    /// a workspace's files, since the record's current workspace need not be the one the engine
+    /// was left on (`organization::session::forget`).
+    pub fn holds_replica(&self, replica: &Path) -> bool {
+        matches!(self.engine, Some(Engine::Workspace(_))) && self.watch.is_over(replica)
+    }
+
     /// Let go of the file.
     ///
     /// Taking the engine rather than closing it is what matters on the replica arm: there is no

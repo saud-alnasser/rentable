@@ -28,17 +28,19 @@ export type StartupPorts = {
 	sync: {
 		getState(): Promise<RemoteSyncState>;
 	};
-	/** the organization this machine holds, and the vault a username and password open. */
+	/** the organizations this machine holds, and the vault a username and password open. */
 	organization: {
 		getState(): Promise<OrganizationState>;
-		/** sign in to the held organization by username and password; one sentence for a refusal. */
+		/** sign in to the chosen organization by username and password; one sentence for a refusal. */
 		signIn(username: string, password: string): Promise<OrganizationState>;
 		signOut(): Promise<OrganizationState>;
+		/** choose the organization the wall opens on; refused while somebody is signed in. */
+		select(organizationId: string): Promise<OrganizationState>;
 		/**
-		 * forget the held organization on this machine: every replica, the record, the Turso
-		 * authority. The one confirm before it is the screen's.
+		 * forget one held organization on this machine: its replicas, its entry, its remembered
+		 * sign-in and its Turso consent. The one confirm before it is the screen's.
 		 */
-		disconnect(): Promise<OrganizationState>;
+		remove(organizationId: string): Promise<OrganizationState>;
 		/** open one of the workspaces the session holds a grant on, before the bootstrap. */
 		openWorkspace(workspaceId: string): Promise<unknown>;
 		/** renew credentials close to lapsing, on the owner's machine, best effort. */
