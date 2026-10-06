@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(desktop): phone, national id, amount and cost accept Arabic-Indic digits
@@ -14,9 +14,9 @@ Arabic-Indic digits and the Arabic decimal separator typed or pasted into phone,
 
 Traces requirement 21 and criterion 21.
 
-- [ ] One table and `toWesternDigits` in `platform/locale.ts`; search imports the table from there.
-- [ ] The four fields fold at validation and submit; router schemas are unchanged.
-- [ ] Tests per criterion 21 in the tenant, payment and contract form tests and a locale unit test.
+- [x] One table and `toWesternDigits` in `platform/locale.ts`; search imports the table from there.
+- [x] The four fields fold at validation and submit; router schemas are unchanged.
+- [x] Tests per criterion 21 in the tenant, payment and contract form tests and a locale unit test.
 
 ## Relevant areas
 

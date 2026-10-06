@@ -4,6 +4,7 @@ import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 import type { ContractPrefill } from '$lib/contract/host.svelte';
 import { getContractRenewalTerm } from '$lib/contract/renewal/renewal';
 import { getContractCycleCount } from '$lib/contract/schedule/end-date';
+import { toWesternDigits } from '$lib/platform/locale';
 import { isWholeHalalas } from '@rentable/design/money.js';
 import { z } from 'zod';
 
@@ -20,6 +21,12 @@ import { z } from 'zod';
  * module load there is none. The form builds it once, as it opens.
  */
 
+/**
+ * A field's figure as `Number` reads it, its Arabic-Indic digits and decimal separator read as
+ * the Western ones they stand for (effort 854, requirement 21).
+ */
+const figure = (value: string) => Number(toWesternDigits(value));
+
 /** the form's schema, its refusals worded in the locale the form opened in. */
 export function contractFormSchema(t: TranslationFunctions) {
 	return z.object({
@@ -27,21 +34,23 @@ export function contractFormSchema(t: TranslationFunctions) {
 		govId: z.string().trim().optional().default(''),
 		tenantId: z.string().min(1, t.contracts.form.tenantRequired()),
 		interval: ContractSchema.shape.interval,
+		// the cost and the cycles are read in Western digits wherever they are parsed, while the
+		// fields keep what was typed (effort 854, requirement 21).
 		cost: z
 			.string()
 			.trim()
 			.min(1, t.contracts.form.costRequired())
-			.refine((value) => Number.isFinite(Number(value)) && Number(value) > 0, {
+			.refine((value) => Number.isFinite(figure(value)) && figure(value) > 0, {
 				message: t.contracts.form.costGreaterThanZero()
 			})
-			.refine(isWholeHalalas, {
+			.refine((value) => isWholeHalalas(toWesternDigits(value)), {
 				message: t.contracts.form.costDecimalPlaces()
 			}),
 		cycles: z
 			.string()
 			.trim()
 			.min(1, t.contracts.form.cyclesRequired())
-			.refine((value) => Number.isInteger(Number(value)) && Number(value) > 0, {
+			.refine((value) => Number.isInteger(figure(value)) && figure(value) > 0, {
 				message: t.contracts.form.cyclesGreaterThanZero()
 			}),
 		start: z.string().min(1, t.contracts.form.startDateRequired()),
@@ -131,5 +140,5 @@ export const toPayload = (form: ContractForm) => ({
 	govId: form.govId || undefined,
 	tenantId: form.tenantId,
 	interval: form.interval,
-	cost: Number(form.cost)
+	cost: figure(form.cost)
 });

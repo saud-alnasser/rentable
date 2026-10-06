@@ -17,7 +17,7 @@
 		parseDateInput,
 		toCalendarDate
 	} from '$lib/date';
-	import { formatLocaleMoney, getIntlLocale, RIYAL } from '$lib/platform/locale';
+	import { formatLocaleMoney, getIntlLocale, RIYAL, toWesternDigits } from '$lib/platform/locale';
 	import { isWholeHalalas } from '@rentable/design/money.js';
 	import { cn } from '@rentable/design/tailwind.js';
 	import { getAmountDueThisCycle, getRemainingContractBalance } from '$lib/contract';
@@ -44,10 +44,16 @@
 			.string()
 			.trim()
 			.min(1, $LL.contracts.form.paymentAmountRequired())
-			.refine((value) => Number.isFinite(Number(value)) && Number(value) > 0, {
-				message: $LL.contracts.form.paymentAmountGreaterThanZero()
-			})
-			.refine(isWholeHalalas, {
+			// read in Western digits wherever it is parsed: the field keeps what was typed
+			// (effort 854, requirement 21).
+			.refine(
+				(value) =>
+					Number.isFinite(Number(toWesternDigits(value))) && Number(toWesternDigits(value)) > 0,
+				{
+					message: $LL.contracts.form.paymentAmountGreaterThanZero()
+				}
+			)
+			.refine((value) => isWholeHalalas(toWesternDigits(value)), {
 				message: $LL.contracts.form.paymentAmountDecimalPlaces()
 			}),
 		// none of the three is required: a payment recorded without them says so on its record.
@@ -120,7 +126,7 @@
 
 				const payload = {
 					date: parseDateInput(form.data.date),
-					amount: Number(form.data.amount),
+					amount: Number(toWesternDigits(form.data.amount)),
 					// what was left blank is sent as nothing, so an edit that clears a field clears it.
 					method: form.data.method || null,
 					reference: form.data.reference.trim() || null,
@@ -235,7 +241,7 @@
 		});
 	});
 
-	const enteredAmount = $derived(Number($form.amount));
+	const enteredAmount = $derived(Number(toWesternDigits($form.amount)));
 	const hasEnteredAmount = $derived(Number.isFinite(enteredAmount) && enteredAmount > 0);
 
 	// what this payment already contributes to the contract's paid figure. Editing one replaces

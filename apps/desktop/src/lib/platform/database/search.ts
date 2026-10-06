@@ -1,4 +1,5 @@
 import { Column, is, sql, type AnyColumn, type SQL } from 'drizzle-orm';
+import { ARABIC_DECIMAL_SEPARATOR, ARABIC_INDIC_DIGITS } from '../locale';
 import { ASCII_ONLY_COLUMNS } from './schema';
 import z from 'zod';
 
@@ -30,14 +31,6 @@ import z from 'zod';
  */
 
 /**
- * ٠١٢٣٤٥٦٧٨٩, the digits an Arabic keyboard types. Every number renders in Western digits, but
- * a reader may still type these, and the search matches them.
- */
-const ARABIC_INDIC_DIGITS = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'].map(
-	(digit, value) => [digit, String(value)] as const
-);
-
-/**
  * The separators a number is *rendered* with and never stored with: `1,500` as either
  * locale renders it and `١٬٥٠٠` as an Arabic keyboard writes it both stand for the `1500` in the column. The group separators go, and
  * the Arabic decimal separator becomes the point SQLite casts a real with.
@@ -45,7 +38,7 @@ const ARABIC_INDIC_DIGITS = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨
 const NUMBER_SEPARATORS = [
 	[',', ''], // U+002C, the en-GB group separator
 	['٬', ''], // ٬ the Arabic group separator
-	['٫', '.'] // ٫ the Arabic decimal separator
+	ARABIC_DECIMAL_SEPARATOR // ٫ the Arabic decimal separator
 ] as const;
 
 /**
@@ -85,6 +78,7 @@ const NON_LETTER_MARKS = [
  * what a caller reaches.
  */
 export const SEARCH_FOLDINGS: readonly (readonly [string, string])[] = [
+	// the one digit table, which a field taking a figure reads through as well (`platform/locale`).
 	...ARABIC_INDIC_DIGITS,
 	...NUMBER_SEPARATORS,
 	...ALEF_VARIANTS,

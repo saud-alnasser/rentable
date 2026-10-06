@@ -260,3 +260,46 @@ test('a payment holding none of the three opens with none chosen and saves', asy
 	await waitFor(() => expect(submitted).toHaveLength(1));
 	expect(submitted[0]).toMatchObject({ id: 'payment-1', amount: 1500, method: null });
 });
+
+// --- Digits as an Arabic keyboard types them -------------------------------------------
+//
+// Criterion 21 of effort 854: an amount in Arabic-Indic digits, with `٫` as its decimal point,
+// is read as the Western figure it stands for, never refused as malformed.
+
+/** the amount field itself, to type into. */
+const amountField = () => document.querySelector<HTMLInputElement>('input[inputmode=decimal]')!;
+
+test('an amount typed in arabic-indic digits is saved as its western figure', async () => {
+	read.contract = { ...monthly, paidAmount: 0 };
+
+	open();
+
+	await waitFor(() => expect(amount()).toBe('1500'));
+
+	await fireEvent.input(amountField(), { target: { value: '' } });
+
+	for (const character of '١٥٠٠') {
+		await fireEvent.input(amountField(), { target: { value: amountField().value + character } });
+	}
+
+	await submit();
+
+	await waitFor(() => expect(submitted).toHaveLength(1));
+	expect(submitted[0]).toMatchObject({ contractId: 'contract-1', amount: 1500 });
+});
+
+test('an amount pasted with the arabic decimal separator is saved as its western figure', async () => {
+	read.contract = { ...monthly, paidAmount: 0 };
+
+	open();
+
+	await waitFor(() => expect(amount()).toBe('1500'));
+
+	await fireEvent.paste(amountField());
+	await fireEvent.input(amountField(), { target: { value: '٢٥٠٫٧٥' } });
+	await submit();
+
+	await waitFor(() => expect(submitted).toHaveLength(1));
+	expect(submitted[0]).toMatchObject({ contractId: 'contract-1', amount: 250.75 });
+	expect(amountField().getAttribute('aria-invalid')).toBeNull();
+});

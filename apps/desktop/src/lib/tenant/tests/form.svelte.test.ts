@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
-import { beforeAll, expect, test } from 'vitest';
+import { afterEach, beforeAll, expect, test, vi } from 'vitest';
 
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import en from '$lib/i18n/en';
@@ -20,6 +20,29 @@ import Providers from '#tests/providers.svelte';
  */
 
 const noop = () => {};
+
+const { created } = vi.hoisted(() => ({
+	/** what each create handed the tenant's mutation, in order. */
+	created: [] as Record<string, unknown>[]
+}));
+
+// the create is stood in for, so what a valid submit sends is what is asserted.
+vi.mock('$lib/tenant/query', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/tenant/query')>()),
+	useCreateTenant: () => ({
+		isPending: false,
+		mutateAsync: async (variables: Record<string, unknown>) => {
+			created.push(variables);
+
+			return { id: 'tenant-1' };
+		}
+	})
+}));
+
+afterEach(() => {
+	document.body.innerHTML = '';
+	created.length = 0;
+});
 
 // jsdom lays nothing out and has no `scrollIntoView`, which the submit calls to bring the field
 // into view before focusing it. A no-op stands in; where the field lands is not what is asserted.
@@ -64,4 +87,76 @@ test('submitting an invalid tenant form focuses its first invalid field', async 
 	expect(invalid.length).toBeGreaterThan(1);
 	expect(invalid[0]).toBe(nationalId);
 	expect(name.getAttribute('aria-invalid')).toBeNull();
+});
+
+// --- Digits as an Arabic keyboard types them -------------------------------------------
+//
+// Criterion 21 of effort 854: Arabic-Indic digits typed or pasted into the phone and the national
+// id are read as the Western digits they stand for, never erased or refused.
+
+/** types `text` one character at a time, as a keyboard does, each input carrying what the field holds. */
+async function type(input: HTMLInputElement, text: string) {
+	for (const character of text) {
+		await fireEvent.input(input, { target: { value: input.value + character } });
+	}
+}
+
+/** pastes `text` whole, as the clipboard does: one paste, then one input carrying all of it. */
+async function paste(input: HTMLInputElement, text: string) {
+	await fireEvent.paste(input);
+	await fireEvent.input(input, { target: { value: input.value + text } });
+}
+
+async function openNewTenant() {
+	loadLocale('en');
+	setLocale('en');
+
+	render(
+		TenantForm,
+		{ open: true, onOpenChange: noop },
+		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } }
+	);
+
+	return {
+		form: document.querySelector<HTMLFormElement>('[data-slot=form-surface] form')!,
+		name: screen.getByPlaceholderText<HTMLInputElement>(en.common.labels.name),
+		nationalId: screen.getByPlaceholderText<HTMLInputElement>(en.common.labels.nationalId),
+		phone: screen.getByPlaceholderText<HTMLInputElement>(en.tenants.form.phoneNumberPlaceholder)
+	};
+}
+
+test('arabic-indic digits typed into the phone and national id are read as western', async () => {
+	const { form, name, nationalId, phone } = await openNewTenant();
+
+	await fireEvent.input(name, { target: { value: 'Sami' } });
+	await type(nationalId, '١٢٣٤٥٦٧٨٩٠');
+	await type(phone, '٥٥١٢٣٤٥٦٧');
+
+	await fireEvent.submit(form);
+
+	await waitFor(() => expect(created).toHaveLength(1));
+	expect(created[0]).toMatchObject({
+		name: 'Sami',
+		nationalId: '1234567890',
+		phone: '+966551234567'
+	});
+});
+
+test('arabic-indic digits pasted into the phone and national id are read as western', async () => {
+	const { form, name, nationalId, phone } = await openNewTenant();
+
+	await fireEvent.input(name, { target: { value: 'Sami' } });
+	await paste(nationalId, '١٢٣٤٥٦٧٨٩٠');
+	await paste(phone, '٥٥١٢٣٤٥٦٧');
+
+	await fireEvent.submit(form);
+
+	await waitFor(() => expect(created).toHaveLength(1));
+	expect(created[0]).toMatchObject({
+		name: 'Sami',
+		nationalId: '1234567890',
+		phone: '+966551234567'
+	});
+	expect(nationalId.getAttribute('aria-invalid')).toBeNull();
+	expect(phone.getAttribute('aria-invalid')).toBeNull();
 });
