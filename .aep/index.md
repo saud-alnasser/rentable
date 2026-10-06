@@ -138,7 +138,7 @@ Start at [[protocol]].
 | 843-the-way-in-and-the-workspace-control-read-as-apple-would | implemented | [[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/spec]] | 1 | 1 | 22 |
 | 846-the-settings-and-the-record-cards-are-rethought | implemented | [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]] | 7 | 1 | 55 |
 | 851-the-way-out-the-password-fields-and-the-organizations-name | implemented | [[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/spec]] | 0 | 0 | 20 |
-| 854-bugs-and-edge-cases-across-the-app | accepted | [[efforts/854-bugs-and-edge-cases-across-the-app/spec]] | 3 | 0 | 32 |
+| 854-bugs-and-edge-cases-across-the-app | accepted | [[efforts/854-bugs-and-edge-cases-across-the-app/spec]] | 3 | 0 | 36 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -611,3 +611,7 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/854-bugs-and-edge-cases-across-the-app/tickets/30-a-gate-that-never-opens-is-bounded]] fix(desktop): a database the sync engine never releases is bounded and logged | 854-bugs-and-edge-cases-across-the-app | resolved | — |
 | [[efforts/854-bugs-and-edge-cases-across-the-app/tickets/31-a-ledger-export-reads-back]] fix(desktop): a contract's payments ledger exported to a file imports back | 854-bugs-and-edge-cases-across-the-app | resolved | — |
 | [[efforts/854-bugs-and-edge-cases-across-the-app/tickets/32-the-contexts-say-what-is-true]] docs(desktop): the contexts and rules say what the effort made true | 854-bugs-and-edge-cases-across-the-app | resolved | 27, 28, 29, 30, 31 |
+| [[efforts/854-bugs-and-edge-cases-across-the-app/tickets/33-a-refund-is-judged-by-one-rule]] fix(desktop): a refund is judged by one rule wherever it is written | 854-bugs-and-edge-cases-across-the-app | open | — |
+| [[efforts/854-bugs-and-edge-cases-across-the-app/tickets/34-the-rules-name-what-the-effort-added]] docs(desktop): the rules name what the effort added | 854-bugs-and-edge-cases-across-the-app | open | — |
+| [[efforts/854-bugs-and-edge-cases-across-the-app/tickets/35-the-ledger-file-is-the-payments-sheet]] fix(desktop): a contract's ledger file is written by the payments sheet | 854-bugs-and-edge-cases-across-the-app | open | — |
+| [[efforts/854-bugs-and-edge-cases-across-the-app/tickets/36-the-app-says-why-it-cannot-start]] fix(desktop): the app says plainly, in both languages, why it cannot start | 854-bugs-and-edge-cases-across-the-app | open | — |
