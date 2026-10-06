@@ -28,12 +28,25 @@ export type UndoIntent = 'undo' | 'redo';
  * stack's reactive face is a rune module, and this one is read by a test running under Node.
  * @param refusal why the reader may not move the change there is in a direction, or nothing where
  * they may (`InverseStack.refusal`, effort 838).
+ * @param isCovered whether a form, a sheet or a confirmation stands over the page, asked at each
+ * press. While one does, neither direction moves anything: the change on top of the stack is one
+ * the reader cannot see from under the cover (effort 854, requirement 12). Passed in because the
+ * answer is read from the document, which a test under Node has none of.
  */
 export function toUndoShortcuts(
 	apply: (intent: UndoIntent) => void,
 	hasChange: (intent: UndoIntent) => boolean,
-	refusal: (intent: UndoIntent, translations: TranslationFunctions) => string | undefined
+	refusal: (intent: UndoIntent, translations: TranslationFunctions) => string | undefined,
+	isCovered: () => boolean
 ): ApplicationShortcut[] {
+	// still the application's key under a cover, so the webview never takes it; it just moves
+	// nothing until the cover is gone.
+	const move = (intent: UndoIntent) => {
+		if (!isCovered()) {
+			apply(intent);
+		}
+	};
+
 	return [
 		{
 			id: 'undo',
@@ -45,7 +58,7 @@ export function toUndoShortcuts(
 					? refusal('undo', translations)
 					: translations.common.undo.nothingToUndo(),
 			standsDownWhileEditing: true,
-			run: () => apply('undo')
+			run: () => move('undo')
 		},
 		{
 			id: 'redo',
@@ -60,7 +73,7 @@ export function toUndoShortcuts(
 					? refusal('redo', translations)
 					: translations.common.undo.nothingToRedo(),
 			standsDownWhileEditing: true,
-			run: () => apply('redo')
+			run: () => move('redo')
 		}
 	];
 }

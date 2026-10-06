@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [01]
 ---
 
@@ -15,9 +15,9 @@ The undo and redo keys do nothing while a form, sheet or confirmation is open ov
 
 Traces requirement 12 and criterion 12.
 
-- [ ] `isCovered` moves to `shortcut/covered.ts`, exported from `shortcut/index.ts`; `create/component/shortcut.svelte` imports it from there.
-- [ ] `toUndoShortcuts` takes an `isCovered` predicate and each `run` applies nothing while it answers true.
-- [ ] node test in `undo/tests/key.test.ts` and a Vitest test opening a sheet with a focused button: Ctrl+Z and Ctrl+Y apply nothing; with only the palette open they apply.
+- [x] `isCovered` moves to `shortcut/covered.ts`, exported from `shortcut/index.ts`; `create/component/shortcut.svelte` imports it from there.
+- [x] `toUndoShortcuts` takes an `isCovered` predicate and each `run` applies nothing while it answers true.
+- [x] node test in `undo/tests/key.test.ts` and a Vitest test opening a sheet with a focused button: Ctrl+Z and Ctrl+Y apply nothing; with only the palette open they apply.
 
 ## Relevant areas
 
