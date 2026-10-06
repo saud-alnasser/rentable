@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(desktop): the app says plainly, in both languages, why it cannot start
@@ -14,8 +14,8 @@ When a settings or sync file is locked or unreadable for want of permission, the
 
 Traces requirement 17 and criterion 17.
 
-- [ ] `lib.rs`'s startup failure message has a bilingual title and a plain sentence naming the file and what to do, never the error's developer text (`rules/api-layer`, *Errors*); the raw reason is logged under a stable name.
-- [ ] A Rust test pins the message text built for a locked record (both languages, the file named, no raw error text) without opening a dialog.
+- [x] `lib.rs`'s startup failure message has a bilingual title and a plain sentence naming the file and what to do, never the error's developer text (`rules/api-layer`, *Errors*); the raw reason is logged under a stable name.
+- [x] A Rust test pins the message text built for a locked record (both languages, the file named, no raw error text) without opening a dialog.
 
 ## Relevant areas
 

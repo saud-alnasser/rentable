@@ -129,8 +129,8 @@ pub fn run() {
 /// A plugin's setup returns its error rather than panicking, and the one a person can meet is a
 /// record the system will not let the application open: `remote-sync.json` locked by another
 /// process, or a file with no permission. That record is never started over, since it holds every
-/// organization this machine has, so the launch shows a message naming the file and the reason,
-/// and exits non-zero.
+/// organization this machine has, so the launch shows a message naming the file, in both languages
+/// ([`notice`]), logs the reason under `startup.failed`, and exits non-zero.
 ///
 /// The message is the operating system's own, through `rfd`, because nothing of Tauri's is left
 /// to show one: no window has been made, and the dialog plugin's setup has not run.
@@ -140,18 +140,125 @@ fn cannot_start(error: &tauri::Error) -> ! {
         error => error.to_string(),
     };
 
-    diagnostics::error("startup.failed")
-        .with("error", reason.clone())
-        .write();
+    let mut failed = diagnostics::error("startup.failed").with("error", reason.clone());
+    if let Some(record) = persisted::unopenable_record(&reason) {
+        failed = failed.with("record", record.display().to_string());
+    }
+    failed.write();
     eprintln!("rentable could not start: {reason}");
+
+    let notice = notice(&reason);
 
     #[cfg(any(target_os = "macos", windows, target_os = "linux"))]
     rfd::MessageDialog::new()
         .set_level(rfd::MessageLevel::Error)
-        .set_title("rentable could not start")
-        .set_description(reason)
+        .set_title(notice.title)
+        .set_description(notice.description)
         .set_buttons(rfd::MessageButtons::Ok)
         .show();
 
     std::process::exit(1);
+}
+
+/// what the message at a launch that cannot start says.
+#[derive(Debug)]
+struct Notice {
+    title: String,
+    description: String,
+}
+
+/// **The message at a launch that cannot start, in Arabic and in English** (effort 854, ticket
+/// 36). The language a person chose lives in `settings.json`, which may be the very file that
+/// would not open, so the message says everything in both rather than guess one.
+///
+/// It names the file where the failure was a record that would not open, and says what to do.
+/// **The reason itself is never shown**: it is a developer's text, in English only, and it is in
+/// the log under `startup.failed` (`rules/api-layer`, *Errors*).
+fn notice(reason: &str) -> Notice {
+    let title = "تعذّر تشغيل rentable / rentable could not start".to_string();
+
+    let description = match persisted::unopenable_record(reason) {
+        Some(path) => format!(
+            "تعذّر على rentable فتح ملف يحتاجه ليبدأ. أغلق أي برنامج آخر قد يستخدم هذا الملف، \
+             أو تأكد من أن لديك إذنًا بفتحه، ثم افتح rentable مرة أخرى.\n\n\
+             rentable could not open a file it needs to start. Close any other program that may \
+             be using this file, or make sure you are allowed to open it, then open rentable \
+             again.\n\n{}",
+            path.display()
+        ),
+        None => "تعذّر على rentable أن يبدأ. افتح rentable مرة أخرى، وإن تكرر ذلك فأعد تشغيل \
+                 الجهاز ثم حاول مجددًا.\n\n\
+                 rentable could not start. Open rentable again, and if this keeps happening, \
+                 restart the computer and try once more."
+            .to_string(),
+    };
+
+    Notice { title, description }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::notice;
+    use crate::persisted::unopenable_message;
+    use std::path::Path;
+
+    /// what Windows says of a file another process holds: the developer's text the message
+    /// never shows.
+    const LOCKED: &str = "The process cannot access the file because it is being used by \
+                          another process. (os error 32)";
+
+    fn arabic(text: &str) -> bool {
+        text.chars().any(|c| ('\u{0600}'..='\u{06FF}').contains(&c))
+    }
+
+    fn english(text: &str) -> bool {
+        text.contains("rentable could not")
+    }
+
+    /// **A locked record is named, in both languages, and the reason stays in the log** (effort
+    /// 854, requirement 17, ticket 36): the language setting may be the file that would not open,
+    /// so the message cannot pick one.
+    #[test]
+    fn a_locked_record_is_named_in_both_languages_without_the_system_text() {
+        let path = Path::new("C:/Users/someone/AppData/Roaming/rentable/remote-sync.json");
+        let notice = notice(&unopenable_message(path, LOCKED));
+
+        assert!(arabic(&notice.title), "no Arabic title: {notice:?}");
+        assert!(english(&notice.title), "no English title: {notice:?}");
+        assert!(
+            arabic(&notice.description),
+            "no Arabic sentence: {notice:?}"
+        );
+        assert!(
+            english(&notice.description),
+            "no English sentence: {notice:?}"
+        );
+        assert!(
+            notice.description.contains(&path.display().to_string()),
+            "the file is not named: {notice:?}"
+        );
+        assert!(
+            !notice.description.contains("os error")
+                && !notice.description.contains("process cannot"),
+            "the system's text is shown: {notice:?}"
+        );
+        assert!(
+            !notice.description.contains("could not be opened:"),
+            "the developer's message is shown: {notice:?}"
+        );
+    }
+
+    /// a launch that failed on anything else says so in both languages, and shows no reason.
+    #[test]
+    fn any_other_failure_reads_in_both_languages_without_its_reason() {
+        let notice = notice("the updater plugin's key is malformed");
+
+        assert!(
+            arabic(&notice.title) && english(&notice.title),
+            "{notice:?}"
+        );
+        assert!(arabic(&notice.description), "{notice:?}");
+        assert!(english(&notice.description), "{notice:?}");
+        assert!(!notice.description.contains("malformed"), "{notice:?}");
+    }
 }

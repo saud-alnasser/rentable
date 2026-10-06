@@ -337,8 +337,27 @@ fn unopenable(path: &Path, error: Error) -> Error {
         .write();
 
     Error::Io {
-        message: format!("{} could not be opened: {message}", path.display()),
+        message: unopenable_message(path, &message),
     }
+}
+
+/// what joins the file to the reason in [`unopenable`]'s message, and what
+/// [`unopenable_record`] reads the file back out by.
+const UNOPENABLE: &str = " could not be opened: ";
+
+/// the message of the error [`unopenable`] returns: the file, and the system's reason.
+pub(crate) fn unopenable_message(path: &Path, reason: &str) -> String {
+    format!("{}{UNOPENABLE}{reason}", path.display())
+}
+
+/// The record a launch failed on, read back out of the reason it failed with, or `None` where the
+/// failure was not a record that would not open. The launch names the file in its message
+/// (`lib.rs`), and the reason a plugin's setup failed with reaches it only as text.
+pub fn unopenable_record(reason: &str) -> Option<&Path> {
+    reason
+        .split_once(UNOPENABLE)
+        .map(|(path, _)| Path::new(path))
+        .filter(|path| !path.as_os_str().is_empty())
 }
 
 impl<T> Deref for Persisted<T>
