@@ -1,5 +1,7 @@
+pub(crate) mod bound;
 pub mod command;
 pub(crate) mod corrupt;
+mod held;
 mod plugin;
 pub mod proxy;
 #[cfg(test)]
@@ -20,7 +22,10 @@ use tokio::sync::RwLock;
 
 use crate::{
     clock::{self, Clock},
-    database::proxy::{SQLQuery, SQLRow},
+    database::{
+        bound::{Bound, SYNC_BOUND, bounded},
+        proxy::{SQLQuery, SQLRow},
+    },
     error::Error,
     persisted::Persisted,
     settings::Settings,
@@ -56,20 +61,22 @@ pub struct Pulled {
 /// [`Database::replicate`] over the engine alone, so a test can hold a replica against a
 /// scripted remote without a `Database` around it.
 ///
-/// `watch` records damage either half reports beside the replica (`corrupt.rs`).
+/// `watch` records damage either half reports beside the replica (`corrupt.rs`), and `bound` is
+/// how long each half may wait on the remote before it is the offline case (`bound.rs`).
 pub(crate) async fn replicate_engine(
     database: &turso::sync::Database,
     watch: &corrupt::Watch,
+    bound: Bound,
 ) -> Replicated {
     let mut refusal = None;
-    let pushed = match watch.note(database.push().await) {
+    let pushed = match watch.note(bounded(bound, "push", database.push()).await) {
         Ok(()) => true,
         Err(error) => {
             refusal = read_sync_refusal(&error);
             false
         }
     };
-    let pulled = match watch.note(database.pull().await) {
+    let pulled = match watch.note(bounded(bound, "pull", database.pull()).await) {
         Ok(brought) => Some(brought),
         Err(error) => {
             if refusal.is_none() {
@@ -106,7 +113,31 @@ pub(crate) async fn replicate_engine(
 /// forbidden; two engines is not.
 pub enum Engine {
     Local(Pool<Sqlite>),
-    Workspace(turso::sync::Database),
+    Workspace(Replica),
+}
+
+/// A workspace's replica: the sync engine, and the connections its requests are served on.
+///
+/// **The two are opened together and go together**, because the connections are what keeps a
+/// request off the engine's own mutex while a push or a pull waits on the network (`held.rs`).
+pub struct Replica {
+    engine: turso::sync::Database,
+    connections: held::Held,
+}
+
+impl Replica {
+    /// Hold `engine` with its connections, opened now, before anything can push or pull it.
+    pub(crate) async fn open(
+        engine: turso::sync::Database,
+        watch: &corrupt::Watch,
+    ) -> Result<Self, turso::Error> {
+        let connections = held::Held::open(&engine, watch, held::SIZE).await?;
+
+        Ok(Replica {
+            engine,
+            connections,
+        })
+    }
 }
 
 /// the database as the plugin manages it, made in its setup: one engine behind one lock, which the
@@ -121,6 +152,8 @@ pub struct Database {
     settings: Arc<RwLock<Persisted<Settings>>>,
     /// what says when a damaged replica was set aside, in the name it is set aside under.
     clock: clock::Shared,
+    /// how long a push or a pull of the replica may wait on the remote (`bound.rs`).
+    bound: Bound,
 }
 
 impl Database {
@@ -133,7 +166,16 @@ impl Database {
             watch: corrupt::Watch::default(),
             settings,
             clock,
+            bound: SYNC_BOUND,
         }
+    }
+
+    /// The same database with its pushes and pulls given up after `bound`, which is how a test
+    /// against a silent remote finishes in seconds.
+    #[cfg(test)]
+    pub(crate) fn with_bound(mut self, bound: Bound) -> Self {
+        self.bound = bound;
+        self
     }
 
     /// Open this machine's database as a plain file.
@@ -219,10 +261,14 @@ impl Database {
             std::fs::create_dir_all(parent)?;
         }
 
-        self.engine = Some(Engine::Workspace(
-            Self::open_replica(self.clock.as_ref(), &db_path, remote_url, auth_token).await?,
-        ));
-        self.watch = corrupt::Watch::over(&db_path);
+        let engine =
+            Self::open_replica(self.clock.as_ref(), &db_path, remote_url, auth_token).await?;
+        let watch = corrupt::Watch::over(&db_path);
+
+        // **The connections are opened here, before the engine is handed out**, since nothing can
+        // push or pull it yet and `connect()` therefore waits on nothing (`held.rs`).
+        self.engine = Some(Engine::Workspace(Replica::open(engine, &watch).await?));
+        self.watch = watch;
 
         Ok(())
     }
@@ -330,7 +376,10 @@ impl Database {
     /// than a promise anybody had to keep.
     pub async fn push_replica(&self) -> bool {
         match self.engine.as_ref() {
-            Some(Engine::Workspace(database)) => self.watch.note(database.push().await).is_ok(),
+            Some(Engine::Workspace(replica)) => self
+                .watch
+                .note(bounded(self.bound, "push", replica.engine.push()).await)
+                .is_ok(),
             Some(Engine::Local(_)) | None => false,
         }
     }
@@ -350,7 +399,10 @@ impl Database {
             // behind every mutation, forever, with nothing having arrived. The call succeeding is
             // still an answer of its own: the remote was reached, which is the moment the
             // standing block records.
-            Some(Engine::Workspace(database)) => match self.watch.note(database.pull().await) {
+            Some(Engine::Workspace(replica)) => match self
+                .watch
+                .note(bounded(self.bound, "pull", replica.engine.pull()).await)
+            {
                 Ok(brought) => Pulled {
                     completed: true,
                     brought,
@@ -377,7 +429,9 @@ impl Database {
     /// the one reported, because both are about the same database and the same credential.
     pub async fn replicate(&self) -> Replicated {
         match self.engine.as_ref() {
-            Some(Engine::Workspace(database)) => replicate_engine(database, &self.watch).await,
+            Some(Engine::Workspace(replica)) => {
+                replicate_engine(&replica.engine, &self.watch, self.bound).await
+            }
             Some(Engine::Local(_)) | None => Replicated {
                 pushed: false,
                 received: false,
@@ -540,7 +594,9 @@ impl Database {
     pub async fn is_ready(&self) -> bool {
         match self.engine.as_ref() {
             Some(Engine::Local(pool)) => Self::is_pool_ready(pool).await,
-            Some(Engine::Workspace(database)) => Self::is_replica_ready(database).await,
+            Some(Engine::Workspace(replica)) => {
+                Self::is_replica_ready(&**replica.connections.checkout().await).await
+            }
             None => false,
         }
     }
@@ -559,11 +615,10 @@ impl Database {
     /// **A readiness probe that is permanently false is worse than none**: the two callers respond
     /// to a false by reconnecting, and on a replica that is refused. A replica that has never
     /// pulled holds `turso_cdc` and its kin and nothing else, and is not ready.
-    pub(crate) async fn is_replica_ready(database: &turso::sync::Database) -> bool {
-        let Ok(connection) = database.connect().await else {
-            return false;
-        };
-
+    ///
+    /// Asked on a connection the caller holds: on the workspace arm one checked out of the
+    /// replica's, so it never waits on a push or a pull (`held.rs`).
+    pub(crate) async fn is_replica_ready(connection: &turso::Connection) -> bool {
         let Ok(mut rows) = connection.query(Self::HAS_A_SCHEMA, ()).await else {
             return false;
         };
@@ -603,11 +658,13 @@ impl Database {
     pub async fn execute_single_sql(&self, query: SQLQuery) -> Result<Vec<SQLRow>, Error> {
         match self.engine.as_ref().ok_or_else(Self::not_connected)? {
             Engine::Local(pool) => proxy::execute_single_sql(pool, query).await,
-            // A connection per request, which is what the pool hands out on the other arm too.
-            // The engine arms change capture on every connection it opens, so one taken here is
-            // one whose writes can be pushed — and one taken any other way is not.
-            Engine::Workspace(database) => {
-                proxy::workspace_execute_single_sql(&self.watched(database).await?, query).await
+            // A connection per request, checked out of the replica's own, which is what the pool
+            // hands out on the other arm too. The engine arms change capture on every connection
+            // it opens, so one it opened is one whose writes can be pushed, and one taken any
+            // other way is not.
+            Engine::Workspace(replica) => {
+                proxy::workspace_execute_single_sql(&*replica.connections.checkout().await, query)
+                    .await
             }
         }
     }
@@ -618,21 +675,11 @@ impl Database {
     ) -> Result<Vec<Vec<SQLRow>>, Error> {
         match self.engine.as_ref().ok_or_else(Self::not_connected)? {
             Engine::Local(pool) => proxy::execute_batch_sql(pool, queries).await,
-            Engine::Workspace(database) => {
-                proxy::workspace_execute_batch_sql(&self.watched(database).await?, queries).await
+            Engine::Workspace(replica) => {
+                proxy::workspace_execute_batch_sql(&*replica.connections.checkout().await, queries)
+                    .await
             }
         }
-    }
-
-    /// A connection to the replica whose reads record the damage they meet (`corrupt.rs`).
-    async fn watched(
-        &self,
-        database: &turso::sync::Database,
-    ) -> Result<corrupt::Watched, turso::Error> {
-        Ok(corrupt::Watched::new(
-            self.watch.note(database.connect().await)?,
-            self.watch.clone(),
-        ))
     }
 }
 
@@ -697,7 +744,7 @@ mod tests {
         let (directory, database) = replica("readiness-empty").await;
 
         assert!(
-            !Database::is_replica_ready(&database).await,
+            !Database::is_replica_ready(&database.connect().await.expect("a connection")).await,
             "a replica with no schema in it reported itself ready"
         );
 
@@ -739,7 +786,8 @@ mod tests {
         .await
         .expect("replica engine");
 
-        let replicated = super::replicate_engine(&database, &Default::default()).await;
+        let replicated =
+            super::replicate_engine(&database, &Default::default(), super::SYNC_BOUND).await;
 
         assert!(!replicated.pushed);
         assert!(!replicated.received);
@@ -789,7 +837,8 @@ mod tests {
         .await
         .expect("replica engine");
 
-        let unreached = super::replicate_engine(&offline, &Default::default()).await;
+        let unreached =
+            super::replicate_engine(&offline, &Default::default(), super::SYNC_BOUND).await;
 
         assert_eq!(unreached.refusal, None);
 
@@ -824,7 +873,7 @@ mod tests {
             .expect("schema");
 
         assert!(
-            Database::is_replica_ready(&database).await,
+            Database::is_replica_ready(&database.connect().await.expect("a connection")).await,
             "a replica holding the workspace schema reported itself not ready"
         );
 
@@ -899,7 +948,11 @@ mod tests {
             Arc::new(RwLock::new(settings)),
             crate::clock::System::shared(),
         );
-        database.engine = Some(Engine::Workspace(engine));
+        database.engine = Some(Engine::Workspace(
+            super::Replica::open(engine, &Default::default())
+                .await
+                .expect("the replica's connections"),
+        ));
 
         let refusal = database.reconnect().await;
 
@@ -915,6 +968,238 @@ mod tests {
         database.engine = None;
         let _ = std::fs::remove_dir_all(&directory);
     }
+
+    /// A `Database` holding a workspace replica of its own, pointed at `remote`, whose pushes and
+    /// pulls are given up after `silence` without an answer.
+    async fn workspace_against(
+        name: &str,
+        remote: Option<String>,
+        silence: std::time::Duration,
+    ) -> (std::path::PathBuf, Database) {
+        use crate::{persisted::Persisted, settings::Settings};
+        use std::sync::Arc;
+        use tokio::sync::RwLock;
+
+        let directory = scratch(name);
+        let mut settings =
+            Persisted::<Settings>::load(directory.join("settings.json")).expect("settings");
+        settings.database_path = directory.join("app.db");
+
+        let mut database = Database::new(
+            Arc::new(RwLock::new(settings)),
+            crate::clock::System::shared(),
+        )
+        .with_bound(super::Bound {
+            silence,
+            ceiling: std::time::Duration::from_secs(60),
+        });
+        database
+            .connect_workspace("silent", remote, || async {
+                Ok::<String, turso::Error>("a-credential".to_string())
+            })
+            .await
+            .expect("the workspace replica");
+
+        (directory, database)
+    }
+
+    /// **A push, a pull and a replication the remote never answers read as offline within the
+    /// bound** (effort 854, criterion 15). The remote takes the connection and says nothing, which
+    /// the engine, with no timeout of its own, would wait on for good; each call answers exactly
+    /// what being offline already answers, so no caller has anything new to read.
+    #[test]
+    fn a_silent_remote_reads_as_offline_within_the_bound() {
+        use crate::sync::test::server::{SilentServer, within};
+        use std::time::{Duration, Instant};
+
+        within(Duration::from_secs(60), async {
+            let silent = SilentServer::start();
+            let (directory, database) = workspace_against(
+                "silent-offline",
+                Some(silent.url()),
+                Duration::from_millis(300),
+            )
+            .await;
+
+            let started = Instant::now();
+            assert!(!database.push_replica().await, "a silent push went through");
+            assert!(
+                started.elapsed() < Duration::from_secs(2),
+                "the push waited on"
+            );
+
+            let started = Instant::now();
+            assert_eq!(
+                database.pull_replica().await,
+                super::Pulled {
+                    completed: false,
+                    brought: false
+                },
+                "a silent pull read as answered"
+            );
+            assert!(
+                started.elapsed() < Duration::from_secs(2),
+                "the pull waited on"
+            );
+
+            let started = Instant::now();
+            assert_eq!(
+                database.replicate().await,
+                super::Replicated {
+                    pushed: false,
+                    received: false,
+                    refusal: None,
+                    completed: false,
+                },
+                "a silent replication read as anything but offline"
+            );
+            assert!(
+                started.elapsed() < Duration::from_secs(2),
+                "the replication waited on"
+            );
+
+            drop(database);
+            drop(silent);
+            let _ = std::fs::remove_dir_all(&directory);
+        });
+    }
+
+    /// **A query runs while a replication waits on a remote that never answers** (effort 854,
+    /// criterion 15). The sync engine's `connect()` waits on the very mutex a stalled pull holds,
+    /// so a connection asked for per request stalled every query behind it; the replica's own
+    /// connections are opened with the engine, and a write and a read on them finish while the
+    /// replication is still waiting, under the same read lock the heartbeat holds.
+    #[test]
+    fn a_query_runs_while_a_replication_waits_on_a_silent_remote() {
+        use crate::{
+            database::proxy::SQLQuery,
+            sync::test::server::{SilentServer, within},
+        };
+        use std::{
+            sync::Arc,
+            time::{Duration, Instant},
+        };
+        use tokio::sync::RwLock;
+
+        let sql = |sql: &str| SQLQuery {
+            sql: sql.to_string(),
+            params: Vec::new(),
+        };
+
+        within(Duration::from_secs(60), async move {
+            let silent = SilentServer::start();
+            let (directory, database) =
+                workspace_against("silent-query", Some(silent.url()), Duration::from_secs(2)).await;
+            let database = Arc::new(RwLock::new(database));
+
+            database
+                .read()
+                .await
+                .execute_single_sql(sql("CREATE TABLE tenant (id TEXT PRIMARY KEY)"))
+                .await
+                .expect("the local schema");
+
+            let replicating = {
+                let database = Arc::clone(&database);
+
+                tokio::spawn(async move { database.read().await.replicate().await })
+            };
+
+            tokio::time::sleep(Duration::from_millis(500)).await;
+            assert!(
+                !replicating.is_finished(),
+                "the replication did not wait on the silent remote"
+            );
+
+            let started = Instant::now();
+            let rows = {
+                let database = database.read().await;
+
+                database
+                    .execute_batch_sql(vec![sql("INSERT INTO tenant (id) VALUES ('t-1')")])
+                    .await
+                    .expect("the write beside the replication");
+                database
+                    .execute_single_sql(sql("SELECT count(*) AS tenants FROM tenant"))
+                    .await
+                    .expect("the read beside the replication")
+            };
+
+            assert!(
+                started.elapsed() < Duration::from_secs(1),
+                "the query waited {:?} on the replication",
+                started.elapsed()
+            );
+            assert_eq!(rows.len(), 1);
+            assert!(
+                !replicating.is_finished(),
+                "the replication ended before the query ran, so nothing ran beside it"
+            );
+            assert!(
+                !replicating.await.expect("the replication").completed,
+                "a silent replication read as one that went through"
+            );
+
+            drop(database);
+            drop(silent);
+            let _ = std::fs::remove_dir_all(&directory);
+        });
+    }
+
+    /// **A request that finds every held connection out waits for one, and runs once one is
+    /// back** (effort 854, the plan's *Measured, and replanned*). Each request has its connection
+    /// to itself, so a batch's transaction is never shared, and the wait is on local work alone.
+    #[test]
+    fn a_request_waits_for_a_held_connection_and_runs_once_one_is_returned() {
+        use crate::{database::proxy::SQLQuery, sync::test::server::within};
+        use std::{sync::Arc, time::Duration};
+
+        within(Duration::from_secs(60), async {
+            let (directory, database) =
+                workspace_against("held-wait", None, Duration::from_secs(30)).await;
+            let database = Arc::new(database);
+            let Some(Engine::Workspace(replica)) = database.engine.as_ref() else {
+                panic!("the workspace arm did not open");
+            };
+
+            let mut out = Vec::new();
+            for _ in 0..super::held::SIZE {
+                out.push(replica.connections.checkout().await);
+            }
+
+            let waiting = {
+                let database = Arc::clone(&database);
+
+                tokio::spawn(async move {
+                    database
+                        .execute_single_sql(SQLQuery {
+                            sql: "SELECT 1 AS one".to_string(),
+                            params: Vec::new(),
+                        })
+                        .await
+                })
+            };
+
+            tokio::time::sleep(Duration::from_millis(300)).await;
+            assert!(
+                !waiting.is_finished(),
+                "a request ran with every connection checked out"
+            );
+
+            out.pop();
+
+            let answered = tokio::time::timeout(Duration::from_secs(2), waiting)
+                .await
+                .expect("the request did not run once a connection was returned")
+                .expect("the request's task");
+            assert_eq!(answered.expect("the request").len(), 1);
+
+            drop(out);
+            drop(database);
+            let _ = std::fs::remove_dir_all(&directory);
+        });
+    }
+
     /// One row per concept under the shipped schema, named by `marker`.
     ///
     /// The ids are the client's own — `TEXT`, unique per call — which is requirement 16's scheme

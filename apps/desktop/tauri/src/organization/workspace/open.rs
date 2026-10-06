@@ -161,6 +161,14 @@ pub(crate) async fn open_database(app_state: &Shared, clock: &dyn Clock) -> Opti
         }
     }
 
+    // **The write lock is let go of before the pull, and kept as a read lock** (effort 854,
+    // requirement 15). The engine is in place and tracked, so nothing is left that needs the
+    // database to itself, and a pull the network never answers would otherwise hold every query
+    // and the launch behind it until its bound ran out. Queries run beside it on the replica's own
+    // connections (`database/held.rs`); the read lock is what keeps the engine from being swapped
+    // under the pull.
+    let db = tokio::sync::RwLockWriteGuard::downgrade(db);
+
     // **The schema arrives as replicated pages, so a replica that has never pulled has no tables**:
     // `turso_cdc` and its kin and nothing else. Everything the application does next reads
     // `contract`, `unit` and `payment`, so a first run that skipped this would sign in and then
@@ -582,5 +590,99 @@ mod tests {
         app_state.db.write().await.disconnect().await;
 
         assert!(!current.exists(), "a replica whose grant ended was kept");
+    }
+
+    /// **A first pull the network never answers holds neither a query nor the launch** (effort
+    /// 854, requirement 15). The opening lets go of its write lock before it pulls, so a query
+    /// runs while the pull waits, and the pull is given up after its bound, which the opening
+    /// answers as a workspace that has not reached this machine yet.
+    #[test]
+    fn a_first_pull_the_network_never_answers_holds_neither_a_query_nor_the_opening() {
+        use crate::{
+            database::{bound::Bound, proxy::SQLQuery},
+            sync::test::server::{SilentServer, within},
+        };
+        use std::time::{Duration, Instant};
+
+        within(Duration::from_secs(60), async {
+            let silent = SilentServer::start();
+            let directory = scratch("open-silent");
+            let app_state = Arc::new(state_over(&directory).await);
+
+            *app_state.db.write().await =
+                Database::new(app_state.settings.clone(), crate::clock::System::shared())
+                    .with_bound(Bound {
+                        silence: Duration::from_secs(2),
+                        ceiling: Duration::from_secs(60),
+                    });
+            app_state
+                .remote_sync
+                .write()
+                .await
+                .open_organization_workspace("south", "South", &silent.url(), 0, "a-credential")
+                .expect("the workspace recorded");
+
+            let replica = Database::replica_path(&directory.join(Database::FILENAME), "south");
+            let started = Instant::now();
+            let opening = {
+                let app_state = Arc::clone(&app_state);
+
+                tokio::spawn(async move { open_database(&app_state, &crate::clock::System).await })
+            };
+
+            // the replica is open and the pull under way once the lock can be read with it held.
+            loop {
+                if let Ok(db) = app_state.db.try_read()
+                    && db.holds_replica(&replica)
+                {
+                    break;
+                }
+
+                assert!(
+                    !opening.is_finished(),
+                    "the opening finished before anything could read the database"
+                );
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+
+            let asked = Instant::now();
+            let rows = app_state
+                .db
+                .read()
+                .await
+                .execute_single_sql(SQLQuery {
+                    sql: "SELECT 1 AS one".to_string(),
+                    params: Vec::new(),
+                })
+                .await
+                .expect("the query beside the pull");
+
+            assert_eq!(rows.len(), 1);
+            assert!(
+                asked.elapsed() < Duration::from_secs(1),
+                "the query waited {:?} on the pull",
+                asked.elapsed()
+            );
+            assert!(
+                !opening.is_finished(),
+                "the opening ended before the query ran, so nothing ran beside its pull"
+            );
+
+            let refused = opening.await.expect("the opening");
+
+            assert!(
+                matches!(refused, Some(crate::error::Error::Network { .. })),
+                "a workspace that never pulled opened as {refused:?}"
+            );
+            assert!(
+                started.elapsed() < Duration::from_secs(10),
+                "the opening waited {:?} on the silent remote",
+                started.elapsed()
+            );
+
+            app_state.db.write().await.disconnect().await;
+            drop(silent);
+            let _ = std::fs::remove_dir_all(&directory);
+        });
     }
 }

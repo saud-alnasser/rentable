@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(desktop): replica sync gives up on a silent network and frees the database
@@ -14,10 +14,10 @@ Every replica push, pull and replication, for workspaces and the organization st
 
 Traces requirement 15 and criterion 15.
 
-- [ ] `database/bound.rs` with the inactivity bound; the five engine call sites wrapped; timeouts answer the existing offline values.
-- [ ] `open.rs` downgrades its write lock before the pull.
-- [ ] The workspace arm holds a fixed set of connections opened with the engine and never calls `connect()` once it is open; `execute_single_sql`, `execute_batch_sql` and `is_replica_ready` check one out exclusively (plan, *Measured, and replanned*).
-- [ ] Rust tests against a silent server per criterion 15, including a query completing while a pull is stalled against the silent server, and a request that waits for a checked-out connection and completes once one is returned.
+- [x] `database/bound.rs` with the inactivity bound; the five engine call sites wrapped; timeouts answer the existing offline values.
+- [x] `open.rs` downgrades its write lock before the pull.
+- [x] The workspace arm holds a fixed set of connections opened with the engine and never calls `connect()` once it is open; `execute_single_sql`, `execute_batch_sql` and `is_replica_ready` check one out exclusively (plan, *Measured, and replanned*).
+- [x] Rust tests against a silent server per criterion 15, including a query completing while a pull is stalled against the silent server, and a request that waits for a checked-out connection and completes once one is returned.
 
 ## Relevant areas
 

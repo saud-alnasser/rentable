@@ -2921,7 +2921,10 @@ mod tests {
             "C could not pull the workspace"
         );
         assert!(
-            crate::database::Database::is_replica_ready(&workspace_c).await,
+            crate::database::Database::is_replica_ready(
+                &workspace_c.connect().await.expect("a connection")
+            )
+            .await,
             "the workspace C pulled holds no schema"
         );
 

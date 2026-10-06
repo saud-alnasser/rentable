@@ -288,3 +288,74 @@ async fn answer(
         .body(Full::new(Bytes::from(body)))
         .expect("failed to build the scripted response"))
 }
+
+/// a remote that takes the connection and never says anything: the network a request goes out on
+/// and nothing comes back from.
+///
+/// A `std` listener bound and never accepted. The kernel completes the handshake from its backlog,
+/// so the client's connect succeeds and its request is written, and then nothing ever answers,
+/// which is the silent network the replica's bound exists for (effort 854, requirement 15).
+/// Dropping it closes the socket, so it is held for as long as the test wants the silence.
+pub(crate) struct SilentServer {
+    listener: std::net::TcpListener,
+}
+
+impl SilentServer {
+    pub(crate) fn start() -> Self {
+        Self {
+            listener: std::net::TcpListener::bind(("127.0.0.1", 0))
+                .expect("failed to bind the silent server"),
+        }
+    }
+
+    /// the remote's base URL, which a replica is pointed at as it is pointed at Turso.
+    pub(crate) fn url(&self) -> String {
+        format!(
+            "http://{}",
+            self.listener
+                .local_addr()
+                .expect("failed to read the silent server address")
+        )
+    }
+}
+
+/// Run `test` on a runtime of its own, on a thread of its own, and fail if it has not finished
+/// within `limit`.
+///
+/// **A test against the silent server can hang rather than fail**, and a hang is the defect it is
+/// there to catch: the sync engine's `connect()` blocks its thread on a stalled pull, so a
+/// `tokio::time::timeout` in the test itself never fires (effort 854's
+/// `a-stalled-sync-holds-connect`). Waiting from another thread is what still answers. The thread
+/// is left behind when the limit passes, which ends with the test process.
+pub(crate) fn within<T: Send + 'static>(
+    limit: std::time::Duration,
+    test: impl std::future::Future<Output = T> + Send + 'static,
+) -> T {
+    let (answer, answered) = std::sync::mpsc::channel();
+
+    std::thread::spawn(move || {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(4)
+            .enable_all()
+            .build()
+            .expect("failed to build the test's runtime");
+
+        let _ = answer.send(runtime.block_on(test));
+
+        // the engine's IO thread may still be waiting on the silent server, which a runtime
+        // dropped in the ordinary way would wait for in turn.
+        runtime.shutdown_background();
+    });
+
+    match answered.recv_timeout(limit) {
+        Ok(answer) => answer,
+        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+            panic!(
+                "the test did not finish within {limit:?}: something waited on the silent server"
+            )
+        }
+        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+            panic!("the test panicked before it answered, as the panic above says")
+        }
+    }
+}

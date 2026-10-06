@@ -281,9 +281,9 @@ pub(crate) async fn workspace_execute_batch_sql(
         Err(error) => {
             // Rolled back here rather than left to the drop. Dropping an unfinished transaction
             // only *records* what should happen to it, on `Connection::dangling_tx`, and acts on
-            // that connection's next use — and a dropped connection goes back to the engine's
-            // pool rather than away, so its next use is a later request, which would then find
-            // itself inside this one's transaction.
+            // that connection's next use; and the connection goes back to the replica's held
+            // set rather than away (`held.rs`), so its next use is a later request, which would
+            // then find itself inside this one's transaction.
             let _ = transaction.rollback().await;
             Err(error)
         }

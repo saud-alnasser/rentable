@@ -513,7 +513,7 @@ mod tests {
         remote: &crate::sync::test::server::ScriptedServer,
     ) {
         assert!(
-            !Database::is_replica_ready(database).await,
+            !Database::is_replica_ready(&database.connect().await.expect("a connection")).await,
             "the replica opened again still held a schema"
         );
 
@@ -612,7 +612,10 @@ mod tests {
         })
         .await
         .expect("replica engine");
-        assert!(Database::is_replica_ready(&database).await, "the rows went");
+        assert!(
+            Database::is_replica_ready(&database.connect().await.expect("a connection")).await,
+            "the rows went"
+        );
         drop(database);
 
         assert!(

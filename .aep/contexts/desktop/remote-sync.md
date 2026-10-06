@@ -138,6 +138,14 @@ sentence from both.
   on the next statement.** Opening does not block on a pull, which is requirement 7, but a first
   run has nothing to read until one succeeds, so the startup path pulls once and then asks whether
   the replica is ready.
+- **A push or a pull the remote never answers is the offline case after 30 seconds.** *Effort 854,
+  requirement 15.* The engine sets no timeout of its own, so every push, pull and replication, a
+  workspace's and the organization's, runs under `database/bound.rs`: given up after 30 seconds
+  with no sign of progress, under a ten-minute ceiling, answering what offline already answers.
+  The opening lets go of its write lock before its first pull. A workspace replica's queries run
+  on a fixed set of connections opened with the engine (`database/held.rs`), never on one asked
+  of `connect()` afterwards, because `connect()` waits on the engine's own mutex, which a stalled
+  pull holds ([[efforts/854-bugs-and-edge-cases-across-the-app/evidence/research/a-stalled-sync-holds-connect]]).
 - **A replica found damaged is set aside and pulled again, once.** *Effort 838, requirement 17,
   Firefox's practice.* Where the engine says a replica, a workspace's or the organization's, is not
   a database or is corrupt, or where the file is shorter than its own header says (turso reports a
