@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { toExportSheet } from '@rentable/design/csv.js';
+import { toExportSheet, toHeading } from '@rentable/design/csv.js';
 import { type Api, createApi, monthsFromNow, NOW } from '$lib/app/tests/testing.ts';
 import type { Locales } from '$lib/i18n/i18n-types.ts';
 import { i18nObject } from '$lib/i18n/i18n-util.ts';
@@ -12,7 +12,7 @@ import {
 	planWorkspaceImport,
 	toTransferInput
 } from '$lib/transfer/index.ts';
-import { paymentLedgerColumns } from '../ledger.ts';
+import { paymentLedgerColumns } from '../transfer.ts';
 
 /**
  * A LEDGER EXPORTED READS BACK WHOLE
@@ -21,7 +21,8 @@ import { paymentLedgerColumns } from '../ledger.ts';
  * statement written out from either interface language and read back through the ledger's import
  * gives back every payment with its direction, method, reference and note. The contract is named
  * by the reference its own read answers with, so a contract with no government number reads back
- * too, even beside another of the same tenant from the same day.
+ * too, even beside another of the same tenant from the same day, and the tenant the contract read
+ * names is written beside it.
  */
 
 /** the one contract a ledger is a statement of, numbered, so its reference is its number. */
@@ -159,11 +160,23 @@ for (const locale of ['en', 'ar'] satisfies Locales[]) {
 		});
 
 		const ledger = await api.payment.getMany({ contractId: contract.id });
-		// the contract as the ledger's page reads it, which is what names it in the file.
+		// the contract as the ledger's page reads it, which is what names it and its tenant in the
+		// file.
 		const read = await api.contract.get({ id: contract.id });
 		const sheet = toExportSheet(
-			paymentLedgerColumns(i18nObject(locale), read!.reference, 'Sara Idle'),
+			paymentLedgerColumns(i18nObject(locale), read!.reference, read!.tenantName ?? ''),
 			ledger
+		);
+		const tenantColumn = sheet.headers.indexOf(
+			toHeading(i18nObject(locale).common.labels.tenant())
+		);
+
+		// a numberless contract is told apart in a folder of ledgers by its tenant, so the read
+		// names them and every row carries the name.
+		assert.equal(read!.tenantName, 'Sara Idle');
+		assert.deepEqual(
+			sheet.rows.map((row) => row[tenantColumn]),
+			ledger.map(() => ({ kind: 'text', value: 'Sara Idle' }))
 		);
 
 		// the payments gone, so what the import gives back is only what the file carried.

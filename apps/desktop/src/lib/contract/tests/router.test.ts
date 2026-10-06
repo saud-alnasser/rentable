@@ -683,6 +683,10 @@ test('without viewing tenants, a contract row, its rank, its search and its remi
 		assert.equal('tenantPhone' in rows[0]!, false);
 	}
 
+	// nor does the contract's own read, which names its tenant to a member who may see it.
+	assert.equal((await api.contract.get({ id: contract.id }))?.tenantName, tenant.name);
+	assert.equal('tenantName' in (await lacking.contract.get({ id: contract.id }))!, false);
+
 	// nor is a contract found, or ordered, by a tenant the member is not shown.
 	assert.equal((await api.contract.getMany({ search: tenant.name })).length, 1);
 	assert.deepEqual(await lacking.contract.getMany({ search: tenant.name }), []);

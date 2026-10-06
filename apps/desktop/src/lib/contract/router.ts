@@ -26,6 +26,7 @@ import { serializeContract, withRank } from '$lib/contract/serialize';
 import { referencesOf } from '$lib/contract/transfer';
 import { toUnitReference, UNIT_LIST_SEPARATOR } from '$lib/transfer';
 import { eq, inArray, sql } from 'drizzle-orm';
+import { permits } from '@rentable/workspace-permission';
 import z from 'zod';
 import assignment from './assignment/router';
 import directory from './directory/router';
@@ -417,7 +418,9 @@ export default router({
 
 	// one contract, with the rank it is filed under today, so the record page's acts gate on it
 	// as a card's do, and the reference a workspace file calls it by, so what its page exports
-	// names it as the import reads it back.
+	// names it as the import reads it back. Its tenant's name comes with it for a reader who may
+	// see tenants, as every other read of a contract gives it, so the ledger the page exports
+	// names its tenant (effort 854, requirement 30).
 	get: procedure
 		.permitted('viewContract')
 		.input(ContractSchema.pick({ id: true, govId: true }).partial())
@@ -432,17 +435,24 @@ export default router({
 				return undefined;
 			}
 
-			const contract = await ctx.db.select().from(s.contract).where(matching).get();
+			const row = await ctx.db
+				.select({ contract: s.contract, tenantName: s.tenant.name })
+				.from(s.contract)
+				.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id))
+				.where(matching)
+				.get();
 
-			if (!contract) {
+			if (!row) {
 				return undefined;
 			}
 
+			const { contract, tenantName } = row;
 			const { endingSoonNoticeDays } = await ctx.host.settings.get();
 			const reference = (await referencesOf(ctx.db)).get(contract.id)!;
+			const named = permits(ctx.identity.permissions, 'viewTenant') ? tenantName : undefined;
 
 			return {
-				...withRank(serializeContract(contract), ctx.clock.now(), endingSoonNoticeDays),
+				...withRank(serializeContract(contract, named), ctx.clock.now(), endingSoonNoticeDays),
 				reference
 			};
 		}),

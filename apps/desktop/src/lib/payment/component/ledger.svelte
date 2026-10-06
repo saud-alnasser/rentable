@@ -22,12 +22,12 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import {
 		formatPaymentLedgerMonth,
-		paymentLedgerColumns,
 		paymentLedgerMonths,
 		type PaymentLedgerMonth
 	} from '$lib/payment/ledger';
 	import { toPaymentCreateUnavailable, toRefundCreateUnavailable } from '$lib/payment/acts';
 	import { paymentMethodGlyph, paymentMethodLabel } from '$lib/payment/method';
+	import { paymentLedgerColumns } from '$lib/payment/transfer';
 	import { PAYMENT_SORT_COLUMN_IDS, type PaymentSortColumnId } from '$lib/payment/payment';
 	import type { ListSort } from '@rentable/design/sort.js';
 	import { paymentActs, paymentHost } from '$lib/payment/host.svelte';

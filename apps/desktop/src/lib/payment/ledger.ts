@@ -1,8 +1,6 @@
 import { toUtcDay } from '$lib/date';
-import type { Locales, TranslationFunctions } from '$lib/i18n/i18n-types';
+import type { Locales } from '$lib/i18n/i18n-types';
 import { isRefund, type PaymentLike } from '$lib/contract';
-import type { Payment } from '$lib/platform/database/schema';
-import type { ExportColumn } from '@rentable/design/csv.js';
 import { formatLocaleDate } from '$lib/platform/locale';
 
 /**
@@ -91,43 +89,4 @@ export function paymentLedgerMonths<P extends PaymentLike>(payments: readonly P[
 
 		return { key, start, total: totals.get(key) ?? 0, returned: returns.get(key) ?? 0 };
 	};
-}
-
-/**
- * The columns a contract's ledger is exported with: what the rows belong to, then each payment
- * signed and spelled as the workspace's own payments sheet writes it (effort 854, requirement 30).
- * A refund is a negative amount and the method is the stored word, so a ledger exported here reads
- * back through the same import with every field a person entered.
- *
- * The contract and the tenant come first because a ledger read on screen sits under the contract's
- * own page and needs neither; the same rows in a file have left that page behind, and two ledgers
- * in one folder are indistinguishable without them. The contract is written as the reference a
- * workspace file calls it by (`toContractReferences`), which is what the import resolves it from:
- * its government number where it has one, and otherwise its tenant's national id and the day its
- * term started, spelled further where another contract shares both. The tenant is for the reader
- * and the import does not read it.
- */
-export function paymentLedgerColumns(
-	t: TranslationFunctions,
-	reference: string,
-	tenant: string
-): ExportColumn<Payment>[] {
-	return [
-		{ header: t.common.labels.contract(), value: () => reference },
-		{ header: t.common.labels.tenant(), value: () => tenant },
-		{
-			header: t.common.labels.paymentDate(),
-			value: (payment) => ({ kind: 'date', value: new Date(payment.date) })
-		},
-		{
-			header: t.common.labels.amount(),
-			value: (payment) => ({
-				kind: 'money',
-				value: payment.direction === 'refund' ? -payment.amount : payment.amount
-			})
-		},
-		{ header: t.contracts.payments.method(), value: (payment) => payment.method },
-		{ header: t.contracts.payments.reference(), value: (payment) => payment.reference },
-		{ header: t.contracts.payments.note(), value: (payment) => payment.note }
-	];
 }

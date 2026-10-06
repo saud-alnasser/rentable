@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(desktop): a contract's ledger file is written by the payments sheet
@@ -14,8 +14,8 @@ A contract's ledger export is written by the columns the payments sheet owns, wi
 
 Traces requirement 30 and criterion 30.
 
-- [ ] The ledger's export columns live in `payment/transfer.ts` beside the sheet's (`rules/module-layout`), reusing its `toSignedAmount`; `payment/ledger.ts` no longer holds a column definition.
-- [ ] The ledger export's Tenant cell and file name carry the contract's tenant (the contract read gives the ledger what it needs), and `payment/tests/ledger-export.test.ts` checks the tenant is written and the file still reads back.
+- [x] The ledger's export columns live in `payment/transfer.ts` beside the sheet's (`rules/module-layout`), reusing its `toSignedAmount`; `payment/ledger.ts` no longer holds a column definition.
+- [x] The ledger export's Tenant cell and file name carry the contract's tenant (the contract read gives the ledger what it needs), and `payment/tests/ledger-export.test.ts` checks the tenant is written and the file still reads back.
 
 ## Relevant areas
 
