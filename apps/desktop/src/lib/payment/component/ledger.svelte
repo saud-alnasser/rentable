@@ -21,6 +21,7 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import {
 		formatPaymentLedgerMonth,
+		paymentLedgerColumns,
 		paymentLedgerMonths,
 		type PaymentLedgerMonth
 	} from '$lib/payment/ledger';
@@ -256,21 +257,8 @@
 				search,
 				toChosenLabel(PERIOD_FILTER, filters, $LL) ?? ''
 			]),
-			columns: [
-				// what a row belongs to, before what the row is. A ledger read on screen sits under
-				// the contract's own page and needs neither; the same rows in a file have left that
-				// page behind, and two ledgers in one folder are indistinguishable without them.
-				{ header: $LL.common.labels.contract(), value: () => contractName },
-				{ header: $LL.common.labels.tenant(), value: () => tenantName },
-				{
-					header: $LL.common.labels.paymentDate(),
-					value: (entry) => ({ kind: 'date' as const, value: new Date(entry.date) })
-				},
-				{
-					header: $LL.common.labels.amount(),
-					value: (entry) => ({ kind: 'money' as const, value: entry.amount })
-				}
-			]
+			// what a row belongs to, then the row as the payments sheet writes it.
+			columns: paymentLedgerColumns($LL, contractName, tenantName)
 		}}
 		onImport={() => void importDialog?.choose()}
 		importUnavailable={memberPermissions.refusalOfEvery(IMPORT_FLAGS, $LL) ?? createUnavailable}

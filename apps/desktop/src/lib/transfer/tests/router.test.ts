@@ -371,7 +371,12 @@ test('a payment a file names is held to the same rules the ledger is', async () 
 		});
 
 	await assert.rejects(write(0, monthsFromNow(0)), refusedWith('payment.amountNotPositive'));
-	await assert.rejects(write(-500, monthsFromNow(0)), refusedWith('payment.amountNotPositive'));
+	// a negative amount is a refund of it (effort 854, requirement 30), and a contract that has
+	// received nothing has nothing to return.
+	await assert.rejects(
+		write(-500, monthsFromNow(0)),
+		refusedWith('contract.refundsExceedReceivedNamed', { named: 'GOV-7' })
+	);
 	await assert.rejects(write(500, monthsFromNow(6)), refusedWith('payment.datedInFuture'));
 
 	const [contract] = await api.contract.getMany({});

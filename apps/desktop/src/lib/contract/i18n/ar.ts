@@ -198,6 +198,8 @@ export const refusals = {
 		paidInFull: 'سُدد هذا العقد بالكامل ولا يقبل دفعات أخرى.',
 		refundAboveLimit: 'لا يمكن أن يتجاوز الاسترداد من هذا العقد {limit|number}.',
 		refundsExceedReceived: 'ستتجاوز المبالغ المستردة من هذا العقد ما استلمه. احذف استرداداً أولاً.',
+		refundsExceedReceivedNamed:
+			'ستتجاوز المبالغ المستردة من {named} ما استلمه. احذف استرداداً أولاً.',
 		periodOffCycle:
 			'يجب أن يبقى تاريخ النهاية ضمن {days} أيام قبل أو بعد تاريخ نهاية دورة {interval} المحسوب.',
 		periodOverlapsUnits:

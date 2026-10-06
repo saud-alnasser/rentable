@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [09, 10, 22]
 ---
 
@@ -15,9 +15,9 @@ Exporting a workspace and importing it into an empty one gives back every record
 
 Traces requirement 30 and criterion 30.
 
-- [ ] The payments sheet exports refunds as negative amounts and gains optional `Method`, `Reference` and `Note` columns with Arabic headers; the ledger export follows.
-- [ ] Import enforces refunded within received per contract.
-- [ ] `transfer/tests/round-trip.test.ts` per criterion 30, compared field by field; the existing fixtures still import.
+- [x] The payments sheet exports refunds as negative amounts and gains optional `Method`, `Reference` and `Note` columns with Arabic headers; the ledger export follows.
+- [x] Import enforces refunded within received per contract.
+- [x] `transfer/tests/round-trip.test.ts` per criterion 30, compared field by field; the existing fixtures still import.
 
 ## Relevant areas
 

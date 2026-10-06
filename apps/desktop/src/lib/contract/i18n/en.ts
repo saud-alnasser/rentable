@@ -208,6 +208,8 @@ export const refusals = {
 		refundAboveLimit: 'a refund on this contract cannot exceed {limit:number|number}.',
 		refundsExceedReceived:
 			'the refunds on this contract would exceed what it received. delete a refund first.',
+		refundsExceedReceivedNamed:
+			'the refunds on {named:string} would exceed what it received. remove a refund first.',
 		periodOffCycle:
 			'end date must stay within {days:number} days before or after the calculated {interval:string} cycle end date.',
 		periodOverlapsUnits:

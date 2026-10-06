@@ -1013,6 +1013,11 @@ type RootTranslation = {
 				 */
 				refundsExceedReceived: string;
 				/**
+				 * t​h​e​ ​r​e​f​u​n​d​s​ ​o​n​ ​{​n​a​m​e​d​}​ ​w​o​u​l​d​ ​e​x​c​e​e​d​ ​w​h​a​t​ ​i​t​ ​r​e​c​e​i​v​e​d​.​ ​r​e​m​o​v​e​ ​a​ ​r​e​f​u​n​d​ ​f​i​r​s​t​.
+				 * @param {string} named
+				 */
+				refundsExceedReceivedNamed: RequiredParams<'named'>;
+				/**
 				 * e​n​d​ ​d​a​t​e​ ​m​u​s​t​ ​s​t​a​y​ ​w​i​t​h​i​n​ ​{​d​a​y​s​}​ ​d​a​y​s​ ​b​e​f​o​r​e​ ​o​r​ ​a​f​t​e​r​ ​t​h​e​ ​c​a​l​c​u​l​a​t​e​d​ ​{​i​n​t​e​r​v​a​l​}​ ​c​y​c​l​e​ ​e​n​d​ ​d​a​t​e​.
 				 * @param {number} days
 				 * @param {string} interval
@@ -6255,6 +6260,10 @@ export type TranslationFunctions = {
 				 * the refunds on this contract would exceed what it received. delete a refund first.
 				 */
 				refundsExceedReceived: () => LocalizedString;
+				/**
+				 * the refunds on {named} would exceed what it received. remove a refund first.
+				 */
+				refundsExceedReceivedNamed: (arg: { named: string }) => LocalizedString;
 				/**
 				 * end date must stay within {days} days before or after the calculated {interval} cycle end date.
 				 */

@@ -22,6 +22,7 @@ export type ContractRefusalCode =
 	| 'contract.paidInFull'
 	| 'contract.refundAboveLimit'
 	| 'contract.refundsExceedReceived'
+	| 'contract.refundsExceedReceivedNamed'
 	| 'contract.holdsPayments'
 	| 'contract.periodOverlapsUnits'
 	| 'contract.unitsUnavailable'

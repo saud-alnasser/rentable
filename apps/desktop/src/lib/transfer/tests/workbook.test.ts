@@ -29,6 +29,13 @@ import {
  * **Every date is fixed and every term has ended**, so nothing the clock derives (a status, an
  * expected amount, a unit standing occupied or vacant) differs between the day the fixture was
  * taken and the day the test runs.
+ *
+ * **One thing moved, and only by being added to**: effort 854 (requirement 30) gave the payments
+ * sheet `Method`, `Reference` and `Note` after its three columns, so every field a person enters
+ * on a payment round-trips. The fixture is left as it was, the file people already hold, and what
+ * this build writes is that file with the three columns appended, empty for payments that record
+ * none. Reading the fixture back is what proves a file without them still imports; the upgrade
+ * writer (`tauri/src/upgrade/record.rs`) still writes the three, and is read the same way.
  */
 
 const day = (year: number, month: number, date: number) => Date.UTC(year, month - 1, date);
@@ -91,8 +98,28 @@ async function seed(api: Api) {
 	await api.payment.create({ contractId: unnumbered.id, date: day(2025, 4, 1), amount: 1_500.5 });
 }
 
-function expected(): ExportSheet[] {
+/** the workbook as it was written before effort 854: the file people hold. */
+function heldFile(): ExportSheet[] {
 	return JSON.parse(readFileSync(new URL('./workbook.json', import.meta.url), 'utf8'));
+}
+
+/** the payments sheet's three columns from effort 854, empty for a payment that records none. */
+const PAYMENT_EXTRAS = ['Method', 'Reference', 'Note'];
+
+/** what this build writes of the same workspace: the held file, with those columns appended. */
+function expected(): ExportSheet[] {
+	return heldFile().map((sheet) =>
+		sheet.name === 'Payments'
+			? {
+					...sheet,
+					headers: [...sheet.headers, ...PAYMENT_EXTRAS],
+					rows: sheet.rows.map((row) => [
+						...row,
+						...PAYMENT_EXTRAS.map(() => ({ kind: 'empty' as const }))
+					])
+				}
+			: sheet
+	);
 }
 
 test('a seeded workspace exports the workbook it always has', async () => {
@@ -104,13 +131,12 @@ test('a seeded workspace exports the workbook it always has', async () => {
 });
 
 test('the workbook read back into an empty workspace exports the same workbook', async () => {
-	const workbook = expected();
 	const target = await createApi();
-	const plan = planWorkspaceImport(readBack(workbook), day(2026, 1, 2), emptyHeld());
+	const plan = planWorkspaceImport(readBack(heldFile()), day(2026, 1, 2), emptyHeld());
 
 	assert.ok(isWorkspaceImportable(plan), 'the workbook is a file this build reads');
 
 	await target.transfer.importWhole(toTransferInput(plan.transfer));
 
-	assert.deepEqual(toWorkbook(await target.transfer.get()), workbook);
+	assert.deepEqual(toWorkbook(await target.transfer.get()), expected());
 });
