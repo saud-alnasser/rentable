@@ -594,9 +594,12 @@ impl Database {
     pub async fn is_ready(&self) -> bool {
         match self.engine.as_ref() {
             Some(Engine::Local(pool)) => Self::is_pool_ready(pool).await,
-            Some(Engine::Workspace(replica)) => {
-                Self::is_replica_ready(&**replica.connections.checkout().await).await
-            }
+            // A replica the engine never lets go of within the bound is not one this can say is
+            // ready, and the checkout has logged why (`held.rs`).
+            Some(Engine::Workspace(replica)) => match replica.connections.checkout().await {
+                Ok(connection) => Self::is_replica_ready(&connection).await,
+                Err(_) => false,
+            },
             None => false,
         }
     }
@@ -663,7 +666,7 @@ impl Database {
             // it opens, so one it opened is one whose writes can be pushed, and one taken any
             // other way is not.
             Engine::Workspace(replica) => {
-                proxy::workspace_execute_single_sql(&*replica.connections.checkout().await, query)
+                proxy::workspace_execute_single_sql(&*replica.connections.checkout().await?, query)
                     .await
             }
         }
@@ -676,7 +679,7 @@ impl Database {
         match self.engine.as_ref().ok_or_else(Self::not_connected)? {
             Engine::Local(pool) => proxy::execute_batch_sql(pool, queries).await,
             Engine::Workspace(replica) => {
-                proxy::workspace_execute_batch_sql(&*replica.connections.checkout().await, queries)
+                proxy::workspace_execute_batch_sql(&*replica.connections.checkout().await?, queries)
                     .await
             }
         }
@@ -1164,7 +1167,13 @@ mod tests {
 
             let mut out = Vec::new();
             for _ in 0..super::held::SIZE {
-                out.push(replica.connections.checkout().await);
+                out.push(
+                    replica
+                        .connections
+                        .checkout()
+                        .await
+                        .expect("a held connection"),
+                );
             }
 
             let waiting = {

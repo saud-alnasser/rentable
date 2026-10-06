@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(desktop): a database the sync engine never releases is bounded and logged
@@ -14,8 +14,8 @@ A request waiting for the engine to finish applying a pull waits no longer than 
 
 Traces requirement 15 (no network call holds the database in a way that stalls queries past the bound).
 
-- [ ] `Held::checkout`'s wait while the engine answers Busy is capped at the sync bound and logs `replica.connection.busyTimedOut` when it gives up, answering an error the caller already handles.
-- [ ] A Rust test with a connection that answers Busy forever sees the checkout give up within a short test bound and the log line written; a Busy that clears still proceeds.
+- [x] `Held::checkout`'s wait while the engine answers Busy is capped at the sync bound and logs `replica.connection.busyTimedOut` when it gives up, answering an error the caller already handles.
+- [x] A Rust test with a connection that answers Busy forever sees the checkout give up within a short test bound and the log line written; a Busy that clears still proceeds.
 
 ## Relevant areas
 
