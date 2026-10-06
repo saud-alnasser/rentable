@@ -8,7 +8,11 @@ import {
 	getContractPaymentSummary,
 	getOutstandingExpectedAmount,
 	getPaidAmount,
+	getReceivedAmount,
+	getRefundableAmount,
+	getRefundedAmount,
 	getRemainingContractBalance,
+	isContractPaidInFull,
 	hasSatisfiedContractPaymentRequirement,
 	hasValidContractCost
 } from '../contract.ts';
@@ -24,6 +28,74 @@ test('getPaidAmount sums every payment received', () => {
 		1000
 	);
 	assert.equal(getPaidAmount([]), 0);
+});
+
+// effort 854, requirement 27: what a contract counts as paid is what it received less what it
+// returned. A payment that names no direction is received, as the column's default reads it.
+const REFUNDED = [
+	{ amount: 3000, date: 0 },
+	{ amount: 1000, date: 0, direction: 'received' as const },
+	{ amount: 1500, date: 0, direction: 'refund' as const }
+];
+
+test('getReceivedAmount and getRefundedAmount each sum one direction, and getPaidAmount is the net', () => {
+	assert.equal(getReceivedAmount(REFUNDED), 4000);
+	assert.equal(getRefundedAmount(REFUNDED), 1500);
+	assert.equal(getPaidAmount(REFUNDED), 2500);
+	assert.deepEqual([getReceivedAmount([]), getRefundedAmount([])], [0, 0]);
+});
+
+// the limit ticket 22 enforces: a live contract returns only what it received past its total
+// cost, and a terminated one up to what it received, each less what it already returned.
+test('getRefundableAmount is the surplus on a live contract and everything received on a terminated one', () => {
+	const live = {
+		status: 'active' as const,
+		start: new Date('2026-01-01T00:00:00.000Z'),
+		end: new Date('2026-12-31T00:00:00.000Z'),
+		interval: '12m' as const,
+		cost: 3000
+	};
+
+	assert.equal(getRefundableAmount(live, REFUNDED), 0);
+	assert.equal(getRefundableAmount(live, [{ amount: 5000, date: 0 }]), 2000);
+	assert.equal(
+		getRefundableAmount(live, [
+			{ amount: 5000, date: 0 },
+			{ amount: 500, date: 0, direction: 'refund' }
+		]),
+		1500
+	);
+	assert.equal(getRefundableAmount({ ...live, status: 'terminated' }, REFUNDED), 2500);
+});
+
+test('a refund takes a contract out of paid in full, and its status follows the net', () => {
+	const contract = {
+		status: 'active' as const,
+		start: new Date('2026-01-01T00:00:00.000Z'),
+		end: new Date('2026-01-30T00:00:00.000Z'),
+		interval: '1m' as const,
+		cost: 1000
+	};
+	const refunded = [
+		{ amount: 1000, date: new Date('2026-01-01T00:00:00.000Z') },
+		{ amount: 400, date: new Date('2026-01-05T00:00:00.000Z'), direction: 'refund' as const }
+	];
+	const after = new Date('2026-02-01T00:00:00.000Z').getTime();
+
+	assert.equal(isContractPaidInFull(contract, refunded), false);
+	assert.equal(deriveContractStatus(contract, refunded, after), 'defaulted');
+	assert.equal(getOutstandingExpectedAmount(contract, refunded, after), 400);
+	assert.equal(
+		deriveContractStatus(
+			{ ...contract, status: 'terminated' },
+			[
+				...refunded,
+				{ amount: 600, date: new Date('2026-01-06T00:00:00.000Z'), direction: 'refund' as const }
+			],
+			after
+		),
+		'terminated'
+	);
 });
 
 test('deriveContractStatus returns scheduled before the contract start date', () => {

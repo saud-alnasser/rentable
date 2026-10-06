@@ -2,7 +2,9 @@ import type { Payment } from '$lib/platform/database/schema';
 import { toUtcDay, type DateLike } from '$lib/date';
 import {
 	EPSILON,
+	getRefundedAmount,
 	hasSatisfiedContractPaymentRequirement,
+	isRefund,
 	type ContractLike,
 	type PaymentLike
 } from '$lib/contract/contract';
@@ -105,10 +107,17 @@ function getCycleState(
 /**
  * Lays a contract out as its cycles and allocates its payments to them oldest first.
  *
- * Every payment, taken in allocation order, fills the earliest cycle not yet covered before the
- * next; a payment larger than what that cycle lacks carries on into the following ones, and
- * whatever is left once every cycle is covered covers nothing. A cycle within `EPSILON` of its
+ * Every payment received, taken in allocation order, fills the earliest cycle not yet covered
+ * before the next; a payment larger than what that cycle lacks carries on into the following ones,
+ * and whatever is left once every cycle is covered covers nothing. A cycle within `EPSILON` of its
  * amount is covered, exactly as the contract is paid in full within it.
+ *
+ * **Refunds are then taken off**, all of them together: first from what overflowed every cycle,
+ * then from the newest covered cycle back, and the cover a refund removes comes off the payment
+ * that supplied it, so that payment no longer names a cycle it no longer covers. The cover left is
+ * therefore what the net amount would cover allocated oldest first, which is what the rank's single
+ * stand-in payment assumes, and a refund on a contract that is not terminated, never larger than
+ * its overflow, leaves the schedule as it was. A refund covers nothing and has no coverage entry.
  *
  * The due dates are the ones `countExpectedPayments` counts, so a cycle is due on the day that
  * function first counts it. Oldest first, the payments cover the earliest cycles, and so on any
@@ -131,10 +140,18 @@ export function scheduleContract(
 		covered: 0
 	}));
 
+	// for each cycle, what each payment covering it took, in the order they took it: what a refund
+	// takes back, newest first.
+	const takers = cycles.map(() => [] as Array<{ paymentId: string; taken: number }>);
 	const coverage = new Map<string, number[]>();
 	let cycleIndex = 0;
+	let overflow = 0;
 
 	for (const payment of [...payments].sort(compareByAllocationOrder)) {
+		if (isRefund(payment)) {
+			continue;
+		}
+
 		const covers: number[] = [];
 		let remaining = payment.amount;
 
@@ -145,13 +162,39 @@ export function scheduleContract(
 			cycle.covered += taken;
 			remaining -= taken;
 			covers.push(cycleIndex);
+			takers[cycleIndex].push({ paymentId: payment.id, taken });
 
 			if (hasSatisfiedContractPaymentRequirement(cycle.covered, cycle.amount)) {
 				cycleIndex += 1;
 			}
 		}
 
+		overflow += remaining;
 		coverage.set(payment.id, covers);
+	}
+
+	let refunded = Math.max(0, getRefundedAmount(payments) - overflow);
+
+	for (let index = cycles.length - 1; index >= 0 && refunded > EPSILON; index -= 1) {
+		const cycle = cycles[index];
+		const stack = takers[index];
+
+		while (stack.length > 0 && refunded > EPSILON) {
+			const top = stack[stack.length - 1];
+			const removed = Math.min(top.taken, refunded);
+
+			top.taken -= removed;
+			cycle.covered -= removed;
+			refunded -= removed;
+
+			if (top.taken <= EPSILON) {
+				stack.pop();
+				coverage.set(
+					top.paymentId,
+					(coverage.get(top.paymentId) ?? []).filter((covered) => covered !== index)
+				);
+			}
+		}
 	}
 
 	return {

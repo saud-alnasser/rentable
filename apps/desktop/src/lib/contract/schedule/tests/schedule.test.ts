@@ -290,3 +290,92 @@ test('on every contract not terminated, the late and due cycles leave uncovered 
 	assert.equal(cases, 4000);
 	assert.ok(owing > 500 && owing < 3500, `owing ${owing} of ${cases}`);
 });
+
+// effort 854, requirement 27: refunds are taken off what overflowed every cycle first, then from
+// the newest covered cycle back, so the cover left is what the net amount covers oldest first.
+const refund = (sequence: number, date: string, amount: number): SchedulePaymentLike => ({
+	...payment(sequence, date, amount),
+	direction: 'refund'
+});
+
+test('a refund uncovers the newest covered cycle first, and takes that cycle off the payment that covered it', () => {
+	const { cycles, coverage } = scheduleContract(
+		QUARTERLY,
+		[
+			payment(1, '2026-01-01', 3000),
+			payment(2, '2026-02-01', 3000),
+			payment(3, '2026-03-01', 2000),
+			refund(4, '2026-03-05', 2500)
+		],
+		day('2026-03-10')
+	);
+
+	assert.deepEqual(
+		cycles.map((cycle) => [cycle.state, cycle.covered]),
+		[
+			['paid', 3000],
+			['partly-paid', 2500],
+			['upcoming', 0],
+			['upcoming', 0]
+		]
+	);
+	assert.deepEqual(coverage.get(id(1)), [0]);
+	assert.deepEqual(coverage.get(id(2)), [1]);
+	assert.deepEqual(coverage.get(id(3)), []);
+	assert.equal(coverage.has(id(4)), false);
+});
+
+test('a refund within what was paid past the total cost leaves the schedule as it was', () => {
+	const paid = [payment(1, '2026-01-01', 14000)];
+	const before = scheduleContract(QUARTERLY, paid, day('2026-05-10'));
+	const after = scheduleContract(
+		QUARTERLY,
+		[...paid, refund(2, '2026-02-01', 2000)],
+		day('2026-05-10')
+	);
+
+	assert.deepEqual(after.cycles, before.cycles);
+	assert.deepEqual(after.coverage.get(id(1)), [0, 1, 2, 3]);
+});
+
+test('every cycle is covered as though the net amount were one payment allocated oldest first', () => {
+	const refunded = [
+		payment(1, '2026-01-01', 3000),
+		refund(2, '2026-01-10', 1000),
+		payment(3, '2026-04-01', 4500),
+		refund(4, '2026-05-01', 2000)
+	];
+	const net = [payment(1, '2026-01-01', 4500)];
+	const covered = (payments: SchedulePaymentLike[]) =>
+		scheduleContract(QUARTERLY, payments, day('2026-05-10')).cycles.map((cycle) => [
+			cycle.state,
+			cycle.covered
+		]);
+
+	assert.deepEqual(covered(refunded), covered(net));
+	assert.deepEqual(covered(refunded), [
+		['paid', 3000],
+		['late', 1500],
+		['upcoming', 0],
+		['upcoming', 0]
+	]);
+});
+
+test('a terminated contract refunded everything it received covers no cycle and owes none', () => {
+	const { cycles, coverage } = scheduleContract(
+		{ ...QUARTERLY, status: 'terminated' },
+		[payment(1, '2026-01-01', 3000), refund(2, '2026-05-01', 3000)],
+		day('2026-05-10')
+	);
+
+	assert.deepEqual(
+		cycles.map((cycle) => [cycle.state, cycle.covered]),
+		[
+			['upcoming', 0],
+			['upcoming', 0],
+			['upcoming', 0],
+			['upcoming', 0]
+		]
+	);
+	assert.deepEqual(coverage.get(id(1)), []);
+});

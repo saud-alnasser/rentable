@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [20]
 ---
 
@@ -15,10 +15,10 @@ Every figure that sums a contract's payments reads received less refunded: paid 
 
 Traces requirement 27 and criterion 27.
 
-- [ ] `getReceivedAmount`, `getRefundedAmount`, net `getPaidAmount`, `getRefundableAmount` in `contract/contract.ts`.
-- [ ] Allocation in `schedule.ts`, the receipt's running total, and the directory `paymentCount` follow the plan.
-- [ ] Tests per criterion 27, with refunds seeded directly.
-- [ ] [[contexts/desktop/contract]] gains Refund and Voucher, and Paid reads net.
+- [x] `getReceivedAmount`, `getRefundedAmount`, net `getPaidAmount`, `getRefundableAmount` in `contract/contract.ts`.
+- [x] Allocation in `schedule.ts`, the receipt's running total, and the directory `paymentCount` follow the plan.
+- [x] Tests per criterion 27, with refunds seeded directly.
+- [x] [[contexts/desktop/contract]] gains Refund and Voucher, and Paid reads net.
 
 ## Relevant areas
 

@@ -75,8 +75,12 @@ const contractStatusOrder = sql.join(
 // `packages/workspace-migrations/migrations/0004_ordinary_nightshade.sql` adds and whose notes
 // carry the measurement. Unindexed, this was a scan of every payment for every contract and cost
 // the list sixteen times what the same query costs without it.
+//
+// It counts payments received and never refunds: a refund is money going out, and the card's count
+// is of the payments the contract took (effort 854, requirement 27).
 const contractPaymentCount = sql<number>`(
-	select count(*) from ${s.payment} where ${s.payment.contractId} = ${s.contract.id}
+	select count(*) from ${s.payment}
+	where ${s.payment.contractId} = ${s.contract.id} and ${s.payment.direction} = 'received'
 )`;
 
 // The names of the units each contract holds, as one row per contract the list joins rather than a

@@ -2,6 +2,7 @@ import type { DateLike } from '$lib/date';
 import {
 	type ContractLike,
 	getContractTotalCost,
+	getPaidAmount,
 	compareByAllocationOrder,
 	scheduleContract,
 	type SchedulePaymentLike
@@ -61,11 +62,12 @@ export function toReceiptReference(id: string): string {
 export type ReceiptCycle = { index: number; due: Date };
 
 export type ReceiptAllocation = {
-	/** the cycles this payment covers, in order, from the oldest-first allocation. */
+	/** the cycles this payment covers, in order, from the oldest-first allocation, after refunds. */
 	cycles: ReceiptCycle[];
 	/**
 	 * what remains of the contract's total cost after this payment: the total, less this payment
-	 * and every payment the allocation takes before it, and never below nothing.
+	 * and every payment the allocation takes before it, net of the refunds among them, and never
+	 * below nothing.
 	 */
 	remaining: number;
 };
@@ -88,9 +90,8 @@ export function allocateReceipt(
 	const { cycles, coverage } = scheduleContract(contract, payments, now);
 	const ordered = [...payments].sort(compareByAllocationOrder);
 	const position = ordered.findIndex((payment) => payment.id === paymentId);
-	const taken = ordered
-		.slice(0, position + 1)
-		.reduce((total, payment) => total + payment.amount, 0);
+	// net of every refund the allocation takes before it or with it, as the contract counts paid.
+	const taken = getPaidAmount(ordered.slice(0, position + 1));
 
 	return {
 		cycles: (coverage.get(paymentId) ?? []).map((index) => ({

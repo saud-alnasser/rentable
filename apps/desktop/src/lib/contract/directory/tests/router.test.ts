@@ -1,13 +1,16 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { sql } from 'drizzle-orm';
+
 import {
 	type Api,
 	createApi,
 	identityWithout,
 	monthsFromNow,
 	refusedWith,
-	seedTenant
+	seedTenant,
+	unusedId
 } from '$lib/app/tests/testing.ts';
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import type { ContractSortColumnId } from '$lib/contract/contract.ts';
@@ -53,6 +56,67 @@ test('the contract list carries how many payments are recorded against each cont
 	// a contract nobody has paid is counted as zero rather than dropped from the list — the
 	// count rides the row, so a missing one would be a contract missing from the directory.
 	assert.equal(listed(untouched.id)?.paymentCount, 0);
+});
+
+// effort 854, criterion 27. Recording a refund is ticket 22's, so the refund is seeded as the row
+// it is stored as, and the whole-table reconcile a pull runs settles the contract against it.
+async function seedRefund(
+	db: ReturnType<typeof createMemoryDatabase>,
+	contractId: string,
+	amount: number
+) {
+	await db.run(
+		sql`insert into payment (id, date, amount, contract_id, direction) values (${unusedId()}, ${monthsFromNow(0)}, ${amount}, ${contractId}, 'refund')`
+	);
+}
+
+test('after a refund a contract reads as though it had received the net: paid, status, schedule and rank', async () => {
+	const db = createMemoryDatabase();
+	const api = await createApi({ db });
+	const refunded = await seedContract(api);
+	const net = await seedContract(api);
+
+	await api.payment.create({ contractId: refunded.id, date: monthsFromNow(0), amount: 1000 });
+	await api.payment.create({ contractId: net.id, date: monthsFromNow(0), amount: 600 });
+	await seedRefund(db, refunded.id, 400);
+	await api.contract.reconcile();
+
+	const contracts = await api.contract.getMany({});
+	const listed = (id: string) => contracts.find((candidate) => candidate.id === id);
+
+	assert.equal(listed(refunded.id)?.paidAmount, 600);
+	assert.equal(listed(refunded.id)?.status, listed(net.id)?.status);
+	assert.equal(listed(refunded.id)?.rank, listed(net.id)?.rank);
+	assert.ok(listed(net.id)?.rank, 'a contract owing 400 of a cycle already due is ranked');
+	assert.deepEqual(
+		(await api.contract.schedule({ id: refunded.id })).map((cycle) => [cycle.state, cycle.covered]),
+		(await api.contract.schedule({ id: net.id })).map((cycle) => [cycle.state, cycle.covered])
+	);
+	// a refund is money going out, not a payment received, so the card counts the one payment.
+	assert.equal(listed(refunded.id)?.paymentCount, 1);
+});
+
+test('a terminated contract refunded in full stays terminated and owes nothing', async () => {
+	const db = createMemoryDatabase();
+	const api = await createApi({ db });
+	const contract = await seedContract(api);
+
+	await api.payment.create({ contractId: contract.id, date: monthsFromNow(0), amount: 600 });
+	await api.contract.terminate({ id: contract.id });
+	await seedRefund(db, contract.id, 600);
+	await api.contract.reconcile();
+
+	const listed = (await api.contract.getMany({})).find((candidate) => candidate.id === contract.id);
+
+	assert.equal(listed?.status, 'terminated');
+	assert.equal(listed?.paidAmount, 0);
+	assert.equal(listed?.rank, undefined);
+	assert.deepEqual(
+		(await api.contract.schedule({ id: contract.id })).filter(
+			(cycle) => cycle.state === 'late' || cycle.state === 'due'
+		),
+		[]
+	);
 });
 
 test('the contract list narrows to one tenant when asked', async () => {

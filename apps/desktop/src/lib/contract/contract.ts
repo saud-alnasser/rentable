@@ -23,14 +23,38 @@ import {
  * ({@link ContractContributions}).
  */
 
-/** a payment as a caller holds it, with the date in whichever form it arrived. */
+/**
+ * a payment as a caller holds it, with the date in whichever form it arrived. One that names no
+ * direction was received, as the column's own default reads a row written before it had one.
+ */
 export type PaymentLike = Omit<Pick<Payment, 'amount' | 'date'>, 'date'> & {
 	date: DateLike;
+	direction?: Payment['direction'];
 };
 
-/** what a set of payments made against a contract adds up to. */
+/** whether a payment is money returned to the tenant rather than money received from them. */
+export function isRefund(payment: Pick<PaymentLike, 'direction'>) {
+	return payment.direction === 'refund';
+}
+
+/** what the contract received: every payment that is not a refund. */
+export function getReceivedAmount(payments: PaymentLike[]) {
+	return payments.reduce((sum, payment) => (isRefund(payment) ? sum : sum + payment.amount), 0);
+}
+
+/** what the contract returned to its tenant: every refund. */
+export function getRefundedAmount(payments: PaymentLike[]) {
+	return payments.reduce((sum, payment) => (isRefund(payment) ? sum + payment.amount : sum), 0);
+}
+
+/**
+ * What a contract counts as paid: what it received less what it returned (effort 854, requirement
+ * 27). Every figure that weighs payments against the contract reads this, so its status, schedule,
+ * outstanding and paid in full all follow the net. What the landing page reports as collected is
+ * not a settlement and stays every payment received, as recorded.
+ */
 export function getPaidAmount(payments: PaymentLike[]) {
-	return payments.reduce((sum, payment) => sum + payment.amount, 0);
+	return getReceivedAmount(payments) - getRefundedAmount(payments);
 }
 
 /**
@@ -76,6 +100,24 @@ export function getContractPaymentSummary(contract: ContractLike, payments: Paym
 		paidAmount: getPaidAmount(payments),
 		expectedAmount: getContractTotalCost(contract)
 	};
+}
+
+/**
+ * The most a refund against this contract may return (effort 854, requirement 26).
+ *
+ * A terminated contract may return what it received, less what it already returned. One that is
+ * not terminated may return only what it received past its total cost, less what it already
+ * returned, so a refund never makes it owe. Never below nothing.
+ */
+export function getRefundableAmount(contract: ContractLike, payments: PaymentLike[]) {
+	const received = getReceivedAmount(payments);
+	const refunded = getRefundedAmount(payments);
+	const returnable =
+		contract.status === 'terminated'
+			? received - refunded
+			: received - getContractTotalCost(contract) - refunded;
+
+	return Math.max(0, returnable);
 }
 
 export function hasSatisfiedContractPaymentRequirement(paidAmount: number, expectedAmount: number) {

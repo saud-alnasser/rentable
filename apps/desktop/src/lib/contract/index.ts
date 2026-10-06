@@ -15,6 +15,7 @@ export {
 	ensureContractIsNotTerminated,
 	ensureContractPaymentsCreatable,
 	getAmountDueThisCycle,
+	getPaidAmount,
 	getRemainingContractBalance,
 	hasSatisfiedContractPaymentRequirement,
 	toContractName,
