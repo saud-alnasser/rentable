@@ -335,8 +335,17 @@ carries the manager's four-week grant, an accepted risk. A spent, lapsed or revo
 before anything is recorded on the machine, and the replica it pulled is deleted unless the machine
 holds that organization. A link for an organization the machine already holds selects it, and is
 judged on that organization's own replica with no session open: a reset link for one of its members
-admits them, anything else is refused as already used. *It lapsed at seven days, and a spent
-invitation link still recorded the organization, until effort 851 (2026-10-05).* `connect` and `disconnect` are a machine and the organization; `sign in` and `sign out` are
+admits them, anything else is refused as already used. **Every link waiting to be opened is
+listed for whoever could have made it and revoked there** (`invitation/outstanding.rs`, effort
+851): a holder of `inviteMember` or `resetPassword` sees the links of the accounts ranked below
+them, the owner every one, each with its member, what opening it does (joins, chooses a new
+password, adds a machine), its maker where an invitation names one, and its lapse; a locked member
+is refused both. A revoke deletes the row, so opening the link reads revoked, and the account
+stays. The list is a card under the people in the organization tab (`member/component/links.svelte`).
+A machine link whose row is gone reads revoked as an invitation's does; it read `Replaced` until
+the revoke, since a gone row names nobody to ask whether a newer link took its place. *It lapsed
+at seven days, and a spent invitation link still recorded the organization, until effort 851
+(2026-10-05).* `connect` and `disconnect` are a machine and the organization; `sign in` and `sign out` are
 the member. *There was an organization link carrying a never-expiring read-only credential until
 828's requirement 16 retired it; what recovers an organization whose every machine is gone is the
 owner's Turso account and their password.*

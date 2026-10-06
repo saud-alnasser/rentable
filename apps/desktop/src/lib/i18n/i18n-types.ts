@@ -1056,10 +1056,6 @@ type RootTranslation = {
 				 */
 				revoked: string;
 				/**
-				 * a​ ​n​e​w​e​r​ ​l​i​n​k​ ​r​e​p​l​a​c​e​d​ ​t​h​i​s​ ​o​n​e​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​s​e​n​t​ ​i​t​ ​f​o​r​ ​t​h​e​ ​n​e​w​ ​o​n​e​.
-				 */
-				replaced: string;
-				/**
 				 * t​y​p​e​ ​t​h​e​ ​s​i​x​-​c​h​a​r​a​c​t​e​r​ ​c​o​d​e​ ​t​h​a​t​ ​c​a​m​e​ ​w​i​t​h​ ​t​h​e​ ​l​i​n​k​.
 				 */
 				codeMissing: string;
@@ -1083,6 +1079,10 @@ type RootTranslation = {
 				 * a​ ​l​i​n​k​ ​l​a​s​t​s​ ​f​r​o​m​ ​a​n​ ​h​o​u​r​ ​t​o​ ​a​ ​w​e​e​k​.​ ​c​h​o​o​s​e​ ​o​n​e​ ​o​f​ ​t​h​e​ ​l​i​f​e​t​i​m​e​s​ ​o​f​f​e​r​e​d​.
 				 */
 				linkLifetime: string;
+				/**
+				 * t​h​a​t​ ​l​i​n​k​ ​w​a​s​ ​a​l​r​e​a​d​y​ ​u​s​e​d​,​ ​l​a​p​s​e​d​ ​o​r​ ​r​e​v​o​k​e​d​,​ ​s​o​ ​t​h​e​r​e​ ​i​s​ ​n​o​t​h​i​n​g​ ​t​o​ ​r​e​v​o​k​e​.
+				 */
+				linkNotOutstanding: string;
 				/**
 				 * t​h​e​ ​u​s​e​r​n​a​m​e​ ​o​r​ ​p​a​s​s​w​o​r​d​ ​i​s​ ​w​r​o​n​g​.
 				 */
@@ -3677,6 +3677,67 @@ type RootTranslation = {
 			 */
 			renamed: string;
 		};
+		links: {
+			/**
+			 * p​e​n​d​i​n​g​ ​l​i​n​k​s
+			 */
+			title: string;
+			/**
+			 * l​i​n​k​s​ ​m​a​d​e​ ​f​r​o​m​ ​a​ ​m​e​m​b​e​r​'​s​ ​c​a​r​d​ ​t​h​a​t​ ​n​o​b​o​d​y​ ​h​a​s​ ​o​p​e​n​e​d​ ​y​e​t​.
+			 */
+			description: string;
+			/**
+			 * n​o​ ​l​i​n​k​s​ ​w​a​i​t​i​n​g
+			 */
+			noneTitle: string;
+			/**
+			 * a​ ​l​i​n​k​ ​y​o​u​ ​m​a​k​e​ ​f​r​o​m​ ​a​ ​m​e​m​b​e​r​'​s​ ​c​a​r​d​ ​s​h​o​w​s​ ​h​e​r​e​ ​u​n​t​i​l​ ​i​t​ ​i​s​ ​u​s​e​d​ ​o​r​ ​l​a​p​s​e​s​.
+			 */
+			noneDescription: string;
+			/**
+			 * j​o​i​n​s​ ​a​s​ ​a​ ​n​e​w​ ​m​e​m​b​e​r
+			 */
+			join: string;
+			/**
+			 * c​h​o​o​s​e​s​ ​a​ ​n​e​w​ ​p​a​s​s​w​o​r​d
+			 */
+			reset: string;
+			/**
+			 * a​d​d​s​ ​a​ ​m​a​c​h​i​n​e
+			 */
+			machine: string;
+			/**
+			 * l​a​p​s​e​s​ ​{​m​o​m​e​n​t​}
+			 * @param {string} moment
+			 */
+			lapses: RequiredParams<'moment'>;
+			/**
+			 * m​a​d​e​ ​b​y​ ​{​u​s​e​r​n​a​m​e​}
+			 * @param {string} username
+			 */
+			madeBy: RequiredParams<'username'>;
+			/**
+			 * a​c​t​i​o​n​s​ ​f​o​r​ ​t​h​e​ ​l​i​n​k​ ​f​o​r​ ​{​u​s​e​r​n​a​m​e​}
+			 * @param {string} username
+			 */
+			menu: RequiredParams<'username'>;
+			/**
+			 * r​e​v​o​k​e​ ​l​i​n​k
+			 */
+			revoke: string;
+			/**
+			 * r​e​v​o​k​e
+			 */
+			confirmLabel: string;
+			/**
+			 * t​h​e​ ​l​i​n​k​ ​a​n​d​ ​i​t​s​ ​c​o​d​e​ ​s​t​o​p​ ​w​o​r​k​i​n​g​ ​a​t​ ​o​n​c​e​.​ ​a​ ​n​e​w​ ​l​i​n​k​ ​f​r​o​m​ ​t​h​e​i​r​ ​c​a​r​d​ ​b​r​i​n​g​s​ ​t​h​e​m​ ​i​n​.
+			 */
+			confirmDescription: string;
+			/**
+			 * l​i​n​k​ ​r​e​v​o​k​e​d​.
+			 */
+			revoked: string;
+		};
 		setup: {
 			/**
 			 * c​o​n​n​e​c​t​ ​T​u​r​s​o
@@ -3850,10 +3911,6 @@ type RootTranslation = {
 			 * t​h​i​s​ ​l​i​n​k​ ​w​a​s​ ​w​i​t​h​d​r​a​w​n​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​s​e​n​t​ ​i​t​ ​f​o​r​ ​a​ ​n​e​w​ ​o​n​e​.
 			 */
 			revoked: string;
-			/**
-			 * a​ ​n​e​w​e​r​ ​l​i​n​k​ ​r​e​p​l​a​c​e​d​ ​t​h​i​s​ ​o​n​e​.​ ​a​s​k​ ​w​h​o​e​v​e​r​ ​s​e​n​t​ ​i​t​ ​f​o​r​ ​t​h​e​ ​n​e​w​ ​o​n​e​.
-			 */
-			replaced: string;
 			/**
 			 * c​h​o​o​s​e​ ​a​ ​p​a​s​s​w​o​r​d
 			 */
@@ -6184,10 +6241,6 @@ export type TranslationFunctions = {
 				 */
 				revoked: () => LocalizedString;
 				/**
-				 * a newer link replaced this one. ask whoever sent it for the new one.
-				 */
-				replaced: () => LocalizedString;
-				/**
 				 * type the six-character code that came with the link.
 				 */
 				codeMissing: () => LocalizedString;
@@ -6211,6 +6264,10 @@ export type TranslationFunctions = {
 				 * a link lasts from an hour to a week. choose one of the lifetimes offered.
 				 */
 				linkLifetime: () => LocalizedString;
+				/**
+				 * that link was already used, lapsed or revoked, so there is nothing to revoke.
+				 */
+				linkNotOutstanding: () => LocalizedString;
 				/**
 				 * the username or password is wrong.
 				 */
@@ -8697,6 +8754,64 @@ export type TranslationFunctions = {
 			 */
 			renamed: () => LocalizedString;
 		};
+		links: {
+			/**
+			 * pending links
+			 */
+			title: () => LocalizedString;
+			/**
+			 * links made from a member's card that nobody has opened yet.
+			 */
+			description: () => LocalizedString;
+			/**
+			 * no links waiting
+			 */
+			noneTitle: () => LocalizedString;
+			/**
+			 * a link you make from a member's card shows here until it is used or lapses.
+			 */
+			noneDescription: () => LocalizedString;
+			/**
+			 * joins as a new member
+			 */
+			join: () => LocalizedString;
+			/**
+			 * chooses a new password
+			 */
+			reset: () => LocalizedString;
+			/**
+			 * adds a machine
+			 */
+			machine: () => LocalizedString;
+			/**
+			 * lapses {moment}
+			 */
+			lapses: (arg: { moment: string }) => LocalizedString;
+			/**
+			 * made by {username}
+			 */
+			madeBy: (arg: { username: string }) => LocalizedString;
+			/**
+			 * actions for the link for {username}
+			 */
+			menu: (arg: { username: string }) => LocalizedString;
+			/**
+			 * revoke link
+			 */
+			revoke: () => LocalizedString;
+			/**
+			 * revoke
+			 */
+			confirmLabel: () => LocalizedString;
+			/**
+			 * the link and its code stop working at once. a new link from their card brings them in.
+			 */
+			confirmDescription: () => LocalizedString;
+			/**
+			 * link revoked.
+			 */
+			revoked: () => LocalizedString;
+		};
 		setup: {
 			/**
 			 * connect Turso
@@ -8868,10 +8983,6 @@ export type TranslationFunctions = {
 			 * this link was withdrawn. ask whoever sent it for a new one.
 			 */
 			revoked: () => LocalizedString;
-			/**
-			 * a newer link replaced this one. ask whoever sent it for the new one.
-			 */
-			replaced: () => LocalizedString;
 			/**
 			 * choose a password
 			 */

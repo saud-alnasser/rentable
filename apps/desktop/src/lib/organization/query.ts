@@ -22,14 +22,20 @@ export const keys = {
 	machines: ['organization', 'machines'],
 	mark: ['organization', 'mark'],
 	members: ['organization', 'members'],
+	/**
+	 * the links waiting to be opened (effort 851), under the members' key so every organization
+	 * write reads them again with the list: making a link, a reset and a removal each move them.
+	 */
+	memberLinks: ['organization', 'members', 'links'],
 	memberStandings: ['organization', 'members', 'standings'],
 	roles: ['organization', 'roles'],
 	state: ['organization', 'state']
 } as const;
 
 /**
- * What every write to the organization's database reads again: the members (their standings sit
- * under them), the roles and where this machine stands, together.
+ * What every write to the organization's database reads again: the members (their standings and
+ * the links waiting to be opened sit under them), the roles and where this machine stands,
+ * together.
  *
  * **All three, whatever the write named**, because each is drawn from rows the others change and
  * the cards say it at once. A role's holders are counted on the roles, so removing a member moves

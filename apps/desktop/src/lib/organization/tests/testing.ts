@@ -68,6 +68,8 @@ export function fakeOrganizationHost(): OrganizationHost {
 			standings: refuse('organization.member.standings'),
 			create: refuse('organization.member.create'),
 			linkMake: refuse('organization.member.linkMake'),
+			links: refuse('organization.member.links'),
+			linkRevoke: refuse('organization.member.linkRevoke'),
 			unsetPassword: refuse('organization.member.unsetPassword'),
 			remove: refuse('organization.member.remove'),
 			lockOutCost: refuse('organization.member.lockOutCost'),

@@ -99,11 +99,14 @@
 	 * as the sync state's five do, the one row in the area whose words carry a tone at all.
 	 *
 	 * The words are the caller's, as every block in this package takes them, and are drawn as
-	 * written but for the name's first letter, which is raised as a label's is.
+	 * written but for the name's first letter, which is raised as a label's is, unless the name is
+	 * somebody's own word (`nameAsWritten`): a username is drawn exactly as its member wrote it, and
+	 * isolated, so a name in another script keeps its direction, as the group's title is.
 	 */
 	let {
 		icon: Icon,
 		name,
+		nameAsWritten = false,
 		meta,
 		badge,
 		value,
@@ -121,6 +124,11 @@
 		icon: Component<{ class?: string }>;
 		/** What the row is, in the reader's language. Also the control's label. */
 		name: string;
+		/**
+		 * Whether the name is somebody's own word, a username, drawn exactly as written: a label's
+		 * first letter is raised, and a name's is not the row's to change.
+		 */
+		nameAsWritten?: boolean;
 		/** One muted line under the name: when it was seen, where it is, how it stands. */
 		meta?: string | Snippet;
 		/** A short word beside the name that marks this row among its neighbours. */
@@ -183,7 +191,11 @@
 		<!-- the title is a flex row, and a first letter is only raised in a block: the name sits in
 		     one of its own, with the badge that marks the row beside it. -->
 		<Item.Title id={labelId} class="{words ?? ''} max-w-full flex-wrap">
-			<span class="inline-block min-w-0 first-letter:uppercase">{name}</span>
+			{#if nameAsWritten}
+				<span class="inline-block min-w-0"><bdi>{name}</bdi></span>
+			{:else}
+				<span class="inline-block min-w-0 first-letter:uppercase">{name}</span>
+			{/if}
 			{#if badge}
 				<Badge variant="secondary" data-row-badge><bdi>{badge}</bdi></Badge>
 			{/if}

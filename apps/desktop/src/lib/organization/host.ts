@@ -20,6 +20,7 @@ import type {
 	MemberStanding,
 	MemberWorkspace,
 	OrganizationMember,
+	OutstandingLink,
 	UnreachableWorkspace,
 	WorkspaceGrant
 } from './member/host';
@@ -39,6 +40,7 @@ export type {
 	OrganizationMember,
 	OrganizationRole,
 	OrganizationWorkspace,
+	OutstandingLink,
 	UnreachableWorkspace,
 	WorkspaceGrant,
 	WorkspaceStatement

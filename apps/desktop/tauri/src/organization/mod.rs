@@ -130,6 +130,16 @@ mod tests {
             "invitation_link_make",
             Gate::AnyFlag(&[Flag::InviteMember, Flag::ResetPassword]),
         ),
+        // whoever could make a link sees it waiting and revokes it, on the accounts below them
+        // (effort 851).
+        (
+            "invitation_link_list",
+            Gate::AnyFlag(&[Flag::InviteMember, Flag::ResetPassword]),
+        ),
+        (
+            "invitation_link_revoke",
+            Gate::AnyFlag(&[Flag::InviteMember, Flag::ResetPassword]),
+        ),
         (
             "invitation_password_unset",
             Gate::AllFlags(&[Flag::ResetPassword, Flag::GrantWorkspace]),

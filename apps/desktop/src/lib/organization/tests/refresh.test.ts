@@ -91,6 +91,7 @@ const writes: [string, () => unknown, unknown][] = [
 	['withdraw the offer', members.useWithdrawOffer, undefined],
 	['accept the organization', members.useAcceptOwnership, undefined],
 	['make a link', members.useMakeMemberLink, { unreachableWorkspaces: [] }],
+	['revoke a link', members.useRevokeLink, undefined],
 	["unset a member's password", members.useUnsetMemberPassword, []],
 	['create a role', roles.useCreateRole, undefined],
 	['rename a role', roles.useRenameRole, undefined],
@@ -117,6 +118,12 @@ describe('a write to the organization', () => {
 			}
 		});
 	}
+
+	// effort 851: the links waiting to be opened sit under the members' key, so making a link, a
+	// reset, a removal and a revoke, each of which moves them, read them again with the list.
+	it('reads the links waiting to be opened again with the members', () => {
+		assert.deepEqual(keys.memberLinks.slice(0, keys.members.length), [...keys.members]);
+	});
 
 	it('reads them again once a change of access settles, landed or refused', async () => {
 		const mutation = bindingOf(access.useChangeAccess);

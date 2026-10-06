@@ -229,7 +229,8 @@ meta line under a row's name and a badge beside it where one marks the row; then
 separator, the acts that end something, the error tone on the act's button alone, never on the
 row's glyph or name, the card's edge or a band (an ending act on one row of a growing list, such as one machine's sign-out, is an
 entry in that row's record menu instead, confirmed and in the menu's default tone, so the card's
-red stays on one act: this machine's own sign-out is such an entry in its row's menu, the one
+red stays on one act, as revoking one of the organization tab's links waiting to be opened is (effort
+851): this machine's own sign-out is such an entry in its row's menu, the one
 that asks nothing (*Delete and confirm*), and the account has no card for this machine); then an optional footer of one note, one progress bar or one act. Every card takes the column's
 width, and those that end something are written last. The roles, members and workspaces
 directories are not boxed: their heading takes the card's header, the tray sits under it, the
@@ -659,14 +660,16 @@ its page, the command menu, a selection's bar, and every row of the settings are
 records' deletes (tenant, complex, unit, contract, payment), terminating a contract, the
 organization's acts (deleting a workspace, removing a member or locking one out, resetting a
 member's password, signing a member out everywhere, deleting a role, withdrawing an ownership
-offer, transferring ownership), signing out another machine or every other one, disconnecting
+offer, transferring ownership, revoking a link waiting to be opened), signing out another machine
+or every other one, disconnecting
 this machine, forgetting the Turso account (in settings and in setup), deleting
 the organization, and removing the organization stamp. Leaving the question does nothing.
 
 **The question names what ends and whether anything brings it back.** The record leads, as the
 surface names it; the line under it says what goes and what puts it back: undo while the
 application is open for a record's delete, restoring for a termination, signing in again for a
-sign-out, a new link for a member's reset, offering again for a withdrawn offer, and *nothing* where
+sign-out, a new link for a member's reset or a revoked link, offering again for a withdrawn offer,
+and *nothing* where
 nothing does. A record's delete still lands inside undo once answered, and its announcement still
 carries the undo control (*Undo*).
 

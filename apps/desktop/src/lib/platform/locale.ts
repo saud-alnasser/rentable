@@ -110,6 +110,27 @@ export function formatLocaleRelativeTime(locale: Locales, value: number | Date, 
 }
 
 /**
+ * A moment ahead, said relative to `now` in the reader's own words: "in 3 days", "خلال ساعتين".
+ * What a link waiting to be opened says of when it lapses (effort 851).
+ *
+ * **The mirror of {@link formatLocaleRelativeTime}**, on the same units and the same `Intl`: the
+ * largest unit the gap fills, up to a day, counted down rather than rounded up, so a link with two
+ * days and twenty hours left reads "in 2 days" rather than promising a third. A moment under a
+ * minute away, or already behind, reads as "now".
+ */
+export function formatLocaleTimeUntil(locale: Locales, value: number | Date, now: number) {
+	const moment = value instanceof Date ? value.getTime() : value;
+	const remaining = Math.max(0, moment - now);
+	const formatter = new Intl.RelativeTimeFormat(getIntlLocale(locale), { numeric: 'auto' });
+
+	if (remaining < MINUTE) return formatter.format(0, 'second');
+	if (remaining < HOUR) return formatter.format(Math.floor(remaining / MINUTE), 'minute');
+	if (remaining < DAY) return formatter.format(Math.floor(remaining / HOUR), 'hour');
+
+	return formatter.format(Math.floor(remaining / DAY), 'day');
+}
+
+/**
  * The currency this application deals in, as the symbol rather than as a word.
  *
  * `U+20C1 SAUDI RIYAL SIGN`, the mark adopted in 2025 — **not** `U+FDFC RIAL SIGN`, which is the

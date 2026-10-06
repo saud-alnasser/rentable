@@ -2,6 +2,7 @@ import type {
 	MachineView,
 	MemberStanding,
 	OrganizationMember,
+	OutstandingLink,
 	OrganizationRole,
 	OrganizationSession
 } from '$lib/organization/host';
@@ -54,6 +55,8 @@ export const hostAnswers = {
 	members: [] as OrganizationMember[],
 	/** where each member stands, as the members section draws it in a line. */
 	standings: [] as MemberStanding[],
+	/** the links waiting to be opened, as the organization tab lists them for whoever keeps them. */
+	links: [] as OutstandingLink[],
 	roles: [] as OrganizationRole[],
 	/** the reader's machines, this one first, as the account section lists them. */
 	machines: [] as MachineView[],
@@ -69,6 +72,7 @@ export function resetHostAnswers() {
 	hostAnswers.holdsTursoAuthority = false;
 	hostAnswers.members = [];
 	hostAnswers.standings = [];
+	hostAnswers.links = [];
 	hostAnswers.roles = [];
 	hostAnswers.machines = [];
 	hostAnswers.syncState = null;
@@ -115,6 +119,11 @@ export const hostHooks = {
 			return hostAnswers.standings;
 		}
 	}),
+	useFetchMemberLinks: () => ({
+		get data() {
+			return hostAnswers.links;
+		}
+	}),
 	useFetchRoles: () => ({
 		get data() {
 			return hostAnswers.roles;
@@ -140,6 +149,7 @@ export const hostHooks = {
 	useWithdrawOffer: mutation('useWithdrawOffer'),
 	useRemoveMember: mutation('useRemoveMember'),
 	useMakeMemberLink: mutation('useMakeMemberLink'),
+	useRevokeLink: mutation('useRevokeLink'),
 	useUnsetMemberPassword: mutation('useUnsetMemberPassword'),
 	useEndMemberSessions: mutation('useEndMemberSessions'),
 	useUnlockMember: mutation('useUnlockMember'),

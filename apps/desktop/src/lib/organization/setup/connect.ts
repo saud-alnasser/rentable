@@ -37,7 +37,7 @@ import type { LinkShape } from '$lib/organization/host';
  * invitation link connected the machine until then, and the screen offered the wall from it.*
  *
  * **Nothing is judged before the code, so every standing arrives as a refusal.** A lapsed,
- * consumed, revoked or replaced link comes back from the accept or the machine connect rather than
+ * consumed or revoked link comes back from the accept or the machine connect rather than
  * from the read, and Rust names which on the rejection's own `reason` (`refused`, in
  * `error/tauri.ts`). `joinFailed` is where that word becomes the step a person lands on, and the
  * sentence they read is this side's, said in their language. *The screen read the standing off the
@@ -93,16 +93,17 @@ export type CodeRefusal = 'wrong' | 'missing';
 /**
  * why a link admits nobody: the standings a link can be in and no longer open on.
  *
- * The first four are Rust's `RefusalReason`, spelled the same, and arrive on a rejection the
- * accept or the machine connect answered with; `replaced` is a second machine's alone, and means
- * the member made a newer link. *A fifth, `anotherOrganization`, was a machine already holding
- * another organization, until effort 851 let a machine hold several: a link for another
- * organization adds it, and one for an organization held selects it.*
+ * All three are Rust's `RefusalReason`, spelled the same, and arrive on a rejection the accept or
+ * the machine connect answered with. *A fourth, `replaced`, was a second machine's link whose row a
+ * newer link took the place of, until effort 851 let a link be revoked and a gone row read
+ * `revoked` for either kind. A fifth, `anotherOrganization`, was a machine already holding another
+ * organization, until effort 851 let a machine hold several: a link for another organization adds
+ * it, and one for an organization held selects it.*
  */
 export type JoinRefusal = LinkStanding;
 
-/** the four standings a link can be refused on, as Rust's `RefusalReason` spells them. */
-const LINK_STANDINGS = ['lapsed', 'consumed', 'revoked', 'replaced'] as const;
+/** the three standings a link can be refused on, as Rust's `RefusalReason` spells them. */
+const LINK_STANDINGS = ['lapsed', 'consumed', 'revoked'] as const;
 
 type LinkStanding = (typeof LINK_STANDINGS)[number];
 
@@ -344,7 +345,7 @@ export function joinBegun(step: JoinStep): JoinStep {
  * connect, in the wait the read runs in.
  *
  * **Where each goes, and what says so.** A link the row refuses carries Rust's `reason`, which is
- * `lapsed`, `consumed`, `revoked` or `replaced`, and lands by that name on the refused step. A
+ * `lapsed`, `consumed` or `revoked`, and lands by that name on the refused step. A
  * code that failed the seal is `codeWrong` and a code nobody typed is `codeMissing`,
  * and both hand the form back with the code field marked, since the field is where the person
  * answers them (effort 828, requirement 17). A connection that went is `network` and is the

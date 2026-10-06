@@ -41,7 +41,7 @@
 	 *
 	 * **The code comes before anything is reached, so a refusal arrives after it.** Nothing looks at
 	 * the row behind a link until the code has unsealed what reaches the organization, which is why
-	 * a lapsed, consumed, revoked or replaced link is named here rather than on the read. **A link
+	 * a lapsed, consumed or revoked link is named here rather than on the read. **A link
 	 * already used admits nobody, on this machine or any other** (effort 851, requirement 10):
 	 * nothing was recorded, so it says the link was already used and to ask the owner or a manager
 	 * for a new one, and offers nothing else. *It offered the wall until effort 851, because an
@@ -173,10 +173,8 @@
 				// either kind of link, on this machine or another: nothing was recorded, and a new
 				// link is the only way on.
 				return $LL.organization.join.consumed();
-			case 'revoked':
-				return $LL.organization.join.revoked();
 			default:
-				return $LL.organization.join.replaced();
+				return $LL.organization.join.revoked();
 		}
 	});
 

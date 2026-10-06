@@ -5,6 +5,7 @@ import type {
 	MemberStanding,
 	OrganizationHost,
 	OrganizationMember,
+	OutstandingLink,
 	SessionsEnded,
 	UnreachableWorkspace
 } from '$lib/organization/host';
@@ -145,6 +146,27 @@ export default {
 		)
 		.mutation(async ({ input, ctx }): Promise<MadeLink> => {
 			return ctx.host.organization.member.linkMake(input.memberId, input.lifetimeHours);
+		}),
+	/**
+	 * The links waiting to be opened that the reader could have made (effort 851). Under the link
+	 * act's own gate, `inviteMember` or `resetPassword`, since whoever may hand somebody a way in
+	 * may see the ways in still waiting and take one back; which accounts rank below the reader,
+	 * and the lock, are Rust's to answer.
+	 */
+	links: procedure
+		.permittedAny('inviteMember', 'resetPassword')
+		.query(async ({ ctx }): Promise<OutstandingLink[]> => {
+			return ctx.host.organization.member.links();
+		}),
+	/**
+	 * Revoke one link waiting to be opened, under the same gate. The account it is for ranking at
+	 * or above the reader, and a link already used, lapsed or revoked, are Rust's to refuse.
+	 */
+	linkRevoke: procedure
+		.permittedAny('inviteMember', 'resetPassword')
+		.input(z.object({ linkId: z.string().trim().min(1) }))
+		.mutation(async ({ input, ctx }): Promise<void> => {
+			return ctx.host.organization.member.linkRevoke(input.linkId);
 		}),
 	/**
 	 * A reset: the account's password unset, so the next link asks for a new one. It is

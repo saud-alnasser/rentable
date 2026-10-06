@@ -1,5 +1,6 @@
-//! the commands of the way in: an account made, its link made, its password unset, and a link
-//! read, taken and opened, as an invitation or as a machine link.
+//! the commands of the way in: an account made, its link made, its password unset, the links
+//! waiting to be opened listed and revoked, and a link read, taken and opened, as an invitation or
+//! as a machine link.
 
 use std::sync::Arc;
 
@@ -13,7 +14,7 @@ use crate::{
 use crate::organization::{
     act::{Acting, Pull, as_member, signed_in_owner_platform},
     invitation::{
-        self, MadeLink, MemberFacts, UnreachableWorkspace, WorkspaceGrant, join,
+        self, MadeLink, MemberFacts, OutstandingLink, UnreachableWorkspace, WorkspaceGrant, join,
         link::{self, JoinLink, LinkShape},
         machine,
     },
@@ -107,6 +108,41 @@ pub(crate) async fn organization_invitation_link_make(
             clock.now(),
         )
         .await
+    })
+    .await
+}
+
+/// The links waiting to be opened that the reader could have made: whom each is for, what opening
+/// it does, who made it where the row says, and when it lapses (effort 851, at the human's word).
+///
+/// **`inviteMember` or `resetPassword`, on the accounts ranked below the reader**, as making a
+/// link is, read off the verified row; a locked reader is refused. Nothing that opens a link
+/// crosses: no text, no code, no secret ([[rules/credentials]], *Client boundary*).
+#[tauri::command(rename = "invitation_link_list")]
+pub(crate) async fn organization_invitation_link_list(
+    app_state: tauri::State<'_, Shared>,
+    clock: tauri::State<'_, clock::Shared>,
+) -> Result<Vec<OutstandingLink>, Error> {
+    as_member(&app_state, Pull::No, async |Acting { member, store }| {
+        invitation::outstanding_links(store, member, clock.now()).await
+    })
+    .await
+}
+
+/// Revoke one link waiting to be opened: the row behind it goes, so opening it is refused as
+/// revoked, and the change is sent (effort 851). Under the list's gate, and refused by rank for
+/// an account at or above the reader.
+///
+/// **After a pull**, so a link somebody opened or revoked on another machine is refused as nothing
+/// to revoke rather than deleted from under them.
+#[tauri::command(rename = "invitation_link_revoke")]
+pub(crate) async fn organization_invitation_link_revoke(
+    app_state: tauri::State<'_, Shared>,
+    clock: tauri::State<'_, clock::Shared>,
+    link_id: String,
+) -> Result<(), Error> {
+    as_member(&app_state, Pull::First, async |Acting { member, store }| {
+        invitation::revoke_link(store, member, &link_id, clock.now()).await
     })
     .await
 }

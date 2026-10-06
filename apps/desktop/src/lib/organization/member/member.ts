@@ -1,3 +1,4 @@
+import { heldPermissions } from '$lib/api/context';
 import type { OrganizationSession } from '$lib/organization/host';
 import { permits, type Flag } from '@rentable/workspace-permission';
 
@@ -72,4 +73,18 @@ const MEMBER_ACTS = [
  */
 export function administersMembers(session: OrganizationSession | null): boolean {
 	return MEMBER_ACTS.some((act) => permits(session?.permissions ?? 0, act));
+}
+
+/**
+ * Whether this reader is shown the links waiting to be opened (effort 851): a holder of
+ * `inviteMember` or `resetPassword`, either of which makes a link, and not while locked, since the
+ * shell answers nobody else. Which links they see, those of the accounts below them, is the
+ * shell's to answer.
+ */
+export function keepsLinks(session: OrganizationSession | null): boolean {
+	if (session === null) return false;
+
+	const held = heldPermissions(session);
+
+	return permits(held, 'inviteMember') || permits(held, 'resetPassword');
 }

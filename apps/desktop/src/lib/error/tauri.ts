@@ -46,22 +46,24 @@ const needsViewing = <K extends RecordKind>(kind: K) => `${kind}NeedsViewing` as
  * so a word added on one side and not the other fails a test. Each word has a sentence under
  * `common.refusals.host` in both locales, which `error/refusal.ts` checks by type.
  *
- * The first four are a link's standing after its code was right (effort 828), and the connect
- * screen routes on them by name. The rest were added by effort 832, when every refusal a person
- * can cause in the shell began to carry one, and the last are one per kind of record, read off the
- * package's list of kinds as Rust reads its families.
+ * The first three are a link's standing after its code was right (effort 828), and the connect
+ * screen routes on them by name. *There were four until effort 851 let a link be revoked: a machine
+ * link whose row was gone read `replaced`, and it reads `revoked` as an invitation's does.* The
+ * rest were added by effort 832, when every refusal a person can cause in the shell began to carry
+ * one, and the last are one per kind of record, read off the package's list of kinds as Rust reads
+ * its families.
  */
 export const TAURI_REFUSAL_REASONS = [
 	'lapsed',
 	'consumed',
 	'revoked',
-	'replaced',
 	'codeMissing',
 	'codeWrong',
 	'linkUnreadable',
 	'linkNotAnInvitation',
 	'linkNotForAMachine',
 	'linkLifetime',
+	'linkNotOutstanding',
 	'credentialsWrong',
 	'passwordTooShort',
 	'passwordChangeRequired',

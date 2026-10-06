@@ -124,11 +124,11 @@ test('an invitation link names the organization and asks for a password, holding
 //
 // *This test was the read's until effort 828 sealed the credential: the standing was answered
 // before anybody had typed anything, and the screen showed it without asking for a code.*
-test('a lapsed, consumed, revoked or replaced link is refused by name, off the code and not the sentence', () => {
+test('a lapsed, consumed or revoked link is refused by name, off the code and not the sentence', () => {
 	for (const step of [stepOf({ kind: 'invitation', expiresAt: 1 }), reading()]) {
 		const joining = joinBegun(step);
 
-		for (const reason of ['lapsed', 'consumed', 'revoked', 'replaced'] as const) {
+		for (const reason of ['lapsed', 'consumed', 'revoked'] as const) {
 			assert.deepEqual(
 				joinFailed(joining, rejection('refused', `the link to Acme ${reason}`, reason), said),
 				{

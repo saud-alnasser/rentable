@@ -135,6 +135,14 @@ grant**, since a manager's machine holds no Turso consent to mint with, and that
 the link is the risk the spec accepted. A spent, lapsed or revoked link is refused before the
 machine records anything.*
 
+*Added 2026-10-06 ([[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/spec]],
+at the human's word): **the links waiting to be opened are listed and revoked, and what crosses
+about one is facts.** `invitation_link_list` answers whom each is for, what opening it does, who
+made it where the row says, and when it was made and lapses, with the row's id, which is what
+`invitation_link_revoke` names. The link's text, its code, its secret, the sealed payload and the
+issuer's sealed copy never cross; the id is the half id the text carries, and it opens nothing
+without the secret and the code.*
+
 *Corrected 2026-09-16 ([[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]],
 requirement 16, which supersedes requirement 4): **no link carries a legible credential, and the
 "every other link" paragraph above now describes every link there is.** The organization's own link

@@ -81,9 +81,11 @@ pub enum Error {
 /// The one variant holding anything is [`RefusalReason::NeedsViewing`], whose kind of record is
 /// part of its word rather than a value beside it, so it crosses as one word like the rest.
 ///
-/// The first four are a link's standing after its code was right (effort 828): an invitation is
-/// `Lapsed`, `Consumed` or `Revoked`, and a machine link is `Lapsed`, `Consumed` or `Replaced`.
-/// The connect screen routes on those four by name. Every other word was added by effort 832,
+/// The first three are a link's standing after its code was right (effort 828): either kind of
+/// link is `Lapsed`, `Consumed` or `Revoked`. The connect screen routes on those three by name.
+/// *A machine link whose row was gone read `Replaced` until effort 851 let a link be revoked from
+/// the list of links waiting to be opened; a gone row names nobody to ask whether it was replaced,
+/// so both kinds read `Revoked`.* Every other word was added by effort 832,
 /// but the two for the organization's format, the one for a rank and the six for roles, which
 /// effort 838 added.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -93,10 +95,9 @@ pub enum RefusalReason {
     Lapsed,
     /// opened once already, and it admits one.
     Consumed,
-    /// withdrawn: the invitation it was made for is gone, or the member it named is.
+    /// withdrawn: the row behind it is gone (revoked, replaced by a newer link, or taken by a reset
+    /// or a removal), or the member it named is.
     Revoked,
-    /// no row stands behind it, because a newer link took its place.
-    Replaced,
 
     // a link and the code read out with it.
     /// no code was typed beside the link.
@@ -112,6 +113,9 @@ pub enum RefusalReason {
     /// a link was asked to last something other than an hour to a day in hours, or a day to a
     /// week in days (effort 851, requirement 11).
     LinkLifetime,
+    /// the link asked to be revoked is not waiting to be opened any more: it was used, it lapsed,
+    /// or somebody revoked it first (effort 851).
+    LinkNotOutstanding,
 
     // signing in, and the session behind it.
     /// the username and password do not open a place in the organization.
@@ -479,7 +483,6 @@ mod tests {
             (RefusalReason::Lapsed, "lapsed"),
             (RefusalReason::Consumed, "consumed"),
             (RefusalReason::Revoked, "revoked"),
-            (RefusalReason::Replaced, "replaced"),
         ];
 
         for (reason, spelling) in reasons {

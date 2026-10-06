@@ -102,9 +102,11 @@ use-when: "adding or changing a router, a domain module, a database client or tr
   `meta`.** All six are on `procedure` in `api/trpc.ts`.
   - `procedure.permitted(...flags)` asks for every flag it names. It is the rule for an act.
   - `procedure.permittedAny(...flags)` asks for any one of them, for two acts that carry the same
-    authority over the same thing. There are two: `member.linkMake`, which is `inviteMember`'s or
-    `resetPassword`'s, and `member.unlock` (effort 851), which is `assignRole`'s or
-    `overrideMember`'s, the two flags that may sign a member's lock.
+    authority over the same thing. There are four: `member.linkMake`, which is `inviteMember`'s or
+    `resetPassword`'s, `member.links` and `member.linkRevoke` (effort 851), the links waiting to be
+    opened and their revoke, under the same two since whoever may make a link may see and take one
+    back, and `member.unlock` (effort 851), which is `assignRole`'s or `overrideMember`'s, the two
+    flags that may sign a member's lock.
   - `procedure.permittedBy(possible, schema, flagsOf)` reads the flag off its input, for a
     procedure that serves every record kind, or whose input decides whether a second flag is
     asked. There are three: `history.append` and `history.getMany`, where an entry about a

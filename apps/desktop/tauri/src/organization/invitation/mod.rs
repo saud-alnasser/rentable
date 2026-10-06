@@ -102,12 +102,13 @@
 //! minted to die at the link's own lapse; elsewhere it is the maker's own grant. Making another drops the one that did not stand, so one link admits one machine at a
 //! time.
 //!
-//! **Revoking takes back what a pending link made** (effort 826, requirement 15). A person who
-//! never opened their link is removed the ordinary way, grants and all, under the act that made
-//! them, so a link somebody kept opens a vault that holds nothing; a link on a member who has
-//! signed in before is deleted alone, and the member's vault stays as it is. Which of the two a
-//! member is, is whether an invitation of theirs was ever consumed: making a fresh link deletes
-//! the open invitation before it and keeps the consumed one as that record.
+//! **Revoking takes back the link and nothing else** (effort 851, `outstanding.rs`). Every link
+//! waiting to be opened is listed for whoever could have made it, and a revoke deletes the row
+//! behind one, so opening it is refused as revoked; the account stays, and a new link from its
+//! card brings its person in. Whether an invitation is a join or a reset is whether an invitation
+//! of the account's was ever consumed: making a fresh link deletes the open invitation before it
+//! and keeps the consumed one as that record. *Effort 826's revoke removed a person who had never
+//! opened their link, grants and all; it went with effort 828, which found nothing calling it.*
 //!
 //! **A reset says what it could not restore** (826, requirement 13). The old vault is gone with
 //! [`unset_password`] and every grant sealed to it is dead; the resetter re-seals the ones they
@@ -125,11 +126,13 @@ pub mod connect;
 pub mod join;
 pub mod link;
 pub mod machine;
+mod outstanding;
 mod roster;
 mod username;
 
 pub use account::*;
 pub use command::*;
+pub use outstanding::*;
 pub use roster::*;
 pub use username::*;
 

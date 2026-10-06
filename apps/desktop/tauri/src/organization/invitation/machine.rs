@@ -59,10 +59,13 @@ use crate::organization::{
 /// The one sentence a machine link that no longer opens is refused with, said in the name of the
 /// organization the link names, since that is the only thing the person on the new machine has.
 /// `reason` is why the link no longer opens: `Lapsed`, past its moment, whether the link says so or
-/// the row does; `Consumed`, a machine opened it already, and it admits one; or `Replaced`, no row
-/// stands behind it, because the member made a newer link or the organization forgot this one.
-/// *A `Refusal` enum of this file's own named the three until effort 840 left the crate one error
-/// type (ticket 47).*
+/// the row does; `Consumed`, a machine opened it already, and it admits one; or `Revoked`, no row
+/// stands behind it, because somebody revoked it from the list of links waiting to be opened, a
+/// newer link took its place, or a reset or a removal withdrew it. *A `Refusal` enum of this file's
+/// own named the three until effort 840 left the crate one error type (ticket 47). The third was
+/// `Replaced` until the revoke (effort 851): a row that is gone says nothing about who took it
+/// away, and the half a link carries names no member to ask after, so the one word that is true
+/// of every way a row goes is that the link was withdrawn.*
 ///
 /// **It points at whoever keeps the accounts.** A link is made by a holder of `inviteMember` or
 /// `resetPassword` ranked above the account, from the account's card (effort 828, requirement 20), so a refusal has exactly one remedy and
@@ -76,8 +79,8 @@ fn machine_link_refused(organization_name: &str, reason: RefusalReason) -> Error
     let why = match reason {
         RefusalReason::Lapsed => "has lapsed",
         RefusalReason::Consumed => "already connected a machine",
-        // `Replaced`, the third; nothing here refuses a machine link with another.
-        _ => "was replaced by a newer one",
+        // `Revoked`, the third; nothing here refuses a machine link with another.
+        _ => "was withdrawn",
     };
 
     Error::Refused {
@@ -111,7 +114,7 @@ fn no_longer_a_member(organization_name: &str) -> Error {
 /// already, and refuse the link there as already used (effort 851, requirement 13); refuse a link past its own moment before any key is derived,
 /// because deriving for a dead link is a free pass to whoever is guessing; unseal the payload with
 /// the code and the link's secret together; reach the replica with what came out; judge the row,
-/// refusing a replaced, lapsed or spent one by name; refuse an account that is no longer in the
+/// refusing a revoked, lapsed or spent one by name; refuse an account that is no longer in the
 /// organization; record the organization with no member, beside any others held, and select it,
 /// with the member's own lock latched where the seal says they were locked; mark the row spent and
 /// send it.
@@ -227,7 +230,7 @@ async fn connected(
     let row = store
         .machine_link(&half.id)
         .await?
-        .ok_or_else(|| machine_link_refused(&link.organization_name, RefusalReason::Replaced))?;
+        .ok_or_else(|| machine_link_refused(&link.organization_name, RefusalReason::Revoked))?;
 
     if row.expires_at <= now {
         return Err(machine_link_refused(
@@ -1419,7 +1422,7 @@ mod tests {
             matches!(
                 refused,
                 Error::Refused {
-                    reason: RefusalReason::Replaced,
+                    reason: RefusalReason::Revoked,
                     ..
                 }
             ),
@@ -1520,7 +1523,7 @@ mod tests {
             matches!(
                 refused,
                 Error::Refused {
-                    reason: RefusalReason::Replaced,
+                    reason: RefusalReason::Revoked,
                     ..
                 }
             ),

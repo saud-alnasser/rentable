@@ -42,6 +42,26 @@ export const organization = {
 		renameDescription: "what this organization is called, on every member's machine once it syncs.",
 		renamed: 'the organization was renamed.'
 	},
+	// the links waiting to be opened, in the organization tab, for whoever could make one (effort
+	// 851, at the human's word). Each row says whom it is for, what opening it does and when it
+	// lapses; its revoke asks first and says that a new link brings the person in.
+	links: {
+		title: 'pending links',
+		description: "links made from a member's card that nobody has opened yet.",
+		noneTitle: 'no links waiting',
+		noneDescription: "a link you make from a member's card shows here until it is used or lapses.",
+		join: 'joins as a new member',
+		reset: 'chooses a new password',
+		machine: 'adds a machine',
+		lapses: 'lapses {moment:string}',
+		madeBy: 'made by {username:string}',
+		menu: 'actions for the link for {username:string}',
+		revoke: 'revoke link',
+		confirmLabel: 'revoke',
+		confirmDescription:
+			'the link and its code stop working at once. a new link from their card brings them in.',
+		revoked: 'link revoked.'
+	},
 	setup: {
 		connectTitle: 'connect Turso',
 		connectDescription: 'your organization is stored in your Turso account.',
@@ -87,13 +107,12 @@ export const organization = {
 		reading: 'reading the link...',
 		unreadable:
 			'this is not a rentable link. paste the whole link, exactly as it was handed to you.',
-		// the six refusals: one line each, and each names the next step (effort 832,
+		// the refusals: one line each, and each names the next step (effort 832,
 		// requirement 19). What the shell said is behind the details disclosure under them.
 		unreachable: 'the organization could not be reached. check the connection and try again.',
 		lapsed: 'this link has lapsed. ask whoever sent it for a new one.',
 		consumed: 'this link was already used; ask the owner or a manager for a new one.',
 		revoked: 'this link was withdrawn. ask whoever sent it for a new one.',
-		replaced: 'a newer link replaced this one. ask whoever sent it for the new one.',
 		passwordTitle: 'choose a password',
 		passwordDescription: "you'll use it to sign in. it can't be recovered.",
 		organizationLabel: 'organization',
@@ -621,7 +640,6 @@ export const refusals = {
 		lapsed: 'this link has lapsed. ask whoever sent it for a new one.',
 		consumed: 'this link was already used; ask the owner or a manager for a new one.',
 		revoked: 'this link was withdrawn. ask whoever sent it for a new one.',
-		replaced: 'a newer link replaced this one. ask whoever sent it for the new one.',
 		codeMissing: 'type the six-character code that came with the link.',
 		codeWrong: 'the code is wrong. ask whoever sent the link to read it out again.',
 		linkUnreadable: 'this is not a rentable join link. copy the whole link and try again.',
@@ -630,6 +648,8 @@ export const refusals = {
 		linkNotForAMachine:
 			'this link is an invitation rather than a link for another machine. open it where you accept an invitation.',
 		linkLifetime: 'a link lasts from an hour to a week. choose one of the lifetimes offered.',
+		linkNotOutstanding:
+			'that link was already used, lapsed or revoked, so there is nothing to revoke.',
 		credentialsWrong: 'the username or password is wrong.',
 		passwordTooShort: 'the password needs at least 12 characters.',
 		passwordChangeRequired: 'change your password before doing anything else.',

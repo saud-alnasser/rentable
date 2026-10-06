@@ -505,17 +505,18 @@ test('an organization that could not be reached says so, shows what the shell sa
 });
 
 // effort 826, requirement 10; effort 828, requirement 1: a link that admits nobody is refused by
-// name, and the four are named from the code Rust rejected with rather than from prose the reader
-// has to interpret. *There were five until effort 851 let a machine hold several organizations.*
-test('each of the four refusals says its own sentence and asks for nothing', () => {
+// name, and the three are named from the code Rust rejected with rather than from prose the reader
+// has to interpret. *There were five until effort 851 let a machine hold several organizations, and
+// four until the same effort let a link be revoked, when a machine link whose row was gone stopped
+// reading `replaced`.*
+test('each of the three refusals says its own sentence and asks for nothing', () => {
 	loadLocale('en');
 	setLocale('en');
 
 	const refusals = [
 		['lapsed', en.organization.join.lapsed],
 		['consumed', en.organization.join.consumed],
-		['revoked', en.organization.join.revoked],
-		['replaced', en.organization.join.replaced]
+		['revoked', en.organization.join.revoked]
 	] as const;
 
 	for (const [refusal, sentence] of refusals) {
@@ -604,13 +605,12 @@ test('a refused link keeps what the shell said behind the disclosure under the s
 // it, which said the same thing twice, and the sentences ran to two or three clauses of
 // explanation. Each of them is now what happened and what to do, short enough to sit on one
 // line of the card, and it is the only line the step draws. *There were six until effort 851 took
-// `anotherOrganization` away.*
-test('each of the five refusals is one line, the only one drawn, and names the next step', () => {
-	const five = [
+// `anotherOrganization` away, and five until the same effort took `replaced`.*
+test('each of the four refusals is one line, the only one drawn, and names the next step', () => {
+	const four = [
 		['lapsed', { kind: 'refused', refusal: 'lapsed' }],
 		['consumed', { kind: 'refused', refusal: 'consumed' }],
 		['revoked', { kind: 'refused', refusal: 'revoked' }],
-		['replaced', { kind: 'refused', refusal: 'replaced' }],
 		['unreachable', { kind: 'unreachable', code: CODE }]
 	] as const;
 
@@ -624,7 +624,7 @@ test('each of the five refusals is one line, the only one drawn, and names the n
 		loadLocale(locale);
 		setLocale(locale);
 
-		for (const [key, partial] of five) {
+		for (const [key, partial] of four) {
 			const sentence = strings.organization.join[key];
 			const named = `${locale}.${key}`;
 
@@ -894,7 +894,7 @@ test('the screen renders in arabic with the same one form, the same refusals and
 	expect(screen.getAllByRole('button', { name: ar.organization.join.back })).toHaveLength(1);
 	unreachable.unmount();
 
-	for (const refusal of ['lapsed', 'consumed', 'revoked', 'replaced'] as const) {
+	for (const refusal of ['lapsed', 'consumed', 'revoked'] as const) {
 		const rendered = joinScreen(
 			{ kind: 'refused', link: LINK, refusal, detail: null },
 			{ direction: 'rtl' }
@@ -931,7 +931,6 @@ test('every sentence this screen added is written in both locales', () => {
 		'lapsed',
 		'consumed',
 		'revoked',
-		'replaced',
 		'passwordTitle',
 		'passwordDescription',
 		'codeLabel',

@@ -19,6 +19,7 @@ import type {
 	OrganizationRole,
 	OrganizationState,
 	OrganizationWorkspace,
+	OutstandingLink,
 	SessionsEnded,
 	UnreachableWorkspace,
 	WorkspaceGrant,
@@ -129,6 +130,9 @@ export const tauri = {
 			}),
 		linkMake: (memberId: string, lifetimeHours: number) =>
 			invoke<MadeLink>('plugin:organization|invitation_link_make', { memberId, lifetimeHours }),
+		links: () => invoke<OutstandingLink[]>('plugin:organization|invitation_link_list'),
+		linkRevoke: (linkId: string) =>
+			invoke<void>('plugin:organization|invitation_link_revoke', { linkId }),
 		unsetPassword: (memberId: string) =>
 			invoke<UnreachableWorkspace[]>('plugin:organization|invitation_password_unset', { memberId }),
 		remove: (memberId: string, lockOut: boolean) =>

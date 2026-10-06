@@ -1081,6 +1081,70 @@ test('a plain member reads the standing and the disconnect, and no directory or 
 	expect(document.querySelector('[data-delete-organization]')).toBeNull();
 });
 
+// effort 851, at the human's word ("there should be a menu to manage invites to revoke them from
+// the app for who has the permissions for it"): the links waiting to be opened are a card under
+// the people, drawn for a holder of either flag that makes a link, and for nobody else: not a
+// member holding neither, and not a reader who holds them and is locked, whom the shell refuses.
+test('the links waiting to be opened are drawn for whoever could make one, unlocked, and nobody else', () => {
+	hostAnswers.links = [
+		{
+			id: 'link-sami',
+			memberId: 'sami',
+			username: 'sami.staff',
+			purpose: 'join',
+			madeBy: 'olivia',
+			madeAt: Date.now(),
+			expiresAt: Date.now() + 3 * 24 * 60 * 60 * 1000
+		}
+	];
+
+	for (const flag of ['inviteMember', 'resetPassword'] as const) {
+		at('?section=organization');
+		const holder = area({
+			section: 'organization',
+			session: fakeOrganizationSession({
+				role: 'custom',
+				rank: 500_000,
+				permissions: maskOf(flag)
+			})
+		});
+		const card = document.querySelector('[data-links] [data-settings-group]');
+
+		expect(card, flag).not.toBeNull();
+		expect(card?.querySelector('h2')?.textContent?.trim()).toBe(en.organization.links.title);
+		expect(card?.querySelector('[data-link="link-sami"]')).not.toBeNull();
+		// under the people, and before the ways out.
+		expect(orderOf('data-members', 'data-links', 'data-leaving')).toEqual([
+			'data-members',
+			'data-links',
+			'data-leaving'
+		]);
+		holder.unmount();
+	}
+
+	at('?section=organization');
+	const member = area({
+		section: 'organization',
+		session: fakeOrganizationSession({ role: 'member', permissions: BUILT_IN.member.mask })
+	});
+
+	expect(document.querySelector('[data-links]')).toBeNull();
+	member.unmount();
+
+	at('?section=organization');
+	area({
+		section: 'organization',
+		session: fakeOrganizationSession({
+			role: 'manager',
+			rank: 1_000_000,
+			permissions: BUILT_IN.manager.mask,
+			locked: true
+		})
+	});
+
+	expect(document.querySelector('[data-links]')).toBeNull();
+});
+
 /** the leaving group's rows, in order. */
 const leavingRows = () => [
 	...document.querySelectorAll<HTMLElement>('[data-leaving] [data-settings-row]')
@@ -1523,6 +1587,7 @@ const SECTION_MARKS = [
 	'data-organization-mark',
 	'data-roles',
 	'data-members',
+	'data-links',
 	'data-leaving',
 	'data-workspaces'
 ];
@@ -1601,13 +1666,15 @@ test('each section is one column of cards in source order, the ends last', () =>
 	at('?section=organization');
 	const organization = area({ section: 'organization' });
 
-	// the Turso account is a row of leaving, not a card of its own (ticket 38).
+	// the Turso account is a row of leaving, not a card of its own (ticket 38); the links waiting to
+	// be opened stand under the people they are for (effort 851).
 	expect(laidOut()).toEqual([
 		'data-organization-name',
 		'data-standing-block',
 		'data-organization-mark',
 		'data-roles',
 		'data-members',
+		'data-links',
 		'data-leaving'
 	]);
 	organization.unmount();

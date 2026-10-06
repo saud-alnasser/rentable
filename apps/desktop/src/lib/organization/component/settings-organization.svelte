@@ -29,15 +29,21 @@
 	import OrganizationLeaving from '$lib/organization/component/leaving.svelte';
 	import OrganizationMark from '$lib/organization/component/mark.svelte';
 	import OrganizationName from '$lib/organization/component/name.svelte';
+	import OrganizationLinks from '$lib/organization/member/component/links.svelte';
 	import OrganizationMembers from '$lib/organization/member/component/directory.svelte';
 	import OrganizationRoles from '$lib/organization/role/component/directory.svelte';
 	import OrganizationStanding from '$lib/organization/component/standing.svelte';
 	import { memberReaderOf } from '$lib/organization/member/acts';
 	import { roleReaderOf } from '$lib/organization/role/acts';
 	import { useFetchOrganizationState } from '$lib/organization/query';
-	import { useFetchMemberStandings, useFetchMembers } from '$lib/organization/member/query';
+	import {
+		useFetchMemberLinks,
+		useFetchMemberStandings,
+		useFetchMembers,
+		useRevokeLink
+	} from '$lib/organization/member/query';
 	import { useFetchRoles } from '$lib/organization/role/query';
-	import { administersMembers } from '$lib/organization/member/member';
+	import { administersMembers, keepsLinks } from '$lib/organization/member/member';
 	import { useFetchRemoteSyncState } from '$lib/sync/ui';
 	import { heldPermissions } from '$lib/api/context';
 	import { permits } from '@rentable/workspace-permission';
@@ -86,6 +92,11 @@
 	// the directory is this section's own gate: it was a section of its own, and what admitted a
 	// reader to that section now decides whether the block is drawn.
 	const administers = $derived(administersMembers(session));
+	// the links waiting to be opened are read and drawn only for whoever could make one, unlocked
+	// (effort 851): the shell refuses anybody else, and a card that could only fail is not drawn.
+	const linksKept = $derived(keepsLinks(session));
+	const linksQuery = useFetchMemberLinks(() => linksKept);
+	const revokeLink = useRevokeLink();
 </script>
 
 {#if session}
@@ -139,6 +150,18 @@
 					{...memberReaderOf(session)}
 				/>
 			</div>
+		{/if}
+
+		<!-- the links waiting to be opened, under the people they are for, for whoever could make
+		     one: each revoked from its row's menu, asked first (effort 851, at the human's word).
+		     Drawn once read, since a list not known yet is not an empty one. -->
+		{#if linksKept && linksQuery.data}
+			<OrganizationLinks
+				links={linksQuery.data}
+				onRevoke={async (linkId) => {
+					await revokeLink.mutateAsync({ linkId });
+				}}
+			/>
 		{/if}
 
 		<!-- and the foot: the ways a reader steps away, told apart by who is reading (effort 846,

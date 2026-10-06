@@ -66,6 +66,34 @@ export function useFetchMemberStandings(enabled: () => boolean = () => true) {
 }
 
 /**
+ * the links waiting to be opened that the reader could have made (effort 851). Asked only where
+ * the reader holds `inviteMember` or `resetPassword` and is not locked, since the shell refuses
+ * anybody else; under the members' key, so making a link, a reset or a removal reads it again.
+ */
+export function useFetchMemberLinks(enabled: () => boolean = () => true) {
+	return createQuery(() => ({
+		queryKey: keys.memberLinks,
+		queryFn: () => api.organization.member.links(),
+		enabled: enabled()
+	}));
+}
+
+/**
+ * revoke one link waiting to be opened: opening it is refused as revoked from then on, and the
+ * account stays as it was. It asked first, in the list's confirm; what it says after is the toast.
+ */
+export const useRevokeLink = declareMutation({
+	mutate: ({ linkId }: { linkId: string }) => api.organization.member.linkRevoke({ linkId }),
+	touches: 'none',
+	toast: {
+		success: () => get(LL).organization.links.revoked(),
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
+	},
+	invalidates: [organizationChanged]
+});
+
+/**
  * make an account. It hands over nothing: the account holds no password until a link is made for
  * it, so what it refreshes is what every organization write refreshes (`organizationChanged`).
  */
