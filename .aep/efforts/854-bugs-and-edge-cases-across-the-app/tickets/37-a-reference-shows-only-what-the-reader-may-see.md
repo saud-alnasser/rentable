@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(desktop): a contract's reference and an import's collisions show only what they should
@@ -14,9 +14,9 @@ A contract read never hands a member a tenant's national id they may not view, a
 
 Traces requirements 6, 7 and 30, and criterion 30.
 
-- [ ] `contract.get` returns `reference` in its fallback spelling (`<national id> @ <start day>`) only to a member who may view tenants, as the receipt gates the national id (effort 838, requirement 10); a reader without it gets no reference and the ledger export's Contract cell falls back to the contract's name; a router test covers both readers.
-- [ ] The import dialogs (`transfer/component/import-dialog.svelte`, `directory-import-dialog.svelte`) key their collision lists so two collisions on one unit both render; a component test with two clashing pairs on one unit sees both.
-- [ ] `payment/transfer.ts` asks the payment module's rule for the terminated lock rather than restating it, or its comment agrees with `payment/payment.ts`'s header; the comment in `payment/payment.ts` naming `ensureContractIsNotTerminated` names what `payments.delete` calls now.
+- [x] `contract.get` returns `reference` in its fallback spelling (`<national id> @ <start day>`) only to a member who may view tenants, as the receipt gates the national id (effort 838, requirement 10); a reader without it gets no reference and the ledger export's Contract cell falls back to the contract's name; a router test covers both readers.
+- [x] The import dialogs (`transfer/component/import-dialog.svelte`, `directory-import-dialog.svelte`) key their collision lists so two collisions on one unit both render; a component test with two clashing pairs on one unit sees both.
+- [x] `payment/transfer.ts` asks the payment module's rule for the terminated lock rather than restating it, or its comment agrees with `payment/payment.ts`'s header; the comment in `payment/payment.ts` naming `ensureContractIsNotTerminated` names what `payments.delete` calls now.
 
 ## Relevant areas
 

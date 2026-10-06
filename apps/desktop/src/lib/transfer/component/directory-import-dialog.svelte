@@ -277,7 +277,9 @@
 				<!-- capped for the same reason the rows below are: a file that repeats one record
 				     usually repeats a hundred, and a hundred identical callouts is a wall rather than a
 				     finding. -->
-				{#each sheet.collisions.slice(0, NAMED_ROWS) as collision (collision.identity)}
+				<!-- keyed on the rows as well as what they share: one unit is claimed by as many pairs as
+				     clash over it, and each pair is its own finding. -->
+				{#each sheet.collisions.slice(0, NAMED_ROWS) as collision (`${collision.rows}:${collision.identity}`)}
 					<Callout tone="error" class="flex items-start gap-3">
 						<CopyXIcon class="mt-0.5 size-4 shrink-0" />
 						<span class="min-w-0">

@@ -57,8 +57,8 @@ export async function paymentsOf(db: Database, contractIds: readonly string[]) {
  * Why one payment in a selection would be turned away.
  *
  * **The ticket and the spec both said a payment is refused for nothing, and the source says
- * otherwise**: `payments.delete` calls `ensureContractIsNotTerminated`, so a payment on a
- * terminated contract is locked like everything else about that contract. The ledger hides its
+ * otherwise**: `payments.delete` asks {@link ensurePaymentWritable}, which locks a payment received
+ * on a terminated contract like everything else about that contract. The ledger hides its
  * row controls there, which is why nobody had met the rule, and hiding a control is not the same
  * as the rule not existing: another device can terminate the contract while a confirmation is
  * open. Requirement 3 of the effort's spec is corrected in the same commit as this.
@@ -103,6 +103,21 @@ export const whatRefusesPaymentDeletion = (
 	status === 'terminated' && direction !== 'refund' ? ('contract-terminated' as const) : undefined;
 
 /**
+ * Refuses a payment of this direction on a contract in this state where the lock holds
+ * ({@link whatRefusesPaymentDeletion}). What {@link ensurePaymentWritable} asks of every payment it
+ * writes, and what a workspace file's payments sheet asks of each row, so a file cannot put money
+ * on a contract `payments.create` refuses.
+ */
+export function ensurePaymentUnlocked(
+	status: Contract['status'],
+	direction: Payment['direction'] = 'received'
+) {
+	if (whatRefusesPaymentDeletion(status, direction)) {
+		throw refuse('contract.terminatedLocked');
+	}
+}
+
+/**
  * A write to a contract's payments, as {@link ensurePaymentWritable} weighs it: the payments a
  * creation puts in (one recorded, or a set an undo puts back), the payment an edit changes to a
  * new amount, or the payment a deletion takes out. An edit never changes a payment's direction.
@@ -135,11 +150,8 @@ export function ensurePaymentWritable(
 	kept: PaymentLike[],
 	write: PaymentWrite
 ) {
-	const ensureUnlocked = (payment: PaymentLike) => {
-		if (whatRefusesPaymentDeletion(contract.status, payment.direction)) {
-			throw refuse('contract.terminatedLocked');
-		}
-	};
+	const ensureUnlocked = (payment: PaymentLike) =>
+		ensurePaymentUnlocked(contract.status, payment.direction);
 
 	switch (write.act) {
 		case 'create': {

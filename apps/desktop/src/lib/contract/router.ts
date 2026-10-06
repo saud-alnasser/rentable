@@ -418,7 +418,8 @@ export default router({
 
 	// one contract, with the rank it is filed under today, so the record page's acts gate on it
 	// as a card's do, and the reference a workspace file calls it by, so what its page exports
-	// names it as the import reads it back. Its tenant's name comes with it for a reader who may
+	// names it as the import reads it back, where that reference shows the reader nothing they may
+	// not see. Its tenant's name comes with it for a reader who may
 	// see tenants, as every other read of a contract gives it, so the ledger the page exports
 	// names its tenant (effort 854, requirement 30).
 	get: procedure
@@ -448,13 +449,23 @@ export default router({
 
 			const { contract, tenantName } = row;
 			const { endingSoonNoticeDays } = await ctx.host.settings.get();
-			const reference = (await referencesOf(ctx.db)).get(contract.id)!;
-			const named = permits(ctx.identity.permissions, 'viewTenant') ? tenantName : undefined;
+			const seesTenants = permits(ctx.identity.permissions, 'viewTenant');
+			const named = seesTenants ? tenantName : undefined;
+			const read = withRank(
+				serializeContract(contract, named),
+				ctx.clock.now(),
+				endingSoonNoticeDays
+			);
 
-			return {
-				...withRank(serializeContract(contract, named), ctx.clock.now(), endingSoonNoticeDays),
-				reference
-			};
+			// a numberless contract is called by its tenant's national id, which a member who may not
+			// see tenants is not shown, as the receipt withholds it (effort 838, requirement 10). Their
+			// reference is left out, and the ledger's export names the contract instead.
+			const reference =
+				contract.govId?.trim() || seesTenants
+					? (await referencesOf(ctx.db)).get(contract.id)!
+					: undefined;
+
+			return { ...read, ...(reference === undefined ? {} : { reference }) };
 		}),
 
 	...schedule._def.record,

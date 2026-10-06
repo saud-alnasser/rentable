@@ -164,7 +164,7 @@ for (const locale of ['en', 'ar'] satisfies Locales[]) {
 		// file.
 		const read = await api.contract.get({ id: contract.id });
 		const sheet = toExportSheet(
-			paymentLedgerColumns(i18nObject(locale), read!.reference, read!.tenantName ?? ''),
+			paymentLedgerColumns(i18nObject(locale), read!.reference!, read!.tenantName ?? ''),
 			ledger
 		);
 		const tenantColumn = sheet.headers.indexOf(

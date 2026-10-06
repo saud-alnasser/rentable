@@ -703,6 +703,33 @@ test('without viewing tenants, a contract row, its rank, its search and its remi
 	});
 });
 
+test('without viewing tenants, a numberless contract read names no reference, which spells the national id', async () => {
+	const db = createMemoryDatabase();
+	const api = await createApi({ db });
+	const tenant = await seedTenant(api);
+	const contract = await seedContract(api, { tenantId: tenant.id });
+	const lacking = await createApi({ db, identity: identityWithout('viewTenant') });
+
+	// the reference a file calls a numberless contract by is its tenant's national id and its start.
+	const reference = (await api.contract.get({ id: contract.id }))?.reference;
+
+	assert.ok(
+		reference?.includes(tenant.nationalId),
+		'the fallback reference spells the national id'
+	);
+
+	const read = await lacking.contract.get({ id: contract.id });
+
+	assert.equal(read?.id, contract.id);
+	assert.equal('reference' in read!, false);
+	assert.equal(JSON.stringify(read).includes(tenant.nationalId), false);
+
+	// a contract with a government number is called by it, which names no tenant.
+	const numbered = await seedContract(api, { tenantId: tenant.id, govId: 'GOV-READ' });
+
+	assert.equal((await lacking.contract.get({ id: numbered.id }))?.reference, 'GOV-READ');
+});
+
 test('without viewing payments, a contract row counts no payments', async () => {
 	const db = createMemoryDatabase();
 	const api = await createApi({ db });

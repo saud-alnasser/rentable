@@ -9,12 +9,13 @@ import {
 } from '$lib/platform/database/schema';
 import { newId } from '$lib/platform/database/identity';
 import { formatDateInput, fromIsoDay } from '$lib/date';
-import { areRefundsCovered, ensureContractIsNotTerminated, type PaymentLike } from '$lib/contract';
+import { areRefundsCovered, type PaymentLike } from '$lib/contract';
 import { defineSheet, toContractReferences, toStatedNumber } from '$lib/transfer';
 import { asc, eq, inArray } from 'drizzle-orm';
 import z from 'zod';
 import {
 	ensurePaymentIsNotInTheFuture,
+	ensurePaymentUnlocked,
 	ensureValidPaymentAmount,
 	hasValidPaymentAmount,
 	isPaymentInTheFuture
@@ -318,16 +319,14 @@ export default defineSheet({
 			const amount = Math.abs(payment.amount);
 			// the payment domain's own rules, for the reason the contract's are asserted beside it:
 			// this is the boundary, and a file is not exempt from what every other way of recording
-			// a payment is held to. That includes the lock, which is the contract's rule rather than
-			// the payment's: without it a file could put money on a contract `payments.create`
-			// refuses, and `payments.delete` would then refuse to take it off again, because both
-			// read the same lock. A refund is taken on a terminated contract, as it is by hand, and
-			// what bounds it is weighed below over the whole file.
+			// a payment is held to. That includes the lock, which the payment's rules decide as they
+			// do for every write of one (`ensurePaymentWritable`): without it a file could put money
+			// on a contract `payments.create` refuses, and `payments.delete` would then refuse to
+			// take it off again, because both read the same lock. A refund is taken on a terminated
+			// contract, as it is by hand, and what bounds it is weighed below over the whole file.
 			const contractId = writing.resolve('contracts', payment.contract);
 
-			if (direction === 'received') {
-				ensureContractIsNotTerminated(lockedContractIds.has(contractId) ? 'terminated' : 'active');
-			}
+			ensurePaymentUnlocked(lockedContractIds.has(contractId) ? 'terminated' : 'active', direction);
 
 			ensureValidPaymentAmount(amount);
 			ensurePaymentIsNotInTheFuture(payment.date, writing.now);
