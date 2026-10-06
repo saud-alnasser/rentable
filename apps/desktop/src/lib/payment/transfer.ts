@@ -4,7 +4,7 @@ import { PaymentSchema } from '$lib/platform/database/schema';
 import { newId } from '$lib/platform/database/identity';
 import { formatDateInput, fromIsoDay } from '$lib/date';
 import { ensureContractIsNotTerminated } from '$lib/contract';
-import { defineSheet, toContractReference, toStatedNumber } from '$lib/transfer';
+import { defineSheet, toContractReferences, toStatedNumber } from '$lib/transfer';
 import { asc, eq } from 'drizzle-orm';
 import z from 'zod';
 import {
@@ -35,12 +35,15 @@ async function referencesOf(db: Database) {
 			id: s.contract.id,
 			govId: s.contract.govId,
 			start: s.contract.start,
+			end: s.contract.end,
 			tenant: s.tenant.nationalId
 		})
 		.from(s.contract)
 		.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id));
 
-	return new Map(contracts.map((contract) => [contract.id, toContractReference(contract)]));
+	// over every contract, as the contracts sheet composes them, so a payment names its contract
+	// exactly as the contract's own row does.
+	return toContractReferences(contracts);
 }
 
 export default defineSheet({

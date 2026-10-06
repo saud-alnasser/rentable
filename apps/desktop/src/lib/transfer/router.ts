@@ -153,15 +153,27 @@ export default function transferRouter<S extends AnySheet>(declared: readonly S[
 				// two are indistinguishable to the row that names it, which is the whole point of a
 				// file that references by name.
 				const ids = new Map<string, Map<string, string>>();
+				// the names more than one record already here answers to, by concept. Such a name is
+				// refused rather than resolved, since whichever record it reached would be a guess.
+				const ambiguous = new Map<string, Set<string>>();
 
 				for (const sheet of sheets) {
 					const answering = new Map<string, string>();
+					const shared = new Set<string>();
 
 					for (const [values, id] of (await sheet.answers?.ids(ctx.db)) ?? []) {
-						answering.set(toTransferKey(...values), id);
+						const key = toTransferKey(...values);
+						const answered = answering.get(key);
+
+						if (answered !== undefined && answered !== id) {
+							shared.add(key);
+						}
+
+						answering.set(key, id);
 					}
 
 					ids.set(sheet.concept, answering);
+					ambiguous.set(sheet.concept, shared);
 				}
 
 				const resolve: Writing['resolve'] = (concept, name, values = [name]) => {
@@ -171,7 +183,13 @@ export default function transferRouter<S extends AnySheet>(declared: readonly S[
 						throw new Error(`no sheet answers to a name of ${concept}`);
 					}
 
-					const id = ids.get(concept)?.get(toTransferKey(...values));
+					const key = toTransferKey(...values);
+
+					if (ambiguous.get(concept)?.has(key)) {
+						throw refuse('workspace.ambiguousReference', { name: name.trim() });
+					}
+
+					const id = ids.get(concept)?.get(key);
 
 					if (id === undefined) {
 						throw refuse(answers.unknown, { name: name.trim() });

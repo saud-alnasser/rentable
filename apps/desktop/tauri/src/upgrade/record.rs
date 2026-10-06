@@ -234,6 +234,54 @@ fn contract_reference(government_id: Option<&str>, tenant: &str, start: i64) -> 
     }
 }
 
+/// A contract as [`contract_references`] reads it: its id, government number, tenant, start and
+/// end.
+type ContractNaming<'a> = (i64, Option<&'a str>, &'a str, i64, i64);
+
+/// What a file calls each contract of a set, by its id: `toContractReferences`. Each is
+/// [`contract_reference`], except that numberless contracts sharing a tenant and a start add the
+/// day their term ends, and those sharing that day too add an ordinal counted in order of id. So a
+/// legacy workspace holding such a pair writes a workbook whose payments each name their own
+/// contract, and the import refuses no row of it as a collision.
+fn contract_references(contracts: &[ContractNaming<'_>]) -> HashMap<i64, String> {
+    let mut references = HashMap::new();
+    let mut sharing: HashMap<String, Vec<(i64, i64)>> = HashMap::new();
+
+    for &(id, government_id, tenant, start, end) in contracts {
+        let reference = contract_reference(government_id, tenant, start);
+
+        if government_id.map(str::trim).unwrap_or_default().is_empty() {
+            sharing
+                .entry(reference.to_lowercase())
+                .or_default()
+                .push((id, end));
+        }
+
+        references.insert(id, reference);
+    }
+
+    for group in sharing.values().filter(|group| group.len() > 1) {
+        let mut ending: HashMap<String, Vec<i64>> = HashMap::new();
+
+        for &(id, end) in group {
+            let reference = format!("{}..{}", references[&id], iso_day(end));
+
+            ending.entry(reference.clone()).or_default().push(id);
+            references.insert(id, reference);
+        }
+
+        for (reference, mut same) in ending.into_iter().filter(|(_, same)| same.len() > 1) {
+            same.sort_unstable();
+
+            for (index, id) in same.into_iter().enumerate() {
+                references.insert(id, format!("{reference} #{}", index + 1));
+            }
+        }
+    }
+
+    references
+}
+
 /// What a file calls one unit: `toUnitReference`, its complex and its own name.
 fn unit_reference(complex: &str, unit: &str) -> String {
     format!("{} / {}", complex.trim(), unit.trim())
@@ -356,15 +404,14 @@ async fn sheets(connection: &mut SqliteConnection) -> Result<(Vec<Sheet>, LeftOu
             .push(unit_reference(complex, unit));
     }
 
-    let reference_of: HashMap<i64, String> = contracts
-        .iter()
-        .map(|(id, government_id, tenant, start, ..)| {
-            (
-                *id,
-                contract_reference(government_id.as_deref(), tenant, *start),
-            )
-        })
-        .collect();
+    let reference_of = contract_references(
+        &contracts
+            .iter()
+            .map(|(id, government_id, tenant, start, end, ..)| {
+                (*id, government_id.as_deref(), tenant.as_str(), *start, *end)
+            })
+            .collect::<Vec<_>>(),
+    );
 
     let contract_rows = contracts
         .iter()
@@ -1052,5 +1099,27 @@ mod tests {
         assert_eq!(unit_reference("Al Nakheel ", " A1"), "Al Nakheel / A1");
         // 2026-01-31 is serial 46053, the figure `transfer/import.rs` pins its reader to.
         assert!(matches!(day(at(2026, 1, 31)), Cell::Date { value } if value == 46_053.0));
+    }
+
+    // two numberless contracts of one tenant starting one day, spelled as `toContractReferences`
+    // spells them: the end day, then an ordinal by id, and only where the bare spelling is shared.
+    #[test]
+    fn a_contract_reference_is_one_only_that_contract_answers_to() {
+        let start = at(2026, 1, 1);
+        let end = at(2026, 12, 31);
+        let later = at(2027, 12, 31);
+        let references = contract_references(&[
+            (3, None, "1234567890", start, end),
+            (1, Some(" "), "1234567890", start, end),
+            (2, None, "1234567890", start, later),
+            (4, None, "2234567890", start, end),
+            (5, Some("GOV-1"), "1234567890", start, end),
+        ]);
+
+        assert_eq!(references[&1], "1234567890 @ 2026-01-01..2026-12-31 #1");
+        assert_eq!(references[&3], "1234567890 @ 2026-01-01..2026-12-31 #2");
+        assert_eq!(references[&2], "1234567890 @ 2026-01-01..2027-12-31");
+        assert_eq!(references[&4], "2234567890 @ 2026-01-01");
+        assert_eq!(references[&5], "GOV-1");
     }
 }

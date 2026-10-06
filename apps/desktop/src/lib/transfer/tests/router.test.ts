@@ -1023,3 +1023,92 @@ test('a terminated contract with payments imports terminated, with its payments'
 		written.contracts.map((each) => [each.reference, each.units])
 	);
 });
+
+// --- Every contract has a reference only it answers to (effort 854, requirement 7) -----------
+
+// the defect: both contracts were written under one reference, so a file read back held two rows
+// it could not tell apart, and a payment landed on whichever contract the name happened to reach.
+test('two numberless contracts of one tenant starting one day import whole, each payment on its own', async () => {
+	const source = await createApi();
+	const tenant = await source.tenant.create({
+		name: 'Omar Ali',
+		nationalId: '2234567890',
+		phone: '+966559999999'
+	});
+	const term = {
+		tenantId: tenant.id,
+		start: monthsFromNow(-1),
+		end: monthsFromNow(11),
+		interval: '12m' as const,
+		cost: 12_000
+	};
+	const first = await source.contract.create(term);
+	const second = await source.contract.create(term);
+
+	await source.payment.create({ contractId: first.id, date: monthsFromNow(0), amount: 1000 });
+	await source.payment.create({ contractId: second.id, date: monthsFromNow(0), amount: 2500 });
+
+	const written = await source.transfer.get();
+
+	assert.equal(new Set(written.contracts.map((contract) => contract.reference)).size, 2);
+
+	const target = await createApi();
+	const plan = planWorkspaceImport(toTables(written), NOW, emptyHeld());
+
+	assert.ok(isWorkspaceImportable(plan), 'the file it wrote is a file it can read');
+
+	await target.transfer.importWhole(toInput(plan.transfer));
+
+	const read = await target.transfer.get();
+
+	assert.equal(read.contracts.length, 2);
+	assert.equal(read.payments.length, 2);
+	assert.deepEqual(
+		read.contracts.map(({ reference, paidAmount }) => [reference, paidAmount]),
+		written.contracts.map(({ reference, paidAmount }) => [reference, paidAmount])
+	);
+	assert.deepEqual(
+		read.contracts.map((contract) => contract.paidAmount).sort((a, b) => a - b),
+		[1000, 2500]
+	);
+	assert.deepEqual(read.payments, written.payments);
+});
+
+// a government number differing from another only in case is one name to a file, which matches
+// without regard to case. Two contracts answering to it is a name the import refuses to guess at.
+test('a reference two contracts answer to is refused, never resolved to either', async () => {
+	const api = await createApi();
+	const tenant = await api.tenant.create({
+		name: 'Omar Ali',
+		nationalId: '2234567890',
+		phone: '+966559999999'
+	});
+	const term = {
+		tenantId: tenant.id,
+		start: monthsFromNow(-1),
+		end: monthsFromNow(11),
+		interval: '12m' as const,
+		cost: 12_000
+	};
+
+	await api.contract.create({ ...term, govId: 'GOV-7' });
+	await api.contract.create({ ...term, govId: 'gov-7' });
+
+	await assert.rejects(
+		api.transfer.importWhole({
+			tenants: [],
+			complexes: [],
+			units: [],
+			contracts: [],
+			payments: [{ contract: 'GOV-7', date: monthsFromNow(0), amount: 500 }]
+		}),
+		refusedWith('workspace.ambiguousReference', { name: 'GOV-7' })
+	);
+
+	const contracts = await api.contract.getMany({});
+
+	assert.deepEqual(
+		contracts.map((contract) => contract.paidAmount),
+		[0, 0]
+	);
+});

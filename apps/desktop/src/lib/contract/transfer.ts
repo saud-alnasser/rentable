@@ -6,7 +6,7 @@ import { fromIsoDay } from '$lib/date';
 import {
 	defineSheet,
 	toStatedNumber,
-	toContractReference,
+	toContractReferences,
 	toGovIdFromReference,
 	toTransferKey,
 	toUnitParts,
@@ -90,18 +90,23 @@ function isTerminated(status: string) {
 	return status.trim().toLowerCase() === 'terminated';
 }
 
-/** every contract with its tenant, and so with the reference a file calls it by. */
-function withTenants(db: Database) {
-	return db
-		.select({
-			id: s.contract.id,
-			govId: s.contract.govId,
-			status: s.contract.status,
-			start: s.contract.start,
-			tenant: s.tenant.nationalId
-		})
-		.from(s.contract)
-		.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id));
+/**
+ * the reference a file calls each contract by, by its id: every contract with a tenant, and never
+ * a filtered part of them, since whether one needs more than its bare spelling depends on the rest.
+ */
+async function referencesOf(db: Database) {
+	return toContractReferences(
+		await db
+			.select({
+				id: s.contract.id,
+				govId: s.contract.govId,
+				start: s.contract.start,
+				end: s.contract.end,
+				tenant: s.tenant.nationalId
+			})
+			.from(s.contract)
+			.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id))
+	);
 }
 
 export default defineSheet({
@@ -156,6 +161,7 @@ export default defineSheet({
 
 		const derived =
 			deriving && (await contractStatusesAt({ ...deriving, db }, deriving.now, contracts));
+		const referenceOf = toContractReferences(contracts);
 		const unitsOf = new Map<string, string[]>();
 
 		for (const assignment of assignments) {
@@ -166,7 +172,7 @@ export default defineSheet({
 		}
 
 		return contracts.map((contract) => ({
-			reference: toContractReference(contract),
+			reference: referenceOf.get(contract.id)!,
 			tenant: contract.tenant,
 			units: unitsOf.get(contract.id) ?? [],
 			start: contract.start.getTime(),
@@ -179,7 +185,7 @@ export default defineSheet({
 		}));
 	},
 	// contract references.
-	held: async (db) => (await withTenants(db)).map((contract) => toContractReference(contract)),
+	held: async (db) => [...(await referencesOf(db)).values()],
 	fields: [
 		// `Government ID` is what the contracts directory calls the same column: a contract's
 		// reference *is* its government number wherever it has one, and a directory of contracts
@@ -271,9 +277,7 @@ export default defineSheet({
 		record: (contract) => [contract.reference],
 		unknown: 'workspace.unknownContract',
 		ids: async (db) =>
-			(await withTenants(db)).map(
-				(contract) => [[toContractReference(contract)], contract.id] as const
-			)
+			[...(await referencesOf(db))].map(([id, reference]) => [[reference], id] as const)
 	},
 	// a live contract claims each of its units over its term; a terminated one claims none.
 	claims: {

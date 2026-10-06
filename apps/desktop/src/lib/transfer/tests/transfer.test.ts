@@ -16,6 +16,8 @@ import {
 	isWorkspaceImportable,
 	planWorkspaceImport,
 	toContractReference,
+	toContractReferences,
+	toGovIdFromReference,
 	toTransferKey,
 	toUnitParts,
 	toUnitReference,
@@ -363,6 +365,52 @@ test('a contract with no government number is named by its tenant and the day it
 		toContractReference({ govId: '  ', tenant: '1234567890', start: START }),
 		'1234567890 @ 2026-01-01'
 	);
+});
+
+// --- Every contract has a reference only it answers to (effort 854, requirement 7) -----------
+
+test('a numberless contract unique by tenant and day keeps the reference it always had', () => {
+	const references = toContractReferences([
+		{ id: 'a', govId: null, tenant: '1234567890', start: START, end: END },
+		{ id: 'b', govId: 'GOV-1', tenant: '1234567890', start: START, end: END },
+		{ id: 'c', govId: null, tenant: '2234567890', start: START, end: END }
+	]);
+
+	assert.equal(references.get('a'), '1234567890 @ 2026-01-01');
+	assert.equal(references.get('b'), 'GOV-1');
+	assert.equal(references.get('c'), '2234567890 @ 2026-01-01');
+});
+
+test('two numberless contracts of one tenant starting one day are told apart by their end', () => {
+	const references = toContractReferences([
+		{ id: 'a', govId: null, tenant: '1234567890', start: START, end: END },
+		{ id: 'b', govId: ' ', tenant: '1234567890', start: START, end: END + 365 * DAY }
+	]);
+
+	assert.equal(references.get('a'), '1234567890 @ 2026-01-01..2026-12-31');
+	assert.equal(references.get('b'), '1234567890 @ 2026-01-01..2027-12-31');
+});
+
+test('two with the same term too are numbered by id, and only those two', () => {
+	const references = toContractReferences([
+		{ id: 'c', govId: null, tenant: '1234567890', start: START, end: END },
+		{ id: 'a', govId: null, tenant: '1234567890', start: START, end: END },
+		{ id: 'b', govId: null, tenant: '1234567890', start: START, end: END + 365 * DAY }
+	]);
+
+	assert.equal(references.get('a'), '1234567890 @ 2026-01-01..2026-12-31 #1');
+	assert.equal(references.get('c'), '1234567890 @ 2026-01-01..2026-12-31 #2');
+	assert.equal(references.get('b'), '1234567890 @ 2026-01-01..2027-12-31');
+	assert.equal(new Set(references.values()).size, 3);
+});
+
+// the sharpest edge: an extended reference read back as a government number would be stored as
+// one, and the contract would carry its own fallback as its number from then on.
+test('no shape of the fallback reference is read as a government number', () => {
+	assert.equal(toGovIdFromReference('1234567890 @ 2026-01-01'), undefined);
+	assert.equal(toGovIdFromReference('1234567890 @ 2026-01-01..2026-12-31'), undefined);
+	assert.equal(toGovIdFromReference('1234567890 @ 2026-01-01..2026-12-31 #2'), undefined);
+	assert.equal(toGovIdFromReference(' GOV-1 '), 'GOV-1');
 });
 
 test('a unit reference splits at the last separator, so a complex may carry one', () => {

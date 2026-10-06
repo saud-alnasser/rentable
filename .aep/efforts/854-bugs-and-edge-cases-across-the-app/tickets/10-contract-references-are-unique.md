@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [09]
 ---
 
@@ -15,10 +15,10 @@ Two numberless contracts of one tenant starting the same day export with distinc
 
 Traces requirement 7 and criterion 7.
 
-- [ ] `toContractReferences` in `transfer/reference.ts` (bare, then `..end`, then ` #n` by id); every place that composes a contract reference uses it; the fallback pattern accepts all three shapes and `toGovIdFromReference` rejects them.
-- [ ] Resolution refuses a key two records answer to with `workspace.ambiguousReference`.
-- [ ] The Rust upgrade composer (`tauri/src/upgrade/record.rs`) applies the same rule, with a Rust test.
-- [ ] Tests per criterion 7; the existing `export.json` and `workbook.json` fixtures still import.
+- [x] `toContractReferences` in `transfer/reference.ts` (bare, then `..end`, then ` #n` by id); every place that composes a contract reference uses it; the fallback pattern accepts all three shapes and `toGovIdFromReference` rejects them.
+- [x] Resolution refuses a key two records answer to with `workspace.ambiguousReference`.
+- [x] The Rust upgrade composer (`tauri/src/upgrade/record.rs`) applies the same rule, with a Rust test.
+- [x] Tests per criterion 7; the existing `export.json` and `workbook.json` fixtures still import.
 
 ## Relevant areas
 

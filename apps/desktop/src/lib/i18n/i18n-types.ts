@@ -1518,6 +1518,11 @@ type RootTranslation = {
 			};
 			workspace: {
 				/**
+				 * t​h​e​ ​f​i​l​e​ ​n​a​m​e​s​ ​a​ ​r​e​c​o​r​d​ ​c​a​l​l​e​d​ ​{​n​a​m​e​}​,​ ​a​n​d​ ​m​o​r​e​ ​t​h​a​n​ ​o​n​e​ ​a​n​s​w​e​r​s​ ​t​o​ ​i​t​.
+				 * @param {string} name
+				 */
+				ambiguousReference: RequiredParams<'name'>;
+				/**
 				 * t​h​e​r​e​ ​i​s​ ​n​o​t​h​i​n​g​ ​t​o​ ​i​m​p​o​r​t​.
 				 */
 				nothingToImport: string;
@@ -6724,6 +6729,10 @@ export type TranslationFunctions = {
 				repeatedInSet: (arg: { value: string }) => LocalizedString;
 			};
 			workspace: {
+				/**
+				 * the file names a record called {name}, and more than one answers to it.
+				 */
+				ambiguousReference: (arg: { name: string }) => LocalizedString;
 				/**
 				 * there is nothing to import.
 				 */

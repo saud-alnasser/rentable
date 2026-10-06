@@ -56,6 +56,7 @@ export const layout = {
 
 export const refusals = {
 	workspace: {
+		ambiguousReference: 'يذكر الملف سجلاً باسم {name}، وأكثر من سجل يحمل هذا الاسم.',
 		nothingToImport: 'لا يوجد ما يمكن استيراده.',
 		unknownComplex: 'يذكر الملف مجمعاً باسم {name}، ولا يوجد مجمع بهذا الاسم.',
 		unknownContract: 'يذكر الملف عقداً باسم {name}، ولا يوجد عقد بهذا الاسم.',
