@@ -1,4 +1,5 @@
 import SettingsGroupActionHarness from '#tests/settings-group-action-harness.svelte';
+import SettingsGroupBoundedHarness from '#tests/settings-group-bounded-harness.svelte';
 import SettingsGroupHarness from '#tests/settings-group-harness.svelte';
 import { fireEvent, render, screen } from '@testing-library/svelte';
 import { expect, test } from 'vitest';
@@ -220,4 +221,36 @@ test('a card with an act and no value draws the act alone at the end', () => {
 
 	expect(header.querySelector('[data-settings-group-value]')).toBeNull();
 	expect(header.lastElementChild?.hasAttribute('data-settings-group-action')).toBe(true);
+});
+
+test('a card bounding its rows holds them all in its own scroll area, under its header and bar', () => {
+	render(SettingsGroupBoundedHarness);
+
+	const group = document.querySelector<HTMLElement>('[data-settings-group]')!;
+	const area = group.querySelector<HTMLElement>('[data-settings-group-scroll]')!;
+	const bar = group.querySelector<HTMLElement>('[data-settings-group-bar]')!;
+
+	expect(area.dataset.rowsInView).toBe('4');
+	expect(area.className).toContain('overflow-y-auto');
+	expect(rows()).toHaveLength(6);
+	expect(rows().every((row) => area.contains(row))).toBe(true);
+	// the header and the bar stand above the area, so neither scrolls away with the rows.
+	expect(bar.querySelector('[data-bar-input]')).not.toBeNull();
+	expect(area.contains(bar)).toBe(false);
+	expect(area.contains(group.querySelector('[data-settings-group-header]'))).toBe(false);
+	expect(bar.compareDocumentPosition(area) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+	// a region named by the card's title, its rows still one list, and no tab stop of its own.
+	expect(screen.getAllByRole('region', { name: 'pending links' })).toEqual([group, area]);
+	expect(area.getAttribute('aria-labelledby')).toBe(group.getAttribute('aria-labelledby'));
+	expect(screen.getAllByRole('listitem')).toHaveLength(6);
+	expect(area.hasAttribute('tabindex')).toBe(false);
+	// jsdom lays nothing out, so there is no height to bound it to and none is set.
+	expect(area.style.maxHeight).toBe('');
+});
+
+test('a card bounding none of its rows draws them as any card does', () => {
+	render(SettingsGroupHarness);
+
+	expect(document.querySelector('[data-settings-group-scroll]')).toBeNull();
+	expect(document.querySelector('[data-settings-group-bar]')).toBeNull();
 });

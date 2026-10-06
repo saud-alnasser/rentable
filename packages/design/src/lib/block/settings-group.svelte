@@ -43,6 +43,24 @@
 	 * shadow) rather than a bordered box, so a settings tab and a list read as one application, and
 	 * the shadow rather than a border marks its edge (*Use fewer borders*).
 	 *
+	 * **A card whose rows grow past a few shows that many and scrolls the rest inside itself**
+	 * (`rowsInView`), the way a settings directory bounds its cards
+	 * (`organization/component/directory-grid.svelte` in the desktop): the header, and the bar
+	 * under it, stay in view while the rows move. The area is exactly as tall as those rows, read
+	 * off the rows as drawn rather than declared, since a row's meta line may wrap to a second line
+	 * and a declared height would cut the row under it in half; it is read again whenever the rows
+	 * or the width change, and with no more rows than that it bounds nothing. The area is the
+	 * platform's own scroll, a native overflow with no scrollbar drawn by hand, and its foot fades
+	 * while more rows are below: a still mask, never a movement. Keyboard focus reaching a row the
+	 * area cuts off brings the whole row into view at once, with no smooth scroll, and a press does
+	 * not, since the row under the pointer must not move before the click lands. Nothing traps the
+	 * focus: the tab order runs through the rows' own controls and out of the card as before. The
+	 * area is a region named by the card's title, as a bounded directory's is, so a screen reader
+	 * says where the scrolled rows are.
+	 *
+	 * **What reads the rows sits between the header and them** (`bar`): a search over a long list,
+	 * which the caller draws, so it stays above the bounded area and never scrolls away.
+	 *
 	 * The rows are a list, and each `settings-row` is one of its items, so a screen reader announces
 	 * how many a card holds. The words are the caller's.
 	 */
@@ -54,7 +72,9 @@
 		description,
 		value,
 		action,
+		bar,
 		rows,
+		rowsInView,
 		end,
 		footer
 	}: {
@@ -78,8 +98,15 @@
 		 * button, red words where it ends something. The caller draws the button.
 		 */
 		action?: Snippet;
+		/** What reads the rows, between the header and them: a search over a long list. */
+		bar?: Snippet;
 		/** The card's rows, each a `settings-row`. */
 		rows?: Snippet;
+		/**
+		 * How many rows the card shows before the rest scroll inside it, where its rows grow past a
+		 * few. A card that bounds its rows holds no ending rows, which would scroll away with them.
+		 */
+		rowsInView?: number;
 		/** The rows that end something, each a `settings-row` marked `error`: always last. */
 		end?: Snippet;
 		/** What closes the card: one note, a progress bar, or one act. */
@@ -89,8 +116,80 @@
 	const titleId = $props.id();
 
 	const hasHeader = $derived(Boolean(title || description || Icon || media || value || action));
-	const hasBody = $derived(Boolean(rows || end || footer !== undefined));
+	const hasBody = $derived(Boolean(bar || rows || end || footer !== undefined));
+
+	/** the bounded area, where the card bounds its rows, and the list of rows inside it. */
+	let area = $state<HTMLElement | null>(null);
+	let list = $state<HTMLElement | null>(null);
+	/** how tall the area stands: the rows in view as drawn, or unbounded while they all fit. */
+	let bound = $state<number | undefined>(undefined);
+	/** whether rows stand below what the area shows, which the fade at its foot says. */
+	let moreBelow = $state(false);
+	/** whether the focus about to arrive came from a press rather than the keyboard. */
+	let pressing = false;
+
+	const rowsOf = () =>
+		list
+			? [...list.children].filter((child): child is HTMLElement =>
+					child.hasAttribute('data-settings-row')
+				)
+			: [];
+
+	const measure = () => {
+		if (!area || !rowsInView) return;
+
+		const drawn = rowsOf();
+		const last = drawn[rowsInView - 1];
+
+		// the area is the rows' offset parent, so the last row in view ends at its own offset and
+		// height. With no layout to read (a renderer that draws none) it bounds nothing.
+		const height = drawn.length > rowsInView && last ? last.offsetTop + last.offsetHeight : 0;
+
+		bound = height > 0 ? height : undefined;
+		moreBelow = area.scrollTop + area.clientHeight < area.scrollHeight - 1;
+	};
+
+	// the rows are read again whenever they or the width change them: a row added or gone, or a
+	// meta line wrapping to a second line.
+	$effect(() => {
+		if (!list || !rowsInView) return;
+
+		measure();
+
+		if (typeof ResizeObserver === 'undefined') return;
+
+		const observer = new ResizeObserver(() => measure());
+
+		observer.observe(list);
+
+		return () => observer.disconnect();
+	});
+
+	/** the row holding a focused element: the list's own child it sits inside. */
+	const rowOf = (target: EventTarget | null) => {
+		let node = target instanceof HTMLElement ? target : null;
+
+		while (node && node.parentElement !== list) node = node.parentElement;
+
+		return node;
+	};
+
+	const onfocusin = (event: FocusEvent) => {
+		if (pressing) {
+			pressing = false;
+
+			return;
+		}
+
+		// the whole row, its menu included, at once: instant, so nothing moves under reduced motion.
+		rowOf(event.target)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+	};
+
+	// the fade covers the last few pixels of the area, never a row's own words.
+	const FADE = '[mask-image:linear-gradient(to_bottom,black_calc(100%_-_24px),transparent)]';
 </script>
+
+<svelte:window onpointerup={() => (pressing = false)} />
 
 <section
 	data-settings-group
@@ -152,10 +251,17 @@
 		</header>
 	{/if}
 
-	{#if rows || end}
+	{#if bar}
+		<div data-settings-group-bar class={cn('flex px-4 pb-2', !hasHeader && 'pt-4')}>
+			{@render bar()}
+		</div>
+	{/if}
+
+	{#snippet group()}
 		<!-- the rows sit inside the card's own inset, so the hairline between two of them stops
 		     short of its edges, as a grouped list's does. -->
 		<Item.Group
+			bind:ref={list}
 			class={cn(
 				'gap-0 px-4 has-data-[size=sm]:gap-0',
 				'[&>[data-settings-row]]:rounded-none [&>[data-settings-row]]:px-0',
@@ -175,6 +281,29 @@
 				{@render end()}
 			{/if}
 		</Item.Group>
+	{/snippet}
+
+	{#if rowsInView && rows}
+		<!-- the bounded area: the platform's scroll, a region named by the card's title as a
+		     bounded directory's is, the rows' offset parent so they are measured against it, and
+		     the list inside it unchanged. -->
+		<div
+			bind:this={area}
+			role="region"
+			aria-labelledby={title ? titleId : undefined}
+			class={['relative overflow-y-auto overscroll-contain', moreBelow && FADE]}
+			style:max-height={bound === undefined ? undefined : `${bound}px`}
+			data-settings-group-scroll
+			data-rows-in-view={rowsInView}
+			data-more-below={moreBelow ? '' : undefined}
+			onscroll={measure}
+			onpointerdown={() => (pressing = true)}
+			{onfocusin}
+		>
+			{@render group()}
+		</div>
+	{:else if rows || end}
+		{@render group()}
 	{/if}
 
 	{#if footer !== undefined}

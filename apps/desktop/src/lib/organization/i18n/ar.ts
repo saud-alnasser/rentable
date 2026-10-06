@@ -49,7 +49,9 @@ export const organization = {
 		revoke: 'سحب الرابط',
 		confirmLabel: 'اسحب',
 		confirmDescription: 'يتوقف الرابط ورمزه عن العمل فورًا. يعيده رابط جديد من بطاقة العضو.',
-		revoked: 'سُحب الرابط.'
+		revoked: 'سُحب الرابط.',
+		count: 'الروابط: {count|number}',
+		searchPlaceholder: 'ابحث عن رابط باسم المستخدم'
 	},
 	setup: {
 		connectTitle: 'اربط Turso',

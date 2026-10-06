@@ -38,7 +38,7 @@ const link = (overrides: Partial<OutstandingLink>): OutstandingLink => ({
 	...overrides
 });
 
-/** one of each kind, newest first, as the shell answers them. */
+/** one of each kind, newest first, as the shell answers them; the card shows the soonest first. */
 const LINKS: OutstandingLink[] = [
 	link({ id: 'link-rami', memberId: 'rami', username: 'rami.staff', purpose: 'reset' }),
 	link({
@@ -113,9 +113,10 @@ test('each link is a row named for its member, saying what it does, when it laps
 	draw();
 
 	expect(group().querySelector('h2')?.textContent?.trim()).toBe(en.organization.links.title);
-	expect(rows().map(nameOf)).toEqual(['rami.staff', 'noor.staff', 'sami.staff']);
+	// the soonest to lapse first, and two lapsing together by username.
+	expect(rows().map(nameOf)).toEqual(['noor.staff', 'rami.staff', 'sami.staff']);
 
-	const [rami, noor, sami] = rows();
+	const [noor, rami, sami] = rows();
 
 	expect(metaOf(rami)).toBe(
 		`${en.organization.links.reset} · lapses ${lapses('en', LINKS[0].expiresAt)} · made by olivia`
@@ -145,7 +146,7 @@ test("a revoke is in each row's menu, named for the member, in the menu's own to
 		})
 	).toBeDefined();
 
-	const entry = await openMenu(rows()[1]);
+	const entry = await openMenu(rows()[0]);
 
 	expect(entry.textContent?.trim()).toBe(en.organization.links.revoke);
 	expect(entry.dataset.revokeLink).toBe('link-noor');
@@ -175,7 +176,7 @@ test('revoking asks first, naming the member and what brings them in, then revok
 	// the list is read again once it went, and the row is not in it.
 	await rendered.rerender({ links: LINKS.slice(0, 2) });
 
-	expect(rows().map(nameOf)).toEqual(['rami.staff', 'noor.staff']);
+	expect(rows().map(nameOf)).toEqual(['noor.staff', 'rami.staff']);
 });
 
 test('leaving the question revokes nothing', async () => {
@@ -215,7 +216,7 @@ test('and in arabic, every line is written in its own words and the lapse is sai
 
 	expect(group().querySelector('h2')?.textContent?.trim()).toBe(ar.organization.links.title);
 
-	const [rami, noor, sami] = rows();
+	const [noor, rami, sami] = rows();
 
 	// the username keeps its own direction inside the Arabic row.
 	expect(sami.querySelector('[data-slot=item-title] bdi')?.textContent).toBe('sami.staff');
@@ -251,6 +252,129 @@ test('and in arabic, nothing waiting reads in its own words', () => {
 
 	expect(empty.textContent).toContain(ar.organization.links.noneTitle);
 	expect(empty.textContent).toContain(ar.organization.links.noneDescription);
+
+	setLocale('en');
+});
+
+/** seven links, each lapsing an hour after the one before, handed over in no order at all. */
+const MANY: OutstandingLink[] = [5, 2, 6, 0, 3, 1, 4].map((hour) =>
+	link({
+		id: `link-${hour}`,
+		memberId: `member-${hour}`,
+		username: `member${hour}.staff`,
+		expiresAt: NOW + (hour + 1) * HOUR
+	})
+);
+
+const scrollArea = () => group().querySelector<HTMLElement>('[data-settings-group-scroll]')!;
+const searchInput = () => group().querySelector<HTMLInputElement>('[data-search-field] input');
+const countOf = () => group().querySelector('[data-links-count]')?.textContent?.trim();
+
+test('a long list shows four rows and scrolls the rest inside the card, soonest first', () => {
+	draw('en', MANY);
+
+	expect(rows().map(nameOf)).toEqual([0, 1, 2, 3, 4, 5, 6].map((hour) => `member${hour}.staff`));
+
+	// every row is in the card's own scroll area, which shows four of them; jsdom lays nothing out,
+	// so what is read is the area and the count it is bounded to.
+	const area = scrollArea();
+
+	expect(area.dataset.rowsInView).toBe('4');
+	// a region named by the card's title, as a bounded directory's area is.
+	expect(screen.getAllByRole('region', { name: en.organization.links.title })).toEqual([
+		group(),
+		area
+	]);
+	expect(area.className).toContain('overflow-y-auto');
+	expect(rows().every((row) => area.contains(row))).toBe(true);
+	// the header and the search stay outside it, so they never scroll away.
+	expect(area.contains(group().querySelector('[data-settings-group-header]'))).toBe(false);
+	expect(area.contains(searchInput())).toBe(false);
+	// nothing in it holds the focus: the rows' own menus are the tab order, and the area is none.
+	expect(area.hasAttribute('tabindex')).toBe(false);
+	expect(rows().every((row) => row.querySelector('[data-link-menu]') !== null)).toBe(true);
+});
+
+test('the count is in the header, whatever the length, and the search only past four', () => {
+	draw('en', LINKS);
+
+	expect(countOf()).toBe('3 links');
+	expect(searchInput()).toBeNull();
+	// four or fewer read at a glance: the area is there and bounds nothing yet.
+	expect(rows().every((row) => scrollArea().contains(row))).toBe(true);
+});
+
+test('four links are still read rather than searched', () => {
+	draw('en', MANY.slice(0, 4));
+
+	expect(countOf()).toBe('4 links');
+	expect(searchInput()).toBeNull();
+});
+
+test('past four, the search finds a link by username, and a search finding none is cleared', async () => {
+	draw('en', MANY);
+
+	expect(countOf()).toBe('7 links');
+
+	const input = searchInput()!;
+
+	expect(input.placeholder).toBe(en.organization.links.searchPlaceholder);
+
+	await fireEvent.input(input, { target: { value: 'MEMBER4' } });
+
+	await waitFor(() => expect(rows().map(nameOf)).toEqual(['member4.staff']));
+	expect(countOf()).toBe('1 link');
+
+	await fireEvent.input(input, { target: { value: 'nobody' } });
+
+	const noMatch = await waitFor(() => {
+		const block = group().querySelector<HTMLElement>('[data-links-no-match] [data-empty]');
+
+		expect(block).not.toBeNull();
+
+		return block!;
+	});
+
+	expect(rows()).toEqual([]);
+	expect(noMatch.dataset.empty).toBe('no-match');
+	expect(noMatch.textContent).toContain(en.common.messages.noMatch);
+	// the field is still there to change, and the count says what was found.
+	expect(searchInput()).not.toBeNull();
+	expect(countOf()).toBe('0 links');
+
+	await fireEvent.click(
+		[...noMatch.querySelectorAll('button')].find(
+			(button) => button.textContent?.trim() === en.common.actions.clearSearch
+		)!
+	);
+
+	await waitFor(() => expect(rows()).toHaveLength(7));
+	expect(searchInput()!.value).toBe('');
+	expect(group().querySelector('[data-links-no-match]')).toBeNull();
+});
+
+test('and in arabic, the count, the search and its no-match read in their own words', async () => {
+	draw('ar', MANY);
+
+	// the count's digits are the Western ones the application writes every number in.
+	expect(countOf()).toBe(ar.organization.links.count.replace('{count|number}', '7'));
+
+	const input = searchInput()!;
+
+	expect(input.placeholder).toBe(ar.organization.links.searchPlaceholder);
+
+	await fireEvent.input(input, { target: { value: 'nobody' } });
+
+	const noMatch = await waitFor(() => {
+		const block = group().querySelector<HTMLElement>('[data-links-no-match] [data-empty]');
+
+		expect(block).not.toBeNull();
+
+		return block!;
+	});
+
+	expect(noMatch.textContent).toContain(ar.common.messages.noMatch);
+	expect(noMatch.textContent).toContain(ar.common.actions.clearSearch);
 
 	setLocale('en');
 });

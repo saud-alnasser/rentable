@@ -341,7 +341,9 @@ listed for whoever could have made it and revoked there** (`invitation/outstandi
 them, the owner every one, each with its member, what opening it does (joins, chooses a new
 password, adds a machine), its maker where an invitation names one, and its lapse; a locked member
 is refused both. A revoke deletes the row, so opening the link reads revoked, and the account
-stays. The list is a card under the people in the organization tab (`member/component/links.svelte`).
+stays. The list is a card under the people in the organization tab (`member/component/links.svelte`),
+the soonest to lapse first, its count in the header, four rows in view with the rest scrolled inside
+the card, and past four a search by username.
 A machine link whose row is gone reads revoked as an invitation's does; it read `Replaced` until
 the revoke, since a gone row names nobody to ask whether a newer link took its place. *It lapsed
 at seven days, and a spent invitation link still recorded the organization, until effort 851

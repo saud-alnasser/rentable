@@ -3737,6 +3737,15 @@ type RootTranslation = {
 			 * l​i​n​k​ ​r​e​v​o​k​e​d​.
 			 */
 			revoked: string;
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​{​{​l​i​n​k​|​l​i​n​k​s​}​}
+			 * @param {string | number | boolean} count
+			 */
+			count: RequiredParams<'count|number'>;
+			/**
+			 * f​i​n​d​ ​a​ ​l​i​n​k​ ​b​y​ ​u​s​e​r​n​a​m​e
+			 */
+			searchPlaceholder: string;
 		};
 		setup: {
 			/**
@@ -8811,6 +8820,14 @@ export type TranslationFunctions = {
 			 * link revoked.
 			 */
 			revoked: () => LocalizedString;
+			/**
+			 * {count|number} {{link|links}}
+			 */
+			count: (arg: { count: string | number | boolean }) => LocalizedString;
+			/**
+			 * find a link by username
+			 */
+			searchPlaceholder: () => LocalizedString;
 		};
 		setup: {
 			/**

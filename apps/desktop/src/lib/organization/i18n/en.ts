@@ -60,7 +60,9 @@ export const organization = {
 		confirmLabel: 'revoke',
 		confirmDescription:
 			'the link and its code stop working at once. a new link from their card brings them in.',
-		revoked: 'link revoked.'
+		revoked: 'link revoked.',
+		count: '{count|number} {{link|links}}',
+		searchPlaceholder: 'find a link by username'
 	},
 	setup: {
 		connectTitle: 'connect Turso',
