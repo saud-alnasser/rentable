@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(desktop): organization setup reports a failing credential store, not "not connected"
@@ -14,8 +14,8 @@ Every Turso act, including setup, connect and reconnect through the organization
 
 Traces requirement 19 and criterion 19.
 
-- [ ] `organization/setup` `authority()` keeps `TursoNotConnected` only for an absent token and passes any other `platform_token` error through as a credential error.
-- [ ] A Rust test with `Memory::refuse_the_next_read()` sees setup's authority answer a credential error, and the absent case still answers not connected.
+- [x] `organization/setup` `authority()` keeps `TursoNotConnected` only for an absent token and passes any other `platform_token` error through as a credential error.
+- [x] A Rust test with `Memory::refuse_the_next_read()` sees setup's authority answer a credential error, and the absent case still answers not connected.
 
 ## Relevant areas
 
