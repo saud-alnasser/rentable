@@ -140,9 +140,9 @@ export default defineSheet({
 	input: PaymentSchema.pick({ date: true, amount: true }).extend({ contract: z.string() }),
 	write: async (payments, writing) => {
 		// the contracts this workspace already holds that are locked. A contract this file creates
-		// cannot be one of them: the contracts sheet writes every one as `active` and lets
-		// reconciliation derive the rest, which is also why a terminated contract does not survive
-		// an export and a re-import as terminated.
+		// is not one of them yet, even one the file says is terminated: the contracts sheet writes
+		// every one as `active` and lands a termination at the end of the batch, after these
+		// payments, so a terminated contract comes back terminated with its payments.
 		const locked = await writing.db
 			.select({ id: s.contract.id })
 			.from(s.contract)

@@ -100,7 +100,10 @@ contract keeps its units but holds none of them, so another contract may take on
 restoring the terminated contract, singly, in a selection or by undoing its termination, makes it
 live again and obeys this rule, refused naming the unit. Two terminated contracts on one unit
 restored together restore the first and refuse the second. Undoing a _deletion_ is the exception:
-it puts rows back as they were (`contract.restoreMany`, [[rules/data]] under *Undo*).
+it puts rows back as they were (`contract.restoreMany`, [[rules/data]] under *Undo*). A workspace
+file obeys it too: a row naming a unit twice, two live rows on one unit over intersecting terms,
+or a live row on a unit a live contract holds is named in the import's plan and refused by its
+write; a terminated row claims none of its units.
 _Avoid_: conflict — that word belongs to remote sync
 
 **Ending soon**:
@@ -157,6 +160,11 @@ contract derives to `active`, `fulfilled`, or `defaulted`. Otherwise `vacant`.
   exists** — the first payment locks the assignment set.
 - **A terminated contract is locked.** `terminated` is the one status a user sets, and no
   derivation overrides it.
+- **Transfer keeps a terminated contract terminated.** It is the one status a workspace file's
+  `Status` column is read for; every other status is derived again once the import lands. A
+  whole-workspace import writes the contract live, writes its payments, and lands the termination
+  at the end of the same batch, so its payments come back with it. Payments a file adds to a
+  contract the workspace already holds terminated are still refused.
 
 ## Constraints
 

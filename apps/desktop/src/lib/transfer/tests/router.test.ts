@@ -871,3 +871,155 @@ test('a unit whose stored status went stale exports the status it derives now', 
 		['A2', 'vacant']
 	]);
 });
+
+// --- A unit taken twice (effort 854, requirement 5, criterion 5) -----------------------------
+
+/** every `contract_unit` row the database holds, which no refused import may add to. */
+async function assignmentsOf(db: Database) {
+	return await db.select().from(s.contractUnit);
+}
+
+/** a contract the file asks for, for the seeded tenant, on the seeded unit by default. */
+function aFileContract(
+	reference: string,
+	units = [toUnitReference('Al Nakheel', 'A1')],
+	status?: 'active' | 'terminated'
+) {
+	return {
+		reference,
+		tenant: '1234567890',
+		units,
+		start: monthsFromNow(-1),
+		end: monthsFromNow(11),
+		interval: '12m' as const,
+		cost: 18_000,
+		...(status ? { status } : {})
+	};
+}
+
+const NO_OTHER_RECORDS = { tenants: [], complexes: [], units: [], payments: [] };
+
+test('a file contract naming one unit twice is refused by the write, naming the unit', async () => {
+	const db = createMemoryDatabase();
+	const api = await createApi({ db });
+
+	await seedWorkspace(api);
+
+	const before = await assignmentsOf(db);
+	const unit = toUnitReference('Al Nakheel', 'A2');
+
+	await assert.rejects(
+		api.transfer.importWhole({
+			...NO_OTHER_RECORDS,
+			contracts: [aFileContract('GOV-2', [unit, unit])]
+		}),
+		refusedWith('contract.unitRepeatedNamed', { named: unit })
+	);
+	assert.deepEqual(await assignmentsOf(db), before);
+});
+
+test('two file contracts taking one unit over intersecting terms are refused by the write', async () => {
+	const db = createMemoryDatabase();
+	const api = await createApi({ db });
+
+	await seedWorkspace(api);
+
+	const before = await assignmentsOf(db);
+	const unit = toUnitReference('Al Nakheel', 'A2');
+
+	await assert.rejects(
+		api.transfer.importWhole({
+			...NO_OTHER_RECORDS,
+			contracts: [aFileContract('GOV-2', [unit]), aFileContract('GOV-3', [unit])]
+		}),
+		refusedWith('contract.unitsTakenNamed', { named: unit })
+	);
+	assert.deepEqual(await assignmentsOf(db), before);
+});
+
+test('a file contract taking a unit a live contract holds is refused by the write', async () => {
+	const db = createMemoryDatabase();
+	const api = await createApi({ db });
+
+	await seedWorkspace(api);
+
+	const before = await assignmentsOf(db);
+	const unit = toUnitReference('Al Nakheel', 'A1');
+
+	await assert.rejects(
+		api.transfer.importWhole({ ...NO_OTHER_RECORDS, contracts: [aFileContract('GOV-2')] }),
+		refusedWith('contract.unitsTakenNamed', { named: unit })
+	);
+	assert.deepEqual(await assignmentsOf(db), before);
+});
+
+test('a file contract may take a unit only a terminated contract holds', async () => {
+	const api = await createApi();
+	const { contract } = await seedWorkspace(api);
+
+	await api.contract.terminate({ id: contract.id });
+	await api.transfer.importWhole({ ...NO_OTHER_RECORDS, contracts: [aFileContract('GOV-2')] });
+
+	assert.deepEqual(
+		(await api.transfer.get()).contracts.map((each) => [each.reference, each.units]),
+		[
+			['GOV-1', [toUnitReference('Al Nakheel', 'A1')]],
+			['GOV-2', [toUnitReference('Al Nakheel', 'A1')]]
+		]
+	);
+});
+
+test('what the workspace holds reports the units its live contracts claim', async () => {
+	const api = await createApi();
+
+	await seedWorkspace(api);
+
+	const held = await api.transfer.held();
+
+	assert.deepEqual(
+		held.claims?.contracts?.map((claim) => claim.label),
+		[toUnitReference('Al Nakheel', 'A1')]
+	);
+});
+
+// --- A terminated contract stays terminated (effort 854, requirement 30) ----------------------
+
+// the round trip the human decided on: the payments of a terminated contract land before the
+// status does, and a later contract holding the same unit is no clash, since the terminated one
+// holds none of its units.
+test('a terminated contract with payments imports terminated, with its payments', async () => {
+	const source = await createApi();
+	const { contract, unit } = await seedWorkspace(source);
+
+	await source.contract.terminate({ id: contract.id });
+
+	const successor = await source.contract.create({
+		govId: 'GOV-2',
+		tenantId: (await source.tenant.getMany({}))[0].id,
+		start: monthsFromNow(0),
+		end: monthsFromNow(12),
+		interval: '12m',
+		cost: 18_000
+	});
+
+	await source.contract.units.set({ contractId: successor.id, unitIds: [unit.id] });
+
+	const written = await source.transfer.get();
+	const target = await createApi();
+	const plan = planWorkspaceImport(toTables(written), NOW, emptyHeld());
+
+	assert.ok(isWorkspaceImportable(plan));
+
+	await target.transfer.importWhole(toInput(plan.transfer));
+
+	const read = await target.transfer.get();
+	const ended = read.contracts.find((each) => each.reference === 'GOV-1');
+
+	assert.equal(ended?.status, 'terminated');
+	assert.equal(ended?.paidAmount, 1500);
+	assert.deepEqual(read.payments, written.payments);
+	assert.deepEqual(
+		read.contracts.map((each) => [each.reference, each.units]),
+		written.contracts.map((each) => [each.reference, each.units])
+	);
+});

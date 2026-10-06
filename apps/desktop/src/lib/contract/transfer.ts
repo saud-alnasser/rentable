@@ -8,13 +8,17 @@ import {
 	toStatedNumber,
 	toContractReference,
 	toGovIdFromReference,
+	toTransferKey,
 	toUnitParts,
 	toUnitReference,
 	UNIT_LIST_SEPARATOR
 } from '$lib/transfer';
-import { asc, eq } from 'drizzle-orm';
+import { refuse } from '$lib/api/refusal';
+import { asc, eq, inArray, ne } from 'drizzle-orm';
 import z from 'zod';
+import { getConflictingAssignedUnitIds, rangesOverlap } from './assignment/assignment';
 import { ensureValidContractInput, hasValidContractCost } from './contract';
+import { selectAssignmentsForUnits } from './row';
 import { hasValidContractPeriodForInterval } from './schedule/cycle';
 import { contractStatusesAt, reconcileTouched } from './reconcile';
 
@@ -24,7 +28,16 @@ import { contractStatusesAt, reconcileTouched } from './reconcile';
  * what a workspace file holds of the contracts, and how they are read back (`$lib/transfer`). A
  * contract names its tenant and the units it holds, which the file or the workspace has to
  * answer; a payment names a contract by its reference. What the file cannot carry, a contract's
- * status and its amounts, is recomputed once the write has landed (`settle`).
+ * amounts and every status but a termination, is recomputed once the write has landed (`settle`).
+ *
+ * **A terminated contract stays terminated.** It is the one status a person sets, so a file that
+ * says it is read back as it was. Its payments are written before the status lands, at the end of
+ * the same batch (`Written.closing`), because a terminated contract takes no payment.
+ *
+ * **A unit is held by one live contract over any day**, here as on every other way in. A row
+ * naming a unit twice is refused on its own (`validate`); a row taking a unit another row or a
+ * held live contract takes over the same days is found through `claims` in the plan and refused
+ * again by the write. A terminated contract keeps its units and claims none of them.
  */
 
 /** A contract, as a file holds one. */
@@ -52,6 +65,8 @@ type ContractRow = {
 	end: string;
 	interval: string;
 	cost: string;
+	/** what the file said the contract was. Only `terminated` is read; the rest is derived. */
+	status: string;
 };
 
 /** every interval a contract may run on, as the file spells them. */
@@ -63,6 +78,16 @@ function namedUnits(row: ContractRow) {
 		.split(UNIT_LIST_SEPARATOR)
 		.map((value) => value.trim())
 		.filter(Boolean);
+}
+
+/** the key a unit reference is compared by, which is how the transfer keys the unit itself. */
+function unitKey(unit: string) {
+	return toTransferKey(...toUnitParts(unit));
+}
+
+/** whether a file's status cell says the contract was terminated, in whatever case it was typed. */
+function isTerminated(status: string) {
+	return status.trim().toLowerCase() === 'terminated';
 }
 
 /** every contract with its tenant, and so with the reference a file calls it by. */
@@ -170,9 +195,19 @@ export default defineSheet({
 		{ id: 'start', headers: ['Start', 'البداية'], required: true },
 		{ id: 'end', headers: ['End', 'النهاية'], required: true },
 		{ id: 'interval', headers: ['Interval', 'الدورة'], required: true },
-		{ id: 'cost', headers: ['Cost', 'التكلفة'], required: true }
+		{ id: 'cost', headers: ['Cost', 'التكلفة'], required: true },
+		// optional, so a file without the column still reads, every contract in it live.
+		{ id: 'status', headers: ['Status', 'الحالة'] }
 	],
 	validate: (row: ContractRow) => {
+		const units = namedUnits(row).map(unitKey);
+
+		// one contract holding one unit twice is no holding the schema can store, and a file was the
+		// one way in that could ask for it.
+		if (new Set(units).size !== units.length) {
+			return row.units;
+		}
+
 		const start = fromIsoDay(row.start);
 		const end = fromIsoDay(row.end);
 
@@ -225,9 +260,10 @@ export default defineSheet({
 		end: fromIsoDay(row.end) ?? 0,
 		interval: row.interval.trim() as Contract['interval'],
 		cost: toStatedNumber(row.cost) ?? 0,
-		// derived, and stated here only because the transfer shape is what the export writes
-		// too. Reconciliation decides all three the moment the workspace holds the payments.
-		status: 'active' as const,
+		// a termination is a person's and is kept; every other status is derived, and stated here
+		// only because the transfer shape is what the export writes too. Reconciliation decides it,
+		// and both amounts, the moment the workspace holds the payments.
+		status: isTerminated(row.status) ? ('terminated' as const) : ('active' as const),
 		paidAmount: 0,
 		expectedAmount: 0
 	}),
@@ -239,6 +275,44 @@ export default defineSheet({
 				(contract) => [[toContractReference(contract)], contract.id] as const
 			)
 	},
+	// a live contract claims each of its units over its term; a terminated one claims none.
+	claims: {
+		held: async (db) => {
+			const holds = await db
+				.select({
+					unit: s.unit.name,
+					complex: s.complex.name,
+					start: s.contract.start,
+					end: s.contract.end
+				})
+				.from(s.contractUnit)
+				.innerJoin(s.contract, eq(s.contractUnit.contractId, s.contract.id))
+				.innerJoin(s.unit, eq(s.contractUnit.unitId, s.unit.id))
+				.innerJoin(s.complex, eq(s.unit.complexId, s.complex.id))
+				.where(ne(s.contract.status, 'terminated'));
+
+			return holds.map((hold) => {
+				const label = toUnitReference(hold.complex, hold.unit);
+
+				return {
+					key: unitKey(label),
+					label,
+					start: hold.start.getTime(),
+					end: hold.end.getTime()
+				};
+			});
+		},
+		of: (contract) =>
+			contract.status === 'terminated'
+				? []
+				: contract.units.map((unit) => ({
+						key: unitKey(unit),
+						label: unit,
+						start: contract.start,
+						end: contract.end
+					})),
+		clash: (a, b) => rangesOverlap(a.start, a.end, b.start, b.end)
+	},
 	toInput: (contract) => ({
 		reference: contract.reference,
 		tenant: contract.tenant,
@@ -246,14 +320,18 @@ export default defineSheet({
 		start: contract.start,
 		end: contract.end,
 		interval: contract.interval,
-		cost: contract.cost
+		cost: contract.cost,
+		status: contract.status === 'terminated' ? ('terminated' as const) : ('active' as const)
 	}),
 	// narrowed from the schema: `start`, `end`, `interval` and `cost` are fields this write
 	// persists, and the three that are left are the file's own way of naming what a row points at.
+	// A status is a termination or nothing, since every other one is derived; absent, the contract
+	// is live.
 	input: ContractSchema.pick({ start: true, end: true, interval: true, cost: true }).extend({
 		reference: z.string(),
 		tenant: z.string(),
-		units: z.array(z.string())
+		units: z.array(z.string()),
+		status: z.enum(['active', 'terminated']).optional()
 	}),
 	write: async (contracts, writing) => {
 		const rows = contracts.map((contract) => {
@@ -266,6 +344,15 @@ export default defineSheet({
 			// could write a term or a cost no other procedure would accept.
 			ensureValidContractInput(contract);
 
+			const repeated = contract.units.find(
+				(unit, index) =>
+					contract.units.findIndex((other) => unitKey(other) === unitKey(unit)) !== index
+			);
+
+			if (repeated !== undefined) {
+				throw refuse('contract.unitRepeatedNamed', { named: repeated });
+			}
+
 			writing.name([contract.reference], id);
 
 			return {
@@ -273,6 +360,8 @@ export default defineSheet({
 				// a reference that is not the fallback shape is the government number itself,
 				// which is what a person calls a contract.
 				govId: toGovIdFromReference(contract.reference) ?? null,
+				// written live even where the file says terminated: its payments are written after
+				// it, and a terminated contract takes none. The termination is `closing`'s.
 				status: 'active' as const,
 				start: new Date(contract.start),
 				end: new Date(contract.end),
@@ -284,8 +373,9 @@ export default defineSheet({
 			};
 		});
 
-		const assignments = contracts.flatMap((contract) =>
+		const held = contracts.map((contract) =>
 			contract.units.map((unit) => ({
+				unit,
 				contractId: writing.resolve('contracts', contract.reference),
 				// split back into the pair the map is keyed under, by the planning pass's own
 				// splitter rather than a second one: a composed reference asked for as one value
@@ -294,18 +384,69 @@ export default defineSheet({
 				unitId: writing.resolve('units', unit, toUnitParts(unit))
 			}))
 		);
+		const assignments = held.flat();
+
+		// the overlap rule every other way of holding a unit asserts, over what live contracts
+		// hold now and what the file's own contracts before this one hold. The plan named the row;
+		// this is the boundary, and a refusal here writes nothing at all.
+		const holding = await selectAssignmentsForUnits(writing.db, [
+			...new Set(assignments.map((assignment) => assignment.unitId))
+		]);
+
+		contracts.forEach((contract, index) => {
+			const row = rows[index];
+			const status = contract.status ?? 'active';
+
+			if (status !== 'terminated') {
+				const taken = getConflictingAssignedUnitIds(holding, row, row.id);
+				const named = held[index].find((assignment) => taken.has(assignment.unitId));
+
+				if (named) {
+					throw refuse('contract.unitsTakenNamed', { named: named.unit });
+				}
+			}
+
+			holding.push(
+				...held[index].map((assignment) => ({
+					unitId: assignment.unitId,
+					contractId: row.id,
+					status,
+					start: row.start,
+					end: row.end,
+					interval: row.interval,
+					cost: row.cost
+				}))
+			);
+		});
+
+		const terminated = rows
+			.filter((_, index) => contracts[index].status === 'terminated')
+			.map((row) => row.id);
 
 		return {
 			statements: [
 				...rows.map((row) => writing.db.insert(s.contract).values(row)),
-				...assignments.map((row) => writing.db.insert(s.contractUnit).values(row))
+				...assignments.map(({ contractId, unitId }) =>
+					writing.db.insert(s.contractUnit).values({ contractId, unitId })
+				)
 			],
+			// a termination lands once the payments have, at the end of the same batch.
+			closing:
+				terminated.length > 0
+					? [
+							writing.db
+								.update(s.contract)
+								.set({ status: 'terminated' })
+								.where(inArray(s.contract.id, terminated))
+						]
+					: [],
 			count: rows.length,
 			touched: { contractIds: rows.map((row) => row.id) }
 		};
 	},
 	// what the file could not carry: a contract's status, its paid and its expected amount are
-	// what its term and its payments make them, and a unit's status is what its contracts make it.
+	// what its term and its payments make them (a termination aside, which the pass leaves
+	// standing), and a unit's status is what its contracts make it.
 	// Recomputed here rather than trusted from a column anyone could have edited, and scoped to
 	// what was written, which is what [[rules/data]], under *Reconcile scope*, asks of a mutation.
 	//

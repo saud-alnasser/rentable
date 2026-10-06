@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [07, 08]
 ---
 
@@ -15,10 +15,10 @@ Importing contracts honours an exported terminated status, writing the contract'
 
 Traces requirements 5 and 30, and criterion 5.
 
-- [ ] The contract sheet reads `Status` and honours `terminated`; a whole-workspace import applies it after the payments are written; a payments-only file onto an already-terminated held contract is still refused.
-- [ ] A repeated unit in one row is `invalid`; overlaps are found through the optional sheet `claims` member and `transfer.held`; the write refuses with `contract.unitRepeatedNamed` or `contract.unitsTakenNamed`.
-- [ ] Tests per criterion 5, each asserting no `contract_unit` row written; a test imports a terminated contract with payments and finds it terminated with its payments.
-- [ ] [[contexts/desktop/contract]] says transfer keeps terminated contracts.
+- [x] The contract sheet reads `Status` and honours `terminated`; a whole-workspace import applies it after the payments are written; a payments-only file onto an already-terminated held contract is still refused.
+- [x] A repeated unit in one row is `invalid`; overlaps are found through the optional sheet `claims` member and `transfer.held`; the write refuses with `contract.unitRepeatedNamed` or `contract.unitsTakenNamed`.
+- [x] Tests per criterion 5, each asserting no `contract_unit` row written; a test imports a terminated contract with payments and finds it terminated with its payments.
+- [x] [[contexts/desktop/contract]] says transfer keeps terminated contracts.
 
 ## Relevant areas
 

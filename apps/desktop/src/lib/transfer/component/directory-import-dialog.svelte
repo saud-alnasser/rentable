@@ -81,6 +81,7 @@
 		'duplicate-of-existing',
 		'missing-value',
 		'invalid',
+		'claim-taken',
 		'missing-column'
 	] as const satisfies readonly ImportRejection['reason'][];
 
@@ -143,6 +144,8 @@
 				return $LL.common.import.skippedHeld({ count: skip.count });
 			case 'missing-value':
 				return $LL.common.import.skippedIncomplete({ count: skip.count });
+			case 'claim-taken':
+				return $LL.common.import.skippedClaimed({ count: skip.count });
 			case 'unresolved':
 				return $LL.common.import.skippedUnresolved({ count: skip.count });
 			default:
@@ -163,6 +166,8 @@
 				return $LL.common.import.reasons.duplicateOfExisting({ detail: rejection.detail });
 			case 'missing-value':
 				return $LL.common.import.reasons.missingValue({ detail: rejection.detail });
+			case 'claim-taken':
+				return $LL.common.import.reasons.claimTaken({ detail: rejection.detail });
 			default:
 				// what a concept refuses a row for is the value it could not read, not a sentence: the
 				// declaration is one for both languages and cannot compose one. The sentence is here.

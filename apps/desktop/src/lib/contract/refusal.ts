@@ -30,7 +30,8 @@ export type ContractRefusalCode =
 	| 'contract.tenantMissing'
 	| 'contract.tenantMissingNamed'
 	| 'contract.repeatedInSet'
-	| 'contract.unitsMissing';
+	| 'contract.unitsMissing'
+	| 'contract.unitRepeatedNamed';
 
 /** the field of the contract's form each of its refusals belongs under, where one does. */
 export const CONTRACT_REFUSAL_FIELDS = {

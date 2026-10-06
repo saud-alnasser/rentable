@@ -62,7 +62,11 @@ export type ImportField<TRecord> = {
 export type ImportRejection = {
 	/** the row's place in the file, counting the heading as row one — which is what a reader sees. */
 	row: number;
-	reason: 'missing-column' | 'missing-value' | 'invalid' | 'duplicate-of-existing';
+	/**
+	 * `claim-taken` is the workspace's pass rather than this one's: the row would hold what a record
+	 * the workspace holds already holds over the same days (`Sheet.claims`).
+	 */
+	reason: 'missing-column' | 'missing-value' | 'invalid' | 'duplicate-of-existing' | 'claim-taken';
 	/** the column or value at fault, where naming one helps. */
 	detail: string;
 };

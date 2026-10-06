@@ -12,11 +12,14 @@ import {
 	type WorkspaceSheetPlan,
 	type WorkspaceTransfer,
 	emptyHeld,
+	emptyTransfer,
 	isWorkspaceImportable,
 	planWorkspaceImport,
 	toContractReference,
+	toTransferKey,
 	toUnitParts,
-	toUnitReference
+	toUnitReference,
+	UNIT_LIST_SEPARATOR
 } from '../index.ts';
 import { formatDateInput } from '$lib/date';
 
@@ -667,4 +670,159 @@ test('a payment dated the day the file is read is money already received', () =>
 
 	assert.deepEqual(sheetOf(plan, 'payments').rejected, []);
 	assert.ok(isWorkspaceImportable(plan));
+});
+
+// --- A unit taken twice (effort 854, requirement 5) ------------------------------------------
+//
+// A unit is held by one live contract over any day. A file could break that three ways: one row
+// naming the unit twice, two rows taking it over intersecting terms, or a row taking a unit a
+// contract in the workspace already holds. Each is named in the plan, by its row.
+
+/** a second contract for the workspace's tenant, on the workspace's unit, over the same term. */
+function aSecondContract(workspace: WorkspaceTransfer, reference = 'GOV-2'): TransferContract {
+	return { ...workspace.contracts[0], reference, paidAmount: 0 };
+}
+
+/** what a workspace holding `aWorkspace`'s contract live would report it claims. */
+function heldClaims(workspace: WorkspaceTransfer): WorkspaceHeld {
+	const unit = toUnitReference('Al Nakheel', 'A1');
+
+	return {
+		...heldWorkspace(workspace),
+		claims: {
+			contracts: [
+				{
+					key: toTransferKey(...toUnitParts(unit)),
+					label: unit,
+					start: START,
+					end: END
+				}
+			]
+		}
+	};
+}
+
+test('a contract row naming one unit twice is turned away, naming its row', () => {
+	const workspace = aWorkspace();
+	const unit = toUnitReference('Al Nakheel', 'A1');
+
+	workspace.contracts[0].units = [unit, unit];
+
+	const plan = planWorkspaceImport(toTables(workspace), NOW, emptyHeld());
+
+	assert.deepEqual(sheetOf(plan, 'contracts').rejected, [
+		{ row: 2, reason: 'invalid', detail: `${unit}${UNIT_LIST_SEPARATOR}${unit}` }
+	]);
+	assert.deepEqual(plan.transfer.contracts, []);
+});
+
+test('two contract rows taking one unit over intersecting terms refuse the file, naming both', () => {
+	const workspace = aWorkspace();
+
+	workspace.contracts.push(aSecondContract(workspace));
+	workspace.payments = [];
+
+	const plan = planWorkspaceImport(toTables(workspace), NOW, emptyHeld());
+
+	assert.deepEqual(sheetOf(plan, 'contracts').collisions, [
+		{ rows: [2, 3], identity: toUnitReference('Al Nakheel', 'A1') }
+	]);
+	assert.equal(isWorkspaceImportable(plan), false);
+});
+
+test('two contract rows on one unit over terms that do not meet both import', () => {
+	const workspace = aWorkspace();
+	const later = aSecondContract(workspace);
+
+	later.start = Date.UTC(2027, 0, 1);
+	later.end = Date.UTC(2027, 11, 31);
+	workspace.contracts.push(later);
+
+	const plan = planWorkspaceImport(toTables(workspace), NOW, emptyHeld());
+
+	assert.deepEqual(sheetOf(plan, 'contracts').collisions, []);
+	assert.equal(plan.transfer.contracts.length, 2);
+});
+
+test('a contract row taking a unit a live contract holds is turned away, naming its row', () => {
+	const workspace = aWorkspace();
+	const file: WorkspaceTransfer = {
+		...emptyTransfer(),
+		contracts: [aSecondContract(workspace)]
+	};
+
+	const plan = planWorkspaceImport(toTables(file), NOW, heldClaims(workspace));
+
+	assert.deepEqual(sheetOf(plan, 'contracts').rejected, [
+		{ row: 2, reason: 'claim-taken', detail: toUnitReference('Al Nakheel', 'A1') }
+	]);
+	assert.equal(sheetOf(plan, 'contracts').create, 0);
+	assert.deepEqual(plan.transfer.contracts, []);
+});
+
+// --- A terminated contract stays terminated (effort 854, requirement 30) ------------------------
+
+test('a contract the file states as terminated plans as terminated, and every other as active', () => {
+	const workspace = aWorkspace();
+	const ended = aSecondContract(workspace);
+
+	ended.status = 'terminated';
+	workspace.contracts[0].status = 'fulfilled';
+	workspace.contracts.push(ended);
+
+	const plan = planWorkspaceImport(toTables(workspace), NOW, emptyHeld());
+
+	assert.deepEqual(
+		plan.transfer.contracts.map((contract) => [contract.reference, contract.status]),
+		[
+			['GOV-1', 'active'],
+			['GOV-2', 'terminated']
+		]
+	);
+});
+
+// a terminated contract keeps its units and holds none of them, so it takes no part in a clash:
+// neither with a row of the file nor with a contract the workspace holds.
+test('a terminated contract row claims none of its units', () => {
+	const workspace = aWorkspace();
+	const ended = aSecondContract(workspace);
+
+	ended.status = 'terminated';
+	workspace.contracts.push(ended);
+
+	const inFile = planWorkspaceImport(toTables(workspace), NOW, emptyHeld());
+
+	assert.deepEqual(sheetOf(inFile, 'contracts').collisions, []);
+	assert.equal(inFile.transfer.contracts.length, 2);
+
+	const onHeld = planWorkspaceImport(
+		toTables({ ...emptyTransfer(), contracts: [ended] }),
+		NOW,
+		heldClaims(aWorkspace())
+	);
+
+	assert.deepEqual(sheetOf(onHeld, 'contracts').rejected, []);
+	assert.equal(onHeld.transfer.contracts.length, 1);
+});
+
+// a file that carries no status column at all still reads, every contract in it as live.
+test('a contract sheet without a status column still reads', () => {
+	const tables = toTables(aWorkspace()).map((table) => {
+		if (table.name !== 'Contracts') {
+			return table;
+		}
+
+		const status = table.headers.indexOf('Status');
+
+		return {
+			...table,
+			headers: table.headers.filter((_, index) => index !== status),
+			rows: table.rows.map((row) => row.filter((_, index) => index !== status))
+		};
+	});
+
+	const plan = planWorkspaceImport(tables, NOW, emptyHeld());
+
+	assert.ok(isWorkspaceImportable(plan));
+	assert.equal(plan.transfer.contracts[0].status, 'active');
 });

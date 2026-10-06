@@ -434,6 +434,11 @@ type RootTranslation = {
 				 * @param {string} detail
 				 */
 				unresolved: RequiredParams<'detail'>;
+				/**
+				 * {​d​e​t​a​i​l​}​ ​i​s​ ​a​l​r​e​a​d​y​ ​h​e​l​d​ ​o​v​e​r​ ​t​h​e​s​e​ ​d​a​t​e​s
+				 * @param {string} detail
+				 */
+				claimTaken: RequiredParams<'detail'>;
 			};
 			/**
 			 * t​h​i​s​ ​f​i​l​e​ ​c​a​r​r​i​e​s​ ​n​o​ ​{​c​o​l​u​m​n​s​}​,​ ​s​o​ ​n​o​ ​r​e​c​o​r​d​ ​c​a​n​ ​b​e​ ​c​r​e​a​t​e​d​ ​f​r​o​m​ ​i​t​ ​—​ ​o​n​l​y​ ​r​e​c​o​g​n​i​s​e​d​ ​a​s​ ​o​n​e​ ​a​l​r​e​a​d​y​ ​h​e​r​e​.
@@ -490,6 +495,11 @@ type RootTranslation = {
 			 * @param {unknown} count
 			 */
 			skippedIncomplete: RequiredParams<'count|number'>;
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​t​a​k​i​n​g​ ​w​h​a​t​ ​i​s​ ​a​l​r​e​a​d​y​ ​h​e​l​d
+			 * @param {unknown} count
+			 */
+			skippedClaimed: RequiredParams<'count|number'>;
 			/**
 			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​r​e​a​d
 			 * @param {unknown} count
@@ -1030,6 +1040,11 @@ type RootTranslation = {
 				 */
 				unitsLockedByPayments: string;
 				/**
+				 * {​n​a​m​e​d​}​ ​i​s​ ​n​a​m​e​d​ ​t​w​i​c​e​ ​f​o​r​ ​o​n​e​ ​c​o​n​t​r​a​c​t​.​ ​n​a​m​e​ ​e​a​c​h​ ​u​n​i​t​ ​o​n​c​e​.
+				 * @param {string} named
+				 */
+				unitRepeatedNamed: RequiredParams<'named'>;
+				/**
 				 * o​n​e​ ​o​r​ ​m​o​r​e​ ​o​f​ ​t​h​e​s​e​ ​u​n​i​t​s​ ​a​r​e​ ​n​o​ ​l​o​n​g​e​r​ ​i​n​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​.​ ​r​e​l​o​a​d​ ​t​o​ ​s​e​e​ ​w​h​a​t​ ​c​h​a​n​g​e​d​.
 				 */
 				unitsMissing: string;
@@ -1038,7 +1053,7 @@ type RootTranslation = {
 				 */
 				unitsTaken: string;
 				/**
-				 * a​n​o​t​h​e​r​ ​c​o​n​t​r​a​c​t​ ​n​o​w​ ​h​o​l​d​s​ ​{​n​a​m​e​d​}​ ​o​v​e​r​ ​t​h​e​s​e​ ​d​a​t​e​s​.​ ​f​r​e​e​ ​i​t​ ​b​e​f​o​r​e​ ​r​e​s​t​o​r​i​n​g​ ​t​h​i​s​ ​o​n​e​.
+				 * a​n​o​t​h​e​r​ ​c​o​n​t​r​a​c​t​ ​h​o​l​d​s​ ​{​n​a​m​e​d​}​ ​o​v​e​r​ ​t​h​e​s​e​ ​d​a​t​e​s​.​ ​f​r​e​e​ ​i​t​ ​f​i​r​s​t​.
 				 * @param {string} named
 				 */
 				unitsTakenNamed: RequiredParams<'named'>;
@@ -5663,6 +5678,10 @@ export type TranslationFunctions = {
 				 * names {detail}, which is not here
 				 */
 				unresolved: (arg: { detail: string }) => LocalizedString;
+				/**
+				 * {detail} is already held over these dates
+				 */
+				claimTaken: (arg: { detail: string }) => LocalizedString;
 			};
 			/**
 			 * this file carries no {columns}, so no record can be created from it — only recognised as one already here.
@@ -5704,6 +5723,10 @@ export type TranslationFunctions = {
 			 * {count|number} missing a required value
 			 */
 			skippedIncomplete: (arg: { count: unknown }) => LocalizedString;
+			/**
+			 * {count|number} taking what is already held
+			 */
+			skippedClaimed: (arg: { count: unknown }) => LocalizedString;
 			/**
 			 * {count|number} could not be read
 			 */
@@ -6234,6 +6257,10 @@ export type TranslationFunctions = {
 				 */
 				unitsLockedByPayments: () => LocalizedString;
 				/**
+				 * {named} is named twice for one contract. name each unit once.
+				 */
+				unitRepeatedNamed: (arg: { named: string }) => LocalizedString;
+				/**
 				 * one or more of these units are no longer in the workspace. reload to see what changed.
 				 */
 				unitsMissing: () => LocalizedString;
@@ -6242,7 +6269,7 @@ export type TranslationFunctions = {
 				 */
 				unitsTaken: () => LocalizedString;
 				/**
-				 * another contract now holds {named} over these dates. free it before restoring this one.
+				 * another contract holds {named} over these dates. free it first.
 				 */
 				unitsTakenNamed: (arg: { named: string }) => LocalizedString;
 				/**

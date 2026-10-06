@@ -214,12 +214,12 @@ export const refusals = {
 		terminatedLocked: 'this contract is terminated and locked. restore it before changing it.',
 		unitsLockedByPayments:
 			'the units of a contract cannot change once payments are registered against it.',
+		unitRepeatedNamed: '{named:string} is named twice for one contract. name each unit once.',
 		unitsMissing:
 			'one or more of these units are no longer in the workspace. reload to see what changed.',
 		unitsTaken:
 			'another contract holds one or more of the chosen units over this term. choose other units or a different term.',
-		unitsTakenNamed:
-			'another contract now holds {named:string} over these dates. free it before restoring this one.',
+		unitsTakenNamed: 'another contract holds {named:string} over these dates. free it first.',
 		unitsUnavailable:
 			'another contract holds one or more of these units over the selected term. choose a different term.'
 	}
