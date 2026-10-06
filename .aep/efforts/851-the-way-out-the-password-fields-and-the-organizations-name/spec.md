@@ -314,6 +314,26 @@ holds the same one, the same way, after the update.
     refusal beside them. *Added 2026-10-06 by the human; the same defect as requirement 30's, on
     the step beside it, present on `main` before this effort.*
 
+## Found in the app before merge
+
+41. **Adding an organization starts its Turso step unconnected.** The setup walk reads the setup's
+    own consent, never the selected organization's. *Added 2026-10-06 by the human.*
+42. **An owner whose Turso consent stopped working is told to connect again.** A consent Turso
+    answers as an invalid token reads as not connected, and the act that met it says to connect
+    Turso again from the organization settings. Where a newer consent over the same Turso account
+    supersedes an older one, the organizations on that account keep working. *Added 2026-10-06 by
+    the human, after a link was refused by Turso.*
+43. **A card shows an edit the moment it is made.** Any record edited from a card or a list is
+    shown changed as soon as the edit is done, everywhere it is drawn, with no tab switch or
+    reload. *Added 2026-10-06 by the human, from a workspace rename in the settings.*
+44. **The account menu opens each settings tab.** It lists Settings, Account, Organization and
+    Workspaces, each opening the settings on that tab, then Sign out. The workspace menu's entry
+    reads "Manage Workspaces". *Added 2026-10-06 by the human.*
+45. **Sign out is immediate.** It asks nothing and goes straight to the sign-in wall, with no reload
+    of the page. *Added 2026-10-06 by the human.*
+46. **A link's lifetime is chosen on a slider.** The same steps as requirement 11, on a slider with
+    the chosen lifetime written beside it, in place of the dropdown. *Added 2026-10-06 by the human.*
+
 # Acceptance Criteria
 
 1. A component test with no organization held draws today's welcome with set up and join by a
@@ -434,6 +454,17 @@ holds the same one, the same way, after the update.
     unchanged.
 40. A component test of the first run through the real connect path: a refused connect leaves the
     username and password as typed and shows the refusal.
+41. A component test: with the selected organization holding its own consent and no setup consent,
+    the walk asks to connect and does not say connected.
+42. A Rust test: a 401 invalid token from an organization's own consent reads that organization as
+    not connected and refuses with the reason that names connecting again.
+43. A component test: a workspace renamed from its settings card shows the new name once the rename
+    resolves, with no tab change.
+44. A component test: each account menu entry opens the settings on its tab; the workspace menu
+    reads "Manage Workspaces".
+45. A component test: sign out asks nothing and draws the wall with no loading pass.
+46. A component test: moving the link form's slider by keyboard changes the lifetime written beside
+    it, and the link is made with that lifetime in hours.
 
 # Constraints
 

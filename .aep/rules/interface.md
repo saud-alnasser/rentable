@@ -229,8 +229,8 @@ meta line under a row's name and a badge beside it where one marks the row; then
 separator, the acts that end something, the error tone on the act's button alone, never on the
 row's glyph or name, the card's edge or a band (an ending act on one row of a growing list, such as one machine's sign-out, is an
 entry in that row's record menu instead, confirmed and in the menu's default tone, so the card's
-red stays on one act: this machine's own sign-out is such an entry in its row's menu, and the
-account has no card for this machine); then an optional footer of one note, one progress bar or one act. Every card takes the column's
+red stays on one act: this machine's own sign-out is such an entry in its row's menu, the one
+that asks nothing (*Delete and confirm*), and the account has no card for this machine); then an optional footer of one note, one progress bar or one act. Every card takes the column's
 width, and those that end something are written last. The roles, members and workspaces
 directories are not boxed: their heading takes the card's header, the tray sits under it, the
 record cards follow, so no box sits in a box. A notice waiting on the reader, the ownership offer,
@@ -659,8 +659,8 @@ its page, the command menu, a selection's bar, and every row of the settings are
 records' deletes (tenant, complex, unit, contract, payment), terminating a contract, the
 organization's acts (deleting a workspace, removing a member or locking one out, resetting a
 member's password, signing a member out everywhere, deleting a role, withdrawing an ownership
-offer, transferring ownership), signing out another machine or every other one, signing this
-machine out, disconnecting it, forgetting the Turso account (in settings and in setup), deleting
+offer, transferring ownership), signing out another machine or every other one, disconnecting
+this machine, forgetting the Turso account (in settings and in setup), deleting
 the organization, and removing the organization stamp. Leaving the question does nothing.
 
 **The question names what ends and whether anything brings it back.** The record leads, as the
@@ -701,9 +701,11 @@ no destructive control. The procedure refuses it either way. **A selection asks 
 titled and labelled with its own verb: terminate, restore, sign out, forget the account, disconnect,
 withdraw. It has no default title or button word, so a caller cannot fall back to *delete*. Its
 control is destructive for an act that takes something away, and the ordinary primary control for
-one that gives something back (restore). Signing this machine out asks in it from both its routes,
-the account section's last card and the account menu at the foot of the rail
-(`organization/session/component/sign-out-dialog.svelte`).
+one that gives something back (restore). **Signing this machine out asks nothing**, from the account
+menu at the foot of the rail and from the account section alike, and goes straight to the wall: a
+password brings it back and nothing else is lost. *The human's word on 2026-10-06 (effort 851,
+requirement 45): "it's simple it should just signout". It asked in
+`organization/session/component/sign-out-dialog.svelte` from 2026-10-02 until then.*
 
 *Why: the human walked the built application on 2026-10-02 and asked, in their words, to "make sure
 deangours actions have confirmation dialog even in domain records deletes have confirmation dialong
