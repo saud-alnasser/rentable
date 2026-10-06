@@ -6,6 +6,7 @@ import {
 	createApi,
 	identityWithout,
 	monthsFromNow,
+	refusedWith,
 	seedTenant
 } from '$lib/app/tests/testing.ts';
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
@@ -762,6 +763,48 @@ test('a contract ending today is owing, and one ending yesterday is overdue', as
 		(await api.contract.getMany({ rank: 'overdue' })).map((c) => c.govId),
 		['BOUNDARY-YESTERDAY']
 	);
+});
+
+// twelve payments of 4166.67 sum to a hair under twelve times 4166.67, so the paid amount passes
+// the SQL bound and the rank is what drops the contract: float dust is not a debt.
+test('a contract paid in full is in neither money rank and has nothing to be reminded of', async () => {
+	const api = await createApi();
+	const tenant = await seedTenant(api);
+
+	const contract = async (govId: string, months: number) => {
+		const created = await api.contract.create({
+			govId,
+			cost: 4166.67,
+			start: monthsFromNow(months),
+			end: monthsFromNow(months + 12, -1),
+			interval: '1m',
+			tenantId: tenant.id
+		});
+
+		for (let cycle = 0; cycle < 12; cycle++) {
+			await api.payment.create({
+				contractId: created.id,
+				amount: 4166.67,
+				date: monthsFromNow(months + cycle)
+			});
+		}
+
+		return created;
+	};
+
+	// every cycle has fallen due, one inside its term and one past its end
+	const inside = await contract('PAID-INSIDE', -11);
+	const past = await contract('PAID-PAST', -13);
+
+	assert.deepEqual(await api.contract.getMany({ rank: 'owing' }), []);
+	assert.deepEqual(await api.contract.getMany({ rank: 'overdue' }), []);
+
+	for (const { id } of [inside, past]) {
+		await assert.rejects(
+			() => api.contract.reminder({ id }),
+			refusedWith('contract.nothingToRemind')
+		);
+	}
 });
 
 // --- What a rank costs ---------------------------------------------------------------

@@ -144,6 +144,8 @@ function matchesRankBounds(bounds: ContractRankBounds): SQL | undefined {
 			? inArray(s.contract.status, [...bounds.status.holds])
 			: notInArray(s.contract.status, [...bounds.status.excludes]),
 		// column against column, which the comparison helpers do not type, so it is written out
+		// and exact on purpose: it only narrows to a superset, and the rank applied to every row
+		// after it is what forgives float dust, so a paid contract passing here is dropped there
 		bounds.requiresUnpaidBalance
 			? sql`${s.contract.paidAmount} < ${s.contract.expectedAmount}`
 			: undefined,

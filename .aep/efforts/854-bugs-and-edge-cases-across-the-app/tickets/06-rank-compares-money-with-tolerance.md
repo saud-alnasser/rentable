@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(desktop): a contract paid in full never ranks owing or overdue
@@ -14,8 +14,8 @@ A contract's rank compares money with the tolerance the rest of the domain uses,
 
 Traces requirement 3 and criterion 3.
 
-- [ ] `rank.ts` uses `hasSatisfiedContractPaymentRequirement`; the directory's SQL bound stays, with a comment saying why.
-- [ ] A unit test ranks 12 x 4166.67 with twelve such payments as neither owing nor overdue, inside and past the term; a directory router test excludes it from both filters; `contract.reminder` refuses it.
+- [x] `rank.ts` uses `hasSatisfiedContractPaymentRequirement`; the directory's SQL bound stays, with a comment saying why.
+- [x] A unit test ranks 12 x 4166.67 with twelve such payments as neither owing nor overdue, inside and past the term; a directory router test excludes it from both filters; `contract.reminder` refuses it.
 
 ## Relevant areas
 
