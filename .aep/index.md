@@ -138,7 +138,7 @@ Start at [[protocol]].
 | 843-the-way-in-and-the-workspace-control-read-as-apple-would | implemented | [[efforts/843-the-way-in-and-the-workspace-control-read-as-apple-would/spec]] | 1 | 1 | 22 |
 | 846-the-settings-and-the-record-cards-are-rethought | implemented | [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]] | 7 | 1 | 55 |
 | 851-the-way-out-the-password-fields-and-the-organizations-name | implemented | [[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/spec]] | 0 | 0 | 20 |
-| 854-bugs-and-edge-cases-across-the-app | accepted | [[efforts/854-bugs-and-edge-cases-across-the-app/spec]] | 3 | 0 | 39 |
+| 854-bugs-and-edge-cases-across-the-app | accepted | [[efforts/854-bugs-and-edge-cases-across-the-app/spec]] | 3 | 0 | 40 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -618,3 +618,4 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/854-bugs-and-edge-cases-across-the-app/tickets/37-a-reference-shows-only-what-the-reader-may-see]] fix(desktop): a contract's reference and an import's collisions show only what they should | 854-bugs-and-edge-cases-across-the-app | resolved | — |
 | [[efforts/854-bugs-and-edge-cases-across-the-app/tickets/38-a-stopped-launch-names-its-file-every-time]] fix(desktop): a stopped launch names its file every time, and a failed commit leaves nothing open | 854-bugs-and-edge-cases-across-the-app | resolved | — |
 | [[efforts/854-bugs-and-edge-cases-across-the-app/tickets/39-the-last-words-match-the-code]] docs(desktop): the last contexts and rules match the code | 854-bugs-and-edge-cases-across-the-app | resolved | 37, 38 |
+| [[efforts/854-bugs-and-edge-cases-across-the-app/tickets/40-undoing-a-refund-change-puts-back-what-was-recorded]] fix(desktop): undoing a refund's change puts back what was recorded | 854-bugs-and-edge-cases-across-the-app | open | — |
