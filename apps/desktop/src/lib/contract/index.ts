@@ -14,6 +14,9 @@
 export {
 	ensureContractIsNotTerminated,
 	ensureContractPaymentsCreatable,
+	ensureRefundsCovered,
+	ensureRefundWithinLimit,
+	areRefundsCovered,
 	getAmountDueThisCycle,
 	getPaidAmount,
 	getRemainingContractBalance,

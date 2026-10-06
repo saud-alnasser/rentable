@@ -148,6 +148,7 @@
 	// nothing the reader did caused.
 	const REFUSAL_ORDER = [
 		'contract-terminated',
+		'refunds-exceed-received',
 		'missing'
 	] as const satisfies readonly PaymentRefusalReason[];
 
@@ -158,6 +159,8 @@
 		describeRefusals({
 			'contract-terminated': (count: number) =>
 				$LL.contracts.selection.paymentRefusedContractTerminated({ count }),
+			'refunds-exceed-received': (count: number) =>
+				$LL.contracts.selection.paymentRefusedRefundsExceedReceived({ count }),
 			missing: (count: number) => $LL.contracts.selection.paymentRefusedMissing({ count })
 		} satisfies Record<PaymentRefusalReason, (count: number) => string>)
 	);

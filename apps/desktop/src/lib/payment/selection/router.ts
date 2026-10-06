@@ -5,8 +5,10 @@ import { PaymentSchema } from '$lib/platform/database/schema';
 import { refuse } from '$lib/api/refusal';
 import { autosync, procedure, router } from '$lib/api/trpc';
 import {
+	areRefundsCovered,
 	ensureContractIsNotTerminated,
 	ensureContractPaymentsCreatable,
+	ensureRefundsCovered,
 	reconcileTouched
 } from '$lib/contract';
 import type { Database } from '$lib/api/context';
@@ -50,7 +52,15 @@ type PaymentRefusal = { id: string; amount: number; reason: PaymentRefusalReason
  * list actually meets: the ledger hides its controls on a terminated contract, so the only way
  * to reach that refusal from here is for the termination to arrive while the dialog is open.
  *
- * One read per table for the whole selection, never one per record.
+ * **Refunds stay within what was received** (effort 854, requirement 26). A payment received on a
+ * live contract goes only while what the contract keeps still covers its refunds, weighed over
+ * the whole selection rather than one row at a time: every refund the selection takes comes off
+ * first, since removing one only frees what was received, and then each payment received goes in
+ * the reader's order while the rest still covers what stays returned. Only the ones that would
+ * break it are refused, so a selection is turned away no further than the rule needs.
+ *
+ * One read per table for the whole selection, never one per record, and one more for the rows
+ * the selected payments' contracts hold, which is what that rule is weighed against.
  */
 async function planPaymentSelection(db: Database, ids: readonly string[]) {
 	const named = [...new Set(ids)];
@@ -66,6 +76,20 @@ async function planPaymentSelection(db: Database, ids: readonly string[]) {
 				.where(inArray(s.contract.id, contractIds))
 		: [];
 	const contractsById = new Map(contracts.map((contract) => [contract.id, contract]));
+
+	const held = contractIds.length
+		? await db.select().from(s.payment).where(inArray(s.payment.contractId, contractIds))
+		: [];
+	// what each contract would keep, narrowed as the walk below lets a payment go.
+	const keptByContractId = groupPaymentsByContractId(held);
+	const selected = new Set(named);
+
+	for (const [contractId, kept] of keptByContractId) {
+		keptByContractId.set(
+			contractId,
+			kept.filter((payment) => payment.direction !== 'refund' || !selected.has(payment.id))
+		);
+	}
 
 	const eligible: DbPayment[] = [];
 	const refused: PaymentRefusal[] = [];
@@ -85,13 +109,28 @@ async function planPaymentSelection(db: Database, ids: readonly string[]) {
 			continue;
 		}
 
-		const reason = whatRefusesPaymentDeletion(contract.status);
+		const reason = whatRefusesPaymentDeletion(contract.status, payment.direction);
 
 		if (reason) {
 			refused.push({ id, amount: payment.amount, reason });
-		} else {
-			eligible.push(payment);
+
+			continue;
 		}
+
+		if (payment.direction !== 'refund') {
+			const kept = keptByContractId.get(contract.id) ?? [];
+			const without = kept.filter((row) => row.id !== payment.id);
+
+			if (!areRefundsCovered(without)) {
+				refused.push({ id, amount: payment.amount, reason: 'refunds-exceed-received' });
+
+				continue;
+			}
+
+			keptByContractId.set(contract.id, without);
+		}
+
+		eligible.push(payment);
 	}
 
 	return { eligible, refused };
@@ -166,6 +205,11 @@ export default router({
 	 * contract, which is exactly the set an undo of *these payments took it out of paid-in-full*
 	 * is made of. One question, before any of them goes in: may payments be added to this
 	 * contract at all right now.
+	 *
+	 * **Those gates are the payments received's** (effort 854, requirement 25). A refund the set puts
+	 * back goes onto a terminated contract as well, since it was recorded there legitimately and an
+	 * undo restores rows; what holds it is the one rule every refund keeps, that the contract has not
+	 * returned more than it received, asked of the set together with what each contract holds.
 	 */
 	createMany: procedure
 		.permitted('createPayment')
@@ -207,9 +251,20 @@ export default router({
 				.where(inArray(s.payment.contractId, contractIds));
 			const registeredByContractId = groupPaymentsByContractId(registered);
 
+			const namedByContractId = groupPaymentsByContractId(named);
+
 			for (const contract of contracts) {
-				ensureContractIsNotTerminated(contract.status);
-				ensureContractPaymentsCreatable(contract, registeredByContractId.get(contract.id) ?? []);
+				const arriving = namedByContractId.get(contract.id) ?? [];
+				const registeredForContract = registeredByContractId.get(contract.id) ?? [];
+
+				if (arriving.some((payment) => payment.direction !== 'refund')) {
+					ensureContractIsNotTerminated(contract.status);
+					ensureContractPaymentsCreatable(contract, registeredForContract);
+				}
+
+				if (arriving.some((payment) => payment.direction === 'refund')) {
+					ensureRefundsCovered([...registeredForContract, ...arriving]);
+				}
 			}
 
 			for (const payment of named) {

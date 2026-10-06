@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [21]
 ---
 
@@ -15,8 +15,8 @@ A refund can be created, edited and deleted through the payment procedures on an
 
 Traces requirements 25 and 26, and criteria 25 and 26.
 
-- [ ] `payment.create` accepts a direction; update, delete, plan, deleteMany and createMany follow the plan's table; refusals `contract.refundAboveLimit` and `contract.refundsExceedReceived` and reason `refunds-exceed-received`.
-- [ ] Router and selection tests per criteria 25 and 26 (the router half), including restoring a refunded terminated contract going through and owing.
+- [x] `payment.create` accepts a direction; update, delete, plan, deleteMany and createMany follow the plan's table; refusals `contract.refundAboveLimit` and `contract.refundsExceedReceived` and reason `refunds-exceed-received`.
+- [x] Router and selection tests per criteria 25 and 26 (the router half), including restoring a refunded terminated contract going through and owing.
 
 ## Relevant areas
 

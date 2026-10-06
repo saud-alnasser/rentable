@@ -377,6 +377,45 @@ export function ensureContractPaymentsCreatable(contract: ContractLike, payments
 }
 
 /**
+ * A refund may return no more than the contract's state lets it ({@link getRefundableAmount}),
+ * weighed against every payment it holds other than the refund being written. The refusal names
+ * the limit, rounded to the halala the form takes, so the reader is told the figure to stay within.
+ */
+export function ensureRefundWithinLimit(
+	contract: ContractLike,
+	payments: PaymentLike[],
+	amount: number
+) {
+	const limit = getRefundableAmount(contract, payments);
+
+	if (amount > limit + EPSILON) {
+		throw refuse('contract.refundAboveLimit', { limit: Math.round(limit * 100) / 100 });
+	}
+}
+
+/**
+ * Whether what a contract returned stays within what it received: the one rule about refunds that
+ * holds whatever the contract's state (effort 854, requirement 26).
+ *
+ * Exported beside the assertion that raises on it because a selection of payments plans its
+ * deletion against it before any write, as {@link whatBlocksContractDeletion} is.
+ */
+export function areRefundsCovered(payments: PaymentLike[]) {
+	return getRefundedAmount(payments) <= getReceivedAmount(payments) + EPSILON;
+}
+
+/**
+ * Refuses a write that would leave a contract having returned more than it received: lowering or
+ * deleting a payment it received, or putting refunds back. Anything short of that goes through,
+ * and a live contract then owes what was returned.
+ */
+export function ensureRefundsCovered(payments: PaymentLike[]) {
+	if (!areRefundsCovered(payments)) {
+		throw refuse('contract.refundsExceedReceived');
+	}
+}
+
+/**
  * What stops a contract being deleted, or `undefined` where nothing does.
  *
  * The rule itself, and the only rendering of it: a contract may carry no payment. It answers with

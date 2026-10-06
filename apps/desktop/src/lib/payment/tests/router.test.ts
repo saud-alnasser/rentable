@@ -937,3 +937,232 @@ test('without viewing units or complexes, a receipt lists no units, or no comple
 		{ name: 'A-12' }
 	]);
 });
+
+// --- Refunds and their limit ---------------------------------------------------------
+//
+// Effort 854, requirements 25 and 26 and the router half of criteria 25 and 26: a refund is a
+// payment going out, recorded on any contract within the most its state lets it return. A live
+// contract returns only what it received beyond its total cost; a terminated one up to what it
+// received, less earlier refunds in both. Every write keeps refunds within what was received.
+
+/** a refund of `amount` against the contract, dated today unless the caller says otherwise. */
+function refund(api: Api, contractId: string, amount: number, overrides: { id?: string } = {}) {
+	return api.payment.create({
+		contractId,
+		date: monthsFromNow(0),
+		amount,
+		direction: 'refund',
+		...overrides
+	});
+}
+
+test('a live contract paid 1,000 beyond its total refunds 1,000 and refuses 1,001, naming the limit', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api);
+
+	await api.payment.create({ contractId: contract.id, date: monthsFromNow(0), amount: 2000 });
+
+	await assert.rejects(
+		() => refund(api, contract.id, 1001),
+		refusedWith('contract.refundAboveLimit', { limit: 1000 })
+	);
+
+	const recorded = await refund(api, contract.id, 1000);
+	const after = await api.contract.get({ id: contract.id });
+
+	assert.equal(recorded.direction, 'refund');
+	assert.equal(after?.paidAmount, 1000);
+	assert.equal(after?.status, 'fulfilled');
+	await assert.rejects(
+		() => refund(api, contract.id, 1),
+		refusedWith('contract.refundAboveLimit', { limit: 0 })
+	);
+});
+
+test('a live contract paid exactly its total refuses any refund', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api);
+
+	await api.payment.create({ contractId: contract.id, date: monthsFromNow(0), amount: 1000 });
+
+	await assert.rejects(
+		() => refund(api, contract.id, 1),
+		refusedWith('contract.refundAboveLimit', { limit: 0 })
+	);
+});
+
+test('a terminated contract that received 5,000 refunds 3,000 then 2,000 and refuses 1 more', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api, { cost: 100000 });
+	const received = await api.payment.create({
+		contractId: contract.id,
+		date: monthsFromNow(0),
+		amount: 5000
+	});
+
+	await api.contract.terminate({ id: contract.id });
+
+	await refund(api, contract.id, 3000);
+	await refund(api, contract.id, 2000);
+
+	await assert.rejects(
+		() => refund(api, contract.id, 1),
+		refusedWith('contract.refundAboveLimit', { limit: 0 })
+	);
+
+	const after = await api.contract.get({ id: contract.id });
+
+	assert.equal(after?.status, 'terminated');
+	assert.equal(after?.paidAmount, 0);
+	// the payment received is untouched, and still locked on the terminated contract.
+	assert.equal((await api.payment.get({ id: received.id }))?.amount, 5000);
+	await assert.rejects(
+		() => api.payment.create({ contractId: contract.id, date: monthsFromNow(0), amount: 1 }),
+		refusedWith('contract.terminatedLocked')
+	);
+	await assert.rejects(
+		() => api.payment.update({ id: received.id, date: monthsFromNow(0), amount: 4000 }),
+		refusedWith('contract.terminatedLocked')
+	);
+	await assert.rejects(
+		() => api.payment.delete({ id: received.id }),
+		refusedWith('contract.terminatedLocked')
+	);
+});
+
+test('a refund on a terminated contract is edited in place within its limit, and deleted', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api, { cost: 100000 });
+
+	await api.payment.create({ contractId: contract.id, date: monthsFromNow(0), amount: 5000 });
+	await api.contract.terminate({ id: contract.id });
+
+	const recorded = await refund(api, contract.id, 3000);
+
+	// the limit is weighed without the refund being edited, so it may rise to the whole 5,000.
+	const edited = await api.payment.update({
+		id: recorded.id,
+		date: monthsFromNow(0),
+		amount: 5000,
+		note: 'deposit returned'
+	});
+
+	assert.equal(edited.amount, 5000);
+	assert.equal(edited.direction, 'refund');
+	await assert.rejects(
+		() => api.payment.update({ id: recorded.id, date: monthsFromNow(0), amount: 5001 }),
+		refusedWith('contract.refundAboveLimit', { limit: 5000 })
+	);
+
+	const deleted = await api.payment.delete({ id: recorded.id });
+
+	assert.equal(deleted?.id, recorded.id);
+	assert.equal((await api.contract.get({ id: contract.id }))?.paidAmount, 5000);
+
+	// the undo of that deletion puts it back by its id, and weighs it against the limit again.
+	await refund(api, contract.id, 5000, { id: recorded.id });
+
+	assert.equal((await api.payment.get({ id: recorded.id }))?.direction, 'refund');
+});
+
+test('a refund on a live contract is deleted and leaves the payments received untouched', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api);
+	const received = await api.payment.create({
+		contractId: contract.id,
+		date: monthsFromNow(0),
+		amount: 1500
+	});
+
+	const recorded = await refund(api, contract.id, 500);
+
+	await api.payment.delete({ id: recorded.id });
+
+	assert.deepEqual(
+		(await api.payment.getMany({ contractId: contract.id })).map((payment) => payment.id),
+		[received.id]
+	);
+	assert.equal((await api.payment.get({ id: received.id }))?.amount, 1500);
+	assert.equal((await api.contract.get({ id: contract.id }))?.paidAmount, 1500);
+});
+
+test('restoring a refunded terminated contract goes through, and it then owes what was returned', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api);
+
+	await api.payment.create({ contractId: contract.id, date: monthsFromNow(0), amount: 1000 });
+	await api.contract.terminate({ id: contract.id });
+	await refund(api, contract.id, 400);
+
+	const restored = await api.contract.unterminate({ id: contract.id });
+
+	assert.equal(restored.status, 'active');
+	assert.equal(restored.paidAmount, 600);
+	assert.equal(restored.expectedAmount, 1000);
+});
+
+test('a received payment on a live contract is lowered or deleted only while refunds stay covered', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api);
+	const first = await api.payment.create({
+		contractId: contract.id,
+		date: monthsFromNow(0),
+		amount: 500
+	});
+	const second = await api.payment.create({
+		contractId: contract.id,
+		date: monthsFromNow(0),
+		amount: 1500,
+		direction: 'received'
+	});
+
+	await refund(api, contract.id, 1000);
+
+	// lowering the second to 600 leaves 1,100 received against 1,000 returned: it goes through,
+	// and the contract then owes.
+	await api.payment.update({ id: second.id, date: monthsFromNow(0), amount: 600 });
+
+	assert.equal((await api.contract.get({ id: contract.id }))?.paidAmount, 100);
+
+	await assert.rejects(
+		() => api.payment.update({ id: second.id, date: monthsFromNow(0), amount: 400 }),
+		refusedWith('contract.refundsExceedReceived')
+	);
+	await assert.rejects(
+		() => api.payment.delete({ id: first.id }),
+		refusedWith('contract.refundsExceedReceived')
+	);
+	await assert.rejects(
+		() => api.payment.delete({ id: second.id }),
+		refusedWith('contract.refundsExceedReceived')
+	);
+});
+
+test('the refund refusals read in Arabic and in English', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api);
+	const received = await api.payment.create({
+		contractId: contract.id,
+		date: monthsFromNow(0),
+		amount: 2000
+	});
+
+	await refund(api, contract.id, 1000);
+
+	assert.equal(
+		await refusalReadIn(() => refund(api, contract.id, 1)),
+		'لا يمكن أن يتجاوز الاسترداد من هذا العقد 0.'
+	);
+	assert.equal(
+		await refusalReadIn(() => refund(api, contract.id, 1), 'en'),
+		'a refund on this contract cannot exceed 0.'
+	);
+	assert.equal(
+		await refusalReadIn(() => api.payment.delete({ id: received.id })),
+		'ستتجاوز المبالغ المستردة من هذا العقد ما استلمه. احذف استرداداً أولاً.'
+	);
+	assert.equal(
+		await refusalReadIn(() => api.payment.delete({ id: received.id }), 'en'),
+		'the refunds on this contract would exceed what it received. delete a refund first.'
+	);
+});

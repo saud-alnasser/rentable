@@ -1,5 +1,5 @@
 import type { Database } from '$lib/api/context';
-import type { Contract } from '$lib/platform/database/schema';
+import type { Contract, Payment } from '$lib/platform/database/schema';
 import * as s from '$lib/platform/database/schema';
 import { toUtcDay, type DateLike } from '$lib/date';
 import { refuse } from '$lib/api/refusal';
@@ -54,8 +54,13 @@ export async function paymentsOf(db: Database, contractIds: readonly string[]) {
  *
  * `missing` is not a rule this concept enforces: it says the row named is no longer in the
  * workspace, which every selection can meet.
+ *
+ * `refunds-exceed-received` is the contract's rule that what it returned stays within what it
+ * received (effort 854, requirement 26), which a payment received on a live contract meets when
+ * the refunds it holds lean on it. It is weighed over the whole selection, per contract, so it is
+ * the planner's to answer rather than {@link whatRefusesPaymentDeletion}'s.
  */
-export type PaymentRefusalReason = 'contract-terminated' | 'missing';
+export type PaymentRefusalReason = 'contract-terminated' | 'refunds-exceed-received' | 'missing';
 
 /**
  * The keys a contract's ledger may be ordered by: the day a payment was made and its amount,
@@ -74,17 +79,22 @@ export function isPaymentSortColumnId(columnId: string): columnId is PaymentSort
 /**
  * Why deleting this payment would be refused, or `undefined` where it would go through.
  *
- * It asks about the contract rather than the payment, because everything that locks a payment is
- * the contract's state. A payment carries no rule of its own once it exists.
+ * It asks about the contract, because what locks a payment is the contract's state, and about the
+ * payment's direction, because a refund is the one row that state does not lock: a refund is how
+ * a terminated contract is settled, so it is corrected there directly rather than by restoring
+ * the contract (effort 854, requirement 25).
  */
-export const whatRefusesPaymentDeletion = (status: Contract['status']) =>
-	status === 'terminated' ? ('contract-terminated' as const) : undefined;
+export const whatRefusesPaymentDeletion = (
+	status: Contract['status'],
+	direction: Payment['direction'] = 'received'
+) =>
+	status === 'terminated' && direction !== 'refund' ? ('contract-terminated' as const) : undefined;
 
 /**
  * Whether an amount is one a payment may be for.
  *
- * Above zero, and the boundary is the whole of it: a payment of nothing moves no money and a
- * negative one is a refund, which this application does not have a concept for.
+ * Above zero, and the boundary is the whole of it: a payment of nothing moves no money, and money
+ * going back to the tenant is a refund, a payment of its own direction rather than a negative one.
  *
  * Exported beside the assertion that raises on it because the transfer planning pass answers the
  * same question about a file before any write is attempted, and the two have to agree. The copy

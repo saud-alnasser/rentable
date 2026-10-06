@@ -20,6 +20,8 @@ export type ContractRefusalCode =
 	| 'contract.nothingToRemind'
 	| 'contract.unitsLockedByPayments'
 	| 'contract.paidInFull'
+	| 'contract.refundAboveLimit'
+	| 'contract.refundsExceedReceived'
 	| 'contract.holdsPayments'
 	| 'contract.periodOverlapsUnits'
 	| 'contract.unitsUnavailable'

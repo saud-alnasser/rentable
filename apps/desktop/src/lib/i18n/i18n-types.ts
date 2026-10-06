@@ -1004,6 +1004,15 @@ type RootTranslation = {
 				 */
 				paidInFull: string;
 				/**
+				 * a​ ​r​e​f​u​n​d​ ​o​n​ ​t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​c​a​n​n​o​t​ ​e​x​c​e​e​d​ ​{​l​i​m​i​t​|​n​u​m​b​e​r​}​.
+				 * @param {number} limit
+				 */
+				refundAboveLimit: RequiredParams<'limit|number'>;
+				/**
+				 * t​h​e​ ​r​e​f​u​n​d​s​ ​o​n​ ​t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​w​o​u​l​d​ ​e​x​c​e​e​d​ ​w​h​a​t​ ​i​t​ ​r​e​c​e​i​v​e​d​.​ ​d​e​l​e​t​e​ ​a​ ​r​e​f​u​n​d​ ​f​i​r​s​t​.
+				 */
+				refundsExceedReceived: string;
+				/**
 				 * e​n​d​ ​d​a​t​e​ ​m​u​s​t​ ​s​t​a​y​ ​w​i​t​h​i​n​ ​{​d​a​y​s​}​ ​d​a​y​s​ ​b​e​f​o​r​e​ ​o​r​ ​a​f​t​e​r​ ​t​h​e​ ​c​a​l​c​u​l​a​t​e​d​ ​{​i​n​t​e​r​v​a​l​}​ ​c​y​c​l​e​ ​e​n​d​ ​d​a​t​e​.
 				 * @param {number} days
 				 * @param {string} interval
@@ -3333,6 +3342,11 @@ type RootTranslation = {
 			 * @param {unknown} count
 			 */
 			paymentRefusedMissing: RequiredParams<'count|number'>;
+			/**
+			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​w​o​u​l​d​ ​l​e​a​v​e​ ​t​h​e​ ​r​e​f​u​n​d​s​ ​a​b​o​v​e​ ​w​h​a​t​ ​t​h​e​ ​c​o​n​t​r​a​c​t​ ​r​e​c​e​i​v​e​d
+			 * @param {unknown} count
+			 */
+			paymentRefusedRefundsExceedReceived: RequiredParams<'count|number'>;
 			/**
 			 * {​c​o​u​n​t​|​n​u​m​b​e​r​}​ ​s​t​i​l​l​ ​c​a​r​r​y​ ​p​a​y​m​e​n​t​s
 			 * @param {unknown} count
@@ -6234,6 +6248,14 @@ export type TranslationFunctions = {
 				 */
 				paidInFull: () => LocalizedString;
 				/**
+				 * a refund on this contract cannot exceed {limit|number}.
+				 */
+				refundAboveLimit: (arg: { limit: number }) => LocalizedString;
+				/**
+				 * the refunds on this contract would exceed what it received. delete a refund first.
+				 */
+				refundsExceedReceived: () => LocalizedString;
+				/**
 				 * end date must stay within {days} days before or after the calculated {interval} cycle end date.
 				 */
 				periodOffCycle: (arg: { days: number; interval: string }) => LocalizedString;
@@ -8462,6 +8484,10 @@ export type TranslationFunctions = {
 			 * {count|number} are no longer in the workspace
 			 */
 			paymentRefusedMissing: (arg: { count: unknown }) => LocalizedString;
+			/**
+			 * {count|number} would leave the refunds above what the contract received
+			 */
+			paymentRefusedRefundsExceedReceived: (arg: { count: unknown }) => LocalizedString;
 			/**
 			 * {count|number} still carry payments
 			 */

@@ -145,6 +145,8 @@ export const contracts = {
 		paymentDeleteTitle: 'حذف الدفعات',
 		paymentRefusedContractTerminated: '{count|number} تخص عقداً منتهياً',
 		paymentRefusedMissing: '{count|number} لم تعد موجودة في مساحة العمل',
+		paymentRefusedRefundsExceedReceived:
+			'{count|number} ستجعل المبالغ المستردة أكثر مما استلمه العقد',
 		refusedHoldsPayments: '{count|number} ما زالت تحمل دفعات',
 		refusedMissing: '{count|number} لم تعد موجودة في مساحة العمل',
 		refusedNotRestorable: '{count|number} ليست منتهية',
@@ -194,6 +196,8 @@ export const refusals = {
 			'لا مستحقات على هذا العقد ولا إيجار يحلّ هذا الأسبوع، فلا شيء يُذكَّر به المستأجر.',
 		notUnterminable: 'لا يُستعاد إلا العقد المنتهي.',
 		paidInFull: 'سُدد هذا العقد بالكامل ولا يقبل دفعات أخرى.',
+		refundAboveLimit: 'لا يمكن أن يتجاوز الاسترداد من هذا العقد {limit|number}.',
+		refundsExceedReceived: 'ستتجاوز المبالغ المستردة من هذا العقد ما استلمه. احذف استرداداً أولاً.',
 		periodOffCycle:
 			'يجب أن يبقى تاريخ النهاية ضمن {days} أيام قبل أو بعد تاريخ نهاية دورة {interval} المحسوب.',
 		periodOverlapsUnits:

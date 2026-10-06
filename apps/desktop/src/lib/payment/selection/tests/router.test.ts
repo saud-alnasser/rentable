@@ -291,3 +291,106 @@ test('putting a selection back is one batch and one reconcile pass', async () =>
 		`one reconcile pass, not one per row: ${countMatching(statements, /^\s*update "contract"/i)}`
 	);
 });
+
+// --- Refunds in a selection ----------------------------------------------------------
+//
+// Effort 854, requirements 25 and 26: a refund on a terminated contract is deleted like any
+// payment on a live one, while the payments it received stay locked; and on a live contract a
+// selection deletes received payments only while what is left still covers its refunds.
+
+function seedRefund(api: Api, contractId: string, amount: number) {
+	return api.payment.create({
+		contractId,
+		date: monthsFromNow(0),
+		amount,
+		direction: 'refund'
+	});
+}
+
+test('a selection keeps refunds covered, refusing only the payments that would leave them above what was received', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api);
+	const first = await seedPayment(api, contract.id, 500);
+	const second = await seedPayment(api, contract.id, 1500);
+
+	await seedRefund(api, contract.id, 1000);
+
+	const plan = await api.payment.planMany({ ids: [first.id, second.id] });
+
+	// the first alone leaves 1,500 received against 1,000 returned; the second as well would leave
+	// nothing against it.
+	assert.deepEqual(plan.eligible, [first.id]);
+	assert.deepEqual(plan.refused, [
+		{ id: second.id, amount: 1500, reason: 'refunds-exceed-received' }
+	]);
+
+	const deleted = await api.payment.deleteMany({ ids: [first.id, second.id] });
+
+	assert.deepEqual(toIds(deleted.deleted), [first.id]);
+	assert.deepEqual(deleted.refused, plan.refused);
+	assert.equal((await api.contract.get({ id: contract.id }))?.paidAmount, 500);
+});
+
+test('and a selection taking the refund with it deletes every payment', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api);
+	const first = await seedPayment(api, contract.id, 500);
+	const second = await seedPayment(api, contract.id, 1500);
+	const returned = await seedRefund(api, contract.id, 1000);
+
+	const plan = await api.payment.planMany({ ids: [first.id, second.id, returned.id] });
+
+	assert.deepEqual(plan.eligible, [first.id, second.id, returned.id]);
+	assert.deepEqual(plan.refused, []);
+});
+
+test('on a terminated contract a refund is deleted and put back, while a payment received stays locked', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api, { cost: 100000 });
+	const received = await seedPayment(api, contract.id, 5000);
+
+	await api.contract.terminate({ id: contract.id });
+
+	const returned = await seedRefund(api, contract.id, 3000);
+	const deleted = await api.payment.deleteMany({ ids: [received.id, returned.id] });
+
+	assert.deepEqual(toIds(deleted.deleted), [returned.id]);
+	assert.deepEqual(deleted.refused, [
+		{ id: received.id, amount: 5000, reason: 'contract-terminated' }
+	]);
+
+	// the undo of that deletion puts the refund back on the terminated contract.
+	const restored = await api.payment.createMany({ payments: deleted.deleted });
+
+	assert.deepEqual(toIds(restored), [returned.id]);
+	assert.equal(restored[0]?.direction, 'refund');
+	assert.equal((await api.contract.get({ id: contract.id }))?.paidAmount, 2000);
+	assert.equal((await api.contract.get({ id: contract.id }))?.status, 'terminated');
+
+	// a payment received is still refused there, put back or not.
+	await assert.rejects(
+		() =>
+			api.payment.createMany({
+				payments: [{ contractId: contract.id, date: monthsFromNow(0), amount: 1 }]
+			}),
+		refusedWith('contract.terminatedLocked')
+	);
+});
+
+test('putting refunds back is refused where they would exceed what the contract received', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api, { cost: 100000 });
+
+	await seedPayment(api, contract.id, 500);
+
+	await assert.rejects(
+		() =>
+			api.payment.createMany({
+				payments: [
+					{ contractId: contract.id, date: monthsFromNow(0), amount: 501, direction: 'refund' }
+				]
+			}),
+		refusedWith('contract.refundsExceedReceived')
+	);
+	assert.equal((await api.payment.getMany({ contractId: contract.id })).length, 1);
+});

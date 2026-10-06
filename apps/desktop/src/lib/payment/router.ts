@@ -13,6 +13,8 @@ import { autosync, procedure, router } from '$lib/api/trpc';
 import {
 	ensureContractIsNotTerminated,
 	ensureContractPaymentsCreatable,
+	ensureRefundsCovered,
+	ensureRefundWithinLimit,
 	reconcileTouched
 } from '$lib/contract';
 import { allocateReceipt, toReceiptReference } from '$lib/payment/receipt';
@@ -296,6 +298,11 @@ export default router({
 	// an optional id, so undoing a deletion can put the row back with the identity it had — a
 	// page still open on that record is holding a reference to it (ADR 0026). Absent otherwise,
 	// and the engine assigns one.
+	//
+	// a direction, so a refund is recorded here too (effort 854, requirements 25 and 26). A refund
+	// is taken on any contract, a terminated one included, and the paid-in-full gate is not its:
+	// what bounds it is the most the contract's state lets it return. An undo putting a deleted
+	// refund back comes through here with its id and is weighed against that limit again.
 	create: procedure
 		.permitted('createPayment')
 		.use(autosync())
@@ -324,8 +331,13 @@ export default router({
 				.from(s.payment)
 				.where(eq(s.payment.contractId, contract.id));
 
-			ensureContractIsNotTerminated(contract.status);
-			ensureContractPaymentsCreatable(contract, registered);
+			if (input.direction === 'refund') {
+				ensureRefundWithinLimit(contract, registered, input.amount);
+			} else {
+				ensureContractIsNotTerminated(contract.status);
+				ensureContractPaymentsCreatable(contract, registered);
+			}
+
 			ensureValidPaymentAmount(input.amount);
 			ensurePaymentIsNotInTheFuture(input.date, now);
 
@@ -384,9 +396,23 @@ export default router({
 				throw refuse('contract.missing');
 			}
 
-			ensureContractIsNotTerminated(contract.status);
 			ensureValidPaymentAmount(input.amount);
 			ensurePaymentIsNotInTheFuture(input.date, now);
+
+			// every other row the contract holds, which is what this one is weighed against: the edit
+			// replaces it rather than adding to it. The direction is the stored one, since the input
+			// carries none, so an edit never turns a payment into a refund or back.
+			const others = (
+				await ctx.db.select().from(s.payment).where(eq(s.payment.contractId, contract.id))
+			).filter((payment) => payment.id !== existingPayment.id);
+
+			if (existingPayment.direction === 'refund') {
+				// a refund is edited in place on a terminated contract too, within its limit.
+				ensureRefundWithinLimit(contract, others, input.amount);
+			} else {
+				ensureContractIsNotTerminated(contract.status);
+				ensureRefundsCovered([...others, { ...existingPayment, amount: input.amount }]);
+			}
 
 			const updated = await ctx.db
 				.update(s.payment)
@@ -435,7 +461,17 @@ export default router({
 				throw refuse('contract.missing');
 			}
 
-			ensureContractIsNotTerminated(contract.status);
+			// a refund goes on any contract, which is also what lets the undo of recording one work on
+			// a terminated contract. A payment received is locked there, and on a live contract it
+			// goes only while what is left still covers the refunds.
+			if (existingPayment.direction !== 'refund') {
+				ensureContractIsNotTerminated(contract.status);
+				ensureRefundsCovered(
+					(
+						await ctx.db.select().from(s.payment).where(eq(s.payment.contractId, contract.id))
+					).filter((payment) => payment.id !== existingPayment.id)
+				);
+			}
 
 			const deleted = await ctx.db
 				.delete(s.payment)
