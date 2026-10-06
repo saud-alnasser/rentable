@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(desktop): a settings or sync file that has gone comes back from its last good copy
@@ -14,8 +14,8 @@ A persisted record whose file is missing while its `.bak` is readable is restore
 
 Traces requirement 17 (its constraint: the held organizations are carried over wherever a good copy exists).
 
-- [ ] `Persisted::recover` reads the `.bak` when the primary is missing, and writes the primary back from it before any commit can overwrite the copy.
-- [ ] A Rust test removes `remote-sync.json` with a good `.bak` beside it and finds both organizations after launch; a missing file with no copy still starts from defaults.
+- [x] `Persisted::recover` reads the `.bak` when the primary is missing, and writes the primary back from it before any commit can overwrite the copy.
+- [x] A Rust test removes `remote-sync.json` with a good `.bak` beside it and finds both organizations after launch; a missing file with no copy still starts from defaults.
 
 ## Relevant areas
 

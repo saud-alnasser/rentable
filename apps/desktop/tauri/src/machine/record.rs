@@ -2180,6 +2180,82 @@ mod tests {
             });
     }
 
+    /// **A record whose file has gone comes back from its last good copy with every organization
+    /// it held** (effort 854, ticket 29). Started from the defaults, its first commit would write
+    /// them over the copy too, and the machine would hold nothing.
+    #[test]
+    fn a_missing_record_comes_back_holding_both_organizations_from_its_copy() {
+        Runtime::new()
+            .expect("failed to create tokio runtime")
+            .block_on(async {
+                let root = scratch("remote-sync-missing-recovers-from-copy");
+                let path = root.join(RemoteSync::FILENAME);
+                let held = r#"{"heldOrganizations":[{"id":"a","name":"Acme","verifyingKey":"k","remoteUrl":"libsql://a"},{"id":"b","name":"Beta","verifyingKey":"k","remoteUrl":"libsql://b"}],"selectedOrganization":"a"}"#;
+
+                std::fs::write(root.join("remote-sync.json.bak"), held).expect("the copy");
+
+                let settings = Arc::new(RwLock::new(
+                    Persisted::<Settings>::load(root.join(Settings::FILENAME)).expect("settings"),
+                ));
+                let mut remote_sync = RemoteSync::new(
+                    settings,
+                    path.clone(),
+                    crate::clock::Fixed::shared(1_700_000_000_000),
+                )
+                .await
+                .expect("a missing record stopped the launch");
+
+                let ids = remote_sync
+                    .store_mut()
+                    .held_organizations
+                    .iter()
+                    .map(|held| held.id.clone())
+                    .collect::<Vec<_>>();
+
+                assert_eq!(ids, ["a", "b"], "an organization was forgotten");
+
+                let copy: serde_json::Value = serde_json::from_slice(
+                    &std::fs::read(root.join("remote-sync.json.bak")).expect("the copy is gone"),
+                )
+                .expect("the copy");
+
+                assert_eq!(
+                    copy["heldOrganizations"].as_array().map(Vec::len),
+                    Some(2),
+                    "the copy was written over"
+                );
+
+                let _ = std::fs::remove_dir_all(&root);
+            });
+    }
+
+    /// a machine that has never kept a record, with no copy either, starts from the defaults.
+    #[test]
+    fn a_missing_record_with_no_copy_starts_holding_nothing() {
+        Runtime::new()
+            .expect("failed to create tokio runtime")
+            .block_on(async {
+                let root = scratch("remote-sync-missing-no-copy");
+                let path = root.join(RemoteSync::FILENAME);
+
+                let settings = Arc::new(RwLock::new(
+                    Persisted::<Settings>::load(root.join(Settings::FILENAME)).expect("settings"),
+                ));
+                let mut remote_sync = RemoteSync::new(
+                    settings,
+                    path.clone(),
+                    crate::clock::Fixed::shared(1_700_000_000_000),
+                )
+                .await
+                .expect("a first launch stopped");
+
+                assert!(remote_sync.store_mut().held_organizations.is_empty());
+                assert!(path.exists(), "the record was not written");
+
+                let _ = std::fs::remove_dir_all(&root);
+            });
+    }
+
     #[test]
     fn initializes_default_workspace_from_managed_database_path() {
         Runtime::new()

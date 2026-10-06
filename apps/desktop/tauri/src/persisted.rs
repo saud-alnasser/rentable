@@ -81,9 +81,17 @@ where
     /// over `remote-sync.json` would forget every organization this machine holds. The error names
     /// the file and the reason, and the launch shows it and stops (`lib.rs`).
     ///
+    /// **A record whose file has gone** comes back from its copy in the same way (ticket 29), and
+    /// is written back from it before anything else: started from the defaults, its first commit
+    /// would write them over the copy as well, and every organization held would be forgotten.
+    ///
     /// A record that loads cleanly with no copy beside it gains one, so an install from before
     /// this build has a last good copy from its first launch of it.
     pub fn recover(path: PathBuf, clock: &dyn Clock) -> Result<Self, Error> {
+        if let Some(this) = Self::restored(&path, clock)? {
+            return Ok(this);
+        }
+
         match Self::load(path.clone()) {
             Ok(this) => {
                 if !backup_of(&this.path).exists() {
@@ -96,6 +104,54 @@ where
             Err(Error::Integrity { message }) => Self::recovered(path, &message, clock),
             Err(error) => Err(unopenable(&path, error)),
         }
+    }
+
+    /// The record whose file has gone, back from its copy, or `None` where [`Self::load`] decides:
+    /// the file is there (or cannot be looked at), or there is no copy to come back from. A copy
+    /// that does not parse is set aside first, since the defaults' commit writes over its name.
+    fn restored(path: &Path, clock: &dyn Clock) -> Result<Option<Self>, Error> {
+        match fs::metadata(path) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            _ => return Ok(None),
+        }
+
+        let backup = backup_of(path);
+        let contents = match fs::read(&backup) {
+            Ok(contents) => contents,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(unopenable(&backup, error.into())),
+        };
+
+        let data = match Self::parsed(&contents) {
+            Ok(data) => data,
+            Err(error) => {
+                let kept = set_aside(&backup, clock.now())?;
+
+                diagnostics::warn("persisted.corrupt.setAside")
+                    .with("record", backup.display().to_string())
+                    .with("keptAs", kept.display().to_string())
+                    .with("damage", error.to_string())
+                    .write();
+
+                return Ok(None);
+            }
+        };
+
+        let mut this = Self {
+            data,
+            path: path.to_path_buf(),
+            dirty: true,
+        };
+
+        if let Err(error) = this.commit() {
+            return Err(unopenable(&this.path, error));
+        }
+
+        diagnostics::warn("persisted.restored")
+            .with("record", this.path.display().to_string())
+            .write();
+
+        Ok(Some(this))
     }
 
     /// the record whose content could not be read: set aside, then the copy or the defaults.
@@ -482,6 +538,70 @@ mod tests {
         assert_eq!(
             fs::read(directory.join("data.json.bak")).expect("no copy was written"),
             fs::read(&path).expect("the record")
+        );
+
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    /// **A record whose file has gone comes back from its copy**, and is written back before a
+    /// commit can put the defaults over the copy (effort 854, ticket 29).
+    #[test]
+    fn a_missing_record_comes_back_from_its_last_good_copy() {
+        let directory = scratch("persisted-recover-missing-backup");
+        let path = directory.join("data.json");
+        fs::write(directory.join("data.json.bak"), r#"{"value":42}"#).expect("the copy");
+
+        let recovered =
+            Persisted::<TestData>::recover(path.clone(), &Fixed(AT)).expect("the recovery");
+
+        assert_eq!(recovered.inner().value, 42, "not the copy");
+        assert_eq!(
+            Persisted::<TestData>::load(path.clone())
+                .expect("the record")
+                .value,
+            42,
+            "the copy was not written back"
+        );
+        assert_eq!(
+            fs::read(directory.join("data.json.bak")).expect("the copy is gone"),
+            fs::read(&path).expect("the record")
+        );
+
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn a_missing_record_with_no_copy_starts_from_the_defaults() {
+        let directory = scratch("persisted-recover-missing-default");
+        let path = directory.join("data.json");
+
+        let recovered =
+            Persisted::<TestData>::recover(path.clone(), &Fixed(AT)).expect("the recovery");
+
+        assert_eq!(recovered.inner().value, 7);
+        assert_eq!(
+            Persisted::<TestData>::load(path).expect("the record").value,
+            7
+        );
+
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    /// a copy that cannot be read is kept aside the same way, rather than written over.
+    #[test]
+    fn a_missing_record_with_a_damaged_copy_starts_from_the_defaults_and_keeps_the_copy() {
+        let directory = scratch("persisted-recover-missing-damaged-copy");
+        let path = directory.join("data.json");
+        fs::write(directory.join("data.json.bak"), b"{").expect("the damaged copy");
+
+        let recovered =
+            Persisted::<TestData>::recover(path.clone(), &Fixed(AT)).expect("the recovery");
+
+        assert_eq!(recovered.inner().value, 7);
+        assert_eq!(
+            fs::read(directory.join(format!("data.json.bak.corrupt-{AT}")))
+                .expect("the damaged copy was not kept"),
+            b"{"
         );
 
         let _ = fs::remove_dir_all(directory);
