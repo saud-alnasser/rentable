@@ -333,6 +333,11 @@ holds the same one, the same way, after the update.
     of the page. *Added 2026-10-06 by the human.*
 46. **A link's lifetime is chosen on a slider.** The same steps as requirement 11, on a slider with
     the chosen lifetime written beside it, in place of the dropdown. *Added 2026-10-06 by the human.*
+47. **Outstanding links can be seen and revoked.** Whoever may make a link for a member sees the
+    links outstanding for the members they could make one for, with who each is for, what it does
+    and when it lapses, and revokes one after a question; a revoked link reads as revoked when
+    opened. *Added 2026-10-06 by the human: "a menu to manage invites to revoke them from the app
+    for who has the permissions for it".*
 
 # Acceptance Criteria
 
@@ -465,6 +470,10 @@ holds the same one, the same way, after the update.
 45. A component test: sign out asks nothing and draws the wall with no loading pass.
 46. A component test: moving the link form's slider by keyboard changes the lifetime written beside
     it, and the link is made with that lifetime in hours.
+47. Rust tests: the list shows only unconsumed, unlapsed links for members below the reader and
+    carries no secret; a revoked link is refused as revoked on accept and on machine connect; a
+    reader without the permission, or locked, is refused. A component test: the list is drawn only
+    with the permission, and a revoke asks, then removes the row.
 
 # Constraints
 
