@@ -501,8 +501,18 @@ fn client() -> Result<reqwest::Client, Error> {
 }
 
 /// The authority this machine holds under `account`, read from where the consent filed it.
+///
+/// **Only an absent consent is `no_authority()`.** A store that would not answer is passed on as
+/// the credential failure it is: a locked or unavailable keychain is not a consent nobody gave,
+/// and sending the owner to grant it again would not unlock anything.
 fn authority(credentials: &dyn CredentialStore, account: &Account) -> Result<String, Error> {
-    platform_token(credentials, account).map_err(|_| no_authority())
+    platform_token(credentials, account).map_err(|error| match error {
+        Error::Refused {
+            reason: RefusalReason::TursoNotConnected,
+            ..
+        } => no_authority(),
+        error => error,
+    })
 }
 
 /// Send one request and read its JSON body, or say how it failed in the port's vocabulary.
@@ -1230,6 +1240,27 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    /// Requirement 19: a credential store that will not answer is a credential failure, and the
+    /// owner is not sent to grant a consent that is still filed. No request leaves either.
+    #[tokio::test]
+    async fn a_store_that_will_not_answer_is_a_credential_error_not_a_lost_consent() {
+        let (platform, server, credentials) = platform_answering(vec![]).await;
+
+        credentials.refuse_the_next_read();
+
+        let error = platform
+            .create_database("ws-1")
+            .await
+            .expect_err("a request was made with an authority the store would not read");
+
+        assert!(
+            matches!(error, crate::error::Error::Credential { .. }),
+            "a failing store was reported as something other than a credential error: {error:?}"
+        );
+        assert_ne!(error, no_authority());
+        assert_eq!(server.request_count(), 0);
     }
 
     /// a platform spending the organization `org-a`'s own consent, against a scripted server.

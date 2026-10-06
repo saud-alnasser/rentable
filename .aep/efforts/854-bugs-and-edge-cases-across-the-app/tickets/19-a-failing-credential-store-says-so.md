@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(desktop): a failing credential store is not reported as not connected
@@ -14,8 +14,8 @@ When the credential store cannot answer, a Turso act reports a credential error;
 
 Traces requirement 19 and criterion 19.
 
-- [ ] `authority` maps only the absent case to `no_authority()`.
-- [ ] `Memory::refuse_the_next_read()` and a Rust test per criterion 19.
+- [x] `authority` maps only the absent case to `no_authority()`.
+- [x] `Memory::refuse_the_next_read()` and a Rust test per criterion 19.
 
 ## Relevant areas
 
