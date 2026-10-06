@@ -58,7 +58,7 @@ use crate::{
     machine::{RemoteSyncStore, consented_organization},
     persisted::Persisted,
     turso::{
-        consent::{Account, move_pending_consent},
+        consent::{Account, copy_pending_consent, move_pending_consent},
         discovery::{McpEndpoint, TursoOrganization},
         platform::{AccessLevel, DeletionIntent, TursoPlatform},
     },
@@ -285,6 +285,11 @@ where
     let consented = consented_organization(store, None, platform_token, mcp).await?;
     let (organization, hostname) = match consented {
         Some(consented) => {
+            // an organization this machine holds over the same group takes this consent as its
+            // own before anything here can refuse, since Turso has been seen to stop accepting
+            // the one it had once this one was granted.
+            share_the_consent(store, credentials, &consented.organization);
+
             // **a group that was typed is checked first, and the check keeps the consent.** What
             // the consent is over is already known here, from the listing or from this machine's
             // own store, so a name that is not it is a typing mistake rather than a wrong
@@ -648,6 +653,45 @@ fn abandon_the_consent(store: &mut Persisted<RemoteSyncStore>, credentials: &dyn
         diagnostics::error("organization.setup.consentNotForgotten")
             .with("error", error.to_string())
             .write();
+    }
+}
+
+/// File the pending consent as the own consent of every organization this machine holds over
+/// `over`, the Turso organization and group a setup or a connect just learned it is granted over.
+///
+/// **Turso appears to keep one consent per account working**, which one owner's machine suggests
+/// and nothing has measured: the organization's own token was refused as `invalid api token` on
+/// 2026-10-06 after its owner granted a second consent on the same account in an add-organization
+/// walk ([[references/turso]], *Failure handling*). The consent just granted is the one Turso
+/// surely accepts, so an organization already held over the same group is handed it as soon as the
+/// walk knows that, whether or not the walk goes on to make or connect anything.
+///
+/// **The same group, not only the same slug.** A consent is scoped to the group picked on Turso's
+/// screen, so a token over another group of the same account cannot mint over this organization's
+/// database; handing it over would trade a refusal the app recovers from for one it cannot.
+///
+/// Best effort: what could not be filed goes to the diagnostics log, never the token, and the
+/// organization keeps what it had.
+pub(crate) fn share_the_consent(
+    store: &RemoteSyncStore,
+    credentials: &dyn CredentialStore,
+    over: &TursoOrganization,
+) {
+    for held in store
+        .held_organizations
+        .iter()
+        .filter(|held| held.turso_organization.as_ref() == Some(over))
+    {
+        match copy_pending_consent(credentials, &held.id) {
+            Ok(true) => diagnostics::info("organization.setup.consentShared")
+                .with("organization", held.id.as_str())
+                .write(),
+            Ok(false) => {}
+            Err(error) => diagnostics::error("organization.setup.consentNotShared")
+                .with("organization", held.id.as_str())
+                .with("error", error.to_string())
+                .write(),
+        }
     }
 }
 
@@ -1203,6 +1247,82 @@ mod tests {
             std::fs::read(store.path()).expect("the record"),
             before,
             "the refused run wrote the record"
+        );
+    }
+
+    /// **A consent granted over a held organization's group becomes that organization's own,
+    /// even where the first run is refused** (the link refused on 2026-10-06). An owner adding an
+    /// organization grants a second consent on the same Turso account over the group the first
+    /// one lives in, and Turso stops accepting the first's: the run is refused as the group
+    /// already holding an organization and gives the pending consent back, and the organization
+    /// keeps the newer consent as its own.
+    #[tokio::test]
+    async fn a_consent_over_a_held_organizations_group_becomes_its_own_though_the_run_is_refused() {
+        use crate::turso::consent::{
+            Account, holds_platform_token, platform_token, store_platform_token,
+        };
+
+        let credentials = Memory::new();
+        let directory = scratch("first-run-shares");
+        let mut store = store(&directory);
+
+        store_platform_token(&credentials, "the-older-consent").expect("the first consent");
+
+        let first = a_first_run(
+            &credentials,
+            &mut store,
+            &directory,
+            populated_group(),
+            "an-org",
+            "Acme",
+        )
+        .await
+        .expect("the first run failed");
+        let own = Account::of(&first.organization_id);
+
+        assert_eq!(
+            platform_token(&credentials, &own).as_deref(),
+            Ok("the-older-consent")
+        );
+
+        store_platform_token(&credentials, "a-newer-consent").expect("the newer consent");
+
+        let database = format!("{ORGANIZATION_DATABASE_PREFIX}{}", first.organization_id);
+        let refused = a_first_run(
+            &credentials,
+            &mut store,
+            &directory,
+            vec![
+                handshake(),
+                listing(json!([{
+                    "Name": database,
+                    "hostname": format!("{database}-an-org.aws-eu-west-1.turso.io"),
+                    "group": "rentable"
+                }])),
+            ],
+            "an-org",
+            "Beta",
+        )
+        .await;
+
+        assert!(
+            matches!(
+                refused,
+                Err(Error::Refused {
+                    reason: RefusalReason::GroupHoldsOrganization,
+                    ..
+                })
+            ),
+            "{refused:?}"
+        );
+        assert_eq!(
+            platform_token(&credentials, &own).as_deref(),
+            Ok("a-newer-consent"),
+            "the organization kept a consent Turso no longer accepts"
+        );
+        assert!(
+            !holds_platform_token(&credentials, &Account::Pending).expect("the store"),
+            "the refused run kept the pending consent"
         );
     }
 

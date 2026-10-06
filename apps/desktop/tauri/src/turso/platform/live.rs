@@ -8,16 +8,17 @@ use serde_json::{Value, json};
 use crate::{
     credential::{CredentialStore, Credentials},
     diagnostics,
-    error::Error,
+    error::{Error, RefusalReason},
     http::build_client,
 };
 
 use super::{
     ABSENT, AccessLevel, DeletionIntent, TursoPlatform, WorkspaceDatabase, account_refused,
-    belongs_to_the_account, no_authority, turso_refused, unreachable,
+    belongs_to_the_account, consent_lost, consent_no_longer_accepted, no_authority, turso_refused,
+    unreachable,
 };
 use crate::turso::{
-    consent::{Account, platform_token},
+    consent::{Account, forget_platform_token, platform_token},
     discovery::{TursoOrganization, group_named_in, group_record_from},
 };
 
@@ -153,8 +154,8 @@ impl PlatformApi {
     }
 }
 
-impl TursoPlatform for PlatformApi {
-    async fn create_database(&self, name: &str) -> Result<WorkspaceDatabase, Error> {
+impl PlatformApi {
+    async fn create(&self, name: &str) -> Result<WorkspaceDatabase, Error> {
         let what = "create the workspace database";
         let client = client()?;
         let platform_token = authority(self.credentials.as_ref(), &self.account)?;
@@ -215,7 +216,7 @@ impl TursoPlatform for PlatformApi {
     /// **The create, with a seed.** Turso makes a database from another in the same group when the
     /// create names it as `seed: {type: "database", name}`, and the protection follows in the same
     /// second request a create makes, for the same reason.
-    async fn copy_database(&self, source: &str, name: &str) -> Result<(), Error> {
+    async fn copy(&self, source: &str, name: &str) -> Result<(), Error> {
         let what = "copy the database";
         let client = client()?;
         let platform_token = authority(self.credentials.as_ref(), &self.account)?;
@@ -252,7 +253,7 @@ impl TursoPlatform for PlatformApi {
         Ok(())
     }
 
-    async fn mint_token(
+    async fn mint(
         &self,
         database_name: &str,
         expiration: &str,
@@ -286,7 +287,7 @@ impl TursoPlatform for PlatformApi {
             })
     }
 
-    async fn group_named(
+    async fn group(
         &self,
         platform_token: &str,
         group_uuid: Option<&str>,
@@ -344,7 +345,7 @@ impl TursoPlatform for PlatformApi {
         Ok(group_named_in(&groups, group_uuid))
     }
 
-    async fn protect_database(&self, name: &str) -> Result<(), Error> {
+    async fn protect(&self, name: &str) -> Result<(), Error> {
         let client = client()?;
         let platform_token = authority(self.credentials.as_ref(), &self.account)?;
 
@@ -358,7 +359,7 @@ impl TursoPlatform for PlatformApi {
         .await
     }
 
-    async fn rotate_credentials(&self, database_name: &str) -> Result<(), Error> {
+    async fn rotate(&self, database_name: &str) -> Result<(), Error> {
         let what = "lock the removed member out of this workspace";
         let client = client()?;
         let platform_token = authority(self.credentials.as_ref(), &self.account)?;
@@ -373,7 +374,7 @@ impl TursoPlatform for PlatformApi {
         .map(|_| ())
     }
 
-    async fn delete_database(&self, name: &str, intent: DeletionIntent) -> Result<(), Error> {
+    async fn delete(&self, name: &str, intent: DeletionIntent) -> Result<(), Error> {
         let what = "remove the workspace database";
         let client = client()?;
         let platform_token = authority(self.credentials.as_ref(), &self.account)?;
@@ -396,6 +397,96 @@ impl TursoPlatform for PlatformApi {
         )
         .await
         .map(|_| ())
+    }
+
+    /// What a call spent under `account` answers, once a refusal of the token itself is read for
+    /// what it means there.
+    ///
+    /// **An organization's own consent that Turso no longer accepts is let go**, so the state reads
+    /// `holdsTursoAuthority` false and the organization's settings offer the connect card the
+    /// refusal points at, rather than every act that needs Turso failing on a token nothing can
+    /// revive. Only the token goes: the Turso organization and group the record keeps for the
+    /// organization stay, and are what a reconnect builds its paths out of again. A store that will
+    /// not forget goes to the diagnostics log, and the refusal is still the answer.
+    ///
+    /// **The pending consent is never let go here.** It and the Turso organization looked up for it
+    /// go together (`setup::abandon_the_consent`), and a setup or a connect has a step of its own
+    /// for granting it again, which `ConsentNeededAgain` sends the walk back to.
+    fn settled<T>(&self, account: &Account, answer: Result<T, Error>) -> Result<T, Error> {
+        let Err(Error::Refused {
+            reason: RefusalReason::TursoConsentLost,
+            message,
+        }) = answer
+        else {
+            return answer;
+        };
+
+        match account {
+            Account::Organization(organization_id) => {
+                let forgotten = forget_platform_token(self.credentials.as_ref(), account);
+
+                diagnostics::warn("turso.platform.consentLost")
+                    .with("organization", organization_id.as_str())
+                    .with("forgotten", forgotten.is_ok().to_string())
+                    .write();
+
+                Err(Error::Refused {
+                    reason: RefusalReason::TursoConsentLost,
+                    message,
+                })
+            }
+            Account::Pending => Err(Error::refused(
+                RefusalReason::ConsentNeededAgain,
+                "turso no longer accepts the consent this setup was granted. grant it again",
+            )),
+        }
+    }
+}
+
+impl TursoPlatform for PlatformApi {
+    async fn create_database(&self, name: &str) -> Result<WorkspaceDatabase, Error> {
+        self.settled(&self.account, self.create(name).await)
+    }
+
+    async fn copy_database(&self, source: &str, name: &str) -> Result<(), Error> {
+        self.settled(&self.account, self.copy(source, name).await)
+    }
+
+    async fn mint_token(
+        &self,
+        database_name: &str,
+        expiration: &str,
+        access: AccessLevel,
+    ) -> Result<String, Error> {
+        self.settled(
+            &self.account,
+            self.mint(database_name, expiration, access).await,
+        )
+    }
+
+    /// spent with a token handed in, which a first run holds from the pending consent, so never
+    /// one this port lets go of.
+    async fn group_named(
+        &self,
+        platform_token: &str,
+        group_uuid: Option<&str>,
+    ) -> Result<Option<String>, Error> {
+        self.settled(
+            &Account::Pending,
+            self.group(platform_token, group_uuid).await,
+        )
+    }
+
+    async fn protect_database(&self, name: &str) -> Result<(), Error> {
+        self.settled(&self.account, self.protect(name).await)
+    }
+
+    async fn rotate_credentials(&self, database_name: &str) -> Result<(), Error> {
+        self.settled(&self.account, self.rotate(database_name).await)
+    }
+
+    async fn delete_database(&self, name: &str, intent: DeletionIntent) -> Result<(), Error> {
+        self.settled(&self.account, self.delete(name, intent).await)
     }
 }
 
@@ -468,6 +559,8 @@ async fn call_unless(
 
         return Err(if status.is_server_error() {
             unreachable(what)
+        } else if consent_no_longer_accepted(status.as_u16(), &body) {
+            consent_lost(what)
         } else if belongs_to_the_account(status.as_u16(), &body) {
             account_refused(what)
         } else {
@@ -488,11 +581,13 @@ mod tests {
     use crate::credential::Memory;
     use crate::error::Error;
     use crate::sync::test::server::{RecordedRequest, ScriptedResponse, ScriptedServer};
-    use crate::turso::consent::{Account, store_platform_token};
+    use crate::turso::consent::{
+        Account, holds_platform_token, move_pending_consent, platform_token, store_platform_token,
+    };
     use crate::turso::discovery::TursoOrganization;
     use crate::turso::platform::{
         AccessLevel, DeletionIntent, PlatformApi, PlatformEndpoint, TursoPlatform,
-        WorkspaceDatabase, account_refused, no_authority, turso_refused, unreachable,
+        WorkspaceDatabase, account_refused, consent_lost, no_authority, turso_refused, unreachable,
     };
     use serde_json::json;
     use std::sync::Arc;
@@ -1135,6 +1230,94 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    /// a platform spending the organization `org-a`'s own consent, against a scripted server.
+    async fn organization_platform_answering(
+        script: Vec<ScriptedResponse>,
+    ) -> (PlatformApi, ScriptedServer, Arc<Memory>) {
+        let credentials = Arc::new(Memory::new());
+        store_platform_token(credentials.as_ref(), TOKEN).expect("failed to file the test token");
+        move_pending_consent(credentials.as_ref(), "org-a").expect("failed to move the token");
+
+        let server = ScriptedServer::start(script).await;
+        let platform = PlatformApi::new(
+            PlatformEndpoint::at(&server.url("")),
+            organization(),
+            Account::of("org-a"),
+            credentials.clone(),
+        );
+
+        (platform, server, credentials)
+    }
+
+    /// The link that failed on 2026-10-06: an organization's own consent refused as `invalid api
+    /// token`. The owner is told to connect Turso again from the organization's settings, and the
+    /// token goes, so the state reads the organization as not connected and the settings offer
+    /// the connect card rather than every act failing on it.
+    #[tokio::test]
+    async fn an_organizations_consent_turso_no_longer_accepts_is_let_go() {
+        let (platform, _server, credentials) =
+            organization_platform_answering(vec![refusal(401, "invalid api token")]).await;
+
+        let error = platform
+            .mint_token("org-a", "3d", AccessLevel::FullAccess)
+            .await
+            .expect_err("a refused consent minted a token");
+
+        assert_eq!(error, consent_lost("mint a token for this workspace"));
+        assert!(
+            !holds_platform_token(credentials.as_ref(), &Account::of("org-a")).expect("the store"),
+            "a consent Turso no longer accepts was kept"
+        );
+    }
+
+    /// Only that refusal lets a consent go. A 401 saying anything else, or a 403, is Turso refusing
+    /// the request, and the token stays where it was.
+    #[tokio::test]
+    async fn any_other_refusal_keeps_the_organizations_consent() {
+        for (status, sentence) in [(401, "unauthorized"), (403, "forbidden")] {
+            let (platform, _server, credentials) =
+                organization_platform_answering(vec![refusal(status, sentence)]).await;
+
+            let error = platform
+                .mint_token("org-a", "3d", AccessLevel::FullAccess)
+                .await
+                .expect_err("a refusal minted a token");
+
+            assert_eq!(error, turso_refused("mint a token for this workspace"));
+            assert_eq!(
+                platform_token(credentials.as_ref(), &Account::of("org-a")).as_deref(),
+                Ok(TOKEN),
+                "a {status} let the consent go"
+            );
+        }
+    }
+
+    /// A setup's pending consent refused the same way is granted again from the walk, which is
+    /// where `ConsentNeededAgain` sends it, and is never forgotten here: it and the Turso
+    /// organization looked up for it go together.
+    #[tokio::test]
+    async fn a_pending_consent_turso_no_longer_accepts_is_granted_again_from_the_walk() {
+        let (platform, _server, credentials) =
+            platform_answering(vec![refusal(401, "invalid api token")]).await;
+
+        let error = platform
+            .create_database("org-b")
+            .await
+            .expect_err("a refused consent created a database");
+
+        assert!(matches!(
+            error,
+            crate::error::Error::Refused {
+                reason: crate::error::RefusalReason::ConsentNeededAgain,
+                ..
+            }
+        ));
+        assert_eq!(
+            platform_token(credentials.as_ref(), &Account::Pending).as_deref(),
+            Ok(TOKEN)
+        );
     }
 
     /// Live, once, at the human's request. The fourth property under *Tests that reach a live

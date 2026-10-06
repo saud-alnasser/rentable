@@ -2,7 +2,7 @@ import api from '$lib/api/caller';
 import { type MutationOptions } from '$lib/mutation';
 import { declareMutation } from '$lib/mutation/ui';
 import { LL } from '$lib/i18n/i18n-svelte';
-import { organizationChanged } from '$lib/organization/query';
+import { consentLostRereadsTheState, organizationChanged } from '$lib/organization/query';
 import { syncKeys } from '$lib/sync/ui';
 import type { QueryClient } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
@@ -22,7 +22,8 @@ const createWorkspace = declareMutation({
 		error: true,
 		unexpected: () => get(LL).common.messages.unexpectedError()
 	},
-	invalidates: [organizationChanged]
+	invalidates: [organizationChanged],
+	failed: consentLostRereadsTheState
 });
 
 /**
@@ -64,7 +65,8 @@ export const useDeleteWorkspace = declareMutation({
 		error: true,
 		unexpected: () => get(LL).common.messages.unexpectedError()
 	},
-	invalidates: [organizationChanged]
+	invalidates: [organizationChanged],
+	failed: consentLostRereadsTheState
 });
 
 /**

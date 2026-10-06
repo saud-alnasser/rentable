@@ -2,7 +2,8 @@ import api from '$lib/api/caller';
 import { declareMutation } from '$lib/mutation/ui';
 import { LL } from '$lib/i18n/i18n-svelte';
 import { tauri } from '$lib/organization/tauri';
-import { createQuery, useQueryClient } from '@tanstack/svelte-query';
+import { toTauriRefusalReason } from '$lib/error/tauri';
+import { createQuery, useQueryClient, type QueryClient } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
 
 /**
@@ -43,6 +44,24 @@ export const keys = {
 export const organizationChanged = { together: [keys.members, keys.roles, keys.state] } as const;
 
 /**
+ * the state read again where Turso no longer accepts the organization's consent, for every write
+ * that spends it.
+ *
+ * Rust lets the consent go as it refuses (`turso/platform/live.rs`), so the organization holds no
+ * Turso authority any more; reading the state again is what puts the connect card in its settings,
+ * the place the refusal's sentence sends the owner, rather than leaving the acts it gated on offer
+ * until a relaunch. Any other refusal reads nothing again.
+ */
+export async function consentLostRereadsTheState(
+	{ error }: { error: unknown },
+	client: Pick<QueryClient, 'invalidateQueries'>
+) {
+	if (toTauriRefusalReason(error) !== 'tursoConsentLost') return;
+
+	await client.invalidateQueries({ queryKey: keys.state });
+}
+
+/**
  * forget the organization this machine holds: the shell signs out where somebody is in, deletes
  * every replica here, empties the record and clears the Turso authority (requirement 20 of
  * effort 824). Nothing on Turso is touched.
@@ -79,7 +98,8 @@ export const useDeleteOrganization = declareMutation({
 		success: () => get(LL).organization.dashboard.organizationDeleted(),
 		error: true,
 		unexpected: () => get(LL).common.messages.unexpectedError()
-	}
+	},
+	failed: consentLostRereadsTheState
 });
 
 /**

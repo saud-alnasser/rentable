@@ -2,7 +2,7 @@ import api from '$lib/api/caller';
 import { declareMutation } from '$lib/mutation/ui';
 import { LL } from '$lib/i18n/i18n-svelte';
 import type { MemberRemoved, SessionsEnded } from '$lib/organization/host';
-import { keys, organizationChanged } from '$lib/organization/query';
+import { consentLostRereadsTheState, keys, organizationChanged } from '$lib/organization/query';
 import { createQuery } from '@tanstack/svelte-query';
 import { get } from 'svelte/store';
 
@@ -84,7 +84,8 @@ export const useCreateAccount = declareMutation({
 	touches: 'none',
 	toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() },
 	// a role's count of holders moves with an account made in it.
-	invalidates: [organizationChanged]
+	invalidates: [organizationChanged],
+	failed: consentLostRereadsTheState
 });
 
 /**
@@ -100,6 +101,7 @@ export const useRemoveMember = declareMutation({
 	touches: 'none',
 	toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() },
 	invalidates: [organizationChanged],
+	failed: consentLostRereadsTheState,
 	announces: ({ result }) => removedSentence(result)
 });
 
@@ -275,6 +277,7 @@ export const useMakeMemberLink = declareMutation({
 	touches: 'none',
 	toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() },
 	invalidates: [organizationChanged],
+	failed: consentLostRereadsTheState,
 	// a workspace the link could not carry over is said, as a reset says it: the grant is off the
 	// row, and the person opening the link would otherwise find it missing with nobody told.
 	announces: ({ result }) =>
@@ -298,6 +301,7 @@ export const useUnsetMemberPassword = declareMutation({
 	touches: 'none',
 	toast: { error: true, unexpected: () => get(LL).common.messages.unexpectedError() },
 	invalidates: [organizationChanged],
+	failed: consentLostRereadsTheState,
 	announces: ({ result }) => unsetSentence(result)
 });
 

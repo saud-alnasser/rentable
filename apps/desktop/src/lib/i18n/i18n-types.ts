@@ -1380,6 +1380,10 @@ type RootTranslation = {
 				 */
 				tursoAccountRefused: string;
 				/**
+				 * T​u​r​s​o​ ​n​o​ ​l​o​n​g​e​r​ ​a​c​c​e​p​t​s​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​c​o​n​n​e​c​t​i​o​n​.​ ​c​o​n​n​e​c​t​ ​T​u​r​s​o​ ​a​g​a​i​n​ ​f​r​o​m​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​s​e​t​t​i​n​g​s​.
+				 */
+				tursoConsentLost: string;
+				/**
 				 * a​d​d​i​n​g​,​ ​e​d​i​t​i​n​g​ ​o​r​ ​d​e​l​e​t​i​n​g​ ​c​o​m​p​l​e​x​e​s​ ​n​e​e​d​s​ ​v​i​e​w​i​n​g​ ​t​h​e​m​.​ ​t​u​r​n​ ​o​n​ ​v​i​e​w​i​n​g​ ​c​o​m​p​l​e​x​e​s​ ​f​i​r​s​t​.
 				 */
 				complexNeedsViewing: string;
@@ -6503,6 +6507,10 @@ export type TranslationFunctions = {
 				 * Turso refused the request because of the account itself. check the account's plan in Turso.
 				 */
 				tursoAccountRefused: () => LocalizedString;
+				/**
+				 * Turso no longer accepts this organization's connection. connect Turso again from the organization's settings.
+				 */
+				tursoConsentLost: () => LocalizedString;
 				/**
 				 * adding, editing or deleting complexes needs viewing them. turn on viewing complexes first.
 				 */

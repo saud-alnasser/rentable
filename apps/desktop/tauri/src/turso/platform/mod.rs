@@ -187,6 +187,35 @@ pub(crate) fn no_authority() -> Error {
     )
 }
 
+/// Turso no longer accepts the consent an organization was granted: the token it issued is
+/// refused as `invalid api token`. [`PlatformApi`] lets the token go before answering this, so the
+/// settings read the organization as not connected and offer the connect card, which is what the
+/// sentence tells the owner to press.
+pub(crate) fn consent_lost(what: &str) -> Error {
+    Error::refused(
+        RefusalReason::TursoConsentLost,
+        format!(
+            "could not {what}: turso no longer accepts this organization's consent. connect \
+             turso again from the organization's settings"
+        ),
+    )
+}
+
+/// Whether a refusal says the bearer token itself is no longer one Turso accepts.
+///
+/// **`401 {"error":"invalid api token"}` and nothing broader.** Seen live on 2026-10-06 against
+/// an organization's own consent, after the owner granted a second consent on the same Turso
+/// account, and the same answer comes back for a well-formed token Turso did not issue
+/// ([[references/turso]], *Failure handling*). A 401 with any other sentence is left to
+/// [`turso_refused`], so a refusal this has not been shown is never read as a reason to let a
+/// consent go.
+fn consent_no_longer_accepted(status: u16, body: &str) -> bool {
+    status == 401
+        && error_text(body)
+            .to_lowercase()
+            .contains("invalid api token")
+}
+
 /// What every caller above this module reaches Turso through.
 ///
 /// The futures are `Send` so an implementation can be driven from a Tauri command; a caller is

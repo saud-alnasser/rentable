@@ -730,7 +730,9 @@ export const refusals = {
 		createRefused: "Turso would not create the organization's database.",
 		tursoRefused: 'Turso refused the request. trying again will not help.',
 		tursoAccountRefused:
-			"Turso refused the request because of the account itself. check the account's plan in Turso."
+			"Turso refused the request because of the account itself. check the account's plan in Turso.",
+		tursoConsentLost:
+			"Turso no longer accepts this organization's connection. connect Turso again from the organization's settings."
 	}
 } satisfies BaseTranslation;
 

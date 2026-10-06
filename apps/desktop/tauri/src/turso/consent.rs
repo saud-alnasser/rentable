@@ -918,6 +918,62 @@ pub(crate) fn move_pending_consent(
     }
 }
 
+/// File the pending consent as the organization `organization_id`'s too, and keep it pending.
+/// Answers whether anything changed.
+///
+/// **For an organization this machine already holds over the same Turso organization and group as
+/// the consent just granted** (`setup::share_the_consent`). Turso was seen to stop accepting an
+/// owner's earlier consent after they granted another on the same account (2026-10-06,
+/// [[references/turso]], *Failure handling*), so the organization's own entry would otherwise hold
+/// a token Turso refuses while a working one for the same group sat in the pending slot.
+///
+/// **Set, then read back**, as [`move_pending_consent`] files: a store that took the write and
+/// kept something else has the organization's entry put back as it was found, and the error is the
+/// answer. Nothing is written where the entry already holds this token.
+pub(crate) fn copy_pending_consent(
+    credentials: &dyn CredentialStore,
+    organization_id: &str,
+) -> Result<bool, Error> {
+    let pending = Account::Pending.name();
+    let organization = Account::of(organization_id).name();
+
+    let Some(token) = credentials.get(TURSO_PLATFORM_KEYRING_SERVICE, &pending)? else {
+        return Ok(false);
+    };
+    let before = credentials.get(TURSO_PLATFORM_KEYRING_SERVICE, &organization)?;
+
+    if before.as_deref() == Some(token.as_str()) {
+        return Ok(false);
+    }
+
+    let copied = credentials
+        .set(TURSO_PLATFORM_KEYRING_SERVICE, &organization, &token)
+        .and_then(
+            |()| match credentials.get(TURSO_PLATFORM_KEYRING_SERVICE, &organization)? {
+                Some(read) if read == token => Ok(()),
+                _ => Err(Error::Internal {
+                    message: "the credential store did not keep the shared turso consent"
+                        .to_string(),
+                }),
+            },
+        );
+
+    match copied {
+        Ok(()) => Ok(true),
+        Err(error) => {
+            // best effort: the error that stopped the copy is what the caller is told.
+            let _ = match before.as_deref() {
+                Some(before) => {
+                    credentials.set(TURSO_PLATFORM_KEYRING_SERVICE, &organization, before)
+                }
+                None => credentials.delete(TURSO_PLATFORM_KEYRING_SERVICE, &organization),
+            };
+
+            Err(error)
+        }
+    }
+}
+
 /// the consents map is only ever held for a field read or write, so a poisoned lock means a
 /// panic elsewhere rather than anything the caller did.
 fn consents_poisoned() -> Error {
@@ -956,8 +1012,8 @@ mod tests {
     use super::{
         Account, ORGANIZATION_ACCOUNT_PREFIX, PENDING_ACCOUNT, TURSO_CONSENT_SCOPES,
         TURSO_PLATFORM_KEYRING_SERVICE, TURSO_RESOURCE_INDICATOR, TursoConsent, TursoConsentStatus,
-        TursoEndpoints, forget_platform_token, holds_platform_token, move_pending_consent,
-        platform_token, store_platform_token,
+        TursoEndpoints, copy_pending_consent, forget_platform_token, holds_platform_token,
+        move_pending_consent, platform_token, store_platform_token,
     };
 
     const ACCESS_TOKEN: &str = "the-platform-api-token";
@@ -1478,6 +1534,60 @@ mod tests {
             Some(ACCESS_TOKEN)
         );
         assert_eq!(filed(&credentials, "org:org-1"), None);
+    }
+
+    /// **A consent granted over a held organization's group becomes its own as well** (the link
+    /// refused on 2026-10-06): the organization's entry holds the new token in place of the one
+    /// Turso stopped accepting, and the pending slot keeps it for the walk that granted it.
+    #[test]
+    fn the_pending_consent_is_copied_over_an_organizations_older_one() {
+        let credentials = Memory::new();
+
+        store_platform_token(&credentials, "the-older-consent").expect("the first consent");
+        move_pending_consent(&credentials, "org-1").expect("the move");
+        store_platform_token(&credentials, ACCESS_TOKEN).expect("the newer consent");
+
+        assert!(copy_pending_consent(&credentials, "org-1").expect("the copy"));
+        assert_eq!(
+            filed(&credentials, "org:org-1").as_deref(),
+            Some(ACCESS_TOKEN)
+        );
+        assert_eq!(stored_token(&credentials).as_deref(), Some(ACCESS_TOKEN));
+
+        // the same token again changes nothing, and nothing pending is nothing to copy.
+        assert!(!copy_pending_consent(&credentials, "org-1").expect("the second copy"));
+        forget_platform_token(&credentials, &Account::Pending).expect("the forget");
+        assert!(!copy_pending_consent(&credentials, "org-1").expect("the third copy"));
+        assert_eq!(
+            filed(&credentials, "org:org-1").as_deref(),
+            Some(ACCESS_TOKEN)
+        );
+    }
+
+    /// A store that took the copy and kept nothing: the copy is refused and the organization's
+    /// entry is put back to what it held.
+    #[test]
+    fn a_copy_the_store_did_not_keep_leaves_both_entries_as_they_were() {
+        let credentials = Forgetful {
+            inner: Memory::new(),
+            forgets: "org:org-1".to_string(),
+        };
+
+        store_platform_token(&credentials, ACCESS_TOKEN).expect("the consent");
+
+        copy_pending_consent(&credentials, "org-1").expect_err("a copy nothing kept succeeded");
+
+        assert_eq!(
+            filed(&credentials, PENDING_ACCOUNT).as_deref(),
+            Some(ACCESS_TOKEN)
+        );
+        assert_eq!(
+            credentials
+                .inner
+                .get(TURSO_PLATFORM_KEYRING_SERVICE, "org:org-1")
+                .expect("the store"),
+            None
+        );
     }
 
     /// Forgetting one organization's consent forgets that entry alone: another organization's

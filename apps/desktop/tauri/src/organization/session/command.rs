@@ -1464,6 +1464,67 @@ mod tests {
         );
     }
 
+    /// **The owner is never left stuck on a consent Turso no longer accepts** (the link refused on
+    /// 2026-10-06). An act spending the organization's own consent is refused as `invalid api
+    /// token`; the answer tells the owner to connect Turso again, and the state reads the
+    /// organization as holding no authority, which is what puts the connect card in its settings.
+    #[tokio::test]
+    async fn a_consent_turso_no_longer_accepts_reads_as_not_connected() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let directory = scratch("consent-lost");
+        let app_state = first_run(credentials.as_ref(), &directory).await;
+        let (organization_id, _) = recorded(&app_state).await;
+
+        store_platform_token(credentials.as_ref(), "a-revoked-consent").expect("the consent");
+        move_pending_consent(credentials.as_ref(), &organization_id).expect("the move");
+
+        let server = ScriptedServer::start(vec![ScriptedResponse::new(
+            401,
+            json!({ "error": "invalid api token" }).to_string(),
+        )])
+        .await;
+        let platform = owner_platform_at(
+            &app_state,
+            &credentials,
+            &organization_id,
+            PlatformEndpoint::at(&server.url("")),
+        )
+        .await
+        .expect("the machine holds the organization's consent");
+
+        let refused = platform
+            .mint_token(
+                &format!("org-{organization_id}"),
+                "3d",
+                AccessLevel::FullAccess,
+            )
+            .await
+            .expect_err("a refused consent minted a credential");
+
+        assert!(matches!(
+            refused,
+            Error::Refused {
+                reason: crate::error::RefusalReason::TursoConsentLost,
+                ..
+            }
+        ));
+
+        let state = state_of(&app_state, &credentials, &crate::clock::System::shared())
+            .await
+            .expect("the state");
+
+        assert_eq!(state.selected.as_deref(), Some(organization_id.as_str()));
+        assert!(
+            !state.holds_turso_authority,
+            "the settings would still offer acts on a consent Turso refuses"
+        );
+        assert!(
+            owner_platform(&app_state, &credentials, &organization_id)
+                .await
+                .is_none()
+        );
+    }
+
     /// **Criterion 1, the disconnect half.** A machine that has let go of the organization holds
     /// no key to a vault in it either. The forget signs out first, which is where the entry goes.
     #[tokio::test]

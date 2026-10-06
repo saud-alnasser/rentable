@@ -301,6 +301,9 @@ pub enum RefusalReason {
     TursoRefused,
     /// Turso refused a request over the account itself: its plan, its standing or its limits.
     TursoAccountRefused,
+    /// Turso no longer accepts the consent an organization this machine holds was granted, so
+    /// this machine let it go and the owner connects Turso again from the organization's settings.
+    TursoConsentLost,
 
     // the organization's mark.
     /// the image is over the size a mark may be.
@@ -507,6 +510,7 @@ mod tests {
             (RefusalReason::OwnerOnly, "ownerOnly"),
             (RefusalReason::GroupNeeded, "groupNeeded"),
             (RefusalReason::TursoNotConnected, "tursoNotConnected"),
+            (RefusalReason::TursoConsentLost, "tursoConsentLost"),
             (RefusalReason::LinkNotForAMachine, "linkNotForAMachine"),
         ];
 

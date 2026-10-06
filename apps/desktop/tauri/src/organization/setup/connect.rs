@@ -175,6 +175,11 @@ where
         .ok_or_else(nothing_to_connect_to)?
         .to_string();
 
+    // an organization this machine holds over the same group takes this consent as its own, held
+    // or not (`setup::share_the_consent`): Turso has been seen to stop accepting the one it had
+    // once this one was granted.
+    super::share_the_consent(store, credentials, &organization);
+
     // the organization this account holds is one this machine holds already: it is selected, and
     // nothing is minted, opened or recorded (effort 851, requirement 13).
     if let Some(held) = connect::selected_if_held(store, &organization_id)? {
@@ -467,7 +472,7 @@ mod tests {
     use crate::sync::test::server::{ScriptedResponse, ScriptedServer};
     use crate::test::scratch;
     use crate::turso::consent::{Account, TursoConsent, platform_token, store_platform_token};
-    use crate::turso::discovery::McpEndpoint;
+    use crate::turso::discovery::{McpEndpoint, TursoOrganization};
     use crate::turso::platform::{AccessLevel, InMemoryPlatform};
     use crate::update::Update;
     use base64::Engine as _;
@@ -754,6 +759,97 @@ mod tests {
             platform.minted().len(),
             mints,
             "a credential was minted for an organization already held"
+        );
+    }
+
+    /// **A consent granted over a held organization's group becomes that organization's own** (the
+    /// link refused on 2026-10-06). The owner grants a second consent on the same Turso account in
+    /// an add-organization walk, and Turso stops accepting the first: the walk reaching the group
+    /// files the new one as the held organization's consent too, and keeps it pending for the walk.
+    /// A consent over another group of the same account is not handed over, since it could not mint
+    /// over this organization's database.
+    #[tokio::test]
+    async fn a_consent_over_a_held_organizations_group_becomes_its_own() {
+        let credentials = Memory::new();
+
+        store_platform_token(&credentials, TOKEN)
+            .expect("the test credential store would not take the token");
+
+        let directory = scratch("connect-shares");
+        let (platform, replica, mut machine) = an_organization(&credentials, &directory).await;
+
+        drop(replica);
+
+        let over = machine
+            .held(HELD_ID)
+            .and_then(|held| held.turso_organization.clone())
+            .expect("the first run recorded the group its consent is over");
+
+        assert_eq!(
+            platform_token(&credentials, &Account::of(HELD_ID)).as_deref(),
+            Ok(TOKEN)
+        );
+
+        let connect_on = async |consent: &'static str, machine: &mut Persisted<RemoteSyncStore>| {
+            store_platform_token(&credentials, consent).expect("the newer consent");
+
+            let mcp = ScriptedServer::start(holding_the_organization()).await;
+
+            connect_existing(
+                &credentials,
+                &crate::upgrade::Upgrader,
+                &crate::clock::System::shared(),
+                machine,
+                consent,
+                &McpEndpoint::at(&mcp.url("")),
+                |_| Arc::clone(&platform),
+                Remote::none(),
+                &directory.join("app.db"),
+                "olivia.owner",
+                PASSWORD,
+                ISSUED_AT + 1,
+            )
+            .await
+        };
+
+        // the organization recorded over another group: the consent is not its to take.
+        machine.remember_consent_organization(
+            Some(HELD_ID),
+            TursoOrganization {
+                group: "elsewhere".to_string(),
+                ..over.clone()
+            },
+        );
+
+        let elsewhere = connect_on("a-consent-over-another-group", &mut machine).await;
+
+        assert!(
+            matches!(&elsewhere, Ok(ConnectedToExisting::Held(_))),
+            "{elsewhere:?}"
+        );
+        assert_eq!(
+            platform_token(&credentials, &Account::of(HELD_ID)).as_deref(),
+            Ok(TOKEN),
+            "a consent over another group replaced the organization's own"
+        );
+
+        // over the group it is recorded over: the consent becomes its own, and stays pending.
+        machine.remember_consent_organization(Some(HELD_ID), over);
+
+        let shared = connect_on("a-newer-consent", &mut machine).await;
+
+        assert!(
+            matches!(&shared, Ok(ConnectedToExisting::Held(_))),
+            "{shared:?}"
+        );
+        assert_eq!(
+            platform_token(&credentials, &Account::of(HELD_ID)).as_deref(),
+            Ok("a-newer-consent"),
+            "the organization kept a consent Turso no longer accepts"
+        );
+        assert_eq!(
+            platform_token(&credentials, &Account::Pending).as_deref(),
+            Ok("a-newer-consent")
         );
     }
 

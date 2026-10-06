@@ -565,7 +565,8 @@ export const refusals = {
 		nothingToConnectTo: 'لا يحمل حساب Turso هذا أي مؤسسة للاتصال بها. عد وأنشئ واحدة.',
 		createRefused: 'لم تُنشئ Turso قاعدة بيانات المؤسسة.',
 		tursoRefused: 'رفضت Turso الطلب. لن تفيد إعادة المحاولة.',
-		tursoAccountRefused: 'رفضت Turso الطلب بسبب الحساب نفسه. راجع خطة الحساب في Turso.'
+		tursoAccountRefused: 'رفضت Turso الطلب بسبب الحساب نفسه. راجع خطة الحساب في Turso.',
+		tursoConsentLost: 'لم تعد Turso تقبل اتصال هذه المؤسسة. اربط Turso مرة أخرى من إعدادات المؤسسة.'
 	}
 } satisfies {
 	host: Omit<Translation['common']['refusals']['host'], `${string}NeedsViewing`>;

@@ -134,6 +134,7 @@ export const TAURI_REFUSAL_REASONS = [
 	'createRefused',
 	'tursoRefused',
 	'tursoAccountRefused',
+	'tursoConsentLost',
 	'markTooLarge',
 	'markNotAnImage',
 	...RECORD_KINDS.map(needsViewing)

@@ -300,6 +300,37 @@ on purpose and no number of attempts changes that.
   rotation cannot remove one person without cutting off everybody on that database, which is
   why the desktop removes somebody by declining to renew and rotates only on a lock-out
   (`apps/desktop/tauri/src/organization/removal.rs`).
+- **A consent's own token can stop being accepted, and Turso says `401 {"error":"invalid api
+  token"}`** *(added 2026-10-06, effort 851, after review round two)*. Seen on the human's machine
+  on 2026-10-06: the owner's link mint for their organization (`invitation::link_credential`,
+  spending the organization's own consent at `org:<id>`) was refused with exactly that, a short
+  while after the owner granted a second consent on the same Turso account in an add-organization
+  walk, which the record shows as a `pendingTursoOrganization` with no organization made from it.
+  What is established and what is inferred:
+
+  | | |
+  | --- | --- |
+  | the token response carries no expiry and no refresh | `GET https://api.turso.tech/.well-known/oauth-authorization-server`, fetched 2026-10-06, lists `grant_types_supported: ["authorization_code"]` and no revocation endpoint; effort 819's `one-real-consent` read no `exp` claim and no `refresh_token` or `expires_in` in the answer. So the token did not lapse, and there is nothing to refresh it with |
+  | the sentence means Turso does not accept that bearer | a well-formed JWT Turso did not issue, sent 2026-10-06 to `POST /v1/organizations/<org>/databases/x/auth/tokens`, answers `401 {"error":"invalid api token"}`; a malformed one answers `401 {"error":"token contains an invalid number of segments"}`. No credential of the human's was sent |
+  | the application did not file a wrong token | every token the desktop files came from Turso's own token endpoint, and the only writes to `org:<id>` are the moves after a create, a connect or a reconnect; none ran for this organization after the second consent. A token Turso issued over another group would answer a 403 about scope, not this |
+  | **inferred, not measured**: a newer consent on the same account retires the older one | Turso's MCP page says the consent "mints the scoped token" on the dashboard (<https://docs.turso.tech/integrations/mcp>), registration answers every caller with one fixed `client_id`, and token names are unique per user ("token names are not unique across users in an organization", <https://docs.turso.tech/api-reference/tokens/revoke-organization>). A dashboard that names the minted token after the client would replace the earlier one. The owner revoking it by hand in the dashboard would look the same from here |
+
+  What the desktop does about it, whichever reading holds. **The refusal lets the consent go**:
+  `platform/mod.rs`'s `consent_no_longer_accepted` reads that status and that sentence and nothing
+  broader, `platform/live.rs` forgets the organization's own token and answers
+  `TursoConsentLost`, which tells the owner to connect Turso again from the organization's
+  settings, and the state reads `holdsTursoAuthority` false so the connect card is there. The
+  Turso organization and group the record keeps for it stay, and a reconnect moves the next
+  consent in. A setup's pending consent refused the same way answers `ConsentNeededAgain` and is
+  not forgotten there, since it and its Turso organization go together. **A newer consent is
+  handed to the organization it covers**: once a setup or a connect learns which Turso
+  organization and group a consent is over, `setup::share_the_consent` files it as the own
+  consent of every held organization recorded over the same slug and group, before anything can
+  refuse the run. Only the same group, because a consent is scoped to the group picked on the
+  screen and could not mint over another group's databases. **Two organizations of one owner on
+  two groups of one Turso account cannot both be kept connected if the inference holds**: the
+  second consent retires the first, and the first reads as not connected the next time it is
+  spent. Measuring it costs two consents and a mint on a real account, and is the human's call.
 - **A database that is not there answers the sync engine, and the answer is a string.**
   `turso` 0.8.0-pre.7 carries no variant for a remote's answer: every refusal and every transport
   fault arrive as `turso::Error::Error(String)`, with an HTTP refusal spelled `status=NNN, body=…`
