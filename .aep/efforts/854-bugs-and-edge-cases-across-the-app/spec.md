@@ -1,5 +1,5 @@
 ---
-status: draft
+status: accepted
 ---
 
 # Problem
@@ -54,8 +54,8 @@ before everywhere else.
 # Scope
 
 The desktop app, both sides of the IPC boundary, and `packages/design` where a shortcut is
-matched. The defects named below, and one feature the human folded in: recording money returned
-to a tenant (requirement 25). No other feature, no redesign.
+matched. The defects named below, and one feature the human folded in: refunds, money returned
+to a tenant (requirements 25 to 30). No other feature, no redesign.
 
 # Requirements
 
@@ -123,13 +123,33 @@ order.
 
 ## Money returned to the tenant
 
-25. A member who may record payments can record money returned from the organization to a
-    tenant against any contract, a terminated one included, from the contract's payments,
-    without deleting any payment. It carries an amount, a date, and the same optional method,
-    reference and note a payment does. It shows in the ledger as money going out, distinct from
-    money received, and can be undone and deleted like a payment. Ordinary payments on a
-    terminated contract stay locked. How it bears on what is paid and owed, any limit on its
-    amount, and how the landing page shows it wait on the open questions below.
+The human's rulings of 2026-10-06, after
+[[efforts/854-bugs-and-edge-cases-across-the-app/evidence/research/money-back-to-the-tenant]].
+
+25. A member who may record payments can record a **refund**, money returned from the
+    organization to the tenant, against any contract, a terminated one included, from the
+    contract's payments, without deleting any payment. It carries an amount above zero, a date
+    no later than today, and the same optional method, reference and note a payment does. It
+    shows in the ledger as money going out, distinct from money received, and can be undone and
+    deleted like a payment. Ordinary payments on a terminated contract stay locked.
+26. **How much may be refunded depends on the contract's state.** On a contract that is not
+    terminated, a refund may return only what the contract has received beyond its total cost,
+    less earlier refunds, so it never makes the contract owe; a payment made by mistake is
+    deleted, as today. On a terminated contract, a refund may return up to what the contract
+    has received, less earlier refunds. A refund above the limit is refused, saying the limit.
+27. **What a contract counts as paid is net of its refunds**: received less refunded. A
+    terminated contract stays terminated and owes nothing after a refund. Every figure that
+    sums a contract's payments (status, schedule and allocation, outstanding, paid in full, the
+    directory's paid amount, receipts) reads the same net amount.
+28. **The landing page shows money returned beside money collected.** Collected stays every
+    payment received in the period, as recorded. A *returned* figure, the refunds dated in the
+    period, appears beside it when it is not zero. Neither is netted from the other.
+29. **A refund prints a payment voucher** (سند صرف), from the same print preview as the receipt,
+    in Arabic or English: a voucher number taken from the refund's identity, the tenant, the
+    contract, the amount, the date, the method and reference where recorded, the note as the
+    reason, and a line for the tenant's signature. It is not a tax document.
+30. Refunds travel through workspace export and import with their direction, and a file
+    exported before this effort imports with every row read as money received.
 
 ## Rust shell
 
@@ -203,9 +223,22 @@ order.
     them accepted as their Western values.
 23. Tests renew a contract and change its units, and find `renewed` and `assigned` in its
     history.
-25. Tests record money returned on an active and on a terminated contract, see it in the ledger
-    as money going out, undo it and delete it, and find every existing payment untouched. The
-    rest of this criterion is written when the open questions are answered.
+25. Tests record a refund on an active and on a terminated contract, see it in the ledger as
+    money going out, undo it and delete it, and find every existing payment untouched; a
+    payment on the terminated contract is still refused.
+26. Tests: on a live contract paid 1,000 beyond its total, a refund of 1,000 goes through and
+    one of 1,001 is refused naming the limit; on a live contract paid exactly its total, any
+    refund is refused; on a terminated contract that received 5,000, refunds of 3,000 then
+    2,000 go through and a further 1 is refused.
+27. Tests: after a refund, the contract's paid amount, status, schedule, outstanding and the
+    directory row all read received less refunded; a terminated contract refunded in full stays
+    terminated with nothing outstanding.
+28. A test records payments and a refund in one month and finds collected unchanged by the
+    refund and returned equal to it; with no refund, no returned figure is shown.
+29. A test prints a refund's voucher in Arabic and in English and finds every field named in
+    requirement 29, and a payment's receipt is unchanged.
+30. Tests round-trip a workspace holding refunds and find them still refunds, and import a file
+    exported at c9d9c4ba with every payment read as received.
 24. A test undoes the creation of a complex with no units as a member without the unit-deletion
     permission, and the undo is not refused.
 
@@ -236,6 +269,10 @@ order.
   noted and not changed.
 - Rolling "today" over at local midnight rather than the UTC day: by design.
 - The CSV reader's handling of multi-line cells: not reachable today.
+- Expenses: money the organization spends on a complex or unit. A separate concept in every
+  tool researched; the human chose to leave it for its own effort.
+- Refunding a deposit held outside the contract's payments: the app records no deposits.
+- VAT credit notes for VAT-registered lessors: the voucher is not a tax document.
 - Making Turso able to revoke a single token, or changing the consent model.
 - A new feature, layout or wording change beyond what a fix needs to say what went wrong.
 
@@ -248,17 +285,6 @@ order.
   calls already use (30 s). The plan fixes the number.
 - The six record routes are the only ones that read a route parameter once. The plan confirms
   this by search.
-
-# Open Questions
-
-Refunds (requirement 25) turn on three answers the human sent to research on 2026-10-06, written
-to `evidence/research/money-back-to-the-tenant.md` (in progress):
-
-- **Does money returned reduce what the contract counts as paid**, reopening what is owed, or is
-  it recorded beside the payments? Should a refund be told apart from an expense or a fee?
-- **Can a refund exceed what the contract has received**, and does the answer depend on the
-  contract's state?
-- **How does the landing page show money returned**: netted from collected, or beside it?
 
 # Risks
 
