@@ -1,6 +1,12 @@
 import type { ExportSheet, ImportTable } from './host';
 import { toExportSheet } from '@rentable/design/csv.js';
-import { planImport, type ImportCollision, type ImportField, type ImportRejection } from './import';
+import {
+	planImport,
+	toHeldIdentities,
+	type ImportCollision,
+	type ImportField,
+	type ImportRejection
+} from './import';
 import { toTransferKey } from './reference';
 import {
 	sheetsOf,
@@ -331,11 +337,13 @@ export function planWorkspaceImport(
 			continue;
 		}
 
+		const fields = sheet.fields as readonly ImportField<Record<string, string>>[];
 		const plan = planImport<Record<string, string>>(
-			sheet.fields as readonly ImportField<Record<string, string>>[],
+			fields,
 			table,
 			(row) => sheet.validate?.(row as never, now),
-			new Set(heldOf(concept).map((name) => key(...namesOf(name)))),
+			// keyed per identity group, so a tenant held by its national id is matched by that alone.
+			new Set(heldOf(concept).flatMap((name) => toHeldIdentities(fields, namesOf(name)))),
 			{ rowsMayRepeat: sheet.rowsMayRepeat }
 		);
 

@@ -235,6 +235,54 @@ test('a record the workspace already holds is turned away, and the rest still re
 	assert.equal(plan.transfer.tenants[0].nationalId, '2234567890');
 });
 
+// a tenant is unique on its national id and on its phone, each on its own, so a held tenant is
+// matched by either column rather than only by the pair.
+test('a tenant row sharing either column with a held tenant is turned away by that column', () => {
+	const workspace: WorkspaceTransfer = {
+		...aWorkspace(),
+		tenants: [
+			{ name: 'Same Id', nationalId: '1234567890', phone: '+966500000000' },
+			{ name: 'Same Phone', nationalId: '2234567890', phone: '+966512345678' },
+			{ name: 'Omar Ali', nationalId: '2234567891', phone: '+966559999999' }
+		],
+		contracts: [],
+		payments: []
+	};
+
+	const plan = planWorkspaceImport(toTables(workspace), NOW, {
+		...emptyHeld(),
+		tenants: [['1234567890', '+966512345678']]
+	});
+
+	assert.deepEqual(sheetOf(plan, 'tenants').rejected, [
+		{ row: 2, reason: 'duplicate-of-existing', detail: '1234567890' },
+		{ row: 3, reason: 'duplicate-of-existing', detail: '+966512345678' }
+	]);
+	assert.deepEqual(
+		plan.transfer.tenants.map((tenant) => tenant.name),
+		['Omar Ali']
+	);
+});
+
+test('two tenant rows sharing only a phone refuse the file, named by the phone', () => {
+	const workspace: WorkspaceTransfer = {
+		...aWorkspace(),
+		tenants: [
+			{ name: 'Abby Kris', nationalId: '1234567890', phone: '+966512345678' },
+			{ name: 'Omar Ali', nationalId: '2234567890', phone: '+966512345678' }
+		],
+		contracts: [],
+		payments: []
+	};
+
+	const plan = planWorkspaceImport(toTables(workspace), NOW, emptyHeld());
+
+	assert.deepEqual(sheetOf(plan, 'tenants').collisions, [
+		{ rows: [2, 3], identity: '+966512345678' }
+	]);
+	assert.equal(isWorkspaceImportable(plan), false);
+});
+
 test('two rows of one sheet claiming the same record refuse it, with both rows named', () => {
 	const workspace = aWorkspace();
 

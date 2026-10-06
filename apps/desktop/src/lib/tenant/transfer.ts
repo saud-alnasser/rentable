@@ -2,7 +2,12 @@ import * as s from '$lib/platform/database/schema';
 import { newId } from '$lib/platform/database/identity';
 import { defineSheet } from '$lib/transfer';
 import { asc } from 'drizzle-orm';
-import { identity as nationalIdPattern, phone as phonePattern, TenantSchema } from './tenant';
+import {
+	ensureTenantsAvailable,
+	identity as nationalIdPattern,
+	phone as phonePattern,
+	TenantSchema
+} from './tenant';
 
 /**
  * THE TENANTS SHEET
@@ -45,7 +50,7 @@ export default defineSheet({
 			phone: tenant.phone
 		}));
 	},
-	// each tenant's national id and phone: a tenant is unique on both.
+	// each tenant's national id and phone: a tenant is unique on each, and they are checked apart.
 	held: async (db) => {
 		const tenants = await db
 			.select({ nationalId: s.tenant.nationalId, phone: s.tenant.phone })
@@ -59,9 +64,9 @@ export default defineSheet({
 			id: 'nationalId',
 			headers: ['National ID', 'الهوية الوطنية'],
 			required: true,
-			identity: true
+			identity: 'nationalId'
 		},
-		{ id: 'phone', headers: ['Phone', 'الهاتف'], required: true, identity: true }
+		{ id: 'phone', headers: ['Phone', 'الهاتف'], required: true, identity: 'phone' }
 	],
 	validate: (row: TenantRow) => {
 		if (!nationalIdPattern.test(row.nationalId)) {
@@ -75,8 +80,8 @@ export default defineSheet({
 		nationalId: row.nationalId.trim(),
 		phone: row.phone.trim()
 	}),
-	// a contract names its tenant by national id alone, where the identity a row repeating one is
-	// turned away under is the id and the phone together.
+	// a contract names its tenant by national id alone, where a row repeating one is turned away
+	// under either its national id or its phone.
 	answers: {
 		held: (name) => [(typeof name === 'string' ? name : name[0]) ?? ''],
 		record: (tenant) => [tenant.nationalId],
@@ -98,6 +103,10 @@ export default defineSheet({
 
 			return { id, name: tenant.name, nationalId: tenant.nationalId, phone: tenant.phone };
 		});
+
+		// the checks `tenant.createMany` makes, so a file that slipped past the plan is refused by
+		// name rather than by the unique constraint part-way through the batch.
+		await ensureTenantsAvailable(writing.db, rows);
 
 		return {
 			statements: rows.map((row) => writing.db.insert(s.tenant).values(row)),

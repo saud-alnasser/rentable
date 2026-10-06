@@ -454,7 +454,7 @@ test('a duplicate identity refuses the whole write, creating nothing', async () 
 	await assert.rejects(
 		api.transfer.importWhole({
 			// the second tenant is fine; the first repeats a national id the workspace already
-			// holds, and the unique constraint refuses the batch it is in.
+			// holds, and the write names it rather than leaving it to the unique constraint.
 			tenants: [
 				{ name: 'Someone Else', nationalId: '1234567890', phone: '+966500000000' },
 				{ name: 'Omar Ali', nationalId: '2234567890', phone: '+966559999999' }
@@ -463,7 +463,8 @@ test('a duplicate identity refuses the whole write, creating nothing', async () 
 			units: [],
 			contracts: [],
 			payments: []
-		})
+		}),
+		refusedWith('tenant.nationalIdTakenNamed', { named: '1234567890' })
 	);
 
 	assert.deepEqual(await api.transfer.get(), before);
@@ -487,10 +488,30 @@ test('a phone another tenant already holds refuses the write the same way', asyn
 			contracts: [],
 			payments: []
 		}),
-		/phone|UNIQUE/i
+		refusedWith('tenant.phoneTakenNamed', { named: '+966512345678' })
 	);
 
 	assert.deepEqual(await api.transfer.get(), before);
+});
+
+test('two tenants of one file sharing a phone refuse the write by that phone', async () => {
+	const api = await createApi();
+
+	await assert.rejects(
+		api.transfer.importWhole({
+			tenants: [
+				{ name: 'Omar Ali', nationalId: '2234567890', phone: '+966559999999' },
+				{ name: 'Sara Ali', nationalId: '2234567891', phone: '+966559999999' }
+			],
+			complexes: [],
+			units: [],
+			contracts: [],
+			payments: []
+		}),
+		refusedWith('tenant.repeatedInSet', { value: '+966559999999' })
+	);
+
+	assert.deepEqual(await api.tenant.getMany({}), []);
 });
 
 test('what the workspace holds is reported by the names a file uses', async () => {

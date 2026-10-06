@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(desktop): tenant import treats national id and phone as unique on their own
@@ -14,9 +14,9 @@ Importing tenants names in the plan any row whose national id or phone is alread
 
 Traces requirement 6 and criterion 6.
 
-- [ ] `ImportField.identity` accepts `boolean | string`; identity groups are checked separately in `planImport` and in held names (`toHeldIdentities`).
-- [ ] The tenant sheet uses one group per column; the tenant write reuses the checks `tenant.createMany` makes, factored into one function.
-- [ ] Tests per criterion 6 in `transfer/tests/{import,transfer,router}.test.ts`; a single-group sheet behaves as before.
+- [x] `ImportField.identity` accepts `boolean | string`; identity groups are checked separately in `planImport` and in held names (`toHeldIdentities`).
+- [x] The tenant sheet uses one group per column; the tenant write reuses the checks `tenant.createMany` makes, factored into one function.
+- [x] Tests per criterion 6 in `transfer/tests/{import,transfer,router}.test.ts`; a single-group sheet behaves as before.
 
 ## Relevant areas
 

@@ -2,7 +2,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { toExportSheet } from '@rentable/design/csv.js';
-import { type ImportField, isImportable, planImport, toImportIdentity } from '../import.ts';
+import {
+	type ImportField,
+	isImportable,
+	planImport,
+	toHeldIdentities,
+	toImportIdentity
+} from '../import.ts';
 
 /** the record every file here is read as: the three columns a tenant is made of. */
 type Tenant = { name: string; nationalId: string; phone: string };
@@ -253,4 +259,114 @@ test('the sheet a directory exports plans back into the records it was given', (
 	);
 	assert.deepEqual(plan.rejected, []);
 	assert.equal(isImportable(plan), true);
+});
+
+/**
+ * the tenant's columns as the database holds them: the national id and the phone are each unique
+ * on their own, so each is its own identity group rather than one half of a pair.
+ */
+const columns: ImportField<Tenant>[] = [
+	{ id: 'name', headers: ['name', 'الاسم'], required: true },
+	{ id: 'nationalId', headers: ['national id'], required: true, identity: 'nationalId' },
+	{ id: 'phone', headers: ['phone'], required: true, identity: 'phone' }
+];
+
+/** what a workspace holding these tenants reports, keyed as the plan keys a held name. */
+function heldUnder(fields: ImportField<Tenant>[], ...tenants: [string, string][]) {
+	return new Set(tenants.flatMap((tenant) => toHeldIdentities(fields, tenant)));
+}
+
+test('a row whose national id is held is turned away, whatever its phone', () => {
+	const plan = planImport(
+		columns,
+		table([['Someone Else', '1234567890', '+966500000000']]),
+		validate,
+		heldUnder(columns, ['1234567890', '+966512345678'])
+	);
+
+	assert.deepEqual(plan.rejected, [
+		{ row: 2, reason: 'duplicate-of-existing', detail: '1234567890' }
+	]);
+	assert.deepEqual(plan.create, []);
+});
+
+test('a row whose phone is held is turned away, whatever its national id', () => {
+	const plan = planImport(
+		columns,
+		table([['Someone Else', '2234567890', '+966512345678']]),
+		validate,
+		heldUnder(columns, ['1234567890', '+966512345678'])
+	);
+
+	assert.deepEqual(plan.rejected, [
+		{ row: 2, reason: 'duplicate-of-existing', detail: '+966512345678' }
+	]);
+	assert.deepEqual(plan.create, []);
+});
+
+test('two rows sharing only a phone collide, named by the phone', () => {
+	const plan = planImport(
+		columns,
+		table([
+			['Abby Kris', '1234567890', '+966512345678'],
+			['Bob Kris', '1234567891', '+966512345678']
+		]),
+		validate
+	);
+
+	assert.deepEqual(plan.collisions, [{ rows: [2, 3], identity: '+966512345678' }]);
+	assert.deepEqual(plan.create, []);
+	assert.equal(isImportable(plan), false);
+});
+
+test('two rows sharing only a national id collide, named by the national id', () => {
+	const plan = planImport(
+		columns,
+		table([
+			['Abby Kris', '1234567890', '+966512345678'],
+			['Bob Kris', '1234567890', '+966512345679']
+		]),
+		validate
+	);
+
+	assert.deepEqual(plan.collisions, [{ rows: [2, 3], identity: '1234567890' }]);
+	assert.equal(isImportable(plan), false);
+});
+
+test('rows sharing no column with each other or with what is held all go in', () => {
+	const plan = planImport(
+		columns,
+		table([
+			['Abby Kris', '1234567891', '+966512345679'],
+			['Bob Kris', '1234567892', '+966512345670']
+		]),
+		validate,
+		heldUnder(columns, ['1234567890', '+966512345678'])
+	);
+
+	assert.deepEqual(plan.rejected, []);
+	assert.deepEqual(plan.collisions, []);
+	assert.equal(plan.create.length, 2);
+});
+
+// one group, which every sheet but the tenants' still declares: the columns are one identity
+// together, and sharing one of them is not a collision.
+test('a sheet of one identity group keys a held name exactly as it always did', () => {
+	assert.deepEqual(toHeldIdentities(fields, ['1234567890', '+966512345678']), [
+		toImportIdentity(['1234567890', '+966512345678'])
+	]);
+
+	const plan = planImport(
+		fields,
+		table([
+			['Abby Kris', '1234567890', '+966512345679'],
+			['Bob Kris', '1234567891', '+966512345678']
+		]),
+		validate,
+		heldUnder(fields, ['1234567890', '+966512345678'])
+	);
+
+	assert.deepEqual(plan.rejected, []);
+	assert.deepEqual(plan.collisions, []);
+	assert.equal(plan.create.length, 2);
 });
