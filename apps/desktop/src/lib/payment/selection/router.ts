@@ -48,9 +48,10 @@ type PaymentRefusal = { id: string; amount: number; reason: PaymentRefusalReason
  * both go through this, so the confirmation shows what the deletion is about to decide rather
  * than a second opinion about it. They can still disagree about the *workspace*, because another
  * device may write between the two, and that is why the mutation runs this again instead of
- * trusting what the reader was shown. A contract terminated between the two is the case this
- * list actually meets: the ledger hides its controls on a terminated contract, so the only way
- * to reach that refusal from here is for the termination to arrive while the dialog is open.
+ * trusting what the reader was shown. A contract terminated between the two is one case this list
+ * meets; the other, since the ledger offers a selection's delete on a terminated contract for its
+ * refunds (effort 854, requirement 25), is a selection there that holds payments received, which
+ * the plan turns away for the contract's state.
  *
  * **Refunds stay within what was received** (effort 854, requirement 26). A payment received on a
  * live contract goes only while what the contract keeps still covers its refunds, weighed over

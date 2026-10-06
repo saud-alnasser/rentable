@@ -5,8 +5,10 @@ import { declareMutation, describeOutcomeChange } from '$lib/mutation/ui';
 import type { SelectionCall } from '@rentable/design/selection.js';
 import type { HistoryEntry } from '$lib/history';
 import { LL, locale } from '$lib/i18n/i18n-svelte';
+import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 import { isPaymentSortColumnId } from '$lib/payment/payment';
 import { isRecordId } from '$lib/platform/database/identity';
+import type { PaymentDirection } from '$lib/platform/database/schema';
 import type { ListSort } from '@rentable/design/sort.js';
 import { formatLocaleMoney, formatLocaleNumber } from '$lib/platform/locale';
 import { createQuery, useQueryClient } from '@tanstack/svelte-query';
@@ -44,21 +46,42 @@ export type PaymentRefusalReason = Awaited<
 
 const toPaymentIds = (payments: readonly { id: string }[]) => payments.map((payment) => payment.id);
 
+/** A payment as anything here names one: its amount, and which way the money went. */
+type NamedPayment = { amount: number; direction?: PaymentDirection };
+
+/**
+ * What a payment is called where a name is wanted: its amount in the reader's locale, and a refund
+ * says it is one (effort 854, requirement 25), so an account or a search never reads money
+ * returned as money received.
+ */
+export function toPaymentName(payment: NamedPayment) {
+	const amount = formatLocaleNumber(get(locale), payment.amount);
+
+	return payment.direction === 'refund'
+		? get(LL).contracts.payments.refund.historyName({ amount })
+		: amount;
+}
+
+/** The noun an undo names a payment by: a payment, or a refund. */
+const toPaymentNoun = (payment: NamedPayment, t: TranslationFunctions) =>
+	payment.direction === 'refund' ? t.contracts.payments.refund.title() : t.common.labels.payment();
+
 /**
  * One line on one payment's own account.
  *
  * A payment has no name, so what names it is the amount, rendered in the reader's locale and
  * frozen there: an account has to still read once the record it is about is gone, which is the
- * same reason every other entry freezes its name.
+ * same reason every other entry freezes its name. A refund's name says it is one. The concept and
+ * the actions stay a payment's, which an older build reads.
  */
 const toPaymentHistoryEntry = (
-	payment: { id: string; amount: number },
+	payment: { id: string } & NamedPayment,
 	action: HistoryEntry['action']
 ) => ({
 	concept: 'payment' as const,
 	recordId: payment.id,
 	action,
-	record: formatLocaleNumber(get(locale), payment.amount)
+	record: toPaymentName(payment)
 });
 
 /**
@@ -77,9 +100,9 @@ export function useSearchPayments(term: () => string, limit: number) {
 			queryFn: async () => {
 				const matches = await api.payment.search({ term: trimmed, limit });
 
-				return matches.map((match) => ({
+				return matches.map(({ direction, ...match }) => ({
 					...match,
-					label: formatLocaleNumber(get(locale), Number(match.label))
+					label: toPaymentName({ amount: Number(match.label), direction })
 				}));
 			},
 			placeholderData: <T>(previous: T) => previous
@@ -206,7 +229,7 @@ export const useCreatePayment = declareMutation({
 	mutate: (data: Parameters<typeof api.payment.create>[0]) => api.payment.create(data),
 	touches: ['payments', 'contracts', 'units'],
 	inverse: ({ result }) => ({
-		describe: (t) => t.common.undo.created({ record: t.common.labels.payment() }),
+		describe: (t) => t.common.undo.created({ record: toPaymentNoun(result, t) }),
 		flags: { undo: ['deletePayment'], redo: ['createPayment'] },
 		undo: () => api.payment.delete({ id: result.id }),
 		redo: () => api.payment.create(result),
@@ -215,7 +238,10 @@ export const useCreatePayment = declareMutation({
 	}),
 	records: ({ result }) => toPaymentHistoryEntry(result, 'created'),
 	toast: {
-		success: () => get(LL).contracts.hooks.createPaymentSuccess(),
+		success: ({ result }) =>
+			result.direction === 'refund'
+				? get(LL).contracts.payments.refund.created()
+				: get(LL).contracts.hooks.createPaymentSuccess(),
 		error: false,
 		unexpected: () => get(LL).common.messages.unexpectedError()
 	}
@@ -227,19 +253,26 @@ export const useUpdatePayment = declareMutation({
 	capture: (variables) => api.payment.get({ id: variables.id }),
 	inverse: ({ variables, captured }) =>
 		captured && {
-			describe: (t) => t.common.undo.edited({ record: t.common.labels.payment() }),
+			describe: (t) => t.common.undo.edited({ record: toPaymentNoun(captured, t) }),
 			flags: { undo: ['editPayment'], redo: ['editPayment'] },
 			undo: () => api.payment.update(captured),
 			redo: () => api.payment.update(variables),
 			// both directions are an edit, as a contract's are. The amount named is the one the
 			// payment holds once that direction has run, since the amount is what names a payment
 			// and an edit is often a change to exactly that.
+			// an edit never changes which way the money went, so the stored direction names both.
 			records: (direction) =>
-				toPaymentHistoryEntry(direction === 'undo' ? captured : variables, 'edited')
+				toPaymentHistoryEntry(
+					direction === 'undo' ? captured : { ...variables, direction: captured.direction },
+					'edited'
+				)
 		},
-	records: ({ variables }) => toPaymentHistoryEntry(variables, 'edited'),
+	records: ({ result }) => toPaymentHistoryEntry(result, 'edited'),
 	toast: {
-		success: () => get(LL).contracts.hooks.updatePaymentSuccess(),
+		success: ({ result }) =>
+			result.direction === 'refund'
+				? get(LL).contracts.payments.refund.updated()
+				: get(LL).contracts.hooks.updatePaymentSuccess(),
 		error: false,
 		unexpected: () => get(LL).common.messages.unexpectedError()
 	}
@@ -320,7 +353,7 @@ export const useDeletePayment = declareMutation({
 	touches: ['payments', 'contracts', 'units'],
 	inverse: ({ result }) =>
 		result && {
-			describe: (t) => t.common.undo.deleted({ record: t.common.labels.payment() }),
+			describe: (t) => t.common.undo.deleted({ record: toPaymentNoun(result, t) }),
 			flags: { undo: ['createPayment'], redo: ['deletePayment'] },
 			undo: () => api.payment.create(result),
 			redo: () => api.payment.delete({ id: result.id }),
@@ -331,7 +364,10 @@ export const useDeletePayment = declareMutation({
 	// gone, and an account that could only name what still exists could not report a deletion.
 	records: ({ result }) => result && toPaymentHistoryEntry(result, 'deleted'),
 	toast: {
-		success: () => get(LL).contracts.hooks.deletePaymentSuccess(),
+		success: ({ result }) =>
+			result?.direction === 'refund'
+				? get(LL).contracts.payments.refund.deleted()
+				: get(LL).contracts.hooks.deletePaymentSuccess(),
 		// no dialog asked first, so the announcement says how long it can be taken back.
 		detail: () => get(LL).common.undo.lasts(),
 		error: false,

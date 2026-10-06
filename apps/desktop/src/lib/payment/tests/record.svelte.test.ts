@@ -61,6 +61,7 @@ const { payment, history } = vi.hoisted(() => ({
 		date: Date.UTC(2026, 2, 1),
 		amount: 2377,
 		contractId: 'contract-1',
+		direction: 'received' as 'received' | 'refund',
 		contractGovId: '1001',
 		contractStatus: 'terminated' as 'terminated' | 'active',
 		tenantName: 'Noura Alharbi',
@@ -103,6 +104,7 @@ beforeEach(() => {
 	loadLocale('en');
 	setLocale('en');
 	payment.contractStatus = 'terminated';
+	payment.direction = 'received';
 	payment.method = null;
 	payment.reference = null;
 	payment.note = null;
@@ -190,10 +192,41 @@ test('on a terminated contract the acts that write are shown refused, with the r
 		).toBe(true);
 	}
 
+	// a duplicate is a new payment, refused as one is; an edit or a delete says why the payment is
+	// locked and what unlocks it (effort 854, requirement 25).
 	for (const control of refused) {
 		expect(control.getAttribute('aria-disabled')).toBe('true');
-		expect(describedBy(control)).toBe(en.contracts.payments.terminatedNotice);
+		expect(describedBy(control)).toBe(
+			control.textContent?.trim().startsWith(en.common.actions.duplicate)
+				? en.contracts.payments.terminatedNotice
+				: en.contracts.payments.refund.locked
+		);
 	}
+});
+
+// ticket 24 of effort 854, requirement 25: the page says which way the money went, and a refund on
+// a terminated contract is edited and deleted there rather than locked.
+test('a refund says it is one, and takes its edit and delete on a terminated contract', () => {
+	payment.direction = 'refund';
+
+	page();
+
+	expect(valueOf(en.contracts.payments.refund.kind)).toBe(en.contracts.payments.refund.title);
+
+	const refused = [...document.querySelectorAll<HTMLElement>('[data-unavailable]')].map(
+		(control) => control.textContent?.trim() ?? ''
+	);
+
+	expect(refused.some((name) => name.startsWith(en.common.actions.edit))).toBe(false);
+	expect(refused.some((name) => name.startsWith(en.common.actions.delete))).toBe(false);
+});
+
+test('a payment received says so', () => {
+	payment.contractStatus = 'active';
+
+	page();
+
+	expect(valueOf(en.contracts.payments.refund.kind)).toBe(en.contracts.payments.refund.received);
 });
 
 test('on a contract still running, the same acts are offered and nothing is refused', () => {

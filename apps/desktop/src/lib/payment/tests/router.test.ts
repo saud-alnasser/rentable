@@ -1166,3 +1166,26 @@ test('the refund refusals read in Arabic and in English', async () => {
 		'the refunds on this contract would exceed what it received. delete a refund first.'
 	);
 });
+
+// ticket 24 of effort 854, requirement 25: the palette names a refund as one, so the search crosses
+// which way the money went beside the amount it names a payment by.
+test('a palette search says which way each payment it finds went', async () => {
+	const api = await createApi();
+	const contract = await seedContract(api);
+	const received = await api.payment.create({
+		contractId: contract.id,
+		date: monthsFromNow(0),
+		amount: 2500
+	});
+	const returned = await refund(api, contract.id, 1500);
+
+	const found = await api.payment.search({ term: '500', limit: 10 });
+
+	assert.deepEqual(
+		found.map(({ id, label, direction }) => [id, label, direction]).sort(),
+		[
+			[received.id, '2500', 'received'],
+			[returned.id, '1500', 'refund']
+		].sort()
+	);
+});

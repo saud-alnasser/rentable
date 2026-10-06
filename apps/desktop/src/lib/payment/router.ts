@@ -216,17 +216,20 @@ export default router({
 	 *
 	 * A payment has no name, so its handle is the amount as it is stored — the surface showing
 	 * it is what renders that in the reader's locale — and what places it is the contract it
-	 * was made against, which is also the only way back to it. The contract's reference and its
+	 * was made against, which is also the only way back to it. Its direction crosses beside the
+	 * amount, so the surface names a refund as one (effort 854, requirement 25). The contract's
+	 * reference and its
 	 * tenant are each shown only to a member who may view their kind (effort 838, requirement 10).
 	 */
 	search: procedure
 		.permitted('viewPayment')
 		.input(RecordSearchSchema)
-		.query(async ({ input, ctx }): Promise<RecordMatch[]> => {
+		.query(async ({ input, ctx }): Promise<(RecordMatch & Pick<s.Payment, 'direction'>)[]> => {
 			const rows = await ctx.db
 				.select({
 					id: s.payment.id,
 					amount: s.payment.amount,
+					direction: s.payment.direction,
 					contractGovId: s.contract.govId,
 					tenantName: s.tenant.name
 				})
@@ -243,6 +246,7 @@ export default router({
 			return rows.map((row) => ({
 				id: row.id,
 				label: String(row.amount),
+				direction: row.direction,
 				hint: (viewsContract ? row.contractGovId : null) ?? (viewsTenant ? row.tenantName : '')
 			}));
 		}),

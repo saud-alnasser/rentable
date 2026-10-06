@@ -43,6 +43,8 @@ export const CONTRACT_REFUSAL_FIELDS = {
 	'contract.govIdTaken': 'govId',
 	'contract.govIdTakenNamed': 'govId',
 	'contract.periodOffCycle': 'end',
+	// a refund above what the contract may return is the amount to change, on the payment's form.
+	'contract.refundAboveLimit': 'amount',
 	'contract.renewalBeforeEnd': 'start',
 	'contract.tenantMissing': 'tenantId',
 	'contract.tenantMissingNamed': 'tenantId',

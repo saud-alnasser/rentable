@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [22]
 ---
 
@@ -15,10 +15,10 @@ A member who may record payments records, edits and deletes a refund from a cont
 
 Traces requirements 25 and 26, and criteria 25 and 26.
 
-- [ ] The "record refund" act with its unavailability reason; refund rows tagged and signed; month headers state received and returned.
-- [ ] The form's direction prop and limit hint; locked rows carry the note.
-- [ ] Payment page and palette show the direction; history freezes a refund's name; i18n in both languages.
-- [ ] Component and history tests per criteria 25 and 26 (the interface half), including the three limit hints.
+- [x] The "record refund" act with its unavailability reason; refund rows tagged and signed; month headers state received and returned.
+- [x] The form's direction prop and limit hint; locked rows carry the note.
+- [x] Payment page and palette show the direction; history freezes a refund's name; i18n in both languages.
+- [x] Component and history tests per criteria 25 and 26 (the interface half), including the three limit hints.
 
 ## Relevant areas
 

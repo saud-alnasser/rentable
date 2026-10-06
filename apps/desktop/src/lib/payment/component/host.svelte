@@ -10,14 +10,19 @@
 	import { showErrorSentence, showErrorToast, showSuccessToast } from '$lib/notification';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { i18nObject } from '$lib/i18n/i18n-util';
-	import { toPaymentCreateUnavailable, type PaymentActRecord } from '$lib/payment/acts';
+	import {
+		toPaymentCreateUnavailable,
+		toRefundCreateUnavailable,
+		type PaymentActRecord
+	} from '$lib/payment/acts';
 	import {
 		closePaymentConfirmation,
 		closePaymentForm,
 		openNewPaymentForm,
 		paymentActs,
 		paymentHostState,
-		resetPaymentHost
+		resetPaymentHost,
+		type PaymentPrefill
 	} from '$lib/payment/host.svelte';
 	import { useReadContract } from '$lib/contract/ui';
 	import { useDeletePayment, useReadPayment, useReadPaymentReceipt } from '$lib/payment/query';
@@ -58,6 +63,12 @@
 
 	// a payment has no name, and the nearest thing to one is its amount in the reader's locale.
 	const formatMoney = (value: number) => formatLocaleMoney($locale, value);
+	// a refund is named as one wherever the host names a payment, so a question about deleting it
+	// never reads as one about money received.
+	const nameOf = (payment: Pick<PaymentActRecord, 'amount' | 'direction'>) =>
+		payment.direction === 'refund'
+			? $LL.contracts.payments.refund.historyName({ amount: formatMoney(payment.amount) })
+			: formatMoney(payment.amount);
 
 	async function deleteConfirmed() {
 		if (!deleting) {
@@ -218,7 +229,7 @@
 			showErrorSentence(
 				$LL.common.ui.commandPaletteActDoesNotApply({
 					act: act?.label($LL) ?? actId,
-					record: formatMoney(payment.amount)
+					record: nameOf(payment)
 				})
 			);
 
@@ -235,11 +246,11 @@
 	}
 
 	/**
-	 * A new payment against the contract named: read the contract, and open the form where it takes
-	 * one. Where it takes none the create act's reason is the answer, the same line the ledger's
-	 * create control shows, so the command menu cannot open a form the ledger would refuse.
+	 * A new payment, or a new refund, against the contract named: read the contract, and open the
+	 * form where it takes one. Where it takes none the act's reason is the answer, the same line the
+	 * ledger's control shows, so the command menu cannot open a form the ledger would refuse.
 	 */
-	async function answerCreate(contractId: string) {
+	async function answerCreate({ contractId, direction }: PaymentPrefill) {
 		let contract: Awaited<ReturnType<typeof readContract>>;
 
 		try {
@@ -256,7 +267,10 @@
 			return;
 		}
 
-		const reason = toPaymentCreateUnavailable(contract, $LL);
+		const reason =
+			direction === 'refund'
+				? toRefundCreateUnavailable(contract, $LL)
+				: toPaymentCreateUnavailable(contract, $LL);
 
 		if (reason) {
 			showErrorSentence(reason);
@@ -264,7 +278,7 @@
 			return;
 		}
 
-		openNewPaymentForm(contractId);
+		openNewPaymentForm(contractId, direction);
 	}
 
 	// both requests are answered once and cleared first, so an answer that takes a read cannot be
@@ -299,7 +313,7 @@
 		}
 
 		paymentHostState.creating = null;
-		untrack(() => void answerCreate(creating.contractId));
+		untrack(() => void answerCreate(creating));
 	});
 
 	$effect(() => {
@@ -348,6 +362,7 @@
 		<PaymentForm
 			contractId={paymentHostState.form.contractId}
 			value={paymentHostState.form.value}
+			direction={paymentHostState.form.direction}
 			open={paymentHostState.form.open}
 			onOpenChange={(isOpen) => {
 				if (!isOpen) {
@@ -366,7 +381,7 @@
 			closePaymentConfirmation();
 		}
 	}}
-	record={deleting ? formatMoney(deleting.amount) : undefined}
+	record={deleting ? nameOf(deleting) : undefined}
 	description={$LL.common.deleteDialog.undoable()}
 	onSubmit={deleteConfirmed}
 />

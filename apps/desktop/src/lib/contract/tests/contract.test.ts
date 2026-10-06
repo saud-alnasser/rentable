@@ -10,6 +10,7 @@ import {
 	getPaidAmount,
 	getReceivedAmount,
 	getRefundableAmount,
+	getRefundableFromTotals,
 	getRefundedAmount,
 	getRemainingContractBalance,
 	isContractPaidInFull,
@@ -66,6 +67,38 @@ test('getRefundableAmount is the surplus on a live contract and everything recei
 		1500
 	);
 	assert.equal(getRefundableAmount({ ...live, status: 'terminated' }, REFUNDED), 2500);
+});
+
+// effort 854, ticket 24: the ledger and the refund form read the limit off the contract as it is
+// read, its net paid and its total, and it is the same figure the rows give.
+test("getRefundableFromTotals reads the limit the rows give off the contract's totals", () => {
+	const live = {
+		status: 'active' as const,
+		start: new Date('2026-01-01T00:00:00.000Z'),
+		end: new Date('2026-12-31T00:00:00.000Z'),
+		interval: '12m' as const,
+		cost: 3000
+	};
+	const totals = (status: 'active' | 'terminated', rows: typeof REFUNDED) => ({
+		status,
+		paidAmount: getPaidAmount(rows),
+		expectedAmount: 3000
+	});
+	const overpaid = [
+		{ amount: 5000, date: 0 },
+		{ amount: 500, date: 0, direction: 'refund' as const }
+	];
+
+	for (const rows of [REFUNDED, overpaid, [{ amount: 3000, date: 0 }]]) {
+		assert.equal(getRefundableFromTotals(totals('active', rows)), getRefundableAmount(live, rows));
+		assert.equal(
+			getRefundableFromTotals(totals('terminated', rows)),
+			getRefundableAmount({ ...live, status: 'terminated' }, rows)
+		);
+	}
+
+	// a refund being edited is not weighed against itself: its own amount is back within reach.
+	assert.equal(getRefundableFromTotals(totals('active', overpaid), 500), 2000);
 });
 
 test('a refund takes a contract out of paid in full, and its status follows the net', () => {

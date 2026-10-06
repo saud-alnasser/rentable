@@ -1,5 +1,6 @@
 import { mayRun } from '$lib/act';
 import { declarePaymentActs, type PaymentActId, type PaymentActRecord } from '$lib/payment/acts';
+import type { PaymentDirection } from '$lib/platform/database/schema';
 
 /**
  * THE PAYMENT HOST, ASKED FOR ANYWHERE AND DRAWN ONCE
@@ -14,8 +15,11 @@ import { declarePaymentActs, type PaymentActId, type PaymentActRecord } from '$l
 /** A payment as the form edits it, or the details a new one starts from. */
 export type PaymentFormValue = Omit<PaymentActRecord, 'id'> & { id?: string };
 
-/** What a new payment starts with: the contract it is made against, which it cannot be without. */
-export type PaymentPrefill = { contractId: string };
+/**
+ * What a new payment starts with: the contract it is made against, which it cannot be without, and
+ * which way the money goes, received where it is not named.
+ */
+export type PaymentPrefill = { contractId: string; direction?: PaymentDirection };
 
 type PaymentHostState = {
 	/**
@@ -24,7 +28,14 @@ type PaymentHostState = {
 	 * what was typed into the first. The contract is kept on closing, so the form stays mounted
 	 * rather than reading a contract that is not there.
 	 */
-	form: { open: boolean; key: number; contractId?: string; value?: PaymentFormValue };
+	form: {
+		open: boolean;
+		key: number;
+		contractId?: string;
+		value?: PaymentFormValue;
+		/** which way a new payment's money goes; an edit or a duplicate reads its own. */
+		direction?: PaymentDirection;
+	};
 	/** the one payment being asked about. */
 	deleting: PaymentActRecord | null;
 	/** the payment whose details are on their way to the clipboard. */
@@ -46,13 +57,22 @@ export const paymentHostState = $state<PaymentHostState>({
 	creating: null
 });
 
-function openForm(contractId: string, value?: PaymentFormValue) {
-	paymentHostState.form = { contractId, value, open: true, key: paymentHostState.form.key + 1 };
+function openForm(contractId: string, value?: PaymentFormValue, direction?: PaymentDirection) {
+	paymentHostState.form = {
+		contractId,
+		value,
+		direction,
+		open: true,
+		key: paymentHostState.form.key + 1
+	};
 }
 
-/** Open the form on a new payment against a contract the host has found takes one. */
-export function openNewPaymentForm(contractId: string) {
-	openForm(contractId);
+/**
+ * Open the form on a new payment, or a new refund, against a contract the host has found takes
+ * one.
+ */
+export function openNewPaymentForm(contractId: string, direction?: PaymentDirection) {
+	openForm(contractId, undefined, direction);
 }
 
 /** The form was dismissed: it goes, and the next opening starts on a clean draft. */

@@ -1,5 +1,10 @@
 <script lang="ts">
-	import { PAYMENT_METHODS, type Payment, type PaymentMethod } from '$lib/platform/database/schema';
+	import {
+		PAYMENT_METHODS,
+		type Payment,
+		type PaymentDirection,
+		type PaymentMethod
+	} from '$lib/platform/database/schema';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Calendar from '@rentable/design/primitive/calendar/index.js';
 	import FieldError from '@rentable/design/block/field-error.svelte';
@@ -20,7 +25,11 @@
 	import { formatLocaleMoney, getIntlLocale, RIYAL, toWesternDigits } from '$lib/platform/locale';
 	import { isWholeHalalas } from '@rentable/design/money.js';
 	import { cn } from '@rentable/design/tailwind.js';
-	import { getAmountDueThisCycle, getRemainingContractBalance } from '$lib/contract';
+	import {
+		getAmountDueThisCycle,
+		getRefundableFromTotals,
+		getRemainingContractBalance
+	} from '$lib/contract';
 	import { useFetchContract } from '$lib/contract/ui';
 	import { onMutationError } from '$lib/mutation/ui';
 	import { fieldOfFailure, toRefusalText } from '$lib/error/refusal';
@@ -71,6 +80,7 @@
 	let {
 		contractId,
 		value,
+		direction: asked = 'received',
 		open,
 		onOpenChange,
 		onCreated
@@ -78,6 +88,12 @@
 		contractId: string;
 		/** the payment being edited, or the details a new one starts from when duplicating. */
 		value?: Omit<Payment, 'id'> & { id?: string };
+		/**
+		 * which way a new payment's money goes: received from the tenant, or a refund returned to
+		 * them (effort 854, requirements 25 and 26). An edit or a duplicate goes the way its payment
+		 * went, since an edit never turns one into the other.
+		 */
+		direction?: PaymentDirection;
 		open: boolean;
 		onOpenChange: (value: boolean) => void;
 		/**
@@ -114,6 +130,7 @@
 	// open when the surface closes would otherwise open again with it.
 	let isDatePickerOpen = $state(false);
 	let isEditMode = $derived(Boolean(value?.id));
+	const isRefund = $derived((value?.direction ?? asked) === 'refund');
 	let isPending = $derived(createMutation.isPending || updateMutation.isPending);
 
 	let { form, constraints, errors, enhance, reset, ...rest } = superForm<PaymentForm>(
@@ -146,6 +163,7 @@
 					} else {
 						const created = await createMutation.mutateAsync({
 							contractId,
+							direction: isRefund ? 'refund' : 'received',
 							...payload
 						});
 
@@ -223,10 +241,13 @@
 	// figures rather than typing them. The amount waits for the contract to be read, is filled once
 	// per opening, and never over anything the reader has typed. An edit or a duplicate opens on
 	// the payment it came from instead.
+	//
+	// A refund is not filled: there is no ordinary one to confirm, and the most that may be returned
+	// is a limit to stay within rather than the figure most readers want. The form states it instead.
 	$effect(() => {
 		const contract = contractQuery.data;
 
-		if (!open || value || !contract || isAmountFilled) {
+		if (!open || value || isRefund || !contract || isAmountFilled) {
 			return;
 		}
 
@@ -276,29 +297,72 @@
 	let submittedRemaining = $state<number | undefined>(undefined);
 
 	const remainingAfter = $derived(submittedRemaining ?? projectedRemaining);
+
+	// the most this refund may return, stated before an amount is typed, so the reader is guided to
+	// a figure the workspace takes rather than refused one (effort 854, requirement 26). Read off the
+	// contract's totals, with the refund being edited set aside; the procedure weighs the rows and
+	// is still the authority, and its refusal lands under the amount.
+	const refundable = $derived(
+		contractQuery.data && isRefund
+			? getRefundableFromTotals(contractQuery.data, value?.id ? value.amount : 0)
+			: undefined
+	);
+	// why nothing may be refunded, where nothing may: a terminated contract has returned all it
+	// received, and a live one was paid nothing beyond its total.
+	const refundWhy = $derived.by(() => {
+		if (refundable !== 0 || !contractQuery.data) {
+			return undefined;
+		}
+
+		return contractQuery.data.status === 'terminated'
+			? $LL.contracts.payments.refund.unavailable.nothingLeftToRefund()
+			: $LL.contracts.payments.refund.unavailable.nothingToRefund();
+	});
 </script>
 
-<FormSurface {open} {onOpenChange} {enhance} weight="light" title={$LL.common.labels.payment()}>
+<FormSurface
+	{open}
+	{onOpenChange}
+	{enhance}
+	weight="light"
+	title={isRefund ? $LL.contracts.payments.refund.title() : $LL.common.labels.payment()}
+>
 	<div class="flex flex-col gap-4">
-		<!-- what this payment does to the contract, above the field that decides it. -->
-		<div class="grid grid-cols-2 gap-3 rounded-2xl border border-primary/25 bg-primary/5 p-4">
-			<div class="flex min-w-0 flex-col">
+		{#if isRefund}
+			<!-- the most this refund may return, above the field that decides it, where the payment's
+			     balance stands on a payment; and why, where it is nothing. -->
+			<div class="flex flex-col gap-1 rounded-2xl border border-primary/25 bg-primary/5 p-4">
 				<span class="truncate text-xs text-muted-foreground">
-					{$LL.contracts.payments.remainingBalance()}
+					{$LL.contracts.payments.refund.limitHint()}
 				</span>
-				<span class="truncate font-medium tabular-nums">
-					{remaining === undefined ? '—' : formatMoney(remaining)}
+				<span class="truncate font-medium tabular-nums" data-refund-limit>
+					{refundable === undefined ? '—' : formatMoney(refundable)}
 				</span>
+				{#if refundWhy}
+					<span class="text-xs text-muted-foreground" data-refund-why>{refundWhy}</span>
+				{/if}
 			</div>
-			<div class="flex min-w-0 flex-col">
-				<span class="truncate text-xs text-muted-foreground">
-					{$LL.contracts.payments.remainingAfter()}
-				</span>
-				<span class="truncate font-medium tabular-nums">
-					{remainingAfter === undefined ? '—' : formatMoney(remainingAfter)}
-				</span>
+		{:else}
+			<!-- what this payment does to the contract, above the field that decides it. -->
+			<div class="grid grid-cols-2 gap-3 rounded-2xl border border-primary/25 bg-primary/5 p-4">
+				<div class="flex min-w-0 flex-col">
+					<span class="truncate text-xs text-muted-foreground">
+						{$LL.contracts.payments.remainingBalance()}
+					</span>
+					<span class="truncate font-medium tabular-nums">
+						{remaining === undefined ? '—' : formatMoney(remaining)}
+					</span>
+				</div>
+				<div class="flex min-w-0 flex-col">
+					<span class="truncate text-xs text-muted-foreground">
+						{$LL.contracts.payments.remainingAfter()}
+					</span>
+					<span class="truncate font-medium tabular-nums">
+						{remainingAfter === undefined ? '—' : formatMoney(remainingAfter)}
+					</span>
+				</div>
 			</div>
-		</div>
+		{/if}
 
 		<Form.Field form={superform} name="date" class="group relative">
 			<Form.Control>

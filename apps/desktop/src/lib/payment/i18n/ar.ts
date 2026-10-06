@@ -37,6 +37,27 @@ export const payments = {
 	reference: 'المرجع',
 	referenceOptional: 'المرجع (اختياري)',
 	referencePlaceholder: 'رقم التحويل أو الشيك أو سداد',
+	refund: {
+		created: 'تم تسجيل الاسترداد بنجاح!',
+		deleted: 'تم حذف الاسترداد بنجاح!',
+		historyName: 'استرداد {amount}',
+		kind: 'النوع',
+		limitHint: 'أقصى ما يمكن استرداده',
+		locked: 'العقد منتهٍ. استعِده لتعديل هذه الدفعة.',
+		monthReceived: 'المستلم',
+		monthReturned: 'المسترد',
+		monthReturnedTotal: 'المسترد في {month}',
+		new: 'تسجيل استرداد',
+		received: 'دفعة مستلمة',
+		tag: 'استرداد',
+		title: 'استرداد',
+		unavailable: {
+			nothingLeftToRefund: 'لم يبقَ مما استلمه هذا العقد شيء يمكن استرداده.',
+			nothingToRefund:
+				'لم يُدفع شيء زائد على إجمالي هذا العقد. الدفعة المسجلة بالخطأ تُحذف بدلاً من ذلك.'
+		},
+		updated: 'تم تحديث الاسترداد بنجاح!'
+	},
 	remaining: 'متبقٍ {amount}',
 	remainingAfter: 'المتبقي بعد هذه الدفعة',
 	remainingBalance: 'الرصيد المتبقي',

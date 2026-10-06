@@ -120,6 +120,25 @@ export function getRefundableAmount(contract: ContractLike, payments: PaymentLik
 	return Math.max(0, returnable);
 }
 
+/**
+ * The same limit as {@link getRefundableAmount}, read off the two aggregates reconcile
+ * materializes onto the contract rather than its rows: what it counts as paid is what it received
+ * less what it returned, and what it expects is its total cost. The ledger and the refund form read
+ * it to say how much may be refunded before the reader types; the procedure still weighs the rows.
+ *
+ * `editing` is the amount of a refund being edited, which is not weighed against itself.
+ */
+export function getRefundableFromTotals(
+	contract: Pick<Contract, 'status' | 'paidAmount' | 'expectedAmount'>,
+	editing = 0
+) {
+	const paid = contract.paidAmount + editing;
+	const returnable = contract.status === 'terminated' ? paid : paid - contract.expectedAmount;
+
+	// to the halala the form takes, as the refusal states it, so float dust is never a limit.
+	return Math.max(0, Math.round(returnable * 100) / 100);
+}
+
 export function hasSatisfiedContractPaymentRequirement(paidAmount: number, expectedAmount: number) {
 	return paidAmount + EPSILON >= expectedAmount;
 }

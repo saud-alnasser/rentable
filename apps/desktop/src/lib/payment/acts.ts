@@ -1,4 +1,8 @@
-import { hasSatisfiedContractPaymentRequirement } from '$lib/contract';
+import {
+	getRefundableFromTotals,
+	hasSatisfiedContractPaymentRequirement,
+	isRefund
+} from '$lib/contract';
 import type { RecordAct } from '$lib/act';
 import type { TranslationFunctions } from '$lib/i18n/i18n-types';
 import type { Contract, Payment } from '$lib/platform/database/schema';
@@ -17,10 +21,12 @@ import Trash2Icon from '@lucide/svelte/icons/trash-2';
  * those is a projection of this list (`act/act.ts`), so none of them can offer an act another
  * does not.
  *
- * **A terminated contract's payments are read-only.** Copying and printing a receipt are reads, so
- * they stand outside that lock; everything that writes is shown refused, with the contract's state
- * as its reason, because it applies to a payment and cannot run now ([[rules/interface]],
- * *Guidance*). The refusal itself is the procedure's; this only decides what the surfaces offer.
+ * **A terminated contract's received payments are read-only.** Copying and printing a receipt are
+ * reads, so they stand outside that lock; everything that writes is shown refused, saying why and
+ * what unlocks it, because it applies to a payment and cannot run now ([[rules/interface]],
+ * *Guidance*). A refund is not locked: it is how a terminated contract is settled, so it is edited
+ * and deleted there directly (effort 854, requirement 25). The refusal itself is the procedure's;
+ * this only decides what the surfaces offer.
  */
 
 /**
@@ -63,17 +69,21 @@ export type PaymentHostRequests = {
 export type PaymentAct = RecordAct<PaymentActRecord> & { id: PaymentActId };
 
 /**
- * Why the payment takes no change now, or nothing where it does: its contract is terminated, and a
- * terminated contract's statement is read-only.
+ * Why the payment takes no change now, or nothing where it does: it was received on a contract that
+ * is terminated, whose received payments are read-only until the contract is restored. A refund
+ * takes changes there, within its limit, which the procedure weighs.
  */
 const toWriteUnavailable = (payment: PaymentActRecord, t: TranslationFunctions) =>
-	payment.contractStatus === 'terminated' ? t.contracts.payments.terminatedNotice() : undefined;
+	payment.contractStatus === 'terminated' && !isRefund(payment)
+		? t.contracts.payments.refund.locked()
+		: undefined;
 
 /**
  * Why the payment cannot be duplicated now, or nothing where it can. A duplicate is a new payment,
  * so it is refused for what refuses creating one ({@link toPaymentCreateUnavailable}): a contract
- * paid in full takes no new payment either way it is asked for. Where the surface has not read
- * what the contract is paid, only its status can refuse.
+ * paid in full takes no new payment either way it is asked for. A refund's duplicate is a new
+ * refund, refused for what refuses one ({@link toRefundCreateUnavailable}). Where the surface has
+ * not read what the contract is paid, only its status can refuse, and only a received payment.
  */
 function toDuplicateUnavailable(payment: PaymentActRecord, t: TranslationFunctions) {
 	const {
@@ -83,10 +93,15 @@ function toDuplicateUnavailable(payment: PaymentActRecord, t: TranslationFunctio
 	} = payment;
 
 	if (status === undefined || paidAmount === undefined || expectedAmount === undefined) {
-		return toWriteUnavailable(payment, t);
+		return isRefund(payment) || status !== 'terminated'
+			? undefined
+			: t.contracts.payments.terminatedNotice();
 	}
 
-	return toPaymentCreateUnavailable({ status, paidAmount, expectedAmount }, t);
+	// a refund's duplicate is a new refund, refused where nothing more may be refunded.
+	return isRefund(payment)
+		? toRefundCreateUnavailable({ status, paidAmount, expectedAmount }, t)
+		: toPaymentCreateUnavailable({ status, paidAmount, expectedAmount }, t);
 }
 
 /**
@@ -178,4 +193,30 @@ export function toPaymentCreateUnavailable(
 	}
 
 	return undefined;
+}
+
+/**
+ * Why a contract takes no refund now, in one line, or nothing where it does: the reason the
+ * ledger's refund control shows, and the host answers with wherever a refund is asked for
+ * ([[rules/interface]], *Guidance*).
+ *
+ * A reader who may not add payments is told so first, as for a new payment. Otherwise a refund is
+ * refused only where nothing may be refunded (effort 854, requirement 26), and the reason says
+ * which: a live contract returns only what it was paid beyond its total, and a terminated one only
+ * what it received and has not returned yet. The figure is read off the contract's totals; the
+ * procedure weighs its rows and stays the authority.
+ */
+export function toRefundCreateUnavailable(
+	contract: PaymentCreateContract | undefined,
+	t: TranslationFunctions
+): string | undefined {
+	const refused = memberPermissions.refusal('createPayment', t);
+
+	if (refused || !contract || getRefundableFromTotals(contract) > 0) {
+		return refused;
+	}
+
+	return contract.status === 'terminated'
+		? t.contracts.payments.refund.unavailable.nothingLeftToRefund()
+		: t.contracts.payments.refund.unavailable.nothingToRefund();
 }

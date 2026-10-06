@@ -19,7 +19,8 @@ test('a month group carries the first of its month and what its rows add up to',
 	assert.deepEqual(monthOf(payments[0]), {
 		key: '2026-03',
 		start: Date.UTC(2026, 2, 1),
-		total: 900
+		total: 900,
+		returned: 0
 	});
 	assert.deepEqual(monthOf(payments[1]), monthOf(payments[0]));
 });
@@ -31,6 +32,18 @@ test('each month totals only its own rows', () => {
 	assert.equal(monthOf(payments[0]).total, 500);
 	assert.equal(monthOf(payments[1]).total, 400);
 	assert.equal(monthOf(payments[1]).key, '2026-02');
+});
+
+// effort 854, requirement 25: a month states what it received and what it returned, side by side
+// and never netted, so a refund reads as money going out rather than as a smaller payment.
+test('a month states what it received and, apart from it, what it returned', () => {
+	const refund = { ...payment(2026, 3, 25, 300), direction: 'refund' as const };
+	const payments = [payment(2026, 3, 20, 500), refund, payment(2026, 3, 2, 400)];
+	const monthOf = paymentLedgerMonths(payments);
+
+	assert.equal(monthOf(refund).total, 900, 'the refund is not taken off what was received');
+	assert.equal(monthOf(refund).returned, 300);
+	assert.equal(monthOf(payment(2026, 2, 1, 1)).returned, 0, 'a month with no refund returned none');
 });
 
 test('a month is a UTC calendar month, so a boundary day belongs to the month it falls in', () => {
@@ -55,7 +68,8 @@ test('a payment outside the set reads its own month and contributes nothing to t
 	assert.deepEqual(monthOf(payment(2025, 12, 31, 700)), {
 		key: '2025-12',
 		start: Date.UTC(2025, 11, 1),
-		total: 0
+		total: 0,
+		returned: 0
 	});
 });
 
@@ -63,7 +77,12 @@ test('a date arriving as a Date groups the same as the timestamp it stands for',
 	const asDate = { date: new Date(Date.UTC(2026, 2, 20)), amount: 500 };
 	const monthOf = paymentLedgerMonths([asDate]);
 
-	assert.deepEqual(monthOf(asDate), { key: '2026-03', start: Date.UTC(2026, 2, 1), total: 500 });
+	assert.deepEqual(monthOf(asDate), {
+		key: '2026-03',
+		start: Date.UTC(2026, 2, 1),
+		total: 500,
+		returned: 0
+	});
 });
 
 test('a month is named in the calendar its group was cut in', () => {
