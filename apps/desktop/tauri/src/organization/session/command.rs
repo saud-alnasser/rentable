@@ -24,7 +24,7 @@ use crate::organization::{
     HeldOrganization,
     act::{Acting, Pull, as_member, owner_platform},
     invitation::join,
-    ownership,
+    lease, ownership,
     session::{
         self, HeldByVersion, MachineView, SessionFacts, SessionsEnded, both_verdicts, forget,
         held_by_version, release_the_wall, replicated_judged_then_healed, replicated_then_judged,
@@ -133,11 +133,22 @@ impl OrganizationState {
 /// application opens on the workspace the person had last, with no wall in between.
 #[tauri::command(rename = "session_state_get")]
 pub(crate) async fn organization_session_state_get(
+    app: tauri::AppHandle,
     app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
 ) -> Result<OrganizationState, Error> {
-    state_of(&app_state, &credentials, &clock).await
+    let launching = app_state.old_shape_check.get().is_none();
+    let state = state_of(&app_state, &credentials, &clock).await?;
+
+    // a launch that came back signed in brings up, in the background, every workspace behind this
+    // build that the member may (effort 857, ticket 40); every read after it leaves that to the
+    // heartbeat.
+    if launching && state.session.is_some() {
+        lease::behind::in_the_background(&app);
+    }
+
+    Ok(state)
 }
 
 /// The state, with the once-per-launch check made first.
@@ -385,6 +396,7 @@ pub(crate) async fn remove(
 /// learns which member this person is; `invitation/join.rs` says how.
 #[tauri::command(rename = "session_sign_in")]
 pub(crate) async fn organization_session_sign_in(
+    app: tauri::AppHandle,
     app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
@@ -466,7 +478,13 @@ pub(crate) async fn organization_session_sign_in(
     // what this machine runs, where that changed since it last said (effort 857, requirement 4).
     session::version_recorded(&app_state).await;
 
-    state_of(&app_state, &credentials, &clock).await
+    let state = state_of(&app_state, &credentials, &clock).await?;
+
+    // and every workspace behind this build that the member may bring up, in the background
+    // (effort 857, ticket 40).
+    lease::behind::in_the_background(&app);
+
+    Ok(state)
 }
 
 /// Put the wall back up: drop the keys this process held, and let go of the replica. The record
@@ -737,16 +755,25 @@ async fn held_here(app_state: &Shared) -> Result<HeldOrganization, Error> {
 /// so on `standing`. The shell reads that and puts the wall up.
 #[tauri::command(rename = "session_replicate")]
 pub(crate) async fn organization_session_replicate(
+    app: tauri::AppHandle,
     app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
 ) -> Result<Replication, Error> {
-    replicate(
+    let replicated = replicate(
         app_state.inner(),
         credentials.inner().as_ref(),
         clock.inner(),
     )
-    .await
+    .await?;
+
+    // and every workspace behind this build that the member may bring up, in the background
+    // (effort 857, ticket 40): a beat that finds nothing behind reads the replica and sends nothing.
+    if replicated.standing == SessionStanding::Held {
+        lease::behind::in_the_background(&app);
+    }
+
+    Ok(replicated)
 }
 
 /// [`organization_session_replicate`] over the application's state, as a test drives it.
@@ -1177,6 +1204,7 @@ mod tests {
             signed_out_elsewhere: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             held_by_version: Arc::new(std::sync::Mutex::new(None)),
             old_shape_check: tokio::sync::OnceCell::new(),
+            bringing_up: Default::default(),
         }
     }
 

@@ -1294,7 +1294,7 @@ type RootTranslation = {
 				 */
 				workspaceNewer: string;
 				/**
-				 * t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​n​e​e​d​s​ ​u​p​g​r​a​d​i​n​g​,​ ​a​n​d​ ​r​e​a​d​-​o​n​l​y​ ​a​c​c​e​s​s​ ​c​a​n​n​o​t​ ​d​o​ ​i​t​.​ ​a​s​k​ ​a​ ​m​e​m​b​e​r​ ​w​i​t​h​ ​f​u​l​l​ ​a​c​c​e​s​s​ ​t​o​ ​o​p​e​n​ ​i​t​ ​o​n​c​e​.
+				 * t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​i​s​ ​w​a​i​t​i​n​g​ ​f​o​r​ ​s​o​m​e​o​n​e​ ​w​i​t​h​ ​f​u​l​l​ ​a​c​c​e​s​s​ ​t​o​ ​o​p​e​n​ ​i​t​ ​o​n​ ​t​h​e​ ​n​e​w​ ​v​e​r​s​i​o​n​ ​o​f​ ​r​e​n​t​a​b​l​e​.​ ​t​r​y​ ​a​g​a​i​n​ ​l​a​t​e​r​.
 				 */
 				workspaceBehind: string;
 				/**
@@ -6930,7 +6930,7 @@ export type TranslationFunctions = {
 				 */
 				workspaceNewer: () => LocalizedString;
 				/**
-				 * this workspace needs upgrading, and read-only access cannot do it. ask a member with full access to open it once.
+				 * this workspace is waiting for someone with full access to open it on the new version of rentable. try again later.
 				 */
 				workspaceBehind: () => LocalizedString;
 				/**

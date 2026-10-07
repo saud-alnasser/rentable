@@ -6,7 +6,10 @@
 //! migrations over the wire under its own full-access credential, records the new version, and
 //! releases the lease. No machine is special: any member may hold the lease, because the
 //! alternatives were rejected in the plan, and an organization whose owner is away still
-//! upgrades. The trigger is a client opening the workspace, never a sweep.
+//! upgrades. The trigger is a client opening the workspace, or, since effort 857's ticket 40, a
+//! machine whose member holds full access bringing up in the background every workspace it may
+//! after a sign-in, a resume or a heartbeat ([`behind`]), so a member who only reads it does not
+//! wait on somebody choosing to open it.
 //!
 //! **What opening runs is every step shipped before 857 and every addition** (effort 857, ticket
 //! 03). A step declared after 857 as an upgrade can stop somebody, so it waits for the explicit
@@ -61,6 +64,7 @@
 //! transaction.
 
 pub mod apply;
+pub mod behind;
 #[cfg(test)]
 pub(crate) mod test;
 
@@ -472,6 +476,21 @@ pub fn newer(name: &str, level: i64, known: i64) -> Error {
     )
 }
 
+/// The refusal of a workspace behind a step a reader needs, met by a member whose grant on it is
+/// read-only and so cannot run the step (effort 857, ticket 40): it waits for somebody with full
+/// access to open rentable on the new version, whose machine then brings it up in the background
+/// ([`behind`]).
+pub fn waiting_for_full_access(name: &str) -> Error {
+    Error::refused(
+        RefusalReason::WorkspaceBehind,
+        format!(
+            "{name} is waiting for somebody with full access to open it on the new version of \
+             rentable, which brings it up; read-only access cannot. nothing in it was read or \
+             written"
+        ),
+    )
+}
+
 /// Whether opening the workspace runs anything on it: a step shipped before 857 or an addition
 /// above the level the organization records for it ([`level_of`]), which this build knows. A step
 /// declared after 857 as an upgrade is never pending here; it waits for the explicit act (effort
@@ -567,6 +586,108 @@ async fn release_after<L: LeaseAuthority>(lease: &L, workspace_id: &str, holder:
     }
 }
 
+/// The copies taken of a workspace once its lease is held and before its first statement (effort
+/// 838, ticket 28), under the data directory `directory`, read over `pipeline` with `token`, the
+/// credential the steps go over. A local copy that could not be written refuses, and nothing is to
+/// be applied; the copy on the owner's account, where `account` is this machine's, is made once a
+/// label and logged where it is made, and the steps go on with the local copy either way.
+///
+/// What opening and the background bring-up ([`behind`]) both take: neither runs a step without it.
+async fn copied<P: TursoPlatform>(
+    directory: &std::path::Path,
+    pipeline: &Pipeline,
+    token: &str,
+    database_name: &str,
+    label: &str,
+    taken_at: i64,
+    account: Option<&P>,
+) -> Result<(), Error> {
+    backup::local_copy(
+        &OverThePipeline::new(pipeline, token),
+        directory,
+        database_name,
+        label,
+        taken_at,
+    )
+    .await?;
+
+    if let Some(account) = account
+        && !backup::remote_copy_made(directory, database_name, label)
+        && let Ok(name) = backup::remote_copy(account, database_name, label, taken_at).await
+    {
+        backup::remember_remote_copy(directory, database_name, label, &name);
+    }
+
+    Ok(())
+}
+
+/// Say what bringing the workspace `workspace_id` up from `level` ran, or that its own record
+/// already said every step had run: a migration that committed and was never recorded, and only
+/// the record is brought up.
+fn logged(workspace_id: &str, level: u32, brought: &apply::Brought) {
+    if brought.ran.is_empty() {
+        diagnostics::info("organization.migration.alreadyAt")
+            .with("workspace", workspace_id)
+            .with("recorded", level.to_string().as_str())
+            .with("at", brought.version.to_string().as_str())
+            .write();
+    } else {
+        diagnostics::info("organization.migration.applied")
+            .with("workspace", workspace_id)
+            .with("from", brought.from.to_string().as_str())
+            .with("to", brought.version.to_string().as_str())
+            .with(
+                "steps",
+                brought
+                    .ran
+                    .iter()
+                    .map(u32::to_string)
+                    .collect::<Vec<String>>()
+                    .join(",")
+                    .as_str(),
+            )
+            .write();
+    }
+}
+
+/// Record in the organization what bringing the workspace `workspace_id` up committed, and send
+/// it: answers the `schema_version` recorded for it now, `recorded` before.
+///
+/// **The number builds before 857 read follows only the steps shipped before 857**, `settled`, and
+/// the floors the workspace keeps itself are written beside it where they moved.
+async fn recorded_after(
+    store: &OrganizationStore,
+    workspace_id: &str,
+    recorded: i64,
+    settled: i64,
+    brought: &apply::Brought,
+    now: &impl Fn() -> i64,
+) -> Result<i64, Error> {
+    let legacy = recorded.max(i64::from(brought.version).min(settled));
+
+    if legacy != recorded {
+        store
+            .record_schema_version(workspace_id, legacy, now())
+            .await?;
+    }
+
+    if let Some(floors) = brought.floors
+        && store.workspace_floor(workspace_id).await? != Some(floors)
+    {
+        store
+            .record_workspace_floor(workspace_id, floors, now())
+            .await?;
+    }
+
+    if !store.push().await {
+        diagnostics::warn("organization.migration.versionNotYetSent")
+            .with("workspace", workspace_id)
+            .write();
+    }
+
+    Ok(legacy)
+}
+
 /// Run on a workspace every step opening it runs, under a lease, or wait while another member
 /// does: each step shipped before 857, as 0.20 ran them, and each addition declared after
 /// (effort 857, ticket 03). A step declared after 857 as an upgrade is left for the explicit act,
@@ -652,13 +773,7 @@ where
     // otherwise a read-only grant is owed the sentence, and the workspace opens for them once a
     // member with full access has opened it.
     if pending_from(migrations, level) && held.access != AccessLevel::FullAccess {
-        return Err(Error::refused(
-            RefusalReason::WorkspaceBehind,
-            format!(
-                "{} is behind this version and read-only access cannot bring it up. ask a member with full access to open it once",
-                facts.name
-            ),
-        ));
+        return Err(waiting_for_full_access(&facts.name));
     }
 
     // an organization this build may not write takes no lease from it either (ticket 27): the
@@ -701,36 +816,23 @@ where
                 // with the credential the migrations go over. A copy that could not be taken
                 // releases the lease at once, as a failed migration does, and nothing is applied.
                 let label = format!("schema-{level}-to-{known}");
-                let copied = backup::local_copy(
-                    &OverThePipeline::new(pipeline, &held.token),
+
+                if let Err(refusal) = copied(
                     store.directory(),
+                    pipeline,
+                    &held.token,
                     &facts.database_name,
                     &label,
                     taken_at,
+                    account,
                 )
-                .await;
-
-                if let Err(refusal) = copied {
+                .await
+                {
                     // the copy's refusal is the answer, and a release that fails too is logged
                     // rather than put in its place; the lease runs out on its own.
                     release_after(lease, &facts.id, &session.member_id).await;
 
                     return Err(refusal);
-                }
-
-                // refused or made, the account's copy is logged where it is made, and the
-                // migration goes on with the local copy either way.
-                if let Some(account) = account
-                    && !backup::remote_copy_made(store.directory(), &facts.database_name, &label)
-                    && let Ok(name) =
-                        backup::remote_copy(account, &facts.database_name, &label, taken_at).await
-                {
-                    backup::remember_remote_copy(
-                        store.directory(),
-                        &facts.database_name,
-                        &label,
-                        &name,
-                    );
                 }
 
                 let brought = apply::bring_up(
@@ -757,68 +859,21 @@ where
                     Ok(brought) => brought,
                 };
 
-                if brought.ran.is_empty() {
-                    // the workspace's own record already said every step this build runs had
-                    // run: a migration that committed and was never recorded, and only the
-                    // record is brought up.
-                    diagnostics::info("organization.migration.alreadyAt")
-                        .with("workspace", facts.id.as_str())
-                        .with("recorded", level.to_string().as_str())
-                        .with("at", brought.version.to_string().as_str())
-                        .write();
-                } else {
-                    diagnostics::info("organization.migration.applied")
-                        .with("workspace", facts.id.as_str())
-                        .with("from", brought.from.to_string().as_str())
-                        .with("to", brought.version.to_string().as_str())
-                        .with(
-                            "steps",
-                            brought
-                                .ran
-                                .iter()
-                                .map(u32::to_string)
-                                .collect::<Vec<String>>()
-                                .join(",")
-                                .as_str(),
-                        )
-                        .write();
-                }
+                logged(&facts.id, level, &brought);
 
                 // the migration has committed, so a record that fails still lets the lease go:
                 // held, it would keep everybody else waiting out its deadline over a workspace
-                // already brought up, which the next taker finds and records. The number builds
-                // before 857 read follows only the steps shipped before 857.
-                let legacy = recorded.max(i64::from(brought.version).min(settled));
-                let written = async {
-                    if legacy != recorded {
-                        store
-                            .record_schema_version(&facts.id, legacy, now())
-                            .await?;
-                    }
-
-                    if let Some(floors) = brought.floors
-                        && store.workspace_floor(&facts.id).await? != Some(floors)
+                // already brought up, which the next taker finds and records.
+                let legacy =
+                    match recorded_after(store, &facts.id, recorded, settled, &brought, &now).await
                     {
-                        store
-                            .record_workspace_floor(&facts.id, floors, now())
-                            .await?;
-                    }
+                        Err(refusal) => {
+                            release_after(lease, &facts.id, &session.member_id).await;
 
-                    Ok::<(), Error>(())
-                }
-                .await;
-
-                if let Err(refusal) = written {
-                    release_after(lease, &facts.id, &session.member_id).await;
-
-                    return Err(refusal);
-                }
-
-                if !store.push().await {
-                    diagnostics::warn("organization.migration.versionNotYetSent")
-                        .with("workspace", facts.id.as_str())
-                        .write();
-                }
+                            return Err(refusal);
+                        }
+                        Ok(legacy) => legacy,
+                    };
 
                 lease.release(&facts.id, &session.member_id).await?;
 
@@ -3473,5 +3528,93 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// **Ticket 40's third criterion, on the shipped ladder** (effort 857, requirements 1 and 7).
+    /// Every workspace 0.20 left is at 7, with `0007`, which a reader does not need, and `0008`,
+    /// which adds the columns every read names, both pending. A member with a read-only grant
+    /// cannot run either, so opening it refuses them as `WorkspaceBehind`, the reason the
+    /// workspace-held screen says, with a sentence saying it waits for somebody with full access to
+    /// open it on the new version; reaching it over Turso refuses the same; and nothing is sent to
+    /// the workspace or written to the organization.
+    #[tokio::test]
+    async fn a_reader_on_the_shipped_ladder_waits_for_full_access_on_the_new_version() {
+        use crate::organization::workspace::remote::reach;
+
+        let credentials = Memory::new();
+        let directory = scratch("reader-shipped-ladder");
+        let (store, _, mut member, workspace_id) = organization(&credentials, &directory).await;
+        let pipeline = LocalPipeline::start().await;
+
+        at_7_with_a_tenant(&store, &workspace_id, &pipeline).await;
+        reading_only(&mut member, &workspace_id);
+
+        let pending: Vec<&str> = apply::SHIPPED
+            .steps
+            .on_open(7, &[])
+            .into_iter()
+            .map(|number| apply::SHIPPED.files[number as usize - 1].0)
+            .collect();
+
+        assert_eq!(pending.len(), 2, "{pending:?}");
+        assert!(pending[0].starts_with("0007_"), "{pending:?}");
+        assert!(pending[1].starts_with("0008_"), "{pending:?}");
+
+        let (facts, held) = facts_of(&store, &member, &workspace_id).await;
+        let requests = pipeline.request_count();
+        let opened = upgrade(
+            Pending {
+                store: &store,
+                session: &member,
+                facts: &facts,
+                held: &held,
+                pipeline: &Pipeline::at(&pipeline.url("")),
+                account: no_platform(),
+            },
+            &StoreLease::new(&store),
+            || async {},
+            |phase| panic!("a reader was told {phase:?}"),
+            || AT + 1,
+        )
+        .await;
+        let waiting = |refused: &Result<i64, Error>| match refused {
+            Err(Error::Refused {
+                reason: RefusalReason::WorkspaceBehind,
+                message,
+            }) => {
+                message.contains("waiting for somebody with full access")
+                    && message.contains("new version")
+            }
+            _ => false,
+        };
+
+        assert!(waiting(&opened), "{opened:?}");
+
+        let reached = reach(&store, &member, &workspace_id, |_| {
+            Pipeline::at(&pipeline.url(""))
+        })
+        .await
+        .map(|_| 0);
+
+        assert!(waiting(&reached), "{reached:?}");
+        assert_eq!(pipeline.request_count(), requests, "a request was sent");
+        assert_eq!(
+            read_off(&pipeline, "SELECT version FROM schema_version").await,
+            vec![vec![7]]
+        );
+        assert_eq!(
+            store
+                .migration_lease(&workspace_id)
+                .await
+                .expect("the lease"),
+            None
+        );
+        assert_eq!(
+            store
+                .workspace_floor(&workspace_id)
+                .await
+                .expect("the floor"),
+            None
+        );
     }
 }

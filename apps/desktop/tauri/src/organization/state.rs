@@ -76,4 +76,9 @@ pub struct Shared {
     /// (`upgrade/shape.rs`). Set once the check has run to completion; a check that
     /// failed leaves it empty, so the next read tries again rather than reading past it.
     pub old_shape_check: tokio::sync::OnceCell<()>,
+    /// the one gate every bring-up of a workspace on this machine passes, opening's and the
+    /// background's alike, so no two run at once; and what the background last saw fail behind
+    /// it (effort 857, ticket 40, `lease/behind.rs`). **Taken before the session and the
+    /// replica**, by both, so neither waits on the other while holding them.
+    pub(crate) bringing_up: Arc<tokio::sync::Mutex<super::lease::behind::Tried>>,
 }

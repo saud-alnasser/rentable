@@ -594,14 +594,7 @@ pub(crate) async fn reach_over(
                 ),
             )
         } else {
-            Error::refused(
-                RefusalReason::WorkspaceBehind,
-                format!(
-                    "{} is behind this version and read-only access cannot bring it up. ask a \
-                     member with full access to open it once",
-                    facts.name
-                ),
-            )
+            lease::waiting_for_full_access(&facts.name)
         });
     }
 

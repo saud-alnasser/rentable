@@ -142,6 +142,10 @@ pub(crate) async fn organization_workspace_open(
     clock: tauri::State<'_, clock::Shared>,
     workspace_id: String,
 ) -> Result<WorkspaceFacts, Error> {
+    // one bring-up at a time on this machine (effort 857, ticket 40): opening waits for one the
+    // background is running, which may be of this very workspace. Taken before the session and
+    // the replica, as the background takes it, so neither waits on the other while holding them.
+    let one_at_a_time = app_state.bringing_up.lock().await;
     // the pull is its own, after the settled check rather than before it: a member whose role
     // is unsettled is refused before anything is asked of the remote.
     let (facts, credential) = as_member(&app_state, Pull::No, async |Acting { member, store }| {
@@ -239,6 +243,8 @@ pub(crate) async fn organization_workspace_open(
         Ok((facts, credential))
     })
     .await?;
+
+    drop(one_at_a_time);
 
     {
         let permissions = app_state

@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(organization): a full-access machine brings every workspace up, so readers barely wait
@@ -14,9 +14,9 @@ Found by the review of the reopened work: `0008` adds columns every read names, 
 
 Traces requirement 1, requirement 7 and criterion 1.
 
-- [ ] After a sign-in, resume or heartbeat on this build, each workspace the member holds with full access and that is behind steps it may apply is brought up in the background, one at a time, under the lease, without opening it in the interface and without slowing the open workspace; a failure is logged and retried on a later beat; tests.
-- [ ] A member with a read-only grant whose workspace is behind a step a reader needs meets the workspace-held screen with a reason saying it is waiting for someone with full access to open it on the new version, in Arabic and English, with the other workspaces reachable; never a generic failure; a test.
-- [ ] Ticket 37's tests are complemented by one on the shipped ladder (pending `0007` and `0008`) showing the reader's screen, and one showing the reader opens once a full-access machine has brought the workspace up.
+- [x] After a sign-in, resume or heartbeat on this build, each workspace the member holds with full access and that is behind steps it may apply is brought up in the background, one at a time, under the lease, without opening it in the interface and without slowing the open workspace; a failure is logged and retried on a later beat; tests.
+- [x] A member with a read-only grant whose workspace is behind a step a reader needs meets the workspace-held screen with a reason saying it is waiting for someone with full access to open it on the new version, in Arabic and English, with the other workspaces reachable; never a generic failure; a test.
+- [x] Ticket 37's tests are complemented by one on the shipped ladder (pending `0007` and `0008`) showing the reader's screen, and one showing the reader opens once a full-access machine has brought the workspace up.
 
 ## Relevant areas
 

@@ -334,6 +334,53 @@ for (const locale of LOCALES) {
 		expect(journal.workspacesOpened.at(-1)).toBe('south');
 	});
 
+	// ticket 40: a member with a read-only grant whose workspace is behind a step a reader needs
+	// meets the same screen, saying it waits for somebody with full access to open it on the new
+	// version, never the failure screen; the others stay reachable, and once a machine with full
+	// access has brought it up, trying again opens it.
+	test(`${locale}: a reader held behind a step waits for full access on the new version, and opens once it is up`, async () => {
+		const { LL, describeError } = readerIn(locale);
+		let broughtUp = false;
+		let opened = 'north';
+		const { startup, journal } = harness({
+			describeError,
+			organization: inWithTwo(),
+			openWorkspace: async (id) => {
+				if (id === 'south' && !broughtUp) throw refusal('workspaceBehind');
+				opened = id;
+			},
+			bootstrap: async () => fakeRecovery()
+		});
+
+		await startup.start();
+		await startup.switchWorkspace('south');
+		expect(startup.snapshot.state).toBe('held');
+
+		drawTheHold(startup, locale);
+
+		const sentence = {
+			en: 'this workspace is waiting for someone with full access to open it on the new version of rentable. try again later.',
+			ar: 'مساحة العمل هذه بانتظار شخص لديه صلاحية كاملة ليفتحها على الإصدار الجديد من rentable. حاول مرة أخرى لاحقاً.'
+		}[locale as 'en' | 'ar'];
+
+		expect(LL.common.refusals.host.workspaceBehind()).toBe(sentence);
+		expect(document.querySelector('[data-workspace-held-name]')?.textContent?.trim()).toBe(
+			'South Properties'
+		);
+		expect(document.querySelector('[data-workspace-held-reason]')?.textContent?.trim()).toBe(
+			sentence
+		);
+		expect(document.querySelector('[data-update-action]')).toBeNull();
+		expect(document.querySelector('[data-workspace-held-switch="north"]')).not.toBeNull();
+		expect(opened).toBe('north');
+
+		// a machine with full access brought it up in the background, and trying again opens it.
+		broughtUp = true;
+		await fireEvent.click(screen.getByText(LL.layout.startup.tryAgain()));
+		await vi.waitFor(() => expect(startup.snapshot.state).toBe('ready'));
+		expect(journal.workspacesOpened.at(-1)).toBe('south');
+	});
+
 	test(`${locale}: a link refused because its organization cannot open returns to the switcher with the callout`, async () => {
 		const { LL, describeError } = readerIn(locale);
 		const { startup } = harness({ describeError, organization: atTheWall({ selected: 'beta' }) });

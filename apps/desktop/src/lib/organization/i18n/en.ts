@@ -804,7 +804,7 @@ export const refusals = {
 		workspaceNewer:
 			'a newer version of rentable upgraded this workspace. update rentable to open it.',
 		workspaceBehind:
-			'this workspace needs upgrading, and read-only access cannot do it. ask a member with full access to open it once.',
+			'this workspace is waiting for someone with full access to open it on the new version of rentable. try again later.',
 		workspaceBehindReadOnlyByVersion:
 			'this workspace needs upgrading, and a newer version of rentable upgraded its organization. update rentable to open it.',
 		workspaceNeedsOpening:
