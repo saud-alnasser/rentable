@@ -16,9 +16,11 @@ A migration that drops or renames a table or column an older build still reads o
 only in a release after one in which no supported build reads or writes it. Add the new shape
 first, move the application onto it, and remove the old shape later.
 
-*Why: every machine on a workspace runs its own build, and a reshape takes every older build off
-the workspace the moment one newer build opens it; Realm Sync and PowerSync allow only additive
-shared changes for this reason.*
+*Why: every machine on a workspace runs its own build, and a reshape is an upgrade (below): when a
+holder of `upgradeData` runs it on purpose, after the sheet has shown who it leaves behind, the
+floors it raises leave every older build read-only or stopped. Removing the old shape before no
+supported build uses it would stop those builds at that upgrade; Realm Sync and PowerSync allow
+only additive shared changes for this reason.*
 
 ## A shipped migration is never edited
 

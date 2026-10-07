@@ -644,4 +644,4 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/857-updating-never-locks-a-member-out/tickets/20-unsent-organization-changes-survive-an-upgrade]] fix(sync): unsent organization changes survive an upgrade | 857-updating-never-locks-a-member-out | open | 19 |
 | [[efforts/857-updating-never-locks-a-member-out/tickets/21-new-data-is-born-with-its-floor-record]] fix(upgrade): new data is born with its floor record | 857-updating-never-locks-a-member-out | resolved | — |
 | [[efforts/857-updating-never-locks-a-member-out/tickets/22-a-format-step-that-re-signs-nothing-is-a-managers]] feat(upgrade): a format step that re-signs nothing is a manager's to run | 857-updating-never-locks-a-member-out | resolved | 19 |
-| [[efforts/857-updating-never-locks-a-member-out/tickets/23-the-rules-and-contexts-the-effort-moved]] docs: the rules and contexts the effort moved | 857-updating-never-locks-a-member-out | open | 16, 17 |
+| [[efforts/857-updating-never-locks-a-member-out/tickets/23-the-rules-and-contexts-the-effort-moved]] docs: the rules and contexts the effort moved | 857-updating-never-locks-a-member-out | resolved | 16, 17 |

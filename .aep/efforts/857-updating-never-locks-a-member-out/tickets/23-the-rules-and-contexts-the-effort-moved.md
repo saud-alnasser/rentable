@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [16, 17]
 ---
 
@@ -15,11 +15,11 @@ Found at converge round one: the rules and contexts that still describe what the
 
 Traces requirement 1, requirement 6 and requirement 11.
 
-- [ ] [[rules/module-layout]] names the update state under `update/` instead of `settings/update-announcement.ts` and `settings/update-download.svelte.ts`.
-- [ ] [[contexts/desktop/components]] takes its `details` and spinning-glyph examples from `update/component/update-action.svelte`.
-- [ ] [[rules/migrations]] no longer says a reshape takes older builds off the moment one newer build opens it; it says an upgrade runs when someone runs it on purpose.
-- [ ] [[rules/interface]] no longer calls the terminated-payment note the only standing explanation of a refusal; it names the read-only notice too.
-- [ ] `node .aep/scripts/validate.mjs` passes and the index is regenerated.
+- [x] [[rules/module-layout]] names the update state under `update/` instead of `settings/update-announcement.ts` and `settings/update-download.svelte.ts`.
+- [x] [[contexts/desktop/components]] takes its `details` and spinning-glyph examples from `update/component/update-action.svelte`.
+- [x] [[rules/migrations]] no longer says a reshape takes older builds off the moment one newer build opens it; it says an upgrade runs when someone runs it on purpose.
+- [x] [[rules/interface]] no longer calls the terminated-payment note the only standing explanation of a refusal; it names the read-only notice too.
+- [x] `node .aep/scripts/validate.mjs` passes and the index is regenerated.
 
 ## Relevant areas
 
