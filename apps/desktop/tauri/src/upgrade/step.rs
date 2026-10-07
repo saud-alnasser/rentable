@@ -1,0 +1,456 @@
+//! every step a database takes, declared as one of two kinds with the floors it moves (effort 857,
+//! requirement 2).
+//!
+//! **Two ladders, one table each.** A workspace climbs its migrations, embedded by `build.rs` as
+//! `WORKSPACE_MIGRATIONS` (`organization/lease/apply.rs`), and an organization climbs its changes of
+//! format, listed in order as `upgrade::format::TRANSITIONS`. [`WORKSPACE_STEPS`] has one entry for
+//! each migration, by its index, and [`FORMAT_STEPS`] one for each change of format; the tests at
+//! the foot of this file fail where either list and its table differ in length.
+//!
+//! **A step's number is the version it brings the data to**, which is the numbering the floors are
+//! in. The workspace's first migration, `0000`, is step 1, since a workspace that has taken it is at
+//! `schema_version` 1; the organization's first change, from format 1, is step 2, since it makes
+//! format 2. A floor of `n` means a build must know step `n` to read the data, or to write it, and
+//! [`Ladder::known`] is the highest step this build knows: the workspace's shipped count, and the
+//! organization's `FORMAT_VERSION`.
+//!
+//! **The kind decides who runs a step and what it moves.** An [`Kind::Addition`] creates a table or
+//! an index, or adds a column that may be empty or has a default, and changes the meaning of nothing
+//! an older build reads or writes: it moves neither floor, and any machine whose build ships it may
+//! run it. Anything else is an [`Kind::Upgrade`], run only by the explicit act of somebody holding
+//! the permission for it, and it raises the floors it declares. A meaning change that only adds a
+//! column is split into an addition and an upgrade, so what arrives on its own is always safe for
+//! every build that can still read the data. [`addition_sql_is_additive`] checks the shape of an
+//! addition's SQL; whether it changes meaning is a question for review, which is why the ticket
+//! adding a step names its kind ([[rules/migrations]]).
+//!
+//! **Shipped steps are declared here, beside them, and never in their SQL**, since a shipped step is
+//! never edited. Every step shipped before this effort is an upgrade whose floors are its own
+//! number: every build released before it refused a workspace or an organization whose number had
+//! risen past its own, so that is the floor each step effectively had. Two of them would be
+//! upgrades on their meaning alone. `0006` adds `payment.direction` with a default, additive in
+//! shape, but a build that does not know it counts a refund as money received. Format 3 adds
+//! `workspace_override` and touches nothing else, but a build that does not know it grants a member
+//! more than their override allows. Both raise the read floor as well as the write floor, which is
+//! what their number already says.
+
+/// One step of a database, as it is declared.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Step {
+    /// an addition, or an upgrade with the floors it raises.
+    pub kind: Kind,
+    /// the key of the sentence that says what the step adds or changes, under
+    /// `organization.upgrade.steps` in both locales: what the upgrade sheet shows.
+    pub describes: &'static str,
+}
+
+/// What a step may do, and so who runs it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Kind {
+    /// a new table or index, or a column that may be empty or has a default, with no change of
+    /// meaning: run by any machine whose build ships it, moving neither floor.
+    Addition,
+    /// anything else, run only by the explicit upgrade.
+    Upgrade {
+        /// the step a build must know to read the data once this has run, where it raises that.
+        read_floor: Option<u32>,
+        /// the step a build must know to write the data once this has run, where it raises that.
+        write_floor: Option<u32>,
+        /// whether it needs the owner's own key, as every step that re-signs the organization's
+        /// rows does: it then runs on the owner's machine whoever holds the permission.
+        needs_owner: bool,
+    },
+}
+
+/// The ladder a step is on: the workspace's migrations, or the organization's changes of format.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Ladder {
+    Workspace,
+    Format,
+}
+
+impl Ladder {
+    /// Every step on this ladder this build declares, in order.
+    pub fn steps(self) -> &'static [Step] {
+        match self {
+            Ladder::Workspace => WORKSPACE_STEPS,
+            Ladder::Format => FORMAT_STEPS,
+        }
+    }
+
+    /// The number of the first step: 1 on the workspace's ladder, whose data starts at version 0,
+    /// and 2 on the organization's, whose first format is 1 and needed no step to reach.
+    pub fn first(self) -> u32 {
+        match self {
+            Ladder::Workspace => 1,
+            Ladder::Format => 2,
+        }
+    }
+
+    /// The highest step this build knows on this ladder: what it is judged with against a
+    /// database's floors.
+    pub fn known(self) -> u32 {
+        self.first() + self.steps().len() as u32 - 1
+    }
+
+    /// The step numbered `number`, where this build declares one.
+    pub fn step(self, number: u32) -> Option<&'static Step> {
+        number
+            .checked_sub(self.first())
+            .and_then(|index| self.steps().get(index as usize))
+    }
+}
+
+/// A step shipped before effort 857: an upgrade raising both floors to its own number, which is
+/// what every build released before it enforced by refusing any rise.
+const fn shipped(number: u32, needs_owner: bool, describes: &'static str) -> Step {
+    Step {
+        kind: Kind::Upgrade {
+            read_floor: Some(number),
+            write_floor: Some(number),
+            needs_owner,
+        },
+        describes,
+    }
+}
+
+/// Every workspace migration, by its index: `WORKSPACE_STEPS[i]` is the file numbered `000i` and
+/// step `i + 1`.
+pub const WORKSPACE_STEPS: &[Step] = &[
+    // 0000: the first tables.
+    shipped(1, false, "workspaceRecords"),
+    // 0001: the paid and expected amounts on a contract.
+    shipped(2, false, "contractAmounts"),
+    // 0002: the history of every record.
+    shipped(3, false, "recordHistory"),
+    // 0003: every record's id rebuilt as text, seven tables dropped and renamed.
+    shipped(4, false, "recordIds"),
+    // 0004: an index on a payment's contract.
+    shipped(5, false, "paymentIndex"),
+    // 0005: how a payment was paid, its reference and its note.
+    shipped(6, false, "paymentMethod"),
+    // 0006: which way a payment's money went; a refund is miscounted as received by a build that
+    // does not know it, so it raises the read floor too (the module comment says so).
+    shipped(7, false, "paymentDirection"),
+];
+
+/// Every change of an organization's format, in the order of `TRANSITIONS`: `FORMAT_STEPS[i]` is
+/// the change from format `i + 1`, and step `i + 2`.
+pub const FORMAT_STEPS: &[Step] = &[
+    // format 1 to 2: every row re-signed into a chain of certificates, with the owner's key.
+    shipped(2, true, "chainOfCertificates"),
+    // format 2 to 3: a member's override for one workspace; a build that does not know it grants
+    // more than the override allows, so it raises the read floor too (the module comment says so).
+    shipped(3, false, "workspaceOverride"),
+];
+
+/// Whether `sql` only adds: every statement creates a table, creates an index, or adds a column
+/// that may be empty or has a default (`ALTER TABLE ... ADD [COLUMN]` without `NOT NULL`, or with a
+/// `DEFAULT`). A unique index is an addition only on a table the same SQL creates, since on a table
+/// that already has rows it refuses an older build's write. Comments are ignored, and statements are
+/// split at `;` as `drizzle-kit` writes them.
+///
+/// **The shape, never the meaning**: a column added with a default can still change what an older
+/// build's figures mean, as `0006` does, and that is the declaration's to say.
+pub fn addition_sql_is_additive(sql: &str) -> bool {
+    let statements = statements(sql);
+    let created: Vec<String> = statements
+        .iter()
+        .filter_map(|words| match words.as_slice() {
+            [create, table, rest @ ..] if create == "CREATE" && table == "TABLE" => {
+                name_after_if_not_exists(rest)
+            }
+            _ => None,
+        })
+        .collect();
+
+    statements.iter().all(|words| only_adds(words, &created))
+}
+
+/// Each statement of `sql` as its words, upper-cased, with every identifier unquoted: comments
+/// dropped, then split at `;`.
+fn statements(sql: &str) -> Vec<Vec<String>> {
+    let uncommented: String = sql
+        .lines()
+        .map(|line| match line.find("--") {
+            Some(at) => &line[..at],
+            None => line,
+        })
+        .collect::<Vec<&str>>()
+        .join("\n");
+
+    uncommented
+        .split(';')
+        .map(|statement| {
+            statement
+                .replace(['(', ')', ','], " ")
+                .split_whitespace()
+                .map(|word| word.trim_matches(['`', '"', '[', ']']).to_uppercase())
+                .collect::<Vec<String>>()
+        })
+        .filter(|words| !words.is_empty())
+        .collect()
+}
+
+/// The name that follows, past an `IF NOT EXISTS`.
+fn name_after_if_not_exists(words: &[String]) -> Option<String> {
+    match words {
+        [r#if, not, exists, name, ..] if r#if == "IF" && not == "NOT" && exists == "EXISTS" => {
+            Some(name.clone())
+        }
+        [name, ..] => Some(name.clone()),
+        [] => None,
+    }
+}
+
+/// Whether one statement, as its words, only adds, given the tables the same SQL creates.
+fn only_adds(words: &[String], created: &[String]) -> bool {
+    let is = |at: usize, word: &str| words.get(at).is_some_and(|found| found == word);
+
+    if is(0, "CREATE") && is(1, "TABLE") {
+        return true;
+    }
+
+    if is(0, "CREATE") && is(1, "INDEX") {
+        return true;
+    }
+
+    if is(0, "CREATE") && is(1, "UNIQUE") && is(2, "INDEX") {
+        // the table follows `ON`; a unique index only adds on a table this SQL creates.
+        return words
+            .iter()
+            .position(|word| word == "ON")
+            .and_then(|at| words.get(at + 1))
+            .is_some_and(|table| created.contains(table));
+    }
+
+    if is(0, "ALTER") && is(1, "TABLE") && is(3, "ADD") {
+        let column = if is(4, "COLUMN") {
+            &words[5..]
+        } else {
+            &words[4..]
+        };
+        let not_null = column
+            .windows(2)
+            .any(|pair| pair[0] == "NOT" && pair[1] == "NULL");
+        let defaulted = column.iter().any(|word| word == "DEFAULT");
+
+        return !column.is_empty() && (!not_null || defaulted);
+    }
+
+    false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{FORMAT_STEPS, Kind, Ladder, Step, WORKSPACE_STEPS, addition_sql_is_additive};
+    use crate::{
+        organization::{lease::apply, store::FORMAT_VERSION},
+        upgrade::format::TRANSITIONS,
+    };
+
+    /// The SQL of the embedded migration that is step `number`.
+    fn migration(number: u32) -> &'static str {
+        apply::WORKSPACE_MIGRATIONS[number as usize - 1].1
+    }
+
+    /// **Ticket 01's first criterion.** One declaration per embedded migration and per change of
+    /// format, so a migration file or a change added without one fails here.
+    #[test]
+    fn every_migration_and_every_change_of_format_is_declared() {
+        assert_eq!(
+            WORKSPACE_STEPS.len(),
+            apply::WORKSPACE_MIGRATIONS.len(),
+            "a workspace migration has no step declared in upgrade/step.rs, or a step no migration"
+        );
+        assert_eq!(
+            FORMAT_STEPS.len(),
+            TRANSITIONS.len(),
+            "a change of format has no step declared in upgrade/step.rs, or a step no change"
+        );
+    }
+
+    /// What this build knows is what it ships: the workspace's migration count and the
+    /// organization's format.
+    #[test]
+    fn what_this_build_knows_is_what_it_ships() {
+        assert_eq!(
+            i64::from(Ladder::Workspace.known()),
+            apply::shipped_version()
+        );
+        assert_eq!(i64::from(Ladder::Format.known()), FORMAT_VERSION);
+        assert_eq!(Ladder::Workspace.step(0), None);
+        assert_eq!(Ladder::Workspace.step(1), Some(&WORKSPACE_STEPS[0]));
+        assert_eq!(Ladder::Format.step(1), None);
+        assert_eq!(Ladder::Format.step(2), Some(&FORMAT_STEPS[0]));
+        assert_eq!(Ladder::Format.step(Ladder::Format.known() + 1), None);
+    }
+
+    /// **Ticket 01's second criterion, over the tables.** Every step declared an addition only
+    /// adds, in its SQL. No shipped step is one yet; the next that is, is checked here.
+    #[test]
+    fn every_workspace_addition_only_adds() {
+        for (index, step) in WORKSPACE_STEPS.iter().enumerate() {
+            if step.kind == Kind::Addition {
+                let (name, sql) = apply::WORKSPACE_MIGRATIONS[index];
+
+                assert!(
+                    addition_sql_is_additive(sql),
+                    "{name} is declared an addition and does more than add"
+                );
+            }
+        }
+    }
+
+    /// **Ticket 01's second criterion, over the check.** Creating a table or an index, and adding
+    /// a column that may be empty or has a default, pass; a drop, a rename, a column `NOT NULL`
+    /// with no default, a rebuild and a change of rows each fail.
+    #[test]
+    fn only_a_table_an_index_or_an_optional_column_is_an_addition() {
+        let additive = [
+            "CREATE TABLE `refund` (`id` text PRIMARY KEY NOT NULL, `amount` real NOT NULL);",
+            "CREATE INDEX `payment_contract_id_idx` ON `payment` (`contract_id`);",
+            "create index if not exists \"a\" on \"b\" (\"c\")",
+            "ALTER TABLE `payment` ADD `note` text;",
+            "ALTER TABLE payment ADD COLUMN note text",
+            "ALTER TABLE `payment` ADD `direction` text DEFAULT 'received' NOT NULL;",
+            "CREATE TABLE `a` (`id` text NOT NULL);--> statement-breakpoint\n\
+             CREATE UNIQUE INDEX `a_id_unique` ON `a` (`id`);",
+            "-- a note; with a semicolon in it\nALTER TABLE `payment` ADD `method` text;",
+            "",
+        ];
+        let not_additive = [
+            ("a drop", "DROP TABLE `payment`;"),
+            ("a dropped index", "DROP INDEX `payment_contract_id_idx`;"),
+            (
+                "a dropped column",
+                "ALTER TABLE `payment` DROP COLUMN `note`;",
+            ),
+            (
+                "a rename",
+                "ALTER TABLE `__new_payment` RENAME TO `payment`;",
+            ),
+            (
+                "a renamed column",
+                "ALTER TABLE `payment` RENAME COLUMN `note` TO `memo`;",
+            ),
+            (
+                "a NOT NULL column without a default",
+                "ALTER TABLE `payment` ADD `direction` text NOT NULL;",
+            ),
+            (
+                "a unique index on a table it did not create",
+                "CREATE UNIQUE INDEX `payment_note_unique` ON `payment` (`note`);",
+            ),
+            ("a change of rows", "UPDATE `payment` SET `note` = '';"),
+            (
+                "rows written",
+                "INSERT INTO `idmap` (\"concept\") SELECT 'tenant' FROM `tenant`;",
+            ),
+            (
+                "an addition beside a drop",
+                "ALTER TABLE `payment` ADD `note` text;--> statement-breakpoint\nDROP TABLE `history`;",
+            ),
+            (
+                "a trigger",
+                "CREATE TRIGGER `t` AFTER INSERT ON `payment` BEGIN SELECT 1; END;",
+            ),
+        ];
+
+        for sql in additive {
+            assert!(addition_sql_is_additive(sql), "should add only: {sql}");
+        }
+
+        for (what, sql) in not_additive {
+            assert!(
+                !addition_sql_is_additive(sql),
+                "{what} passed as an addition: {sql}"
+            );
+        }
+    }
+
+    /// The check over the shipped files: `0004` and `0005` only add, `0003` rebuilds, and `0006`
+    /// passes on its shape, which is why its declaration rather than its SQL is what keeps it an
+    /// upgrade.
+    #[test]
+    fn the_check_reads_the_shipped_files_as_they_are() {
+        assert!(addition_sql_is_additive(migration(5)), "0004 adds an index");
+        assert!(
+            addition_sql_is_additive(migration(6)),
+            "0005 adds three columns"
+        );
+        assert!(
+            addition_sql_is_additive(migration(7)),
+            "0006 is additive in shape"
+        );
+        assert!(
+            !addition_sql_is_additive(migration(4)),
+            "0003 drops and renames"
+        );
+    }
+
+    /// **Ticket 01's third criterion.** Every step shipped before effort 857 is an upgrade whose
+    /// floors are its own number, `0006` and format 3 included as their meaning requires; only the
+    /// change that re-signs every row needs the owner.
+    #[test]
+    fn every_shipped_step_is_an_upgrade_at_its_own_number() {
+        for ladder in [Ladder::Workspace, Ladder::Format] {
+            for (index, step) in ladder.steps().iter().enumerate() {
+                let number = ladder.first() + index as u32;
+
+                assert_eq!(
+                    step.kind,
+                    Kind::Upgrade {
+                        read_floor: Some(number),
+                        write_floor: Some(number),
+                        needs_owner: ladder == Ladder::Format && number == 2,
+                    },
+                    "{ladder:?} step {number}"
+                );
+            }
+        }
+
+        let direction = Ladder::Workspace.step(7).expect("0006");
+        let overriding = Ladder::Format.step(3).expect("format 3");
+
+        assert_eq!(direction.describes, "paymentDirection");
+        assert!(matches!(
+            direction.kind,
+            Kind::Upgrade {
+                read_floor: Some(7),
+                write_floor: Some(7),
+                needs_owner: false
+            }
+        ));
+        assert_eq!(overriding.describes, "workspaceOverride");
+        assert!(matches!(
+            overriding.kind,
+            Kind::Upgrade {
+                read_floor: Some(3),
+                write_floor: Some(3),
+                needs_owner: false
+            }
+        ));
+    }
+
+    /// Every step says what it does, under a key of its own.
+    #[test]
+    fn every_step_names_its_own_sentence() {
+        let keys: Vec<&str> = WORKSPACE_STEPS
+            .iter()
+            .chain(FORMAT_STEPS)
+            .map(|step: &Step| step.describes)
+            .collect();
+        let mut unique = keys.clone();
+
+        unique.sort();
+        unique.dedup();
+
+        assert_eq!(
+            unique.len(),
+            keys.len(),
+            "two steps share a sentence: {keys:?}"
+        );
+        assert!(keys.iter().all(|key| !key.is_empty()));
+    }
+}

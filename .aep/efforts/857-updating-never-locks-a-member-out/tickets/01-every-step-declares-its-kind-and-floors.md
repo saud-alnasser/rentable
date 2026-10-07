@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # refactor(upgrade): every step declares its kind and floors
@@ -14,12 +14,12 @@ Every shipped workspace migration and organization format step is declared in `u
 
 Traces requirement 2, requirement 13, criterion 2 and criterion 13.
 
-- [ ] `WORKSPACE_STEPS` has one entry per embedded migration and `FORMAT_STEPS` one per transition; a test fails when a migration file or transition has none.
-- [ ] Every step declared an addition passes `addition_sql_is_additive` (only `CREATE TABLE`, `CREATE INDEX`, and `ALTER TABLE ... ADD COLUMN` that is nullable or has a default); a test proves a `DROP`, a `RENAME`, and a `NOT NULL` column without a default each fail it.
-- [ ] Shipped steps are declared as the plan's Migration says: upgrade steps with floors equal to their own number; `0006` and format 3 as their meaning requires.
-- [ ] `Floors::standing(known)` returns `Writable`, `ReadOnly` and `Unreadable` below, at and above each floor, in a table test.
-- [ ] A database with no floor record reads `{ level, read, write }` equal to its current version (workspace `schema_version`, organization `format`) and the read writes nothing.
-- [ ] [[rules/migrations]] gains the section the plan's Integration names.
+- [x] `WORKSPACE_STEPS` has one entry per embedded migration and `FORMAT_STEPS` one per transition; a test fails when a migration file or transition has none.
+- [x] Every step declared an addition passes `addition_sql_is_additive` (only `CREATE TABLE`, `CREATE INDEX`, and `ALTER TABLE ... ADD COLUMN` that is nullable or has a default); a test proves a `DROP`, a `RENAME`, and a `NOT NULL` column without a default each fail it.
+- [x] Shipped steps are declared as the plan's Migration says: upgrade steps with floors equal to their own number; `0006` and format 3 as their meaning requires.
+- [x] `Floors::standing(known)` returns `Writable`, `ReadOnly` and `Unreadable` below, at and above each floor, in a table test.
+- [x] A database with no floor record reads `{ level, read, write }` equal to its current version (workspace `schema_version`, organization `format`) and the read writes nothing.
+- [x] [[rules/migrations]] gains the section the plan's Integration names.
 
 ## Relevant areas
 

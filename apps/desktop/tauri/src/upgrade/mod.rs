@@ -25,9 +25,11 @@
 //! this code changed none of them.
 
 pub mod consent;
+pub mod floor;
 pub mod format;
 mod plugin;
 pub mod record;
 pub mod shape;
+pub mod step;
 
 pub use plugin::{Upgrader, plugin};

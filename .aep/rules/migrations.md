@@ -35,3 +35,30 @@ which kept their records in one local file, move over by the guided step of
 [[efforts/838-permissions-are-a-role-and-an-override/spec]], requirement 18, not by migration.
 
 *Why: a step is only known to work from the versions it was run from, which is Room's practice.*
+
+## Every step declares its kind and its floors
+
+*The human's call, 2026-10-07 (effort 857), from
+[[efforts/857-updating-never-locks-a-member-out/plan]], under Architecture.*
+
+A new workspace migration or change of format is declared in `apps/desktop/tauri/src/upgrade/step.rs`
+in the same commit, as an **addition** or an **upgrade** with the floors it raises, and never in
+its SQL. A test there fails while a migration file or a change of format has no declaration.
+
+- **An addition** creates a table or an index, or adds a column that may be empty or has a
+  default, and changes the meaning of nothing an older build reads or writes. It moves neither
+  floor, and any machine whose build ships it runs it. `addition_sql_is_additive` checks the shape
+  of its SQL.
+- **An upgrade** is everything else: a drop, a rename, a rebuild, a re-signing, or an addition
+  whose meaning an older build would get wrong. It runs only by the explicit upgrade, it declares
+  the read floor and the write floor it raises, and it says whether it needs the owner's key.
+- **A meaning change that only adds a column is split**: the column as an addition, and the step
+  that lets a build write the new meaning as an upgrade raising the write floor. The capability that
+  writes it waits for that upgrade.
+- **The ticket that adds a step names its kind in its acceptance criteria**, so review judges the
+  meaning, which the shape check cannot.
+
+*Why: an addition that stops nobody needs nobody's decision, and anything that can stop someone
+waits for the person who holds the permission to upgrade and has seen who it stops. A step
+misdeclared as an addition lets an older build write wrong data with no refusal, which is the risk
+the declaration and its review exist to catch.*

@@ -52,6 +52,13 @@ const FIRST_FORMAT_WITH_A_ROW: i64 = 2;
 /// The key of the one `format` row.
 const FORMAT_ID: &str = "format";
 
+/// The one-row table an organization's floors are recorded in by the explicit upgrade (effort 857):
+/// the step a build must know to read it and to write it, beside the format it is in.
+const ORGANIZATION_FLOOR_TABLE: &str = "organization_floor";
+
+/// The key of the one `organization_floor` row.
+const ORGANIZATION_FLOOR_ID: &str = "floor";
+
 /// The member column format 1 carried the role word in, and the one it carried the seven-act mask
 /// in: either still standing marks an upgrade that has not finished
 /// ([`OrganizationStore::carries_format_one`]).
@@ -197,6 +204,44 @@ impl OrganizationStore {
 
         match rows.next().await? {
             Some(row) => Ok(Some(integer(&row, 0)?)),
+            None => Ok(None),
+        }
+    }
+
+    /// The organization's floors as an upgrade recorded them, `(level, read, write)`, or `None`
+    /// where none is recorded: no `organization_floor` table, which is every organization before
+    /// effort 857's first upgrade, or a table with no row (`upgrade/floor.rs` reads the format
+    /// then).
+    ///
+    /// Read against the tables the database reports, so it never fails on a table it does not
+    /// have, and writes nothing.
+    pub async fn floor_recorded(&self) -> Result<Option<(i64, i64, i64)>, Error> {
+        if !self
+            .tables()
+            .await?
+            .iter()
+            .any(|table| table == ORGANIZATION_FLOOR_TABLE)
+        {
+            return Ok(None);
+        }
+
+        let mut rows = self
+            .connection
+            .query(
+                &format!(
+                    "SELECT \"level\", \"read\", \"write\" FROM \"{ORGANIZATION_FLOOR_TABLE}\" \
+                     WHERE \"id\" = ? LIMIT 1"
+                ),
+                vec![turso::Value::Text(ORGANIZATION_FLOOR_ID.to_string())],
+            )
+            .await?;
+
+        match rows.next().await? {
+            Some(row) => Ok(Some((
+                integer(&row, 0)?,
+                integer(&row, 1)?,
+                integer(&row, 2)?,
+            ))),
             None => Ok(None),
         }
     }
