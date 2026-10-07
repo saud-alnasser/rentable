@@ -47,10 +47,12 @@ A new workspace migration or change of format is declared in `apps/desktop/tauri
 in the same commit, as an **addition** or an **upgrade** with the floors it raises, and never in
 its SQL. A test there fails while a migration file or a change of format has no declaration.
 
-- **An addition** creates a table or an index, or adds a column that may be empty or has a
-  default, and changes the meaning of nothing an older build reads or writes. It moves neither
-  floor, and any machine whose build ships it runs it. `addition_sql_is_additive` checks the shape
-  of its SQL.
+- **An addition** creates a table or an index, adds a column that may be empty or has a default,
+  or drops an index, and changes the meaning of nothing an older build reads or writes. It moves
+  neither floor, and any machine whose build ships it runs it. `addition_sql_is_additive` checks the
+  shape of its SQL. **Dropping an index is a relaxation, not a removal** (ticket 33, `0007`): it
+  takes a rule or a look-up away and refuses no build anything, where dropping a table, a column, a
+  view or a trigger takes away something an older build reads or writes, and stays an upgrade.
 - **An upgrade** is everything else: a drop, a rename, a rebuild, a re-signing, or an addition
   whose meaning an older build would get wrong. It runs only by the explicit upgrade, it declares
   the read floor and the write floor it raises, and it says whether it needs the owner's key.

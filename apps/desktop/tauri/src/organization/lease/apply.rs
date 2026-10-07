@@ -138,8 +138,13 @@ pub fn statements_between(from: usize, up_to: usize) -> Vec<String> {
 /// The shape a fresh workspace database at `version` is built with: the first `version` shipped
 /// migrations and the version table, applied to an in-memory SQLite. Built once per version per
 /// process, since it is the same every time.
+///
+/// **What [`apply_between`] checks against**, which runs the steps as a build before effort 857
+/// ran them, a prefix and nothing of 857's records, whatever the steps were declared as; the open
+/// path checks against [`fresh_of`] (effort 857, ticket 33, when `0007` became the first shipped
+/// step declared after 857).
 pub async fn fresh(version: usize) -> Result<Shape, Error> {
-    fresh_of(&SHIPPED, &(1..=version as u32).collect::<Vec<u32>>()).await
+    built(&SHIPPED, &(1..=version as u32).collect::<Vec<u32>>(), false).await
 }
 
 /// The shape a fresh workspace database that has run the steps `run` of `migrations` is built
@@ -147,11 +152,17 @@ pub async fn fresh(version: usize) -> Result<Shape, Error> {
 /// of them was declared after 857, the tables that record what ran and the floors
 /// ([`Migrations::records`]). Built once per ladder and set of steps per process.
 pub async fn fresh_of(migrations: &Migrations, run: &[u32]) -> Result<Shape, Error> {
-    type Built = HashMap<(usize, Vec<u32>), Shape>;
+    built(migrations, run, migrations.records(run)).await
+}
+
+/// The shape of a fresh database that has run the steps `run` of `migrations`, with effort 857's
+/// record tables where `records` says so.
+async fn built(migrations: &Migrations, run: &[u32], records: bool) -> Result<Shape, Error> {
+    type Built = HashMap<(usize, Vec<u32>, bool), Shape>;
     static BUILT: OnceLock<Mutex<Built>> = OnceLock::new();
 
     let built = BUILT.get_or_init(Mutex::default);
-    let key = (migrations.files.as_ptr() as usize, run.to_vec());
+    let key = (migrations.files.as_ptr() as usize, run.to_vec(), records);
 
     if let Some(shape) = built
         .lock()
@@ -172,7 +183,7 @@ pub async fn fresh_of(migrations: &Migrations, run: &[u32]) -> Result<Shape, Err
 
     made.push(VERSION_MADE.to_string());
 
-    if migrations.records(run) {
+    if records {
         made.push(APPLIED_MADE.to_string());
         made.push(FLOOR_MADE.to_string());
     }
@@ -218,7 +229,7 @@ const RECORDS_LISTED: &str = "SELECT \"name\" FROM sqlite_master WHERE \"type\" 
 
 /// The workspace's ladder as the open path is handed it (effort 857, ticket 03): the migration
 /// files and the step each is declared as. [`SHIPPED`] in production, and a ladder of a test's
-/// own under test, since no step declared after 857 has shipped yet.
+/// own under test, naming the steps declared after 857 a test is about.
 #[derive(Clone, Copy, Debug)]
 pub struct Migrations {
     /// every migration file, `files[i]` being step `i + 1`.
@@ -1282,7 +1293,7 @@ mod tests {
     }
 
     /// **Ticket 34's first criterion.** Each seed is a database of its version with its rows,
-    /// holding no version row, as its build left it; walked by [`apply_between`] over the
+    /// holding a version row only where its build wrote one, as its build left it; walked by [`apply_between`] over the
     /// pipeline, from the version the organization records it at, to the shipped version, it is
     /// the schema a fresh database of the shipped version is built with, the check passing inside
     /// the migration, and every row is carried as the seed says.
@@ -1292,17 +1303,22 @@ mod tests {
 
         for seed in SEEDS {
             let pipeline = seeded(seed).await;
+            let shape = fresh(seed.version).await.expect("the fresh shape");
 
             assert_eq!(
                 as_it_is(&pipeline).await.0,
-                fresh(seed.version)
-                    .await
-                    .expect("the fresh shape")
-                    .without(&[super::VERSION_TABLE]),
+                if seed.version_row {
+                    shape
+                } else {
+                    shape.without(&[super::VERSION_TABLE])
+                },
                 "the seed at {} is not a database of that version",
                 seed.version
             );
-            assert_eq!(recorded(&pipeline).await, None);
+            assert_eq!(
+                recorded(&pipeline).await,
+                seed.version_row.then_some(seed.version as i64)
+            );
 
             let walked =
                 apply_between(&Pipeline::at(&pipeline.url("")), "t", seed.version, shipped)

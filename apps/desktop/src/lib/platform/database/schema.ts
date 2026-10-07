@@ -7,9 +7,9 @@ import z from 'zod';
 
 export const tenant = sqliteTable('tenant', {
 	id: text('id').primaryKey().unique(),
-	nationalId: text('national_id').unique().notNull(),
+	nationalId: text('national_id').notNull(),
 	name: text('name').notNull(),
-	phone: text('phone').unique().notNull()
+	phone: text('phone').notNull()
 });
 
 /**
@@ -31,7 +31,7 @@ export const ASCII_ONLY_COLUMNS: readonly AnyColumn[] = [tenant.nationalId, tena
 
 export const complex = sqliteTable('complex', {
 	id: text('id').primaryKey().unique(),
-	name: text('name').unique().notNull(),
+	name: text('name').notNull(),
 	location: text('location').notNull()
 });
 
@@ -61,7 +61,7 @@ export type Unit = z.infer<typeof UnitSchema>;
 
 export const contract = sqliteTable('contract', {
 	id: text('id').primaryKey().unique(),
-	govId: text('gov_id').unique(),
+	govId: text('gov_id'),
 	status: text('status', {
 		enum: ['scheduled', 'active', 'terminated', 'fulfilled', 'expired', 'defaulted']
 	}).notNull(),

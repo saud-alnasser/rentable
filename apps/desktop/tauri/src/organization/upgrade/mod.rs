@@ -1145,6 +1145,18 @@ mod tests {
         .expect("the workspace");
         let link = locator(&store, &owner).await.expect("the link");
 
+        // the organization's record of the workspace as a build before 857 leaves it: its
+        // `schema_version`, and no floor record, which this build writes at creation (ticket 21)
+        // and no build before 857 wrote. What each test does to the workspace starts from there.
+        store
+            .connection()
+            .execute(
+                "DELETE FROM \"workspace_floor\" WHERE \"workspace_id\" = ?",
+                vec![turso::Value::Text(workspace.id.clone())],
+            )
+            .await
+            .expect("the record a build before 857 leaves");
+
         (store, owner, link, workspace.id)
     }
 
@@ -1244,14 +1256,16 @@ mod tests {
     const ADDITION_SQL: &str = "CREATE TABLE `receipt_note` (`id` text PRIMARY KEY NOT NULL, \
                                 `note` text);";
 
-    /// The shipped workspace ladder with `later` after it.
+    /// The workspace ladder 0.20 shipped with `later` after it: a ladder of the test's own, so a
+    /// test names the steps declared after 857 it is about, whatever this build ships after them.
     fn workspace_ladder(later: &[(&'static str, &'static str, Step)]) -> apply::Migrations {
-        let files: Vec<(&'static str, &'static str)> = apply::WORKSPACE_MIGRATIONS
+        let settled = apply::SHIPPED.steps.settled() as usize;
+        let files: Vec<(&'static str, &'static str)> = apply::WORKSPACE_MIGRATIONS[..settled]
             .iter()
             .copied()
             .chain(later.iter().map(|(name, sql, _)| (*name, *sql)))
             .collect();
-        let declared: Vec<Step> = WORKSPACE_STEPS
+        let declared: Vec<Step> = WORKSPACE_STEPS[..settled]
             .iter()
             .copied()
             .chain(later.iter().map(|(_, _, step)| *step))

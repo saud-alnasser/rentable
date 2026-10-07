@@ -1229,9 +1229,14 @@ mod tests {
 
         assert_eq!(facts.name, "North Properties");
         assert_eq!(facts.database_name, format!("ws-{}", facts.id));
+        // the number builds before 857 read, at the last step they know (ticket 21).
         assert_eq!(
             facts.schema_version,
-            crate::organization::lease::apply::shipped_version()
+            i64::from(
+                crate::organization::lease::apply::SHIPPED
+                    .steps
+                    .born_legacy()
+            )
         );
         assert_eq!(facts.access_level, "full-access");
 
@@ -2890,15 +2895,16 @@ mod tests {
         );
     }
 
-    /// The shipped workspace ladder with one step declared after effort 857 on top: a ladder of
-    /// the test's own, since no such step has shipped yet.
+    /// The workspace ladder 0.20 shipped with one step declared after effort 857 on top: a ladder
+    /// of the test's own, so the test names the step it is about, whatever this build ships.
     fn ladder_with(sql: &'static str, kind: Kind) -> apply::Migrations {
-        let files: Vec<(&'static str, &'static str)> = apply::WORKSPACE_MIGRATIONS
+        let settled = apply::SHIPPED.steps.settled() as usize;
+        let files: Vec<(&'static str, &'static str)> = apply::WORKSPACE_MIGRATIONS[..settled]
             .iter()
             .copied()
             .chain([("0007_after_857", sql)])
             .collect();
-        let declared: Vec<Step> = WORKSPACE_STEPS
+        let declared: Vec<Step> = WORKSPACE_STEPS[..settled]
             .iter()
             .copied()
             .chain([Step {
@@ -2954,8 +2960,9 @@ mod tests {
     /// the level. After an addition a build knowing one step less reads and writes it, and the
     /// number builds before 857 read stays at 7, which they accept. After an upgrade raising the
     /// write floor, a build knowing one step less reads it, and that number moves to 8, which stops
-    /// every build before 857, as the declared floor says it must. On the shipped ladder nothing of
-    /// 857's records is written, and the version reads as the declared floors.
+    /// every build before 857, as the declared floor says it must. On the shipped ladder, which
+    /// ends in `0007`, an addition (ticket 33), the same holds: born with its records, at the floors
+    /// `0006` declares, and the number builds before 857 read at 7.
     #[tokio::test]
     async fn a_workspace_is_born_with_the_floors_its_steps_declare() {
         const ADDITION_SQL: &str = "CREATE TABLE `receipt_note` (`id` text PRIMARY KEY NOT NULL, \
@@ -3058,16 +3065,24 @@ mod tests {
         .await
         .expect("the create failed");
 
-        assert_eq!(data_floor_of(&pipeline).await, None);
+        let shipped = apply::SHIPPED.steps;
+        let records = apply::SHIPPED.records(&(1..=shipped.known()).collect::<Vec<u32>>());
+
+        assert!(
+            records,
+            "the shipped ladder ends in 0007, declared after 857"
+        );
+        assert_eq!(data_floor_of(&pipeline).await, Some(shipped.born()));
         assert_eq!(
             store.workspace_floor(&facts.id).await.expect("the floor"),
-            None
+            Some(shipped.born())
         );
+        assert_eq!(facts.schema_version, i64::from(shipped.born_legacy()));
         assert_eq!(
             lease::recorded_floors(&store, &facts.id, facts.schema_version)
                 .await
                 .expect("the floors"),
-            apply::SHIPPED.steps.born()
+            shipped.born()
         );
     }
 

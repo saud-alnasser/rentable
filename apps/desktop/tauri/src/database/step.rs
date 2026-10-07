@@ -39,7 +39,9 @@
 //! first full-access member under the lease, exactly as 0.20 runs them. Data in users' hands today
 //! stands behind them, and holding `0006` for a manager would lock members out of their payments.
 //! The rule that an upgrade waits for the explicit act binds every step declared after them, and
-//! [`Step::runs_on_open`] is the one place that says which run.
+//! [`Step::runs_on_open`] is the one place that says which run. `0007`, which takes the shared
+//! database's rule on four fields a person types away, is the first step declared after them, an
+//! addition (ticket 33).
 //!
 //! *Here, under the database, since effort 857's ticket 03*: the organization's lease and store
 //! read these declarations, and nothing but the composition root may name `upgrade`
@@ -312,6 +314,16 @@ pub const WORKSPACE_STEPS: &[Step] = &[
     // 0006: which way a payment's money went; a refund is miscounted as received by a build that
     // does not know it, so it raises the read floor too (the module comment says so).
     shipped(7, false, "paymentDirection"),
+    // 0007: the shared database's rule on a tenant's phone and national ID, a complex's name and a
+    // contract's government ID taken away (effort 857, requirement 14). The rule refused the
+    // second of two machines that saved one value apart, and the engine then dropped that
+    // machine's records; the app keeps those values unique when a person saves. Taking a rule away
+    // refuses an older build nothing and changes nothing it reads or writes, so it is an addition.
+    Step {
+        kind: Kind::Addition,
+        describes: "duplicateValues",
+        shipped_before_857: false,
+    },
 ];
 
 /// Every change of an organization's format, in the order of `TRANSITIONS`: `FORMAT_STEPS[i]` is
@@ -324,11 +336,14 @@ pub const FORMAT_STEPS: &[Step] = &[
     shipped(3, false, "workspaceOverride"),
 ];
 
-/// Whether `sql` only adds: every statement creates a table, creates an index, or adds a column
-/// that may be empty or has a default (`ALTER TABLE ... ADD [COLUMN]` without `NOT NULL`, or with a
-/// `DEFAULT`). A unique index is an addition only on a table the same SQL creates, since on a table
-/// that already has rows it refuses an older build's write. Comments are ignored, and statements are
-/// split at `;` as `drizzle-kit` writes them.
+/// Whether `sql` only adds: every statement creates a table, creates an index, adds a column that
+/// may be empty or has a default (`ALTER TABLE ... ADD [COLUMN]` without `NOT NULL`, or with a
+/// `DEFAULT`), or drops an index. A unique index is an addition only on a table the same SQL
+/// creates, since on a table that already has rows it refuses an older build's write. **Dropping
+/// an index is a relaxation** (effort 857, ticket 33): it takes a rule or a look-up away and
+/// refuses no build anything, where every other removal, of a table, a column, a view or a
+/// trigger, takes away something an older build reads or writes. Comments are ignored, and
+/// statements are split at `;` as `drizzle-kit` writes them.
 ///
 /// **The shape, never the meaning**: a column added with a default can still change what an older
 /// build's figures mean, as `0006` does, and that is the declaration's to say.
@@ -404,6 +419,13 @@ fn only_adds(words: &[String], created: &[String]) -> bool {
             .is_some_and(|table| created.contains(table));
     }
 
+    if is(0, "DROP") && is(1, "INDEX") {
+        // the index named, past an `IF EXISTS`; a statement naming none is not one drizzle writes.
+        let named = if is(2, "IF") && is(3, "EXISTS") { 4 } else { 2 };
+
+        return words.len() == named + 1;
+    }
+
     if is(0, "ALTER") && is(1, "TABLE") && is(3, "ADD") {
         let column = if is(4, "COLUMN") {
             &words[5..]
@@ -469,7 +491,7 @@ mod tests {
     }
 
     /// **Ticket 01's second criterion, over the tables.** Every step declared an addition only
-    /// adds, in its SQL. No shipped step is one yet; the next that is, is checked here.
+    /// adds, in its SQL: `0007` is the first (ticket 33), and every one after it is checked here.
     #[test]
     fn every_workspace_addition_only_adds() {
         for (index, step) in WORKSPACE_STEPS.iter().enumerate() {
@@ -500,10 +522,21 @@ mod tests {
              CREATE UNIQUE INDEX `a_id_unique` ON `a` (`id`);",
             "-- a note; with a semicolon in it\nALTER TABLE `payment` ADD `method` text;",
             "",
+            // a rule taken away refuses no older build anything (effort 857, ticket 33).
+            "DROP INDEX `tenant_phone_unique`;",
+            "drop index if exists \"payment_contract_id_idx\"",
+            "DROP INDEX `complex_name_unique`;--> statement-breakpoint\n\
+             DROP INDEX `tenant_phone_unique`;",
         ];
         let not_additive = [
             ("a drop", "DROP TABLE `payment`;"),
-            ("a dropped index", "DROP INDEX `payment_contract_id_idx`;"),
+            ("a dropped view", "DROP VIEW `paid`;"),
+            ("a dropped trigger", "DROP TRIGGER `t`;"),
+            ("an index dropped with no name", "DROP INDEX;"),
+            (
+                "an index dropped beside a dropped table",
+                "DROP INDEX `tenant_phone_unique`;--> statement-breakpoint\nDROP TABLE `tenant`;",
+            ),
             (
                 "a dropped column",
                 "ALTER TABLE `payment` DROP COLUMN `note`;",
@@ -551,9 +584,9 @@ mod tests {
         }
     }
 
-    /// The check over the shipped files: `0004` and `0005` only add, `0003` rebuilds, and `0006`
+    /// The check over the shipped files: `0004` and `0005` only add, `0003` rebuilds, `0006`
     /// passes on its shape, which is why its declaration rather than its SQL is what keeps it an
-    /// upgrade.
+    /// upgrade, and `0007` only drops indexes.
     #[test]
     fn the_check_reads_the_shipped_files_as_they_are() {
         assert!(addition_sql_is_additive(migration(5)), "0004 adds an index");
@@ -569,15 +602,81 @@ mod tests {
             !addition_sql_is_additive(migration(4)),
             "0003 drops and renames"
         );
+        assert!(
+            addition_sql_is_additive(migration(8)),
+            "0007 drops four indexes"
+        );
+    }
+
+    /// **Ticket 33's first two criteria, over the declarations** (effort 857, requirement 14).
+    /// `0007` takes away the shared database's rule on the four fields a person types, which made
+    /// the engine drop one machine's records when two saved the same value apart. It is the first
+    /// step declared after 857: an addition, so it moves no floor and runs on open for anyone, and
+    /// its SQL is the four `DROP INDEX`es the check admits and nothing else.
+    #[test]
+    fn the_rules_on_the_four_typed_fields_go_as_an_addition() {
+        use crate::database::floor::Floors;
+
+        let step = Ladder::Workspace.step(8).expect("0007 is declared");
+        let (name, sql) = apply::WORKSPACE_MIGRATIONS[7];
+
+        assert!(name.starts_with("0007"), "{name}");
+        assert_eq!(step.kind, Kind::Addition);
+        assert!(!step.shipped_before_857);
+        assert!(step.runs_on_open());
+        assert_eq!(step.describes, "duplicateValues");
+        assert!(addition_sql_is_additive(sql), "{name} does more than add");
+
+        let dropped: Vec<&str> = sql
+            .lines()
+            .filter_map(|line| line.trim().strip_prefix("DROP INDEX `"))
+            .filter_map(|rest| rest.split('`').next())
+            .collect();
+
+        assert_eq!(
+            dropped,
+            [
+                "complex_name_unique",
+                "contract_gov_id_unique",
+                "tenant_national_id_unique",
+                "tenant_phone_unique",
+            ]
+        );
+
+        // it moves neither floor, so every build that reads and writes 7 still does.
+        let workspace = Ladder::Workspace.declared();
+
+        assert_eq!(workspace.settled(), 7);
+        assert_eq!(workspace.known(), 8);
+        assert_eq!(workspace.on_open(7, &[]), vec![8]);
+        assert!(workspace.awaiting(Floors::legacy(7)).is_empty());
+        assert_eq!(
+            workspace.raised(Floors::legacy(7), &[8], 8),
+            Floors {
+                level: 8,
+                read: 7,
+                write: 7
+            }
+        );
+        assert_eq!(
+            workspace.legacy_after(7, workspace.raised(Floors::legacy(7), &[8], 8)),
+            7
+        );
     }
 
     /// **Ticket 01's third criterion.** Every step shipped before effort 857 is an upgrade whose
     /// floors are its own number, `0006` and format 3 included as their meaning requires; only the
-    /// change that re-signs every row needs the owner.
+    /// change that re-signs every row needs the owner. The steps declared after it are their own
+    /// tickets' to say.
     #[test]
     fn every_shipped_step_is_an_upgrade_at_its_own_number() {
         for ladder in [Ladder::Workspace, Ladder::Format] {
-            for (index, step) in ladder.steps().iter().enumerate() {
+            for (index, step) in ladder
+                .steps()
+                .iter()
+                .enumerate()
+                .filter(|(_, step)| step.shipped_before_857)
+            {
                 let number = ladder.first() + index as u32;
 
                 assert_eq!(
@@ -687,32 +786,50 @@ mod tests {
 
     /// **Ticket 03's first criterion, over the declarations.** Every step shipped before 857
     /// carries the mark and runs on open, on both ladders, so the open path runs them as 0.20 did;
-    /// and the run of them ends at the workspace's `0006` and the organization's format 3.
+    /// the run of them ends at the workspace's `0006` and the organization's format 3; and no step
+    /// declared after carries it, `0007` the first of them.
     #[test]
     fn every_step_shipped_before_857_is_marked_and_runs_on_open() {
+        let shipped_through = |ladder: Ladder| match ladder {
+            Ladder::Workspace => 7,
+            Ladder::Format => 3,
+        };
+
         for ladder in [Ladder::Workspace, Ladder::Format] {
             for (index, step) in ladder.steps().iter().enumerate() {
-                assert!(
+                let number = ladder.first() + index as u32;
+
+                assert_eq!(
                     step.shipped_before_857,
-                    "{ladder:?} step {} is not marked",
-                    ladder.first() + index as u32
+                    number <= shipped_through(ladder),
+                    "{ladder:?} step {number} is marked wrongly"
                 );
-                assert!(step.runs_on_open());
+
+                if step.shipped_before_857 {
+                    assert!(step.runs_on_open());
+                }
             }
+
+            assert_eq!(ladder.declared().settled(), shipped_through(ladder));
+            assert_eq!(ladder.declared().known(), ladder.known());
         }
 
-        assert_eq!(Ladder::Workspace.declared().settled(), 7);
-        assert_eq!(Ladder::Format.declared().settled(), 3);
-        assert_eq!(
-            Ladder::Workspace.declared().known(),
-            Ladder::Workspace.known()
-        );
-        assert_eq!(Ladder::Format.declared().known(), Ladder::Format.known());
+        // a workspace at 5 runs 6 and 7 on open, and every addition after them; an organization
+        // at format 1 runs 2 and 3.
+        let after_0006: Vec<u32> = (8..=Ladder::Workspace.known())
+            .filter(|number| {
+                Ladder::Workspace
+                    .step(*number)
+                    .is_some_and(Step::runs_on_open)
+            })
+            .collect();
 
-        // a workspace at 5 runs 6 and 7 on open; an organization at format 1 runs 2 and 3.
-        assert_eq!(Ladder::Workspace.declared().on_open(5, &[]), vec![6, 7]);
+        assert_eq!(
+            Ladder::Workspace.declared().on_open(5, &[]),
+            [vec![6, 7], after_0006.clone()].concat()
+        );
         assert_eq!(Ladder::Format.declared().on_open(1, &[]), vec![2, 3]);
-        assert!(Ladder::Workspace.declared().on_open(7, &[]).is_empty());
+        assert_eq!(Ladder::Workspace.declared().on_open(7, &[]), after_0006);
     }
 
     /// **Ticket 03's last criterion, over the declarations.** After the steps shipped before 857,
@@ -832,7 +949,16 @@ mod tests {
         let workspace = Ladder::Workspace.declared();
         let format = Ladder::Format.declared();
 
-        assert_eq!(workspace.born(), Floors::legacy(7));
+        // the workspace's ladder ends in `0007`, an addition: born at its level, with the floors
+        // `0006` declares, and the number builds before 857 read at 7, which they open.
+        assert_eq!(
+            workspace.born(),
+            Floors {
+                level: workspace.known(),
+                read: 7,
+                write: 7
+            }
+        );
         assert_eq!(workspace.born_legacy(), 7);
         assert_eq!(format.born(), Floors::legacy(3));
         assert_eq!(format.born_legacy(), 3);

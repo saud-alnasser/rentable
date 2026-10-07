@@ -711,7 +711,9 @@ export const organization = {
 			chainOfCertificates:
 				"every member's permissions signed again from the owner's key, in one chain of certificates.",
 			workspaceOverride:
-				'what a member may do in one workspace, apart from the rest of the organization.'
+				'what a member may do in one workspace, apart from the rest of the organization.',
+			duplicateValues:
+				'records saved on two devices while apart all stay, even with the same phone, national ID, complex name or government ID.'
 		}
 	}
 } satisfies BaseTranslation;

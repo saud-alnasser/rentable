@@ -2824,6 +2824,227 @@ mod tests {
         }
     }
 
+    // -------------------------------------------------------------------------------------
+    // Effort 857, ticket 33, live: two machines saving the same value apart lose nothing.
+    // -------------------------------------------------------------------------------------
+
+    /// The one number `sql` reads on the remote, over the pipeline.
+    async fn remote_number(workspace: &LiveWorkspace, sql: &str) -> i64 {
+        let rows = workspace.over_the_wire(&[sql]).await;
+
+        rows.first()
+            .and_then(|row| row.get(0))
+            .and_then(|cell| cell.get("value"))
+            .and_then(|value| match value {
+                serde_json::Value::String(text) => text.parse().ok(),
+                serde_json::Value::Number(number) => number.as_i64(),
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("no number from the remote for {sql}: {rows:?}"))
+    }
+
+    /// The records one machine saves while it is apart from the other: a complex, a tenant and a
+    /// contract on that tenant, with the complex's name, the tenant's phone and national ID and the
+    /// contract's government ID the same on both machines, and every id its own.
+    fn saved_apart(side: &str) -> Vec<String> {
+        vec![
+            format!(
+                "INSERT INTO complex (id, name, location) VALUES ('x-{side}', 'Olaya', 'Riyadh')"
+            ),
+            format!(
+                "INSERT INTO tenant (id, national_id, name, phone) \
+                 VALUES ('t-{side}', '1000000001', 'Sami {side}', '+966500000000')"
+            ),
+            format!(
+                "INSERT INTO contract (id, gov_id, status, start_date, end_date, \
+                 interval_in_months, cost_per_interval, tenant_id) \
+                 VALUES ('c-{side}', 'gov-1', 'active', 0, 1, '12m', 100, 't-{side}')"
+            ),
+        ]
+    }
+
+    /// What a replica must hold once both machines have synced: both of every record, and each
+    /// contract on a tenant it holds.
+    async fn holds_both(connection: &turso::Connection, side: &str, label: &str) {
+        use super::test::workspace::number;
+
+        for (table, sql) in [
+            (
+                "tenant",
+                "SELECT count(*) FROM tenant WHERE phone = '+966500000000'",
+            ),
+            (
+                "contract",
+                "SELECT count(*) FROM contract WHERE gov_id = 'gov-1'",
+            ),
+            (
+                "complex",
+                "SELECT count(*) FROM complex WHERE name = 'Olaya'",
+            ),
+            (
+                "an orphan",
+                "SELECT 2 - count(*) FROM contract WHERE tenant_id NOT IN (SELECT id FROM tenant)",
+            ),
+        ] {
+            assert_eq!(
+                number(connection, sql).await,
+                2,
+                "{label}: replica {side} lost a record ({table})"
+            );
+        }
+    }
+
+    /// **Ticket 33's live criterion** (effort 857, requirement 14, criterion 14). Two machines on a
+    /// workspace at 7, as 0.20 leaves it, each save a complex, a tenant and a contract on it while
+    /// apart, with the same complex name, phone, national ID and government ID. A third machine on
+    /// this build opens the workspace, which runs `0007` at the primary. Then they sync, in either
+    /// order: the first pulls the drop and pushes, and the second, **which never pulled `0007` and
+    /// still holds the rules**, pushes and then pulls. No push or pull is refused, and both
+    /// replicas and the remote hold both of every record, with no contract on a tenant that
+    /// exists nowhere.
+    ///
+    /// The engine is driven directly (`turso::sync::Database::push` and `pull`), as the
+    /// measurement in effort 857's `what-a-duplicate-value-does-to-sync` did, so each call's own
+    /// answer is what is asserted. Each case deletes its database whatever it asserted.
+    ///
+    /// ```text
+    /// RENTABLE_LIVE_TURSO=1 TURSO_API_TOKEN=... TURSO_ORG=... TURSO_GROUP=rentable \
+    ///   cargo test --manifest-path ./apps/desktop/tauri/Cargo.toml duplicate_values_live -- \
+    ///   --test-threads=1 --ignored --nocapture
+    /// ```
+    #[ignore = "reaches a live Turso account and creates a database; see the doc comment"]
+    #[tokio::test]
+    async fn duplicate_values_live_cost_no_record_in_either_order() {
+        use super::test::workspace::number;
+        use crate::organization::{lease::apply, workspace::remote::Pipeline};
+
+        armed_for_a_live_run();
+
+        for (label, first, second) in [("dup-a-first", "a", "b"), ("dup-b-first", "b", "a")] {
+            on_a_throwaway_workspace(label, move |workspace, directory| async move {
+                workspace.apply_schema_remotely(7).await;
+
+                // each machine's replica in a directory of its own, under the case's.
+                let replica_of = |side: &str| {
+                    let replica = directory.join(side);
+
+                    std::fs::create_dir_all(&replica).expect("the machine's directory");
+                    replica
+                };
+                let one = workspace.replica_in(&replica_of(first)).await;
+                let other = workspace.replica_in(&replica_of(second)).await;
+
+                assert!(one.pull().await.expect("the first pull"), "{label}");
+                assert!(other.pull().await.expect("the first pull"), "{label}");
+
+                let one_connection = one.connect().await.expect("a connection");
+                let other_connection = other.connect().await.expect("a connection");
+
+                // both save while apart; nothing here reaches the network.
+                for statement in saved_apart(first) {
+                    run(&one_connection, &statement).await;
+                }
+
+                for statement in saved_apart(second) {
+                    run(&other_connection, &statement).await;
+                }
+
+                // a machine on this build opens the workspace, as a member, and 0007 runs.
+                let host = workspace
+                    .url
+                    .strip_prefix("libsql://")
+                    .expect("a libsql:// url");
+                let brought = apply::bring_up(
+                    &Pipeline::of(host),
+                    &workspace.token,
+                    &apply::SHIPPED,
+                    7,
+                    1_757_000_000_000,
+                )
+                .await
+                .expect("0007 at the primary");
+
+                assert_eq!(brought.ran, vec![8], "{label}");
+                assert_eq!(
+                    remote_number(
+                        &workspace,
+                        "SELECT count(*) FROM sqlite_master WHERE name IN ('tenant_phone_unique', \
+                         'tenant_national_id_unique', 'complex_name_unique', \
+                         'contract_gov_id_unique')"
+                    )
+                    .await,
+                    0,
+                    "{label}: a rule is still on the remote"
+                );
+
+                // the first pulls the drop, then pushes.
+                one.pull()
+                    .await
+                    .expect("the first machine's pull was refused");
+                one.push()
+                    .await
+                    .expect("the first machine's push was refused");
+
+                // the second never pulled 0007 and still holds the rules; it pushes, then pulls.
+                assert_eq!(
+                    number(
+                        &other_connection,
+                        "SELECT count(*) FROM sqlite_master WHERE name = 'tenant_phone_unique'"
+                    )
+                    .await,
+                    1,
+                    "{label}: the second machine was meant to hold the rule still"
+                );
+                other
+                    .push()
+                    .await
+                    .expect("the second machine's push was refused");
+                other
+                    .pull()
+                    .await
+                    .expect("the second machine's pull was refused");
+                one.pull().await.expect("the first machine's last pull");
+
+                holds_both(&one_connection, first, label).await;
+                holds_both(&other_connection, second, label).await;
+
+                for (table, sql) in [
+                    (
+                        "tenant",
+                        "SELECT count(*) FROM tenant WHERE phone = '+966500000000'",
+                    ),
+                    (
+                        "contract",
+                        "SELECT count(*) FROM contract WHERE gov_id = 'gov-1'",
+                    ),
+                    (
+                        "complex",
+                        "SELECT count(*) FROM complex WHERE name = 'Olaya'",
+                    ),
+                    (
+                        "an orphan",
+                        "SELECT 2 - count(*) FROM contract \
+                         WHERE tenant_id NOT IN (SELECT id FROM tenant)",
+                    ),
+                ] {
+                    assert_eq!(
+                        remote_number(&workspace, sql).await,
+                        2,
+                        "{label}: the remote lost a record ({table})"
+                    );
+                }
+
+                eprintln!("{label}: both of every record on both replicas and the remote");
+
+                drop(one_connection);
+                drop(other_connection);
+                drop(one);
+                drop(other);
+            })
+            .await;
+        }
+    }
+
     /// **Ticket 13, what holds the opening pull back.** A replica that has written nothing holds
     /// nothing unsent, so its first pull goes as it always did; one that has written and not
     /// pushed holds something, which the opening does not pull over.

@@ -9,8 +9,12 @@
 //! `apply.rs` until effort 857's ticket 14 gave it a second reader.*
 
 use crate::{
+    database::{
+        floor::Floors,
+        step::{Steps, WORKSPACE_STEPS},
+    },
     organization::{
-        lease::apply::{apply, shipped_version, statements},
+        lease::apply::{self, Migrations, WORKSPACE_MIGRATIONS, shipped_version, statements},
         workspace::remote::Pipeline,
     },
     sync::test::pipeline::LocalPipeline,
@@ -56,28 +60,55 @@ pub(crate) const SEEDS: &[Seed] = &[
         rows: SEEDED_AT_SIX,
         carried: carried_from_six,
     },
+    // 0.20.0, the first at 7, the shipped version until `0007` (effort 857, ticket 33).
+    Seed {
+        version: 7,
+        version_row: true,
+        rows: SEEDED_AT_SEVEN,
+        carried: carried_from_seven,
+    },
 ];
 
-/// **The workspace as a build of the shipped version leaves it** (0.20.0, the first at 7): made
-/// whole with its version row, as every workspace is from effort 838's ticket 32 on, and holding
-/// [`SEEDED_AT_SEVEN`]. Opening it walks nothing. A migration added after it makes this the
-/// version before, and its seed then joins [`SEEDS`], which fails until it does.
+/// **The workspace as a build of the shipped version leaves it**, at 8 since `0007` (effort 857,
+/// ticket 33): created whole by that build, with its version row and effort 857's records, as
+/// every workspace is from ticket 21 on, and holding [`SEEDED_AT_EIGHT`]. Opening it walks
+/// nothing. A migration added after it makes this the version before, and its seed then joins
+/// [`SEEDS`], which fails until it does.
 pub(crate) const AT_THE_SHIPPED_VERSION: Seed = Seed {
-    version: 7,
+    version: 8,
     version_row: true,
-    rows: SEEDED_AT_SEVEN,
-    carried: carried_at_seven,
+    rows: SEEDED_AT_EIGHT,
+    carried: carried_at_eight,
 };
 
+/// The workspace ladder of the build at `version`: its first `version` migrations and their
+/// declarations, which is what that build created a workspace with.
+pub(crate) fn ladder_at(version: usize) -> Migrations {
+    Migrations {
+        files: &WORKSPACE_MIGRATIONS[..version],
+        steps: Steps {
+            first: 1,
+            declared: &WORKSPACE_STEPS[..version],
+        },
+    }
+}
+
 /// The database `seed` stands for, on a pipeline of its own: its first `version` migrations, its
-/// version row where its build wrote one, and its rows.
+/// version row where its build wrote one, and its rows. A build that wrote the row created the
+/// workspace whole, as [`apply::create`] does with that build's ladder, and so with effort 857's
+/// records where a step declared after 857 is on it.
 pub(crate) async fn seeded(seed: &Seed) -> LocalPipeline {
     let pipeline = LocalPipeline::start().await;
 
     if seed.version_row {
-        apply(&Pipeline::at(&pipeline.url("")), "t", seed.version)
-            .await
-            .unwrap_or_else(|error| panic!("the seed at {}: {error:?}", seed.version));
+        apply::create(
+            &Pipeline::at(&pipeline.url("")),
+            "t",
+            &ladder_at(seed.version),
+            1_757_000_000_000,
+        )
+        .await
+        .unwrap_or_else(|error| panic!("the seed at {}: {error:?}", seed.version));
     } else {
         pipeline.holding(&statements(seed.version)).await;
     }
@@ -348,9 +379,9 @@ pub(crate) const SEEDED_AT_SEVEN: &[&str] = &[
       '0199a000-0000-7000-8000-0000000d0001', 'cash', NULL, 'مبلغ مسترد', 'refund')",
 ];
 
-/// [`SEEDED_AT_SEVEN`] as it stands, which is how opening it must leave it: [`SEEDED_AT_SIX`]'s
-/// rows carried, the refund after them, and the version row.
-pub(crate) fn carried_at_seven() -> Contents {
+/// [`SEEDED_AT_SEVEN`] at the shipped version: [`SEEDED_AT_SIX`]'s rows carried, the refund after
+/// them, and the version row.
+pub(crate) fn carried_from_seven() -> Contents {
     let mut carried = carried_from_six();
     let (_, payments) = carried
         .iter_mut()
@@ -369,6 +400,60 @@ pub(crate) fn carried_at_seven() -> Contents {
     ]);
 
     carried
+}
+
+/// A workspace as a build at 8 wrote it: every record of [`SEEDED_AT_SEVEN`], and a second tenant
+/// with the first's phone, which `0007` let two machines save apart (effort 857, ticket 33).
+pub(crate) const SEEDED_AT_EIGHT: &[&str] = &[
+    SEEDED_AT_SEVEN[0],
+    SEEDED_AT_SEVEN[1],
+    SEEDED_AT_SEVEN[2],
+    SEEDED_AT_SEVEN[3],
+    SEEDED_AT_SEVEN[4],
+    SEEDED_AT_SEVEN[5],
+    SEEDED_AT_SEVEN[6],
+    SEEDED_AT_SEVEN[7],
+    "INSERT INTO `tenant` (`id`, `national_id`, `name`, `phone`) VALUES      ('0199a000-0000-7000-8000-000000070003', '1012345679', 'Sara Al-Harbi', '0501234567')",
+];
+
+/// [`SEEDED_AT_EIGHT`] as it stands, which is how opening it must leave it: [`SEEDED_AT_SEVEN`]'s
+/// rows carried, the second tenant after them, the version row, and the records its build wrote
+/// creating it.
+pub(crate) fn carried_at_eight() -> Contents {
+    let mut carried = carried_from_seven();
+    let (_, tenants) = carried
+        .iter_mut()
+        .find(|(table, _)| table == "tenant")
+        .expect("the tenants carried from seven");
+
+    tenants.push(vec![
+        cell("0199a000-0000-7000-8000-000000070003"),
+        cell("1012345679"),
+        cell("Sara Al-Harbi"),
+        cell("0501234567"),
+    ]);
+
+    recorded(carried, ladder_at(8).steps.born())
+}
+
+/// `contents` with effort 857's records as a step declared after 857 leaves them in a workspace
+/// whose version runs unbroken: `applied_step` listing nothing above it, and `data_floor` holding
+/// `floors`. Tables stay in the order `backup::contents_of` reads them, by name.
+pub(crate) fn recorded(mut contents: Contents, floors: Floors) -> Contents {
+    contents.retain(|(table, _)| table != "applied_step" && table != "data_floor");
+    contents.push(("applied_step".to_string(), Vec::new()));
+    contents.push((
+        "data_floor".to_string(),
+        vec![vec![
+            turso::Value::Integer(1),
+            turso::Value::Integer(i64::from(floors.level)),
+            turso::Value::Integer(i64::from(floors.read)),
+            turso::Value::Integer(i64::from(floors.write)),
+        ]],
+    ));
+    contents.sort_by(|(one, _), (other, _)| one.cmp(other));
+
+    contents
 }
 
 /// A text value as a row holds it.

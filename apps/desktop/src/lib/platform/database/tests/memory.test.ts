@@ -92,12 +92,14 @@ test('mapRows returns every row for a non-get method', () => {
 test('a batch that fails part way leaves nothing of itself behind', async () => {
 	const db = createMemoryDatabase();
 
+	const id = newId();
+
 	await assert.rejects(() =>
 		db.batch([
-			db.insert(s.complex).values({ id: newId(), name: 'Palm Court', location: 'Riyadh' }),
-			// the second statement takes a name the first just took, and complex names are unique
-			// in the schema rather than only in the router.
-			db.insert(s.complex).values({ id: newId(), name: 'Palm Court', location: 'Jeddah' })
+			db.insert(s.complex).values({ id, name: 'Palm Court', location: 'Riyadh' }),
+			// the second statement takes the id the first just took, which the schema keeps unique.
+			// A complex's name is unique in the router alone since effort 857's `0007`.
+			db.insert(s.complex).values({ id, name: 'Olaya Court', location: 'Jeddah' })
 		])
 	);
 

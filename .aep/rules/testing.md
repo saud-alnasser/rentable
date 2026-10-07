@@ -324,11 +324,12 @@ other otherwise. See [[references/cargo]].
 
 ## Tests that reach a live remote
 
-**Ten sets are admitted, in seven properties, and they are the exception rather than a second way
-of testing.** All ten exist, and every one is Rust. The four `losing_writer` tests at the foot of
+**Twelve sets are admitted, in seven properties, and they are the exception rather than a second way
+of testing.** All twelve exist, and every one is Rust. The four `losing_writer` tests at the foot of
 `tauri/src/database/mod.rs` open two replicas of one workspace against a database they provision on
 Turso; the six admitted for the organization effort below, the one admitted for effort 838 after
-them, and the two admitted for effort 857 after that, each create and remove their own.
+them, and the four admitted for effort 857 after that, each create and remove their own. *The
+count read ten after ticket 24 added a set without moving it; ticket 33 corrected it with its own.*
 Everything else in this repository is tested against a local file, a loopback HTTP server, or an
 in-memory engine, and that is not changing.
 
@@ -477,7 +478,15 @@ what one loses to the remote's shape. **A second instance holds it for the organ
 at the foot of `tauri/src/organization/store/mod.rs`, provisions through the same scaffolding, holds
 a change in an organization replica, drops the column it names over the pipeline, and finds it
 classified at a first push and at a first pull alike, held across a reopen, and gone only at the
-discard.
+discard. **A third instance holds it for two replicas and a rule taken away** (effort 857, ticket 33,
+spec criterion 14, under the same bound): `duplicate_values_live_cost_no_record_in_either_order`, at
+the foot of `tauri/src/database/mod.rs`, provisions through the same scaffolding at 7, has two
+replicas save a complex, a tenant and a contract each while apart with the same complex name, phone,
+national ID and government ID, runs `0007` at the primary as opening on this build does, and syncs
+them in either order, the second never having pulled the drop: no push or pull is refused, and both
+replicas and the remote hold both of every record with no contract on a missing tenant. A local
+stand-in cannot say this either, since the subject is what the engine replays over a replica whose
+own copy of the shape still carries the rule.
 
 *The count in the heading sentence is the thing that goes stale. Another live test is a decision
 somebody takes here, in this section, naming its property and saying whether it is a new property or

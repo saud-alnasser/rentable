@@ -5611,6 +5611,10 @@ type RootTranslation = {
 				 * w​h​a​t​ ​a​ ​m​e​m​b​e​r​ ​m​a​y​ ​d​o​ ​i​n​ ​o​n​e​ ​w​o​r​k​s​p​a​c​e​,​ ​a​p​a​r​t​ ​f​r​o​m​ ​t​h​e​ ​r​e​s​t​ ​o​f​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
 				 */
 				workspaceOverride: string;
+				/**
+				 * r​e​c​o​r​d​s​ ​s​a​v​e​d​ ​o​n​ ​t​w​o​ ​d​e​v​i​c​e​s​ ​w​h​i​l​e​ ​a​p​a​r​t​ ​a​l​l​ ​s​t​a​y​,​ ​e​v​e​n​ ​w​i​t​h​ ​t​h​e​ ​s​a​m​e​ ​p​h​o​n​e​,​ ​n​a​t​i​o​n​a​l​ ​I​D​,​ ​c​o​m​p​l​e​x​ ​n​a​m​e​ ​o​r​ ​g​o​v​e​r​n​m​e​n​t​ ​I​D​.
+				 */
+				duplicateValues: string;
 			};
 		};
 	};
@@ -11074,6 +11078,10 @@ export type TranslationFunctions = {
 				 * what a member may do in one workspace, apart from the rest of the organization.
 				 */
 				workspaceOverride: () => LocalizedString;
+				/**
+				 * records saved on two devices while apart all stay, even with the same phone, national ID, complex name or government ID.
+				 */
+				duplicateValues: () => LocalizedString;
 			};
 		};
 	};

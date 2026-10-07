@@ -1222,6 +1222,17 @@ mod tests {
 
         let shipped = crate::organization::lease::apply::shipped_version();
 
+        // the organization's record of a workspace a build before 857 created: its version, and no
+        // floor record, which this build writes at creation and which would be judged instead.
+        store
+            .connection()
+            .execute(
+                "DELETE FROM \"workspace_floor\" WHERE \"workspace_id\" = ?",
+                vec![turso::Value::Text(workspace_id.clone())],
+            )
+            .await
+            .expect("the record a build before 857 leaves");
+
         // the version is outside the signature, recorded by whichever member migrated it.
         store
             .record_schema_version(&workspace_id, shipped + 1, 1_757_000_000_001)
