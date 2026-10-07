@@ -123,6 +123,24 @@ pub(super) async fn owner_row_repaired(
     )
     .await;
 
+    // and the root brought up to every flag this build's owner holds, where it lacks one (effort
+    // 857, ticket 15): after the repair, so the row it re-signs is the owner's as repaired, and
+    // before the name, which is then signed under the root that stands. Only the owner's machine
+    // writes, once; a failure is a diagnostic and the next sign-in or heartbeat asks again.
+    if let Err(refusal) = crate::organization::ownership::widen_root(
+        store,
+        verifying_key,
+        &member.id,
+        secret,
+        store.clock().now(),
+    )
+    .await
+    {
+        diagnostics::warn("organization.owner.rootNotWidened")
+            .with("reason", refusal.to_string())
+            .write();
+    }
+
     // and beside it, the organization's name signed where nobody has signed it yet (effort 851,
     // requirement 29): after the repair, since the root the owner signs with is what that writes
     // back. On every machine but the owner's it writes nothing, and a name that could not be

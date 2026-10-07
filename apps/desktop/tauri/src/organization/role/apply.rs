@@ -532,7 +532,7 @@ pub(super) async fn apply(
         {
             reissue_within(
                 store,
-                session,
+                &session.verifying_key,
                 &signer,
                 &moving.row.id,
                 Some((

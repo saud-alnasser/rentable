@@ -735,6 +735,8 @@ export const refusals = {
 			"this machine's access to the organization has lapsed. ask your organization for a new link to connect it again.",
 		organizationNewer:
 			'a newer version of rentable made this organization. update rentable to open it.',
+		ownerNotUpdated:
+			'the owner has not opened this version of rentable yet. upgrading waits until they have.',
 		copyNotTaken:
 			'no copy was taken before upgrading, so nothing was changed. check the connection and the backups folder, then try again.',
 		shapeNotAsBuilt:

@@ -271,6 +271,10 @@ pub enum RefusalReason {
     OrganizationCredentialLapsed,
     /// the organization was made by a newer version of rentable, which this one is updated to.
     OrganizationNewer,
+    /// the owner has not opened this version of rentable yet, and an upgrade asked of it waits
+    /// until they have: their machine is what brings a permission this version added to the
+    /// organization's certificates (effort 857, ticket 15).
+    OwnerNotUpdated,
 
     // a copy and a check before a change of shape (effort 838, requirements 13 and 15).
     /// the copy of the organization or the workspace taken before it changes shape could not be

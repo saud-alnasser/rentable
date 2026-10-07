@@ -571,6 +571,7 @@ export const refusals = {
 		organizationCredentialLapsed:
 			'انتهت صلاحية وصول هذا الجهاز إلى المؤسسة. اطلب من مؤسستك رابطاً جديداً لتربطه مرة أخرى.',
 		organizationNewer: 'أنشأ إصدار أحدث من rentable هذه المؤسسة. حدّث rentable لتفتحها.',
+		ownerNotUpdated: 'لم يفتح المالك هذا الإصدار من rentable بعد. تنتظر الترقية حتى يفتحه.',
 		copyNotTaken:
 			'تعذّر أخذ نسخة قبل الترقية، فلم يتغيّر شيء. تحقّق من الاتصال ومن مجلد النسخ الاحتياطية، ثم حاول مرة أخرى.',
 		shapeNotAsBuilt:

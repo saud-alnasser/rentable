@@ -313,6 +313,18 @@ assignment, an override, a role's new mask or rank, a reset and a removal all go
 issue takes a fresh id, `cert-<member>-<issued at>`, except the owner's upgrade of a format 1
 organization, whose certificates keep format 1's `cert-<member>` (see *Format*).
 
+**A flag added since the root was issued reaches the organization at the owner's first sign-in on
+the build that adds it** (effort 857, ticket 15). A root carries the owner's mask as it was when it
+was issued, and nothing covers a role or a certificate wider than its signer, so a new flag is in no
+certificate until the owner's machine, the one holder of the organization key, issues a root with the
+whole of this build's owner mask (`ownership::widen_root`, beside the repair above): in one
+transaction, what the old root issued is issued again from the new one under the same ids, what it
+signed is re-signed under it, and it revokes the old one; each built-in role gains the new flags its
+default carries, keeping the owner's edits; and every member whose standing then reaches past their
+certificate is re-issued one (`role::reissue_within`). The root's own ceiling records that it ran,
+so it runs once per new flag, and an act that needs the flag before then is refused with
+`ownerNotUpdated`.
+
 **The key changes when the owner does.** A handover is two acts (see *Authority*). The acceptance
 issues the new owner a root under what their own vault derives, re-signs the founder's rows under
 it, and issues again from it every live certificate the founder issued to somebody else, the

@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [06]
 ---
 
@@ -15,11 +15,11 @@ At the owner's first sign-in on a build whose owner role knows more flags than t
 
 Traces requirement 3 and criterion 3.
 
-- [ ] An organization seeded with a root whose ceiling lacks bit 18 is, after the owner's sign-in on this build, held under one live root whose ceiling is `OWNER_ROLE.mask`; the old root is revoked, and every row and certificate in the organization verifies (the handover's every-row test, applied here).
-- [ ] The stored manager role gains bit 18 as a signed write and keeps any other edit; a test covers an edited and an unedited manager role, and a manager role the owner later edited to drop bit 18 does not regain it at the next sign-in.
-- [ ] Each live manager's certificate, and any custom role holder's whose role carries bit 18, is re-issued with a ceiling holding it; a manager can then grant `upgradeData` by override and the owner can sign a custom role carrying it.
-- [ ] A second sign-in writes nothing; a member's or manager's sign-in writes nothing of this; a store holding the pre-857 code path (the rows as a pre-857 build reads them) still verifies every row.
-- [ ] Until the owner has signed in, a manager asking to upgrade is refused with the reason that the owner has not opened this version yet (the reason exists for ticket 07 to use).
+- [x] An organization seeded with a root whose ceiling lacks bit 18 is, after the owner's sign-in on this build, held under one live root whose ceiling is `OWNER_ROLE.mask`; the old root is revoked, and every row and certificate in the organization verifies (the handover's every-row test, applied here).
+- [x] The stored manager role gains bit 18 as a signed write and keeps any other edit; a test covers an edited and an unedited manager role, and a manager role the owner later edited to drop bit 18 does not regain it at the next sign-in.
+- [x] Each live manager's certificate, and any custom role holder's whose role carries bit 18, is re-issued with a ceiling holding it; a manager can then grant `upgradeData` by override and the owner can sign a custom role carrying it.
+- [x] A second sign-in writes nothing; a member's or manager's sign-in writes nothing of this; a store holding the pre-857 code path (the rows as a pre-857 build reads them) still verifies every row.
+- [x] Until the owner has signed in, a manager asking to upgrade is refused with the reason that the owner has not opened this version yet (the reason exists for ticket 07 to use).
 
 ## Relevant areas
 

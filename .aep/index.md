@@ -636,4 +636,4 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/857-updating-never-locks-a-member-out/tickets/12-the-running-app-follows-a-raise]] feat(sync): the running app follows a floor raise | 857-updating-never-locks-a-member-out | open | 05, 10, 11 |
 | [[efforts/857-updating-never-locks-a-member-out/tickets/13-unsent-changes-survive-an-upgrade]] fix(sync): unsent changes survive an upgrade | 857-updating-never-locks-a-member-out | open | 07 |
 | [[efforts/857-updating-never-locks-a-member-out/tickets/14-every-shipped-version-carries-across]] test(upgrade): every shipped version carries across | 857-updating-never-locks-a-member-out | open | 03, 04, 07 |
-| [[efforts/857-updating-never-locks-a-member-out/tickets/15-a-new-permission-reaches-existing-certificates]] feat(organization): a new permission reaches existing certificates | 857-updating-never-locks-a-member-out | open | 06 |
+| [[efforts/857-updating-never-locks-a-member-out/tickets/15-a-new-permission-reaches-existing-certificates]] feat(organization): a new permission reaches existing certificates | 857-updating-never-locks-a-member-out | resolved | 06 |

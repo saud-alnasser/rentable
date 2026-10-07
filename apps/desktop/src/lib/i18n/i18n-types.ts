@@ -1348,6 +1348,10 @@ type RootTranslation = {
 				 */
 				organizationNewer: string
 				/**
+				 * t​h​e​ ​o​w​n​e​r​ ​h​a​s​ ​n​o​t​ ​o​p​e​n​e​d​ ​t​h​i​s​ ​v​e​r​s​i​o​n​ ​o​f​ ​r​e​n​t​a​b​l​e​ ​y​e​t​.​ ​u​p​g​r​a​d​i​n​g​ ​w​a​i​t​s​ ​u​n​t​i​l​ ​t​h​e​y​ ​h​a​v​e​.
+				 */
+				ownerNotUpdated: string
+				/**
 				 * n​o​ ​c​o​p​y​ ​w​a​s​ ​t​a​k​e​n​ ​b​e​f​o​r​e​ ​u​p​g​r​a​d​i​n​g​,​ ​s​o​ ​n​o​t​h​i​n​g​ ​w​a​s​ ​c​h​a​n​g​e​d​.​ ​c​h​e​c​k​ ​t​h​e​ ​c​o​n​n​e​c​t​i​o​n​ ​a​n​d​ ​t​h​e​ ​b​a​c​k​u​p​s​ ​f​o​l​d​e​r​,​ ​t​h​e​n​ ​t​r​y​ ​a​g​a​i​n​.
 				 */
 				copyNotTaken: string
@@ -6736,6 +6740,10 @@ export type TranslationFunctions = {
 				 * a newer version of rentable made this organization. update rentable to open it.
 				 */
 				organizationNewer: () => LocalizedString
+				/**
+				 * the owner has not opened this version of rentable yet. upgrading waits until they have.
+				 */
+				ownerNotUpdated: () => LocalizedString
 				/**
 				 * no copy was taken before upgrading, so nothing was changed. check the connection and the backups folder, then try again.
 				 */
