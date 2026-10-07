@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { mock, test } from 'node:test';
 
+import type { HeldByVersion } from '$lib/organization/host.ts';
 import type { RemoteSyncState, ReplicationRefusal } from '$lib/sync/host.ts';
 import { fakeSyncState, fakeWorkspace } from '$lib/sync/tests/testing.ts';
 
@@ -22,6 +23,7 @@ let shellState: RemoteSyncState = fakeSyncState({
 let replicatesTo = false;
 let pushesTo = true;
 let refusesWith: ReplicationRefusal = 'none';
+let heldWith: HeldByVersion | null = null;
 let stateFails = false;
 // what each replication waits on before it answers, in call order: none, but for the test that
 // holds one out.
@@ -39,7 +41,13 @@ mock.module('$lib/sync/tauri', {
 				calls.push('replicate');
 				await replicationGates.shift();
 
-				return { pushed: pushesTo, received: replicatesTo, refusal: refusesWith };
+				return {
+					pushed: pushesTo,
+					received: replicatesTo,
+					refusal: refusesWith,
+					standing: 'held',
+					heldByVersion: heldWith
+				};
 			},
 			push: async () => {
 				calls.push('push');
@@ -58,6 +66,7 @@ function reset() {
 	replicatesTo = false;
 	pushesTo = true;
 	refusesWith = 'none';
+	heldWith = null;
 	stateFails = false;
 	replicationGates = [];
 	shellState = fakeSyncState({ workspace: fakeWorkspace({ id: 'workspace-1' }) });
@@ -101,6 +110,17 @@ test('a replication the account was refused for says so on the result', async ()
 	const result = await syncWorkspaceNow();
 
 	assert.equal(result.refusal, 'account');
+});
+
+// effort 857, ticket 12: the verdict the shell reached after the pull is on the result as it was
+// judged, for startup to move on before anything else is written.
+test('a replication that pulled a raise carries the verdict on the result', async () => {
+	reset();
+	heldWith = { target: 'organization', standing: 'unreadable', reason: 'past this version' };
+
+	const result = await syncWorkspaceNow();
+
+	assert.deepEqual(result.heldByVersion, heldWith);
 });
 
 test('the last dispatch of a session pushes on the way out, and does not pull', async () => {

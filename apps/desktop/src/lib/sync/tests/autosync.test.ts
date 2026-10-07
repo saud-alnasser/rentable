@@ -66,14 +66,22 @@ let dispatched: WorkspaceSyncResult = {
 	received: false,
 	pushed: true,
 	refusal: 'none',
-	standing: 'held'
+	standing: 'held',
+	heldByVersion: null
 };
+
+/** what the next dispatch throws instead of answering, where a test says so. */
+let throws: unknown = null;
 
 let requested: ((detail: { immediate?: boolean }) => void) | null = null;
 
 mock.module('$lib/sync/workspace', {
 	exports: {
-		syncWorkspaceNow: async () => dispatched
+		syncWorkspaceNow: async () => {
+			if (throws) throw throws;
+
+			return dispatched;
+		}
 	}
 });
 
@@ -95,6 +103,31 @@ mock.module('$lib/sync/tauri', {
 });
 
 const { startWorkspaceSyncManager } = await import('$lib/sync/autosync');
+type Reported = Parameters<
+	NonNullable<Parameters<typeof startWorkspaceSyncManager>[0]['onResult']>
+>[0];
+
+/** one manager, one dispatch asked for immediately, and every outcome it reported, whole. */
+async function reported(answer: Partial<WorkspaceSyncResult>, thrown: unknown = null) {
+	const outcomes: Reported[] = [];
+
+	dispatched = { ...dispatched, standing: 'held', heldByVersion: null, ...answer };
+	throws = thrown;
+	timers.length = 0;
+
+	const stop = startWorkspaceSyncManager({
+		onResult: (detail) => {
+			outcomes.push(detail);
+		}
+	});
+
+	requested?.({ immediate: true });
+	await fire();
+	stop();
+	throws = null;
+
+	return outcomes;
+}
 
 /** one manager, one dispatch asked for immediately, and what each callback was handed. */
 async function oneDispatch(standing: WorkspaceSyncResult['standing']) {
@@ -134,4 +167,30 @@ test('an ordinary dispatch reports its outcome and says nothing about the sessio
 
 	assert.deepEqual(results, ['none']);
 	assert.deepEqual(ended, []);
+});
+
+// effort 857, ticket 12: what the shell judged after the pull reaches startup as it was judged,
+// so a raise moves the application rather than becoming a line of text nobody routes on.
+test('a dispatch that pulled a raise reports the verdict on its outcome', async () => {
+	const heldByVersion = {
+		target: { workspace: 'north' },
+		standing: 'readOnly' as const,
+		reason: 'a newer version of rentable upgraded North Properties'
+	};
+	const [outcome] = await reported({ heldByVersion, received: true });
+
+	assert.deepEqual(outcome?.heldByVersion, heldByVersion);
+	assert.equal(outcome?.refusal, null);
+	assert.equal(outcome?.received, true);
+});
+
+test('and a dispatch the shell refused carries the refusal code, not only its sentence', async () => {
+	const [outcome] = await reported(
+		{},
+		{ code: 'refused', reason: 'workspaceNewer', message: 'upgraded past this version' }
+	);
+
+	assert.equal(outcome?.action, 'error');
+	assert.equal(outcome?.refusal, 'workspaceNewer');
+	assert.equal(outcome?.heldByVersion, null);
 });

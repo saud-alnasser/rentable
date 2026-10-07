@@ -4,6 +4,7 @@ import api from '$lib/api/caller';
 // the cache policy's own module rather than `$lib/mutation`, whose mutation handlers carry a
 // toaster this module's tests cannot load under Node.
 import { invalidateRoot } from '$lib/mutation';
+import type { HeldByVersion } from '$lib/organization';
 import type { RemoteSyncState, ReplicationRefusal, SessionStanding } from '$lib/sync/host';
 import { tauri } from '$lib/sync/tauri';
 import { countRun } from '$lib/sync/activity.svelte';
@@ -53,6 +54,12 @@ export type WorkspaceSyncResult = {
 	 * the machine stands again rather than go on drawing a workspace nobody is signed in to.
 	 */
 	standing: SessionStanding;
+	/**
+	 * what holds this machine by its version after it, judged by the shell after the
+	 * organization's pull and before anything went out, or `null` where nothing does (effort 857,
+	 * requirement 9). *Not `standing`*, which is the session's.
+	 */
+	heldByVersion: HeldByVersion | null;
 };
 
 /**
@@ -115,7 +122,10 @@ export function syncWorkspaceNow(
 			// a call that did not answer says nothing about the session, and the held answer is
 			// the one that changes nothing: the wall goes up on what Rust read, never on a failed
 			// read.
-			standing: 'held' as const
+			standing: 'held' as const,
+			// nor about the version: a call that did not answer judged nothing, and what the last
+			// one judged stands on the shell's state.
+			heldByVersion: null
 		}));
 
 		return { state, action: 'none' as const, ...replication };
@@ -139,5 +149,13 @@ export async function syncWorkspaceBeforeExit(
 
 	// the last call of a session reads no standing: it pushes and does not pull, so there is
 	// nothing newer to read the row against, and the window is closing either way.
-	return { state, action: 'none', received: false, pushed, refusal: 'none', standing: 'held' };
+	return {
+		state,
+		action: 'none',
+		received: false,
+		pushed,
+		refusal: 'none',
+		standing: 'held',
+		heldByVersion: null
+	};
 }

@@ -7,7 +7,7 @@ import {
 } from '$lib/sync/event';
 import { syncWorkspaceNow } from '$lib/sync/workspace';
 import { toErrorText } from '$lib/error/message';
-import { toTauriErrorCode } from '$lib/error/tauri';
+import { toTauriErrorCode, toTauriRefusalReason } from '$lib/error/tauri';
 import { LL } from '$lib/i18n/i18n-svelte';
 import { get } from 'svelte/store';
 
@@ -117,7 +117,10 @@ export function startWorkspaceSyncManager(input: {
 				received: result.received,
 				// the state the dispatch was read against, before it ran: a switch that happened
 				// while it was out changes what is open, and the report is still about this one.
-				workspaceId: result.state.workspace.remoteId
+				workspaceId: result.state.workspace.remoteId,
+				// what the shell judged after the pull, as it judged it (effort 857, requirement 9).
+				heldByVersion: result.heldByVersion,
+				refusal: null
 			});
 
 			// **A push that did not go arms the ladder**, which nothing else would: a replication
@@ -141,7 +144,10 @@ export function startWorkspaceSyncManager(input: {
 				action: 'error',
 				errorMessage: message,
 				received: false,
-				workspaceId: state?.workspace.remoteId ?? null
+				workspaceId: state?.workspace.remoteId ?? null,
+				heldByVersion: null,
+				// the sentence above is for a reader; the code is what a refusal is routed on.
+				refusal: toTauriRefusalReason(error)
 			});
 
 			if (shouldRetryAfter(error)) {

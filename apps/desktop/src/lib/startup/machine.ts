@@ -1,3 +1,4 @@
+import type { HeldByVersion } from '$lib/organization';
 import type { Recovery } from '$lib/update';
 import { organizationAdmission } from '$lib/sync';
 import type { StartupPorts } from './ports';
@@ -42,7 +43,7 @@ export class StartupMachine {
 
 	constructor(ports: StartupPorts) {
 		this.ports = ports;
-		this.reconciliation = new Reconciliation(ports);
+		this.reconciliation = new Reconciliation(ports, () => this.heldByVersion !== null);
 	}
 
 	/** what the shell draws. A copy, so nothing outside this unit can write to it. */
@@ -53,6 +54,27 @@ export class StartupMachine {
 	/** what the snapshot holds now, read in place by the unit's own paths. */
 	get current(): Readonly<StartupSnapshot> {
 		return this.#snapshot;
+	}
+
+	/**
+	 * what holds the session open here by its version: the organization, or the workspace open,
+	 * upgraded past what this build writes or reads (effort 857); `null` where nothing does. A
+	 * verdict on a workspace that is not the one open holds nothing here.
+	 */
+	get heldByVersion(): HeldByVersion | null {
+		const held = this.#snapshot.organization?.heldByVersion ?? null;
+
+		if (!held || !this.#snapshot.organization?.session) {
+			return null;
+		}
+
+		if (held.target === 'organization') {
+			return held;
+		}
+
+		return held.target.workspace === (this.#snapshot.sync?.workspace.remoteId ?? null)
+			? held
+			: null;
 	}
 
 	/** register a listener called after every change. Returns its own removal. */

@@ -1,3 +1,5 @@
+import type { HeldByVersion } from '$lib/organization';
+
 /**
  * asking for a dispatch, and hearing what one did.
  *
@@ -36,6 +38,18 @@ export type WorkspaceSyncEventResult = {
 	 * rather than reconcile the new one for rows that landed in the old.
 	 */
 	workspaceId: string | null;
+	/**
+	 * what holds this machine by its version after the dispatch, as the shell judged it, or `null`
+	 * where nothing does or the dispatch threw (effort 857, requirement 9). Carried as it was
+	 * judged rather than said as text, since what follows is a move: read-only, the switcher or the
+	 * update-required screen, before anything else is written.
+	 */
+	heldByVersion: HeldByVersion | null;
+	/**
+	 * the code of the refusal a dispatch that threw carried, or `null` where it carried none or
+	 * did not throw. `errorMessage` is its sentence, for a reader; this is what startup routes on.
+	 */
+	refusal: string | null;
 };
 
 const REQUEST_EVENT = 'rentable:workspace-sync-request';

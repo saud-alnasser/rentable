@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [05, 10, 11]
 ---
 
@@ -15,10 +15,10 @@ When a pull brings a floor raise into a running app, it moves to read-only with 
 
 Traces requirement 6, requirement 9, criterion 6 and criterion 9.
 
-- [ ] The sync outcome carries `standing` and the refusal code instead of flattening to text.
-- [ ] `applySyncOutcome` moves to read-only or `held` before `reconciliation.received()`, and the day-crossing reconcile does nothing while read-only.
-- [ ] A read-only notice in the shell's `notice` slot, on the `locked-notice.svelte` pattern, carries the sentence and `update-action` as `notice`.
-- [ ] Tests: a pulled raise moves the app before reconcile runs; the notice is drawn in both languages.
+- [x] The sync outcome carries `standing` and the refusal code instead of flattening to text.
+- [x] `applySyncOutcome` moves to read-only or `held` before `reconciliation.received()`, and the day-crossing reconcile does nothing while read-only.
+- [x] A read-only notice in the shell's `notice` slot, on the `locked-notice.svelte` pattern, carries the sentence and `update-action` as `notice`.
+- [x] Tests: a pulled raise moves the app before reconcile runs; the notice is drawn in both languages.
 
 ## Relevant areas
 

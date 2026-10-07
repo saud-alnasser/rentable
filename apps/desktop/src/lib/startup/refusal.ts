@@ -80,3 +80,14 @@ export const organizationNewer = (detail: string) => ({
 	reason: 'organizationNewer' as const,
 	message: detail
 });
+
+/**
+ * the refusal a workspace held below its read floor stands for, as the shell would have thrown it:
+ * a heartbeat's pull carries the verdict on its answer rather than throwing it (effort 857, ticket
+ * 12), and the update-required screen says it the way every other refusal is said.
+ */
+export const workspaceNewer = (detail: string) => ({
+	code: 'refused' as const,
+	reason: 'workspaceNewer' as const,
+	message: detail
+});

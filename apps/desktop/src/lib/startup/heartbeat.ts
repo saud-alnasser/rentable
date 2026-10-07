@@ -1,5 +1,6 @@
-import type { OrganizationState } from '$lib/organization';
+import type { HeldByVersion, OrganizationState } from '$lib/organization';
 import type { StartupMachine } from './machine';
+import { organizationNewer, workspaceNewer } from './refusal';
 
 /** what a sync manager reported, as this unit needs to read it. */
 export type SyncOutcome = {
@@ -14,6 +15,18 @@ export type SyncOutcome = {
 	 * reconcile the new workspace did not need and say rows arrived that a person never saw.
 	 */
 	workspaceId: string | null;
+	/**
+	 * what holds this machine by its version after the dispatch, as the shell judged it after the
+	 * organization's pull and before anything went out, or `null` where this build may write
+	 * everything it has open (effort 857, requirement 9). *Not the session's standing*, which a
+	 * dispatch that ended the session has already acted on before reporting.
+	 */
+	heldByVersion: HeldByVersion | null;
+	/**
+	 * why the shell refused a dispatch that threw, as the refusal's code, or `null` where it
+	 * carried none: what lets a refusal for the version be routed rather than read as text.
+	 */
+	refusal?: string | null;
 };
 
 /**
@@ -43,6 +56,15 @@ function standingOf(organization: OrganizationState | null): string | null {
  * while `switchWorkspace` ran reports for the workspace it started on, after the cache has
  * been cleared for the new one; applied, it would reconcile the new workspace for rows that
  * landed in the old one and announce them to a person who never saw them.
+ *
+ * **A pull that brought a newer rentable's upgrade moves the application first** (effort 857,
+ * requirement 9), before anything else is written, the reconcile after the pull included. Below a
+ * read floor the person goes where ticket 11's routing puts a way in the version refused: the
+ * switcher with the reason against the organization, or the update-required screen in place of
+ * the workspace. Below a write floor the application stays and reads: the verdict is folded into
+ * what the session holds, the held API context is dropped so every create, edit and delete is
+ * refused for the version, and the rows the pull brought are announced without the reconcile,
+ * which writes the derived columns. The read-only notice reads the same verdict off the state.
  */
 export async function applySyncOutcome(machine: StartupMachine, outcome: SyncOutcome) {
 	const state = await machine.ports.sync.getState().catch(() => null);
@@ -52,7 +74,12 @@ export async function applySyncOutcome(machine: StartupMachine, outcome: SyncOut
 		return;
 	}
 
+	if (await isPastReading(machine, outcome, open)) {
+		return;
+	}
+
 	await rereadOrganization(machine);
+	foldVerdict(machine, outcome.heldByVersion);
 
 	if (state) {
 		machine.set({ sync: state });
@@ -65,7 +92,74 @@ export async function applySyncOutcome(machine: StartupMachine, outcome: SyncOut
 		return;
 	}
 
+	// read-only: the rows are shown, and nothing is reconciled into data this build may not write.
+	if (machine.heldByVersion) {
+		await machine.ports.cache.invalidateAll();
+
+		return;
+	}
+
 	await machine.reconciliation.received();
+}
+
+/**
+ * Where the dispatch found the organization or the open workspace past what this build reads, put
+ * the person where a way in the version refused puts them (`./machine`, `returnToSwitcher` and
+ * `hold`), and answer whether it did.
+ *
+ * **The verdict on the answer, or the code a dispatch threw with**: the shell carries a raise it
+ * pulled as `heldByVersion`, and a dispatch it refused outright for the version says so in its
+ * code. Any other refusal is not this function's: a heartbeat that failed is retried by the sync
+ * manager, and nobody is moved off what they are doing for one.
+ */
+async function isPastReading(machine: StartupMachine, outcome: SyncOutcome, open: string | null) {
+	const held = outcome.heldByVersion;
+	const target =
+		held?.standing === 'unreadable'
+			? held.target
+			: outcome.refusal === 'organizationNewer'
+				? 'organization'
+				: outcome.refusal === 'workspaceNewer' && open
+					? { workspace: open }
+					: null;
+
+	if (target === null) {
+		return false;
+	}
+
+	const detail = held?.standing === 'unreadable' ? held.reason : '';
+
+	if (target === 'organization') {
+		const organization = machine.current.organization;
+		const organizationId = organization?.session?.organizationId ?? organization?.selected;
+
+		if (!organizationId) {
+			return false;
+		}
+
+		await machine.returnToSwitcher(organizationId, organizationNewer(detail), detail);
+
+		return true;
+	}
+
+	await machine.hold(target.workspace, workspaceNewer(detail));
+
+	return true;
+}
+
+/**
+ * Keep the dispatch's verdict on what the session holds, so everything that reads the snapshot
+ * reads it at once, whatever the read of the state just answered: the day's reconcile asks it
+ * (`./reconcile`), and the next read of the state says the same thing, since the shell keeps it.
+ */
+function foldVerdict(machine: StartupMachine, heldByVersion: HeldByVersion | null) {
+	const organization = machine.current.organization;
+
+	if (!heldByVersion || !organization) {
+		return;
+	}
+
+	machine.set({ organization: { ...organization, heldByVersion } });
 }
 
 /**
