@@ -1352,6 +1352,14 @@ type RootTranslation = {
 				 */
 				ownerNotUpdated: string
 				/**
+				 * t​h​i​s​ ​u​p​g​r​a​d​e​ ​s​i​g​n​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​a​g​a​i​n​ ​w​i​t​h​ ​t​h​e​ ​o​w​n​e​r​'​s​ ​k​e​y​,​ ​s​o​ ​o​n​l​y​ ​t​h​e​ ​o​w​n​e​r​ ​c​a​n​ ​r​u​n​ ​i​t​.
+				 */
+				upgradeNeedsOwner: string
+				/**
+				 * a​n​o​t​h​e​r​ ​m​e​m​b​e​r​ ​i​s​ ​u​p​g​r​a​d​i​n​g​ ​t​h​i​s​ ​r​i​g​h​t​ ​n​o​w​.​ ​t​r​y​ ​a​g​a​i​n​ ​o​n​c​e​ ​t​h​e​y​ ​h​a​v​e​ ​f​i​n​i​s​h​e​d​;​ ​n​o​t​h​i​n​g​ ​w​a​s​ ​c​h​a​n​g​e​d​.
+				 */
+				upgradeUnderWay: string
+				/**
 				 * a​ ​n​e​w​e​r​ ​v​e​r​s​i​o​n​ ​o​f​ ​r​e​n​t​a​b​l​e​ ​u​p​g​r​a​d​e​d​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​u​p​d​a​t​e​ ​r​e​n​t​a​b​l​e​ ​t​o​ ​m​a​k​e​ ​c​h​a​n​g​e​s​ ​i​n​ ​i​t​.
 				 */
 				organizationReadOnlyByVersion: string
@@ -5388,6 +5396,46 @@ type RootTranslation = {
 			 */
 			removeAsks: string
 		}
+		upgrade: {
+			steps: {
+				/**
+				 * t​h​e​ ​w​o​r​k​s​p​a​c​e​'​s​ ​r​e​c​o​r​d​s​:​ ​c​o​m​p​l​e​x​e​s​,​ ​u​n​i​t​s​,​ ​t​e​n​a​n​t​s​,​ ​c​o​n​t​r​a​c​t​s​ ​a​n​d​ ​p​a​y​m​e​n​t​s​.
+				 */
+				workspaceRecords: string
+				/**
+				 * t​h​e​ ​p​a​i​d​ ​a​n​d​ ​e​x​p​e​c​t​e​d​ ​a​m​o​u​n​t​s​ ​o​n​ ​e​a​c​h​ ​c​o​n​t​r​a​c​t​.
+				 */
+				contractAmounts: string
+				/**
+				 * t​h​e​ ​h​i​s​t​o​r​y​ ​o​f​ ​e​v​e​r​y​ ​r​e​c​o​r​d​.
+				 */
+				recordHistory: string
+				/**
+				 * e​v​e​r​y​ ​r​e​c​o​r​d​'​s​ ​i​d​ ​r​e​b​u​i​l​t​ ​a​s​ ​t​e​x​t​.
+				 */
+				recordIds: string
+				/**
+				 * a​ ​q​u​i​c​k​e​r​ ​l​o​o​k​-​u​p​ ​o​f​ ​a​ ​c​o​n​t​r​a​c​t​'​s​ ​p​a​y​m​e​n​t​s​.
+				 */
+				paymentIndex: string
+				/**
+				 * h​o​w​ ​e​a​c​h​ ​p​a​y​m​e​n​t​ ​w​a​s​ ​p​a​i​d​,​ ​w​i​t​h​ ​i​t​s​ ​r​e​f​e​r​e​n​c​e​ ​a​n​d​ ​i​t​s​ ​n​o​t​e​.
+				 */
+				paymentMethod: string
+				/**
+				 * w​h​i​c​h​ ​w​a​y​ ​e​a​c​h​ ​p​a​y​m​e​n​t​'​s​ ​m​o​n​e​y​ ​w​e​n​t​,​ ​s​o​ ​a​ ​r​e​f​u​n​d​ ​c​o​u​n​t​s​ ​a​s​ ​m​o​n​e​y​ ​p​a​i​d​ ​b​a​c​k​.
+				 */
+				paymentDirection: string
+				/**
+				 * e​v​e​r​y​ ​m​e​m​b​e​r​'​s​ ​p​e​r​m​i​s​s​i​o​n​s​ ​s​i​g​n​e​d​ ​a​g​a​i​n​ ​f​r​o​m​ ​t​h​e​ ​o​w​n​e​r​'​s​ ​k​e​y​,​ ​i​n​ ​o​n​e​ ​c​h​a​i​n​ ​o​f​ ​c​e​r​t​i​f​i​c​a​t​e​s​.
+				 */
+				chainOfCertificates: string
+				/**
+				 * w​h​a​t​ ​a​ ​m​e​m​b​e​r​ ​m​a​y​ ​d​o​ ​i​n​ ​o​n​e​ ​w​o​r​k​s​p​a​c​e​,​ ​a​p​a​r​t​ ​f​r​o​m​ ​t​h​e​ ​r​e​s​t​ ​o​f​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​.
+				 */
+				workspaceOverride: string
+			}
+		}
 	}
 	workspace: {
 		/**
@@ -6756,6 +6804,14 @@ export type TranslationFunctions = {
 				 * the owner has not opened this version of rentable yet. upgrading waits until they have.
 				 */
 				ownerNotUpdated: () => LocalizedString
+				/**
+				 * this upgrade signs the organization again with the owner's key, so only the owner can run it.
+				 */
+				upgradeNeedsOwner: () => LocalizedString
+				/**
+				 * another member is upgrading this right now. try again once they have finished; nothing was changed.
+				 */
+				upgradeUnderWay: () => LocalizedString
 				/**
 				 * a newer version of rentable upgraded this organization. update rentable to make changes in it.
 				 */
@@ -10611,6 +10667,46 @@ export type TranslationFunctions = {
 			 * they can no longer open this workspace once the access they hold runs out. adding them again gives it back.
 			 */
 			removeAsks: () => LocalizedString
+		}
+		upgrade: {
+			steps: {
+				/**
+				 * the workspace's records: complexes, units, tenants, contracts and payments.
+				 */
+				workspaceRecords: () => LocalizedString
+				/**
+				 * the paid and expected amounts on each contract.
+				 */
+				contractAmounts: () => LocalizedString
+				/**
+				 * the history of every record.
+				 */
+				recordHistory: () => LocalizedString
+				/**
+				 * every record's id rebuilt as text.
+				 */
+				recordIds: () => LocalizedString
+				/**
+				 * a quicker look-up of a contract's payments.
+				 */
+				paymentIndex: () => LocalizedString
+				/**
+				 * how each payment was paid, with its reference and its note.
+				 */
+				paymentMethod: () => LocalizedString
+				/**
+				 * which way each payment's money went, so a refund counts as money paid back.
+				 */
+				paymentDirection: () => LocalizedString
+				/**
+				 * every member's permissions signed again from the owner's key, in one chain of certificates.
+				 */
+				chainOfCertificates: () => LocalizedString
+				/**
+				 * what a member may do in one workspace, apart from the rest of the organization.
+				 */
+				workspaceOverride: () => LocalizedString
+			}
 		}
 	}
 	workspace: {

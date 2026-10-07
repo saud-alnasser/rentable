@@ -369,9 +369,17 @@ fn outcome(holder: &str, holder_read: &str, until: i64) -> LeaseOutcome {
 /// let through as [`Standing::ReadOnly`]; otherwise it is [`Standing::Writable`]. The workspace's
 /// own floors, which it records beside its version, are judged once its replica has pulled
 /// (`workspace/open.rs`).
-pub fn refuse_newer(facts: &WorkspaceFacts) -> Result<Standing, Error> {
+///
+/// **Where the organization records floors for the workspace, they are what is judged**
+/// ([`recorded_floors`]): the explicit upgrade moves `schema_version` past every build before 857
+/// to stop them, which a build from 857 on, reading the floors, may still read or read-only (effort
+/// 857, ticket 07).
+pub async fn refuse_newer(
+    store: &OrganizationStore,
+    facts: &WorkspaceFacts,
+) -> Result<Standing, Error> {
     let shipped = apply::shipped_version();
-    let floors = Floors::legacy(floor::number(facts.schema_version)?);
+    let floors = recorded_floors(store, &facts.id, facts.schema_version).await?;
     let standing = floors.standing(floor::number(shipped)?);
 
     if standing == Standing::Unreadable {
@@ -379,6 +387,24 @@ pub fn refuse_newer(facts: &WorkspaceFacts) -> Result<Standing, Error> {
     }
 
     Ok(standing)
+}
+
+/// The floors the organization records for a workspace whose `schema_version` is `recorded`: its
+/// `workspace_floor` row where a step declared after 857 has run on it, and otherwise the version
+/// read as floors equal to it ([`Floors::legacy`]), which is what every build before 857 enforced.
+///
+/// **The row wins over the version**, since the version is moved past every build before 857 when
+/// an upgrade has to stop them (effort 857, ticket 07), and the row is what a build from 857 on
+/// is judged by.
+pub async fn recorded_floors(
+    store: &OrganizationStore,
+    workspace_id: &str,
+    recorded: i64,
+) -> Result<Floors, Error> {
+    match store.workspace_floor(workspace_id).await? {
+        Some(floors) => Ok(floors),
+        None => Ok(Floors::legacy(floor::number(recorded)?)),
+    }
 }
 
 /// The refusal of a workspace below its read floor: a newer rentable upgraded it, `level` against
@@ -1250,7 +1276,9 @@ mod tests {
                 .await
                 .expect("whether it is pending")
         );
-        refuse_newer(&facts).expect("a pending workspace is not a newer one");
+        refuse_newer(&store, &facts)
+            .await
+            .expect("a pending workspace is not a newer one");
 
         let pipeline = copied_then_applied().await;
         let phases = Mutex::new(Vec::new());
@@ -1640,7 +1668,7 @@ mod tests {
             .expect("the newer version");
 
         let (facts, _) = facts_of(&store, &member, &workspace_id).await;
-        let refused = refuse_newer(&facts);
+        let refused = refuse_newer(&store, &facts).await;
 
         assert!(
             matches!(refused, Err(Error::Refused { reason: crate::error::RefusalReason::WorkspaceNewer, ref message })
@@ -2250,7 +2278,10 @@ mod tests {
                 floors.standing(migrations.steps.known()),
                 Standing::Writable
             );
-            assert_eq!(refuse_newer(&facts).expect("readable"), Standing::Writable);
+            assert_eq!(
+                refuse_newer(&store, &facts).await.expect("readable"),
+                Standing::Writable
+            );
             assert!(
                 !is_pending_over(&migrations, &store, &facts)
                     .await
@@ -2349,7 +2380,10 @@ mod tests {
             floors.standing(migrations.steps.known()),
             Standing::Writable
         );
-        assert_eq!(refuse_newer(&facts).expect("readable"), Standing::Writable);
+        assert_eq!(
+            refuse_newer(&store, &facts).await.expect("readable"),
+            Standing::Writable
+        );
         assert!(
             !is_pending_over(&migrations, &store, &facts)
                 .await

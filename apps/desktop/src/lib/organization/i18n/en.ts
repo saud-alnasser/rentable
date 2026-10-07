@@ -634,6 +634,26 @@ export const organization = {
 		removeFromWorkspace: 'remove from workspace',
 		removeAsks:
 			'they can no longer open this workspace once the access they hold runs out. adding them again gives it back.'
+	},
+	// the upgrade of the organization or of a workspace (effort 857, ticket 07). `steps` says what
+	// each step adds or changes, one sentence per step `database/step.rs` declares, by its
+	// `describes` key; the upgrade sheet lists the ones it would run.
+	upgrade: {
+		steps: {
+			workspaceRecords:
+				"the workspace's records: complexes, units, tenants, contracts and payments.",
+			contractAmounts: 'the paid and expected amounts on each contract.',
+			recordHistory: 'the history of every record.',
+			recordIds: "every record's id rebuilt as text.",
+			paymentIndex: "a quicker look-up of a contract's payments.",
+			paymentMethod: 'how each payment was paid, with its reference and its note.',
+			paymentDirection:
+				"which way each payment's money went, so a refund counts as money paid back.",
+			chainOfCertificates:
+				"every member's permissions signed again from the owner's key, in one chain of certificates.",
+			workspaceOverride:
+				'what a member may do in one workspace, apart from the rest of the organization.'
+		}
 	}
 } satisfies BaseTranslation;
 
@@ -737,6 +757,10 @@ export const refusals = {
 			'a newer version of rentable made this organization. update rentable to open it.',
 		ownerNotUpdated:
 			'the owner has not opened this version of rentable yet. upgrading waits until they have.',
+		upgradeNeedsOwner:
+			"this upgrade signs the organization again with the owner's key, so only the owner can run it.",
+		upgradeUnderWay:
+			'another member is upgrading this right now. try again once they have finished; nothing was changed.',
 		organizationReadOnlyByVersion:
 			'a newer version of rentable upgraded this organization. update rentable to make changes in it.',
 		workspaceReadOnlyByVersion:

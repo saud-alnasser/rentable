@@ -37,7 +37,6 @@ pub const THE_OWNER_HAS_NOT_OPENED_THIS_VERSION: &str =
 /// Whether the owner has opened this version: a live root's ceiling holds every flag this build's
 /// owner role carries, which [`widen_root`] makes true at the owner's first sign-in on it and
 /// nothing else does once the organization exists. Asked by the upgrade (ticket 07).
-#[cfg_attr(not(test), allow(dead_code))]
 pub(in crate::organization) async fn owner_has_opened_this_version(
     store: &OrganizationStore,
     organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
@@ -54,7 +53,6 @@ pub(in crate::organization) async fn owner_has_opened_this_version(
 
 /// [`owner_has_opened_this_version`] as the refusal an act waiting on it makes, by name
 /// ([`RefusalReason::OwnerNotUpdated`]): what the upgrade refuses a manager with (ticket 07).
-#[cfg_attr(not(test), allow(dead_code))]
 pub(in crate::organization) async fn refuse_until_the_owner_has_opened_this_version(
     store: &OrganizationStore,
     organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],

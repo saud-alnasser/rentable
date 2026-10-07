@@ -454,9 +454,9 @@ impl OrganizationStore {
 
     /// Record the organization's floors, `floors`, over whatever its one row said: what
     /// [`OrganizationStore::complete_schema`] writes once an addition declared after effort 857
-    /// takes the organization past the level recorded (ticket 03). The table is made where this
-    /// replica lacks it.
-    pub(super) async fn record_organization_floor(
+    /// takes the organization past the level recorded (ticket 03), and the explicit upgrade inside
+    /// its transaction (ticket 07). The table is made where this replica lacks it.
+    pub(crate) async fn record_organization_floor(
         &self,
         floors: Floors,
         now: i64,

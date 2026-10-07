@@ -536,7 +536,7 @@ pub(crate) async fn reach(
             )
         })?;
 
-    lease::refuse_newer(&facts)?;
+    lease::refuse_newer(store, &facts).await?;
 
     // a workspace behind this build is brought up by opening it, under the lease, which this
     // path never takes: what is read here would be in a shape this build was not written for,

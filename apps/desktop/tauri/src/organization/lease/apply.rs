@@ -71,7 +71,7 @@ use crate::{
     backup,
     database::{
         floor::{self, Floors, Standing, WORKSPACE_FLOOR_TABLE},
-        step::{Kind, Steps, WORKSPACE_STEPS},
+        step::{Steps, WORKSPACE_STEPS},
     },
     diagnostics,
     error::{Error, RefusalReason},
@@ -257,32 +257,18 @@ impl Migrations {
 
         run.iter().any(|number| *number > settled)
     }
+}
 
-    /// What `before` becomes once the steps `ran` have run, taking the workspace to `level`: an
-    /// addition leaves both floors where they were, and a step shipped before 857, an upgrade at
-    /// its own number, raises them to it, as it always did.
-    fn raised(&self, before: Floors, ran: &[u32], level: u32) -> Floors {
-        ran.iter()
-            .filter_map(|number| self.steps.step(*number))
-            .fold(
-                Floors {
-                    level: level.max(before.level),
-                    ..before
-                },
-                |floors, step| match step.kind {
-                    Kind::Upgrade {
-                        read_floor,
-                        write_floor,
-                        ..
-                    } => Floors {
-                        read: floors.read.max(read_floor.unwrap_or(0)),
-                        write: floors.write.max(write_floor.unwrap_or(0)),
-                        ..floors
-                    },
-                    Kind::Addition => floors,
-                },
-            )
-    }
+/// Which steps [`bring_up`] runs: what opening runs, or every step the workspace has not run.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Selected {
+    /// [`Steps::on_open`]'s: each step shipped before 857 and each addition, passing over an
+    /// upgrade declared after (ticket 03).
+    OnOpen,
+    /// every step above the version the workspace has not run, the upgrades waiting for the
+    /// explicit act among them (ticket 07). `owner` says whether the member running them is the
+    /// owner, without whom a step needing the owner's key is refused and nothing runs.
+    Every { owner: bool },
 }
 
 /// What [`apply_between`] found and did.
@@ -588,8 +574,22 @@ pub async fn bring_up(
     from: usize,
     now: i64,
 ) -> Result<Brought, Error> {
+    bring_up_selected(pipeline, token, migrations, from, now, Selected::OnOpen).await
+}
+
+/// [`bring_up`], running the steps `selected` names: what opening runs, or every step the
+/// workspace has not run, which is the explicit upgrade (effort 857, ticket 07). The same one
+/// transaction, check and records either way, so an upgrade is whole or nothing.
+pub async fn bring_up_selected(
+    pipeline: &Pipeline,
+    token: &str,
+    migrations: &Migrations,
+    from: usize,
+    now: i64,
+    selected: Selected,
+) -> Result<Brought, Error> {
     let stream = OverThePipeline::migrating(pipeline, token);
-    let brought = brought_on(&stream, migrations, from, now).await;
+    let brought = brought_on(&stream, migrations, from, now, selected).await;
 
     if brought.is_err() {
         stream.abandoned().await;
@@ -604,6 +604,7 @@ async fn brought_on(
     migrations: &Migrations,
     from: usize,
     now: i64,
+    selected: Selected,
 ) -> Result<Brought, Error> {
     let (at, opened) = opened_on(stream, from, &[RECORDS_LISTED]).await?;
     let at = floor::number(at as i64)?;
@@ -633,7 +634,18 @@ async fn brought_on(
         Standing::Writable => {}
     }
 
-    let ran = migrations.steps.on_open(at, &applied);
+    let ran: Vec<u32> = match selected {
+        Selected::OnOpen => migrations.steps.on_open(at, &applied),
+        Selected::Every { .. } => (at.saturating_add(1)..=known)
+            .filter(|number| !applied.contains(number))
+            .collect(),
+    };
+
+    if selected == (Selected::Every { owner: false }) && migrations.steps.need_the_owner(&ran) {
+        rolled_back(stream).await?;
+
+        return Err(crate::organization::upgrade::needs_the_owner());
+    }
 
     if ran.is_empty() {
         rolled_back(stream).await?;
@@ -667,7 +679,7 @@ async fn brought_on(
     let level = holds.last().copied().unwrap_or(version);
     let floors = migrations
         .records(&holds)
-        .then(|| migrations.raised(before, &ran, level));
+        .then(|| migrations.steps.raised(before, &ran, level));
     let mut tail: Vec<String> = ran
         .iter()
         .flat_map(|number| migrations.statements_of(*number))

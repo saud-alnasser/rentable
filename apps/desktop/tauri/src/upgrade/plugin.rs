@@ -9,7 +9,9 @@ use crate::{
     error::Error,
     organization::{
         HeldOrganization, Shared,
-        session::{AccountCopy, Build, CredentialSlot, Upgrade, Upgrades, Upgrading},
+        session::{
+            AccountCopy, Build, CredentialSlot, MemberSession, Upgrade, Upgrades, Upgrading,
+        },
         setup::Remote,
         store::OrganizationStore,
     },
@@ -145,6 +147,24 @@ impl Upgrade for Upgrader {
 
             Ok(())
         })
+    }
+
+    fn change<'a>(
+        &'a self,
+        store: &'a OrganizationStore,
+        session: &'a MemberSession,
+        number: u32,
+        now: i64,
+    ) -> Upgrading<'a> {
+        Box::pin(runner::change(
+            store,
+            super::format::TRANSITIONS,
+            &session.verifying_key,
+            &session.member_id,
+            &session.secret,
+            number,
+            now,
+        ))
     }
 
     fn build(&self) -> Build {

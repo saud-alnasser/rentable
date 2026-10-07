@@ -46,6 +46,8 @@
 //! (`guard/cycle.rs`). It was `upgrade/step.rs` until then, beside `floor.rs`, which ticket 04
 //! moved here for the same reason.
 
+use super::floor::Floors;
+
 /// One step of a database, as it is declared.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Step {
@@ -111,6 +113,82 @@ impl Steps {
             .filter(|number| !applied.contains(number))
             .filter(|number| self.step(*number).is_some_and(Step::runs_on_open))
             .collect()
+    }
+
+    /// The upgrades waiting for the explicit act on data whose floors are `floors` (effort 857,
+    /// ticket 07): each step declared after 857 that opening passes over and that raises a floor
+    /// past the one recorded. An upgrade that has run took the floors to what it declares, so the
+    /// floors are what say it has; the organization keeps no list of the steps it took.
+    pub fn awaiting(&self, floors: Floors) -> Vec<u32> {
+        (self.settled().saturating_add(1)..=self.known())
+            .filter(|number| {
+                self.step(*number).is_some_and(|step| match step.kind {
+                    Kind::Upgrade {
+                        read_floor,
+                        write_floor,
+                        ..
+                    } if !step.runs_on_open() => {
+                        read_floor.is_some_and(|read| read > floors.read)
+                            || write_floor.is_some_and(|write| write > floors.write)
+                    }
+                    _ => false,
+                })
+            })
+            .collect()
+    }
+
+    /// Whether any of the steps `numbers` needs the owner's own key.
+    pub fn need_the_owner(&self, numbers: &[u32]) -> bool {
+        numbers.iter().any(|number| {
+            matches!(
+                self.step(*number).map(|step| step.kind),
+                Some(Kind::Upgrade {
+                    needs_owner: true,
+                    ..
+                })
+            )
+        })
+    }
+
+    /// What `before` becomes once the steps `ran` have run, taking the data to `level`: an addition
+    /// leaves both floors where they were, and an upgrade raises each to what it declares, where
+    /// that is higher.
+    pub fn raised(&self, before: Floors, ran: &[u32], level: u32) -> Floors {
+        ran.iter().filter_map(|number| self.step(*number)).fold(
+            Floors {
+                level: level.max(before.level),
+                ..before
+            },
+            |floors, step| match step.kind {
+                Kind::Upgrade {
+                    read_floor,
+                    write_floor,
+                    ..
+                } => Floors {
+                    read: floors.read.max(read_floor.unwrap_or(0)),
+                    write: floors.write.max(write_floor.unwrap_or(0)),
+                    ..floors
+                },
+                Kind::Addition => floors,
+            },
+        )
+    }
+
+    /// The number builds before 857 read (the organization's `workspace.schema_version`, the
+    /// `format` row), `legacy` now, as an upgrade taking the floors to `after` leaves it (ticket
+    /// 07). It moves only where a floor passes what any of those builds knows, the last step shipped
+    /// before 857, and they can still read it; and then to the higher floor, which every one of them
+    /// refuses, since none knows a step past [`Steps::settled`]. A build from 857 on reads the floor
+    /// record rather than this number.
+    pub fn legacy_after(&self, legacy: u32, after: Floors) -> u32 {
+        let settled = self.settled();
+        let highest = after.read.max(after.write);
+
+        if legacy <= settled && highest > settled {
+            highest
+        } else {
+            legacy
+        }
     }
 }
 
@@ -536,6 +614,34 @@ mod tests {
         assert!(keys.iter().all(|key| !key.is_empty()));
     }
 
+    /// **Ticket 07's constraint.** Every step's sentence is written, in English and in Arabic: its
+    /// `describes` key stands under `organization.upgrade.steps` in both of the organization's
+    /// locale files, which is what the upgrade sheet reads.
+    #[test]
+    fn every_step_says_what_it_does_in_both_languages() {
+        for locale in ["en", "ar"] {
+            let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join(format!("../src/lib/organization/i18n/{locale}.ts"));
+            let source = std::fs::read_to_string(&path).expect("the locale");
+            let upgrade = source
+                .find("\tupgrade: {")
+                .unwrap_or_else(|| panic!("{locale} has no `organization.upgrade`"));
+            let steps = upgrade
+                + source[upgrade..]
+                    .find("steps: {")
+                    .unwrap_or_else(|| panic!("{locale} has no `organization.upgrade.steps`"));
+            let block = &source[steps..steps + source[steps..].find('}').expect("its end")];
+
+            for step in WORKSPACE_STEPS.iter().chain(FORMAT_STEPS) {
+                assert!(
+                    block.contains(&format!("\t{}:", step.describes)),
+                    "{locale} says nothing for {}",
+                    step.describes
+                );
+            }
+        }
+    }
+
     /// A step declared after effort 857, of `kind`.
     const fn after(kind: Kind, describes: &'static str) -> Step {
         Step {
@@ -614,5 +720,81 @@ mod tests {
         assert!(steps.on_open(5, &[]).is_empty());
         assert!(!DECLARED[2].runs_on_open());
         assert!(DECLARED[3].runs_on_open());
+    }
+
+    /// **Ticket 07, over the declarations.** An upgrade declared after 857 waits while the floors
+    /// are below what it declares and stops waiting once they are not; the floors it leaves are its
+    /// own over what stood; and the number builds before 857 read moves only where a floor passes
+    /// the last step they know, and then to that floor.
+    #[test]
+    fn an_upgrade_waits_until_the_floors_say_it_ran_and_moves_the_legacy_number_only_past_857() {
+        use crate::database::floor::Floors;
+
+        const DECLARED: &[Step] = &[
+            WORKSPACE_STEPS[0],
+            WORKSPACE_STEPS[1],
+            upgrade(3, "aLaterUpgrade"),
+            after(Kind::Addition, "aLaterAddition"),
+            after(
+                Kind::Upgrade {
+                    read_floor: Some(5),
+                    write_floor: Some(5),
+                    needs_owner: true,
+                },
+                "anOwnersUpgrade",
+            ),
+        ];
+        let steps = Steps {
+            first: 1,
+            declared: DECLARED,
+        };
+        let shipped = Floors::legacy(2);
+
+        assert_eq!(steps.awaiting(shipped), vec![3, 5]);
+        assert_eq!(
+            steps.awaiting(Floors {
+                level: 4,
+                read: 2,
+                write: 3
+            }),
+            vec![5]
+        );
+        assert!(
+            steps
+                .awaiting(Floors {
+                    level: 5,
+                    read: 5,
+                    write: 5
+                })
+                .is_empty()
+        );
+        assert!(steps.need_the_owner(&[3, 5]));
+        assert!(!steps.need_the_owner(&[3, 4]));
+
+        let raised = steps.raised(shipped, &[3, 4], 4);
+
+        assert_eq!(
+            raised,
+            Floors {
+                level: 4,
+                read: 2,
+                write: 3
+            }
+        );
+        assert_eq!(
+            steps.raised(raised, &[5], 5),
+            Floors {
+                level: 5,
+                read: 5,
+                write: 5
+            }
+        );
+
+        // past the last step builds before 857 know, which is 2 here: moved, to the higher floor.
+        assert_eq!(steps.legacy_after(2, raised), 3);
+        // a floor that passes nothing they know moves nothing.
+        assert_eq!(steps.legacy_after(2, Floors::legacy(2)), 2);
+        // and a number already past them stays where it is.
+        assert_eq!(steps.legacy_after(3, Floors::legacy(5)), 3);
     }
 }

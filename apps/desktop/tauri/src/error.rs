@@ -277,6 +277,14 @@ pub enum RefusalReason {
     /// until they have: their machine is what brings a permission this version added to the
     /// organization's certificates (effort 857, ticket 15).
     OwnerNotUpdated,
+    /// an upgrade holds a step that needs the owner's own key, as every step re-signing the
+    /// organization's rows does, so it runs on the owner's machine whoever else holds the
+    /// permission to upgrade, and nothing was changed (effort 857, ticket 07).
+    UpgradeNeedsOwner,
+    /// another member is bringing the workspace or the organization up under the lease right now,
+    /// so the upgrade asked for waits until they have finished, and nothing was changed (effort
+    /// 857, ticket 07).
+    UpgradeUnderWay,
     /// a newer version of rentable upgraded the organization, and this one reads it but may not
     /// write to it (below its write floor, effort 857): what a way in that must write is refused
     /// with, and nothing was written.

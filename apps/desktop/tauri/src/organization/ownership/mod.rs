@@ -21,11 +21,8 @@ mod repair;
 
 pub use ceiling::THE_OWNER_HAS_NOT_OPENED_THIS_VERSION;
 pub(in crate::organization) use ceiling::widen_root;
-// the upgrade command asks these before it runs (effort 857, ticket 07), and nothing else does.
-#[allow(unused_imports)]
-pub(in crate::organization) use ceiling::{
-    owner_has_opened_this_version, refuse_until_the_owner_has_opened_this_version,
-};
+// the upgrade command asks this before it runs (effort 857, ticket 07), and nothing else does.
+pub(in crate::organization) use ceiling::refuse_until_the_owner_has_opened_this_version;
 pub use command::*;
 pub(in crate::organization) use repair::{is_the_owners, repair_owner_row, sign_organization_name};
 

@@ -177,7 +177,7 @@ pub(crate) async fn organization_workspace_open(
         // a workspace this build was not written against is refused here, before the replica is
         // named, and nothing of it is read; one it may read and not write is let through, and
         // nothing is written to it (effort 857, ticket 04).
-        let standing = lease::refuse_newer(&facts)?;
+        let standing = lease::refuse_newer(store, &facts).await?;
 
         // requirement 20: a workspace behind what this build ships is brought up to it, under a
         // lease taken at the organization database's primary, by whichever member opened it:

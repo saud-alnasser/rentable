@@ -90,11 +90,11 @@ use crate::organization::{
     session::{
         CredentialSlot, content_key_of, opened, refused_by_name, remembered, verifying_key_of,
     },
-    setup::ADMINISTRATOR_KEY_PURPOSE,
+    setup::{ADMINISTRATOR_KEY_PURPOSE, owner_key_from},
     store::{OrganizationStore, waits_for_its_owner},
 };
 
-use super::{Sought, TRANSITIONS, Transition};
+use super::{Sought, TRANSITIONS, Transition, Upgrading};
 
 mod replication;
 mod walk;
@@ -573,6 +573,64 @@ async fn reading<'t>(
         .find(|transition| transition.from >= from)
         .or(transitions.last())
         .ok_or_else(waits_for_its_owner)
+}
+
+/// Run the change of format numbered `number` of `transitions`, declared after effort 857, on
+/// `store`, inside the explicit upgrade's transaction (effort 857, ticket 07): the change that
+/// starts from the format before it, on the owner's keys, which `secret` derives where it is the
+/// owner's. `organization_verifying_key` is the key the session pinned, and `member_id` the member
+/// whose vault `secret` came from.
+///
+/// **A change of format runs on the owner's keys, as every one has** (`Upgrading`), so a secret
+/// that derives no key the organization is on refuses with `UpgradeNeedsOwner` before anything is
+/// read or written. A step `transitions` holds no change for has nothing of its own to run: the
+/// upgrade records its floors and that is all it does.
+///
+/// It begins no transaction of its own; the caller's holds it, as the walk's holds every change it
+/// runs.
+pub(crate) async fn change(
+    store: &OrganizationStore,
+    transitions: &[Transition],
+    organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
+    member_id: &str,
+    secret: &MemberSecretKey,
+    number: u32,
+    now: i64,
+) -> Result<(), Error> {
+    let Some(transition) = transitions
+        .iter()
+        .find(|transition| transition.from + 1 == i64::from(number))
+    else {
+        return Ok(());
+    };
+    let organization_key = owner_key_from(secret)?;
+    let key = settled(store, organization_verifying_key).await?;
+
+    if organization_key.verifying_key() != key {
+        return Err(Error::refused(
+            RefusalReason::UpgradeNeedsOwner,
+            format!(
+                "the change of format {} runs on the owner's keys, so only the owner can run it;                  nothing was changed",
+                transition.name
+            ),
+        ));
+    }
+
+    let signing_key = signing_key_of(secret)?;
+    let opened = Opened {
+        member_id: member_id.to_string(),
+        secret: secret.copied(),
+    };
+
+    (transition.run)(&Upgrading {
+        store,
+        key: &key,
+        organization_key: &organization_key,
+        signing_key: &signing_key,
+        opened: &opened,
+        now,
+    })
+    .await
 }
 
 /// The key the owner signs rows with, which their own secret derives and the root names.
@@ -3614,5 +3672,78 @@ mod tests {
             store.floors().await.expect("the floors"),
             Some(Floors::legacy(3))
         );
+    }
+
+    /// **Ticket 07, the port's change.** A change of format declared after 857, run inside the
+    /// explicit upgrade, runs on the owner's keys: anybody else's secret is refused with
+    /// `UpgradeNeedsOwner` before anything is written, the owner's runs it, and a step with no
+    /// change of its own runs nothing.
+    #[tokio::test]
+    async fn a_change_declared_after_857_runs_on_the_owners_keys_alone() {
+        fn changed<'a>(upgrading: &'a Upgrading<'a>) -> Pending<'a, ()> {
+            Box::pin(async move {
+                run(
+                    upgrading.store,
+                    "CREATE TABLE IF NOT EXISTS \"changed\" (\"id\" TEXT)",
+                    Vec::new(),
+                )
+                .await;
+
+                Ok(())
+            })
+        }
+
+        let (older, store) = upgraded("a-later-change").await;
+        let transitions: Vec<Transition> = TRANSITIONS
+            .iter()
+            .copied()
+            .chain([Transition {
+                from: 3,
+                name: "a later change",
+                run: changed,
+                ..TRANSITIONS[1]
+            }])
+            .collect();
+        let holds_it = |tables: Vec<String>| tables.iter().any(|table| table == "changed");
+
+        let refused = super::change(
+            &store,
+            &transitions,
+            &older.pinned(),
+            "mina",
+            &older.person("mina").secret,
+            4,
+            NOW,
+        )
+        .await;
+
+        assert_eq!(reason_of(&refused), Some(RefusalReason::UpgradeNeedsOwner));
+        assert!(!holds_it(store.tables().await.expect("the tables")));
+
+        super::change(
+            &store,
+            &transitions,
+            &older.pinned(),
+            "owner",
+            &older.owners_vault().secret,
+            4,
+            NOW,
+        )
+        .await
+        .expect("the owner's change");
+
+        assert!(holds_it(store.tables().await.expect("the tables")));
+
+        super::change(
+            &store,
+            &transitions,
+            &older.pinned(),
+            "mina",
+            &older.person("mina").secret,
+            5,
+            NOW,
+        )
+        .await
+        .expect("a step with no change of its own");
     }
 }

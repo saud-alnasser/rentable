@@ -1158,6 +1158,16 @@ mod tests {
             crate::upgrade::Upgrader.move_the_consent(state, credentials)
         }
 
+        fn change<'a>(
+            &'a self,
+            store: &'a OrganizationStore,
+            session: &'a session::MemberSession,
+            number: u32,
+            now: i64,
+        ) -> Upgrading<'a> {
+            crate::upgrade::Upgrader.change(store, session, number, now)
+        }
+
         fn build(&self) -> session::Build {
             self.0
         }

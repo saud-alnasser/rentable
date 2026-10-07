@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [01, 02, 03, 06, 15]
 ---
 
@@ -15,11 +15,11 @@ Authoritative: [[efforts/857-updating-never-locks-a-member-out/spec]], and [[eff
 
 Traces requirement 3, requirement 5, criterion 3 and criterion 5.
 
-- [ ] Both commands are gated by `upgradeData` through `GATES`; a step with `needs_owner` is refused to anyone but the owner with `UpgradeNeedsOwner`; tests cover the owner, a manager, a custom role, overrides granting and removing, and the member role.
-- [ ] The preview returns `steps`, `stopped`, `readOnly` and `unseen` from `machine_version` and `machine.seen_at` within seven days; a machine with no `machine_version` row is listed as on an unknown version.
-- [ ] The run takes the copy, applies the steps, checks against a fresh database, and writes `data_floor` inside the workspace and `workspace_floor` or `organization_floor` in the organization; a failure partway leaves version, floors, tables and legacy numbers as before, with the copy written.
-- [ ] A second session's write to the workspace while the lease is held waits or is refused; nothing lands between the steps.
-- [ ] `workspace.schema_version` or `format` moves only when the new read or write floor exceeds what any pre-857 build knows, and then to a value every pre-857 build refuses.
+- [x] Both commands are gated by `upgradeData` through `GATES`; a step with `needs_owner` is refused to anyone but the owner with `UpgradeNeedsOwner`; tests cover the owner, a manager, a custom role, overrides granting and removing, and the member role.
+- [x] The preview returns `steps`, `stopped`, `readOnly` and `unseen` from `machine_version` and `machine.seen_at` within seven days; a machine with no `machine_version` row is listed as on an unknown version.
+- [x] The run takes the copy, applies the steps, checks against a fresh database, and writes `data_floor` inside the workspace and `workspace_floor` or `organization_floor` in the organization; a failure partway leaves version, floors, tables and legacy numbers as before, with the copy written.
+- [x] A second session's write to the workspace while the lease is held waits or is refused; nothing lands between the steps.
+- [x] `workspace.schema_version` or `format` moves only when the new read or write floor exceeds what any pre-857 build knows, and then to a value every pre-857 build refuses.
 
 ## Relevant areas
 

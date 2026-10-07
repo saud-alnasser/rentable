@@ -16,9 +16,13 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    database::floor::{self, Floors, Standing},
+    database::floor::{self, Standing},
     error::{Error, RefusalReason},
-    organization::{Shared, lease::apply, store::OrganizationStore},
+    organization::{
+        Shared,
+        lease::{self, apply},
+        store::OrganizationStore,
+    },
 };
 
 /// What a version holds: the organization, or one workspace by its id.
@@ -124,23 +128,33 @@ pub(crate) async fn workspace_judged(app_state: &Shared) -> Option<HeldByVersion
     let known = known();
 
     // the member before the replica, the order every act takes them in.
-    let recorded = {
-        let member = app_state.member.read().await;
-        let organization = app_state.organization.read().await;
+    let recorded =
+        {
+            let member = app_state.member.read().await;
+            let organization = app_state.organization.read().await;
 
-        match (member.as_ref(), organization.as_ref()) {
-            (Some(member), Some(store)) => store
-                .workspaces(&member.verifying_key)
-                .await
-                .ok()
-                .and_then(|workspaces| workspaces.into_iter().find(|workspace| workspace.id == id))
-                .and_then(|workspace| floor::number(workspace.schema_version).ok()),
-            _ => None,
-        }
-    };
+            match (member.as_ref(), organization.as_ref()) {
+                (Some(member), Some(store)) => {
+                    match store.workspaces(&member.verifying_key).await.ok().and_then(
+                        |workspaces| workspaces.into_iter().find(|workspace| workspace.id == id),
+                    ) {
+                        // the floors the organization records for it, where a step declared after 857
+                        // has run on it, rather than its version, which an upgrade moves past every
+                        // build before 857 to stop them (ticket 07).
+                        Some(workspace) => {
+                            lease::recorded_floors(store, &id, workspace.schema_version)
+                                .await
+                                .ok()
+                        }
+                        None => None,
+                    }
+                }
+                _ => None,
+            }
+        };
     let db = app_state.db.read().await;
     let mut standing = recorded
-        .map(|version| Floors::legacy(version).standing(known))
+        .map(|floors| floors.standing(known))
         .unwrap_or(Standing::Writable);
 
     if let Ok(Some(floors)) = db.floors().await {

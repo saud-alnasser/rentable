@@ -480,6 +480,20 @@ export const organization = {
 		permissionsOverride: 'هذه تتقدّم على صلاحيات المؤسسة والدور في {workspace} وحدها.',
 		removeFromWorkspace: 'أزل من مساحة العمل',
 		removeAsks: 'لن يستطيع فتح مساحة العمل هذه حين ينتهي الوصول الذي يحمله. إضافته مجددًا تعيده.'
+	},
+	upgrade: {
+		steps: {
+			workspaceRecords: 'سجلات مساحة العمل: المجمعات والوحدات والمستأجرون والعقود والمدفوعات.',
+			contractAmounts: 'المبلغ المدفوع والمبلغ المتوقع في كل عقد.',
+			recordHistory: 'سجل التغييرات لكل سجل.',
+			recordIds: 'إعادة بناء معرّف كل سجل نصًّا.',
+			paymentIndex: 'بحث أسرع عن مدفوعات العقد.',
+			paymentMethod: 'طريقة دفع كل دفعة مع مرجعها وملاحظتها.',
+			paymentDirection: 'اتجاه مال كل دفعة، فيُحتسب الاسترداد مالًا مُعادًا.',
+			chainOfCertificates:
+				'توقيع صلاحيات كل عضو من جديد بمفتاح المالك، في سلسلة واحدة من الشهادات.',
+			workspaceOverride: 'ما يستطيعه العضو في مساحة عمل واحدة، بمعزل عن بقية المؤسسة.'
+		}
 	}
 } satisfies Translation['organization'];
 
@@ -572,6 +586,8 @@ export const refusals = {
 			'انتهت صلاحية وصول هذا الجهاز إلى المؤسسة. اطلب من مؤسستك رابطاً جديداً لتربطه مرة أخرى.',
 		organizationNewer: 'أنشأ إصدار أحدث من rentable هذه المؤسسة. حدّث rentable لتفتحها.',
 		ownerNotUpdated: 'لم يفتح المالك هذا الإصدار من rentable بعد. تنتظر الترقية حتى يفتحه.',
+		upgradeNeedsOwner: 'توقّع هذه الترقية المؤسسة من جديد بمفتاح المالك، فلا يجريها إلا المالك.',
+		upgradeUnderWay: 'يرقّي عضو آخر هذا الآن. حاول مجددًا حين ينتهي؛ لم يتغيّر شيء.',
 		organizationReadOnlyByVersion:
 			'رقّى إصدار أحدث من rentable هذه المؤسسة. حدّث rentable لتجري تغييرات فيها.',
 		workspaceReadOnlyByVersion:

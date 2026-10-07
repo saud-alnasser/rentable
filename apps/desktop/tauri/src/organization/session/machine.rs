@@ -496,7 +496,7 @@ pub(crate) async fn end_machine(
 /// A sealed name opened and held to the cap, or `None` where there is none or it does not open:
 /// a row somebody wrote around the command reads as a machine with no name rather than refusing
 /// the list.
-fn opened_name(content_key: &ContentKey, sealed: Option<&[u8]>) -> Option<String> {
+pub(crate) fn opened_name(content_key: &ContentKey, sealed: Option<&[u8]>) -> Option<String> {
     sealed
         .and_then(|sealed| opened(content_key, NAME_COLUMN, sealed).ok())
         .and_then(|name| name::trimmed(&name))

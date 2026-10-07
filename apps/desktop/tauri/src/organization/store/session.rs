@@ -437,6 +437,26 @@ impl OrganizationStore {
         Ok(machines)
     }
 
+    /// Every machine in the registry, whoever is signed in on it and however long ago it was seen,
+    /// the one most lately seen first: what the upgrade's list of who it stops reads (effort 857,
+    /// ticket 07), which says separately the machines not seen within [`MACHINE_PRESENCE_WINDOW`].
+    pub async fn machines(&self) -> Result<Vec<MachineRecord>, Error> {
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT \"id\", \"member_id\", \"seen_at\", \"created_at\" FROM \"machine\"                  ORDER BY \"seen_at\" DESC, \"id\"",
+                (),
+            )
+            .await?;
+        let mut machines = Vec::new();
+
+        while let Some(row) = rows.next().await? {
+            machines.push(machine_of(&row)?);
+        }
+
+        Ok(machines)
+    }
+
     /// One machine's row in the registry, or `None` where it has none: what the heartbeat reads to
     /// learn when this machine last said it was here (effort 846, requirement 9).
     pub async fn machine(&self, id: &str) -> Result<Option<MachineRecord>, Error> {

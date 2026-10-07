@@ -18,5 +18,9 @@ export type {
 	OrganizationSession,
 	OrganizationState,
 	OrganizationWorkspace,
+	UpgradeMachine,
+	UpgradePreview,
+	UpgradeStep,
+	UpgradeTarget,
 	VersionStanding
 } from './host';

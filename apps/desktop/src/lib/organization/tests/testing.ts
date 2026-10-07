@@ -63,6 +63,10 @@ export function fakeOrganizationHost(): OrganizationHost {
 			query: refuse('organization.workspace.query'),
 			batch: refuse('organization.workspace.batch')
 		},
+		upgrade: {
+			preview: refuse('organization.upgrade.preview'),
+			run: refuse('organization.upgrade.run')
+		},
 		member: {
 			list: refuse('organization.member.list'),
 			standings: refuse('organization.member.standings'),

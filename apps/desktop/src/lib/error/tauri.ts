@@ -124,6 +124,8 @@ export const TAURI_REFUSAL_REASONS = [
 	'organizationCredentialLapsed',
 	'organizationNewer',
 	'ownerNotUpdated',
+	'upgradeNeedsOwner',
+	'upgradeUnderWay',
 	'organizationReadOnlyByVersion',
 	'workspaceReadOnlyByVersion',
 	'copyNotTaken',

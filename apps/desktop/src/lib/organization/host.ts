@@ -25,6 +25,13 @@ import type {
 	WorkspaceGrant
 } from './member/host';
 import type { OrganizationRole, RoleHost } from './role/host';
+import type {
+	UpgradeHost,
+	UpgradeMachine,
+	UpgradePreview,
+	UpgradeStep,
+	UpgradeTarget
+} from './upgrade/host';
 import type { OrganizationWorkspace, WorkspaceHost, WorkspaceStatement } from './workspace/host';
 
 /**
@@ -42,6 +49,10 @@ export type {
 	OrganizationWorkspace,
 	OutstandingLink,
 	UnreachableWorkspace,
+	UpgradeMachine,
+	UpgradePreview,
+	UpgradeStep,
+	UpgradeTarget,
 	WorkspaceGrant,
 	WorkspaceStatement
 };
@@ -476,6 +487,8 @@ export type OrganizationHost = {
 	workspace: WorkspaceHost;
 	/** accounts and their invitations, as `./member/host.ts` says of each act. */
 	member: MemberHost;
+	/** the upgrade of the organization or a workspace, as `./upgrade/host.ts` says of each act. */
+	upgrade: UpgradeHost;
 	invitation: {
 		/**
 		 * open an invitation link, with the code the issuer read out and a password of the

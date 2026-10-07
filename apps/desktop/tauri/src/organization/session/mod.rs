@@ -80,7 +80,7 @@ pub use epoch::{end_member_sessions, ended_elsewhere};
 pub(crate) use heartbeat::signed_out_from_elsewhere;
 pub use machine::{Build, MachineView, SEEN_REFRESH, machines};
 pub(crate) use machine::{
-    end_machine, ended_alone, machine_kept, machine_named, machine_versioned,
+    end_machine, ended_alone, machine_kept, machine_named, machine_versioned, opened_name,
     sign_outs_acknowledged, signed_out_here, version_recorded,
 };
 pub(crate) use remember::*;
@@ -967,6 +967,20 @@ pub(crate) trait Upgrade: Send + Sync {
         &'a self,
         state: &'a Shared,
         credentials: &'a dyn CredentialStore,
+    ) -> Upgrading<'a>;
+
+    /// Run the change of format numbered `number`, declared after effort 857, inside the explicit
+    /// upgrade's transaction on `store` (ticket 07): the change `upgrade/format/` holds for it,
+    /// on the owner's keys, which `session`'s secret derives on the owner's machine alone. A step
+    /// this build holds no change for has nothing of its own to run but the floors the upgrade
+    /// records; a change asked of anybody but the owner is refused with `UpgradeNeedsOwner`, and
+    /// nothing is written.
+    fn change<'a>(
+        &'a self,
+        store: &'a OrganizationStore,
+        session: &'a MemberSession,
+        number: u32,
+        now: i64,
     ) -> Upgrading<'a>;
 
     /// The build this machine runs: the version of rentable and the highest step it knows on each

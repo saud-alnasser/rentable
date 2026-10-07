@@ -88,6 +88,8 @@ pub fn plugin() -> TauriPlugin<tauri::Wry> {
             super::mark::organization_mark_get,
             super::mark::organization_mark_set,
             super::mark::organization_mark_clear,
+            super::upgrade::organization_upgrade_preview,
+            super::upgrade::organization_upgrade_run,
         ])
         .setup(|app, _api| {
             app.manage(Shared {
