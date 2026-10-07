@@ -1053,4 +1053,185 @@ mod tests {
             app_state.db.write().await.disconnect().await;
         }
     }
+
+    /// **Effort 857, ticket 27's first criterion: floors that cannot be read are not writable.**
+    /// The workspace open on this machine holds a `data_floor` row whose floors are no step
+    /// numbers. The verdict fails closed: the opening and the heartbeat hold the workspace
+    /// read-only, the heartbeat pulls and pushes nothing, and its answer says the floors could not
+    /// be read rather than that a newer rentable upgraded it.
+    #[tokio::test]
+    async fn a_workspace_whose_floors_cannot_be_read_is_never_pushed() {
+        use crate::credential::Memory;
+        use crate::database::floor::Standing;
+        use crate::organization::session::{VersionTarget, replicate};
+
+        let directory = scratch("heartbeat-unreadable-floors");
+        let path = a_workspace_replica(&directory, "south").await;
+
+        {
+            let replica = Database::open_replica(&crate::clock::System, &path, None, || async {
+                Ok::<String, turso::Error>(String::new())
+            })
+            .await
+            .expect("the workspace replica");
+            let connection = replica.connect().await.expect("a connection");
+
+            for statement in [
+                "CREATE TABLE \"data_floor\" (\"id\" INTEGER PRIMARY KEY CHECK (\"id\" = 1), \
+                 \"level\", \"read\", \"write\")",
+                "INSERT INTO \"data_floor\" VALUES (1, 'seven', 'seven', 'seven')",
+            ] {
+                connection.execute(statement, ()).await.expect("the floors");
+            }
+        }
+
+        let server =
+            ScriptedServer::start((0..8).map(|_| ScriptedResponse::hangup()).collect()).await;
+        let app_state = state_over(&directory).await;
+
+        app_state
+            .remote_sync
+            .write()
+            .await
+            .open_organization_workspace("south", "South", &server.url(""), 0, "a-credential")
+            .expect("the workspace recorded");
+
+        assert!(
+            open_database(&app_state, &crate::clock::System)
+                .await
+                .is_none(),
+            "a workspace whose floors cannot be read was refused rather than held read-only"
+        );
+        assert_eq!(app_state.db.read().await.standing(), Standing::ReadOnly);
+
+        let opened = server.request_count();
+        let replicated = replicate(&app_state, &Memory::new(), &crate::clock::System::shared())
+            .await
+            .expect("the heartbeat");
+        let held = replicated
+            .held_by_version
+            .first()
+            .cloned()
+            .expect("nothing held the machine");
+
+        assert_eq!(held.target, VersionTarget::Workspace("south".to_string()));
+        assert_eq!(held.standing, Standing::ReadOnly);
+        assert!(
+            held.reason.contains("could not read"),
+            "the reason is not the floors': {}",
+            held.reason
+        );
+        assert!(!replicated.pushed, "the heartbeat pushed");
+
+        for index in opened..server.request_count() {
+            assert_eq!(
+                server.request(index).target,
+                "/pull-updates",
+                "something other than a pull reached the workspace"
+            );
+        }
+
+        app_state.db.write().await.disconnect().await;
+    }
+
+    /// **Effort 857, ticket 27's third criterion: nothing is written between a pull and its
+    /// verdict.** The workspace open on this machine is writable, and its pull brings floors past
+    /// this build's write floor. A save the interface sends while that pull is being judged waits
+    /// for the verdict and is refused by it, rather than landing on the replica in between.
+    #[tokio::test]
+    async fn a_save_between_a_pull_and_its_verdict_waits_for_the_verdict() {
+        use std::time::Duration;
+
+        use crate::database::{floor::Standing, proxy::SQLQuery};
+        use crate::error::{Error, RefusalReason};
+        use crate::organization::lease::apply;
+        use crate::organization::session::replicated_then_judged;
+
+        let shipped = apply::shipped_version();
+        let directory = scratch("pull-then-verdict");
+
+        a_workspace_replica(&directory, "south").await;
+
+        let server =
+            ScriptedServer::start((0..8).map(|_| ScriptedResponse::hangup()).collect()).await;
+        let app_state = state_over(&directory).await;
+
+        app_state
+            .remote_sync
+            .write()
+            .await
+            .open_organization_workspace("south", "South", &server.url(""), 0, "a-credential")
+            .expect("the workspace recorded");
+
+        assert!(
+            open_database(&app_state, &crate::clock::System)
+                .await
+                .is_none()
+        );
+        assert_eq!(app_state.db.read().await.standing(), Standing::Writable);
+
+        let statement = |sql: &str| SQLQuery {
+            sql: sql.to_string(),
+            params: Vec::new(),
+        };
+        let db = app_state.db.clone();
+        let (saved, held) = replicated_then_judged(&app_state, async |replica| {
+            // what the pull brought: the workspace upgraded past what this build writes.
+            replica
+                .as_a_pull_brings(
+                    "CREATE TABLE \"data_floor\" (\"id\" INTEGER PRIMARY KEY CHECK (\"id\" = 1), \
+                     \"level\" INTEGER NOT NULL, \"read\" INTEGER NOT NULL, \
+                     \"write\" INTEGER NOT NULL)",
+                )
+                .await;
+            replica
+                .as_a_pull_brings(&format!(
+                    "INSERT INTO \"data_floor\" VALUES (1, {}, {shipped}, {})",
+                    shipped + 1,
+                    shipped + 1
+                ))
+                .await;
+
+            // and a save from the interface before the verdict.
+            let save = statement("INSERT INTO \"unit\" VALUES ('u-1')");
+            let saved = tokio::spawn(async move { db.read().await.execute_single_sql(save).await });
+
+            tokio::time::sleep(Duration::from_millis(200)).await;
+
+            saved
+        })
+        .await;
+
+        assert_eq!(
+            held.map(|held| held.standing),
+            Some(Standing::ReadOnly),
+            "the pull's raise was not judged"
+        );
+        assert!(
+            matches!(
+                saved.await.expect("the save"),
+                Err(Error::Refused {
+                    reason: RefusalReason::WorkspaceReadOnlyByVersion,
+                    ..
+                })
+            ),
+            "the save was not refused by the verdict"
+        );
+
+        let units = app_state
+            .db
+            .read()
+            .await
+            .execute_single_sql(statement("SELECT count(*) AS n FROM \"unit\""))
+            .await
+            .expect("the units, read while read-only");
+
+        assert_eq!(
+            units[0].rows[0],
+            json!(0),
+            "the save landed between the pull and its verdict"
+        );
+
+        app_state.db.write().await.disconnect().await;
+    }
 }

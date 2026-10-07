@@ -73,7 +73,8 @@ mod signature;
 mod workspace;
 
 pub use format::{
-    FORMAT_VERSION, FormatOneDirectory, FormatOneMemberRow, FormatOneReshape, waits_for_its_owner,
+    FORMAT_VERSION, FormatOneDirectory, FormatOneMemberRow, FormatOneReshape, read_only_by_version,
+    waits_for_its_owner,
 };
 pub use invitation::InvitationRecord;
 pub use lease::MigrationLeaseRecord;
@@ -192,6 +193,10 @@ pub struct OrganizationStore {
     /// and the format it knows. [`Ladder::Format`] in production, and a ladder of a test's own
     /// under test.
     format_steps: Steps,
+    /// a read of the verdict that fails once, for a test standing in for a read the engine could
+    /// not answer during a pull (effort 857, ticket 27).
+    #[cfg(test)]
+    a_read_fails: std::sync::atomic::AtomicBool,
 }
 
 impl std::fmt::Debug for OrganizationStore {
@@ -277,6 +282,8 @@ impl OrganizationStore {
             bound: SYNC_BOUND,
             standing: std::sync::Mutex::new(Standing::Writable),
             format_steps: Ladder::Format.declared(),
+            #[cfg(test)]
+            a_read_fails: std::sync::atomic::AtomicBool::new(false),
         })
     }
 

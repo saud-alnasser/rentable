@@ -378,25 +378,54 @@ impl OrganizationStore {
     /// a floor another machine raised, and asks [`OrganizationStore::standing`] before any write of
     /// its own. Reads the format, the floors and the member table's shape and nothing else, so a
     /// refused organization is left exactly as it was found.
+    ///
+    /// **A read that fails keeps the last verdict, and floors that read wrong fail closed**
+    /// (ticket 27). A read the engine could not answer, a busy one during a pull say, says nothing
+    /// about the floors: the verdict before it stands, so the organization is neither frozen
+    /// read-only until a later heartbeat nor let write where it could not before, and the failure
+    /// is still answered, so whoever asked writes nothing on it. Floors the read did answer and
+    /// which are no step numbers are not trusted, and hold the organization read-only.
     pub async fn refuse_another_format(&self) -> Result<Standing, Error> {
         let judged = self.judged().await;
 
-        self.hold(match &judged {
-            Ok(standing) => *standing,
+        match &judged {
+            Ok(standing) => self.hold(*standing),
             Err(Error::Refused {
                 reason: RefusalReason::OrganizationNewer,
                 ..
-            }) => Standing::Unreadable,
+            }) => self.hold(Standing::Unreadable),
             // an organization waiting for its owner is read by nothing of this format and written
-            // by nothing either, until the owner's upgrade.
-            Err(_) => Standing::ReadOnly,
-        });
+            // by nothing either, until the owner's upgrade; and floors that are no step numbers
+            // are not trusted.
+            Err(Error::Refused { .. } | Error::Integrity { .. }) => self.hold(Standing::ReadOnly),
+            Err(error) => crate::diagnostics::warn("organization.floors.notRead")
+                .with("error", error.to_string())
+                .with("kept", format!("{:?}", self.standing()))
+                .write(),
+        }
 
         judged
     }
 
+    /// Fail the next read of the verdict, as a read the engine could not answer, for a test.
+    #[cfg(test)]
+    pub(crate) fn fail_the_next_read(&self) {
+        self.a_read_fails
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+    }
+
     /// [`OrganizationStore::refuse_another_format`]'s verdict, before it is kept.
     async fn judged(&self) -> Result<Standing, Error> {
+        #[cfg(test)]
+        if self
+            .a_read_fails
+            .swap(false, std::sync::atomic::Ordering::SeqCst)
+        {
+            return Err(Error::Database {
+                message: "database is locked".to_string(),
+            });
+        }
+
         let format = self.format().await?;
         let steps = self.format_steps;
         let known = steps.known();
@@ -436,11 +465,7 @@ impl OrganizationStore {
     pub async fn refuse_unwritable(&self) -> Result<(), Error> {
         match self.refuse_another_format().await? {
             Standing::Writable => Ok(()),
-            _ => Err(Error::refused(
-                RefusalReason::OrganizationReadOnlyByVersion,
-                "a newer version of rentable upgraded the organization, and this version can read \
-                 it but not write to it. update rentable to make changes; nothing was written",
-            )),
+            _ => Err(read_only_by_version()),
         }
     }
 
@@ -893,6 +918,16 @@ impl OrganizationStore {
 /// The refusal of an organization an earlier version made, to anybody but its owner, and to the
 /// owner where the upgrade could not run (effort 838, ticket 22): it waits for its owner to open
 /// it in this version. Nothing was written to the organization.
+/// The refusal of a write to an organization a newer rentable upgraded past what this build writes
+/// (effort 857, ticket 04): nothing was written.
+pub fn read_only_by_version() -> Error {
+    Error::refused(
+        RefusalReason::OrganizationReadOnlyByVersion,
+        "a newer version of rentable upgraded the organization, and this version can read it but \
+         not write to it. update rentable to make changes; nothing was written",
+    )
+}
+
 pub fn waits_for_its_owner() -> Error {
     Error::refused(
         RefusalReason::OrganizationOlder,
@@ -1064,6 +1099,61 @@ mod tests {
 
             assert_eq!(everything(&store).await, before, "judging wrote");
         }
+    }
+
+    /// **Effort 857, ticket 27's second criterion.** A verdict whose read fails after a good one
+    /// keeps the good one, so a read the engine could not answer during a pull does not hold the
+    /// organization read-only until the next heartbeat; the failure is still answered, so the
+    /// heartbeat writes nothing on it. Floors the read does answer, and which are no step numbers,
+    /// are not trusted: they fail closed, read-only.
+    #[tokio::test]
+    async fn a_failing_read_keeps_the_last_verdict_and_malformed_floors_fail_closed() {
+        let store = of_this_format("floor-verdict-failing-read").await;
+
+        store
+            .record_floors(FORMAT_VERSION, FORMAT_VERSION, FORMAT_VERSION)
+            .await;
+        assert_eq!(
+            store.refuse_another_format().await.expect("judged"),
+            Standing::Writable
+        );
+
+        // a read the engine cannot answer, as one can fail while a pull is laying what it brought.
+        store.fail_the_next_read();
+
+        let judged = store.refuse_another_format().await;
+
+        assert!(
+            matches!(judged, Err(Error::Database { .. })),
+            "the read did not fail: {judged:?}"
+        );
+        assert_eq!(
+            store.standing(),
+            Standing::Writable,
+            "a failing read turned the organization read-only"
+        );
+
+        // and floors that read, as text where a step number belongs.
+        for statement in [
+            "DROP TABLE \"organization_floor\"",
+            "CREATE TABLE \"organization_floor\" (\"id\" TEXT PRIMARY KEY NOT NULL, \
+             \"level\", \"read\", \"write\", \"written_at\")",
+            "INSERT INTO \"organization_floor\" VALUES ('floor', 'x', 'x', 'x', 0)",
+        ] {
+            store
+                .connection()
+                .execute(statement, ())
+                .await
+                .expect("the table");
+        }
+
+        let judged = store.refuse_another_format().await;
+
+        assert!(
+            matches!(judged, Err(Error::Integrity { .. })),
+            "malformed floors were read: {judged:?}"
+        );
+        assert_eq!(store.standing(), Standing::ReadOnly);
     }
 
     /// A format above this build's with no floor record is refused, as every build before effort

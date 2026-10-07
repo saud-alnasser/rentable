@@ -22,8 +22,12 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    database::floor::{self, Standing},
+    database::{
+        Database,
+        floor::{self, Floors, Standing},
+    },
     error::{Error, RefusalReason},
+    machine::RemoteSyncWorkspace,
     organization::{
         Shared,
         lease::{self, apply},
@@ -93,6 +97,22 @@ impl HeldByVersion {
         })
     }
 
+    /// The workspace `id`, called `name`, whose floors could not be read, at `standing`: read-only
+    /// until they can be, or unreadable where it already was (ticket 27).
+    pub fn unjudged(id: &str, name: &str, standing: Standing) -> Option<Self> {
+        match standing {
+            Standing::ReadOnly => Some(Self {
+                target: VersionTarget::Workspace(id.to_string()),
+                standing,
+                reason: format!(
+                    "this version could not read which versions of rentable may write {name}, so \
+                     it writes nothing to it until it can"
+                ),
+            }),
+            _ => Self::workspace(id, name, standing),
+        }
+    }
+
     /// What a refusal of the organization for its version holds, with the refusal's own sentence;
     /// nothing for any other refusal.
     pub fn refused(refusal: &Error) -> Option<Self> {
@@ -127,63 +147,135 @@ fn known() -> u32 {
 /// which arrive with its own. The lesser of the two is the verdict. Nothing open is writable, and
 /// nothing is written here.
 ///
+/// **Floors that cannot be read are not writable** (ticket 27): a record the organization holds
+/// and cannot answer, or floors the workspace keeps and cannot read, hold it read-only, or
+/// unreadable where it was, until a verdict reads them. The answer says the floors could not be
+/// read, and the diagnostics say why.
+///
 /// Answers what holds the workspace, or nothing where this build may write it.
 pub(crate) async fn workspace_judged(app_state: &Shared) -> Option<HeldByVersion> {
+    replicated_then_judged(app_state, async |_| ()).await.1
+}
+
+/// Run `replication` on the open workspace and judge the workspace over what it brought
+/// ([`workspace_judged`]), answering both: what the heartbeat does with a workspace's pull.
+///
+/// **Under one hold of the engine** (`Database::judging`, ticket 27): a save the interface makes
+/// while the pull runs waits for the verdict over what it brought, so a raise the pull brought
+/// refuses it, rather than letting it commit on the replica between the two. The organization's
+/// record of the workspace is read first, since the organization's pull has already brought it,
+/// and the member and the replica are let go of before the engine is held.
+pub(crate) async fn replicated_then_judged<T>(
+    app_state: &Shared,
+    replication: impl AsyncFnOnce(&Database) -> T,
+) -> (T, Option<HeldByVersion>) {
+    let recorded = recorded(app_state).await;
+    let db = app_state.db.read().await;
+    let judging = db.judging().await;
+    let replicated = replication(&db).await;
+    let held = match recorded {
+        Some((workspace, recorded)) => judged(&db, &workspace, recorded).await,
+        None => None,
+    };
+
+    drop(judging);
+
+    (replicated, held)
+}
+
+/// The open workspace, where it is one of an organization, and the floors the organization records
+/// for it: none where nobody is in or the organization lists no such workspace.
+async fn recorded(
+    app_state: &Shared,
+) -> Option<(RemoteSyncWorkspace, Result<Option<Floors>, Error>)> {
     let workspace = { app_state.remote_sync.read().await.workspace() };
     let id = workspace.remote_id.clone()?;
-    let known = known();
 
     // the member before the replica, the order every act takes them in.
-    let recorded =
-        {
-            let member = app_state.member.read().await;
-            let organization = app_state.organization.read().await;
+    let member = app_state.member.read().await;
+    let organization = app_state.organization.read().await;
 
-            match (member.as_ref(), organization.as_ref()) {
-                (Some(member), Some(store)) => {
-                    match store.workspaces(&member.verifying_key).await.ok().and_then(
-                        |workspaces| workspaces.into_iter().find(|workspace| workspace.id == id),
-                    ) {
-                        // the floors the organization records for it, where a step declared after 857
-                        // has run on it, rather than its version, which an upgrade moves past every
-                        // build before 857 to stop them (ticket 07).
-                        Some(workspace) => {
-                            lease::recorded_floors(store, &id, workspace.schema_version)
-                                .await
-                                .ok()
-                        }
-                        None => None,
-                    }
-                }
-                _ => None,
+    let recorded = match (member.as_ref(), organization.as_ref()) {
+        (Some(member), Some(store)) => {
+            match store
+                .workspaces(&member.verifying_key)
+                .await
+                .map(|workspaces| workspaces.into_iter().find(|workspace| workspace.id == id))
+            {
+                // the floors the organization records for it, where a step declared after 857
+                // has run on it, rather than its version, which an upgrade moves past every
+                // build before 857 to stop them (ticket 07).
+                Ok(Some(workspace)) => lease::recorded_floors(store, &id, workspace.schema_version)
+                    .await
+                    .map(Some),
+                Ok(None) => Ok(None),
+                Err(error) => Err(error),
             }
-        };
-    let db = app_state.db.read().await;
-    let mut standing = recorded
-        .map(|floors| floors.standing(known))
-        .unwrap_or(Standing::Writable);
+        }
+        _ => Ok(None),
+    };
 
-    if let Ok(Some(floors)) = db.floors().await {
-        standing = standing.least(floors.standing(known));
+    Some((workspace, recorded))
+}
+
+/// The open workspace `workspace` judged on `db`, against the organization's record of it,
+/// `recorded`, and the floors it keeps itself, and the verdict kept on the engine.
+async fn judged(
+    db: &Database,
+    workspace: &RemoteSyncWorkspace,
+    recorded: Result<Option<Floors>, Error>,
+) -> Option<HeldByVersion> {
+    let id = workspace.remote_id.as_deref()?;
+    let known = known();
+
+    match (recorded, db.floors().await) {
+        (Ok(recorded), Ok(own)) => {
+            let standing = recorded
+                .into_iter()
+                .chain(own)
+                .map(|floors| floors.standing(known))
+                .fold(Standing::Writable, Standing::least);
+
+            db.hold(standing);
+
+            HeldByVersion::workspace(id, &workspace.name, standing)
+        }
+        (Err(error), _) | (_, Err(error)) => {
+            let standing = db.standing().least(Standing::ReadOnly);
+
+            crate::diagnostics::warn("workspace.floors.notRead")
+                .with("workspace", id)
+                .with("error", error.to_string())
+                .write();
+            db.hold(standing);
+
+            HeldByVersion::unjudged(id, &workspace.name, standing)
+        }
     }
-
-    db.hold(standing);
-
-    HeldByVersion::workspace(&id, &workspace.name, standing)
 }
 
 /// What holds this machine by its version as the last verdicts left it, for the state read: the
-/// refusal that kept a resume at the wall alone, where there is one, since nothing is open behind
-/// it; otherwise the open organization's verdict and the open workspace's, each apart. Judges
-/// nothing again.
+/// refusal that kept a resume at the wall alone, where there is one and the wall stands on the
+/// organization it is about, since nothing is open behind it; otherwise the open organization's
+/// verdict and the open workspace's, each apart. Judges nothing again.
 pub(crate) async fn held_by_version(app_state: &Shared) -> Vec<HeldByVersion> {
-    if let Some(held) = app_state
+    let selected = {
+        let mut remote_sync = app_state.remote_sync.write().await;
+
+        remote_sync
+            .store_mut()
+            .selected()
+            .map(|held| held.id.clone())
+    };
+
+    if let Some(at_the_wall) = app_state
         .held_by_version
         .lock()
         .ok()
         .and_then(|held| held.clone())
+        .filter(|at_the_wall| Some(&at_the_wall.organization_id) == selected.as_ref())
     {
-        return vec![held];
+        return vec![at_the_wall.held];
     }
 
     let organization = app_state
@@ -211,10 +303,44 @@ pub(crate) fn both(
     organization.into_iter().chain(workspace).collect()
 }
 
-/// Keep `held` as what kept this machine at the wall, or forget it where it is nothing.
-pub(crate) fn hold_at_the_wall(app_state: &Shared, held: Option<HeldByVersion>) {
+/// What kept this machine at the wall for its version, and the organization it is about.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AtTheWall {
+    pub organization_id: String,
+    pub held: HeldByVersion,
+}
+
+/// Keep `held` as what kept this machine at the wall on the organization `organization_id`, or
+/// forget what was kept where it is nothing.
+pub(crate) fn hold_at_the_wall(
+    app_state: &Shared,
+    organization_id: &str,
+    held: Option<HeldByVersion>,
+) {
     if let Ok(mut slot) = app_state.held_by_version.lock() {
-        *slot = held;
+        *slot = held.map(|held| AtTheWall {
+            organization_id: organization_id.to_string(),
+            held,
+        });
+    }
+}
+
+/// Forget what kept this machine at the wall for its version, whichever organization it was about.
+pub(crate) fn release_the_wall(app_state: &Shared) {
+    if let Ok(mut slot) = app_state.held_by_version.lock() {
+        *slot = None;
+    }
+}
+
+/// Forget what kept this machine at the wall for its version where it was about the organization
+/// `organization_id`, which this machine has let go of (ticket 27).
+pub(crate) fn release_the_wall_of(app_state: &Shared, organization_id: &str) {
+    if let Ok(mut slot) = app_state.held_by_version.lock()
+        && slot
+            .as_ref()
+            .is_some_and(|at_the_wall| at_the_wall.organization_id == organization_id)
+    {
+        *slot = None;
     }
 }
 

@@ -27,7 +27,7 @@ use crate::organization::{
     ownership,
     session::{
         self, HeldByVersion, MachineView, SessionFacts, SessionsEnded, both_verdicts, forget,
-        held_by_version, hold_at_the_wall, workspace_judged,
+        held_by_version, release_the_wall, replicated_then_judged, workspace_judged,
     },
     store::OrganizationStore,
 };
@@ -244,7 +244,7 @@ pub(crate) async fn state_of(
             .signed_out_elsewhere
             .store(false, Ordering::SeqCst);
         // and the version that kept the wall up: a session open is judged on its own store.
-        hold_at_the_wall(app_state, None);
+        release_the_wall(app_state);
     }
 
     Ok(OrganizationState {
@@ -320,7 +320,7 @@ pub(crate) async fn select(app_state: &Shared, organization_id: &str) -> Result<
         .signed_out_elsewhere
         .store(false, Ordering::SeqCst);
     // what kept the wall up for its version was the previous organization's.
-    hold_at_the_wall(app_state, None);
+    release_the_wall(app_state);
 
     Ok(())
 }
@@ -830,12 +830,14 @@ pub(crate) async fn replicate(
         // replica holding changes the workspace refuses since an upgrade is not pulled either, and
         // says so (ticket 13).
         (_, Some(Standing::ReadOnly)) => {
-            let (pulled, unsendable) = {
-                let db = app_state.db.read().await;
+            // and judged again over what the pull brought, under the same hold of the engine, so
+            // nothing is written between the two (ticket 27).
+            let ((pulled, unsendable), workspace) = replicated_then_judged(app_state, async |db| {
                 let pulled = db.pull_replica().await;
 
                 (pulled, db.holds_unsendable())
-            };
+            })
+            .await;
 
             if pulled.completed {
                 crate::machine::note_reached(&app_state.remote_sync, clock.as_ref()).await;
@@ -856,17 +858,21 @@ pub(crate) async fn replicate(
                 received: pulled.brought,
                 refusal,
                 standing,
-                held_by_version: held_after(app_state, organization).await,
+                held_by_version: both_verdicts(
+                    HeldByVersion::organization(organization),
+                    workspace,
+                ),
             });
         }
         _ => {}
     }
 
-    let replicated = {
-        let db = app_state.db.read().await;
-
-        db.replicate().await
-    };
+    // and the workspace judged again over what its pull brought, under the same hold of the
+    // engine, so a raise that pull brought is in the answer and nothing is written between the
+    // two (ticket 27).
+    let (replicated, workspace) =
+        replicated_then_judged(app_state, async |db| db.replicate().await).await;
+    let held_after = both_verdicts(HeldByVersion::organization(organization), workspace);
 
     match &replicated.refusal {
         // the remote was reached, or could not be: the offline case, which needs nothing.
@@ -888,11 +894,7 @@ pub(crate) async fn replicate(
                 crate::machine::note_reached(&app_state.remote_sync, clock.as_ref()).await;
             }
 
-            Ok(Replication::of(
-                replicated,
-                standing,
-                held_after(app_state, organization).await,
-            ))
+            Ok(Replication::of(replicated, standing, held_after))
         }
         // a credential that stopped being accepted: a lock-out rotated it and the owner
         // re-sealed a fresh one to this member. The organization database says so, and reading
@@ -905,15 +907,11 @@ pub(crate) async fn replicate(
                     .write()
                     .await
                     .note_credential_refusal(clock.now());
-                return Ok(Replication::of(
-                    replicated,
-                    standing,
-                    held_after(app_state, organization).await,
-                ));
+                return Ok(Replication::of(replicated, standing, held_after));
             }
 
-            let db = app_state.db.read().await;
-            let again = db.replicate().await;
+            let (again, workspace) =
+                replicated_then_judged(app_state, async |db| db.replicate().await).await;
 
             // the reconnect collected a fresh credential and the retry went through, or it did
             // not and the member is told their credential needs attention rather than shown
@@ -955,7 +953,10 @@ pub(crate) async fn replicate(
                 received: replicated.received || again.received,
                 refusal: again.refusal,
                 standing,
-                held_by_version: held_after(app_state, organization).await,
+                held_by_version: both_verdicts(
+                    HeldByVersion::organization(organization),
+                    workspace,
+                ),
             })
         }
         // changes this machine holds that the workspace refuses since an upgrade (effort 857,
@@ -968,11 +969,7 @@ pub(crate) async fn replicate(
                 .await
                 .note_unsendable_changes(clock.now());
 
-            Ok(Replication::of(
-                replicated,
-                standing,
-                held_after(app_state, organization).await,
-            ))
+            Ok(Replication::of(replicated, standing, held_after))
         }
         // requirement 25: the account's, said as the account's, and the one other refusal
         // `read_sync_refusal` reads; its message is Turso's own sentence. The local replica goes
@@ -985,11 +982,7 @@ pub(crate) async fn replicate(
                 .await
                 .note_account_refusal(&account.to_string(), clock.now());
 
-            Ok(Replication::of(
-                replicated,
-                standing,
-                held_after(app_state, organization).await,
-            ))
+            Ok(Replication::of(replicated, standing, held_after))
         }
     }
 }
@@ -1003,15 +996,6 @@ fn unsendable(refusal: &Error) -> bool {
             reason: RefusalReason::ChangesUnsendableAfterUpgrade,
             ..
         }
-    )
-}
-
-/// What holds this machine once a replication has gone: the organization's verdict, and the open
-/// workspace judged again over whatever its own pull brought, each apart (ticket 16).
-async fn held_after(app_state: &Shared, organization: Standing) -> Vec<HeldByVersion> {
-    both_verdicts(
-        HeldByVersion::organization(organization),
-        workspace_judged(app_state).await,
     )
 }
 
@@ -1782,6 +1766,72 @@ mod tests {
         assert!(app_state.organization.read().await.is_none());
         assert!(state.organizations.is_empty());
         assert_eq!(state.selected, None);
+    }
+
+    /// **Effort 857, ticket 27's sixth criterion.** A resume refused the first organization for
+    /// its version, and the wall stands on it holding that. The hold is the first organization's:
+    /// the state read shows it while the wall stands there and not while another is selected, and
+    /// removing the first organization clears it, so the second, selected after it, shows nothing.
+    #[tokio::test]
+    async fn the_walls_version_hold_is_the_organizations_it_is_about() {
+        use crate::error::RefusalReason;
+        use crate::organization::session::{HeldByVersion, held_by_version, hold_at_the_wall};
+
+        let credentials: Credentials = Arc::new(Memory::new());
+        let directory = scratch("wall-hold-organization");
+        let app_state = first_run(credentials.as_ref(), &directory).await;
+        let (first_id, _) = recorded(&app_state).await;
+        let second = another_organization(credentials.as_ref(), &directory, &app_state).await;
+
+        super::select(&app_state, &first_id)
+            .await
+            .expect("the first selected");
+
+        let held = HeldByVersion::refused(&Error::refused(
+            RefusalReason::OrganizationNewer,
+            "the first organization was upgraded past this version",
+        ))
+        .expect("a hold");
+
+        hold_at_the_wall(&app_state, &first_id, Some(held.clone()));
+        assert_eq!(held_by_version(&app_state).await, vec![held.clone()]);
+
+        // another selected, as the record can be moved under the wall: not this one's hold.
+        app_state
+            .remote_sync
+            .write()
+            .await
+            .select_organization(&second.id)
+            .expect("the second selected");
+        assert_eq!(
+            held_by_version(&app_state).await,
+            Vec::new(),
+            "the first organization's hold was shown on the second"
+        );
+
+        super::select(&app_state, &first_id)
+            .await
+            .expect("the first selected again");
+        hold_at_the_wall(&app_state, &first_id, Some(held.clone()));
+        super::remove(&app_state, credentials.as_ref(), &first_id)
+            .await
+            .expect("the remove failed");
+
+        assert_eq!(
+            app_state
+                .remote_sync
+                .write()
+                .await
+                .store_mut()
+                .selected()
+                .map(|held| held.id.clone()),
+            Some(second.id.clone())
+        );
+        assert_eq!(
+            held_by_version(&app_state).await,
+            Vec::new(),
+            "the removed organization's hold was shown on the one left"
+        );
     }
 
     /// **Effort 851, criterion 5: each held organization says whether this machine holds its own
@@ -3186,6 +3236,94 @@ mod tests {
         })
         .await
         .expect("a role renamed once writable again");
+    }
+
+    /// **Effort 857, ticket 27's fourth criterion.** Two acts through `as_member` overlap while
+    /// this build stands below the organization's write floor: the second starts while the first
+    /// is still acting, and writes after the first has answered. Neither writes, because the acts
+    /// run one after the other: the first lets the replica's connection write again only once it
+    /// has answered, and the second holds it again before it acts.
+    #[tokio::test]
+    async fn overlapping_acts_below_the_write_floor_never_write() {
+        use std::time::Duration;
+
+        use crate::{
+            database::floor::Standing,
+            error::RefusalReason,
+            organization::{
+                act::{Acting, Pull, as_member},
+                role,
+                store::FORMAT_VERSION,
+            },
+        };
+
+        let credentials: Credentials = Arc::new(Memory::new());
+        let directory = scratch("read-only-acts-overlapping");
+        let owners = first_run(credentials.as_ref(), &directory).await;
+
+        owner_signed_in(&owners).await;
+
+        let roles = async || {
+            as_member(&owners, Pull::No, async |Acting { member, store }| {
+                role::roles(store, member).await
+            })
+            .await
+            .expect("the roles")
+        };
+        let before = roles().await;
+
+        {
+            let organization = owners.organization.read().await;
+            let store = organization.as_ref().expect("the replica");
+
+            store
+                .record_floors(FORMAT_VERSION + 1, FORMAT_VERSION, FORMAT_VERSION + 1)
+                .await;
+            assert_eq!(
+                store.refuse_another_format().await.expect("judged"),
+                Standing::ReadOnly
+            );
+        }
+
+        // a role made after `after`, by an act that starts after `starts`.
+        let made = |name: &'static str, starts: u64, after: u64| {
+            let owners = &owners;
+
+            async move {
+                tokio::time::sleep(Duration::from_millis(starts)).await;
+
+                as_member(owners, Pull::No, async move |Acting { member, store }| {
+                    tokio::time::sleep(Duration::from_millis(after)).await;
+
+                    role::create_role(
+                        store,
+                        member,
+                        name,
+                        permission::MEMBER_ROLE.mask,
+                        permission::MANAGER,
+                        CREATED_AT + 1,
+                    )
+                    .await
+                    .map(|_| ())
+                })
+                .await
+            }
+        };
+        let (first, second) = tokio::join!(made("tellers", 0, 100), made("cashiers", 20, 200));
+
+        for (act, refused) in [("the first", first), ("the second", second)] {
+            assert_eq!(
+                reason_of(refused.expect_err(act)),
+                RefusalReason::OrganizationReadOnlyByVersion,
+                "{act}"
+            );
+        }
+
+        assert_eq!(
+            roles().await,
+            before,
+            "an act wrote while the organization was read-only"
+        );
     }
 
     /// **Effort 857, ticket 19** (requirement 5, criterion 5). While another member holds the

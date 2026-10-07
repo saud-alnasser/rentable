@@ -615,6 +615,14 @@ where
         ));
     }
 
+    // an organization this build may not write takes no lease from it either (ticket 27): the
+    // lease is a row in the organization, and the version the steps reach is recorded there, so
+    // opening would write into it at its primary and then be refused the record. The workspace
+    // waits for a member whose rentable may write the organization, and this one is told why.
+    if pending_from(migrations, level) && !super::session::writes_to(store) {
+        return Err(super::store::read_only_by_version());
+    }
+
     while pending_from(migrations, level) {
         let taken_at = now();
         let until = taken_at + MIGRATION_LEASE_LIFETIME_MS;
@@ -2217,6 +2225,88 @@ mod tests {
                 "{behind}"
             );
         }
+    }
+
+    /// **Effort 857, ticket 27's fifth criterion.** A workspace behind a step shipped before 857,
+    /// in an organization a newer rentable took past what this build writes. Opening it would take
+    /// the lease in the organization and migrate the workspace, and then fail to record the version
+    /// it reached in an organization this build may not write; it is refused before any of that,
+    /// with the version as the reason, and nothing is written anywhere.
+    #[tokio::test]
+    async fn a_workspace_behind_in_a_read_only_organization_is_refused_before_any_write() {
+        use crate::organization::store::FORMAT_VERSION;
+
+        let credentials = Memory::new();
+        let directory = scratch("behind-read-only-organization");
+        let (store, _, member, workspace_id) = organization(&credentials, &directory).await;
+        let pipeline = LocalPipeline::start().await;
+
+        apply::apply(&Pipeline::at(&pipeline.url("")), "t", 5)
+            .await
+            .expect("the workspace as an older build left it");
+        store
+            .record_schema_version(&workspace_id, 5, AT)
+            .await
+            .expect("the older version");
+        store
+            .record_floors(FORMAT_VERSION + 1, FORMAT_VERSION, FORMAT_VERSION + 1)
+            .await;
+        assert_eq!(
+            store.refuse_another_format().await.expect("readable"),
+            Standing::ReadOnly
+        );
+
+        let (facts, held) = facts_of(&store, &member, &workspace_id).await;
+
+        assert!(is_pending(&store, &facts).await.expect("pending"));
+
+        let opened = upgrade_over(
+            &apply::SHIPPED,
+            Pending {
+                store: &store,
+                session: &member,
+                facts: &facts,
+                held: &held,
+                pipeline: &Pipeline::at(&pipeline.url("")),
+                account: no_platform(),
+            },
+            &StoreLease::new(&store),
+            || async {},
+            |_| {},
+            || AT + 1,
+        )
+        .await;
+
+        assert!(
+            matches!(
+                opened,
+                Err(Error::Refused {
+                    reason: RefusalReason::OrganizationReadOnlyByVersion,
+                    ..
+                })
+            ),
+            "{opened:?}"
+        );
+        assert_eq!(
+            store
+                .migration_lease(&workspace_id)
+                .await
+                .expect("the lease"),
+            None,
+            "a lease was written into an organization this build may not write"
+        );
+        assert_eq!(
+            read_off(&pipeline, "SELECT version FROM schema_version").await,
+            vec![vec![5]],
+            "the workspace was migrated"
+        );
+        assert_eq!(
+            facts_of(&store, &member, &workspace_id)
+                .await
+                .0
+                .schema_version,
+            5
+        );
     }
 
     /// **Ticket 03's second and fourth criteria.** A workspace and an organization whose only

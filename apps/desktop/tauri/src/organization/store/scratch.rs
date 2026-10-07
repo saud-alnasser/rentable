@@ -49,6 +49,8 @@ impl OrganizationStore {
                     .unwrap_or_else(std::sync::PoisonError::into_inner),
             ),
             format_steps: self.format_steps,
+            #[cfg(test)]
+            a_read_fails: std::sync::atomic::AtomicBool::new(false),
         })
     }
 

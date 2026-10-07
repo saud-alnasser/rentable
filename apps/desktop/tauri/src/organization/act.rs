@@ -83,7 +83,9 @@ pub async fn as_member<T>(
         // **Below the organization's write floor the act writes nothing** (effort 857, ticket
         // 05): the replica's connection refuses every write for the act's length, and the
         // refusal is answered with the version as the reason. A read goes on, so the acts that
-        // only read need nothing of their own.
+        // only read need nothing of their own. **Acts never overlap** (ticket 27): `if_member`
+        // holds the session for writing until the act has answered, so the release below never
+        // lets go of a hold another act relies on.
         let held = match store.hold_writes().await {
             Ok(held) => held,
             Err(error) => return (Err(error), false),
@@ -169,11 +171,7 @@ pub(super) fn signed_in<'a>(
 /// person is told; any other error as it came.
 fn refused_by_version(held: bool, error: Error) -> Error {
     if held && crate::database::floor::refused_a_write(&error) {
-        Error::refused(
-            RefusalReason::OrganizationReadOnlyByVersion,
-            "a newer version of rentable upgraded the organization, and this version can read it \
-             but not write to it. update rentable to make changes; nothing was written",
-        )
+        super::store::read_only_by_version()
     } else {
         error
     }

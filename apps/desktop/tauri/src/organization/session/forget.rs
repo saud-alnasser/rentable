@@ -161,6 +161,10 @@ pub(crate) async fn forget_one(
             .await?
     };
 
+    // and what held the wall for its version, where it was this organization's (effort 857,
+    // ticket 27): the wall moves to another, and it is not that one's.
+    super::release_the_wall_of(app_state, organization_id);
+
     // the wall's sentence was about the organization the wall stood on.
     if was_selected {
         app_state

@@ -88,9 +88,10 @@ pub(crate) use remember::*;
 pub(crate) use replica::leave_registry;
 pub use signin::*;
 pub(crate) use unsent::*;
-pub use version::{HeldByVersion, VersionTarget};
+pub use version::{AtTheWall, HeldByVersion, VersionTarget};
 pub(crate) use version::{
-    both as both_verdicts, held_by_version, hold_at_the_wall, workspace_judged, writes_to,
+    both as both_verdicts, held_by_version, hold_at_the_wall, release_the_wall,
+    release_the_wall_of, replicated_then_judged, workspace_judged, writes_to,
 };
 
 use std::{

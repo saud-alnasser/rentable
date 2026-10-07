@@ -172,6 +172,40 @@ pub enum Engine {
     Workspace(Replica),
 }
 
+/// What the interface asks of the open workspace, one statement or a batch, as
+/// [`Database::held`] runs it, again where it has to wait for a verdict.
+trait Request: Clone + Send {
+    type Answer: Send;
+
+    /// Run it on `connection`.
+    fn run(
+        self,
+        connection: &corrupt::Watched,
+    ) -> impl Future<Output = Result<Self::Answer, Error>> + Send + '_;
+}
+
+impl Request for SQLQuery {
+    type Answer = Vec<SQLRow>;
+
+    fn run(
+        self,
+        connection: &corrupt::Watched,
+    ) -> impl Future<Output = Result<Self::Answer, Error>> + Send + '_ {
+        proxy::workspace_execute_single_sql(connection, self)
+    }
+}
+
+impl Request for Vec<SQLQuery> {
+    type Answer = Vec<Vec<SQLRow>>;
+
+    fn run(
+        self,
+        connection: &corrupt::Watched,
+    ) -> impl Future<Output = Result<Self::Answer, Error>> + Send + '_ {
+        proxy::workspace_execute_batch_sql(connection, self)
+    }
+}
+
 /// A workspace's replica: the sync engine, and the connections its requests are served on.
 ///
 /// **The two are opened together and go together**, because the connections are what keeps a
@@ -214,6 +248,10 @@ pub struct Database {
     /// judged them (effort 857, ticket 04): set by every open and every heartbeat, writable with
     /// no workspace open and until the first verdict, and let go of with the engine.
     standing: std::sync::Mutex<Standing>,
+    /// held for writing while the open workspace is pulled and judged over what the pull brought
+    /// ([`Database::judging`], effort 857, ticket 27), so no write lands between the two. A
+    /// request holds it for reading while it runs.
+    judging: tokio::sync::RwLock<()>,
 }
 
 impl Database {
@@ -228,6 +266,7 @@ impl Database {
             clock,
             bound: SYNC_BOUND,
             standing: std::sync::Mutex::new(Standing::Writable),
+            judging: tokio::sync::RwLock::new(()),
         }
     }
 
@@ -829,6 +868,19 @@ impl Database {
             .unwrap_or(Standing::Unreadable)
     }
 
+    /// Hold the open workspace for a verdict (effort 857, ticket 27): a pull and the judgment over
+    /// what it brought run under this, so no write lands on the replica between the two, where it
+    /// would commit after a raise the pull brought and before the verdict that refuses it.
+    ///
+    /// **Reads go on beside it, and writes wait for the verdict.** A request that meets a verdict
+    /// being judged runs held to reading; one the engine refuses as a write waits for the verdict
+    /// and runs again, held to it ([`Database::held`]). So a pull the network is slow to answer
+    /// holds no read, which effort 854 (requirement 15) is owed, and a save made during it is
+    /// judged by what it brought. Waits for the requests already running.
+    pub(crate) async fn judging(&self) -> tokio::sync::RwLockWriteGuard<'_, ()> {
+        self.judging.write().await
+    }
+
     /// Keep `standing` as the open workspace's verdict: what the organization does at every open
     /// and every heartbeat, having judged the floors (effort 857, ticket 04).
     pub fn hold(&self, standing: Standing) {
@@ -849,6 +901,25 @@ impl Database {
         }
     }
 
+    /// Write `sql` to the open replica as a pull lays what it brings: on a connection of the
+    /// replica's own, whatever the verdict holds, for a test standing in for a pull that brought
+    /// it.
+    #[cfg(test)]
+    pub(crate) async fn as_a_pull_brings(&self, sql: &str) {
+        let Some(Engine::Workspace(replica)) = self.engine.as_ref() else {
+            panic!("no replica is open");
+        };
+        let connection = replica.connections.checkout().await.expect("a connection");
+
+        crate::database::floor::hold_writes(&connection, Standing::Writable)
+            .await
+            .expect("writable");
+        connection
+            .execute(sql, ())
+            .await
+            .expect("what the pull brought");
+    }
+
     /// Run one statement on the open database.
     ///
     /// **A workspace this build may not write refuses every write here** (effort 857, requirement
@@ -863,16 +934,7 @@ impl Database {
             // hands out on the other arm too. The engine arms change capture on every connection
             // it opens, so one it opened is one whose writes can be pushed, and one taken any
             // other way is not.
-            Engine::Workspace(replica) => {
-                let connection = replica.connections.checkout().await?;
-                let standing = self.standing();
-
-                crate::database::floor::hold_writes(&connection, standing).await?;
-
-                proxy::workspace_execute_single_sql(&connection, query)
-                    .await
-                    .map_err(|error| Self::refused_by_version(standing, error))
-            }
+            Engine::Workspace(replica) => self.held(replica, query).await,
         }
     }
 
@@ -885,17 +947,52 @@ impl Database {
     ) -> Result<Vec<Vec<SQLRow>>, Error> {
         match self.engine.as_ref().ok_or_else(Self::not_connected)? {
             Engine::Local(pool) => proxy::execute_batch_sql(pool, queries).await,
-            Engine::Workspace(replica) => {
-                let connection = replica.connections.checkout().await?;
-                let standing = self.standing();
-
-                crate::database::floor::hold_writes(&connection, standing).await?;
-
-                proxy::workspace_execute_batch_sql(&connection, queries)
-                    .await
-                    .map_err(|error| Self::refused_by_version(standing, error))
-            }
+            Engine::Workspace(replica) => self.held(replica, queries).await,
         }
+    }
+
+    /// Run `request` on a connection of `replica` held to the workspace's verdict, so the engine
+    /// refuses a write this build may not make (effort 857, requirement 6), and answer its refusal
+    /// with the version as the reason.
+    ///
+    /// **While a verdict is being judged** ([`Database::judging`]) the request runs held to
+    /// reading: a read answers at once, and a write the engine refuses waits for the verdict and
+    /// runs again, held to it. Its connection goes back before it waits, so the judgment, which
+    /// reads the floors on one, is never left waiting on the requests waiting on it.
+    async fn held<R: Request>(&self, replica: &Replica, request: R) -> Result<R::Answer, Error> {
+        if let Ok(_judged) = self.judging.try_read() {
+            let standing = self.standing();
+
+            return Self::held_to(replica, standing, request)
+                .await
+                .map_err(|error| Self::refused_by_version(standing, error));
+        }
+
+        match Self::held_to(replica, Standing::ReadOnly, request.clone()).await {
+            Err(error) if crate::database::floor::refused_a_write(&error) => {}
+            answered => return answered,
+        }
+
+        let _judged = self.judging.read().await;
+        let standing = self.standing();
+
+        Self::held_to(replica, standing, request)
+            .await
+            .map_err(|error| Self::refused_by_version(standing, error))
+    }
+
+    /// Run `request` on a connection of `replica` held to `standing`, answering the engine's
+    /// refusal of a write as it came.
+    async fn held_to<R: Request>(
+        replica: &Replica,
+        standing: Standing,
+        request: R,
+    ) -> Result<R::Answer, Error> {
+        let connection = replica.connections.checkout().await?;
+
+        crate::database::floor::hold_writes(&connection, standing).await?;
+
+        request.run(&connection).await
     }
 
     /// The engine's refusal of a write on a connection held to `standing`, as the refusal a person

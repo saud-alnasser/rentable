@@ -105,7 +105,7 @@ pub(super) async fn resume_remembered(
         // 04): the person is owed the reason they are held, where every other failure to resume
         // is the wall's own sentence.
         Err(refusal) => {
-            session::hold_at_the_wall(app_state, HeldByVersion::refused(&refusal));
+            session::hold_at_the_wall(app_state, &held.id, HeldByVersion::refused(&refusal));
 
             diagnostics::info("organization.session.notResumed")
                 .with("organization", held.id.as_str())
