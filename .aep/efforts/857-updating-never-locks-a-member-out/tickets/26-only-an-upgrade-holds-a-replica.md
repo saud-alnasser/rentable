@@ -27,3 +27,7 @@ Traces requirement 10 and criterion 10.
 
 - Each defect is pinned first by a test that fails on the code as it stands, at the level [[rules/testing]] fixes ([[skills/tdd]]); where a finding turns out not to reproduce, say so in Notes with the evidence and leave its box unticked for the orchestrator.
 - A changeset for `@rentable/desktop` in a user's words, in the same commit ([[references/changesets]]), unless nothing here is observable by a user; say so in Notes if none.
+
+## Notes
+
+- No changeset: the hold this narrows has not shipped, so no user sees a change; the existing unreleased changesets describe the behaviour as it now is (review round two, standards 2).

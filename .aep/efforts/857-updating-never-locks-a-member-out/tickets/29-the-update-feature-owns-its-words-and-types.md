@@ -31,3 +31,7 @@ Traces requirement 6, requirement 11, criterion 11 and criterion 12.
 
 - Each defect is pinned first by a test that fails on the code as it stands, at the level [[rules/testing]] fixes ([[skills/tdd]]); where a finding turns out not to reproduce, say so in Notes with the evidence and leave its box unticked for the orchestrator.
 - A changeset for `@rentable/desktop` in a user's words, in the same commit ([[references/changesets]]), unless nothing here is observable by a user; say so in Notes if none.
+
+## Notes
+
+- No changeset for the release check: the Rust updater has not shipped, so no user ever saw a server error read as no release (review round two, standards 3).
