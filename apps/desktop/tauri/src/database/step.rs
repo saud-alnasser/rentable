@@ -190,6 +190,28 @@ impl Steps {
             legacy
         }
     }
+
+    /// The floors data created from nothing is born with (effort 857, ticket 21): every step of
+    /// this ladder run, the level the last of them, and each floor the highest any of them
+    /// declares, never the level. An addition raises neither, so the first addition after 857
+    /// stops no build that reads and writes what the steps before it made.
+    pub fn born(&self) -> Floors {
+        let every: Vec<u32> = (self.first..=self.known()).collect();
+
+        self.raised(
+            Floors::legacy(self.first.saturating_sub(1)),
+            &every,
+            self.known(),
+        )
+    }
+
+    /// The number builds before 857 read (the organization's `workspace.schema_version`, the
+    /// `format` row) on data created from nothing: the last step they know, which they accept,
+    /// unless a declared floor passes it and they must be stopped ([`Steps::legacy_after`], the
+    /// rule the explicit upgrade follows).
+    pub fn born_legacy(&self) -> u32 {
+        self.legacy_after(self.settled(), self.born())
+    }
 }
 
 /// What a step may do, and so who runs it.
@@ -796,5 +818,74 @@ mod tests {
         assert_eq!(steps.legacy_after(2, Floors::legacy(2)), 2);
         // and a number already past them stays where it is.
         assert_eq!(steps.legacy_after(3, Floors::legacy(5)), 3);
+    }
+
+    /// **Ticket 21, over the declarations.** Data created from nothing runs every step, and is
+    /// born with the floors those steps declare, never at its level: the shipped ladders give
+    /// exactly what their legacy numbers read as, an addition declared after 857 raises nothing,
+    /// and an upgrade declared after it raises what it declares. The number builds before 857 read
+    /// stays at the last step they know unless a declared floor passes it.
+    #[test]
+    fn new_data_is_born_with_the_floors_its_steps_declare() {
+        use crate::database::floor::{Floors, Standing};
+
+        let workspace = Ladder::Workspace.declared();
+        let format = Ladder::Format.declared();
+
+        assert_eq!(workspace.born(), Floors::legacy(7));
+        assert_eq!(workspace.born_legacy(), 7);
+        assert_eq!(format.born(), Floors::legacy(3));
+        assert_eq!(format.born_legacy(), 3);
+
+        const WITH_AN_ADDITION: &[Step] = &[
+            WORKSPACE_STEPS[0],
+            WORKSPACE_STEPS[1],
+            after(Kind::Addition, "aLaterAddition"),
+        ];
+        let added = Steps {
+            first: 1,
+            declared: WITH_AN_ADDITION,
+        };
+
+        assert_eq!(
+            added.born(),
+            Floors {
+                level: 3,
+                read: 2,
+                write: 2
+            }
+        );
+        assert_eq!(added.born_legacy(), 2);
+        assert_eq!(added.born().standing(2), Standing::Writable);
+
+        const WITH_AN_UPGRADE: &[Step] = &[
+            WORKSPACE_STEPS[0],
+            WORKSPACE_STEPS[1],
+            after(Kind::Addition, "aLaterAddition"),
+            after(
+                Kind::Upgrade {
+                    read_floor: None,
+                    write_floor: Some(4),
+                    needs_owner: false,
+                },
+                "aLaterUpgrade",
+            ),
+        ];
+        let upgraded = Steps {
+            first: 1,
+            declared: WITH_AN_UPGRADE,
+        };
+
+        assert_eq!(
+            upgraded.born(),
+            Floors {
+                level: 4,
+                read: 2,
+                write: 4
+            }
+        );
+        // the write floor passes every build before 857, so their number stops them.
+        assert_eq!(upgraded.born_legacy(), 4);
+        assert_eq!(upgraded.born().standing(3), Standing::ReadOnly);
     }
 }

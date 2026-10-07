@@ -169,14 +169,40 @@ pub struct FormatOneDirectory {
 }
 
 impl OrganizationStore {
-    /// Record that this organization is of this build's format: written by the first run beside
-    /// the schema, and by the owner's upgrade last of all.
+    /// Record that this organization is of this build's format, [`FORMAT_VERSION`]. A first run
+    /// writes [`OrganizationStore::write_born_format`] instead (effort 857, ticket 21).
     ///
     /// **The table is created where it is missing**, since the row is what an upgrade writes last
     /// and a `format` table somebody dropped would otherwise fail that step at every sign-in
     /// (effort 838, ticket 25).
     pub async fn write_format(&self) -> Result<(), Error> {
         self.write_format_version(FORMAT_VERSION).await
+    }
+
+    /// Record the format and floors a new organization is born with (effort 857, ticket 21):
+    /// written by the first run beside the schema, on an organization every change of format has
+    /// made from nothing.
+    ///
+    /// **The floors are those its steps declare, never the level** ([`Steps::born`]). Where a change
+    /// declared after 857 is among them, `organization_floor` records them, and the `format` row,
+    /// which the builds before 857 read, stays at the last format they know unless a declared floor
+    /// must stop them ([`Steps::born_legacy`]). Where none is, the row is this build's format and
+    /// reads as exactly those floors, so nothing of 857's is written. Written as this build's
+    /// number, the first addition after 857 would refuse every older build.
+    ///
+    /// [`Steps::born`]: crate::database::step::Steps::born
+    /// [`Steps::born_legacy`]: crate::database::step::Steps::born_legacy
+    pub async fn write_born_format(&self, now: i64) -> Result<(), Error> {
+        let steps = self.format_steps;
+
+        self.write_format_version(i64::from(steps.born_legacy()))
+            .await?;
+
+        if steps.known() > steps.settled() {
+            self.record_organization_floor(steps.born(), now).await?;
+        }
+
+        Ok(())
     }
 
     /// Record that this organization is of format `version`: the row the owner's upgrade writes
@@ -1084,6 +1110,115 @@ mod tests {
         assert_eq!(
             reason_of(store.refuse_unwritable().await),
             RefusalReason::OrganizationNewer
+        );
+    }
+
+    /// The shipped changes of format with one step declared after effort 857 on top.
+    fn format_ladder_with(kind: crate::database::step::Kind) -> crate::database::step::Steps {
+        use crate::database::step::{FORMAT_STEPS, Step, Steps};
+
+        let declared: Vec<Step> = FORMAT_STEPS
+            .iter()
+            .copied()
+            .chain([Step {
+                kind,
+                describes: "aLaterChange",
+                shipped_before_857: false,
+            }])
+            .collect();
+
+        Steps {
+            first: 2,
+            declared: Box::leak(declared.into_boxed_slice()),
+        }
+    }
+
+    /// **Ticket 21's three criteria, on an organization.** An organization created by a build
+    /// whose changes of format end in one declared after 857 is born with `organization_floor`,
+    /// holding the floors the steps declare and not the level. After an addition a build knowing
+    /// one step less reads and writes it, and the `format` row stays at 3, which every build before
+    /// 857 accepts; after an upgrade raising the write floor, that build reads it, and the row
+    /// moves to 4, which stops every build before 857, as the declared floor says it must. On the
+    /// shipped changes no floor row is written and the format reads as the declared floors.
+    #[tokio::test]
+    async fn an_organization_is_born_with_the_floors_its_steps_declare() {
+        use crate::database::step::Kind;
+
+        let cases = [
+            (
+                "addition",
+                Kind::Addition,
+                Floors {
+                    level: 4,
+                    read: 3,
+                    write: 3,
+                },
+                3,
+                Standing::Writable,
+            ),
+            (
+                "upgrade",
+                Kind::Upgrade {
+                    read_floor: None,
+                    write_floor: Some(4),
+                    needs_owner: false,
+                },
+                Floors {
+                    level: 4,
+                    read: 3,
+                    write: 4,
+                },
+                4,
+                Standing::ReadOnly,
+            ),
+        ];
+
+        for (case, kind, born, legacy, one_step_less) in cases {
+            let store = store(&format!("format-born-{case}"))
+                .await
+                .declaring(format_ladder_with(kind));
+
+            store.install_schema().await.expect("the schema");
+            store.write_born_format(7).await.expect("the format");
+
+            assert_eq!(
+                store.floor_recorded().await.expect("the floor row"),
+                Some((
+                    i64::from(born.level),
+                    i64::from(born.read),
+                    i64::from(born.write)
+                )),
+                "{case}"
+            );
+            assert_eq!(
+                store.format().await.expect("the format"),
+                Some(legacy),
+                "{case}"
+            );
+            assert_eq!(
+                store
+                    .floors()
+                    .await
+                    .expect("the floors")
+                    .map(|floors| floors.standing(3)),
+                Some(one_step_less),
+                "{case}"
+            );
+        }
+
+        let store = store("format-born-shipped").await;
+
+        store.install_schema().await.expect("the schema");
+        store.write_born_format(7).await.expect("the format");
+
+        assert_eq!(store.floor_recorded().await.expect("the floor row"), None);
+        assert_eq!(
+            store.format().await.expect("the format"),
+            Some(FORMAT_VERSION)
+        );
+        assert_eq!(
+            store.floors().await.expect("the floors"),
+            Some(store.format_steps().born())
         );
     }
 }

@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(upgrade): new data is born with its floor record
@@ -14,9 +14,9 @@ Found at converge round one: a workspace or organization created on this build w
 
 Traces requirement 2 and criterion 2.
 
-- [ ] Creating a workspace writes `data_floor` and `workspace_floor`, and creating an organization writes `organization_floor`, holding the read and write floors the steps declare, not the level.
-- [ ] A test with a fake addition declared after 857 creates a workspace and an organization and finds a build knowing one step less reads and writes them.
-- [ ] The legacy numbers written at creation stay what a pre-857 build accepts unless a declared floor says otherwise.
+- [x] Creating a workspace writes `data_floor` and `workspace_floor`, and creating an organization writes `organization_floor`, holding the read and write floors the steps declare, not the level.
+- [x] A test with a fake addition declared after 857 creates a workspace and an organization and finds a build knowing one step less reads and writes them.
+- [x] The legacy numbers written at creation stay what a pre-857 build accepts unless a declared floor says otherwise.
 
 ## Relevant areas
 

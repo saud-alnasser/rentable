@@ -39,7 +39,8 @@
 //!
 //! What is here is the runner. Which client applies a *pending* migration to a workspace that
 //! already has rows, and under what lease, is `organization/lease/`; creating a workspace
-//! already at the current schema is [`apply`], which is the same transaction from nothing.
+//! already at the current schema is [`create`], which is [`bring_up`]'s transaction from nothing
+//! (effort 857, ticket 21).
 //!
 //! **Opening a workspace runs what [`bring_up`] runs, and that is not always a prefix** (effort
 //! 857, ticket 03). Every step shipped before 857 runs as it always did, and so does every step
@@ -280,8 +281,9 @@ pub enum Migrated {
     AlreadyAt(usize),
 }
 
-/// Apply the first `up_to` shipped migrations to the database behind `pipeline`, with `token`:
-/// a workspace being created, in the one transaction [`apply_between`] runs.
+/// Apply the first `up_to` shipped migrations to the database behind `pipeline`, with `token`, in
+/// the one transaction [`apply_between`] runs: a workspace as a build before effort 857 created
+/// it, which is how the tests seed one. A workspace being created goes through [`create`].
 ///
 /// The token is the short-lived credential minted for the migration and nothing else, and it is
 /// spent here and dropped.
@@ -575,6 +577,34 @@ pub async fn bring_up(
     now: i64,
 ) -> Result<Brought, Error> {
     bring_up_selected(pipeline, token, migrations, from, now, Selected::OnOpen).await
+}
+
+/// Run every step of `migrations` on the new, empty workspace behind `pipeline`, with `token`: a
+/// workspace being created, in the one transaction [`bring_up`] runs, with its check and records
+/// (effort 857, ticket 21).
+///
+/// **So it is born with the floors its steps declare**: where a step declared after 857 is among
+/// them, `data_floor` holds the highest floors any step declares beside the level, never the
+/// level alone ([`Steps::born`]); and where none is, nothing of 857's records is written, and its
+/// version reads as exactly those floors. The token is the short-lived credential minted for the
+/// migration and nothing else, and it is spent here and dropped.
+///
+/// [`Steps::born`]: crate::database::step::Steps::born
+pub async fn create(
+    pipeline: &Pipeline,
+    token: &str,
+    migrations: &Migrations,
+    now: i64,
+) -> Result<Brought, Error> {
+    bring_up_selected(
+        pipeline,
+        token,
+        migrations,
+        0,
+        now,
+        Selected::Every { owner: true },
+    )
+    .await
 }
 
 /// [`bring_up`], running the steps `selected` names: what opening runs, or every step the
