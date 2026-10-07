@@ -249,10 +249,19 @@ export default router({
 		.use(autosync())
 		.input(ComplexSchema.partial({ name: true, location: true }))
 		.mutation(async ({ input, ctx }) => {
-			// presence, not truthiness: the schema admits '' for name, and a present value
-			// must hit the uniqueness check exactly when the set clause would write it.
+			// presence, not truthiness: the schema admits '' for name. Only a name this edit
+			// changes is checked: two complexes may already share one, saved apart on two
+			// machines (effort 857, ticket 38), and each stays editable.
+			const current = await ctx.db
+				.select({ name: s.complex.name })
+				.from(s.complex)
+				.where(eq(s.complex.id, input.id))
+				.get();
+			const renamed =
+				input.name !== undefined && input.name !== current?.name ? input.name : undefined;
+
 			ensureComplexNameAvailable(
-				input.name !== undefined ? (await complexesNamed(ctx.db, [input.name], input.id))[0] : null
+				renamed !== undefined ? (await complexesNamed(ctx.db, [renamed], input.id))[0] : null
 			);
 
 			const values = {

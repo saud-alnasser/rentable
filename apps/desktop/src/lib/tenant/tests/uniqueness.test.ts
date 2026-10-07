@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { eq } from 'drizzle-orm';
+
+import * as s from '$lib/platform/database/schema';
+
 import { createApiWithoutUniqueRules, refusalReadIn, refusedWith } from '$lib/app/tests/testing.ts';
 import { tenantsHolding } from '$lib/tenant/tenant.ts';
 
@@ -139,4 +143,38 @@ test('the tenants holding a value are read in one place, leaving out the one bei
 	);
 	assert.deepEqual(await tenantsHolding(db, 'phone', [HELD.phone], held.id), []);
 	assert.deepEqual(await tenantsHolding(db, 'phone', []), []);
+});
+
+// two tenants can share a value saved apart on two machines (ticket 38). An edit leaving that
+// value alone is not refused over it, and an edit changing a field to a value held is.
+test('editing a tenant that shares a value with another, leaving the value alone, saves', async () => {
+	const { api, db } = await createApiWithoutUniqueRules();
+	await api.tenant.create(HELD);
+	const other = await api.tenant.create(OTHER);
+
+	await db
+		.update(s.tenant)
+		.set({ nationalId: HELD.nationalId, phone: HELD.phone })
+		.where(eq(s.tenant.id, other.id));
+
+	const updated = await api.tenant.update({
+		id: other.id,
+		name: 'Huda A.',
+		nationalId: HELD.nationalId,
+		phone: HELD.phone
+	});
+
+	assert.equal(updated.name, 'Huda A.');
+
+	const toNewPhone = () => api.tenant.update({ id: other.id, phone: '+966550000000' });
+
+	assert.equal((await toNewPhone()).phone, '+966550000000');
+
+	const backToHeld = () => api.tenant.update({ id: other.id, phone: HELD.phone });
+
+	await assert.rejects(backToHeld, refusedWith('tenant.phoneTaken'));
+	assert.equal(
+		await refusalReadIn(backToHeld, 'en'),
+		'phone is associated with a registered tenant.'
+	);
 });

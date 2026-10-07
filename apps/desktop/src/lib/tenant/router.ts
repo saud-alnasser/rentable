@@ -181,15 +181,23 @@ export default router({
 		.use(autosync())
 		.input(TenantSchema.partial({ name: true, nationalId: true, phone: true }))
 		.mutation(async ({ input, ctx }) => {
+			// only a value this edit changes is checked: two tenants may already share one, saved
+			// apart on two machines (effort 857, ticket 38), and each stays editable.
+			const current = await ctx.db.select().from(s.tenant).where(eq(s.tenant.id, input.id)).get();
+			const nationalId =
+				input.nationalId !== undefined && input.nationalId !== current?.nationalId
+					? input.nationalId
+					: undefined;
+			const phone =
+				input.phone !== undefined && input.phone !== current?.phone ? input.phone : undefined;
+
 			ensureIdentityAvailable(
-				input.nationalId !== undefined
-					? (await tenantsHolding(ctx.db, 'nationalId', [input.nationalId], input.id))[0]
+				nationalId !== undefined
+					? (await tenantsHolding(ctx.db, 'nationalId', [nationalId], input.id))[0]
 					: null
 			);
 			ensurePhoneAvailable(
-				input.phone !== undefined
-					? (await tenantsHolding(ctx.db, 'phone', [input.phone], input.id))[0]
-					: null
+				phone !== undefined ? (await tenantsHolding(ctx.db, 'phone', [phone], input.id))[0] : null
 			);
 
 			const values = {

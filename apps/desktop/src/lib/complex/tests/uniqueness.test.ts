@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { eq } from 'drizzle-orm';
+
+import * as s from '$lib/platform/database/schema';
+
 import { createApiWithoutUniqueRules, refusalReadIn, refusedWith } from '$lib/app/tests/testing.ts';
 import { complexesNamed } from '$lib/complex/complex.ts';
 
@@ -83,4 +87,28 @@ test('the complexes holding a name are read in one place, leaving out the one be
 	);
 	assert.deepEqual(await complexesNamed(db, ['Al Noor'], held.id), []);
 	assert.deepEqual(await complexesNamed(db, []), []);
+});
+
+// two complexes can share a name saved apart on two machines (ticket 38). An edit leaving the
+// name alone is not refused over it, and a rename to a name held is.
+test('editing a complex that shares a name with another, leaving the name alone, saves', async () => {
+	const { api, db } = await createApiWithoutUniqueRules();
+	await api.complex.create({ name: 'Al Noor', location: 'Riyadh' });
+	const other = await api.complex.create({ name: 'Al Waha', location: 'Jeddah' });
+
+	await db.update(s.complex).set({ name: 'Al Noor' }).where(eq(s.complex.id, other.id));
+
+	const updated = await api.complex.update({ id: other.id, name: 'Al Noor', location: 'Dammam' });
+
+	assert.equal(updated.location, 'Dammam');
+
+	assert.equal((await api.complex.update({ id: other.id, name: 'Al Waha' })).name, 'Al Waha');
+
+	const rename = () => api.complex.update({ id: other.id, name: 'Al Noor' });
+
+	await assert.rejects(rename, refusedWith('complex.nameTaken'));
+	assert.equal(
+		await refusalReadIn(rename, 'en'),
+		'name is associated with a previously registered complex.'
+	);
 });

@@ -207,8 +207,10 @@ export default router({
 
 			const normalizedGovId = input.govId?.trim() || null;
 
+			// only a government ID this edit changes is checked: two contracts may already share
+			// one, saved apart on two machines (effort 857, ticket 38), and each stays editable.
 			ensureGovIdAvailable(
-				normalizedGovId
+				normalizedGovId && normalizedGovId !== existingContract.govId
 					? (await contractsHoldingGovId(ctx.db, [normalizedGovId], input.id))[0]
 					: undefined
 			);

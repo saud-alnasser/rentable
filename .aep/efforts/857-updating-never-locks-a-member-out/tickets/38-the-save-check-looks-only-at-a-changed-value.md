@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(records): the save check looks only at a value the person changed
@@ -14,8 +14,8 @@ Found by the research of 2026-10-07: once two different records share a value ma
 
 Traces requirement 14 and criterion 14.
 
-- [ ] Editing a tenant, complex or contract that shares a value with another record, without changing that value, saves; a test per table over a workspace without the unique indexes.
-- [ ] Changing a unique field to a value another live record holds is still refused with today's message; the import writes keep their check; tests.
+- [x] Editing a tenant, complex or contract that shares a value with another record, without changing that value, saves; a test per table over a workspace without the unique indexes.
+- [x] Changing a unique field to a value another live record holds is still refused with today's message; the import writes keep their check; tests.
 
 ## Relevant areas
 

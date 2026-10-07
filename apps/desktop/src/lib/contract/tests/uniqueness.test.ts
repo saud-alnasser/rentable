@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { eq } from 'drizzle-orm';
+
+import * as s from '$lib/platform/database/schema';
+
 import {
 	createApiWithoutUniqueRules,
 	monthsFromNow,
@@ -111,4 +115,32 @@ test('the contracts holding a government ID are read in one place, leaving out t
 	);
 	assert.deepEqual(await contractsHoldingGovId(db, ['GOV-1'], held.id), []);
 	assert.deepEqual(await contractsHoldingGovId(db, []), []);
+});
+
+// two contracts can share a government ID saved apart on two machines (ticket 38). An edit
+// leaving the ID alone is not refused over it, and an edit changing it to one held is.
+test('editing a contract that shares a government ID with another, leaving the ID alone, saves', async () => {
+	const { api, db } = await createApiWithoutUniqueRules();
+	await seedContract(api, { govId: 'GOV-1' });
+	const other = await seedContract(api, { govId: 'GOV-2' });
+
+	await db.update(s.contract).set({ govId: 'GOV-1' }).where(eq(s.contract.id, other.id));
+
+	const edit = (govId: string, cost: number) =>
+		api.contract.update({
+			id: other.id,
+			tenantId: other.tenantId,
+			govId,
+			start: monthsFromNow(-1),
+			end: monthsFromNow(11),
+			interval: '12m',
+			cost
+		});
+
+	assert.equal((await edit(' GOV-1 ', 1200)).cost, 1200);
+
+	assert.equal((await edit('GOV-3', 1200)).govId, 'GOV-3');
+
+	await assert.rejects(() => edit('GOV-1', 1200), refusedWith('contract.govIdTaken'));
+	assert.equal(await refusalReadIn(() => edit('GOV-1', 1200), 'en'), TAKEN_EN);
 });
