@@ -520,3 +520,33 @@ test('a link arriving on the no-workspace screen takes no crossing', async () =>
 	assert.equal(navigationCrossing(startup.snapshot, THE_WAY_IN, THE_JOIN), null);
 	assert.equal(navigationCrossing(startup.snapshot, '/tenants', THE_JOIN), null);
 });
+
+// --- A workspace past reading ----------------------------------------------------------------
+//
+// Ticket 11 of effort 857: the update-required screen stands inside the application, with the
+// rail up, in place of the workspace, at every address.
+
+test('a workspace held by its version draws the update-required screen inside the application', async () => {
+	const { startup } = harness({
+		organization: fakeOrganizationState({
+			session: fakeOrganizationSession({
+				workspaces: [
+					fakeOrganizationWorkspace({ id: 'north', name: 'North' }),
+					fakeOrganizationWorkspace({ id: 'south', name: 'South' })
+				]
+			})
+		}),
+		openWorkspace: async () => {
+			throw { code: 'refused', reason: 'workspaceNewer', message: 'schema 9 past 8' };
+		}
+	});
+
+	await startup.start();
+
+	assert.equal(startup.snapshot.state, 'held');
+	assert.equal(shellFor(startup.snapshot), 'full');
+
+	for (const pathname of [THE_WAY_IN, '/settings', '/tenants', THE_JOIN]) {
+		assert.equal(startupScreen(startup.snapshot, pathname), 'update-required', pathname);
+	}
+});

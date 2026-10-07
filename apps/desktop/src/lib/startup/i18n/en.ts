@@ -25,6 +25,8 @@ export const layout = {
 		stagePrepare: 'creating your first workspace',
 		stageSettings: 'reading your settings',
 		stageWorkspace: 'opening your workspace',
+		// the update-required screen's way to the session's other workspaces (effort 857).
+		otherWorkspaces: 'open another workspace',
 		// the loading page a switch between workspaces draws, naming the one being opened.
 		switching: 'opening {name:string}'
 	}

@@ -17,7 +17,36 @@ import type { OrganizationState } from '$lib/organization';
  * has not created one yet admits its members to nothing, which is a state of its own rather than a
  * failure to start. Creating one is the workspace ticket's; this state is where that surface goes.
  */
-export type StartupState = 'loading' | 'sign-in' | 'no-workspace' | 'ready' | 'error' | 'recovery';
+export type StartupState =
+	'loading' | 'sign-in' | 'no-workspace' | 'held' | 'ready' | 'error' | 'recovery';
+
+/**
+ * why an organization could not be opened, recorded against it until it opens (effort 857,
+ * requirement 7). The switcher says it in a short callout above that organization, with the update
+ * action where `byVersion` holds: a newer rentable upgraded it past what this build reads, or past
+ * what it writes on a way in that has to write.
+ */
+export type OrganizationRefusal = {
+	/** the reason, in the reader's language. */
+	sentence: string;
+	/** what the shell said behind it, for a disclosure; `null` where it said nothing more. */
+	detail: string | null;
+	/** whether updating rentable is the way past it. */
+	byVersion: boolean;
+};
+
+/**
+ * a workspace this build cannot read, which the update-required screen stands in place of
+ * (effort 857, requirement 7). Only read in the `held` state.
+ */
+export type WorkspaceHold = {
+	workspaceId: string;
+	/** the workspace as the session names it. */
+	name: string;
+	/** the reason, in the reader's language. */
+	sentence: string;
+	detail: string | null;
+};
 
 /**
  * why the wall is up, which is only read while it is. The organization's three reasons, from
@@ -84,6 +113,15 @@ export type StartupSnapshot = {
 	 * covers those three as well, so a sign-out is one change on screen from wherever it starts.
 	 */
 	leavingForTheWall: boolean;
+	/**
+	 * every organization this run could not open, by its id, and why (effort 857, requirement 7).
+	 * An entry is written where an organization is refused at launch, at sign-in, on switching or
+	 * on joining, and removed the moment that organization admits somebody. Kept across a retry,
+	 * since a retry that meets the same refusal is what it is there to say.
+	 */
+	refusals: Readonly<Record<string, OrganizationRefusal>>;
+	/** the workspace the update-required screen stands in place of, while the state is `held`. */
+	held: WorkspaceHold | null;
 };
 
 export const INITIAL: StartupSnapshot = {
@@ -99,7 +137,9 @@ export const INITIAL: StartupSnapshot = {
 	hasFailedUnreadable: false,
 	isSigningIn: false,
 	switching: null,
-	leavingForTheWall: false
+	leavingForTheWall: false,
+	refusals: {},
+	held: null
 };
 
 /**

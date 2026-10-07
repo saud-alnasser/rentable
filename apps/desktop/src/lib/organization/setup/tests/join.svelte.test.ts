@@ -287,6 +287,55 @@ test('an accept refused for a held organization leaves the wall naming that orga
 	expect(hooks.goto).not.toHaveBeenCalled();
 });
 
+// effort 857, ticket 11: an accept refused because the organization it names cannot be opened by
+// this version, where the machine holds that organization, goes back to the organization switcher
+// on that organization's wall, with the reason recorded against it, rather than staying on a join
+// screen that cannot act on it.
+test('an accept refused because a newer rentable upgraded a held organization returns to its switcher', async () => {
+	loadLocale('en');
+	setLocale('en');
+
+	const acme = fakeHeldOrganization({ id: 'acme', name: 'Acme Rentals' });
+	const beta = fakeHeldOrganization({ id: 'beta', name: 'Beta Lettings' });
+	const driven = harness({
+		organization: fakeOrganizationState({
+			organizations: [acme, beta],
+			selected: 'acme',
+			session: null
+		})
+	});
+
+	await driven.startup.start();
+	hooks.startup = driven.startup;
+
+	hooks.linkRead.mockResolvedValue({
+		organizationId: 'beta',
+		organizationName: 'Beta Lettings',
+		kind: 'invitation',
+		expiresAt: 1
+	});
+	hooks.accept.mockRejectedValue({
+		code: 'refused',
+		reason: 'organizationNewer',
+		message: 'the organization is at format 5'
+	});
+
+	await walkToJoin();
+
+	await waitFor(() => expect(hooks.goto).toHaveBeenCalledWith('/'));
+	await waitFor(() => expect(driven.startup.snapshot.organization?.selected).toBe('beta'));
+
+	expect(driven.startup.snapshot.state).toBe('sign-in');
+	expect(driven.startup.snapshot.refusals.beta).toEqual({
+		sentence: 'refused: organizationNewer',
+		detail: null,
+		byVersion: true
+	});
+	expect(document.querySelector('[data-join-step]')?.getAttribute('data-join-step')).not.toBe(
+		'refused'
+	);
+});
+
 // effort 843, ticket 07: a `rentable://` link the operating system hands the running application
 // while the join is open lands on the form, step 1 of 2, with the link filled and the code to type.
 test('a link that arrives while the join is open lands on the form with the link filled', async () => {

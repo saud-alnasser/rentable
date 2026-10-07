@@ -123,6 +123,23 @@
 	};
 
 	/**
+	 * the organization the last link read named, which an accept refused for that organization's
+	 * own sake is about.
+	 */
+	let named: string | null = null;
+
+	/**
+	 * where a refusal of the organization itself ends, rather than of the link or its code: back
+	 * at the organization switcher, on that organization's wall with the reason in a callout above
+	 * it (effort 857, requirement 7), where this machine holds it. Answers whether it went; where it
+	 * did not, the refusal is this screen's to say, as every other one is.
+	 */
+	const backToTheSwitcher = (organizationId: string | null, failure: unknown) =>
+		organizationId
+			? startup.organizationRefused(organizationId, failure, { arrive: () => goto(resolve(wayIn)) })
+			: Promise.resolve(false);
+
+	/**
 	 * what every refusal is said in: one sentence in the reader's language, from the refusal's
 	 * reason where it carried one, and never with the shell's own words spliced after it. Those are
 	 * the detail each step keeps behind a disclosure.
@@ -157,6 +174,8 @@
 			return;
 		}
 
+		named = shape.organizationId;
+
 		try {
 			// the kind of link that connects the machine itself: one a member made for this machine,
 			// which carries the credential sealed and the code is the half that opens it.
@@ -164,6 +183,10 @@
 				await host.machineConnect(link, code);
 			}
 		} catch (error) {
+			if (mine === attempt && (await backToTheSwitcher(shape.organizationId, error))) {
+				return;
+			}
+
 			if (stillWaiting(mine, link)) {
 				step = joinFailed(waiting, error, describe);
 			}
@@ -207,6 +230,10 @@
 		try {
 			await host.invitation.accept(link, code, password);
 		} catch (error) {
+			if (await backToTheSwitcher(named, error)) {
+				return;
+			}
+
 			step = joinFailed(step, error, describe);
 			refused();
 

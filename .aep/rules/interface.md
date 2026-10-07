@@ -108,6 +108,21 @@ Recorded originally as ADR 0020, *Surfaces diverge by kind, not by operation*.
 A screen that is neither a step of the way in nor the application failing takes neither, and
 this section is where the question of a third is answered.
 
+- **A workspace this version cannot read stands inside the application, in place of the
+  workspace**: the update-required screen, `startup/component/update-required.svelte`, in the page
+  frame where the workspace's page would be, with the rail and the titlebar up around it at every
+  address. The organization opened and only that workspace did not, so it is neither a step of
+  the way in nor the application failing, and it takes neither surface: the workspace's name under
+  the update's glyph, the reason in one sentence, the update action as its `screen`, and a plain
+  list of the session's other workspaces, each of which opens that one. *Answered by ticket 11 of
+  [[efforts/857-updating-never-locks-a-member-out/spec]], requirement 7, which the human amended on
+  2026-10-07.*
+- **An organization that cannot be opened needs no surface of its own.** The person goes back to
+  the organization switcher on the wall, which is the way-in surface, and a short callout above
+  that organization says why, carrying the update action as its `notice` where a newer rentable
+  upgraded it (`organization/component/switcher.svelte`). The generic failure screen is never
+  where a refusal lands.
+
 *Why: these surfaces have no data of their own to take a shape from, so the reasoning that
 makes the concept lists diverge does not reach them — what they have in common is the whole of
 what they are. They converge on two rather than one because the way in is a sequence a person

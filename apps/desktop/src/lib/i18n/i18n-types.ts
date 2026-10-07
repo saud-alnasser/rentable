@@ -2191,6 +2191,10 @@ type RootTranslation = {
 			 */
 			stageWorkspace: string
 			/**
+			 * o​p​e​n​ ​a​n​o​t​h​e​r​ ​w​o​r​k​s​p​a​c​e
+			 */
+			otherWorkspaces: string
+			/**
 			 * o​p​e​n​i​n​g​ ​{​n​a​m​e​}
 			 * @param {string} name
 			 */
@@ -7543,6 +7547,10 @@ export type TranslationFunctions = {
 			 * opening your workspace
 			 */
 			stageWorkspace: () => LocalizedString
+			/**
+			 * open another workspace
+			 */
+			otherWorkspaces: () => LocalizedString
 			/**
 			 * opening {name}
 			 */

@@ -2,6 +2,7 @@
 	import StandaloneSurface from '@rentable/design/block/standalone-surface.svelte';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import SurfaceAction from '@rentable/design/block/surface-action.svelte';
+	import DetailDisclosure from '$lib/error/component/detail-disclosure.svelte';
 	import { revealDiagnostics } from '$lib/platform/diagnostics';
 	import FolderOpenIcon from '@lucide/svelte/icons/folder-open';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
@@ -15,15 +16,16 @@
 	 * person actually needs: what could not be opened, that nothing recorded in it is at risk, and
 	 * that starting again is the first thing to try.
 	 *
-	 * **The reported error is not on the screen.** A stack trace above a retry button is an apology
-	 * addressed to the wrong reader; the folder control leads to the diagnostics, which is the one
-	 * place it was ever going to be useful.
+	 * **The reported error is not in the body.** A stack trace above a retry button is an apology
+	 * addressed to the wrong reader; the folder control leads to the diagnostics, where the machine
+	 * writes every failed start (`StartupMachine.fail`).
 	 *
-	 * **It is not in the diagnostics yet, and this screen is where that shows.** Nothing writes the
-	 * startup error anywhere: `startup/component/root.svelte` formats it for display and holds it in a
-	 * variable. Taking it off the screen without writing it down is where it is lost, so the
-	 * `message` prop is gone rather than accepted and ignored — a prop this screen does not read is
-	 * a claim that it handles something it does not.
+	 * **The reason it was given is behind the details, closed** (effort 857, requirement 8, and
+	 * [[rules/interface]], *Error*): the sentence in the reader's language, and under it whatever
+	 * the shell said, for whoever the reader asks about it. A person who has tried starting again
+	 * and is still here is the one who opens it. A refusal never reaches this screen: an
+	 * organization that would not open goes back to the switcher, and a workspace past reading to
+	 * its update-required screen, so a retry from here never meets the same refusal again.
 	 *
 	 * **This screen, the one a startup draws when it failed before a locale, and update recovery
 	 * are the three that declare a tone**, and the recovery does not declare what the other two do.
@@ -33,10 +35,21 @@
 	 * the same event as an update that needs finishing.
 	 */
 	let {
+		message = null,
+		detail = null,
 		onRetry
 	}: {
+		/** the reason, already in the reader's language; `null` where none was given. */
+		message?: string | null;
+		/** what the shell said behind it, in its own words. */
+		detail?: string | null;
 		onRetry: () => void;
 	} = $props();
+
+	/** the sentence, then the machine's words on the line under it. */
+	const reason = $derived(
+		[message, detail].filter((part): part is string => Boolean(part)).join('\n')
+	);
 
 	let isRevealing = $state(false);
 
@@ -80,4 +93,8 @@
 			onclick={onRetry}
 		/>
 	{/snippet}
+
+	{#if reason}
+		<DetailDisclosure detail={reason} name="startup" />
+	{/if}
 </StandaloneSurface>

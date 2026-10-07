@@ -112,6 +112,12 @@ export type StartupPorts = {
 	describeError(error: unknown): string;
 	/** what the shell said behind a thrown value, kept for a disclosure; `null` where nothing. */
 	detailError(error: unknown): string | null;
+	/**
+	 * why the shell refused, where a thrown value is a refusal it sent with a reason, and `null`
+	 * otherwise: what decides whether a failure is the organization's, a workspace's, the
+	 * password's or a link's (`./refusal`).
+	 */
+	refusalReason(error: unknown): string | null;
 	recordFailure(message: string, detail: string | null): void;
 	reportStage(stage: StartupStage): void;
 	reportComplete(): void;

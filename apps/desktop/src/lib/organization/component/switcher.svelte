@@ -1,10 +1,12 @@
 <script lang="ts">
 	import type { HeldOrganization } from '$lib/organization/host';
 	import { Button } from '@rentable/design/primitive/button/index.js';
+	import { Callout } from '@rentable/design/primitive/callout/index.js';
 	import * as DropdownMenu from '@rentable/design/primitive/dropdown-menu/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import DisconnectDialog from '$lib/organization/component/disconnect-dialog.svelte';
 	import OrganizationTile from '$lib/organization/component/tile.svelte';
+	import { UpdateAction } from '$lib/update/ui';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import XIcon from '@lucide/svelte/icons/x';
@@ -37,6 +39,15 @@
 	 * no-workspace screen sign out first where they must. `disabled` is the screen being busy (a
 	 * sign-in running on the wall, a workspace being created on the no-workspace screen;
 	 * requirement 6): the trigger does not open.
+	 *
+	 * **An organization that could not be opened says why, in a short callout above it** (effort
+	 * 857, requirement 7, in the human's words of 2026-10-07: "on the switch show small callout
+	 * above when the org is choose about the kind of error it has"). Drawn while that organization
+	 * is the chosen one, directly above the trigger that names it: the reason as one sentence, and,
+	 * where a newer rentable upgraded it, the update action as its `notice` inside the same callout,
+	 * since updating is the way past it. A version is `warning`, because nothing failed and the
+	 * person has something to do; any other refusal is `error`. What was refused is recorded by
+	 * startup and handed in, and it clears there once that organization opens.
 	 */
 	let {
 		organizations,
@@ -44,7 +55,8 @@
 		disabled = false,
 		onSelect,
 		onAdd,
-		onRemove
+		onRemove,
+		refusals = {}
 	}: {
 		/** every organization this machine holds, in the order the record lists them. */
 		organizations: HeldOrganization[];
@@ -58,6 +70,11 @@
 		onAdd: () => void;
 		/** remove one, once its confirm is answered; a refusal it throws stays in the confirm. */
 		onRemove: (organizationId: string) => Promise<void> | void;
+		/**
+		 * why each organization this run could not open was refused, by its id: the sentence, and
+		 * whether updating rentable is the way past it. Only the chosen one's is drawn.
+		 */
+		refusals?: Readonly<Record<string, { sentence: string; byVersion: boolean }>>;
 	} = $props();
 
 	/** how many rows show before the list scrolls, as the workspace menu caps its own. */
@@ -75,6 +92,8 @@
 	let list = $state<HTMLElement | null>(null);
 
 	const chosen = $derived(organizations.find((held) => held.id === selected) ?? null);
+	/** why the chosen organization could not be opened, where it could not. */
+	const refusal = $derived(chosen ? (refusals[chosen.id] ?? null) : null);
 	const scrolls = $derived(organizations.length > SHOWN_ROWS);
 
 	const reveal = (row: Element | null | undefined) => {
@@ -101,100 +120,117 @@
 	};
 </script>
 
-<DropdownMenu.Root bind:open>
-	<DropdownMenu.Trigger {disabled}>
-		{#snippet child({ props })}
-			<Button
-				{...props}
-				variant="outline"
-				class="h-auto w-full justify-start gap-3 px-3 py-2 data-[state=open]:bg-accent"
-				{disabled}
-				data-organization-switcher
-			>
-				{#if chosen}
-					<OrganizationTile name={chosen.name} size="card" />
-					<span class="flex-1 truncate text-start" data-organization-switcher-name>
-						<bdi>{chosen.name}</bdi>
-					</span>
-				{/if}
-				<ChevronsUpDownIcon class="ms-auto size-4 text-muted-foreground" />
-			</Button>
-		{/snippet}
-	</DropdownMenu.Trigger>
-
-	<DropdownMenu.Content
-		class="w-(--bits-dropdown-menu-anchor-width) min-w-64"
-		align="start"
-		side="bottom"
-		sideOffset={4}
-		data-organization-switcher-menu
-	>
-		<!-- the held organizations, one row each, the chosen one checked: radio rows, because exactly
-		     one is the wall's, and `menuitemradio` with `aria-checked` announces it as current. -->
-		<DropdownMenu.RadioGroup
-			bind:ref={list}
-			data-organization-switcher-list
-			class={scrolls ? 'max-h-44 overflow-y-auto overscroll-contain' : undefined}
-			onfocusin={(event: FocusEvent) =>
-				reveal((event.target as Element | null)?.closest('[role="menuitemradio"]'))}
-			value={selected ?? undefined}
-			onValueChange={(id) => {
-				if (id !== selected) {
-					onSelect(id);
-				}
-			}}
+<!-- the callout and the organization it is about, held together so the one reads as a note on the
+     other rather than as a line of the screen around them. -->
+<div class="flex flex-col gap-2" data-organization-switcher-head>
+	{#if refusal && chosen}
+		<Callout
+			tone={refusal.byVersion ? 'warning' : 'error'}
+			class="flex flex-col gap-3"
+			data-organization-refusal={chosen.id}
 		>
-			{#each organizations as held (held.id)}
-				<DropdownMenu.RadioItem
-					value={held.id}
-					indicator="check"
-					class="pe-1"
-					data-organization-switcher-row={held.id}
-					onkeydown={(event: KeyboardEvent) => {
-						if (event.key === 'Delete' || event.key === 'Backspace') {
-							event.preventDefault();
-							askToRemove(held);
-						}
-					}}
+			<p class="first-letter:uppercase" data-organization-refusal-sentence>{refusal.sentence}</p>
+			{#if refusal.byVersion}
+				<UpdateAction variant="notice" />
+			{/if}
+		</Callout>
+	{/if}
+
+	<DropdownMenu.Root bind:open>
+		<DropdownMenu.Trigger {disabled}>
+			{#snippet child({ props })}
+				<Button
+					{...props}
+					variant="outline"
+					class="h-auto w-full justify-start gap-3 px-3 py-2 data-[state=open]:bg-accent"
+					{disabled}
+					data-organization-switcher
 				>
-					{#snippet children({ checked })}
-						<OrganizationTile name={held.name} size="row" />
-						<span class="flex-1 truncate"><bdi>{held.name}</bdi></span>
-						{#if checked}
-							<span class="sr-only">{$LL.organization.switcher.chosen()}</span>
-						{/if}
-						<!-- the row's own remove. Its pointer and its click are stopped here, so the
+					{#if chosen}
+						<OrganizationTile name={chosen.name} size="card" />
+						<span class="flex-1 truncate text-start" data-organization-switcher-name>
+							<bdi>{chosen.name}</bdi>
+						</span>
+					{/if}
+					<ChevronsUpDownIcon class="ms-auto size-4 text-muted-foreground" />
+				</Button>
+			{/snippet}
+		</DropdownMenu.Trigger>
+
+		<DropdownMenu.Content
+			class="w-(--bits-dropdown-menu-anchor-width) min-w-64"
+			align="start"
+			side="bottom"
+			sideOffset={4}
+			data-organization-switcher-menu
+		>
+			<!-- the held organizations, one row each, the chosen one checked: radio rows, because exactly
+		     one is the wall's, and `menuitemradio` with `aria-checked` announces it as current. -->
+			<DropdownMenu.RadioGroup
+				bind:ref={list}
+				data-organization-switcher-list
+				class={scrolls ? 'max-h-44 overflow-y-auto overscroll-contain' : undefined}
+				onfocusin={(event: FocusEvent) =>
+					reveal((event.target as Element | null)?.closest('[role="menuitemradio"]'))}
+				value={selected ?? undefined}
+				onValueChange={(id) => {
+					if (id !== selected) {
+						onSelect(id);
+					}
+				}}
+			>
+				{#each organizations as held (held.id)}
+					<DropdownMenu.RadioItem
+						value={held.id}
+						indicator="check"
+						class="pe-1"
+						data-organization-switcher-row={held.id}
+						onkeydown={(event: KeyboardEvent) => {
+							if (event.key === 'Delete' || event.key === 'Backspace') {
+								event.preventDefault();
+								askToRemove(held);
+							}
+						}}
+					>
+						{#snippet children({ checked })}
+							<OrganizationTile name={held.name} size="row" />
+							<span class="flex-1 truncate"><bdi>{held.name}</bdi></span>
+							{#if checked}
+								<span class="sr-only">{$LL.organization.switcher.chosen()}</span>
+							{/if}
+							<!-- the row's own remove. Its pointer and its click are stopped here, so the
 						     row never hears them and is never chosen by them; the menu's focus stays
 						     on the row, so the keyboard reaches the same act by Delete. -->
-						<Button
-							variant="ghost"
-							size="icon-xs"
-							tabindex={-1}
-							class="ms-auto flex size-6 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
-							aria-label={$LL.organization.switcher.remove({ name: held.name })}
-							data-organization-switcher-remove={held.id}
-							onpointerdown={stopped}
-							onpointerup={stopped}
-							onclick={(event) => {
-								event.stopPropagation();
-								askToRemove(held);
-							}}
-						>
-							<XIcon class="size-4" />
-						</Button>
-					{/snippet}
-				</DropdownMenu.RadioItem>
-			{/each}
-		</DropdownMenu.RadioGroup>
+							<Button
+								variant="ghost"
+								size="icon-xs"
+								tabindex={-1}
+								class="ms-auto flex size-6 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+								aria-label={$LL.organization.switcher.remove({ name: held.name })}
+								data-organization-switcher-remove={held.id}
+								onpointerdown={stopped}
+								onpointerup={stopped}
+								onclick={(event) => {
+									event.stopPropagation();
+									askToRemove(held);
+								}}
+							>
+								<XIcon class="size-4" />
+							</Button>
+						{/snippet}
+					</DropdownMenu.RadioItem>
+				{/each}
+			</DropdownMenu.RadioGroup>
 
-		<DropdownMenu.Separator />
+			<DropdownMenu.Separator />
 
-		<DropdownMenu.Item class="gap-2" onSelect={onAdd} data-organization-switcher-add>
-			<PlusIcon class="size-4 shrink-0" />
-			<span class="truncate first-letter:uppercase">{$LL.organization.switcher.add()}</span>
-		</DropdownMenu.Item>
-	</DropdownMenu.Content>
-</DropdownMenu.Root>
+			<DropdownMenu.Item class="gap-2" onSelect={onAdd} data-organization-switcher-add>
+				<PlusIcon class="size-4 shrink-0" />
+				<span class="truncate first-letter:uppercase">{$LL.organization.switcher.add()}</span>
+			</DropdownMenu.Item>
+		</DropdownMenu.Content>
+	</DropdownMenu.Root>
+</div>
 
 <!-- draws nothing until a row's x asks. Named for that row's organization, and its line says the
      Turso account goes only where this machine holds that organization's consent. -->

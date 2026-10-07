@@ -6,6 +6,11 @@ import type { RemoteSyncState } from '$lib/sync/host.ts';
 import type { Recovery } from '$lib/update/host.ts';
 import type { OrganizationState } from '$lib/organization/host.ts';
 import { inverseStack } from '$lib/undo/undo.ts';
+import {
+	toTauriRefusalReason,
+	type TauriError,
+	type TauriRefusalReason
+} from '$lib/error/tauri.ts';
 
 /**
  * Shared harness for driving startup with no window.
@@ -71,6 +76,16 @@ export const heldUndo = () => ({
 
 /** what a test holding the real stack hands the harness as `forgetUndo`. */
 export const forgetRealUndo = () => inverseStack.clear();
+
+/**
+ * a refusal as the shell sends one: the `refused` code and its reason, with Rust's own words as
+ * the message. The harness says it back as `refused: <reason>`, which stands in for the sentence.
+ */
+export const refusal = (reason: TauriRefusalReason): TauriError => ({
+	code: 'refused',
+	reason,
+	message: `the shell refused: ${reason}`
+});
 
 export function fakeRecovery(overrides: Partial<Recovery> = {}): Recovery {
 	return {
@@ -182,6 +197,11 @@ export function harness(
 		dropUndrawn?: () => void;
 		/** what looking for an update meets, for the path where the update server is slow. */
 		lookForUpdate?: () => Promise<void>;
+		/**
+		 * how a thrown value reads, for a test drawing what the unit wrote in a reader's language;
+		 * `refused: <reason>` for a refusal, and the message otherwise, unless said.
+		 */
+		describeError?: (error: unknown) => string;
 	} = {}
 ): Harness {
 	const journal: Journal = {
@@ -399,7 +419,16 @@ export function harness(
 				void overrides.lookForUpdate?.();
 			}
 		},
-		describeError: (error) => (error instanceof Error ? error.message : String(error)),
+		describeError: (error) => {
+			if (overrides.describeError) return overrides.describeError(error);
+
+			const reason = toTauriRefusalReason(error);
+
+			if (reason) return `refused: ${reason}`;
+
+			return error instanceof Error ? error.message : String(error);
+		},
+		refusalReason: (error) => toTauriRefusalReason(error),
 		detailError: () => null,
 		recordFailure: (message) => void journal.failures.push(message),
 		reportStage: (stage) => void journal.stages.push(stage),

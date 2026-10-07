@@ -23,7 +23,14 @@ import type { StartupSnapshot } from './snapshot';
 
 /** the screen startup has the frame draw in place of its children, or `route` for the children. */
 export type StartupScreen =
-	'loading' | 'switching' | 'sign-in' | 'no-workspace' | 'recovery' | 'error' | 'route';
+	| 'loading'
+	| 'switching'
+	| 'sign-in'
+	| 'no-workspace'
+	| 'update-required'
+	| 'recovery'
+	| 'error'
+	| 'route';
 
 /**
  * Where an organization is created: the first run's own address.
@@ -158,7 +165,10 @@ export type ShellChrome = 'bare' | 'way-in' | 'full';
  */
 export function shellFor(snapshot: Pick<StartupSnapshot, 'state' | 'switching'>): ShellChrome {
 	switch (snapshot.state) {
+		// a workspace past reading stands inside the application, in place of the workspace, with
+		// the rail and its workspace control up around it (effort 857, requirement 7).
 		case 'ready':
+		case 'held':
 			return 'full';
 		case 'sign-in':
 		case 'no-workspace':
@@ -252,6 +262,9 @@ export function startupScreen(snapshot: StartupSnapshot, pathname: string): Star
 			return snapshot.recovery ? 'recovery' : 'route';
 		case 'error':
 			return 'error';
+		// over every address: the workspace every address would draw from is the one held.
+		case 'held':
+			return 'update-required';
 		case 'ready':
 			return 'route';
 	}

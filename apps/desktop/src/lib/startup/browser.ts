@@ -1,6 +1,7 @@
 import api, { forgetContext } from '$lib/api/caller';
 import { invalidateRoot } from '$lib/mutation';
 import { toErrorMessage, toErrorText } from '$lib/error/message';
+import { toTauriRefusalReason } from '$lib/error/tauri';
 import LL from '$lib/i18n/i18n-svelte';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { baseLocale, locales } from '$lib/i18n/i18n-util';
@@ -104,6 +105,7 @@ export function browserStartupPorts(
 		describeError: (error) =>
 			toErrorText(error, get(LL), get(LL).layout.startup.failedToStartFallback()),
 		detailError: (error) => toErrorMessage(error, get(LL)).detail,
+		refusalReason: (error) => toTauriRefusalReason(error),
 		recordFailure: (message, detail) =>
 			recordDiagnosticError('startup.failed', { error: message, detail }),
 		reportStage: reportStartupStage,

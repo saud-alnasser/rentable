@@ -36,9 +36,14 @@
 
 	<Collapsible.Content>
 		<!-- drawn only while open, so words nobody asked for reach neither a reader nor a screen
-		     reader. `dir="auto"` because they run in their own direction whatever the reader's is. -->
+		     reader. `dir="auto"` because they run in their own direction whatever the reader's is,
+		     and a line break in them is kept, so a sentence and the words behind it stay apart. -->
 		{#if isOpen}
-			<p class="pt-1 text-xs text-muted-foreground" dir="auto" data-error-detail-text={name}>
+			<p
+				class="pt-1 text-xs whitespace-pre-line text-muted-foreground"
+				dir="auto"
+				data-error-detail-text={name}
+			>
 				{detail}
 			</p>
 		{/if}

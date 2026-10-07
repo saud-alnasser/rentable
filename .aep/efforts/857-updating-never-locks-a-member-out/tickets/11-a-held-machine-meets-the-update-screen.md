@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [04, 10]
 ---
 
@@ -15,11 +15,11 @@ An organization that cannot be opened, for its version or any other refusal, at 
 
 Traces requirement 7, requirement 8, criterion 7 and criterion 8.
 
-- [ ] `fail()`, `admit()`, `wall.ts`, `switch.ts` and the join flow route an organization's refusal (a version refusal, `heldByVersion`, or any other refusal to open it that is not about the password) to the organization switcher with the refusal recorded against that organization, never to the generic error screen and never to a wall the person cannot leave.
-- [ ] The switcher draws a short callout above that organization with the reason sentence, and `update-action` as `notice` when the reason is the version; choosing another organization opens it, and the callout clears once that organization opens.
-- [ ] A `held` state and `update-required` screen stand in place of a workspace below its read floor, with the reason sentence, `update-action` as `screen`, and a list of the session's other workspaces that switches to one; [[rules/interface]] *Application surfaces* is amended to say where it stands.
-- [ ] `StartupError` draws the reason behind the existing detail disclosure; retry after a version refusal stays on the switcher callout or the update screen.
-- [ ] Route or component tests for each entry, in Arabic and English, find the callout or the screen, the sentence, and switching working from each.
+- [x] `fail()`, `admit()`, `wall.ts`, `switch.ts` and the join flow route an organization's refusal (a version refusal, `heldByVersion`, or any other refusal to open it that is not about the password) to the organization switcher with the refusal recorded against that organization, never to the generic error screen and never to a wall the person cannot leave.
+- [x] The switcher draws a short callout above that organization with the reason sentence, and `update-action` as `notice` when the reason is the version; choosing another organization opens it, and the callout clears once that organization opens.
+- [x] A `held` state and `update-required` screen stand in place of a workspace below its read floor, with the reason sentence, `update-action` as `screen`, and a list of the session's other workspaces that switches to one; [[rules/interface]] *Application surfaces* is amended to say where it stands.
+- [x] `StartupError` draws the reason behind the existing detail disclosure; retry after a version refusal stays on the switcher callout or the update screen.
+- [x] Route or component tests for each entry, in Arabic and English, find the callout or the screen, the sentence, and switching working from each.
 
 ## Relevant areas
 

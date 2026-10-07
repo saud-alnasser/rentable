@@ -25,6 +25,7 @@ export const layout = {
 		stagePrepare: 'إنشاء مساحة عملك الأولى',
 		stageSettings: 'قراءة إعداداتك',
 		stageWorkspace: 'فتح مساحة عملك',
+		otherWorkspaces: 'افتح مساحة عمل أخرى',
 		switching: 'جارٍ فتح {name}'
 	}
 } satisfies Pick<Translation['layout'], 'startup'>;

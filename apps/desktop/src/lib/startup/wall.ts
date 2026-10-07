@@ -1,4 +1,5 @@
 import type { StartupMachine } from './machine';
+import { refusalKind } from './refusal';
 
 /**
  * THE WALL
@@ -37,6 +38,19 @@ export async function signIn(machine: StartupMachine, username: string, password
 	try {
 		machine.set({ organization: await machine.ports.organization.signIn(username, password) });
 	} catch (error) {
+		const selected = machine.current.organization?.selected ?? null;
+
+		// **a refusal that is not about the password is the organization's** (effort 857,
+		// requirement 7): recorded against it, and said above it at the switcher, where it stays
+		// however often the password is tried, rather than under the fields as a password that
+		// did not open.
+		if (selected && refusalKind(machine.ports.refusalReason(error)) === 'organization') {
+			machine.recordRefusal(selected, error);
+			machine.set({ error: null, isSigningIn: false });
+
+			return;
+		}
+
 		machine.set({ ...machine.describe(error), isSigningIn: false });
 
 		return;
@@ -272,6 +286,72 @@ export async function linkRefused(machine: StartupMachine) {
 	}
 
 	await machine.admit();
+}
+
+/**
+ * A link was refused because the organization it names cannot be opened: put the person back at
+ * the switcher, on that organization's wall, with the reason above it (effort 857, requirement 7).
+ * Answers whether it did.
+ *
+ * **Only for an organization this machine holds, and only for a refusal of the organization.** A
+ * refusal of the link or its code is the join screen's to say, on its form; and an organization
+ * the machine does not hold has no place at the switcher, so its refusal stays on the join screen
+ * too. Both answer `false`, and the join screen goes on as it did.
+ *
+ * `arrive` moves the address to the way in, which the join screen is not: the wall draws over
+ * every address but the ones that open signed out. Nothing is chosen while somebody is in, so a
+ * session still open is ended first, as the switcher's own choice does.
+ */
+export async function organizationRefused(
+	machine: StartupMachine,
+	organizationId: string,
+	error: unknown,
+	{ arrive }: { arrive?: () => Promise<unknown> } = {}
+) {
+	if (refusalKind(machine.ports.refusalReason(error)) !== 'organization') {
+		return false;
+	}
+
+	let organization;
+
+	try {
+		organization = await machine.ports.organization.getState();
+	} catch {
+		return false;
+	}
+
+	if (!organization.organizations.some((held) => held.id === organizationId)) {
+		return false;
+	}
+
+	machine.ports.undo.forget();
+	machine.set({ organization });
+	machine.recordRefusal(organizationId, error);
+
+	try {
+		if (organization.session) {
+			machine.ports.cache.forgetContext();
+			await machine.ports.organization.signOut();
+		}
+
+		if (organization.selected !== organizationId) {
+			await machine.ports.organization.select(organizationId);
+		}
+	} catch {
+		// the wall goes up on whichever organization the record still chooses.
+	}
+
+	if (arrive) {
+		try {
+			await arrive();
+		} catch {
+			// the address stays where it was, and the standing below decides what is drawn over it.
+		}
+	}
+
+	await standingRead(machine);
+
+	return true;
 }
 
 /**
