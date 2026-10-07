@@ -3,7 +3,13 @@ import type { Recovery } from '$lib/update';
 import { organizationAdmission } from '$lib/sync';
 import type { StartupPorts } from './ports';
 import { Reconciliation } from './reconcile';
-import { isOrganizationByVersion, organizationNewer, refusalKind, workspaceNewer } from './refusal';
+import {
+	isOrganizationByVersion,
+	isWorkspaceByVersion,
+	organizationNewer,
+	refusalScope,
+	workspaceNewer
+} from './whose-refusal';
 import {
 	hasRecoveryData,
 	INITIAL,
@@ -31,15 +37,23 @@ export class StartupMachine {
 
 	#snapshot: StartupSnapshot = { ...INITIAL };
 	#observers = new Set<(snapshot: StartupSnapshot) => void>();
-	/** the workspace the last open asked for, which a refusal from the bootstrap is about. */
+	/**
+	 * the workspace the last open asked for, which a refusal from the bootstrap is about. It is the
+	 * session's, so it goes when the session does (ticket 25): another organization, or the next
+	 * sign-in, opens the workspace the shell recorded rather than one refused in the session before.
+	 */
 	#opening: string | null = null;
 	/**
-	 * every workspace this run found past what it reads, by its id (effort 857, requirement 8).
-	 * Nothing asks the shell to open one of these again in this run: a newer build is what opens
-	 * it, and that is a restart, so a retry or a second choice of it goes straight back to its
-	 * update-required screen rather than round the same refusal.
+	 * every workspace this run held, by its id (effort 857, requirement 8, and ticket 25).
+	 *
+	 * - **Past what this build reads**: nothing asks the shell to open it again in this run, since a
+	 *   newer build is what opens it and that is a restart, so a retry or a second choice of it goes
+	 *   straight back to its screen rather than round the same refusal.
+	 * - **Refused for any other reason**: never opened again by itself, so a retry or the next
+	 *   sign-in lands on its screen rather than meeting the refusal again; opened again when the
+	 *   person chooses it, since what refused it (a full disk, a member yet to bring it up) can pass.
 	 */
-	#unreadable = new Map<string, WorkspaceHold>();
+	#held = new Map<string, WorkspaceHold>();
 	/**
 	 * the version holds the snapshot stood in at its last change, one key each (effort 857,
 	 * ticket 18): what tells a hold that has just begun from one the run is still in, so each asks
@@ -135,7 +149,14 @@ export class StartupMachine {
 		// it does not belong to.
 		const detail = 'error' in changes && !('errorDetail' in changes) ? { errorDetail: null } : {};
 
+		const before = this.#snapshot.organization?.session?.organizationId ?? null;
+
 		this.#snapshot = { ...this.#snapshot, ...detail, ...changes };
+
+		// signed out, or into another organization: the last open was the session that ended.
+		if ((this.#snapshot.organization?.session?.organizationId ?? null) !== before) {
+			this.#opening = null;
+		}
 
 		for (const observer of this.#observers) {
 			observer(this.snapshot);
@@ -210,11 +231,16 @@ export class StartupMachine {
 	 * Enter the failure state, and write down what happened; or, where the failure is a refusal,
 	 * put the person where the refusal can be answered.
 	 *
-	 * **A refusal is not the application failing** (effort 857, requirements 7 and 8). Which one
-	 * it is decides where it goes (`./refusal`): a workspace past what this build reads stands on
-	 * the update-required screen, an organization that would not open goes back to the switcher
-	 * with its reason recorded against it, and one about the password goes to the wall. None of the
-	 * three is the failure screen, whose retry would only meet the same refusal again.
+	 * **A refusal is not the application failing** (effort 857, requirements 7 and 8). Whose it is
+	 * decides where it goes (`./whose-refusal`): a workspace that would not open, in a session that
+	 * did, stands on the held screen saying why with the session's other workspaces to open; an
+	 * organization that would not open goes back to the switcher with its reason recorded against
+	 * it; and one about the password goes to the wall. None of the three is the failure screen,
+	 * whose retry would only meet the same refusal again.
+	 *
+	 * **Only the organization's refusal signs the person out** (ticket 25). A refusal about one
+	 * workspace keeps them in the organization; only where nobody is in yet, and so no workspace
+	 * is open for it to be about, is it the organization's.
 	 *
 	 * **The screen keeps the reason behind its details, so something has to keep the rest.**
 	 * `component/error.svelte` offers the diagnostics folder, which is only an honest offer if the
@@ -225,10 +251,11 @@ export class StartupMachine {
 	 * comes to skip a step.
 	 */
 	async fail(error: unknown) {
-		const kind = refusalKind(this.ports.refusalReason(error));
+		const scope = refusalScope(this.ports.refusalReason(error));
 		const { organization } = this.#snapshot;
+		const isIn = Boolean(organization?.session);
 
-		if (kind === 'workspace') {
+		if (scope === 'workspace' && isIn) {
 			const workspaceId = this.#opening ?? this.#snapshot.sync?.workspace.remoteId ?? null;
 
 			if (workspaceId) {
@@ -239,14 +266,16 @@ export class StartupMachine {
 		}
 
 		const organizationId = organization?.session?.organizationId ?? organization?.selected ?? null;
+		const isTheOrganizations =
+			scope === 'organization' || scope === 'link' || (scope === 'workspace' && !isIn);
 
-		if ((kind === 'organization' || kind === 'link') && organizationId) {
+		if (isTheOrganizations && organizationId) {
 			await this.returnToSwitcher(organizationId, error);
 
 			return;
 		}
 
-		if (kind === 'password' && organizationId) {
+		if (scope === 'password' && organizationId) {
 			await this.#leaveSession();
 			await this.raiseSignInWall('locked');
 			this.set(this.describe(error));
@@ -331,8 +360,8 @@ export class StartupMachine {
 	}
 
 	/**
-	 * Stand the update-required screen in place of a workspace this build cannot read (effort 857,
-	 * requirement 7), and remember it, so nothing in this run asks the shell to open it again.
+	 * Stand the held screen in place of a workspace that would not open (effort 857, requirement 7,
+	 * and ticket 25), and remember it, so nothing in this run opens it again by itself.
 	 */
 	async hold(workspaceId: string, error: unknown) {
 		const name =
@@ -343,28 +372,36 @@ export class StartupMachine {
 			workspaceId,
 			name,
 			sentence: this.ports.describeError(error),
-			detail: this.ports.detailError(error)
+			detail: this.ports.detailError(error),
+			byVersion: isWorkspaceByVersion(this.ports.refusalReason(error))
 		};
 
-		this.#unreadable.set(workspaceId, hold);
+		this.#held.set(workspaceId, hold);
 		await this.standHeld(hold);
 	}
 
-	/** the update-required screen this run already met for `workspaceId`, or `null`. */
-	unreadable(workspaceId: string): WorkspaceHold | null {
-		return this.#unreadable.get(workspaceId) ?? null;
+	/** the held screen this run already met for `workspaceId`, or `null`. */
+	heldWorkspace(workspaceId: string): WorkspaceHold | null {
+		return this.#held.get(workspaceId) ?? null;
 	}
 
-	/** put a workspace's update-required screen up, inside the application. */
+	/** put a workspace's held screen up, inside the application. */
 	async standHeld(hold: WorkspaceHold) {
 		this.set({ state: 'held', held: hold, error: null, recovery: null, railIsUp: true });
 
 		await this.ports.window.show();
 	}
 
-	/** the workspace an open is about to ask for, which a refusal behind it is then about. */
+	/**
+	 * the workspace an open is about to ask for, which a refusal behind it is then about. A hold
+	 * on it that the version did not cause is let go: this open is what tries it again.
+	 */
 	opens(workspaceId: string) {
 		this.#opening = workspaceId;
+
+		if (!this.#held.get(workspaceId)?.byVersion) {
+			this.#held.delete(workspaceId);
+		}
 	}
 
 	/**
@@ -461,9 +498,9 @@ export class StartupMachine {
 		const chosen = workspaces.find((workspace) => workspace.id === last) ?? workspaces[0];
 
 		if (chosen) {
-			// a workspace this run already found past reading is not asked for again: its screen
-			// is what a retry lands on (effort 857, requirement 8).
-			const known = this.unreadable(chosen.id);
+			// a workspace this run already held is not asked for again by itself: its screen is
+			// what a retry or the next sign-in lands on (effort 857, requirement 8, and ticket 25).
+			const known = this.heldWorkspace(chosen.id);
 
 			if (known) {
 				await this.standHeld(known);

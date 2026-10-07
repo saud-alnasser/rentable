@@ -1,3 +1,4 @@
+import type { TauriRefusalReason } from '$lib/error/tauri';
 import type { RemoteSyncState } from '$lib/sync';
 import type { Recovery } from '$lib/update';
 import type { OrganizationState } from '$lib/organization';
@@ -121,9 +122,9 @@ export type StartupPorts = {
 	/**
 	 * why the shell refused, where a thrown value is a refusal it sent with a reason, and `null`
 	 * otherwise: what decides whether a failure is the organization's, a workspace's, the
-	 * password's or a link's (`./refusal`).
+	 * password's or a link's (`./whose-refusal`).
 	 */
-	refusalReason(error: unknown): string | null;
+	refusalReason(error: unknown): TauriRefusalReason | null;
 	recordFailure(message: string, detail: string | null): void;
 	reportStage(stage: StartupStage): void;
 	reportComplete(): void;

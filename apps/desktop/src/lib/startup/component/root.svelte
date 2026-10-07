@@ -358,16 +358,21 @@
 			onJoinByLink={() => void walkTo(THE_JOIN)}
 		/>
 	{:else if screen === 'update-required' && shellState.held}
-		<!-- a workspace this build cannot read, in place of the workspace, with the session's
-		     others to switch to (effort 857, requirement 7). -->
+		<!-- a workspace that would not open, this build unable to read it or refused for a reason
+		     of its own, in place of the workspace, with the session's others to switch to (effort
+		     857, requirement 7, and ticket 25). -->
 		<StartupUpdateRequired
 			workspaceId={shellState.held.workspaceId}
 			name={shellState.held.name}
 			sentence={shellState.held.sentence}
+			byVersion={shellState.held.byVersion}
 			workspaces={(shellState.organization?.session?.workspaces ?? []).filter(
 				(workspace) => workspace.id !== shellState.held?.workspaceId
 			)}
 			onSwitch={(workspaceId) => void startup.switchWorkspace(workspaceId)}
+			onRetry={() => {
+				if (shellState.held) void startup.switchWorkspace(shellState.held.workspaceId);
+			}}
 		/>
 	{:else if screen === 'recovery' && shellState.recovery}
 		<StartupRecovery recovery={shellState.recovery} onRetry={() => void startup.retry()} />

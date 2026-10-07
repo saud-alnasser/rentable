@@ -225,16 +225,25 @@
 
 		if (taking.kind !== 'password') return;
 
+		// the attempt this accept answers, and the organization its link named, as the connect
+		// keeps them: a link handed over while the accept is out begins another attempt, and a
+		// refusal of this one is not moved over it (effort 857, ticket 25).
+		const mine = attempt;
+		const organizationId = named;
+
 		step = joinBegun(taking);
 
 		try {
 			await host.invitation.accept(link, code, password);
 		} catch (error) {
-			if (await backToTheSwitcher(named, error)) {
+			if (mine === attempt && (await backToTheSwitcher(organizationId, error))) {
 				return;
 			}
 
-			step = joinFailed(step, error, describe);
+			if (mine === attempt) {
+				step = joinFailed(step, error, describe);
+			}
+
 			refused();
 
 			return;

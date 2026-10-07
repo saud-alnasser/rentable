@@ -213,7 +213,8 @@ test('a launch whose workspace a newer rentable upgraded stands on the update-re
 		workspaceId: 'north',
 		name: 'North Properties',
 		sentence: 'refused: workspaceNewer',
-		detail: null
+		detail: null,
+		byVersion: true
 	});
 	assert.equal(startup.snapshot.railIsUp, true, 'inside the application');
 	assert.deepEqual(journal.failures, []);
@@ -258,7 +259,8 @@ test('and where the state already carries both verdicts, the launch holds the wo
 		workspaceId: 'north',
 		name: 'North Properties',
 		sentence: 'refused: workspaceNewer',
-		detail: null
+		detail: null,
+		byVersion: true
 	});
 	assert.deepEqual(startup.snapshot.refusals, {});
 	assert.deepEqual(journal.workspacesOpened, [], 'nothing asked the shell to open it again');

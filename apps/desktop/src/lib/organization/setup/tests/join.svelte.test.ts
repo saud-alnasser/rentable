@@ -351,6 +351,68 @@ test('an accept refused because a newer rentable upgraded a held organization re
 	);
 });
 
+// effort 857, ticket 25: the accept guards on the attempt as the connect does. A person who left
+// for another link while an accept was out is not moved when that accept is refused: the refusal
+// is about a link they are no longer on, and it never takes them to the switcher.
+test('an accept refused after another link arrived does not move the person', async () => {
+	loadLocale('en');
+	setLocale('en');
+
+	const acme = fakeHeldOrganization({ id: 'acme', name: 'Acme Rentals' });
+	const beta = fakeHeldOrganization({ id: 'beta', name: 'Beta Lettings' });
+	const driven = harness({
+		organization: fakeOrganizationState({
+			organizations: [acme, beta],
+			selected: 'beta',
+			session: null
+		})
+	});
+
+	await driven.startup.start();
+	hooks.startup = driven.startup;
+
+	hooks.linkRead.mockResolvedValue({
+		organizationId: 'acme',
+		organizationName: 'Acme Rentals',
+		kind: 'invitation',
+		expiresAt: 1
+	});
+
+	let refuse: (reason: unknown) => void = () => {};
+
+	hooks.accept.mockImplementation(
+		() =>
+			new Promise((_, reject) => {
+				refuse = reject;
+			})
+	);
+
+	await walkToJoin();
+	await waitFor(() => expect(hooks.accept).toHaveBeenCalled());
+
+	// another link is handed over while the accept is still out.
+	linkArrived('rentable://join/another');
+	await waitFor(() =>
+		expect(document.querySelector<HTMLInputElement>('input[name="link"]')?.value).toBe(
+			'rentable://join/another'
+		)
+	);
+
+	refuse({
+		code: 'refused',
+		reason: 'organizationNewer',
+		message: 'the organization is at format 5'
+	});
+	await new Promise((settle) => setTimeout(settle, 20));
+
+	expect(hooks.goto).not.toHaveBeenCalled();
+	expect(driven.startup.snapshot.organization?.selected).toBe('beta');
+	expect(document.querySelector('[data-join-step]')?.getAttribute('data-join-step')).toBe('paste');
+	expect(document.querySelector<HTMLInputElement>('input[name="link"]')?.value).toBe(
+		'rentable://join/another'
+	);
+});
+
 // effort 843, ticket 07: a `rentable://` link the operating system hands the running application
 // while the join is open lands on the form, step 1 of 2, with the link filled and the code to type.
 test('a link that arrives while the join is open lands on the form with the link filled', async () => {

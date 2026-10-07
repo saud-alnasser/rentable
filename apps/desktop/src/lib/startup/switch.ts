@@ -29,8 +29,8 @@ import type { StartupMachine } from './machine';
  *
  * The session is not remembered again: the member and the database proxy are what they were,
  * and only the workspace behind the proxy changed. A failure is the ordinary startup failure,
- * whose retry reopens whatever the shell recorded as current; a workspace refused for its version
- * is the update-required screen in its place instead (`StartupMachine.fail`). `switching` is cleared whichever
+ * whose retry reopens whatever the shell recorded as current; a workspace refused, for its version
+ * or for a reason of its own, is the held screen in its place instead (`StartupMachine.fail`). `switching` is cleared whichever
  * way the pass ends, since what it names is only true while the pass runs.
  */
 export async function switchWorkspace(
@@ -56,10 +56,11 @@ export async function switchWorkspace(
 
 	// **a workspace this run found past reading is not opened again** (effort 857, requirement 8):
 	// its update-required screen comes back, with the others still offered from it, rather than a
-	// loading page ending on the same refusal.
-	const known = machine.unreadable(workspaceId);
+	// loading page ending on the same refusal. One held for any other reason is opened again,
+	// since the person chose it and what refused it can pass (ticket 25).
+	const known = machine.heldWorkspace(workspaceId);
 
-	if (known) {
+	if (known?.byVersion) {
 		machine.ports.undo.forget();
 		await machine.standHeld(known);
 

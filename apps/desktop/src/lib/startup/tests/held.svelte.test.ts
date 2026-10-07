@@ -24,7 +24,7 @@ import { resetUpdater } from '$lib/update/updater.svelte';
 import { fakeUpdateHost } from '$lib/update/tests/testing';
 import Providers from '#tests/providers.svelte';
 
-import { harness, refusal } from './harness';
+import { fakeRecovery, harness, refusal } from './harness';
 
 /**
  * WHERE A PERSON THE VERSION HOLDS STANDS, DRAWN
@@ -139,10 +139,12 @@ function drawTheHold(startup: Startup, locale: Locales) {
 			workspaceId: held!.workspaceId,
 			name: held!.name,
 			sentence: held!.sentence,
+			byVersion: held!.byVersion,
 			workspaces: (organization?.session?.workspaces ?? []).filter(
 				(workspace) => workspace.id !== held!.workspaceId
 			),
-			onSwitch: (workspaceId: string) => void startup.switchWorkspace(workspaceId)
+			onSwitch: (workspaceId: string) => void startup.switchWorkspace(workspaceId),
+			onRetry: () => void startup.switchWorkspace(held!.workspaceId)
 		},
 		{ wrapper: Providers, wrapperProps: { strings, direction: direction(locale) } }
 	);
@@ -284,12 +286,52 @@ for (const locale of LOCALES) {
 			LL.common.refusals.host.workspaceNewer()
 		);
 		expect(document.querySelector('[data-update-action="screen"]')).not.toBeNull();
+		expect(document.querySelector('[data-update-required-retry]')).toBeNull();
 		expect(screen.getByText(LL.layout.startup.otherWorkspaces())).toBeTruthy();
 		expect(document.querySelector('[data-update-required-switch="south"]')).toBeNull();
 
 		await fireEvent.click(document.querySelector('[data-update-required-switch="north"]')!);
 		await vi.waitFor(() => expect(startup.snapshot.state).toBe('ready'));
 		expect(journal.workspacesOpened.at(-1)).toBe('north');
+	});
+
+	// ticket 25: a workspace refused for a reason that is not its version keeps the person in, on
+	// the same screen saying that reason, with no update offered and a way to try it again.
+	test(`${locale}: a workspace refused for another reason says it, offers to try again, and another opens`, async () => {
+		const { LL, describeError } = readerIn(locale);
+		let full = true;
+		let opened = 'north';
+		const { startup, journal } = harness({
+			describeError,
+			organization: inWithTwo(),
+			openWorkspace: async (id) => void (opened = id),
+			bootstrap: async () => {
+				if (opened === 'south' && full) throw refusal('copyNotTaken');
+
+				return fakeRecovery();
+			}
+		});
+
+		await startup.start();
+		await startup.switchWorkspace('south');
+		expect(startup.snapshot.state).toBe('held');
+
+		drawTheHold(startup, locale);
+
+		expect(document.querySelector('[data-update-required-name]')?.textContent?.trim()).toBe(
+			'South Properties'
+		);
+		expect(document.querySelector('[data-update-required-reason]')?.textContent?.trim()).toBe(
+			LL.common.refusals.host.copyNotTaken()
+		);
+		expect(document.querySelector('[data-update-action]')).toBeNull();
+		expect(document.querySelector('[data-update-required-switch="north"]')).not.toBeNull();
+
+		// the space was cleared, and trying again opens it.
+		full = false;
+		await fireEvent.click(screen.getByText(LL.layout.startup.tryAgain()));
+		await vi.waitFor(() => expect(startup.snapshot.state).toBe('ready'));
+		expect(journal.workspacesOpened.at(-1)).toBe('south');
 	});
 
 	test(`${locale}: a link refused because its organization cannot open returns to the switcher with the callout`, async () => {

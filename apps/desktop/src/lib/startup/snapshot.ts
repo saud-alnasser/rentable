@@ -36,8 +36,9 @@ export type OrganizationRefusal = {
 };
 
 /**
- * a workspace this build cannot read, which the update-required screen stands in place of
- * (effort 857, requirement 7). Only read in the `held` state.
+ * a workspace that would not open, in an organization that did, which the held screen stands in
+ * place of (effort 857, requirement 7): past what this build reads, or refused for a reason of its
+ * own (ticket 25). Only read in the `held` state.
  */
 export type WorkspaceHold = {
 	workspaceId: string;
@@ -46,6 +47,11 @@ export type WorkspaceHold = {
 	/** the reason, in the reader's language. */
 	sentence: string;
 	detail: string | null;
+	/**
+	 * whether updating rentable is the way past it. Only such a hold waits for a restart; any
+	 * other is opened again when the person chooses it.
+	 */
+	byVersion: boolean;
 };
 
 /**
@@ -120,7 +126,7 @@ export type StartupSnapshot = {
 	 * since a retry that meets the same refusal is what it is there to say.
 	 */
 	refusals: Readonly<Record<string, OrganizationRefusal>>;
-	/** the workspace the update-required screen stands in place of, while the state is `held`. */
+	/** the workspace the held screen stands in place of, while the state is `held`. */
 	held: WorkspaceHold | null;
 };
 

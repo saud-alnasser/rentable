@@ -27,6 +27,8 @@ export const layout = {
 		stageWorkspace: 'opening your workspace',
 		// the update-required screen's way to the session's other workspaces (effort 857).
 		otherWorkspaces: 'open another workspace',
+		// the held screen's way to open the workspace again, where the version did not refuse it.
+		tryAgain: 'try again',
 		// the loading page a switch between workspaces draws, naming the one being opened.
 		switching: 'opening {name:string}'
 	}

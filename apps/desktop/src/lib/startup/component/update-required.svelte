@@ -4,7 +4,9 @@
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { UpdateAction } from '$lib/update/ui';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
+	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
 	import CircleFadingArrowUpIcon from '@lucide/svelte/icons/circle-fading-arrow-up';
+	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 
 	/**
 	 * A workspace this build cannot read, and the way past it (effort 857, requirement 7).
@@ -23,13 +25,21 @@
 	 * update now is never kept here.
 	 *
 	 * Nothing of the workspace is drawn, since none of it could be read.
+	 *
+	 * **A workspace refused for a reason that is not its version stands here too** (ticket 25): it
+	 * would not open, the organization did, and the person stays in it. Updating is no way past
+	 * such a refusal, so the screen says the reason under an alert's glyph and offers to try the
+	 * workspace again in the update action's place, since what refused it (a full disk, a member
+	 * yet to bring it up) can pass. The way to the others is the same.
 	 */
 	let {
 		workspaceId,
 		name,
 		sentence,
+		byVersion,
 		workspaces,
-		onSwitch
+		onSwitch,
+		onRetry
 	}: {
 		/** the workspace held, which the screen is marked with. */
 		workspaceId: string;
@@ -37,10 +47,14 @@
 		name: string;
 		/** why it cannot be opened, in the reader's language. */
 		sentence: string;
+		/** whether updating rentable is the way past it; trying again is, where it is not. */
+		byVersion: boolean;
 		/** the session's other workspaces, in the session's order. */
 		workspaces: readonly { id: string; name: string }[];
 		/** open another of them. */
 		onSwitch: (workspaceId: string) => void;
+		/** open this one again. */
+		onRetry: () => void;
 	} = $props();
 
 	const listName = 'update-required-others';
@@ -55,7 +69,11 @@
 			class="flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary"
 			aria-hidden="true"
 		>
-			<CircleFadingArrowUpIcon class="size-6" />
+			{#if byVersion}
+				<CircleFadingArrowUpIcon class="size-6" />
+			{:else}
+				<CircleAlertIcon class="size-6" />
+			{/if}
 		</span>
 
 		<div class="flex flex-col gap-2">
@@ -68,7 +86,14 @@
 			</p>
 		</div>
 
-		<UpdateAction variant="screen" />
+		{#if byVersion}
+			<UpdateAction variant="screen" />
+		{:else}
+			<Button data-update-required-retry onclick={onRetry}>
+				<RefreshCwIcon />
+				{$LL.layout.startup.tryAgain()}
+			</Button>
+		{/if}
 
 		{#if workspaces.length > 0}
 			<nav class="flex w-full flex-col gap-2 pt-4 text-start" aria-labelledby={listName}>

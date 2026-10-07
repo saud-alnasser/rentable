@@ -137,7 +137,7 @@ const ANSWERED_ON_THE_FORM: readonly TauriRefusalReason[] = [
  * which an accept has to (effort 857, requirements 7 and 8). Updating rentable is the one way past
  * them, which is why they land on a step of their own that offers it.
  *
- * *`startup/refusal.ts` sorts the same words for every other way in; this side cannot reach
+ * *`startup/whose-refusal.ts` sorts the same words for every other way in; this side cannot reach
  * startup, so it names them again, and only for the join.*
  */
 const BY_VERSION: readonly TauriRefusalReason[] = [

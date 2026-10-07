@@ -161,6 +161,8 @@ export type Harness = {
 	now: { value: number };
 	/** change where the machine stands from here on, as another machine's write would. */
 	standWith: (next: OrganizationState) => void;
+	/** change the machine's own sync record from here on, as choosing another organization does. */
+	syncWith: (next: RemoteSyncState) => void;
 };
 
 /**
@@ -450,6 +452,9 @@ export function harness(
 		now,
 		standWith: (next) => {
 			organization = next;
+		},
+		syncWith: (next) => {
+			state = next;
 		}
 	};
 }

@@ -1,3 +1,5 @@
+import type { TauriRefusalReason } from '$lib/error/tauri';
+
 /**
  * WHOSE A REFUSAL IS
  *
@@ -9,19 +11,27 @@
  * - `password`: what was typed did not open the vault. The wall says it under its fields, as it
  *   always has.
  * - `link`: the link or its code. The join screen says it on its own form.
- * - `workspace`: one workspace is past what this build reads. The update-required screen stands in
- *   place of it, and the session's other workspaces stay open to the person.
- * - `organization`: every other refusal to open what was asked for. The organization could not be
- *   opened, so the person goes back to the organization switcher, with the reason recorded
- *   against that organization.
+ * - `organization`: the organization itself cannot be opened, or the person cannot stay in it.
+ *   They go back to the organization switcher, with the reason recorded against that
+ *   organization.
+ * - `workspace`: every other refusal. It is about one workspace, or about something that failed
+ *   in it, so the organization still opens: the screen standing in place of that workspace says
+ *   the reason, and the session's other workspaces stay open to the person. Where nobody is in
+ *   yet, there is no workspace for it to be about, and the caller treats it as the
+ *   organization's.
+ *
+ * **The organization's reasons are listed and the workspace's are the rest** (ticket 25). They
+ * were the other way round, and a workspace a member could not bring up, or a full disk under its
+ * copy, signed the person out of the whole organization, and every sign-in after met the same
+ * workspace again. A reason added later keeps the person in until it is listed here.
  *
  * `null` is a failure that carried no reason: something broke rather than refused, which is the
  * generic failure screen's.
  */
-export type RefusalKind = 'password' | 'link' | 'workspace' | 'organization';
+export type RefusalScope = 'password' | 'link' | 'organization' | 'workspace';
 
 /** what the wall's own fields answer. */
-const ABOUT_THE_PASSWORD: readonly string[] = [
+const ABOUT_THE_PASSWORD: readonly TauriRefusalReason[] = [
 	'credentialsWrong',
 	'passwordTooShort',
 	'passwordChangeRequired',
@@ -30,7 +40,7 @@ const ABOUT_THE_PASSWORD: readonly string[] = [
 ];
 
 /** what the join screen's form, or a new link, answers. */
-const ABOUT_THE_LINK: readonly string[] = [
+const ABOUT_THE_LINK: readonly TauriRefusalReason[] = [
 	'lapsed',
 	'consumed',
 	'revoked',
@@ -43,31 +53,59 @@ const ABOUT_THE_LINK: readonly string[] = [
 	'linkNotOutstanding'
 ];
 
-/** a workspace upgraded past what this build reads. */
-const WORKSPACE_BY_VERSION = 'workspaceNewer';
-
 /**
  * an organization upgraded past what this build reads, or past what it writes on a way in that
  * has to write: updating rentable is the way past either.
  */
-const ORGANIZATION_BY_VERSION: readonly string[] = [
+const ORGANIZATION_BY_VERSION: readonly TauriRefusalReason[] = [
 	'organizationNewer',
 	'organizationReadOnlyByVersion'
 ];
 
+/**
+ * the organization cannot be opened on this machine, or the session in it is over: its format,
+ * this machine's hold on it, or the person's place in it.
+ */
+const ABOUT_THE_ORGANIZATION: readonly TauriRefusalReason[] = [
+	...ORGANIZATION_BY_VERSION,
+	'organizationOlder',
+	'organizationUpgradeOffline',
+	'organizationChangesUnsendable',
+	'organizationCredentialLapsed',
+	'noOrganizationCredential',
+	'noOrganization',
+	'noMemberYet',
+	'signedOut',
+	'signInAgain',
+	'youWereRemoved',
+	'sessionsEnded',
+	'keyNotInForce'
+];
+
+/** a workspace upgraded past what this build reads or writes: updating rentable is the way past. */
+const WORKSPACE_BY_VERSION: readonly TauriRefusalReason[] = [
+	'workspaceNewer',
+	'workspaceReadOnlyByVersion'
+];
+
 /** whose a refusal is, by its reason; `null` where the failure carried none. */
-export function refusalKind(reason: string | null): RefusalKind | null {
+export function refusalScope(reason: TauriRefusalReason | null): RefusalScope | null {
 	if (reason === null) return null;
 	if (ABOUT_THE_PASSWORD.includes(reason)) return 'password';
 	if (ABOUT_THE_LINK.includes(reason)) return 'link';
-	if (reason === WORKSPACE_BY_VERSION) return 'workspace';
+	if (ABOUT_THE_ORGANIZATION.includes(reason)) return 'organization';
 
-	return 'organization';
+	return 'workspace';
 }
 
 /** whether updating rentable is the way past an organization's refusal. */
-export function isOrganizationByVersion(reason: string | null) {
+export function isOrganizationByVersion(reason: TauriRefusalReason | null) {
 	return reason !== null && ORGANIZATION_BY_VERSION.includes(reason);
+}
+
+/** whether updating rentable is the way past a workspace's refusal. */
+export function isWorkspaceByVersion(reason: TauriRefusalReason | null) {
+	return reason !== null && WORKSPACE_BY_VERSION.includes(reason);
 }
 
 /**

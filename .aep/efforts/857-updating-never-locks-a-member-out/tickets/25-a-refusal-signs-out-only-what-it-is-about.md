@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(startup): a refusal signs out only what it is about
@@ -14,10 +14,10 @@ Found at review round one (correctness 1, 13, 14; standards 2, 6): a refusal abo
 
 Traces requirement 7, requirement 8, criterion 7 and criterion 8.
 
-- [ ] Only an organization's refusal returns to the switcher: `workspaceBehind`, `workspaceNeedsOpening`, `copyNotTaken`, `shapeNotAsBuilt`, `workspaceReadOnlyByVersion`, `changesUnsendableAfterUpgrade` and every other workspace reason keep the person in the organization, on the screen that names the reason, with the other workspaces reachable; a test per reason.
-- [ ] A later sign-in after a workspace refusal does not reopen the refused workspace by itself; `#opening` is cleared on sign-out and on leaving an organization, so another organization opens its own last workspace; a test covers both.
-- [ ] A join refusal for organization A never signs the person out of organization B they are in, whatever the reason, and the accept path guards on the attempt as the connect path does; a test covers both paths.
-- [ ] The classifier is named for its job, not `refusal.ts` (reserved by [[rules/module-layout]]), and its reason lists are typed as `TauriRefusalReason`, as `organization/setup/connect.ts` does.
+- [x] Only an organization's refusal returns to the switcher: `workspaceBehind`, `workspaceNeedsOpening`, `copyNotTaken`, `shapeNotAsBuilt`, `workspaceReadOnlyByVersion`, `changesUnsendableAfterUpgrade` and every other workspace reason keep the person in the organization, on the screen that names the reason, with the other workspaces reachable; a test per reason.
+- [x] A later sign-in after a workspace refusal does not reopen the refused workspace by itself; `#opening` is cleared on sign-out and on leaving an organization, so another organization opens its own last workspace; a test covers both.
+- [x] A join refusal for organization A never signs the person out of organization B they are in, whatever the reason, and the accept path guards on the attempt as the connect path does; a test covers both paths.
+- [x] The classifier is named for its job, not `refusal.ts` (reserved by [[rules/module-layout]]), and its reason lists are typed as `TauriRefusalReason`, as `organization/setup/connect.ts` does.
 
 ## Relevant areas
 

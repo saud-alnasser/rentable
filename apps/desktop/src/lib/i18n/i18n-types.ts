@@ -2215,6 +2215,10 @@ type RootTranslation = {
 			 */
 			otherWorkspaces: string
 			/**
+			 * t​r​y​ ​a​g​a​i​n
+			 */
+			tryAgain: string
+			/**
 			 * o​p​e​n​i​n​g​ ​{​n​a​m​e​}
 			 * @param {string} name
 			 */
@@ -7796,6 +7800,10 @@ export type TranslationFunctions = {
 			 * open another workspace
 			 */
 			otherWorkspaces: () => LocalizedString
+			/**
+			 * try again
+			 */
+			tryAgain: () => LocalizedString
 			/**
 			 * opening {name}
 			 */
