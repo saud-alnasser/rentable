@@ -140,7 +140,7 @@ Start at [[protocol]].
 | 846-the-settings-and-the-record-cards-are-rethought | implemented | [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]] | 7 | 1 | 55 |
 | 851-the-way-out-the-password-fields-and-the-organizations-name | implemented | [[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/spec]] | 0 | 0 | 20 |
 | 854-bugs-and-edge-cases-across-the-app | implemented | [[efforts/854-bugs-and-edge-cases-across-the-app/spec]] | 3 | 0 | 41 |
-| 857-updating-never-locks-a-member-out | accepted | [[efforts/857-updating-never-locks-a-member-out/spec]] | 1 | 1 | 15 |
+| 857-updating-never-locks-a-member-out | accepted | [[efforts/857-updating-never-locks-a-member-out/spec]] | 1 | 1 | 23 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -637,3 +637,11 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/857-updating-never-locks-a-member-out/tickets/13-unsent-changes-survive-an-upgrade]] fix(sync): unsent changes survive an upgrade | 857-updating-never-locks-a-member-out | resolved | 07 |
 | [[efforts/857-updating-never-locks-a-member-out/tickets/14-every-shipped-version-carries-across]] test(upgrade): every shipped version carries across | 857-updating-never-locks-a-member-out | resolved | 03, 04, 07 |
 | [[efforts/857-updating-never-locks-a-member-out/tickets/15-a-new-permission-reaches-existing-certificates]] feat(organization): a new permission reaches existing certificates | 857-updating-never-locks-a-member-out | resolved | 06 |
+| [[efforts/857-updating-never-locks-a-member-out/tickets/16-both-verdicts-cross-and-the-app-follows-each]] fix(organization): both verdicts cross, and the app follows each | 857-updating-never-locks-a-member-out | open | — |
+| [[efforts/857-updating-never-locks-a-member-out/tickets/17-a-link-refused-for-its-version-offers-the-update]] feat(organization): a link refused for its version offers the update | 857-updating-never-locks-a-member-out | open | — |
+| [[efforts/857-updating-never-locks-a-member-out/tickets/18-the-app-looks-for-an-update-whenever-it-is-held]] feat(update): the app looks for an update whenever it is held | 857-updating-never-locks-a-member-out | open | 16 |
+| [[efforts/857-updating-never-locks-a-member-out/tickets/19-the-organizations-upgrade-holds-every-other-write]] fix(organization): the organization's upgrade holds every other write | 857-updating-never-locks-a-member-out | open | — |
+| [[efforts/857-updating-never-locks-a-member-out/tickets/20-unsent-organization-changes-survive-an-upgrade]] fix(sync): unsent organization changes survive an upgrade | 857-updating-never-locks-a-member-out | open | 19 |
+| [[efforts/857-updating-never-locks-a-member-out/tickets/21-new-data-is-born-with-its-floor-record]] fix(upgrade): new data is born with its floor record | 857-updating-never-locks-a-member-out | open | — |
+| [[efforts/857-updating-never-locks-a-member-out/tickets/22-a-format-step-that-re-signs-nothing-is-a-managers]] feat(upgrade): a format step that re-signs nothing is a manager's to run | 857-updating-never-locks-a-member-out | open | 19 |
+| [[efforts/857-updating-never-locks-a-member-out/tickets/23-the-rules-and-contexts-the-effort-moved]] docs: the rules and contexts the effort moved | 857-updating-never-locks-a-member-out | open | 16, 17 |
