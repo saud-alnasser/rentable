@@ -140,6 +140,24 @@ test("with the organization read-only too, the workspace's writes are still refu
 	assert.deepEqual(writesIn(statements), [], 'a refused write reached the database');
 });
 
+// effort 857, ticket 31: floors that could not be read hold the workspace read-only, and a write
+// is refused for the floors rather than for a newer version.
+test('a workspace whose floors could not be read refuses writes for the floors, not a version', async () => {
+	const { api, tenant, statements, identity } = await heldOverATenant([
+		{ ...SOUTH_READ_ONLY, reason: 'workspaceFloorsUnreadable' }
+	]);
+
+	assert.equal(identity?.readOnlyByVersion, true);
+	assert.equal(identity?.floorsUnreadable, true, 'the identity does not say the floors hold it');
+
+	await assert.rejects(
+		api.tenant.update({ id: tenant.id, name: 'renamed' }),
+		refusedWith('host.workspaceFloorsUnreadable')
+	);
+
+	assert.deepEqual(writesIn(statements), [], 'a refused write reached the database');
+});
+
 test('below the write floor every read answers as before', async () => {
 	const { api, tenant } = await heldOverATenant();
 

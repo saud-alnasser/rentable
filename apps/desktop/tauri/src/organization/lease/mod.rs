@@ -619,8 +619,16 @@ where
     // lease is a row in the organization, and the version the steps reach is recorded there, so
     // opening would write into it at its primary and then be refused the record. The workspace
     // waits for a member whose rentable may write the organization, and this one is told why.
+    // **With the workspace's reason** (ticket 31): the organization still opens read-only, so the
+    // person stays in it with its other workspaces, which the organization's reason took away.
     if pending_from(migrations, level) && !super::session::writes_to(store) {
-        return Err(super::store::read_only_by_version());
+        return Err(Error::refused(
+            RefusalReason::WorkspaceBehindReadOnlyByVersion,
+            format!(
+                "{} is behind this version, and a newer version of rentable upgraded the                  organization past what this version writes, so this version cannot bring it up.                  update rentable to open it; nothing was written",
+                facts.name
+            ),
+        ));
     }
 
     while pending_from(migrations, level) {
@@ -2232,6 +2240,10 @@ mod tests {
     /// the lease in the organization and migrate the workspace, and then fail to record the version
     /// it reached in an organization this build may not write; it is refused before any of that,
     /// with the version as the reason, and nothing is written anywhere.
+    ///
+    /// **The reason is the workspace's** (ticket 31): the organization's own reason sent the
+    /// person back to the switcher, and the next sign-in met the same workspace and was refused
+    /// again, so the other workspaces were never reached.
     #[tokio::test]
     async fn a_workspace_behind_in_a_read_only_organization_is_refused_before_any_write() {
         use crate::organization::store::FORMAT_VERSION;
@@ -2281,7 +2293,7 @@ mod tests {
             matches!(
                 opened,
                 Err(Error::Refused {
-                    reason: RefusalReason::OrganizationReadOnlyByVersion,
+                    reason: RefusalReason::WorkspaceBehindReadOnlyByVersion,
                     ..
                 })
             ),

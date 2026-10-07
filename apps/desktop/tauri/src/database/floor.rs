@@ -135,6 +135,14 @@ pub async fn workspace(connection: &turso::Connection) -> Result<Option<Floors>,
     }
 }
 
+/// The reason a verdict gives where the workspace's floors could not be read (effort 857, ticket
+/// 31): the refusal's own word, [`RefusalReason::WorkspaceFloorsUnreadable`] as it crosses, so the
+/// verdict's reason is what tells a save, and the interface reading `heldByVersion`, that the hold
+/// is not a newer version's. Why they could not be read is in the diagnostics.
+///
+/// [`RefusalReason::WorkspaceFloorsUnreadable`]: crate::error::RefusalReason::WorkspaceFloorsUnreadable
+pub(crate) const FLOORS_UNREADABLE: &str = "workspaceFloorsUnreadable";
+
 /// What the engine's refusal of a write says on a connection that may not write, measured on the
 /// engine as built (ticket 05): `Parse error: Cannot execute write statement in query_only mode`,
 /// and the same words after `VACUUM`. A change of wording fails

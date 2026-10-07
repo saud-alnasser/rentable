@@ -84,6 +84,8 @@ export type Standing = {
 	accessLevel: AccessLevel;
 	locked?: boolean;
 	readOnlyByVersion?: boolean;
+	/** the hold is the workspace's floors that could not be read, not a newer version (ticket 31). */
+	floorsUnreadable?: boolean;
 };
 
 /**
@@ -118,7 +120,9 @@ export function refusalOf(
 	}
 
 	if (heldByVersion) {
-		return t.common.refusals.host.workspaceReadOnlyByVersion();
+		return standing.floorsUnreadable
+			? t.common.refusals.host.workspaceFloorsUnreadable()
+			: t.common.refusals.host.workspaceReadOnlyByVersion();
 	}
 
 	if (standing.accessLevel === 'read-only' && WRITE_FLAGS.includes(flag)) {

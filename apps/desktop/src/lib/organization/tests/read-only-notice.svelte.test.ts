@@ -137,6 +137,34 @@ test('a writable session, one past reading, and nobody signed in read nothing', 
 	expect(drawn(), 'past reading').toBeNull();
 });
 
+// effort 857, ticket 31: floors that could not be read are not a newer version, so the notice
+// says the version record could not be read, and offers no update.
+test('a workspace whose floors could not be read says changes are paused, with no update', () => {
+	const unread: HeldByVersion = {
+		target: { workspace: 'north' },
+		standing: 'readOnly',
+		reason: 'workspaceFloorsUnreadable'
+	};
+
+	loadLocale('en');
+	setLocale('en');
+	reads.session = fakeOrganizationSession();
+	reads.heldByVersion = [unread];
+	notice();
+
+	expect(screen.getByText(en.common.refusals.host.workspaceFloorsUnreadable)).not.toBeNull();
+	expect(screen.queryByText(en.common.refusals.host.workspaceReadOnlyByVersion)).toBeNull();
+	expect(drawn()?.querySelector('[data-update-action]')).toBeNull();
+
+	document.body.innerHTML = '';
+	loadLocale('ar');
+	setLocale('ar');
+	notice('rtl');
+
+	expect(screen.getByText(ar.common.refusals.host.workspaceFloorsUnreadable)).not.toBeNull();
+	expect(drawn()?.querySelector('[data-update-action]')).toBeNull();
+});
+
 // effort 857, ticket 16: both verdicts cross, and the notice is drawn once, of the organization.
 test('an organization and its workspace both read-only draw one notice, of the organization', () => {
 	loadLocale('en');

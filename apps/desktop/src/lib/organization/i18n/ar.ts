@@ -621,6 +621,8 @@ export const refusals = {
 		workspaceNewer: 'رقّى إصدار أحدث من rentable مساحة العمل هذه. حدّث rentable لتفتحها.',
 		workspaceBehind:
 			'تحتاج مساحة العمل هذه إلى ترقية، وصلاحية القراءة وحدها لا تكفي لذلك. اطلب من عضو بصلاحية كاملة أن يفتحها مرة واحدة.',
+		workspaceBehindReadOnlyByVersion:
+			'تحتاج مساحة العمل هذه إلى ترقية، وقد رقّى إصدار أحدث من rentable مؤسستها. حدّث rentable لتفتحها.',
 		workspaceNeedsOpening:
 			'مساحة العمل هذه أقدم من هذا الإصدار من rentable. افتحها مرة واحدة على هذا الجهاز لتحديثها.',
 		databaseRefused: 'رفضت قاعدة البيانات الطلب ولم يتغيّر شيء. حاول مرة أخرى لاحقاً.',
@@ -640,6 +642,8 @@ export const refusals = {
 			'رقّى إصدار أحدث من rentable هذه المؤسسة. حدّث rentable لتجري تغييرات فيها.',
 		workspaceReadOnlyByVersion:
 			'رقّى إصدار أحدث من rentable مساحة العمل هذه. حدّث rentable لتجري تغييرات فيها.',
+		workspaceFloorsUnreadable:
+			'تعذّرت قراءة سجل إصدار مساحة العمل هذه، فتوقفت التغييرات. حاول مرة أخرى بعد قليل، أو تواصل مع المالك.',
 		changesUnsendableAfterUpgrade:
 			'لا يمكن إرسال تغييرات أُجريت هنا قبل ترقية مساحة العمل. تبقى محفوظة حتى تحذفها.',
 		nothingUnsent: 'لا توجد تغييرات غير مرسلة للمؤسسة لحذفها.',

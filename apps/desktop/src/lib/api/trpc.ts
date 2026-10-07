@@ -65,7 +65,13 @@ export function refuseMissing(
 		identity?.readOnlyByVersion &&
 		missing.some((act) => (WRITE_FLAGS as readonly Flag[]).includes(act))
 	) {
-		throw refuse('host.workspaceReadOnlyByVersion');
+		// floors that could not be read are not a newer version, and updating is not the way past
+		// (ticket 31).
+		throw refuse(
+			identity.floorsUnreadable
+				? 'host.workspaceFloorsUnreadable'
+				: 'host.workspaceReadOnlyByVersion'
+		);
 	}
 
 	if (!identity || missing.length > 0) {

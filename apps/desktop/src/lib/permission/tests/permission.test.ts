@@ -223,6 +223,29 @@ test('a locked reader is refused every create, edit and delete for the lock, and
  * role carries, in both languages, while viewing is not refused. The version is the reason, since
  * updating is what lifts it.
  */
+// effort 857, ticket 31: a hold for floors that could not be read names them, not a version.
+test('a workspace whose floors could not be read refuses every write for the floors, and viewing is not', () => {
+	const standing = {
+		permissions: EVERY,
+		accessLevel: 'full-access' as const,
+		readOnlyByVersion: true,
+		floorsUnreadable: true
+	};
+
+	for (const flag of RECORD_FLAGS) {
+		assert.equal(
+			refusalOf(flag, standing, en),
+			WRITE_FLAGS.includes(flag) ? en.common.refusals.host.workspaceFloorsUnreadable() : undefined,
+			flag
+		);
+	}
+
+	assert.equal(
+		refusalOf('deletePayment', standing, ar),
+		ar.common.refusals.host.workspaceFloorsUnreadable()
+	);
+});
+
 test('a workspace upgraded past this version refuses every write for the version, and viewing is not', () => {
 	for (const accessLevel of ['full-access', 'read-only'] as const) {
 		for (const permissions of [EVERY, BUILT_IN.member.mask]) {

@@ -1,5 +1,10 @@
 <script lang="ts">
-	import { accessIn, readOnlyByVersionIn, workspacePermissionsIn } from '$lib/api/context';
+	import {
+		accessIn,
+		floorsUnreadableIn,
+		readOnlyByVersionIn,
+		workspacePermissionsIn
+	} from '$lib/api/context';
 	import { contributionsTo } from '$lib/feature/surface';
 	import { useFetchRemoteSyncState } from '$lib/sync/ui';
 	import { memberPermissions } from '$lib/permission';
@@ -31,7 +36,8 @@
 						permissions: workspacePermissionsIn(session, workspace.remoteId),
 						accessLevel: accessIn(session, workspace.remoteId),
 						locked: session.locked,
-						readOnlyByVersion: readOnlyByVersionIn(heldByVersion, workspace.remoteId)
+						readOnlyByVersion: readOnlyByVersionIn(heldByVersion, workspace.remoteId),
+						floorsUnreadable: floorsUnreadableIn(heldByVersion, workspace.remoteId)
 					}
 				: null
 		);

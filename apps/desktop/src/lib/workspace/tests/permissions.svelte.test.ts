@@ -115,7 +115,8 @@ test('the standing held is the session folded for the workspace open, and goes w
 		permissions: maskOf(...EVERY_FLAG),
 		accessLevel: 'full-access',
 		locked: false,
-		readOnlyByVersion: false
+		readOnlyByVersion: false,
+		floorsUnreadable: false
 	});
 	expect(memberPermissions.views('tenant')).toBe(true);
 
@@ -170,7 +171,8 @@ test('a locked session is held as the view flags alone, and as the role once unl
 		permissions: maskOf('viewComplex', 'viewUnit', 'viewTenant', 'viewContract', 'viewPayment'),
 		accessLevel: 'full-access',
 		locked: true,
-		readOnlyByVersion: false
+		readOnlyByVersion: false,
+		floorsUnreadable: false
 	});
 	expect(memberPermissions.views('payment')).toBe(true);
 	expect(memberPermissions.refusal('createPayment', i18nObject('en'))).toBe(

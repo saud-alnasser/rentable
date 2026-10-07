@@ -801,6 +801,8 @@ export const refusals = {
 			'a newer version of rentable upgraded this workspace. update rentable to open it.',
 		workspaceBehind:
 			'this workspace needs upgrading, and read-only access cannot do it. ask a member with full access to open it once.',
+		workspaceBehindReadOnlyByVersion:
+			'this workspace needs upgrading, and a newer version of rentable upgraded its organization. update rentable to open it.',
 		workspaceNeedsOpening:
 			'this workspace is behind this version of rentable. open it once on this machine to bring it up to date.',
 		databaseRefused: 'the database refused the request, and nothing was changed. try again later.',
@@ -824,6 +826,8 @@ export const refusals = {
 			'a newer version of rentable upgraded this organization. update rentable to make changes in it.',
 		workspaceReadOnlyByVersion:
 			'a newer version of rentable upgraded this workspace. update rentable to make changes in it.',
+		workspaceFloorsUnreadable:
+			"this workspace's version record could not be read, so changes are paused. try again soon, or contact the owner.",
 		changesUnsendableAfterUpgrade:
 			'changes made here before the workspace was upgraded cannot be sent. they are kept until you discard them.',
 		nothingUnsent: 'there are no unsent organization changes to discard.',

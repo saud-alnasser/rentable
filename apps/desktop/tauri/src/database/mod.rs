@@ -75,11 +75,25 @@ pub struct Pulled {
 /// (effort 857, ticket 13): the refusal is recorded beside the replica, nothing is pulled after
 /// it, and a replica holding such a record is neither pushed nor pulled, since either drops the
 /// changes without a word (`unsendable.rs`). The person is asked before they go.
+#[cfg(test)]
 pub(crate) async fn replicate_engine(
     database: &turso::sync::Database,
     watch: &corrupt::Watch,
     bound: Bound,
     pushing: bool,
+) -> Replicated {
+    replicate_engine_then(database, watch, bound, pushing, async || ()).await
+}
+
+/// [`replicate_engine`], running `before_pull` between the push and the pull: where the heartbeat
+/// takes the hold of the engine for its verdict (effort 857, ticket 31), so a save waits for the
+/// pull and never for the push. A replication that stops before its pull does not run it.
+async fn replicate_engine_then(
+    database: &turso::sync::Database,
+    watch: &corrupt::Watch,
+    bound: Bound,
+    pushing: bool,
+    before_pull: impl AsyncFnOnce(),
 ) -> Replicated {
     if watch.replica().is_some_and(unsendable::held) {
         return Replicated::unsendable();
@@ -98,6 +112,9 @@ pub(crate) async fn replicate_engine(
                 false
             }
         };
+
+    before_pull().await;
+
     let pulled = match watch.note(bounded(bound, "pull", database.pull()).await) {
         Ok(brought) => Some(brought),
         Err(error) => {
@@ -248,7 +265,8 @@ pub struct Database {
     /// judged them (effort 857, ticket 04): set by every open and every heartbeat, writable with
     /// no workspace open and until the first verdict, and let go of with the engine. Beside it the
     /// reason the verdict gave, where it gave one, which the state read carries (ticket 30).
-    standing: std::sync::Mutex<(Standing, Option<String>)>,
+    /// `None` until the first verdict, which a floor read that fails falls back on (ticket 31).
+    standing: std::sync::Mutex<Option<(Standing, Option<String>)>>,
     /// held for writing while the open workspace is pulled and judged over what the pull brought
     /// ([`Database::judging`], effort 857, ticket 27), so no write lands between the two. A
     /// request holds it for reading while it runs.
@@ -266,7 +284,7 @@ impl Database {
             settings,
             clock,
             bound: SYNC_BOUND,
-            standing: std::sync::Mutex::new((Standing::Writable, None)),
+            standing: std::sync::Mutex::new(None),
             judging: Arc::new(tokio::sync::RwLock::new(())),
         }
     }
@@ -624,13 +642,22 @@ impl Database {
     /// **A workspace this build may not write is pulled and not pushed** (effort 857, requirement
     /// 6): what the others wrote comes in, and nothing this build holds goes out.
     pub async fn replicate(&self) -> Replicated {
+        self.replicate_then(async || ()).await
+    }
+
+    /// [`Database::replicate`], running `before_pull` once the push is done and before the pull:
+    /// what the heartbeat takes the hold for its verdict in (effort 857, ticket 31), so a save
+    /// made while a slow push waits commits at once, and one made during the pull waits for the
+    /// verdict over what it brought.
+    pub(crate) async fn replicate_then(&self, before_pull: impl AsyncFnOnce()) -> Replicated {
         match self.engine.as_ref() {
             Some(Engine::Workspace(replica)) => {
-                replicate_engine(
+                replicate_engine_then(
                     &replica.engine,
                     &self.watch,
                     self.bound,
                     self.standing() == Standing::Writable,
+                    before_pull,
                 )
                 .await
             }
@@ -734,7 +761,7 @@ impl Database {
     /// close to call, and the file is held for exactly as long as the engine is.
     pub async fn disconnect(&mut self) {
         self.watch = corrupt::Watch::default();
-        self.hold(Standing::Writable);
+        self.forget_the_verdict();
 
         match self.engine.take() {
             Some(Engine::Local(pool)) => pool.close().await,
@@ -871,8 +898,24 @@ impl Database {
     pub fn verdict(&self) -> (Standing, Option<String>) {
         self.standing
             .lock()
-            .map(|verdict| verdict.clone())
+            .map(|verdict| verdict.clone().unwrap_or((Standing::Writable, None)))
             .unwrap_or((Standing::Unreadable, None))
+    }
+
+    /// [`Database::verdict`] where one was given since the workspace opened, and nothing before
+    /// the first: what a floor read that fails keeps (ticket 31).
+    pub fn last_verdict(&self) -> Option<(Standing, Option<String>)> {
+        self.standing
+            .lock()
+            .map(|verdict| verdict.clone())
+            .unwrap_or(Some((Standing::Unreadable, None)))
+    }
+
+    /// Forget the verdict, as letting go of the engine does: writable again, and no verdict given.
+    fn forget_the_verdict(&self) {
+        if let Ok(mut held) = self.standing.lock() {
+            *held = None;
+        }
     }
 
     /// Hold the open workspace for a verdict (effort 857, ticket 27): a pull and the judgment over
@@ -902,7 +945,7 @@ impl Database {
     /// the state read to carry as it was given (ticket 30).
     pub fn hold_because(&self, standing: Standing, reason: Option<String>) {
         if let Ok(mut held) = self.standing.lock() {
-            *held = (standing, reason);
+            *held = Some((standing, reason));
         }
     }
 
@@ -978,11 +1021,11 @@ impl Database {
     /// reads the floors on one, is never left waiting on the requests waiting on it.
     async fn held<R: Request>(&self, replica: &Replica, request: R) -> Result<R::Answer, Error> {
         if let Ok(_judged) = self.judging.try_read() {
-            let standing = self.standing();
+            let verdict = self.verdict();
 
-            return Self::held_to(replica, standing, request)
+            return Self::held_to(replica, verdict.0, request)
                 .await
-                .map_err(|error| Self::refused_by_version(standing, error));
+                .map_err(|error| Self::refused_by_version(&verdict, error));
         }
 
         match Self::held_to(replica, Standing::ReadOnly, request.clone()).await {
@@ -991,11 +1034,11 @@ impl Database {
         }
 
         let _judged = self.judging.read().await;
-        let standing = self.standing();
+        let verdict = self.verdict();
 
-        Self::held_to(replica, standing, request)
+        Self::held_to(replica, verdict.0, request)
             .await
-            .map_err(|error| Self::refused_by_version(standing, error))
+            .map_err(|error| Self::refused_by_version(&verdict, error))
     }
 
     /// Run `request` on a connection of `replica` held to `standing`, answering the engine's
@@ -1015,18 +1058,31 @@ impl Database {
     /// The engine's refusal of a write on a connection held to `standing`, as the refusal a person
     /// is told: the workspace upgraded past what this build writes, or past what it reads. Any
     /// other error is answered as it came.
-    fn refused_by_version(standing: Standing, error: Error) -> Error {
+    ///
+    /// **Floors that could not be read are not a newer version** (ticket 31): where the verdict's
+    /// reason says so ([`floor::FLOORS_UNREADABLE`](crate::database::floor::FLOORS_UNREADABLE)),
+    /// the write is refused as that, and nobody is told to update.
+    fn refused_by_version(verdict: &(Standing, Option<String>), error: Error) -> Error {
         if !crate::database::floor::refused_a_write(&error) {
             return error;
         }
 
-        match standing {
-            Standing::Unreadable => Error::refused(
+        match verdict {
+            (Standing::ReadOnly, Some(reason))
+                if reason.as_str() == crate::database::floor::FLOORS_UNREADABLE =>
+            {
+                Error::refused(
+                    RefusalReason::WorkspaceFloorsUnreadable,
+                    "this version could not read which versions of rentable may write this \
+                     workspace, so it writes nothing to it until it can; nothing was written",
+                )
+            }
+            (Standing::Unreadable, _) => Error::refused(
                 RefusalReason::WorkspaceNewer,
                 "a newer version of rentable upgraded this workspace past what this version reads. \
                  update rentable to open it; nothing was written",
             ),
-            Standing::ReadOnly | Standing::Writable => Error::refused(
+            (Standing::ReadOnly | Standing::Writable, _) => Error::refused(
                 RefusalReason::WorkspaceReadOnlyByVersion,
                 "a newer version of rentable upgraded this workspace, and this version reads it but \
                  does not write to it. update rentable to make changes; nothing was written",
@@ -2109,6 +2165,49 @@ mod tests {
                     .await
                     .expect("a write once writable again");
             }
+
+            drop(database);
+            let _ = std::fs::remove_dir_all(&directory);
+        });
+    }
+
+    /// **Effort 857, ticket 31: floors that could not be read are not a newer version.** A
+    /// workspace held read-only because its floors could not be read refuses every write, alone or
+    /// in a batch, with the floors as the reason rather than a newer version, and still reads.
+    #[test]
+    fn a_workspace_whose_floors_could_not_be_read_refuses_writes_without_naming_a_version() {
+        use crate::{
+            database::floor::{FLOORS_UNREADABLE, Standing},
+            error::RefusalReason,
+            sync::test::server::within,
+        };
+        use std::time::Duration;
+
+        within(Duration::from_secs(60), async {
+            let (directory, database) =
+                workspace_against("floors-unreadable-writes", None, Duration::from_secs(30)).await;
+
+            database
+                .execute_single_sql(statement(
+                    "CREATE TABLE \"tenant\" (\"id\" TEXT PRIMARY KEY)",
+                ))
+                .await
+                .expect("the table");
+            let before = tenants(&database).await;
+
+            database.hold_because(Standing::ReadOnly, Some(FLOORS_UNREADABLE.to_string()));
+
+            let write = "INSERT INTO \"tenant\" VALUES ('t-1')";
+
+            assert_eq!(
+                reason_of(database.execute_single_sql(statement(write)).await),
+                RefusalReason::WorkspaceFloorsUnreadable
+            );
+            assert_eq!(
+                reason_of(database.execute_batch_sql(vec![statement(write)]).await),
+                RefusalReason::WorkspaceFloorsUnreadable
+            );
+            assert_eq!(tenants(&database).await, before, "a write went through");
 
             drop(database);
             let _ = std::fs::remove_dir_all(&directory);

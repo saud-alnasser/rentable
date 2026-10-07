@@ -10,6 +10,7 @@ import {
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy';
 
 import type { Host } from '$lib/app/host';
+import type { TauriRefusalReason } from '$lib/error/tauri';
 
 /**
  * DATABASE
@@ -122,6 +123,12 @@ export type Identity = {
 	 * names ([`refuseMissing`] in `./trpc`). Absent wherever this build may write the workspace open.
 	 */
 	readOnlyByVersion?: true;
+	/**
+	 * set beside `readOnlyByVersion` where the hold is not a newer version's: the workspace's floors
+	 * could not be read (effort 857, ticket 31), so a refused write names the floors and nobody is
+	 * told to update ([`refuseMissing`] in `./trpc`).
+	 */
+	floorsUnreadable?: true;
 };
 
 /**
@@ -189,6 +196,9 @@ async function actingIdentity(host: Host): Promise<Identity | null> {
 		permissions: permissionsIn(session, openWorkspaceId, heldByVersion),
 		...(readOnlyByVersionIn(heldByVersion, openWorkspaceId)
 			? { readOnlyByVersion: true as const }
+			: {}),
+		...(floorsUnreadableIn(heldByVersion, openWorkspaceId)
+			? { floorsUnreadable: true as const }
 			: {})
 	};
 }
@@ -239,6 +249,37 @@ export function readOnlyByVersionIn(
 		)
 	);
 }
+
+/**
+ * whether the hold on the workspace `openWorkspaceId` is its floors that could not be read rather
+ * than a newer version (effort 857, ticket 31): the verdict's reason is then the refusal's own word,
+ * `workspaceFloorsUnreadable`, which the shell gives it for that cause alone. Updating is not the
+ * way past, so nothing that reads this offers it.
+ *
+ * **Exported so the interface folds the same way** (`workspace/component/permissions.svelte`).
+ */
+export function floorsUnreadableIn(
+	heldByVersion: readonly HeldByVersion[],
+	openWorkspaceId: string | null
+): boolean {
+	return (
+		openWorkspaceId !== null &&
+		heldByVersion.some(
+			(held) =>
+				typeof held.target === 'object' &&
+				held.target.workspace === openWorkspaceId &&
+				isFloorsUnreadable(held)
+		)
+	);
+}
+
+/** whether `held` is a hold for floors that could not be read ([`floorsUnreadableIn`]). */
+export function isFloorsUnreadable(held: HeldByVersion): boolean {
+	return held.standing === 'readOnly' && held.reason === FLOORS_UNREADABLE;
+}
+
+/** the reason a hold for floors that could not be read carries: the refusal's own word. */
+const FLOORS_UNREADABLE = 'workspaceFloorsUnreadable' satisfies TauriRefusalReason;
 
 /**
  * the workspace this machine has open, by id, or `null` where the shell cannot say or none is.

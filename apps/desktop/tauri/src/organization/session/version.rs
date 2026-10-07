@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     database::{
-        Database,
+        Database, Pulled, Replicated,
         floor::{self, Floors, Standing},
     },
     error::{Error, RefusalReason},
@@ -100,15 +100,16 @@ impl HeldByVersion {
 
     /// The workspace `id`, called `name`, whose floors could not be read, at `standing`: read-only
     /// until they can be, or unreadable where it already was (ticket 27).
+    ///
+    /// **The reason is the refusal's word, [`floor::FLOORS_UNREADABLE`]** (ticket 31), not a
+    /// sentence: it is what tells a save, and the interface reading `heldByVersion`, that the hold
+    /// is the floors' and not a newer version's, so neither says to update.
     pub fn unjudged(id: &str, name: &str, standing: Standing) -> Option<Self> {
         match standing {
             Standing::ReadOnly => Some(Self {
                 target: VersionTarget::Workspace(id.to_string()),
                 standing,
-                reason: format!(
-                    "this version could not read which versions of rentable may write {name}, so \
-                     it writes nothing to it until it can"
-                ),
+                reason: floor::FLOORS_UNREADABLE.to_string(),
             }),
             _ => Self::workspace(id, name, standing),
         }
@@ -148,10 +149,15 @@ fn known() -> u32 {
 /// which arrive with its own. The lesser of the two is the verdict. Nothing open is writable, and
 /// nothing is written here.
 ///
-/// **Floors that cannot be read are not writable** (ticket 27): a record the organization holds
-/// and cannot answer, or floors the workspace keeps and cannot read, hold it read-only, or
-/// unreadable where it was, until a verdict reads them. The answer says the floors could not be
-/// read, and the diagnostics say why.
+/// **Floors that read wrong are not writable** (ticket 27): a record the organization holds, or
+/// floors the workspace keeps, that are no step numbers hold it read-only, or unreadable where it
+/// was, until a verdict reads them. The answer says the floors could not be read, and the
+/// diagnostics say why.
+///
+/// **A read that fails keeps the last verdict** (ticket 31), as the organization's does: a read
+/// the engine could not answer, a busy one during a pull say, says nothing about the floors, so a
+/// workspace this build writes is not turned read-only and told a newer version upgraded it. With
+/// no verdict yet to keep, it fails closed as floors that read wrong do.
 ///
 /// Answers what holds the workspace, or nothing where this build may write it.
 pub(crate) async fn workspace_judged(app_state: &Shared) -> Option<HeldByVersion> {
@@ -161,19 +167,26 @@ pub(crate) async fn workspace_judged(app_state: &Shared) -> Option<HeldByVersion
 /// Run `replication` on the open workspace and judge the workspace over what it brought
 /// ([`workspace_judged`]), answering both: what the heartbeat does with a workspace's pull.
 ///
-/// **Under one hold of the engine** (`Database::judging`, ticket 27): a save the interface makes
-/// while the pull runs waits for the verdict over what it brought, so a raise the pull brought
-/// refuses it, rather than letting it commit on the replica between the two. The organization's
-/// record of the workspace is read first, since the organization's pull has already brought it,
-/// and the member and the replica are let go of before the engine is held.
+/// **From its pull to its verdict under one hold of the engine** (`Database::judging`, ticket
+/// 27): a save the interface makes while the pull runs waits for the verdict over what it brought,
+/// so a raise the pull brought refuses it, rather than letting it commit on the replica between
+/// the two. **The push is not held** (ticket 31): it can wait on the network for as long as the
+/// bound allows, and a save made meanwhile commits at once and goes with the next one. So
+/// `replication` is handed the workspace as a [`Judging`], whose pull takes the hold first, and
+/// the hold is taken here where it pulled nothing. The organization's record of the workspace is
+/// read first, since the organization's pull has already brought it, and the member and the
+/// replica are let go of before the engine is held.
 pub(crate) async fn replicated_then_judged<T>(
     app_state: &Shared,
-    replication: impl AsyncFnOnce(&Database) -> T,
+    replication: impl AsyncFnOnce(&Judging<'_>) -> T,
 ) -> (T, Option<HeldByVersion>) {
     let recorded = recorded(app_state).await;
     let db = app_state.db.read().await;
-    let judging = db.judging().await;
-    let replicated = replication(&db).await;
+    let judging = Judging::over(&db);
+    let replicated = replication(&judging).await;
+
+    judging.hold().await;
+
     let held = match recorded {
         Some((workspace, recorded)) => judged(&db, &workspace, recorded).await,
         None => None,
@@ -182,6 +195,70 @@ pub(crate) async fn replicated_then_judged<T>(
     drop(judging);
 
     (replicated, held)
+}
+
+/// The open workspace as a replication over it is handed it ([`replicated_then_judged`]): the
+/// database, and the hold of its engine for the verdict, taken at the pull rather than before the
+/// push (ticket 31) and kept until the verdict is in.
+///
+/// Reads as the [`Database`] it is over. Its own `replicate` and `pull_replica` are the ones that
+/// take the hold; nothing else reached through it does.
+pub(crate) struct Judging<'a> {
+    db: &'a Database,
+    hold: std::sync::Mutex<Option<tokio::sync::OwnedRwLockWriteGuard<()>>>,
+}
+
+impl<'a> Judging<'a> {
+    fn over(db: &'a Database) -> Self {
+        Self {
+            db,
+            hold: std::sync::Mutex::new(None),
+        }
+    }
+
+    fn held(&self) -> bool {
+        self.hold.lock().map(|hold| hold.is_some()).unwrap_or(false)
+    }
+
+    /// Hold the engine for the verdict, once: a save made from here on waits for it.
+    pub(crate) async fn hold(&self) {
+        if self.held() {
+            return;
+        }
+
+        let guard = self.db.judging().await;
+
+        if let Ok(mut hold) = self.hold.lock() {
+            *hold = Some(guard);
+        }
+    }
+
+    /// Push, then hold the engine, then pull ([`Database::replicate_then`]).
+    pub(crate) async fn replicate(&self) -> Replicated {
+        self.db.replicate_then(async || self.hold().await).await
+    }
+
+    /// Hold the engine, then pull.
+    pub(crate) async fn pull_replica(&self) -> Pulled {
+        self.hold().await;
+        self.db.pull_replica().await
+    }
+
+    /// Write `sql` as a pull lays what it brings, the engine held first as a pull holds it: for a
+    /// test standing in for the pull.
+    #[cfg(test)]
+    pub(crate) async fn as_a_pull_brings(&self, sql: &str) {
+        self.hold().await;
+        self.db.as_a_pull_brings(sql).await;
+    }
+}
+
+impl std::ops::Deref for Judging<'_> {
+    type Target = Database;
+
+    fn deref(&self) -> &Database {
+        self.db
+    }
 }
 
 /// The open workspace, where it is one of an organization, and the floors the organization records
@@ -249,12 +326,26 @@ pub(crate) async fn judged(
             )
         }
         (Err(error), _) | (_, Err(error)) => {
-            let standing = db.standing().least(Standing::ReadOnly);
+            let last = db
+                .last_verdict()
+                .filter(|_| !matches!(error, Error::Integrity { .. }));
 
             crate::diagnostics::warn("workspace.floors.notRead")
                 .with("workspace", id)
                 .with("error", error.to_string())
+                .with("kept", format!("{last:?}"))
                 .write();
+
+            if let Some((standing, reason)) = last {
+                return HeldByVersion::workspace(id, &workspace.name, standing).map(|held| {
+                    match reason {
+                        Some(reason) => HeldByVersion { reason, ..held },
+                        None => held,
+                    }
+                });
+            }
+
+            let standing = db.standing().least(Standing::ReadOnly);
 
             (
                 standing,
@@ -371,8 +462,17 @@ pub(crate) fn writes_to(store: &OrganizationStore) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{HeldByVersion, VersionTarget};
-    use crate::database::floor::Standing;
+    use super::{HeldByVersion, VersionTarget, judged};
+    use crate::{
+        database::{
+            Database,
+            floor::{FLOORS_UNREADABLE, Standing},
+        },
+        error::{Error, RefusalReason},
+        machine::RemoteSyncWorkspace,
+        persisted::Persisted,
+        settings::Settings,
+    };
     use serde_json::json;
 
     /// It crosses as the shell reads it: the target, the standing in one word, and the reason.
@@ -422,6 +522,102 @@ mod tests {
             vec![workspace.expect("a hold")]
         );
         assert_eq!(super::both(None, None), Vec::new());
+    }
+
+    /// The engine over `name`'s scratch directory with nothing open, and the workspace `w-1` it
+    /// is judged as.
+    fn a_workspace(name: &str) -> (Database, RemoteSyncWorkspace) {
+        let directory = crate::test::scratch(name);
+        let mut settings =
+            Persisted::<Settings>::load(directory.join("settings.json")).expect("settings");
+        settings.database_path = directory.join("app.db");
+
+        (
+            Database::new(
+                std::sync::Arc::new(tokio::sync::RwLock::new(settings)),
+                crate::clock::System::shared(),
+            ),
+            RemoteSyncWorkspace {
+                remote_id: Some("w-1".to_string()),
+                name: "Ledger".to_string(),
+                ..Default::default()
+            },
+        )
+    }
+
+    /// A read the engine could not answer, a busy one during a pull say.
+    fn busy() -> Error {
+        Error::Database {
+            message: "database is locked".to_string(),
+        }
+    }
+
+    /// **Effort 857, ticket 31's third criterion: a transient floor read keeps the last verdict**,
+    /// as the organization's does (ticket 27). A read that fails says nothing about the floors, so
+    /// a workspace judged writable stays writable and is not reported as upgraded by a newer
+    /// version, and one judged read-only stays so with the reason it was given.
+    #[tokio::test]
+    async fn a_transient_floor_read_keeps_the_last_verdict() {
+        let (db, workspace) = a_workspace("transient-floors");
+
+        db.hold(Standing::Writable);
+
+        assert_eq!(judged(&db, &workspace, Err(busy())).await, None);
+        assert_eq!(db.verdict(), (Standing::Writable, None));
+
+        let raised = HeldByVersion::workspace("w-1", "Ledger", Standing::ReadOnly);
+
+        db.hold_because(
+            Standing::ReadOnly,
+            raised.as_ref().map(|held| held.reason.clone()),
+        );
+
+        assert_eq!(judged(&db, &workspace, Err(busy())).await, raised);
+        assert_eq!(db.standing(), Standing::ReadOnly);
+    }
+
+    /// With no verdict yet to keep, a transient read fails closed, and says the floors could not
+    /// be read rather than that a newer version upgraded the workspace.
+    #[tokio::test]
+    async fn a_transient_floor_read_before_any_verdict_fails_closed_without_naming_a_version() {
+        let (db, workspace) = a_workspace("transient-floors-first");
+        let held = judged(&db, &workspace, Err(busy()))
+            .await
+            .expect("held read-only");
+
+        assert_eq!(held.standing, Standing::ReadOnly);
+        assert_eq!(held.reason, FLOORS_UNREADABLE, "not the floors' reason");
+        assert_eq!(db.verdict(), (Standing::ReadOnly, Some(held.reason)));
+    }
+
+    /// Floors that read wrong are not transient, and still fail closed over a writable verdict
+    /// (ticket 27).
+    #[tokio::test]
+    async fn malformed_floors_fail_closed_over_the_last_verdict() {
+        let (db, workspace) = a_workspace("malformed-floors");
+        let malformed = Error::Integrity {
+            message: "a floor of -1, which is no step number".to_string(),
+        };
+
+        db.hold(Standing::Writable);
+
+        let held = judged(&db, &workspace, Err(malformed))
+            .await
+            .expect("held read-only");
+
+        assert_eq!(held.standing, Standing::ReadOnly);
+        assert_eq!(held.reason, FLOORS_UNREADABLE, "not the floors' reason");
+        assert_eq!(db.standing(), Standing::ReadOnly);
+    }
+
+    /// The floors' reason is the refusal's own word as it crosses, so the interface reads one
+    /// word for both (ticket 31).
+    #[test]
+    fn the_floors_reason_is_the_refusals_word() {
+        assert_eq!(
+            serde_json::to_value(RefusalReason::WorkspaceFloorsUnreadable).expect("serialised"),
+            json!(FLOORS_UNREADABLE)
+        );
     }
 
     /// A writable verdict holds nothing.

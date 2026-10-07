@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
+	import { isFloorsUnreadable } from '$lib/api/context';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { useFetchOrganizationState } from '$lib/organization/query';
 	import { UpdateAction } from '$lib/update/ui';
@@ -36,10 +37,16 @@
 			: null;
 	});
 
+	// floors that could not be read are not a newer version (ticket 31): the notice says changes
+	// are paused until they can be, and offers no update, which would not lift it.
+	const floorsUnreadable = $derived(held !== null && isFloorsUnreadable(held));
+
 	const sentence = $derived(
 		held?.target === 'organization'
 			? $LL.common.refusals.host.organizationReadOnlyByVersion()
-			: $LL.common.refusals.host.workspaceReadOnlyByVersion()
+			: floorsUnreadable
+				? $LL.common.refusals.host.workspaceFloorsUnreadable()
+				: $LL.common.refusals.host.workspaceReadOnlyByVersion()
 	);
 </script>
 
@@ -49,7 +56,9 @@
 			<PencilOffIcon class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
 			<div class="flex min-w-0 flex-1 flex-col gap-3">
 				<p>{sentence}</p>
-				<UpdateAction variant="notice" />
+				{#if !floorsUnreadable}
+					<UpdateAction variant="notice" />
+				{/if}
 			</div>
 		</Callout>
 	</div>

@@ -1141,10 +1141,10 @@ mod tests {
 
         assert_eq!(held.target, VersionTarget::Workspace("south".to_string()));
         assert_eq!(held.standing, Standing::ReadOnly);
-        assert!(
-            held.reason.contains("could not read"),
-            "the reason is not the floors': {}",
-            held.reason
+        assert_eq!(
+            held.reason,
+            crate::database::floor::FLOORS_UNREADABLE,
+            "the reason is not the floors'"
         );
         assert!(!replicated.pushed, "the heartbeat pushed");
 
@@ -1258,6 +1258,173 @@ mod tests {
         );
 
         app_state.db.write().await.disconnect().await;
+    }
+
+    /// The organization's state over `directory` with a writable workspace open against a remote
+    /// that never answers, its pushes and pulls given up after `silence`, holding one change to
+    /// push; and the heartbeat's replication of it, under way.
+    async fn replicating_against_silence(
+        directory: &std::path::Path,
+        silent: &crate::sync::test::server::SilentServer,
+        silence: std::time::Duration,
+    ) -> (
+        Arc<Shared>,
+        tokio::task::JoinHandle<(
+            crate::database::Replicated,
+            Option<crate::organization::session::HeldByVersion>,
+        )>,
+    ) {
+        use crate::database::bound::Bound;
+        use crate::organization::session::replicated_then_judged;
+
+        let app_state = Arc::new(state_over(directory).await);
+        let mut database =
+            Database::new(app_state.settings.clone(), crate::clock::System::shared()).with_bound(
+                Bound {
+                    silence,
+                    ceiling: std::time::Duration::from_secs(60),
+                },
+            );
+
+        database
+            .connect_workspace("south", Some(silent.url()), || async {
+                Ok::<String, turso::Error>("a-credential".to_string())
+            })
+            .await
+            .expect("the workspace replica");
+        database
+            .execute_batch_sql(vec![
+                saving("CREATE TABLE \"unit\" (\"id\" TEXT PRIMARY KEY)"),
+                saving("INSERT INTO \"unit\" VALUES ('u-1')"),
+            ])
+            .await
+            .expect("a change to push");
+        *app_state.db.write().await = database;
+
+        let replicating = {
+            let app_state = app_state.clone();
+
+            tokio::spawn(async move {
+                replicated_then_judged(&app_state, async |db| db.replicate().await).await
+            })
+        };
+
+        (app_state, replicating)
+    }
+
+    /// One statement the interface sends, with nothing bound.
+    fn saving(sql: &str) -> crate::database::proxy::SQLQuery {
+        crate::database::proxy::SQLQuery {
+            sql: sql.to_string(),
+            params: Vec::new(),
+        }
+    }
+
+    /// **Effort 857, ticket 31's second criterion: a save waits for a pull, never for a push.** The
+    /// heartbeat's replication of a writable workspace pushes and then pulls, and only the pull and
+    /// its verdict are held (`Database::judging`). The remote here takes the push and never answers
+    /// it, and a save the interface sends while the push waits commits at once, rather than waiting
+    /// for the push and the pull to give up.
+    #[test]
+    fn a_save_during_a_slow_push_commits_without_waiting() {
+        use std::time::{Duration, Instant};
+
+        use crate::sync::test::server::{SilentServer, within};
+
+        within(Duration::from_secs(60), async move {
+            let silent = SilentServer::start();
+            let directory = scratch("save-during-push");
+            let (app_state, replicating) =
+                replicating_against_silence(&directory, &silent, Duration::from_secs(4)).await;
+
+            tokio::time::sleep(Duration::from_millis(500)).await;
+            assert!(
+                !replicating.is_finished(),
+                "the push did not wait on the silent remote"
+            );
+
+            let started = Instant::now();
+
+            app_state
+                .db
+                .read()
+                .await
+                .execute_single_sql(saving("INSERT INTO \"unit\" VALUES ('u-2')"))
+                .await
+                .expect("the save beside the push");
+
+            assert!(
+                started.elapsed() < Duration::from_secs(2),
+                "the save waited for the push: {:?}",
+                started.elapsed()
+            );
+            assert!(
+                !replicating.is_finished(),
+                "the replication gave up before the save was timed"
+            );
+
+            let _ = replicating.await;
+
+            app_state.db.write().await.disconnect().await;
+            drop(silent);
+            let _ = std::fs::remove_dir_all(&directory);
+        });
+    }
+
+    /// **And the pull is still held** (ticket 31, keeping ticket 27's third criterion). Once the
+    /// push has given up and the pull waits on the same silent remote, a save the interface sends
+    /// waits for the verdict over what the pull brought, and commits after it.
+    #[test]
+    fn a_save_during_the_pull_waits_for_the_verdict() {
+        use std::time::Duration;
+
+        use crate::sync::test::server::{SilentServer, within};
+
+        within(Duration::from_secs(60), async move {
+            let silent = SilentServer::start();
+            let directory = scratch("save-during-pull");
+            let (app_state, replicating) =
+                replicating_against_silence(&directory, &silent, Duration::from_secs(3)).await;
+
+            // past the push's silence, into the pull's.
+            tokio::time::sleep(Duration::from_millis(4_000)).await;
+            assert!(
+                !replicating.is_finished(),
+                "the pull did not wait on the silent remote"
+            );
+
+            let saved = {
+                let db = app_state.db.clone();
+
+                tokio::spawn(async move {
+                    db.read()
+                        .await
+                        .execute_single_sql(saving("INSERT INTO \"unit\" VALUES ('u-2')"))
+                        .await
+                })
+            };
+
+            tokio::time::sleep(Duration::from_millis(500)).await;
+            assert!(
+                !replicating.is_finished(),
+                "the replication gave up before the save was looked at"
+            );
+            assert!(
+                !saved.is_finished(),
+                "the save did not wait for the pull's verdict"
+            );
+
+            let _ = replicating.await;
+
+            saved
+                .await
+                .expect("the save")
+                .expect("the save, after the verdict");
+
+            app_state.db.write().await.disconnect().await;
+            drop(silent);
+            let _ = std::fs::remove_dir_all(&directory);
+        });
     }
 
     /// Write `statements` to the workspace replica at `path`, through an engine opened on the file
@@ -1438,10 +1605,10 @@ mod tests {
             VersionTarget::Workspace("south".to_string())
         );
         assert_eq!(held[0].standing, Standing::ReadOnly);
-        assert!(
-            held[0].reason.contains("could not read"),
-            "the state read lost the verdict's reason: {}",
-            held[0].reason
+        assert_eq!(
+            held[0].reason,
+            crate::database::floor::FLOORS_UNREADABLE,
+            "the state read lost the verdict's reason"
         );
 
         app_state.db.write().await.disconnect().await;

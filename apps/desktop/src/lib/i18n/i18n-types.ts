@@ -1298,6 +1298,10 @@ type RootTranslation = {
 				 */
 				workspaceBehind: string;
 				/**
+				 * t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​n​e​e​d​s​ ​u​p​g​r​a​d​i​n​g​,​ ​a​n​d​ ​a​ ​n​e​w​e​r​ ​v​e​r​s​i​o​n​ ​o​f​ ​r​e​n​t​a​b​l​e​ ​u​p​g​r​a​d​e​d​ ​i​t​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​u​p​d​a​t​e​ ​r​e​n​t​a​b​l​e​ ​t​o​ ​o​p​e​n​ ​i​t​.
+				 */
+				workspaceBehindReadOnlyByVersion: string;
+				/**
 				 * t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​i​s​ ​b​e​h​i​n​d​ ​t​h​i​s​ ​v​e​r​s​i​o​n​ ​o​f​ ​r​e​n​t​a​b​l​e​.​ ​o​p​e​n​ ​i​t​ ​o​n​c​e​ ​o​n​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​t​o​ ​b​r​i​n​g​ ​i​t​ ​u​p​ ​t​o​ ​d​a​t​e​.
 				 */
 				workspaceNeedsOpening: string;
@@ -1345,6 +1349,10 @@ type RootTranslation = {
 				 * a​ ​n​e​w​e​r​ ​v​e​r​s​i​o​n​ ​o​f​ ​r​e​n​t​a​b​l​e​ ​u​p​g​r​a​d​e​d​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​.​ ​u​p​d​a​t​e​ ​r​e​n​t​a​b​l​e​ ​t​o​ ​m​a​k​e​ ​c​h​a​n​g​e​s​ ​i​n​ ​i​t​.
 				 */
 				workspaceReadOnlyByVersion: string;
+				/**
+				 * t​h​i​s​ ​w​o​r​k​s​p​a​c​e​'​s​ ​v​e​r​s​i​o​n​ ​r​e​c​o​r​d​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​r​e​a​d​,​ ​s​o​ ​c​h​a​n​g​e​s​ ​a​r​e​ ​p​a​u​s​e​d​.​ ​t​r​y​ ​a​g​a​i​n​ ​s​o​o​n​,​ ​o​r​ ​c​o​n​t​a​c​t​ ​t​h​e​ ​o​w​n​e​r​.
+				 */
+				workspaceFloorsUnreadable: string;
 				/**
 				 * c​h​a​n​g​e​s​ ​m​a​d​e​ ​h​e​r​e​ ​b​e​f​o​r​e​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​ ​w​a​s​ ​u​p​g​r​a​d​e​d​ ​c​a​n​n​o​t​ ​b​e​ ​s​e​n​t​.​ ​t​h​e​y​ ​a​r​e​ ​k​e​p​t​ ​u​n​t​i​l​ ​y​o​u​ ​d​i​s​c​a​r​d​ ​t​h​e​m​.
 				 */
@@ -6918,6 +6926,10 @@ export type TranslationFunctions = {
 				 */
 				workspaceBehind: () => LocalizedString;
 				/**
+				 * this workspace needs upgrading, and a newer version of rentable upgraded its organization. update rentable to open it.
+				 */
+				workspaceBehindReadOnlyByVersion: () => LocalizedString;
+				/**
 				 * this workspace is behind this version of rentable. open it once on this machine to bring it up to date.
 				 */
 				workspaceNeedsOpening: () => LocalizedString;
@@ -6965,6 +6977,10 @@ export type TranslationFunctions = {
 				 * a newer version of rentable upgraded this workspace. update rentable to make changes in it.
 				 */
 				workspaceReadOnlyByVersion: () => LocalizedString;
+				/**
+				 * this workspace's version record could not be read, so changes are paused. try again soon, or contact the owner.
+				 */
+				workspaceFloorsUnreadable: () => LocalizedString;
 				/**
 				 * changes made here before the workspace was upgraded cannot be sent. they are kept until you discard them.
 				 */

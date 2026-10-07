@@ -65,6 +65,13 @@ const ORGANIZATION_BY_VERSION: readonly TauriRefusalReason[] = [
 /**
  * the organization cannot be opened on this machine, or the session in it is over: its format,
  * this machine's hold on it, or the person's place in it.
+ *
+ * **Every reason the state read, a sign-in or a workspace's open raises about these is here**
+ * (ticket 31): `memberGone` is the state read's own when the person's row has gone, and it was
+ * left to the default and kept them in a session with no member behind it. `machineMissing`, a
+ * machine no longer signed in as the person, is listed beside it. `upgradeUnderWay` is not: it is
+ * another member's upgrade in progress, which a retry answers once they finish, so the session
+ * stands and it is the workspace's, as every act's refusal is.
  */
 const ABOUT_THE_ORGANIZATION: readonly TauriRefusalReason[] = [
 	...ORGANIZATION_BY_VERSION,
@@ -79,13 +86,19 @@ const ABOUT_THE_ORGANIZATION: readonly TauriRefusalReason[] = [
 	'signInAgain',
 	'youWereRemoved',
 	'sessionsEnded',
-	'keyNotInForce'
+	'keyNotInForce',
+	'memberGone',
+	'machineMissing'
 ];
 
-/** a workspace upgraded past what this build reads or writes: updating rentable is the way past. */
+/**
+ * a workspace upgraded past what this build reads or writes, or one behind it in an organization
+ * upgraded past what this build writes (ticket 31): updating rentable is the way past.
+ */
 const WORKSPACE_BY_VERSION: readonly TauriRefusalReason[] = [
 	'workspaceNewer',
-	'workspaceReadOnlyByVersion'
+	'workspaceReadOnlyByVersion',
+	'workspaceBehindReadOnlyByVersion'
 ];
 
 /** whose a refusal is, by its reason; `null` where the failure carried none. */

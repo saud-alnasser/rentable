@@ -56,6 +56,7 @@ const inBeta = (): OrganizationState =>
  */
 const ABOUT_THE_WORKSPACE: { reason: TauriRefusalReason; byVersion: boolean }[] = [
 	{ reason: 'workspaceBehind', byVersion: false },
+	{ reason: 'workspaceBehindReadOnlyByVersion', byVersion: true },
 	{ reason: 'workspaceNeedsOpening', byVersion: false },
 	{ reason: 'copyNotTaken', byVersion: false },
 	{ reason: 'shapeNotAsBuilt', byVersion: false },
@@ -107,20 +108,36 @@ for (const { reason, byVersion } of ABOUT_THE_WORKSPACE) {
 	});
 }
 
-test('a refusal of the organization while a workspace opens still signs out to the switcher', async () => {
-	const { startup, journal } = harness({
-		organization: inAcme(),
-		bootstrap: async () => {
-			throw refusal('youWereRemoved');
-		}
+/**
+ * the reasons about the organization or the person's place in it that a state read, a sign-in or a
+ * workspace's open can meet: each ends the session and goes back to the switcher. `memberGone` and
+ * `machineMissing` were left to the default, which kept the person in (ticket 31).
+ */
+const ABOUT_THE_ORGANIZATION: TauriRefusalReason[] = [
+	'youWereRemoved',
+	'sessionsEnded',
+	'signInAgain',
+	'keyNotInForce',
+	'memberGone',
+	'machineMissing'
+];
+
+for (const reason of ABOUT_THE_ORGANIZATION) {
+	test(`a refusal of the organization as ${reason} while a workspace opens signs out to the switcher`, async () => {
+		const { startup, journal } = harness({
+			organization: inAcme(),
+			bootstrap: async () => {
+				throw refusal(reason);
+			}
+		});
+
+		await startup.start();
+
+		assert.equal(startup.snapshot.state, 'sign-in');
+		assert.equal(journal.signedOut, 1);
+		assert.ok(startup.snapshot.refusals.acme);
 	});
-
-	await startup.start();
-
-	assert.equal(startup.snapshot.state, 'sign-in');
-	assert.equal(journal.signedOut, 1);
-	assert.ok(startup.snapshot.refusals.acme);
-});
+}
 
 test('a workspace refused for another reason is opened again when the person chooses it', async () => {
 	let full = true;
@@ -173,6 +190,43 @@ test('a sign-in after a workspace refusal does not reopen the refused workspace 
 	assert.equal(startup.snapshot.state, 'held', 'its screen, with the others to open');
 	assert.equal(startup.snapshot.held?.workspaceId, 'south');
 	assert.deepEqual(startup.snapshot.refusals, {});
+});
+
+test('a workspace behind in an organization read-only by version keeps the person in at launch and at every sign-in after', async () => {
+	let opened = 'south';
+	const { startup, journal } = harness({
+		organization: inAcme(),
+		sync: fakeSyncState({ workspace: fakeWorkspace({ remoteId: 'south' }) }),
+		signInWith: async () => inAcme(),
+		openWorkspace: async (id) => void (opened = id),
+		bootstrap: async () => {
+			if (opened === 'south') throw refusal('workspaceBehindReadOnlyByVersion');
+
+			return fakeRecovery();
+		}
+	});
+
+	await startup.start();
+
+	assert.equal(startup.snapshot.state, 'held', 'the screen that names it');
+	assert.equal(startup.snapshot.held?.workspaceId, 'south');
+	assert.equal(startup.snapshot.held?.byVersion, true, 'updating is the way past');
+	assert.equal(journal.signedOut, 0, 'still in');
+	assert.deepEqual(startup.snapshot.refusals, {});
+
+	// the next sign-in lands on the same screen rather than at the switcher again.
+	await startup.signOut();
+	await startup.signIn('olivia', 'the password');
+
+	assert.equal(startup.snapshot.state, 'held');
+	assert.equal(startup.snapshot.organization?.session?.organizationId, 'acme');
+	assert.equal(journal.signedOut, 1, 'only the sign-out asked for');
+	assert.deepEqual(startup.snapshot.refusals, {});
+
+	// and the other workspace is reachable from there.
+	await startup.switchWorkspace('north');
+
+	assert.equal(startup.snapshot.state, 'ready');
 });
 
 test('another organization opens its own last workspace, not the one refused in the first', async () => {

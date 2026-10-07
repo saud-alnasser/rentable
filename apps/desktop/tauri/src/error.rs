@@ -247,6 +247,10 @@ pub enum RefusalReason {
     WorkspaceNewer,
     /// the workspace is behind this version, and read-only access cannot bring it up.
     WorkspaceBehind,
+    /// the workspace is behind this version, and its organization was upgraded by a newer one past
+    /// what this one writes, so this one cannot record bringing it up: updating rentable is the way
+    /// past (effort 857, ticket 31). A workspace's refusal, so the organization stays open.
+    WorkspaceBehindReadOnlyByVersion,
     /// the workspace is behind this version, and opening it once on this machine brings it up to
     /// date: what a workspace that is not open meets when it is reached on Turso (effort 846,
     /// requirement 15).
@@ -293,6 +297,11 @@ pub enum RefusalReason {
     /// write to it (below its write floor, effort 857): what every create, edit and delete reaching
     /// the workspace's engine is refused with, and nothing was written (ticket 05).
     WorkspaceReadOnlyByVersion,
+    /// the open workspace's floors, its record of which versions of rentable may write it, could
+    /// not be read, so this one writes nothing to it until they can be (effort 857, ticket 31).
+    /// Not a newer version: updating is not the way past, and every write is refused with this
+    /// rather than [`RefusalReason::WorkspaceReadOnlyByVersion`].
+    WorkspaceFloorsUnreadable,
     /// this machine holds changes it had not sent when an upgrade removed or renamed what they
     /// name, so the open workspace refuses them: they are kept here, nothing of the workspace is
     /// sent or brought until the person discards them, and nothing is discarded without their yes
