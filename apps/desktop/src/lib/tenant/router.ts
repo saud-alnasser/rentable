@@ -17,6 +17,7 @@ import {
 	ensureTenantDeletable,
 	ensureTenantsAvailable,
 	ensureTenantStillExists,
+	tenantsHolding,
 	TenantSchema,
 	whatRefusesTenantDeletion,
 	type TenantContributions,
@@ -163,12 +164,8 @@ export default router({
 					? undefined
 					: await ctx.db.select().from(s.tenant).where(eq(s.tenant.id, input.id)).get()
 			);
-			ensureIdentityAvailable(
-				await ctx.db.select().from(s.tenant).where(eq(s.tenant.nationalId, input.nationalId)).get()
-			);
-			ensurePhoneAvailable(
-				await ctx.db.select().from(s.tenant).where(eq(s.tenant.phone, input.phone)).get()
-			);
+			ensureIdentityAvailable((await tenantsHolding(ctx.db, 'nationalId', [input.nationalId]))[0]);
+			ensurePhoneAvailable((await tenantsHolding(ctx.db, 'phone', [input.phone]))[0]);
 
 			const created = await ctx.db
 				.insert(s.tenant)
@@ -186,22 +183,12 @@ export default router({
 		.mutation(async ({ input, ctx }) => {
 			ensureIdentityAvailable(
 				input.nationalId !== undefined
-					? await ctx.db
-							.select()
-							.from(s.tenant)
-							.where(
-								sql`${s.tenant.nationalId} = ${input.nationalId} AND ${s.tenant.id} != ${input.id}`
-							)
-							.get()
+					? (await tenantsHolding(ctx.db, 'nationalId', [input.nationalId], input.id))[0]
 					: null
 			);
 			ensurePhoneAvailable(
 				input.phone !== undefined
-					? await ctx.db
-							.select()
-							.from(s.tenant)
-							.where(sql`${s.tenant.phone} = ${input.phone} AND ${s.tenant.id} != ${input.id}`)
-							.get()
+					? (await tenantsHolding(ctx.db, 'phone', [input.phone], input.id))[0]
 					: null
 			);
 

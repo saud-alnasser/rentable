@@ -5,6 +5,7 @@
 import assert from 'node:assert/strict';
 
 import { FAMILIES, maskOf } from '@rentable/workspace-permission';
+import { sql } from 'drizzle-orm';
 
 import { readRefusal, type RefusalCode, type RefusalParams } from '$lib/api/refusal.ts';
 import { toRefusalText } from '$lib/error/refusal.ts';
@@ -123,6 +124,42 @@ export async function createApi({
 	});
 
 	return caller(appRouter)(ctx);
+}
+
+/**
+ * The rules the shared database held on what a person types, by name: a tenant's phone and
+ * national ID, a complex's name and a contract's government ID. Effort 857 drops them from every
+ * workspace (requirement 14), so the app's own checks are the whole of what keeps them unique.
+ */
+export const DROPPED_UNIQUE_RULES = [
+	'tenant_phone_unique',
+	'tenant_national_id_unique',
+	'complex_name_unique',
+	'contract_gov_id_unique'
+] as const;
+
+/**
+ * A caller over a workspace holding none of {@link DROPPED_UNIQUE_RULES}, so a test of a save
+ * check proves the app refuses a duplicate rather than the engine.
+ *
+ * The test database is built from the migrations, and it drops the rules itself whether or not a
+ * migration already has. It then asks the engine which are left, so a test cannot pass over a
+ * rule still standing.
+ */
+export async function createApiWithoutUniqueRules() {
+	const db = createMemoryDatabase();
+
+	for (const name of DROPPED_UNIQUE_RULES) {
+		await db.run(sql.raw(`DROP INDEX IF EXISTS \`${name}\``));
+	}
+
+	const left = await db.all<{ name: string }>(
+		sql`SELECT name FROM sqlite_master WHERE type = 'index' AND name IN ${[...DROPPED_UNIQUE_RULES]}`
+	);
+
+	assert.deepEqual(left, [], 'the unique rules are gone from the test workspace');
+
+	return { api: await createApi({ db }), db };
 }
 
 let sequence = 0;

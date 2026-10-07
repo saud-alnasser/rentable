@@ -1,7 +1,7 @@
 import type { Database } from '$lib/api/context';
 import * as s from '$lib/platform/database/schema';
 import { refuse } from '$lib/api/refusal';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, ne } from 'drizzle-orm';
 
 /**
  * ROW
@@ -49,4 +49,34 @@ export async function selectContract(db: Database, contractId: string) {
 	}
 
 	return contract;
+}
+
+/**
+ * The contracts holding any of `govIds`, leaving out the contract `except` names, which is the one
+ * being edited.
+ *
+ * **The app keeps a government ID unique, not the database** (effort 857, requirement 14): the
+ * shared database refused one machine's changes over an ID another saved while apart, and the
+ * engine dropped them. So every save that could take one reads who holds it through here, and
+ * what counts as holding one is decided once: a record retired by a merge joins this condition,
+ * and no act changes.
+ */
+export async function contractsHoldingGovId(
+	db: Database,
+	govIds: readonly string[],
+	except?: string
+) {
+	if (govIds.length === 0) {
+		return [];
+	}
+
+	return await db
+		.select()
+		.from(s.contract)
+		.where(
+			and(
+				inArray(s.contract.govId, [...govIds]),
+				except === undefined ? undefined : ne(s.contract.id, except)
+			)
+		);
 }

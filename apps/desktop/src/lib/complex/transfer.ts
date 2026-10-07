@@ -3,6 +3,7 @@ import { ComplexSchema } from '$lib/platform/database/schema';
 import { newId } from '$lib/platform/database/identity';
 import { defineSheet } from '$lib/transfer';
 import { asc } from 'drizzle-orm';
+import { complexesNamed, ensureComplexNameAvailable } from './complex';
 
 /**
  * THE COMPLEXES SHEET
@@ -55,6 +56,15 @@ export default defineSheet({
 	},
 	input: ComplexSchema.pick({ name: true, location: true }),
 	write: async (complexes, writing) => {
+		// the plan rejected a name the workspace held, but one can arrive by sync before the write,
+		// and no rule of the shared database refuses it any longer (effort 857, requirement 14).
+		const taken = await complexesNamed(
+			writing.db,
+			complexes.map((complex) => complex.name)
+		);
+
+		ensureComplexNameAvailable(taken[0], taken[0]?.name);
+
 		const rows = complexes.map((complex) => {
 			const id = newId();
 

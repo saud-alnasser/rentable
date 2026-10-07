@@ -17,8 +17,8 @@ import { refuse } from '$lib/api/refusal';
 import { asc, eq, inArray, ne } from 'drizzle-orm';
 import z from 'zod';
 import { getConflictingAssignedUnitIds, rangesOverlap } from './assignment/assignment';
-import { ensureValidContractInput, hasValidContractCost } from './contract';
-import { selectAssignmentsForUnits } from './row';
+import { ensureGovIdAvailable, ensureValidContractInput, hasValidContractCost } from './contract';
+import { contractsHoldingGovId, selectAssignmentsForUnits } from './row';
 import { hasValidContractPeriodForInterval } from './schedule/cycle';
 import { contractStatusesAt, reconcileTouched } from './reconcile';
 
@@ -378,6 +378,16 @@ export default defineSheet({
 				tenantId: writing.resolve('tenants', contract.tenant)
 			};
 		});
+
+		// the plan rejected a government ID the workspace held, but one can arrive by sync before
+		// the write, and no rule of the shared database refuses it any longer (effort 857,
+		// requirement 14).
+		const taken = await contractsHoldingGovId(
+			writing.db,
+			rows.map((row) => row.govId).filter((govId) => govId !== null)
+		);
+
+		ensureGovIdAvailable(taken[0], taken[0]?.govId ?? undefined);
 
 		const held = contracts.map((contract) =>
 			contract.units.map((unit) => ({

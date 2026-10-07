@@ -21,11 +21,15 @@ import {
 	hasSameUtcDateRange
 } from '$lib/contract/assignment/assignment';
 import { reconcile, reconcileTouched } from '$lib/contract/reconcile';
-import { selectAssignmentsForUnits, selectPaymentsForContract } from '$lib/contract/row';
+import {
+	contractsHoldingGovId,
+	selectAssignmentsForUnits,
+	selectPaymentsForContract
+} from '$lib/contract/row';
 import { serializeContract, withRank } from '$lib/contract/serialize';
 import { referencesOf } from '$lib/contract/transfer';
 import { toUnitReference, UNIT_LIST_SEPARATOR } from '$lib/transfer';
-import { eq, inArray, sql } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { permits } from '@rentable/workspace-permission';
 import z from 'zod';
 import assignment from './assignment/router';
@@ -100,13 +104,7 @@ export default router({
 			const normalizedGovId = input.govId?.trim() || null;
 
 			ensureGovIdAvailable(
-				normalizedGovId
-					? await ctx.db
-							.select()
-							.from(s.contract)
-							.where(eq(s.contract.govId, normalizedGovId))
-							.get()
-					: undefined
+				normalizedGovId ? (await contractsHoldingGovId(ctx.db, [normalizedGovId]))[0] : undefined
 			);
 
 			const unitIds = [...new Set(chosenUnitIds)];
@@ -211,13 +209,7 @@ export default router({
 
 			ensureGovIdAvailable(
 				normalizedGovId
-					? await ctx.db
-							.select()
-							.from(s.contract)
-							.where(
-								sql`${s.contract.govId} = ${normalizedGovId} AND ${s.contract.id} != ${input.id}`
-							)
-							.get()
+					? (await contractsHoldingGovId(ctx.db, [normalizedGovId], input.id))[0]
 					: undefined
 			);
 
