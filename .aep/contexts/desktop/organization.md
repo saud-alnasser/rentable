@@ -157,7 +157,13 @@ the person to the organization switcher**, from launch, resume, sign-in, switchi
 a short callout above that organization, while it is the chosen one, says why in the person's
 language (`organization/component/switcher.svelte`); where the reason is its version, the callout
 says a newer rentable upgraded it and carries the update action, since updating is the way past it.
-The callout clears once that organization opens. A workspace below its read floor, in an
+The callout clears once that organization opens. **Joining one this machine does not hold yet** has
+no place at the switcher, so a refusal of it stays on the join screen: where the reason is its
+version (`organizationNewer`, `workspaceNewer`, or `organizationReadOnlyByVersion` refusing the
+accept's write), the screen lands on its `outdated` step, the reason in a callout with the update
+action beside it (`organization/setup/connect.ts`, `joinFailed`), and the corner's way back hands
+the form back with the link and the code and leads on to the switcher; any other reason is said
+alone (ticket 17). A workspace below its read floor, in an
 organization that opens, meets the update screen instead ([[contexts/desktop/persistence]]).
 *Effort 857, requirements 6 to 9, requirement 7 as amended at /implement.*
 

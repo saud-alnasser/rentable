@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # feat(organization): a link refused for its version offers the update
@@ -14,9 +14,9 @@ Found at converge round one: joining by link or invitation an organization this 
 
 Traces requirement 7, requirement 8 and criterion 7.
 
-- [ ] The join screen draws `update-action` as `notice` beside the reason when the refusal is the version (`organizationNewer`, `workspaceNewer`, or read-only refusing the join's write).
-- [ ] A component test, in Arabic and English, finds the reason and the update action on the join screen for a version refusal, and only the reason for any other.
-- [ ] [[contexts/desktop/organization]] states what joining does on a version refusal for an organization not held.
+- [x] The join screen draws `update-action` as `notice` beside the reason when the refusal is the version (`organizationNewer`, `workspaceNewer`, or read-only refusing the join's write).
+- [x] A component test, in Arabic and English, finds the reason and the update action on the join screen for a version refusal, and only the reason for any other.
+- [x] [[contexts/desktop/organization]] states what joining does on a version refusal for an organization not held.
 
 ## Relevant areas
 

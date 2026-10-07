@@ -131,6 +131,21 @@ const ANSWERED_ON_THE_FORM: readonly TauriRefusalReason[] = [
 	...UNREADABLE
 ];
 
+/**
+ * the refusals that say this rentable is older than what the link leads to: an organization or
+ * its workspace upgraded past what this build reads, or an organization past what it writes,
+ * which an accept has to (effort 857, requirements 7 and 8). Updating rentable is the one way past
+ * them, which is why they land on a step of their own that offers it.
+ *
+ * *`startup/refusal.ts` sorts the same words for every other way in; this side cannot reach
+ * startup, so it names them again, and only for the join.*
+ */
+const BY_VERSION: readonly TauriRefusalReason[] = [
+	'organizationNewer',
+	'workspaceNewer',
+	'organizationReadOnlyByVersion'
+];
+
 export type JoinStep =
 	/**
 	 * the one form: the link and the code that came with it, and whichever of the two a refusal
@@ -183,6 +198,23 @@ export type JoinStep =
 			kind: 'refused';
 			link: string;
 			refusal: JoinRefusal;
+			detail: string | null;
+	  }
+	/**
+	 * the organization the link leads to was upgraded by a newer rentable, and this machine does
+	 * not hold it yet, so it has no place at the switcher and the refusal stays here (effort 857,
+	 * ticket 17). The reason is said with the update action beside it, which is the one way on;
+	 * the link and the code are kept, so the way back hands the form back as it was typed.
+	 *
+	 * A held organization refused for its version never lands here: the join screen sends it
+	 * back to the switcher first (`startup/wall.ts`, `organizationRefused`).
+	 */
+	| {
+			kind: 'outdated';
+			link: string;
+			code: string;
+			/** the reason, in the reader's language. */
+			errorMessage: string;
 			detail: string | null;
 	  }
 	/**
@@ -374,6 +406,10 @@ export function joinFailed(
 
 	if (failure === 'network') {
 		return { kind: 'unreachable', link: step.link, code: step.code, detail };
+	}
+
+	if (reason && BY_VERSION.includes(reason)) {
+		return { kind: 'outdated', link: step.link, code: step.code, errorMessage: message, detail };
 	}
 
 	// what the person typed, which is the one refusal they can answer without a new link, so the

@@ -154,6 +154,34 @@ test('a lapsed, consumed or revoked link is refused by name, off the code and no
 	}
 });
 
+// effort 857, ticket 17: a refusal of the organization for its version, where the machine does not
+// hold it, stays on this screen, and updating rentable is the one way past it. It lands on a step
+// of its own that says the reason with the update beside it, whichever act was refused, and keeps
+// the link and the code so the way back hands the form back filled.
+test('a refusal for the version lands on the outdated step, saying the reason and keeping the code', () => {
+	for (const step of [stepOf({ kind: 'invitation', expiresAt: 1 }), reading()]) {
+		const joining = joinBegun(step);
+
+		for (const reason of [
+			'organizationNewer',
+			'workspaceNewer',
+			'organizationReadOnlyByVersion'
+		] as const) {
+			assert.deepEqual(
+				joinFailed(joining, rejection('refused', `Acme is at format 5 (${reason})`, reason), said),
+				{
+					kind: 'outdated',
+					link: LINK,
+					code: CODE,
+					errorMessage: `said: Acme is at format 5 (${reason})`,
+					detail: `Acme is at format 5 (${reason})`
+				},
+				`${step.kind}: ${reason}`
+			);
+		}
+	}
+});
+
 // a word this side does not know is no reason at all: it keeps the person on the step with the
 // shell's own sentence, rather than being drawn as a refusal the screen has no name for.
 test('a refusal naming a standing this side does not know keeps the step and says what was said', () => {
