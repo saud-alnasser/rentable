@@ -9,7 +9,7 @@ Authoritative: [[efforts/857-updating-never-locks-a-member-out/spec]], and [[eff
 
 ## Outcome
 
-When a pull brings a floor raise into a running app, it moves to read-only with a standing notice carrying the update action, or to the update screen, before anything else is written, including the reconcile that follows a pull.
+When a pull brings a floor raise into a running app, it moves to read-only with a standing notice carrying the update action, or, below the read floor, to the organization switcher with its callout (the organization) or the update screen (a workspace), before anything else is written, including the reconcile that follows a pull.
 
 ## Acceptance Criteria
 

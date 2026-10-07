@@ -13,8 +13,9 @@ decides who runs it and what it moves:
 | **addition** | create a table or an index; add a column that may be empty or has a default | any machine whose build ships it, the first time it meets the data, as `complete_schema` already does for the organization's tables | the structure only; neither floor |
 | **upgrade** | anything else: remove, rename, rebuild, re-sign; or an addition whose meaning an older build would get wrong | a holder of the upgrade permission, by the explicit act, after the who-is-behind sheet | the read floor, the write floor, or both, as the step declares |
 
-A newer build therefore always runs against a structure that has every addition it ships, so no
-query is ever written against an older shape. What it adapts to is the **upgraded level**: a
+A newer build therefore always runs against a structure that has every addition it ships, and
+every step shipped before this effort (see **Steps shipped before 857** below), so no query is
+ever written against an older shape. What it adapts to is the **upgraded level**: a
 capability that depends on an upgrade step is gated on that step having run, and shows why and
 who can run it until then (spec requirement 1).
 
@@ -30,6 +31,29 @@ count, and an organization whose `format` row is not exactly 3 (`lease::refuse_n
 addition. They move only when an upgrade raises a floor above what a pre-857 build can honour,
 and then they move to a value every pre-857 build refuses. That is the one way to stop a build
 that knows nothing about floors, and it is exactly the stop the upgrade sheet warned about.
+
+**Steps shipped before 857** (workspace migrations up to `0006`, format steps up to 3) keep
+running on open exactly as 0.20 runs them: format 1 to 2 on the owner's machine, the rest by the
+first full-access member under the lease (spec requirement 1, amended at /implement). They are
+declared upgrades with floors at their own number, as ticket 01 landed, and also marked
+`shipped_before_857`, which is what the open path reads to run them. Data in users' hands today
+stands behind `0006`, and drizzle names `payment.direction` in every payment select, so holding it
+for a manager would lock members out of their payments. The new rule binds every step declared
+after this effort.
+
+**Recording what ran.** Because a pending upgrade blocks no later addition, the steps a workspace
+has run stop being a prefix. Its `schema_version` keeps meaning "every step up to here has run",
+and a new workspace table `applied_step(step INT PK, applied_at INT)` lists any step above it that
+ran; the check against a fresh database builds that database from the same prefix and set. The
+organization needs no such record: its additions are created idempotently by `complete_schema`.
+**The first post-857 step applied to a database writes its floor record** (`data_floor` and
+`workspace_floor`, or `organization_floor`) holding the floors read before it, so an addition that
+raises the count never raises the floors through the legacy fallback.
+
+**Where the verdict lives.** `guard/cycle.rs` forbids any module naming `upgrade`. The step
+declarations and the floor verdict are reached by `organization/lease`, `store` and `session`
+through the structure ticket 04 settles under that guard and `[[rules/module-layout]]`; ticket 03
+builds on it.
 
 ## Alternatives that lost
 
@@ -57,12 +81,12 @@ The human chose B on 2026-10-07 and amended spec requirements 1 and 3 to match i
   `Floors { level: u32, read: u32, write: u32 }`, `Standing::{Writable, ReadOnly, Unreadable}`
   from `Floors::standing(known)`. Read from the database's own record (below), falling back to
   the legacy number for data from before this effort (Migration).
-- **`organization/lease/`**: `is_pending` and `upgrade` split into **additions** (run on open by
-  any full-access member under the existing lease, as today, but only additions) and **the
+- **`organization/lease/`**: `is_pending` and `upgrade` split into **additions and steps shipped
+  before 857** (run on open by any full-access member under the existing lease, as today) and **the
   upgrade** (run only by the new command). `refuse_newer` becomes the floor verdict.
   `WorkspaceBehind` (read-only grant, additions pending) stays.
-- **`upgrade/format/`**: the runner walks additions automatically for any member and upgrade steps
-  only by the command; a step with `needs_owner` (every step that re-signs, like 1 to 2) runs only
+- **`upgrade/format/`**: the runner walks additions automatically for any member, steps shipped
+  before 857 as today, and later upgrade steps only by the command; a step with `needs_owner` (every step that re-signs, like 1 to 2) runs only
   on the owner's machine, as today. `refuse_another_format` becomes the floor verdict.
 - **`organization/upgrade/`** (new): the explicit act. `organization_upgrade_preview(target)`
   returns what will change and who is behind; `organization_upgrade_run(target)` runs it. Target
@@ -76,8 +100,9 @@ The human chose B on 2026-10-07 and amended spec requirements 1 and 3 to match i
     `organization_floor(id PK = 'floor', level INT, read INT, write INT, written_at INT)`, written
     only by the upgrade.
 - **The workspace database** gains the one-row `data_floor(id PK CHECK(id=1), level, read, write)`
-  inside the same transaction as the upgrade, beside the existing `schema_version` row, and wins
-  over the organization's copy on a mismatch, as `schema_version` already does.
+  inside the same transaction as the first post-857 step applied, beside the existing
+  `schema_version` row, and wins over the organization's copy on a mismatch, as `schema_version`
+  already does; and `applied_step`, listing the steps run above `schema_version`.
 - **`database/`**: `Database` holds the workspace's `Standing`, set by every open and every
   heartbeat. `execute_single_sql` and `execute_batch_sql` refuse a write while it is `ReadOnly`
   with `RefusalReason::WorkspaceReadOnlyByVersion`, and `replicate` does not push. The refusal is
@@ -107,11 +132,15 @@ The human chose B on 2026-10-07 and amended spec requirements 1 and 3 to match i
   card, the read-only notice and the update screen all draw it. The launch check runs from
   startup's `continue()`; a release found downloads in the background and a quiet toast offers
   the restart.
-- **`startup/`**: a new state `held` and screen `update-required`, reached from one place:
-  `fail()` and `admit()` branch on a version refusal or on `heldByVersion`, so launch, resume,
-  sign-in, switch, join and the heartbeat all land there. The screen is a way-in surface carrying
-  the reason sentence, `update-action` as its act, the organization switcher, and a plain list of
-  the session's other workspaces that calls `switchWorkspace`. Retry from the error screen never
+- **`startup/`**: an organization that cannot be opened, for its version or any other refusal,
+  returns to the organization switcher with the refusal recorded against that organization;
+  `fail()` and `admit()` route there from launch, resume, sign-in, switch, join and the heartbeat,
+  never to the generic error screen and never to sign-in for a refusal that is not about the
+  password. The switcher draws a short callout above that organization with the reason sentence,
+  and `update-action` as `notice` when the reason is the version (spec requirement 7, amended). A
+  workspace below its read floor, in an organization that opens, takes a new state `held` and
+  screen `update-required` in place of the workspace: the reason sentence, `update-action` as
+  `screen`, and a plain list of the session's other workspaces that calls `switchWorkspace`. Retry from the error screen never
   reopens a workspace refused for its version. The generic error screen now draws the reason it
   was given, behind the existing detail disclosure.
 - **`sync/`, `startup/heartbeat.ts`**: the sync outcome carries the standing and a refusal code
@@ -146,9 +175,10 @@ The human chose B on 2026-10-07 and amended spec requirements 1 and 3 to match i
 | Where | Table | Kind | Written by |
 | --- | --- | --- | --- |
 | organization | `machine_version` | addition | each machine, its own row |
-| organization | `workspace_floor` | addition | the upgrade |
-| organization | `organization_floor` | addition | the upgrade |
-| workspace | `data_floor` | addition, created in the upgrade transaction | the upgrade |
+| organization | `workspace_floor` | addition | the first post-857 step, then the upgrade |
+| organization | `organization_floor` | addition | the first post-857 step, then the upgrade |
+| workspace | `data_floor` | addition, created with the first post-857 step | that step (addition or upgrade) |
+| workspace | `applied_step` | addition | whoever runs a step above `schema_version` |
 | organization | `workspace.schema_version` | existing; now the legacy floor | the upgrade, only when it stops pre-857 builds |
 | organization | `format` | existing; now the legacy floor | the upgrade, only when it stops pre-857 builds |
 
@@ -172,7 +202,8 @@ The order is foundation first, so every later ticket has a verdict to read:
 6. **The permission flag**, with the manager carry-over (Migration).
 7. **The explicit upgrade**: preview, run, lock, sheet, the available mark, `useUpgraded`.
 8. **The updater in Rust** and `update-action`, then the launch check and install at quit.
-9. **The update-required screen**, the error screen drawing its reason, retry that does not loop.
+9. **The switcher callout** for an organization that cannot open, the update-required screen for a
+   workspace, the error screen drawing its reason, retry that does not loop.
 10. **Unsent changes**, classified on push after an upgrade (spec requirement 10).
 11. **Carry-over tests** seeded at every shipped version (spec acceptance criterion 13).
 
@@ -181,9 +212,9 @@ The order is foundation first, so every later ticket has a verdict to read:
 # Integration
 
 - **`[[rules/interface]]`, *Application surfaces***, allows two shared surfaces and says a third
-  is answered there. The update-required screen is ruled into the way-in surface (it stands before
-  the application, carries a switcher, and is not a failure), and the ticket that builds it
-  amends that section to say so.
+  is answered there. The organization's refusal is drawn on the way-in surface's switcher, which
+  needs no new surface; the workspace's update-required screen stands inside the application in
+  place of the workspace, and the ticket that builds it amends that section to say so.
 - **`[[rules/migrations]]`** gains a section: every new step is declared in `upgrade/step.rs`
   with its kind and floors, a meaning change is split into an addition and an upgrade, and the
   ticket adding a step names its kind in its acceptance criteria.
@@ -198,7 +229,8 @@ The order is foundation first, so every later ticket has a verdict to read:
   make that true, so no organization or workspace is touched to carry it.
 - **Already-shipped steps are declared** in `upgrade/step.rs` with the floors they effectively had:
   every one an upgrade step whose floors equal its own number, because every pre-857 build
-  refused on any rise. `0006` and format 3 are declared as their meaning requires.
+  refused on any rise. `0006` and format 3 are declared as their meaning requires. Each is also
+  marked `shipped_before_857`, and keeps running on open as 0.20 runs it (Architecture).
 - **A new permission reaches existing organizations through new certificates.** Every pre-857
   root certificate carries the owner's mask as it was at setup as its `ceiling`, under the
   organization key's signature, so it lacks bit 18. A role row is covered only when its mask sits
@@ -230,7 +262,7 @@ The order is foundation first, so every later ticket has a verdict to read:
 | 4 | Rust: two sessions on different `known()` values write and read `machine_version` |
 | 5 | Rust: an upgrade failed partway on a seeded workspace and organization leaves version, floors and tables as before and a copy written; a write from a second session during the lease is refused or waits |
 | 6 | Rust: `execute_*` refuses every write while `ReadOnly` and `replicate` does not push; vitest: the routers refuse with the version reason and the shell draws the notice |
-| 7 | vitest: each entry with a version refusal lands on `update-required`, in both locales, and both switchers work from it |
+| 7 | vitest: each entry with an organization refusal lands on the switcher with the callout, in both locales, another organization opens from there; a workspace below its read floor lands on `update-required` and another workspace opens from it |
 | 8 | vitest: launch, resume, sign-in, switch and join draw the reason, and retry on the same refusal stays put |
 | 9 | Rust: a floor raise pulled into a running session sets `Standing` before the heartbeat's next write; vitest: `applySyncOutcome` moves before reconcile |
 | 10 | Rust, live (`RENTABLE_LIVE_TURSO=1`, as the prototype): captured changes pushed after an addition and after a removal, the second asked about before anything is dropped |

@@ -71,7 +71,12 @@ from wherever it stands.
    as a generic error, and it becomes available on every machine that can use it once the data is
    upgraded. *Amended 2026-10-07 by the human at /plan, from "upgrades nothing on its own": an
    addition that stops nobody needs nobody's decision, and making a normal member's newer build
-   wait for a manager would itself be a lock-out.*
+   wait for a manager would itself be a lock-out.* **Steps shipped before this effort** (the
+   workspace's up to `0006`, the organization's format up to 3) keep running on open exactly as
+   0.20 runs them, since data in users' hands today stands behind them and no member may be locked
+   out of it; the rule above binds every step added after. *Amended 2026-10-07 by the human at
+   /implement, when ticket 03 found that holding `0006` for a manager would lock members out of
+   payments.*
 2. **Every format step and migration declares the oldest version that can still read the result
    and the oldest that can still write to it, and the database records both beside its version.**
    A step that only adds, and changes the meaning of nothing an older build reads or writes,
@@ -96,10 +101,16 @@ from wherever it stands.
 6. **A machine at or above the read floor but below the write floor works read-only.** It can open
    and read everything it held, every create, edit and delete is refused with the reason, and a
    standing notice says it must update to make changes, with the update action in it.
-7. **A machine below the read floor meets the update screen**, in place of the organization or
-   the workspace, which says in the person's language that this organization or workspace was
-   upgraded by a newer rentable, carries the update action, and still lets them switch to another
-   organization or workspace they hold.
+7. **An organization that cannot be opened returns the person to the organization switcher**,
+   whatever the reason, and a short callout above that organization says why in the person's
+   language. Where the reason is its version (below the read floor), the callout says it was
+   upgraded by a newer rentable and carries the update action. **A workspace below its read floor**,
+   in an organization that opens, meets the update screen in place of the workspace, with the same
+   sentence and action, and still lets them switch to another workspace they hold. *Amended
+   2026-10-07 by the human at /implement, from "the update screen in place of the organization",
+   after an organization upgraded by 0.20 left a 0.19 machine unable even to reach sign-in: "if an
+   issue with an org that cannot open just make it back to the switch between orgs and on the
+   switch show small callout above when the org is choose about the kind of error it has".*
 8. **The reason is shown wherever a person is held**, at launch, resume, sign-in, switching
    workspace and joining by link or invitation. No refusal of an organization or workspace for its
    version is swallowed, reported only to diagnostics, or drawn as the generic startup error, and
@@ -150,9 +161,12 @@ from wherever it stands.
 6. A test raises the write floor above a machine's version: reads succeed, every create, edit and
    delete through the routers is refused with the read-only reason, and the shell shows the
    read-only notice with the update action.
-7. A test raises the read floor above a machine's version at launch, at sign-in, on switching and
-   on joining: each shows the update screen with the sentence in Arabic and English and the
-   update action, and switching to another organization and to another workspace from it works.
+7. A test raises the organization's read floor above a machine's version at launch, at sign-in,
+   on switching and on joining: each returns to the organization switcher with the callout above
+   that organization, the sentence in Arabic and English and the update action, and another
+   organization opens from there; an organization refused for another reason shows that reason
+   in the callout. A test raises a workspace's read floor: the update screen stands in place of
+   the workspace, and switching to another workspace from it works.
 8. Route or component tests for launch, resume, sign-in, switch and join with a newer
    organization and a newer workspace find the version reason drawn on the screen the person is
    on, never the generic startup error, and a retry that meets the same refusal stays on that
