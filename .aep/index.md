@@ -140,7 +140,7 @@ Start at [[protocol]].
 | 846-the-settings-and-the-record-cards-are-rethought | implemented | [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]] | 7 | 1 | 55 |
 | 851-the-way-out-the-password-fields-and-the-organizations-name | implemented | [[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/spec]] | 0 | 0 | 20 |
 | 854-bugs-and-edge-cases-across-the-app | implemented | [[efforts/854-bugs-and-edge-cases-across-the-app/spec]] | 3 | 0 | 41 |
-| 857-updating-never-locks-a-member-out | accepted | [[efforts/857-updating-never-locks-a-member-out/spec]] | 2 | 2 | 36 |
+| 857-updating-never-locks-a-member-out | accepted | [[efforts/857-updating-never-locks-a-member-out/spec]] | 2 | 2 | 38 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -656,5 +656,7 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/857-updating-never-locks-a-member-out/tickets/32-the-docs-say-what-a-refusal-does-now]] docs: the rules and contexts say what a refusal does now | 857-updating-never-locks-a-member-out | resolved | 31 |
 | [[efforts/857-updating-never-locks-a-member-out/tickets/33-the-shared-database-refuses-no-duplicate]] fix(database): the shared database refuses no duplicate | 857-updating-never-locks-a-member-out | resolved | — |
 | [[efforts/857-updating-never-locks-a-member-out/tickets/34-uniqueness-is-checked-when-saving]] fix(records): uniqueness is checked when saving, with today's words | 857-updating-never-locks-a-member-out | resolved | — |
-| [[efforts/857-updating-never-locks-a-member-out/tickets/35-identical-records-heal-into-one]] feat(records): identical records made apart heal into one | 857-updating-never-locks-a-member-out | open | 33, 34 |
+| [[efforts/857-updating-never-locks-a-member-out/tickets/35-identical-records-heal-into-one]] feat(records): identical records made apart heal into one | 857-updating-never-locks-a-member-out | open | 33, 34, 38 |
 | [[efforts/857-updating-never-locks-a-member-out/tickets/36-the-tolowercase-crash]] fix(desktop): the interface no longer crashes reading toLowerCase | 857-updating-never-locks-a-member-out | resolved | — |
+| [[efforts/857-updating-never-locks-a-member-out/tickets/37-a-step-a-reader-does-not-need-holds-no-reader]] fix(organization): a step a reader does not need holds no reader | 857-updating-never-locks-a-member-out | open | 33 |
+| [[efforts/857-updating-never-locks-a-member-out/tickets/38-the-save-check-looks-only-at-a-changed-value]] fix(records): the save check looks only at a value the person changed | 857-updating-never-locks-a-member-out | open | — |
