@@ -3024,6 +3024,142 @@ mod tests {
         .expect("a role renamed once writable again");
     }
 
+    /// **Effort 857, ticket 19** (requirement 5, criterion 5). While another member holds the
+    /// organization's upgrade lease, as this machine's replica reads it, nothing of this machine's
+    /// lands in the organization between the upgrade's steps: an act through `as_member` writing a
+    /// signed row is refused with `UpgradeUnderWay` and changes nothing while reading goes on, and
+    /// the unsigned `machine_version` row the heartbeat keeps is not written and waits for the next
+    /// beat. A lease the acting member holds themselves, and one that has lapsed, hold nothing;
+    /// and once the lease is let go both writes land.
+    #[tokio::test]
+    async fn the_organizations_upgrade_holds_every_other_write_until_it_ends() {
+        use crate::{
+            error::RefusalReason,
+            organization::{
+                act::{Acting, Pull, as_member},
+                lease::{LeaseAuthority, StoreLease},
+                role,
+                session::{Build, machine_versioned},
+                upgrade::ORGANIZATION_LEASE,
+            },
+        };
+
+        let credentials: Credentials = Arc::new(Memory::new());
+        let directory = scratch("upgrade-holds-writes");
+        let owners = first_run(credentials.as_ref(), &directory).await;
+
+        owner_signed_in(&owners).await;
+
+        let held = {
+            let mut remote_sync = owners.remote_sync.write().await;
+
+            remote_sync
+                .store_mut()
+                .selected()
+                .cloned()
+                .expect("the entry")
+        };
+        let owner_id = held.member_id.clone().expect("the owner");
+        let build = Build {
+            rentable: "99.0.0",
+            workspace_known: 99,
+            format_known: 99,
+        };
+        let make_role = async |name: &'static str| {
+            as_member(&owners, Pull::No, async |Acting { member, store }| {
+                role::create_role(
+                    store,
+                    member,
+                    name,
+                    permission::MEMBER_ROLE.mask,
+                    permission::MANAGER,
+                    CREATED_AT + 1,
+                )
+                .await
+                .map(|_| ())
+            })
+            .await
+        };
+        let roles = async || {
+            as_member(&owners, Pull::No, async |Acting { member, store }| {
+                role::roles(store, member).await
+            })
+            .await
+            .expect("the roles, read while the upgrade runs")
+        };
+        let lease_by = async |holder: &str, until: i64| {
+            let organization = owners.organization.read().await;
+            let store = organization.as_ref().expect("the replica");
+            let lease = StoreLease::new(store);
+            let now = store.clock().now();
+
+            lease
+                .take(ORGANIZATION_LEASE, holder, now + until, now)
+                .await
+                .expect("the lease");
+        };
+        let let_go = async |holder: &str| {
+            let organization = owners.organization.read().await;
+            let store = organization.as_ref().expect("the replica");
+
+            StoreLease::new(store)
+                .release(ORGANIZATION_LEASE, holder)
+                .await
+                .expect("let go");
+        };
+        let versioned = async || {
+            let organization = owners.organization.read().await;
+            let store = organization.as_ref().expect("the replica");
+            let wrote = machine_versioned(store, &held, &build, store.clock().now()).await;
+
+            (
+                wrote,
+                store
+                    .machine_version(&held.machine_id)
+                    .await
+                    .expect("the row")
+                    .map(|row| row.rentable),
+            )
+        };
+
+        // another member's upgrade under way: the signed write refused, the unsigned one waiting.
+        lease_by("m-upgrading", 60_000).await;
+
+        let before = roles().await;
+        let (wrote, row) = versioned().await;
+
+        assert_eq!(
+            reason_of(
+                make_role("clerks")
+                    .await
+                    .expect_err("a role made mid-upgrade")
+            ),
+            RefusalReason::UpgradeUnderWay
+        );
+        assert_eq!(roles().await, before, "a signed row landed mid-upgrade");
+        assert!(!wrote, "the machine's version was written mid-upgrade");
+        assert_ne!(row.as_deref(), Some("99.0.0"));
+
+        let_go("m-upgrading").await;
+
+        // a lapsed lease holds nothing, and neither does the acting member's own.
+        lease_by("m-upgrading", -1).await;
+        make_role("clerks")
+            .await
+            .expect("a role made under a lapsed lease");
+        let_go("m-upgrading").await;
+
+        lease_by(&owner_id, 60_000).await;
+        make_role("tellers")
+            .await
+            .expect("a role made under the member's own lease");
+        let_go(&owner_id).await;
+
+        // the upgrade over: the heartbeat's write lands.
+        assert_eq!(versioned().await, (true, Some("99.0.0".to_string())));
+        assert_eq!(roles().await.len(), before.len() + 2);
+    }
+
     /// **Criterion 24.** A rename sent by anybody but the owner is refused in the shell, whatever
     /// the interface drew, and changes nothing: a member locked as their link leaves them, and the
     /// same member unlocked and made a manager, holding every flag but the owner's.

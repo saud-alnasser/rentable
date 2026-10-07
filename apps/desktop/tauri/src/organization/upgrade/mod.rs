@@ -67,7 +67,7 @@ use super::{
     setup::ORGANIZATION_DATABASE_PREFIX,
     store::{
         MACHINE_PRESENCE_WINDOW, MachineRecord, MachineVersionRecord, MemberRecord,
-        OrganizationStore, TABLES, waits_for_its_owner,
+        MigrationLeaseRecord, OrganizationStore, TABLES, waits_for_its_owner,
     },
     workspace::{self, remote::OverThePipeline, remote::Pipeline},
 };
@@ -136,8 +136,9 @@ pub(crate) fn needs_the_owner() -> Error {
     )
 }
 
-/// The refusal of an upgrade while another member holds the lease.
-fn under_way(holder: &str, until: i64) -> Error {
+/// The refusal of an upgrade, or of any other write to the organization, while another member
+/// holds the lease.
+pub(crate) fn under_way(holder: &str, until: i64) -> Error {
     Error::refused(
         RefusalReason::UpgradeUnderWay,
         format!(
@@ -145,6 +146,28 @@ fn under_way(holder: &str, until: i64) -> Error {
              have finished; nothing was changed"
         ),
     )
+}
+
+/// The organization's upgrade under way by anybody but `member_id`, as this machine's replica last
+/// read its lease (spec requirement 5, ticket 19): the lease row, where its deadline has not passed
+/// by `now` and somebody else holds it. `None` for `member_id` counts every holder, which is what a
+/// write that knows no member asks.
+///
+/// **Nothing of this machine's lands in the organization while it runs.** An act writes nothing
+/// (`act::as_member`), and the rows the heartbeat keeps wait for the beat after it ends
+/// (`session::machine_kept`). The lease is taken at the organization's primary, so a replica reads
+/// it once a pull has brought it, which every act that writes from what another machine may have
+/// moved asks for first.
+pub(crate) async fn under_way_elsewhere(
+    store: &OrganizationStore,
+    member_id: Option<&str>,
+    now: i64,
+) -> Result<Option<MigrationLeaseRecord>, Error> {
+    Ok(store
+        .migration_lease(ORGANIZATION_LEASE)
+        .await?
+        .filter(|lease| lease.expires_at > now)
+        .filter(|lease| member_id != Some(lease.holder_member_id.as_str())))
 }
 
 /// Who may upgrade (spec requirement 3), off the acting member's verified row: whoever holds

@@ -2306,102 +2306,107 @@ mod tests {
     /// upgrade declared after 857 and an addition declared after it: opening runs nothing of the
     /// upgrade, still runs the addition, lists it in `applied_step` above a version that stays at
     /// 7, and leaves both read-write with both floors and both legacy numbers where they were.
+    /// Opened by a member, and again from the start by a manager (ticket 19), since a manager
+    /// holds the permission to upgrade and still runs nothing of it by opening.
     #[tokio::test]
     async fn a_later_upgrade_waits_and_the_addition_after_it_still_arrives() {
-        let credentials = Memory::new();
-        let directory = scratch("later-upgrade");
-        let (store, _, member, workspace_id) = organization(&credentials, &directory).await;
-        let store = store.declaring(format_ladder(&[later_upgrade(4), ADDITION]));
-        let migrations = workspace_ladder(&[
-            ("0007_fake_upgrade", UPGRADE_SQL, later_upgrade(8)),
-            ("0008_fake_addition", ADDITION_SQL, ADDITION),
-        ]);
-        let pipeline = LocalPipeline::start().await;
+        for role in [permission::MEMBER, permission::MANAGER] {
+            let credentials = Memory::new();
+            let directory = scratch(&format!("later-upgrade-{role}"));
+            let (store, owner, _, workspace_id) = organization(&credentials, &directory).await;
+            let store = store.declaring(format_ladder(&[later_upgrade(4), ADDITION]));
+            let member = invited(&store, &owner, &workspace_id, "nadia.opens", role).await;
+            let migrations = workspace_ladder(&[
+                ("0007_fake_upgrade", UPGRADE_SQL, later_upgrade(8)),
+                ("0008_fake_addition", ADDITION_SQL, ADDITION),
+            ]);
+            let pipeline = LocalPipeline::start().await;
 
-        apply::apply(&Pipeline::at(&pipeline.url("")), "t", 7)
-            .await
-            .expect("the workspace at 7");
-
-        // the organization: completed, its format left at 3, and the level past the upgrade.
-        assert!(store.complete_schema().await.expect("the completion"));
-        assert_eq!(store.format().await.expect("the format"), Some(3));
-        assert_eq!(
-            store.floors().await.expect("the floors"),
-            Some(Floors {
-                level: 5,
-                read: 3,
-                write: 3
-            })
-        );
-        assert_eq!(
-            store.refuse_another_format().await.expect("readable"),
-            Standing::Writable
-        );
-
-        // the workspace: the upgrade passed over, the addition run.
-        let reached = opened_by(&store, &member, &workspace_id, &pipeline, &migrations).await;
-
-        assert_eq!(reached, 7);
-
-        let (tables, payment) = shape_of(&pipeline, "payment").await;
-
-        assert!(
-            payment.iter().any(|column| column == "note")
-                && !payment.iter().any(|column| column == "remark"),
-            "the upgrade ran: {payment:?}"
-        );
-        assert!(tables.iter().any(|table| table == "receipt_note"));
-        assert!(payment.iter().any(|column| column == "memo"));
-        assert_eq!(
-            read_off(&pipeline, "SELECT version FROM schema_version").await,
-            vec![vec![7]]
-        );
-        assert_eq!(
-            read_off(&pipeline, "SELECT step FROM applied_step").await,
-            vec![vec![9]]
-        );
-        assert_eq!(
-            read_off(&pipeline, "SELECT level, read, write FROM data_floor").await,
-            vec![vec![9, 7, 7]]
-        );
-
-        let (facts, _) = facts_of(&store, &member, &workspace_id).await;
-        let floors = Floors {
-            level: 9,
-            read: 7,
-            write: 7,
-        };
-
-        assert_eq!(facts.schema_version, 7);
-        assert_eq!(
-            store
-                .workspace_floor(&workspace_id)
+            apply::apply(&Pipeline::at(&pipeline.url("")), "t", 7)
                 .await
-                .expect("the floor"),
-            Some(floors)
-        );
-        assert_eq!(
-            floors.standing(migrations.steps.known()),
-            Standing::Writable
-        );
-        assert_eq!(
-            refuse_newer(&store, &facts).await.expect("readable"),
-            Standing::Writable
-        );
-        assert!(
-            !is_pending_over(&migrations, &store, &facts)
-                .await
-                .expect("pending")
-        );
+                .expect("the workspace at 7");
 
-        // a second opening runs nothing, and sends nothing to the workspace.
-        let before = pipeline.request_count();
+            // the organization: completed, its format left at 3, and the level past the upgrade.
+            assert!(store.complete_schema().await.expect("the completion"));
+            assert_eq!(store.format().await.expect("the format"), Some(3));
+            assert_eq!(
+                store.floors().await.expect("the floors"),
+                Some(Floors {
+                    level: 5,
+                    read: 3,
+                    write: 3
+                })
+            );
+            assert_eq!(
+                store.refuse_another_format().await.expect("readable"),
+                Standing::Writable
+            );
 
-        assert_eq!(
-            opened_by(&store, &member, &workspace_id, &pipeline, &migrations).await,
-            7
-        );
-        assert_eq!(pipeline.request_count(), before);
+            // the workspace: the upgrade passed over, the addition run.
+            let reached = opened_by(&store, &member, &workspace_id, &pipeline, &migrations).await;
+
+            assert_eq!(reached, 7);
+
+            let (tables, payment) = shape_of(&pipeline, "payment").await;
+
+            assert!(
+                payment.iter().any(|column| column == "note")
+                    && !payment.iter().any(|column| column == "remark"),
+                "the upgrade ran: {payment:?}"
+            );
+            assert!(tables.iter().any(|table| table == "receipt_note"));
+            assert!(payment.iter().any(|column| column == "memo"));
+            assert_eq!(
+                read_off(&pipeline, "SELECT version FROM schema_version").await,
+                vec![vec![7]]
+            );
+            assert_eq!(
+                read_off(&pipeline, "SELECT step FROM applied_step").await,
+                vec![vec![9]]
+            );
+            assert_eq!(
+                read_off(&pipeline, "SELECT level, read, write FROM data_floor").await,
+                vec![vec![9, 7, 7]]
+            );
+
+            let (facts, _) = facts_of(&store, &member, &workspace_id).await;
+            let floors = Floors {
+                level: 9,
+                read: 7,
+                write: 7,
+            };
+
+            assert_eq!(facts.schema_version, 7);
+            assert_eq!(
+                store
+                    .workspace_floor(&workspace_id)
+                    .await
+                    .expect("the floor"),
+                Some(floors)
+            );
+            assert_eq!(
+                floors.standing(migrations.steps.known()),
+                Standing::Writable
+            );
+            assert_eq!(
+                refuse_newer(&store, &facts).await.expect("readable"),
+                Standing::Writable
+            );
+            assert!(
+                !is_pending_over(&migrations, &store, &facts)
+                    .await
+                    .expect("pending")
+            );
+
+            // a second opening runs nothing, and sends nothing to the workspace.
+            let before = pipeline.request_count();
+
+            assert_eq!(
+                opened_by(&store, &member, &workspace_id, &pipeline, &migrations).await,
+                7
+            );
+            assert_eq!(pipeline.request_count(), before);
+        }
     }
 
     // effort 857, ticket 14: every workspace version shipped from 0.14.0 on carries across.

@@ -35,6 +35,7 @@ use crate::organization::{
     HeldOrganization, Shared,
     member::vault::{ContentKey, seal_content},
     store::{MachineVersionRecord, OrganizationStore},
+    upgrade,
 };
 
 /// How often the heartbeat says this machine is still here: hourly, so a machine's last seen in
@@ -256,6 +257,15 @@ async fn versioned(
         return Ok(false);
     }
 
+    // nothing while another member's upgrade of the organization runs (ticket 19): the heartbeat
+    // after it ends writes the row.
+    if upgrade::under_way_elsewhere(store, held.member_id.as_deref(), now)
+        .await?
+        .is_some()
+    {
+        return Ok(false);
+    }
+
     let standing = store.machine_version(&held.machine_id).await.ok().flatten();
 
     if standing.is_some_and(|row| {
@@ -328,6 +338,17 @@ pub(crate) async fn machine_kept(
     now: i64,
 ) {
     if held.machine_id.is_empty() {
+        return;
+    }
+
+    // **None of it while another member's upgrade of the organization runs** (effort 857, ticket
+    // 19): nothing of this machine's lands between the upgrade's steps, and the beat after it ends
+    // writes what this one would have. A lease that cannot be read holds nothing back, as nothing
+    // here is a refusal.
+    if upgrade::under_way_elsewhere(store, Some(&session.member_id), now)
+        .await
+        .is_ok_and(|upgrading| upgrading.is_some())
+    {
         return;
     }
 

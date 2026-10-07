@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(organization): the organization's upgrade holds every other write
@@ -14,8 +14,8 @@ Found at converge round one: while an organization upgrade runs, every other mac
 
 Traces requirement 1, requirement 5, criterion 1 and criterion 5.
 
-- [ ] An organization write from another session while the organization upgrade's lease is held is refused with a reason, or waits, and lands nothing between the steps; a test covers a signed write and an unsigned one.
-- [ ] The test of a pending upgrade step on open (the floor-moving case in `lease/mod.rs`) runs as a member and as a manager.
+- [x] An organization write from another session while the organization upgrade's lease is held is refused with a reason, or waits, and lands nothing between the steps; a test covers a signed write and an unsigned one.
+- [x] The test of a pending upgrade step on open (the floor-moving case in `lease/mod.rs`) runs as a member and as a manager.
 
 ## Relevant areas
 

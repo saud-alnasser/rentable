@@ -511,6 +511,14 @@ impl OrganizationStore {
         Ok(true)
     }
 
+    /// Hold the replica's connection from every write for one act whatever the verdict, as
+    /// [`OrganizationStore::hold_writes`] holds it below the write floor: while another member's
+    /// upgrade of the organization runs (effort 857, ticket 19), so the act reads and writes
+    /// nothing. Let go of by [`OrganizationStore::release_writes`].
+    pub(crate) async fn hold_every_write(&self) -> Result<(), Error> {
+        floor::hold_writes(&self.connection, Standing::ReadOnly).await
+    }
+
     /// Let the replica's connection write again, after an act [`OrganizationStore::hold_writes`]
     /// held. A pragma that cannot be set is logged rather than raised: the act has answered.
     pub(crate) async fn release_writes(&self) {

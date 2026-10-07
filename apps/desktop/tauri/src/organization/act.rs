@@ -34,7 +34,8 @@ use crate::{
 
 use super::{
     session::{self, MemberSession},
-    store::OrganizationStore,
+    store::{MigrationLeaseRecord, OrganizationStore},
+    upgrade,
 };
 
 /// What an act is handed: the signed-in member's session, for writing, and their organization
@@ -69,25 +70,45 @@ pub async fn as_member<T>(
     act: impl AsyncFnOnce(Acting<'_>) -> Result<T, Error>,
 ) -> Result<T, Error> {
     let acted = if_member(app_state, pull, async move |Acting { member, store }| {
-        // **Below the organization's write floor the act reads and writes nothing** (effort 857,
-        // ticket 05): the replica's connection refuses every write for the act's length, and the
+        // **While another member upgrades the organization the act writes nothing either**
+        // (effort 857, ticket 19): nothing of this machine's lands between the upgrade's steps,
+        // and the refusal names the upgrade as the reason.
+        let upgrading =
+            match upgrade::under_way_elsewhere(store, Some(&member.member_id), store.clock().now())
+                .await
+            {
+                Ok(upgrading) => upgrading,
+                Err(error) => return (Err(error), false),
+            };
+        // **Below the organization's write floor the act writes nothing** (effort 857, ticket
+        // 05): the replica's connection refuses every write for the act's length, and the
         // refusal is answered with the version as the reason. A read goes on, so the acts that
         // only read need nothing of their own.
         let held = match store.hold_writes().await {
             Ok(held) => held,
             Err(error) => return (Err(error), false),
         };
+
+        if !held
+            && upgrading.is_some()
+            && let Err(error) = store.hold_every_write().await
+        {
+            return (Err(error), false);
+        }
+
         let acted = act(Acting {
             member: &mut *member,
             store,
         })
         .await;
 
-        if held {
+        if held || upgrading.is_some() {
             store.release_writes().await;
         }
 
-        let acted = acted.map_err(|error| refused_by_version(held, error));
+        let acted = acted
+            .map_err(|error| refused_by_version(held, error))
+            .map_err(|error| refused_by_upgrade(upgrading.as_ref(), error));
         let ended_alone = matches!(
             acted,
             Err(Error::Refused {
@@ -155,6 +176,17 @@ fn refused_by_version(held: bool, error: Error) -> Error {
         )
     } else {
         error
+    }
+}
+
+/// The engine's refusal of a write during an act held while another member's upgrade of the
+/// organization runs, as the refusal a person is told; any other error as it came.
+fn refused_by_upgrade(upgrading: Option<&MigrationLeaseRecord>, error: Error) -> Error {
+    match upgrading {
+        Some(lease) if crate::database::floor::refused_a_write(&error) => {
+            upgrade::under_way(&lease.holder_member_id, lease.expires_at)
+        }
+        _ => error,
     }
 }
 
