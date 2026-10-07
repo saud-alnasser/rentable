@@ -41,6 +41,15 @@
 //! already has rows, and under what lease, is `organization/lease/`; creating a workspace
 //! already at the current schema is [`apply`], which is the same transaction from nothing.
 //!
+//! **Opening a workspace runs what [`bring_up`] runs, and that is not always a prefix** (effort
+//! 857, ticket 03). Every step shipped before 857 runs as it always did, and so does every step
+//! declared after it as an addition; one declared an upgrade is passed over until the explicit
+//! act, and the additions after it still run. So the workspace keeps `schema_version` as "every
+//! step up to here has run" and lists any step above it that ran in `applied_step`; the check
+//! builds its fresh database from that version's steps and the listed ones ([`fresh_of`]); and the
+//! first step declared after 857 to run writes `data_floor`, holding the floors read before it.
+//! A workspace only 0.20's steps have reached holds neither table, exactly as 0.20 left it.
+//!
 //! **The same stream is what a workspace is copied over** before a pending migration changes it
 //! (effort 838, tickets 28 and 30). [`OverThePipeline`] answers `backup.rs` the workspace's schema
 //! and rows with the credential the migration goes over, in one transaction on one stream held
@@ -59,7 +68,12 @@ use serde_json::{Value, json};
 use sqlx::{ConnectOptions, sqlite::SqliteConnectOptions};
 
 use crate::{
-    backup, diagnostics,
+    backup,
+    database::{
+        floor::{self, Floors, Standing, WORKSPACE_FLOOR_TABLE},
+        step::{Kind, Steps, WORKSPACE_STEPS},
+    },
+    diagnostics,
     error::{Error, RefusalReason},
     organization::workspace::remote::{
         OverThePipeline, Pipeline, decoded, decoded_row, decoded_rows, execute, refused_at,
@@ -124,14 +138,24 @@ pub fn statements_between(from: usize, up_to: usize) -> Vec<String> {
 /// migrations and the version table, applied to an in-memory SQLite. Built once per version per
 /// process, since it is the same every time.
 pub async fn fresh(version: usize) -> Result<Shape, Error> {
-    static BUILT: OnceLock<Mutex<HashMap<usize, Shape>>> = OnceLock::new();
+    fresh_of(&SHIPPED, &(1..=version as u32).collect::<Vec<u32>>()).await
+}
+
+/// The shape a fresh workspace database that has run the steps `run` of `migrations` is built
+/// with (effort 857, ticket 03): their statements in order and the version table, and where any
+/// of them was declared after 857, the tables that record what ran and the floors
+/// ([`Migrations::records`]). Built once per ladder and set of steps per process.
+pub async fn fresh_of(migrations: &Migrations, run: &[u32]) -> Result<Shape, Error> {
+    type Built = HashMap<(usize, Vec<u32>), Shape>;
+    static BUILT: OnceLock<Mutex<Built>> = OnceLock::new();
 
     let built = BUILT.get_or_init(Mutex::default);
+    let key = (migrations.files.as_ptr() as usize, run.to_vec());
 
     if let Some(shape) = built
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .get(&version)
+        .get(&key)
     {
         return Ok(shape.clone());
     }
@@ -140,13 +164,20 @@ pub async fn fresh(version: usize) -> Result<Shape, Error> {
         .foreign_keys(false)
         .connect()
         .await?;
-
-    for statement in statements(version)
+    let mut made: Vec<String> = run
         .iter()
-        .map(String::as_str)
-        .chain([VERSION_MADE])
-    {
-        sqlx::query(sqlx::AssertSqlSafe(statement))
+        .flat_map(|number| migrations.statements_of(*number))
+        .collect();
+
+    made.push(VERSION_MADE.to_string());
+
+    if migrations.records(run) {
+        made.push(APPLIED_MADE.to_string());
+        made.push(FLOOR_MADE.to_string());
+    }
+
+    for statement in &made {
+        sqlx::query(sqlx::AssertSqlSafe(statement.as_str()))
             .execute(&mut connection)
             .await?;
     }
@@ -156,9 +187,102 @@ pub async fn fresh(version: usize) -> Result<Shape, Error> {
     built
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .insert(version, shape.clone());
+        .insert(key, shape.clone());
 
     Ok(shape)
+}
+
+/// The table a workspace lists the steps it ran above its `schema_version` in (effort 857, ticket
+/// 03). A step waiting for the explicit upgrade is passed over and the additions after it still
+/// run, so what ran stops being a prefix: `schema_version` keeps meaning every step up to it has
+/// run, and this lists any step above it that has.
+pub const APPLIED_TABLE: &str = "applied_step";
+
+/// [`APPLIED_TABLE`], made with the first step declared after 857 that runs.
+const APPLIED_MADE: &str = "CREATE TABLE IF NOT EXISTS \"applied_step\" (\
+                            \"step\" INTEGER PRIMARY KEY, \
+                            \"applied_at\" INTEGER NOT NULL)";
+
+/// The one-row table a workspace keeps its floors in (`database/floor.rs`), made with the first
+/// step declared after 857 that runs, which writes its row.
+const FLOOR_MADE: &str = "CREATE TABLE IF NOT EXISTS \"data_floor\" (\
+                          \"id\" INTEGER PRIMARY KEY CHECK (\"id\" = 1), \
+                          \"level\" INTEGER NOT NULL, \
+                          \"read\" INTEGER NOT NULL, \
+                          \"write\" INTEGER NOT NULL)";
+
+/// Which of the two record tables a workspace already holds.
+const RECORDS_LISTED: &str = "SELECT \"name\" FROM sqlite_master WHERE \"type\" = 'table' \
+                              AND \"name\" IN ('applied_step', 'data_floor')";
+
+/// The workspace's ladder as the open path is handed it (effort 857, ticket 03): the migration
+/// files and the step each is declared as. [`SHIPPED`] in production, and a ladder of a test's
+/// own under test, since no step declared after 857 has shipped yet.
+#[derive(Clone, Copy, Debug)]
+pub struct Migrations {
+    /// every migration file, `files[i]` being step `i + 1`.
+    pub files: &'static [(&'static str, &'static str)],
+    /// the declaration of each, in the same order.
+    pub steps: Steps,
+}
+
+/// The ladder this build ships: the embedded migrations and `database/step.rs`'s declarations.
+pub const SHIPPED: Migrations = Migrations {
+    files: WORKSPACE_MIGRATIONS,
+    steps: Steps {
+        first: 1,
+        declared: WORKSPACE_STEPS,
+    },
+};
+
+impl Migrations {
+    /// The statements of step `number`, split at `drizzle-kit`'s breakpoints.
+    fn statements_of(&self, number: u32) -> Vec<String> {
+        self.files
+            .get(number as usize - 1)
+            .map(|(_, sql)| {
+                sql.split(STATEMENT_BREAKPOINT)
+                    .map(|statement| statement.trim().to_string())
+                    .filter(|statement| !statement.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// Whether a workspace that has run the steps `run` keeps the records of effort 857: the
+    /// steps above its version, and its floors. It does once any step declared after 857 has run
+    /// on it, and before that it is exactly what 0.20 left, with nothing added.
+    pub fn records(&self, run: &[u32]) -> bool {
+        let settled = self.steps.settled();
+
+        run.iter().any(|number| *number > settled)
+    }
+
+    /// What `before` becomes once the steps `ran` have run, taking the workspace to `level`: an
+    /// addition leaves both floors where they were, and a step shipped before 857, an upgrade at
+    /// its own number, raises them to it, as it always did.
+    fn raised(&self, before: Floors, ran: &[u32], level: u32) -> Floors {
+        ran.iter()
+            .filter_map(|number| self.steps.step(*number))
+            .fold(
+                Floors {
+                    level: level.max(before.level),
+                    ..before
+                },
+                |floors, step| match step.kind {
+                    Kind::Upgrade {
+                        read_floor,
+                        write_floor,
+                        ..
+                    } => Floors {
+                        read: floors.read.max(read_floor.unwrap_or(0)),
+                        write: floors.write.max(write_floor.unwrap_or(0)),
+                        ..floors
+                    },
+                    Kind::Addition => floors,
+                },
+            )
+    }
 }
 
 /// What [`apply_between`] found and did.
@@ -201,19 +325,23 @@ pub async fn apply_between(
     migrated
 }
 
-/// The transaction [`apply_between`] runs on `stream`, which it rolls back where this fails.
-async fn migrated_on(
+/// The transaction opened on `stream`, and the workspace's own version read inside it: the row,
+/// or `from` where it has none. Answers that version and every answer of the opening request.
+async fn opened_on(
     stream: &OverThePipeline<'_>,
     from: usize,
-    up_to: usize,
-) -> Result<Migrated, Error> {
+    also: &[&str],
+) -> Result<(usize, Vec<Value>), Error> {
     let opened = stream
         .exchanged(
-            vec![
+            [
                 execute("BEGIN"),
                 execute(VERSION_MADE),
                 execute(VERSION_READ),
-            ],
+            ]
+            .into_iter()
+            .chain(also.iter().map(|sql| execute(sql)))
+            .collect(),
             false,
         )
         .await?;
@@ -246,27 +374,75 @@ async fn migrated_on(
         None => from,
     };
 
+    Ok((at, opened))
+}
+
+/// The transaction on `stream` ended with nothing in it kept.
+async fn rolled_back(stream: &OverThePipeline<'_>) -> Result<(), Error> {
+    let ended = stream.exchanged(vec![execute("ROLLBACK")], true).await?;
+
+    if refused_at(&ended).is_some() {
+        diagnostics::warn("organization.migrate.rollbackRefused").write();
+    }
+
+    Ok(())
+}
+
+/// The workspace refused for having been upgraded past `known`, which this build knows.
+fn newer_than(at: impl std::fmt::Display, known: impl std::fmt::Display) -> Error {
+    Error::refused(
+        RefusalReason::WorkspaceNewer,
+        format!(
+            "the workspace was upgraded by a newer rentable (schema {at}, and this one knows \
+             {known}). update rentable to open it; nothing was changed"
+        ),
+    )
+}
+
+/// The transaction [`apply_between`] runs on `stream`, which it rolls back where this fails.
+async fn migrated_on(
+    stream: &OverThePipeline<'_>,
+    from: usize,
+    up_to: usize,
+) -> Result<Migrated, Error> {
+    let (at, _) = opened_on(stream, from, &[]).await?;
+
     if at > up_to {
-        return Err(Error::refused(
-            RefusalReason::WorkspaceNewer,
-            format!(
-                "the workspace was upgraded by a newer rentable (schema {at}, and this one knows \
-                 {up_to}). update rentable to open it; nothing was changed"
-            ),
-        ));
+        return Err(newer_than(at, up_to));
     }
 
     if at == up_to {
-        let ended = stream.exchanged(vec![execute("ROLLBACK")], true).await?;
-
-        if refused_at(&ended).is_some() {
-            diagnostics::warn("organization.migrate.rollbackRefused").write();
-        }
+        rolled_back(stream).await?;
 
         return Ok(Migrated::AlreadyAt(at));
     }
 
-    let tail = statements_between(at, up_to);
+    committed(
+        stream,
+        &statements_between(at, up_to),
+        &fresh(up_to).await?,
+        up_to,
+        &format!("from {at} to {up_to}"),
+    )
+    .await?;
+
+    Ok(Migrated::Applied {
+        from: at,
+        to: up_to,
+    })
+}
+
+/// The `tail` run as one batch on `stream`, each statement only where the one before it answered
+/// `ok`, the check's reads after it compared with `expected`, and the version row at `version`
+/// written and committed: what every migration of a workspace ends with, whatever it applies.
+/// `between` says which, as the refusals name it.
+async fn committed(
+    stream: &OverThePipeline<'_>,
+    tail: &[String],
+    expected: &Shape,
+    version: usize,
+    between: &str,
+) -> Result<(), Error> {
     let steps: Vec<Value> = tail
         .iter()
         .enumerate()
@@ -296,8 +472,7 @@ async fn migrated_on(
         return Err(Error::refused(
             RefusalReason::DatabaseRefused,
             format!(
-                "the workspace database refused the migration from {at} to {up_to}, and nothing \
-                 was changed"
+                "the workspace database refused the migration {between}, and nothing was changed"
             ),
         ));
     }
@@ -317,8 +492,8 @@ async fn migrated_on(
             return Err(Error::refused(
                 RefusalReason::DatabaseRefused,
                 format!(
-                    "statement {index} of the migration from {at} to {up_to} was refused by the \
-                     database, and nothing of it was kept"
+                    "statement {index} of the migration {between} was refused by the database, \
+                     and nothing of it was kept"
                 ),
             ));
         }
@@ -328,8 +503,8 @@ async fn migrated_on(
         return Err(Error::refused(
             RefusalReason::DatabaseRefused,
             format!(
-                "the workspace database refused check {index} of the migration from {at} to \
-                 {up_to}, and nothing of it was kept"
+                "the workspace database refused check {index} of the migration {between}, and \
+                 nothing of it was kept"
             ),
         ));
     }
@@ -352,14 +527,14 @@ async fn migrated_on(
     };
 
     schema::as_built(
-        &format!("the workspace migrated from {at} to {up_to}"),
+        &format!("the workspace migrated {between}"),
         &found,
-        &fresh(up_to).await?,
+        expected,
     )?;
 
     let committed = stream
         .exchanged(
-            vec![execute(&version_written(up_to)), execute("COMMIT")],
+            vec![execute(&version_written(version)), execute("COMMIT")],
             true,
         )
         .await?;
@@ -368,16 +543,246 @@ async fn migrated_on(
         return Err(Error::refused(
             RefusalReason::DatabaseRefused,
             format!(
-                "the workspace database refused request {index} committing the migration from \
-                 {at} to {up_to}, and nothing of it was kept"
+                "the workspace database refused request {index} committing the migration \
+                 {between}, and nothing of it was kept"
             ),
         ));
     }
 
-    Ok(Migrated::Applied {
+    Ok(())
+}
+
+/// What opening a workspace found and ran ([`bring_up`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Brought {
+    /// the version its own row said, or the caller's where it had none.
+    pub from: u32,
+    /// every step run, in order; none where nothing was due.
+    pub ran: Vec<u32>,
+    /// its version now: every step up to it has run.
+    pub version: u32,
+    /// the floors its own `data_floor` records now, where it keeps them.
+    pub floors: Option<Floors>,
+}
+
+/// Run on the workspace behind `pipeline` every step of `migrations` that opening it runs
+/// (effort 857, ticket 03), in one transaction with the check and its version row, or not at all.
+///
+/// **What runs is [`Steps::on_open`]'s**: each step above the version that it has not run yet,
+/// shipped before 857 or declared an addition. A step declared after 857 as an upgrade is passed
+/// over and the additions after it still run, which is why the workspace lists in `applied_step`
+/// any step it ran above its version, and why the fresh database it is checked against is built
+/// from that version's steps and the listed ones ([`fresh_of`]).
+///
+/// **The first step declared after 857 to run writes the floors** into `data_floor`, as they were
+/// read before it with the level it took the workspace to: the version alone would otherwise read
+/// as raised floors (`database/floor.rs`). An addition moves neither floor.
+///
+/// **Nothing runs on a workspace this build may not write**: one whose own floors put it below the
+/// read floor is refused as `WorkspaceNewer`, as an older build opening a newer one always was,
+/// and one below the write floor is left as it is. `from` and `token` are [`apply_between`]'s.
+pub async fn bring_up(
+    pipeline: &Pipeline,
+    token: &str,
+    migrations: &Migrations,
+    from: usize,
+    now: i64,
+) -> Result<Brought, Error> {
+    let stream = OverThePipeline::migrating(pipeline, token);
+    let brought = brought_on(&stream, migrations, from, now).await;
+
+    if brought.is_err() {
+        stream.abandoned().await;
+    }
+
+    brought
+}
+
+/// The transaction [`bring_up`] runs on `stream`, which it rolls back where this fails.
+async fn brought_on(
+    stream: &OverThePipeline<'_>,
+    migrations: &Migrations,
+    from: usize,
+    now: i64,
+) -> Result<Brought, Error> {
+    let (at, opened) = opened_on(stream, from, &[RECORDS_LISTED]).await?;
+    let at = floor::number(at as i64)?;
+    let listed: Vec<String> = rows_of(&opened, 3)
+        .iter()
+        .filter_map(|row| match decoded_row(row).ok()?.into_iter().next() {
+            Some(turso::Value::Text(name)) => Some(name),
+            _ => None,
+        })
+        .collect();
+    let (applied, recorded) = records_read(stream, &listed).await?;
+    let before = recorded.unwrap_or(Floors::legacy(at));
+    let known = migrations.steps.known();
+
+    match before.standing(known) {
+        Standing::Unreadable => return Err(newer_than(before.level.max(at), known)),
+        Standing::ReadOnly => {
+            rolled_back(stream).await?;
+
+            return Ok(Brought {
+                from: at,
+                ran: Vec::new(),
+                version: at,
+                floors: recorded,
+            });
+        }
+        Standing::Writable => {}
+    }
+
+    let ran = migrations.steps.on_open(at, &applied);
+
+    if ran.is_empty() {
+        rolled_back(stream).await?;
+
+        return Ok(Brought {
+            from: at,
+            ran,
+            version: at,
+            floors: recorded,
+        });
+    }
+
+    // every step the workspace holds once these have run, its version the end of their unbroken
+    // run from the first, and what lies above it listed.
+    let mut holds: Vec<u32> = (1..=at).chain(applied).chain(ran.iter().copied()).collect();
+
+    holds.sort_unstable();
+    holds.dedup();
+
+    let mut version = at;
+
+    while holds.contains(&(version + 1)) {
+        version += 1;
+    }
+
+    let above: Vec<u32> = holds
+        .iter()
+        .copied()
+        .filter(|number| *number > version)
+        .collect();
+    let level = holds.last().copied().unwrap_or(version);
+    let floors = migrations
+        .records(&holds)
+        .then(|| migrations.raised(before, &ran, level));
+    let mut tail: Vec<String> = ran
+        .iter()
+        .flat_map(|number| migrations.statements_of(*number))
+        .collect();
+
+    if let Some(floors) = floors {
+        tail.push(APPLIED_MADE.to_string());
+        tail.push(FLOOR_MADE.to_string());
+        tail.push(format!(
+            "DELETE FROM \"{APPLIED_TABLE}\" WHERE \"step\" <= {version}"
+        ));
+        tail.extend(above.iter().map(|number| {
+            format!(
+                "INSERT OR IGNORE INTO \"{APPLIED_TABLE}\" (\"step\", \"applied_at\") \
+                 VALUES ({number}, {now})"
+            )
+        }));
+        tail.push(format!(
+            "INSERT INTO \"{WORKSPACE_FLOOR_TABLE}\" (\"id\", \"level\", \"read\", \"write\") \
+             VALUES (1, {}, {}, {}) ON CONFLICT(\"id\") DO UPDATE SET \
+             \"level\" = excluded.\"level\", \"read\" = excluded.\"read\", \
+             \"write\" = excluded.\"write\"",
+            floors.level, floors.read, floors.write
+        ));
+    }
+
+    committed(
+        stream,
+        &tail,
+        &fresh_of(migrations, &holds).await?,
+        version as usize,
+        &format!("from {at} to {level}"),
+    )
+    .await?;
+
+    Ok(Brought {
         from: at,
-        to: up_to,
+        ran,
+        version,
+        floors: floors.or(recorded),
     })
+}
+
+/// The steps a workspace lists above its version and the floors it records, read inside the
+/// transaction from the record tables `listed` says it holds; none of either where it holds
+/// neither, which is every workspace no step declared after 857 has reached.
+async fn records_read(
+    stream: &OverThePipeline<'_>,
+    listed: &[String],
+) -> Result<(Vec<u32>, Option<Floors>), Error> {
+    let holds = |table: &str| listed.iter().any(|name| name == table);
+    let mut reads = Vec::new();
+
+    if holds(APPLIED_TABLE) {
+        reads.push(execute(&format!(
+            "SELECT \"step\" FROM \"{APPLIED_TABLE}\" ORDER BY \"step\""
+        )));
+    }
+
+    if holds(WORKSPACE_FLOOR_TABLE) {
+        reads.push(execute(&format!(
+            "SELECT \"level\", \"read\", \"write\" FROM \"{WORKSPACE_FLOOR_TABLE}\" \
+             WHERE \"id\" = 1"
+        )));
+    }
+
+    if reads.is_empty() {
+        return Ok((Vec::new(), None));
+    }
+
+    let read = stream.exchanged(reads, false).await?;
+
+    if let Some(index) = refused_at(&read) {
+        return Err(Error::refused(
+            RefusalReason::DatabaseRefused,
+            format!(
+                "the workspace database refused read {index} of what it records, and nothing was \
+                 changed"
+            ),
+        ));
+    }
+
+    let number_in = |cell: Option<turso::Value>| match cell {
+        Some(turso::Value::Integer(value)) => floor::number(value),
+        _ => Err(unreadable("a step number")),
+    };
+    let mut at = 0;
+    let mut applied = Vec::new();
+
+    if holds(APPLIED_TABLE) {
+        for row in decoded_rows(&read, at)? {
+            applied.push(number_in(row.into_iter().next())?);
+        }
+
+        at += 1;
+    }
+
+    let floors = if holds(WORKSPACE_FLOOR_TABLE) {
+        match decoded_rows(&read, at)?.into_iter().next() {
+            Some(row) => {
+                let mut cells = row.into_iter();
+
+                Some(Floors {
+                    level: number_in(cells.next())?,
+                    read: number_in(cells.next())?,
+                    write: number_in(cells.next())?,
+                })
+            }
+            None => None,
+        }
+    } else {
+        None
+    };
+
+    Ok((applied, floors))
 }
 
 #[cfg(test)]

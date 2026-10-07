@@ -33,6 +33,18 @@
 //! `workspace_override` and touches nothing else, but a build that does not know it grants a member
 //! more than their override allows. Both raise the read floor as well as the write floor, which is
 //! what their number already says.
+//!
+//! **And every one of them is marked [`Step::shipped_before_857`], and still runs on open**
+//! (requirement 1, amended at /implement): format 1 to 2 on the owner's machine, the rest by the
+//! first full-access member under the lease, exactly as 0.20 runs them. Data in users' hands today
+//! stands behind them, and holding `0006` for a manager would lock members out of their payments.
+//! The rule that an upgrade waits for the explicit act binds every step declared after them, and
+//! [`Step::runs_on_open`] is the one place that says which run.
+//!
+//! *Here, under the database, since effort 857's ticket 03*: the organization's lease and store
+//! read these declarations, and nothing but the composition root may name `upgrade`
+//! (`guard/cycle.rs`). It was `upgrade/step.rs` until then, beside `floor.rs`, which ticket 04
+//! moved here for the same reason.
 
 /// One step of a database, as it is declared.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -42,6 +54,64 @@ pub struct Step {
     /// the key of the sentence that says what the step adds or changes, under
     /// `organization.upgrade.steps` in both locales: what the upgrade sheet shows.
     pub describes: &'static str,
+    /// whether it shipped before effort 857, and so still runs on open whatever its kind, as 0.20
+    /// ran it. Never set on a step declared after.
+    pub shipped_before_857: bool,
+}
+
+impl Step {
+    /// Whether opening the data runs this step, by whoever may write it: every step shipped before
+    /// effort 857, and every addition. Any other step waits for the explicit upgrade.
+    pub fn runs_on_open(&self) -> bool {
+        self.shipped_before_857 || self.kind == Kind::Addition
+    }
+}
+
+/// One ladder's declarations as a runner is handed them: the number of its first step and every
+/// step in order. [`Ladder::steps`] in production, and a ladder of a test's own under test.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Steps {
+    /// the number of the first step: 1 on the workspace's ladder, 2 on the organization's.
+    pub first: u32,
+    /// every step, in order.
+    pub declared: &'static [Step],
+}
+
+impl Steps {
+    /// The highest step this ladder knows.
+    pub fn known(&self) -> u32 {
+        self.first + self.declared.len() as u32 - 1
+    }
+
+    /// The step numbered `number`, where the ladder declares one.
+    pub fn step(&self, number: u32) -> Option<&'static Step> {
+        number
+            .checked_sub(self.first)
+            .and_then(|index| self.declared.get(index as usize))
+    }
+
+    /// The last step of the unbroken run shipped before effort 857, from the first: as far as the
+    /// numbers builds before 857 read (the organization's `workspace.schema_version`, the `format`
+    /// row) are moved on open.
+    pub fn settled(&self) -> u32 {
+        let shipped = self
+            .declared
+            .iter()
+            .take_while(|step| step.shipped_before_857)
+            .count() as u32;
+
+        self.first + shipped - 1
+    }
+
+    /// The steps opening data that has run every step up to `level`, and `applied` above it, runs:
+    /// each one above `level` this ladder knows, not yet applied, that [`Step::runs_on_open`]. A
+    /// step waiting for the explicit upgrade is passed over, and the additions after it still run.
+    pub fn on_open(&self, level: u32, applied: &[u32]) -> Vec<u32> {
+        (level.saturating_add(1)..=self.known())
+            .filter(|number| !applied.contains(number))
+            .filter(|number| self.step(*number).is_some_and(Step::runs_on_open))
+            .collect()
+    }
 }
 
 /// What a step may do, and so who runs it.
@@ -78,6 +148,14 @@ impl Ladder {
         }
     }
 
+    /// This ladder's declarations, as a runner is handed them.
+    pub fn declared(self) -> Steps {
+        Steps {
+            first: self.first(),
+            declared: self.steps(),
+        }
+    }
+
     /// The number of the first step: 1 on the workspace's ladder, whose data starts at version 0,
     /// and 2 on the organization's, whose first format is 1 and needed no step to reach.
     pub fn first(self) -> u32 {
@@ -102,7 +180,8 @@ impl Ladder {
 }
 
 /// A step shipped before effort 857: an upgrade raising both floors to its own number, which is
-/// what every build released before it enforced by refusing any rise.
+/// what every build released before it enforced by refusing any rise, and run on open as 0.20 ran
+/// it.
 const fn shipped(number: u32, needs_owner: bool, describes: &'static str) -> Step {
     Step {
         kind: Kind::Upgrade {
@@ -111,6 +190,7 @@ const fn shipped(number: u32, needs_owner: bool, describes: &'static str) -> Ste
             needs_owner,
         },
         describes,
+        shipped_before_857: true,
     }
 }
 
@@ -243,7 +323,9 @@ fn only_adds(words: &[String], created: &[String]) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{FORMAT_STEPS, Kind, Ladder, Step, WORKSPACE_STEPS, addition_sql_is_additive};
+    use super::{
+        FORMAT_STEPS, Kind, Ladder, Step, Steps, WORKSPACE_STEPS, addition_sql_is_additive,
+    };
     use crate::{
         organization::{lease::apply, store::FORMAT_VERSION},
         upgrade::format::TRANSITIONS,
@@ -261,12 +343,12 @@ mod tests {
         assert_eq!(
             WORKSPACE_STEPS.len(),
             apply::WORKSPACE_MIGRATIONS.len(),
-            "a workspace migration has no step declared in upgrade/step.rs, or a step no migration"
+            "a workspace migration has no step declared in database/step.rs, or a step no migration"
         );
         assert_eq!(
             FORMAT_STEPS.len(),
             TRANSITIONS.len(),
-            "a change of format has no step declared in upgrade/step.rs, or a step no change"
+            "a change of format has no step declared in database/step.rs, or a step no change"
         );
     }
 
@@ -452,5 +534,85 @@ mod tests {
             "two steps share a sentence: {keys:?}"
         );
         assert!(keys.iter().all(|key| !key.is_empty()));
+    }
+
+    /// A step declared after effort 857, of `kind`.
+    const fn after(kind: Kind, describes: &'static str) -> Step {
+        Step {
+            kind,
+            describes,
+            shipped_before_857: false,
+        }
+    }
+
+    /// An upgrade declared after effort 857, raising the write floor to `number`.
+    const fn upgrade(number: u32, describes: &'static str) -> Step {
+        after(
+            Kind::Upgrade {
+                read_floor: None,
+                write_floor: Some(number),
+                needs_owner: false,
+            },
+            describes,
+        )
+    }
+
+    /// **Ticket 03's first criterion, over the declarations.** Every step shipped before 857
+    /// carries the mark and runs on open, on both ladders, so the open path runs them as 0.20 did;
+    /// and the run of them ends at the workspace's `0006` and the organization's format 3.
+    #[test]
+    fn every_step_shipped_before_857_is_marked_and_runs_on_open() {
+        for ladder in [Ladder::Workspace, Ladder::Format] {
+            for (index, step) in ladder.steps().iter().enumerate() {
+                assert!(
+                    step.shipped_before_857,
+                    "{ladder:?} step {} is not marked",
+                    ladder.first() + index as u32
+                );
+                assert!(step.runs_on_open());
+            }
+        }
+
+        assert_eq!(Ladder::Workspace.declared().settled(), 7);
+        assert_eq!(Ladder::Format.declared().settled(), 3);
+        assert_eq!(
+            Ladder::Workspace.declared().known(),
+            Ladder::Workspace.known()
+        );
+        assert_eq!(Ladder::Format.declared().known(), Ladder::Format.known());
+
+        // a workspace at 5 runs 6 and 7 on open; an organization at format 1 runs 2 and 3.
+        assert_eq!(Ladder::Workspace.declared().on_open(5, &[]), vec![6, 7]);
+        assert_eq!(Ladder::Format.declared().on_open(1, &[]), vec![2, 3]);
+        assert!(Ladder::Workspace.declared().on_open(7, &[]).is_empty());
+    }
+
+    /// **Ticket 03's last criterion, over the declarations.** After the steps shipped before 857,
+    /// an upgrade declared later waits for the explicit act and an addition after it still runs;
+    /// one already applied above the level runs again never; and the settled run stops at the
+    /// first step declared after.
+    #[test]
+    fn opening_passes_over_a_later_upgrade_and_runs_the_additions_after_it() {
+        const DECLARED: &[Step] = &[
+            WORKSPACE_STEPS[0],
+            WORKSPACE_STEPS[1],
+            upgrade(3, "aLaterUpgrade"),
+            after(Kind::Addition, "aLaterAddition"),
+            after(Kind::Addition, "anotherLaterAddition"),
+        ];
+        let steps = Steps {
+            first: 1,
+            declared: DECLARED,
+        };
+
+        assert_eq!(steps.known(), 5);
+        assert_eq!(steps.settled(), 2);
+        assert_eq!(steps.on_open(0, &[]), vec![1, 2, 4, 5]);
+        assert_eq!(steps.on_open(2, &[]), vec![4, 5]);
+        assert_eq!(steps.on_open(2, &[4]), vec![5]);
+        assert!(steps.on_open(2, &[4, 5]).is_empty());
+        assert!(steps.on_open(5, &[]).is_empty());
+        assert!(!DECLARED[2].runs_on_open());
+        assert!(DECLARED[3].runs_on_open());
     }
 }

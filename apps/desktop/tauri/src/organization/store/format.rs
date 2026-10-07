@@ -53,12 +53,25 @@ const FIRST_FORMAT_WITH_A_ROW: i64 = 2;
 /// The key of the one `format` row.
 const FORMAT_ID: &str = "format";
 
-/// The one-row table an organization's floors are recorded in by the explicit upgrade (effort 857):
-/// the step a build must know to read it and to write it, beside the format it is in.
+/// The one-row table an organization's floors are recorded in (effort 857), by the first change
+/// declared after 857 to reach it and then by the explicit upgrade: the step a build must know to
+/// read it and to write it, beside the format it is in.
 const ORGANIZATION_FLOOR_TABLE: &str = "organization_floor";
 
 /// The key of the one `organization_floor` row.
 const ORGANIZATION_FLOOR_ID: &str = "floor";
+
+/// one row, the organization's floors, once a step declared after effort 857 has reached it
+/// (ticket 03): an addition records the level it took the organization to beside the floors it
+/// left where they were, and the explicit upgrade raises them (ticket 07). Unsigned, as `format`
+/// is. An addition, created by [`OrganizationStore::complete_schema`]; empty, it records nothing,
+/// and the `format` row is the record.
+pub(super) const ORGANIZATION_FLOOR: &str = "CREATE TABLE IF NOT EXISTS \"organization_floor\" (\
+        \"id\" TEXT PRIMARY KEY NOT NULL, \
+        \"level\" INTEGER NOT NULL, \
+        \"read\" INTEGER NOT NULL, \
+        \"write\" INTEGER NOT NULL, \
+        \"written_at\" INTEGER NOT NULL)";
 
 /// The member column format 1 carried the role word in, and the one it carried the seven-act mask
 /// in: either still standing marks an upgrade that has not finished
@@ -210,9 +223,9 @@ impl OrganizationStore {
     }
 
     /// The organization's floors as an upgrade recorded them, `(level, read, write)`, or `None`
-    /// where none is recorded: no `organization_floor` table, which is every organization before
-    /// effort 857's first upgrade, or a table with no row ([`OrganizationStore::floors`] reads the
-    /// format then).
+    /// where none is recorded: no `organization_floor` table, or one with no row, which is every
+    /// organization no change of format declared after effort 857 has reached
+    /// ([`OrganizationStore::floors`] reads the format then).
     ///
     /// Read against the tables the database reports, so it never fails on a table it does not
     /// have, and writes nothing.
@@ -359,14 +372,19 @@ impl OrganizationStore {
     /// [`OrganizationStore::refuse_another_format`]'s verdict, before it is kept.
     async fn judged(&self) -> Result<Standing, Error> {
         let format = self.format().await?;
+        let steps = self.format_steps;
+        let known = steps.known();
 
+        // a format behind this build's by changes declared after 857 alone is this build's to
+        // read, since those leave the row where it was (ticket 03); one behind a change shipped
+        // before 857 waits for its owner's machine, which runs it on open as it always did.
         match format {
-            Some(version) if version > FORMAT_VERSION => {}
-            Some(FORMAT_VERSION) if !self.carries_format_one().await? => {}
+            Some(version) if version > i64::from(known) => {}
+            Some(version)
+                if version >= i64::from(steps.settled()) && !self.carries_format_one().await? => {}
             _ => return Err(waits_for_its_owner()),
         }
 
-        let known = FORMAT_VERSION as u32;
         let floors = self.floors().await?.ok_or_else(waits_for_its_owner)?;
 
         match floors.standing(known) {
@@ -434,6 +452,36 @@ impl OrganizationStore {
             .expect("the floor row");
     }
 
+    /// Record the organization's floors, `floors`, over whatever its one row said: what
+    /// [`OrganizationStore::complete_schema`] writes once an addition declared after effort 857
+    /// takes the organization past the level recorded (ticket 03). The table is made where this
+    /// replica lacks it.
+    pub(super) async fn record_organization_floor(
+        &self,
+        floors: Floors,
+        now: i64,
+    ) -> Result<(), Error> {
+        self.connection.execute(ORGANIZATION_FLOOR, ()).await?;
+        self.connection
+            .execute(
+                &format!(
+                    "INSERT OR REPLACE INTO \"{ORGANIZATION_FLOOR_TABLE}\" \
+                     (\"id\", \"level\", \"read\", \"write\", \"written_at\") \
+                     VALUES (?, ?, ?, ?, ?)"
+                ),
+                vec![
+                    turso::Value::Text(ORGANIZATION_FLOOR_ID.to_string()),
+                    turso::Value::Integer(i64::from(floors.level)),
+                    turso::Value::Integer(i64::from(floors.read)),
+                    turso::Value::Integer(i64::from(floors.write)),
+                    turso::Value::Integer(now),
+                ],
+            )
+            .await?;
+
+        Ok(())
+    }
+
     /// Where this build stood at the last verdict ([`OrganizationStore::refuse_another_format`]):
     /// what a way in and the heartbeat ask before they write anything of their own.
     pub fn standing(&self) -> Standing {
@@ -499,7 +547,8 @@ impl OrganizationStore {
     /// one written into a remote still in format 1's shape had the owner conclude that another of
     /// their machines had finished, and every sign-in then failed on a column the table lacked.*
     pub async fn is_older(&self) -> Result<bool, Error> {
-        self.is_older_than(FORMAT_VERSION).await
+        self.is_older_than(i64::from(self.format_steps.settled()))
+            .await
     }
 
     /// Whether this is an organization of a format earlier than `shipped`, as

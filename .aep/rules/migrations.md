@@ -41,7 +41,7 @@ which kept their records in one local file, move over by the guided step of
 *The human's call, 2026-10-07 (effort 857), from
 [[efforts/857-updating-never-locks-a-member-out/plan]], under Architecture.*
 
-A new workspace migration or change of format is declared in `apps/desktop/tauri/src/upgrade/step.rs`
+A new workspace migration or change of format is declared in `apps/desktop/tauri/src/database/step.rs`
 in the same commit, as an **addition** or an **upgrade** with the floors it raises, and never in
 its SQL. A test there fails while a migration file or a change of format has no declaration.
 
@@ -57,6 +57,10 @@ its SQL. A test there fails while a migration file or a change of format has no 
   writes it waits for that upgrade.
 - **The ticket that adds a step names its kind in its acceptance criteria**, so review judges the
   meaning, which the shape check cannot.
+- **Steps shipped before 857 are marked `shipped_before_857` and still run on open** as 0.20 ran
+  them, whatever their kind: data in users' hands stands behind them. A new step never carries the
+  mark. An addition declared after them never moves `workspace.schema_version` or the `format` row,
+  and the first one to run on a database writes its floor record (effort 857, ticket 03).
 
 *Why: an addition that stops nobody needs nobody's decision, and anything that can stop someone
 waits for the person who holds the permission to upgrade and has seen who it stops. A step

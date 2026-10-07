@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [01, 04]
 ---
 
@@ -15,11 +15,11 @@ Opening a workspace or an organization on a newer build runs every pending step 
 
 Traces requirement 1, requirement 13, criterion 1 and criterion 13.
 
-- [ ] Every step shipped before 857 carries the `shipped_before_857` mark, and a workspace or organization behind one of them (a workspace at 5 or 6, an organization at format 1 or 2) opens on this build exactly as on 0.20: format 1 to 2 on the owner's machine, the rest by the first full-access member; a test per case.
-- [ ] `lease::upgrade` on open applies pending additions, records any step above `schema_version` in the workspace's `applied_step`, and leaves the organization's `workspace.schema_version` unchanged; the fresh-database check builds from the same prefix and set.
-- [ ] The format runner applies pending organization additions for any member and leaves `format` unchanged; `complete_schema` runs for an organization whose format is behind this build's when only additions separate them.
-- [ ] The first post-857 step applied writes `data_floor` and `workspace_floor` (or `organization_floor`) holding the floors read before it, so a test that applies a fake addition finds the addition applied, both floors and both legacy numbers unchanged, and the data read-write, opened as a member and as a manager.
-- [ ] A test with a fake pending upgrade step declared after 857 opens read-write, runs nothing of that step, and still applies a fake addition declared after it.
+- [x] Every step shipped before 857 carries the `shipped_before_857` mark, and a workspace or organization behind one of them (a workspace at 5 or 6, an organization at format 1 or 2) opens on this build exactly as on 0.20: format 1 to 2 on the owner's machine, the rest by the first full-access member; a test per case.
+- [x] `lease::upgrade` on open applies pending additions, records any step above `schema_version` in the workspace's `applied_step`, and leaves the organization's `workspace.schema_version` unchanged; the fresh-database check builds from the same prefix and set.
+- [x] The format runner applies pending organization additions for any member and leaves `format` unchanged; `complete_schema` runs for an organization whose format is behind this build's when only additions separate them.
+- [x] The first post-857 step applied writes `data_floor` and `workspace_floor` (or `organization_floor`) holding the floors read before it, so a test that applies a fake addition finds the addition applied, both floors and both legacy numbers unchanged, and the data read-write, opened as a member and as a manager.
+- [x] A test with a fake pending upgrade step declared after 857 opens read-write, runs nothing of that step, and still applies a fake addition declared after it.
 
 ## Relevant areas
 

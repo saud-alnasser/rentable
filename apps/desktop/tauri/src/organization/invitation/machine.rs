@@ -1576,6 +1576,8 @@ mod tests {
             "DROP TABLE \"organization_name\"",
             "DROP TABLE \"member_lock\"",
             "DROP TABLE \"machine_version\"",
+            "DROP TABLE \"workspace_floor\"",
+            "DROP TABLE \"organization_floor\"",
             "DROP TABLE \"role\"",
             "DROP TABLE \"certificate\"",
             "DROP TABLE \"revocation\"",

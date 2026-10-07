@@ -5,6 +5,7 @@ pub mod floor;
 mod held;
 mod plugin;
 pub mod proxy;
+pub mod step;
 #[cfg(test)]
 pub(crate) mod test;
 pub mod version;

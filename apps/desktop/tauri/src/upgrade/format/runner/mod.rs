@@ -126,7 +126,7 @@ pub(crate) async fn with_password(
     now: i64,
 ) -> Result<(), Error> {
     with_password_over(
-        TRANSITIONS,
+        on_open(store, TRANSITIONS),
         store,
         remote,
         held,
@@ -201,13 +201,15 @@ pub(crate) async fn with_remembered_key(
     credential: &CredentialSlot,
     now: i64,
 ) -> Result<(), Error> {
-    if !store.is_older_than(shipped(TRANSITIONS)).await? {
+    let transitions = on_open(store, TRANSITIONS);
+
+    if !store.is_older_than(shipped(transitions)).await? {
         return Ok(());
     }
 
     let member_id = held.member_id.as_deref().ok_or_else(waits_for_its_owner)?;
     let (filed_epoch, member_key) = remembered(credentials, &held.id, member_id)?;
-    let reading = reading(store, TRANSITIONS).await?;
+    let reading = reading(store, transitions).await?;
     let member = (reading.members)(store)
         .await?
         .into_iter()
@@ -232,7 +234,7 @@ pub(crate) async fn with_remembered_key(
     upgrade(
         store,
         remote,
-        TRANSITIONS,
+        transitions,
         reading,
         &held.id,
         &pinned,
@@ -262,7 +264,9 @@ pub(crate) async fn with_the_owners_password(
     now: i64,
     refused: impl Fn() -> Error,
 ) -> Result<(), Error> {
-    if !store.is_older_than(shipped(TRANSITIONS)).await? {
+    let transitions = on_open(store, TRANSITIONS);
+
+    if !store.is_older_than(shipped(transitions)).await? {
         return Ok(());
     }
 
@@ -274,7 +278,7 @@ pub(crate) async fn with_the_owners_password(
                 .to_string(),
         })?;
     let key = settled(store, &organization.verifying_key).await?;
-    let reading = reading(store, TRANSITIONS).await?;
+    let reading = reading(store, transitions).await?;
     let opened = vault_opened_by(store, reading, &key, username, password)
         .await?
         .ok_or_else(refused)?;
@@ -282,7 +286,7 @@ pub(crate) async fn with_the_owners_password(
     upgrade(
         store,
         remote,
-        TRANSITIONS,
+        transitions,
         reading,
         &organization.id,
         &organization.verifying_key,
@@ -541,6 +545,17 @@ async fn own_grant(
 /// The format a runner handed `transitions` ships: the one after the last of them.
 fn shipped(transitions: &[Transition]) -> i64 {
     transitions.len() as i64 + 1
+}
+
+/// The changes of `transitions` a sign-in, a resume or a connect walks on open (effort 857, ticket
+/// 03): those shipped before 857, by the steps `store` declares, which its owner's machine still
+/// runs as 0.20 ran them. A change declared after them is never walked here. An upgrade waits for
+/// the explicit act (ticket 07), and an addition's tables reach any member's replica through
+/// [`OrganizationStore::complete_schema`] after the pull, with the `format` row left where it was.
+fn on_open<'t>(store: &OrganizationStore, transitions: &'t [Transition]) -> &'t [Transition] {
+    let settled = store.format_steps().settled().saturating_sub(1) as usize;
+
+    &transitions[..transitions.len().min(settled)]
 }
 
 /// The change of format whose readers find a vault and a grant in the organization as it stands
@@ -3489,5 +3504,115 @@ mod tests {
             vec![format!("format-1-to-{FORMAT_VERSION}-{NOW}.sqlite")]
         );
         assert_upgraded(&store, &older, &older.pinned()).await;
+    }
+
+    /// The shipped changes of format with `later`, declared after effort 857, after them.
+    fn declaring_after(later: crate::database::step::Kind) -> crate::database::step::Steps {
+        use crate::database::step::{FORMAT_STEPS, Step, Steps};
+
+        let declared: Vec<Step> = FORMAT_STEPS
+            .iter()
+            .copied()
+            .chain([Step {
+                kind: later,
+                describes: "aLaterChange",
+                shipped_before_857: false,
+            }])
+            .collect();
+
+        Steps {
+            first: 2,
+            declared: Box::leak(declared.into_boxed_slice()),
+        }
+    }
+
+    /// **Ticket 03's third criterion.** An organization of format 3 opened by a build that knows a
+    /// fourth change, declared after 857 as an addition: a member's sign-in walks nothing, waits for
+    /// nobody and asks nothing of the remote; the completion the pull runs makes the organization
+    /// this build's, records the level the addition took it to beside floors left at 3, and leaves
+    /// the `format` row at 3; and the organization is read-write.
+    #[tokio::test]
+    async fn a_members_sign_in_meets_only_an_addition_and_the_format_stays() {
+        use crate::database::{
+            floor::{Floors, Standing},
+            step::Kind,
+        };
+
+        let (older, store) = upgraded("additions-arrive").await;
+        let store = store.declaring(declaring_after(Kind::Addition));
+        let mina = older.person("mina");
+        let remote = online();
+
+        with_password(
+            &store,
+            &remote,
+            &older.held_by("mina"),
+            mina.username,
+            mina.password,
+            &slot(),
+            NOW,
+        )
+        .await
+        .expect("the member waited for an addition");
+
+        assert!(remote.asked().is_empty(), "{:?}", remote.asked());
+        assert!(store.complete_schema().await.expect("the completion"));
+        assert_eq!(store.format().await.expect("the format"), Some(3));
+        assert_eq!(
+            store.floors().await.expect("the floors"),
+            Some(Floors {
+                level: 4,
+                read: 3,
+                write: 3
+            })
+        );
+        assert_eq!(
+            store.refuse_another_format().await.expect("readable"),
+            Standing::Writable
+        );
+        assert!(!store.is_older().await.expect("the format"));
+    }
+
+    /// The contrast: a fourth change shipped before 857, as every change so far was, is not an
+    /// addition this machine may run. The completion creates nothing and records nothing, and the
+    /// organization waits for its owner, as 0.20 left everybody else waiting.
+    #[tokio::test]
+    async fn a_change_shipped_before_857_still_waits_for_its_owner() {
+        use crate::database::{
+            floor::Floors,
+            step::{FORMAT_STEPS, Kind, Step, Steps},
+        };
+
+        let (_, store) = upgraded("shipped-waits").await;
+        let declared: Vec<Step> = FORMAT_STEPS
+            .iter()
+            .copied()
+            .chain([Step {
+                kind: Kind::Upgrade {
+                    read_floor: Some(4),
+                    write_floor: Some(4),
+                    needs_owner: false,
+                },
+                describes: "aShippedChange",
+                shipped_before_857: true,
+            }])
+            .collect();
+        let store = store.declaring(Steps {
+            first: 2,
+            declared: Box::leak(declared.into_boxed_slice()),
+        });
+        let before = contents(&store).await;
+
+        assert!(store.is_older().await.expect("the format"));
+        assert!(!store.complete_schema().await.expect("the completion"));
+        assert_eq!(
+            reason_of(&store.refuse_another_format().await),
+            Some(RefusalReason::OrganizationOlder)
+        );
+        assert_eq!(contents(&store).await, before, "something was written");
+        assert_eq!(
+            store.floors().await.expect("the floors"),
+            Some(Floors::legacy(3))
+        );
     }
 }

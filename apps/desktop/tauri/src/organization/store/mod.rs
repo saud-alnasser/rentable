@@ -50,7 +50,8 @@ use crate::{
         Database,
         bound::{Bound, SYNC_BOUND, bounded},
         corrupt,
-        floor::Standing,
+        floor::{Floors, Standing},
+        step::{Ladder, Steps},
     },
     error::Error,
     schema,
@@ -90,7 +91,7 @@ pub(crate) use signature::{
 };
 pub use workspace::{GrantRecord, WorkspaceOverrideRecord, WorkspaceRecord, pins_of};
 
-/// The twenty tables, in the order the schema creates them. A test pins this list against what
+/// The twenty-two tables, in the order the schema creates them. A test pins this list against what
 /// the database reports, so a table added anywhere is added here or fails there.
 ///
 /// **A table added after format 3 goes last, with no change of format** (effort 846): the two
@@ -98,9 +99,10 @@ pub use workspace::{GrantRecord, WorkspaceOverrideRecord, WorkspaceRecord, pins_
 /// [`OrganizationStore::complete_schema`] after a pull, and by the change to format 3 with
 /// `workspace_override`, so a walk arriving at this format builds what a fresh one is built with.
 /// `organization_name` came after them the same way (effort 851), and `member_lock` after it, and
-/// `machine_version` after that (effort 857), an addition that moves no floor; the next table goes
-/// after it.
-pub const TABLES: [&str; 20] = [
+/// `machine_version` after that (effort 857), an addition that moves no floor, then `workspace_floor`
+/// and `organization_floor` (effort 857, ticket 03), where a database's floors are recorded once a
+/// step declared after 857 has run on it; the next table goes after them.
+pub const TABLES: [&str; 22] = [
     "format",
     "organization",
     "role",
@@ -121,6 +123,8 @@ pub const TABLES: [&str; 20] = [
     "organization_name",
     "member_lock",
     "machine_version",
+    "workspace_floor",
+    "organization_floor",
 ];
 
 /// How many of [`TABLES`] format 2 held: every one but `workspace_override`, which format 3 adds
@@ -137,7 +141,7 @@ const FORMAT_TWO_TABLES: usize = 14;
 ///
 /// `grant` is quoted everywhere because it is a keyword in most dialects, and a statement that
 /// works in SQLite and fails elsewhere is a statement worth spelling defensively once.
-const SCHEMA: [&str; 20] = [
+const SCHEMA: [&str; 22] = [
     format::FORMAT,
     setup::ORGANIZATION,
     role::ROLE,
@@ -158,6 +162,8 @@ const SCHEMA: [&str; 20] = [
     setup::ORGANIZATION_NAME,
     member::MEMBER_LOCK,
     session::MACHINE_VERSION,
+    workspace::WORKSPACE_FLOOR,
+    format::ORGANIZATION_FLOOR,
 ];
 
 /// The organization replica on this machine.
@@ -180,6 +186,10 @@ pub struct OrganizationStore {
     /// first verdict, which every way in reaches before it writes. What a way in and the heartbeat
     /// ask before they write anything of their own.
     standing: std::sync::Mutex<Standing>,
+    /// the changes of format this build declares (`database/step.rs`): which of them run on open,
+    /// and the format it knows. [`Ladder::Format`] in production, and a ladder of a test's own
+    /// under test.
+    format_steps: Steps,
 }
 
 impl std::fmt::Debug for OrganizationStore {
@@ -257,6 +267,7 @@ impl OrganizationStore {
             clock,
             bound: SYNC_BOUND,
             standing: std::sync::Mutex::new(Standing::Writable),
+            format_steps: Ladder::Format.declared(),
         })
     }
 
@@ -266,6 +277,20 @@ impl OrganizationStore {
     pub(crate) fn with_bound(mut self, bound: Bound) -> Self {
         self.bound = bound;
         self
+    }
+
+    /// The same store judging and completing the organization by `steps`, a ladder of the test's
+    /// own: a change of format declared after effort 857, which no shipped step is yet.
+    #[cfg(test)]
+    pub(crate) fn declaring(mut self, steps: Steps) -> Self {
+        self.format_steps = steps;
+        self
+    }
+
+    /// The changes of format this store judges and completes the organization by: which run on
+    /// open, and the format this build knows.
+    pub(crate) fn format_steps(&self) -> Steps {
+        self.format_steps
     }
 
     /// The clock the replica was opened with.
@@ -368,25 +393,29 @@ impl OrganizationStore {
     /// older organization, whose missing table is one of the things that tell it apart; one
     /// carrying a `format` row beside format 1's table or columns is older too (ticket 25), and a
     /// member's pull creates nothing in it.
+    ///
+    /// **This build's format means any format that only additions separate from it** (effort 857,
+    /// ticket 03): one at or past the last change shipped before 857, which still runs on open on
+    /// the owner's machine as it always did, and no newer than this build knows. A change declared
+    /// after 857 leaves the `format` row where it was, since the builds before 857 refuse any other
+    /// number; so an organization of format 3 opened by a build knowing a later addition is
+    /// completed here, by any member, and records in `organization_floor` the level the addition
+    /// took it to beside the floors it left where they were. A change declared an upgrade is
+    /// passed over: its tables, made empty here like any other, change nothing until the explicit
+    /// upgrade runs it (ticket 07).
     pub async fn complete_schema(&self) -> Result<bool, turso::Error> {
-        let format = self
-            .format()
-            .await
-            .map_err(|error| turso::Error::Error(error.to_string()))?;
+        let as_turso = |error: Error| turso::Error::Error(error.to_string());
+        let steps = self.format_steps;
+        let format = self.format().await.map_err(as_turso)?;
+        let completed = format.is_some_and(|format| {
+            format >= i64::from(steps.settled()) && format <= i64::from(steps.known())
+        });
 
-        if format != Some(FORMAT_VERSION)
-            || self
-                .carries_format_one()
-                .await
-                .map_err(|error| turso::Error::Error(error.to_string()))?
-        {
+        if !completed || self.carries_format_one().await.map_err(as_turso)? {
             return Ok(false);
         }
 
-        let present = self
-            .tables()
-            .await
-            .map_err(|error| turso::Error::Error(error.to_string()))?;
+        let present = self.tables().await.map_err(as_turso)?;
         let mut created = false;
 
         for (table, statement) in TABLES.iter().zip(SCHEMA.iter()) {
@@ -394,6 +423,17 @@ impl OrganizationStore {
                 self.connection.execute(statement, ()).await?;
                 created = true;
             }
+        }
+
+        // the floors as they stand, before the additions this build knows are counted in: a
+        // level they take it to is recorded once, with both floors where they were.
+        if let Some(before) = self.floors().await.map_err(as_turso)?
+            && let Some(level) = steps.on_open(before.level, &[]).into_iter().max()
+        {
+            self.record_organization_floor(Floors { level, ..before }, self.clock.now())
+                .await
+                .map_err(as_turso)?;
+            created = true;
         }
 
         Ok(created)
@@ -980,7 +1020,8 @@ mod tests {
     /// before this one made it, `workspace_override` and all, gains both and says so, and the
     /// `machine` table they sit beside keeps its four columns. **Effort 851's signed organization
     /// name and the members' locks came after them the same way**, and reach the same replica with
-    /// them, and so does what each machine runs (effort 857), which is an addition on this ladder.
+    /// them, and so does what each machine runs (effort 857), which is an addition on this ladder,
+    /// and the two tables floors are recorded in (effort 857, ticket 03).
     #[tokio::test]
     async fn a_format_three_replica_without_the_machine_tables_gains_both() {
         let directory = scratch("schema-machine-tables");
@@ -993,20 +1034,22 @@ mod tests {
         .await
         .expect("the store");
 
-        assert_eq!(TABLES.len(), 20);
+        assert_eq!(TABLES.len(), 22);
         assert_eq!(
-            &TABLES[TABLES.len() - 6..],
+            &TABLES[TABLES.len() - 8..],
             &[
                 "workspace_override",
                 "machine_sign_out",
                 "machine_name",
                 "organization_name",
                 "member_lock",
-                "machine_version"
+                "machine_version",
+                "workspace_floor",
+                "organization_floor"
             ]
         );
 
-        for statement in &super::SCHEMA[..super::SCHEMA.len() - 5] {
+        for statement in &super::SCHEMA[..super::SCHEMA.len() - 7] {
             store
                 .connection
                 .execute(statement, ())
@@ -1032,6 +1075,8 @@ mod tests {
             "organization_name",
             "member_lock",
             "machine_version",
+            "workspace_floor",
+            "organization_floor",
         ] {
             assert!(tables.iter().any(|t| t == table), "{table} was not created");
         }

@@ -102,6 +102,8 @@ mod tests {
                 "organization_name",
                 "member_lock",
                 "machine_version",
+                "workspace_floor",
+                "organization_floor",
             ]
             .contains(&table.as_str())
             {

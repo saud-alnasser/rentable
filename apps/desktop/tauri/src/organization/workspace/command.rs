@@ -180,11 +180,13 @@ pub(crate) async fn organization_workspace_open(
         let standing = lease::refuse_newer(&facts)?;
 
         // requirement 20: a workspace behind what this build ships is brought up to it, under a
-        // lease taken at the organization database's primary, by whichever member opened it.
+        // lease taken at the organization database's primary, by whichever member opened it:
+        // every step shipped before 857 and every addition, and never an upgrade declared after
+        // (effort 857, ticket 03), which waits for the explicit act.
         // The organization credential in the session's slot is what the lease is taken under,
         // and the member's own workspace credential is what the migrations go over. Only where
         // this build may write it.
-        if standing == Standing::Writable && lease::is_pending(&facts) {
+        if standing == Standing::Writable && lease::is_pending(store, &facts).await? {
             let organization_credential = member
                 .organization_credential
                 .lock()

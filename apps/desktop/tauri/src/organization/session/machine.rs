@@ -201,8 +201,8 @@ async fn named(
 /// knows on the workspace's ladder and on the organization's (effort 857, requirement 4).
 ///
 /// **The session asks the upgrade port for it** ([`Upgrade::build`](super::Upgrade::build)),
-/// because the steps are declared in `upgrade/step.rs`, which nothing here names; the composition
-/// root manages the port, and a test hands the session whatever build it is pretending to run.
+/// so a test hands the session whatever build it is pretending to run; the composition root
+/// manages the port, which answers from the steps `database/step.rs` declares.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Build {
     /// the version of rentable, as its build spells it: `0.20.0`.

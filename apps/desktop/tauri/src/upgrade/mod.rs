@@ -29,6 +29,5 @@ pub mod format;
 mod plugin;
 pub mod record;
 pub mod shape;
-pub mod step;
 
 pub use plugin::{Upgrader, plugin};

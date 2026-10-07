@@ -20,8 +20,8 @@ use super::{
     consent,
     format::runner::{self, ItsRemote, OnTheAccount},
     shape,
-    step::Ladder,
 };
+use crate::database::step::Ladder;
 
 /// the two commands that find and read the records 0.12.0 and 0.13.0 kept in `app.db`
 /// (`record.rs`), and the upgrade the organization's session runs, managed as
@@ -159,8 +159,8 @@ impl Upgrade for Upgrader {
 #[cfg(test)]
 mod tests {
     use super::Upgrader;
+    use crate::database::step::Ladder;
     use crate::organization::session::{Build, Upgrade};
-    use crate::upgrade::step::Ladder;
 
     /// **The port answers what this build ships** (effort 857, requirement 4): the version in
     /// `Cargo.toml` and the highest step `step.rs` declares on each ladder, which is what every

@@ -970,7 +970,7 @@ pub(crate) trait Upgrade: Send + Sync {
     ) -> Upgrading<'a>;
 
     /// The build this machine runs: the version of rentable and the highest step it knows on each
-    /// ladder, as `upgrade/step.rs` declares them, which every way in and the heartbeat record in
+    /// ladder, as `database/step.rs` declares them, which every way in and the heartbeat record in
     /// the organization's `machine_version` (effort 857, requirement 4).
     fn build(&self) -> Build;
 }

@@ -1,7 +1,7 @@
 //! the floors of one database, and where this build stands against them (effort 857, requirements
 //! 2 and 13).
 //!
-//! **Three numbers, in the numbering of the steps** (`upgrade/step.rs`). `level` is the step the
+//! **Three numbers, in the numbering of the steps** (`database/step.rs`). `level` is the step the
 //! data has taken, additions included; `read` is the step a build must know to read it, and `write`
 //! the step a build must know to write it. [`Floors::standing`] judges a build that knows step
 //! `known` against them: [`Standing::Unreadable`] below the read floor, [`Standing::ReadOnly`] at
@@ -16,9 +16,10 @@
 //! (`OrganizationStore::floors`) read, and never create a table or a row.
 //!
 //! **Where the record is**: the workspace's own `data_floor` row, beside its `schema_version` row,
-//! and the organization's `organization_floor` row. Both are written by the explicit upgrade, inside
-//! its transaction, and neither exists before an upgrade has run; until one has, the version is
-//! the record.
+//! and the organization's `organization_floor` row. Both are first written by the first step
+//! declared after effort 857 to reach the database, holding the floors read before it (ticket 03),
+//! and then by the explicit upgrade, inside its transaction; until a step declared after 857 has
+//! run, neither holds a row and the version is the record.
 //!
 //! **Here, under the database, because every database has floors and both sides read the verdict**
 //! (effort 857, ticket 04): the workspace engine holds its workspace's [`Standing`] and the

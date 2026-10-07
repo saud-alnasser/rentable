@@ -541,7 +541,7 @@ pub(crate) async fn reach(
     // a workspace behind this build is brought up by opening it, under the lease, which this
     // path never takes: what is read here would be in a shape this build was not written for,
     // and what is written would be refused by it. A read-only grant cannot bring it up even then.
-    if lease::is_pending(&facts) {
+    if lease::is_pending(store, &facts).await? {
         return Err(if credential.access == AccessLevel::FullAccess {
             Error::refused(
                 RefusalReason::WorkspaceNeedsOpening,
