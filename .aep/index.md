@@ -657,4 +657,4 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/857-updating-never-locks-a-member-out/tickets/33-the-shared-database-refuses-no-duplicate]] fix(database): the shared database refuses no duplicate | 857-updating-never-locks-a-member-out | open | — |
 | [[efforts/857-updating-never-locks-a-member-out/tickets/34-uniqueness-is-checked-when-saving]] fix(records): uniqueness is checked when saving, with today's words | 857-updating-never-locks-a-member-out | open | — |
 | [[efforts/857-updating-never-locks-a-member-out/tickets/35-identical-records-heal-into-one]] feat(records): identical records made apart heal into one | 857-updating-never-locks-a-member-out | open | 33, 34 |
-| [[efforts/857-updating-never-locks-a-member-out/tickets/36-the-tolowercase-crash]] fix(desktop): the interface no longer crashes reading toLowerCase | 857-updating-never-locks-a-member-out | open | — |
+| [[efforts/857-updating-never-locks-a-member-out/tickets/36-the-tolowercase-crash]] fix(desktop): the interface no longer crashes reading toLowerCase | 857-updating-never-locks-a-member-out | resolved | — |
