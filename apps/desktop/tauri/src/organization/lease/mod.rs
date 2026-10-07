@@ -61,6 +61,8 @@
 //! transaction.
 
 pub mod apply;
+#[cfg(test)]
+pub(crate) mod test;
 
 use std::{future::Future, time::Duration};
 
@@ -793,13 +795,15 @@ mod tests {
 
     use super::{
         LeaseAuthority, LeaseOutcome, MIGRATION_LEASE_LIFETIME_MS, MigrationPhase, Pending,
-        StoreLease, is_pending, is_pending_over, refuse_newer, upgrade, upgrade_over,
+        StoreLease, is_pending, is_pending_over, recorded_floors, refuse_newer,
+        test::seed::{AT_THE_SHIPPED_VERSION, FIRST_CARRIED, SEEDS, Seed, seeded},
+        upgrade, upgrade_over,
     };
     use crate::test::scratch;
     use crate::{
         backup,
         database::{
-            floor::{Floors, Standing},
+            floor::{self, Floors, Standing},
             step::{FORMAT_STEPS, Kind, Step, Steps, WORKSPACE_STEPS},
         },
         error::{Error, RefusalReason},
@@ -2398,5 +2402,180 @@ mod tests {
             7
         );
         assert_eq!(pipeline.request_count(), before);
+    }
+
+    // effort 857, ticket 14: every workspace version shipped from 0.14.0 on carries across.
+
+    /// The workspace opened by `session` as `workspace_open` opens it: judged against the floors
+    /// the organization records for it, which must let this build write it, and brought up under
+    /// the lease where opening has anything to run. Answers every phase the shell was told, which
+    /// is what the person watching sees: a wait on somebody else's lease, or a step running.
+    async fn opened_as(
+        store: &OrganizationStore,
+        session: &MemberSession,
+        workspace_id: &str,
+        pipeline: &LocalPipeline,
+    ) -> Vec<MigrationPhase> {
+        let (facts, held) = facts_of(store, session, workspace_id).await;
+        let phases = Mutex::new(Vec::new());
+
+        assert_eq!(
+            refuse_newer(store, &facts)
+                .await
+                .expect("the workspace was refused"),
+            Standing::Writable,
+            "the {} met the workspace as anything but writable",
+            session.role
+        );
+
+        if is_pending(store, &facts)
+            .await
+            .expect("whether it is pending")
+        {
+            upgrade(
+                Pending {
+                    store,
+                    session,
+                    facts: &facts,
+                    held: &held,
+                    pipeline: &Pipeline::at(&pipeline.url("")),
+                    account: no_platform(),
+                },
+                &StoreLease::new(store),
+                || async {},
+                |phase| phases.lock().expect("phases").push(phase),
+                || AT + 1,
+            )
+            .await
+            .unwrap_or_else(|error| panic!("the {} could not open it: {error:?}", session.role));
+        }
+
+        phases.into_inner().expect("phases")
+    }
+
+    /// The floors the workspace's own database records, read as `database/floor.rs` reads them on a
+    /// replica, off the file behind `pipeline`: its `data_floor` row, or its version row read as
+    /// floors equal to it.
+    async fn own_floors(pipeline: &LocalPipeline) -> Option<Floors> {
+        let database = turso::Builder::new_local(&pipeline.path().to_string_lossy())
+            .build()
+            .await
+            .expect("the workspace's file");
+        let connection = database.connect().expect("a connection");
+
+        floor::workspace(&connection)
+            .await
+            .expect("the workspace's floors")
+    }
+
+    /// **Ticket 14's first criterion, the workspace** (effort 857, requirement 13 and criterion
+    /// 13). A workspace seeded at every version shipped from 0.14.0 on, 5, 6 and 7, with a record
+    /// of every kind, is opened on this build by its owner, and again from the start by a member:
+    /// nothing is refused and nobody waits; one at 5 or 6 is brought to 7 by the steps shipped
+    /// before 857, as 0.20 brought it, and one at 7 runs nothing. Every row is where it was, and
+    /// **its floors read equal to the version it is now at, which is 7 for all three**, from the
+    /// organization's record and from the workspace's own, with no floor record written. Whoever
+    /// opens it second finds nothing to do.
+    #[tokio::test]
+    async fn every_shipped_workspace_version_opens_for_its_owner_and_a_member_with_every_row() {
+        let shipped = apply::shipped_version();
+        let seeds: Vec<&Seed> = SEEDS
+            .iter()
+            .chain(std::iter::once(&AT_THE_SHIPPED_VERSION))
+            .collect();
+
+        assert_eq!(
+            seeds
+                .iter()
+                .map(|seed| seed.version)
+                .collect::<Vec<usize>>(),
+            (FIRST_CARRIED..=shipped as usize).collect::<Vec<usize>>(),
+            "a shipped workspace version is not seeded"
+        );
+
+        for seed in seeds {
+            for first in [permission::OWNER, permission::MEMBER] {
+                let at = seed.version;
+                let credentials = Memory::new();
+                let directory = scratch(&format!("carried-{at}-{first}"));
+                let (store, owner, member, workspace_id) =
+                    organization(&credentials, &directory).await;
+                let (opener, second) = if first == permission::OWNER {
+                    (&owner, &member)
+                } else {
+                    (&member, &owner)
+                };
+                let pipeline = seeded(seed).await;
+
+                store
+                    .record_schema_version(&workspace_id, at as i64, AT)
+                    .await
+                    .expect("the version the organization records");
+
+                // nothing refused, nobody waited on, and a walk only where it is behind.
+                let walked = if (at as i64) < shipped {
+                    vec![
+                        MigrationPhase::Applying {
+                            from: at as i64,
+                            to: shipped,
+                        },
+                        MigrationPhase::Done,
+                    ]
+                } else {
+                    Vec::new()
+                };
+
+                assert_eq!(
+                    opened_as(&store, opener, &workspace_id, &pipeline).await,
+                    walked,
+                    "{at}, opened first by the {first}"
+                );
+                assert_eq!(
+                    backup::contents_of(pipeline.path()).await,
+                    (seed.carried)(),
+                    "{at}, opened first by the {first}: a row was not carried"
+                );
+
+                // floors equal to the version it is now at, from the organization's record.
+                let (facts, _) = facts_of(&store, opener, &workspace_id).await;
+
+                assert_eq!(facts.schema_version, shipped, "{at}, {first}");
+                assert_eq!(
+                    store
+                        .workspace_floor(&workspace_id)
+                        .await
+                        .expect("the floor record"),
+                    None,
+                    "{at}, {first}: a floor record was written"
+                );
+                assert_eq!(
+                    recorded_floors(&store, &workspace_id, facts.schema_version)
+                        .await
+                        .expect("the floors"),
+                    Floors::legacy(shipped as u32),
+                    "{at}, {first}"
+                );
+
+                // and the other opens it with nothing to run, and the rows as they were.
+                assert_eq!(
+                    opened_as(&store, second, &workspace_id, &pipeline).await,
+                    Vec::new(),
+                    "{at}, opened second by the {}",
+                    second.role
+                );
+                assert_eq!(
+                    backup::contents_of(pipeline.path()).await,
+                    (seed.carried)(),
+                    "{at}: the second opening changed a row"
+                );
+
+                // the same floors from the workspace's own record, read as a replica reads them.
+                assert_eq!(
+                    own_floors(&pipeline).await,
+                    Some(Floors::legacy(shipped as u32)),
+                    "{at}, {first}"
+                );
+            }
+        }
     }
 }

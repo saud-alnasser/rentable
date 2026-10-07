@@ -3746,4 +3746,202 @@ mod tests {
         .await
         .expect("a step with no change of its own");
     }
+
+    // effort 857, ticket 14: every format of an organization shipped carries across.
+
+    /// The tables effort 857 adds to format 3 with no change of format, which an organization
+    /// 0.20.0 left does not hold: the completion after a pull makes them.
+    const ADDED_BY_857: [&str; 3] = ["machine_version", "workspace_floor", "organization_floor"];
+
+    /// An organization of `format` as the build that shipped it left it: the format 1 fixture,
+    /// walked by its owner's sign-in through the changes up to `format` and no further, and at
+    /// format 3 without the tables effort 857 added to it.
+    async fn of_format(format: i64, name: &str) -> (Older, OrganizationStore) {
+        let older = older(name).await;
+        let store = older.open().await;
+        let owner = older.person("owner");
+
+        if format > 1 {
+            with_password_over(
+                &TRANSITIONS[..format as usize - 1],
+                &store,
+                &online(),
+                &older.held,
+                owner.username,
+                owner.password,
+                &slot(),
+                NOW,
+            )
+            .await
+            .expect("the walk to the format");
+        }
+
+        if format == FORMAT_VERSION {
+            for table in ADDED_BY_857 {
+                run(&store, &format!("DROP TABLE \"{table}\""), Vec::new()).await;
+            }
+        }
+
+        assert_eq!(
+            store
+                .format_as_it_stands(FORMAT_VERSION)
+                .await
+                .expect("the format"),
+            format
+        );
+
+        (older, store)
+    }
+
+    /// `id` of the fixture signs in on this build with their password, online: the way in's
+    /// owner's upgrade or member's wait, where the organization is older, then the completion its
+    /// pull runs, then the ordinary sign-in. A member meeting an older organization pulls, and the
+    /// pull brings the owner's upgrade, which their machine made first.
+    async fn signed_in(
+        credentials: &Memory,
+        older: &Older,
+        store: &OrganizationStore,
+        id: &str,
+    ) -> crate::organization::session::MemberSession {
+        let person = older.person(id);
+        let credential = slot();
+
+        if id == "owner" {
+            with_password(
+                store,
+                &online(),
+                &older.held,
+                person.username,
+                person.password,
+                &credential,
+                NOW + 60_000,
+            )
+            .await
+        } else {
+            with_password(
+                store,
+                &MemberPull {
+                    older,
+                    transitions: TRANSITIONS,
+                    slot: Arc::clone(&credential),
+                    owner_upgraded: true,
+                    pulled_with: Mutex::new(Vec::new()),
+                },
+                &older.held_by(id),
+                person.username,
+                person.password,
+                &credential,
+                NOW + 60_000,
+            )
+            .await
+        }
+        .unwrap_or_else(|error| panic!("{id} was held at the way in: {error:?}"));
+
+        // the completion a sign-in's pull runs, which this replica, with no remote, is asked for.
+        store.complete_schema().await.expect("the completion");
+
+        sign_in_by_username(
+            credentials,
+            store,
+            &older.held_by(id),
+            person.username,
+            person.password,
+            &credential,
+        )
+        .await
+        .unwrap_or_else(|error| panic!("{id} did not sign in: {error:?}"))
+    }
+
+    /// **Ticket 14's first and second criteria, the organization** (effort 857, requirement 13 and
+    /// criterion 13). An organization of every format shipped, 2 and 3, and of format 1 before
+    /// them, is opened on this build by its owner, and again from the start by a member, then by
+    /// the other. A format 1 or 2 is walked to 3 by the owner's sign-in, as effort 838 built it,
+    /// and a member who meets it first waits for the owner and writes nothing, as 0.20 left them
+    /// waiting, then follows the owner's upgrade when the pull brings it; one of format 3 walks
+    /// nothing, for anybody. Every member, role, certificate, workspace, grant, invitation and the
+    /// mark read verified where they stood (`assert_upgraded`); **its floors read equal to the
+    /// format it is now at, which is 3 for all three**, with no floor record written; and nobody is
+    /// asked to choose a password or connect again.
+    #[tokio::test]
+    async fn every_shipped_format_opens_for_its_owner_and_a_member_with_every_row() {
+        use crate::database::floor::{Floors, Standing};
+
+        for format in 1..=FORMAT_VERSION {
+            for first in ["owner", "mina"] {
+                let credentials = Memory::new();
+                let (older, store) = of_format(format, &format!("carried-{format}-{first}")).await;
+                let mina = older.person("mina");
+
+                // a member meeting an older organization first waits for its owner, as 0.20 did.
+                if first == "mina" && format < FORMAT_VERSION {
+                    let before = contents(&store).await;
+                    let credential = slot();
+                    let waiting = with_password(
+                        &store,
+                        &MemberPull {
+                            older: &older,
+                            transitions: TRANSITIONS,
+                            slot: Arc::clone(&credential),
+                            owner_upgraded: false,
+                            pulled_with: Mutex::new(Vec::new()),
+                        },
+                        &older.held_by("mina"),
+                        mina.username,
+                        mina.password,
+                        &credential,
+                        NOW + 60_000,
+                    )
+                    .await;
+
+                    assert_eq!(
+                        reason_of(&waiting),
+                        Some(RefusalReason::OrganizationOlder),
+                        "{format}: {waiting:?}"
+                    );
+                    assert_eq!(contents(&store).await, before, "{format}: a member wrote");
+                }
+
+                let then = if first == "owner" { "mina" } else { "owner" };
+
+                for id in [first, then] {
+                    let session = signed_in(&credentials, &older, &store, id).await;
+
+                    assert_eq!(session.organization_id, ORGANIZATION_ID, "{format}, {id}");
+                    assert_eq!(session.verifying_key, older.pinned(), "{format}, {id}");
+                    assert_eq!(
+                        session.role,
+                        if id == "owner" { "owner" } else { "member" },
+                        "{format}, {id}"
+                    );
+                    assert!(
+                        !session.must_change_password,
+                        "{format}, {id} was asked to choose a password"
+                    );
+                }
+
+                assert_eq!(
+                    store.format().await.expect("the format"),
+                    Some(FORMAT_VERSION),
+                    "{format}, first {first}"
+                );
+                assert_eq!(
+                    store.floor_recorded().await.expect("the floor record"),
+                    None,
+                    "{format}, first {first}: a floor record was written"
+                );
+                assert_eq!(
+                    store.floors().await.expect("the floors"),
+                    Some(Floors::legacy(FORMAT_VERSION as u32)),
+                    "{format}, first {first}"
+                );
+                assert_eq!(
+                    store.refuse_another_format().await.expect("the verdict"),
+                    Standing::Writable,
+                    "{format}, first {first}"
+                );
+
+                assert_upgraded(&store, &older, &older.pinned()).await;
+            }
+        }
+    }
 }

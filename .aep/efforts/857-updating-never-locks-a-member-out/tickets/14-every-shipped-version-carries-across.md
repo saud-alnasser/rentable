@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [03, 04, 07]
 ---
 
@@ -15,9 +15,9 @@ Organizations and workspaces seeded at every version shipped since 0.14.0 open o
 
 Traces requirement 13 and criterion 13.
 
-- [ ] A test per shipped workspace version (5, 6, 7) and organization format (2, 3) opens the seed as the owner and as a member and finds every row, floors equal to the version, and no setup step.
-- [ ] Format 1 still walks through the owner's upgrade as effort 838 built it.
-- [ ] [[contexts/desktop/persistence]] and [[contexts/desktop/organization]] describe the two kinds, the floors and the legacy numbers.
+- [x] A test per shipped workspace version (5, 6, 7) and organization format (2, 3) opens the seed as the owner and as a member and finds every row, floors equal to the version, and no setup step.
+- [x] Format 1 still walks through the owner's upgrade as effort 838 built it.
+- [x] [[contexts/desktop/persistence]] and [[contexts/desktop/organization]] describe the two kinds, the floors and the legacy numbers.
 
 ## Relevant areas
 
