@@ -19,7 +19,8 @@ export const common = {
 			duplicateOfExisting: '{detail:string} is already here',
 			missingValue: 'no {detail:string}',
 			invalid: '{detail:string} cannot be read',
-			unresolved: 'names {detail:string}, which is not here'
+			unresolved: 'names {detail:string}, which is not here',
+			claimTaken: '{detail:string} is already held over these dates'
 		},
 		incompleteColumns:
 			'this file carries no {columns:string}, so no record can be created from it — only recognised as one already here.',
@@ -36,6 +37,7 @@ export const common = {
 		unresolvedRow: '{sheet:string} row {row|number} names {reference:string}',
 		skippedHeld: '{count|number} already here',
 		skippedIncomplete: '{count|number} missing a required value',
+		skippedClaimed: '{count|number} taking what is already held',
 		skippedUnreadable: '{count|number} could not be read',
 		more: 'and {count|number} more'
 	}

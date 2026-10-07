@@ -4,14 +4,11 @@ import * as s from '$lib/platform/database/schema';
 import { PaymentSchema } from '$lib/platform/database/schema';
 import { refuse } from '$lib/api/refusal';
 import { autosync, procedure, router } from '$lib/api/trpc';
-import {
-	ensureContractIsNotTerminated,
-	ensureContractPaymentsCreatable,
-	reconcileTouched
-} from '$lib/contract';
+import { areRefundsCovered, reconcileTouched } from '$lib/contract';
 import type { Database } from '$lib/api/context';
 import {
 	ensurePaymentIsNotInTheFuture,
+	ensurePaymentWritable,
 	ensureValidPaymentAmount,
 	groupPaymentsByContractId,
 	whatRefusesPaymentDeletion,
@@ -46,11 +43,20 @@ type PaymentRefusal = { id: string; amount: number; reason: PaymentRefusalReason
  * both go through this, so the confirmation shows what the deletion is about to decide rather
  * than a second opinion about it. They can still disagree about the *workspace*, because another
  * device may write between the two, and that is why the mutation runs this again instead of
- * trusting what the reader was shown. A contract terminated between the two is the case this
- * list actually meets: the ledger hides its controls on a terminated contract, so the only way
- * to reach that refusal from here is for the termination to arrive while the dialog is open.
+ * trusting what the reader was shown. A contract terminated between the two is one case this list
+ * meets; the other, since the ledger offers a selection's delete on a terminated contract for its
+ * refunds (effort 854, requirement 25), is a selection there that holds payments received, which
+ * the plan turns away for the contract's state.
  *
- * One read per table for the whole selection, never one per record.
+ * **Refunds stay within what was received** (effort 854, requirement 26). A payment received on a
+ * live contract goes only while what the contract keeps still covers its refunds, weighed over
+ * the whole selection rather than one row at a time: every refund the selection takes comes off
+ * first, since removing one only frees what was received, and then each payment received goes in
+ * the reader's order while the rest still covers what stays returned. Only the ones that would
+ * break it are refused, so a selection is turned away no further than the rule needs.
+ *
+ * One read per table for the whole selection, never one per record, and one more for the rows
+ * the selected payments' contracts hold, which is what that rule is weighed against.
  */
 async function planPaymentSelection(db: Database, ids: readonly string[]) {
 	const named = [...new Set(ids)];
@@ -66,6 +72,20 @@ async function planPaymentSelection(db: Database, ids: readonly string[]) {
 				.where(inArray(s.contract.id, contractIds))
 		: [];
 	const contractsById = new Map(contracts.map((contract) => [contract.id, contract]));
+
+	const held = contractIds.length
+		? await db.select().from(s.payment).where(inArray(s.payment.contractId, contractIds))
+		: [];
+	// what each contract would keep, narrowed as the walk below lets a payment go.
+	const keptByContractId = groupPaymentsByContractId(held);
+	const selected = new Set(named);
+
+	for (const [contractId, kept] of keptByContractId) {
+		keptByContractId.set(
+			contractId,
+			kept.filter((payment) => payment.direction !== 'refund' || !selected.has(payment.id))
+		);
+	}
 
 	const eligible: DbPayment[] = [];
 	const refused: PaymentRefusal[] = [];
@@ -85,13 +105,28 @@ async function planPaymentSelection(db: Database, ids: readonly string[]) {
 			continue;
 		}
 
-		const reason = whatRefusesPaymentDeletion(contract.status);
+		const reason = whatRefusesPaymentDeletion(contract.status, payment.direction);
 
 		if (reason) {
 			refused.push({ id, amount: payment.amount, reason });
-		} else {
-			eligible.push(payment);
+
+			continue;
 		}
+
+		if (payment.direction !== 'refund') {
+			const kept = keptByContractId.get(contract.id) ?? [];
+			const without = kept.filter((row) => row.id !== payment.id);
+
+			if (!areRefundsCovered(without)) {
+				refused.push({ id, amount: payment.amount, reason: 'refunds-exceed-received' });
+
+				continue;
+			}
+
+			keptByContractId.set(contract.id, without);
+		}
+
+		eligible.push(payment);
 	}
 
 	return { eligible, refused };
@@ -166,6 +201,15 @@ export default router({
 	 * contract, which is exactly the set an undo of *these payments took it out of paid-in-full*
 	 * is made of. One question, before any of them goes in: may payments be added to this
 	 * contract at all right now.
+	 *
+	 * **Those gates are the payments received's** (effort 854, requirement 25). A refund the set puts
+	 * back goes onto a terminated contract as well, and since putting a deleted set back is an
+	 * undo, which takes a change back to the state before it (ticket 40, the human's ruling of
+	 * 2026-10-07), it is weighed only that the contract's refunds, the set's together with what it
+	 * holds, stay within what it received, the payments received the set puts back beside them
+	 * included. That is how `create` weighs one refund an undo puts back, so undoing one deletion
+	 * and undoing many agree. Both are the payment's one rule, `ensurePaymentWritable`, asked once
+	 * per contract as a replay: nothing but an undo calls this.
 	 */
 	createMany: procedure
 		.permitted('createPayment')
@@ -207,9 +251,14 @@ export default router({
 				.where(inArray(s.payment.contractId, contractIds));
 			const registeredByContractId = groupPaymentsByContractId(registered);
 
+			const namedByContractId = groupPaymentsByContractId(named);
+
 			for (const contract of contracts) {
-				ensureContractIsNotTerminated(contract.status);
-				ensureContractPaymentsCreatable(contract, registeredByContractId.get(contract.id) ?? []);
+				ensurePaymentWritable(contract, registeredByContractId.get(contract.id) ?? [], {
+					act: 'create',
+					payments: namedByContractId.get(contract.id) ?? [],
+					replay: true
+				});
 			}
 
 			for (const payment of named) {

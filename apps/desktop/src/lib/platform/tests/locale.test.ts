@@ -7,8 +7,10 @@ import {
 	formatLocaleMoneyRange,
 	formatLocaleRangeWithUnit,
 	formatLocaleRelativeTime,
-	formatLocaleTimeUntil
+	formatLocaleTimeUntil,
+	toWesternDigits
 } from '../locale.ts';
+import { SEARCH_FOLDINGS } from '../database/search.ts';
 
 const LTR_ISOLATE = '⁦';
 const POP_ISOLATE = '⁩';
@@ -95,4 +97,42 @@ test('a moment ahead reads relative to now, counted down, in the words of each l
 	assert.equal(formatLocaleTimeUntil('en', now + (2 * 24 + 20) * 3_600_000, now), 'in 2 days');
 	assert.equal(formatLocaleTimeUntil('en', now + 24 * 3_600_000, now), 'tomorrow');
 	assert.equal(formatLocaleTimeUntil('ar', now + 2 * 3_600_000, now), 'خلال ساعتين');
+});
+
+// --- Digits as an Arabic keyboard types them -------------------------------------------
+//
+// Requirement 21 of effort 854: a field that takes a figure reads Arabic-Indic digits as the
+// Western digits they stand for, and `٫` as the decimal point, the same as search does.
+
+test('arabic-indic digits read as the western digits they stand for', () => {
+	assert.equal(toWesternDigits('٥٠١٢٣٤٥٦٧'), '501234567');
+	assert.equal(toWesternDigits('٠١٢٣٤٥٦٧٨٩'), '0123456789');
+});
+
+test('the arabic decimal separator reads as the point', () => {
+	assert.equal(toWesternDigits('٤١٦٦٫٦٧'), '4166.67');
+});
+
+test('what is already western, or is no digit, is left as it was', () => {
+	assert.equal(toWesternDigits('+966 55-1234'), '+966 55-1234');
+	assert.equal(toWesternDigits('سامي'), 'سامي');
+});
+
+// decided for effort 854: only the digits and the decimal separator. A group separator is a
+// figure as it is rendered, and a Persian digit is another keyboard's; neither is folded here.
+test('a group separator and a persian digit are not folded', () => {
+	assert.equal(toWesternDigits('١٬٥٠٠'), '1٬500');
+	assert.equal(toWesternDigits('۵'), '۵');
+});
+
+// one table: search folds the same digits, from the same place.
+test('search still folds every arabic-indic digit and the decimal separator', () => {
+	for (const [digit, value] of [...'٠١٢٣٤٥٦٧٨٩'].map((d, i) => [d, String(i)] as const)) {
+		assert.ok(
+			SEARCH_FOLDINGS.some(([from, to]) => from === digit && to === value),
+			digit
+		);
+	}
+
+	assert.ok(SEARCH_FOLDINGS.some(([from, to]) => from === '٫' && to === '.'));
 });

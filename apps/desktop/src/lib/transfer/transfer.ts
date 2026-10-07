@@ -1,10 +1,17 @@
 import type { ExportSheet, ImportTable } from './host';
 import { toExportSheet } from '@rentable/design/csv.js';
-import { planImport, type ImportCollision, type ImportField, type ImportRejection } from './import';
+import {
+	planImport,
+	toHeldIdentities,
+	type ImportCollision,
+	type ImportField,
+	type ImportRejection
+} from './import';
 import { toTransferKey } from './reference';
 import {
 	sheetsOf,
 	type AnySheet,
+	type Claim,
 	type Declaring,
 	type HeldName,
 	type Reference,
@@ -122,7 +129,8 @@ function recordsOf(transfer: WorkspaceTransfer, sheet: AnySheet): never[] {
  *
  * What a record holds and nothing it derives: a contract's status, its paid and its expected
  * amount and a unit's status are recomputed from the term and the payments, and a file that
- * could assert them could put a workspace into a state its own rows contradict. Written here
+ * could assert them could put a workspace into a state its own rows contradict. A contract's
+ * termination is the exception, because a person set it and no term or payment derives it. Written here
  * rather than by each surface that confirms an import, so there is one answer to which fields
  * cross and five surfaces cannot come to disagree about it. Each sheet says which of its fields
  * those are.
@@ -288,7 +296,7 @@ export function planWorkspaceImport(
 	const unresolved: UnresolvedReference[] = [];
 	const transfer = perSheet((): unknown[] => []);
 	const heldOf = (concept: string): HeldName[] =>
-		(held as Record<string, HeldName[] | undefined>)[concept] ?? [];
+		(held as unknown as Record<string, HeldName[] | undefined>)[concept] ?? [];
 
 	/**
 	 * what a row naming a concept may resolve to once the file has been read this far: the
@@ -331,23 +339,37 @@ export function planWorkspaceImport(
 			continue;
 		}
 
+		const fields = sheet.fields as readonly ImportField<Record<string, string>>[];
 		const plan = planImport<Record<string, string>>(
-			sheet.fields as readonly ImportField<Record<string, string>>[],
+			fields,
 			table,
 			(row) => sheet.validate?.(row as never, now),
-			new Set(heldOf(concept).map((name) => key(...namesOf(name)))),
+			// keyed per identity group, so a tenant held by its national id is matched by that alone.
+			new Set(heldOf(concept).flatMap((name) => toHeldIdentities(fields, namesOf(name)))),
 			{ rowsMayRepeat: sheet.rowsMayRepeat }
 		);
 
-		sheetPlans.push({
+		const sheetPlan: WorkspaceSheetPlan = {
 			concept,
 			present: true,
 			create: plan.create.length,
-			rejected: plan.rejected,
-			collisions: plan.collisions,
+			rejected: [...plan.rejected],
+			collisions: [...plan.collisions],
 			missingColumns: plan.missingColumns,
 			unreadable: plan.isUnreadable
-		});
+		};
+
+		sheetPlans.push(sheetPlan);
+
+		// what this sheet's records claim, against what the workspace's claim and against the
+		// rows of the file before them. A row taking what a held record holds is turned away like
+		// a row repeating one; two rows of the file taking one thing contradict each other, and
+		// refuse the sheet as two rows claiming one identity do.
+		const claiming = sheet.claims;
+		const heldClaims =
+			(held.claims as Record<string, Claim[] | undefined> | undefined)?.[concept] ?? [];
+		const claimed: { row: number; claim: Claim }[] = [];
+		const clashing = (a: Claim, b: Claim) => a.key === b.key && claiming!.clash(a, b);
 
 		// asked once per sheet, of the sheets before it, which have all been read by now.
 		const targets = new Map<string, Set<string>>();
@@ -372,8 +394,34 @@ export function planWorkspaceImport(
 				continue;
 			}
 
-			transfer[concept].push(sheet.toRecord(record as never));
+			const created = sheet.toRecord(record as never);
+
+			if (claiming) {
+				const claims = claiming.of(created as never);
+				const taken = claims.find((claim) => heldClaims.some((each) => clashing(each, claim)));
+
+				if (taken) {
+					sheetPlan.rejected.push({ row, reason: 'claim-taken', detail: taken.label });
+					sheetPlan.create -= 1;
+
+					continue;
+				}
+
+				for (const claim of claims) {
+					const earlier = claimed.find((each) => clashing(each.claim, claim));
+
+					if (earlier) {
+						sheetPlan.collisions.push({ rows: [earlier.row, row], identity: claim.label });
+					}
+				}
+
+				claimed.push(...claims.map((claim) => ({ row, claim })));
+			}
+
+			transfer[concept].push(created);
 		}
+
+		sheetPlan.rejected.sort((a, b) => a.row - b.row);
 	}
 
 	// a reference nothing answers to always drops the row that made it. Whether it also refuses

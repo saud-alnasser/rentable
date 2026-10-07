@@ -10,14 +10,19 @@
 	import { showErrorSentence, showErrorToast, showSuccessToast } from '$lib/notification';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { i18nObject } from '$lib/i18n/i18n-util';
-	import { toPaymentCreateUnavailable, type PaymentActRecord } from '$lib/payment/acts';
+	import {
+		toPaymentCreateUnavailable,
+		toRefundCreateUnavailable,
+		type PaymentActRecord
+	} from '$lib/payment/acts';
 	import {
 		closePaymentConfirmation,
 		closePaymentForm,
 		openNewPaymentForm,
 		paymentActs,
 		paymentHostState,
-		resetPaymentHost
+		resetPaymentHost,
+		type PaymentPrefill
 	} from '$lib/payment/host.svelte';
 	import { useReadContract } from '$lib/contract/ui';
 	import { useDeletePayment, useReadPayment, useReadPaymentReceipt } from '$lib/payment/query';
@@ -30,6 +35,7 @@
 	import { onDestroy, untrack } from 'svelte';
 	import PaymentForm from './form.svelte';
 	import PrintedReceipt, { type PrintedReceiptValue } from './receipt.svelte';
+	import PrintedVoucher, { type PrintedVoucherValue } from './voucher.svelte';
 
 	/**
 	 * The payment form and the payment's delete, mounted once for the whole shell. A delete asks
@@ -58,6 +64,12 @@
 
 	// a payment has no name, and the nearest thing to one is its amount in the reader's locale.
 	const formatMoney = (value: number) => formatLocaleMoney($locale, value);
+	// a refund is named as one wherever the host names a payment, so a question about deleting it
+	// never reads as one about money received.
+	const nameOf = (payment: Pick<PaymentActRecord, 'amount' | 'direction'>) =>
+		payment.direction === 'refund'
+			? $LL.contracts.payments.refund.historyName({ amount: formatMoney(payment.amount) })
+			: formatMoney(payment.amount);
 
 	async function deleteConfirmed() {
 		if (!deleting) {
@@ -120,9 +132,10 @@
 
 	/**
 	 * the receipt being previewed, the language it is shown in, and whether it is on its way to
-	 * paper or a file. Raw, because a receipt is only ever replaced.
+	 * paper or a file. Raw, because a receipt is only ever replaced. A refund's is a voucher
+	 * (effort 854, requirement 29), previewed and sent the same way.
 	 */
-	let receipt = $state.raw<PrintedReceiptValue | null>(null);
+	let receipt = $state.raw<PrintedReceiptValue | PrintedVoucherValue | null>(null);
 	let receiptOpen = $state(false);
 	let receiptLocale = $state<Locales>('en');
 	let sending = $state(false);
@@ -164,7 +177,8 @@
 		sending = true;
 
 		try {
-			const title = i18nObject(receiptLocale).contracts.payments.receipt.title();
+			const printed = i18nObject(receiptLocale).contracts.payments;
+			const title = receipt.kind === 'voucher' ? printed.voucher.title() : printed.receipt.title();
 			// the preview is closed, and gone, before the page is laid out for paper.
 			const outcome = await sendPage(
 				printedReceipt,
@@ -218,7 +232,7 @@
 			showErrorSentence(
 				$LL.common.ui.commandPaletteActDoesNotApply({
 					act: act?.label($LL) ?? actId,
-					record: formatMoney(payment.amount)
+					record: nameOf(payment)
 				})
 			);
 
@@ -235,11 +249,11 @@
 	}
 
 	/**
-	 * A new payment against the contract named: read the contract, and open the form where it takes
-	 * one. Where it takes none the create act's reason is the answer, the same line the ledger's
-	 * create control shows, so the command menu cannot open a form the ledger would refuse.
+	 * A new payment, or a new refund, against the contract named: read the contract, and open the
+	 * form where it takes one. Where it takes none the act's reason is the answer, the same line the
+	 * ledger's control shows, so the command menu cannot open a form the ledger would refuse.
 	 */
-	async function answerCreate(contractId: string) {
+	async function answerCreate({ contractId, direction }: PaymentPrefill) {
 		let contract: Awaited<ReturnType<typeof readContract>>;
 
 		try {
@@ -256,7 +270,19 @@
 			return;
 		}
 
-		const reason = toPaymentCreateUnavailable(contract, $LL);
+		const paymentRefused = toPaymentCreateUnavailable(contract, $LL);
+		const refundRefused = toRefundCreateUnavailable(contract, $LL);
+
+		// asked for one kind by name, that kind is answered. Asked for a new payment with neither
+		// named, as the ledger's create and the key ask, the form opens on whichever of its two tabs
+		// the contract takes, the payment first, and is refused only where it takes neither (effort
+		// 854, requirement 25).
+		const reason =
+			direction === 'refund'
+				? refundRefused
+				: direction === 'received'
+					? paymentRefused
+					: paymentRefused && refundRefused && paymentRefused;
 
 		if (reason) {
 			showErrorSentence(reason);
@@ -264,7 +290,7 @@
 			return;
 		}
 
-		openNewPaymentForm(contractId);
+		openNewPaymentForm(contractId, direction ?? (paymentRefused ? 'refund' : 'received'));
 	}
 
 	// both requests are answered once and cleared first, so an answer that takes a read cannot be
@@ -299,7 +325,7 @@
 		}
 
 		paymentHostState.creating = null;
-		untrack(() => void answerCreate(creating.contractId));
+		untrack(() => void answerCreate(creating));
 	});
 
 	$effect(() => {
@@ -317,13 +343,13 @@
 </script>
 
 {#snippet printedReceipt()}
-	{#if receipt}
-		<PrintedReceipt value={receipt} locale={receiptLocale} />
-	{/if}
+	{@render receiptPage(receiptLocale)}
 {/snippet}
 
 {#snippet receiptPage(pageLocale: Locales)}
-	{#if receipt}
+	{#if receipt?.kind === 'voucher'}
+		<PrintedVoucher value={receipt} locale={pageLocale} />
+	{:else if receipt}
 		<PrintedReceipt value={receipt} locale={pageLocale} />
 	{/if}
 {/snippet}
@@ -333,7 +359,9 @@
 	onOpenChange={(isOpen) => {
 		if (!isOpen) receiptOpen = false;
 	}}
-	title={$LL.contracts.payments.receipt.print()}
+	title={receipt?.kind === 'voucher'
+		? $LL.contracts.payments.voucher.print()
+		: $LL.contracts.payments.receipt.print()}
 	bind:locale={receiptLocale}
 	page={receiptPage}
 	busy={sending}
@@ -348,6 +376,7 @@
 		<PaymentForm
 			contractId={paymentHostState.form.contractId}
 			value={paymentHostState.form.value}
+			direction={paymentHostState.form.direction}
 			open={paymentHostState.form.open}
 			onOpenChange={(isOpen) => {
 				if (!isOpen) {
@@ -366,7 +395,7 @@
 			closePaymentConfirmation();
 		}
 	}}
-	record={deleting ? formatMoney(deleting.amount) : undefined}
+	record={deleting ? nameOf(deleting) : undefined}
 	description={$LL.common.deleteDialog.undoable()}
 	onSubmit={deleteConfirmed}
 />

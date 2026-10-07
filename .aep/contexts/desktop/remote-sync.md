@@ -138,6 +138,19 @@ sentence from both.
   on the next statement.** Opening does not block on a pull, which is requirement 7, but a first
   run has nothing to read until one succeeds, so the startup path pulls once and then asks whether
   the replica is ready.
+- **A push or a pull the remote never answers is the offline case after 30 seconds.** *Effort 854,
+  requirement 15.* The engine sets no timeout of its own, so every push, pull and replication, a
+  workspace's and the organization's, runs under `database/bound.rs`: given up after 30 seconds
+  with no sign of progress, under a ten-minute ceiling, answering what offline already answers.
+  The opening downgrades its write lock to a read lock before its first pull: queries go on
+  beside the pull, and the read lock still keeps out anything that would swap the engine under
+  it. A workspace replica's queries run on the four connections it holds, opened with the engine
+  (`database/held.rs`), never on one asked of `connect()` afterwards, because `connect()` waits on
+  the engine's own mutex, which a stalled pull holds
+  ([[efforts/854-bugs-and-edge-cases-across-the-app/evidence/research/a-stalled-sync-holds-connect]]).
+  A query that finds the engine applying a pull waits it out, as `connect()` did, but no longer
+  than the ten-minute ceiling a pull may run; past it the wait is logged
+  (`replica.connection.busyTimedOut`) and the query fails as any failed query does.
 - **A replica found damaged is set aside and pulled again, once.** *Effort 838, requirement 17,
   Firefox's practice.* Where the engine says a replica, a workspace's or the organization's, is not
   a database or is corrupt, or where the file is shorter than its own header says (turso reports a
@@ -149,8 +162,9 @@ sentence from both.
   the replica and logs `replica.corrupt.found`; the next open finds that marker and sets the
   replica aside the same way. What is watched for it is the proxy's single and batch statements
   and the organization store's own `query` and `execute`, on a `corrupt::Watched` connection, and
-  every push and pull. `Database::is_replica_ready`, `OrganizationStore::found`,
-  `lease_connection` and `install` read the engine's connection unwatched. The not-a-database
+  every push and pull. The readiness check (`Database::is_ready`) checks out a held connection but
+  reads the engine's connection beneath it, unwatched, as `OrganizationStore::found`,
+  `lease_connection` and `install` read the organization store's connection unwatched. The not-a-database
   words are read at the open alone, since a failed push or pull is flattened text that may carry
   the server's own. A file cut short beside the sync engine's `<name>-replace-base-apply` marker
   is left to the engine, which restores it from its backups at the open. `database/corrupt.rs`

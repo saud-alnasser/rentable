@@ -9,7 +9,15 @@ import {
 } from '$lib/organization/tests/testing.ts';
 import { fakeSyncState, fakeWorkspace } from '$lib/sync/tests/testing.ts';
 
-import { harness, locked, unlocked, withoutWorkspace } from './harness.ts';
+import {
+	forgetRealUndo,
+	harness,
+	heldUndo,
+	holdUndoInBothDirections,
+	locked,
+	unlocked,
+	withoutWorkspace
+} from './harness.ts';
 
 /**
  * THE WALL, AS THE EIGHT PATHS MEET IT
@@ -129,6 +137,27 @@ test('and a member with a workspace reaches it after the sign-in, re-entering at
 	assert.equal(startup.snapshot.isSigningIn, false);
 	// re-entering at `workspace` is honest: those three stages are what this path has done.
 	assert.deepEqual(journal.stages.slice(-3), ['workspace', 'changes', 'records']);
+});
+
+// effort 854, requirement 10: the sign-in succeeded and the workspace would not open. The wall
+// has nothing left to say about the password, so the failure is the ordinary one, on the error
+// screen, rather than a wall left standing with the card reopened and nothing said.
+test('and a workspace that would not open after the sign-in is the ordinary failure', async () => {
+	const { startup, journal } = harness({
+		organization: locked(),
+		signInWith: async () => unlocked(),
+		openWorkspace: async () => {
+			throw new Error('the replica would not open');
+		}
+	});
+
+	await startup.start();
+	await startup.signIn('olivia', 'a long enough password');
+
+	assert.equal(startup.snapshot.state, 'error');
+	assert.equal(startup.snapshot.error, 'the replica would not open');
+	assert.deepEqual(journal.failures, ['the replica would not open']);
+	assert.equal(startup.snapshot.isSigningIn, false);
 });
 
 // --- 7. A sign-out while the application is running ------------------------------------
@@ -486,4 +515,57 @@ test('a refused link that left the session open leaves the person where they wer
 	assert.equal(startup.snapshot.organization?.session?.organizationId, 'acme');
 	assert.equal(journal.contextsForgotten, forgotten);
 	assert.ok(seen.slice(before).every((snapshot) => snapshot.state !== 'loading'));
+});
+
+// --- Undo does not cross a session or an organization ------------------------------------
+
+// effort 854, requirement 1: an inverse is a statement about one workspace and one session, and
+// replaying it after the person left either would write into somebody else's records. Each way
+// off the wall's side of the application empties both directions.
+
+const nothingToMove = { undoable: null, redoable: null };
+
+test('signing out forgets every change there was to undo or redo', async () => {
+	const { startup } = harness({ forgetUndo: forgetRealUndo });
+
+	await startup.start();
+	await holdUndoInBothDirections();
+	await startup.signOut();
+
+	assert.deepEqual(heldUndo(), nothingToMove);
+});
+
+test('and so does the wall going up because the session ended', async () => {
+	const { startup, standWith } = harness({ forgetUndo: forgetRealUndo });
+
+	await startup.start();
+	assert.equal(startup.snapshot.state, 'ready');
+
+	await holdUndoInBothDirections();
+	standWith(locked());
+	await startup.standingChanged();
+
+	assert.equal(startup.snapshot.state, 'sign-in');
+	assert.deepEqual(heldUndo(), nothingToMove);
+});
+
+test('and so does choosing another organization at the switcher', async () => {
+	const { startup } = harness({ organization: twoWithoutWorkspace(), forgetUndo: forgetRealUndo });
+
+	await startup.start();
+	await holdUndoInBothDirections();
+	await startup.select('beta');
+
+	assert.deepEqual(heldUndo(), nothingToMove);
+});
+
+test('and so does removing an organization, even one the member is not in', async () => {
+	const { startup } = harness({ organization: twoWithoutWorkspace(), forgetUndo: forgetRealUndo });
+
+	await startup.start();
+	await holdUndoInBothDirections();
+	await startup.remove('beta');
+
+	assert.equal(startup.snapshot.state, 'no-workspace', 'the member is still in');
+	assert.deepEqual(heldUndo(), nothingToMove);
 });

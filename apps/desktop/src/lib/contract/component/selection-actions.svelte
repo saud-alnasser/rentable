@@ -96,7 +96,7 @@
 	// one nothing the reader did caused.
 	const REFUSAL_ORDER = {
 		terminate: ['not-terminable', 'missing'],
-		restore: ['not-restorable', 'missing'],
+		restore: ['not-restorable', 'units-taken', 'missing'],
 		delete: ['holds-payments', 'missing']
 	} as const satisfies Record<ContractSelectionAction, readonly string[]>;
 
@@ -136,6 +136,7 @@
 		describeRefusals({
 			'not-terminable': (count: number) => $LL.contracts.selection.refusedNotTerminable({ count }),
 			'not-restorable': (count: number) => $LL.contracts.selection.refusedNotRestorable({ count }),
+			'units-taken': (count: number) => $LL.contracts.selection.refusedUnitsTaken({ count }),
 			'holds-payments': (count: number) => $LL.contracts.selection.refusedHoldsPayments({ count }),
 			missing: (count: number) => $LL.contracts.selection.refusedMissing({ count })
 		} satisfies Record<ContractRefusalReason, (count: number) => string>)

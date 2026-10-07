@@ -796,11 +796,18 @@ mod tests {
     /// version.** A new migration comes with the seed of the version before it, the rows a
     /// database of that version holds, and the rows each seed here holds once the new migration
     /// has run.
-    const SEEDS: &[Seed] = &[Seed {
-        version: 5,
-        rows: SEEDED_AT_FIVE,
-        carried: carried_from_five,
-    }];
+    const SEEDS: &[Seed] = &[
+        Seed {
+            version: 5,
+            rows: SEEDED_AT_FIVE,
+            carried: carried_from_five,
+        },
+        Seed {
+            version: 6,
+            rows: SEEDED_AT_SIX,
+            carried: carried_from_six,
+        },
+    ];
 
     /// A workspace as 0.14.0 and 0.15.0 wrote it: a record of every kind, a contract with a
     /// government id and one without, a unit on both contracts and one on neither, a payment on
@@ -845,7 +852,7 @@ mod tests {
     ];
 
     /// [`SEEDED_AT_FIVE`] at the shipped version: every row where it was, each payment's method,
-    /// reference and note null, and the version row.
+    /// reference and note null, each payment received, and the version row.
     fn carried_from_five() -> Contents {
         let null = || turso::Value::Null;
 
@@ -943,6 +950,7 @@ mod tests {
                         null(),
                         null(),
                         null(),
+                        cell("received"),
                     ],
                     vec![
                         cell("0199a000-0000-7000-8000-0000000e0002"),
@@ -952,6 +960,7 @@ mod tests {
                         null(),
                         null(),
                         null(),
+                        cell("received"),
                     ],
                 ],
             ),
@@ -1003,6 +1012,38 @@ mod tests {
                 ],
             ),
         ]
+    }
+
+    /// A workspace as a build at version 6 wrote it: every record of [`SEEDED_AT_FIVE`] but its
+    /// payments, which now say how they were paid, one with a reference and a note and one with
+    /// a note alone. `0006` adds a payment's direction, so every payment here is one written
+    /// before it, and money received.
+    const SEEDED_AT_SIX: &[&str] = &[
+        SEEDED_AT_FIVE[0],
+        SEEDED_AT_FIVE[1],
+        SEEDED_AT_FIVE[2],
+        SEEDED_AT_FIVE[3],
+        SEEDED_AT_FIVE[4],
+        "INSERT INTO `payment` (`id`, `date`, `amount`, `contract_id`, `method`, `reference`,          `note`) VALUES          ('0199a000-0000-7000-8000-0000000e0001', 1738368000000, 15000.25,           '0199a000-0000-7000-8000-0000000d0001', 'bank-transfer', 'SADAD-7731', 'first half'),          ('0199a000-0000-7000-8000-0000000e0002', 1706745600000, 2500,           '0199a000-0000-7000-8000-0000000d0002', 'cash', NULL, 'دفعة نقدية')",
+        SEEDED_AT_FIVE[6],
+    ];
+
+    /// [`SEEDED_AT_SIX`] at the shipped version: every row where it was, each payment's method,
+    /// reference and note as written, each payment received, and the version row.
+    fn carried_from_six() -> Contents {
+        let mut carried = carried_from_five();
+        let (_, payments) = carried
+            .iter_mut()
+            .find(|(table, _)| table == "payment")
+            .expect("the payments carried from five");
+
+        payments[0][4] = cell("bank-transfer");
+        payments[0][5] = cell("SADAD-7731");
+        payments[0][6] = cell("first half");
+        payments[1][4] = cell("cash");
+        payments[1][6] = cell("دفعة نقدية");
+
+        carried
     }
 
     /// A text value as a row holds it.

@@ -20,16 +20,21 @@ export type ContractRefusalCode =
 	| 'contract.nothingToRemind'
 	| 'contract.unitsLockedByPayments'
 	| 'contract.paidInFull'
+	| 'contract.refundAboveLimit'
+	| 'contract.refundsExceedReceived'
+	| 'contract.refundsExceedReceivedNamed'
 	| 'contract.holdsPayments'
 	| 'contract.periodOverlapsUnits'
 	| 'contract.unitsUnavailable'
 	| 'contract.unitsTaken'
+	| 'contract.unitsTakenNamed'
 	| 'contract.renewalBeforeEnd'
 	| 'contract.missing'
 	| 'contract.tenantMissing'
 	| 'contract.tenantMissingNamed'
 	| 'contract.repeatedInSet'
-	| 'contract.unitsMissing';
+	| 'contract.unitsMissing'
+	| 'contract.unitRepeatedNamed';
 
 /** the field of the contract's form each of its refusals belongs under, where one does. */
 export const CONTRACT_REFUSAL_FIELDS = {
@@ -38,6 +43,8 @@ export const CONTRACT_REFUSAL_FIELDS = {
 	'contract.govIdTaken': 'govId',
 	'contract.govIdTakenNamed': 'govId',
 	'contract.periodOffCycle': 'end',
+	// a refund above what the contract may return is the amount to change, on the payment's form.
+	'contract.refundAboveLimit': 'amount',
 	'contract.renewalBeforeEnd': 'start',
 	'contract.tenantMissing': 'tenantId',
 	'contract.tenantMissingNamed': 'tenantId',

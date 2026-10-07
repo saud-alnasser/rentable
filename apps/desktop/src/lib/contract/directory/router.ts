@@ -75,8 +75,12 @@ const contractStatusOrder = sql.join(
 // `packages/workspace-migrations/migrations/0004_ordinary_nightshade.sql` adds and whose notes
 // carry the measurement. Unindexed, this was a scan of every payment for every contract and cost
 // the list sixteen times what the same query costs without it.
+//
+// It counts payments received and never refunds: a refund is money going out, and the card's count
+// is of the payments the contract took (effort 854, requirement 27).
 const contractPaymentCount = sql<number>`(
-	select count(*) from ${s.payment} where ${s.payment.contractId} = ${s.contract.id}
+	select count(*) from ${s.payment}
+	where ${s.payment.contractId} = ${s.contract.id} and ${s.payment.direction} = 'received'
 )`;
 
 // The names of the units each contract holds, as one row per contract the list joins rather than a
@@ -144,6 +148,8 @@ function matchesRankBounds(bounds: ContractRankBounds): SQL | undefined {
 			? inArray(s.contract.status, [...bounds.status.holds])
 			: notInArray(s.contract.status, [...bounds.status.excludes]),
 		// column against column, which the comparison helpers do not type, so it is written out
+		// and exact on purpose: it only narrows to a superset, and the rank applied to every row
+		// after it is what forgives float dust, so a paid contract passing here is dropped there
 		bounds.requiresUnpaidBalance
 			? sql`${s.contract.paidAmount} < ${s.contract.expectedAmount}`
 			: undefined,

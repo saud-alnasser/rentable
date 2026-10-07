@@ -297,6 +297,17 @@ test('a contract carrying a payment is still refused deletion, and keeps its uni
 	);
 });
 
+// effort 854, requirement 8: an undo of a creation deletes, and a record somebody else deleted
+// first is refused rather than answered with nothing, which read as success.
+test('deleting a missing contract is refused', async () => {
+	const api = await createApi();
+
+	await assert.rejects(
+		() => api.contract.delete({ id: unusedId() }),
+		refusedWith('contract.missing')
+	);
+});
+
 // ticket 41: undoing a deletion puts the rows back as they were. A terminated contract comes back
 // terminated, holding its unit, and the unit reads as it did before the deletion rather than
 // occupied by a contract a create would have made active again.
@@ -349,6 +360,53 @@ test('a deleted contract is undone holding its unit after another contract took 
 		[unit.id]
 	);
 	assert.equal((await api.complex.units.get({ id: unit.id }))?.status, 'occupied');
+});
+
+// --- Restoring a terminated contract -------------------------------------------------
+
+// effort 854, requirement 4: a terminated contract holds its units without occupying them, so
+// another contract may take one over the same term. Restoring the first would then double-book
+// the unit, and it is refused naming the unit, leaving the contract terminated.
+test('restoring a terminated contract is refused a unit another contract took since, naming it', async () => {
+	const api = await createApi();
+	const { unit } = await seedComplexWithUnit(api, 'Restore-Held');
+	const terminated = await seedContract(api, { unitIds: [unit.id] });
+
+	await api.contract.terminate({ id: terminated.id });
+	await seedContract(api, { unitIds: [unit.id] });
+
+	await assert.rejects(
+		() => api.contract.unterminate({ id: terminated.id }),
+		refusedWith('contract.unitsTakenNamed', { named: 'Complex Restore-Held / Unit Restore-Held' })
+	);
+	assert.equal((await api.contract.get({ id: terminated.id }))?.status, 'terminated');
+});
+
+test('restoring a terminated contract takes back a unit another contract holds over a later term', async () => {
+	const api = await createApi();
+	const { unit } = await seedComplexWithUnit(api, 'Restore-Later');
+	const terminated = await seedContract(api, { unitIds: [unit.id] });
+
+	await api.contract.terminate({ id: terminated.id });
+	await seedContract(api, { start: monthsFromNow(12), end: monthsFromNow(24), unitIds: [unit.id] });
+
+	const restored = await api.contract.unterminate({ id: terminated.id });
+
+	assert.notEqual(restored.status, 'terminated');
+});
+
+test('the refusal of a restore names the unit inside its Arabic sentence', async () => {
+	const api = await createApi();
+	const { unit } = await seedComplexWithUnit(api, 'Restore-Ar');
+	const terminated = await seedContract(api, { unitIds: [unit.id] });
+
+	await api.contract.terminate({ id: terminated.id });
+	await seedContract(api, { unitIds: [unit.id] });
+
+	assert.match(
+		await refusalReadIn(() => api.contract.unterminate({ id: terminated.id })),
+		/Complex Restore-Ar \/ Unit Restore-Ar/
+	);
 });
 
 // --- Update --------------------------------------------------------------------------
@@ -625,6 +683,10 @@ test('without viewing tenants, a contract row, its rank, its search and its remi
 		assert.equal('tenantPhone' in rows[0]!, false);
 	}
 
+	// nor does the contract's own read, which names its tenant to a member who may see it.
+	assert.equal((await api.contract.get({ id: contract.id }))?.tenantName, tenant.name);
+	assert.equal('tenantName' in (await lacking.contract.get({ id: contract.id }))!, false);
+
 	// nor is a contract found, or ordered, by a tenant the member is not shown.
 	assert.equal((await api.contract.getMany({ search: tenant.name })).length, 1);
 	assert.deepEqual(await lacking.contract.getMany({ search: tenant.name }), []);
@@ -639,6 +701,33 @@ test('without viewing tenants, a contract row, its rank, its search and its remi
 		amount: 4000,
 		due: contract.start
 	});
+});
+
+test('without viewing tenants, a numberless contract read names no reference, which spells the national id', async () => {
+	const db = createMemoryDatabase();
+	const api = await createApi({ db });
+	const tenant = await seedTenant(api);
+	const contract = await seedContract(api, { tenantId: tenant.id });
+	const lacking = await createApi({ db, identity: identityWithout('viewTenant') });
+
+	// the reference a file calls a numberless contract by is its tenant's national id and its start.
+	const reference = (await api.contract.get({ id: contract.id }))?.reference;
+
+	assert.ok(
+		reference?.includes(tenant.nationalId),
+		'the fallback reference spells the national id'
+	);
+
+	const read = await lacking.contract.get({ id: contract.id });
+
+	assert.equal(read?.id, contract.id);
+	assert.equal('reference' in read!, false);
+	assert.equal(JSON.stringify(read).includes(tenant.nationalId), false);
+
+	// a contract with a government number is called by it, which names no tenant.
+	const numbered = await seedContract(api, { tenantId: tenant.id, govId: 'GOV-READ' });
+
+	assert.equal((await lacking.contract.get({ id: numbered.id }))?.reference, 'GOV-READ');
 });
 
 test('without viewing payments, a contract row counts no payments', async () => {

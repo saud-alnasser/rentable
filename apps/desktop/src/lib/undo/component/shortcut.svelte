@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { isCovered } from '$lib/shortcut';
 	import { shortcuts } from '$lib/shortcut/ui';
 	import { toUndoShortcuts } from '$lib/undo/key';
 	import { applyRedo, applyUndo } from '$lib/undo/move';
@@ -20,7 +21,9 @@
 				// re-reads when a change lands rather than answering once, when it was mounted.
 				(intent) => (intent === 'undo' ? undoable.canUndo : undoable.canRedo),
 				// what the reader may not move says so on the key's row, as a record's act does.
-				(intent, translations) => inverseStack.refusal(intent, translations)
+				(intent, translations) => inverseStack.refusal(intent, translations),
+				// a form, a sheet or a confirmation over the page holds both keys; the palette does not.
+				isCovered
 			)
 		)
 	);

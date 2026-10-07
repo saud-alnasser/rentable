@@ -909,7 +909,9 @@ impl RemoteSync {
         path: PathBuf,
         clock: clock::Shared,
     ) -> Result<Self, Error> {
-        let store = Persisted::<RemoteSyncStore>::load(path)?;
+        // recovered rather than loaded: a record cut short comes back from its last good copy,
+        // with every organization it held (effort 854, requirement 17).
+        let store = Persisted::<RemoteSyncStore>::recover(path, clock.as_ref())?;
         let mut this = Self {
             database_path,
             store,
@@ -918,7 +920,10 @@ impl RemoteSync {
             credential_refusal: None,
             clock,
         };
-        this.reconcile().await?;
+        // committed as a launch commits, so a record that cannot be written is named (ticket 38).
+        if this.reconciled().await {
+            this.store.commit_at_launch()?;
+        }
         Ok(this)
     }
 
@@ -1255,6 +1260,16 @@ impl RemoteSync {
     }
 
     async fn reconcile(&mut self) -> Result<(), Error> {
+        if self.reconciled().await {
+            self.store.commit()?;
+        }
+
+        Ok(())
+    }
+
+    /// Bring the record in line with this machine, and say whether anything changed, which the
+    /// caller commits.
+    async fn reconciled(&mut self) -> bool {
         let current_database_path = self.current_database_path().await;
         let now = self.clock.now();
         let mut changed = false;
@@ -1297,11 +1312,7 @@ impl RemoteSync {
             changed = true;
         }
 
-        if changed {
-            self.store.commit()?;
-        }
-
-        Ok(())
+        changed
     }
 
     pub(super) async fn current_database_path(&self) -> PathBuf {
@@ -2132,6 +2143,164 @@ mod tests {
         for kind in ["owner", "manager", "member", "custom"] {
             assert_eq!(read(kind).role.as_deref(), Some(kind));
         }
+    }
+
+    /// **A record cut short comes back from its last good copy with every organization it held**
+    /// (effort 854, criterion 17). The record is what this machine knows of the organizations it
+    /// holds, and starting from the defaults would forget them; the damaged file is kept beside it.
+    #[test]
+    fn a_truncated_record_comes_back_holding_both_organizations_from_its_copy() {
+        Runtime::new()
+            .expect("failed to create tokio runtime")
+            .block_on(async {
+                let root = scratch("remote-sync-recovers-from-copy");
+                let path = root.join(RemoteSync::FILENAME);
+                let held = r#"{"heldOrganizations":[{"id":"a","name":"Acme","verifyingKey":"k","remoteUrl":"libsql://a"},{"id":"b","name":"Beta","verifyingKey":"k","remoteUrl":"libsql://b"}],"selectedOrganization":"a"}"#;
+
+                std::fs::write(&path, &held[..40]).expect("the truncated record");
+                std::fs::write(root.join("remote-sync.json.bak"), held).expect("the copy");
+
+                let settings = Arc::new(RwLock::new(
+                    Persisted::<Settings>::load(root.join(Settings::FILENAME)).expect("settings"),
+                ));
+                let mut remote_sync = RemoteSync::new(
+                    settings,
+                    path.clone(),
+                    crate::clock::Fixed::shared(1_700_000_000_000),
+                )
+                .await
+                .expect("a truncated record stopped the launch");
+
+                let ids = remote_sync
+                    .store_mut()
+                    .held_organizations
+                    .iter()
+                    .map(|held| held.id.clone())
+                    .collect::<Vec<_>>();
+
+                assert_eq!(ids, ["a", "b"], "an organization was forgotten");
+                assert_eq!(
+                    std::fs::read_to_string(root.join("remote-sync.json.corrupt-1700000000000"))
+                        .expect("the damaged record was not kept"),
+                    &held[..40]
+                );
+
+                let _ = std::fs::remove_dir_all(&root);
+            });
+    }
+
+    /// **A `remote-sync.json` that cannot be written at launch is named** (effort 854, ticket
+    /// 38): the reconcile fills in this machine's device and commits, and a failure there is shown
+    /// as one to open the file is. A directory where the commit stages its write makes it fail.
+    #[test]
+    fn a_record_that_cannot_be_written_at_launch_is_named() {
+        Runtime::new()
+            .expect("failed to create tokio runtime")
+            .block_on(async {
+                let root = scratch("remote-sync-unwritable-at-launch");
+                let path = root.join(RemoteSync::FILENAME);
+                Persisted::<RemoteSyncStore>::load(path.clone()).expect("the record");
+                std::fs::create_dir(root.join("remote-sync.json.tmp"))
+                    .expect("the blocked staging file");
+
+                let settings = Arc::new(RwLock::new(
+                    Persisted::<Settings>::load(root.join(Settings::FILENAME)).expect("settings"),
+                ));
+                let error = match RemoteSync::new(
+                    settings,
+                    path.clone(),
+                    crate::clock::Fixed::shared(1_700_000_000_000),
+                )
+                .await
+                {
+                    Ok(_) => panic!("a record that could not be written was opened"),
+                    Err(error) => error,
+                };
+
+                assert_eq!(
+                    crate::persisted::unopenable_record(&error.to_string()),
+                    Some(path.as_path()),
+                    "the launch cannot name the file: {error}"
+                );
+
+                let _ = std::fs::remove_dir_all(&root);
+            });
+    }
+
+    /// **A record whose file has gone comes back from its last good copy with every organization
+    /// it held** (effort 854, ticket 29). Started from the defaults, its first commit would write
+    /// them over the copy too, and the machine would hold nothing.
+    #[test]
+    fn a_missing_record_comes_back_holding_both_organizations_from_its_copy() {
+        Runtime::new()
+            .expect("failed to create tokio runtime")
+            .block_on(async {
+                let root = scratch("remote-sync-missing-recovers-from-copy");
+                let path = root.join(RemoteSync::FILENAME);
+                let held = r#"{"heldOrganizations":[{"id":"a","name":"Acme","verifyingKey":"k","remoteUrl":"libsql://a"},{"id":"b","name":"Beta","verifyingKey":"k","remoteUrl":"libsql://b"}],"selectedOrganization":"a"}"#;
+
+                std::fs::write(root.join("remote-sync.json.bak"), held).expect("the copy");
+
+                let settings = Arc::new(RwLock::new(
+                    Persisted::<Settings>::load(root.join(Settings::FILENAME)).expect("settings"),
+                ));
+                let mut remote_sync = RemoteSync::new(
+                    settings,
+                    path.clone(),
+                    crate::clock::Fixed::shared(1_700_000_000_000),
+                )
+                .await
+                .expect("a missing record stopped the launch");
+
+                let ids = remote_sync
+                    .store_mut()
+                    .held_organizations
+                    .iter()
+                    .map(|held| held.id.clone())
+                    .collect::<Vec<_>>();
+
+                assert_eq!(ids, ["a", "b"], "an organization was forgotten");
+
+                let copy: serde_json::Value = serde_json::from_slice(
+                    &std::fs::read(root.join("remote-sync.json.bak")).expect("the copy is gone"),
+                )
+                .expect("the copy");
+
+                assert_eq!(
+                    copy["heldOrganizations"].as_array().map(Vec::len),
+                    Some(2),
+                    "the copy was written over"
+                );
+
+                let _ = std::fs::remove_dir_all(&root);
+            });
+    }
+
+    /// a machine that has never kept a record, with no copy either, starts from the defaults.
+    #[test]
+    fn a_missing_record_with_no_copy_starts_holding_nothing() {
+        Runtime::new()
+            .expect("failed to create tokio runtime")
+            .block_on(async {
+                let root = scratch("remote-sync-missing-no-copy");
+                let path = root.join(RemoteSync::FILENAME);
+
+                let settings = Arc::new(RwLock::new(
+                    Persisted::<Settings>::load(root.join(Settings::FILENAME)).expect("settings"),
+                ));
+                let mut remote_sync = RemoteSync::new(
+                    settings,
+                    path.clone(),
+                    crate::clock::Fixed::shared(1_700_000_000_000),
+                )
+                .await
+                .expect("a first launch stopped");
+
+                assert!(remote_sync.store_mut().held_organizations.is_empty());
+                assert!(path.exists(), "the record was not written");
+
+                let _ = std::fs::remove_dir_all(&root);
+            });
     }
 
     #[test]

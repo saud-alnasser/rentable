@@ -20,6 +20,7 @@ const payment: PaymentActRecord = {
 	date: Date.UTC(2026, 2, 1),
 	amount: 2377,
 	contractId: 'contract-1',
+	direction: 'received',
 	contractStatus: 'terminated'
 };
 
@@ -58,4 +59,22 @@ test('a duplicate keeps the method and starts without the reference and the note
 		reference: null,
 		note: null
 	});
+});
+
+// ticket 24 of effort 854, requirement 25: a refund on a terminated contract is edited there, and its
+// duplicate opens as a refund, since the form reads which way the money went from what it opens on.
+test('a refund on a terminated contract is edited, and its duplicate is a refund', () => {
+	const refund = { ...payment, direction: 'refund' as const };
+
+	expect(paymentHost.run('payment.edit', refund)).toBe(true);
+	expect(paymentHostState.form.value).toMatchObject({ id: 'payment-1', direction: 'refund' });
+
+	expect(
+		paymentHost.run('payment.duplicate', {
+			...refund,
+			contractPaidAmount: 5000,
+			contractExpectedAmount: 12000
+		})
+	).toBe(true);
+	expect(paymentHostState.form.value).toMatchObject({ id: undefined, direction: 'refund' });
 });

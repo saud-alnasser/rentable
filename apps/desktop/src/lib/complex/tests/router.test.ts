@@ -265,6 +265,14 @@ test('a member who may not delete units is refused a complex with units, not one
 	assert.equal(await api.complex.get({ id: empty.id }), undefined);
 });
 
+// effort 854, requirement 8: an undo of a creation deletes, and a record somebody else deleted
+// first is refused rather than answered with nothing, which read as success.
+test('deleting a missing complex is refused', async () => {
+	const api = await createApi();
+
+	await assert.rejects(() => api.complex.delete({ id: newId() }), refusedWith('complex.gone'));
+});
+
 test('a selection refuses a member who may not delete units the complexes that have some', async () => {
 	const db = createMemoryDatabase();
 	const api = await createApi({ db });

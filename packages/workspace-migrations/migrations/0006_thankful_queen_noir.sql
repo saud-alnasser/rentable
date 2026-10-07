@@ -1,0 +1,15 @@
+-- Generated from `payment` in `apps/desktop/src/lib/platform/database/schema.ts`; the notes below
+-- are hand-written after the fact, and drizzle-kit wrote no `PRAGMA foreign_keys=OFF` here to
+-- delete.
+--
+-- WHY: a payment says which way its money went, `received` from the tenant or a `refund` paid
+-- back to them, so a refund is a payment row rather than a second record kind. Effort 854,
+-- requirement 25, design A of its plan.
+--
+-- NOT NULL, DEFAULT 'received', NO BACKFILL: every payment written before this was money
+-- received, and the default is what it reads as, so no figure moves when this lands. SQLite reads
+-- the default for every row stored before the column, with no UPDATE to run.
+--
+-- The enum is the schema's, not the engine's: SQLite holds `direction` as plain text, and the
+-- application reads and writes it through the schema's two values.
+ALTER TABLE `payment` ADD `direction` text DEFAULT 'received' NOT NULL;

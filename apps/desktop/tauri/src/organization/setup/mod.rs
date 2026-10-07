@@ -795,13 +795,23 @@ fn draw_these_ids_next(ids: &[&str]) {
 /// token, so a first run reached without one stops here, having created nothing, and the answer
 /// says what to do: grant the consent. Requirement 5's re-consent, at the one place a first run
 /// spends the authority.
+///
+/// **Only an absent token is "not connected"** (effort 854, requirement 19). A store that will
+/// not answer, locked or denied, passes through as the credential error it is, so the owner is
+/// not sent to grant a consent that may still be filed.
 pub(crate) fn authority(credentials: &dyn CredentialStore) -> Result<String, Error> {
-    crate::turso::consent::platform_token(credentials, &Account::Pending).map_err(|_| {
-        Error::refused(
-            RefusalReason::TursoNotConnected,
-            "this machine holds no turso authority. connect the turso account first, then \
+    crate::turso::consent::platform_token(credentials, &Account::Pending).map_err(|error| {
+        match error {
+            Error::Refused {
+                reason: RefusalReason::TursoNotConnected,
+                ..
+            } => Error::refused(
+                RefusalReason::TursoNotConnected,
+                "this machine holds no turso authority. connect the turso account first, then \
                   create the organization",
-        )
+            ),
+            error => error,
+        }
     })
 }
 
@@ -1481,5 +1491,49 @@ mod tests {
         assert_eq!(SHIPPING_KDF.memory_kib, 256 * 1024);
         assert_eq!(SHIPPING_KDF.iterations, 3);
         assert_eq!(SHIPPING_KDF.lanes, 1);
+    }
+
+    /// Requirement 19: a setup, a connect or a reconnect that cannot read the store is told the
+    /// store would not answer, and is not sent to grant a consent that may still be filed. A
+    /// store holding nothing is still not connected.
+    #[test]
+    fn a_store_that_will_not_answer_is_a_credential_error_and_an_empty_one_is_not_connected() {
+        let credentials = Memory::new();
+        crate::turso::consent::store_platform_token(&credentials, "a-filed-consent")
+            .expect("failed to file the test token");
+
+        credentials.refuse_the_next_read();
+
+        let error = super::authority(&credentials)
+            .expect_err("setup found authority in a store that would not answer");
+
+        assert!(
+            matches!(error, Error::Credential { .. }),
+            "a failing store was reported as something other than a credential error: {error:?}"
+        );
+
+        assert_eq!(
+            super::authority(&credentials).as_deref(),
+            Ok("a-filed-consent"),
+            "the refusal outlived the one read it was armed for"
+        );
+
+        let absent =
+            super::authority(&Memory::new()).expect_err("setup found authority in an empty store");
+
+        assert!(
+            matches!(
+                absent,
+                Error::Refused {
+                    reason: RefusalReason::TursoNotConnected,
+                    ..
+                }
+            ),
+            "{absent:?}"
+        );
+        assert!(
+            absent.to_string().contains("create the organization"),
+            "{absent}"
+        );
     }
 }

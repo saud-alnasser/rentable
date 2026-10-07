@@ -20,3 +20,4 @@ export {
 	type ShortcutSheetEntry,
 	type SurfaceShortcut
 } from './shortcut';
+export { isCovered } from './covered';

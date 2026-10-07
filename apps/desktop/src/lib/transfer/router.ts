@@ -6,6 +6,7 @@ import z, { type ZodType } from 'zod';
 import { toTransferKey } from './reference';
 import type {
 	AnySheet,
+	Claim,
 	CountOf,
 	FileOf,
 	HeldName,
@@ -46,10 +47,10 @@ const IMPORT_GATE = IMPORT_FLAGS as unknown as Flags;
 export default function transferRouter<S extends AnySheet>(declared: readonly S[]) {
 	const sheets = [...declared].sort((a, b) => a.order - b.order);
 
-	// what a file may ask to be written, and nothing else: each sheet's own. A status, a paid
-	// amount and an expected amount are absent on purpose: they are derived from a contract's term
-	// and its payments, and a file that could assert them could put a workspace into a state its
-	// own rows contradict. Typed on the way in as well as out, because it is merged beside the
+	// what a file may ask to be written, and nothing else: each sheet's own. A paid amount, an
+	// expected amount and every status but a termination are absent on purpose: they are derived
+	// from a contract's term and its payments, and a file that could assert them could put a
+	// workspace into a state its own rows contradict. Typed on the way in as well as out, because it is merged beside the
 	// `{ workspaceId }` that `permittedIn` reads first, and an input left `unknown` would leave a
 	// caller only the workspace to name.
 	const input = z.object(
@@ -101,14 +102,22 @@ export default function transferRouter<S extends AnySheet>(declared: readonly S[
 		 */
 		held: procedure.permittedIn().query(async ({ ctx }): Promise<HeldOf<S>> => {
 			const held: Record<string, HeldName[]> = {};
+			const claims: Record<string, Claim[]> = {};
 
 			for (const sheet of sheets) {
+				const viewing = permits(ctx.identity.permissions, sheet.view);
 				const names = await sheet.held(ctx.db);
 
-				held[sheet.concept] = permits(ctx.identity.permissions, sheet.view) ? names : [];
+				held[sheet.concept] = viewing ? names : [];
+
+				// what a kind's records claim is told under the same flag as its names, and what is
+				// not told is refused by the write instead.
+				if (sheet.claims) {
+					claims[sheet.concept] = viewing ? await sheet.claims.held(ctx.db) : [];
+				}
 			}
 
-			return held as HeldOf<S>;
+			return { ...held, claims } as HeldOf<S>;
 		}),
 
 		/**
@@ -144,15 +153,27 @@ export default function transferRouter<S extends AnySheet>(declared: readonly S[
 				// two are indistinguishable to the row that names it, which is the whole point of a
 				// file that references by name.
 				const ids = new Map<string, Map<string, string>>();
+				// the names more than one record already here answers to, by concept. Such a name is
+				// refused rather than resolved, since whichever record it reached would be a guess.
+				const ambiguous = new Map<string, Set<string>>();
 
 				for (const sheet of sheets) {
 					const answering = new Map<string, string>();
+					const shared = new Set<string>();
 
 					for (const [values, id] of (await sheet.answers?.ids(ctx.db)) ?? []) {
-						answering.set(toTransferKey(...values), id);
+						const key = toTransferKey(...values);
+						const answered = answering.get(key);
+
+						if (answered !== undefined && answered !== id) {
+							shared.add(key);
+						}
+
+						answering.set(key, id);
 					}
 
 					ids.set(sheet.concept, answering);
+					ambiguous.set(sheet.concept, shared);
 				}
 
 				const resolve: Writing['resolve'] = (concept, name, values = [name]) => {
@@ -162,7 +183,13 @@ export default function transferRouter<S extends AnySheet>(declared: readonly S[
 						throw new Error(`no sheet answers to a name of ${concept}`);
 					}
 
-					const id = ids.get(concept)?.get(toTransferKey(...values));
+					const key = toTransferKey(...values);
+
+					if (ambiguous.get(concept)?.has(key)) {
+						throw refuse('workspace.ambiguousReference', { name: name.trim() });
+					}
+
+					const id = ids.get(concept)?.get(key);
 
 					if (id === undefined) {
 						throw refuse(answers.unknown, { name: name.trim() });
@@ -172,6 +199,8 @@ export default function transferRouter<S extends AnySheet>(declared: readonly S[
 				};
 
 				const statements: Statement[] = [];
+				// run last, once every sheet has written: see `Written.closing`.
+				const closing: Statement[] = [];
 				const counts: Record<string, number> = {};
 				const touched: Record<string, string[]> = {};
 
@@ -184,6 +213,7 @@ export default function transferRouter<S extends AnySheet>(declared: readonly S[
 					});
 
 					statements.push(...written.statements);
+					closing.push(...(written.closing ?? []));
 					counts[sheet.concept] = written.count;
 
 					for (const [what, touchedIds] of Object.entries(written.touched ?? {})) {
@@ -197,7 +227,7 @@ export default function transferRouter<S extends AnySheet>(declared: readonly S[
 
 				// the batch's type asks for at least one statement, and the guard above is what
 				// establishes it.
-				const [first, ...rest] = statements;
+				const [first, ...rest] = [...statements, ...closing];
 
 				await ctx.db.batch([first, ...rest]);
 

@@ -46,7 +46,11 @@ use std::path::{Path, PathBuf};
 use crate::{
     backup,
     clock::{self, Clock},
-    database::{Database, corrupt},
+    database::{
+        Database,
+        bound::{Bound, SYNC_BOUND, bounded},
+        corrupt,
+    },
     error::Error,
     schema,
 };
@@ -162,6 +166,8 @@ pub struct OrganizationStore {
     /// what says when, for whatever acts on the replica after it opened: the clock the command
     /// that opened it was given.
     clock: clock::Shared,
+    /// how long a push or a pull of the replica may wait on the remote (`database/bound.rs`).
+    bound: Bound,
 }
 
 impl std::fmt::Debug for OrganizationStore {
@@ -237,7 +243,16 @@ impl OrganizationStore {
             connection,
             path: path.to_path_buf(),
             clock,
+            bound: SYNC_BOUND,
         })
+    }
+
+    /// The same store with its pushes and pulls given up after `bound`, which is how a test
+    /// against a silent remote finishes in seconds.
+    #[cfg(test)]
+    pub(crate) fn with_bound(mut self, bound: Bound) -> Self {
+        self.bound = bound;
+        self
     }
 
     /// The clock the replica was opened with.
@@ -291,7 +306,7 @@ impl OrganizationStore {
     pub async fn pushed(&self) -> Result<(), turso::Error> {
         self.connection
             .watch()
-            .note(self.database.push().await)
+            .note(bounded(self.bound, "push", self.database.push()).await)
             .map(|_| ())
     }
 
@@ -308,7 +323,10 @@ impl OrganizationStore {
     /// organization rather than about this machine's connection, and it is the only way a machine
     /// learns the owner deleted it (effort 828, requirement 18).
     pub async fn pulled(&self) -> Result<bool, turso::Error> {
-        let arrived = self.connection.watch().note(self.database.pull().await)?;
+        let arrived = self
+            .connection
+            .watch()
+            .note(bounded(self.bound, "pull", self.database.pull()).await)?;
 
         // a replica made by an earlier build lacks the tables the schema gained since, and the
         // remote lacks them too, because the schema is issued once, on the machine that created
@@ -781,6 +799,53 @@ mod tests {
         store.install_schema().await.expect("the schema");
 
         store
+    }
+
+    /// **The organization replica's push and pull read as offline within the bound when the remote
+    /// never answers** (effort 854, criterion 15). The heartbeat pushes and pulls it under the
+    /// member lock, so a call that waited for good would hold that lock for good.
+    #[test]
+    fn a_silent_remote_reads_as_offline_for_the_organization_within_the_bound() {
+        use crate::{
+            database::bound::Bound,
+            sync::test::server::{SilentServer, within},
+        };
+        use std::time::{Duration, Instant};
+
+        within(Duration::from_secs(60), async {
+            let silent = SilentServer::start();
+            let directory = scratch("organization-silent");
+            let store = OrganizationStore::open(
+                crate::clock::System::shared(),
+                &directory.join("org-acme.db"),
+                Some(silent.url()),
+                || async { Ok::<String, turso::Error>("a-credential".to_string()) },
+            )
+            .await
+            .expect("the organization replica")
+            .with_bound(Bound {
+                silence: Duration::from_millis(300),
+                ceiling: Duration::from_secs(60),
+            });
+
+            let started = Instant::now();
+            assert!(!store.push().await, "a silent push went through");
+            assert!(
+                started.elapsed() < Duration::from_secs(2),
+                "the push waited on"
+            );
+
+            let started = Instant::now();
+            assert!(!store.pull().await, "a silent pull brought something");
+            assert!(
+                started.elapsed() < Duration::from_secs(2),
+                "the pull waited on"
+            );
+
+            drop(store);
+            drop(silent);
+            let _ = std::fs::remove_dir_all(&directory);
+        });
     }
 
     /// The organization every populated test starts from: one owner, one member, two workspaces,

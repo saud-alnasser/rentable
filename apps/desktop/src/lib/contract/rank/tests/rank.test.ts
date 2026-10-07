@@ -50,6 +50,21 @@ test('a contract inside its period and behind is owing', () => {
 	assert.equal(getContractRank(contract('active', '2025-07-01', '2026-06-30'), 250, NOW), 'owing');
 });
 
+// twelve payments of 4166.67 sum to 1.46e-11 short of twelve times 4166.67, and float dust is
+// not a debt: the rank allows the tolerance every other comparison of money in the domain does.
+test('a contract paid in full is neither owing nor overdue, whatever float dust its sum carries', () => {
+	const paid = Array<number>(12)
+		.fill(4166.67)
+		.reduce((sum, amount) => sum + amount, 0);
+	// every cycle due by now, and the end not yet passed, so it is a renewal rather than a debt
+	const inside = contract('active', '2025-02-01', '2026-01-31', '1m', 4166.67);
+	const past = contract('expired', '2024-12-01', '2025-11-30', '1m', 4166.67);
+
+	assert.ok(paid < getContractTotalCost(inside));
+	assert.equal(getContractRank(inside, paid, NOW), 'ending-soon');
+	assert.equal(getContractRank(past, paid, NOW), undefined);
+});
+
 // the defect #268 exists to fix: membership is what the contract owes today, so a quarterly
 // contract whose last cycle boundary fell two months ago is ranked on that debt alone.
 test('a debt that fell due in an earlier month still gives a contract a rank', () => {

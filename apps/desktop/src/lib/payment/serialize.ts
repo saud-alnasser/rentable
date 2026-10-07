@@ -17,7 +17,8 @@ export function serializePayment(record: typeof s.payment.$inferSelect): Payment
 		contractId: record.contractId,
 		method: record.method,
 		reference: record.reference,
-		note: record.note
+		note: record.note,
+		direction: record.direction
 	};
 }
 

@@ -23,14 +23,38 @@ import {
  * ({@link ContractContributions}).
  */
 
-/** a payment as a caller holds it, with the date in whichever form it arrived. */
+/**
+ * a payment as a caller holds it, with the date in whichever form it arrived. One that names no
+ * direction was received, as the column's own default reads a row written before it had one.
+ */
 export type PaymentLike = Omit<Pick<Payment, 'amount' | 'date'>, 'date'> & {
 	date: DateLike;
+	direction?: Payment['direction'];
 };
 
-/** what a set of payments made against a contract adds up to. */
+/** whether a payment is money returned to the tenant rather than money received from them. */
+export function isRefund(payment: Pick<PaymentLike, 'direction'>) {
+	return payment.direction === 'refund';
+}
+
+/** what the contract received: every payment that is not a refund. */
+export function getReceivedAmount(payments: PaymentLike[]) {
+	return payments.reduce((sum, payment) => (isRefund(payment) ? sum : sum + payment.amount), 0);
+}
+
+/** what the contract returned to its tenant: every refund. */
+export function getRefundedAmount(payments: PaymentLike[]) {
+	return payments.reduce((sum, payment) => (isRefund(payment) ? sum + payment.amount : sum), 0);
+}
+
+/**
+ * What a contract counts as paid: what it received less what it returned (effort 854, requirement
+ * 27). Every figure that weighs payments against the contract reads this, so its status, schedule,
+ * outstanding and paid in full all follow the net. What the landing page reports as collected is
+ * not a settlement and stays every payment received, as recorded.
+ */
 export function getPaidAmount(payments: PaymentLike[]) {
-	return payments.reduce((sum, payment) => sum + payment.amount, 0);
+	return getReceivedAmount(payments) - getRefundedAmount(payments);
 }
 
 /**
@@ -76,6 +100,49 @@ export function getContractPaymentSummary(contract: ContractLike, payments: Paym
 		paidAmount: getPaidAmount(payments),
 		expectedAmount: getContractTotalCost(contract)
 	};
+}
+
+/**
+ * The most a refund against this contract may return (effort 854, requirement 26).
+ *
+ * A terminated contract may return what it received, less what it already returned. One that is
+ * not terminated may return only what it received past its total cost, less what it already
+ * returned, so a refund never makes it owe. Never below nothing.
+ *
+ * `editing` is the amount of a refund being edited, which `payments` leaves out. It may always stay
+ * what it is or be lowered, since returning less never takes the contract further past its limit:
+ * a restored contract may hold refunds past what a live one may return (requirement 27), and the
+ * reader still corrects them (ticket 33 of the effort).
+ */
+export function getRefundableAmount(contract: ContractLike, payments: PaymentLike[], editing = 0) {
+	const received = getReceivedAmount(payments);
+	const refunded = getRefundedAmount(payments);
+	const returnable =
+		contract.status === 'terminated'
+			? received - refunded
+			: received - getContractTotalCost(contract) - refunded;
+
+	return Math.max(0, returnable, editing);
+}
+
+/**
+ * The same limit as {@link getRefundableAmount}, read off the two aggregates reconcile
+ * materializes onto the contract rather than its rows: what it counts as paid is what it received
+ * less what it returned, and what it expects is its total cost. The ledger and the refund form read
+ * it to say how much may be refunded before the reader types; the procedure still weighs the rows.
+ *
+ * `editing` is the amount of a refund being edited, which is not weighed against itself and may
+ * always stay what it is, as {@link getRefundableAmount} lets it.
+ */
+export function getRefundableFromTotals(
+	contract: Pick<Contract, 'status' | 'paidAmount' | 'expectedAmount'>,
+	editing = 0
+) {
+	const paid = contract.paidAmount + editing;
+	const returnable = contract.status === 'terminated' ? paid : paid - contract.expectedAmount;
+
+	// to the halala the form takes, as the refusal states it, so float dust is never a limit.
+	return Math.max(0, Math.round(returnable * 100) / 100, editing);
 }
 
 export function hasSatisfiedContractPaymentRequirement(paidAmount: number, expectedAmount: number) {
@@ -335,6 +402,48 @@ export function ensureContractPaymentsCreatable(contract: ContractLike, payments
 }
 
 /**
+ * A refund may return no more than the contract's state lets it ({@link getRefundableAmount}),
+ * weighed against every payment it holds other than the refunds being written, of which `amount`
+ * is the sum. `editing` is what a refund being edited returns now, which it may keep or lower. The
+ * refusal names the limit, rounded to the halala the form takes, so the reader is told the figure
+ * to stay within.
+ */
+export function ensureRefundWithinLimit(
+	contract: ContractLike,
+	payments: PaymentLike[],
+	amount: number,
+	editing = 0
+) {
+	const limit = getRefundableAmount(contract, payments, editing);
+
+	if (amount > limit + EPSILON) {
+		throw refuse('contract.refundAboveLimit', { limit: Math.round(limit * 100) / 100 });
+	}
+}
+
+/**
+ * Whether what a contract returned stays within what it received: the one rule about refunds that
+ * holds whatever the contract's state (effort 854, requirement 26).
+ *
+ * Exported beside the assertion that raises on it because a selection of payments plans its
+ * deletion against it before any write, as {@link whatBlocksContractDeletion} is.
+ */
+export function areRefundsCovered(payments: PaymentLike[]) {
+	return getRefundedAmount(payments) <= getReceivedAmount(payments) + EPSILON;
+}
+
+/**
+ * Refuses a write that would leave a contract having returned more than it received: lowering or
+ * deleting a payment it received, or putting refunds back. Anything short of that goes through,
+ * and a live contract then owes what was returned.
+ */
+export function ensureRefundsCovered(payments: PaymentLike[]) {
+	if (!areRefundsCovered(payments)) {
+		throw refuse('contract.refundsExceedReceived');
+	}
+}
+
+/**
  * What stops a contract being deleted, or `undefined` where nothing does.
  *
  * The rule itself, and the only rendering of it: a contract may carry no payment. It answers with
@@ -379,7 +488,7 @@ export type ContractSelectionAction = (typeof CONTRACT_SELECTION_ACTIONS)[number
 
 /** Why one contract would be turned away from one of those actions. */
 export type ContractRefusalReason =
-	'missing' | 'not-terminable' | 'not-restorable' | ContractDeletionBlocker;
+	'missing' | 'not-terminable' | 'not-restorable' | 'units-taken' | ContractDeletionBlocker;
 
 /**
  * Why this action would turn this contract away, or `undefined` where it would go through.
@@ -392,7 +501,11 @@ export function whatRefusesContractAction(
 	action: ContractSelectionAction,
 	contract: ContractLike,
 	payments: PaymentLike[],
-	now: DateLike
+	now: DateLike,
+	// whether another live contract holds one of its units over its term, which only a restore
+	// asks: the caller reads the assignments and answers it (`assignment/assignment.ts`), since the
+	// rule about holding a unit is the assignment's.
+	{ unitsTaken = false }: { unitsTaken?: boolean } = {}
 ): ContractRefusalReason | undefined {
 	switch (action) {
 		case 'terminate':
@@ -403,7 +516,11 @@ export function whatRefusesContractAction(
 				? undefined
 				: 'not-terminable';
 		case 'restore':
-			return canUnterminateContractStatus(contract.status) ? undefined : 'not-restorable';
+			if (!canUnterminateContractStatus(contract.status)) {
+				return 'not-restorable';
+			}
+
+			return unitsTaken ? 'units-taken' : undefined;
 		case 'delete':
 			return whatBlocksContractDeletion(payments);
 	}

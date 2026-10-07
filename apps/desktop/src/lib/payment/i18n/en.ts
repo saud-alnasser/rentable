@@ -38,6 +38,30 @@ export const payments = {
 	reference: 'reference',
 	referenceOptional: 'reference (optional)',
 	referencePlaceholder: 'transfer, cheque or SADAD number',
+	// money returned to the tenant, recorded from the ledger as a payment going out (effort 854,
+	// requirements 25 and 26). The month header states it apart from what was received, and a
+	// received payment on a terminated contract says on its row why it is locked and what unlocks it.
+	refund: {
+		created: 'refund recorded successfully!',
+		deleted: 'refund deleted successfully!',
+		historyName: 'refund {amount:string}',
+		kind: 'type',
+		limitHint: 'most you can refund',
+		locked: 'the contract is terminated. restore it to change this payment.',
+		monthReceived: 'received',
+		monthReturned: 'returned',
+		monthReturnedTotal: 'returned in {month}',
+		new: 'record refund',
+		received: 'payment received',
+		tag: 'refund',
+		title: 'refund',
+		unavailable: {
+			nothingLeftToRefund: 'nothing this contract received is left to refund.',
+			nothingToRefund:
+				"nothing was paid beyond this contract's total. a payment recorded by mistake is deleted instead."
+		},
+		updated: 'refund updated successfully!'
+	},
 	remaining: '{amount:string} remaining',
 	remainingAfter: 'remaining after this payment',
 	remainingBalance: 'remaining balance',
@@ -45,7 +69,18 @@ export const payments = {
 	terminatedSummary: 'this contract is terminated and locked. payment records are read-only.',
 	title: 'payments',
 	titleFor: 'payments for {govId}',
-	trackSummary: 'track contract payments and add new payment records here.'
+	trackSummary: 'track contract payments and add new payment records here.',
+	// a refund's voucher, the statement that money was paid out to the tenant (effort 854,
+	// requirement 29), printed in the language chosen. It is not a tax document.
+	voucher: {
+		amount: 'amount paid',
+		number: 'voucher number',
+		paidTo: 'paid to',
+		print: 'print voucher',
+		reason: 'reason',
+		signature: 'recipient signature',
+		title: 'payment voucher'
+	}
 } satisfies BaseTranslation;
 
 export const refusals = {

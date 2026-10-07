@@ -141,3 +141,27 @@ test("a terminated contract's payment still has its cycles and remainder", () =>
 	);
 	assert.equal(receipt.remaining, 9000);
 });
+
+// effort 854, requirement 27: a receipt states what remains net of every refund taken before or
+// with it, and the cycles its payment still covers once refunds are taken off the newest first.
+test('a receipt reads what remains and what it covers net of the refunds before it', () => {
+	const payments: SchedulePaymentLike[] = [
+		{ id: uuid(1, 1), date: day('2026-01-01'), amount: 3000 },
+		{ id: uuid(2, 1), date: day('2026-02-01'), amount: 3000 },
+		{ id: uuid(3, 1), date: day('2026-03-01'), amount: 1000, direction: 'refund' },
+		{ id: uuid(4, 1), date: day('2026-04-01'), amount: 500 }
+	];
+	const receiptOf = (id: string) => allocateReceipt(QUARTERLY, payments, id, day('2026-05-10'));
+
+	assert.equal(receiptOf(payments[1].id).remaining, 6000);
+	assert.equal(receiptOf(payments[3].id).remaining, 6500);
+	assert.deepEqual(receiptOf(payments[3].id).cycles, []);
+	assert.deepEqual(
+		receiptOf(payments[1].id).cycles.map((cycle) => cycle.index),
+		[1]
+	);
+	assert.deepEqual(
+		receiptOf(payments[0].id).cycles.map((cycle) => cycle.index),
+		[0]
+	);
+});

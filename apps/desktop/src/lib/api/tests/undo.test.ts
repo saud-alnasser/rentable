@@ -7,6 +7,7 @@ import { get } from 'svelte/store';
 import {
 	type Api,
 	createApi,
+	identityWithout,
 	monthsFromNow,
 	seedTenant,
 	refusedWith
@@ -22,9 +23,26 @@ import { fakeSyncState } from '$lib/sync/tests/testing.ts';
 // than closing over the one this file started with.
 let caller: Api = await createApi();
 
+/** every batch of entries an account was asked to append, oldest first. */
+const appended: Parameters<Api['history']['append']>[0]['entries'][] = [];
+
 mock.module('$lib/api/caller', {
 	exports: {
-		default: new Proxy(caller, { get: (_target, concept) => Reflect.get(caller, concept) })
+		default: new Proxy(caller, {
+			get: (_target, concept) =>
+				// the account is written without being awaited, so what it was asked to write is
+				// watched at the call rather than read back from the table.
+				concept === 'history'
+					? {
+							...caller.history,
+							append: (input: Parameters<Api['history']['append']>[0]) => {
+								appended.push(input.entries);
+
+								return caller.history.append(input);
+							}
+						}
+					: Reflect.get(caller, concept)
+		})
 	}
 });
 
@@ -72,9 +90,11 @@ const { inverseStack } = await import('$lib/undo/undo');
 const { applyUndo } = await import('$lib/undo');
 const { prefixOf } = await import('$lib/mutation');
 const { useQueryClient } = await import('@tanstack/svelte-query');
-const { useCreateTenant, useUpdateTenant, useDeleteTenant } = await import('$lib/tenant/query');
-const { useCreateComplex, useUpdateComplex, useDeleteComplex } = await import('$lib/complex/query');
-const { useCreateUnit, useCreateManyUnits, useUpdateUnit, useDeleteUnit } =
+const { useCreateTenant, useUpdateTenant, useDeleteTenant, useDeleteManyTenants } =
+	await import('$lib/tenant/query');
+const { useCreateComplex, useUpdateComplex, useDeleteComplex, useDeleteManyComplexes } =
+	await import('$lib/complex/query');
+const { useCreateUnit, useCreateManyUnits, useUpdateUnit, useDeleteUnit, useDeleteManyUnits } =
 	await import('$lib/complex/unit/query');
 const {
 	useCreateContract,
@@ -86,7 +106,11 @@ const {
 } = await import('$lib/contract/query');
 const { useRenewContract } = await import('$lib/contract/renewal/query');
 const { getContractRenewalTerm } = await import('$lib/contract/renewal/renewal');
-const { useCreatePayment, useDeletePayment } = await import('$lib/payment/query');
+const { useDeleteManyContracts } = await import('$lib/contract/selection/query');
+const { useCreatePayment, useUpdatePayment, useDeletePayment, useDeleteManyPayments } =
+	await import('$lib/payment/query');
+const { memberPermissions } = await import('$lib/permission');
+const { EVERY_FLAG, maskOf } = await import('@rentable/workspace-permission');
 const { loadLocale } = await import('$lib/i18n/i18n-util.sync');
 const { LL, setLocale } = await import('$lib/i18n/i18n-svelte');
 
@@ -121,9 +145,30 @@ async function run<TVariables, TResult, TCaptured>(
 	return result;
 }
 
+/**
+ * a contract as its own read answers with it, less the reference a workspace file calls it by and
+ * its tenant's name: a mutation's answer never carried either, and what these tests compare is the
+ * record itself.
+ */
+async function readContract(id: string) {
+	const read = await caller.contract.get({ id });
+
+	if (!read) {
+		return read;
+	}
+
+	const { reference, tenantName, ...contract } = read;
+
+	assert.ok(reference, 'a contract read names the reference a file calls it by');
+	assert.ok(tenantName, 'a contract read names its tenant to a reader who may see tenants');
+
+	return contract;
+}
+
 beforeEach(async () => {
 	inverseStack.clear();
 	caller = await createApi();
+	appended.length = 0;
 });
 
 describe('undoing a record change', () => {
@@ -342,7 +387,7 @@ describe('undoing a record change', () => {
 		assert.equal(await caller.contract.get({ id: successor.id }), undefined);
 		// the contract that was renewed is untouched by the renewal and by taking it back. Its read
 		// also carries the rank it is filed under today: begun a month ago and unpaid, it owes.
-		assert.deepEqual(await caller.contract.get({ id: contract.id }), {
+		assert.deepEqual(await readContract(contract.id), {
 			...contract,
 			rank: 'owing'
 		});
@@ -352,7 +397,7 @@ describe('undoing a record change', () => {
 		);
 
 		await inverseStack.redo();
-		assert.deepEqual(await caller.contract.get({ id: successor.id }), successor);
+		assert.deepEqual(await readContract(successor.id), successor);
 		assert.deepEqual(
 			(await caller.contract.units.getMany({ contractId: successor.id })).map((held) => held.id),
 			[unit.id]
@@ -380,7 +425,7 @@ describe('undoing a record change', () => {
 
 		await inverseStack.redo();
 		// read with the rank it is filed under today: begun a month ago and unpaid, it owes.
-		assert.deepEqual(await caller.contract.get({ id: contract.id }), {
+		assert.deepEqual(await readContract(contract.id), {
 			...contract,
 			rank: 'owing'
 		});
@@ -566,6 +611,37 @@ describe('undoing a record change', () => {
 		assert.equal((await caller.contract.get({ id: contract.id }))?.status, 'terminated');
 	});
 
+	// effort 854, requirement 4: undoing a terminate makes the contract live again, so it is
+	// refused where another contract took one of its units since, and the entry stays to be
+	// pressed again once the unit is freed.
+	it('refuses taking back a termination once another contract took the unit, keeping the entry', async () => {
+		const tenant = await seedTenant(caller);
+		const complex = await caller.complex.create({ name: 'Taken Tower', location: 'Riyadh' });
+		const unit = await caller.complex.units.create({ name: 'T1', complexId: complex.id });
+		const term = {
+			tenantId: tenant.id,
+			start: monthsFromNow(-1),
+			end: monthsFromNow(11),
+			interval: '12m' as const,
+			cost: 1000,
+			unitIds: [unit.id]
+		};
+		const contract = await caller.contract.create(term);
+
+		await run(useTerminateContract, contract.id);
+
+		const entry = inverseStack.undoable;
+
+		await caller.contract.create(term);
+
+		await assert.rejects(
+			() => inverseStack.undo(),
+			refusedWith('contract.unitsTakenNamed', { named: 'Taken Tower / T1' })
+		);
+		assert.equal((await caller.contract.get({ id: contract.id }))?.status, 'terminated');
+		assert.equal(inverseStack.undoable, entry);
+	});
+
 	it('takes back reinstating a contract as readily as terminating one', async () => {
 		const tenant = await seedTenant(caller);
 		const contract = await run(useCreateContract, {
@@ -681,5 +757,466 @@ describe('undoing a record change', () => {
 
 		await inverseStack.undo();
 		assert.equal((await caller.complex.units.get({ id: unit.id }))?.name, 'A1');
+	});
+});
+
+/**
+ * Take back a creation whose record somebody else deleted, and see it refused with `code`.
+ *
+ * Effort 854, requirement 8 and its criterion: the undo of a creation is a deletion, and a
+ * deletion of what is already gone used to answer with nothing, which read as success and moved
+ * the entry to redo, from where the record could be made again. [[rules/data]], under *Undo*.
+ */
+async function refusesUndoingWhatIsGone(
+	code: Parameters<typeof refusedWith>[0],
+	read: () => Promise<unknown>
+) {
+	const entry = inverseStack.undoable;
+	const written = appended.length;
+
+	assert.ok(entry, 'the creation left nothing to take back');
+
+	await assert.rejects(() => inverseStack.undo(), refusedWith(code));
+	// and through the path the key takes, which is the one that writes an account.
+	await applyUndo(useQueryClient());
+
+	assert.equal(appended.length, written, 'a refused undo writes no history');
+	assert.equal(inverseStack.undoable, entry, 'the entry stays, so the reader can see what failed');
+	assert.equal(inverseStack.redoable, null, 'nothing reached redo, so nothing can make it again');
+	assert.equal(await read(), undefined, 'the record stays deleted');
+}
+
+describe('taking back a creation whose record somebody else deleted', () => {
+	it('is refused for a unit', async () => {
+		const complex = await caller.complex.create({ name: 'Gone Tower', location: 'Riyadh' });
+		const unit = await run(useCreateUnit, { name: 'G1', complexId: complex.id });
+
+		await caller.complex.units.delete({ id: unit.id });
+
+		await refusesUndoingWhatIsGone('unit.gone', () => caller.complex.units.get({ id: unit.id }));
+	});
+
+	it('is refused for a contract', async () => {
+		const tenant = await seedTenant(caller);
+		const contract = await run(useCreateContract, {
+			tenantId: tenant.id,
+			start: monthsFromNow(-1),
+			end: monthsFromNow(11),
+			interval: '12m',
+			cost: 1000
+		});
+
+		await caller.contract.delete({ id: contract.id });
+
+		await refusesUndoingWhatIsGone('contract.missing', () =>
+			caller.contract.get({ id: contract.id })
+		);
+	});
+
+	it('is refused for a renewal', async () => {
+		const tenant = await seedTenant(caller);
+		const contract = await caller.contract.create({
+			tenantId: tenant.id,
+			start: monthsFromNow(-1),
+			end: monthsFromNow(11),
+			interval: '12m',
+			cost: 1000
+		});
+		const term = getContractRenewalTerm(contract);
+		const successor = await run(useRenewContract, {
+			contractId: contract.id,
+			start: term.start.getTime(),
+			end: term.end.getTime()
+		});
+
+		await caller.contract.delete({ id: successor.id });
+
+		await refusesUndoingWhatIsGone('contract.missing', () =>
+			caller.contract.get({ id: successor.id })
+		);
+	});
+
+	it('is refused for a payment', async () => {
+		const tenant = await seedTenant(caller);
+		const contract = await caller.contract.create({
+			tenantId: tenant.id,
+			start: monthsFromNow(-1),
+			end: monthsFromNow(11),
+			interval: '12m',
+			cost: 1000
+		});
+		const payment = await run(useCreatePayment, {
+			contractId: contract.id,
+			date: monthsFromNow(0),
+			amount: 1000
+		});
+
+		await caller.payment.delete({ id: payment.id });
+
+		await refusesUndoingWhatIsGone('payment.missing', () => caller.payment.get({ id: payment.id }));
+	});
+
+	it('is refused for a complex', async () => {
+		const complex = await run(useCreateComplex, { name: 'Gone Court', location: 'Riyadh' });
+
+		await caller.complex.delete({ id: complex.id });
+
+		await refusesUndoingWhatIsGone('complex.gone', () => caller.complex.get({ id: complex.id }));
+	});
+});
+
+/**
+ * Delete two records at once, take it back, let something come to hold `kept`, apply the deletion
+ * again, and take that back.
+ *
+ * Effort 854, requirement 9 and its criterion: the redo is refused `kept` and removes `freed`
+ * alone, so the undo after it puts back `freed` alone, rather than both and an `idTaken` on the one
+ * that never left.
+ */
+async function undoesWhatTheRedoRemoved({
+	remove,
+	refuseOne,
+	read,
+	kept,
+	freed
+}: {
+	remove: () => Promise<unknown>;
+	refuseOne: () => Promise<unknown>;
+	read: (id: string) => Promise<unknown>;
+	kept: string;
+	freed: string;
+}) {
+	await remove();
+	await inverseStack.undo();
+	await refuseOne();
+	await inverseStack.redo();
+
+	assert.ok(await read(kept), 'the redo was refused the record something holds');
+	assert.equal(await read(freed), undefined);
+
+	await inverseStack.undo();
+
+	assert.ok(await read(kept));
+	assert.ok(await read(freed), 'the record the redo removed is back');
+
+	const taken = inverseStack.redoable;
+
+	assert.deepEqual(
+		[taken?.records?.('undo') ?? []].flat().map((entry) => entry.recordId),
+		[freed],
+		'the account names only what came back'
+	);
+	assert.equal(taken?.describe(get(LL)), 'deleting 1 record');
+}
+
+describe('taking back a bulk deletion after its redo was partly refused', () => {
+	it('puts back only the tenants the redo removed', async () => {
+		const kept = await seedTenant(caller);
+		const freed = await seedTenant(caller);
+
+		await undoesWhatTheRedoRemoved({
+			remove: () => run(useDeleteManyTenants, { ids: [kept.id, freed.id], foreseen: [] }),
+			refuseOne: () =>
+				caller.contract.create({
+					tenantId: kept.id,
+					start: monthsFromNow(-1),
+					end: monthsFromNow(11),
+					interval: '12m',
+					cost: 1000
+				}),
+			read: (id) => caller.tenant.get({ id }),
+			kept: kept.id,
+			freed: freed.id
+		});
+	});
+
+	it('puts back only the units the redo removed', async () => {
+		const tenant = await seedTenant(caller);
+		const complex = await caller.complex.create({
+			name: 'Bulk Tower',
+			location: 'Riyadh',
+			units: [{ name: 'B1' }, { name: 'B2' }]
+		});
+		const [kept, freed] = complex.units;
+
+		await undoesWhatTheRedoRemoved({
+			remove: () => run(useDeleteManyUnits, { ids: [kept.id, freed.id], foreseen: [] }),
+			refuseOne: () =>
+				caller.contract.create({
+					tenantId: tenant.id,
+					start: monthsFromNow(-1),
+					end: monthsFromNow(11),
+					interval: '12m',
+					cost: 1000,
+					unitIds: [kept.id]
+				}),
+			read: (id) => caller.complex.units.get({ id }),
+			kept: kept.id,
+			freed: freed.id
+		});
+	});
+
+	it('puts back only the payments the redo removed', async () => {
+		const contracts = await Promise.all(
+			[0, 1].map(async () =>
+				caller.contract.create({
+					tenantId: (await seedTenant(caller)).id,
+					start: monthsFromNow(-1),
+					end: monthsFromNow(11),
+					interval: '12m',
+					cost: 1000
+				})
+			)
+		);
+		const [kept, freed] = await Promise.all(
+			contracts.map((contract) =>
+				caller.payment.create({ contractId: contract.id, date: monthsFromNow(0), amount: 100 })
+			)
+		);
+
+		await undoesWhatTheRedoRemoved({
+			remove: () => run(useDeleteManyPayments, { ids: [kept.id, freed.id], foreseen: [] }),
+			refuseOne: () => caller.contract.terminate({ id: kept.contractId }),
+			read: (id) => caller.payment.get({ id }),
+			kept: kept.id,
+			freed: freed.id
+		});
+	});
+
+	it('puts back only the contracts the redo removed', async () => {
+		const [kept, freed] = await Promise.all(
+			[0, 1].map(async () =>
+				caller.contract.create({
+					tenantId: (await seedTenant(caller)).id,
+					start: monthsFromNow(-1),
+					end: monthsFromNow(11),
+					interval: '12m',
+					cost: 1000
+				})
+			)
+		);
+
+		await undoesWhatTheRedoRemoved({
+			remove: () => run(useDeleteManyContracts, { ids: [kept.id, freed.id], foreseen: [] }),
+			refuseOne: () =>
+				caller.payment.create({ contractId: kept.id, date: monthsFromNow(0), amount: 100 }),
+			read: (id) => caller.contract.get({ id }),
+			kept: kept.id,
+			freed: freed.id
+		});
+	});
+
+	it('puts back only the complexes the redo removed, and names only those', async () => {
+		const tenant = await seedTenant(caller);
+		const [kept, freed] = await Promise.all(
+			['Kept Court', 'Freed Court'].map((name) =>
+				caller.complex.create({ name, location: 'Riyadh', units: [{ name: 'K1' }] })
+			)
+		);
+
+		await undoesWhatTheRedoRemoved({
+			remove: () => run(useDeleteManyComplexes, { ids: [kept.id, freed.id], foreseen: [] }),
+			refuseOne: () =>
+				caller.contract.create({
+					tenantId: tenant.id,
+					start: monthsFromNow(-1),
+					end: monthsFromNow(11),
+					interval: '12m',
+					cost: 1000,
+					unitIds: [kept.units[0].id]
+				}),
+			read: (id) => caller.complex.get({ id }),
+			kept: kept.id,
+			freed: freed.id
+		});
+	});
+
+	it('does nothing where the redo removed nothing', async () => {
+		const tenants = [await seedTenant(caller), await seedTenant(caller)];
+
+		await run(useDeleteManyTenants, { ids: tenants.map((tenant) => tenant.id), foreseen: [] });
+		await inverseStack.undo();
+
+		for (const tenant of tenants) {
+			await caller.contract.create({
+				tenantId: tenant.id,
+				start: monthsFromNow(-1),
+				end: monthsFromNow(11),
+				interval: '12m',
+				cost: 1000
+			});
+		}
+
+		await inverseStack.redo();
+		await inverseStack.undo();
+
+		for (const tenant of tenants) {
+			assert.deepEqual(await caller.tenant.get({ id: tenant.id }), tenant);
+		}
+		assert.deepEqual([inverseStack.redoable?.records?.('undo') ?? []].flat(), []);
+	});
+});
+
+// effort 854, requirement 24: a complex created with no units is taken back by deleting the
+// complex alone, so a member who may not delete units may still take it back.
+it('asks for deleting units on taking back a complex only where it has some', async (context) => {
+	context.after(() => memberPermissions.hold(null));
+	memberPermissions.hold({
+		permissions: maskOf(...EVERY_FLAG.filter((flag) => flag !== 'deleteUnit')),
+		accessLevel: 'full-access'
+	});
+
+	await run(useCreateComplex, { name: 'Empty Court', location: 'Riyadh' });
+	assert.equal(inverseStack.refusal('undo', get(LL)), undefined);
+
+	await run(useCreateComplex, { name: 'Full Court', location: 'Riyadh', units: [{ name: 'F1' }] });
+	assert.ok(inverseStack.refusal('undo', get(LL)), 'a complex with units takes them with it');
+});
+
+// effort 854, criterion 24: not only offered but carried out. The member is held without the flag
+// on the client and is the caller the procedures answer, so the undo goes through the same check
+// the server makes.
+it('takes back a complex created with no units for a member who may not delete units', async (context) => {
+	context.after(() => memberPermissions.hold(null));
+	memberPermissions.hold({
+		permissions: maskOf(...EVERY_FLAG.filter((flag) => flag !== 'deleteUnit')),
+		accessLevel: 'full-access'
+	});
+	caller = await createApi({ identity: identityWithout('deleteUnit') });
+
+	const complex = await run(useCreateComplex, { name: 'Empty Court', location: 'Riyadh' });
+
+	assert.ok(await caller.complex.get({ id: complex.id }));
+
+	await applyUndo(useQueryClient());
+
+	assert.equal(await caller.complex.get({ id: complex.id }), undefined);
+	assert.ok(!inverseStack.undoable, 'the entry was taken, not kept to be pressed again');
+});
+
+// effort 854, criterion 25: a refund on a terminated contract is not locked with it, so the undo
+// of recording one removes it.
+it('takes back a refund recorded on a terminated contract', async () => {
+	const tenant = await seedTenant(caller);
+	const contract = await caller.contract.create({
+		tenantId: tenant.id,
+		start: monthsFromNow(-1),
+		end: monthsFromNow(11),
+		interval: '12m',
+		cost: 1000
+	});
+
+	await caller.payment.create({ contractId: contract.id, date: monthsFromNow(0), amount: 600 });
+	await caller.contract.terminate({ id: contract.id });
+
+	const refund = await run(useCreatePayment, {
+		contractId: contract.id,
+		date: monthsFromNow(0),
+		amount: 200,
+		direction: 'refund'
+	});
+
+	assert.equal((await caller.payment.get({ id: refund.id }))?.direction, 'refund');
+
+	await applyUndo(useQueryClient());
+
+	assert.equal(await caller.payment.get({ id: refund.id }), undefined);
+	assert.equal((await caller.contract.get({ id: contract.id }))?.status, 'terminated');
+});
+
+// ticket 40 of effort 854, the human's ruling of 2026-10-07: an undo takes a change back to the
+// state before it. A restored contract may hold refunds past what a live one may return, so undoing
+// the edit or the deletion of one puts back exactly what was recorded, while refunds still never
+// pass what the contract received.
+describe('undoing a refund change on a restored contract', () => {
+	/** received 5,000, terminated, refunded 3,000, and restored: live, and owing what it returned. */
+	async function seedRestoredRefund() {
+		const tenant = await seedTenant(caller);
+		const contract = await caller.contract.create({
+			tenantId: tenant.id,
+			start: monthsFromNow(-1),
+			end: monthsFromNow(11),
+			interval: '12m',
+			cost: 100000
+		});
+		const received = await caller.payment.create({
+			contractId: contract.id,
+			date: monthsFromNow(0),
+			amount: 5000
+		});
+
+		await caller.contract.terminate({ id: contract.id });
+
+		const refund = await caller.payment.create({
+			contractId: contract.id,
+			date: monthsFromNow(0),
+			amount: 3000,
+			direction: 'refund'
+		});
+
+		await caller.contract.unterminate({ id: contract.id });
+
+		return { contract, received, refund };
+	}
+
+	it('puts back the amount a lowered refund was recorded at, and lowers it again on redo', async () => {
+		const { contract, refund } = await seedRestoredRefund();
+
+		await run(useUpdatePayment, { id: refund.id, date: refund.date, amount: 2000 });
+		assert.equal((await caller.payment.get({ id: refund.id }))?.amount, 2000);
+
+		await inverseStack.undo();
+		assert.equal((await caller.payment.get({ id: refund.id }))?.amount, 3000);
+		assert.equal((await caller.contract.get({ id: contract.id }))?.paidAmount, 2000);
+
+		await inverseStack.redo();
+		assert.equal((await caller.payment.get({ id: refund.id }))?.amount, 2000);
+	});
+
+	it('brings a deleted refund back, one or a selection', async () => {
+		const { contract, refund } = await seedRestoredRefund();
+
+		await run(useDeletePayment, refund.id);
+		await inverseStack.undo();
+		assert.equal((await caller.payment.get({ id: refund.id }))?.amount, 3000);
+
+		await run(useDeleteManyPayments, { ids: [refund.id], foreseen: [] });
+		assert.equal(await caller.payment.get({ id: refund.id }), undefined);
+
+		await inverseStack.undo();
+		assert.equal((await caller.payment.get({ id: refund.id }))?.amount, 3000);
+		assert.equal((await caller.contract.get({ id: contract.id }))?.paidAmount, 2000);
+	});
+
+	it('still refuses a new refund, or raising one, by hand above the limit', async () => {
+		const { contract, refund } = await seedRestoredRefund();
+
+		await assert.rejects(
+			() =>
+				run(useCreatePayment, {
+					contractId: contract.id,
+					date: monthsFromNow(0),
+					amount: 1,
+					direction: 'refund'
+				}),
+			refusedWith('contract.refundAboveLimit', { limit: 0 })
+		);
+		await assert.rejects(
+			() => run(useUpdatePayment, { id: refund.id, date: refund.date, amount: 3001 }),
+			refusedWith('contract.refundAboveLimit', { limit: 3000 })
+		);
+	});
+
+	it('refuses an undo that would take refunds past what the contract received', async () => {
+		const { contract, received, refund } = await seedRestoredRefund();
+
+		await run(useDeletePayment, refund.id);
+		// another device lowers what was received in the meantime.
+		await caller.payment.update({ id: received.id, date: received.date, amount: 2000 });
+
+		await assert.rejects(() => inverseStack.undo(), refusedWith('contract.refundsExceedReceived'));
+		assert.equal(await caller.payment.get({ id: refund.id }), undefined);
+		assert.equal((await caller.contract.get({ id: contract.id }))?.paidAmount, 2000);
+		assert.ok(inverseStack.undoable, 'the inverse stays, so the user can see what failed');
 	});
 });

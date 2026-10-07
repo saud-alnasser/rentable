@@ -17,12 +17,16 @@ import {
 import {
 	ensurePeriodDoesNotOverlapAssignments,
 	ensureUnitsAssignable,
+	ensureUnitsFreeToRestore,
 	hasSameUtcDateRange
 } from '$lib/contract/assignment/assignment';
 import { reconcile, reconcileTouched } from '$lib/contract/reconcile';
 import { selectAssignmentsForUnits, selectPaymentsForContract } from '$lib/contract/row';
 import { serializeContract, withRank } from '$lib/contract/serialize';
+import { referencesOf } from '$lib/contract/transfer';
+import { toUnitReference, UNIT_LIST_SEPARATOR } from '$lib/transfer';
 import { eq, inArray, sql } from 'drizzle-orm';
+import { permits } from '@rentable/workspace-permission';
 import z from 'zod';
 import assignment from './assignment/router';
 import directory from './directory/router';
@@ -330,6 +334,25 @@ export default router({
 
 			ensureContractUnterminable(existingContract.status);
 
+			// restoring makes the contract live again, so a unit another contract took while it was
+			// terminated refuses it, named the way the reader knows a unit.
+			const held = await ctx.db
+				.select({ id: s.unit.id, unit: s.unit.name, complex: s.complex.name })
+				.from(s.contractUnit)
+				.innerJoin(s.unit, eq(s.contractUnit.unitId, s.unit.id))
+				.innerJoin(s.complex, eq(s.unit.complexId, s.complex.id))
+				.where(eq(s.contractUnit.contractId, input.id));
+			const referenceOf = new Map(
+				held.map((unit) => [unit.id, toUnitReference(unit.complex, unit.unit)])
+			);
+
+			ensureUnitsFreeToRestore(
+				await selectAssignmentsForUnits(ctx.db, [...referenceOf.keys()]),
+				existingContract,
+				input.id,
+				(unitIds) => unitIds.map((unitId) => referenceOf.get(unitId)).join(UNIT_LIST_SEPARATOR)
+			);
+
 			const payments = await selectPaymentsForContract(ctx.db, input.id);
 			const restoredStatus = deriveContractStatus(
 				{ ...existingContract, status: 'active' },
@@ -360,8 +383,10 @@ export default router({
 				.where(eq(s.contract.id, input.id))
 				.get();
 
+			// one somebody else deleted first is refused rather than answered with nothing, which read
+			// as success: to an undo of its creation, and to a deletion of what is already gone.
 			if (!existingContract) {
-				return undefined;
+				throw refuse('contract.missing');
 			}
 
 			const payments = await selectPaymentsForContract(ctx.db, input.id);
@@ -392,7 +417,11 @@ export default router({
 	...directory._def.record,
 
 	// one contract, with the rank it is filed under today, so the record page's acts gate on it
-	// as a card's do.
+	// as a card's do, and the reference a workspace file calls it by, so what its page exports
+	// names it as the import reads it back, where that reference shows the reader nothing they may
+	// not see. Its tenant's name comes with it for a reader who may
+	// see tenants, as every other read of a contract gives it, so the ledger the page exports
+	// names its tenant (effort 854, requirement 30).
 	get: procedure
 		.permitted('viewContract')
 		.input(ContractSchema.pick({ id: true, govId: true }).partial())
@@ -407,15 +436,36 @@ export default router({
 				return undefined;
 			}
 
-			const contract = await ctx.db.select().from(s.contract).where(matching).get();
+			const row = await ctx.db
+				.select({ contract: s.contract, tenantName: s.tenant.name })
+				.from(s.contract)
+				.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id))
+				.where(matching)
+				.get();
 
-			if (!contract) {
+			if (!row) {
 				return undefined;
 			}
 
+			const { contract, tenantName } = row;
 			const { endingSoonNoticeDays } = await ctx.host.settings.get();
+			const seesTenants = permits(ctx.identity.permissions, 'viewTenant');
+			const named = seesTenants ? tenantName : undefined;
+			const read = withRank(
+				serializeContract(contract, named),
+				ctx.clock.now(),
+				endingSoonNoticeDays
+			);
 
-			return withRank(serializeContract(contract), ctx.clock.now(), endingSoonNoticeDays);
+			// a numberless contract is called by its tenant's national id, which a member who may not
+			// see tenants is not shown, as the receipt withholds it (effort 838, requirement 10). Their
+			// reference is left out, and the ledger's export names the contract instead.
+			const reference =
+				contract.govId?.trim() || seesTenants
+					? (await referencesOf(ctx.db)).get(contract.id)!
+					: undefined;
+
+			return { ...read, ...(reference === undefined ? {} : { reference }) };
 		}),
 
 	...schedule._def.record,

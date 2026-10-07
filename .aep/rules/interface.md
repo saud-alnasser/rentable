@@ -742,8 +742,11 @@ announcement or by the key, and the two do one thing.** A mutation that declares
 Ctrl/Cmd+Z takes back the change on top of the stack, and Ctrl/Cmd+Shift+Z or Ctrl+Y applies it
 again. The stack, the offer and the key pair are the `undo/` capability's, and nothing outside it
 knows how undo works. Both are application shortcuts that stand down in a text field, where those
-keys are the field's own, and the command menu offers both by name, saying why where there is
-nothing to move.
+keys are the field's own, and under a cover: while a form, a sheet or a confirmation stands over
+the page, the keys are still taken from the webview and move nothing, because the change on top of
+the stack is one the reader cannot see from under it (`undo/key.ts`, asking `isCovered` in
+`shortcut/covered.ts` at each press, as the create key does; the command menu is not a cover). The
+command menu offers both by name, saying why where there is nothing to move.
 
 - **What was taken back is announced, with the offer to apply it again**, so undo and redo answer
   each other from the same toast.
@@ -751,13 +754,13 @@ nothing to move.
   the one before it rather than leaving a control over somebody else's change.
 - **An offer stays eight seconds**, longer than an announcement that only has to be read, because
   it also has to be decided on and reached for.
-- **Switching workspace does not empty the stack today.** `InverseStack.clear()` in `undo/undo.ts`
-  forgets both directions and withdraws any offer on screen (`undo/move.ts` dismisses it when the
-  stack has nothing left to move), but nothing in production calls it: `startup/switch.ts` drops
-  the cached queries and the held context and leaves the stack as it was, and so does the sign-in
-  wall. An inverse is a statement about one database, so one replayed after a switch reaches the
-  wrong workspace: emptying the stack on a switch is what the capability is built for, not yet what
-  the application does.
+- **Leaving a workspace or a session forgets the stack.** A workspace switch (`startup/switch.ts`),
+  a sign-out, the sign-in wall going up, and selecting or removing an organization
+  (`startup/wall.ts`, `startup/machine.ts`) each call `machine.ports.undo.forget()`, which is
+  `forgetEveryChange` in `undo/undo.ts`: both directions are emptied, an inverse still in flight
+  cannot land, and the offer on screen is withdrawn (`undo/move.ts` dismisses it when the stack has
+  nothing left to move). An inverse is a statement about one database, so one replayed after a
+  switch would reach the wrong workspace (effort 854, requirement 1).
 
 Every create, edit and delete of a tenant, complex, unit, contract or payment is inside undo, as
 are a contract's renewal, termination, restoration and units, and every action on a selection
@@ -772,7 +775,9 @@ The mechanism, replaying inverses through the real procedures, is [[rules/data]]
 confirm*), and it can only carry that promise if the reader can find it the same way after every
 change.*
 
-Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 11.
+Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 11; what
+leaving forgets and what a cover holds, by [[efforts/854-bugs-and-edge-cases-across-the-app/spec]],
+requirements 1 and 12.
 
 ### Create
 
@@ -785,6 +790,23 @@ Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], re
   draws too. A set
   that may not be added to right now keeps its control, refused, with its reason on hover and focus
   (*Guidance*, below); the workspaces tray puts its refusal in that place instead.
+- **A set of more than one kind keeps its one plus, and the form chooses the kind.** A contract's
+  payments take a payment and a refund: the plus and the key open the payment form, whose two tabs
+  (a toggle group, each with its glyph pointing the way the money moves, `banknote-arrow-down` in,
+  `banknote-arrow-up` out) are the two kinds. It opens on the payment where the contract takes one
+  and on the refund where it does not. A tab the contract does not take is dimmed in place, says
+  why on hover and on a focus the reader moves to it (never on the focus the surface places as it
+  opens, which the toggle group puts on its first tab), and cannot be chosen, as any refused
+  control does (*Guidance*): the reader
+  never stands on a tab whose create would only be refused, so the form's create is never the thing
+  dimmed. A contract never takes both at once, since a live one refunds only what was paid beyond
+  its total and a terminated one takes no payment, so one tab is always the dimmed one and says
+  which way money can move now. The plus is refused only where neither may be made, with the
+  payment's reason (`payment/component/form.svelte`; effort 854, requirement 25).
+
+  *Why: the human, 2026-10-07. A refund alone on the ledger's balance footer was away from where
+  every create is looked for, and a second create in the bar split one act in two; recording money
+  is one act, and which way it moves is a value of it.*
 - **The key** is Ctrl or Cmd with N, an application shortcut in the registry
   (`create/key.ts`, registered by `create/component/shortcut.svelte`). It is answered
   by the set on screen: a drawn control holds its place (`create/target.svelte.ts`) and the
@@ -1519,6 +1541,17 @@ keyboard's path and ignores the pointer, so its reason could never be reached. I
 payment on a terminated or fully paid contract is the worked case: the two paragraphs that stood
 above the ledger are the create act's reasons now (`toPaymentCreateUnavailable` in
 `payment/acts.ts`).
+
+**One refusal is also said where the record stands, as a standing note: a received payment on a
+terminated contract.** Its writing acts are refused in its card's menus with their reason, as
+above, and its row in the ledger carries the same line under the terminated status's lock: the
+contract is terminated, and restoring it unlocks the payment (`data-payment-locked` in
+`payment/component/ledger.svelte`, the line `toWriteUnavailable` in `payment/acts.ts` gives). A
+row's acts sit inside its menus, out of sight until one is opened, so without the note a ledger
+whose every row is locked reads as one that can be corrected; and what unlocks it is an act on
+another surface, the contract's restore, which no refused entry in the row's menu can be pressed to
+reach. A refund on the same contract is not locked and carries no note. The spec asked for this
+case by name (effort 854, requirement 25), and it is the only standing explanation of a refusal.
 
 *Why: a paragraph explaining a refusal is read once and then scrolled past, and it sits away from
 the control the reader was reaching for. Apple's Human Interface Guidelines, which the human asked

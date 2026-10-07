@@ -48,15 +48,25 @@ export type ImportField<TRecord> = {
 	 *
 	 * **A concept whose fields declare none has no identity at all**, and no two of its rows are
 	 * ever the same record.
+	 *
+	 * `true` puts the column in the one identity every `true` column shares, which is a unit's
+	 * complex and its name together. A string names a *group* of its own instead, checked apart
+	 * from every other: a tenant's national id and its phone are each unique on their own, as the
+	 * database holds them, so a row sharing either one with another row or with a held tenant is
+	 * the same record whatever the other says.
 	 */
-	identity?: boolean;
+	identity?: boolean | string;
 };
 
 /** Which row went wrong, and why. */
 export type ImportRejection = {
 	/** the row's place in the file, counting the heading as row one — which is what a reader sees. */
 	row: number;
-	reason: 'missing-column' | 'missing-value' | 'invalid' | 'duplicate-of-existing';
+	/**
+	 * `claim-taken` is the workspace's pass rather than this one's: the row would hold what a record
+	 * the workspace holds already holds over the same days (`Sheet.claims`).
+	 */
+	reason: 'missing-column' | 'missing-value' | 'invalid' | 'duplicate-of-existing' | 'claim-taken';
 	/** the column or value at fault, where naming one helps. */
 	detail: string;
 };
@@ -132,6 +142,65 @@ export function toImportIdentity(values: readonly string[]) {
 	return JSON.stringify(values.map((value) => comparable(value)));
 }
 
+/**
+ * The identity groups a concept's columns declare, each with its columns in declaration order.
+ *
+ * `true` is the group named by the empty string, so a sheet whose identity columns are all `true`
+ * has one group and keys a row exactly as it did before groups existed.
+ */
+function identityGroups<TRecord>(fields: readonly ImportField<TRecord>[]) {
+	const groups = new Map<string, ImportField<TRecord>[]>();
+
+	for (const field of fields) {
+		if (field.identity === undefined || field.identity === false) {
+			continue;
+		}
+
+		const group = field.identity === true ? '' : field.identity;
+
+		groups.set(group, [...(groups.get(group) ?? []), field]);
+	}
+
+	return groups;
+}
+
+/** the key one group's values are held under, its name leading so two groups never share one. */
+function toGroupIdentity(group: string, values: readonly string[]) {
+	return toImportIdentity(group === '' ? values : [group, ...values]);
+}
+
+/**
+ * The keys a record the workspace holds is known under, one per identity group.
+ *
+ * `values` is the held name, which lists the identity columns' values in the order the fields
+ * declare them. Built here rather than by the caller so a held record and a row of the file are
+ * keyed by one function, for the reason {@link toImportIdentity} gives.
+ */
+export function toHeldIdentities<TRecord>(
+	fields: readonly ImportField<TRecord>[],
+	values: readonly string[]
+): string[] {
+	const groups = identityGroups(fields);
+
+	// one group is the whole name, which is exactly the key a held record had before groups.
+	if (groups.size <= 1) {
+		const [group = ''] = groups.keys();
+
+		return [toGroupIdentity(group, values)];
+	}
+
+	const positions = new Map(
+		fields.filter((field) => field.identity).map((field, index) => [field, index])
+	);
+
+	return [...groups].map(([group, members]) =>
+		toGroupIdentity(
+			group,
+			members.map((field) => values[positions.get(field)!] ?? '')
+		)
+	);
+}
+
 /** the comparable form of a heading or an identity, so spelling does not decide a match. */
 function comparable(value: string) {
 	return foldSearchText(value.trim()).toLowerCase();
@@ -173,7 +242,7 @@ export function planImport<TRecord extends Record<string, string>>(
 			}
 
 			// and only the second of those decides whether the file can be read at all.
-			isUnreadable ||= field.identity === true;
+			isUnreadable ||= Boolean(field.identity);
 
 			continue;
 		}
@@ -190,10 +259,12 @@ export function planImport<TRecord extends Record<string, string>>(
 	// whether two rows can be the same record at all. A concept declaring no identity column has
 	// no answer to "is this one already here?" — every row is its own record, and running the
 	// checks below against an empty key would make the whole file one collision.
-	const isIdentified = fields.some((field) => field.identity);
+	const groups = [...identityGroups(fields)];
+	const isIdentified = groups.length > 0;
 	// where each identity was first seen, so a collision can name both rows rather than the
-	// second one alone — the reader has to look at the pair to choose between them.
-	const seen = new Map<string, number[]>();
+	// second one alone: the reader has to look at the pair to choose between them. Keyed per
+	// group, and each carries the value a collision is named by.
+	const seen = new Map<string, { rows: number[]; value: string }>();
 
 	table.rows.forEach((cells, index) => {
 		// the heading is row one, so the first record is row two — which is what the reader is
@@ -213,10 +284,12 @@ export function planImport<TRecord extends Record<string, string>>(
 			record[field.id] = value as TRecord[typeof field.id];
 		}
 
-		const identityValues = fields
-			.filter((field) => field.identity)
-			.map((field) => comparable(record[field.id]));
-		const identity = toImportIdentity(identityValues);
+		// one key per group, each with the value it is named by: the group's first column.
+		const identities = groups.map(([group, members]) => {
+			const values = members.map((field) => comparable(record[field.id]));
+
+			return { key: toGroupIdentity(group, values), value: values[0] ?? '' };
+		});
 
 		// what is already here is answered before anything else about the row. A row naming a
 		// record this workspace holds is not going to be created, so whether the rest of it is
@@ -224,8 +297,10 @@ export function planImport<TRecord extends Record<string, string>>(
 		// what made a file written for a person report every one of its rows as broken. Such a file
 		// carries the columns that were on the row rather than the ones a record is made of, and
 		// every row in it is already here.
-		if (isIdentified && existing.has(identity)) {
-			rejected.push({ row, reason: 'duplicate-of-existing', detail: identityValues[0] ?? '' });
+		const held = identities.find((identity) => existing.has(identity.key));
+
+		if (held) {
+			rejected.push({ row, reason: 'duplicate-of-existing', detail: held.value });
 
 			return;
 		}
@@ -250,15 +325,23 @@ export function planImport<TRecord extends Record<string, string>>(
 			return;
 		}
 
-		seen.set(identity, [...(seen.get(identity) ?? []), row]);
+		for (const identity of identities) {
+			const first = seen.get(identity.key);
+
+			seen.set(identity.key, {
+				rows: [...(first?.rows ?? []), row],
+				value: first?.value ?? identity.value
+			});
+		}
+
 		create.push({ row, record });
 	});
 
 	const collisions = options.rowsMayRepeat
 		? []
-		: [...seen.entries()]
-				.filter(([, rows]) => rows.length > 1)
-				.map(([identity, rows]) => ({ rows, identity: JSON.parse(identity)[0] ?? '' }));
+		: [...seen.values()]
+				.filter(({ rows }) => rows.length > 1)
+				.map(({ rows, value }) => ({ rows, identity: value }));
 
 	return {
 		create: collisions.length > 0 ? [] : create,

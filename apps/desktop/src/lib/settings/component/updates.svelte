@@ -6,21 +6,17 @@
 	import { Progress } from '@rentable/design/primitive/progress/index.js';
 	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import { reducesMotion } from '@rentable/design/reduces-motion.js';
-	import { toErrorDetail } from '$lib/error/message';
-	import { toTauriErrorCode } from '$lib/error/tauri';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
-	import { recordDiagnosticError } from '$lib/platform/diagnostics';
 	import { formatLocaleDate } from '$lib/platform/locale';
-	import type { AvailableUpdate, UpdaterDownloadEvent } from '$lib/update';
 	import { useCheckForUpdate, usePrepareUpdate, useRestartApp } from '$lib/update/ui';
 	import { announceUpdateOutcome } from '$lib/settings/update-announcement';
+	import { updateDownload } from '$lib/settings/update-download.svelte';
 	import CircleFadingArrowUpIcon from '@lucide/svelte/icons/circle-fading-arrow-up';
 	import DownloadIcon from '@lucide/svelte/icons/download';
 	import PackageIcon from '@lucide/svelte/icons/package';
 	import PackagePlusIcon from '@lucide/svelte/icons/package-plus';
 	import PowerIcon from '@lucide/svelte/icons/power';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
-	import { onDestroy } from 'svelte';
 
 	/**
 	 * What this installation is running, and how it gets the next one.
@@ -69,6 +65,12 @@
 	 * (`reducesMotion`), and gets the same busy control with a glyph that holds still; the tooltip
 	 * and the header's state say *checking* either way.
 	 *
+	 * **What a check found and how far a download has got are not this card's**
+	 * (`settings/update-download.svelte.ts`, effort 854, requirement 13). The card goes with its
+	 * tab, and a download does not: leaving the tab mid-download and coming back finds it still
+	 * running, or finished, and the handle is never closed because the card went. Restart is
+	 * disabled while its own restart is out, so it cannot be asked twice.
+	 *
 	 * *The section was arranged by a prototype in
 	 * `[[efforts/settings-and-the-workspace-finish-what-they-offer]]`, requirement 2, which kept it
 	 * a section of its own at about this height; this keeps that and draws it as rows.*
@@ -79,136 +81,32 @@
 	const prepareUpdateMutation = usePrepareUpdate();
 	const restartAppMutation = useRestartApp();
 
-	let isCheckingForUpdate = $state(false);
 	/** the reader asked for less motion, read as the check starts, so the glyph holds still. */
 	let holdsStill = $state(false);
-	let availableUpdate = $state<AvailableUpdate | null>(null);
-	let isInstallingUpdate = $state(false);
-	let isInstalled = $state(false);
-	/** a check has answered since this card was drawn, so *up to date* is a fact and not a guess. */
-	let hasChecked = $state(false);
-	let downloadedBytes = $state(0);
-	let contentLength = $state<number | null>(null);
 
-	/**
-	 * the release this installation could move to, kept after the handle behind it is closed.
-	 *
-	 * `availableUpdate` is a live handle and installing closes it, so reading the version and the
-	 * notes off it would empty the panel at the moment the reader most wants to check what they are
-	 * installing. The facts are copied out when the check answers; the handle is only ever the
-	 * thing `downloadAndInstall` is called on.
-	 */
-	let release = $state<{ version: string; date?: string | null; body?: string | null } | null>(
-		null
-	);
+	// where the update stands is the module's and not this card's, so leaving the tab neither
+	// forgets a download nor closes its handle mid-way (effort 854, requirement 13).
+	const update = updateDownload;
 
-	const percent = $derived.by(() => {
-		if (!contentLength || contentLength <= 0) {
-			return null;
-		}
-
-		return Math.min(100, Math.round((downloadedBytes / contentLength) * 100));
-	});
-
-	onDestroy(() => {
-		if (availableUpdate) {
-			void availableUpdate.close();
-		}
-	});
-
-	function logUpdaterError(action: string, error: unknown) {
-		recordDiagnosticError('update.failed', {
-			action,
-			code: toTauriErrorCode(error),
-			error: toErrorDetail(error)
-		});
-	}
-
-	async function closeAvailableUpdate() {
-		if (!availableUpdate) {
-			return;
-		}
-
-		try {
-			await availableUpdate.close();
-		} catch {
-			/* ignore */
-		}
-	}
-
-	async function checkForUpdates() {
-		if (isCheckingForUpdate || isInstallingUpdate) {
+	function checkForUpdates() {
+		if (update.checking || update.installing) {
 			return;
 		}
 
 		holdsStill = reducesMotion();
-		isCheckingForUpdate = true;
-		isInstalled = false;
-		downloadedBytes = 0;
-		contentLength = null;
-
-		try {
-			const update = await checkForUpdateMutation.mutateAsync();
-
-			await closeAvailableUpdate();
-			availableUpdate = update;
-			release = update && { version: update.version, date: update.date, body: update.body };
-			hasChecked = true;
-
-			announceUpdateOutcome({ kind: 'checked', hasRelease: update !== null }, $LL);
-		} catch (error) {
-			logUpdaterError('check for updates', error);
-			announceUpdateOutcome({ kind: 'failed', error }, $LL);
-		}
-
-		isCheckingForUpdate = false;
+		void update.check(checkForUpdateMutation.mutateAsync);
 	}
 
-	async function installUpdate() {
-		const update = availableUpdate;
-
-		if (!update || isInstallingUpdate) {
-			return;
-		}
-
-		isInstallingUpdate = true;
-		isInstalled = false;
-		downloadedBytes = 0;
-		contentLength = null;
-
-		try {
-			await prepareUpdateMutation.mutateAsync({ targetVersion: update.version });
-
-			await update.downloadAndInstall((event: UpdaterDownloadEvent) => {
-				switch (event.event) {
-					case 'Started':
-						contentLength = event.data.contentLength ?? null;
-						downloadedBytes = 0;
-						break;
-					case 'Progress':
-						downloadedBytes += event.data.chunkLength;
-						break;
-					case 'Finished':
-						if (contentLength) {
-							downloadedBytes = contentLength;
-						}
-						break;
-				}
-			});
-
-			isInstalled = true;
-			availableUpdate = null;
-			await update.close();
-			announceUpdateOutcome({ kind: 'installed' }, $LL);
-		} catch (error) {
-			logUpdaterError('install update', error);
-			announceUpdateOutcome({ kind: 'failed', error }, $LL);
-		}
-
-		isInstallingUpdate = false;
+	function installUpdate() {
+		void update.install(prepareUpdateMutation.mutateAsync);
 	}
 
 	async function restartApp() {
+		// one restart at a time: a second press while the first is out would ask the shell twice.
+		if (restartAppMutation.isPending) {
+			return;
+		}
+
 		try {
 			await restartAppMutation.mutateAsync();
 		} catch (error) {
@@ -233,20 +131,18 @@
 	 * the last check found. `null` before anything has been asked, which the header leaves blank.
 	 */
 	const updateState = $derived.by(() => {
-		if (isCheckingForUpdate) return 'checking' as const;
-		if (isInstallingUpdate) return 'downloading' as const;
-		if (isInstalled) return 'restart' as const;
-		if (release) return 'available' as const;
-		if (hasChecked) return 'upToDate' as const;
+		if (update.checking) return 'checking' as const;
+		if (update.installing) return 'downloading' as const;
+		if (update.installed) return 'restart' as const;
+		if (update.release) return 'available' as const;
+		if (update.hasChecked) return 'upToDate' as const;
 
 		return null;
 	});
 
 	/** the check's name, which says what it is doing while it does it. */
 	const checkLabel = $derived(
-		isCheckingForUpdate
-			? $LL.common.actions.checkingForUpdates()
-			: $LL.common.actions.checkForUpdates()
+		update.checking ? $LL.common.actions.checkingForUpdates() : $LL.common.actions.checkForUpdates()
 	);
 </script>
 
@@ -257,8 +153,8 @@
 
 <!-- the release this installation could move to, where a check found one. -->
 {#snippet availableFigure()}
-	{#if release}
-		{@render figure(release.version)}
+	{#if update.release}
+		{@render figure(update.release.version)}
 	{/if}
 {/snippet}
 
@@ -279,10 +175,12 @@
 <!-- the release's date and its notes, folded under the available version: few readers want them
      before they press install, and the version and the act stay in view. -->
 {#snippet whatsNew()}
-	{#if release}
-		<p data-release-date>{$LL.settings.releasedOn({ date: formatReleaseDate(release.date) })}</p>
-		{#if release.body}
-			<p class="whitespace-pre-wrap" dir="auto" data-release-notes>{release.body}</p>
+	{#if update.release}
+		<p data-release-date>
+			{$LL.settings.releasedOn({ date: formatReleaseDate(update.release.date) })}
+		</p>
+		{#if update.release.body}
+			<p class="whitespace-pre-wrap" dir="auto" data-release-notes>{update.release.body}</p>
 		{/if}
 	{/if}
 {/snippet}
@@ -291,14 +189,16 @@
      the server sent no length, which is a real answer rather than a bar stuck at zero. -->
 {#snippet downloading()}
 	<p class="text-xs tabular-nums" data-update-progress>
-		{$LL.settings.downloadingUpdate()}{#if percent !== null}
-			&nbsp;·&nbsp;{percent}%{/if}
+		{$LL.settings.downloadingUpdate()}{#if update.percent !== null}
+			&nbsp;·&nbsp;{update.percent}%{/if}
 	</p>
 	<Progress
-		value={percent}
+		value={update.percent}
 		max={100}
 		aria-label={$LL.settings.downloadingUpdate()}
-		class={percent === null ? 'animate-pulse [&>[data-slot=progress-indicator]]:w-1/3' : undefined}
+		class={update.percent === null
+			? 'animate-pulse [&>[data-slot=progress-indicator]]:w-1/3'
+			: undefined}
 	/>
 {/snippet}
 
@@ -308,7 +208,7 @@
 		title={$LL.settings.updatesTitle()}
 		description={$LL.settings.updatesDescription()}
 		value={updateState ? stateBadge : undefined}
-		footer={isInstallingUpdate ? downloading : undefined}
+		footer={update.installing ? downloading : undefined}
 	>
 		{#snippet rows()}
 			<SettingsRow icon={PackageIcon} name={$LL.common.labels.currentVersion()}>
@@ -320,27 +220,34 @@
 			<SettingsRow
 				icon={PackagePlusIcon}
 				name={$LL.common.labels.availableVersion()}
-				details={release ? whatsNew : undefined}
-				detailsLabel={release ? $LL.settings.whatsNew({ version: release.version }) : undefined}
+				details={update.release ? whatsNew : undefined}
+				detailsLabel={update.release
+					? $LL.settings.whatsNew({ version: update.release.version })
+					: undefined}
 				detailsKey="settings.updates.whats-new"
-				value={release ? availableFigure : undefined}
+				value={update.release ? availableFigure : undefined}
 			>
 				{#snippet control()}
 					<div class="flex flex-wrap items-center justify-end gap-2">
-						{#if availableUpdate}
+						{#if update.available}
 							<Button
 								variant="outline"
 								size="sm"
-								disabled={isInstallingUpdate || isCheckingForUpdate}
-								onclick={() => void installUpdate()}
+								disabled={update.installing || update.checking}
+								onclick={installUpdate}
 							>
 								<DownloadIcon class="size-4" />
-								{isInstallingUpdate
+								{update.installing
 									? $LL.common.actions.installingUpdate()
 									: $LL.common.actions.downloadAndInstall()}
 							</Button>
-						{:else if isInstalled}
-							<Button variant="outline" size="sm" onclick={() => void restartApp()}>
+						{:else if update.installed}
+							<Button
+								variant="outline"
+								size="sm"
+								disabled={restartAppMutation.isPending}
+								onclick={() => void restartApp()}
+							>
 								<PowerIcon class="size-4" />
 								{$LL.common.actions.restartApp()}
 							</Button>
@@ -355,16 +262,16 @@
 										variant="outline"
 										size="icon-sm"
 										aria-label={checkLabel}
-										aria-busy={isCheckingForUpdate}
-										disabled={isCheckingForUpdate || isInstallingUpdate}
+										aria-busy={update.checking}
+										disabled={update.checking || update.installing}
 										data-check-for-updates
-										onclick={() => void checkForUpdates()}
+										onclick={checkForUpdates}
 									>
 										<!-- turning while the check runs, as the spinner turns; still where the reader
 										     asked for less motion, and the media query holds it still as well should
 										     they ask while it turns. -->
 										<RefreshCwIcon
-											class="size-4 {isCheckingForUpdate && !holdsStill
+											class="size-4 {update.checking && !holdsStill
 												? 'animate-spin motion-reduce:animate-none'
 												: ''}"
 											data-check-for-updates-glyph

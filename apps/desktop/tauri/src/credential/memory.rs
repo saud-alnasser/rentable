@@ -22,6 +22,7 @@ type Entries = HashMap<(String, String), String>;
 pub(crate) struct Memory {
     entries: Mutex<Entries>,
     refusal_armed: AtomicBool,
+    read_refusal_armed: AtomicBool,
 }
 
 impl Memory {
@@ -36,6 +37,15 @@ impl Memory {
     /// arrange puts a machine in any of those states.
     pub(crate) fn refuse_the_next_store(&self) {
         self.refusal_armed.store(true, Ordering::SeqCst);
+    }
+
+    /// **Make this store refuse the next read**, and nothing after it.
+    ///
+    /// A store that will not answer is a different fact from a store holding nothing, and this
+    /// is how a test reaches the first: a real store refuses a read when the keychain is locked
+    /// or access to it is denied, which a test run cannot arrange either.
+    pub(crate) fn refuse_the_next_read(&self) {
+        self.read_refusal_armed.store(true, Ordering::SeqCst);
     }
 
     fn entries(&self) -> Result<std::sync::MutexGuard<'_, Entries>, Error> {
@@ -60,6 +70,14 @@ impl CredentialStore for Memory {
     }
 
     fn get(&self, service: &str, account: &str) -> Result<Option<String>, Error> {
+        if self.read_refusal_armed.swap(false, Ordering::SeqCst) {
+            return Err(refusal(
+                "read",
+                service,
+                "the test store was told to refuse",
+            ));
+        }
+
         Ok(self.entries()?.get(&keyed(service, account)).cloned())
     }
 

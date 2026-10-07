@@ -27,6 +27,8 @@
 
 	const formatMoney = (value: number) => formatLocaleMoney($locale, value);
 
+	// which way the money went, first: a refund is money returned to the tenant, and its page says so
+	// rather than leaving the amount to read as money received (effort 854, requirement 25). Then
 	// how the payment was made, and what was written about it. The method is always stated, as not
 	// recorded where nobody said, since its absence is itself something a reader matching a
 	// statement needs to know; a reference or a note that was never written is left out whole,
@@ -35,6 +37,13 @@
 		if (!payment) return [];
 
 		return [
+			{
+				label: $LL.contracts.payments.refund.kind(),
+				value:
+					payment.direction === 'refund'
+						? $LL.contracts.payments.refund.title()
+						: $LL.contracts.payments.refund.received()
+			},
 			{
 				label: $LL.contracts.payments.method(),
 				value: payment.method

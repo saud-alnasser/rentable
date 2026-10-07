@@ -1,7 +1,10 @@
+import type { Database } from '$lib/api/context';
 import type { ContributedRead } from '$lib/feature/surface';
 import type { RecordKind } from '$lib/permission';
+import * as s from '$lib/platform/database/schema';
 import type { Contract } from '$lib/platform/database/schema';
-import { refuse } from '$lib/api/refusal';
+import { ensureIdFree, refuse } from '$lib/api/refusal';
+import { inArray } from 'drizzle-orm';
 import z from 'zod';
 
 /**
@@ -88,6 +91,49 @@ export function ensurePhoneAvailable(conflicting: unknown, named?: string) {
 	if (conflicting) {
 		throw named ? refuse('tenant.phoneTakenNamed', { named }) : refuse('tenant.phoneTaken');
 	}
+}
+
+/**
+ * Whether a set of tenants may all be written at once, refusing by name where one may not.
+ *
+ * Every check a create makes, asked once for the whole set: the set against itself on all three
+ * things a tenant is unique by, then against the workspace on each. A set that contradicts itself
+ * or the workspace is a contradiction the engine would only report part-way through a batch, as a
+ * raw constraint error, and these writes are meant to land whole or not at all. One function for
+ * every caller writing a set, `tenant.createMany` and a file's Tenants sheet, so the two cannot
+ * come to check different things.
+ */
+export async function ensureTenantsAvailable(
+	db: Database,
+	tenants: readonly { id: string; nationalId: string; phone: string }[]
+) {
+	const ids = tenants.map((tenant) => tenant.id);
+	const nationalIds = tenants.map((tenant) => tenant.nationalId);
+	const phones = tenants.map((tenant) => tenant.phone);
+
+	const repeated =
+		ids.find((id, index) => ids.indexOf(id) !== index) ??
+		nationalIds.find((nationalId, index) => nationalIds.indexOf(nationalId) !== index) ??
+		phones.find((phone, index) => phones.indexOf(phone) !== index);
+
+	if (repeated) {
+		throw refuse('tenant.repeatedInSet', { value: repeated });
+	}
+
+	const held = await db.select().from(s.tenant).where(inArray(s.tenant.id, ids));
+
+	ensureIdFree(held[0], held[0]?.id);
+
+	const registered = await db
+		.select()
+		.from(s.tenant)
+		.where(inArray(s.tenant.nationalId, nationalIds));
+
+	ensureIdentityAvailable(registered[0], registered[0]?.nationalId);
+
+	const reachable = await db.select().from(s.tenant).where(inArray(s.tenant.phone, phones));
+
+	ensurePhoneAvailable(reachable[0], reachable[0]?.phone);
 }
 
 /**

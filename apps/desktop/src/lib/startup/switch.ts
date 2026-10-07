@@ -55,6 +55,10 @@ export async function switchWorkspace(
 
 	machine.set({ state: 'loading', error: null, recovery: null, switching: chosen.name });
 
+	// before the open rather than after it: a failed open may or may not have moved the shell, and
+	// the changes on the stack were made in the workspace the member asked to leave either way.
+	machine.ports.undo.forget();
+
 	try {
 		if (arrive) {
 			try {

@@ -22,14 +22,26 @@ import type { ListSort } from '@rentable/design/sort.js';
  * payments read is recorded, so a chosen order is read off the question the read would be asked.
  */
 
+/** the contract every test but the refund ones reads: terminated, and paid nothing. */
+const TERMINATED = {
+	id: 'contract-1',
+	status: 'terminated',
+	govId: '1001',
+	tenantName: 'Noura',
+	paidAmount: 0,
+	expectedAmount: 12000
+};
+
 const { reads, created } = vi.hoisted(() => ({
 	reads: {
+		contract: undefined as unknown,
 		payments: null as null | (() => { sort?: ListSort | null }),
 		rows: [] as {
 			id: string;
 			date: number;
 			amount: number;
 			contractId: string;
+			direction?: 'received' | 'refund';
 			method?: string | null;
 			reference?: string | null;
 			note?: string | null;
@@ -42,13 +54,8 @@ vi.mock('$lib/contract/query', async (importOriginal) => ({
 	...(await importOriginal<typeof import('$lib/contract/query')>()),
 	useFetchContract: () => ({
 		isLoading: false,
-		data: {
-			id: 'contract-1',
-			status: 'terminated',
-			govId: '1001',
-			tenantName: 'Noura',
-			paidAmount: 0,
-			expectedAmount: 12000
+		get data() {
+			return reads.contract;
 		}
 	})
 }));
@@ -93,6 +100,7 @@ beforeAll(() => {
 beforeEach(() => {
 	loadLocale('en');
 	setLocale('en');
+	reads.contract = TERMINATED;
 	reads.payments = null;
 	reads.rows = [];
 	created.length = 0;
@@ -230,4 +238,140 @@ test('a row says how it was paid, and one recorded without it is the day and the
 	);
 
 	expect(totals).toHaveLength(2);
+});
+
+// --- Refunds --------------------------------------------------------------------------
+//
+// Ticket 24 of [[efforts/854-bugs-and-edge-cases-across-the-app/spec]], requirements 25 and 26 and
+// their criteria, the interface half: a refund is recorded from the ledger, reads there as money
+// going out, and a received payment locked by its terminated contract says why and what unlocks it.
+
+/** lay the list out so it draws its rows, which jsdom would otherwise measure at nothing. */
+function layOut() {
+	vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(800);
+	vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(600);
+}
+
+/** the card a payment's link sits on. */
+const row = (id: string) =>
+	document.querySelector(`a[href$="/contracts/payments/${id}"]`)?.parentElement as HTMLElement;
+
+/** the bar's create control. */
+const createControl = () => document.querySelector<HTMLElement>('[data-create-control]');
+
+test('a refund reads as money going out, tagged and signed, and its month states both', async () => {
+	reads.contract = { ...TERMINATED, status: 'active', paidAmount: 12600 };
+	reads.rows = [
+		{
+			id: 'returned',
+			date: Date.UTC(2026, 2, 20),
+			amount: 400,
+			contractId: 'contract-1',
+			direction: 'refund'
+		},
+		{ id: 'received', date: Date.UTC(2026, 2, 14), amount: 1500, contractId: 'contract-1' },
+		{ id: 'february', date: Date.UTC(2026, 1, 3), amount: 900, contractId: 'contract-1' }
+	];
+	layOut();
+
+	ledger();
+
+	await waitFor(() => expect(row('returned')).toBeTruthy());
+
+	const refund = row('returned');
+	const received = row('received');
+
+	expect(refund.querySelector('[data-payment-refund]')?.textContent?.trim()).toBe(
+		en.contracts.payments.refund.tag
+	);
+	expect(refund.querySelector('[data-payment-amount]')?.textContent).toMatch(/-400/);
+	expect(received.querySelector('[data-payment-refund]')).toBeNull();
+	expect(received.querySelector('[data-payment-amount]')?.textContent).not.toMatch(/-/);
+
+	// March received 1,500 and returned 400, stated apart and never netted; February returned
+	// nothing, and says only what it received.
+	const headers = [...document.querySelectorAll<HTMLElement>('[data-ledger-month]')];
+
+	expect(headers).toHaveLength(2);
+
+	const [march, february] = headers;
+
+	expect(march.querySelector('[data-month-received]')?.textContent).toMatch(/1,500/);
+	expect(march.querySelector('[data-month-returned]')?.textContent).toMatch(/400/);
+	expect(march.textContent).toContain(en.contracts.payments.refund.monthReturned);
+	expect(february.querySelector('[data-month-received]')?.textContent).toMatch(/900/);
+	expect(february.querySelector('[data-month-returned]')).toBeNull();
+});
+
+// the human, 2026-10-07: the bar keeps its one plus, and a payment and a refund are the payment
+// form's two tabs. So the plus opens the form wherever the contract takes either one.
+test('the plus opens the payment form on a terminated contract that received money', async () => {
+	reads.contract = { ...TERMINATED, paidAmount: 5000 };
+
+	ledger();
+
+	const control = createControl();
+
+	expect(document.querySelector('[data-refund-create]'), 'no refund control of its own').toBeNull();
+	// no new payment, but a refund to make, so the plus is not refused.
+	expect(control?.getAttribute('aria-disabled')).toBeNull();
+	expect(control?.getAttribute('aria-label')).toBe(en.common.actions.newPayment);
+
+	await fireEvent.click(control!);
+
+	expect(created).toEqual([{ contractId: 'contract-1' }]);
+});
+
+test("the plus is refused, with the payment's reason, where neither a payment nor a refund may be made", async () => {
+	// paid exactly its total: no new payment, and a refund would leave it owing.
+	reads.contract = { ...TERMINATED, status: 'fulfilled', paidAmount: 12000 };
+
+	ledger();
+
+	const control = createControl();
+
+	expect(control?.getAttribute('aria-disabled')).toBe('true');
+	expect(describedBy(control)).toBe(en.contracts.payments.fullyPaidNotice);
+
+	await fireEvent.click(control!);
+
+	expect(created).toEqual([]);
+});
+
+test("a received payment on a terminated contract says why it is locked; a refund's row does not", async () => {
+	reads.contract = { ...TERMINATED, paidAmount: 4000 };
+	reads.rows = [
+		{
+			id: 'returned',
+			date: Date.UTC(2026, 2, 20),
+			amount: 1000,
+			contractId: 'contract-1',
+			direction: 'refund'
+		},
+		{ id: 'received', date: Date.UTC(2026, 2, 14), amount: 5000, contractId: 'contract-1' }
+	];
+	layOut();
+
+	ledger();
+
+	await waitFor(() => expect(row('received')).toBeTruthy());
+
+	expect(row('received').querySelector('[data-payment-locked]')?.textContent?.trim()).toBe(
+		en.contracts.payments.refund.locked
+	);
+	expect(row('returned').querySelector('[data-payment-locked]')).toBeNull();
+});
+
+test('a contract still running locks no row', async () => {
+	reads.contract = { ...TERMINATED, status: 'active', paidAmount: 4000 };
+	reads.rows = [
+		{ id: 'received', date: Date.UTC(2026, 2, 14), amount: 4000, contractId: 'contract-1' }
+	];
+	layOut();
+
+	ledger();
+
+	await waitFor(() => expect(row('received')).toBeTruthy());
+
+	expect(row('received').querySelector('[data-payment-locked]')).toBeNull();
 });

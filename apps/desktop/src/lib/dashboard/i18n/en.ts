@@ -26,7 +26,8 @@ export const dashboard = {
 	figures: {
 		collected: 'collected',
 		occupiedUnits: 'occupied units',
-		outstanding: 'outstanding'
+		outstanding: 'outstanding',
+		returned: 'returned'
 	},
 
 	sections: {

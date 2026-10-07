@@ -390,7 +390,9 @@ mod tests {
         .expect("the sync record");
         // the update is the `update` plugin's and no part of this state, and it is made as a launch
         // makes it, so the directory holds the file a launch leaves.
-        Update::new(settings.clone()).await.expect("the update");
+        Update::new(settings.clone(), &crate::clock::System)
+            .await
+            .expect("the update");
 
         Shared {
             db: Arc::new(RwLock::new(Database::new(

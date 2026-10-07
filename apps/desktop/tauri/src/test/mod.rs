@@ -32,3 +32,26 @@ pub(crate) fn scratch(name: &str) -> PathBuf {
 
     directory
 }
+
+/// The directory of the diagnostics log this test run writes to, installed by the first test that
+/// asks for it.
+///
+/// **One log for the whole run**, because the process holds one (`diagnostics::install` keeps the
+/// first it is given). A test that asserts a line was written reads it from here; nothing else in
+/// the test run installs a log, so every line any test writes lands in it too.
+pub(crate) fn diagnostics_log() -> &'static std::path::Path {
+    static DIRECTORY: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+
+    DIRECTORY.get_or_init(|| {
+        let directory = scratch("diagnostics");
+        let log = crate::diagnostics::DiagnosticLog::new(
+            directory.clone(),
+            crate::diagnostics::RotationLimits::DEFAULT,
+        )
+        .expect("the test run's diagnostics log");
+
+        crate::diagnostics::install(log, crate::clock::System::shared());
+
+        directory
+    })
+}

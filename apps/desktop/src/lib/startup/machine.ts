@@ -103,6 +103,8 @@ export class StartupMachine {
 	 */
 	async raiseSignInWall(reason: SignInReason) {
 		this.ports.cache.clear();
+		// nothing done in the session behind the wall may be undone in the next one.
+		this.ports.undo.forget();
 		this.set({
 			error: null,
 			recovery: null,
@@ -420,13 +422,22 @@ export class StartupMachine {
 			return;
 		}
 
-		this.rememberSession();
+		// **A workspace that fails to open is the ordinary failure, on the error screen** (effort
+		// 854, requirement 10), as it is at launch: the loading surface is already up, and a throw
+		// out of here left it up with nothing left to load.
+		try {
+			this.rememberSession();
 
-		if (!(await this.admit())) {
-			return;
-		}
+			if (!(await this.admit())) {
+				return;
+			}
 
-		if (!(await this.hasWorkspace())) {
+			if (!(await this.hasWorkspace())) {
+				return;
+			}
+		} catch (error) {
+			await this.fail(error);
+
 			return;
 		}
 

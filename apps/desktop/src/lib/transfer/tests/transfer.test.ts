@@ -12,11 +12,16 @@ import {
 	type WorkspaceSheetPlan,
 	type WorkspaceTransfer,
 	emptyHeld,
+	emptyTransfer,
 	isWorkspaceImportable,
 	planWorkspaceImport,
 	toContractReference,
+	toContractReferences,
+	toGovIdFromReference,
+	toTransferKey,
 	toUnitParts,
-	toUnitReference
+	toUnitReference,
+	UNIT_LIST_SEPARATOR
 } from '../index.ts';
 import { formatDateInput } from '$lib/date';
 
@@ -235,6 +240,54 @@ test('a record the workspace already holds is turned away, and the rest still re
 	assert.equal(plan.transfer.tenants[0].nationalId, '2234567890');
 });
 
+// a tenant is unique on its national id and on its phone, each on its own, so a held tenant is
+// matched by either column rather than only by the pair.
+test('a tenant row sharing either column with a held tenant is turned away by that column', () => {
+	const workspace: WorkspaceTransfer = {
+		...aWorkspace(),
+		tenants: [
+			{ name: 'Same Id', nationalId: '1234567890', phone: '+966500000000' },
+			{ name: 'Same Phone', nationalId: '2234567890', phone: '+966512345678' },
+			{ name: 'Omar Ali', nationalId: '2234567891', phone: '+966559999999' }
+		],
+		contracts: [],
+		payments: []
+	};
+
+	const plan = planWorkspaceImport(toTables(workspace), NOW, {
+		...emptyHeld(),
+		tenants: [['1234567890', '+966512345678']]
+	});
+
+	assert.deepEqual(sheetOf(plan, 'tenants').rejected, [
+		{ row: 2, reason: 'duplicate-of-existing', detail: '1234567890' },
+		{ row: 3, reason: 'duplicate-of-existing', detail: '+966512345678' }
+	]);
+	assert.deepEqual(
+		plan.transfer.tenants.map((tenant) => tenant.name),
+		['Omar Ali']
+	);
+});
+
+test('two tenant rows sharing only a phone refuse the file, named by the phone', () => {
+	const workspace: WorkspaceTransfer = {
+		...aWorkspace(),
+		tenants: [
+			{ name: 'Abby Kris', nationalId: '1234567890', phone: '+966512345678' },
+			{ name: 'Omar Ali', nationalId: '2234567890', phone: '+966512345678' }
+		],
+		contracts: [],
+		payments: []
+	};
+
+	const plan = planWorkspaceImport(toTables(workspace), NOW, emptyHeld());
+
+	assert.deepEqual(sheetOf(plan, 'tenants').collisions, [
+		{ rows: [2, 3], identity: '+966512345678' }
+	]);
+	assert.equal(isWorkspaceImportable(plan), false);
+});
+
 test('two rows of one sheet claiming the same record refuse it, with both rows named', () => {
 	const workspace = aWorkspace();
 
@@ -312,6 +365,52 @@ test('a contract with no government number is named by its tenant and the day it
 		toContractReference({ govId: '  ', tenant: '1234567890', start: START }),
 		'1234567890 @ 2026-01-01'
 	);
+});
+
+// --- Every contract has a reference only it answers to (effort 854, requirement 7) -----------
+
+test('a numberless contract unique by tenant and day keeps the reference it always had', () => {
+	const references = toContractReferences([
+		{ id: 'a', govId: null, tenant: '1234567890', start: START, end: END },
+		{ id: 'b', govId: 'GOV-1', tenant: '1234567890', start: START, end: END },
+		{ id: 'c', govId: null, tenant: '2234567890', start: START, end: END }
+	]);
+
+	assert.equal(references.get('a'), '1234567890 @ 2026-01-01');
+	assert.equal(references.get('b'), 'GOV-1');
+	assert.equal(references.get('c'), '2234567890 @ 2026-01-01');
+});
+
+test('two numberless contracts of one tenant starting one day are told apart by their end', () => {
+	const references = toContractReferences([
+		{ id: 'a', govId: null, tenant: '1234567890', start: START, end: END },
+		{ id: 'b', govId: ' ', tenant: '1234567890', start: START, end: END + 365 * DAY }
+	]);
+
+	assert.equal(references.get('a'), '1234567890 @ 2026-01-01..2026-12-31');
+	assert.equal(references.get('b'), '1234567890 @ 2026-01-01..2027-12-31');
+});
+
+test('two with the same term too are numbered by id, and only those two', () => {
+	const references = toContractReferences([
+		{ id: 'c', govId: null, tenant: '1234567890', start: START, end: END },
+		{ id: 'a', govId: null, tenant: '1234567890', start: START, end: END },
+		{ id: 'b', govId: null, tenant: '1234567890', start: START, end: END + 365 * DAY }
+	]);
+
+	assert.equal(references.get('a'), '1234567890 @ 2026-01-01..2026-12-31 #1');
+	assert.equal(references.get('c'), '1234567890 @ 2026-01-01..2026-12-31 #2');
+	assert.equal(references.get('b'), '1234567890 @ 2026-01-01..2027-12-31');
+	assert.equal(new Set(references.values()).size, 3);
+});
+
+// the sharpest edge: an extended reference read back as a government number would be stored as
+// one, and the contract would carry its own fallback as its number from then on.
+test('no shape of the fallback reference is read as a government number', () => {
+	assert.equal(toGovIdFromReference('1234567890 @ 2026-01-01'), undefined);
+	assert.equal(toGovIdFromReference('1234567890 @ 2026-01-01..2026-12-31'), undefined);
+	assert.equal(toGovIdFromReference('1234567890 @ 2026-01-01..2026-12-31 #2'), undefined);
+	assert.equal(toGovIdFromReference(' GOV-1 '), 'GOV-1');
 });
 
 test('a unit reference splits at the last separator, so a complex may carry one', () => {
@@ -619,4 +718,159 @@ test('a payment dated the day the file is read is money already received', () =>
 
 	assert.deepEqual(sheetOf(plan, 'payments').rejected, []);
 	assert.ok(isWorkspaceImportable(plan));
+});
+
+// --- A unit taken twice (effort 854, requirement 5) ------------------------------------------
+//
+// A unit is held by one live contract over any day. A file could break that three ways: one row
+// naming the unit twice, two rows taking it over intersecting terms, or a row taking a unit a
+// contract in the workspace already holds. Each is named in the plan, by its row.
+
+/** a second contract for the workspace's tenant, on the workspace's unit, over the same term. */
+function aSecondContract(workspace: WorkspaceTransfer, reference = 'GOV-2'): TransferContract {
+	return { ...workspace.contracts[0], reference, paidAmount: 0 };
+}
+
+/** what a workspace holding `aWorkspace`'s contract live would report it claims. */
+function heldClaims(workspace: WorkspaceTransfer): WorkspaceHeld {
+	const unit = toUnitReference('Al Nakheel', 'A1');
+
+	return {
+		...heldWorkspace(workspace),
+		claims: {
+			contracts: [
+				{
+					key: toTransferKey(...toUnitParts(unit)),
+					label: unit,
+					start: START,
+					end: END
+				}
+			]
+		}
+	};
+}
+
+test('a contract row naming one unit twice is turned away, naming its row', () => {
+	const workspace = aWorkspace();
+	const unit = toUnitReference('Al Nakheel', 'A1');
+
+	workspace.contracts[0].units = [unit, unit];
+
+	const plan = planWorkspaceImport(toTables(workspace), NOW, emptyHeld());
+
+	assert.deepEqual(sheetOf(plan, 'contracts').rejected, [
+		{ row: 2, reason: 'invalid', detail: `${unit}${UNIT_LIST_SEPARATOR}${unit}` }
+	]);
+	assert.deepEqual(plan.transfer.contracts, []);
+});
+
+test('two contract rows taking one unit over intersecting terms refuse the file, naming both', () => {
+	const workspace = aWorkspace();
+
+	workspace.contracts.push(aSecondContract(workspace));
+	workspace.payments = [];
+
+	const plan = planWorkspaceImport(toTables(workspace), NOW, emptyHeld());
+
+	assert.deepEqual(sheetOf(plan, 'contracts').collisions, [
+		{ rows: [2, 3], identity: toUnitReference('Al Nakheel', 'A1') }
+	]);
+	assert.equal(isWorkspaceImportable(plan), false);
+});
+
+test('two contract rows on one unit over terms that do not meet both import', () => {
+	const workspace = aWorkspace();
+	const later = aSecondContract(workspace);
+
+	later.start = Date.UTC(2027, 0, 1);
+	later.end = Date.UTC(2027, 11, 31);
+	workspace.contracts.push(later);
+
+	const plan = planWorkspaceImport(toTables(workspace), NOW, emptyHeld());
+
+	assert.deepEqual(sheetOf(plan, 'contracts').collisions, []);
+	assert.equal(plan.transfer.contracts.length, 2);
+});
+
+test('a contract row taking a unit a live contract holds is turned away, naming its row', () => {
+	const workspace = aWorkspace();
+	const file: WorkspaceTransfer = {
+		...emptyTransfer(),
+		contracts: [aSecondContract(workspace)]
+	};
+
+	const plan = planWorkspaceImport(toTables(file), NOW, heldClaims(workspace));
+
+	assert.deepEqual(sheetOf(plan, 'contracts').rejected, [
+		{ row: 2, reason: 'claim-taken', detail: toUnitReference('Al Nakheel', 'A1') }
+	]);
+	assert.equal(sheetOf(plan, 'contracts').create, 0);
+	assert.deepEqual(plan.transfer.contracts, []);
+});
+
+// --- A terminated contract stays terminated (effort 854, requirement 30) ------------------------
+
+test('a contract the file states as terminated plans as terminated, and every other as active', () => {
+	const workspace = aWorkspace();
+	const ended = aSecondContract(workspace);
+
+	ended.status = 'terminated';
+	workspace.contracts[0].status = 'fulfilled';
+	workspace.contracts.push(ended);
+
+	const plan = planWorkspaceImport(toTables(workspace), NOW, emptyHeld());
+
+	assert.deepEqual(
+		plan.transfer.contracts.map((contract) => [contract.reference, contract.status]),
+		[
+			['GOV-1', 'active'],
+			['GOV-2', 'terminated']
+		]
+	);
+});
+
+// a terminated contract keeps its units and holds none of them, so it takes no part in a clash:
+// neither with a row of the file nor with a contract the workspace holds.
+test('a terminated contract row claims none of its units', () => {
+	const workspace = aWorkspace();
+	const ended = aSecondContract(workspace);
+
+	ended.status = 'terminated';
+	workspace.contracts.push(ended);
+
+	const inFile = planWorkspaceImport(toTables(workspace), NOW, emptyHeld());
+
+	assert.deepEqual(sheetOf(inFile, 'contracts').collisions, []);
+	assert.equal(inFile.transfer.contracts.length, 2);
+
+	const onHeld = planWorkspaceImport(
+		toTables({ ...emptyTransfer(), contracts: [ended] }),
+		NOW,
+		heldClaims(aWorkspace())
+	);
+
+	assert.deepEqual(sheetOf(onHeld, 'contracts').rejected, []);
+	assert.equal(onHeld.transfer.contracts.length, 1);
+});
+
+// a file that carries no status column at all still reads, every contract in it as live.
+test('a contract sheet without a status column still reads', () => {
+	const tables = toTables(aWorkspace()).map((table) => {
+		if (table.name !== 'Contracts') {
+			return table;
+		}
+
+		const status = table.headers.indexOf('Status');
+
+		return {
+			...table,
+			headers: table.headers.filter((_, index) => index !== status),
+			rows: table.rows.map((row) => row.filter((_, index) => index !== status))
+		};
+	});
+
+	const plan = planWorkspaceImport(tables, NOW, emptyHeld());
+
+	assert.ok(isWorkspaceImportable(plan));
+	assert.equal(plan.transfer.contracts[0].status, 'active');
 });

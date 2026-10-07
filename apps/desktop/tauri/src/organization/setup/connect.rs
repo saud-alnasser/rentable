@@ -1459,7 +1459,9 @@ mod tests {
         )
         .await
         .expect("the sync record");
-        Update::new(settings.clone()).await.expect("the update");
+        Update::new(settings.clone(), &crate::clock::System)
+            .await
+            .expect("the update");
 
         Shared {
             db: Arc::new(RwLock::new(Database::new(

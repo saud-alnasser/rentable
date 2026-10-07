@@ -314,7 +314,12 @@ export default router({
 					.returning()
 					.get();
 
-				return deleted && { ...deleted, units: [] as (typeof s.unit.$inferSelect)[] };
+				// a complex somebody else deleted first is refused rather than answered with nothing,
+				// which read as success: to an undo of its creation, and to a deletion of what is gone.
+				return {
+					...ensureComplexStillExists(deleted),
+					units: [] as (typeof s.unit.$inferSelect)[]
+				};
 			}
 
 			const [[deleted], deletedUnits] = await ctx.db.batch([
@@ -322,7 +327,7 @@ export default router({
 				ctx.db.delete(s.unit).where(eq(s.unit.complexId, input.id)).returning()
 			]);
 
-			return deleted && { ...deleted, units: deletedUnits };
+			return { ...ensureComplexStillExists(deleted), units: deletedUnits };
 		}),
 
 	/**

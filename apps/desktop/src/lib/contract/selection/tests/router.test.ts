@@ -365,6 +365,67 @@ test('restoring many puts back the terminated ones and names the rest', async ()
 	);
 });
 
+// effort 854, requirement 4: a contract whose unit another live contract took since it was
+// terminated is refused, by the plan and by the action alike, and the rest are restored.
+test('restoring many refuses a contract whose unit was taken since, and restores the rest', async () => {
+	const api = await createApi();
+	const { unit } = await seedComplexWithUnit(api, 'Many-Restore-Taken');
+	const taken = await seedContract(api, { unitIds: [unit.id] });
+	const free = await seedContract(api);
+
+	await api.contract.terminateMany({ ids: [taken.id, free.id] });
+	await seedContract(api, { unitIds: [unit.id] });
+
+	const plan = await api.contract.planMany({ ids: [taken.id, free.id], action: 'restore' });
+
+	assert.deepEqual(plan.eligible, [free.id]);
+	assert.deepEqual(
+		plan.refused.map((refusal) => ({ id: refusal.id, reason: refusal.reason })),
+		[{ id: taken.id, reason: 'units-taken' }]
+	);
+
+	const result = await api.contract.unterminateMany({ ids: [taken.id, free.id] });
+
+	assert.deepEqual(toIds(result.unterminated), [free.id]);
+	assert.deepEqual(
+		result.refused.map((refusal) => ({ id: refusal.id, reason: refusal.reason })),
+		[{ id: taken.id, reason: 'units-taken' }]
+	);
+	assert.equal((await api.contract.get({ id: taken.id }))?.status, 'terminated');
+	assert.notEqual((await api.contract.get({ id: free.id }))?.status, 'terminated');
+});
+
+// two terminated contracts on one unit over intersecting terms, selected together: restoring
+// both would double-book the unit, so the first named is restored and the second refused.
+test('restoring two terminated contracts on one unit restores one and refuses the other', async () => {
+	const api = await createApi();
+	const { unit } = await seedComplexWithUnit(api, 'Many-Restore-Pair');
+	const first = await seedContract(api, { unitIds: [unit.id] });
+
+	await api.contract.terminate({ id: first.id });
+
+	const second = await seedContract(api, { unitIds: [unit.id] });
+
+	await api.contract.terminate({ id: second.id });
+
+	const plan = await api.contract.planMany({ ids: [first.id, second.id], action: 'restore' });
+
+	assert.deepEqual(plan.eligible, [first.id]);
+	assert.deepEqual(
+		plan.refused.map((refusal) => ({ id: refusal.id, reason: refusal.reason })),
+		[{ id: second.id, reason: 'units-taken' }]
+	);
+
+	const result = await api.contract.unterminateMany({ ids: [first.id, second.id] });
+
+	assert.deepEqual(toIds(result.unterminated), [first.id]);
+	assert.deepEqual(
+		result.refused.map((refusal) => ({ id: refusal.id, reason: refusal.reason })),
+		[{ id: second.id, reason: 'units-taken' }]
+	);
+	assert.equal((await api.contract.get({ id: second.id }))?.status, 'terminated');
+});
+
 // the cost assertion, for the two actions the termination test does not cover. Restoring reads
 // the set once and reconciles once; deleting reconciles not at all, because a contract that can
 // be deleted holds nothing derived.

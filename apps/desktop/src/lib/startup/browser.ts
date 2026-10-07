@@ -9,6 +9,7 @@ import type { Locales } from '$lib/i18n/i18n-types';
 import { browserAppearance } from '$lib/platform/appearance';
 import { recordDiagnosticError } from '$lib/platform/diagnostics';
 import { tauri } from '$lib/platform/tauri';
+import { forgetEveryChange } from '$lib/undo';
 import { organizationKeys } from '$lib/organization/ui';
 import { announceReceivedRows, syncWorkspaceBeforeExit, syncWorkspaceNow } from '$lib/sync';
 import { syncKeys } from '$lib/sync/ui';
@@ -92,6 +93,7 @@ export function browserStartupPorts(
 				queryClient.invalidateQueries({ queryKey: organizationKeys.all }),
 			forgetContext
 		},
+		undo: { forget: forgetEveryChange },
 		// read at the moment of the failure rather than captured, so it is written in whatever
 		// language the reader had by then.
 		// the sentence alone: the shell's own words are the detail, drawn behind a disclosure where

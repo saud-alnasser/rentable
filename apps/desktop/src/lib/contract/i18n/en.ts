@@ -153,10 +153,13 @@ export const contracts = {
 		// contract being terminated while the confirmation is open.
 		paymentRefusedContractTerminated: '{count|number} belong to a terminated contract',
 		paymentRefusedMissing: '{count|number} are no longer in the workspace',
+		paymentRefusedRefundsExceedReceived:
+			'{count|number} would leave the refunds above what the contract received',
 		refusedHoldsPayments: '{count|number} still carry payments',
 		refusedMissing: '{count|number} are no longer in the workspace',
 		refusedNotRestorable: '{count|number} are not terminated',
 		refusedNotTerminable: '{count|number} cannot be terminated by hand',
+		refusedUnitsTaken: '{count|number} hold a unit another contract now holds',
 		restoreSummary: '{count|number} {{contract|contracts}} will be restored',
 		restoreTitle: 'restore contracts',
 		terminateSummary: '{count|number} {{contract|contracts}} will be terminated',
@@ -202,6 +205,11 @@ export const refusals = {
 		nothingToRemind: 'this contract owes nothing and has nothing falling due this week.',
 		notUnterminable: 'only a terminated contract can be restored.',
 		paidInFull: 'this contract is paid in full and takes no more payments.',
+		refundAboveLimit: 'a refund on this contract cannot exceed {limit:number|number}.',
+		refundsExceedReceived:
+			'the refunds on this contract would exceed what it received. delete a refund first.',
+		refundsExceedReceivedNamed:
+			'the refunds on {named:string} would exceed what it received. remove a refund first.',
 		periodOffCycle:
 			'end date must stay within {days:number} days before or after the calculated {interval:string} cycle end date.',
 		periodOverlapsUnits:
@@ -213,10 +221,12 @@ export const refusals = {
 		terminatedLocked: 'this contract is terminated and locked. restore it before changing it.',
 		unitsLockedByPayments:
 			'the units of a contract cannot change once payments are registered against it.',
+		unitRepeatedNamed: '{named:string} is named twice for one contract. name each unit once.',
 		unitsMissing:
 			'one or more of these units are no longer in the workspace. reload to see what changed.',
 		unitsTaken:
 			'another contract holds one or more of the chosen units over this term. choose other units or a different term.',
+		unitsTakenNamed: 'another contract holds {named:string} over these dates. free it first.',
 		unitsUnavailable:
 			'another contract holds one or more of these units over the selected term. choose a different term.'
 	}

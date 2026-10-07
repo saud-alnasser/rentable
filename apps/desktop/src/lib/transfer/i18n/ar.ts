@@ -18,7 +18,8 @@ export const common = {
 			duplicateOfExisting: '{detail} موجود هنا أصلاً',
 			missingValue: 'لا يوجد {detail}',
 			invalid: 'تعذّرت قراءة {detail}',
-			unresolved: 'يشير إلى {detail} وهو غير موجود هنا'
+			unresolved: 'يشير إلى {detail} وهو غير موجود هنا',
+			claimTaken: '{detail} مشغولة أصلاً خلال هذه التواريخ'
 		},
 		incompleteColumns:
 			'هذا الملف لا يحمل {columns}، فلا يمكن إنشاء أي سجل منه — يمكن فقط التعرف على ما هو موجود هنا أصلاً.',
@@ -33,6 +34,7 @@ export const common = {
 		unresolvedRow: 'الصف {row|number} في {sheet} يشير إلى {reference}',
 		skippedHeld: '{count|number} موجود هنا أصلاً',
 		skippedIncomplete: '{count|number} تنقصه قيمة مطلوبة',
+		skippedClaimed: '{count|number} يأخذ ما هو مشغول أصلاً',
 		skippedUnreadable: '{count|number} تعذّرت قراءته',
 		more: 'و{count|number} غيرها'
 	}

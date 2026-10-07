@@ -1,6 +1,6 @@
 import type { Contract } from '$lib/platform/database/schema';
 import { addUtcDays, toUtcDay, type DateLike } from '$lib/date';
-import type { ContractLike } from '$lib/contract/contract';
+import { hasSatisfiedContractPaymentRequirement, type ContractLike } from '$lib/contract/contract';
 import { getExpectedAmountBy } from '$lib/contract/schedule/cycle';
 import { scheduleContract } from '$lib/contract/schedule/schedule';
 
@@ -181,7 +181,8 @@ export function getContractRank(
 		return undefined;
 	}
 
-	if (getExpectedAmountBy(contract, now) - paidAmount > 0) {
+	// compared with the domain's tolerance, so the float dust a sum of payments carries is not a debt
+	if (!hasSatisfiedContractPaymentRequirement(paidAmount, getExpectedAmountBy(contract, now))) {
 		return toUtcDay(contract.end).getTime() < toUtcDay(now).getTime() ? 'overdue' : 'owing';
 	}
 

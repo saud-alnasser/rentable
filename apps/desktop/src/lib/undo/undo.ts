@@ -53,9 +53,11 @@ export type Inverse = {
  * never handed out again and that collision is gone.** The ordering is kept because undo and
  * redo mean last-in-first-out to a person, which is reason enough.
  *
- * {@link clear} forgets it, and nothing in the application calls it yet: a workspace switch
- * leaves the stack as it was. An inverse is a statement about one database, and replaying it
- * against another would corrupt rather than undo.
+ * {@link clear} forgets it, and {@link forgetEveryChange} is how the application asks for that:
+ * startup calls it, through its port, whenever the workspace or the session changes (a switch, a
+ * sign-out, the sign-in wall going up, and choosing or removing an organization). An inverse is
+ * a statement about one database, and replaying it against another would corrupt rather than
+ * undo.
  */
 export class InverseStack {
 	#undoable: Inverse[] = [];
@@ -196,3 +198,14 @@ export class InverseStack {
  * which is not a component, can record onto the same stack the shell reads.
  */
 export const inverseStack = new InverseStack();
+
+/**
+ * forget every change the session could undo or redo, because the workspace or the session it
+ * was made in is being left (effort 854, requirement 1).
+ *
+ * The clear bumps the generation, so an inverse in flight cannot land afterwards, and the offer
+ * on screen is withdrawn by `./move`, which sees both directions empty.
+ */
+export function forgetEveryChange() {
+	inverseStack.clear();
+}

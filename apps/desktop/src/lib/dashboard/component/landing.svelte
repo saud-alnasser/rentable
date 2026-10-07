@@ -183,6 +183,16 @@
 					<span class="truncate text-xs text-muted-foreground tabular-nums">
 						<Cell.Money amount={money?.due ?? 0} />
 					</span>
+					<!-- money paid back to tenants in the period, named because it is a third amount
+					     under the ring and the only one the ring does not draw. It is never taken off
+					     collected, so the two read side by side, and it is not shown where nothing
+					     went back (effort 854, requirement 28). -->
+					{#if money?.returned}
+						<span class="truncate text-xs text-muted-foreground tabular-nums">
+							{$LL.dashboard.figures.returned()}
+							<Cell.Money amount={money.returned} />
+						</span>
+					{/if}
 				</span>
 			</a>
 		</div>

@@ -4,6 +4,7 @@
 	import type { Payment } from '$lib/platform/database/schema';
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
 	import RecordCard from '@rentable/design/block/record-card.svelte';
+	import { Badge } from '@rentable/design/primitive/badge/index.js';
 	import SelectionDialog from '@rentable/design/block/selection-dialog.svelte';
 	import { toCardActions } from '$lib/act';
 	import { List } from '$lib/list/ui';
@@ -16,7 +17,7 @@
 	} from '@rentable/design/selection.js';
 	import { PERIOD_FILTER, toChosenLabel, type FilterSelection } from '$lib/list';
 	import { isFilterPeriod } from '$lib/date';
-	import { getRemainingContractBalance, toContractName } from '$lib/contract';
+	import { getRemainingContractBalance, isRefund, toContractName } from '$lib/contract';
 	import { useFetchContract } from '$lib/contract/ui';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import {
@@ -24,8 +25,9 @@
 		paymentLedgerMonths,
 		type PaymentLedgerMonth
 	} from '$lib/payment/ledger';
-	import { toPaymentCreateUnavailable } from '$lib/payment/acts';
+	import { toPaymentCreateUnavailable, toRefundCreateUnavailable } from '$lib/payment/acts';
 	import { paymentMethodGlyph, paymentMethodLabel } from '$lib/payment/method';
+	import { paymentLedgerColumns } from '$lib/payment/transfer';
 	import { PAYMENT_SORT_COLUMN_IDS, type PaymentSortColumnId } from '$lib/payment/payment';
 	import type { ListSort } from '@rentable/design/sort.js';
 	import { paymentActs, paymentHost } from '$lib/payment/host.svelte';
@@ -40,6 +42,7 @@
 	import { useImportRecords } from '$lib/workspace/ui';
 	import { toTransferInput } from '$lib/transfer';
 	import { IMPORT_FLAGS, memberPermissions } from '$lib/permission';
+	import LockIcon from '@lucide/svelte/icons/lock';
 	import StickyNoteIcon from '@lucide/svelte/icons/sticky-note';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 
@@ -50,6 +53,10 @@
 	// paid. The shell lays rows out at this height rather than measuring them, so a row that has
 	// nothing for its second line keeps the height and centres its one line in it.
 	const ROW_HEIGHT = 64;
+	// a terminated contract's rows take a third line: a received payment says there why it is
+	// locked and what unlocks it (effort 854, requirement 25). Every row of that ledger takes the
+	// height, since the shell lays them out at one.
+	const LOCKED_ROW_HEIGHT = 84;
 	// the marker's own height. The space that separates one month from the records above it is
 	// the list block's, not this figure — the block owns the gap between cards and the two have
 	// to be set against each other.
@@ -107,6 +114,9 @@
 			: $LL.common.labels.contract()
 	);
 	const tenantName = $derived(contractQuery.data?.tenantName?.trim() ?? '');
+	// what a workspace file calls the contract, which is what the ledger's own import resolves it
+	// from, so a ledger written out reads back whether the contract has a number or not.
+	const contractReference = $derived(contractQuery.data?.reference ?? contractName);
 	// why this contract takes no new payment, where it takes none: the create act's reason, which
 	// the create control shows on hover and focus in place of a paragraph above the ledger. A
 	// terminated contract is read-only; a satisfied one still takes corrections to what it already
@@ -114,7 +124,16 @@
 	// with the same reason, in the transfer menu, rather than taken out of it.
 	const createUnavailable = $derived(toPaymentCreateUnavailable(contractQuery.data, $LL));
 	const isAddLocked = $derived(createUnavailable !== undefined);
-	const hasRowActions = $derived(!isTerminated);
+	// why the contract takes no refund now, where it takes none: nothing it holds may be returned.
+	// A terminated contract takes one, since a refund is how it is settled (effort 854, requirements
+	// 25 and 26).
+	const refundUnavailable = $derived(toRefundCreateUnavailable(contractQuery.data, $LL));
+	// the bar's one create opens the payment form, whose two tabs are the two ways money moves
+	// (effort 854, requirement 25). So it is refused only where both are, with the payment's reason,
+	// the one a reader looking to add money reads first.
+	const createUnavailableWhole = $derived(
+		createUnavailable && refundUnavailable ? createUnavailable : undefined
+	);
 
 	const formatMonth = (month: PaymentLedgerMonth) => formatPaymentLedgerMonth($locale, month);
 	const formatMoney = (value: number) => formatLocaleMoney($locale, value);
@@ -148,6 +167,7 @@
 	// nothing the reader did caused.
 	const REFUSAL_ORDER = [
 		'contract-terminated',
+		'refunds-exceed-received',
 		'missing'
 	] as const satisfies readonly PaymentRefusalReason[];
 
@@ -158,6 +178,8 @@
 		describeRefusals({
 			'contract-terminated': (count: number) =>
 				$LL.contracts.selection.paymentRefusedContractTerminated({ count }),
+			'refunds-exceed-received': (count: number) =>
+				$LL.contracts.selection.paymentRefusedRefundsExceedReceived({ count }),
 			missing: (count: number) => $LL.contracts.selection.paymentRefusedMissing({ count })
 		} satisfies Record<PaymentRefusalReason, (count: number) => string>)
 	);
@@ -213,19 +235,16 @@
 	     the same whether it is aimed at one payment or at nine. Delete and nothing else: it is the
 	     only thing a payment admits being done to several at a time.
 
-	     Withheld on a terminated contract along with the row controls, because a locked statement
-	     takes no changes. The snippet is still passed, so selection itself stays on there: what a
-	     reader may do with a selection is no longer only destructive, and exporting part of a
-	     statement is a reading rather than a change. -->
-	{#if hasRowActions}
-		<RecordActionControl
-			label={`${$LL.common.actions.delete()} · ${$LL.common.table.recordsSelected({ count: ids.length })}`}
-			icon={Trash2Icon}
-			tone="error"
-			unavailable={memberPermissions.refusal('deletePayment', $LL)}
-			onclick={() => (confirming = [...ids])}
-		/>
-	{/if}
+	     Offered on a terminated contract too, since its refunds are deleted there: the plan the
+	     confirmation reads turns its received payments away, saying the contract is terminated
+	     (effort 854, requirement 25). -->
+	<RecordActionControl
+		label={`${$LL.common.actions.delete()} · ${$LL.common.table.recordsSelected({ count: ids.length })}`}
+		icon={Trash2Icon}
+		tone="error"
+		unavailable={memberPermissions.refusal('deletePayment', $LL)}
+		onclick={() => (confirming = [...ids])}
+	/>
 {/snippet}
 
 <div class="flex min-h-0 flex-1 flex-col gap-3">
@@ -241,7 +260,7 @@
 		groupOf={isReadInTime ? monthOf : undefined}
 		isLoading={paymentsQuery.isLoading}
 		isFetching={paymentsQuery.isFetching}
-		recordHeight={ROW_HEIGHT}
+		recordHeight={isTerminated ? LOCKED_ROW_HEIGHT : ROW_HEIGHT}
 		groupHeaderHeight={MONTH_HEIGHT}
 		emptyTitle={$LL.contracts.payments.emptyTitle()}
 		emptyDescription={isAddLocked ? undefined : $LL.contracts.payments.trackSummary()}
@@ -253,27 +272,14 @@
 				search,
 				toChosenLabel(PERIOD_FILTER, filters, $LL) ?? ''
 			]),
-			columns: [
-				// what a row belongs to, before what the row is. A ledger read on screen sits under
-				// the contract's own page and needs neither; the same rows in a file have left that
-				// page behind, and two ledgers in one folder are indistinguishable without them.
-				{ header: $LL.common.labels.contract(), value: () => contractName },
-				{ header: $LL.common.labels.tenant(), value: () => tenantName },
-				{
-					header: $LL.common.labels.paymentDate(),
-					value: (entry) => ({ kind: 'date' as const, value: new Date(entry.date) })
-				},
-				{
-					header: $LL.common.labels.amount(),
-					value: (entry) => ({ kind: 'money' as const, value: entry.amount })
-				}
-			]
+			// what a row belongs to, then the row as the payments sheet writes it.
+			columns: paymentLedgerColumns($LL, contractReference, tenantName)
 		}}
 		onImport={() => void importDialog?.choose()}
 		importUnavailable={memberPermissions.refusalOfEvery(IMPORT_FLAGS, $LL) ?? createUnavailable}
 		onCreate={() => paymentHost.create({ contractId })}
 		createLabel={$LL.common.actions.newPayment()}
-		{createUnavailable}
+		createUnavailable={createUnavailableWhole}
 	>
 		{#snippet groupHeader(month: PaymentLedgerMonth)}
 			<!-- a card in the list rather than a marker floating over it, and a separator rather than
@@ -288,17 +294,34 @@
 			     filled strip this replaced — at that width it reads as one more card in the column,
 			     which is the thing that stopped the grouping being legible. Sized to its own content
 			     it reads as a label on the list rather than an entry in it. -->
+			<!-- a month that returned money states it beside what it received, each named, and neither
+			     taken off the other (effort 854, requirement 25). One that returned nothing reads as
+			     it always has, its total alone. -->
 			<div
 				class="flex h-full w-fit max-w-full items-center gap-2 rounded-2xl bg-muted/60 px-4 text-xs font-medium"
+				data-ledger-month
 			>
 				<span class="min-w-0 truncate uppercase">{formatMonth(month)}</span>
 				<span class="text-muted-foreground" aria-hidden="true">&middot;</span>
-				<span class="shrink-0 text-muted-foreground">
+				<span class="shrink-0 text-muted-foreground" data-month-received>
 					<span class="sr-only">
 						{$LL.contracts.payments.monthTotal({ month: formatMonth(month) })}
 					</span>
+					{#if month.returned > 0}
+						<span aria-hidden="true">{$LL.contracts.payments.refund.monthReceived()}</span>
+					{/if}
 					<Cell.Money amount={month.total} />
 				</span>
+				{#if month.returned > 0}
+					<span class="text-muted-foreground" aria-hidden="true">&middot;</span>
+					<span class="shrink-0 text-muted-foreground" data-month-returned>
+						<span class="sr-only">
+							{$LL.contracts.payments.refund.monthReturnedTotal({ month: formatMonth(month) })}
+						</span>
+						<span aria-hidden="true">{$LL.contracts.payments.refund.monthReturned()}</span>
+						<Cell.Money amount={month.returned} />
+					</span>
+				{/if}
 			</div>
 		{/snippet}
 
@@ -311,6 +334,7 @@
 				{#snippet content()}
 					{@const reference = entry.reference?.trim() ?? ''}
 					{@const note = entry.note?.trim() ?? ''}
+					{@const refund = isRefund(entry)}
 					<!-- a statement line: the day with the amount at its end, then, quieter, how it was
 					     paid. What was never recorded is left out whole, glyph and all, and a row with
 					     none of the three is the one line, centred in the row's height. -->
@@ -319,8 +343,15 @@
 							<span class="min-w-0 flex-1 truncate text-start">
 								<Cell.Date value={entry.date} />
 							</span>
-							<span class="shrink-0 text-end font-medium">
-								<Cell.Money amount={entry.amount} />
+							<!-- a refund is money going out: tagged in words, and its amount carries the
+							     sign, so neither colour nor position alone says which way it went. -->
+							{#if refund}
+								<Badge variant="outline" class="shrink-0" data-payment-refund>
+									{$LL.contracts.payments.refund.tag()}
+								</Badge>
+							{/if}
+							<span class="shrink-0 text-end font-medium" data-payment-amount>
+								<Cell.Money amount={refund ? -entry.amount : entry.amount} />
 							</span>
 						</div>
 						{#if entry.method || reference || note}
@@ -353,6 +384,18 @@
 								{/if}
 							</div>
 						{/if}
+						{#if isTerminated && !refund}
+							<!-- its acts are refused, and the row says why and what unlocks them rather
+							     than leaving the reader to find a dimmed control (effort 854, requirement
+							     25). The glyph is the terminated status's lock. -->
+							<div
+								class="flex min-w-0 items-center gap-1 text-xs text-muted-foreground"
+								data-payment-locked
+							>
+								<LockIcon class="size-3.5 shrink-0" aria-hidden="true" />
+								<span class="min-w-0 truncate">{$LL.contracts.payments.refund.locked()}</span>
+							</div>
+						{/if}
 					</div>
 				{/snippet}
 			</RecordCard>
@@ -374,7 +417,7 @@
 					/>
 				</span>
 			</div>
-			<div class="flex min-w-0 flex-col gap-1 text-end">
+			<div class="ms-auto flex min-w-0 flex-col gap-1 text-end">
 				<span class="text-xs text-muted-foreground uppercase">
 					{$LL.common.labels.paymentFulfillment()}
 				</span>

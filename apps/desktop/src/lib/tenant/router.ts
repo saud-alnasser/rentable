@@ -9,13 +9,13 @@ import { ensureIdFree } from '$lib/api/refusal';
 import { newId } from '$lib/platform/database/identity';
 import type { Contract } from '$lib/platform/database/schema';
 import { planSelection } from '$lib/api/selection';
-import { refuse } from '$lib/api/refusal';
 import { autosync, procedure, router } from '$lib/api/trpc';
 import {
 	TENANT_SORT_COLUMN_IDS,
 	ensureIdentityAvailable,
 	ensurePhoneAvailable,
 	ensureTenantDeletable,
+	ensureTenantsAvailable,
 	ensureTenantStillExists,
 	TenantSchema,
 	whatRefusesTenantDeletion,
@@ -319,37 +319,8 @@ export default router({
 		.input(z.object({ tenants: z.array(TenantSchema.partial({ id: true })).min(1) }))
 		.mutation(async ({ input, ctx }) => {
 			const named = input.tenants.map((tenant) => ({ ...tenant, id: tenant.id ?? newId() }));
-			const ids = named.map((tenant) => tenant.id);
-			const nationalIds = named.map((tenant) => tenant.nationalId);
-			const phones = named.map((tenant) => tenant.phone);
 
-			// the set against itself, on all three things a tenant is unique by, before it is weighed
-			// against the workspace at all. A set that contradicts itself is a contradiction the
-			// engine would only report part-way through, and this write is meant to land whole or
-			// not at all.
-			const repeated =
-				ids.find((id, index) => ids.indexOf(id) !== index) ??
-				nationalIds.find((nationalId, index) => nationalIds.indexOf(nationalId) !== index) ??
-				phones.find((phone, index) => phones.indexOf(phone) !== index);
-
-			if (repeated) {
-				throw refuse('tenant.repeatedInSet', { value: repeated });
-			}
-
-			const held = await ctx.db.select().from(s.tenant).where(inArray(s.tenant.id, ids));
-
-			ensureIdFree(held[0], held[0]?.id);
-
-			const registered = await ctx.db
-				.select()
-				.from(s.tenant)
-				.where(inArray(s.tenant.nationalId, nationalIds));
-
-			ensureIdentityAvailable(registered[0], registered[0]?.nationalId);
-
-			const reachable = await ctx.db.select().from(s.tenant).where(inArray(s.tenant.phone, phones));
-
-			ensurePhoneAvailable(reachable[0], reachable[0]?.phone);
+			await ensureTenantsAvailable(ctx.db, named);
 
 			const [first, ...rest] = named.map((tenant) =>
 				ctx.db.insert(s.tenant).values(tenant).returning()

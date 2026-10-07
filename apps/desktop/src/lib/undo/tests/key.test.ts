@@ -23,14 +23,18 @@ function eventTarget(element: { tagName: string; isContentEditable?: boolean }):
  * reaches is the registry's decision now, and asserting on the declaration alone would pass over
  * a matcher that had stopped answering.
  */
-function openStack({ has = () => true }: { has?: (intent: UndoIntent) => boolean } = {}) {
+function openStack({
+	has = () => true,
+	covered = () => false
+}: { has?: (intent: UndoIntent) => boolean; covered?: () => boolean } = {}) {
 	const applied: UndoIntent[] = [];
 	const registry = new ShortcutRegistry(() => {});
 
 	for (const registration of toUndoShortcuts(
 		(intent) => applied.push(intent),
 		has,
-		() => undefined
+		() => undefined,
+		covered
 	)) {
 		registry.register(registration);
 	}
@@ -128,7 +132,8 @@ test('the pair names both directions for the sheet', () => {
 		toUndoShortcuts(
 			() => {},
 			() => true,
-			() => undefined
+			() => undefined,
+			() => false
 		).map((registration) => registration.describe(undoTranslations)),
 		['undo', 'redo']
 	);
@@ -141,7 +146,8 @@ test('each direction says why it cannot run, from its own end of the stack', () 
 	const [undo, redo] = toUndoShortcuts(
 		() => {},
 		(intent) => intent === 'redo',
-		() => undefined
+		() => undefined,
+		() => false
 	);
 
 	assert.ok(undo.unavailable);
@@ -154,7 +160,8 @@ test('and neither says anything while there is something to apply', () => {
 	const [undo, redo] = toUndoShortcuts(
 		() => {},
 		() => true,
-		() => undefined
+		() => undefined,
+		() => false
 	);
 
 	assert.ok(undo.unavailable);
@@ -174,7 +181,8 @@ test('a direction the reader may not move says why, and the other stays open', (
 			asked.push(intent);
 
 			return intent === 'undo' ? translations.common.permission.missing.deleteTenant() : undefined;
-		}
+		},
+		() => false
 	);
 
 	assert.equal(
@@ -189,7 +197,8 @@ test('an empty stack says it is empty, before it asks what the reader may do', (
 	const [undo] = toUndoShortcuts(
 		() => {},
 		() => false,
-		() => 'refused'
+		() => 'refused',
+		() => false
 	);
 
 	assert.equal(undo.unavailable?.(undoTranslations), 'nothing to take back');
@@ -201,4 +210,30 @@ test('an empty stack still answers the keydown, and moves nothing', () => {
 	const stack = openStack({ has: () => false });
 
 	assert.equal(stack.press({ ...held, key: 'z', code: 'KeyZ' }), 'undo');
+});
+
+// effort 854, requirement 12: a form, a sheet or a confirmation over the page holds the change
+// the reader is looking at, and taking back one they cannot see from under it would be a move
+// nobody watched. The keydown is still the application's, so it moves nothing rather than
+// falling through to the webview.
+test('nothing moves while something covers the page', () => {
+	const stack = openStack({ covered: () => true });
+
+	assert.equal(stack.press({ ...held, key: 'z', code: 'KeyZ' }), null);
+	assert.equal(stack.press({ ...held, shiftKey: true, key: 'z', code: 'KeyZ' }), null);
+	assert.equal(stack.press({ ...held, key: 'y', code: 'KeyY' }), null);
+	assert.deepEqual(stack.applied, []);
+});
+
+// asked at the press rather than at registration: the pair is registered once for the window,
+// and what covers the page changes under it.
+test('and moves again once the cover is gone', () => {
+	let covered = true;
+	const stack = openStack({ covered: () => covered });
+
+	stack.press({ ...held, key: 'z', code: 'KeyZ' });
+	covered = false;
+
+	assert.equal(stack.press({ ...held, key: 'z', code: 'KeyZ' }), 'undo');
+	assert.deepEqual(stack.applied, ['undo']);
 });

@@ -7,7 +7,7 @@
 	import { Input } from '@rentable/design/primitive/input/index.js';
 	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
 	import { parseCalendarDate } from '$lib/date';
-	import { RIYAL } from '$lib/platform/locale';
+	import { RIYAL, toWesternDigits } from '$lib/platform/locale';
 	import {
 		CONTRACT_END_DATE_TOLERANCE_DAYS,
 		hasValidContractPeriodForInterval
@@ -229,7 +229,8 @@
 	let endDateInputs = $derived.by(() => ({
 		start: contractStartDateValue,
 		interval: $form.interval,
-		cycles: $form.cycles
+		// read in Western digits, as the schema reads them (effort 854, requirement 21).
+		cycles: toWesternDigits($form.cycles)
 	}));
 	let calculatedEndDate = $derived.by(() => getCalculatedContractEndDate(endDateInputs));
 	let calculatedEndDateValue = $derived.by(() => calculatedEndDate?.toString() ?? '');
@@ -368,8 +369,8 @@
 	<div class="flex flex-col gap-4">
 		<FormSummary
 			tenantName={tenantChoice.selected?.name}
-			cost={$form.cost}
-			cycles={$form.cycles}
+			cost={toWesternDigits($form.cost)}
+			cycles={toWesternDigits($form.cycles)}
 			start={contractStartDateValue}
 			end={contractEndDateValue}
 		/>

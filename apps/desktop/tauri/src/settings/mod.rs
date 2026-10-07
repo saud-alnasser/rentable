@@ -7,9 +7,16 @@ mod plugin;
 
 pub use plugin::plugin;
 
-use std::{future::Future, path::PathBuf, pin::Pin, sync::Arc};
+use std::{
+    future::Future,
+    path::{Path, PathBuf},
+    pin::Pin,
+    sync::Arc,
+};
 
 use crate::{
+    clock::Clock,
+    diagnostics,
     error::Error,
     machine::DatabasePath,
     persisted::{Persistable, Persisted},
@@ -210,10 +217,93 @@ pub async fn settings_set_inner(
     Ok(settings.inner().clone())
 }
 
+/// Load this machine's settings from `data_dir`, with the places it keeps its files at filled in,
+/// and commit them: what the plugin's setup manages.
+///
+/// `db_dir` is where the workspace database lives. **A development build always takes it; a
+/// release build keeps what it was given.** A stored path is a person's choice in a shipped
+/// application (the restore flow writes one), and it is a stale artefact in a checkout, left by
+/// whatever directory a previous launch happened to start in.
+///
+/// A `settings.json` whose content cannot be read is recovered rather than refused, and one that
+/// cannot be opened at all is the error, naming the file ([`Persisted::recover`]), as is one that
+/// cannot be written ([`Persisted::commit_at_launch`]).
+pub fn open(
+    data_dir: &Path,
+    db_dir: &Path,
+    clock: &dyn Clock,
+) -> Result<Persisted<Settings>, Error> {
+    let mut settings = Persisted::<Settings>::recover(data_dir.join(Settings::FILENAME), clock)?;
+
+    if cfg!(debug_assertions) || settings.database_path.as_os_str().is_empty() {
+        settings.database_path = db_dir.join(Settings::DATABASE_FILENAME);
+    }
+    settings.recovery_path = data_dir.join(Settings::RECOVERY_FILENAME);
+    settings.diagnostics_dir = data_dir.join(diagnostics::DIRECTORY_NAME);
+    settings.version = env!("CARGO_PKG_VERSION").to_string();
+
+    settings.commit_at_launch()?;
+
+    Ok(settings)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{Appearance, Settings, SettingsChangeset};
+    use crate::{clock::Fixed, test::scratch};
     use std::path::PathBuf;
+
+    /// **An empty `settings.json` does not stop the launch** (effort 854, criterion 17): the
+    /// settings start from the defaults with this machine's places filled in, and the empty file
+    /// is kept beside them.
+    #[test]
+    fn an_empty_settings_file_opens_with_the_defaults_and_is_kept_aside() {
+        let data_dir = scratch("settings-open-empty");
+        std::fs::write(data_dir.join(Settings::FILENAME), b"").expect("the empty settings");
+
+        let settings = super::open(&data_dir, &data_dir, &Fixed(1_700_000_000_000))
+            .expect("an empty settings file stopped the launch");
+
+        assert_eq!(
+            settings.ending_soon_notice_days,
+            Settings::default().ending_soon_notice_days
+        );
+        assert_eq!(
+            settings.recovery_path,
+            data_dir.join(Settings::RECOVERY_FILENAME)
+        );
+        assert_eq!(
+            std::fs::read(data_dir.join("settings.json.corrupt-1700000000000"))
+                .expect("the empty file was not kept"),
+            b""
+        );
+
+        let _ = std::fs::remove_dir_all(data_dir);
+    }
+
+    /// **A `settings.json` that cannot be written at launch is named** (effort 854, requirement
+    /// 17, ticket 38), as one that cannot be opened is: the launch reads the file back out of the
+    /// error to show it. A directory where the commit stages its write makes the commit fail.
+    #[test]
+    fn a_settings_file_that_cannot_be_written_at_launch_is_named() {
+        let data_dir = scratch("settings-open-unwritable");
+        let path = data_dir.join(Settings::FILENAME);
+        crate::persisted::Persisted::<Settings>::load(path.clone()).expect("the settings");
+        std::fs::create_dir(data_dir.join("settings.json.tmp")).expect("the blocked staging file");
+
+        let error = match super::open(&data_dir, &data_dir, &Fixed(1_700_000_000_000)) {
+            Ok(_) => panic!("settings that could not be written were opened"),
+            Err(error) => error,
+        };
+
+        assert_eq!(
+            crate::persisted::unopenable_record(&error.to_string()),
+            Some(path.as_path()),
+            "the launch cannot name the file: {error}"
+        );
+
+        let _ = std::fs::remove_dir_all(data_dir);
+    }
 
     /// A settings file written by an earlier version still loads, `migrationDir` and all.
     ///

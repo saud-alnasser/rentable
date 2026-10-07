@@ -29,19 +29,17 @@ pub fn plugin() -> TauriPlugin<tauri::Wry> {
             super::command::sync_push,
         ])
         .setup(|app, _api| {
-            let data_dir = app
-                .path()
-                .app_data_dir()
-                .expect("failed to get app data dir");
+            let data_dir = app.path().app_data_dir()?;
             let settings = app.state::<settings::Shared>().inner().clone();
             let clock = app.state::<clock::Shared>().inner().clone();
 
+            // an error here is the launch's to show, naming the file (`lib.rs`): a record that
+            // cannot be opened is never started over, since it holds every organization.
             let remote_sync = async_runtime::block_on(RemoteSync::new(
                 settings,
                 data_dir.join(RemoteSync::FILENAME),
                 clock,
-            ))
-            .expect("failed to create remote sync manager");
+            ))?;
 
             app.manage::<machine::Shared>(Arc::new(RwLock::new(remote_sync)));
 

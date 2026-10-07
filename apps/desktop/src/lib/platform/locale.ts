@@ -40,6 +40,37 @@ export function getIntlLocale(locale: Locales) {
 	return intlLocaleMap[locale] ?? locale;
 }
 
+/**
+ * ٠١٢٣٤٥٦٧٨٩, the digits an Arabic keyboard types, each beside the Western digit it stands for.
+ * Every figure renders in Western digits, but a reader may still type these.
+ *
+ * *One table (effort 854, requirement 21).* Search folds a term with it
+ * (`platform/database/search.ts`), and a field that takes a figure reads its value through
+ * {@link toWesternDigits}; it moved here from search so the two read the same digits.
+ */
+export const ARABIC_INDIC_DIGITS = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'].map(
+	(digit, value) => [digit, String(value)] as const
+);
+
+/** ٫, the decimal point an Arabic keyboard types, beside the point a figure is parsed with. */
+export const ARABIC_DECIMAL_SEPARATOR = ['٫', '.'] as const;
+
+/**
+ * A figure as typed, read in the Western digits and the point `Number` parses.
+ *
+ * Only the Arabic-Indic digits and the decimal separator are read, the human's decision for
+ * effort 854: a group separator is how a figure is rendered rather than typed, and a Persian
+ * digit is another keyboard's, so both are left for the field to refuse. Everything else is
+ * returned as it was, so a field validates what this gives it rather than rewriting what the
+ * reader sees.
+ */
+export function toWesternDigits(value: string): string {
+	return [...ARABIC_INDIC_DIGITS, ARABIC_DECIMAL_SEPARATOR].reduce(
+		(folded, [from, to]) => folded.replaceAll(from, to),
+		value
+	);
+}
+
 export function isRtlLocale(locale: Locales) {
 	return localesMetadata[locale].direction === 'rtl';
 }

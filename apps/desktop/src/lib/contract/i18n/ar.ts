@@ -145,10 +145,13 @@ export const contracts = {
 		paymentDeleteTitle: 'حذف الدفعات',
 		paymentRefusedContractTerminated: '{count|number} تخص عقداً منتهياً',
 		paymentRefusedMissing: '{count|number} لم تعد موجودة في مساحة العمل',
+		paymentRefusedRefundsExceedReceived:
+			'{count|number} ستجعل المبالغ المستردة أكثر مما استلمه العقد',
 		refusedHoldsPayments: '{count|number} ما زالت تحمل دفعات',
 		refusedMissing: '{count|number} لم تعد موجودة في مساحة العمل',
 		refusedNotRestorable: '{count|number} ليست منتهية',
 		refusedNotTerminable: '{count|number} لا يمكن إنهاؤها يدوياً',
+		refusedUnitsTaken: '{count|number} تشغل وحدة يشغلها الآن عقد آخر',
 		restoreSummary: 'سيتم استعادة {count|number} عقد',
 		restoreTitle: 'استعادة العقود',
 		terminateSummary: 'سيتم إنهاء {count|number} عقد',
@@ -193,6 +196,10 @@ export const refusals = {
 			'لا مستحقات على هذا العقد ولا إيجار يحلّ هذا الأسبوع، فلا شيء يُذكَّر به المستأجر.',
 		notUnterminable: 'لا يُستعاد إلا العقد المنتهي.',
 		paidInFull: 'سُدد هذا العقد بالكامل ولا يقبل دفعات أخرى.',
+		refundAboveLimit: 'لا يمكن أن يتجاوز الاسترداد من هذا العقد {limit|number}.',
+		refundsExceedReceived: 'ستتجاوز المبالغ المستردة من هذا العقد ما استلمه. احذف استرداداً أولاً.',
+		refundsExceedReceivedNamed:
+			'ستتجاوز المبالغ المستردة من {named} ما استلمه. احذف استرداداً أولاً.',
 		periodOffCycle:
 			'يجب أن يبقى تاريخ النهاية ضمن {days} أيام قبل أو بعد تاريخ نهاية دورة {interval} المحسوب.',
 		periodOverlapsUnits:
@@ -203,10 +210,12 @@ export const refusals = {
 		tenantMissingNamed: 'لا يوجد في مساحة العمل مستأجر بالمعرف {named}.',
 		terminatedLocked: 'هذا العقد منتهٍ ومقفل. استعده قبل تعديله.',
 		unitsLockedByPayments: 'لا يمكن تغيير وحدات العقد بعد تسجيل دفعات عليه.',
+		unitRepeatedNamed: 'الوحدة {named} مذكورة مرتين في عقد واحد. اذكر كل وحدة مرة واحدة.',
 		unitsMissing:
 			'لم تعد واحدة أو أكثر من هذه الوحدات موجودة في مساحة العمل. أعد التحميل لترى ما تغيّر.',
 		unitsTaken:
 			'يحتفظ عقد آخر بواحدة أو أكثر من الوحدات المختارة خلال هذه المدة. اختر وحدات أخرى أو مدة أخرى.',
+		unitsTakenNamed: 'يحتفظ عقد آخر بـ {named} خلال هذه التواريخ. حرّرها أولاً.',
 		unitsUnavailable:
 			'يحتفظ عقد آخر بواحدة أو أكثر من هذه الوحدات خلال المدة المحددة. اختر مدة أخرى.'
 	}

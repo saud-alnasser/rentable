@@ -358,7 +358,9 @@ export default router({
 
 			const deleted = await ctx.db.delete(s.unit).where(eq(s.unit.id, input.id)).returning().get();
 
-			return deleted;
+			// a unit somebody else deleted first is refused rather than answered with nothing, which
+			// read as success: to an undo of its creation, and to a deletion of what is already gone.
+			return ensureUnitStillExists(deleted);
 		}),
 
 	/**

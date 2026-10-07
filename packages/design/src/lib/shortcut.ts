@@ -27,19 +27,36 @@ function toPhysicalKey(character: string) {
 	return PHYSICAL_KEYS[character] ?? `Key${character.toUpperCase()}`;
 }
 
+/** one printable ASCII character: what a latin layout produces on a key that types. */
+const LATIN_CHARACTER = /^[ -~]$/;
+
 /**
  * Whether a keydown carries the given shortcut character, ignoring modifiers.
  *
- * Matches the physical key as well as the character it produces. Under an Arabic layout the
- * `b` key reports `ب`, so comparing against the character alone leaves a shortcut dead in a
- * locale this application treats as first-class; accepting either half also keeps it live
- * under a layout that moves the character somewhere else.
+ * The character the layout produces decides first, compared without case so that shift, which
+ * reports `Z` for `z`, still matches. Where the layout produced some other latin character, that
+ * character is what the reader pressed, and the physical key is not consulted: on QWERTZ the key
+ * where QWERTY has Z types `y`, and answering it as Z would undo where the reader asked to redo.
  *
- * @param character the shortcut's character — a single lowercase letter, a punctuation mark, or
+ * Only where the layout produced no latin character does the physical key decide. Under an
+ * Arabic layout the `b` key reports `ب`, or `لا`, and a key mid-composition reports `Dead` or
+ * `Process`; comparing the character alone would leave every shortcut dead in a locale this
+ * application treats as first-class. A named key, `ArrowDown` or `Enter`, reports its own name
+ * and matches at the first step.
+ *
+ * @param character the shortcut's character: a single lowercase letter, a punctuation mark, or
  * the name of a key that types nothing.
  */
 export function matchesShortcutKey(event: Pick<KeyboardEvent, 'key' | 'code'>, character: string) {
-	return event.key === character || event.code === toPhysicalKey(character);
+	if (event.key.toLowerCase() === character.toLowerCase()) {
+		return true;
+	}
+
+	if (LATIN_CHARACTER.test(event.key)) {
+		return false;
+	}
+
+	return event.code === toPhysicalKey(character);
 }
 
 /** the elements that take typing, and whose own editing shortcuts a surface must not take. */
@@ -106,8 +123,8 @@ function modifiersOverlap(one: boolean | undefined, other: boolean | undefined) 
 /**
  * Whether a keydown fires this combination.
  *
- * The character is matched by {@link matchesShortcutKey}, so the physical key counts as well as
- * the character the layout produces.
+ * The character is matched by {@link matchesShortcutKey}: the character the layout produces
+ * first, and the physical key only where that character is not latin.
  */
 export function matchesShortcut(event: ShortcutKeydown, combination: ShortcutCombination) {
 	return (

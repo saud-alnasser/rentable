@@ -73,8 +73,8 @@ function withdrawOutstandingOffer() {
 }
 
 // a stack with nothing left to move, which is what a clear leaves, takes the offer on screen with
-// it rather than leaving it to be pressed and refuse. Nothing in the application clears the stack
-// yet, a workspace switch included.
+// it rather than leaving it to be pressed and refuse. Leaving a workspace or a session clears it,
+// through `forgetEveryChange`.
 inverseStack.observe(() => {
 	if (!inverseStack.undoable && !inverseStack.redoable) {
 		withdrawOutstandingOffer();

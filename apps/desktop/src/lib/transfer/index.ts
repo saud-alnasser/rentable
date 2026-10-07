@@ -11,6 +11,7 @@ export type { TransferRefusalCode } from './refusal';
 export {
 	UNIT_LIST_SEPARATOR,
 	toContractReference,
+	toContractReferences,
 	toGovIdFromReference,
 	toTransferKey,
 	toUnitParts,
@@ -18,6 +19,7 @@ export {
 } from './reference';
 export {
 	defineSheet,
+	type Claim,
 	type HeldName,
 	type Reference,
 	type Sheet,

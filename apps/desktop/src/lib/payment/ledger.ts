@@ -1,6 +1,6 @@
 import { toUtcDay } from '$lib/date';
 import type { Locales } from '$lib/i18n/i18n-types';
-import type { PaymentLike } from '$lib/contract';
+import { isRefund, type PaymentLike } from '$lib/contract';
 import { formatLocaleDate } from '$lib/platform/locale';
 
 /**
@@ -22,8 +22,14 @@ export type PaymentLedgerMonth = {
 	key: string;
 	/** UTC midnight on the first of the month, for the reader's own month formatting. */
 	start: number;
-	/** What the payments given to `paymentLedgerMonths` add up to in this month. */
+	/**
+	 * What the payments given to `paymentLedgerMonths` received in this month. A refund is not
+	 * taken off it: the header states money in and money out side by side, never netted (effort
+	 * 854, requirement 25).
+	 */
 	total: number;
+	/** What the refunds given to `paymentLedgerMonths` returned in this month, zero where none. */
+	returned: number;
 };
 
 /**
@@ -59,7 +65,7 @@ function monthKey(start: number) {
 /**
  * The month each of `payments` belongs to, as a lookup over the set.
  *
- * Totals are summed once, up front, so a list asking a group per row costs one pass rather
+ * What each month received and what it returned are summed once, up front, so a list asking a group per row costs one pass rather
  * than one per row. A payment that was not in the set reads its own month with a total of
  * zero: it contributed to none of them, and saying so is cheaper than forbidding it.
  *
@@ -68,17 +74,19 @@ function monthKey(start: number) {
  */
 export function paymentLedgerMonths<P extends PaymentLike>(payments: readonly P[]) {
 	const totals = new Map<string, number>();
+	const returns = new Map<string, number>();
 
 	for (const payment of payments) {
 		const key = monthKey(monthStart(payment.date));
+		const sums = isRefund(payment) ? returns : totals;
 
-		totals.set(key, (totals.get(key) ?? 0) + payment.amount);
+		sums.set(key, (sums.get(key) ?? 0) + payment.amount);
 	}
 
 	return (payment: PaymentLike): PaymentLedgerMonth => {
 		const start = monthStart(payment.date);
 		const key = monthKey(start);
 
-		return { key, start, total: totals.get(key) ?? 0 };
+		return { key, start, total: totals.get(key) ?? 0, returned: returns.get(key) ?? 0 };
 	};
 }

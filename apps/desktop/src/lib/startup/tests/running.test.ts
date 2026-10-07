@@ -15,7 +15,16 @@ import { maskOf } from '@rentable/workspace-permission';
 
 import { startupScreen } from '$lib/startup/screen.ts';
 
-import { A_DAY, AT, harness, locked, unlocked } from './harness.ts';
+import {
+	A_DAY,
+	AT,
+	forgetRealUndo,
+	harness,
+	heldUndo,
+	holdUndoInBothDirections,
+	locked,
+	unlocked
+} from './harness.ts';
 
 /**
  * A RUNNING APPLICATION
@@ -202,8 +211,9 @@ test('and rows that land while a day-crossing reconcile is out are announced onc
 // --- A switch between workspaces, from inside the application -----------------------------
 
 /** a member holding two workspaces, with the first one open. */
-const holdingTwo = () =>
+const holdingTwo = (overrides: Parameters<typeof harness>[0] = {}) =>
 	harness({
+		...overrides,
 		organization: fakeOrganizationState({
 			session: fakeOrganizationSession({
 				workspaces: [
@@ -371,6 +381,32 @@ test('and a workspace the shell would not open is the ordinary failure, with not
 	assert.equal(journal.bootstrapped, 1, 'nothing behind the open ran');
 });
 
+// effort 854, requirement 10: the first run or the no-workspace screen changed where the machine
+// stands, and the workspace it reached would not open. The loading surface is already up, so the
+// failure is said on the error screen rather than left under a surface with nothing to load.
+test('and a workspace that would not open after the standing changed is the ordinary failure', async () => {
+	const opening = { refuses: false };
+	const { startup, journal } = harness({
+		openWorkspace: async () => {
+			if (opening.refuses) {
+				throw new Error('the replica would not open');
+			}
+		}
+	});
+
+	await startup.start();
+	assert.equal(startup.snapshot.state, 'ready');
+
+	opening.refuses = true;
+	let rejected = false;
+	await startup.standingChanged().catch(() => (rejected = true));
+
+	assert.equal(rejected, false, 'the failure is said on screen, not thrown at the caller');
+	assert.equal(startup.snapshot.state, 'error');
+	assert.equal(startup.snapshot.error, 'the replica would not open');
+	assert.deepEqual(journal.failures, ['the replica would not open']);
+});
+
 test('and a switch asked for while one is loading, or while a password is being tried, does nothing', async () => {
 	const loading = holdingTwo();
 
@@ -466,4 +502,36 @@ test('a switch to a workspace the session does not hold does nothing', async () 
 	assert.deepEqual(journal.workspacesOpened, before);
 	assert.equal(startup.snapshot.state, 'ready');
 	assert.equal(startup.snapshot.switching, null);
+});
+
+// effort 854, requirement 1: an inverse is a statement about the workspace it was taken in, so a
+// switch forgets every change there was to move, and does so before the other one is opened.
+test('a switch forgets every change there was to undo or redo in the workspace it left', async () => {
+	const { startup, journal } = holdingTwo({ forgetUndo: forgetRealUndo });
+
+	await startup.start();
+	await holdUndoInBothDirections();
+	await startup.switchWorkspace('south');
+
+	assert.equal(startup.snapshot.state, 'ready');
+	assert.deepEqual(journal.workspacesOpened, ['north', 'south']);
+	assert.deepEqual(heldUndo(), { undoable: null, redoable: null });
+});
+
+test('and a switch the shell would not open forgets them all the same', async () => {
+	const { startup } = holdingTwo({
+		forgetUndo: forgetRealUndo,
+		openWorkspace: async (workspaceId) => {
+			if (workspaceId === 'south') {
+				throw new Error('the replica would not open');
+			}
+		}
+	});
+
+	await startup.start();
+	await holdUndoInBothDirections();
+	await startup.switchWorkspace('south');
+
+	assert.equal(startup.snapshot.state, 'error');
+	assert.deepEqual(heldUndo(), { undoable: null, redoable: null });
 });

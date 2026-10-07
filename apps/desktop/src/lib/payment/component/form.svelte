@@ -1,5 +1,10 @@
 <script lang="ts">
-	import { PAYMENT_METHODS, type Payment, type PaymentMethod } from '$lib/platform/database/schema';
+	import {
+		PAYMENT_METHODS,
+		type Payment,
+		type PaymentDirection,
+		type PaymentMethod
+	} from '$lib/platform/database/schema';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Calendar from '@rentable/design/primitive/calendar/index.js';
 	import FieldError from '@rentable/design/block/field-error.svelte';
@@ -17,17 +22,30 @@
 		parseDateInput,
 		toCalendarDate
 	} from '$lib/date';
-	import { formatLocaleMoney, getIntlLocale, RIYAL } from '$lib/platform/locale';
+	import { formatLocaleMoney, getIntlLocale, RIYAL, toWesternDigits } from '$lib/platform/locale';
 	import { isWholeHalalas } from '@rentable/design/money.js';
 	import { cn } from '@rentable/design/tailwind.js';
-	import { getAmountDueThisCycle, getRemainingContractBalance } from '$lib/contract';
+	import {
+		getAmountDueThisCycle,
+		getRefundableFromTotals,
+		getRemainingContractBalance
+	} from '$lib/contract';
 	import { useFetchContract } from '$lib/contract/ui';
 	import { onMutationError } from '$lib/mutation/ui';
 	import { fieldOfFailure, toRefusalText } from '$lib/error/refusal';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
+	import {
+		toPaymentCreateUnavailable,
+		toRefundCreateUnavailable,
+		whyNothingIsRefundable
+	} from '$lib/payment/acts';
+	import { unavailableControl } from '@rentable/design/block/record-action-control.svelte';
+	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import { paymentMethods } from '$lib/payment/method';
 	import { useCreatePayment, useUpdatePayment } from '$lib/payment/query';
 	import { DateFormatter, type CalendarDate } from '@internationalized/date';
+	import BanknoteArrowDownIcon from '@lucide/svelte/icons/banknote-arrow-down';
+	import BanknoteArrowUpIcon from '@lucide/svelte/icons/banknote-arrow-up';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import SaveIcon from '@lucide/svelte/icons/save';
@@ -44,10 +62,16 @@
 			.string()
 			.trim()
 			.min(1, $LL.contracts.form.paymentAmountRequired())
-			.refine((value) => Number.isFinite(Number(value)) && Number(value) > 0, {
-				message: $LL.contracts.form.paymentAmountGreaterThanZero()
-			})
-			.refine(isWholeHalalas, {
+			// read in Western digits wherever it is parsed: the field keeps what was typed
+			// (effort 854, requirement 21).
+			.refine(
+				(value) =>
+					Number.isFinite(Number(toWesternDigits(value))) && Number(toWesternDigits(value)) > 0,
+				{
+					message: $LL.contracts.form.paymentAmountGreaterThanZero()
+				}
+			)
+			.refine((value) => isWholeHalalas(toWesternDigits(value)), {
 				message: $LL.contracts.form.paymentAmountDecimalPlaces()
 			}),
 		// none of the three is required: a payment recorded without them says so on its record.
@@ -65,6 +89,7 @@
 	let {
 		contractId,
 		value,
+		direction: asked = 'received',
 		open,
 		onOpenChange,
 		onCreated
@@ -72,6 +97,12 @@
 		contractId: string;
 		/** the payment being edited, or the details a new one starts from when duplicating. */
 		value?: Omit<Payment, 'id'> & { id?: string };
+		/**
+		 * which way a new payment's money goes: received from the tenant, or a refund returned to
+		 * them (effort 854, requirements 25 and 26). An edit or a duplicate goes the way its payment
+		 * went, since an edit never turns one into the other.
+		 */
+		direction?: PaymentDirection;
 		open: boolean;
 		onOpenChange: (value: boolean) => void;
 		/**
@@ -108,6 +139,14 @@
 	// open when the surface closes would otherwise open again with it.
 	let isDatePickerOpen = $state(false);
 	let isEditMode = $derived(Boolean(value?.id));
+	// which way a new payment's money goes, chosen on the form's two tabs and opened on the one the
+	// host asked for (effort 854, requirement 25). An edit or a duplicate goes the way its payment
+	// went and draws no tabs, since an edit never turns one into the other.
+	// taken from the host's ask as the form is built, not after: the surface puts the focus on the
+	// chosen tab as it opens, and a tab chosen a moment later would leave it on the other one.
+	let chosen = $state<PaymentDirection>(untrack(() => asked));
+	const isChoosable = $derived(!value);
+	const isRefund = $derived((value?.direction ?? chosen) === 'refund');
 	let isPending = $derived(createMutation.isPending || updateMutation.isPending);
 
 	let { form, constraints, errors, enhance, reset, ...rest } = superForm<PaymentForm>(
@@ -120,7 +159,7 @@
 
 				const payload = {
 					date: parseDateInput(form.data.date),
-					amount: Number(form.data.amount),
+					amount: Number(toWesternDigits(form.data.amount)),
 					// what was left blank is sent as nothing, so an edit that clears a field clears it.
 					method: form.data.method || null,
 					reference: form.data.reference.trim() || null,
@@ -140,6 +179,7 @@
 					} else {
 						const created = await createMutation.mutateAsync({
 							contractId,
+							direction: isRefund ? 'refund' : 'received',
 							...payload
 						});
 
@@ -183,6 +223,9 @@
 		isDatePickerOpen = false;
 
 		if (open) {
+			chosen = asked;
+			reasonOpen = null;
+			hasMovedByKeyboard = false;
 			isAmountFilled = false;
 			const nextFormValue = getInitialForm(value);
 			paymentDateValue = parseCalendarDate(nextFormValue.date);
@@ -217,10 +260,13 @@
 	// figures rather than typing them. The amount waits for the contract to be read, is filled once
 	// per opening, and never over anything the reader has typed. An edit or a duplicate opens on
 	// the payment it came from instead.
+	//
+	// A refund is not filled: there is no ordinary one to confirm, and the most that may be returned
+	// is a limit to stay within rather than the figure most readers want. The form states it instead.
 	$effect(() => {
 		const contract = contractQuery.data;
 
-		if (!open || value || !contract || isAmountFilled) {
+		if (!open || value || isRefund || !contract || isAmountFilled) {
 			return;
 		}
 
@@ -235,7 +281,7 @@
 		});
 	});
 
-	const enteredAmount = $derived(Number($form.amount));
+	const enteredAmount = $derived(Number(toWesternDigits($form.amount)));
 	const hasEnteredAmount = $derived(Number.isFinite(enteredAmount) && enteredAmount > 0);
 
 	// what this payment already contributes to the contract's paid figure. Editing one replaces
@@ -270,29 +316,189 @@
 	let submittedRemaining = $state<number | undefined>(undefined);
 
 	const remainingAfter = $derived(submittedRemaining ?? projectedRemaining);
+
+	// the most this refund may return, stated before an amount is typed, so the reader is guided to
+	// a figure the workspace takes rather than refused one (effort 854, requirement 26). Read off the
+	// contract's totals, with the refund being edited set aside; the procedure weighs the rows and
+	// is still the authority, and its refusal lands under the amount.
+	const refundable = $derived(
+		contractQuery.data && isRefund
+			? getRefundableFromTotals(contractQuery.data, value?.id ? value.amount : 0)
+			: undefined
+	);
+	// why nothing may be refunded, where nothing may: the refund act's own choice, so the form and
+	// the act read the same sentence.
+	const refundWhy = $derived(
+		contractQuery.data && isRefund
+			? whyNothingIsRefundable(contractQuery.data, $LL, value?.id ? value.amount : 0)
+			: undefined
+	);
+	// why each tab may not be chosen, where it may not: the create acts' own reasons, the ones the
+	// ledger's plus and the command menu say (effort 854, requirement 25). A refused tab is dimmed
+	// and says why on hover and focus, and cannot be chosen, so the reader never stands on a tab
+	// whose create would only be refused ([[rules/interface]], *Guidance*).
+	const tabRefusal = $derived<Record<PaymentDirection, string | undefined>>({
+		received: isChoosable ? toPaymentCreateUnavailable(contractQuery.data, $LL) : undefined,
+		refund: isChoosable ? toRefundCreateUnavailable(contractQuery.data, $LL) : undefined
+	});
+	// held against a contract that changes while the form is open: nothing is created from a tab
+	// that has come to refuse.
+	const isChosenRefused = $derived(isChoosable && Boolean(tabRefusal[chosen]));
+	// what names a refused tab's reason to assistive technology, whether or not its tooltip is drawn.
+	const tabReasonId = $props.id();
+	// the refused tab whose reason is showing, and whether the reader has moved with the keyboard
+	// since the form opened: a focus they moved shows the reason, the focus the surface places does
+	// not.
+	let reasonOpen = $state<PaymentDirection | null>(null);
+	let hasMovedByKeyboard = $state(false);
+
+	// a tab chosen starts its amount afresh: a payment is filled with what is due, a refund is not,
+	// and a figure typed for one way the money goes is not the answer for the other.
+	function choose(next: PaymentDirection) {
+		if (next === chosen || tabRefusal[next]) {
+			return;
+		}
+
+		chosen = next;
+		isAmountFilled = false;
+		$form.amount = '';
+	}
+
+	// opened on a tab the contract does not take, where it takes the other, the form stands on the
+	// other: the host asks for the one the contract takes, and this holds once the contract is read.
+	$effect(() => {
+		const other: PaymentDirection = chosen === 'refund' ? 'received' : 'refund';
+
+		if (open && isChoosable && tabRefusal[chosen] && !tabRefusal[other]) {
+			untrack(() => choose(other));
+		}
+	});
 </script>
 
-<FormSurface {open} {onOpenChange} {enhance} weight="light" title={$LL.common.labels.payment()}>
-	<div class="flex flex-col gap-4">
-		<!-- what this payment does to the contract, above the field that decides it. -->
-		<div class="grid grid-cols-2 gap-3 rounded-2xl border border-primary/25 bg-primary/5 p-4">
-			<div class="flex min-w-0 flex-col">
+<!-- one tab. Refused, it stays in its place and reachable, dimmed, and says why on hover and focus,
+     as a refused control does everywhere; pressing it chooses nothing. -->
+{#snippet tab(direction: PaymentDirection, words: string, Glyph: typeof BanknoteArrowDownIcon)}
+	{@const refused = tabRefusal[direction]}
+	<!-- the reason opens on hover and on focus the reader moved there, never on the focus the surface
+	     places as it opens: the toggle group makes its first tab the one the keyboard enters by, so
+	     that focus lands on the payment tab whichever is chosen. So the reason's opening is held
+	     here, and the tooltip's own opening is only ever taken when it closes. -->
+	<Tooltip.Root
+		disabled={!refused}
+		open={reasonOpen === direction}
+		onOpenChange={(isOpen) => {
+			if (!isOpen && reasonOpen === direction) {
+				reasonOpen = null;
+			}
+		}}
+	>
+		<Tooltip.Trigger>
+			{#snippet child({ props })}
+				<ToggleGroup.Item
+					{...props}
+					onpointerenter={() => (reasonOpen = direction)}
+					onpointerleave={() => (reasonOpen = null)}
+					onfocus={() => {
+						if (hasMovedByKeyboard) {
+							reasonOpen = direction;
+						}
+					}}
+					onblur={() => (reasonOpen = null)}
+					type="button"
+					value={direction}
+					class={cn('flex-1', refused && unavailableControl)}
+					data-direction={direction}
+					data-unavailable={refused ? '' : undefined}
+					aria-disabled={refused ? 'true' : undefined}
+					aria-describedby={refused ? `${tabReasonId}-${direction}` : undefined}
+					onclick={(event: MouseEvent) => {
+						if (refused) {
+							event.preventDefault();
+						}
+					}}
+				>
+					<Glyph aria-hidden="true" />
+					{words}
+					{#if refused}
+						<span id={`${tabReasonId}-${direction}`} class="sr-only">{refused}</span>
+					{/if}
+				</ToggleGroup.Item>
+			{/snippet}
+		</Tooltip.Trigger>
+		<Tooltip.Content side="bottom" sideOffset={8}>
+			<span data-unavailable-reason>{refused}</span>
+		</Tooltip.Content>
+	</Tooltip.Root>
+{/snippet}
+
+<FormSurface
+	{open}
+	{onOpenChange}
+	{enhance}
+	weight="light"
+	title={isRefund ? $LL.contracts.payments.refund.title() : $LL.common.labels.payment()}
+>
+	<!-- a key pressed in the form is the reader moving, so the focus it lands next shows a refused
+	     tab's reason. Listened for on the way down, before the focus moves. -->
+	<div class="flex flex-col gap-4" onkeydowncapture={() => (hasMovedByKeyboard = true)}>
+		{#if isChoosable}
+			<!-- the two ways money moves, as the form's two tabs: two exclusive values, all shown, so a
+			     toggle group ([[contexts/desktop/components]]). Each carries its glyph, pointing the way
+			     the money goes, beside its word. -->
+			<ToggleGroup.Root
+				type="single"
+				variant="outline"
+				size="sm"
+				class="w-full"
+				aria-label={$LL.contracts.payments.refund.kind()}
+				value={chosen}
+				onValueChange={(next) => {
+					if (next) {
+						choose(next as PaymentDirection);
+					}
+				}}
+				data-payment-direction
+			>
+				{@render tab('received', $LL.common.labels.payment(), BanknoteArrowDownIcon)}
+				{@render tab('refund', $LL.contracts.payments.refund.tag(), BanknoteArrowUpIcon)}
+			</ToggleGroup.Root>
+		{/if}
+
+		{#if isRefund}
+			<!-- the most this refund may return, above the field that decides it, where the payment's
+			     balance stands on a payment; and why, where it is nothing. -->
+			<div class="flex flex-col gap-1 rounded-2xl border border-primary/25 bg-primary/5 p-4">
 				<span class="truncate text-xs text-muted-foreground">
-					{$LL.contracts.payments.remainingBalance()}
+					{$LL.contracts.payments.refund.limitHint()}
 				</span>
-				<span class="truncate font-medium tabular-nums">
-					{remaining === undefined ? '—' : formatMoney(remaining)}
+				<span class="truncate font-medium tabular-nums" data-refund-limit>
+					{refundable === undefined ? '—' : formatMoney(refundable)}
 				</span>
+				{#if refundWhy}
+					<span class="text-xs text-muted-foreground" data-refund-why>{refundWhy}</span>
+				{/if}
 			</div>
-			<div class="flex min-w-0 flex-col">
-				<span class="truncate text-xs text-muted-foreground">
-					{$LL.contracts.payments.remainingAfter()}
-				</span>
-				<span class="truncate font-medium tabular-nums">
-					{remainingAfter === undefined ? '—' : formatMoney(remainingAfter)}
-				</span>
+		{:else}
+			<!-- what this payment does to the contract, above the field that decides it. -->
+			<div class="grid grid-cols-2 gap-3 rounded-2xl border border-primary/25 bg-primary/5 p-4">
+				<div class="flex min-w-0 flex-col">
+					<span class="truncate text-xs text-muted-foreground">
+						{$LL.contracts.payments.remainingBalance()}
+					</span>
+					<span class="truncate font-medium tabular-nums">
+						{remaining === undefined ? '—' : formatMoney(remaining)}
+					</span>
+				</div>
+				<div class="flex min-w-0 flex-col">
+					<span class="truncate text-xs text-muted-foreground">
+						{$LL.contracts.payments.remainingAfter()}
+					</span>
+					<span class="truncate font-medium tabular-nums">
+						{remainingAfter === undefined ? '—' : formatMoney(remainingAfter)}
+					</span>
+				</div>
 			</div>
-		</div>
+		{/if}
 
 		<Form.Field form={superform} name="date" class="group relative">
 			<Form.Control>
@@ -426,7 +632,7 @@
 			{$LL.common.actions.cancel()}
 		</Button>
 		<!-- the verb's glyph before its label, as every submit carries one. -->
-		<Button type="submit" disabled={isPending} class="capitalize">
+		<Button type="submit" disabled={isPending || isChosenRefused} class="capitalize">
 			{#if isEditMode}
 				<SaveIcon class="size-4" />
 				{isPending ? $LL.common.actions.saving() : $LL.common.actions.save()}

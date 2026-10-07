@@ -40,6 +40,21 @@ export type Reference = {
  */
 export type Deriving = { now: number } & Contributed;
 
+/**
+ * What a record holds over a stretch of days that no other record may hold over the same days: a
+ * unit a live contract holds over its term. Read off the records of a sheet that declares
+ * `claims`, from the workspace and from the file alike, so two of them can be compared without the
+ * transfer knowing what either is.
+ */
+export type Claim = {
+	/** what is held, as the transfer keys it (`toTransferKey`): two claims meet only on one key. */
+	key: string;
+	/** what is held, the way a file names it, which is what a refusal says back. */
+	label: string;
+	start: number;
+	end: number;
+};
+
 /** One statement of the batch an import is written in. */
 export type Statement = Parameters<Database['batch']>[0][number];
 
@@ -66,6 +81,11 @@ export type Written = {
 	count: number;
 	/** the ids a settling pass is scoped to, by what they are, merged across every sheet. */
 	touched?: Record<string, readonly string[]>;
+	/**
+	 * statements that run at the end of the same batch, after every sheet's own: what a record may
+	 * only become once the sheets after it have written what they hold of it.
+	 */
+	closing?: Statement[];
 };
 
 /**
@@ -127,6 +147,18 @@ export type Sheet<C extends string, TRecord, TRow extends Record<string, string>
 		/** the id each held record answers under, by its key. */
 		ids(db: Database): Promise<Iterable<readonly [readonly string[], string]>>;
 	};
+	/**
+	 * What its records hold that no two of them may hold at once. Absent on a sheet whose records
+	 * claim nothing.
+	 */
+	claims?: {
+		/** what the records the workspace holds claim now. */
+		held(db: Database): Promise<Claim[]>;
+		/** what a record the file creates would claim. */
+		of(record: TRecord): Claim[];
+		/** whether two claims on one key clash: the concept's own rule. */
+		clash(a: Claim, b: Claim): boolean;
+	};
 	/** what one record asks the write to store; the record itself, where this is left out. */
 	toInput?(record: TRecord): TInput;
 	/** the one record the write accepts. */
@@ -177,6 +209,11 @@ export type AnySheet = {
 		unknown: RefusalCode;
 		ids(db: Database): Promise<Iterable<readonly [readonly string[], string]>>;
 	};
+	claims?: {
+		held(db: Database): Promise<Claim[]>;
+		of(record: never): Claim[];
+		clash(a: Claim, b: Claim): boolean;
+	};
 	toInput?(record: never): unknown;
 	input: ZodType;
 	write(records: never[], writing: Writing): Promise<Written>;
@@ -211,8 +248,13 @@ type InputOf<S> = S extends { input: ZodType<infer I> } ? I : never;
 export type FileOf<S extends AnySheet> = { [K in S as K['concept']]: RecordOf<K>[] };
 /** What a whole workspace asks the write to store, one list per sheet. */
 export type InputFileOf<S extends AnySheet> = { [K in S as K['concept']]: InputOf<K>[] };
-/** What the workspace holds, by the names a file uses, one list per sheet. */
-export type HeldOf<S extends AnySheet> = { [K in S as K['concept']]: HeldName[] };
+/**
+ * What the workspace holds, by the names a file uses, one list per sheet; and, under `claims`, what
+ * the records of each sheet that declares them claim now.
+ */
+export type HeldOf<S extends AnySheet> = { [K in S as K['concept']]: HeldName[] } & {
+	claims?: { [K in S as K['concept']]?: Claim[] };
+};
 /** How many records a write stored, per sheet. */
 export type CountOf<S extends AnySheet> = { [K in S as K['concept']]: number };
 

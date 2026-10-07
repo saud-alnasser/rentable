@@ -536,11 +536,11 @@ list, and the composed object, so a new string for one concept goes in its piece
 added to the shared list is added to the test's list too.
 
 **One exception: text handed to a tenant in the language chosen for it.** The printed schedule, the
-receipt, the name a saved one is offered under, and the WhatsApp reminder are written in the
-language picked in their preview, which need not be the one the application shows, so they read it
-through `i18nObject(locale)`, which startup has already loaded, and a page sets that language's
-`lang` and `dir` on itself. Everything drawn for the reader of the screen still reads the store
-(effort 835).
+receipt, the payment voucher a refund prints (`payment/component/voucher.svelte`, effort 854), the
+name a saved one is offered under, and the WhatsApp reminder are written in the language picked in
+their preview, which need not be the one the application shows, so they read it through
+`i18nObject(locale)`, which startup has already loaded, and a page sets that language's `lang` and
+`dir` on itself. Everything drawn for the reader of the screen still reads the store (effort 835).
 
 **A packaged component reads neither the store nor the locale metadata**, and this rule stops at
 the package boundary. `@rentable/design` imports nothing that names this application, so its
@@ -558,7 +558,8 @@ the create control, which has been the create capability's own `create/component
 since effort 840. **They stay because each reads a module of this
 application, not a contract the package could be handed.** The create control reads the create key
 (`create/key.ts`) and registers with what answers it (`create/target.svelte.ts`),
-which is what makes it the one control [[rules/interface]] *Create* says draws a create and the one
+which is what makes it the one control [[rules/interface]] *Create* says draws a create, but the
+contract's refund, and the one
 the key finds. `search-field` registers the list's search shortcut (`list/keyboard.ts`) in
 this application's shortcut capability (`$lib/shortcut`), which reaches `$lib/platform` to record a collision, and
 `list-toolbar` draws `search-field`, so both are on the application's side of the reach test under

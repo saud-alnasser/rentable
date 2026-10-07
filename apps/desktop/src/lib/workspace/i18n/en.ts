@@ -59,6 +59,8 @@ export const layout = {
 
 export const refusals = {
 	workspace: {
+		ambiguousReference:
+			'the file names a record called {name:string}, and more than one answers to it.',
 		nothingToImport: 'there is nothing to import.',
 		unknownComplex: 'the file names a complex called {name:string}, and there is none.',
 		unknownContract: 'the file names a contract called {name:string}, and there is none.',

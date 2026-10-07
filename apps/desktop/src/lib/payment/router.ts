@@ -10,14 +10,11 @@ import * as s from '$lib/platform/database/schema';
 import { PaymentSchema } from '$lib/platform/database/schema';
 import { refuse } from '$lib/api/refusal';
 import { autosync, procedure, router } from '$lib/api/trpc';
-import {
-	ensureContractIsNotTerminated,
-	ensureContractPaymentsCreatable,
-	reconcileTouched
-} from '$lib/contract';
+import { isRefund, reconcileTouched } from '$lib/contract';
 import { allocateReceipt, toReceiptReference } from '$lib/payment/receipt';
 import {
 	ensurePaymentIsNotInTheFuture,
+	ensurePaymentWritable,
 	ensureValidPaymentAmount,
 	PAYMENT_SORT_COLUMN_IDS
 } from '$lib/payment/payment';
@@ -80,6 +77,17 @@ function paymentOrderBy(sort: z.infer<typeof PaymentSortSchema> | undefined): SQ
 	return [chosen, ...statementOrder];
 }
 
+/**
+ * Whether a write is one an undo or a redo replays rather than one a person makes by hand.
+ *
+ * A refund change is taken back to the state before it, so the payment's rule weighs a replayed
+ * refund only against what the contract received, never against the limit its state sets (ticket
+ * 40 of effort 854, the human's ruling of 2026-10-07). Only the undo declarations pass it; a form
+ * leaves it out, and what a hand write answers to is unchanged. Permissions and the terminated
+ * lock on payments received are asked the same either way.
+ */
+const ReplaySchema = z.object({ replay: z.boolean().optional() });
+
 export default router({
 	/**
 	 * One payment, carrying the contract it was made against and whose tenant holds it.
@@ -141,6 +149,12 @@ export default router({
 	 * paid without `viewTenant`, the contract and what remains of it without `viewContract`, the
 	 * units without `viewUnit`, and the complex holding each without `viewComplex`. The cycles are
 	 * the payment's, what it covers, and stay.
+	 *
+	 * **A refund answers a voucher instead** (effort 854, requirement 29), the statement that the
+	 * money was paid out (سند صرف): marked `kind: 'voucher'`, numbered from the refund's identity
+	 * as a receipt is from the payment's, naming the tenant it was paid to, the contract and its
+	 * units on the same terms. It covers no cycle, so its cycles are empty, and it states nothing
+	 * remaining, which is a receipt's to say. A payment received answers exactly as before.
 	 */
 	receipt: procedure
 		.permitted('viewPayment')
@@ -161,7 +175,10 @@ export default router({
 			const views = (flag: Flag) => permits(ctx.identity.permissions, flag);
 
 			const [payments, units] = await Promise.all([
-				ctx.db.select().from(s.payment).where(eq(s.payment.contractId, row.contract.id)),
+				// a voucher allocates nothing, so a refund has no need of its contract's payments.
+				isRefund(row.payment)
+					? []
+					: ctx.db.select().from(s.payment).where(eq(s.payment.contractId, row.contract.id)),
 				!views('viewUnit')
 					? undefined
 					: ctx.db
@@ -173,6 +190,38 @@ export default router({
 							.orderBy(asc(s.complex.name), asc(s.unit.name), asc(s.unit.id))
 			]);
 
+			if (isRefund(row.payment)) {
+				const voucher = {
+					kind: 'voucher' as const,
+					reference: toReceiptReference(row.payment.id),
+					payment: serializePayment(row.payment),
+					...(views('viewTenant')
+						? { tenant: { name: row.tenant.name, nationalId: row.tenant.nationalId } }
+						: {}),
+					...(views('viewContract')
+						? {
+								contract: {
+									govId: row.contract.govId ?? '',
+									start: row.contract.start.getTime(),
+									end: row.contract.end.getTime()
+								}
+							}
+						: {}),
+					...(units
+						? {
+								units: units.map(({ name, complexName }) =>
+									views('viewComplex') ? { name, complexName } : { name }
+								)
+							}
+						: {}),
+					cycles: [] as { index: number; due: number }[]
+				};
+
+				// each answer names, as absent, what only the other carries, so a reader of either asks
+				// `kind` or `remaining` without first telling the two apart.
+				return voucher as typeof voucher & { remaining?: undefined };
+			}
+
 			const { cycles, remaining } = allocateReceipt(
 				row.contract,
 				payments,
@@ -180,7 +229,7 @@ export default router({
 				ctx.clock.now()
 			);
 
-			return {
+			const receipt = {
 				reference: toReceiptReference(row.payment.id),
 				payment: serializePayment(row.payment),
 				...(views('viewTenant')
@@ -206,6 +255,8 @@ export default router({
 				// cycles cross as timestamps, as a contract's dates do.
 				cycles: cycles.map((cycle) => ({ index: cycle.index, due: cycle.due.getTime() }))
 			};
+
+			return receipt as typeof receipt & { kind?: undefined };
 		}),
 
 	/**
@@ -214,17 +265,20 @@ export default router({
 	 *
 	 * A payment has no name, so its handle is the amount as it is stored — the surface showing
 	 * it is what renders that in the reader's locale — and what places it is the contract it
-	 * was made against, which is also the only way back to it. The contract's reference and its
+	 * was made against, which is also the only way back to it. Its direction crosses beside the
+	 * amount, so the surface names a refund as one (effort 854, requirement 25). The contract's
+	 * reference and its
 	 * tenant are each shown only to a member who may view their kind (effort 838, requirement 10).
 	 */
 	search: procedure
 		.permitted('viewPayment')
 		.input(RecordSearchSchema)
-		.query(async ({ input, ctx }): Promise<RecordMatch[]> => {
+		.query(async ({ input, ctx }): Promise<(RecordMatch & Pick<s.Payment, 'direction'>)[]> => {
 			const rows = await ctx.db
 				.select({
 					id: s.payment.id,
 					amount: s.payment.amount,
+					direction: s.payment.direction,
 					contractGovId: s.contract.govId,
 					tenantName: s.tenant.name
 				})
@@ -241,6 +295,7 @@ export default router({
 			return rows.map((row) => ({
 				id: row.id,
 				label: String(row.amount),
+				direction: row.direction,
 				hint: (viewsContract ? row.contractGovId : null) ?? (viewsTenant ? row.tenantName : '')
 			}));
 		}),
@@ -296,11 +351,18 @@ export default router({
 	// an optional id, so undoing a deletion can put the row back with the identity it had — a
 	// page still open on that record is holding a reference to it (ADR 0026). Absent otherwise,
 	// and the engine assigns one.
+	//
+	// a direction, so a refund is recorded here too (effort 854, requirements 25 and 26), on the
+	// terms the payment's own rule sets (`ensurePaymentWritable`).
+	//
+	// `replay`, which an undo or a redo passes and a form never does, so the rule weighs a refund
+	// it puts back only against what the contract received, as one put back by `createMany` is
+	// (ticket 40 of effort 854): an undo takes a change back to the state before it.
 	create: procedure
 		.permitted('createPayment')
 		.use(autosync())
-		.input(PaymentSchema.partial({ id: true }))
-		.mutation(async ({ input, ctx }) => {
+		.input(PaymentSchema.partial({ id: true }).extend(ReplaySchema.shape))
+		.mutation(async ({ input: { replay, ...input }, ctx }) => {
 			const now = ctx.clock.now();
 
 			ensureIdFree(
@@ -324,8 +386,8 @@ export default router({
 				.from(s.payment)
 				.where(eq(s.payment.contractId, contract.id));
 
-			ensureContractIsNotTerminated(contract.status);
-			ensureContractPaymentsCreatable(contract, registered);
+			ensurePaymentWritable(contract, registered, { act: 'create', payments: [input], replay });
+
 			ensureValidPaymentAmount(input.amount);
 			ensurePaymentIsNotInTheFuture(input.date, now);
 
@@ -350,7 +412,7 @@ export default router({
 		.permitted('editPayment')
 		.use(autosync())
 		// every field the payment's form sets, so the inverse an undo replays through here puts all of
-		// them back rather than the date and the amount alone.
+		// them back rather than the date and the amount alone, and whether it is that replay.
 		.input(
 			PaymentSchema.pick({
 				id: true,
@@ -359,9 +421,9 @@ export default router({
 				method: true,
 				reference: true,
 				note: true
-			})
+			}).extend(ReplaySchema.shape)
 		)
-		.mutation(async ({ input, ctx }) => {
+		.mutation(async ({ input: { replay, ...input }, ctx }) => {
 			const now = ctx.clock.now();
 
 			const existingPayment = await ctx.db
@@ -384,9 +446,22 @@ export default router({
 				throw refuse('contract.missing');
 			}
 
-			ensureContractIsNotTerminated(contract.status);
 			ensureValidPaymentAmount(input.amount);
 			ensurePaymentIsNotInTheFuture(input.date, now);
+
+			// every other row the contract holds, which is what this one is weighed against: the edit
+			// replaces it rather than adding to it. The direction is the stored one, since the input
+			// carries none, so an edit never turns a payment into a refund or back.
+			const others = (
+				await ctx.db.select().from(s.payment).where(eq(s.payment.contractId, contract.id))
+			).filter((payment) => payment.id !== existingPayment.id);
+
+			ensurePaymentWritable(contract, others, {
+				act: 'update',
+				payment: existingPayment,
+				amount: input.amount,
+				replay
+			});
 
 			const updated = await ctx.db
 				.update(s.payment)
@@ -419,8 +494,10 @@ export default router({
 				.where(eq(s.payment.id, input.id))
 				.get();
 
+			// one somebody else deleted first is refused rather than answered with nothing, which read
+			// as success: to an undo of its creation, and to a deletion of what is already gone.
 			if (!existingPayment) {
-				return existingPayment;
+				throw refuse('payment.missing');
 			}
 
 			const contract = await ctx.db
@@ -433,7 +510,15 @@ export default router({
 				throw refuse('contract.missing');
 			}
 
-			ensureContractIsNotTerminated(contract.status);
+			// a refund goes on any contract, which is also what lets the undo of recording one work on
+			// a terminated contract; the rule that says so is the payment's.
+			ensurePaymentWritable(
+				contract,
+				(await ctx.db.select().from(s.payment).where(eq(s.payment.contractId, contract.id))).filter(
+					(payment) => payment.id !== existingPayment.id
+				),
+				{ act: 'delete', payment: existingPayment }
+			);
 
 			const deleted = await ctx.db
 				.delete(s.payment)

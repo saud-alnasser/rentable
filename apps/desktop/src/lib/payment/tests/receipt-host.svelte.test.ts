@@ -1,13 +1,15 @@
 import { fireEvent, render, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
+import { toCardActions } from '$lib/act';
 import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
+import { i18nObject } from '$lib/i18n/i18n-util';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import type { PaymentActRecord } from '$lib/payment/acts';
 import PaymentHost from '$lib/payment/component/host.svelte';
-import { paymentHost } from '$lib/payment/host.svelte';
+import { paymentActs, paymentHost } from '$lib/payment/host.svelte';
 import Providers from '#tests/providers.svelte';
 
 /**
@@ -74,6 +76,7 @@ const PAYMENT: PaymentActRecord = {
 	contractId: 'contract-1',
 	date: Date.UTC(2026, 3, 1),
 	amount: 4500,
+	direction: 'received',
 	contractStatus: 'active'
 };
 
@@ -133,4 +136,38 @@ test('a page the host refuses to print is answered with one sentence', async () 
 	await fireEvent.submit(print.form!);
 
 	await waitFor(() => expect(hooks.sentences).toEqual([en.print.failed]));
+});
+
+// effort 854, requirement 29: a refund printed opens its voucher in the same preview, and the act
+// that opens it says so, while a payment's still says receipt.
+test('a refund opens its voucher in the same preview, and the act names a voucher', async () => {
+	const refund: PaymentActRecord = { ...PAYMENT, id: 'refund-1', direction: 'refund' };
+	const labelOf = (record: PaymentActRecord) =>
+		toCardActions(paymentActs, record, i18nObject('en')).find(
+			(action) => action.attributes?.['data-act'] === 'payment.receipt'
+		)?.label;
+
+	expect(labelOf(PAYMENT)).toBe(en.contracts.payments.receipt.print);
+	expect(labelOf(refund)).toBe(en.contracts.payments.voucher.print);
+
+	hooks.receipt.mockResolvedValue({
+		...RECEIPT,
+		kind: 'voucher',
+		payment: { ...RECEIPT.payment, id: 'refund-1', direction: 'refund', note: 'deposit' },
+		cycles: [],
+		remaining: undefined
+	});
+	setLocale('en');
+	renderHost();
+
+	expect(paymentHost.run('payment.receipt', refund)).toBe(true);
+
+	const voucher = () => document.querySelector<HTMLElement>('[data-print-preview] [data-voucher]');
+
+	await waitFor(() => expect(voucher()).not.toBeNull());
+	expect(page()).toBeNull();
+	expect(voucher()?.querySelector('[data-voucher-issuer]')?.textContent?.trim()).toBe(
+		'Al Nakheel Estates'
+	);
+	expect(hooks.receipt).toHaveBeenCalledWith({ id: 'refund-1' });
 });

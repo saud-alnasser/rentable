@@ -287,3 +287,70 @@ describe("a payment's history", () => {
 		);
 	});
 });
+
+// ticket 24 of effort 854, requirement 25 and criterion 25: a refund is recorded, edited, undone and
+// deleted like a payment, and its account names it as a refund, frozen as every name is, so an
+// entry still reads as money returned once the record is gone.
+describe("a refund's history", () => {
+	/** a contract paid 13,000 against its 12,000, so 1,000 may be refunded while it runs. */
+	async function overpaid() {
+		const contract = await seedContract();
+		const received = await caller.payment.create({
+			contractId: contract.id,
+			date: monthsFromNow(0),
+			amount: 13000
+		});
+
+		return { contract, received };
+	}
+
+	it('names a refund recorded, edited, taken back and deleted as a refund', async () => {
+		const { contract, received } = await overpaid();
+		const refund = await run(useCreatePayment, {
+			contractId: contract.id,
+			date: monthsFromNow(0),
+			amount: 1000,
+			direction: 'refund' as const
+		});
+
+		await run(useUpdatePayment, { id: refund.id, date: refund.date, amount: 800 });
+		await applyUndo(useQueryClient());
+		await run(useDeletePayment, refund.id);
+
+		assert.deepEqual(await settled(), [
+			[['payment', refund.id, 'created', 'refund 1,000']],
+			[['payment', refund.id, 'edited', 'refund 800']],
+			[['payment', refund.id, 'edited', 'refund 1,000']],
+			[['payment', refund.id, 'deleted', 'refund 1,000']]
+		]);
+
+		// the payment it was refunded from is untouched by any of it.
+		assert.equal((await caller.payment.get({ id: received.id }))?.amount, 13000);
+	});
+
+	it('puts a deleted refund back as a refund, and takes a recorded one back', async () => {
+		const { contract } = await overpaid();
+		const refund = await run(useCreatePayment, {
+			contractId: contract.id,
+			date: monthsFromNow(0),
+			amount: 1000,
+			direction: 'refund' as const
+		});
+
+		await applyUndo(useQueryClient());
+		assert.equal(await caller.payment.get({ id: refund.id }), undefined);
+
+		await run(useCreatePayment, { ...refund });
+		await run(useDeletePayment, refund.id);
+		await applyUndo(useQueryClient());
+
+		assert.equal((await caller.payment.get({ id: refund.id }))?.direction, 'refund');
+		assert.deepEqual(await settled(), [
+			[['payment', refund.id, 'created', 'refund 1,000']],
+			[['payment', refund.id, 'deleted', 'refund 1,000']],
+			[['payment', refund.id, 'created', 'refund 1,000']],
+			[['payment', refund.id, 'deleted', 'refund 1,000']],
+			[['payment', refund.id, 'created', 'refund 1,000']]
+		]);
+	});
+});

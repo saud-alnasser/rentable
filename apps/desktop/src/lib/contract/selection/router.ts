@@ -11,7 +11,12 @@ import {
 	type ContractRefusalReason,
 	type ContractSelectionAction
 } from '$lib/contract/contract';
+import {
+	unitsTakenFromRestore,
+	type ContractAssignment
+} from '$lib/contract/assignment/assignment';
 import { reconcileTouched, type Settling } from '$lib/contract/reconcile';
+import { selectAssignmentsForUnits } from '$lib/contract/row';
 import { serializeContract } from '$lib/contract/serialize';
 import { eq, inArray } from 'drizzle-orm';
 import z from 'zod';
@@ -65,12 +70,22 @@ async function planContractSelection(
 
 	const paymentsByContractId = await ctx.contributions.contract.paymentsOf(db, named);
 
-	// only a deletion reads assignments: the units a deleted contract held go with it, and are
-	// what putting it back has to restore.
+	// a deletion and a restore read assignments. The units a deleted contract held go with it, and
+	// are what putting it back has to restore; a restored contract is live again, so every other
+	// holder of its units is read too, to refuse it a unit another contract took since.
 	const assignments =
-		action === 'delete'
+		action === 'delete' || action === 'restore'
 			? await db.select().from(s.contractUnit).where(inArray(s.contractUnit.contractId, named))
 			: [];
+	const holders =
+		action === 'restore'
+			? await selectAssignmentsForUnits(db, [
+					...new Set(assignments.map((assignment) => assignment.unitId))
+				])
+			: [];
+	// the holds of the contracts restored earlier in this walk, live as they will be once it is
+	// done, so two terminated contracts on one unit over intersecting terms are not both restored.
+	const claimed: ContractAssignment[] = [];
 	const assignmentsByContractId = new Map<string, DbContractUnit[]>();
 
 	for (const assignment of assignments) {
@@ -94,17 +109,37 @@ async function planContractSelection(
 			continue;
 		}
 
+		const unitsTaken =
+			action === 'restore' &&
+			unitsTakenFromRestore([...holders, ...claimed], contract, id).length > 0;
 		const reason = whatRefusesContractAction(
 			action,
 			contract,
 			paymentsByContractId.get(id) ?? [],
-			now
+			now,
+			{ unitsTaken }
 		);
 
 		if (reason) {
 			refused.push({ id, govId: contract.govId ?? '', reason });
-		} else {
-			eligible.push(contract);
+
+			continue;
+		}
+
+		eligible.push(contract);
+
+		if (action === 'restore') {
+			for (const held of assignmentsByContractId.get(id) ?? []) {
+				claimed.push({
+					unitId: held.unitId,
+					contractId: id,
+					status: 'active',
+					start: contract.start,
+					end: contract.end,
+					interval: contract.interval,
+					cost: contract.cost
+				});
+			}
 		}
 	}
 

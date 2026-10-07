@@ -98,6 +98,15 @@ export const PAYMENT_METHODS = ['cash', 'bank-transfer', 'cheque', 'ejar'] as co
 
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
+/**
+ * Which way a payment's money went: received from the tenant, or a refund paid back to them. A
+ * payment recorded before refunds existed is money received, which is what the column's default
+ * reads it as.
+ */
+export const PAYMENT_DIRECTIONS = ['received', 'refund'] as const;
+
+export type PaymentDirection = (typeof PAYMENT_DIRECTIONS)[number];
+
 export const payment = sqliteTable(
 	'payment',
 	{
@@ -110,7 +119,10 @@ export const payment = sqliteTable(
 		method: text('method', { enum: PAYMENT_METHODS }),
 		/** a transfer, cheque or SADAD number, as the reader wrote it; searched. */
 		reference: text('reference'),
-		note: text('note')
+		note: text('note'),
+		// not nullable and defaulted: every payment stored before it is money received, so no
+		// figure moves when it lands, and a caller that names no direction records one received.
+		direction: text('direction', { enum: PAYMENT_DIRECTIONS }).notNull().default('received')
 	},
 	/**
 	 * The one index this schema declares beyond its keys, and it is here because it was
@@ -143,7 +155,8 @@ export const PaymentSchema = z.object({
 	contractId: z.string(),
 	method: z.enum(PAYMENT_METHODS).nullish(),
 	reference: z.string().nullish(),
-	note: z.string().nullish()
+	note: z.string().nullish(),
+	direction: z.enum(PAYMENT_DIRECTIONS).default('received')
 });
 
 export type Payment = z.infer<typeof PaymentSchema>;

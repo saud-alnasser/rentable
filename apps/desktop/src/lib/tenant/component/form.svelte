@@ -17,6 +17,7 @@
 	import { surfaceForm } from '$lib/form';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
+	import { toWesternDigits } from '$lib/platform/locale';
 	import { z } from 'zod';
 
 	const PHONE_COUNTRY_CODES = ['+966'] as const;
@@ -32,7 +33,10 @@
 
 	const DEFAULT_PHONE_COUNTRY_CODE: PhoneCountryCode = '+966';
 
-	const normalizePhoneNumberInput = (value: string) => value.replace(/[^0-9]/g, '');
+	// an Arabic-Indic digit is the digit it stands for, so it is read rather than stripped
+	// (effort 854, requirement 21).
+	const normalizePhoneNumberInput = (value: string) =>
+		toWesternDigits(value).replace(/[^0-9]/g, '');
 	const combinePhone = (phoneCountryCode: PhoneCountryCode, phoneNumber: string) =>
 		`${phoneCountryCode}${normalizePhoneNumberInput(phoneNumber)}`;
 	const splitPhone = (phone: string | undefined) => {
@@ -58,7 +62,17 @@
 		.object({
 			id: TenantSchema.shape.id.optional(),
 			name: TenantSchema.shape.name,
-			nationalId: identityField($LL.tenants.form.invalidNationalId()),
+			// validated as its Western digits and sent as them, while the field keeps what was
+			// typed (effort 854, requirement 21); the router's own schema still refuses non-ASCII.
+			nationalId: z
+				.string()
+				.trim()
+				.refine(
+					(value) =>
+						identityField($LL.tenants.form.invalidNationalId()).safeParse(toWesternDigits(value))
+							.success,
+					$LL.tenants.form.invalidNationalId()
+				),
 			phoneCountryCode: z.enum(PHONE_COUNTRY_CODES),
 			phoneNumber: z.string().trim()
 		})
@@ -117,7 +131,7 @@
 
 				const payload = {
 					name: form.data.name,
-					nationalId: form.data.nationalId,
+					nationalId: toWesternDigits(form.data.nationalId).trim(),
 					phone: combinePhone(form.data.phoneCountryCode, form.data.phoneNumber)
 				};
 
