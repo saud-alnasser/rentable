@@ -93,6 +93,7 @@ pub(crate) use version::{
     both as both_verdicts, held_by_version, hold_at_the_wall, release_the_wall,
     release_the_wall_of, replicated_then_judged, workspace_judged, writes_to,
 };
+pub(crate) use version::{judged as workspace_judged_on, recorded as workspace_recorded};
 
 use std::{
     collections::HashMap,

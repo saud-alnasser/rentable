@@ -186,7 +186,9 @@ pub(crate) async fn replicated_then_judged<T>(
 
 /// The open workspace, where it is one of an organization, and the floors the organization records
 /// for it: none where nobody is in or the organization lists no such workspace.
-async fn recorded(
+///
+/// Read before the engine is held, as the launch does too (ticket 30), since it takes the member.
+pub(crate) async fn recorded(
     app_state: &Shared,
 ) -> Option<(RemoteSyncWorkspace, Result<Option<Floors>, Error>)> {
     let workspace = { app_state.remote_sync.read().await.workspace() };
@@ -220,8 +222,12 @@ async fn recorded(
 }
 
 /// The open workspace `workspace` judged on `db`, against the organization's record of it,
-/// `recorded`, and the floors it keeps itself, and the verdict kept on the engine.
-async fn judged(
+/// `recorded`, and the floors it keeps itself, and the verdict kept on the engine with the reason
+/// it gave, which the state read carries (ticket 30).
+///
+/// Called with the engine held for the verdict ([`Database::judging`]), by the heartbeat and by
+/// the launch (ticket 30).
+pub(crate) async fn judged(
     db: &Database,
     workspace: &RemoteSyncWorkspace,
     recorded: Result<Option<Floors>, Error>,
@@ -229,7 +235,7 @@ async fn judged(
     let id = workspace.remote_id.as_deref()?;
     let known = known();
 
-    match (recorded, db.floors().await) {
+    let (standing, held) = match (recorded, db.floors().await) {
         (Ok(recorded), Ok(own)) => {
             let standing = recorded
                 .into_iter()
@@ -237,9 +243,10 @@ async fn judged(
                 .map(|floors| floors.standing(known))
                 .fold(Standing::Writable, Standing::least);
 
-            db.hold(standing);
-
-            HeldByVersion::workspace(id, &workspace.name, standing)
+            (
+                standing,
+                HeldByVersion::workspace(id, &workspace.name, standing),
+            )
         }
         (Err(error), _) | (_, Err(error)) => {
             let standing = db.standing().least(Standing::ReadOnly);
@@ -248,17 +255,24 @@ async fn judged(
                 .with("workspace", id)
                 .with("error", error.to_string())
                 .write();
-            db.hold(standing);
 
-            HeldByVersion::unjudged(id, &workspace.name, standing)
+            (
+                standing,
+                HeldByVersion::unjudged(id, &workspace.name, standing),
+            )
         }
-    }
+    };
+
+    db.hold_because(standing, held.as_ref().map(|held| held.reason.clone()));
+
+    held
 }
 
 /// What holds this machine by its version as the last verdicts left it, for the state read: the
 /// refusal that kept a resume at the wall alone, where there is one and the wall stands on the
 /// organization it is about, since nothing is open behind it; otherwise the open organization's
-/// verdict and the open workspace's, each apart. Judges nothing again.
+/// verdict and the open workspace's, each apart, the workspace's with the reason its verdict gave
+/// (ticket 30). Judges nothing again.
 pub(crate) async fn held_by_version(app_state: &Shared) -> Vec<HeldByVersion> {
     let selected = {
         let mut remote_sync = app_state.remote_sync.write().await;
@@ -285,12 +299,16 @@ pub(crate) async fn held_by_version(app_state: &Shared) -> Vec<HeldByVersion> {
         .await
         .as_ref()
         .and_then(|store| HeldByVersion::organization(store.standing()));
-    let standing = app_state.db.read().await.standing();
+    let (standing, reason) = app_state.db.read().await.verdict();
     let workspace = { app_state.remote_sync.read().await.workspace() };
     let workspace = workspace
         .remote_id
         .as_deref()
-        .and_then(|id| HeldByVersion::workspace(id, &workspace.name, standing));
+        .and_then(|id| HeldByVersion::workspace(id, &workspace.name, standing))
+        .map(|held| match reason {
+            Some(reason) => HeldByVersion { reason, ..held },
+            None => held,
+        });
 
     both(organization, workspace)
 }

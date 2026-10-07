@@ -107,6 +107,11 @@ pub(crate) async fn open_database(app_state: &Shared, clock: &dyn Clock) -> Opti
         _ => workspace.as_ref().and_then(|(_, url)| url.clone()),
     };
 
+    // **The organization's record of the workspace's floors, read before the engine is taken**
+    // (ticket 30), in the order the heartbeat reads it: it takes the member and the organization,
+    // which nothing may wait on while the verdict below holds every write.
+    let recorded = crate::organization::session::workspace_recorded(app_state).await;
+
     let mut db = app_state.db.write().await;
 
     // **Whatever is held is let go of first, and that is the one-file rule rather than tidiness.**
@@ -136,6 +141,14 @@ pub(crate) async fn open_database(app_state: &Shared, clock: &dyn Clock) -> Opti
     {
         return Some(error);
     }
+
+    // **Held for the verdict from the moment the replica opens** (effort 857, ticket 30), as the
+    // heartbeat holds it between its pull and its verdict (`Database::judging`, ticket 27). The
+    // standing is writable until the first verdict, so a save that ran between the opening and the
+    // verdict would commit on a workspace the verdict holds read-only. Under this, a save runs held
+    // to reading, and one the engine refuses as a write waits for the verdict and runs again under
+    // it. Taken while the database is this opening's alone, so nothing is running to wait for.
+    let judging = db.judging().await;
 
     // Every *other* replica this machine holds, asked the same question. The current one was just
     // answered above.
@@ -196,11 +209,30 @@ pub(crate) async fn open_database(app_state: &Shared, clock: &dyn Clock) -> Opti
     // (`database/unsendable.rs`). Such a replica has pulled before, or it could hold nothing, so it
     // is ready as it stands; the first replication judges the floors, pushes, and pulls only once
     // what it held has gone.
-    if !db.holds_unsent().await && db.pull_replica().await.completed {
+    let reached = !db.holds_unsent().await && db.pull_replica().await.completed;
+    let ready = db.is_ready().await;
+
+    // **and the workspace judged against its floors over what the pull brought** (effort 857,
+    // ticket 04): from the organization's record of it, where somebody is in, and from the floors
+    // it keeps itself. The verdict is held on the engine, which every write asks (ticket 05), and
+    // past the read floor the opening is refused by name. Nothing is written to the workspace.
+    let held = match recorded {
+        Some((workspace, recorded)) if ready => {
+            crate::organization::session::workspace_judged_on(&db, &workspace, recorded).await
+        }
+        _ => None,
+    };
+
+    // the verdict is in, so the saves waiting on it run; the record is written after, since
+    // nothing that writes it should wait on the verdict.
+    drop(judging);
+    drop(db);
+
+    if reached {
         crate::machine::note_reached(&app_state.remote_sync, clock).await;
     }
 
-    if !db.is_ready().await {
+    if !ready {
         return Some(Error::Network {
             message: "this workspace has not reached this machine yet. connect to the network and \
                       try again"
@@ -208,14 +240,7 @@ pub(crate) async fn open_database(app_state: &Shared, clock: &dyn Clock) -> Opti
         });
     }
 
-    // **and the workspace judged against its floors over what the pull brought** (effort 857,
-    // ticket 04): from the organization's record of it, where somebody is in, and from the floors
-    // it keeps itself. The verdict is held on the engine, which every write asks (ticket 05), and
-    // past the read floor the opening is refused by name. The lock is let go of first, since the
-    // judgment reads the engine through it. Nothing is written to the workspace.
-    drop(db);
-
-    match crate::organization::session::workspace_judged(app_state).await {
+    match held {
         Some(held) if held.standing == Standing::Unreadable => Some(Error::refused(
             RefusalReason::WorkspaceNewer,
             format!("{}; nothing in it was read", held.reason),
@@ -945,7 +970,7 @@ mod tests {
     /// open on this machine past what it writes or past what it reads. The heartbeat's answer and
     /// the state read each carry the two verdicts apart, so the workspace's is not lost behind the
     /// organization's: the interface folds the workspace's writes away, and a workspace past
-    /// reading meets the update-required screen, whatever the organization's standing.
+    /// reading meets the workspace-held screen, whatever the organization's standing.
     #[tokio::test]
     async fn the_organizations_verdict_and_the_workspaces_cross_together() {
         use crate::database::floor::Standing;
@@ -1230,6 +1255,193 @@ mod tests {
             units[0].rows[0],
             json!(0),
             "the save landed between the pull and its verdict"
+        );
+
+        app_state.db.write().await.disconnect().await;
+    }
+
+    /// Write `statements` to the workspace replica at `path`, through an engine opened on the file
+    /// and let go of again.
+    async fn written(path: &std::path::Path, statements: &[String]) {
+        let replica = Database::open_replica(&crate::clock::System, path, None, || async {
+            Ok::<String, turso::Error>(String::new())
+        })
+        .await
+        .expect("the workspace replica");
+        let connection = replica.connect().await.expect("a connection");
+
+        for statement in statements {
+            connection.execute(statement, ()).await.expect(statement);
+        }
+    }
+
+    /// **Effort 857, ticket 30's first criterion: the launch holds saves until its verdict.** The
+    /// workspace this machine opens keeps floors past this build's write floor. The launch opens
+    /// its replica, pulls, and judges it; a save the interface sends once the replica is open, and
+    /// before the verdict, waits for the verdict and is refused by it, rather than landing on a
+    /// replica the verdict holds read-only. The verdict is kept waiting on the organization, which
+    /// the test holds for a while, so the save meets the opening between its pull and its verdict.
+    #[test]
+    fn a_save_at_launch_waits_for_the_launchs_verdict() {
+        use std::time::Duration;
+
+        use crate::database::{floor::Standing, proxy::SQLQuery};
+        use crate::error::{Error, RefusalReason};
+        use crate::organization::lease::apply;
+        use crate::sync::test::server::within;
+
+        within(Duration::from_secs(60), async {
+            let shipped = apply::shipped_version();
+            let directory = scratch("launch-save-before-verdict");
+            let path = a_workspace_replica(&directory, "south").await;
+
+            written(
+                &path,
+                &[
+                    "CREATE TABLE \"data_floor\" (\"id\" INTEGER PRIMARY KEY CHECK (\"id\" = 1), \
+                     \"level\" INTEGER NOT NULL, \"read\" INTEGER NOT NULL, \
+                     \"write\" INTEGER NOT NULL)"
+                        .to_string(),
+                    format!(
+                        "INSERT INTO \"data_floor\" VALUES (1, {}, {shipped}, {})",
+                        shipped + 1,
+                        shipped + 1
+                    ),
+                ],
+            )
+            .await;
+
+            let app_state = Arc::new(state_over(&directory).await);
+
+            {
+                let mut remote_sync = app_state.remote_sync.write().await;
+                let record = remote_sync.store_mut();
+
+                record.workspace.remote_id = Some("south".to_string());
+                record.workspace.remote_url = None;
+                record.commit().expect("the record");
+            }
+
+            // the verdict reads the organization's record of the workspace, so holding the
+            // organization keeps the verdict waiting; it is let go of after a while.
+            let organization = app_state.organization.clone().write_owned().await;
+
+            tokio::spawn(async move {
+                tokio::time::sleep(Duration::from_millis(500)).await;
+                drop(organization);
+            });
+
+            let opening = {
+                let app_state = Arc::clone(&app_state);
+
+                tokio::spawn(async move { open_database(&app_state, &crate::clock::System).await })
+            };
+
+            loop {
+                if let Ok(db) = app_state.db.try_read()
+                    && db.holds_replica(&path)
+                {
+                    break;
+                }
+
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+
+            let statement = |sql: &str| SQLQuery {
+                sql: sql.to_string(),
+                params: Vec::new(),
+            };
+            let saved = app_state
+                .db
+                .read()
+                .await
+                .execute_single_sql(statement("INSERT INTO \"unit\" VALUES ('u-1')"))
+                .await;
+
+            assert!(
+                matches!(
+                    saved,
+                    Err(Error::Refused {
+                        reason: RefusalReason::WorkspaceReadOnlyByVersion,
+                        ..
+                    })
+                ),
+                "the save at launch was not refused by the verdict: {saved:?}"
+            );
+            assert!(opening.await.expect("the opening").is_none());
+            assert_eq!(app_state.db.read().await.standing(), Standing::ReadOnly);
+
+            let units = app_state
+                .db
+                .read()
+                .await
+                .execute_single_sql(statement("SELECT count(*) AS n FROM \"unit\""))
+                .await
+                .expect("the units, read while read-only");
+
+            assert_eq!(
+                units[0].rows[0],
+                json!(0),
+                "the save landed between the launch's pull and its verdict"
+            );
+
+            app_state.db.write().await.disconnect().await;
+            let _ = std::fs::remove_dir_all(&directory);
+        });
+    }
+
+    /// **Effort 857, ticket 30's second criterion: the verdict's reason reaches the state read.**
+    /// The workspace this machine opens keeps floors that are no step numbers, so the launch holds
+    /// it read-only because its floors could not be read. The state read says so, as the
+    /// heartbeat's answer does, rather than that a newer rentable upgraded it.
+    #[tokio::test]
+    async fn the_state_read_carries_the_reason_the_verdict_gave() {
+        use crate::database::floor::Standing;
+        use crate::organization::session::{VersionTarget, held_by_version};
+
+        let directory = scratch("state-read-unread-floors");
+        let path = a_workspace_replica(&directory, "south").await;
+
+        written(
+            &path,
+            &[
+                "CREATE TABLE \"data_floor\" (\"id\" INTEGER PRIMARY KEY CHECK (\"id\" = 1), \
+                 \"level\", \"read\", \"write\")"
+                    .to_string(),
+                "INSERT INTO \"data_floor\" VALUES (1, 'seven', 'seven', 'seven')".to_string(),
+            ],
+        )
+        .await;
+
+        let app_state = state_over(&directory).await;
+
+        {
+            let mut remote_sync = app_state.remote_sync.write().await;
+            let record = remote_sync.store_mut();
+
+            record.workspace.remote_id = Some("south".to_string());
+            record.workspace.remote_url = None;
+            record.commit().expect("the record");
+        }
+
+        assert!(
+            open_database(&app_state, &crate::clock::System)
+                .await
+                .is_none()
+        );
+
+        let held = held_by_version(&app_state).await;
+
+        assert_eq!(held.len(), 1, "{held:?}");
+        assert_eq!(
+            held[0].target,
+            VersionTarget::Workspace("south".to_string())
+        );
+        assert_eq!(held[0].standing, Standing::ReadOnly);
+        assert!(
+            held[0].reason.contains("could not read"),
+            "the state read lost the verdict's reason: {}",
+            held[0].reason
         );
 
         app_state.db.write().await.disconnect().await;

@@ -246,12 +246,13 @@ pub struct Database {
     bound: Bound,
     /// where this build stands against the open workspace's floors, as the organization last
     /// judged them (effort 857, ticket 04): set by every open and every heartbeat, writable with
-    /// no workspace open and until the first verdict, and let go of with the engine.
-    standing: std::sync::Mutex<Standing>,
+    /// no workspace open and until the first verdict, and let go of with the engine. Beside it the
+    /// reason the verdict gave, where it gave one, which the state read carries (ticket 30).
+    standing: std::sync::Mutex<(Standing, Option<String>)>,
     /// held for writing while the open workspace is pulled and judged over what the pull brought
     /// ([`Database::judging`], effort 857, ticket 27), so no write lands between the two. A
     /// request holds it for reading while it runs.
-    judging: tokio::sync::RwLock<()>,
+    judging: Arc<tokio::sync::RwLock<()>>,
 }
 
 impl Database {
@@ -265,8 +266,8 @@ impl Database {
             settings,
             clock,
             bound: SYNC_BOUND,
-            standing: std::sync::Mutex::new(Standing::Writable),
-            judging: tokio::sync::RwLock::new(()),
+            standing: std::sync::Mutex::new((Standing::Writable, None)),
+            judging: Arc::new(tokio::sync::RwLock::new(())),
         }
     }
 
@@ -862,10 +863,16 @@ impl Database {
 
     /// Where this build stands against the open workspace's floors, as last judged.
     pub fn standing(&self) -> Standing {
+        self.verdict().0
+    }
+
+    /// Where this build stands against the open workspace's floors, as last judged, and the reason
+    /// that verdict gave where it gave one (ticket 30).
+    pub fn verdict(&self) -> (Standing, Option<String>) {
         self.standing
             .lock()
-            .map(|standing| *standing)
-            .unwrap_or(Standing::Unreadable)
+            .map(|verdict| verdict.clone())
+            .unwrap_or((Standing::Unreadable, None))
     }
 
     /// Hold the open workspace for a verdict (effort 857, ticket 27): a pull and the judgment over
@@ -877,15 +884,25 @@ impl Database {
     /// and runs again, held to it ([`Database::held`]). So a pull the network is slow to answer
     /// holds no read, which effort 854 (requirement 15) is owed, and a save made during it is
     /// judged by what it brought. Waits for the requests already running.
-    pub(crate) async fn judging(&self) -> tokio::sync::RwLockWriteGuard<'_, ()> {
-        self.judging.write().await
+    ///
+    /// **The hold is owned rather than borrowed** (ticket 30), so the launch can take it while it
+    /// has the database to itself and keep it past letting go of that, from the moment the replica
+    /// opens to its verdict.
+    pub(crate) async fn judging(&self) -> tokio::sync::OwnedRwLockWriteGuard<()> {
+        Arc::clone(&self.judging).write_owned().await
     }
 
     /// Keep `standing` as the open workspace's verdict: what the organization does at every open
     /// and every heartbeat, having judged the floors (effort 857, ticket 04).
     pub fn hold(&self, standing: Standing) {
+        self.hold_because(standing, None);
+    }
+
+    /// Keep `standing` as the open workspace's verdict, and `reason` as the reason it gave, for
+    /// the state read to carry as it was given (ticket 30).
+    pub fn hold_because(&self, standing: Standing, reason: Option<String>) {
         if let Ok(mut held) = self.standing.lock() {
-            *held = standing;
+            *held = (standing, reason);
         }
     }
 

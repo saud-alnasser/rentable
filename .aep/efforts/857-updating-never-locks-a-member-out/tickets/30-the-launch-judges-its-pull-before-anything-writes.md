@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(organization): the launch judges its pull before anything writes
@@ -14,8 +14,8 @@ Found while fixing review round one (ticket 27): at launch `open_database` pulls
 
 Traces requirement 8, requirement 9, criterion 8 and criterion 9.
 
-- [ ] The launch's workspace pull and its verdict run under the same hold ticket 27 gave the heartbeat, so a save arriving between them waits for the verdict; a test interleaves a save.
-- [ ] The reason a verdict carries (for example floors that could not be read) reaches `OrganizationState` on the state read, not only the heartbeat's answer; a test.
+- [x] The launch's workspace pull and its verdict run under the same hold ticket 27 gave the heartbeat, so a save arriving between them waits for the verdict; a test interleaves a save.
+- [x] The reason a verdict carries (for example floors that could not be read) reaches `OrganizationState` on the state read, not only the heartbeat's answer; a test.
 
 ## Relevant areas
 
