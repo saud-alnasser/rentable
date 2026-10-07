@@ -253,6 +253,12 @@ impl Watch {
         self.0.as_deref() == Some(replica)
     }
 
+    /// The replica this watches, where it names one: where a record kept beside it lies
+    /// (`unsendable.rs`).
+    pub(crate) fn replica(&self) -> Option<&Path> {
+        self.0.as_deref()
+    }
+
     /// Pass `answer` through, having recorded any damage it reports ([`met`]).
     pub(crate) fn note<T>(&self, answer: Result<T, turso::Error>) -> Result<T, turso::Error> {
         if let (Some(replica), Err(error)) = (self.0.as_deref(), &answer) {

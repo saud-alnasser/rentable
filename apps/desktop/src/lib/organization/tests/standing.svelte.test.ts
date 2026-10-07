@@ -28,7 +28,9 @@ import Providers from '#tests/providers.svelte';
  * itself, started here directly.
  */
 
-const { port } = vi.hoisted(() => ({ port: { releases: [] as (() => void)[] } }));
+const { port } = vi.hoisted(() => ({
+	port: { releases: [] as (() => void)[], discards: 0 }
+}));
 
 vi.mock('$lib/sync/tauri', async () => {
 	const { fakeSyncState } = await import('$lib/sync/tests/testing');
@@ -43,7 +45,12 @@ vi.mock('$lib/sync/tauri', async () => {
 					);
 				}),
 			push: async () => true,
-			renameWorkspace: async () => fakeSyncState()
+			renameWorkspace: async () => fakeSyncState(),
+			discardUnsent: async () => {
+				port.discards += 1;
+
+				return fakeSyncState();
+			}
 		}
 	};
 });
@@ -405,6 +412,65 @@ test("this machine's access refused: needs attention, and the credential's sente
 		en.workspace.credentialRefused
 	);
 	expect(document.querySelector('[data-account-refusal]')).toBeNull();
+	// nothing is held, so nothing is offered to discard.
+	expect(document.querySelector('[data-discard-unsent]')).toBeNull();
+});
+
+// effort 857, ticket 13: changes this machine had not sent when an upgrade removed what they
+// name. The sentence says they are kept and the workspace waits; keeping them is doing nothing,
+// and discarding them asks first, and only a yes reaches the shell.
+test('changes an upgrade made unsendable: the sentence, kept on leaving, discarded on a yes', async () => {
+	port.discards = 0;
+	block({
+		syncState: fakeSyncState({
+			unsendableChanges: { since: 3 },
+			workspace: fakeWorkspace({ name: 'North' })
+		})
+	});
+
+	expect(row().dataset.standing).toBe('needsAttention');
+	beneathTheState('[data-unsendable]');
+	expect(document.querySelector('[data-unsendable]')?.textContent?.trim()).toBe(
+		en.organization.standing.unsendable.sentence
+	);
+	beneathTheState('[data-discard-unsent]');
+
+	const discard = document.querySelector<HTMLButtonElement>('[data-discard-unsent]')!;
+
+	expect(discard.textContent?.trim()).toBe(en.organization.standing.unsendable.discard);
+
+	// asked, and left: nothing is discarded.
+	await fireEvent.click(discard);
+
+	const dialog = await waitFor(() => {
+		const open = document.querySelector<HTMLElement>('[data-confirm-dialog]');
+
+		expect(open).not.toBeNull();
+
+		return open!;
+	});
+	const named = (label: string) =>
+		[...dialog.querySelectorAll<HTMLButtonElement>('button')].find(
+			(button) => button.textContent?.trim() === label
+		)!;
+
+	expect(dialog.textContent).toContain('North');
+	expect(dialog.textContent).toContain(en.organization.standing.unsendable.confirmDescription);
+
+	await fireEvent.click(named(strings.cancel));
+	await waitFor(() => expect(document.querySelector('[data-confirm-dialog]')).toBeNull());
+	expect(port.discards).toBe(0);
+
+	// asked, and answered yes: the shell discards them.
+	await fireEvent.click(discard);
+	await waitFor(() => expect(document.querySelector('[data-confirm-dialog]')).not.toBeNull());
+	await fireEvent.click(
+		[...document.querySelectorAll<HTMLButtonElement>('[data-confirm-dialog] button')].find(
+			(button) => button.textContent?.trim() === en.organization.standing.unsendable.confirm
+		)!
+	);
+
+	await waitFor(() => expect(port.discards).toBe(1));
 });
 
 test('a fault on the replica: needs reconnecting, and the fault behind details under it', () => {
@@ -443,9 +509,16 @@ test('each state reads in arabic', () => {
 		fakeSyncState({ lastReachedAt: Date.now() }),
 		fakeSyncState(),
 		fakeSyncState({ accountRefusal: { since: 1 } }),
-		fakeSyncState({ workspace: fakeWorkspace({ lastError: 'the replica refused' }) })
+		fakeSyncState({ workspace: fakeWorkspace({ lastError: 'the replica refused' }) }),
+		fakeSyncState({ unsendableChanges: { since: 3 } })
 	];
-	const keys = ['upToDate', 'notYetReached', 'needsAttention', 'needsReconnecting'] as const;
+	const keys = [
+		'upToDate',
+		'notYetReached',
+		'needsAttention',
+		'needsReconnecting',
+		'needsAttention'
+	] as const;
 
 	states.forEach((syncState, index) => {
 		const { unmount } = block({ syncState }, 'ar');

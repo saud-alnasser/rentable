@@ -324,11 +324,11 @@ other otherwise. See [[references/cargo]].
 
 ## Tests that reach a live remote
 
-**Eight sets are admitted, in six properties, and they are the exception rather than a second way
-of testing.** All eight exist, and every one is Rust. The four `losing_writer` tests at the foot of
+**Nine sets are admitted, in seven properties, and they are the exception rather than a second way
+of testing.** All nine exist, and every one is Rust. The four `losing_writer` tests at the foot of
 `tauri/src/database/mod.rs` open two replicas of one workspace against a database they provision on
-Turso; the six admitted for the organization effort below, and the one admitted for effort 838 after
-them, each create and remove their own.
+Turso; the six admitted for the organization effort below, the one admitted for effort 838 after
+them, and the one admitted for effort 857 after that, each create and remove their own.
 Everything else in this repository is tested against a local file, a loopback HTTP server, or an
 in-memory engine, and that is not changing.
 
@@ -450,6 +450,21 @@ an instance of the fourth: the subject is the database's own SQL endpoint, not t
 is the nearest thing to the retired admission whose property was whether a remote honours a
 transaction the client asks for, and it is admitted on its own rather than as that one restored,
 because what it asks is this runner's transaction on this server.
+
+**A ninth property: what the sync engine does with changes a replica had not sent when the workspace
+changed shape under them.** Admitted by the human's bound of 2026-10-07 (effort 857, ticket 13,
+spec criterion 10), which allowed live runs on throwaway databases in the `rentable` group alone and
+never on an existing one. `unsent_changes_live_are_sent_after_an_addition` and
+`unsent_changes_live_are_kept_and_asked_for_after_a_removal`, at the foot of
+`tauri/src/database/mod.rs`, provision through `database/test/workspace.rs`, hold a change in a
+replica, change the remote's shape over the pipeline as an upgrade's step does, and open the replica
+again as the updated build: an added column is pushed past, a dropped or renamed one is classified
+and kept until the discard. Each case deletes its database whatever it asserted, before a failure is
+raised. Nothing local holds it: the subject is the engine's push and pull against Turso's own answer
+to a statement naming a column it no longer has, and the run that wrote these found the engine drops
+such a change on its second push or on a pull, which no stand-in would have said. It is a new
+property rather than an instance of the first, which is what two replicas lose to each other, not
+what one loses to the remote's shape.
 
 *The count in the heading sentence is the thing that goes stale. Another live test is a decision
 somebody takes here, in this section, naming its property and saying whether it is a new property or

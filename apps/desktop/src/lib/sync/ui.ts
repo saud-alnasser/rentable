@@ -5,4 +5,9 @@
 // Everything else stays private; `index.ts` holds what loads under Node (plan, *A feature has the
 // same two entries*).
 export { syncActivity } from './activity.svelte';
-export { keys as syncKeys, useFetchRemoteSyncState, useSyncWorkspace } from './query';
+export {
+	keys as syncKeys,
+	useDiscardUnsent,
+	useFetchRemoteSyncState,
+	useSyncWorkspace
+} from './query';

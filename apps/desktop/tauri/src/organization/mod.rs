@@ -205,6 +205,10 @@ mod tests {
         // the heartbeat over this machine's own replicas; it asks nothing of a row, and a member
         // signed out elsewhere ends it before anything is pushed.
         ("session_replicate", Gate::ThisMachine),
+        // changes the workspace refused since an upgrade, discarded at the person's word (effort
+        // 857, ticket 13): somebody is in, since the workspace is opened again under their
+        // credential, and the act is refused where nothing is held.
+        ("session_discard_unsent", Gate::SignedIn),
         ("workspace_rename", Gate::Flag(Flag::RenameWorkspace)),
         ("setup_rename", Gate::OwnerAlone),
         // the explicit upgrade of the organization or a workspace (effort 857, ticket 07); a step

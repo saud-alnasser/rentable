@@ -46,7 +46,8 @@ function hostRecordingRenames(asked: string[]) {
 				asked.push(name);
 
 				return { ...state, workspace: { ...state.workspace, name } };
-			}
+			},
+			discardUnsent: async () => state
 		}
 	});
 }

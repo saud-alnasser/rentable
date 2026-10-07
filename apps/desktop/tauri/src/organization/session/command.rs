@@ -805,18 +805,35 @@ pub(crate) async fn replicate(
                 held_by_version: HeldByVersion::organization(organization).or(workspace),
             });
         }
-        // read-only: what the others wrote comes in, and nothing this build wrote goes out.
+        // read-only: what the others wrote comes in, and nothing this build wrote goes out. A
+        // replica holding changes the workspace refuses since an upgrade is not pulled either, and
+        // says so (ticket 13).
         (_, Some(Standing::ReadOnly)) => {
-            let pulled = app_state.db.read().await.pull_replica().await;
+            let (pulled, unsendable) = {
+                let db = app_state.db.read().await;
+                let pulled = db.pull_replica().await;
+
+                (pulled, db.holds_unsendable())
+            };
 
             if pulled.completed {
                 crate::machine::note_reached(&app_state.remote_sync, clock.as_ref()).await;
             }
 
+            let refusal = unsendable.then(crate::database::unsendable::refusal);
+
+            if refusal.is_some() {
+                app_state
+                    .remote_sync
+                    .write()
+                    .await
+                    .note_unsendable_changes(clock.now());
+            }
+
             return Ok(Replication {
                 pushed: false,
                 received: pulled.brought,
-                refusal: None,
+                refusal,
                 standing,
                 held_by_version: held_after(app_state, organization).await,
             });
@@ -837,6 +854,11 @@ pub(crate) async fn replicate(
                 let mut remote_sync = app_state.remote_sync.write().await;
                 remote_sync.clear_account_refusal();
                 remote_sync.clear_credential_refusal();
+
+                // a push that went took everything the replica held.
+                if replicated.pushed {
+                    remote_sync.clear_unsendable_changes();
+                }
             }
 
             // the moment the standing block says: a half went through, whether or not anything
@@ -892,6 +914,9 @@ pub(crate) async fn replicate(
                     Some(Error::Credential { .. }) => {
                         remote_sync.note_credential_refusal(clock.now());
                     }
+                    Some(refusal) if unsendable(refusal) => {
+                        remote_sync.note_unsendable_changes(clock.now());
+                    }
                     Some(account) => {
                         remote_sync.note_account_refusal(&account.to_string(), clock.now());
                     }
@@ -911,6 +936,22 @@ pub(crate) async fn replicate(
                 standing,
                 held_by_version: held_after(app_state, organization).await,
             })
+        }
+        // changes this machine holds that the workspace refuses since an upgrade (effort 857,
+        // ticket 13): nothing about the account or the credential, and nothing more goes either
+        // way until the person discards them. The record says so to the sync card.
+        Some(refusal) if unsendable(refusal) => {
+            app_state
+                .remote_sync
+                .write()
+                .await
+                .note_unsendable_changes(clock.now());
+
+            Ok(Replication::of(
+                replicated,
+                standing,
+                held_after(app_state, organization).await,
+            ))
         }
         // requirement 25: the account's, said as the account's, and the one other refusal
         // `read_sync_refusal` reads; its message is Turso's own sentence. The local replica goes
@@ -932,6 +973,18 @@ pub(crate) async fn replicate(
     }
 }
 
+/// Whether a replication's refusal is changes the workspace refuses since an upgrade
+/// (`database/unsendable.rs`).
+fn unsendable(refusal: &Error) -> bool {
+    matches!(
+        refusal,
+        Error::Refused {
+            reason: RefusalReason::ChangesUnsendableAfterUpgrade,
+            ..
+        }
+    )
+}
+
 /// What holds this machine once a replication has gone: the organization's verdict, and the open
 /// workspace judged again over whatever its own pull brought.
 async fn held_after(app_state: &Shared, organization: Standing) -> Option<HeldByVersion> {
@@ -950,8 +1003,9 @@ async fn held_after(app_state: &Shared, organization: Standing) -> Option<HeldBy
 pub struct Replication {
     pub pushed: bool,
     pub received: bool,
-    /// why a half did not go, where Turso said: the account's, or the credential's. `none` is
-    /// offline or nothing to say, and the two halves say which.
+    /// why a half did not go, where Turso said: the account's, or the credential's, or changes
+    /// the workspace refuses since an upgrade (`unsendable`). `none` is offline or nothing to say,
+    /// and the two halves say which.
     #[serde(serialize_with = "one_word")]
     pub refusal: Option<Error>,
     /// where the signed-in member stands after this replication. `signedOutElsewhere` is the one
@@ -978,9 +1032,9 @@ pub enum SessionStanding {
     SignedOutElsewhere,
 }
 
-/// The refusal as the web layer reads it: which kind, `none`, `account` or `credential`, and never
-/// Turso's sentence, which is the owner's alone and read through
-/// `organization_setup_account_refusal_detail`.
+/// The refusal as the web layer reads it: which kind, `none`, `account`, `credential` or
+/// `unsendable` (effort 857, ticket 13), and never Turso's sentence, which is the owner's alone and
+/// read through `organization_setup_account_refusal_detail`.
 ///
 /// *This was `ReplicationRefusal`, an enum of the three words, until effort 840 left the crate one
 /// error type (ticket 47). The words are the ones it serialised to, and
@@ -992,6 +1046,7 @@ fn one_word<S: serde::Serializer>(
     serializer.serialize_str(match refusal {
         None => "none",
         Some(Error::Credential { .. }) => "credential",
+        Some(refusal) if unsendable(refusal) => "unsendable",
         Some(_) => "account",
     })
 }
@@ -1202,8 +1257,8 @@ mod tests {
     // -------------------------------------------------------------------------------------
 
     /// **What one replication answers the web layer, pinned as it crosses** (effort 840, ticket
-    /// 47): each of the three refusals, as the one word `sync/host.ts`'s `ReplicationRefusal`
-    /// reads, and never Turso's sentence, which is the owner's alone.
+    /// 47): each of the refusals, as the one word `sync/host.ts`'s `ReplicationRefusal` reads, and
+    /// never Turso's sentence, which is the owner's alone.
     #[test]
     fn a_replication_crosses_with_its_refusal_as_one_word() {
         use super::{Replication, SessionStanding};
@@ -1258,6 +1313,21 @@ mod tests {
                 "received": false,
                 "refusal": "credential",
                 "standing": "signedOutElsewhere",
+                "heldByVersion": null
+            })
+        );
+        // and changes the workspace refuses since an upgrade, which are nobody's account (effort
+        // 857, ticket 13).
+        assert_eq!(
+            crossing(
+                Some(crate::database::unsendable::refusal()),
+                SessionStanding::Held
+            ),
+            json!({
+                "pushed": true,
+                "received": false,
+                "refusal": "unsendable",
+                "standing": "held",
                 "heldByVersion": null
             })
         );

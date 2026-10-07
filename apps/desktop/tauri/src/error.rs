@@ -293,6 +293,11 @@ pub enum RefusalReason {
     /// write to it (below its write floor, effort 857): what every create, edit and delete reaching
     /// the workspace's engine is refused with, and nothing was written (ticket 05).
     WorkspaceReadOnlyByVersion,
+    /// this machine holds changes it had not sent when an upgrade removed or renamed what they
+    /// name, so the open workspace refuses them: they are kept here, nothing of the workspace is
+    /// sent or brought until the person discards them, and nothing is discarded without their yes
+    /// (effort 857, ticket 13).
+    ChangesUnsendableAfterUpgrade,
 
     // a copy and a check before a change of shape (effort 838, requirements 13 and 15).
     /// the copy of the organization or the workspace taken before it changes shape could not be

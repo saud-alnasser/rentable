@@ -126,6 +126,17 @@ export const organization = {
 		lastReachedRecently: 'آخر وصول إلى Turso {moment}',
 		lastReached: 'آخر وصول إلى Turso في {moment}',
 		reconnectOnAccount: 'أعد ربط حساب Turso من المغادرة.',
+		unsendable: {
+			sentence:
+				'لا يمكن إرسال تغييرات أُجريت هنا قبل الترقية. تبقى محفوظة، وتنتظر المزامنة حتى تحذفها.',
+			discard: 'احذف التغييرات غير المرسلة',
+			confirmTitle: 'حذف التغييرات غير المرسلة',
+			confirmDescription:
+				'تُحذف كل التغييرات التي لم يرسلها هذا الجهاز، وتُنسخ مساحة العمل من Turso من جديد. لا يمكن التراجع عن ذلك.',
+			confirm: 'احذف',
+			confirming: 'جارٍ الحذف…',
+			discarded: 'حُذفت التغييرات غير المرسلة، وعادت مساحة العمل تُزامَن.'
+		},
 		detail: {
 			label: 'ما يحفظه هذا الجهاز',
 			workspace: 'مساحة العمل',
@@ -622,6 +633,8 @@ export const refusals = {
 			'رقّى إصدار أحدث من rentable هذه المؤسسة. حدّث rentable لتجري تغييرات فيها.',
 		workspaceReadOnlyByVersion:
 			'رقّى إصدار أحدث من rentable مساحة العمل هذه. حدّث rentable لتجري تغييرات فيها.',
+		changesUnsendableAfterUpgrade:
+			'لا يمكن إرسال تغييرات أُجريت هنا قبل ترقية مساحة العمل. تبقى محفوظة حتى تحذفها.',
 		copyNotTaken:
 			'تعذّر أخذ نسخة قبل الترقية، فلم يتغيّر شيء. تحقّق من الاتصال ومن مجلد النسخ الاحتياطية، ثم حاول مرة أخرى.',
 		shapeNotAsBuilt:

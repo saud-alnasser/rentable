@@ -1368,6 +1368,10 @@ type RootTranslation = {
 				 */
 				workspaceReadOnlyByVersion: string
 				/**
+				 * c​h​a​n​g​e​s​ ​m​a​d​e​ ​h​e​r​e​ ​b​e​f​o​r​e​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​ ​w​a​s​ ​u​p​g​r​a​d​e​d​ ​c​a​n​n​o​t​ ​b​e​ ​s​e​n​t​.​ ​t​h​e​y​ ​a​r​e​ ​k​e​p​t​ ​u​n​t​i​l​ ​y​o​u​ ​d​i​s​c​a​r​d​ ​t​h​e​m​.
+				 */
+				changesUnsendableAfterUpgrade: string
+				/**
 				 * n​o​ ​c​o​p​y​ ​w​a​s​ ​t​a​k​e​n​ ​b​e​f​o​r​e​ ​u​p​g​r​a​d​i​n​g​,​ ​s​o​ ​n​o​t​h​i​n​g​ ​w​a​s​ ​c​h​a​n​g​e​d​.​ ​c​h​e​c​k​ ​t​h​e​ ​c​o​n​n​e​c​t​i​o​n​ ​a​n​d​ ​t​h​e​ ​b​a​c​k​u​p​s​ ​f​o​l​d​e​r​,​ ​t​h​e​n​ ​t​r​y​ ​a​g​a​i​n​.
 				 */
 				copyNotTaken: string
@@ -4229,6 +4233,36 @@ type RootTranslation = {
 			 * r​e​c​o​n​n​e​c​t​ ​t​h​e​ ​T​u​r​s​o​ ​a​c​c​o​u​n​t​ ​u​n​d​e​r​ ​l​e​a​v​i​n​g​.
 			 */
 			reconnectOnAccount: string
+			unsendable: {
+				/**
+				 * c​h​a​n​g​e​s​ ​m​a​d​e​ ​h​e​r​e​ ​b​e​f​o​r​e​ ​t​h​e​ ​u​p​g​r​a​d​e​ ​c​a​n​n​o​t​ ​b​e​ ​s​e​n​t​.​ ​t​h​e​y​ ​a​r​e​ ​k​e​p​t​,​ ​a​n​d​ ​s​y​n​c​i​n​g​ ​w​a​i​t​s​ ​u​n​t​i​l​ ​y​o​u​ ​d​i​s​c​a​r​d​ ​t​h​e​m​.
+				 */
+				sentence: string
+				/**
+				 * d​i​s​c​a​r​d​ ​u​n​s​e​n​t​ ​c​h​a​n​g​e​s
+				 */
+				discard: string
+				/**
+				 * d​i​s​c​a​r​d​ ​u​n​s​e​n​t​ ​c​h​a​n​g​e​s
+				 */
+				confirmTitle: string
+				/**
+				 * e​v​e​r​y​ ​c​h​a​n​g​e​ ​t​h​i​s​ ​m​a​c​h​i​n​e​ ​h​a​s​ ​n​o​t​ ​s​e​n​t​ ​i​s​ ​r​e​m​o​v​e​d​,​ ​a​n​d​ ​t​h​e​ ​w​o​r​k​s​p​a​c​e​ ​i​s​ ​c​o​p​i​e​d​ ​a​g​a​i​n​ ​f​r​o​m​ ​T​u​r​s​o​.​ ​t​h​i​s​ ​c​a​n​n​o​t​ ​b​e​ ​u​n​d​o​n​e​.
+				 */
+				confirmDescription: string
+				/**
+				 * d​i​s​c​a​r​d
+				 */
+				confirm: string
+				/**
+				 * d​i​s​c​a​r​d​i​n​g​…
+				 */
+				confirming: string
+				/**
+				 * u​n​s​e​n​t​ ​c​h​a​n​g​e​s​ ​d​i​s​c​a​r​d​e​d​.​ ​t​h​i​s​ ​w​o​r​k​s​p​a​c​e​ ​s​y​n​c​s​ ​a​g​a​i​n​.
+				 */
+				discarded: string
+			}
 			/**
 			 * s​y​n​c
 			 */
@@ -6941,6 +6975,10 @@ export type TranslationFunctions = {
 				 * a newer version of rentable upgraded this workspace. update rentable to make changes in it.
 				 */
 				workspaceReadOnlyByVersion: () => LocalizedString
+				/**
+				 * changes made here before the workspace was upgraded cannot be sent. they are kept until you discard them.
+				 */
+				changesUnsendableAfterUpgrade: () => LocalizedString
 				/**
 				 * no copy was taken before upgrading, so nothing was changed. check the connection and the backups folder, then try again.
 				 */
@@ -9658,6 +9696,36 @@ export type TranslationFunctions = {
 			 * reconnect the Turso account under leaving.
 			 */
 			reconnectOnAccount: () => LocalizedString
+			unsendable: {
+				/**
+				 * changes made here before the upgrade cannot be sent. they are kept, and syncing waits until you discard them.
+				 */
+				sentence: () => LocalizedString
+				/**
+				 * discard unsent changes
+				 */
+				discard: () => LocalizedString
+				/**
+				 * discard unsent changes
+				 */
+				confirmTitle: () => LocalizedString
+				/**
+				 * every change this machine has not sent is removed, and the workspace is copied again from Turso. this cannot be undone.
+				 */
+				confirmDescription: () => LocalizedString
+				/**
+				 * discard
+				 */
+				confirm: () => LocalizedString
+				/**
+				 * discarding…
+				 */
+				confirming: () => LocalizedString
+				/**
+				 * unsent changes discarded. this workspace syncs again.
+				 */
+				discarded: () => LocalizedString
+			}
 			/**
 			 * sync
 			 */

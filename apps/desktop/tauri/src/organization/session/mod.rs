@@ -70,6 +70,7 @@ mod machine;
 mod remember;
 mod replica;
 mod signin;
+mod unsent;
 mod version;
 
 pub use command::*;
@@ -86,6 +87,7 @@ pub(crate) use machine::{
 pub(crate) use remember::*;
 pub(crate) use replica::leave_registry;
 pub use signin::*;
+pub(crate) use unsent::*;
 pub use version::{HeldByVersion, VersionTarget};
 pub(crate) use version::{held_by_version, hold_at_the_wall, workspace_judged, writes_to};
 

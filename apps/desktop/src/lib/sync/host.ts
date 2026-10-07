@@ -72,6 +72,12 @@ export type RemoteSyncState = {
 	 */
 	credentialRefusal: { since: number } | null;
 	/**
+	 * changes this machine holds that the open workspace refuses since an upgrade removed what they
+	 * name, kept here until the person discards them (effort 857, ticket 13). While it stands
+	 * nothing of the workspace is sent or brought; only the person's yes ends it.
+	 */
+	unsendableChanges: { since: number } | null;
+	/**
 	 * the moment of the last replication that went through, as epoch milliseconds, or `null`
 	 * before any has: the remote took the push or answered the pull, whether or not it had
 	 * anything to bring. What the standing block says beside "up to date" (effort 828,
@@ -80,8 +86,11 @@ export type RemoteSyncState = {
 	lastReachedAt: number | null;
 };
 
-/** why a replication did not go, where Turso said: the account's, the credential's, or neither. */
-export type ReplicationRefusal = 'none' | 'account' | 'credential';
+/**
+ * why a replication did not go, where Turso said: the account's, the credential's, changes the
+ * workspace refuses since an upgrade (effort 857, ticket 13), or none of them.
+ */
+export type ReplicationRefusal = 'none' | 'account' | 'credential' | 'unsendable';
 
 /**
  * where the signed-in member stands after a replication.
@@ -138,6 +147,14 @@ export type SyncHost = {
 	 * session, refuses rather than renaming locally. Each says which of the three it was.
 	 */
 	renameWorkspace: (name: string) => Promise<RemoteSyncState>;
+	/**
+	 * throw away the changes this machine holds that the workspace refuses since an upgrade, and
+	 * open the workspace again as the remote holds it; answers where the machine stands afterwards.
+	 *
+	 * **Only at the person's explicit yes** (effort 857, ticket 13). The shell refuses it while
+	 * nothing is held, so changes that could still be sent are never thrown away by it.
+	 */
+	discardUnsent: () => Promise<RemoteSyncState>;
 };
 
 /**

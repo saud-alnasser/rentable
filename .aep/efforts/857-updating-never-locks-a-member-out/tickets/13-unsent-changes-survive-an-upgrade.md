@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [07]
 ---
 
@@ -15,9 +15,9 @@ Changes a machine had not sent when an upgrade stopped it are sent once it has u
 
 Traces requirement 10 and criterion 10.
 
-- [ ] A workspace push that fails because the upgrade removed what the changes name is classified as `ChangesUnsendableAfterUpgrade`, kept, and surfaced with a sentence and a choice; nothing is dropped without the person's yes.
-- [ ] Live tests behind `RENTABLE_LIVE_TURSO=1`, on throwaway databases only, push captured changes after an addition (sent) and after a removal (asked).
-- [ ] Unit tests cover the classification and the choice.
+- [x] A workspace push that fails because the upgrade removed what the changes name is classified as `ChangesUnsendableAfterUpgrade`, kept, and surfaced with a sentence and a choice; nothing is dropped without the person's yes.
+- [x] Live tests behind `RENTABLE_LIVE_TURSO=1`, on throwaway databases only, push captured changes after an addition (sent) and after a removal (asked).
+- [x] Unit tests cover the classification and the choice.
 
 ## Relevant areas
 

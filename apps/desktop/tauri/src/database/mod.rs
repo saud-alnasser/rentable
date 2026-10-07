@@ -8,6 +8,7 @@ pub mod proxy;
 pub mod step;
 #[cfg(test)]
 pub(crate) mod test;
+pub(crate) mod unsendable;
 pub mod version;
 
 pub use plugin::plugin;
@@ -68,17 +69,30 @@ pub struct Pulled {
 /// how long each half may wait on the remote before it is the offline case (`bound.rs`).
 /// `pushing` is whether this build may write the workspace: where it may not, only the pull goes
 /// (effort 857, requirement 6).
+///
+/// **Changes the workspace refuses because an upgrade removed what they name stop both halves**
+/// (effort 857, ticket 13): the refusal is recorded beside the replica, nothing is pulled after
+/// it, and a replica holding such a record is neither pushed nor pulled, since either drops the
+/// changes without a word (`unsendable.rs`). The person is asked before they go.
 pub(crate) async fn replicate_engine(
     database: &turso::sync::Database,
     watch: &corrupt::Watch,
     bound: Bound,
     pushing: bool,
 ) -> Replicated {
+    if watch.replica().is_some_and(unsendable::held) {
+        return Replicated::unsendable();
+    }
+
     let mut refusal = None;
     let pushed = pushing
         && match watch.note(bounded(bound, "push", database.push()).await) {
             Ok(()) => true,
             Err(error) => {
+                if held_as_unsendable(watch, &error) {
+                    return Replicated::unsendable();
+                }
+
                 refusal = read_sync_refusal(&error);
                 false
             }
@@ -86,6 +100,10 @@ pub(crate) async fn replicate_engine(
     let pulled = match watch.note(bounded(bound, "pull", database.pull()).await) {
         Ok(brought) => Some(brought),
         Err(error) => {
+            if held_as_unsendable(watch, &error) {
+                return Replicated::unsendable();
+            }
+
             if refusal.is_none() {
                 refusal = read_sync_refusal(&error);
             }
@@ -98,6 +116,36 @@ pub(crate) async fn replicate_engine(
         received: pulled.unwrap_or(false),
         refusal,
         completed: pushed || pulled.is_some(),
+    }
+}
+
+/// Whether `error`, a push's or a pull's, is changes the workspace refuses because an upgrade
+/// removed what they name; where it is, the refusal is recorded beside the replica `watch` is over,
+/// so nothing pushes or pulls it again (`unsendable.rs`).
+fn held_as_unsendable(watch: &corrupt::Watch, error: &turso::Error) -> bool {
+    let refusal = error.to_string();
+
+    if !unsendable::names_what_the_upgrade_removed(&refusal) {
+        return false;
+    }
+
+    if let Some(replica) = watch.replica() {
+        unsendable::hold(replica, &refusal);
+    }
+
+    true
+}
+
+impl Replicated {
+    /// A replication that sent nothing and brought nothing, because the replica holds changes the
+    /// workspace refuses since an upgrade.
+    fn unsendable() -> Self {
+        Replicated {
+            pushed: false,
+            received: false,
+            refusal: Some(unsendable::refusal()),
+            completed: false,
+        }
     }
 }
 
@@ -345,7 +393,7 @@ impl Database {
             .chain(
                 Self::REPLICA_SIDECARS
                     .iter()
-                    .chain(std::iter::once(&corrupt::MARKER))
+                    .chain([&corrupt::MARKER, &unsendable::MARKER])
                     .map(|suffix| PathBuf::from(format!("{}{suffix}", replica.display()))),
             )
             .filter(|file| file.exists())
@@ -389,17 +437,86 @@ impl Database {
     ///
     /// **Nothing is pushed of a workspace this build may not write** (effort 857, requirement 9):
     /// what it captured before the floor rose stays captured, and goes once it has updated.
+    ///
+    /// **Nor of one holding changes the workspace refused since an upgrade** (ticket 13): a second
+    /// push is what drops them, so it is never made, and a push refused that way records it.
     pub async fn push_replica(&self) -> bool {
-        if self.standing() != Standing::Writable {
+        if self.standing() != Standing::Writable || self.holds_unsendable() {
             return false;
         }
 
         match self.engine.as_ref() {
-            Some(Engine::Workspace(replica)) => self
-                .watch
-                .note(bounded(self.bound, "push", replica.engine.push()).await)
-                .is_ok(),
+            Some(Engine::Workspace(replica)) => {
+                match self
+                    .watch
+                    .note(bounded(self.bound, "push", replica.engine.push()).await)
+                {
+                    Ok(()) => true,
+                    Err(error) => {
+                        held_as_unsendable(&self.watch, &error);
+                        false
+                    }
+                }
+            }
             Some(Engine::Local(_)) | None => false,
+        }
+    }
+
+    /// Whether the open replica holds changes the workspace refused because an upgrade removed
+    /// what they name, which nothing sends or brings over until the person discards them
+    /// (`unsendable.rs`).
+    pub fn holds_unsendable(&self) -> bool {
+        self.watch.replica().is_some_and(unsendable::held)
+    }
+
+    /// Whether the open replica holds changes it has not sent yet: what the opening pull is held
+    /// back for (`organization/workspace/open.rs`), since a pull laid over changes the workspace
+    /// can no longer take fails and holds the file locked (`unsendable.rs`). The engine counts them
+    /// itself, and the count falls to nothing once a push has taken them. A count it cannot give
+    /// reads as nothing held, so the opening pulls as it did before: holding back the first pull of
+    /// a replica that has never had one would leave it with no tables.
+    pub async fn holds_unsent(&self) -> bool {
+        match self.engine.as_ref() {
+            Some(Engine::Workspace(replica)) => replica
+                .engine
+                .stats()
+                .await
+                .is_ok_and(|stats| stats.cdc_operations > 0),
+            Some(Engine::Local(_)) | None => false,
+        }
+    }
+
+    /// Discard the changes the open replica holds that the workspace refused since an upgrade, at
+    /// the person's word (effort 857, ticket 13): the replica is let go of and removed with
+    /// everything beside it, its record of the refusal included, and the caller opens the workspace
+    /// again, which makes a fresh copy of what the remote holds.
+    ///
+    /// **Refused while nothing is held**, so changes that could still be sent are never thrown
+    /// away by this, and refused on anything but a replica. What else the replica held unsent goes
+    /// with it, and that is what the person is told before they say yes.
+    pub async fn discard_unsendable(&mut self) -> Result<(), Error> {
+        let Some(replica) = self.watch.replica().map(Path::to_path_buf) else {
+            return Err(Self::nothing_unsendable());
+        };
+
+        if !matches!(self.engine, Some(Engine::Workspace(_))) || !unsendable::held(&replica) {
+            return Err(Self::nothing_unsendable());
+        }
+
+        self.disconnect().await;
+        Self::remove_replica_files(&replica);
+
+        crate::diagnostics::warn("database.unsendable.discarded")
+            .with("replica", replica.display().to_string())
+            .write();
+
+        Ok(())
+    }
+
+    fn nothing_unsendable() -> Error {
+        Error::PreconditionFailed {
+            message: "this workspace holds no changes it was refused, so nothing was discarded"
+                .to_string(),
         }
     }
 
@@ -410,7 +527,18 @@ impl Database {
     /// is the offline case, and the replica goes on serving what it holds, so the caller is told
     /// and decides, which for a replica that has never pulled is a different decision from one
     /// for a replica that has.
+    ///
+    /// **A replica holding changes the workspace refused since an upgrade is not pulled** (ticket
+    /// 13), since a pull drops them, and a pull that fails laying them over a changed remote
+    /// records that it did.
     pub async fn pull_replica(&self) -> Pulled {
+        if self.holds_unsendable() {
+            return Pulled {
+                completed: false,
+                brought: false,
+            };
+        }
+
         match self.engine.as_ref() {
             // **`pull` answers `Ok(false)` when there was nothing to bring**, and that bool is the
             // answer rather than the call succeeding. Reading it as `is_ok()` made every online
@@ -426,10 +554,14 @@ impl Database {
                     completed: true,
                     brought,
                 },
-                Err(_) => Pulled {
-                    completed: false,
-                    brought: false,
-                },
+                Err(error) => {
+                    held_as_unsendable(&self.watch, &error);
+
+                    Pulled {
+                        completed: false,
+                        brought: false,
+                    }
+                }
             },
             Some(Engine::Local(_)) | None => Pulled {
                 completed: false,
@@ -794,6 +926,8 @@ mod tests {
     };
     use super::{Database, Engine};
     use crate::test::scratch;
+    use serde_json::json;
+    use std::sync::Arc;
 
     /// A replica engine over a file of its own, with no remote to reach.
     async fn replica(name: &str) -> (std::path::PathBuf, turso::sync::Database) {
@@ -1938,6 +2072,478 @@ mod tests {
             assert!(
                 sent(start).iter().any(|target| target == PUSH),
                 "a writable workspace did not push, so nothing above shows a push was held"
+            );
+
+            drop(database);
+            drop(remote);
+            let _ = std::fs::remove_dir_all(&directory);
+        });
+    }
+
+    /// What the remote answers a push whose changes name a column an upgrade removed, as the
+    /// live run of ticket 13 read it off Turso: the statement the engine sends is refused inside
+    /// a pipeline that is otherwise answered.
+    const REMOVED_COLUMN: &str = r#"{"baton":null,"base_url":null,"results":[{"type":"error","error":{"message":"SQLite error: table tenant has no column named note","code":"SQLITE_UNKNOWN"}}]}"#;
+
+    /// **Ticket 13, the classification and the keeping.** A push the remote refuses because an
+    /// upgrade removed what the changes name is answered as `ChangesUnsendableAfterUpgrade`, and
+    /// from then on the replica is neither pushed nor pulled, by the replication, the last push of
+    /// a session or a pull alike, in this session or the next: the live run measured that a
+    /// second push, or a pull, after the first refusal drops the changes without a word. The
+    /// changes stay readable on this machine until the person says to discard them.
+    #[test]
+    fn a_push_naming_what_an_upgrade_removed_is_classified_and_kept() {
+        use crate::{
+            error::{Error, RefusalReason},
+            sync::test::server::{ScriptedResponse, ScriptedServer, within},
+        };
+        use std::time::Duration;
+
+        within(Duration::from_secs(60), async {
+            let remote = ScriptedServer::start(
+                (0..32)
+                    .map(|_| ScriptedResponse::new(200, REMOVED_COLUMN))
+                    .collect(),
+            )
+            .await;
+            let (directory, mut database) =
+                workspace_against("unsendable", Some(remote.url("")), Duration::from_secs(5)).await;
+
+            for sql in [
+                "CREATE TABLE \"tenant\" (\"id\" TEXT PRIMARY KEY, \"note\" TEXT)",
+                "INSERT INTO \"tenant\" VALUES ('t-1', 'written before the upgrade')",
+            ] {
+                database
+                    .execute_single_sql(statement(sql))
+                    .await
+                    .expect(sql);
+            }
+
+            let replicated = database.replicate().await;
+
+            assert!(
+                matches!(
+                    replicated.refusal,
+                    Some(Error::Refused {
+                        reason: RefusalReason::ChangesUnsendableAfterUpgrade,
+                        ..
+                    })
+                ),
+                "{replicated:?}"
+            );
+            assert!(!replicated.pushed);
+            assert!(!replicated.received);
+            assert!(database.holds_unsendable(), "nothing records the refusal");
+
+            let sent = remote.request_count();
+
+            assert!(
+                !(0..sent).any(|index| remote.request(index).target == "/pull-updates"),
+                "a refused push was followed by a pull, which drops what it holds"
+            );
+
+            // kept: nothing reaches the remote again, whichever call asks.
+            let again = database.replicate().await;
+
+            assert_eq!(again.refusal, replicated.refusal);
+            assert!(!database.push_replica().await);
+            assert!(!database.pull_replica().await.completed);
+
+            // and a later launch keeps it the same way.
+            database.disconnect().await;
+            database
+                .connect_workspace("silent", Some(remote.url("")), || async {
+                    Ok::<String, turso::Error>("a-credential".to_string())
+                })
+                .await
+                .expect("the replica, opened again");
+
+            assert!(database.holds_unsendable());
+            assert_eq!(database.replicate().await.refusal, replicated.refusal);
+            assert_eq!(
+                remote.request_count(),
+                sent,
+                "a held replica reached the remote again"
+            );
+            assert_eq!(
+                tenants(&database).await.len(),
+                1,
+                "the change was not kept on this machine"
+            );
+
+            drop(database);
+            drop(remote);
+            let _ = std::fs::remove_dir_all(&directory);
+        });
+    }
+
+    // -------------------------------------------------------------------------------------
+    // Effort 857, ticket 13, live: what an older build left unsent, pushed after an upgrade.
+    // -------------------------------------------------------------------------------------
+
+    /// Fail unless `RENTABLE_LIVE_TURSO=1` arms the run, as every live test admitted since
+    /// 2026-08-30 does ([[rules/testing]]).
+    fn armed_for_a_live_run() {
+        assert_eq!(
+            std::env::var("RENTABLE_LIVE_TURSO")
+                .unwrap_or_else(|_| panic!(
+                    "RENTABLE_LIVE_TURSO is needed for a live run; see unsent_changes_live_*"
+                ))
+                .trim(),
+            "1",
+            "a live run is armed by RENTABLE_LIVE_TURSO=1 as well as by --ignored"
+        );
+    }
+
+    /// This machine's database over the replica of `workspace` kept in `directory`, opened as a
+    /// launch opens it: the same file each time, so a second call is the build after an update.
+    async fn live_database(directory: &std::path::Path, workspace: &LiveWorkspace) -> Database {
+        use crate::{persisted::Persisted, settings::Settings};
+        use std::sync::Arc;
+        use tokio::sync::RwLock;
+
+        let mut settings =
+            Persisted::<Settings>::load(directory.join("settings.json")).expect("settings");
+        settings.database_path = directory.join("app.db");
+
+        let mut database = Database::new(
+            Arc::new(RwLock::new(settings)),
+            crate::clock::System::shared(),
+        );
+        let token = workspace.token.clone();
+
+        database
+            .connect_workspace("live", Some(workspace.url.clone()), move || {
+                let token = token.clone();
+                async move { Ok::<String, turso::Error>(token) }
+            })
+            .await
+            .expect("the workspace replica");
+
+        database
+    }
+
+    /// Every row of `pay` on this machine, each as its values in order.
+    async fn local_pay(database: &Database) -> Vec<Vec<serde_json::Value>> {
+        database
+            .execute_single_sql(statement("SELECT * FROM \"pay\" ORDER BY \"id\""))
+            .await
+            .expect("the local read")
+            .into_iter()
+            .map(|row| row.rows)
+            .collect()
+    }
+
+    /// Every row of `pay` on the remote, each as the pipeline's typed cells.
+    async fn remote_pay(workspace: &LiveWorkspace) -> Vec<serde_json::Value> {
+        workspace
+            .over_the_wire(&["SELECT * FROM \"pay\" ORDER BY \"id\""])
+            .await
+    }
+
+    /// One case on a throwaway database of its own: `case` runs against it, the database is
+    /// deleted whatever the case did, and only then does a failure in the case fail the test, so a
+    /// failed assertion never leaves a database behind.
+    async fn on_a_throwaway_workspace<F, Fut>(label: &str, case: F)
+    where
+        F: FnOnce(Arc<LiveWorkspace>, std::path::PathBuf) -> Fut,
+        Fut: std::future::Future<Output = ()> + Send + 'static,
+    {
+        let workspace = Arc::new(LiveWorkspace::create(label).await);
+        let directory = scratch(label);
+        let ran = tokio::spawn(case(Arc::clone(&workspace), directory.clone())).await;
+
+        let _ = std::fs::remove_dir_all(&directory);
+
+        match Arc::try_unwrap(workspace) {
+            Ok(workspace) => workspace.destroy().await,
+            Err(_) => panic!("the case kept the workspace, so it could not be deleted"),
+        }
+
+        if let Err(failure) = ran {
+            std::panic::resume_unwind(failure.into_panic());
+        }
+    }
+
+    /// The workspace as an older build left it: a table, a row everybody has, and this machine's
+    /// replica holding `captured` unsent. `upgrade` then reaches the remote over the pipeline, as
+    /// an upgrade's step does, and the replica is opened again, which is the build after the
+    /// update. What the older build captured is still held when it opens.
+    async fn captured_before(
+        workspace: &LiveWorkspace,
+        directory: &std::path::Path,
+        captured: &str,
+        upgrade: &str,
+    ) -> Database {
+        workspace
+            .over_the_wire(&[
+                "CREATE TABLE \"pay\" (\"id\" TEXT PRIMARY KEY, \"amount\" INTEGER NOT NULL, \
+                 \"note\" TEXT)",
+                "INSERT INTO \"pay\" VALUES ('u1', 1, 'seed')",
+            ])
+            .await;
+
+        let mut older = live_database(directory, workspace).await;
+
+        assert!(older.pull_replica().await.completed, "the first pull");
+        older
+            .execute_single_sql(statement(captured))
+            .await
+            .expect("the older build's write");
+        older.disconnect().await;
+
+        workspace.over_the_wire(&[upgrade]).await;
+
+        let updated = live_database(directory, workspace).await;
+
+        assert!(
+            updated.holds_unsent().await,
+            "the change the older build wrote is not held"
+        );
+
+        updated
+    }
+
+    /// **Ticket 13's live criterion, the addition: sent.** Changes an older build held when an
+    /// upgrade added a column reach the remote at the updated build's first replication, with the
+    /// new column empty, and the replica reads the new shape afterwards.
+    ///
+    /// ```text
+    /// RENTABLE_LIVE_TURSO=1 TURSO_API_TOKEN=... TURSO_ORG=... TURSO_GROUP=... \
+    ///   cargo test --manifest-path ./apps/desktop/tauri/Cargo.toml unsent_changes_live -- \
+    ///   --test-threads=1 --ignored --nocapture
+    /// ```
+    #[ignore = "reaches a live Turso account and creates a database; see the doc comment"]
+    #[tokio::test]
+    async fn unsent_changes_live_are_sent_after_an_addition() {
+        armed_for_a_live_run();
+
+        on_a_throwaway_workspace("u857-added", |workspace, directory| async move {
+            let database = captured_before(
+                &workspace,
+                &directory,
+                "INSERT INTO \"pay\" (\"id\", \"amount\", \"note\") VALUES ('i1', 10, 'held')",
+                "ALTER TABLE \"pay\" ADD COLUMN \"extra\" TEXT",
+            )
+            .await;
+
+            let replicated = database.replicate().await;
+
+            assert!(replicated.pushed, "{replicated:?}");
+            assert_eq!(replicated.refusal, None);
+            assert!(!database.holds_unsendable());
+            assert_eq!(
+                remote_pay(&workspace).await.len(),
+                2,
+                "the held row did not reach the remote"
+            );
+            assert_eq!(
+                local_pay(&database).await,
+                vec![
+                    vec![json!("i1"), json!(10), json!("held"), json!(null)],
+                    vec![json!("u1"), json!(1), json!("seed"), json!(null)],
+                ]
+            );
+            assert!(!database.holds_unsent().await, "the row is still held");
+
+            drop(database);
+        })
+        .await;
+    }
+
+    /// **Ticket 13's live criterion, the removal: kept and asked.** Changes an older build held
+    /// when an upgrade dropped or renamed the column they name are classified at the updated
+    /// build's first replication, kept on this machine across another replication, a last push, a
+    /// pull and a reopen, and never reach the remote; once discarded, the next open is the
+    /// remote's copy and this machine writes and sends again.
+    #[ignore = "reaches a live Turso account and creates a database; see the doc comment"]
+    #[tokio::test]
+    async fn unsent_changes_live_are_kept_and_asked_for_after_a_removal() {
+        use crate::error::{Error, RefusalReason};
+
+        armed_for_a_live_run();
+
+        for (label, upgrade) in [
+            ("u857-dropped", "ALTER TABLE \"pay\" DROP COLUMN \"note\""),
+            (
+                "u857-renamed",
+                "ALTER TABLE \"pay\" RENAME COLUMN \"note\" TO \"memo\"",
+            ),
+        ] {
+            on_a_throwaway_workspace(label, move |workspace, directory| async move {
+                let held_row = vec![json!("i1"), json!(10), json!("held")];
+                let mut database = captured_before(
+                    &workspace,
+                    &directory,
+                    "INSERT INTO \"pay\" (\"id\", \"amount\", \"note\") VALUES ('i1', 10, 'held')",
+                    upgrade,
+                )
+                .await;
+                let remote_before = remote_pay(&workspace).await;
+
+                let replicated = database.replicate().await;
+
+                assert!(
+                    matches!(
+                        replicated.refusal,
+                        Some(Error::Refused {
+                            reason: RefusalReason::ChangesUnsendableAfterUpgrade,
+                            ..
+                        })
+                    ),
+                    "{label}: {replicated:?}"
+                );
+                assert!(!replicated.pushed);
+                assert!(database.holds_unsendable());
+
+                // kept: every way the replica could reach the remote again declines, and the row
+                // is still here.
+                assert_eq!(database.replicate().await.refusal, replicated.refusal);
+                assert!(!database.push_replica().await);
+                assert!(!database.pull_replica().await.completed);
+                database.disconnect().await;
+
+                let mut database = live_database(&directory, &workspace).await;
+
+                assert!(database.holds_unsendable(), "{label}: a reopen forgot");
+                assert_eq!(database.replicate().await.refusal, replicated.refusal);
+                assert!(
+                    local_pay(&database).await.contains(&held_row),
+                    "{label}: the held row is gone from this machine"
+                );
+                assert_eq!(
+                    remote_pay(&workspace).await,
+                    remote_before,
+                    "{label}: the remote changed"
+                );
+
+                // asked: discarded at the person's word, and the next open is the remote's copy.
+                database
+                    .discard_unsendable()
+                    .await
+                    .expect("the held changes discarded");
+
+                let database = live_database(&directory, &workspace).await;
+
+                assert!(!database.holds_unsendable());
+                assert!(
+                    database.pull_replica().await.completed,
+                    "{label}: the fresh pull"
+                );
+                assert!(
+                    !local_pay(&database).await.contains(&held_row),
+                    "{label}: the discarded row is still here"
+                );
+
+                database
+                    .execute_single_sql(statement(
+                        "INSERT INTO \"pay\" (\"id\", \"amount\") VALUES ('i2', 20)",
+                    ))
+                    .await
+                    .expect("a write after the discard");
+
+                let replicated = database.replicate().await;
+
+                assert!(replicated.pushed, "{label}: {replicated:?}");
+                assert_eq!(remote_pay(&workspace).await.len(), 2);
+
+                drop(database);
+            })
+            .await;
+        }
+    }
+
+    /// **Ticket 13, what holds the opening pull back.** A replica that has written nothing holds
+    /// nothing unsent, so its first pull goes as it always did; one that has written and not
+    /// pushed holds something, which the opening does not pull over.
+    #[test]
+    fn a_replica_holds_what_it_wrote_and_has_not_sent() {
+        use crate::sync::test::server::within;
+        use std::time::Duration;
+
+        within(Duration::from_secs(60), async {
+            let (directory, database) =
+                workspace_against("unsent", None, Duration::from_secs(5)).await;
+
+            assert!(
+                !database.holds_unsent().await,
+                "an empty replica holds something"
+            );
+
+            for sql in [
+                "CREATE TABLE \"tenant\" (\"id\" TEXT PRIMARY KEY)",
+                "INSERT INTO \"tenant\" VALUES ('t-1')",
+            ] {
+                database
+                    .execute_single_sql(statement(sql))
+                    .await
+                    .expect(sql);
+            }
+
+            assert!(database.holds_unsent().await, "a write is not counted");
+
+            drop(database);
+            let _ = std::fs::remove_dir_all(&directory);
+        });
+    }
+
+    /// **Ticket 13, the choice.** Discarding is refused while nothing is held, and leaves the
+    /// replica as it was; once a push has been classified, it lets go of the replica and removes
+    /// it, its record of the refusal with it, so the next open is a fresh copy of the remote and
+    /// nothing of what was held reaches anyone.
+    #[test]
+    fn unsent_changes_are_discarded_only_once_held() {
+        use crate::{
+            error::Error,
+            sync::test::server::{ScriptedResponse, ScriptedServer, within},
+        };
+        use std::time::Duration;
+
+        within(Duration::from_secs(60), async {
+            let remote = ScriptedServer::start(
+                (0..32)
+                    .map(|_| ScriptedResponse::new(200, REMOVED_COLUMN))
+                    .collect(),
+            )
+            .await;
+            let (directory, mut database) =
+                workspace_against("discard", Some(remote.url("")), Duration::from_secs(5)).await;
+            let replica = Database::replica_path(&directory.join("app.db"), "silent");
+
+            for sql in [
+                "CREATE TABLE \"tenant\" (\"id\" TEXT PRIMARY KEY, \"note\" TEXT)",
+                "INSERT INTO \"tenant\" VALUES ('t-1', 'written before the upgrade')",
+            ] {
+                database
+                    .execute_single_sql(statement(sql))
+                    .await
+                    .expect(sql);
+            }
+
+            assert!(
+                matches!(
+                    database.discard_unsendable().await,
+                    Err(Error::PreconditionFailed { .. })
+                ),
+                "a discard went ahead with nothing held"
+            );
+            assert!(replica.exists(), "a refused discard removed the replica");
+            assert_eq!(tenants(&database).await.len(), 1);
+
+            database.replicate().await;
+            database
+                .discard_unsendable()
+                .await
+                .expect("the held changes discarded");
+
+            assert!(!replica.exists(), "the replica is still on disk");
+            assert!(!database.holds_unsendable());
+            assert!(
+                database
+                    .execute_single_sql(statement("SELECT 1"))
+                    .await
+                    .is_err(),
+                "the discarded replica is still open"
             );
 
             drop(database);

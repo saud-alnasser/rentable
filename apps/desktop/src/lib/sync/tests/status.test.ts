@@ -34,6 +34,7 @@ const STATUSES: SyncStatus[] = [
 const accountRefused = () => fakeSyncState({ lastReachedAt: 1, accountRefusal: { since: 1 } });
 const credentialRefused = () =>
 	fakeSyncState({ lastReachedAt: 1, credentialRefusal: { since: 2 } });
+const unsendable = () => fakeSyncState({ lastReachedAt: 1, unsendableChanges: { since: 3 } });
 const faulted = () =>
 	fakeSyncState({
 		lastReachedAt: 1,
@@ -70,6 +71,7 @@ test('a machine that never reached turso is not yet reached, after the problems'
 test('a refused account or credential needs attention, and a fault needs reconnecting', () => {
 	assert.equal(syncStatusOf(accountRefused()), 'needsAttention');
 	assert.equal(syncStatusOf(credentialRefused()), 'needsAttention');
+	assert.equal(syncStatusOf(unsendable()), 'needsAttention');
 	assert.equal(syncStatusOf(faulted()), 'needsReconnecting');
 });
 
@@ -82,15 +84,19 @@ test('a run in flight is syncing, over up to date and over not yet reached', () 
 test('a problem keeps its state while a retry runs', () => {
 	assert.equal(syncStatusOf(accountRefused(), true), 'needsAttention');
 	assert.equal(syncStatusOf(credentialRefused(), true), 'needsAttention');
+	assert.equal(syncStatusOf(unsendable(), true), 'needsAttention');
 	assert.equal(syncStatusOf(faulted(), true), 'needsReconnecting');
 });
 
 // requirement 25 of effort 819: the account is read first, then the credential, then a fault,
-// so the block explains the thing the owner has to see to first.
-test('the problems are read account first, then the credential, then a fault', () => {
+// so the block explains the thing the owner has to see to first. Changes the workspace refuses
+// since an upgrade come after the credential and before a fault (effort 857, ticket 13): they
+// wait on the person's choice, which a fault's stale report does not.
+test('the problems are read account first, then the credential, the held changes, a fault', () => {
 	const everything = fakeSyncState({
 		accountRefusal: { since: 1 },
 		credentialRefusal: { since: 2 },
+		unsendableChanges: { since: 3 },
 		workspace: fakeWorkspace({ lastError: 'something stale' })
 	});
 
@@ -98,6 +104,15 @@ test('the problems are read account first, then the credential, then a fault', (
 	assert.equal(syncProblemOf({ ...everything, accountRefusal: null }), 'credentialRefused');
 	assert.equal(
 		syncProblemOf({ ...everything, accountRefusal: null, credentialRefusal: null }),
+		'changesUnsendable'
+	);
+	assert.equal(
+		syncProblemOf({
+			...everything,
+			accountRefusal: null,
+			credentialRefusal: null,
+			unsendableChanges: null
+		}),
 		'needsReconnect'
 	);
 	assert.equal(syncProblemOf(fakeSyncState({ lastReachedAt: 1 })), null);

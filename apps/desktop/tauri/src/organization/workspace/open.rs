@@ -189,7 +189,14 @@ pub(crate) async fn open_database(app_state: &Shared, clock: &dyn Clock) -> Opti
     // **A pull that the remote answered is a replication that went through**, and it is the
     // first one of a session, so the standing block reads its moment before the heartbeat has
     // run (effort 828, requirement 25).
-    if db.pull_replica().await.completed {
+    //
+    // **A replica holding changes it has not sent is not pulled here** (effort 857, ticket 13).
+    // This pull runs before the floors are judged and before anything is pushed, and a pull laid
+    // over changes that an upgrade has made unsendable fails and leaves the file locked
+    // (`database/unsendable.rs`). Such a replica has pulled before, or it could hold nothing, so it
+    // is ready as it stands; the first replication judges the floors, pushes, and pulls only once
+    // what it held has gone.
+    if !db.holds_unsent().await && db.pull_replica().await.completed {
         crate::machine::note_reached(&app_state.remote_sync, clock).await;
     }
 
@@ -902,6 +909,9 @@ mod tests {
             "a read-only workspace was refused"
         );
 
+        // the replica holds the floors this test wrote into it, unsent, so the opening leaves the
+        // pull to the heartbeat (ticket 13); what is counted is what the heartbeat sent.
+        let opened = server.request_count();
         let replicated = replicate(&app_state, &Memory::new(), &crate::clock::System::shared())
             .await
             .expect("the heartbeat");
@@ -912,7 +922,10 @@ mod tests {
         assert_eq!(held.target, VersionTarget::Workspace("south".to_string()));
         assert_eq!(held.standing, Standing::ReadOnly);
         assert!(!replicated.pushed);
-        assert!(server.request_count() >= 2, "the heartbeat did not pull");
+        assert!(
+            server.request_count() > opened,
+            "the heartbeat did not pull"
+        );
 
         for index in 0..server.request_count() {
             assert_eq!(

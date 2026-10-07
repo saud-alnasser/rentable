@@ -157,6 +157,20 @@ export const organization = {
 		// row, and the sync group points at it by name rather than drawing a second consent (effort
 		// 846, ticket 38).
 		reconnectOnAccount: 'reconnect the Turso account under leaving.',
+		// changes this machine had not sent when an upgrade removed what they name (effort 857,
+		// ticket 13): kept until the person discards them, and the workspace does not sync until
+		// then. Keeping them is doing nothing; discarding asks first.
+		unsendable: {
+			sentence:
+				'changes made here before the upgrade cannot be sent. they are kept, and syncing waits until you discard them.',
+			discard: 'discard unsent changes',
+			confirmTitle: 'discard unsent changes',
+			confirmDescription:
+				'every change this machine has not sent is removed, and the workspace is copied again from Turso. this cannot be undone.',
+			confirm: 'discard',
+			confirming: 'discarding…',
+			discarded: 'unsent changes discarded. this workspace syncs again.'
+		},
 		checkNow: 'sync',
 		// what folds under the state: the workspace this machine keeps a copy of, and where the copy
 		// is (effort 846, *Detail that few readers need folds under its row*).
@@ -800,6 +814,8 @@ export const refusals = {
 			'a newer version of rentable upgraded this organization. update rentable to make changes in it.',
 		workspaceReadOnlyByVersion:
 			'a newer version of rentable upgraded this workspace. update rentable to make changes in it.',
+		changesUnsendableAfterUpgrade:
+			'changes made here before the workspace was upgraded cannot be sent. they are kept until you discard them.',
 		copyNotTaken:
 			'no copy was taken before upgrading, so nothing was changed. check the connection and the backups folder, then try again.',
 		shapeNotAsBuilt:
