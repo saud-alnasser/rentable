@@ -9,7 +9,8 @@
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 
 	/**
-	 * A workspace this build cannot read, and the way past it (effort 857, requirement 7).
+	 * A workspace that would not open in an organization that did, and the way past it: held by
+	 * its version, or refused for any other reason (effort 857, requirement 7; tickets 11 and 25).
 	 *
 	 * **It stands inside the application, in place of the workspace** ([[rules/interface]],
 	 * *Application surfaces*): the rail and the titlebar stay up around it, since the organization

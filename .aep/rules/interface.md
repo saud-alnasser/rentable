@@ -108,13 +108,17 @@ Recorded originally as ADR 0020, *Surfaces diverge by kind, not by operation*.
 A screen that is neither a step of the way in nor the application failing takes neither, and
 this section is where the question of a third is answered.
 
-- **A workspace this version cannot read stands inside the application, in place of the
+- **A workspace that would not open stands inside the application, in place of the
   workspace**: the workspace-held screen, `startup/component/workspace-held.svelte`, in the page
   frame where the workspace's page would be, with the rail and the titlebar up around it at every
   address. The organization opened and only that workspace did not, so it is neither a step of
-  the way in nor the application failing, and it takes neither surface: the workspace's name under
-  the update's glyph, the reason in one sentence, the update action as its `screen`, and a plain
-  list of the session's other workspaces, each of which opens that one. *Answered by ticket 11 of
+  the way in nor the application failing, and it takes neither surface. It has two kinds. **Held
+  by its version** (`workspaceNewer`, `workspaceBehindReadOnlyByVersion`): the workspace's name
+  under the update's glyph, the reason in one sentence and the update action as its `screen`.
+  **Refused for any other reason** (a member yet to bring it up, a full disk under its copy, its
+  floors unreadable): the name under an alert's glyph, the reason, and a try again in the update
+  action's place, since updating is no way past it. Under either, a plain list of the session's
+  other workspaces, each of which opens that one. *Answered by tickets 11 and 25 of
   [[efforts/857-updating-never-locks-a-member-out/spec]], requirement 7, which the human amended on
   2026-10-07.*
 - **An organization that cannot be opened needs no surface of its own.** The person goes back to

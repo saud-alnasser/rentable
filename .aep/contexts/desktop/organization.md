@@ -162,8 +162,15 @@ every act through `as_member` that writes is refused as `OrganizationReadOnlyByV
 held with `PRAGMA query_only` for the act, and the shell draws the read-only notice above every
 screen (`organization/component/read-only-notice.svelte`), saying nothing can be changed until
 rentable is updated, with the update action in it. Below the read floor the organization is not
-opened. **An organization that cannot be opened, for its version or for any other refusal, returns
-the person to the organization switcher**, from launch, resume, sign-in, switching and joining, and
+opened. **A refusal goes back as far as what it is about, and no further** (`startup/whose-refusal.ts`,
+ticket 25): one about the organization or the member (its version, `memberGone`, a lapsed
+credential and the others it lists) returns the person to the organization switcher; any other is
+about one workspace, keeps the person in the organization on the workspace-held screen with the
+other workspaces reachable, and a later sign-in does not reopen that workspace by itself; and a
+link refused while the person is in another organization records the refusal against the linked
+one and leaves them where they are. **An organization that cannot be opened, for its version or
+for any other refusal, returns the person to the organization switcher**, from launch, resume,
+sign-in, switching and joining, and
 a short callout above that organization, while it is the chosen one, says why in the person's
 language (`organization/component/switcher.svelte`); where the reason is its version, the callout
 says a newer rentable upgraded it and carries the update action, since updating is the way past it.

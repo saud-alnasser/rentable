@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [31]
 ---
 
@@ -15,10 +15,10 @@ Found at review round two (standards 1, 4, 5, 6): the rules, contexts, names and
 
 Traces requirement 7 and requirement 8.
 
-- [ ] [[rules/interface]] describes both kinds of workspace hold (the version, with the update action; any other refusal, with try again), and [[contexts/desktop/organization]] says which refusals return a person to the switcher and which keep them in, including a link refused while in another organization.
-- [ ] `workspace-held.svelte`'s comment opens with what it now stands for, and the update action's `detailsKey` is named for the update concept.
-- [ ] `.changeset/a-version-check-never-guesses.md` and `the-opening-judges-before-it-writes.md` read as release notes in a user's words.
-- [ ] `node .aep/scripts/validate.mjs` passes.
+- [x] [[rules/interface]] describes both kinds of workspace hold (the version, with the update action; any other refusal, with try again), and [[contexts/desktop/organization]] says which refusals return a person to the switcher and which keep them in, including a link refused while in another organization.
+- [x] `workspace-held.svelte`'s comment opens with what it now stands for, and the update action's `detailsKey` is named for the update concept.
+- [x] `.changeset/a-version-check-never-guesses.md` and `the-opening-judges-before-it-writes.md` read as release notes in a user's words.
+- [x] `node .aep/scripts/validate.mjs` passes.
 
 ## Relevant areas
 

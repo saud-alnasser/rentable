@@ -2,4 +2,4 @@
 '@rentable/desktop': patch
 ---
 
-a change saved while rentable is still opening a workspace a newer rentable upgraded is refused rather than kept, and a workspace kept read-only because rentable could not read its versions now says that in its details, rather than that a newer rentable upgraded it
+a change you save while rentable is still opening a workspace now waits until rentable knows whether that workspace can take it, and when something stops a workspace from opening, its details say what really happened

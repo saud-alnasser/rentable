@@ -2,4 +2,4 @@
 '@rentable/desktop': patch
 ---
 
-a workspace whose versions rentable cannot read is kept read-only rather than sent; a version check that fails for a moment no longer makes the organization read-only; a change saved just as a newer rentable's upgrade arrives is refused rather than kept; opening a workspace that needs bringing up, in an organization a newer rentable upgraded, now asks you to update instead of failing partway; and removing an organization no longer leaves its update notice on the next one
+rentable no longer guesses when it cannot tell which version a workspace or organization is at: a change you save while an upgrade is arriving waits to see whether it can be kept, a short hiccup while checking no longer stops you from making changes, and removing an organization no longer leaves its update notice on the next one

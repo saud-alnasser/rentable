@@ -292,7 +292,7 @@
 					detailsLabel={update.release
 						? $LL.update.card.whatsNew({ version: update.release.version })
 						: undefined}
-					detailsKey="settings.updates.whats-new"
+					detailsKey="update.card.whats-new"
 					value={update.release ? availableFigure : undefined}
 				>
 					{#snippet control()}
