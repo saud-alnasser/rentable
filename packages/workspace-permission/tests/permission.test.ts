@@ -63,7 +63,7 @@ test('the guard fails a flag at bit 53, and at a bit two flags share', () => {
  * moved here and not there is a member whose stored permissions mean something else on the other
  * side of the boundary, which is the one failure neither language can catch on its own.
  */
-test('every flag sits on the bit the plan gives it, and bits 18, 19 and 40 up are free', () => {
+test('every flag sits on the bit the plan gives it, and bits 19 and 40 up are free', () => {
 	assert.deepEqual(FLAGS, {
 		inviteMember: 0,
 		removeMember: 1,
@@ -83,6 +83,7 @@ test('every flag sits on the bit the plan gives it, and bits 18, 19 and 40 up ar
 		tursoAccount: 15,
 		transferOwnership: 16,
 		deleteOrganization: 17,
+		upgradeData: 18,
 		viewComplex: 20,
 		createComplex: 21,
 		editComplex: 22,
@@ -104,7 +105,7 @@ test('every flag sits on the bit the plan gives it, and bits 18, 19 and 40 up ar
 		editPayment: 38,
 		deletePayment: 39
 	});
-	assert.equal(EVERY_FLAG.length, 38);
+	assert.equal(EVERY_FLAG.length, 39);
 	assert.deepEqual(
 		EVERY_FLAG.map((flag) => FLAGS[flag]),
 		[...EVERY_FLAG.map((flag) => FLAGS[flag])].sort((left, right) => left - right),
@@ -129,7 +130,7 @@ test('the families partition the flags, each record kind in the order view, crea
 	]);
 	assert.deepEqual(
 		FAMILIES.administration.map((flag) => FLAGS[flag]),
-		[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+		[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 18]
 	);
 	assert.deepEqual(
 		FAMILIES.owner.map((flag) => FLAGS[flag]),
@@ -220,7 +221,7 @@ test('every flag at once is still an exact value', () => {
 		Number.isSafeInteger(everything),
 		`a row holding every permission stores ${everything}, which JavaScript cannot hold exactly`
 	);
-	assert.equal(everything, 2 ** 40 - 1 - 2 ** 18 - 2 ** 19);
+	assert.equal(everything, 2 ** 40 - 1 - 2 ** 19);
 });
 
 // Why this module does arithmetic where bit-twiddling would read more naturally. Decision 04
@@ -354,5 +355,31 @@ test('the built-in roles pass, and an override taking a view away from one does 
 			effective(BUILT_IN.member.mask, maskOf('viewTenant', 'createTenant', 'editTenant'))
 		),
 		null
+	);
+});
+
+// effort 857, requirement 3: upgrading data is the organization's administration, carried by the
+// manager and by no member, and not the owner's alone, so a role or an override can carry it.
+test('upgrading data is an administration flag the manager carries and the member does not', () => {
+	assert.equal(FLAGS.upgradeData, 18);
+	assert.ok((FAMILIES.administration as readonly Flag[]).includes('upgradeData'));
+	assert.equal(OWNER_ONLY.includes('upgradeData'), false);
+	assert.equal(MEMBER_ADMINISTRATION.includes('upgradeData'), false);
+	assert.equal(permits(BUILT_IN.owner.mask, 'upgradeData'), true);
+	assert.equal(permits(BUILT_IN.manager.mask, 'upgradeData'), true);
+	assert.equal(permits(BUILT_IN.member.mask, 'upgradeData'), false);
+});
+
+test('an override grants upgrading data to a member and takes it from a manager', () => {
+	const switched = maskOf('upgradeData');
+
+	assert.equal(permits(effective(BUILT_IN.member.mask, switched), 'upgradeData'), true);
+	assert.equal(permits(effective(BUILT_IN.manager.mask, switched), 'upgradeData'), false);
+	assert.equal(effective(BUILT_IN.member.mask, switched), BUILT_IN.member.mask + switched);
+	assert.equal(effective(BUILT_IN.manager.mask, switched), BUILT_IN.manager.mask - switched);
+	assert.equal(
+		effectiveIn(effective(BUILT_IN.member.mask, switched), 'read-only'),
+		effectiveIn(BUILT_IN.member.mask, 'read-only') + switched,
+		'a read-only grant takes writes away, and upgrading data is not a write to records'
 	);
 });

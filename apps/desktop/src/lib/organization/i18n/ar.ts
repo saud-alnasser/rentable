@@ -329,6 +329,7 @@ export const organization = {
 		manageRoles: 'إدارة الأدوار',
 		overrideMember: 'تغيير صلاحيات عضو بعينه',
 		manageMark: 'تغيير ختم المؤسسة',
+		upgradeData: 'ترقية البيانات',
 		createWorkspace: 'إنشاء مساحات العمل',
 		deleteWorkspace: 'حذف مساحات العمل',
 		mintReadOnly: 'منح وصول القراءة فقط',
@@ -394,7 +395,9 @@ export const organization = {
 			grantWorkspace: 'إدخال الأعضاء إلى مساحات العمل أو إخراجهم منها.',
 			manageRoles: 'إضافة الأدوار وتعديلها وترتيبها وحذفها.',
 			overrideMember: 'منح عضو بعينه أكثر أو أقل مما يمنحه دوره.',
-			manageMark: 'ضبط ختم المؤسسة المطبوع على صفحاتها.'
+			manageMark: 'ضبط ختم المؤسسة المطبوع على صفحاتها.',
+			upgradeData:
+				'ترقية المؤسسة ومساحات عملها إلى إصدار أحدث، وقد لا تفتحها الإصدارات الأقدم بعدها.'
 		},
 		viewFirst: 'شغّل العرض أولًا، فإضافة السجل أو تعديله أو حذفه تحتاج إلى رؤيته.',
 		groupRefused: 'بعضها ليس لك أن تغيّره',

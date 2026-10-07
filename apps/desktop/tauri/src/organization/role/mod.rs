@@ -4660,6 +4660,120 @@ mod tests {
         );
     }
 
+    /// **Upgrading data is carried or taken away by an override, and by a custom role, under the
+    /// rules every other administration flag is** (effort 857, requirement 3): the owner switches it
+    /// on for a member and off for a manager, a manager who holds it switches it on for a member
+    /// below them and, once it is taken from them, cannot switch it back, and a role made carrying
+    /// it gives it. The organization here is a fresh one, whose
+    /// root and certificates carry the flag; an organization made before it carries it from ticket
+    /// 15 of the effort.
+    #[tokio::test]
+    async fn an_override_and_a_custom_role_grant_and_remove_upgrading_data() {
+        let credentials = Memory::new();
+        let directory = scratch("upgrade-data");
+        let (store, owner, link, workspace_id) = owned(&credentials, &directory).await;
+        let upgrading = permission::mask_of(&[Flag::UpgradeData]);
+        let (staff, _) = a_member(
+            &store,
+            &owner,
+            &link,
+            "sami.staff",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+        let (lead, manager) = a_member(
+            &store,
+            &owner,
+            &link,
+            "ada.lead",
+            permission::MANAGER,
+            &workspace_id,
+        )
+        .await;
+        let (other, _) = a_member(
+            &store,
+            &owner,
+            &link,
+            "omar.staff",
+            permission::MEMBER,
+            &workspace_id,
+        )
+        .await;
+
+        assert!(!permission::permits(
+            member_row(&store, &owner, &staff.member_id).await.effective,
+            Flag::UpgradeData
+        ));
+        assert!(permission::permits(
+            member_row(&store, &owner, &lead.member_id).await.effective,
+            Flag::UpgradeData
+        ));
+
+        set_override(&store, &manager, &other.member_id, upgrading, NOW + 1)
+            .await
+            .expect("a manager holding upgrading data could not grant it below them");
+
+        assert!(permission::permits(
+            member_row(&store, &owner, &other.member_id).await.effective,
+            Flag::UpgradeData
+        ));
+
+        set_override(&store, &owner, &staff.member_id, upgrading, NOW + 2)
+            .await
+            .expect("the owner could not grant upgrading data");
+        set_override(&store, &owner, &lead.member_id, upgrading, NOW + 3)
+            .await
+            .expect("the owner could not take upgrading data away");
+
+        let granted = member_row(&store, &owner, &staff.member_id).await;
+        let removed = member_row(&store, &owner, &lead.member_id).await;
+
+        assert_eq!(
+            (granted.override_mask, granted.effective),
+            (upgrading, permission::MEMBER_ROLE.mask | upgrading)
+        );
+        assert_eq!(
+            (removed.override_mask, removed.effective),
+            (upgrading, permission::MANAGER_ROLE.mask & !upgrading)
+        );
+
+        let refused = set_override(&store, &manager, &other.member_id, 0, NOW + 4)
+            .await
+            .expect_err("a manager without upgrading data took it away");
+
+        assert_eq!(
+            reason_of(&refused),
+            RefusalReason::RoleLacksAct,
+            "{refused:?}"
+        );
+
+        let upgrader = a_role(
+            &store,
+            &owner,
+            "upgrader",
+            permission::MEMBER_ROLE.mask | upgrading,
+            permission::MANAGER,
+        )
+        .await;
+        let holder = holding_role(
+            &store,
+            &owner,
+            &link,
+            "lina.upgrader",
+            &upgrader,
+            &workspace_id,
+        )
+        .await;
+
+        assert_eq!(
+            member_row(&store, &owner, &holder.member_id)
+                .await
+                .effective,
+            permission::MEMBER_ROLE.mask | upgrading
+        );
+    }
+
     /// **No role mask and no member's effective permissions that add, edit or delete a kind of
     /// record without viewing it is written**, by making a role, editing one, setting an override,
     /// or giving a role with one; the refusal names the kind, and nothing is written. An edit of a

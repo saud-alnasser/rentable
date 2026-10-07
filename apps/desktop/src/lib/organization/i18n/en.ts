@@ -434,6 +434,7 @@ export const organization = {
 		manageRoles: 'manage roles',
 		overrideMember: "change one member's permissions",
 		manageMark: 'change the organization stamp',
+		upgradeData: 'upgrade the data',
 		createWorkspace: 'create workspaces',
 		deleteWorkspace: 'delete workspaces',
 		mintReadOnly: 'grant read only access',
@@ -517,7 +518,9 @@ export const organization = {
 			grantWorkspace: 'put members in workspaces, or take them out.',
 			manageRoles: 'add, edit, rank and delete roles.',
 			overrideMember: 'give one member more or less than their role does.',
-			manageMark: 'set the organization stamp printed on its pages.'
+			manageMark: 'set the organization stamp printed on its pages.',
+			upgradeData:
+				'bring the organization and its workspaces up to a newer version, which older versions may then not open.'
 		},
 		viewFirst: 'turn view on first: adding, editing or deleting a record needs seeing it.',
 		groupRefused: 'some of these are not yours to change',

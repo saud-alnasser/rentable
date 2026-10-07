@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # feat(permission): the upgrade data permission
@@ -14,9 +14,9 @@ A new administration permission, `upgradeData`, exists on bit 18: the owner alwa
 
 Traces requirement 3 and criterion 3.
 
-- [ ] `upgradeData` is bit 18 in Rust and in `packages/workspace-permission`, in the administration family, in `MANAGER_ROLE`, not in `MEMBER_ROLE` or `OWNER_ONLY`; the test pinning the two sides passes.
-- [ ] An override granting it and one removing it both apply, under the existing override rules.
-- [ ] The flag has a name and description in Arabic and English wherever roles and overrides list flags.
+- [x] `upgradeData` is bit 18 in Rust and in `packages/workspace-permission`, in the administration family, in `MANAGER_ROLE`, not in `MEMBER_ROLE` or `OWNER_ONLY`; the test pinning the two sides passes.
+- [x] An override granting it and one removing it both apply, under the existing override rules.
+- [x] The flag has a name and description in Arabic and English wherever roles and overrides list flags.
 
 ## Relevant areas
 

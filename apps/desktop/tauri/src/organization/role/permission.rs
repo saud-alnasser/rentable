@@ -60,6 +60,7 @@ pub enum Flag {
     TursoAccount = 15,
     TransferOwnership = 16,
     DeleteOrganization = 17,
+    UpgradeData = 18,
     ViewComplex = 20,
     CreateComplex = 21,
     EditComplex = 22,
@@ -139,8 +140,8 @@ impl Family {
 }
 
 impl Flag {
-    /// Every flag, in bit order. Bits 18, 19 and 40 to 52 are free.
-    pub const ALL: [Self; 38] = [
+    /// Every flag, in bit order. Bits 19 and 40 to 52 are free.
+    pub const ALL: [Self; 39] = [
         Self::InviteMember,
         Self::RemoveMember,
         Self::AssignRole,
@@ -159,6 +160,7 @@ impl Flag {
         Self::TursoAccount,
         Self::TransferOwnership,
         Self::DeleteOrganization,
+        Self::UpgradeData,
         Self::ViewComplex,
         Self::CreateComplex,
         Self::EditComplex,
@@ -202,6 +204,7 @@ impl Flag {
             Self::TursoAccount => "tursoAccount",
             Self::TransferOwnership => "transferOwnership",
             Self::DeleteOrganization => "deleteOrganization",
+            Self::UpgradeData => "upgradeData",
             Self::ViewComplex => "viewComplex",
             Self::CreateComplex => "createComplex",
             Self::EditComplex => "editComplex",
@@ -225,11 +228,12 @@ impl Flag {
         }
     }
 
-    /// The family the flag is listed under. The bit decides it: administration below 10, the
-    /// owner's below 18, and from 20 one run of four per record kind.
+    /// The family the flag is listed under. The bit decides it: administration below 10 and on
+    /// 18, the owner's from 10 to 17, and from 20 one run of four per record kind. *Upgrading the
+    /// data took bit 18 in effort 857, after the owner's run had taken the bits above 9.*
     pub fn family(self) -> Family {
         match self as u32 {
-            0..=9 => Family::Administration,
+            0..=9 | 18 => Family::Administration,
             10..=17 => Family::Owner,
             20..=23 => Family::Complex,
             24..=27 => Family::Unit,
@@ -947,6 +951,30 @@ mod tests {
         let refusal = require(member, Flag::DeletePayment).expect_err("a member deleted a payment");
 
         assert!(refusal.to_string().contains("deletePayment"), "{refusal}");
+    }
+
+    /// Upgrading data (effort 857, requirement 3): an administration flag on bit 18, which the
+    /// owner and the manager carry and the member does not, and which is nobody's alone, so an
+    /// override switches it on for a member and off for a manager.
+    #[test]
+    fn upgrading_data_is_the_managers_and_an_override_switches_it_either_way() {
+        assert_eq!(Flag::UpgradeData as i64, 18);
+        assert_eq!(Flag::UpgradeData.family(), Family::Administration);
+        assert!(!OWNER_ONLY.contains(&Flag::UpgradeData));
+        assert!(!MEMBER_ADMINISTRATION.contains(&Flag::UpgradeData));
+        assert_eq!(first_owner_only(mask_of(&[Flag::UpgradeData])), None);
+        assert!(permits(OWNER_ROLE.mask, Flag::UpgradeData));
+        assert!(permits(MANAGER_ROLE.mask, Flag::UpgradeData));
+        assert!(!permits(MEMBER_ROLE.mask, Flag::UpgradeData));
+
+        let switched = mask_of(&[Flag::UpgradeData]);
+
+        assert!(require(effective(MEMBER_ROLE.mask, switched), Flag::UpgradeData).is_ok());
+        assert!(require(effective(MANAGER_ROLE.mask, switched), Flag::UpgradeData).is_err());
+        assert!(permits(
+            effective_in(effective(MEMBER_ROLE.mask, switched), AccessLevel::ReadOnly),
+            Flag::UpgradeData
+        ));
     }
 
     /// Criterion 12 of effort 826, on effective permissions: every flag against every built-in

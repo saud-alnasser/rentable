@@ -3,12 +3,12 @@
 		"owner": {
 			"id": "owner",
 			"rank": 2000000,
-			"mask": 1099510841343
+			"mask": 1099511103487
 		},
 		"manager": {
 			"id": "manager",
 			"rank": 1000000,
-			"mask": 1099510580223
+			"mask": 1099510842367
 		},
 		"member": {
 			"id": "member",
@@ -19,80 +19,80 @@
 	"cases": [
 		{
 			"role": "owner",
-			"mask": 1099510841343,
+			"mask": 1099511103487,
 			"override": 0,
-			"effective": 1099510841343,
-			"readOnly": 73300967423
+			"effective": 1099511103487,
+			"readOnly": 73301229567
 		},
 		{
 			"role": "manager",
-			"mask": 1099510580223,
+			"mask": 1099510842367,
 			"override": 0,
-			"effective": 1099510580223,
-			"readOnly": 73300706303
+			"effective": 1099510842367,
+			"readOnly": 73300968447
 		},
 		{
 			"role": "manager",
-			"mask": 1099510580223,
+			"mask": 1099510842367,
 			"override": 1,
-			"effective": 1099510580222,
-			"readOnly": 73300706302
+			"effective": 1099510842366,
+			"readOnly": 73300968446
 		},
 		{
 			"role": "manager",
-			"mask": 1099510580223,
+			"mask": 1099510842367,
 			"override": 4,
-			"effective": 1099510580219,
-			"readOnly": 73300706299
+			"effective": 1099510842363,
+			"readOnly": 73300968443
 		},
 		{
 			"role": "manager",
-			"mask": 1099510580223,
+			"mask": 1099510842367,
 			"override": 549755813888,
-			"effective": 549754766335,
-			"readOnly": 73300706303
+			"effective": 549755028479,
+			"readOnly": 73300968447
 		},
 		{
 			"role": "manager",
-			"mask": 1099510580223,
+			"mask": 1099510842367,
 			"override": 549756862465,
-			"effective": 549753717758,
-			"readOnly": 73299657726
+			"effective": 549753979902,
+			"readOnly": 73299919870
 		},
 		{
 			"role": "manager",
-			"mask": 1099510580223,
+			"mask": 1099510842367,
 			"override": 586405642240,
-			"effective": 513104937983,
-			"readOnly": 73300706303
+			"effective": 513105200127,
+			"readOnly": 73300968447
 		},
 		{
 			"role": "manager",
-			"mask": 1099510580223,
+			"mask": 1099510842367,
 			"override": 513104936960,
-			"effective": 586405643263,
-			"readOnly": 1023
+			"effective": 586405905407,
+			"readOnly": 263167
 		},
 		{
 			"role": "manager",
-			"mask": 1099510580223,
+			"mask": 1099510842367,
 			"override": 1026209873920,
-			"effective": 73300706303,
-			"readOnly": 73300706303
+			"effective": 73300968447,
+			"readOnly": 73300968447
 		},
 		{
 			"role": "manager",
-			"mask": 1099510580223,
+			"mask": 1099510842367,
 			"override": 1099510580223,
-			"effective": 0,
-			"readOnly": 0
+			"effective": 262144,
+			"readOnly": 262144
 		},
 		{
 			"role": "manager",
-			"mask": 1099510580223,
+			"mask": 1099510842367,
 			"override": 1099510841343,
-			"effective": 261120,
-			"readOnly": 261120
+			"effective": 523264,
+			"readOnly": 523264
 		},
 		{
 			"role": "member",
@@ -303,6 +303,20 @@
 			"override": 1099510841343,
 			"effective": 1099510841343,
 			"readOnly": 73300967423
+		},
+		{
+			"role": "member",
+			"mask": 513104936960,
+			"override": 262144,
+			"effective": 513105199104,
+			"readOnly": 73300967424
+		},
+		{
+			"role": "manager",
+			"mask": 1099510842367,
+			"override": 262144,
+			"effective": 1099510580223,
+			"readOnly": 73300706303
 		}
 	],
 	"workspaceCases": [
@@ -372,19 +386,19 @@
 		},
 		{
 			"name": "the manager role without deleting contracts",
-			"permissions": 1099510580223,
+			"permissions": 1099510842367,
 			"pinned": 34359738368,
 			"granted": 0,
-			"effective": 1065150841855,
-			"readOnly": 73300706303
+			"effective": 1065151103999,
+			"readOnly": 73300968447
 		},
 		{
 			"name": "the manager role with an administration flag pinned, which is not",
-			"permissions": 1099510580223,
+			"permissions": 1099510842367,
 			"pinned": 34359738373,
 			"granted": 1,
-			"effective": 1065150841855,
-			"readOnly": 73300706303
+			"effective": 1065151103999,
+			"readOnly": 73300968447
 		},
 		{
 			"name": "a flag granted that is not pinned is not granted",
@@ -404,11 +418,11 @@
 		},
 		{
 			"name": "the owner's every flag with nothing pinned",
-			"permissions": 1099510841343,
+			"permissions": 1099511103487,
 			"pinned": 0,
 			"granted": 0,
-			"effective": 1099510841343,
-			"readOnly": 73300967423
+			"effective": 1099511103487,
+			"readOnly": 73301229567
 		}
 	],
 	"writeWithoutView": [

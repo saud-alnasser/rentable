@@ -4824,6 +4824,10 @@ type RootTranslation = {
 			 */
 			manageMark: string
 			/**
+			 * u​p​g​r​a​d​e​ ​t​h​e​ ​d​a​t​a
+			 */
+			upgradeData: string
+			/**
 			 * c​r​e​a​t​e​ ​w​o​r​k​s​p​a​c​e​s
 			 */
 			createWorkspace: string
@@ -5046,6 +5050,10 @@ type RootTranslation = {
 				 * s​e​t​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​s​t​a​m​p​ ​p​r​i​n​t​e​d​ ​o​n​ ​i​t​s​ ​p​a​g​e​s​.
 				 */
 				manageMark: string
+				/**
+				 * b​r​i​n​g​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​a​n​d​ ​i​t​s​ ​w​o​r​k​s​p​a​c​e​s​ ​u​p​ ​t​o​ ​a​ ​n​e​w​e​r​ ​v​e​r​s​i​o​n​,​ ​w​h​i​c​h​ ​o​l​d​e​r​ ​v​e​r​s​i​o​n​s​ ​m​a​y​ ​t​h​e​n​ ​n​o​t​ ​o​p​e​n​.
+				 */
+				upgradeData: string
 			}
 			/**
 			 * t​u​r​n​ ​v​i​e​w​ ​o​n​ ​f​i​r​s​t​:​ ​a​d​d​i​n​g​,​ ​e​d​i​t​i​n​g​ ​o​r​ ​d​e​l​e​t​i​n​g​ ​a​ ​r​e​c​o​r​d​ ​n​e​e​d​s​ ​s​e​e​i​n​g​ ​i​t​.
@@ -10010,6 +10018,10 @@ export type TranslationFunctions = {
 			 */
 			manageMark: () => LocalizedString
 			/**
+			 * upgrade the data
+			 */
+			upgradeData: () => LocalizedString
+			/**
 			 * create workspaces
 			 */
 			createWorkspace: () => LocalizedString
@@ -10230,6 +10242,10 @@ export type TranslationFunctions = {
 				 * set the organization stamp printed on its pages.
 				 */
 				manageMark: () => LocalizedString
+				/**
+				 * bring the organization and its workspaces up to a newer version, which older versions may then not open.
+				 */
+				upgradeData: () => LocalizedString
 			}
 			/**
 			 * turn view on first: adding, editing or deleting a record needs seeing it.
