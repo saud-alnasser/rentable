@@ -407,6 +407,7 @@ impl OrganizationStore {
         }
 
         Database::remove_replica_files(path);
+        unsendable::forget(path);
 
         crate::diagnostics::warn("organization.unsendable.discarded")
             .with("replica", path.display().to_string())

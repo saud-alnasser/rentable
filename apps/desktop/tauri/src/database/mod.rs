@@ -506,6 +506,7 @@ impl Database {
 
         self.disconnect().await;
         Self::remove_replica_files(&replica);
+        unsendable::forget(&replica);
 
         crate::diagnostics::warn("database.unsendable.discarded")
             .with("replica", replica.display().to_string())
@@ -2174,6 +2175,162 @@ mod tests {
 
             drop(database);
             drop(remote);
+            let _ = std::fs::remove_dir_all(&directory);
+        });
+    }
+
+    /// What the remote answers a push whose change another machine's took the unique value of
+    /// first: a conflict between two machines, which no upgrade caused.
+    const UNIQUE_CONFLICT: &str = r#"{"baton":null,"base_url":null,"results":[{"type":"error","error":{"message":"SQLite error: UNIQUE constraint failed: tenant.phone","code":"SQLITE_CONSTRAINT"}}]}"#;
+
+    /// **Ticket 26 (correctness 2).** A push refused over a unique constraint is a conflict between
+    /// two machines rather than a workspace an upgrade reshaped: the replica is not held, the
+    /// person is not told it was upgraded nor offered a discard, and the next replication reaches
+    /// the remote again.
+    #[test]
+    fn a_conflict_is_not_held_as_an_upgrade() {
+        use crate::{
+            error::{Error, RefusalReason},
+            sync::test::server::{ScriptedResponse, ScriptedServer, within},
+        };
+        use std::time::Duration;
+
+        within(Duration::from_secs(60), async {
+            let remote = ScriptedServer::start(
+                (0..32)
+                    .map(|_| ScriptedResponse::new(200, UNIQUE_CONFLICT))
+                    .collect(),
+            )
+            .await;
+            let (directory, mut database) =
+                workspace_against("conflict", Some(remote.url("")), Duration::from_secs(5)).await;
+
+            for sql in [
+                "CREATE TABLE \"tenant\" (\"id\" TEXT PRIMARY KEY, \"phone\" TEXT UNIQUE)",
+                "INSERT INTO \"tenant\" VALUES ('t-1', '0500000000')",
+            ] {
+                database
+                    .execute_single_sql(statement(sql))
+                    .await
+                    .expect(sql);
+            }
+
+            let replicated = database.replicate().await;
+
+            assert!(
+                !matches!(
+                    replicated.refusal,
+                    Some(Error::Refused {
+                        reason: RefusalReason::ChangesUnsendableAfterUpgrade,
+                        ..
+                    })
+                ),
+                "a conflict was told as an upgrade: {replicated:?}"
+            );
+            assert!(!replicated.pushed);
+            assert!(!database.holds_unsendable(), "a conflict held the replica");
+            assert!(!database.push_replica().await);
+            assert!(
+                !database.holds_unsendable(),
+                "the last push held the replica"
+            );
+
+            let sent = remote.request_count();
+
+            database.replicate().await;
+
+            assert!(
+                remote.request_count() > sent,
+                "the replica stopped reaching the remote after a conflict"
+            );
+            assert!(
+                matches!(
+                    database.discard_unsendable().await,
+                    Err(Error::PreconditionFailed { .. })
+                ),
+                "a conflict's changes were offered for discarding"
+            );
+
+            drop(database);
+            drop(remote);
+            let _ = std::fs::remove_dir_all(&directory);
+        });
+    }
+
+    /// **Ticket 26 (correctness 11).** Where the record of a refusal cannot be written beside the
+    /// replica (here a directory stands where the file would go), the replica is held all the same
+    /// for the rest of the session: no later replication, last push or pull reaches the remote,
+    /// which is what would answer `Ok` and drop the refused changes.
+    #[test]
+    fn a_refusal_that_cannot_be_recorded_still_holds_the_replica() {
+        use crate::{
+            error::{Error, RefusalReason},
+            sync::test::server::{ScriptedResponse, ScriptedServer, within},
+        };
+        use std::time::Duration;
+
+        within(Duration::from_secs(60), async {
+            let remote = ScriptedServer::start(
+                (0..32)
+                    .map(|_| ScriptedResponse::new(200, REMOVED_COLUMN))
+                    .collect(),
+            )
+            .await;
+            let (directory, database) =
+                workspace_against("unrecorded", Some(remote.url("")), Duration::from_secs(5)).await;
+            let replica = Database::replica_path(&directory.join("app.db"), "silent");
+
+            std::fs::create_dir(super::unsendable::marker(&replica))
+                .expect("the record's place, taken");
+
+            for sql in [
+                "CREATE TABLE \"tenant\" (\"id\" TEXT PRIMARY KEY, \"note\" TEXT)",
+                "INSERT INTO \"tenant\" VALUES ('t-1', 'written before the upgrade')",
+            ] {
+                database
+                    .execute_single_sql(statement(sql))
+                    .await
+                    .expect(sql);
+            }
+
+            assert!(
+                !database.holds_unsendable(),
+                "held before anything was refused"
+            );
+
+            let replicated = database.replicate().await;
+
+            assert!(remote.request_count() > 0, "the push was never made");
+            assert!(
+                matches!(
+                    replicated.refusal,
+                    Some(Error::Refused {
+                        reason: RefusalReason::ChangesUnsendableAfterUpgrade,
+                        ..
+                    })
+                ),
+                "{replicated:?}"
+            );
+            assert!(
+                database.holds_unsendable(),
+                "an unrecorded refusal was forgotten"
+            );
+
+            let sent = remote.request_count();
+
+            assert_eq!(database.replicate().await.refusal, replicated.refusal);
+            assert!(!database.push_replica().await);
+            assert!(!database.pull_replica().await.completed);
+            assert_eq!(
+                remote.request_count(),
+                sent,
+                "an unrecorded hold let the replica reach the remote again"
+            );
+            assert_eq!(tenants(&database).await.len(), 1, "the change was not kept");
+
+            drop(database);
+            drop(remote);
+            super::unsendable::forget(&replica);
             let _ = std::fs::remove_dir_all(&directory);
         });
     }

@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(sync): only an upgrade's refusal holds a replica
@@ -14,9 +14,9 @@ Found at review round one (correctness 2 and 11): a replica is held only for a r
 
 Traces requirement 10 and criterion 10.
 
-- [ ] The unsendable classification for the workspace and the organization no longer matches the generic `failed to replay local change` wrapper alone; it holds only when the wrapped cause names something an upgrade removed or renamed (a missing table or column, an argument-count mismatch), and a unique or other constraint conflict is reported as the sync error it is, with no hold and no offer to discard; tests cover each.
-- [ ] Where the hold marker cannot be written, the push and pull of that replica are refused for the session (in memory) and the failure is surfaced, so no later push can answer Ok and drop the refused changes; a test simulates the write failing.
-- [ ] The live tests of tickets 13 and 20 still pass their classification against the measured strings, kept as fixtures.
+- [x] The unsendable classification for the workspace and the organization no longer matches the generic `failed to replay local change` wrapper alone; it holds only when the wrapped cause names something an upgrade removed or renamed (a missing table or column, an argument-count mismatch), and a unique or other constraint conflict is reported as the sync error it is, with no hold and no offer to discard; tests cover each.
+- [x] Where the hold marker cannot be written, the push and pull of that replica are refused for the session (in memory) and the failure is surfaced, so no later push can answer Ok and drop the refused changes; a test simulates the write failing.
+- [x] The live tests of tickets 13 and 20 still pass their classification against the measured strings, kept as fixtures.
 
 ## Relevant areas
 

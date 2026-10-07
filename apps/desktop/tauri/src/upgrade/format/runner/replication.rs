@@ -221,4 +221,18 @@ mod tests {
 
         assert_eq!(classified("error sending request"), Pushed::DidNotGo);
     }
+
+    /// **Effort 857, ticket 26.** A push of the organization refused over a constraint, in the
+    /// remote's words or the replay's, is a conflict between machines and not an upgrade's: it is
+    /// not refused for good.
+    #[test]
+    fn a_conflict_is_not_refused_for_good() {
+        for conflict in [
+            "SQLite error: UNIQUE constraint failed: member.email",
+            "failed to replay local change after remote apply: database error: UNIQUE constraint \
+             failed: member.email",
+        ] {
+            assert_eq!(classified(conflict), Pushed::DidNotGo, "{conflict}");
+        }
+    }
 }
