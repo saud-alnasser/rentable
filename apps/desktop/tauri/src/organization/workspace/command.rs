@@ -8,6 +8,7 @@ use tauri::Emitter;
 use crate::{
     clock,
     credential::Credentials,
+    database::floor::Standing,
     error::{Error, RefusalReason},
     machine::RemoteSyncState,
     organization::Shared,
@@ -174,14 +175,16 @@ pub(crate) async fn organization_workspace_open(
                 })?;
 
         // a workspace this build was not written against is refused here, before the replica is
-        // named, and nothing of it is read.
-        lease::refuse_newer(&facts)?;
+        // named, and nothing of it is read; one it may read and not write is let through, and
+        // nothing is written to it (effort 857, ticket 04).
+        let standing = lease::refuse_newer(&facts)?;
 
         // requirement 20: a workspace behind what this build ships is brought up to it, under a
         // lease taken at the organization database's primary, by whichever member opened it.
         // The organization credential in the session's slot is what the lease is taken under,
-        // and the member's own workspace credential is what the migrations go over.
-        if lease::is_pending(&facts) {
+        // and the member's own workspace credential is what the migrations go over. Only where
+        // this build may write it.
+        if standing == Standing::Writable && lease::is_pending(&facts) {
             let organization_credential = member
                 .organization_credential
                 .lock()

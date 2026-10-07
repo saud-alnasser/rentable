@@ -34,6 +34,7 @@
 use std::path::Path;
 
 use crate::{
+    database::floor::Standing,
     diagnostics,
     error::{Error, RefusalReason},
     machine::RemoteSyncStore,
@@ -74,6 +75,10 @@ pub async fn connect(
     credential: &str,
     now: i64,
 ) -> Result<HeldOrganization, Error> {
+    // the replica the caller pulled is judged against the floors before anything is selected or
+    // recorded (effort 857, ticket 04): below the read floor it is refused by name.
+    let standing = store.refuse_another_format().await?;
+
     // an organization already held is selected and nothing is recorded a second time: its entry
     // carries the member and the machine this machine already has there.
     if let Some(held) = selected_if_held(machine, &locator.organization_id)? {
@@ -91,8 +96,12 @@ pub async fn connect(
     }
 
     // an organization another version of the application made is refused before its row is read
-    // and before this machine records or registers anything (effort 838, requirement 11).
-    store.refuse_another_format().await?;
+    // and before this machine records or registers anything (effort 838, requirement 11); and one
+    // this build may read and not write, since recording it registers this machine in it (effort
+    // 857, ticket 04).
+    if standing != Standing::Writable {
+        store.refuse_unwritable().await?;
+    }
 
     let verifying_key = locator.verifying_key_bytes()?;
     let organization = store
@@ -845,5 +854,72 @@ mod tests {
                 "{name}: a refused connect recorded the organization"
             );
         }
+    }
+
+    /// **Effort 857, ticket 04, at the connect.** What the caller pulled carries a raise of the
+    /// organization's floors. A connect to an organization this machine does not hold is refused
+    /// past the write floor alone, as `OrganizationReadOnlyByVersion`, since it registers the
+    /// machine; and a connect to one it holds already is judged before it is selected, and refused
+    /// past the read floor as `OrganizationNewer`. Nothing is written to the organization.
+    #[tokio::test]
+    async fn a_connect_past_the_floors_is_refused_and_writes_nothing() {
+        use crate::organization::store::FORMAT_VERSION;
+
+        let credentials = Memory::new();
+
+        // not held: past the write floor alone.
+        let directory = scratch("connect-read-only");
+        let (store, _, link) = created(&credentials, &directory).await;
+        let mut machine = fresh_machine(&directory);
+
+        store
+            .record_floors(FORMAT_VERSION + 1, FORMAT_VERSION, FORMAT_VERSION + 1)
+            .await;
+
+        let before = contents(&store).await;
+        let refused = connect(&store, &mut machine, &link, UNSEALED, ISSUED_AT + 1).await;
+
+        assert!(
+            matches!(
+                refused,
+                Err(Error::Refused {
+                    reason: crate::error::RefusalReason::OrganizationReadOnlyByVersion,
+                    ..
+                })
+            ),
+            "{refused:?}"
+        );
+        assert_eq!(contents(&store).await, before, "the refusal wrote");
+        assert!(
+            machine.selected().is_none(),
+            "a refused connect recorded it"
+        );
+
+        // held already: past the read floor.
+        let directory = scratch("connect-held-unreadable");
+        let (store, _, link) = created(&credentials, &directory).await;
+        let mut machine = fresh_machine(&directory);
+
+        connect(&store, &mut machine, &link, UNSEALED, ISSUED_AT + 1)
+            .await
+            .expect("the first connect");
+        store
+            .record_floors(FORMAT_VERSION + 1, FORMAT_VERSION + 1, FORMAT_VERSION + 1)
+            .await;
+
+        let before = contents(&store).await;
+        let refused = connect(&store, &mut machine, &link, UNSEALED, ISSUED_AT + 2).await;
+
+        assert!(
+            matches!(
+                refused,
+                Err(Error::Refused {
+                    reason: crate::error::RefusalReason::OrganizationNewer,
+                    ..
+                })
+            ),
+            "{refused:?}"
+        );
+        assert_eq!(contents(&store).await, before, "the refusal wrote");
     }
 }

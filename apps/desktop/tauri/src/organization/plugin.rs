@@ -101,6 +101,7 @@ pub fn plugin() -> TauriPlugin<tauri::Wry> {
                 member: Arc::new(RwLock::new(None)),
                 arriving_link: Arc::new(Mutex::new(None)),
                 signed_out_elsewhere: Arc::new(AtomicBool::new(false)),
+                held_by_version: Arc::new(std::sync::Mutex::new(None)),
                 old_shape_check: tokio::sync::OnceCell::new(),
             });
 

@@ -1,6 +1,7 @@
 pub(crate) mod bound;
 pub mod command;
 pub(crate) mod corrupt;
+pub mod floor;
 mod held;
 mod plugin;
 pub mod proxy;
@@ -24,6 +25,7 @@ use crate::{
     clock::{self, Clock},
     database::{
         bound::{Bound, SYNC_BOUND, bounded},
+        floor::{Floors, Standing},
         proxy::{SQLQuery, SQLRow},
     },
     error::Error,
@@ -154,6 +156,10 @@ pub struct Database {
     clock: clock::Shared,
     /// how long a push or a pull of the replica may wait on the remote (`bound.rs`).
     bound: Bound,
+    /// where this build stands against the open workspace's floors, as the organization last
+    /// judged them (effort 857, ticket 04): set by every open and every heartbeat, writable with
+    /// no workspace open and until the first verdict, and let go of with the engine.
+    standing: std::sync::Mutex<Standing>,
 }
 
 impl Database {
@@ -167,6 +173,7 @@ impl Database {
             settings,
             clock,
             bound: SYNC_BOUND,
+            standing: std::sync::Mutex::new(Standing::Writable),
         }
     }
 
@@ -532,6 +539,7 @@ impl Database {
     /// close to call, and the file is held for exactly as long as the engine is.
     pub async fn disconnect(&mut self) {
         self.watch = corrupt::Watch::default();
+        self.hold(Standing::Writable);
 
         match self.engine.take() {
             Some(Engine::Local(pool)) => pool.close().await,
@@ -657,6 +665,34 @@ impl Database {
          AND name NOT LIKE 'sqlite!_%' ESCAPE '!' \
          AND name NOT LIKE 'turso!_%' ESCAPE '!' \
          AND name NOT LIKE '!_!_turso!_internal!_%' ESCAPE '!';";
+
+    /// Where this build stands against the open workspace's floors, as last judged.
+    pub fn standing(&self) -> Standing {
+        self.standing
+            .lock()
+            .map(|standing| *standing)
+            .unwrap_or(Standing::Unreadable)
+    }
+
+    /// Keep `standing` as the open workspace's verdict: what the organization does at every open
+    /// and every heartbeat, having judged the floors (effort 857, ticket 04).
+    pub fn hold(&self, standing: Standing) {
+        if let Ok(mut held) = self.standing.lock() {
+            *held = standing;
+        }
+    }
+
+    /// The open workspace's own floors, read from its replica as it stands
+    /// ([`floor::workspace`](crate::database::floor::workspace)); `None` with no replica open, or
+    /// one holding no version of its own. Reads and writes nothing.
+    pub async fn floors(&self) -> Result<Option<Floors>, Error> {
+        match self.engine.as_ref() {
+            Some(Engine::Workspace(replica)) => {
+                crate::database::floor::workspace(&*replica.connections.checkout().await?).await
+            }
+            Some(Engine::Local(_)) | None => Ok(None),
+        }
+    }
 
     pub async fn execute_single_sql(&self, query: SQLQuery) -> Result<Vec<SQLRow>, Error> {
         match self.engine.as_ref().ok_or_else(Self::not_connected)? {

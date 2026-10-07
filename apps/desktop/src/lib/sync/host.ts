@@ -1,3 +1,5 @@
+import type { HeldByVersion } from '$lib/organization';
+
 /**
  * SYNC HOST
  *
@@ -111,6 +113,13 @@ export type SyncHost = {
 		 * heartbeat is what runs on a machine nobody is touching.
 		 */
 		standing: SessionStanding;
+		/**
+		 * what holds this machine by its version after it, or `null` where this build may write
+		 * both the organization and the open workspace (effort 857). Judged after the
+		 * organization's pull and before anything went out: a workspace held read-only was pulled
+		 * and not pushed, and one past reading was neither.
+		 */
+		heldByVersion: HeldByVersion | null;
 	}>;
 	/** send what this machine wrote and nothing else, for the last call of a session. */
 	push: () => Promise<boolean>;

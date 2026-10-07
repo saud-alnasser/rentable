@@ -12,7 +12,7 @@ use crate::organization::{
     act::owner_platform,
     invitation::{self},
     ownership,
-    session::{self, CredentialSlot, Resumption},
+    session::{self, CredentialSlot, HeldByVersion, Resumption},
     store::{self, OrganizationStore},
 };
 
@@ -101,7 +101,12 @@ pub(super) async fn resume_remembered(
 
             return;
         }
+        // a refusal for the version is carried to the wall as well as logged (effort 857, ticket
+        // 04): the person is owed the reason they are held, where every other failure to resume
+        // is the wall's own sentence.
         Err(refusal) => {
+            session::hold_at_the_wall(app_state, HeldByVersion::refused(&refusal));
+
             diagnostics::info("organization.session.notResumed")
                 .with("organization", held.id.as_str())
                 .with("reason", refusal.to_string())
@@ -189,6 +194,14 @@ pub(super) async fn machine_registered(app_state: &Shared) -> Result<(), Error> 
         // a machine that came back signed in names itself, which is how a machine that signed in
         // before this build gains a name without anybody typing a password (effort 846,
         // requirement 11). The registry's push below carries it.
+        //
+        // **Neither where this build may not write the organization** (effort 857, ticket 04): the
+        // resume judged it after its pull, and a version that holds it read-only, or past reading,
+        // is one this machine writes nothing into, its own row included.
+        if !session::writes_to(store) {
+            return Ok(());
+        }
+
         if let Some(signed_in) = member.as_ref() {
             session::machine_named(store, &held, &signed_in.content_key, store.clock().now()).await;
         }
@@ -453,6 +466,7 @@ mod tests {
             member: Arc::new(RwLock::new(None)),
             arriving_link: Arc::new(Mutex::new(None)),
             signed_out_elsewhere: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            held_by_version: Arc::new(std::sync::Mutex::new(None)),
             old_shape_check: tokio::sync::OnceCell::new(),
         }
     }
@@ -1237,5 +1251,75 @@ mod tests {
         );
         assert_eq!(rewritten.id, first.id);
         assert!(rewritten.written_at >= first.written_at);
+    }
+
+    /// **Effort 857, ticket 04, at the launch: a resume is judged against the floors, and a
+    /// refusal for the version is carried rather than only logged.** The organization a machine
+    /// stayed signed in to was upgraded by a newer rentable while it was closed. Past the read
+    /// floor, the launch leaves the wall up and `heldByVersion` says the organization is
+    /// unreadable to this version; past the write floor alone, the launch resumes and
+    /// `heldByVersion` says it is read-only. Either way the launch writes nothing to the
+    /// organization: no registry row, no name, no repair.
+    #[tokio::test]
+    async fn a_launch_past_the_floors_is_held_by_its_version_and_writes_nothing() {
+        use crate::database::floor::Standing;
+        use crate::organization::session::VersionTarget;
+        use crate::organization::store::FORMAT_VERSION;
+
+        let credentials: Credentials = Arc::new(Memory::new());
+
+        for (name, read, standing) in [
+            ("unreadable", FORMAT_VERSION + 1, Standing::Unreadable),
+            ("read-only", FORMAT_VERSION, Standing::ReadOnly),
+        ] {
+            let directory = scratch(&format!("resume-held-{name}"));
+            let app_state = first_run(credentials.as_ref(), &directory).await;
+            let (organization_id, _) = recorded(&app_state).await;
+            let replica = OrganizationStore::replica_path(
+                &directory.join(Database::FILENAME),
+                &organization_id,
+            );
+
+            {
+                let store = OrganizationStore::open(
+                    crate::clock::System::shared(),
+                    &replica,
+                    None,
+                    || async { Ok::<String, turso::Error>(String::new()) },
+                )
+                .await
+                .expect("the replica");
+
+                store
+                    .record_floors(FORMAT_VERSION + 1, read, FORMAT_VERSION + 1)
+                    .await;
+            }
+
+            let before = contents(&replica).await;
+            let state = state_of(&app_state, &credentials, &crate::clock::System::shared())
+                .await
+                .expect("the state");
+            let held = state
+                .held_by_version
+                .clone()
+                .unwrap_or_else(|| panic!("{name}: the launch carried no version"));
+
+            assert_eq!(held.target, VersionTarget::Organization, "{name}");
+            assert_eq!(held.standing, standing, "{name}");
+            assert!(!held.reason.is_empty(), "{name}: no reason");
+            assert_eq!(
+                state.session.is_some(),
+                standing == Standing::ReadOnly,
+                "{name}: the launch resumed where it should not, or not where it should"
+            );
+
+            drop(app_state);
+
+            assert_eq!(
+                contents(&replica).await,
+                before,
+                "{name}: the launch wrote to the organization"
+            );
+        }
     }
 }

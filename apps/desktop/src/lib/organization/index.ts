@@ -9,6 +9,7 @@
  */
 export { linkArrived } from './setup/connect';
 export type {
+	HeldByVersion,
 	HeldOrganization,
 	MigrationNotice,
 	OrganizationHost,
@@ -16,5 +17,6 @@ export type {
 	OrganizationMember,
 	OrganizationSession,
 	OrganizationState,
-	OrganizationWorkspace
+	OrganizationWorkspace,
+	VersionStanding
 } from './host';

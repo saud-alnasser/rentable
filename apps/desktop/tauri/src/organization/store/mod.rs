@@ -50,6 +50,7 @@ use crate::{
         Database,
         bound::{Bound, SYNC_BOUND, bounded},
         corrupt,
+        floor::Standing,
     },
     error::Error,
     schema,
@@ -174,6 +175,11 @@ pub struct OrganizationStore {
     clock: clock::Shared,
     /// how long a push or a pull of the replica may wait on the remote (`database/bound.rs`).
     bound: Bound,
+    /// where this build stood against the organization's floors when it last judged them
+    /// ([`OrganizationStore::refuse_another_format`], effort 857, ticket 04): writable until the
+    /// first verdict, which every way in reaches before it writes. What a way in and the heartbeat
+    /// ask before they write anything of their own.
+    standing: std::sync::Mutex<Standing>,
 }
 
 impl std::fmt::Debug for OrganizationStore {
@@ -250,6 +256,7 @@ impl OrganizationStore {
             path: path.to_path_buf(),
             clock,
             bound: SYNC_BOUND,
+            standing: std::sync::Mutex::new(Standing::Writable),
         })
     }
 

@@ -242,7 +242,8 @@ pub enum RefusalReason {
     GrantBeyondOwn,
     /// this machine holds no credential to the organization database.
     NoOrganizationCredential,
-    /// a newer rentable upgraded the workspace.
+    /// a newer rentable upgraded the workspace past what this one reads (below its read floor,
+    /// effort 857).
     WorkspaceNewer,
     /// the workspace is behind this version, and read-only access cannot bring it up.
     WorkspaceBehind,
@@ -269,12 +270,17 @@ pub enum RefusalReason {
     /// cannot learn whether the owner has upgraded; it needs a new link from its organization
     /// (effort 838, ticket 25).
     OrganizationCredentialLapsed,
-    /// the organization was made by a newer version of rentable, which this one is updated to.
+    /// a newer version of rentable upgraded the organization past what this one reads (below its
+    /// read floor, effort 857), which this one is updated to.
     OrganizationNewer,
     /// the owner has not opened this version of rentable yet, and an upgrade asked of it waits
     /// until they have: their machine is what brings a permission this version added to the
     /// organization's certificates (effort 857, ticket 15).
     OwnerNotUpdated,
+    /// a newer version of rentable upgraded the organization, and this one reads it but may not
+    /// write to it (below its write floor, effort 857): what a way in that must write is refused
+    /// with, and nothing was written.
+    OrganizationReadOnlyByVersion,
 
     // a copy and a check before a change of shape (effort 838, requirements 13 and 15).
     /// the copy of the organization or the workspace taken before it changes shape could not be

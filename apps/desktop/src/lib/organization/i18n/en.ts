@@ -737,6 +737,8 @@ export const refusals = {
 			'a newer version of rentable made this organization. update rentable to open it.',
 		ownerNotUpdated:
 			'the owner has not opened this version of rentable yet. upgrading waits until they have.',
+		organizationReadOnlyByVersion:
+			'a newer version of rentable upgraded this organization. update rentable to make changes in it.',
 		copyNotTaken:
 			'no copy was taken before upgrading, so nothing was changed. check the connection and the backups folder, then try again.',
 		shapeNotAsBuilt:

@@ -12,15 +12,23 @@
 //! (requirement 13): a workspace at `schema_version` 7 reads `{ level: 7, read: 7, write: 7 }`, and
 //! an organization of format 3 reads `{ level: 3, read: 3, write: 3 }`, which is exactly what every
 //! build released before it enforced. Nothing is written to make that true, so no workspace or
-//! organization is touched to carry it: [`workspace`] and [`organization`] read, and never create
-//! a table or a row.
+//! organization is touched to carry it: [`workspace`] and the organization's own read
+//! (`OrganizationStore::floors`) read, and never create a table or a row.
 //!
 //! **Where the record is**: the workspace's own `data_floor` row, beside its `schema_version` row,
 //! and the organization's `organization_floor` row. Both are written by the explicit upgrade, inside
 //! its transaction, and neither exists before an upgrade has run; until one has, the version is
 //! the record.
+//!
+//! **Here, under the database, because every database has floors and both sides read the verdict**
+//! (effort 857, ticket 04): the workspace engine holds its workspace's [`Standing`] and the
+//! organization's store holds its own, and the organization, which judges both at every way in,
+//! sits above this module. *It was `upgrade/floor.rs` until ticket 04, where nothing but the
+//! composition root may name it (`guard/cycle.rs`).*
 
-use crate::{error::Error, organization::store::OrganizationStore};
+use serde::{Deserialize, Serialize};
+
+use crate::error::Error;
 
 /// The one-row table a workspace keeps its floors in, beside `schema_version`.
 pub const WORKSPACE_FLOOR_TABLE: &str = "data_floor";
@@ -39,8 +47,10 @@ pub struct Floors {
     pub write: u32,
 }
 
-/// What a build may do with a database, judged against its floors.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// What a build may do with a database, judged against its floors. It crosses to the shell as
+/// `writable`, `readOnly` or `unreadable`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum Standing {
     /// at or above both floors: it reads and writes.
     Writable,
@@ -48,6 +58,18 @@ pub enum Standing {
     ReadOnly,
     /// below the read floor: it reads nothing.
     Unreadable,
+}
+
+impl Standing {
+    /// The lesser of two verdicts on one database, judged from two records of it: what may be done
+    /// is what both allow.
+    pub fn least(self, other: Standing) -> Standing {
+        match (self, other) {
+            (Standing::Unreadable, _) | (_, Standing::Unreadable) => Standing::Unreadable,
+            (Standing::ReadOnly, _) | (_, Standing::ReadOnly) => Standing::ReadOnly,
+            _ => Standing::Writable,
+        }
+    }
 }
 
 impl Floors {
@@ -112,28 +134,6 @@ pub async fn workspace(connection: &turso::Connection) -> Result<Option<Floors>,
     }
 }
 
-/// The floors of an organization, read from its replica: its `organization_floor` row where an
-/// upgrade wrote one, and otherwise its `format` row, as [`Floors::legacy`] reads it. `None` where
-/// it has no format row, which is an organization of format 1 or one whose upgrade was cut short,
-/// and the existing refusal of another format answers that.
-///
-/// Reads and writes nothing.
-pub async fn organization(store: &OrganizationStore) -> Result<Option<Floors>, Error> {
-    if let Some((level, read, write)) = store.floor_recorded().await? {
-        return Ok(Some(Floors {
-            level: number(level)?,
-            read: number(read)?,
-            write: number(write)?,
-        }));
-    }
-
-    store
-        .format()
-        .await?
-        .map(|format| number(format).map(Floors::legacy))
-        .transpose()
-}
-
 /// The tables a database holds, read from it.
 async fn tables(connection: &turso::Connection) -> Result<Vec<String>, Error> {
     let mut rows = connection
@@ -175,7 +175,7 @@ fn step(row: &turso::Row, index: usize) -> Result<u32, Error> {
 }
 
 /// A stored version or floor as a step number, which is never negative.
-fn number(value: i64) -> Result<u32, Error> {
+pub(crate) fn number(value: i64) -> Result<u32, Error> {
     u32::try_from(value).map_err(|_| Error::Integrity {
         message: format!("a floor or a version of {value}, which is no step number"),
     })
@@ -183,8 +183,7 @@ fn number(value: i64) -> Result<u32, Error> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Floors, Standing, organization, workspace};
-    use crate::organization::store::{FORMAT_VERSION, OrganizationStore};
+    use super::{Floors, Standing, workspace};
 
     /// **Ticket 01's fourth criterion.** Below, at and above each floor, for floors apart and
     /// together.
@@ -371,74 +370,6 @@ mod tests {
                 level: 9,
                 read: 7,
                 write: 8
-            })
-        );
-    }
-
-    async fn store(name: &str) -> OrganizationStore {
-        let path = crate::test::scratch(name).join("org.db");
-
-        OrganizationStore::open(crate::clock::System::shared(), &path, None, || async {
-            Err(turso::Error::Misuse("no remote".into()))
-        })
-        .await
-        .expect("a store")
-    }
-
-    /// **Ticket 01's fifth criterion, on an organization.** An organization of this build's format
-    /// with no floor record reads every floor at its format, and nothing in it changes.
-    #[tokio::test]
-    async fn an_organization_with_no_floor_record_reads_its_format_and_writes_nothing() {
-        let store = store("floor-organization").await;
-
-        store.install_schema().await.expect("the schema");
-        store.write_format().await.expect("the format row");
-
-        let before = everything(store.connection()).await;
-        let floors = organization(&store).await.expect("the floors");
-
-        assert_eq!(floors, Some(Floors::legacy(FORMAT_VERSION as u32)));
-        assert_eq!(everything(store.connection()).await, before);
-    }
-
-    /// An organization with no format row, format 1's or one cut short, has no floors of its own,
-    /// and the read leaves it as it was.
-    #[tokio::test]
-    async fn an_organization_with_no_format_row_has_no_floors_of_its_own() {
-        let store = store("floor-no-format").await;
-        let before = everything(store.connection()).await;
-
-        assert_eq!(organization(&store).await.expect("the floors"), None);
-        assert_eq!(everything(store.connection()).await, before);
-    }
-
-    /// An organization an upgrade recorded floors in reads them rather than its format.
-    #[tokio::test]
-    async fn an_organization_with_a_floor_record_reads_it() {
-        let store = store("floor-recorded").await;
-
-        store.install_schema().await.expect("the schema");
-        store.write_format().await.expect("the format row");
-
-        for statement in [
-            "CREATE TABLE \"organization_floor\" (\"id\" TEXT PRIMARY KEY NOT NULL, \
-             \"level\" INTEGER NOT NULL, \"read\" INTEGER NOT NULL, \"write\" INTEGER NOT NULL, \
-             \"written_at\" INTEGER NOT NULL)",
-            "INSERT INTO \"organization_floor\" VALUES ('floor', 5, 3, 4, 0)",
-        ] {
-            store
-                .connection()
-                .execute(statement, ())
-                .await
-                .expect(statement);
-        }
-
-        assert_eq!(
-            organization(&store).await.expect("the floors"),
-            Some(Floors {
-                level: 5,
-                read: 3,
-                write: 4
             })
         );
     }

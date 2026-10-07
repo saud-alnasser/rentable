@@ -61,7 +61,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::{
-    backup, diagnostics,
+    backup,
+    database::floor::{self, Floors, Standing},
+    diagnostics,
     error::{Error, RefusalReason},
     http::build_client,
     turso::platform::{AccessLevel, TursoPlatform},
@@ -350,23 +352,38 @@ fn outcome(holder: &str, holder_read: &str, until: i64) -> LeaseOutcome {
     }
 }
 
-/// Requirement 24: a workspace recorded above the version this build ships is refused, with the
-/// two numbers and what to do, before anything of it is read.
-pub fn refuse_newer(facts: &WorkspaceFacts) -> Result<(), Error> {
+/// Requirement 24, as the floor verdict (effort 857, ticket 04): the workspace as the
+/// organization's record holds it, judged before anything of it is read.
+///
+/// **The record's `schema_version` is the workspace's legacy floor**: every build released before
+/// effort 857 refuses a number above its own, so it reads as floors equal to it
+/// ([`Floors::legacy`]). Below the read floor the workspace is refused as `WorkspaceNewer`, with
+/// the two numbers and what to do, which now means exactly that; below the write floor it is
+/// let through as [`Standing::ReadOnly`]; otherwise it is [`Standing::Writable`]. The workspace's
+/// own floors, which it records beside its version, are judged once its replica has pulled
+/// (`workspace/open.rs`).
+pub fn refuse_newer(facts: &WorkspaceFacts) -> Result<Standing, Error> {
     let shipped = apply::shipped_version();
+    let floors = Floors::legacy(floor::number(facts.schema_version)?);
+    let standing = floors.standing(floor::number(shipped)?);
 
-    if facts.schema_version > shipped {
-        return Err(Error::refused(
-            RefusalReason::WorkspaceNewer,
-            format!(
-                "{} was upgraded by a newer rentable (schema {}, and this one knows {}). update \
-                 rentable to open it; nothing in it was read",
-                facts.name, facts.schema_version, shipped
-            ),
-        ));
+    if standing == Standing::Unreadable {
+        return Err(newer(&facts.name, facts.schema_version, shipped));
     }
 
-    Ok(())
+    Ok(standing)
+}
+
+/// The refusal of a workspace below its read floor: a newer rentable upgraded it, `level` against
+/// the `known` step this build ships, and nothing of it was read.
+pub fn newer(name: &str, level: i64, known: i64) -> Error {
+    Error::refused(
+        RefusalReason::WorkspaceNewer,
+        format!(
+            "{name} was upgraded by a newer rentable (schema {level}, and this one knows {known}). \
+             update rentable to open it; nothing in it was read"
+        ),
+    )
 }
 
 /// Whether the workspace is behind what this build ships.

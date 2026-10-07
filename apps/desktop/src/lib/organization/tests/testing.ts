@@ -225,6 +225,7 @@ export function fakeOrganizationState(
 		holdsTursoAuthority: true,
 		setupConsented: false,
 		signedOutElsewhere: false,
+		heldByVersion: null,
 		...overrides
 	};
 }

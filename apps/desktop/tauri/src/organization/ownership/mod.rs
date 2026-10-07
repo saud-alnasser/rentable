@@ -27,7 +27,7 @@ pub(in crate::organization) use ceiling::{
     owner_has_opened_this_version, refuse_until_the_owner_has_opened_this_version,
 };
 pub use command::*;
-pub(in crate::organization) use repair::{repair_owner_row, sign_organization_name};
+pub(in crate::organization) use repair::{is_the_owners, repair_owner_row, sign_organization_name};
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64URL};
 

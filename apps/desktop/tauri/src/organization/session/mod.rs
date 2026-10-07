@@ -70,6 +70,7 @@ mod machine;
 mod remember;
 mod replica;
 mod signin;
+mod version;
 
 pub use command::*;
 // by name: `command` has an `ended_elsewhere` of its own, and the one this module's name
@@ -85,6 +86,8 @@ pub(crate) use machine::{
 pub(crate) use remember::*;
 pub(crate) use replica::leave_registry;
 pub use signin::*;
+pub use version::{HeldByVersion, VersionTarget};
+pub(crate) use version::{held_by_version, hold_at_the_wall, workspace_judged, writes_to};
 
 use std::{
     collections::HashMap,

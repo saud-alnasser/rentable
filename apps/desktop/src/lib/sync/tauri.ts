@@ -1,5 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 
+import type { HeldByVersion } from '$lib/organization';
+
 import type { RemoteSyncState, ReplicationRefusal, SessionStanding, SyncHost } from './host';
 
 /**
@@ -20,6 +22,7 @@ export const tauri = {
 			received: boolean;
 			refusal: ReplicationRefusal;
 			standing: SessionStanding;
+			heldByVersion: HeldByVersion | null;
 		}>('plugin:organization|session_replicate'),
 	push: () => invoke<boolean>('plugin:sync|push'),
 	renameWorkspace: (name: string) =>

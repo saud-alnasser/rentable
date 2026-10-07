@@ -224,8 +224,10 @@ async fn connected(
     let half = &link.half;
 
     // an organization another version made is refused before its link's row is read (effort 838,
-    // requirement 11).
-    store.refuse_another_format().await?;
+    // requirement 11), judged over what the reach pulled; and one this build may read and not
+    // write is refused too, since the connect registers the machine and spends the row (effort
+    // 857, ticket 04).
+    store.refuse_unwritable().await?;
 
     let row = store
         .machine_link(&half.id)

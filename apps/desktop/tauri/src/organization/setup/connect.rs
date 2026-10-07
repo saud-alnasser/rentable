@@ -247,7 +247,9 @@ where
             &|| session::refused_by_name(ORGANIZATION_THIS_ACCOUNT_HOLDS),
         )
         .await?;
-        replica.refuse_another_format().await?;
+        // and one this build may read and not write is refused as well, since the connect records
+        // this machine in it and renews every grant (effort 857, ticket 04).
+        replica.refuse_unwritable().await?;
 
         let row = replica
             .organization()
@@ -292,6 +294,13 @@ where
                 &credential,
             )
             .await?;
+
+        // the owner's own row repaired where somebody below them wrote it, now that the pull is in
+        // and the verdict lets this build write (effort 857, ticket 04).
+        session::repaired_after_the_pull(&replica, &mut session, None, || {
+            session::refused_by_name(ORGANIZATION_THIS_ACCOUNT_HOLDS)
+        })
+        .await?;
 
         // every grant fresh, the owner's included, so the credential the session holds is one that
         // lives: nothing renewed while every machine was gone.
@@ -1477,6 +1486,7 @@ mod tests {
             member: Arc::new(RwLock::new(None)),
             arriving_link: Arc::new(Mutex::new(None)),
             signed_out_elsewhere: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            held_by_version: Arc::new(std::sync::Mutex::new(None)),
             old_shape_check: tokio::sync::OnceCell::new(),
         }
     }

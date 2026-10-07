@@ -296,6 +296,12 @@ pub(crate) async fn version_recorded(app_state: &Shared) {
         return;
     };
 
+    // and nothing where the way in judged the organization, after its pull, as one this build
+    // may not write (effort 857, ticket 04).
+    if !super::writes_to(store) {
+        return;
+    }
+
     if machine_versioned(
         store,
         &held,

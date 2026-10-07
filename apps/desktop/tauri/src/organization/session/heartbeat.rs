@@ -55,13 +55,25 @@ pub(crate) async fn ended_elsewhere(app_state: &Shared, credentials: &dyn Creden
         // below judges rows only once they are the remote's (effort 851, requirement 36).
         let pulled = store.pulled().await.is_ok();
 
+        // **and the floors judged over what the pull brought, before anything is written or sent**
+        // (effort 857, requirement 9, ticket 04): a raise another machine made reaches this one as
+        // pulled rows, and a build it put below the write floor writes nothing from here, its push
+        // included. The verdict is kept on the store, which every write below asks, and the
+        // heartbeat's answer carries it. A verdict that could not be read writes nothing either.
+        let writes = matches!(
+            store.refuse_another_format().await,
+            Ok(crate::database::floor::Standing::Writable)
+        );
+
         // and out, which is what carries a bump made offline. `end_elsewhere` writes the number
         // on this machine's replica and pushes; a push that could not go left it there, and no
         // other scheduled path pushes the organization replica, so without this the sessions the
         // person was told would end stay open until they happen to make another organization
         // write. A push with nothing to send costs a round trip on a heartbeat that already
         // made one.
-        store.push().await;
+        if writes {
+            store.push().await;
+        }
 
         // and the owner's own row, where somebody below them demoted or removed it around the
         // command: the owner's machine holds the root and writes it again, with nobody acting
@@ -76,13 +88,21 @@ pub(crate) async fn ended_elsewhere(app_state: &Shared, credentials: &dyn Creden
                 .cloned()
         };
 
-        session::repair_own_row(store, session, held.as_ref()).await;
+        if writes {
+            session::repair_own_row(store, session, held.as_ref()).await;
 
-        // and the members carried over from before the lock, locked where their password is not
-        // their own, by the first machine able to sign it, over the rows just pulled (effort 851,
-        // requirement 36). A launch resumes through here, so a resume does it at once.
-        crate::organization::member::lock::carry_locks_over(store, session, held.as_ref(), pulled)
+            // and the members carried over from before the lock, locked where their password is
+            // not their own, by the first machine able to sign it, over the rows just pulled
+            // (effort 851, requirement 36). A launch resumes through here, so a resume does it at
+            // once.
+            crate::organization::member::lock::carry_locks_over(
+                store,
+                session,
+                held.as_ref(),
+                pulled,
+            )
             .await;
+        }
 
         let standing = match session::ended_elsewhere(store, session).await {
             Ok(ended) => Ok(ended),
@@ -111,14 +131,16 @@ pub(crate) async fn ended_elsewhere(app_state: &Shared, credentials: &dyn Creden
                         match session::signed_out_here(store, &held, &session.member_id).await {
                             Ok(true) => true,
                             Ok(false) => {
-                                session::machine_kept(
-                                    store,
-                                    &held,
-                                    session,
-                                    &app_state.upgrade.build(),
-                                    store.clock().now(),
-                                )
-                                .await;
+                                if writes {
+                                    session::machine_kept(
+                                        store,
+                                        &held,
+                                        session,
+                                        &app_state.upgrade.build(),
+                                        store.clock().now(),
+                                    )
+                                    .await;
+                                }
 
                                 false
                             }
@@ -370,6 +392,7 @@ mod tests {
             member: Arc::new(RwLock::new(None)),
             arriving_link: Arc::new(Mutex::new(None)),
             signed_out_elsewhere: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            held_by_version: Arc::new(std::sync::Mutex::new(None)),
             old_shape_check: tokio::sync::OnceCell::new(),
         }
     }
@@ -2060,5 +2083,242 @@ mod tests {
                 .permissions,
             permission::OWNER_ROLE.mask
         );
+    }
+
+    /// Every table, and every row of each, as the replica holds them: what "writes nothing" is
+    /// held to. *`store/format.rs` keeps the same reader; one is written out per module.*
+    async fn everything(store: &OrganizationStore) -> Vec<(String, Vec<String>)> {
+        let connection = store.connection();
+        let mut names = Vec::new();
+        let mut rows = connection
+            .query(
+                "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name",
+                (),
+            )
+            .await
+            .expect("the tables");
+
+        while let Some(row) = rows.next().await.expect("a table") {
+            if let turso::Value::Text(name) = row.get_value(0).expect("a name") {
+                names.push(name);
+            }
+        }
+
+        let mut everything = Vec::new();
+
+        for name in names {
+            let mut rows = connection
+                .query(&format!("SELECT * FROM \"{name}\""), ())
+                .await
+                .expect("the rows");
+            let mut held = Vec::new();
+
+            while let Some(row) = rows.next().await.expect("a row") {
+                held.push(format!(
+                    "{:?}",
+                    (0..row.column_count())
+                        .map(|index| row.get_value(index).expect("a value"))
+                        .collect::<Vec<_>>()
+                ));
+            }
+
+            everything.push((name, held));
+        }
+
+        everything
+    }
+
+    /// **Effort 857, ticket 04: a sign-in judges the floors its own pull brought, and writes
+    /// nothing after it where they hold this build.** The owner signs out by hand, and a newer
+    /// rentable raises the organization's floors on another machine, which this replica receives
+    /// with the pull the sign-in makes once the vault is open. Past the read floor the sign-in is
+    /// refused as `OrganizationNewer`; past the write floor alone it opens the session, read-only,
+    /// and in neither case is anything written after the pull: no repair, no lock, no registry row
+    /// and no name, all of which a sign-in otherwise writes.
+    #[tokio::test]
+    async fn a_sign_in_judges_the_floors_its_pull_brought_and_writes_nothing_after_it() {
+        use crate::database::floor::Standing;
+        use crate::organization::store::FORMAT_VERSION;
+
+        for (name, read, standing) in [
+            ("unreadable", FORMAT_VERSION + 1, Standing::Unreadable),
+            ("read-only", FORMAT_VERSION, Standing::ReadOnly),
+        ] {
+            let credentials: Credentials = Arc::new(Memory::new());
+            let directory = scratch(&format!("sign-in-floors-{name}"));
+            let app_state = first_run(&credentials, &directory).await;
+            let (organization_id, _) = recorded(&app_state).await;
+
+            assert!(
+                state_of(&app_state, &credentials, &crate::clock::System::shared())
+                    .await
+                    .expect("the state")
+                    .session
+                    .is_some(),
+                "{name}: the launch did not resume"
+            );
+
+            session::sign_out(&app_state, credentials.as_ref()).await;
+
+            let held = {
+                let mut remote_sync = app_state.remote_sync.write().await;
+
+                remote_sync
+                    .store_mut()
+                    .selected()
+                    .cloned()
+                    .expect("the record names no organization")
+            };
+            let other = elsewhere(&directory, &organization_id).await;
+            let store = elsewhere(&directory, &organization_id).await;
+            let pulled = Arc::new(Mutex::new(None));
+            let signed_in = {
+                let mut remote_sync = app_state.remote_sync.write().await;
+                let pulled = Arc::clone(&pulled);
+
+                join::admitted_after(
+                    credentials.as_ref(),
+                    &store,
+                    remote_sync.store_mut(),
+                    &held,
+                    USERNAME,
+                    PASSWORD,
+                    &slot(),
+                    CREATED_AT + 2,
+                    async || {
+                        other
+                            .record_floors(FORMAT_VERSION + 1, read, FORMAT_VERSION + 1)
+                            .await;
+                        *pulled.lock().expect("the snapshot") = Some(everything(&other).await);
+
+                        true
+                    },
+                )
+                .await
+            };
+            let after_the_pull = pulled
+                .lock()
+                .expect("the snapshot")
+                .clone()
+                .expect("the sign-in did not pull");
+
+            match standing {
+                Standing::Unreadable => assert!(
+                    matches!(
+                        signed_in,
+                        Err(Error::Refused {
+                            reason: crate::error::RefusalReason::OrganizationNewer,
+                            ..
+                        })
+                    ),
+                    "{name}: {signed_in:?}"
+                ),
+                _ => {
+                    signed_in.expect("the sign-in past the write floor alone was refused");
+                    assert_eq!(store.standing(), Standing::ReadOnly, "{name}");
+                }
+            }
+
+            assert_eq!(
+                everything(&store).await,
+                after_the_pull,
+                "{name}: the sign-in wrote after its pull"
+            );
+        }
+    }
+
+    /// **Effort 857, ticket 04: a floor raise pulled into a running session is judged before the
+    /// heartbeat's next write.** The owner is signed in, and the replica holds a raise of the
+    /// organization's floors that a pull brought. The heartbeat pulls, judges, and sends nothing:
+    /// one request reaches the remote, the pull, where a writable session's heartbeat pulls and
+    /// pushes (`the_heartbeat_pushes_the_organization_replica_after_its_pull`); and its answer
+    /// carries what holds the machine. Nothing is written to the replica.
+    #[tokio::test]
+    async fn a_raise_pulled_into_a_running_session_is_judged_before_the_heartbeats_next_write() {
+        use crate::database::floor::Standing;
+        use crate::organization::session::VersionTarget;
+        use crate::organization::store::FORMAT_VERSION;
+
+        for (name, read, standing) in [
+            ("read-only", FORMAT_VERSION, Standing::ReadOnly),
+            ("unreadable", FORMAT_VERSION + 1, Standing::Unreadable),
+        ] {
+            let credentials: Credentials = Arc::new(Memory::new());
+            let directory = scratch(&format!("heartbeat-floors-{name}"));
+            let app_state = first_run(&credentials, &directory).await;
+            let (organization_id, _) = recorded(&app_state).await;
+
+            assert!(
+                state_of(&app_state, &credentials, &crate::clock::System::shared())
+                    .await
+                    .expect("the state")
+                    .session
+                    .is_some(),
+                "{name}: the launch did not resume"
+            );
+
+            // the same replica, reopened against a remote that answers nothing, with the raise in
+            // it as a pull leaves one.
+            let server =
+                ScriptedServer::start((0..8).map(|_| ScriptedResponse::hangup()).collect()).await;
+            {
+                let mut organization = app_state.organization.write().await;
+
+                *organization = None;
+
+                let store = OrganizationStore::open(
+                    crate::clock::System::shared(),
+                    &OrganizationStore::replica_path(
+                        &directory.join(Database::FILENAME),
+                        &organization_id,
+                    ),
+                    Some(server.url("")),
+                    || async { Ok::<String, turso::Error>("a-credential".to_string()) },
+                )
+                .await
+                .expect("the replica did not reopen against the remote");
+
+                store
+                    .record_floors(FORMAT_VERSION + 1, read, FORMAT_VERSION + 1)
+                    .await;
+
+                *organization = Some(store);
+            }
+
+            let before = {
+                let organization = app_state.organization.read().await;
+
+                everything(organization.as_ref().expect("the replica")).await
+            };
+            let replicated = session::replicate(
+                &app_state,
+                credentials.as_ref(),
+                &crate::clock::System::shared(),
+            )
+            .await
+            .expect("the heartbeat");
+            let held = replicated
+                .held_by_version
+                .clone()
+                .unwrap_or_else(|| panic!("{name}: the heartbeat carried no version"));
+
+            assert_eq!(held.target, VersionTarget::Organization, "{name}");
+            assert_eq!(held.standing, standing, "{name}");
+            assert!(!replicated.pushed, "{name}: the heartbeat pushed");
+            assert_eq!(
+                server.request_count(),
+                1,
+                "{name}: the heartbeat sent something past its pull"
+            );
+            assert_eq!(server.request(0).target, "/pull-updates", "{name}");
+
+            let organization = app_state.organization.read().await;
+
+            assert_eq!(
+                everything(organization.as_ref().expect("the replica")).await,
+                before,
+                "{name}: the heartbeat wrote after its pull"
+            );
+        }
     }
 }

@@ -1352,6 +1352,10 @@ type RootTranslation = {
 				 */
 				ownerNotUpdated: string
 				/**
+				 * a​ ​n​e​w​e​r​ ​v​e​r​s​i​o​n​ ​o​f​ ​r​e​n​t​a​b​l​e​ ​u​p​g​r​a​d​e​d​ ​t​h​i​s​ ​o​r​g​a​n​i​z​a​t​i​o​n​.​ ​u​p​d​a​t​e​ ​r​e​n​t​a​b​l​e​ ​t​o​ ​m​a​k​e​ ​c​h​a​n​g​e​s​ ​i​n​ ​i​t​.
+				 */
+				organizationReadOnlyByVersion: string
+				/**
 				 * n​o​ ​c​o​p​y​ ​w​a​s​ ​t​a​k​e​n​ ​b​e​f​o​r​e​ ​u​p​g​r​a​d​i​n​g​,​ ​s​o​ ​n​o​t​h​i​n​g​ ​w​a​s​ ​c​h​a​n​g​e​d​.​ ​c​h​e​c​k​ ​t​h​e​ ​c​o​n​n​e​c​t​i​o​n​ ​a​n​d​ ​t​h​e​ ​b​a​c​k​u​p​s​ ​f​o​l​d​e​r​,​ ​t​h​e​n​ ​t​r​y​ ​a​g​a​i​n​.
 				 */
 				copyNotTaken: string
@@ -6744,6 +6748,10 @@ export type TranslationFunctions = {
 				 * the owner has not opened this version of rentable yet. upgrading waits until they have.
 				 */
 				ownerNotUpdated: () => LocalizedString
+				/**
+				 * a newer version of rentable upgraded this organization. update rentable to make changes in it.
+				 */
+				organizationReadOnlyByVersion: () => LocalizedString
 				/**
 				 * no copy was taken before upgrading, so nothing was changed. check the connection and the backups folder, then try again.
 				 */

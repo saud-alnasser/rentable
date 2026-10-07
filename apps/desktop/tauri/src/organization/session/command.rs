@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     clock,
     credential::{CredentialStore, Credentials},
+    database::floor::Standing,
     diagnostics,
     error::{Error, RefusalReason},
     organization::Shared,
@@ -24,7 +25,10 @@ use crate::organization::{
     act::{Acting, Pull, as_member, owner_platform},
     invitation::join,
     ownership,
-    session::{self, MachineView, SessionFacts, SessionsEnded, forget},
+    session::{
+        self, HeldByVersion, MachineView, SessionFacts, SessionsEnded, forget, held_by_version,
+        hold_at_the_wall, workspace_judged,
+    },
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -89,6 +93,12 @@ pub struct OrganizationState {
     /// (effort 826, requirement 22), which is a sentence the wall carries rather than a refusal
     /// anybody made here. False the moment somebody is signed in again.
     pub signed_out_elsewhere: bool,
+    /// what holds this machine by its version, where anything does (effort 857, ticket 04): a
+    /// resume refused because a newer rentable upgraded the organization past what this one reads,
+    /// a session let through on an organization or a workspace this one may read and not write,
+    /// or one a pulled raise has put past reading. `None` where this build may write everything it
+    /// has open.
+    pub held_by_version: Option<HeldByVersion>,
 }
 
 impl OrganizationState {
@@ -231,6 +241,8 @@ pub(crate) async fn state_of(
         app_state
             .signed_out_elsewhere
             .store(false, Ordering::SeqCst);
+        // and the version that kept the wall up: a session open is judged on its own store.
+        hold_at_the_wall(app_state, None);
     }
 
     Ok(OrganizationState {
@@ -240,6 +252,7 @@ pub(crate) async fn state_of(
         holds_turso_authority,
         setup_consented,
         signed_out_elsewhere: app_state.signed_out_elsewhere.load(Ordering::SeqCst),
+        held_by_version: held_by_version(app_state).await,
     })
 }
 
@@ -304,6 +317,8 @@ pub(crate) async fn select(app_state: &Shared, organization_id: &str) -> Result<
     app_state
         .signed_out_elsewhere
         .store(false, Ordering::SeqCst);
+    // what kept the wall up for its version was the previous organization's.
+    hold_at_the_wall(app_state, None);
 
     Ok(())
 }
@@ -506,7 +521,10 @@ pub(crate) async fn sign_out(app_state: &Shared, credentials: &dyn CredentialSto
     {
         let organization = app_state.organization.read().await;
 
-        if let (Some(held), Some(store)) = (held.as_ref(), organization.as_ref()) {
+        // and only where this build may write the organization (effort 857, ticket 04).
+        if let (Some(held), Some(store)) = (held.as_ref(), organization.as_ref())
+            && session::writes_to(store)
+        {
             session::machine_seen(store, held, None, store.clock().now()).await;
         }
     }
@@ -720,10 +738,33 @@ pub(crate) async fn organization_session_replicate(
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
 ) -> Result<Replication, Error> {
+    replicate(
+        app_state.inner(),
+        credentials.inner().as_ref(),
+        clock.inner(),
+    )
+    .await
+}
+
+/// [`organization_session_replicate`] over the application's state, as a test drives it.
+///
+/// **The floors are judged after the organization's pull and before the workspace's push**
+/// (effort 857, requirement 9, ticket 04). The organization's verdict is the one the pull in
+/// [`ended_elsewhere`] left on its store; the open workspace's is judged here, from the
+/// organization's record of it and from the floors the workspace keeps itself, and kept on the
+/// workspace engine. A workspace this build may read and not write is pulled and not pushed; one it
+/// may not read, or one of an organization it may not read, is neither. The answer carries what
+/// holds the machine, as `heldByVersion`, and the workspace is judged again after its own pull, so
+/// a raise that pull brought is in the answer and is judged before the next heartbeat writes.
+pub(crate) async fn replicate(
+    app_state: &Shared,
+    credentials: &dyn CredentialStore,
+    clock: &clock::Shared,
+) -> Result<Replication, Error> {
     // before the workspace's own replication, because a machine whose member is signed out has
     // no business pushing under a credential the organization has moved past. A machine with
     // nobody in, or whose row has not moved, pays one pull of the organization replica for it.
-    let standing = if ended_elsewhere(&app_state, credentials.inner().as_ref()).await {
+    let standing = if ended_elsewhere(app_state, credentials).await {
         SessionStanding::SignedOutElsewhere
     } else {
         SessionStanding::Held
@@ -738,7 +779,49 @@ pub(crate) async fn organization_session_replicate(
             received: false,
             refusal: None,
             standing,
+            held_by_version: None,
         });
+    }
+
+    // the organization as its pull left it, and the open workspace judged now.
+    let organization = app_state
+        .organization
+        .read()
+        .await
+        .as_ref()
+        .map(|store| store.standing())
+        .unwrap_or(Standing::Writable);
+    let workspace = workspace_judged(app_state).await;
+
+    match (organization, workspace.as_ref().map(|held| held.standing)) {
+        // past reading, the organization or the workspace: nothing goes either way, and what this
+        // machine wrote stays captured until it has updated.
+        (Standing::Unreadable, _) | (_, Some(Standing::Unreadable)) => {
+            return Ok(Replication {
+                pushed: false,
+                received: false,
+                refusal: None,
+                standing,
+                held_by_version: HeldByVersion::organization(organization).or(workspace),
+            });
+        }
+        // read-only: what the others wrote comes in, and nothing this build wrote goes out.
+        (_, Some(Standing::ReadOnly)) => {
+            let pulled = app_state.db.read().await.pull_replica().await;
+
+            if pulled.completed {
+                crate::machine::note_reached(&app_state.remote_sync, clock.as_ref()).await;
+            }
+
+            return Ok(Replication {
+                pushed: false,
+                received: pulled.brought,
+                refusal: None,
+                standing,
+                held_by_version: held_after(app_state, organization).await,
+            });
+        }
+        _ => {}
     }
 
     let replicated = {
@@ -762,20 +845,28 @@ pub(crate) async fn organization_session_replicate(
                 crate::machine::note_reached(&app_state.remote_sync, clock.as_ref()).await;
             }
 
-            Ok(Replication::of(replicated, standing))
+            Ok(Replication::of(
+                replicated,
+                standing,
+                held_after(app_state, organization).await,
+            ))
         }
         // a credential that stopped being accepted: a lock-out rotated it and the owner
         // re-sealed a fresh one to this member. The organization database says so, and reading
         // it costs one pull; where a credential moved, the same replication is tried once more
         // under it, and nobody has to do anything.
         Some(Error::Credential { .. }) => {
-            if !reconnect(&app_state).await {
+            if !reconnect(app_state).await {
                 app_state
                     .remote_sync
                     .write()
                     .await
                     .note_credential_refusal(clock.now());
-                return Ok(Replication::of(replicated, standing));
+                return Ok(Replication::of(
+                    replicated,
+                    standing,
+                    held_after(app_state, organization).await,
+                ));
             }
 
             let db = app_state.db.read().await;
@@ -818,6 +909,7 @@ pub(crate) async fn organization_session_replicate(
                 received: replicated.received || again.received,
                 refusal: again.refusal,
                 standing,
+                held_by_version: held_after(app_state, organization).await,
             })
         }
         // requirement 25: the account's, said as the account's, and the one other refusal
@@ -831,9 +923,19 @@ pub(crate) async fn organization_session_replicate(
                 .await
                 .note_account_refusal(&account.to_string(), clock.now());
 
-            Ok(Replication::of(replicated, standing))
+            Ok(Replication::of(
+                replicated,
+                standing,
+                held_after(app_state, organization).await,
+            ))
         }
     }
+}
+
+/// What holds this machine once a replication has gone: the organization's verdict, and the open
+/// workspace judged again over whatever its own pull brought.
+async fn held_after(app_state: &Shared, organization: Standing) -> Option<HeldByVersion> {
+    HeldByVersion::organization(organization).or(workspace_judged(app_state).await)
 }
 
 /// what one replication did.
@@ -856,6 +958,11 @@ pub struct Replication {
     /// answer the caller has to act on: the wall is already up on this side and the shell reads
     /// where the machine stands again (effort 826, requirement 22).
     pub standing: SessionStanding,
+    /// what holds this machine by its version after this replication (effort 857, ticket 04):
+    /// the organization or the open workspace, `readOnly` or `unreadable`, judged after the
+    /// organization's pull and before anything went out. `None` where this build may write both.
+    /// *Not a second `standing`*, which says where the member stands, and is the session's.
+    pub held_by_version: Option<HeldByVersion>,
 }
 
 /// where the member signed in on this machine stands, as the heartbeat found it.
@@ -893,12 +1000,17 @@ impl Replication {
     /// one replication and the standing the same call read, which is the only way one is built:
     /// a `From` would leave the standing to a default, and a default is how the one answer the
     /// caller must act on comes to be omitted.
-    fn of(replicated: crate::database::Replicated, standing: SessionStanding) -> Self {
+    fn of(
+        replicated: crate::database::Replicated,
+        standing: SessionStanding,
+        held_by_version: Option<HeldByVersion>,
+    ) -> Self {
         Self {
             pushed: replicated.pushed,
             received: replicated.received,
             refusal: replicated.refusal,
             standing,
+            held_by_version,
         }
     }
 }
@@ -999,6 +1111,7 @@ mod tests {
             member: Arc::new(RwLock::new(None)),
             arriving_link: Arc::new(Mutex::new(None)),
             signed_out_elsewhere: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            held_by_version: Arc::new(std::sync::Mutex::new(None)),
             old_shape_check: tokio::sync::OnceCell::new(),
         }
     }
@@ -1102,13 +1215,20 @@ mod tests {
                 received: false,
                 refusal,
                 standing,
+                held_by_version: None,
             })
             .expect("a replication did not serialise")
         };
 
         assert_eq!(
             crossing(None, SessionStanding::Held),
-            json!({ "pushed": true, "received": false, "refusal": "none", "standing": "held" })
+            json!({
+                "pushed": true,
+                "received": false,
+                "refusal": "none",
+                "standing": "held",
+                "heldByVersion": null
+            })
         );
         assert_eq!(
             crossing(
@@ -1118,7 +1238,13 @@ mod tests {
                 )),
                 SessionStanding::Held
             ),
-            json!({ "pushed": true, "received": false, "refusal": "account", "standing": "held" })
+            json!({
+                "pushed": true,
+                "received": false,
+                "refusal": "account",
+                "standing": "held",
+                "heldByVersion": null
+            })
         );
         assert_eq!(
             crossing(
@@ -1131,7 +1257,8 @@ mod tests {
                 "pushed": true,
                 "received": false,
                 "refusal": "credential",
-                "standing": "signedOutElsewhere"
+                "standing": "signedOutElsewhere",
+                "heldByVersion": null
             })
         );
     }

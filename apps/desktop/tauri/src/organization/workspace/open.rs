@@ -6,7 +6,14 @@
 //! the workspace this machine has open, and the credential their vault unsealed for it. The
 //! diagnostics it writes keep the `startup.` names they had when the startup held it.
 
-use crate::{clock::Clock, diagnostics, error::Error, machine::LocalReplica, organization::Shared};
+use crate::{
+    clock::Clock,
+    database::floor::Standing,
+    diagnostics,
+    error::{Error, RefusalReason},
+    machine::LocalReplica,
+    organization::Shared,
+};
 
 /// Where the current workspace stands for the member who is in.
 enum WorkspaceStanding {
@@ -194,7 +201,20 @@ pub(crate) async fn open_database(app_state: &Shared, clock: &dyn Clock) -> Opti
         });
     }
 
-    None
+    // **and the workspace judged against its floors over what the pull brought** (effort 857,
+    // ticket 04): from the organization's record of it, where somebody is in, and from the floors
+    // it keeps itself. The verdict is held on the engine, which every write asks (ticket 05), and
+    // past the read floor the opening is refused by name. The lock is let go of first, since the
+    // judgment reads the engine through it. Nothing is written to the workspace.
+    drop(db);
+
+    match crate::organization::session::workspace_judged(app_state).await {
+        Some(held) if held.standing == Standing::Unreadable => Some(Error::refused(
+            RefusalReason::WorkspaceNewer,
+            format!("{}; nothing in it was read", held.reason),
+        )),
+        _ => None,
+    }
 }
 
 /// Let go of a replica this machine may no longer hold.
@@ -429,6 +449,7 @@ mod tests {
             member: Arc::new(RwLock::new(None)),
             arriving_link: Arc::new(Mutex::new(None)),
             signed_out_elsewhere: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            held_by_version: Arc::new(std::sync::Mutex::new(None)),
             old_shape_check: tokio::sync::OnceCell::new(),
         }
     }
@@ -684,5 +705,223 @@ mod tests {
             drop(silent);
             let _ = std::fs::remove_dir_all(&directory);
         });
+    }
+
+    /// Every table of a workspace replica, and every row of each, read through an engine opened on
+    /// the file and let go of again: what "writes nothing" is held to.
+    async fn replica_contents(path: &std::path::Path) -> Vec<(String, Vec<String>)> {
+        let replica = Database::open_replica(&crate::clock::System, path, None, || async {
+            Ok::<String, turso::Error>(String::new())
+        })
+        .await
+        .expect("the workspace replica");
+        let connection = replica.connect().await.expect("a connection");
+        let mut names = Vec::new();
+        let mut rows = connection
+            .query(
+                "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name",
+                (),
+            )
+            .await
+            .expect("the tables");
+
+        while let Some(row) = rows.next().await.expect("a table") {
+            if let turso::Value::Text(name) = row.get_value(0).expect("a name") {
+                names.push(name);
+            }
+        }
+
+        let mut contents = Vec::new();
+
+        for name in names {
+            let mut rows = connection
+                .query(&format!("SELECT * FROM \"{name}\""), ())
+                .await
+                .expect("the rows");
+            let mut held = Vec::new();
+
+            while let Some(row) = rows.next().await.expect("a row") {
+                held.push(format!(
+                    "{:?}",
+                    (0..row.column_count())
+                        .map(|index| row.get_value(index).expect("a value"))
+                        .collect::<Vec<_>>()
+                ));
+            }
+
+            contents.push((name, held));
+        }
+
+        contents
+    }
+
+    /// **Effort 857, ticket 04, at the launch's `open_database`: the workspace is judged once its
+    /// replica has pulled, against the floors it keeps itself.** A newer rentable upgraded the
+    /// workspace this machine has open while it was closed. Past the read floor the opening
+    /// answers `WorkspaceNewer`, and the engine holds it as unreadable; past the write floor alone
+    /// it opens, held read-only. Nothing is written to the workspace either way.
+    #[tokio::test]
+    async fn the_launch_judges_the_workspace_after_its_pull_and_writes_nothing() {
+        use crate::database::floor::Standing;
+        use crate::organization::lease::apply;
+
+        let shipped = apply::shipped_version();
+
+        for (name, read, standing) in [
+            ("unreadable", shipped + 1, Standing::Unreadable),
+            ("read-only", shipped, Standing::ReadOnly),
+        ] {
+            let directory = scratch(&format!("open-floors-{name}"));
+            let path = a_workspace_replica(&directory, "south").await;
+
+            {
+                let replica =
+                    Database::open_replica(&crate::clock::System, &path, None, || async {
+                        Ok::<String, turso::Error>(String::new())
+                    })
+                    .await
+                    .expect("the workspace replica");
+                let connection = replica.connect().await.expect("a connection");
+
+                for statement in [
+                    "CREATE TABLE \"schema_version\" (\"id\" INTEGER PRIMARY KEY CHECK (\"id\" = 1), \
+                     \"version\" INTEGER NOT NULL)"
+                        .to_string(),
+                    format!("INSERT INTO \"schema_version\" VALUES (1, {})", shipped + 1),
+                    "CREATE TABLE \"data_floor\" (\"id\" INTEGER PRIMARY KEY CHECK (\"id\" = 1), \
+                     \"level\" INTEGER NOT NULL, \"read\" INTEGER NOT NULL, \
+                     \"write\" INTEGER NOT NULL)"
+                        .to_string(),
+                    format!(
+                        "INSERT INTO \"data_floor\" VALUES (1, {}, {read}, {})",
+                        shipped + 1,
+                        shipped + 1
+                    ),
+                ] {
+                    connection.execute(&statement, ()).await.expect("the floors");
+                }
+            }
+
+            let app_state = state_over(&directory).await;
+
+            {
+                let mut remote_sync = app_state.remote_sync.write().await;
+                let record = remote_sync.store_mut();
+
+                record.workspace.remote_id = Some("south".to_string());
+                record.workspace.remote_url = None;
+                record.commit().expect("the record");
+            }
+
+            let before = replica_contents(&path).await;
+            let opened = open_database(&app_state, &crate::clock::System).await;
+
+            match standing {
+                Standing::Unreadable => assert!(
+                    matches!(
+                        opened,
+                        Some(crate::error::Error::Refused {
+                            reason: crate::error::RefusalReason::WorkspaceNewer,
+                            ..
+                        })
+                    ),
+                    "{name}: {opened:?}"
+                ),
+                _ => assert!(opened.is_none(), "{name}: {opened:?}"),
+            }
+
+            assert_eq!(app_state.db.read().await.standing(), standing, "{name}");
+
+            app_state.db.write().await.disconnect().await;
+
+            assert_eq!(
+                replica_contents(&path).await,
+                before,
+                "{name}: the opening wrote to the workspace"
+            );
+        }
+    }
+
+    /// **Effort 857, ticket 04, on the heartbeat: a workspace this build may read and not write is
+    /// pulled and never pushed.** The workspace open on this machine keeps floors past this build's
+    /// write floor. The heartbeat's replication judges it before anything goes out: what reaches
+    /// the workspace's remote is pulls and nothing else, and the answer says the workspace holds
+    /// the machine read-only.
+    #[tokio::test]
+    async fn the_heartbeat_pulls_a_read_only_workspace_and_pushes_nothing() {
+        use crate::credential::Memory;
+        use crate::database::floor::Standing;
+        use crate::organization::lease::apply;
+        use crate::organization::session::{VersionTarget, replicate};
+
+        let shipped = apply::shipped_version();
+        let directory = scratch("heartbeat-read-only-workspace");
+        let path = a_workspace_replica(&directory, "south").await;
+
+        {
+            let replica = Database::open_replica(&crate::clock::System, &path, None, || async {
+                Ok::<String, turso::Error>(String::new())
+            })
+            .await
+            .expect("the workspace replica");
+            let connection = replica.connect().await.expect("a connection");
+
+            for statement in [
+                "CREATE TABLE \"data_floor\" (\"id\" INTEGER PRIMARY KEY CHECK (\"id\" = 1), \
+                 \"level\" INTEGER NOT NULL, \"read\" INTEGER NOT NULL, \
+                 \"write\" INTEGER NOT NULL)"
+                    .to_string(),
+                format!(
+                    "INSERT INTO \"data_floor\" VALUES (1, {}, {shipped}, {})",
+                    shipped + 1,
+                    shipped + 1
+                ),
+            ] {
+                connection
+                    .execute(&statement, ())
+                    .await
+                    .expect("the floors");
+            }
+        }
+
+        let server =
+            ScriptedServer::start((0..8).map(|_| ScriptedResponse::hangup()).collect()).await;
+        let app_state = state_over(&directory).await;
+
+        app_state
+            .remote_sync
+            .write()
+            .await
+            .open_organization_workspace("south", "South", &server.url(""), 0, "a-credential")
+            .expect("the workspace recorded");
+
+        assert!(
+            open_database(&app_state, &crate::clock::System)
+                .await
+                .is_none(),
+            "a read-only workspace was refused"
+        );
+
+        let replicated = replicate(&app_state, &Memory::new(), &crate::clock::System::shared())
+            .await
+            .expect("the heartbeat");
+        let held = replicated
+            .held_by_version
+            .expect("nothing held the machine");
+
+        assert_eq!(held.target, VersionTarget::Workspace("south".to_string()));
+        assert_eq!(held.standing, Standing::ReadOnly);
+        assert!(!replicated.pushed);
+        assert!(server.request_count() >= 2, "the heartbeat did not pull");
+
+        for index in 0..server.request_count() {
+            assert_eq!(
+                server.request(index).target,
+                "/pull-updates",
+                "something other than a pull reached the workspace"
+            );
+        }
+
+        app_state.db.write().await.disconnect().await;
     }
 }

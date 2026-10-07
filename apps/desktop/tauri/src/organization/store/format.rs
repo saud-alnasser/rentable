@@ -3,6 +3,7 @@
 //! policy, kept apart from the repository methods of this format.
 
 use crate::{
+    database::floor::{self, Floors, Standing},
     error::{Error, RefusalReason},
     organization::{
         authority::{Certificate, FormatOneCertificate, Revocation, VERIFYING_KEY_BYTES},
@@ -210,8 +211,8 @@ impl OrganizationStore {
 
     /// The organization's floors as an upgrade recorded them, `(level, read, write)`, or `None`
     /// where none is recorded: no `organization_floor` table, which is every organization before
-    /// effort 857's first upgrade, or a table with no row (`upgrade/floor.rs` reads the format
-    /// then).
+    /// effort 857's first upgrade, or a table with no row ([`OrganizationStore::floors`] reads the
+    /// format then).
     ///
     /// Read against the tables the database reports, so it never fails on a table it does not
     /// have, and writes nothing.
@@ -287,35 +288,165 @@ impl OrganizationStore {
         }
     }
 
-    /// Refuse an organization of another format, by name, before anything else is read from it
-    /// or written to it (effort 838, requirement 11).
+    /// The organization's floors (effort 857, requirements 2 and 13): its `organization_floor` row
+    /// where an upgrade wrote one, and otherwise its `format` row, read as floors equal to it
+    /// ([`Floors::legacy`]). `None` where it has no format row, which is an organization of format 1
+    /// or one whose upgrade was cut short, and [`OrganizationStore::refuse_another_format`] answers
+    /// that.
     ///
-    /// **Two refusals, because the person does two different things.** An organization with no
-    /// format, or an earlier one, was made by an earlier version of the application, and its
-    /// owner's machine upgrades it at their first sign-in, resume or connect on this one, online
-    /// (tickets 22 and 23); anybody else meeting it first waits for that, and so does everybody
-    /// meeting an upgrade cut short, which the owner's next sign-in, resume or connect finishes.
-    /// Its owner meets this only where the upgrade did not run. One with a later format was made
-    /// by a newer version, and this application is updated.
+    /// Reads and writes nothing. *It was `upgrade/floor.rs`'s `organization` until ticket 04.*
+    pub async fn floors(&self) -> Result<Option<Floors>, Error> {
+        if let Some((level, read, write)) = self.floor_recorded().await? {
+            return Ok(Some(Floors {
+                level: floor::number(level)?,
+                read: floor::number(read)?,
+                write: floor::number(write)?,
+            }));
+        }
+
+        self.format()
+            .await?
+            .map(|format| floor::number(format).map(Floors::legacy))
+            .transpose()
+    }
+
+    /// Judge this build against the organization's floors, before anything else is read from it or
+    /// written to it, and keep the verdict on the store (effort 838, requirement 11; effort 857,
+    /// requirement 2 and ticket 04).
+    ///
+    /// **Three answers where there were two.** Below the read floor the organization is refused by
+    /// name as `OrganizationNewer`, which now means exactly that: a newer version of rentable
+    /// upgraded it past what this one reads, and this application is updated. At or above the read
+    /// floor and below the write floor it is let through as [`Standing::ReadOnly`]: every way in
+    /// reads it and writes nothing, and the acts refuse their writes (ticket 05). At or above both
+    /// it is [`Standing::Writable`], whatever level the additions took it to. An organization
+    /// recorded at a format above this build's with no floor record reads as floors at that format
+    /// ([`Floors::legacy`]), so it is refused, exactly as every build before effort 857 refused it.
+    ///
+    /// **An organization with no format, or an earlier one, waits for its owner.** It was made by
+    /// an earlier version of the application, and its owner's machine upgrades it at their first
+    /// sign-in, resume or connect on this one, online (tickets 22 and 23); anybody else meeting it
+    /// first waits for that, and so does everybody meeting an upgrade cut short, which the owner's
+    /// next sign-in, resume or connect finishes. Its owner meets this only where the upgrade did
+    /// not run.
     ///
     /// **A `format` row beside format 1's table or columns is not this format** (ticket 25): the
     /// row is unsigned, and one written into an organization still in format 1's shape would
     /// otherwise have every reader take it for this one and fail on a column it lacks. It reads as
     /// unfinished, which is what it is.
     ///
-    /// Reads the format and the member table's shape and nothing else, and nothing was written to
-    /// the organization, so a refused organization is left exactly as it was found.
-    pub async fn refuse_another_format(&self) -> Result<(), Error> {
-        match self.format().await? {
-            Some(version) if version > FORMAT_VERSION => Err(Error::refused(
+    /// **Every way in asks it after its pull** (effort 857, ticket 04), since a pull is what brings
+    /// a floor another machine raised, and asks [`OrganizationStore::standing`] before any write of
+    /// its own. Reads the format, the floors and the member table's shape and nothing else, so a
+    /// refused organization is left exactly as it was found.
+    pub async fn refuse_another_format(&self) -> Result<Standing, Error> {
+        let judged = self.judged().await;
+
+        self.hold(match &judged {
+            Ok(standing) => *standing,
+            Err(Error::Refused {
+                reason: RefusalReason::OrganizationNewer,
+                ..
+            }) => Standing::Unreadable,
+            // an organization waiting for its owner is read by nothing of this format and written
+            // by nothing either, until the owner's upgrade.
+            Err(_) => Standing::ReadOnly,
+        });
+
+        judged
+    }
+
+    /// [`OrganizationStore::refuse_another_format`]'s verdict, before it is kept.
+    async fn judged(&self) -> Result<Standing, Error> {
+        let format = self.format().await?;
+
+        match format {
+            Some(version) if version > FORMAT_VERSION => {}
+            Some(FORMAT_VERSION) if !self.carries_format_one().await? => {}
+            _ => return Err(waits_for_its_owner()),
+        }
+
+        let known = FORMAT_VERSION as u32;
+        let floors = self.floors().await?.ok_or_else(waits_for_its_owner)?;
+
+        match floors.standing(known) {
+            Standing::Unreadable => Err(Error::refused(
                 RefusalReason::OrganizationNewer,
                 format!(
-                    "the organization is of format {version}, made by a newer version of \
-                     rentable, and this version reads format {FORMAT_VERSION}"
+                    "the organization was made by a newer version of rentable (format {}, which a \
+                     version knowing format {} reads), and this version knows format {known}. \
+                     update rentable to open it; nothing was read or written",
+                    format.unwrap_or_default(),
+                    floors.read
                 ),
             )),
-            Some(FORMAT_VERSION) if !self.carries_format_one().await? => Ok(()),
-            _ => Err(waits_for_its_owner()),
+            standing => Ok(standing),
+        }
+    }
+
+    /// Refuse an organization this build may not write, where the way in cannot go on without
+    /// writing to it: a connect, which registers the machine, and a link opened, which spends its
+    /// row and reseals a vault (effort 857, ticket 04). Below the read floor it is
+    /// [`OrganizationStore::refuse_another_format`]'s refusal; below the write floor it is
+    /// `OrganizationReadOnlyByVersion`, and nothing was written.
+    pub async fn refuse_unwritable(&self) -> Result<(), Error> {
+        match self.refuse_another_format().await? {
+            Standing::Writable => Ok(()),
+            _ => Err(Error::refused(
+                RefusalReason::OrganizationReadOnlyByVersion,
+                "a newer version of rentable upgraded the organization, and this version can read \
+                 it but not write to it. update rentable to make changes; nothing was written",
+            )),
+        }
+    }
+
+    /// Record the organization's floors as the explicit upgrade will (effort 857, ticket 07), for a
+    /// test raising them past this build: the table where it is missing, and its one row.
+    #[cfg(test)]
+    pub(crate) async fn record_floors(&self, level: i64, read: i64, write: i64) {
+        self.connection
+            .execute(
+                &format!(
+                    "CREATE TABLE IF NOT EXISTS \"{ORGANIZATION_FLOOR_TABLE}\" (\
+                     \"id\" TEXT PRIMARY KEY NOT NULL, \"level\" INTEGER NOT NULL, \
+                     \"read\" INTEGER NOT NULL, \"write\" INTEGER NOT NULL, \
+                     \"written_at\" INTEGER NOT NULL)"
+                ),
+                (),
+            )
+            .await
+            .expect("the floor table");
+        self.connection
+            .execute(
+                &format!(
+                    "INSERT OR REPLACE INTO \"{ORGANIZATION_FLOOR_TABLE}\" \
+                     (\"id\", \"level\", \"read\", \"write\", \"written_at\") \
+                     VALUES (?, ?, ?, ?, 0)"
+                ),
+                vec![
+                    turso::Value::Text(ORGANIZATION_FLOOR_ID.to_string()),
+                    turso::Value::Integer(level),
+                    turso::Value::Integer(read),
+                    turso::Value::Integer(write),
+                ],
+            )
+            .await
+            .expect("the floor row");
+    }
+
+    /// Where this build stood at the last verdict ([`OrganizationStore::refuse_another_format`]):
+    /// what a way in and the heartbeat ask before they write anything of their own.
+    pub fn standing(&self) -> Standing {
+        self.standing
+            .lock()
+            .map(|standing| *standing)
+            .unwrap_or(Standing::Unreadable)
+    }
+
+    /// Keep `standing` as the verdict this store answers with.
+    fn hold(&self, standing: Standing) {
+        if let Ok(mut held) = self.standing.lock() {
+            *held = standing;
         }
     }
 
@@ -658,4 +789,214 @@ pub fn waits_for_its_owner() -> Error {
              it; nothing was changed"
         ),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::database::floor::{Floors, Standing};
+    use crate::error::{Error, RefusalReason};
+
+    use super::{FORMAT_VERSION, OrganizationStore};
+
+    async fn store(name: &str) -> OrganizationStore {
+        let path = crate::test::scratch(name).join("org.db");
+
+        OrganizationStore::open(crate::clock::System::shared(), &path, None, || async {
+            Err(turso::Error::Misuse("no remote".into()))
+        })
+        .await
+        .expect("a store")
+    }
+
+    /// An organization of this build's format, as a first run leaves it.
+    async fn of_this_format(name: &str) -> OrganizationStore {
+        let store = store(name).await;
+
+        store.install_schema().await.expect("the schema");
+        store.write_format().await.expect("the format row");
+
+        store
+    }
+
+    /// Every table, and every row of each, as the replica holds them: what "writes nothing" is
+    /// held to.
+    async fn everything(store: &OrganizationStore) -> Vec<(String, Vec<String>)> {
+        let connection = store.connection();
+        let mut names = Vec::new();
+        let mut rows = connection
+            .query(
+                "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name",
+                (),
+            )
+            .await
+            .expect("the tables");
+
+        while let Some(row) = rows.next().await.expect("a table") {
+            if let turso::Value::Text(name) = row.get_value(0).expect("a name") {
+                names.push(name);
+            }
+        }
+
+        let mut everything = Vec::new();
+
+        for name in names {
+            let mut rows = connection
+                .query(&format!("SELECT * FROM \"{name}\""), ())
+                .await
+                .expect("the rows");
+            let mut held = Vec::new();
+
+            while let Some(row) = rows.next().await.expect("a row") {
+                held.push(format!(
+                    "{:?}",
+                    (0..row.column_count())
+                        .map(|index| row.get_value(index).expect("a value"))
+                        .collect::<Vec<_>>()
+                ));
+            }
+
+            everything.push((name, held));
+        }
+
+        everything
+    }
+
+    fn reason_of<T: std::fmt::Debug>(result: Result<T, Error>) -> RefusalReason {
+        match result {
+            Err(Error::Refused { reason, .. }) => reason,
+            other => panic!("not a refusal: {other:?}"),
+        }
+    }
+
+    /// **Ticket 01's fifth criterion, on an organization.** An organization of this build's format
+    /// with no floor record reads every floor at its format, and nothing in it changes.
+    #[tokio::test]
+    async fn an_organization_with_no_floor_record_reads_its_format_and_writes_nothing() {
+        let store = of_this_format("floor-organization").await;
+        let before = everything(&store).await;
+
+        assert_eq!(
+            store.floors().await.expect("the floors"),
+            Some(Floors::legacy(FORMAT_VERSION as u32))
+        );
+        assert_eq!(everything(&store).await, before);
+    }
+
+    /// An organization with no format row, format 1's or one cut short, has no floors of its own,
+    /// and the read leaves it as it was.
+    #[tokio::test]
+    async fn an_organization_with_no_format_row_has_no_floors_of_its_own() {
+        let store = store("floor-no-format").await;
+        let before = everything(&store).await;
+
+        assert_eq!(store.floors().await.expect("the floors"), None);
+        assert_eq!(everything(&store).await, before);
+    }
+
+    /// An organization an upgrade recorded floors in reads them rather than its format.
+    #[tokio::test]
+    async fn an_organization_with_a_floor_record_reads_it() {
+        let store = of_this_format("floor-recorded").await;
+
+        store.record_floors(5, 3, 4).await;
+
+        assert_eq!(
+            store.floors().await.expect("the floors"),
+            Some(Floors {
+                level: 5,
+                read: 3,
+                write: 4
+            })
+        );
+    }
+
+    /// **Ticket 04's first criterion, on the organization.** The verdict is the floors': at or
+    /// above both it is writable whatever the level, below the write floor it is let through
+    /// read-only, and below the read floor it is refused as `OrganizationNewer`. Each verdict is
+    /// kept on the store, and judging writes nothing.
+    #[tokio::test]
+    async fn the_organizations_verdict_is_its_floors() {
+        let known = FORMAT_VERSION;
+        let cases = [
+            // (level, read, write, the verdict)
+            (known, known, known, Ok(Standing::Writable)),
+            (known + 2, known, known, Ok(Standing::Writable)),
+            (known + 1, known, known + 1, Ok(Standing::ReadOnly)),
+            (
+                known + 1,
+                known + 1,
+                known + 1,
+                Err(RefusalReason::OrganizationNewer),
+            ),
+        ];
+
+        for (index, (level, read, write, expected)) in cases.into_iter().enumerate() {
+            let store = of_this_format(&format!("floor-verdict-{index}")).await;
+
+            store.record_floors(level, read, write).await;
+
+            let before = everything(&store).await;
+            let judged = store.refuse_another_format().await;
+
+            match expected {
+                Ok(standing) => {
+                    assert_eq!(judged.expect("judged"), standing);
+                    assert_eq!(store.standing(), standing);
+                }
+                Err(reason) => {
+                    assert_eq!(reason_of(judged), reason);
+                    assert_eq!(store.standing(), Standing::Unreadable);
+                }
+            }
+
+            assert_eq!(everything(&store).await, before, "judging wrote");
+        }
+    }
+
+    /// A format above this build's with no floor record is refused, as every build before effort
+    /// 857 refused it: the legacy number is its own floor.
+    #[tokio::test]
+    async fn a_newer_format_with_no_floor_record_is_below_the_read_floor() {
+        let store = of_this_format("floor-newer-format").await;
+
+        store
+            .connection()
+            .execute("UPDATE \"format\" SET \"version\" = \"version\" + 1", ())
+            .await
+            .expect("a newer format");
+
+        assert_eq!(
+            reason_of(store.refuse_another_format().await),
+            RefusalReason::OrganizationNewer
+        );
+        assert_eq!(store.standing(), Standing::Unreadable);
+    }
+
+    /// A way in that has to write is refused below the write floor, by the version, and let
+    /// through at it.
+    #[tokio::test]
+    async fn a_way_in_that_writes_is_refused_below_the_write_floor() {
+        let store = of_this_format("floor-unwritable").await;
+
+        store.refuse_unwritable().await.expect("writable");
+
+        store
+            .record_floors(FORMAT_VERSION + 1, FORMAT_VERSION, FORMAT_VERSION + 1)
+            .await;
+
+        assert_eq!(
+            reason_of(store.refuse_unwritable().await),
+            RefusalReason::OrganizationReadOnlyByVersion
+        );
+        assert_eq!(store.standing(), Standing::ReadOnly);
+
+        store
+            .record_floors(FORMAT_VERSION + 1, FORMAT_VERSION + 1, FORMAT_VERSION + 1)
+            .await;
+
+        assert_eq!(
+            reason_of(store.refuse_unwritable().await),
+            RefusalReason::OrganizationNewer
+        );
+    }
 }

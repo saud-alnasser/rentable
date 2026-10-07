@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [01]
 ---
 
@@ -15,11 +15,11 @@ Every way in (launch, resume, sign-in, join by link or invitation, switching wor
 
 Traces requirement 2, requirement 8, requirement 9, criterion 2 and criterion 9.
 
-- [ ] `refuse_another_format` and `lease::refuse_newer` become the floor verdict: refused below the read floor (`OrganizationNewer`, `WorkspaceNewer`), let through read-only below the write floor, read-write otherwise.
-- [ ] `open_replica`, `resume_remembered`, sign-in, `connect` for an organization already held, join and accept, and the launch's `open_database` pull before judging and write nothing before it, including `owner_row_repaired` and `carry_locks_over`.
-- [ ] A resume refused for its version sets `heldByVersion: { target, standing, reason }` on `OrganizationState` instead of logging only.
-- [ ] `session_replicate` judges the organization and the open workspace after the organization pull, sets the workspace's `standing`, and does not push a workspace this build may not write; the result carries `standing`.
-- [ ] Tests: each entry with the floors raised past this build is refused or read-only with nothing written after the pull; a floor raise pulled into a running session is judged before the heartbeat's next write.
+- [x] `refuse_another_format` and `lease::refuse_newer` become the floor verdict: refused below the read floor (`OrganizationNewer`, `WorkspaceNewer`), let through read-only below the write floor, read-write otherwise.
+- [x] `open_replica`, `resume_remembered`, sign-in, `connect` for an organization already held, join and accept, and the launch's `open_database` pull before judging and write nothing before it, including `owner_row_repaired` and `carry_locks_over`.
+- [x] A resume refused for its version sets `heldByVersion: { target, standing, reason }` on `OrganizationState` instead of logging only.
+- [x] `session_replicate` judges the organization and the open workspace after the organization pull, sets the workspace's `standing`, and does not push a workspace this build may not write; the result carries `standing`.
+- [x] Tests: each entry with the floors raised past this build is refused or read-only with nothing written after the pull; a floor raise pulled into a running session is judged before the heartbeat's next write.
 
 ## Relevant areas
 

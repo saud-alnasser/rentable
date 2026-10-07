@@ -126,7 +126,8 @@ export async function signOut(
 			session: null,
 			holdsTursoAuthority: false,
 			setupConsented: false,
-			signedOutElsewhere: false
+			signedOutElsewhere: false,
+			heldByVersion: null
 		}
 	});
 

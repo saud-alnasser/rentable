@@ -268,6 +268,31 @@ export type OrganizationState = {
 	 * False the moment anybody is signed in again.
 	 */
 	signedOutElsewhere: boolean;
+	/**
+	 * what holds this machine by its version, or `null` where this build may write everything it
+	 * has open (effort 857). A resume refused because a newer rentable upgraded the organization
+	 * past what this one reads leaves the wall up with this set; a session let through on an
+	 * organization or a workspace this one may read and not write carries it while it lasts.
+	 */
+	heldByVersion: HeldByVersion | null;
+};
+
+/**
+ * where this build stands against a database's floors: `readOnly` below the write floor, and
+ * `unreadable` below the read floor (effort 857). A writable database holds nothing and is never
+ * carried.
+ */
+export type VersionStanding = 'readOnly' | 'unreadable';
+
+/**
+ * the organization or one workspace, by its id, upgraded past this build: which, how far this
+ * build may still go with it, and the reason as a sentence for the detail a screen keeps behind
+ * its own words (effort 857).
+ */
+export type HeldByVersion = {
+	target: 'organization' | { workspace: string };
+	standing: VersionStanding;
+	reason: string;
 };
 
 /** The organization's mark as the host hands it over: its kind, and the image in base64. */

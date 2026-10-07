@@ -14,6 +14,7 @@ use crate::organization::{
     HeldOrganization,
     authority::VERIFYING_KEY_BYTES,
     member::vault::{MemberSecretKey, open_vault, open_vault_with_key},
+    ownership::is_the_owners,
     role::permission::{self},
     store::{MemberRecord, OrganizationStore},
 };
@@ -173,6 +174,33 @@ pub(super) async fn owner_row_repaired(
     }
 }
 
+/// What a sign-in and a resume repair, once they have pulled and judged the organization's floors
+/// rather than before (effort 857, ticket 04): the owner's own row where somebody below them wrote
+/// it, and the organization's name where nobody signed it, on the owner's machine alone
+/// ([`repair_own_row`]); and nothing at all where this build may not write the organization. A row
+/// still removed afterwards, the owner's whose repair could not be made included, is refused with
+/// `removed`, which is the sentence the way in gives a removal.
+pub(crate) async fn repaired_after_the_pull(
+    store: &OrganizationStore,
+    session: &mut MemberSession,
+    held: Option<&HeldOrganization>,
+    removed: impl FnOnce() -> Error,
+) -> Result<(), Error> {
+    if super::writes_to(store) {
+        repair_own_row(store, session, held).await;
+    }
+
+    let row = store
+        .member(&session.verifying_key, &session.member_id)
+        .await?;
+
+    if row.is_some_and(|row| row.removed_at.is_some()) {
+        return Err(removed());
+    }
+
+    Ok(())
+}
+
 /// The heartbeat's repair of the owner's own row (`ownership::repair_owner_row`), on the session this
 /// machine holds open, taking what the row says once it is written. On every machine but the
 /// owner's it writes nothing. **Nothing comes back**, since the heartbeat has nothing to do with
@@ -284,7 +312,9 @@ pub(crate) async fn sign_in_by_username(
     // there would refuse the later of the two at the wall for as long as they share it.
     //
     // a removed row is asked too, and passed over unless it is the owner's own meeting a removal
-    // written from below, which their machine repairs here (`owner_row_repaired`).
+    // written from below, which their machine repairs once the sign-in has pulled and judged the
+    // organization's floors ([`repaired_after_the_pull`], effort 857, ticket 04): nothing is
+    // written here, before the pull.
     for member in &members {
         let Ok((secret, member_key)) = open_vault_with_key(password, &member.vault) else {
             continue;
@@ -297,15 +327,11 @@ pub(crate) async fn sign_in_by_username(
         )?;
 
         if carried.trim().to_lowercase() == wanted {
-            let member = owner_row_repaired(store, &verifying_key, member, &secret, Some(held))
-                .await
-                .unwrap_or_else(|| member.clone());
-
-            if member.removed_at.is_some() {
+            if member.removed_at.is_some() && !is_the_owners(&secret, &verifying_key) {
                 continue;
             }
 
-            found = Some((member, secret, member_key, content_key));
+            found = Some((member.clone(), secret, member_key, content_key));
             break;
         }
     }

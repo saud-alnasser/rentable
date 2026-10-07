@@ -88,7 +88,8 @@ vi.mock('$lib/organization/query', async (original) => ({
 			session: null,
 			holdsTursoAuthority: hooks.selectedHolds,
 			setupConsented: hooks.holdsTursoAuthority,
-			signedOutElsewhere: false
+			signedOutElsewhere: false,
+			heldByVersion: null
 		},
 		refetch: async () => ({ data: { holdsTursoAuthority: false, setupConsented: true } })
 	})
