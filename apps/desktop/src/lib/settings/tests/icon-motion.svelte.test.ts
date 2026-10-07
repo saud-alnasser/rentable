@@ -7,7 +7,9 @@ import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import SettingsDiagnostics from '$lib/settings/component/diagnostics.svelte';
 import SettingsUpdates from '$lib/settings/component/updates.svelte';
-import type { AvailableUpdate } from '$lib/update';
+import type { CheckedUpdate } from '$lib/update';
+import { resetUpdater } from '$lib/update/updater.svelte';
+import { noRelease } from '$lib/update/tests/testing';
 import Providers from '#tests/providers.svelte';
 
 /**
@@ -24,21 +26,8 @@ import Providers from '#tests/providers.svelte';
  * test; with none at all the answer is no, as `reducesMotion` says.
  */
 
-const { updater } = vi.hoisted(() => ({
-	/** the check's answer, held open until the test settles it. */
-	updater: { settle: (() => {}) as (update: AvailableUpdate | null) => void }
-}));
-
-vi.mock('$lib/update/ui', () => ({
-	useCheckForUpdate: () => ({
-		mutateAsync: () =>
-			new Promise<AvailableUpdate | null>((resolve) => {
-				updater.settle = resolve;
-			})
-	}),
-	usePrepareUpdate: () => ({ mutateAsync: async () => {} }),
-	useRestartApp: () => ({ mutateAsync: async () => {} })
-}));
+/** the check's answer, held open until the test settles it. */
+const updater = { settle: (() => {}) as (checked: CheckedUpdate) => void };
 
 /** the reader has, or has not, asked for less motion. */
 const reduce = (reduced: boolean) =>
@@ -56,6 +45,17 @@ const reduce = (reduced: boolean) =>
 beforeEach(() => {
 	loadLocale('en');
 	setLocale('en');
+	resetUpdater({
+		host: {
+			check: () =>
+				new Promise<CheckedUpdate>((resolve) => {
+					updater.settle = resolve;
+				}),
+			download: async () => ({ version: '0.15.0' }),
+			install: async () => {}
+		},
+		push: async () => {}
+	});
 });
 
 afterEach(() => {
@@ -95,7 +95,7 @@ for (const reduced of [false, true]) {
 			).toContain('motion-reduce:animate-none');
 		}
 
-		updater.settle(null);
+		updater.settle(noRelease());
 
 		// answered: no longer busy, and the glyph at rest.
 		await expect.poll(() => check().getAttribute('aria-busy')).not.toBe('true');

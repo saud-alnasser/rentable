@@ -14,14 +14,10 @@ export const settings = {
 
 	downloadingUpdate: 'downloading update',
 
-	latestRelease: "you're already on the latest release.",
-
 	loadErrorTitle: 'settings are unavailable right now',
 
 	transferImportTitle: 'import into {workspace:string}',
 	transferImportSuccess: 'the file was imported',
-
-	restartNotice: 'update installed. restart rentable to finish.',
 
 	// the language and appearance card: its title and its one line (effort 846, *Everything in a
 	// tab is a card*).
@@ -144,10 +140,7 @@ export const settingsHooks = {
 export const common = {
 	actions: {
 		checkForUpdates: 'check for updates',
-		downloadAndInstall: 'download & install',
-		installingUpdate: 'installing update...',
 		checkingForUpdates: 'checking for updates...',
-		restartApp: 'restart app',
 		retry: 'retry'
 	},
 	labels: {

@@ -99,6 +99,15 @@ export type StartupPorts = {
 		 */
 		forget(): void;
 	};
+	update: {
+		/**
+		 * look for a newer release, and download one found, in the background (effort 857,
+		 * requirement 12). Never awaited: what it finds is the update's to offer, and a slow or
+		 * offline update server holds no launch up. The update looks once per run however often
+		 * this is asked.
+		 */
+		lookAtLaunch(): void;
+	};
 	/** a thrown value as a reader should see it. The route's translations, from outside. */
 	describeError(error: unknown): string;
 	/** what the shell said behind a thrown value, kept for a disclosure; `null` where nothing. */

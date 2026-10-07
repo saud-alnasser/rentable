@@ -383,6 +383,38 @@ test('and a session ended elsewhere, learned at the pull the launch makes, ends 
 	assert.equal(journal.reconciled, 0, 'and nothing after it did');
 });
 
+// effort 857, requirement 12 and criterion 12: the app looks for a newer release at launch by
+// itself. What it finds and what it does about it are the update's (`update/updater.svelte.ts`);
+// startup only asks, and asks without waiting, so a slow or offline update server holds nothing up.
+test('a launch looks for an update with no press, and goes on without waiting for the answer', async () => {
+	const { startup, journal } = harness({ lookForUpdate: () => new Promise<void>(() => {}) });
+
+	await startup.start();
+
+	assert.ok(journal.updateLooks > 0, 'nothing looked for an update');
+	assert.equal(startup.snapshot.state, 'ready', 'the launch waited on the update server');
+});
+
+test('and a launch that stops at the wall has looked for one too', async () => {
+	const { startup, journal } = harness({ organization: locked() });
+
+	await startup.start();
+
+	assert.equal(startup.snapshot.state, 'sign-in');
+	assert.ok(journal.updateLooks > 0, 'the wall went up before anything looked for an update');
+});
+
+test('and the pass behind a sign-in looks for one as well', async () => {
+	const { startup, journal } = harness({ organization: locked() });
+
+	await startup.start();
+	journal.updateLooks = 0;
+	await startup.signIn('nadia', 'a password');
+
+	assert.equal(startup.snapshot.state, 'ready');
+	assert.ok(journal.updateLooks > 0, 'continue() did not look for an update');
+});
+
 // --- 5. A pending recovery -------------------------------------------------------------
 
 test('a pending recovery stops startup and shows what is waiting', async () => {

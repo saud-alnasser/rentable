@@ -14,14 +14,10 @@ export const settings = {
 
 	downloadingUpdate: 'جاري تنزيل التحديث',
 
-	latestRelease: 'أنت تستخدم أحدث إصدار.',
-
 	loadErrorTitle: 'الإعدادات غير متاحة حالياً',
 
 	transferImportTitle: 'استيراد إلى {workspace}',
 	transferImportSuccess: 'تم استيراد الملف',
-
-	restartNotice: 'تم تثبيت التحديث. أعد تشغيل رينتابل لإكماله.',
 
 	preferences: {
 		title: 'اللغة والمظهر',
@@ -125,10 +121,7 @@ export const settingsHooks = {
 export const common = {
 	actions: {
 		checkForUpdates: 'التحقق من التحديثات',
-		downloadAndInstall: 'تنزيل وتثبيت',
-		installingUpdate: 'جاري تثبيت التحديث...',
 		checkingForUpdates: 'جاري التحقق من التحديثات...',
-		restartApp: 'إعادة تشغيل التطبيق',
 		retry: 'إعادة المحاولة'
 	},
 	labels: {
@@ -140,12 +133,7 @@ export const common = {
 } satisfies {
 	actions: Pick<
 		Translation['common']['actions'],
-		| 'checkForUpdates'
-		| 'downloadAndInstall'
-		| 'installingUpdate'
-		| 'checkingForUpdates'
-		| 'restartApp'
-		| 'retry'
+		'checkForUpdates' | 'checkingForUpdates' | 'retry'
 	>;
 	labels: Pick<
 		Translation['common']['labels'],

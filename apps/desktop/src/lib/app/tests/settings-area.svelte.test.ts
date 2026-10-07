@@ -21,12 +21,13 @@ import {
 import OrganizationHost from '$lib/organization/component/host.svelte';
 import { memberHost, organizationHostState } from '$lib/organization/host.svelte';
 import type { RemoteSyncState } from '$lib/sync/host';
-import type { AvailableUpdate } from '$lib/update';
+import type { CheckedUpdate } from '$lib/update';
+import { fakeRelease, noRelease } from '$lib/update/tests/testing.ts';
 import { fakeSettings } from '$lib/settings/tests/testing.ts';
 import { fakeSyncState } from '$lib/sync/tests/testing.ts';
 import SettingsArea from '$lib/settings/component/area.svelte';
 import { SECTION_GLYPH } from '$lib/settings/glyph';
-import { resetUpdateDownload } from '$lib/settings/update-download.svelte';
+import { resetUpdater } from '$lib/update/updater.svelte';
 import settingsSurface from '$lib/settings/surface';
 import type { AddressableSection } from '$lib/settings/section';
 import Providers from '#tests/providers.svelte';
@@ -62,18 +63,12 @@ import { expectTheEye } from '#tests/password-eye.ts';
  * directories read is stood in for and moved between tests.
  */
 
-const { address, updater } = vi.hoisted(() => ({
-	address: { url: new URL('http://localhost/settings') },
-	/** what a check for updates finds: nothing, unless a test stands a release here. */
-	updater: { next: null as AvailableUpdate | null }
+const { address } = vi.hoisted(() => ({
+	address: { url: new URL('http://localhost/settings') }
 }));
 
-// the updater is the shell's, so a check answers what the test stood there and nothing installs.
-vi.mock('$lib/update/ui', () => ({
-	useCheckForUpdate: () => ({ mutateAsync: async () => updater.next }),
-	usePrepareUpdate: () => ({ mutateAsync: async () => {} }),
-	useRestartApp: () => ({ mutateAsync: async () => {} })
-}));
+/** what a check for updates finds: nothing, unless a test stands a release here. */
+const updater = { next: noRelease() as CheckedUpdate };
 
 vi.mock('$app/state', () => ({
 	page: {
@@ -125,10 +120,18 @@ vi.mock('$lib/sync/query', async (importOriginal) => ({
 
 beforeEach(() => {
 	resetHostAnswers();
-	updater.next = null;
+	updater.next = noRelease();
 	// where the update stands outlives the card, so each test starts from a session that has asked
-	// nothing yet.
-	resetUpdateDownload();
+	// nothing yet; the updater is the shell's, so a check answers what the test stood there and
+	// nothing installs.
+	resetUpdater({
+		host: {
+			check: async () => updater.next,
+			download: async () => ({ version: '0.15.0' }),
+			install: async () => {}
+		},
+		push: async () => {}
+	});
 	// the workspaces directory lays its tiles in as many columns as its width holds, which it
 	// measures.
 	layOutLists();
@@ -1745,15 +1748,7 @@ const folded = (element: Element) =>
 // available version's notes, the sync state's machine detail and the Turso connection's names,
 // each closed until asked. The log folder's path folded too until ticket 31.
 test('the three rows the rule names fold their detail, and no other row does', async () => {
-	updater.next = {
-		currentVersion: '0.14.0',
-		version: '0.15.0',
-		date: '2026-10-01T00:00:00Z',
-		body: 'cards in a grid.',
-		rawJson: {},
-		downloadAndInstall: async () => {},
-		close: async () => {}
-	};
+	updater.next = fakeRelease({ body: 'cards in a grid.' });
 
 	at('?section=general');
 	const general = area({ section: 'general' });
@@ -1996,15 +1991,7 @@ test('language and appearance carry no explanation, and system says what it foll
 // icon and the unkown needs to be not their in the update version"): the check is an icon control
 // named by its tooltip, and the available version shows nothing until a check finds one.
 test('updates checks by an icon named for it, and shows no available version until there is one', async () => {
-	updater.next = {
-		currentVersion: '0.14.0',
-		version: '0.15.0',
-		date: '2026-10-01T00:00:00Z',
-		body: null,
-		rawJson: {},
-		downloadAndInstall: async () => {},
-		close: async () => {}
-	};
+	updater.next = fakeRelease();
 
 	at('?section=general');
 	area({ section: 'general' });

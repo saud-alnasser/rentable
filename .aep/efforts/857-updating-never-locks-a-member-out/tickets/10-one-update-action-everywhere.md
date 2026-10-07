@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [09]
 ---
 
@@ -15,10 +15,10 @@ The update state lives in `update/` and one `update-action` component in three v
 
 Traces requirement 11, requirement 12, criterion 11 and criterion 12.
 
-- [ ] `settings/update-download.svelte.ts` moves to `update/` and calls the ticket 09 commands; `update/tauri.ts` no longer uses the JS plugin directly.
-- [ ] `update-action` has `screen`, `notice` and `card` variants; the Settings card draws `card` and behaves as before.
-- [ ] A component test drives each variant through check, download, install and restart, and through no release and offline, each with its own sentence in both languages.
-- [ ] Startup's `continue()` checks with no press; a release found downloads in the background and a toast offers the restart; a test covers it.
+- [x] `settings/update-download.svelte.ts` moves to `update/` and calls the ticket 09 commands; `update/tauri.ts` no longer uses the JS plugin directly.
+- [x] `update-action` has `screen`, `notice` and `card` variants; the Settings card draws `card` and behaves as before.
+- [x] A component test drives each variant through check, download, install and restart, and through no release and offline, each with its own sentence in both languages.
+- [x] Startup's `continue()` checks with no press; a release found downloads in the background and a toast offers the restart; a test covers it.
 
 ## Relevant areas
 

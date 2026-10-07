@@ -131,6 +131,8 @@ export type Journal = {
 	 * another machine, and the dispatch signs the member out as Rust does.
 	 */
 	standing: 'held' | 'signedOutElsewhere';
+	/** how many times the unit asked the update to look for a newer release. */
+	updateLooks: number;
 };
 
 export type Harness = {
@@ -177,6 +179,8 @@ export function harness(
 		forgetUndo?: () => void;
 		/** what else dropping the undrawn queries does, for a test asking what was on screen. */
 		dropUndrawn?: () => void;
+		/** what looking for an update meets, for the path where the update server is slow. */
+		lookForUpdate?: () => Promise<void>;
 	} = {}
 ): Harness {
 	const journal: Journal = {
@@ -195,6 +199,7 @@ export function harness(
 		undrawnDropped: 0,
 		invalidatedAll: 0,
 		standing: 'held',
+		updateLooks: 0,
 		remoteSyncInvalidated: 0,
 		remembered: [],
 		contextsForgotten: 0,
@@ -385,6 +390,12 @@ export function harness(
 			forget: () => {
 				journal.undoForgotten += 1;
 				overrides.forgetUndo?.();
+			}
+		},
+		update: {
+			lookAtLaunch: () => {
+				journal.updateLooks += 1;
+				void overrides.lookForUpdate?.();
 			}
 		},
 		describeError: (error) => (error instanceof Error ? error.message : String(error)),

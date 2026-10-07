@@ -203,6 +203,9 @@ export class StartupMachine {
 	 * of five, which is what they have genuinely done.
 	 */
 	async continue() {
+		// the app looks for a newer release by itself (effort 857, requirement 12), on every pass
+		// that reaches here, since a sign-in reaches here without the launch above it.
+		this.ports.update.lookAtLaunch();
 		this.ports.reportStage('workspace');
 
 		const recovery = await this.ports.workspace.bootstrap();
@@ -283,6 +286,11 @@ export class StartupMachine {
 
 			// the gate opens, and the pre-locale failure screen has nothing left to be true about.
 			this.set({ isI18nReady: true, hasFailedUnreadable: false });
+
+			// **The update is looked for as soon as what it finds can be said**, in the reader's
+			// language, and before the wall: a machine standing at the wall is a launch too
+			// (effort 857, requirement 12).
+			this.ports.update.lookAtLaunch();
 
 			// **The rest still load inside this stage, and the reason is the settings page.**
 			// `changeLocale` there calls `set` without awaiting a load, on the standing guarantee

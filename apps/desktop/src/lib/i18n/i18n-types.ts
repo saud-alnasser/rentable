@@ -127,21 +127,9 @@ type RootTranslation = {
 			 */
 			checkForUpdates: string
 			/**
-			 * d​o​w​n​l​o​a​d​ ​&​ ​i​n​s​t​a​l​l
-			 */
-			downloadAndInstall: string
-			/**
-			 * i​n​s​t​a​l​l​i​n​g​ ​u​p​d​a​t​e​.​.​.
-			 */
-			installingUpdate: string
-			/**
 			 * c​h​e​c​k​i​n​g​ ​f​o​r​ ​u​p​d​a​t​e​s​.​.​.
 			 */
 			checkingForUpdates: string
-			/**
-			 * r​e​s​t​a​r​t​ ​a​p​p
-			 */
-			restartApp: string
 			/**
 			 * r​e​t​r​y
 			 */
@@ -2322,10 +2310,6 @@ type RootTranslation = {
 		 */
 		downloadingUpdate: string
 		/**
-		 * y​o​u​'​r​e​ ​a​l​r​e​a​d​y​ ​o​n​ ​t​h​e​ ​l​a​t​e​s​t​ ​r​e​l​e​a​s​e​.
-		 */
-		latestRelease: string
-		/**
 		 * s​e​t​t​i​n​g​s​ ​a​r​e​ ​u​n​a​v​a​i​l​a​b​l​e​ ​r​i​g​h​t​ ​n​o​w
 		 */
 		loadErrorTitle: string
@@ -2338,10 +2322,6 @@ type RootTranslation = {
 		 * t​h​e​ ​f​i​l​e​ ​w​a​s​ ​i​m​p​o​r​t​e​d
 		 */
 		transferImportSuccess: string
-		/**
-		 * u​p​d​a​t​e​ ​i​n​s​t​a​l​l​e​d​.​ ​r​e​s​t​a​r​t​ ​r​e​n​t​a​b​l​e​ ​t​o​ ​f​i​n​i​s​h​.
-		 */
-		restartNotice: string
 		preferences: {
 			/**
 			 * l​a​n​g​u​a​g​e​ ​a​n​d​ ​a​p​p​e​a​r​a​n​c​e
@@ -3731,6 +3711,66 @@ type RootTranslation = {
 		 * e​v​e​r​y​t​h​i​n​g​ ​i​s​ ​u​p​ ​t​o​ ​d​a​t​e​.
 		 */
 		workspaceUpToDate: string
+	}
+	update: {
+		/**
+		 * s​e​e​ ​w​h​e​t​h​e​r​ ​a​ ​n​e​w​e​r​ ​v​e​r​s​i​o​n​ ​o​f​ ​r​e​n​t​a​b​l​e​ ​i​s​ ​o​u​t​.
+		 */
+		idle: string
+		/**
+		 * l​o​o​k​i​n​g​ ​f​o​r​ ​a​ ​n​e​w​e​r​ ​v​e​r​s​i​o​n​ ​o​f​ ​r​e​n​t​a​b​l​e​.​.​.
+		 */
+		checking: string
+		/**
+		 * r​e​n​t​a​b​l​e​ ​{​v​e​r​s​i​o​n​}​ ​i​s​ ​a​v​a​i​l​a​b​l​e​.
+		 * @param {string} version
+		 */
+		available: RequiredParams<'version'>
+		/**
+		 * d​o​w​n​l​o​a​d​i​n​g​ ​r​e​n​t​a​b​l​e​ ​{​v​e​r​s​i​o​n​}​.​.​.
+		 * @param {string} version
+		 */
+		downloading: RequiredParams<'version'>
+		/**
+		 * r​e​n​t​a​b​l​e​ ​{​v​e​r​s​i​o​n​}​ ​i​s​ ​r​e​a​d​y​.​ ​r​e​s​t​a​r​t​ ​t​o​ ​f​i​n​i​s​h​ ​u​p​d​a​t​i​n​g​.
+		 * @param {string} version
+		 */
+		ready: RequiredParams<'version'>
+		/**
+		 * i​n​s​t​a​l​l​i​n​g​ ​r​e​n​t​a​b​l​e​ ​{​v​e​r​s​i​o​n​}​.​ ​i​t​ ​s​t​a​r​t​s​ ​a​g​a​i​n​ ​b​y​ ​i​t​s​e​l​f​.
+		 * @param {string} version
+		 */
+		installing: RequiredParams<'version'>
+		/**
+		 * y​o​u​'​r​e​ ​o​n​ ​t​h​e​ ​l​a​t​e​s​t​ ​v​e​r​s​i​o​n​ ​o​f​ ​r​e​n​t​a​b​l​e​.
+		 */
+		upToDate: string
+		/**
+		 * r​e​n​t​a​b​l​e​ ​c​o​u​l​d​ ​n​o​t​ ​r​e​a​c​h​ ​t​h​e​ ​i​n​t​e​r​n​e​t​ ​t​o​ ​l​o​o​k​ ​f​o​r​ ​u​p​d​a​t​e​s​.​ ​c​h​e​c​k​ ​y​o​u​r​ ​c​o​n​n​e​c​t​i​o​n​ ​a​n​d​ ​t​r​y​ ​a​g​a​i​n​.
+		 */
+		offline: string
+		/**
+		 * t​h​e​ ​u​p​d​a​t​e​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​f​i​n​i​s​h​e​d​.​ ​t​r​y​ ​a​g​a​i​n​.
+		 */
+		failed: string
+		actions: {
+			/**
+			 * c​h​e​c​k​ ​f​o​r​ ​u​p​d​a​t​e​s
+			 */
+			check: string
+			/**
+			 * d​o​w​n​l​o​a​d
+			 */
+			download: string
+			/**
+			 * r​e​s​t​a​r​t​ ​t​o​ ​u​p​d​a​t​e
+			 */
+			restart: string
+			/**
+			 * t​r​y​ ​a​g​a​i​n
+			 */
+			tryAgain: string
+		}
 	}
 	organization: {
 		switcher: {
@@ -5518,21 +5558,9 @@ export type TranslationFunctions = {
 			 */
 			checkForUpdates: () => LocalizedString
 			/**
-			 * download & install
-			 */
-			downloadAndInstall: () => LocalizedString
-			/**
-			 * installing update...
-			 */
-			installingUpdate: () => LocalizedString
-			/**
 			 * checking for updates...
 			 */
 			checkingForUpdates: () => LocalizedString
-			/**
-			 * restart app
-			 */
-			restartApp: () => LocalizedString
 			/**
 			 * retry
 			 */
@@ -7621,10 +7649,6 @@ export type TranslationFunctions = {
 		 */
 		downloadingUpdate: () => LocalizedString
 		/**
-		 * you're already on the latest release.
-		 */
-		latestRelease: () => LocalizedString
-		/**
 		 * settings are unavailable right now
 		 */
 		loadErrorTitle: () => LocalizedString
@@ -7636,10 +7660,6 @@ export type TranslationFunctions = {
 		 * the file was imported
 		 */
 		transferImportSuccess: () => LocalizedString
-		/**
-		 * update installed. restart rentable to finish.
-		 */
-		restartNotice: () => LocalizedString
 		preferences: {
 			/**
 			 * language and appearance
@@ -8948,6 +8968,62 @@ export type TranslationFunctions = {
 		 * everything is up to date.
 		 */
 		workspaceUpToDate: () => LocalizedString
+	}
+	update: {
+		/**
+		 * see whether a newer version of rentable is out.
+		 */
+		idle: () => LocalizedString
+		/**
+		 * looking for a newer version of rentable...
+		 */
+		checking: () => LocalizedString
+		/**
+		 * rentable {version} is available.
+		 */
+		available: (arg: { version: string }) => LocalizedString
+		/**
+		 * downloading rentable {version}...
+		 */
+		downloading: (arg: { version: string }) => LocalizedString
+		/**
+		 * rentable {version} is ready. restart to finish updating.
+		 */
+		ready: (arg: { version: string }) => LocalizedString
+		/**
+		 * installing rentable {version}. it starts again by itself.
+		 */
+		installing: (arg: { version: string }) => LocalizedString
+		/**
+		 * you're on the latest version of rentable.
+		 */
+		upToDate: () => LocalizedString
+		/**
+		 * rentable could not reach the internet to look for updates. check your connection and try again.
+		 */
+		offline: () => LocalizedString
+		/**
+		 * the update could not be finished. try again.
+		 */
+		failed: () => LocalizedString
+		actions: {
+			/**
+			 * check for updates
+			 */
+			check: () => LocalizedString
+			/**
+			 * download
+			 */
+			download: () => LocalizedString
+			/**
+			 * restart to update
+			 */
+			restart: () => LocalizedString
+			/**
+			 * try again
+			 */
+			tryAgain: () => LocalizedString
+		}
 	}
 	organization: {
 		switcher: {
