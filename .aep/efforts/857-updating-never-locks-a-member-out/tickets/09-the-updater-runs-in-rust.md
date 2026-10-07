@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # feat(update): the updater runs in Rust and installs at quit
@@ -14,10 +14,10 @@ The updater is driven from Rust commands: a check, a background download whose b
 
 Traces requirement 11, requirement 12, criterion 11 and criterion 12.
 
-- [ ] `update_check`, `update_download` and `update_install` exist, use the configured endpoint and key, and report no release, offline and failure distinctly.
-- [ ] The quit path installs a downloaded release with `restart_after_install(false)` after the workspace push, and a failed install never blocks quitting; tested against a stubbed updater.
-- [ ] `Recovery` (`update/mod.rs`) still writes its pending record before any install.
-- [ ] A human check on Windows that install at quit runs the installer and does not relaunch is listed for the close.
+- [x] `update_check`, `update_download` and `update_install` exist, use the configured endpoint and key, and report no release, offline and failure distinctly.
+- [x] The quit path installs a downloaded release with `restart_after_install(false)` after the workspace push, and a failed install never blocks quitting; tested against a stubbed updater.
+- [x] `Recovery` (`update/mod.rs`) still writes its pending record before any install.
+- [x] A human check on Windows that install at quit runs the installer and does not relaunch is listed for the close.
 
 ## Relevant areas
 

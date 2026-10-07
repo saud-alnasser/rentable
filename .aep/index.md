@@ -630,7 +630,7 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/857-updating-never-locks-a-member-out/tickets/06-the-upgrade-data-permission]] feat(permission): the upgrade data permission | 857-updating-never-locks-a-member-out | open | — |
 | [[efforts/857-updating-never-locks-a-member-out/tickets/07-the-upgrade-is-run-on-purpose]] feat(organization): the upgrade is run on purpose | 857-updating-never-locks-a-member-out | open | 01, 02, 03, 06, 15 |
 | [[efforts/857-updating-never-locks-a-member-out/tickets/08-the-upgrade-sheet-and-the-gated-capability]] feat(organization): the upgrade sheet, and a capability waits for its upgrade | 857-updating-never-locks-a-member-out | open | 07 |
-| [[efforts/857-updating-never-locks-a-member-out/tickets/09-the-updater-runs-in-rust]] feat(update): the updater runs in Rust and installs at quit | 857-updating-never-locks-a-member-out | open | — |
+| [[efforts/857-updating-never-locks-a-member-out/tickets/09-the-updater-runs-in-rust]] feat(update): the updater runs in Rust and installs at quit | 857-updating-never-locks-a-member-out | resolved | — |
 | [[efforts/857-updating-never-locks-a-member-out/tickets/10-one-update-action-everywhere]] feat(update): one update action, and the app looks for updates itself | 857-updating-never-locks-a-member-out | open | 09 |
 | [[efforts/857-updating-never-locks-a-member-out/tickets/11-a-held-machine-meets-the-update-screen]] feat(startup): a held machine meets the update screen | 857-updating-never-locks-a-member-out | open | 04, 10 |
 | [[efforts/857-updating-never-locks-a-member-out/tickets/12-the-running-app-follows-a-raise]] feat(sync): the running app follows a floor raise | 857-updating-never-locks-a-member-out | open | 05, 10, 11 |

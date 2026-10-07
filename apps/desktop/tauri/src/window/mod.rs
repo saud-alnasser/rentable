@@ -13,6 +13,8 @@ mod plugin;
 
 pub use plugin::plugin;
 
+use tauri::Manager;
+
 use crate::error::Error;
 
 #[tauri::command(rename = "show")]
@@ -44,8 +46,14 @@ pub async fn window_drag(window: tauri::Window) -> Result<(), Error> {
     Ok(window.start_dragging()?)
 }
 
+/// The last step of quitting: the frontend has hidden the window and pushed the workspace before
+/// it calls this (`startup/close.ts`), so a release downloaded and not yet installed is installed
+/// here, without starting it, before the window goes (effort 857, requirement 12). On Windows a
+/// successful install exits the process; anything that goes wrong leaves the quit to go on.
 #[tauri::command(rename = "close")]
 pub async fn window_close(window: tauri::Window) -> Result<(), Error> {
+    crate::update::command::at_quit(window.app_handle()).await;
+
     Ok(window.destroy()?)
 }
 
