@@ -25,11 +25,15 @@
 	 */
 	const stateQuery = useFetchOrganizationState();
 
+	// the organization's verdict before the workspace's where both hold it read-only (ticket 16),
+	// since changes in the whole organization wait on the update, the workspace's among them.
 	const held = $derived.by(() => {
 		const data = stateQuery.data;
-		const verdict = data?.heldByVersion;
+		const readOnly = (data?.heldByVersion ?? []).filter((held) => held.standing === 'readOnly');
 
-		return data?.session && verdict?.standing === 'readOnly' ? verdict : null;
+		return data?.session
+			? (readOnly.find((held) => held.target === 'organization') ?? readOnly[0] ?? null)
+			: null;
 	});
 
 	const sentence = $derived(

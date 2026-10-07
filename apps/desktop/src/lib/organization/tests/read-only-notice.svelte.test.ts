@@ -29,9 +29,9 @@ import Providers from '#tests/providers.svelte';
  * name if it were (`update/tests/update-action.svelte.test.ts` drives it).
  */
 
-const reads: { session: OrganizationSession | null; heldByVersion: HeldByVersion | null } = $state({
+const reads: { session: OrganizationSession | null; heldByVersion: HeldByVersion[] } = $state({
 	session: null,
-	heldByVersion: null
+	heldByVersion: []
 });
 
 vi.mock('$lib/organization/query', async (importOriginal) => ({
@@ -47,7 +47,7 @@ vi.mock('$lib/organization/query', async (importOriginal) => ({
 
 beforeEach(() => {
 	reads.session = null;
-	reads.heldByVersion = null;
+	reads.heldByVersion = [];
 	document.body.innerHTML = '';
 	resetUpdater({ host: fakeUpdateHost(), push: async () => {} });
 });
@@ -73,7 +73,7 @@ test('a workspace held read-only says it needs updating to make changes, with th
 	loadLocale('en');
 	setLocale('en');
 	reads.session = fakeOrganizationSession();
-	reads.heldByVersion = workspaceReadOnly;
+	reads.heldByVersion = [workspaceReadOnly];
 	notice();
 
 	expect(drawn()?.querySelector('[data-slot=callout]')).not.toBeNull();
@@ -82,7 +82,7 @@ test('a workspace held read-only says it needs updating to make changes, with th
 	expect(drawn()?.querySelector('[data-update-act]')).not.toBeNull();
 
 	// the next read finds it writable: updated, so nothing is said.
-	reads.heldByVersion = null;
+	reads.heldByVersion = [];
 	flushSync();
 
 	expect(drawn()).toBeNull();
@@ -92,7 +92,7 @@ test('and in arabic', () => {
 	loadLocale('ar');
 	setLocale('ar');
 	reads.session = fakeOrganizationSession();
-	reads.heldByVersion = workspaceReadOnly;
+	reads.heldByVersion = [workspaceReadOnly];
 	notice('rtl');
 
 	expect(screen.getByText(ar.common.refusals.host.workspaceReadOnlyByVersion)).not.toBeNull();
@@ -103,7 +103,7 @@ test('an organization held read-only says so of the organization, in both langua
 	loadLocale('en');
 	setLocale('en');
 	reads.session = fakeOrganizationSession();
-	reads.heldByVersion = organizationReadOnly;
+	reads.heldByVersion = [organizationReadOnly];
 	notice();
 
 	expect(screen.getByText(en.common.refusals.host.organizationReadOnlyByVersion)).not.toBeNull();
@@ -119,20 +119,32 @@ test('an organization held read-only says so of the organization, in both langua
 test('a writable session, one past reading, and nobody signed in read nothing', () => {
 	loadLocale('en');
 	setLocale('en');
-	reads.heldByVersion = workspaceReadOnly;
+	reads.heldByVersion = [workspaceReadOnly];
 	notice();
 
 	expect(drawn(), 'nobody signed in').toBeNull();
 
 	reads.session = fakeOrganizationSession();
-	reads.heldByVersion = null;
+	reads.heldByVersion = [];
 	flushSync();
 
 	expect(drawn(), 'writable').toBeNull();
 
 	// past reading is the update-required screen's or the switcher's to say, not this notice's.
-	reads.heldByVersion = { ...workspaceReadOnly, standing: 'unreadable' };
+	reads.heldByVersion = [{ ...workspaceReadOnly, standing: 'unreadable' }];
 	flushSync();
 
 	expect(drawn(), 'past reading').toBeNull();
+});
+
+// effort 857, ticket 16: both verdicts cross, and the notice is drawn once, of the organization.
+test('an organization and its workspace both read-only draw one notice, of the organization', () => {
+	loadLocale('en');
+	setLocale('en');
+	reads.session = fakeOrganizationSession();
+	reads.heldByVersion = [organizationReadOnly, workspaceReadOnly];
+	notice();
+
+	expect(document.querySelectorAll('[data-read-only-notice]')).toHaveLength(1);
+	expect(screen.getByText(en.common.refusals.host.organizationReadOnlyByVersion)).not.toBeNull();
 });

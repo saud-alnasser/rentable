@@ -7,7 +7,8 @@ import {
 	fakeOrganizationState,
 	fakeOrganizationWorkspace
 } from '$lib/organization/tests/testing.ts';
-import type { OrganizationState } from '$lib/organization/host.ts';
+import type { HeldByVersion, OrganizationState } from '$lib/organization/host.ts';
+import { fakeSyncState, fakeWorkspace } from '$lib/sync/tests/testing.ts';
 
 import { harness, refusal } from './harness.ts';
 
@@ -33,19 +34,34 @@ const acmeUpgraded = (): OrganizationState =>
 		organizations: [acme, beta],
 		selected: 'acme',
 		session: null,
-		heldByVersion: {
-			target: 'organization',
-			standing: 'unreadable',
-			reason: 'the organization is at format 5, past what this build reads'
-		}
+		heldByVersion: [
+			{
+				target: 'organization',
+				standing: 'unreadable',
+				reason: 'the organization is at format 5, past what this build reads'
+			}
+		]
 	});
 
-/** in, on `acme`, holding both workspaces. */
-const inWithTwo = (): OrganizationState =>
+/** in, on `acme`, holding both workspaces, and what holds it by its version. */
+const inWithTwo = (heldByVersion: HeldByVersion[] = []): OrganizationState =>
 	fakeOrganizationState({
 		organizations: [acme, beta],
-		session: fakeOrganizationSession({ workspaces: [north, south] })
+		session: fakeOrganizationSession({ workspaces: [north, south] }),
+		heldByVersion
 	});
+
+const acmeReadOnly: HeldByVersion = {
+	target: 'organization',
+	standing: 'readOnly',
+	reason: 'a newer version of rentable upgraded the organization'
+};
+
+const northUnreadable: HeldByVersion = {
+	target: { workspace: 'north' },
+	standing: 'unreadable',
+	reason: 'a newer version of rentable upgraded North Properties past what this version reads'
+};
 
 // --- launch and resume ----------------------------------------------------------------------
 
@@ -71,7 +87,7 @@ test('and choosing another organization from there opens it, while the refusal s
 	const { startup, standWith } = harness({ organization: acmeUpgraded() });
 
 	await startup.start();
-	standWith({ ...acmeUpgraded(), heldByVersion: null });
+	standWith({ ...acmeUpgraded(), heldByVersion: [] });
 	await startup.select('beta');
 
 	assert.equal(startup.snapshot.organization?.selected, 'beta');
@@ -209,6 +225,49 @@ test('a launch whose workspace a newer rentable upgraded stands on the update-re
 	assert.equal(startup.snapshot.state, 'ready');
 	assert.equal(startup.snapshot.held, null);
 	assert.deepEqual(journal.workspacesOpened, ['north', 'south']);
+});
+
+// effort 857, ticket 16: the organization's verdict and the workspace's both cross, and a
+// workspace past reading in an organization read-only too still meets the update-required screen.
+test('a launch whose organization is read-only and whose workspace is past reading stands on the update-required screen', async () => {
+	const { startup, journal } = harness({
+		organization: inWithTwo([acmeReadOnly]),
+		openWorkspace: async (id) => {
+			if (id === 'north') throw refusal('workspaceNewer');
+		}
+	});
+
+	await startup.start();
+
+	assert.equal(startup.snapshot.state, 'held');
+	assert.equal(startup.snapshot.held?.workspaceId, 'north');
+	assert.deepEqual(startup.snapshot.refusals, {}, 'the organization opens, read-only');
+	assert.deepEqual(journal.failures, []);
+});
+
+test('and where the state already carries both verdicts, the launch holds the workspace before opening it', async () => {
+	const { startup, journal } = harness({
+		organization: inWithTwo([acmeReadOnly, northUnreadable]),
+		sync: fakeSyncState({ workspace: fakeWorkspace({ remoteId: 'north' }) })
+	});
+
+	await startup.start();
+
+	assert.equal(startup.snapshot.state, 'held');
+	assert.deepEqual(startup.snapshot.held, {
+		workspaceId: 'north',
+		name: 'North Properties',
+		sentence: 'refused: workspaceNewer',
+		detail: null
+	});
+	assert.deepEqual(startup.snapshot.refusals, {});
+	assert.deepEqual(journal.workspacesOpened, [], 'nothing asked the shell to open it again');
+	assert.deepEqual(journal.failures, []);
+
+	// and the other workspace still opens from there.
+	await startup.switchWorkspace('south');
+
+	assert.equal(startup.snapshot.state, 'ready');
 });
 
 test('a workspace refused for its version when the bootstrap opens it is held the same way', async () => {

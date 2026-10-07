@@ -3,7 +3,7 @@ import type { Recovery } from '$lib/update';
 import { organizationAdmission } from '$lib/sync';
 import type { StartupPorts } from './ports';
 import { Reconciliation } from './reconcile';
-import { isOrganizationByVersion, organizationNewer, refusalKind } from './refusal';
+import { isOrganizationByVersion, organizationNewer, refusalKind, workspaceNewer } from './refusal';
 import {
 	hasRecoveryData,
 	INITIAL,
@@ -43,7 +43,7 @@ export class StartupMachine {
 
 	constructor(ports: StartupPorts) {
 		this.ports = ports;
-		this.reconciliation = new Reconciliation(ports, () => this.heldByVersion !== null);
+		this.reconciliation = new Reconciliation(ports, () => this.heldByVersion.length > 0);
 	}
 
 	/** what the shell draws. A copy, so nothing outside this unit can write to it. */
@@ -57,24 +57,64 @@ export class StartupMachine {
 	}
 
 	/**
-	 * what holds the session open here by its version: the organization, or the workspace open,
-	 * upgraded past what this build writes or reads (effort 857); `null` where nothing does. A
-	 * verdict on a workspace that is not the one open holds nothing here.
+	 * what holds the session open here by its version: the organization, the workspace open, or
+	 * both, upgraded past what this build writes or reads (effort 857, ticket 16); empty where
+	 * nothing does. A verdict on a workspace that is not the one open holds nothing here.
 	 */
-	get heldByVersion(): HeldByVersion | null {
-		const held = this.#snapshot.organization?.heldByVersion ?? null;
-
-		if (!held || !this.#snapshot.organization?.session) {
-			return null;
+	get heldByVersion(): HeldByVersion[] {
+		if (!this.#snapshot.organization?.session) {
+			return [];
 		}
 
-		if (held.target === 'organization') {
-			return held;
+		const open = this.#snapshot.sync?.workspace.remoteId ?? null;
+
+		return (this.#snapshot.organization.heldByVersion ?? []).filter(
+			(held) => held.target === 'organization' || held.target.workspace === open
+		);
+	}
+
+	/**
+	 * Where the verdicts put the organization or the workspace `open` past what this build reads,
+	 * put the person where a way in the version refused puts them, and answer whether it did
+	 * (effort 857, requirements 7 and 9). The one routing every way in and the heartbeat follow.
+	 *
+	 * - **The organization past reading** goes back to the switcher with the reason against it,
+	 *   whatever the workspace's verdict, since nothing in it can be opened.
+	 * - **The workspace open past reading**, in an organization that opens, read-only by its
+	 *   version or not (ticket 16), stands the update-required screen in its place. Only a verdict
+	 *   on the workspace open counts, and only for somebody in, since the screen is inside the
+	 *   application.
+	 *
+	 * A read-only verdict moves nobody: the session stays, and reads.
+	 */
+	async pastReading(verdicts: readonly HeldByVersion[], open: string | null) {
+		const unreadable = verdicts.filter((held) => held.standing === 'unreadable');
+		const organizationVerdict = unreadable.find((held) => held.target === 'organization');
+		const { organization } = this.#snapshot;
+
+		if (organizationVerdict) {
+			const organizationId = organization?.session?.organizationId ?? organization?.selected;
+
+			if (organizationId) {
+				const detail = organizationVerdict.reason;
+
+				await this.returnToSwitcher(organizationId, organizationNewer(detail), detail);
+
+				return true;
+			}
 		}
 
-		return held.target.workspace === (this.#snapshot.sync?.workspace.remoteId ?? null)
-			? held
-			: null;
+		const workspaceVerdict = unreadable.find(
+			(held) => held.target !== 'organization' && held.target.workspace === open
+		);
+
+		if (workspaceVerdict && open && organization?.session) {
+			await this.hold(open, workspaceNewer(workspaceVerdict.reason));
+
+			return true;
+		}
+
+		return false;
 	}
 
 	/** register a listener called after every change. Returns its own removal. */
@@ -295,20 +335,17 @@ export class StartupMachine {
 	 * to: what follows an unadmitted machine is the wall, and it is already up by then.
 	 */
 	async admit() {
-		const { organization } = this.#snapshot;
-		const held = organization?.heldByVersion;
+		const { organization, sync } = this.#snapshot;
 
 		// **a resume the version refused is the organization refused** (effort 857, requirement 7):
 		// the shell carries it on the state rather than throwing it, and the person goes to the
-		// switcher with the reason above that organization, as for any other refusal of it.
-		if (held?.target === 'organization' && held.standing === 'unreadable') {
-			const organizationId = organization?.session?.organizationId ?? organization?.selected;
-
-			if (organizationId) {
-				await this.returnToSwitcher(organizationId, organizationNewer(held.reason), held.reason);
-
-				return false;
-			}
+		// switcher with the reason above that organization, as for any other refusal of it. And
+		// the workspace open past reading meets the update-required screen, in an organization
+		// read-only by its version too (ticket 16), by the same routing the heartbeat follows.
+		if (
+			await this.pastReading(organization?.heldByVersion ?? [], sync?.workspace.remoteId ?? null)
+		) {
+			return false;
 		}
 
 		const admission = organizationAdmission(organization);

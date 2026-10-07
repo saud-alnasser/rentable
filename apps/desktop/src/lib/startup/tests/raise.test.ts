@@ -30,7 +30,7 @@ const north = fakeOrganizationWorkspace({ id: 'north', name: 'North Properties' 
 const south = fakeOrganizationWorkspace({ id: 'south', name: 'South Properties' });
 
 /** in, on `acme`, holding both workspaces, with `north` open. */
-const inWithTwo = (heldByVersion: HeldByVersion | null = null): OrganizationState =>
+const inWithTwo = (heldByVersion: HeldByVersion[] = []): OrganizationState =>
 	fakeOrganizationState({
 		organizations: [acme, beta],
 		session: fakeOrganizationSession({ workspaces: [north, south] }),
@@ -80,15 +80,15 @@ test('a pulled write-floor raise on the open workspace moves it to read-only bef
 	const reconciled = journal.reconciled;
 	const everything = journal.invalidatedAll;
 
-	standWith(inWithTwo(northReadOnly));
+	standWith(inWithTwo([northReadOnly]));
 	await startup.applySyncOutcome({
 		action: 'none',
 		received: true,
 		workspaceId: 'north',
-		heldByVersion: northReadOnly
+		heldByVersion: [northReadOnly]
 	});
 
-	assert.deepEqual(startup.snapshot.organization?.heldByVersion, northReadOnly);
+	assert.deepEqual(startup.snapshot.organization?.heldByVersion, [northReadOnly]);
 	assert.equal(startup.snapshot.state, 'ready', 'still reading, inside the application');
 	assert.equal(journal.announced, 0, 'the reconcile after the pull would write the workspace');
 	assert.equal(journal.reconciled, reconciled);
@@ -104,22 +104,22 @@ test('the verdict is the outcome, even where the shell answers the state as it w
 		action: 'none',
 		received: true,
 		workspaceId: 'north',
-		heldByVersion: northReadOnly
+		heldByVersion: [northReadOnly]
 	});
 
-	assert.deepEqual(startup.snapshot.organization?.heldByVersion, northReadOnly);
+	assert.deepEqual(startup.snapshot.organization?.heldByVersion, [northReadOnly]);
 	assert.equal(journal.announced, 0);
 });
 
 test('and the day-crossing reconcile does nothing while the session is read-only', async () => {
 	const { startup, journal, now, standWith } = await running();
 
-	standWith(inWithTwo(northReadOnly));
+	standWith(inWithTwo([northReadOnly]));
 	await startup.applySyncOutcome({
 		action: 'none',
 		received: false,
 		workspaceId: 'north',
-		heldByVersion: northReadOnly
+		heldByVersion: [northReadOnly]
 	});
 
 	const reconciled = journal.reconciled;
@@ -132,16 +132,16 @@ test('and the day-crossing reconcile does nothing while the session is read-only
 test('an organization raised past what this build writes is read-only too, and reconciles nothing', async () => {
 	const { startup, journal, now, standWith } = await running();
 
-	standWith(inWithTwo(acmeReadOnly));
+	standWith(inWithTwo([acmeReadOnly]));
 	await startup.applySyncOutcome({
 		action: 'none',
 		received: true,
 		workspaceId: 'north',
-		heldByVersion: acmeReadOnly
+		heldByVersion: [acmeReadOnly]
 	});
 
 	assert.equal(startup.snapshot.state, 'ready');
-	assert.deepEqual(startup.snapshot.organization?.heldByVersion, acmeReadOnly);
+	assert.deepEqual(startup.snapshot.organization?.heldByVersion, [acmeReadOnly]);
 	assert.equal(journal.announced, 0);
 
 	const reconciled = journal.reconciled;
@@ -158,7 +158,7 @@ test('a pull that raises nothing reconciles as it always has', async () => {
 		action: 'none',
 		received: true,
 		workspaceId: 'north',
-		heldByVersion: null
+		heldByVersion: []
 	});
 
 	assert.equal(journal.announced, 1);
@@ -175,12 +175,12 @@ test('a pull that raises nothing reconciles as it always has', async () => {
 test('a pulled read-floor raise on the open workspace stands the update-required screen in its place', async () => {
 	const { startup, journal, standWith } = await running();
 
-	standWith(inWithTwo(northUnreadable));
+	standWith(inWithTwo([northUnreadable]));
 	await startup.applySyncOutcome({
 		action: 'none',
 		received: true,
 		workspaceId: 'north',
-		heldByVersion: northUnreadable
+		heldByVersion: [northUnreadable]
 	});
 
 	assert.equal(startup.snapshot.state, 'held');
@@ -196,15 +196,51 @@ test('a pulled read-floor raise on the open workspace stands the update-required
 	assert.equal(startup.snapshot.state, 'ready');
 });
 
-test('a pulled read-floor raise on the organization returns to the switcher with the reason against it', async () => {
+test('with the organization read-only too, a pulled read-floor raise on the workspace still stands the update-required screen', async () => {
 	const { startup, journal, standWith } = await running();
 
-	standWith(inWithTwo(acmeUnreadable));
+	// effort 857, ticket 16: both verdicts cross, and the organization's does not hide the workspace's.
+	standWith(inWithTwo([acmeReadOnly, northUnreadable]));
 	await startup.applySyncOutcome({
 		action: 'none',
 		received: true,
 		workspaceId: 'north',
-		heldByVersion: acmeUnreadable
+		heldByVersion: [acmeReadOnly, northUnreadable]
+	});
+
+	assert.equal(startup.snapshot.state, 'held');
+	assert.equal(startup.snapshot.held?.workspaceId, 'north');
+	assert.equal(startup.snapshot.held?.sentence, 'refused: workspaceNewer');
+	assert.deepEqual(startup.snapshot.refusals, {}, 'the organization opens, read-only');
+	assert.equal(journal.announced, 0);
+	assert.deepEqual(journal.failures, []);
+});
+
+test('and a workspace read-only in an organization read-only stays, reading, with both verdicts kept', async () => {
+	const { startup, journal, standWith } = await running();
+
+	standWith(inWithTwo([acmeReadOnly, northReadOnly]));
+	await startup.applySyncOutcome({
+		action: 'none',
+		received: true,
+		workspaceId: 'north',
+		heldByVersion: [acmeReadOnly, northReadOnly]
+	});
+
+	assert.equal(startup.snapshot.state, 'ready');
+	assert.deepEqual(startup.snapshot.organization?.heldByVersion, [acmeReadOnly, northReadOnly]);
+	assert.equal(journal.announced, 0);
+});
+
+test('a pulled read-floor raise on the organization returns to the switcher with the reason against it', async () => {
+	const { startup, journal, standWith } = await running();
+
+	standWith(inWithTwo([acmeUnreadable]));
+	await startup.applySyncOutcome({
+		action: 'none',
+		received: true,
+		workspaceId: 'north',
+		heldByVersion: [acmeUnreadable]
 	});
 
 	assert.equal(startup.snapshot.state, 'sign-in', 'the switcher, on the wall it heads');
@@ -225,7 +261,7 @@ test('a dispatch that threw for the version is routed the same way, by its refus
 		action: 'error',
 		received: false,
 		workspaceId: 'north',
-		heldByVersion: null,
+		heldByVersion: [],
 		refusal: 'workspaceNewer'
 	});
 
@@ -241,7 +277,7 @@ test('and one that threw for anything else changes nothing about where the perso
 		action: 'error',
 		received: false,
 		workspaceId: 'north',
-		heldByVersion: null,
+		heldByVersion: [],
 		refusal: 'forbidden'
 	});
 

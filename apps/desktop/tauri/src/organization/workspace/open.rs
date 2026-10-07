@@ -917,6 +917,8 @@ mod tests {
             .expect("the heartbeat");
         let held = replicated
             .held_by_version
+            .first()
+            .cloned()
             .expect("nothing held the machine");
 
         assert_eq!(held.target, VersionTarget::Workspace("south".to_string()));
@@ -936,5 +938,119 @@ mod tests {
         }
 
         app_state.db.write().await.disconnect().await;
+    }
+
+    /// **Effort 857, ticket 16: both verdicts cross, the organization's and the open workspace's.**
+    /// A newer rentable upgraded the organization past what this build writes, and the workspace
+    /// open on this machine past what it writes or past what it reads. The heartbeat's answer and
+    /// the state read each carry the two verdicts apart, so the workspace's is not lost behind the
+    /// organization's: the interface folds the workspace's writes away, and a workspace past
+    /// reading meets the update-required screen, whatever the organization's standing.
+    #[tokio::test]
+    async fn the_organizations_verdict_and_the_workspaces_cross_together() {
+        use crate::database::floor::Standing;
+        use crate::organization::lease::apply;
+        use crate::organization::session::{VersionTarget, held_by_version, replicate};
+        use crate::organization::store::FORMAT_VERSION;
+
+        let shipped = apply::shipped_version();
+
+        for (name, read, standing) in [
+            ("read-only", shipped, Standing::ReadOnly),
+            ("unreadable", shipped + 1, Standing::Unreadable),
+        ] {
+            let directory = scratch(&format!("both-verdicts-{name}"));
+            let (organization, _) = created(&directory).await;
+            let path = a_workspace_replica(&directory, "south").await;
+
+            {
+                let replica =
+                    Database::open_replica(&crate::clock::System, &path, None, || async {
+                        Ok::<String, turso::Error>(String::new())
+                    })
+                    .await
+                    .expect("the workspace replica");
+                let connection = replica.connect().await.expect("a connection");
+
+                for statement in [
+                    "CREATE TABLE \"data_floor\" (\"id\" INTEGER PRIMARY KEY CHECK (\"id\" = 1), \
+                     \"level\" INTEGER NOT NULL, \"read\" INTEGER NOT NULL, \
+                     \"write\" INTEGER NOT NULL)"
+                        .to_string(),
+                    format!(
+                        "INSERT INTO \"data_floor\" VALUES (1, {}, {read}, {})",
+                        shipped + 1,
+                        shipped + 1
+                    ),
+                ] {
+                    connection
+                        .execute(&statement, ())
+                        .await
+                        .expect("the floors");
+                }
+            }
+
+            // the organization past what this build writes, as a pull leaves its verdict.
+            organization
+                .record_floors(FORMAT_VERSION + 1, FORMAT_VERSION, FORMAT_VERSION + 1)
+                .await;
+            assert_eq!(
+                organization
+                    .refuse_another_format()
+                    .await
+                    .expect("the verdict"),
+                Standing::ReadOnly,
+                "{name}"
+            );
+
+            let server =
+                ScriptedServer::start((0..8).map(|_| ScriptedResponse::hangup()).collect()).await;
+            let app_state = state_over(&directory).await;
+
+            app_state
+                .remote_sync
+                .write()
+                .await
+                .open_organization_workspace("south", "South", &server.url(""), 0, "a-credential")
+                .expect("the workspace recorded");
+
+            let opened = open_database(&app_state, &crate::clock::System).await;
+
+            assert_eq!(
+                opened.is_some(),
+                standing == Standing::Unreadable,
+                "{name}: {opened:?}"
+            );
+
+            *app_state.organization.write().await = Some(organization);
+
+            let both = |held: &[crate::organization::session::HeldByVersion]| {
+                held.iter()
+                    .map(|held| (held.target.clone(), held.standing))
+                    .collect::<Vec<_>>()
+            };
+            let expected = vec![
+                (VersionTarget::Organization, Standing::ReadOnly),
+                (VersionTarget::Workspace("south".to_string()), standing),
+            ];
+
+            let replicated = replicate(&app_state, &Memory::new(), &crate::clock::System::shared())
+                .await
+                .expect("the heartbeat");
+
+            assert_eq!(
+                both(&replicated.held_by_version),
+                expected,
+                "{name}: the heartbeat"
+            );
+            assert!(!replicated.pushed, "{name}: the heartbeat pushed");
+            assert_eq!(
+                both(&held_by_version(&app_state).await),
+                expected,
+                "{name}: the state read"
+            );
+
+            app_state.db.write().await.disconnect().await;
+        }
     }
 }

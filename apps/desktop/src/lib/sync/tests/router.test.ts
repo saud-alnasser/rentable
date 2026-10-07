@@ -39,7 +39,7 @@ function hostRecordingRenames(asked: string[]) {
 				received: false,
 				refusal: 'none' as const,
 				standing: 'held' as const,
-				heldByVersion: null
+				heldByVersion: []
 			}),
 			push: async () => false,
 			renameWorkspace: async (name: string) => {

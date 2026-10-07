@@ -41,7 +41,7 @@ export const nowhereToGo = (): OrganizationState => ({
 	holdsTursoAuthority: false,
 	setupConsented: false,
 	signedOutElsewhere: false,
-	heldByVersion: null
+	heldByVersion: []
 });
 /** a machine whose person is admitted to an organization with no workspace in it yet. */
 export const withoutWorkspace = () =>

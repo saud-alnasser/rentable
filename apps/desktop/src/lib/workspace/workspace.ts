@@ -14,6 +14,6 @@ export type WorkspaceSurfaceContributions = {
 	 */
 	useOrganizationState: () => {
 		readonly data:
-			{ session: OrganizationSession | null; heldByVersion: HeldByVersion | null } | undefined;
+			{ session: OrganizationSession | null; heldByVersion: HeldByVersion[] } | undefined;
 	};
 };

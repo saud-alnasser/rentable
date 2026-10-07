@@ -22,7 +22,7 @@
 
 	$effect(() => {
 		const session = organizationQuery.data?.session;
-		const heldByVersion = organizationQuery.data?.heldByVersion ?? null;
+		const heldByVersion = organizationQuery.data?.heldByVersion ?? [];
 		const workspace = remoteSyncQuery.data?.workspace;
 
 		memberPermissions.hold(

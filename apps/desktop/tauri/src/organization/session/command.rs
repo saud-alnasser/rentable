@@ -26,8 +26,8 @@ use crate::organization::{
     invitation::join,
     ownership,
     session::{
-        self, HeldByVersion, MachineView, SessionFacts, SessionsEnded, forget, held_by_version,
-        hold_at_the_wall, workspace_judged,
+        self, HeldByVersion, MachineView, SessionFacts, SessionsEnded, both_verdicts, forget,
+        held_by_version, hold_at_the_wall, workspace_judged,
     },
 };
 
@@ -96,9 +96,10 @@ pub struct OrganizationState {
     /// what holds this machine by its version, where anything does (effort 857, ticket 04): a
     /// resume refused because a newer rentable upgraded the organization past what this one reads,
     /// a session let through on an organization or a workspace this one may read and not write,
-    /// or one a pulled raise has put past reading. `None` where this build may write everything it
-    /// has open.
-    pub held_by_version: Option<HeldByVersion>,
+    /// or one a pulled raise has put past reading. The organization's verdict and the open
+    /// workspace's each cross apart, the organization's first (ticket 16). Empty where this build
+    /// may write everything it has open.
+    pub held_by_version: Vec<HeldByVersion>,
 }
 
 impl OrganizationState {
@@ -779,7 +780,7 @@ pub(crate) async fn replicate(
             received: false,
             refusal: None,
             standing,
-            held_by_version: None,
+            held_by_version: Vec::new(),
         });
     }
 
@@ -802,7 +803,10 @@ pub(crate) async fn replicate(
                 received: false,
                 refusal: None,
                 standing,
-                held_by_version: HeldByVersion::organization(organization).or(workspace),
+                held_by_version: both_verdicts(
+                    HeldByVersion::organization(organization),
+                    workspace,
+                ),
             });
         }
         // read-only: what the others wrote comes in, and nothing this build wrote goes out. A
@@ -986,9 +990,12 @@ fn unsendable(refusal: &Error) -> bool {
 }
 
 /// What holds this machine once a replication has gone: the organization's verdict, and the open
-/// workspace judged again over whatever its own pull brought.
-async fn held_after(app_state: &Shared, organization: Standing) -> Option<HeldByVersion> {
-    HeldByVersion::organization(organization).or(workspace_judged(app_state).await)
+/// workspace judged again over whatever its own pull brought, each apart (ticket 16).
+async fn held_after(app_state: &Shared, organization: Standing) -> Vec<HeldByVersion> {
+    both_verdicts(
+        HeldByVersion::organization(organization),
+        workspace_judged(app_state).await,
+    )
 }
 
 /// what one replication did.
@@ -1013,10 +1020,11 @@ pub struct Replication {
     /// where the machine stands again (effort 826, requirement 22).
     pub standing: SessionStanding,
     /// what holds this machine by its version after this replication (effort 857, ticket 04):
-    /// the organization or the open workspace, `readOnly` or `unreadable`, judged after the
-    /// organization's pull and before anything went out. `None` where this build may write both.
-    /// *Not a second `standing`*, which says where the member stands, and is the session's.
-    pub held_by_version: Option<HeldByVersion>,
+    /// the organization and the open workspace, each apart (ticket 16) and `readOnly` or
+    /// `unreadable`, judged after the organization's pull and before anything went out. Empty
+    /// where this build may write both. *Not a second `standing`*, which says where the member
+    /// stands, and is the session's.
+    pub held_by_version: Vec<HeldByVersion>,
 }
 
 /// where the member signed in on this machine stands, as the heartbeat found it.
@@ -1058,7 +1066,7 @@ impl Replication {
     fn of(
         replicated: crate::database::Replicated,
         standing: SessionStanding,
-        held_by_version: Option<HeldByVersion>,
+        held_by_version: Vec<HeldByVersion>,
     ) -> Self {
         Self {
             pushed: replicated.pushed,
@@ -1270,7 +1278,7 @@ mod tests {
                 received: false,
                 refusal,
                 standing,
-                held_by_version: None,
+                held_by_version: Vec::new(),
             })
             .expect("a replication did not serialise")
         };
@@ -1282,7 +1290,7 @@ mod tests {
                 "received": false,
                 "refusal": "none",
                 "standing": "held",
-                "heldByVersion": null
+                "heldByVersion": []
             })
         );
         assert_eq!(
@@ -1298,7 +1306,7 @@ mod tests {
                 "received": false,
                 "refusal": "account",
                 "standing": "held",
-                "heldByVersion": null
+                "heldByVersion": []
             })
         );
         assert_eq!(
@@ -1313,7 +1321,7 @@ mod tests {
                 "received": false,
                 "refusal": "credential",
                 "standing": "signedOutElsewhere",
-                "heldByVersion": null
+                "heldByVersion": []
             })
         );
         // and changes the workspace refuses since an upgrade, which are nobody's account (effort
@@ -1328,7 +1336,7 @@ mod tests {
                 "received": false,
                 "refusal": "unsendable",
                 "standing": "held",
-                "heldByVersion": null
+                "heldByVersion": []
             })
         );
     }

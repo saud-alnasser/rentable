@@ -89,7 +89,9 @@ pub(crate) use replica::leave_registry;
 pub use signin::*;
 pub(crate) use unsent::*;
 pub use version::{HeldByVersion, VersionTarget};
-pub(crate) use version::{held_by_version, hold_at_the_wall, workspace_judged, writes_to};
+pub(crate) use version::{
+    both as both_verdicts, held_by_version, hold_at_the_wall, workspace_judged, writes_to,
+};
 
 use std::{
     collections::HashMap,

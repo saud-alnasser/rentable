@@ -40,7 +40,7 @@ const { reads, shell } = vi.hoisted(() => ({
 	reads: {
 		session: null as OrganizationSession | null,
 		openWorkspace: 'north' as string | null,
-		heldByVersion: null as HeldByVersion | null
+		heldByVersion: [] as HeldByVersion[]
 	},
 	shell: { openFile: vi.fn(), refused: [] as string[] }
 }));
@@ -84,7 +84,7 @@ beforeEach(() => {
 	setLocale('en');
 	reads.session = null;
 	reads.openWorkspace = 'north';
-	reads.heldByVersion = null;
+	reads.heldByVersion = [];
 	shell.openFile.mockReset();
 	shell.refused.length = 0;
 });
@@ -139,7 +139,7 @@ test('in a workspace the reader holds a read-only grant on, every write is refus
 // the version on a full grant, while viewing goes on. A verdict on another workspace holds nothing.
 test('a workspace upgraded past this version is held read-only for the version', () => {
 	reads.session = everyFlagOnTwoWorkspaces();
-	reads.heldByVersion = { target: { workspace: 'north' }, standing: 'readOnly', reason: '' };
+	reads.heldByVersion = [{ target: { workspace: 'north' }, standing: 'readOnly', reason: '' }];
 
 	const { unmount } = render(WorkspacePermissions);
 
@@ -150,7 +150,7 @@ test('a workspace upgraded past this version is held read-only for the version',
 	);
 	expect(memberPermissions.refusal('viewPayment', i18nObject('en'))).toBeUndefined();
 
-	reads.heldByVersion = { target: { workspace: 'south' }, standing: 'readOnly', reason: '' };
+	reads.heldByVersion = [{ target: { workspace: 'south' }, standing: 'readOnly', reason: '' }];
 	unmount();
 	render(WorkspacePermissions);
 

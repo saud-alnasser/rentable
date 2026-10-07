@@ -1311,7 +1311,8 @@ mod tests {
                 .expect("the state");
             let held = state
                 .held_by_version
-                .clone()
+                .first()
+                .cloned()
                 .unwrap_or_else(|| panic!("{name}: the launch carried no version"));
 
             assert_eq!(held.target, VersionTarget::Organization, "{name}");

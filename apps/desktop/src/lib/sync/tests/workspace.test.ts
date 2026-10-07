@@ -23,7 +23,7 @@ let shellState: RemoteSyncState = fakeSyncState({
 let replicatesTo = false;
 let pushesTo = true;
 let refusesWith: ReplicationRefusal = 'none';
-let heldWith: HeldByVersion | null = null;
+let heldWith: HeldByVersion[] = [];
 let stateFails = false;
 // what each replication waits on before it answers, in call order: none, but for the test that
 // holds one out.
@@ -66,7 +66,7 @@ function reset() {
 	replicatesTo = false;
 	pushesTo = true;
 	refusesWith = 'none';
-	heldWith = null;
+	heldWith = [];
 	stateFails = false;
 	replicationGates = [];
 	shellState = fakeSyncState({ workspace: fakeWorkspace({ id: 'workspace-1' }) });
@@ -116,7 +116,7 @@ test('a replication the account was refused for says so on the result', async ()
 // judged, for startup to move on before anything else is written.
 test('a replication that pulled a raise carries the verdict on the result', async () => {
 	reset();
-	heldWith = { target: 'organization', standing: 'unreadable', reason: 'past this version' };
+	heldWith = [{ target: 'organization', standing: 'unreadable', reason: 'past this version' }];
 
 	const result = await syncWorkspaceNow();
 

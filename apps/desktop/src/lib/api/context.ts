@@ -51,7 +51,7 @@ type OrganizationSession = NonNullable<OrganizationState['session']>;
  * organization or one workspace, and how far this build may still go with it. Read off the composed
  * host for the reason the session is.
  */
-type HeldByVersion = NonNullable<OrganizationState['heldByVersion']>;
+type HeldByVersion = OrganizationState['heldByVersion'][number];
 
 /**
  * IDENTITY
@@ -175,7 +175,7 @@ async function actingIdentity(host: Host): Promise<Identity | null> {
 	}
 
 	const openWorkspaceId = await openWorkspace(host);
-	const heldByVersion = state?.heldByVersion ?? null;
+	const heldByVersion = state?.heldByVersion ?? [];
 
 	return {
 		accountId: session.memberId,
@@ -218,24 +218,25 @@ export async function sessionOf(host: Host): Promise<OrganizationSession | null>
 
 /**
  * whether a newer rentable upgraded the workspace `openWorkspaceId` past what this one writes, as
- * the shell's verdict `heldByVersion` says (effort 857, requirement 6). Below the read floor counts
+ * the shell's verdicts `heldByVersion` say (effort 857, requirement 6). Below the read floor counts
  * too, which is the safe direction, though such a workspace is not served at all. A verdict on the
  * organization, or on another workspace, holds nothing here: the organization's acts are refused
  * in the shell, and its verdict is not a workspace's.
  *
+ * **The workspace's verdict is read whatever the organization's says** (ticket 16): the shell
+ * carries both apart, so an organization read-only by its version too does not hide it.
+ *
  * **Exported so the interface folds the same way** (`workspace/component/permissions.svelte`).
  */
 export function readOnlyByVersionIn(
-	heldByVersion: HeldByVersion | null,
+	heldByVersion: readonly HeldByVersion[],
 	openWorkspaceId: string | null
 ): boolean {
-	const target = heldByVersion?.target;
-
 	return (
 		openWorkspaceId !== null &&
-		typeof target === 'object' &&
-		target !== null &&
-		target.workspace === openWorkspaceId
+		heldByVersion.some(
+			({ target }) => typeof target === 'object' && target.workspace === openWorkspaceId
+		)
 	);
 }
 
@@ -319,7 +320,7 @@ function viewsOf(permissions: number): number {
 export function permissionsIn(
 	session: OrganizationSession,
 	openWorkspaceId: string | null,
-	heldByVersion: HeldByVersion | null = null
+	heldByVersion: readonly HeldByVersion[] = []
 ): number {
 	return effectiveIn(
 		workspacePermissionsIn(session, openWorkspaceId),

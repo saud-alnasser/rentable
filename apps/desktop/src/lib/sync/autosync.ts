@@ -145,7 +145,7 @@ export function startWorkspaceSyncManager(input: {
 				errorMessage: message,
 				received: false,
 				workspaceId: state?.workspace.remoteId ?? null,
-				heldByVersion: null,
+				heldByVersion: [],
 				// the sentence above is for a reader; the code is what a refusal is routed on.
 				refusal: toTauriRefusalReason(error)
 			});

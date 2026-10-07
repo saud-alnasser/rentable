@@ -41,8 +41,8 @@ const manager = () =>
 		workspaces: [fakeOrganizationWorkspace({ id: 'south', accessLevel: 'full-access' })]
 	});
 
-/** a shell open on south, signed in as the manager, holding `heldByVersion` as its verdict. */
-function shellOnSouth(heldByVersion: HeldByVersion | null): Host {
+/** a shell open on south, signed in as the manager, holding `heldByVersion` as its verdicts. */
+function shellOnSouth(heldByVersion: HeldByVersion[]): Host {
 	const state = fakeOrganizationState({ session: manager(), heldByVersion });
 
 	return fakeHost({
@@ -60,6 +60,12 @@ const SOUTH_READ_ONLY: HeldByVersion = {
 	reason: 'a newer version of rentable upgraded south'
 };
 
+const ORGANIZATION_READ_ONLY: HeldByVersion = {
+	target: 'organization',
+	standing: 'readOnly',
+	reason: 'a newer version of rentable upgraded the organization'
+};
+
 /** what each statement issued was, so a test can say nothing was written. */
 function writesIn(statements: readonly string[]) {
 	return statements.filter((sql) => /^\s*(insert|update|delete|create|drop|alter)\b/i.test(sql));
@@ -71,7 +77,7 @@ function writesIn(statements: readonly string[]) {
  * The contract's status is left as another machine might have written it before the day moved on,
  * `scheduled` where its dates say `active`, so a reconcile has something to write.
  */
-async function heldOverATenant() {
+async function heldOverATenant(held: HeldByVersion[] = [SOUTH_READ_ONLY]) {
 	const statements: string[] = [];
 	const db = createMemoryDatabase((statement) => statements.push(statement));
 	const writable = await createApi({ db });
@@ -83,7 +89,7 @@ async function heldOverATenant() {
 	const ctx = await context({
 		db,
 		clock: { now: () => NOW },
-		host: shellOnSouth(SOUTH_READ_ONLY)
+		host: shellOnSouth(held)
 	});
 
 	statements.length = 0;
@@ -100,6 +106,28 @@ test('below the write floor a create, an edit and a delete are refused for the v
 		api.tenant.create({ name: 'another', nationalId: '2000000001', phone: '+966551110000' }),
 		refusedWith('host.workspaceReadOnlyByVersion')
 	);
+	await assert.rejects(
+		api.tenant.update({ id: tenant.id, name: 'renamed' }),
+		refusedWith('host.workspaceReadOnlyByVersion')
+	);
+	await assert.rejects(
+		api.tenant.delete({ id: tenant.id }),
+		refusedWith('host.workspaceReadOnlyByVersion')
+	);
+
+	assert.deepEqual(writesIn(statements), [], 'a refused write reached the database');
+});
+
+// effort 857, ticket 16: the shell carries the organization's verdict and the workspace's apart, so a
+// workspace read-only by version is refused as one even where the organization is read-only too.
+test("with the organization read-only too, the workspace's writes are still refused for the version", async () => {
+	const { api, tenant, statements, identity } = await heldOverATenant([
+		ORGANIZATION_READ_ONLY,
+		SOUTH_READ_ONLY
+	]);
+
+	assert.equal(identity?.readOnlyByVersion, true, "the workspace's verdict was lost");
+
 	await assert.rejects(
 		api.tenant.update({ id: tenant.id, name: 'renamed' }),
 		refusedWith('host.workspaceReadOnlyByVersion')
@@ -137,7 +165,7 @@ test('below the write floor the reconcile writes nothing and does not fail', asy
 
 test('at or above the write floor the same caller writes', async () => {
 	const db = createMemoryDatabase();
-	const ctx = await context({ db, clock: { now: () => NOW }, host: shellOnSouth(null) });
+	const ctx = await context({ db, clock: { now: () => NOW }, host: shellOnSouth([]) });
 	const api = caller(appRouter)(ctx);
 
 	assert.equal(ctx.identity?.readOnlyByVersion, undefined);

@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(organization): both verdicts cross, and the app follows each
@@ -14,10 +14,10 @@ Found at converge round one: the organization's and the open workspace's version
 
 Traces requirement 6, requirement 7, requirement 9, criterion 6, criterion 7 and criterion 9.
 
-- [ ] `heldByVersion` (or its successor) carries the organization's verdict and the open workspace's verdict separately on `OrganizationState`, `session_replicate`'s result and the launch path; `held_after` and `session/version.rs` no longer keep only one.
-- [ ] `permissionsIn` clears the workspace's writes when the workspace is read-only by version whatever the organization's standing; a router test covers the organization and the workspace both read-only.
-- [ ] With the organization read-only and the workspace unreadable, the heartbeat and the launch land on the update-required screen; a test covers it.
-- [ ] [[contexts/desktop/organization]] says what crosses, correctly.
+- [x] `heldByVersion` (or its successor) carries the organization's verdict and the open workspace's verdict separately on `OrganizationState`, `session_replicate`'s result and the launch path; `held_after` and `session/version.rs` no longer keep only one.
+- [x] `permissionsIn` clears the workspace's writes when the workspace is read-only by version whatever the organization's standing; a router test covers the organization and the workspace both read-only.
+- [x] With the organization read-only and the workspace unreadable, the heartbeat and the launch land on the update-required screen; a test covers it.
+- [x] [[contexts/desktop/organization]] says what crosses, correctly.
 
 ## Relevant areas
 

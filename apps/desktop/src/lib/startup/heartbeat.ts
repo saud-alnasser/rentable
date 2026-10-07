@@ -1,6 +1,5 @@
 import type { HeldByVersion, OrganizationState } from '$lib/organization';
 import type { StartupMachine } from './machine';
-import { organizationNewer, workspaceNewer } from './refusal';
 
 /** what a sync manager reported, as this unit needs to read it. */
 export type SyncOutcome = {
@@ -17,11 +16,12 @@ export type SyncOutcome = {
 	workspaceId: string | null;
 	/**
 	 * what holds this machine by its version after the dispatch, as the shell judged it after the
-	 * organization's pull and before anything went out, or `null` where this build may write
-	 * everything it has open (effort 857, requirement 9). *Not the session's standing*, which a
-	 * dispatch that ended the session has already acted on before reporting.
+	 * organization's pull and before anything went out, the organization's verdict and the open
+	 * workspace's apart, or empty where this build may write everything it has open (effort 857,
+	 * requirement 9, ticket 16). *Not the session's standing*, which a dispatch that ended the
+	 * session has already acted on before reporting.
 	 */
-	heldByVersion: HeldByVersion | null;
+	heldByVersion: HeldByVersion[];
 	/**
 	 * why the shell refused a dispatch that threw, as the refusal's code, or `null` where it
 	 * carried none: what lets a refusal for the version be routed rather than read as text.
@@ -93,7 +93,7 @@ export async function applySyncOutcome(machine: StartupMachine, outcome: SyncOut
 	}
 
 	// read-only: the rows are shown, and nothing is reconciled into data this build may not write.
-	if (machine.heldByVersion) {
+	if (machine.heldByVersion.length > 0) {
 		await machine.ports.cache.invalidateAll();
 
 		return;
@@ -104,47 +104,33 @@ export async function applySyncOutcome(machine: StartupMachine, outcome: SyncOut
 
 /**
  * Where the dispatch found the organization or the open workspace past what this build reads, put
- * the person where a way in the version refused puts them (`./machine`, `returnToSwitcher` and
- * `hold`), and answer whether it did.
+ * the person where a way in the version refused puts them, and answer whether it did.
  *
- * **The verdict on the answer, or the code a dispatch threw with**: the shell carries a raise it
+ * **The verdicts on the answer, or the code a dispatch threw with**: the shell carries a raise it
  * pulled as `heldByVersion`, and a dispatch it refused outright for the version says so in its
- * code. Any other refusal is not this function's: a heartbeat that failed is retried by the sync
- * manager, and nobody is moved off what they are doing for one.
+ * code, which stands for the same verdict without its sentence. Either way the routing is the
+ * machine's one (`pastReading`), which a way in follows too. Any other refusal is not this
+ * function's: a heartbeat that failed is retried by the sync manager, and nobody is moved off what
+ * they are doing for one.
  */
 async function isPastReading(machine: StartupMachine, outcome: SyncOutcome, open: string | null) {
-	const held = outcome.heldByVersion;
-	const target =
-		held?.standing === 'unreadable'
-			? held.target
-			: outcome.refusal === 'organizationNewer'
-				? 'organization'
-				: outcome.refusal === 'workspaceNewer' && open
-					? { workspace: open }
-					: null;
+	return machine.pastReading(
+		[...outcome.heldByVersion, ...refusedFor(outcome.refusal, open)],
+		open
+	);
+}
 
-	if (target === null) {
-		return false;
+/** the verdict a dispatch refused outright for the version stands for, where it was one. */
+function refusedFor(refusal: string | null | undefined, open: string | null): HeldByVersion[] {
+	if (refusal === 'organizationNewer') {
+		return [{ target: 'organization', standing: 'unreadable', reason: '' }];
 	}
 
-	const detail = held?.standing === 'unreadable' ? held.reason : '';
-
-	if (target === 'organization') {
-		const organization = machine.current.organization;
-		const organizationId = organization?.session?.organizationId ?? organization?.selected;
-
-		if (!organizationId) {
-			return false;
-		}
-
-		await machine.returnToSwitcher(organizationId, organizationNewer(detail), detail);
-
-		return true;
+	if (refusal === 'workspaceNewer' && open) {
+		return [{ target: { workspace: open }, standing: 'unreadable', reason: '' }];
 	}
 
-	await machine.hold(target.workspace, workspaceNewer(detail));
-
-	return true;
+	return [];
 }
 
 /**
@@ -152,10 +138,10 @@ async function isPastReading(machine: StartupMachine, outcome: SyncOutcome, open
  * reads it at once, whatever the read of the state just answered: the day's reconcile asks it
  * (`./reconcile`), and the next read of the state says the same thing, since the shell keeps it.
  */
-function foldVerdict(machine: StartupMachine, heldByVersion: HeldByVersion | null) {
+function foldVerdict(machine: StartupMachine, heldByVersion: HeldByVersion[]) {
 	const organization = machine.current.organization;
 
-	if (!heldByVersion || !organization) {
+	if (heldByVersion.length === 0 || !organization) {
 		return;
 	}
 

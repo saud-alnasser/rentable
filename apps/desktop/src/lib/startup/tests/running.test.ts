@@ -97,7 +97,7 @@ test('and a pull that landed rows announces them, while one that landed none doe
 		action: 'none',
 		received: false,
 		workspaceId: 'north',
-		heldByVersion: null
+		heldByVersion: []
 	});
 	assert.equal(journal.announced, 0, 'nothing arrived, so nothing to announce');
 
@@ -105,7 +105,7 @@ test('and a pull that landed rows announces them, while one that landed none doe
 		action: 'none',
 		received: true,
 		workspaceId: 'north',
-		heldByVersion: null
+		heldByVersion: []
 	});
 	assert.equal(journal.announced, 1, 'rows arrived, and derived state has to be told');
 });
@@ -162,7 +162,7 @@ test('a member narrowed on another machine is refused on the next call after one
 		action: 'none',
 		received: false,
 		workspaceId: 'north',
-		heldByVersion: null
+		heldByVersion: []
 	});
 
 	const refusal = await api.rename().then(
@@ -182,7 +182,7 @@ test('a member narrowed on another machine is refused on the next call after one
 		action: 'none',
 		received: false,
 		workspaceId: 'north',
-		heldByVersion: null
+		heldByVersion: []
 	});
 
 	assert.equal(journal.invalidatedAll, everythingBefore + 1);
@@ -195,7 +195,7 @@ test('a member narrowed on another machine is refused on the next call after one
 		action: 'none',
 		received: false,
 		workspaceId: 'north',
-		heldByVersion: null
+		heldByVersion: []
 	});
 
 	assert.equal(await api.rename(), 'renamed');
@@ -228,7 +228,7 @@ test('and rows that land while a day-crossing reconcile is out are announced onc
 		action: 'none',
 		received: true,
 		workspaceId: 'north',
-		heldByVersion: null
+		heldByVersion: []
 	});
 	assert.equal(journal.announced, 0, 'the pass is still out, so the rows wait');
 
@@ -509,7 +509,7 @@ test('and a dispatch that reported for the workspace open before the switch is d
 		action: 'none',
 		received: true,
 		workspaceId: 'north',
-		heldByVersion: null
+		heldByVersion: []
 	});
 
 	assert.equal(journal.announced, before.journal.announced, 'no rows were announced');
@@ -522,7 +522,7 @@ test('and a dispatch that reported for the workspace open before the switch is d
 		action: 'none',
 		received: true,
 		workspaceId: 'south',
-		heldByVersion: null
+		heldByVersion: []
 	});
 
 	assert.equal(journal.announced, before.journal.announced + 1);

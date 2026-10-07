@@ -145,9 +145,14 @@ Where this build stands against a floor, as the shell is told it (`session/versi
 organization's verdict is kept on its store (`OrganizationStore::refuse_another_format`, asked after
 every pull at every way in, and `standing` before any write of its own), the open workspace's on the
 workspace engine ([[contexts/desktop/persistence]]), and a resume refused for its version, when no
-store is open, on the organization's state (`Shared::held_by_version`). A verdict that is not
-writable crosses as `heldByVersion` on `OrganizationState` and on `session_replicate`'s answer, with
-the organization or the workspace it holds. Below the write floor the organization is read-only:
+store is open, on the organization's state (`Shared::held_by_version`). Every verdict that is not
+writable crosses in the list `heldByVersion` on `OrganizationState` and on `session_replicate`'s
+answer, each with the organization or the workspace it holds: **the organization's and the open
+workspace's apart, the organization's first**, or the wall's refusal alone while no store is open,
+and an empty list where this build may write everything open. Neither hides the other: a workspace
+read-only by its version folds its writes away (`api/context.ts`, `permissionsIn`) and one past
+reading meets the update screen, whatever the organization's standing, by the one routing the ways
+in and the heartbeat follow (`startup/machine.ts`, `pastReading`; ticket 16). Below the write floor the organization is read-only:
 every act through `as_member` that writes is refused as `OrganizationReadOnlyByVersion`, the replica
 held with `PRAGMA query_only` for the act, and the shell draws the read-only notice above every
 screen (`organization/component/read-only-notice.svelte`), saying nothing can be changed until

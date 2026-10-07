@@ -141,7 +141,7 @@ export async function signOut(
 			holdsTursoAuthority: false,
 			setupConsented: false,
 			signedOutElsewhere: false,
-			heldByVersion: null
+			heldByVersion: []
 		}
 	});
 

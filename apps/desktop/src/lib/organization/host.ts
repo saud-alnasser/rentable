@@ -284,12 +284,16 @@ export type OrganizationState = {
 	 */
 	signedOutElsewhere: boolean;
 	/**
-	 * what holds this machine by its version, or `null` where this build may write everything it
-	 * has open (effort 857). A resume refused because a newer rentable upgraded the organization
-	 * past what this one reads leaves the wall up with this set; a session let through on an
+	 * what holds this machine by its version, empty where this build may write everything it has
+	 * open (effort 857). A resume refused because a newer rentable upgraded the organization past
+	 * what this one reads leaves the wall up with that verdict alone; a session let through on an
 	 * organization or a workspace this one may read and not write carries it while it lasts.
+	 *
+	 * **The organization's verdict and the open workspace's, each apart**, the organization's
+	 * first (ticket 16): an organization read-only by its version does not hide a workspace that
+	 * is read-only or past reading too, and each is followed on its own.
 	 */
-	heldByVersion: HeldByVersion | null;
+	heldByVersion: HeldByVersion[];
 };
 
 /**

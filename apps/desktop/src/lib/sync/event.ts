@@ -39,12 +39,13 @@ export type WorkspaceSyncEventResult = {
 	 */
 	workspaceId: string | null;
 	/**
-	 * what holds this machine by its version after the dispatch, as the shell judged it, or `null`
-	 * where nothing does or the dispatch threw (effort 857, requirement 9). Carried as it was
+	 * what holds this machine by its version after the dispatch, as the shell judged it, the
+	 * organization's verdict and the open workspace's apart, or empty where nothing does or the
+	 * dispatch threw (effort 857, requirement 9, ticket 16). Carried as it was
 	 * judged rather than said as text, since what follows is a move: read-only, the switcher or the
 	 * update-required screen, before anything else is written.
 	 */
-	heldByVersion: HeldByVersion | null;
+	heldByVersion: HeldByVersion[];
 	/**
 	 * the code of the refusal a dispatch that threw carried, or `null` where it carried none or
 	 * did not throw. `errorMessage` is its sentence, for a reader; this is what startup routes on.

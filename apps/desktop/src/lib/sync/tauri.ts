@@ -22,7 +22,7 @@ export const tauri = {
 			received: boolean;
 			refusal: ReplicationRefusal;
 			standing: SessionStanding;
-			heldByVersion: HeldByVersion | null;
+			heldByVersion: HeldByVersion[];
 		}>('plugin:organization|session_replicate'),
 	push: () => invoke<boolean>('plugin:sync|push'),
 	renameWorkspace: (name: string) =>

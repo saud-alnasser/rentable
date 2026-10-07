@@ -123,12 +123,12 @@ export type SyncHost = {
 		 */
 		standing: SessionStanding;
 		/**
-		 * what holds this machine by its version after it, or `null` where this build may write
-		 * both the organization and the open workspace (effort 857). Judged after the
-		 * organization's pull and before anything went out: a workspace held read-only was pulled
-		 * and not pushed, and one past reading was neither.
+		 * what holds this machine by its version after it, the organization's verdict and the
+		 * open workspace's apart, or empty where this build may write both (effort 857, ticket 16).
+		 * Judged after the organization's pull and before anything went out: a workspace held
+		 * read-only was pulled and not pushed, and one past reading was neither.
 		 */
-		heldByVersion: HeldByVersion | null;
+		heldByVersion: HeldByVersion[];
 	}>;
 	/** send what this machine wrote and nothing else, for the last call of a session. */
 	push: () => Promise<boolean>;

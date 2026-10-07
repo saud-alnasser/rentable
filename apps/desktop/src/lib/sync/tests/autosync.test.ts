@@ -67,7 +67,7 @@ let dispatched: WorkspaceSyncResult = {
 	pushed: true,
 	refusal: 'none',
 	standing: 'held',
-	heldByVersion: null
+	heldByVersion: []
 };
 
 /** what the next dispatch throws instead of answering, where a test says so. */
@@ -111,7 +111,7 @@ type Reported = Parameters<
 async function reported(answer: Partial<WorkspaceSyncResult>, thrown: unknown = null) {
 	const outcomes: Reported[] = [];
 
-	dispatched = { ...dispatched, standing: 'held', heldByVersion: null, ...answer };
+	dispatched = { ...dispatched, standing: 'held', heldByVersion: [], ...answer };
 	throws = thrown;
 	timers.length = 0;
 
@@ -172,11 +172,13 @@ test('an ordinary dispatch reports its outcome and says nothing about the sessio
 // effort 857, ticket 12: what the shell judged after the pull reaches startup as it was judged,
 // so a raise moves the application rather than becoming a line of text nobody routes on.
 test('a dispatch that pulled a raise reports the verdict on its outcome', async () => {
-	const heldByVersion = {
-		target: { workspace: 'north' },
-		standing: 'readOnly' as const,
-		reason: 'a newer version of rentable upgraded North Properties'
-	};
+	const heldByVersion = [
+		{
+			target: { workspace: 'north' },
+			standing: 'readOnly' as const,
+			reason: 'a newer version of rentable upgraded North Properties'
+		}
+	];
 	const [outcome] = await reported({ heldByVersion, received: true });
 
 	assert.deepEqual(outcome?.heldByVersion, heldByVersion);
@@ -192,5 +194,5 @@ test('and a dispatch the shell refused carries the refusal code, not only its se
 
 	assert.equal(outcome?.action, 'error');
 	assert.equal(outcome?.refusal, 'workspaceNewer');
-	assert.equal(outcome?.heldByVersion, null);
+	assert.deepEqual(outcome?.heldByVersion, []);
 });

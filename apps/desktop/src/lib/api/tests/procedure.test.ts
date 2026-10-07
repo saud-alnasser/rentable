@@ -51,7 +51,7 @@ async function signedOutApi() {
 					received: false,
 					refusal: 'none' as const,
 					standing: 'held' as const,
-					heldByVersion: null
+					heldByVersion: []
 				}),
 				push: async () => false,
 				renameWorkspace: async () => fakeSyncState(),

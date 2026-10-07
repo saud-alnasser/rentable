@@ -280,7 +280,7 @@ test('a shell that cannot be reached carries no permissions because it carries n
 function shellOpenOn(
 	workspaceId: string | null,
 	session: OrganizationSession,
-	heldByVersion: HeldByVersion | null = null
+	heldByVersion: HeldByVersion[] = []
 ): Host {
 	const state = fakeOrganizationState({ session, heldByVersion });
 
@@ -468,7 +468,7 @@ test('a workspace upgraded past what this version writes clears every write flag
 	const actor = await actorFrom({
 		db: createMemoryDatabase(),
 		clock: { now: () => 0 },
-		host: shellOpenOn('south', managerOnTwo(), held({ workspace: 'south' }))
+		host: shellOpenOn('south', managerOnTwo(), [held({ workspace: 'south' })])
 	});
 
 	assert.equal(actor?.permissions, effectiveIn(BUILT_IN.manager.mask, 'read-only'));
@@ -481,7 +481,7 @@ test('a workspace upgraded past what this version writes clears every write flag
 	assert.ok(permits(actor?.permissions ?? 0, 'assignRole'));
 	assert.ok(permits(actor?.permissions ?? 0, 'viewPayment'));
 	assert.equal(
-		permissionsIn(managerOnTwo(), 'south', held({ workspace: 'south' })),
+		permissionsIn(managerOnTwo(), 'south', [held({ workspace: 'south' })]),
 		effectiveIn(BUILT_IN.manager.mask, 'read-only')
 	);
 
@@ -489,10 +489,36 @@ test('a workspace upgraded past what this version writes clears every write flag
 		const writing = await actorFrom({
 			db: createMemoryDatabase(),
 			clock: { now: () => 0 },
-			host: shellOpenOn('south', managerOnTwo(), elsewhere)
+			host: shellOpenOn('south', managerOnTwo(), [elsewhere])
 		});
 
 		assert.equal(writing?.permissions, BUILT_IN.manager.mask, JSON.stringify(elsewhere.target));
 		assert.equal(writing?.readOnlyByVersion, undefined);
 	}
+});
+
+/**
+ * **The workspace's verdict folds whatever the organization's says** (effort 857, ticket 16). The
+ * shell carries both verdicts apart, and an organization read-only by its version too does not
+ * hide that the workspace open is: its writes are cleared all the same.
+ */
+test('a workspace read-only by version in an organization read-only too still clears every write flag', async () => {
+	const held = (target: HeldByVersion['target']): HeldByVersion => ({
+		target,
+		standing: 'readOnly',
+		reason: 'a newer version of rentable upgraded it'
+	});
+	const both = [held('organization'), held({ workspace: 'south' })];
+	const actor = await actorFrom({
+		db: createMemoryDatabase(),
+		clock: { now: () => 0 },
+		host: shellOpenOn('south', managerOnTwo(), both)
+	});
+
+	assert.equal(actor?.permissions, effectiveIn(BUILT_IN.manager.mask, 'read-only'));
+	assert.equal(actor?.readOnlyByVersion, true);
+	assert.equal(
+		permissionsIn(managerOnTwo(), 'south', both),
+		effectiveIn(BUILT_IN.manager.mask, 'read-only')
+	);
 });

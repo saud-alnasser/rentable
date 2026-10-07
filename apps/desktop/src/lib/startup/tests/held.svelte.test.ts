@@ -182,11 +182,13 @@ for (const locale of LOCALES) {
 		const { startup, standWith } = harness({
 			describeError,
 			organization: atTheWall({
-				heldByVersion: {
-					target: 'organization',
-					standing: 'unreadable',
-					reason: 'format 5 past 4'
-				}
+				heldByVersion: [
+					{
+						target: 'organization',
+						standing: 'unreadable',
+						reason: 'format 5 past 4'
+					}
+				]
 			})
 		});
 
@@ -216,7 +218,7 @@ for (const locale of LOCALES) {
 		// the organization was upgraded while the machine was away, and a resume meets it.
 		standWith(
 			atTheWall({
-				heldByVersion: { target: 'organization', standing: 'unreadable', reason: 'format 5' }
+				heldByVersion: [{ target: 'organization', standing: 'unreadable', reason: 'format 5' }]
 			})
 		);
 		await startup.retry();

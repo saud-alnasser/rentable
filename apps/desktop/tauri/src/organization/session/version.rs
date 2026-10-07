@@ -5,8 +5,14 @@
 //! **A standing rather than an error, beside `signedOutElsewhere`.** A resume refused for its
 //! version leaves the person at the wall, and the wall is owed the reason; a session let through
 //! read-only is owed it while it lasts; and a heartbeat that pulls a raise is owed it before the
-//! next thing is written. So the verdict crosses as [`HeldByVersion`], on `OrganizationState` and
-//! on `session_replicate`'s answer, and what the shell does with it is the shell's.
+//! next thing is written. So the verdicts cross as a list of [`HeldByVersion`], on
+//! `OrganizationState` and on `session_replicate`'s answer, and what the shell does with them is
+//! the shell's.
+//!
+//! **Both verdicts, apart** (ticket 16). The organization and the open workspace are judged
+//! separately, and each verdict crosses on its own, the organization's first: a workspace
+//! read-only or past reading in an organization that is read-only is still the workspace's to fold
+//! or to hold, and keeping only the organization's verdict lost it.
 //!
 //! **Where each verdict lives.** The organization's is kept on its store
 //! (`OrganizationStore::refuse_another_format`), the open workspace's on the workspace engine
@@ -167,32 +173,42 @@ pub(crate) async fn workspace_judged(app_state: &Shared) -> Option<HeldByVersion
 }
 
 /// What holds this machine by its version as the last verdicts left it, for the state read: the
-/// refusal that kept a resume at the wall, then the open organization's verdict, then the open
-/// workspace's. Judges nothing again.
-pub(crate) async fn held_by_version(app_state: &Shared) -> Option<HeldByVersion> {
+/// refusal that kept a resume at the wall alone, where there is one, since nothing is open behind
+/// it; otherwise the open organization's verdict and the open workspace's, each apart. Judges
+/// nothing again.
+pub(crate) async fn held_by_version(app_state: &Shared) -> Vec<HeldByVersion> {
     if let Some(held) = app_state
         .held_by_version
         .lock()
         .ok()
         .and_then(|held| held.clone())
     {
-        return Some(held);
+        return vec![held];
     }
 
-    if let Some(held) = app_state
+    let organization = app_state
         .organization
         .read()
         .await
         .as_ref()
-        .and_then(|store| HeldByVersion::organization(store.standing()))
-    {
-        return Some(held);
-    }
-
+        .and_then(|store| HeldByVersion::organization(store.standing()));
     let standing = app_state.db.read().await.standing();
     let workspace = { app_state.remote_sync.read().await.workspace() };
+    let workspace = workspace
+        .remote_id
+        .as_deref()
+        .and_then(|id| HeldByVersion::workspace(id, &workspace.name, standing));
 
-    HeldByVersion::workspace(workspace.remote_id.as_deref()?, &workspace.name, standing)
+    both(organization, workspace)
+}
+
+/// The organization's verdict and the open workspace's, each apart and the organization's first,
+/// leaving out whichever holds nothing (ticket 16).
+pub(crate) fn both(
+    organization: Option<HeldByVersion>,
+    workspace: Option<HeldByVersion>,
+) -> Vec<HeldByVersion> {
+    organization.into_iter().chain(workspace).collect()
 }
 
 /// Keep `held` as what kept this machine at the wall, or forget it where it is nothing.
@@ -241,6 +257,26 @@ mod tests {
             workspace.target,
             VersionTarget::Workspace("w-1".to_string())
         );
+    }
+
+    /// Both verdicts are kept, the organization's first, and one that holds nothing is left out.
+    #[test]
+    fn both_verdicts_are_kept_apart() {
+        let organization = HeldByVersion::organization(Standing::ReadOnly);
+        let workspace = HeldByVersion::workspace("w-1", "Ledger", Standing::Unreadable);
+
+        assert_eq!(
+            super::both(organization.clone(), workspace.clone()),
+            vec![
+                organization.expect("a hold"),
+                workspace.clone().expect("a hold")
+            ]
+        );
+        assert_eq!(
+            super::both(None, workspace.clone()),
+            vec![workspace.expect("a hold")]
+        );
+        assert_eq!(super::both(None, None), Vec::new());
     }
 
     /// A writable verdict holds nothing.

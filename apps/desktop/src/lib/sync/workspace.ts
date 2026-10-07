@@ -56,10 +56,11 @@ export type WorkspaceSyncResult = {
 	standing: SessionStanding;
 	/**
 	 * what holds this machine by its version after it, judged by the shell after the
-	 * organization's pull and before anything went out, or `null` where nothing does (effort 857,
-	 * requirement 9). *Not `standing`*, which is the session's.
+	 * organization's pull and before anything went out, the organization's verdict and the open
+	 * workspace's apart, or empty where nothing does (effort 857, requirement 9, ticket 16). *Not
+	 * `standing`*, which is the session's.
 	 */
-	heldByVersion: HeldByVersion | null;
+	heldByVersion: HeldByVersion[];
 };
 
 /**
@@ -125,7 +126,7 @@ export function syncWorkspaceNow(
 			standing: 'held' as const,
 			// nor about the version: a call that did not answer judged nothing, and what the last
 			// one judged stands on the shell's state.
-			heldByVersion: null
+			heldByVersion: []
 		}));
 
 		return { state, action: 'none' as const, ...replication };
@@ -156,6 +157,6 @@ export async function syncWorkspaceBeforeExit(
 		pushed,
 		refusal: 'none',
 		standing: 'held',
-		heldByVersion: null
+		heldByVersion: []
 	};
 }
