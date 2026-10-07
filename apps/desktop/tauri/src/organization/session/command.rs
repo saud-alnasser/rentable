@@ -27,7 +27,8 @@ use crate::organization::{
     ownership,
     session::{
         self, HeldByVersion, MachineView, SessionFacts, SessionsEnded, both_verdicts, forget,
-        held_by_version, release_the_wall, replicated_then_judged, workspace_judged,
+        held_by_version, release_the_wall, replicated_judged_then_healed, replicated_then_judged,
+        workspace_judged,
     },
     store::OrganizationStore,
 };
@@ -869,9 +870,9 @@ pub(crate) async fn replicate(
 
     // and the workspace judged again over what its pull brought, under the same hold of the
     // engine, so a raise that pull brought is in the answer and nothing is written between the
-    // two (ticket 27).
-    let (replicated, workspace) =
-        replicated_then_judged(app_state, async |db| db.replicate().await).await;
+    // two (ticket 27). Healed after its verdict where this build and this member may write it, so
+    // copies two machines saved apart become one before the interface reads again (ticket 35).
+    let (replicated, workspace) = replicated_judged_then_healed(app_state).await;
     let held_after = both_verdicts(HeldByVersion::organization(organization), workspace);
 
     match &replicated.refusal {
@@ -910,8 +911,7 @@ pub(crate) async fn replicate(
                 return Ok(Replication::of(replicated, standing, held_after));
             }
 
-            let (again, workspace) =
-                replicated_then_judged(app_state, async |db| db.replicate().await).await;
+            let (again, workspace) = replicated_judged_then_healed(app_state).await;
 
             // the reconnect collected a fresh credential and the retry went through, or it did
             // not and the member is told their credential needs attention rather than shown

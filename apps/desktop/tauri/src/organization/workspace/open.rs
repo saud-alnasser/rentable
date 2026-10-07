@@ -111,6 +111,9 @@ pub(crate) async fn open_database(app_state: &Shared, clock: &dyn Clock) -> Opti
     // (ticket 30), in the order the heartbeat reads it: it takes the member and the organization,
     // which nothing may wait on while the verdict below holds every write.
     let recorded = crate::organization::session::workspace_recorded(app_state).await;
+    // and whether the member in may write it, which the healing pass after the verdict asks
+    // (effort 857, ticket 35), read here for the same reason.
+    let full_access = crate::organization::session::holds_full_access(app_state).await;
 
     let mut db = app_state.db.write().await;
 
@@ -222,6 +225,15 @@ pub(crate) async fn open_database(app_state: &Shared, clock: &dyn Clock) -> Opti
         }
         _ => None,
     };
+
+    // **and healed, where the verdict and the member's grant let this build write it** (effort
+    // 857, ticket 35): copies two machines saved apart become one before anything reads the
+    // workspace, still under the hold, so no save lands between the verdict and the pass. A
+    // workspace just opened is owed a pass whatever its pull brought. The launch reconciles the
+    // whole workspace next, which takes in whatever the pass moved.
+    if ready && full_access && held.is_none() {
+        db.heal(reached).await;
+    }
 
     // the verdict is in, so the saves waiting on it run; the record is written after, since
     // nothing that writes it should wait on the verdict.

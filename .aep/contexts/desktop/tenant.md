@@ -28,8 +28,12 @@ this, because it accepts both forms.
 
 - **A tenant is not scoped to a complex.** The same person may hold contracts across
   several, and nothing about a tenant record is owned by a property.
-- **Identity and phone are both unique across all tenants**, and a tenant with contracts
-  cannot be deleted.
+- **Identity and phone are both unique across all tenants when a person saves**, and a tenant
+  with contracts cannot be deleted. The tenant's acts refuse a value another tenant holds, in
+  today's words; **the database no longer refuses one** (effort 857, requirement 14), since its
+  rule made the sync engine drop the records of the second of two machines that saved one value
+  apart. Two tenants made apart the same in every field heal into one after a pull
+  ([[contexts/desktop/persistence]]); two that differ both stay, sharing the value.
 - **An identity is normalized before it is validated, and stored normalized.** Surrounding
   whitespace is removed, then the whole value must be an identity number — one definition,
   which every caller that validates the field imports rather than restating. Records written

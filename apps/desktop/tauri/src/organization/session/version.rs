@@ -33,6 +33,7 @@ use crate::{
         lease::{self, apply},
         store::OrganizationStore,
     },
+    turso::platform::AccessLevel,
 };
 
 /// The organization, or one workspace by its id: what a version holds, and what an upgrade
@@ -180,6 +181,44 @@ pub(crate) async fn replicated_then_judged<T>(
     app_state: &Shared,
     replication: impl AsyncFnOnce(&Judging<'_>) -> T,
 ) -> (T, Option<HeldByVersion>) {
+    let (replicated, held, _) = judged_over(app_state, replication, None).await;
+
+    (replicated, held)
+}
+
+/// The heartbeat's replication of the open workspace, judged over what its pull brought as
+/// [`replicated_then_judged`] judges it, and healed after the verdict (effort 857, ticket 35): the
+/// identical records two machines saved apart made into one (`database/heal.rs`), under the same
+/// hold of the engine, so no save lands between the verdict and the pass.
+///
+/// **Healed only where this build may write the workspace**: its verdict writable, no changes
+/// held that the workspace refuses, and the member in holding a full-access grant on it, since a
+/// read-only credential's write would be refused at the push and held. A pass that wrote anything
+/// is answered as rows having arrived, so the interface reconciles and reads again; one that fails
+/// is logged and tried at the next pull, and the replication is answered as it went.
+pub(crate) async fn replicated_judged_then_healed(
+    app_state: &Shared,
+) -> (Replicated, Option<HeldByVersion>) {
+    let full_access = holds_full_access(app_state).await;
+    let (mut replicated, held, healed) = judged_over(
+        app_state,
+        async |db: &Judging<'_>| db.replicate().await,
+        Some(full_access),
+    )
+    .await;
+
+    replicated.received |= healed;
+
+    (replicated, held)
+}
+
+/// What [`replicated_then_judged`] does, and the open workspace healed after the verdict where
+/// `heal` says the member may write it, answering whether the pass wrote.
+async fn judged_over<T>(
+    app_state: &Shared,
+    replication: impl AsyncFnOnce(&Judging<'_>) -> T,
+    heal: Option<bool>,
+) -> (T, Option<HeldByVersion>, bool) {
     let recorded = recorded(app_state).await;
     let db = app_state.db.read().await;
     let judging = Judging::over(&db);
@@ -192,9 +231,39 @@ pub(crate) async fn replicated_then_judged<T>(
         None => None,
     };
 
+    // still under the hold, so the pass reads the workspace as the verdict judged it.
+    let healed = match heal {
+        Some(true) if held.is_none() => db.heal(judging.brought()).await,
+        _ => false,
+    };
+
     drop(judging);
 
-    (replicated, held)
+    (replicated, held, healed)
+}
+
+/// Whether the member in holds a full-access grant on the workspace this machine has open: what a
+/// write of this build's own to it, the healing pass's, asks first (effort 857, ticket 35). Read
+/// before the engine is held, the member before the replica, as every act takes them.
+pub(crate) async fn holds_full_access(app_state: &Shared) -> bool {
+    let Some(id) = ({ app_state.remote_sync.read().await.workspace().remote_id }) else {
+        return false;
+    };
+    let member = app_state.member.read().await;
+
+    member
+        .as_ref()
+        .is_some_and(|member| grants_full_access(&member.workspace_credentials, &id))
+}
+
+/// Whether `credentials`, a member's unsealed grants by workspace, hold full access to `id`.
+fn grants_full_access(
+    credentials: &std::collections::HashMap<String, super::WorkspaceCredential>,
+    id: &str,
+) -> bool {
+    credentials
+        .get(id)
+        .is_some_and(|held| held.access == AccessLevel::FullAccess)
 }
 
 /// The open workspace as a replication over it is handed it ([`replicated_then_judged`]): the
@@ -206,6 +275,8 @@ pub(crate) async fn replicated_then_judged<T>(
 pub(crate) struct Judging<'a> {
     db: &'a Database,
     hold: std::sync::Mutex<Option<tokio::sync::OwnedRwLockWriteGuard<()>>>,
+    /// whether a pull through it brought rows, which is what owes the workspace a healing pass.
+    brought: std::sync::atomic::AtomicBool,
 }
 
 impl<'a> Judging<'a> {
@@ -213,6 +284,19 @@ impl<'a> Judging<'a> {
         Self {
             db,
             hold: std::sync::Mutex::new(None),
+            brought: std::sync::atomic::AtomicBool::new(false),
+        }
+    }
+
+    /// Whether a pull through it brought rows.
+    fn brought(&self) -> bool {
+        self.brought.load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    fn note(&self, brought: bool) {
+        if brought {
+            self.brought
+                .store(true, std::sync::atomic::Ordering::SeqCst);
         }
     }
 
@@ -235,13 +319,22 @@ impl<'a> Judging<'a> {
 
     /// Push, then hold the engine, then pull ([`Database::replicate_then`]).
     pub(crate) async fn replicate(&self) -> Replicated {
-        self.db.replicate_then(async || self.hold().await).await
+        let replicated = self.db.replicate_then(async || self.hold().await).await;
+
+        self.note(replicated.received);
+
+        replicated
     }
 
     /// Hold the engine, then pull.
     pub(crate) async fn pull_replica(&self) -> Pulled {
         self.hold().await;
-        self.db.pull_replica().await
+
+        let pulled = self.db.pull_replica().await;
+
+        self.note(pulled.brought);
+
+        pulled
     }
 
     /// Write `sql` as a pull lays what it brings, the engine held first as a pull holds it: for a
@@ -462,7 +555,7 @@ pub(crate) fn writes_to(store: &OrganizationStore) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{HeldByVersion, VersionTarget, judged};
+    use super::{HeldByVersion, VersionTarget, grants_full_access, judged};
     use crate::{
         database::{
             Database,
@@ -474,6 +567,27 @@ mod tests {
         settings::Settings,
     };
     use serde_json::json;
+
+    /// **Ticket 35's fifth criterion, the grant.** The healing pass writes to the workspace, so it
+    /// runs only for a member whose grant on the open workspace has full access: a read-only
+    /// credential's write would be refused at the push and held, and no grant is no write at all.
+    #[test]
+    fn only_a_full_access_grant_on_the_open_workspace_lets_the_pass_write() {
+        use crate::{organization::session::WorkspaceCredential, turso::platform::AccessLevel};
+
+        let held = |access| WorkspaceCredential {
+            token: "a-credential".to_string(),
+            access,
+        };
+        let credentials = std::collections::HashMap::from([
+            ("south".to_string(), held(AccessLevel::FullAccess)),
+            ("east".to_string(), held(AccessLevel::ReadOnly)),
+        ]);
+
+        assert!(grants_full_access(&credentials, "south"));
+        assert!(!grants_full_access(&credentials, "east"));
+        assert!(!grants_full_access(&credentials, "west"));
+    }
 
     /// It crosses as the shell reads it: the target, the standing in one word, and the reason.
     #[test]

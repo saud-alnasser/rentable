@@ -5,11 +5,31 @@ import z from 'zod';
 
 // tables
 
+/**
+ * Where a record went, once it turned out to be an exact copy of another, and what it held when
+ * it last matched that record (effort 857, requirement 14).
+ *
+ * Two machines saving the same tenant, complex or contract while apart make two records the same
+ * in every field a person entered, and the units or payments under them twice. The pass after a
+ * pull (`tauri/src/database/heal.rs`) keeps the earlier, heals what was under the later one to one
+ * with what is under the earlier, and retires each copy: `merged_into` names the record it went
+ * into, and `merged_as` holds its own fields as they stood when it last
+ * matched it, so an edit a machine that had not heard of the merge makes to it reaches the
+ * record that stayed. **A retired record is never read**: every statement the application sends
+ * keeps it out (`./retired`). Both nullable and without a default, so every record saved before
+ * them, and every one saved since, is one nobody retired.
+ */
+const merged = () => ({
+	mergedInto: text('merged_into'),
+	mergedAs: text('merged_as')
+});
+
 export const tenant = sqliteTable('tenant', {
 	id: text('id').primaryKey().unique(),
 	nationalId: text('national_id').notNull(),
 	name: text('name').notNull(),
-	phone: text('phone').notNull()
+	phone: text('phone').notNull(),
+	...merged()
 });
 
 /**
@@ -32,7 +52,8 @@ export const ASCII_ONLY_COLUMNS: readonly AnyColumn[] = [tenant.nationalId, tena
 export const complex = sqliteTable('complex', {
 	id: text('id').primaryKey().unique(),
 	name: text('name').notNull(),
-	location: text('location').notNull()
+	location: text('location').notNull(),
+	...merged()
 });
 
 export const ComplexSchema = z.object({
@@ -47,7 +68,8 @@ export const unit = sqliteTable('unit', {
 	id: text('id').primaryKey().unique(),
 	name: text('name').notNull(),
 	status: text('status', { enum: ['occupied', 'vacant'] }).notNull(),
-	complexId: text('complex_id').notNull()
+	complexId: text('complex_id').notNull(),
+	...merged()
 });
 
 export const UnitSchema = z.object({
@@ -71,7 +93,8 @@ export const contract = sqliteTable('contract', {
 	cost: real('cost_per_interval').notNull(),
 	paidAmount: real('paid_amount').notNull().default(0),
 	expectedAmount: real('expected_amount').notNull().default(0),
-	tenantId: text('tenant_id').notNull()
+	tenantId: text('tenant_id').notNull(),
+	...merged()
 });
 
 export const ContractSchema = z.object({
@@ -122,7 +145,8 @@ export const payment = sqliteTable(
 		note: text('note'),
 		// not nullable and defaulted: every payment stored before it is money received, so no
 		// figure moves when it lands, and a caller that names no direction records one received.
-		direction: text('direction', { enum: PAYMENT_DIRECTIONS }).notNull().default('received')
+		direction: text('direction', { enum: PAYMENT_DIRECTIONS }).notNull().default('received'),
+		...merged()
 	},
 	/**
 	 * The one index this schema declares beyond its keys, and it is here because it was

@@ -166,6 +166,22 @@ router test can pass over a conversion that is broken in the running application
   action ([[contexts/desktop/organization]], *Held by a version*). *Effort 857, requirement 6.*
 - **Every query crosses the boundary as data** — statement, parameters, and the kind of
   result wanted. Nothing else about the engine is visible to the caller.
+- **The database refuses no duplicate value a person typed.** A tenant's phone and national ID, a
+  complex's name and a contract's government ID are kept unique by the acts that save them, with
+  today's words, and by no rule of the shared database since `0007`: the engine dropped the
+  records of the second of two machines that saved one value apart. Only identities are unique in
+  the schema. *Effort 857, requirement 14.*
+- **A retired record is never read, and the client is what makes that so.** Two machines saving the
+  same tenant, complex or contract apart make an exact copy, and the pass after a pull keeps the
+  earlier, heals the units, contracts and payments under the later one to one with those under the
+  earlier, moves what else pointed at it, and retires each copy with `merged_into` rather than
+  deleting it (`tauri/src/database/heal.rs`), where this build and the member's grant may write the
+  workspace. So a payment both machines saved is counted once, and one only a copy held moves.
+  Every statement a client built by `createDatabase` sends gains `"merged_into" is null` wherever it
+  reads one of the tables holding that column (`platform/database/retired.ts`), so no query carries
+  the condition itself, and a read written outside that client or naming a table where the rewrite
+  does not look fails `retired.test.ts`. A build before `0008` shows both copies, as it did before
+  any pass ran. *Effort 857, requirement 14, ticket 35.*
 
 ## Constraints
 

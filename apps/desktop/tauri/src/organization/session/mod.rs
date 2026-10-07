@@ -88,10 +88,12 @@ pub(crate) use remember::*;
 pub(crate) use replica::leave_registry;
 pub use signin::*;
 pub(crate) use unsent::*;
+pub(crate) use version::holds_full_access;
 pub use version::{AtTheWall, HeldByVersion, VersionTarget};
 pub(crate) use version::{
     both as both_verdicts, held_by_version, hold_at_the_wall, release_the_wall,
-    release_the_wall_of, replicated_then_judged, workspace_judged, writes_to,
+    release_the_wall_of, replicated_judged_then_healed, replicated_then_judged, workspace_judged,
+    writes_to,
 };
 pub(crate) use version::{judged as workspace_judged_on, recorded as workspace_recorded};
 

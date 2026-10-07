@@ -67,18 +67,25 @@ pub(crate) const SEEDS: &[Seed] = &[
         rows: SEEDED_AT_SEVEN,
         carried: carried_from_seven,
     },
+    // the first build declaring a step after 857, at 8 until `0008` (effort 857, ticket 35).
+    Seed {
+        version: 8,
+        version_row: true,
+        rows: SEEDED_AT_EIGHT,
+        carried: carried_from_eight,
+    },
 ];
 
-/// **The workspace as a build of the shipped version leaves it**, at 8 since `0007` (effort 857,
-/// ticket 33): created whole by that build, with its version row and effort 857's records, as
-/// every workspace is from ticket 21 on, and holding [`SEEDED_AT_EIGHT`]. Opening it walks
+/// **The workspace as a build of the shipped version leaves it**, at 9 since `0008` (effort 857,
+/// ticket 35): created whole by that build, with its version row and effort 857's records, as
+/// every workspace is from ticket 21 on, and holding [`SEEDED_AT_NINE`]. Opening it walks
 /// nothing. A migration added after it makes this the version before, and its seed then joins
 /// [`SEEDS`], which fails until it does.
 pub(crate) const AT_THE_SHIPPED_VERSION: Seed = Seed {
-    version: 8,
+    version: 9,
     version_row: true,
-    rows: SEEDED_AT_EIGHT,
-    carried: carried_at_eight,
+    rows: SEEDED_AT_NINE,
+    carried: carried_at_nine,
 };
 
 /// The workspace ladder of the build at `version`: its first `version` migrations and their
@@ -173,7 +180,7 @@ pub(crate) const SEEDED_AT_FIVE: &[&str] = &[
 pub(crate) fn carried_from_five() -> Contents {
     let null = || turso::Value::Null;
 
-    vec![
+    with_nothing_merged(vec![
         (
             "complex".to_string(),
             vec![
@@ -328,7 +335,7 @@ pub(crate) fn carried_from_five() -> Contents {
                 ],
             ],
         ),
-    ]
+    ])
 }
 
 /// A workspace as a build at version 6 wrote it: every record of [`SEEDED_AT_FIVE`] but its
@@ -399,7 +406,7 @@ pub(crate) fn carried_from_seven() -> Contents {
         cell("refund"),
     ]);
 
-    carried
+    with_nothing_merged(carried)
 }
 
 /// A workspace as a build at 8 wrote it: every record of [`SEEDED_AT_SEVEN`], and a second tenant
@@ -416,10 +423,10 @@ pub(crate) const SEEDED_AT_EIGHT: &[&str] = &[
     "INSERT INTO `tenant` (`id`, `national_id`, `name`, `phone`) VALUES      ('0199a000-0000-7000-8000-000000070003', '1012345679', 'Sara Al-Harbi', '0501234567')",
 ];
 
-/// [`SEEDED_AT_EIGHT`] as it stands, which is how opening it must leave it: [`SEEDED_AT_SEVEN`]'s
-/// rows carried, the second tenant after them, the version row, and the records its build wrote
-/// creating it.
-pub(crate) fn carried_at_eight() -> Contents {
+/// [`SEEDED_AT_EIGHT`] at the shipped version: [`SEEDED_AT_SEVEN`]'s rows carried, the second
+/// tenant after them, nobody retired, and the version row. The records its build wrote creating it
+/// are as opening it leaves them, which the opening's test adds.
+pub(crate) fn carried_from_eight() -> Contents {
     let mut carried = carried_from_seven();
     let (_, tenants) = carried
         .iter_mut()
@@ -431,9 +438,76 @@ pub(crate) fn carried_at_eight() -> Contents {
         cell("1012345679"),
         cell("Sara Al-Harbi"),
         cell("0501234567"),
+        turso::Value::Null,
+        turso::Value::Null,
     ]);
 
-    recorded(carried, ladder_at(8).steps.born())
+    with_nothing_merged(carried)
+}
+
+/// A workspace as a build at 9 wrote it: every record of [`SEEDED_AT_EIGHT`], and a copy of the
+/// first tenant a machine saved apart, which the pass after a pull retired into it (effort 857,
+/// ticket 35).
+pub(crate) const SEEDED_AT_NINE: &[&str] = &[
+    SEEDED_AT_EIGHT[0],
+    SEEDED_AT_EIGHT[1],
+    SEEDED_AT_EIGHT[2],
+    SEEDED_AT_EIGHT[3],
+    SEEDED_AT_EIGHT[4],
+    SEEDED_AT_EIGHT[5],
+    SEEDED_AT_EIGHT[6],
+    SEEDED_AT_EIGHT[7],
+    SEEDED_AT_EIGHT[8],
+    "INSERT INTO `tenant` (`id`, `national_id`, `name`, `phone`, `merged_into`, `merged_as`) \
+     VALUES ('0199a000-0000-7000-8000-000000070004', '1012345678', 'Sara Al-Harbi', \
+     '0501234567', '0199a000-0000-7000-8000-000000070001', \
+     '{\"name\":\"Sara Al-Harbi\",\"national_id\":\"1012345678\",\"phone\":\"0501234567\"}')",
+];
+
+/// [`SEEDED_AT_NINE`] as it stands, which is how opening it must leave it: [`SEEDED_AT_EIGHT`]'s
+/// rows carried, the retired copy after them, the version row, and the records its build wrote
+/// creating it.
+pub(crate) fn carried_at_nine() -> Contents {
+    let mut carried = carried_from_eight();
+    let (_, tenants) = carried
+        .iter_mut()
+        .find(|(table, _)| table == "tenant")
+        .expect("the tenants carried from eight");
+
+    tenants.push(vec![
+        cell("0199a000-0000-7000-8000-000000070004"),
+        cell("1012345678"),
+        cell("Sara Al-Harbi"),
+        cell("0501234567"),
+        cell("0199a000-0000-7000-8000-000000070001"),
+        cell(
+            "{\"name\":\"Sara Al-Harbi\",\"national_id\":\"1012345678\",\"phone\":\"0501234567\"}",
+        ),
+    ]);
+
+    recorded(carried, ladder_at(9).steps.born())
+}
+
+/// `contents` at the shipped version, where `0008` gave a tenant, a complex, a contract, a unit
+/// and a payment `merged_into` and `merged_as`, empty on every record a build before it wrote
+/// (effort 857, ticket 35): each row of those tables made as wide as the shipped table, with
+/// nothing in what it did not hold. A row already that wide is left as it is.
+fn with_nothing_merged(mut contents: Contents) -> Contents {
+    for (table, rows) in contents.iter_mut() {
+        let width = match table.as_str() {
+            "complex" => 5,
+            "tenant" | "unit" => 6,
+            "payment" => 10,
+            "contract" => 12,
+            _ => continue,
+        };
+
+        for row in rows.iter_mut() {
+            row.resize(width.max(row.len()), turso::Value::Null);
+        }
+    }
+
+    contents
 }
 
 /// `contents` with effort 857's records as a step declared after 857 leaves them in a workspace

@@ -324,14 +324,30 @@ other otherwise. See [[references/cargo]].
 
 ## Tests that reach a live remote
 
-**Twelve sets are admitted, in seven properties, and they are the exception rather than a second way
-of testing.** All twelve exist, and every one is Rust. The four `losing_writer` tests at the foot of
-`tauri/src/database/mod.rs` open two replicas of one workspace against a database they provision on
-Turso; the six admitted for the organization effort below, the one admitted for effort 838 after
-them, and the four admitted for effort 857 after that, each create and remove their own. *The
-count read ten after ticket 24 added a set without moving it; ticket 33 corrected it with its own.*
+**Thirteen sets are admitted, in seven properties, and they are the exception rather than a second
+way of testing.** All thirteen exist, and every one is Rust. The four `losing_writer` tests at the
+foot of `tauri/src/database/mod.rs` open two replicas of one workspace against a database they
+provision on Turso; the six admitted for the organization effort below, the one admitted for effort
+838 after them, and the five admitted for effort 857 after that, each create and remove their own.
+*The count read ten after ticket 24 added a set without moving it; ticket 33 corrected it with its
+own, and ticket 35 moved it with its own.*
 Everything else in this repository is tested against a local file, a loopback HTTP server, or an
 in-memory engine, and that is not changing.
+
+**A second instance holds the first property for two replicas healing one record** (effort 857,
+ticket 35, spec requirement 14, under the bound of 2026-10-07 below, which allowed live runs on
+throwaway databases in the `rentable` group alone): `identical_records_live_heal_into_one_with_both_contracts_in_either_order`,
+at the foot of `tauri/src/database/mod.rs`, provisions at this build's version through
+`database/test/workspace.rs`, has two replicas create the same tenant while apart with a contract
+each and the same contract with the same payment on both, syncs them in either order until each holds both, heals both at once as two heartbeats that
+met the copies together would, and syncs again: every replica and the remote hold one tenant shown,
+the earlier, with both contracts on it and the later kept, retired into it, and the shared
+contract once, holding its payment once. It reads `TURSO_GROUP`
+and refuses to run in any group but `rentable`, and each case deletes its database whatever it
+asserted. A local stand-in cannot say this, since the subject is what the engine replays when two
+replicas both wrote the same heal to the same rows. *First run 2026-10-07, and again on 2026-10-08
+with the shared contract and payment: both orders passed each time, and the group held the same
+twenty databases before and after.*
 
 *Why the first could not be: it measures what the sync engine does when two replicas diverge, and
 the engine reaches its remote over HTTP. There is no local stand-in. The loopback server

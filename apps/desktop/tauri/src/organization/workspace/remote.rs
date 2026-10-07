@@ -544,6 +544,24 @@ pub(crate) async fn reach(
     workspace_id: &str,
     pipeline_of: impl Fn(&str) -> Pipeline,
 ) -> Result<Reach, Error> {
+    reach_over(
+        &lease::apply::SHIPPED,
+        store,
+        session,
+        workspace_id,
+        pipeline_of,
+    )
+    .await
+}
+
+/// [`reach`] over `migrations`, a ladder of a test's own under test.
+pub(crate) async fn reach_over(
+    migrations: &lease::apply::Migrations,
+    store: &OrganizationStore,
+    session: &MemberSession,
+    workspace_id: &str,
+    pipeline_of: impl Fn(&str) -> Pipeline,
+) -> Result<Reach, Error> {
     session.settled()?;
 
     let workspaces = store.workspaces(&session.verifying_key).await?;
@@ -563,9 +581,9 @@ pub(crate) async fn reach(
     // and reads it as it is where nothing pending is a step a reader needs (effort 857, ticket
     // 37), since a read-only grant writes nothing here either.
     let reads_as_it_is = credential.access != AccessLevel::FullAccess
-        && !lease::holds_a_reader(store, &facts).await?;
+        && !lease::holds_a_reader_over(migrations, store, &facts).await?;
 
-    if !reads_as_it_is && lease::is_pending(store, &facts).await? {
+    if !reads_as_it_is && lease::is_pending_over(migrations, store, &facts).await? {
         return Err(if credential.access == AccessLevel::FullAccess {
             Error::refused(
                 RefusalReason::WorkspaceNeedsOpening,

@@ -345,6 +345,18 @@ pub const WORKSPACE_STEPS: &[Step] = &[
         shipped_before_857: false,
         readers_need: false,
     },
+    // 0008: `merged_into` and `merged_as` on a tenant, a complex, a contract, a unit and a payment,
+    // empty on every record (effort 857, ticket 35). The pass after a pull retires an exact copy two
+    // machines made apart with them, and the units and payments under it one to one, and every read of this build keeps a retired record out. Two columns that
+    // may be empty change nothing an older build reads or writes: it sees a retired copy as the
+    // record it was, and an edit it makes there is carried to the one that stayed.
+    Step {
+        kind: Kind::Addition,
+        describes: "identicalRecords",
+        shipped_before_857: false,
+        // every read of this build names `merged_into`, so a reader behind it is held.
+        readers_need: true,
+    },
 ];
 
 /// Every change of an organization's format, in the order of `TRANSITIONS`: `FORMAT_STEPS[i]` is
@@ -664,12 +676,13 @@ mod tests {
             ]
         );
 
-        // it moves neither floor, so every build that reads and writes 7 still does.
+        // it moves neither floor, so every build that reads and writes 7 still does. The additions
+        // declared after it (`0008`, ticket 35) run on open beside it.
         let workspace = Ladder::Workspace.declared();
 
         assert_eq!(workspace.settled(), 7);
-        assert_eq!(workspace.known(), 8);
-        assert_eq!(workspace.on_open(7, &[]), vec![8]);
+        assert!(workspace.known() >= 8);
+        assert_eq!(workspace.on_open(7, &[])[0], 8);
         assert!(workspace.awaiting(Floors::legacy(7)).is_empty());
         assert_eq!(
             workspace.raised(Floors::legacy(7), &[8], 8),
@@ -745,6 +758,66 @@ mod tests {
         assert!(steps.a_reader_needs(&[5]), "a step nobody declared");
         assert!(!Ladder::Workspace.declared().a_reader_needs(&[8]));
         assert!(Ladder::Workspace.declared().a_reader_needs(&[7, 8]));
+    }
+
+    /// **Ticket 35's first criterion, over the declaration** (effort 857, requirement 14). `0008`
+    /// adds `merged_into` and `merged_as`, empty on every record, to the five tables whose records
+    /// heal, a unit and a payment among them since they heal with their parent: an addition, so it
+    /// moves no floor and runs on open, and its SQL is the ten columns and nothing else. A reader
+    /// needs it, since every read names `merged_into`, as a step adding a column says (ticket 37).
+    #[test]
+    fn the_columns_a_retired_record_is_known_by_arrive_as_an_addition() {
+        use crate::database::floor::Floors;
+
+        let step = Ladder::Workspace.step(9).expect("0008 is declared");
+        let (name, sql) = apply::WORKSPACE_MIGRATIONS[8];
+
+        assert!(name.starts_with("0008"), "{name}");
+        assert_eq!(step.kind, Kind::Addition);
+        assert!(!step.shipped_before_857);
+        assert!(step.runs_on_open());
+        assert_eq!(step.describes, "identicalRecords");
+        assert!(step.readers_need, "a reader's build reads merged_into");
+        assert!(addition_sql_is_additive(sql), "{name} does more than add");
+
+        let added: Vec<String> = sql
+            .lines()
+            .filter_map(|line| line.trim().strip_prefix("ALTER TABLE `"))
+            .map(|rest| {
+                rest.replace('`', "")
+                    .replace(";--> statement-breakpoint", "")
+            })
+            .map(|rest| rest.trim_end_matches(';').to_string())
+            .collect();
+
+        assert_eq!(
+            added,
+            [
+                "complex ADD merged_into text",
+                "complex ADD merged_as text",
+                "contract ADD merged_into text",
+                "contract ADD merged_as text",
+                "payment ADD merged_into text",
+                "payment ADD merged_as text",
+                "tenant ADD merged_into text",
+                "tenant ADD merged_as text",
+                "unit ADD merged_into text",
+                "unit ADD merged_as text",
+            ]
+        );
+
+        let workspace = Ladder::Workspace.declared();
+
+        assert_eq!(workspace.on_open(8, &[]), vec![9]);
+        assert!(workspace.awaiting(Floors::legacy(7)).is_empty());
+        assert_eq!(
+            workspace.raised(Floors::legacy(7), &[8, 9], 9),
+            Floors {
+                level: 9,
+                read: 7,
+                write: 7
+            }
+        );
     }
 
     /// **Ticket 01's third criterion.** Every step shipped before effort 857 is an upgrade whose

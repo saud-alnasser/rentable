@@ -2,6 +2,7 @@ pub(crate) mod bound;
 pub mod command;
 pub(crate) mod corrupt;
 pub mod floor;
+pub(crate) mod heal;
 mod held;
 mod plugin;
 pub mod proxy;
@@ -271,6 +272,10 @@ pub struct Database {
     /// ([`Database::judging`], effort 857, ticket 27), so no write lands between the two. A
     /// request holds it for reading while it runs.
     judging: Arc<tokio::sync::RwLock<()>>,
+    /// whether the open workspace is owed a healing pass whatever the next pull brings
+    /// ([`Database::heal`], effort 857, ticket 35): from its opening, and again after a pass that
+    /// failed, so the next one tries again.
+    heal_owed: std::sync::atomic::AtomicBool,
 }
 
 impl Database {
@@ -286,6 +291,7 @@ impl Database {
             bound: SYNC_BOUND,
             standing: std::sync::Mutex::new(None),
             judging: Arc::new(tokio::sync::RwLock::new(())),
+            heal_owed: std::sync::atomic::AtomicBool::new(true),
         }
     }
 
@@ -388,6 +394,8 @@ impl Database {
         // push or pull it yet and `connect()` therefore waits on nothing (`held.rs`).
         self.engine = Some(Engine::Workspace(Replica::open(engine, &watch).await?));
         self.watch = watch;
+        self.heal_owed
+            .store(true, std::sync::atomic::Ordering::SeqCst);
 
         Ok(())
     }
@@ -958,6 +966,73 @@ impl Database {
                 crate::database::floor::workspace(&*replica.connections.checkout().await?).await
             }
             Some(Engine::Local(_)) | None => Ok(None),
+        }
+    }
+
+    /// Heal the open workspace (`heal.rs`, effort 857, ticket 35): make the identical records two
+    /// machines saved apart into one, after a pull and its verdict, under the same hold of the
+    /// engine. Answers whether it wrote anything, which the caller reports as rows having arrived,
+    /// so the interface reconciles and reads again.
+    ///
+    /// **Only where this build may write the workspace**: its verdict writable, and no changes held
+    /// that the workspace refuses since an upgrade, which a write would join. Whether the member
+    /// may write it, a full-access grant, is the caller's to say, since the engine does not know
+    /// whose credential it holds. **Only where something could need it**: a pull that `brought`
+    /// rows, or a pass owed since the workspace opened or since one failed. Nothing a person saves
+    /// on this machine makes a copy, since the save check refuses one, so a quiet heartbeat reads
+    /// nothing here.
+    ///
+    /// **It never fails the replication around it.** A pass that fails writes nothing, since its
+    /// writes are one transaction, and is logged and owed again, so the next pull retries it.
+    ///
+    /// Writes on a connection of the replica's own, held to writing, rather than through
+    /// [`Database::held`]: it runs while the verdict's hold is taken, which `held` would wait on.
+    pub(crate) async fn heal(&self, brought: bool) -> bool {
+        use std::sync::atomic::Ordering;
+
+        let Some(Engine::Workspace(replica)) = self.engine.as_ref() else {
+            return false;
+        };
+
+        if self.standing() != Standing::Writable || self.holds_unsendable() {
+            return false;
+        }
+
+        if !brought && !self.heal_owed.load(Ordering::SeqCst) {
+            return false;
+        }
+
+        let healed = async {
+            let connection = replica.connections.checkout().await?;
+
+            crate::database::floor::hold_writes(&connection, Standing::Writable).await?;
+
+            heal::pass(&connection).await
+        }
+        .await;
+
+        match healed {
+            Ok(healed) => {
+                self.heal_owed.store(false, Ordering::SeqCst);
+
+                if healed.changed() {
+                    crate::diagnostics::info("replica.heal.healed")
+                        .with("retired", healed.retired.to_string())
+                        .with("moved", healed.moved.to_string())
+                        .with("carried", healed.carried.to_string())
+                        .write();
+                }
+
+                healed.changed()
+            }
+            Err(error) => {
+                self.heal_owed.store(true, Ordering::SeqCst);
+                crate::diagnostics::warn("replica.heal.failed")
+                    .with("error", error.to_string())
+                    .write();
+
+                false
+            }
         }
     }
 
@@ -3142,5 +3217,393 @@ mod tests {
             drop(remote);
             let _ = std::fs::remove_dir_all(&directory);
         });
+    }
+    /// A replica of `name` at the shipped version, holding two tenants a person would call one,
+    /// as two machines saving the same tenant apart leave it.
+    async fn two_copies_on_a_replica(name: &str) -> (std::path::PathBuf, Database) {
+        use crate::database::test::workspace::{migration_statements, shipped_migration_count};
+
+        let (directory, database) =
+            workspace_against(name, None, std::time::Duration::from_secs(30)).await;
+
+        for sql in migration_statements(shipped_migration_count()) {
+            database.as_a_pull_brings(&sql).await;
+        }
+
+        for id in ["t-1", "t-2"] {
+            database
+                .as_a_pull_brings(&format!(
+                    "INSERT INTO \"tenant\" (\"id\", \"national_id\", \"name\", \"phone\") \
+                     VALUES ('{id}', '1012345678', 'Sara', '+966551234567')"
+                ))
+                .await;
+        }
+
+        (directory, database)
+    }
+
+    /// The tenants a replica holds that nobody retired, read past the interface's filter.
+    async fn kept(database: &Database) -> usize {
+        database
+            .execute_single_sql(statement(
+                "SELECT \"id\" FROM \"tenant\" WHERE \"merged_into\" IS NULL",
+            ))
+            .await
+            .expect("the read")
+            .len()
+    }
+
+    /// **Ticket 35's fifth criterion, the standing.** The pass runs only where this build may write
+    /// the workspace: read-only by its version, or holding changes the workspace refuses since an
+    /// upgrade, it writes nothing; writable, it heals.
+    #[test]
+    fn a_workspace_this_build_may_not_write_is_not_healed() {
+        use crate::{database::floor::Standing, sync::test::server::within};
+        use std::time::Duration;
+
+        within(Duration::from_secs(60), async {
+            let (directory, database) = two_copies_on_a_replica("heal-standing").await;
+
+            database.hold(Standing::ReadOnly);
+            assert!(
+                !database.heal(true).await,
+                "a read-only workspace was healed"
+            );
+            database.hold(Standing::Unreadable);
+            assert!(
+                !database.heal(true).await,
+                "an unreadable workspace was healed"
+            );
+
+            database.hold(Standing::Writable);
+            let replica = database.watch.replica().expect("a replica").to_path_buf();
+
+            assert!(super::unsendable::hold(&replica, "a refusal"));
+            assert!(!database.heal(true).await, "a held replica was healed");
+            assert_eq!(kept(&database).await, 2);
+
+            std::fs::remove_file(super::unsendable::marker(&replica)).expect("the record");
+            super::unsendable::forget(&replica);
+
+            assert!(
+                !database.holds_unsendable(),
+                "the record is still beside it"
+            );
+            assert!(
+                database.heal(true).await,
+                "a writable workspace was not healed"
+            );
+            assert_eq!(kept(&database).await, 1);
+
+            drop(database);
+            let _ = std::fs::remove_dir_all(&directory);
+        });
+    }
+
+    /// **Ticket 35's fifth criterion, the rest.** A pass with nothing to heal writes nothing; a
+    /// quiet pull that brought nothing runs none, once the workspace has been healed since it
+    /// opened; and a pass that fails fails no replication: it answers that nothing was written, is
+    /// logged, and is owed again, so the next pull heals what it could not, whatever that pull
+    /// brought.
+    #[test]
+    fn a_pass_runs_where_it_could_be_needed_and_a_failed_one_is_tried_again() {
+        use crate::sync::test::server::within;
+        use std::time::Duration;
+
+        within(Duration::from_secs(60), async {
+            let (directory, database) = two_copies_on_a_replica("heal-owed").await;
+
+            // owed from the opening: healed though no pull brought anything.
+            assert!(database.heal(false).await);
+            assert!(
+                !database.heal(true).await,
+                "a healed workspace was written again"
+            );
+
+            // a copy that arrives with no pull bringing it waits for the next pull that does.
+            database
+                .as_a_pull_brings(
+                    "INSERT INTO \"tenant\" (\"id\", \"national_id\", \"name\", \"phone\") \
+                     VALUES ('t-3', '1012345678', 'Sara', '+966551234567')",
+                )
+                .await;
+            assert!(
+                !database.heal(false).await,
+                "a quiet pull read the workspace"
+            );
+            assert_eq!(kept(&database).await, 2);
+
+            // a pass that cannot read what it needs fails, writes nothing, and is owed again.
+            database
+                .as_a_pull_brings("ALTER TABLE \"history\" RENAME TO \"history_away\"")
+                .await;
+            assert!(!database.heal(true).await, "a failed pass said it wrote");
+            assert_eq!(kept(&database).await, 2);
+
+            database
+                .as_a_pull_brings("ALTER TABLE \"history_away\" RENAME TO \"history\"")
+                .await;
+            assert!(
+                database.heal(false).await,
+                "the failed pass was not tried again"
+            );
+            assert_eq!(kept(&database).await, 1);
+
+            drop(database);
+            let _ = std::fs::remove_dir_all(&directory);
+        });
+    }
+    // -------------------------------------------------------------------------------------
+    // Effort 857, ticket 35, live: identical records made apart heal into one.
+    // -------------------------------------------------------------------------------------
+
+    /// The one number `sql` reads on this machine's replica, past nothing: the interface's filter
+    /// is the interface's, and this reads the table as it is.
+    async fn local_number(database: &Database, sql: &str) -> i64 {
+        let rows = database
+            .execute_single_sql(statement(sql))
+            .await
+            .unwrap_or_else(|error| panic!("{sql}: {error:?}"));
+
+        rows.first()
+            .and_then(|row| row.rows.first())
+            .and_then(serde_json::Value::as_i64)
+            .unwrap_or_else(|| panic!("no number from {sql}: {rows:?}"))
+    }
+
+    /// Push and pull this machine, then heal it as the heartbeat does after the verdict.
+    async fn synced_and_healed(database: &Database, label: &str) -> bool {
+        let replicated = database.replicate().await;
+
+        assert!(
+            replicated.refusal.is_none(),
+            "{label}: a sync was refused: {replicated:?}"
+        );
+        assert!(
+            replicated.completed,
+            "{label}: the sync did not reach the remote"
+        );
+
+        database.heal(replicated.received).await
+    }
+
+    /// **Ticket 35's live criterion** (effort 857, requirement 14). Two machines on a workspace at
+    /// this build's version, both offline, create the same tenant, each with a contract of its own,
+    /// and the same contract with the same payment on both.
+    /// They sync, in either order, until each holds the other's; both heal at once, as two machines
+    /// whose heartbeats met the copies together do; and they sync again. Every replica and the
+    /// remote then hold one tenant, the earlier, with both contracts on it, and the later retired
+    /// into it rather than deleted; the shared contract once, holding its payment once; no sync was refused, and a further pass on either writes
+    /// nothing.
+    ///
+    /// Armed by `RENTABLE_LIVE_TURSO=1` and run only in the group `rentable`, on throwaway
+    /// `t552-*` databases it creates and deletes, whatever it asserted.
+    ///
+    /// ```text
+    /// RENTABLE_LIVE_TURSO=1 TURSO_API_TOKEN=... TURSO_ORG=... TURSO_GROUP=rentable \
+    ///   cargo test --manifest-path ./apps/desktop/tauri/Cargo.toml identical_records_live -- \
+    ///   --test-threads=1 --ignored --nocapture
+    /// ```
+    #[ignore = "reaches a live Turso account and creates a database; see the doc comment"]
+    #[tokio::test]
+    async fn identical_records_live_heal_into_one_with_both_contracts_in_either_order() {
+        use super::test::workspace::shipped_migration_count;
+
+        armed_for_a_live_run();
+        assert_eq!(
+            std::env::var("TURSO_GROUP").unwrap_or_default().trim(),
+            "rentable",
+            "this live run creates its throwaway databases in the group rentable alone"
+        );
+
+        // the earlier tenant is made on `a`, by its id.
+        const EARLIER: &str = "01900000-0000-7000-8000-000000000001";
+        const LATER: &str = "01900000-0000-7000-8000-000000000002";
+
+        for (label, first) in [("heal-a-first", "a"), ("heal-b-first", "b")] {
+            on_a_throwaway_workspace(label, move |workspace, directory| async move {
+                workspace
+                    .apply_schema_remotely(shipped_migration_count())
+                    .await;
+
+                let machine = |side: &str| {
+                    let at = directory.join(side);
+
+                    std::fs::create_dir_all(&at).expect("the machine's directory");
+                    at
+                };
+                let a = live_database(&machine("a"), &workspace).await;
+                let b = live_database(&machine("b"), &workspace).await;
+
+                for (side, database) in [("a", &a), ("b", &b)] {
+                    assert!(
+                        database.pull_replica().await.completed,
+                        "{label}: {side}'s first pull"
+                    );
+                    // the opening's pass, over an empty workspace, writes nothing.
+                    assert!(!database.heal(true).await, "{label}: {side} healed nothing");
+                }
+
+                // apart: the same tenant on both, a contract of each machine's own on it, and the
+                // same contract on both with the same payment.
+                for (side, database, tenant) in [("a", &a, EARLIER), ("b", &b, LATER)] {
+                    for sql in [
+                        format!(
+                            "INSERT INTO \"tenant\" (\"id\", \"national_id\", \"name\", \"phone\") \
+                             VALUES ('{tenant}', '1000000001', 'Sami', '+966500000000')"
+                        ),
+                        format!(
+                            "INSERT INTO \"contract\" (\"id\", \"gov_id\", \"status\", \
+                             \"start_date\", \"end_date\", \"interval_in_months\", \
+                             \"cost_per_interval\", \"tenant_id\") VALUES ('c-{side}', \
+                             'gov-{side}', 'active', 0, 1, '12m', 100, '{tenant}')"
+                        ),
+                        format!(
+                            "INSERT INTO \"contract\" (\"id\", \"gov_id\", \"status\", \
+                             \"start_date\", \"end_date\", \"interval_in_months\", \
+                             \"cost_per_interval\", \"tenant_id\") VALUES ('k-{side}', \
+                             'gov-same', 'active', 0, 1, '12m', 100, '{tenant}')"
+                        ),
+                        format!(
+                            "INSERT INTO \"payment\" (\"id\", \"date\", \"amount\", \
+                             \"contract_id\") VALUES ('p-{side}', 1750000000000, 300.0, \
+                             'k-{side}')"
+                        ),
+                    ] {
+                        database
+                            .execute_single_sql(statement(&sql))
+                            .await
+                            .unwrap_or_else(|error| panic!("{label}: {sql}: {error:?}"));
+                    }
+                }
+
+                let (one, other) = if first == "a" { (&a, &b) } else { (&b, &a) };
+
+                // they meet: the first sends its own, the second sends its own and takes the
+                // first's, and the first takes the second's. Neither heals until both hold both.
+                for database in [one, other, one] {
+                    let replicated = database.replicate().await;
+
+                    assert!(replicated.refusal.is_none(), "{label}: {replicated:?}");
+                }
+
+                for (side, database) in [("a", &a), ("b", &b)] {
+                    assert_eq!(
+                        local_number(database, "SELECT count(*) FROM tenant").await,
+                        2,
+                        "{label}: {side} does not hold both copies"
+                    );
+                }
+
+                // both heal at once, then sync again in the same order.
+                assert!(a.heal(true).await, "{label}: a healed nothing");
+                assert!(b.heal(true).await, "{label}: b healed nothing");
+
+                for database in [one, other, one, other] {
+                    synced_and_healed(database, label).await;
+                }
+
+                for (side, database) in [("a", &a), ("b", &b)] {
+                    for (what, sql, expected) in [
+                        (
+                            "one tenant shown",
+                            "SELECT count(*) FROM tenant WHERE merged_into IS NULL".to_string(),
+                            1,
+                        ),
+                        (
+                            "the earlier is the one shown",
+                            format!(
+                                "SELECT count(*) FROM tenant WHERE merged_into IS NULL \
+                                 AND id = '{EARLIER}'"
+                            ),
+                            1,
+                        ),
+                        (
+                            "the later kept, retired into it",
+                            format!(
+                                "SELECT count(*) FROM tenant WHERE id = '{LATER}' \
+                                 AND merged_into = '{EARLIER}'"
+                            ),
+                            1,
+                        ),
+                        (
+                            "both contracts and the one they shared on it",
+                            format!(
+                                "SELECT count(*) FROM contract WHERE tenant_id = '{EARLIER}' \
+                                 AND merged_into IS NULL"
+                            ),
+                            3,
+                        ),
+                        (
+                            "the shared contract's copy kept, retired into it",
+                            "SELECT count(*) FROM contract WHERE id = 'k-b' \
+                             AND merged_into = 'k-a'"
+                                .to_string(),
+                            1,
+                        ),
+                        (
+                            "the payment both saved shown once",
+                            "SELECT count(*) FROM payment WHERE merged_into IS NULL \
+                             AND contract_id = 'k-a'"
+                                .to_string(),
+                            1,
+                        ),
+                        (
+                            "and both kept",
+                            "SELECT count(*) FROM payment".to_string(),
+                            2,
+                        ),
+                    ] {
+                        assert_eq!(
+                            local_number(database, &sql).await,
+                            expected,
+                            "{label}: {side}: {what}"
+                        );
+                    }
+
+                    assert!(!database.heal(true).await, "{label}: {side} healed again");
+                }
+
+                for (what, sql, expected) in [
+                    (
+                        "one tenant shown",
+                        "SELECT count(*) FROM tenant WHERE merged_into IS NULL".to_string(),
+                        1,
+                    ),
+                    (
+                        "both copies kept",
+                        "SELECT count(*) FROM tenant".to_string(),
+                        2,
+                    ),
+                    (
+                        "three contracts shown on the earlier",
+                        format!(
+                            "SELECT count(*) FROM contract WHERE tenant_id = '{EARLIER}' \
+                             AND merged_into IS NULL"
+                        ),
+                        3,
+                    ),
+                    (
+                        "the payment both saved shown once",
+                        "SELECT count(*) FROM payment WHERE merged_into IS NULL".to_string(),
+                        1,
+                    ),
+                ] {
+                    assert_eq!(
+                        remote_number(&workspace, &sql).await,
+                        expected,
+                        "{label}: the remote: {what}"
+                    );
+                }
+
+                eprintln!(
+                    "{label}: one tenant with both contracts on both replicas and the remote"
+                );
+
+                drop(a);
+                drop(b);
+            })
+            .await;
+        }
     }
 }

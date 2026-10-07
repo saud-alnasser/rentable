@@ -57,6 +57,13 @@
 			"when": 1791397353364,
 			"tag": "0007_familiar_kree",
 			"breakpoints": true
+		},
+		{
+			"idx": 8,
+			"version": "6",
+			"when": 1791406466241,
+			"tag": "0008_living_vampiro",
+			"breakpoints": true
 		}
 	]
 }

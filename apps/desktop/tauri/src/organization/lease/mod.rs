@@ -506,9 +506,18 @@ pub async fn holds_a_reader(
     store: &OrganizationStore,
     facts: &WorkspaceFacts,
 ) -> Result<bool, Error> {
+    holds_a_reader_over(&apply::SHIPPED, store, facts).await
+}
+
+/// [`holds_a_reader`] over `migrations`, a ladder of a test's own under test.
+pub async fn holds_a_reader_over(
+    migrations: &apply::Migrations,
+    store: &OrganizationStore,
+    facts: &WorkspaceFacts,
+) -> Result<bool, Error> {
     let level = level_of(store, &facts.id, facts.schema_version).await?;
 
-    Ok(holds_a_reader_from(&apply::SHIPPED, level))
+    Ok(holds_a_reader_from(migrations, level))
 }
 
 /// Whether a workspace at `level` has a step a reader needs among what opening runs above it.
@@ -2693,20 +2702,22 @@ mod tests {
             organization_floors
         );
 
-        // the workspace ran 0007 and records it, with both floors where they were.
+        // the workspace ran 0007, and the additions after it (`0008`, ticket 35), and records them,
+        // with both floors where they were.
+        let known = apply::SHIPPED.steps.known();
         let floors = Floors {
-            level: 8,
+            level: known,
             read: 7,
             write: 7,
         };
 
         assert_eq!(
             read_off(&pipeline, "SELECT version FROM schema_version").await,
-            vec![vec![8]]
+            vec![vec![i64::from(known)]]
         );
         assert_eq!(
             read_off(&pipeline, "SELECT level, read, write FROM data_floor").await,
-            vec![vec![8, 7, 7]]
+            vec![vec![i64::from(known), 7, 7]]
         );
 
         let (tables, _) = shape_of(&pipeline, "tenant").await;
@@ -2822,7 +2833,7 @@ mod tests {
     async fn a_reader_opens_a_workspace_behind_only_a_step_a_reader_does_not_need_as_it_is() {
         use crate::{
             database::proxy::SQLQuery,
-            organization::workspace::remote::{query, reach},
+            organization::workspace::remote::{query, reach_over},
         };
 
         let credentials = Memory::new();
@@ -2833,20 +2844,28 @@ mod tests {
         at_7_with_a_tenant(&store, &workspace_id, &pipeline).await;
         reading_only(&mut member, &workspace_id);
 
+        // the ladder that ends in `0007`, so `0007` is the only step pending: the shipped one
+        // holds `0008` beside it since ticket 35, which a reader needs.
+        let migrations = ladder_at(8);
         let rules_before = unique_indexes(&pipeline).await;
         let format_before = store.format().await.expect("the format");
         let organization_floors = store.floors().await.expect("the floors");
         let (facts, held) = facts_of(&store, &member, &workspace_id).await;
 
         assert_eq!(held.access, AccessLevel::ReadOnly);
-        assert!(is_pending(&store, &facts).await.expect("pending"));
+        assert!(
+            is_pending_over(&migrations, &store, &facts)
+                .await
+                .expect("pending")
+        );
         assert_eq!(
             refuse_newer(&store, &facts).await.expect("readable"),
             Standing::Writable
         );
 
         let requests = pipeline.request_count();
-        let opened = upgrade(
+        let opened = upgrade_over(
+            &migrations,
             Pending {
                 store: &store,
                 session: &member,
@@ -2926,7 +2945,7 @@ mod tests {
         );
 
         // the reader reads every record, over Turso as well, never refused as behind.
-        let target = reach(&store, &member, &workspace_id, |_| {
+        let target = reach_over(&migrations, &store, &member, &workspace_id, |_| {
             Pipeline::at(&pipeline.url(""))
         })
         .await
@@ -2944,10 +2963,14 @@ mod tests {
         assert_eq!(tenants.len(), 1, "{tenants:?}");
 
         // and the next member with full access runs `0007` as before.
-        assert!(is_pending(&store, &facts).await.expect("pending"));
+        assert!(
+            is_pending_over(&migrations, &store, &facts)
+                .await
+                .expect("pending")
+        );
 
         assert_eq!(
-            opened_by(&store, &owner, &workspace_id, &pipeline, &apply::SHIPPED).await,
+            opened_by(&store, &owner, &workspace_id, &pipeline, &migrations).await,
             7
         );
         assert_eq!(
@@ -3075,8 +3098,7 @@ mod tests {
     async fn a_workspace_behind_only_a_step_a_reader_does_not_need_opens_in_a_read_only_organization()
      {
         let (opened, rules_before, rules_after, recorded, untouched) =
-            opened_in_a_read_only_organization("read-only-organization-0007", &apply::SHIPPED)
-                .await;
+            opened_in_a_read_only_organization("read-only-organization-0007", &ladder_at(8)).await;
 
         assert!(matches!(opened, Ok(7)), "{opened:?}");
         assert_eq!(rules_after, rules_before);
@@ -3368,8 +3390,14 @@ mod tests {
                     Vec::new()
                 };
                 let floors = if behind {
+                    // from the floors its build left it with: its records where it declared a
+                    // step after 857, its version where it did not.
                     shipped.raised(
-                        Floors::legacy(at as u32),
+                        if left.known() > left.settled() {
+                            left.born()
+                        } else {
+                            Floors::legacy(at as u32)
+                        },
                         &shipped.on_open(at as u32, &[]),
                         known,
                     )

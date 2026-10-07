@@ -120,8 +120,14 @@ test('the database of a workspace that is not open runs on the shell, by its id'
 	const south = ctx.databaseOf('south');
 
 	assert.deepEqual(await south.all(sql`select name from complex where id = ${'c-1'}`), [['North']]);
+	// and kept clear of a retired complex on its way, as every client's statements are (effort 857,
+	// requirement 14).
 	assert.deepEqual(asked, [
-		{ workspaceId: 'south', sql: 'select name from complex where id = ?', params: ['c-1'] }
+		{
+			workspaceId: 'south',
+			sql: 'select name from complex where "complex"."merged_into" is null and (id = ?)',
+			params: ['c-1']
+		}
 	]);
 
 	await south.batch([south.run(sql`delete from tenant`), south.run(sql`delete from complex`)]);

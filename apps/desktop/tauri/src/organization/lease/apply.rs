@@ -846,8 +846,8 @@ mod tests {
     };
 
     use super::{
-        Migrated, Pipeline, VERSION_READ, WORKSPACE_MIGRATIONS, apply, apply_between, fresh,
-        shipped_version, statements, statements_between, version_written,
+        Migrated, Pipeline, SHIPPED, VERSION_READ, WORKSPACE_MIGRATIONS, apply, apply_between,
+        fresh, shipped_version, statements, statements_between, version_written,
     };
     use crate::{
         backup,
@@ -1301,7 +1301,13 @@ mod tests {
     async fn every_seeded_version_is_walked_to_the_shipped_version_with_its_rows() {
         let shipped = shipped_version() as usize;
 
-        for seed in SEEDS {
+        // the versions a build before 857 walked, which is what this runner is: a workspace left
+        // by a build that declared a step after 857 is opened by the open path, and its test in
+        // `lease/mod.rs` walks it (effort 857, ticket 35, when the seed at 8 joined).
+        for seed in SEEDS
+            .iter()
+            .filter(|seed| seed.version as u32 <= SHIPPED.steps.settled())
+        {
             let pipeline = seeded(seed).await;
             let shape = fresh(seed.version).await.expect("the fresh shape");
 

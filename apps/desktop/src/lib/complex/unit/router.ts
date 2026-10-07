@@ -148,9 +148,9 @@ const withinComplex = (unit: { complexId: string; name: string }) =>
  * The units with the status the contracts holding them derive today. The derivation is the
  * contract's, which it contributes (`UnitContributions`), since the contract depends on the unit.
  */
-async function getUnitsWithDerivedStatus(
+async function getUnitsWithDerivedStatus<Unit extends { id: string }>(
 	ctx: Pick<Context, 'db' | 'clock'> & Contributed,
-	units: (typeof s.unit.$inferSelect)[]
+	units: Unit[]
 ) {
 	const unitIds = units.map((unit) => unit.id);
 
