@@ -72,9 +72,10 @@ refused for being behind a step that moved no floor. Data from before effort 857
 record and reads as floors equal to its version, so a workspace at 7 reads `{7, 7, 7}`, and nothing
 is written to make it so (requirement 13). The **floor record** is a workspace's one-row
 `data_floor`, beside its `schema_version` row, and the organization's `organization_floor` and
-`workspace_floor` rows ([[contexts/desktop/organization]]); the first step declared after 857 to run
-on a database writes it, holding the floors read before it, and after that only the explicit upgrade
-moves it. Where the workspace's own record and the organization's disagree, the lesser verdict
+`workspace_floor` rows ([[contexts/desktop/organization]]); data created on a build that ships a
+step declared after 857 is created with it, holding the floors its steps declare (effort 857,
+ticket 21), older data gains it from the first such step to run on it, holding the floors read
+before it, and after that only the explicit upgrade moves it. Where the workspace's own record and the organization's disagree, the lesser verdict
 stands (`Standing::least`).
 _Avoid_: "the version" for the floors; nothing is refused for being newer or older, only for being
 below a floor.

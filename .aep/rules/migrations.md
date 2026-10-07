@@ -62,7 +62,8 @@ its SQL. A test there fails while a migration file or a change of format has no 
 - **Steps shipped before 857 are marked `shipped_before_857` and still run on open** as 0.20 ran
   them, whatever their kind: data in users' hands stands behind them. A new step never carries the
   mark. An addition declared after them never moves `workspace.schema_version` or the `format` row,
-  and the first one to run on a database writes its floor record (effort 857, ticket 03).
+  and the first one to run on a database writes its floor record (effort 857, ticket 03); data
+  created on a build that ships one is created with the record already written (ticket 21).
 
 *Why: an addition that stops nobody needs nobody's decision, and anything that can stop someone
 waits for the person who holds the permission to upgrade and has seen who it stops. A step

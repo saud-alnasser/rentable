@@ -138,7 +138,12 @@ seven days by member, machine name and version, one not seen since apart with th
 one that has never recorded what it runs as on a build before 857. Running it takes the lease and a
 copy, runs every step in one transaction with the floor records, checked against a fresh database
 before it commits, and moves a legacy number only where a floor now passes what the builds before
-857 know. No upgrade step has been declared yet, so the first release with this act moves no floor.
+857 know. While an organization upgrade holds its lease, every other member's act that writes is
+refused as `UpgradeUnderWay` and their machine's own rows wait for the next heartbeat (ticket 19).
+An organization replica whose unsent changes an upgrade made unsendable is held, neither pushed nor
+pulled, until the person discards them with a confirmed yes on the sync card (ticket 20), as a
+workspace's are ([[contexts/desktop/persistence]]). No upgrade step has been declared yet, so the
+first release with this act moves no floor.
 
 **Held by a version**:
 Where this build stands against a floor, as the shell is told it (`session/version.rs`): the
