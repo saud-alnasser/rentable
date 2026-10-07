@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [01]
 ---
 
@@ -15,9 +15,9 @@ Each machine writes, for itself, the rentable version it runs and the workspace 
 
 Traces requirement 4 and criterion 4.
 
-- [ ] `machine_version` is created by `complete_schema` as an addition, unsigned, one row per machine written only by that machine.
-- [ ] It is written at connect, sign-in, resume and on the heartbeat when the value differs from the row standing, on the `machine_name` pattern, and never on a pull that changed nothing.
-- [ ] A test signs in two sessions with different `known()` values and reads each machine's rentable version, workspace and format steps, and the machine's `seen_at`; changing one build's values changes its row on the next launch.
+- [x] `machine_version` is created by `complete_schema` as an addition, unsigned, one row per machine written only by that machine.
+- [x] It is written at connect, sign-in, resume and on the heartbeat when the value differs from the row standing, on the `machine_name` pattern, and never on a pull that changed nothing.
+- [x] A test signs in two sessions with different `known()` values and reads each machine's rentable version, workspace and format steps, and the machine's `seen_at`; changing one build's values changes its row on the next launch.
 
 ## Relevant areas
 

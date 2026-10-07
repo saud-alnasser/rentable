@@ -111,8 +111,14 @@ pub(crate) async fn ended_elsewhere(app_state: &Shared, credentials: &dyn Creden
                         match session::signed_out_here(store, &held, &session.member_id).await {
                             Ok(true) => true,
                             Ok(false) => {
-                                session::machine_kept(store, &held, session, store.clock().now())
-                                    .await;
+                                session::machine_kept(
+                                    store,
+                                    &held,
+                                    session,
+                                    &app_state.upgrade.build(),
+                                    store.clock().now(),
+                                )
+                                .await;
 
                                 false
                             }

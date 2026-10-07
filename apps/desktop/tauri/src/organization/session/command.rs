@@ -445,6 +445,9 @@ pub(crate) async fn organization_session_sign_in(
     *app_state.organization.write().await = Some(store);
     *app_state.member.write().await = Some(member);
 
+    // what this machine runs, where that changed since it last said (effort 857, requirement 4).
+    session::version_recorded(&app_state).await;
+
     state_of(&app_state, &credentials, &clock).await
 }
 
@@ -2984,6 +2987,10 @@ mod tests {
             self.note(Step::Moved);
 
             crate::upgrade::Upgrader.move_the_consent(state, credentials)
+        }
+
+        fn build(&self) -> crate::organization::session::Build {
+            crate::upgrade::Upgrader.build()
         }
     }
 

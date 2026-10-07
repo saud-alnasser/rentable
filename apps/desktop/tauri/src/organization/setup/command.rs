@@ -122,7 +122,10 @@ pub(crate) async fn organization_setup_create(
     // the owner's machine enters the registry (effort 828, requirement 15), named (effort 846,
     // requirement 11). A first run draws the machine id with the record (`setup/`) and registers
     // here, after the sign-in, because the push goes out under the credential the vault unsealed.
+    // And it records what it runs (effort 857, requirement 4), carried by the same push. Written
+    // here rather than through `session::version_recorded`, since the record's lock is held.
     session::machine_named(&store, &joined, &member.content_key, clock.now()).await;
+    session::machine_versioned(&store, &joined, &app_state.upgrade.build(), clock.now()).await;
     session::machine_seen(&store, &joined, Some(&member.member_id), clock.now()).await;
 
     *app_state.organization.write().await = Some(store);
@@ -228,6 +231,10 @@ pub(crate) async fn organization_setup_connect_existing(
 
     *app_state.organization.write().await = Some(store);
     *app_state.member.write().await = Some(*session);
+
+    // a connect on the owner's account is a sign-in, and records what this machine runs (effort
+    // 857, requirement 4).
+    session::version_recorded(&app_state).await;
 
     state_of(&app_state, &credentials, &clock).await
 }

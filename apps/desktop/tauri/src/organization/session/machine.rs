@@ -1,5 +1,5 @@
 //! one of a member's machines: named, listed, and signed out on its own (effort 846, requirements 9
-//! to 11).
+//! to 11), and what it runs recorded (effort 857, requirement 4).
 //!
 //! **A number per machine that only the member's other machines write.** Signing every other
 //! machine out moves `member.session_epoch` ([`end_elsewhere`](super::end_elsewhere)), which cannot
@@ -32,9 +32,9 @@ use crate::{
 
 use super::{MemberSession, opened, own_row};
 use crate::organization::{
-    HeldOrganization,
+    HeldOrganization, Shared,
     member::vault::{ContentKey, seal_content},
-    store::OrganizationStore,
+    store::{MachineVersionRecord, OrganizationStore},
 };
 
 /// How often the heartbeat says this machine is still here: hourly, so a machine's last seen in
@@ -197,13 +197,128 @@ async fn named(
     Ok(true)
 }
 
-/// What the heartbeat keeps true of this machine while it is signed in: its name, and that it is
-/// still here, said at most once an hour (effort 846, requirements 9 and 11). What it wrote is
-/// pushed, best effort.
+/// What the build this machine runs is and knows: the version of rentable, and the highest step it
+/// knows on the workspace's ladder and on the organization's (effort 857, requirement 4).
+///
+/// **The session asks the upgrade port for it** ([`Upgrade::build`](super::Upgrade::build)),
+/// because the steps are declared in `upgrade/step.rs`, which nothing here names; the composition
+/// root manages the port, and a test hands the session whatever build it is pretending to run.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Build {
+    /// the version of rentable, as its build spells it: `0.20.0`.
+    pub rentable: &'static str,
+    /// the highest workspace step it knows.
+    pub workspace_known: u32,
+    /// the highest organization format step it knows.
+    pub format_known: u32,
+}
+
+/// Write what this machine runs over its row in `machine_version`, where the row says otherwise or
+/// there is none (effort 857, requirement 4): at a sign-in, at a connect, at a launch that came
+/// back signed in, and on the heartbeat. Answers whether it wrote, so the caller knows whether
+/// there is anything to push.
+///
+/// **Nothing here is a refusal**, as nothing about the name is ([`machine_named`]): a version that
+/// could not be written leaves the row as it was, and the next heartbeat tries again.
+pub(crate) async fn machine_versioned(
+    store: &OrganizationStore,
+    held: &HeldOrganization,
+    build: &Build,
+    now: i64,
+) -> bool {
+    match versioned(store, held, build, now).await {
+        Ok(wrote) => wrote,
+        Err(refusal) => {
+            diagnostics::warn("organization.machine.notVersioned")
+                .with("organization", held.id.as_str())
+                .with("reason", refusal.to_string())
+                .write();
+
+            false
+        }
+    }
+}
+
+/// The write behind [`machine_versioned`].
+///
+/// **Only where the build differs from the row standing**, on the pattern of the name ([`named`]),
+/// so a launch, a sign-in or a heartbeat on the same build writes nothing and a pull that changed
+/// nothing is followed by no push. A row that does not read is one to write over. A replica that
+/// does not hold the table yet writes nothing, and the heartbeat after the pull that brings it
+/// writes the row.
+async fn versioned(
+    store: &OrganizationStore,
+    held: &HeldOrganization,
+    build: &Build,
+    now: i64,
+) -> Result<bool, Error> {
+    if held.machine_id.is_empty() || !store.tables().await?.iter().any(|t| t == "machine_version") {
+        return Ok(false);
+    }
+
+    let standing = store.machine_version(&held.machine_id).await.ok().flatten();
+
+    if standing.is_some_and(|row| {
+        row.rentable == build.rentable
+            && row.workspace_known == build.workspace_known
+            && row.format_known == build.format_known
+    }) {
+        return Ok(false);
+    }
+
+    store
+        .write_machine_version(&MachineVersionRecord {
+            id: held.machine_id.clone(),
+            rentable: build.rentable.to_string(),
+            workspace_known: build.workspace_known,
+            format_known: build.format_known,
+            written_at: now,
+        })
+        .await?;
+
+    Ok(true)
+}
+
+/// [`machine_versioned`] over the organization this machine has open, with the build the upgrade
+/// port answers, and pushed where it wrote: what the ways in that leave a replica open call once
+/// the session is in place (the sign-in at the wall, an invitation accepted, and the connect on the
+/// owner's account). The first run and the launch write through [`machine_versioned`] beside the
+/// registry's own write, whose push carries it. A machine with nothing open writes nothing; its
+/// sign-in is what writes the row.
+pub(crate) async fn version_recorded(app_state: &Shared) {
+    let held = {
+        let mut remote_sync = app_state.remote_sync.write().await;
+
+        remote_sync.store_mut().selected().cloned()
+    };
+    let organization = app_state.organization.read().await;
+    let (Some(held), Some(store)) = (held, organization.as_ref()) else {
+        return;
+    };
+
+    if machine_versioned(
+        store,
+        &held,
+        &app_state.upgrade.build(),
+        store.clock().now(),
+    )
+    .await
+        && !store.push().await
+    {
+        diagnostics::warn("organization.machine.versionNotYetSent")
+            .with("organization", held.id.as_str())
+            .write();
+    }
+}
+
+/// What the heartbeat keeps true of this machine while it is signed in: its name, what it runs,
+/// and that it is still here, said at most once an hour (effort 846, requirements 9 and 11; effort
+/// 857, requirement 4). What it wrote is pushed, best effort.
 pub(crate) async fn machine_kept(
     store: &OrganizationStore,
     held: &HeldOrganization,
     session: &MemberSession,
+    build: &Build,
     now: i64,
 ) {
     if held.machine_id.is_empty() {
@@ -211,6 +326,8 @@ pub(crate) async fn machine_kept(
     }
 
     let mut wrote = machine_named(store, held, &session.content_key, now).await;
+
+    wrote |= machine_versioned(store, held, build, now).await;
 
     let stale = match store.machine(&held.machine_id).await {
         Ok(row) => row.is_none_or(|row| now - row.seen_at >= SEEN_REFRESH),
@@ -385,7 +502,9 @@ mod tests {
 
     use serde_json::json;
 
-    use super::{end_machine, machines, named, sign_outs_acknowledged, signed_out_here};
+    use super::{
+        Build, end_machine, machines, named, sign_outs_acknowledged, signed_out_here, versioned,
+    };
     use crate::credential::{CredentialStore, Memory};
     use crate::error::{Error, RefusalReason};
     use crate::machine::RemoteSyncStore;
@@ -403,7 +522,9 @@ mod tests {
     use crate::organization::setup::{
         ADMINISTRATOR_KEY_PURPOSE, CreateOrganization, Remote, create_organization,
     };
-    use crate::organization::store::{MemberRecord, OrganizationStore, Signer};
+    use crate::organization::store::{
+        MachineVersionRecord, MemberRecord, OrganizationStore, Signer,
+    };
     use crate::organization::workspace::signer_of;
     use crate::persisted::Persisted;
     use crate::sync::test::server::{ScriptedResponse, ScriptedServer};
@@ -1103,6 +1224,176 @@ mod tests {
 
         assert_eq!(quiet_view.name, None);
         assert!(quiet_view.may_end_alone);
+    }
+
+    /// **Effort 857, criterion 4.** Two machines signed in on builds that know different steps
+    /// each write their own row, and either replica reads both: the version of rentable, the
+    /// workspace and format steps, and beside them when each machine was last seen. The same
+    /// build again writes nothing; a newer build on the next launch rewrites that machine's row
+    /// and leaves the other's alone.
+    #[tokio::test]
+    async fn each_machine_records_the_build_it_runs_and_writes_again_only_when_it_changes() {
+        let credentials = Memory::new();
+        let directory = scratch("machines-versioned");
+        let (store, here) = created(&credentials, &directory).await;
+        let there = on("machine-there", &here);
+        let second = elsewhere(&directory, &here).await;
+        let a = sign_in(&store, &here, PASSWORD, &slot())
+            .await
+            .expect("this machine did not sign in");
+        let b = sign_in(&second, &there, PASSWORD, &slot())
+            .await
+            .expect("the other machine did not sign in");
+        let older = Build {
+            rentable: "0.20.0",
+            workspace_known: 7,
+            format_known: 3,
+        };
+        let newer = Build {
+            rentable: "0.21.0",
+            workspace_known: 8,
+            format_known: 4,
+        };
+
+        signed_in_on(&store, &here, &a, Some("Olivia's Desk"), NOW - DAY).await;
+        signed_in_on(&second, &there, &b, Some("Olivia's Laptop"), NOW).await;
+
+        assert!(
+            versioned(&store, &here, &older, NOW - DAY)
+                .await
+                .expect("this machine's version")
+        );
+        assert!(
+            versioned(&second, &there, &newer, NOW)
+                .await
+                .expect("the other machine's version")
+        );
+
+        for reader in [&store, &second] {
+            assert_eq!(
+                reader
+                    .machine_version(&here.machine_id)
+                    .await
+                    .expect("the row"),
+                Some(MachineVersionRecord {
+                    id: here.machine_id.clone(),
+                    rentable: "0.20.0".to_string(),
+                    workspace_known: 7,
+                    format_known: 3,
+                    written_at: NOW - DAY,
+                })
+            );
+            assert_eq!(
+                reader
+                    .machine_version("machine-there")
+                    .await
+                    .expect("the row"),
+                Some(MachineVersionRecord {
+                    id: "machine-there".to_string(),
+                    rentable: "0.21.0".to_string(),
+                    workspace_known: 8,
+                    format_known: 4,
+                    written_at: NOW,
+                })
+            );
+            assert_eq!(
+                reader
+                    .machine(&here.machine_id)
+                    .await
+                    .expect("the row")
+                    .map(|machine| machine.seen_at),
+                Some(NOW - DAY)
+            );
+            assert_eq!(
+                reader
+                    .machine("machine-there")
+                    .await
+                    .expect("the row")
+                    .map(|machine| machine.seen_at),
+                Some(NOW)
+            );
+        }
+
+        // the same build at the next launch writes nothing: the row and its moment stand.
+        assert!(
+            !versioned(&store, &here, &older, NOW + 1)
+                .await
+                .expect("this machine's version"),
+            "an unchanged build was written again"
+        );
+        assert_eq!(
+            store
+                .machine_version(&here.machine_id)
+                .await
+                .expect("the row")
+                .map(|row| row.written_at),
+            Some(NOW - DAY)
+        );
+
+        // this machine updated: its next launch rewrites its row, and the other's is untouched.
+        assert!(
+            versioned(&store, &here, &newer, NOW + DAY)
+                .await
+                .expect("this machine's version")
+        );
+        assert_eq!(
+            second
+                .machine_version(&here.machine_id)
+                .await
+                .expect("the row"),
+            Some(MachineVersionRecord {
+                id: here.machine_id.clone(),
+                rentable: "0.21.0".to_string(),
+                workspace_known: 8,
+                format_known: 4,
+                written_at: NOW + DAY,
+            })
+        );
+        assert_eq!(
+            store
+                .machine_version("machine-there")
+                .await
+                .expect("the row")
+                .map(|row| row.written_at),
+            Some(NOW)
+        );
+    }
+
+    /// **Effort 857, criterion 4: a replica an earlier build pulled** does not hold the table
+    /// until its next pull completes the schema, and nothing is written into it before then; a
+    /// record with no machine id yet writes nothing either.
+    #[tokio::test]
+    async fn no_version_is_written_without_the_table_or_a_machine_id() {
+        let directory = scratch("machines-versioned-not");
+        let bare = OrganizationStore::open(
+            crate::clock::System::shared(),
+            &directory.join("org-bare.db"),
+            None,
+            || async { Ok::<String, turso::Error>(String::new()) },
+        )
+        .await
+        .expect("the store");
+        let build = Build {
+            rentable: "0.21.0",
+            workspace_known: 8,
+            format_known: 4,
+        };
+        let credentials = Memory::new();
+        let (store, here) = created(&credentials, &directory).await;
+
+        assert!(
+            !versioned(&bare, &here, &build, NOW)
+                .await
+                .expect("the version"),
+            "a replica without the table was written to"
+        );
+        assert!(
+            !versioned(&store, &on("", &here), &build, NOW)
+                .await
+                .expect("the version"),
+            "a record with no machine id wrote a row"
+        );
+        assert_eq!(store.machine_version("").await.expect("the row"), None);
     }
 
     /// One machine's name row, which the test above expects to stand.

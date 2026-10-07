@@ -9,7 +9,7 @@ use crate::{
     error::Error,
     organization::{
         HeldOrganization, Shared,
-        session::{AccountCopy, CredentialSlot, Upgrade, Upgrades, Upgrading},
+        session::{AccountCopy, Build, CredentialSlot, Upgrade, Upgrades, Upgrading},
         setup::Remote,
         store::OrganizationStore,
     },
@@ -20,6 +20,7 @@ use super::{
     consent,
     format::runner::{self, ItsRemote, OnTheAccount},
     shape,
+    step::Ladder,
 };
 
 /// the two commands that find and read the records 0.12.0 and 0.13.0 kept in `app.db`
@@ -144,5 +145,35 @@ impl Upgrade for Upgrader {
 
             Ok(())
         })
+    }
+
+    fn build(&self) -> Build {
+        Build {
+            rentable: env!("CARGO_PKG_VERSION"),
+            workspace_known: Ladder::Workspace.known(),
+            format_known: Ladder::Format.known(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Upgrader;
+    use crate::organization::session::{Build, Upgrade};
+    use crate::upgrade::step::Ladder;
+
+    /// **The port answers what this build ships** (effort 857, requirement 4): the version in
+    /// `Cargo.toml` and the highest step `step.rs` declares on each ladder, which is what every
+    /// machine records in the organization's `machine_version`.
+    #[test]
+    fn the_port_answers_what_this_build_knows() {
+        assert_eq!(
+            Upgrader.build(),
+            Build {
+                rentable: env!("CARGO_PKG_VERSION"),
+                workspace_known: Ladder::Workspace.known(),
+                format_known: Ladder::Format.known(),
+            }
+        );
     }
 }

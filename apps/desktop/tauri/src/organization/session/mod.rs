@@ -77,9 +77,10 @@ pub use command::*;
 pub(crate) use epoch::end_elsewhere;
 pub use epoch::{end_member_sessions, ended_elsewhere};
 pub(crate) use heartbeat::signed_out_from_elsewhere;
-pub use machine::{MachineView, SEEN_REFRESH, machines};
+pub use machine::{Build, MachineView, SEEN_REFRESH, machines};
 pub(crate) use machine::{
-    end_machine, ended_alone, machine_kept, machine_named, sign_outs_acknowledged, signed_out_here,
+    end_machine, ended_alone, machine_kept, machine_named, machine_versioned,
+    sign_outs_acknowledged, signed_out_here, version_recorded,
 };
 pub(crate) use remember::*;
 pub(crate) use replica::leave_registry;
@@ -964,6 +965,11 @@ pub(crate) trait Upgrade: Send + Sync {
         state: &'a Shared,
         credentials: &'a dyn CredentialStore,
     ) -> Upgrading<'a>;
+
+    /// The build this machine runs: the version of rentable and the highest step it knows on each
+    /// ladder, as `upgrade/step.rs` declares them, which every way in and the heartbeat record in
+    /// the organization's `machine_version` (effort 857, requirement 4).
+    fn build(&self) -> Build;
 }
 
 /// The upgrade port as the `upgrade` plugin manages it and the organization's state holds it.

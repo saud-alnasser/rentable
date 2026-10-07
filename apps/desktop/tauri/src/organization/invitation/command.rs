@@ -19,7 +19,7 @@ use crate::organization::{
         machine,
     },
     member::vault::KdfParams,
-    session::{CredentialSlot, OrganizationState, sign_out, state_of},
+    session::{CredentialSlot, OrganizationState, sign_out, state_of, version_recorded},
     setup,
     store::OrganizationStore,
 };
@@ -299,6 +299,9 @@ where
 
     *app_state.organization.write().await = Some(store);
     *app_state.member.write().await = Some(member);
+
+    // what this machine runs, as every sign-in records it (effort 857, requirement 4).
+    version_recorded(app_state).await;
 
     Ok(())
 }

@@ -77,7 +77,10 @@ pub use mark::MarkRecord;
 pub use member::{MemberLockRecord, MemberLocks, MemberRecord, locked_in};
 pub use ownership::SuccessionRecord;
 pub use role::RoleRecord;
-pub use session::{MACHINE_PRESENCE_WINDOW, MachineLinkRecord, MachineNameRecord, MachineRecord};
+pub use session::{
+    MACHINE_PRESENCE_WINDOW, MachineLinkRecord, MachineNameRecord, MachineRecord,
+    MachineVersionRecord,
+};
 pub use setup::{OrganizationNameRecord, OrganizationRecord};
 pub use signature::{SignedRow, Signer};
 pub(crate) use signature::{
@@ -86,7 +89,7 @@ pub(crate) use signature::{
 };
 pub use workspace::{GrantRecord, WorkspaceOverrideRecord, WorkspaceRecord, pins_of};
 
-/// The nineteen tables, in the order the schema creates them. A test pins this list against what
+/// The twenty tables, in the order the schema creates them. A test pins this list against what
 /// the database reports, so a table added anywhere is added here or fails there.
 ///
 /// **A table added after format 3 goes last, with no change of format** (effort 846): the two
@@ -94,8 +97,9 @@ pub use workspace::{GrantRecord, WorkspaceOverrideRecord, WorkspaceRecord, pins_
 /// [`OrganizationStore::complete_schema`] after a pull, and by the change to format 3 with
 /// `workspace_override`, so a walk arriving at this format builds what a fresh one is built with.
 /// `organization_name` came after them the same way (effort 851), and `member_lock` after it, and
-/// the next table goes after that.
-pub const TABLES: [&str; 19] = [
+/// `machine_version` after that (effort 857), an addition that moves no floor; the next table goes
+/// after it.
+pub const TABLES: [&str; 20] = [
     "format",
     "organization",
     "role",
@@ -115,11 +119,12 @@ pub const TABLES: [&str; 19] = [
     "machine_name",
     "organization_name",
     "member_lock",
+    "machine_version",
 ];
 
 /// How many of [`TABLES`] format 2 held: every one but `workspace_override`, which format 3 adds
-/// (`upgrade/format/overriding.rs`), and the tables effort 846 and effort 851 added after it, which
-/// the change to format 3 creates with it.
+/// (`upgrade/format/overriding.rs`), and the tables effort 846, effort 851 and effort 857 added
+/// after it, which the change to format 3 creates with it.
 const FORMAT_TWO_TABLES: usize = 14;
 
 /// The schema, as the plan's data model gives it.
@@ -131,7 +136,7 @@ const FORMAT_TWO_TABLES: usize = 14;
 ///
 /// `grant` is quoted everywhere because it is a keyword in most dialects, and a statement that
 /// works in SQLite and fails elsewhere is a statement worth spelling defensively once.
-const SCHEMA: [&str; 19] = [
+const SCHEMA: [&str; 20] = [
     format::FORMAT,
     setup::ORGANIZATION,
     role::ROLE,
@@ -151,6 +156,7 @@ const SCHEMA: [&str; 19] = [
     session::MACHINE_NAME,
     setup::ORGANIZATION_NAME,
     member::MEMBER_LOCK,
+    session::MACHINE_VERSION,
 ];
 
 /// The organization replica on this machine.
@@ -967,7 +973,7 @@ mod tests {
     /// before this one made it, `workspace_override` and all, gains both and says so, and the
     /// `machine` table they sit beside keeps its four columns. **Effort 851's signed organization
     /// name and the members' locks came after them the same way**, and reach the same replica with
-    /// them.
+    /// them, and so does what each machine runs (effort 857), which is an addition on this ladder.
     #[tokio::test]
     async fn a_format_three_replica_without_the_machine_tables_gains_both() {
         let directory = scratch("schema-machine-tables");
@@ -980,19 +986,20 @@ mod tests {
         .await
         .expect("the store");
 
-        assert_eq!(TABLES.len(), 19);
+        assert_eq!(TABLES.len(), 20);
         assert_eq!(
-            &TABLES[TABLES.len() - 5..],
+            &TABLES[TABLES.len() - 6..],
             &[
                 "workspace_override",
                 "machine_sign_out",
                 "machine_name",
                 "organization_name",
-                "member_lock"
+                "member_lock",
+                "machine_version"
             ]
         );
 
-        for statement in &super::SCHEMA[..super::SCHEMA.len() - 4] {
+        for statement in &super::SCHEMA[..super::SCHEMA.len() - 5] {
             store
                 .connection
                 .execute(statement, ())
@@ -1017,6 +1024,7 @@ mod tests {
             "machine_name",
             "organization_name",
             "member_lock",
+            "machine_version",
         ] {
             assert!(tables.iter().any(|t| t == table), "{table} was not created");
         }
@@ -1035,6 +1043,19 @@ mod tests {
         assert_eq!(
             store.columns_of("machine_name").await.expect("the columns"),
             vec!["id", "name", "named_at"]
+        );
+        assert_eq!(
+            store
+                .columns_of("machine_version")
+                .await
+                .expect("the columns"),
+            vec![
+                "id",
+                "rentable",
+                "workspace_known",
+                "format_known",
+                "written_at"
+            ]
         );
         assert_eq!(
             store

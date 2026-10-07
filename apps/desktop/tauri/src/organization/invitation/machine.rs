@@ -1573,6 +1573,7 @@ mod tests {
             "DROP TABLE \"machine_name\"",
             "DROP TABLE \"organization_name\"",
             "DROP TABLE \"member_lock\"",
+            "DROP TABLE \"machine_version\"",
             "DROP TABLE \"role\"",
             "DROP TABLE \"certificate\"",
             "DROP TABLE \"revocation\"",

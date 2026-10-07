@@ -1,7 +1,8 @@
-//! The `machine_link`, `machine`, `machine_sign_out` and `machine_name` tables: the links that
-//! connect a machine to an account, the registry of machines holding the organization, the
-//! sign-outs of one machine another one wrote, and the name each machine gives itself (effort 846,
-//! requirements 9 to 11). None of them carries a signature.
+//! The `machine_link`, `machine`, `machine_sign_out`, `machine_name` and `machine_version` tables:
+//! the links that connect a machine to an account, the registry of machines holding the
+//! organization, the sign-outs of one machine another one wrote, the name each machine gives itself
+//! (effort 846, requirements 9 to 11), and what each machine runs (effort 857, requirement 4). None
+//! of them carries a signature.
 
 use crate::{error::Error, organization::authority::VERIFYING_KEY_BYTES};
 
@@ -45,6 +46,21 @@ pub(super) const MACHINE_NAME: &str = "CREATE TABLE IF NOT EXISTS \"machine_name
         \"id\" TEXT PRIMARY KEY NOT NULL, \
         \"name\" BLOB, \
         \"named_at\" INTEGER NOT NULL)";
+
+/// The version of rentable one machine runs and the steps it knows on each ladder, written by that
+/// machine alone (effort 857, requirement 4): what the upgrade reads to name who an upgrade would
+/// stop.
+///
+/// **A table of its own rather than columns on `machine`**, because every build released before
+/// it rewrites its own `machine` row whole at launch (`INSERT OR REPLACE` naming four columns), and
+/// would wipe a column it does not know. Here nothing older writes at all. A machine with no row is
+/// one that has not run a build that records it, which the upgrade reads as a version unknown.
+pub(super) const MACHINE_VERSION: &str = "CREATE TABLE IF NOT EXISTS \"machine_version\" (\
+        \"id\" TEXT PRIMARY KEY NOT NULL, \
+        \"rentable\" TEXT NOT NULL, \
+        \"workspace_known\" INTEGER NOT NULL, \
+        \"format_known\" INTEGER NOT NULL, \
+        \"written_at\" INTEGER NOT NULL)";
 
 /// How long a machine counts as connected after it was last seen: seven days (effort 828,
 /// requirement 15).
@@ -131,6 +147,27 @@ pub struct MachineNameRecord {
     /// the name, sealed under the content key; `None` where the operating system gave none.
     pub name_sealed: Option<Vec<u8>>,
     pub named_at: i64,
+}
+
+/// A `machine_version` row: the version of rentable one machine runs, the highest step it knows on
+/// the workspace's ladder and on the organization's, and when it last wrote them (effort 857,
+/// requirement 4). When the machine was last seen is its `machine` row's
+/// ([`MachineRecord::seen_at`]), which it refreshes far more often than this changes.
+///
+/// **Unsigned**, like [`MachineRecord`]: a rewritten row can only misname what one machine runs on
+/// the upgrade's list of who is behind, and nothing reads it to decide what anybody may do.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MachineVersionRecord {
+    /// the machine's own id, as [`MachineRecord::id`].
+    pub id: String,
+    /// the version of rentable it runs, as its build spells it: `0.20.0`.
+    pub rentable: String,
+    /// the highest workspace step its build knows.
+    pub workspace_known: u32,
+    /// the highest organization format step its build knows.
+    pub format_known: u32,
+    /// when it wrote the row, which is when one of the three last changed.
+    pub written_at: i64,
 }
 
 impl OrganizationStore {
@@ -609,8 +646,62 @@ impl OrganizationStore {
         Ok(())
     }
 
-    /// Whether this replica holds `table`: the two tables effort 846 added are read only where
-    /// they stand, since a replica an earlier build pulled gains them at its next pull.
+    /// One machine's row in `machine_version`, or `None` where it has none or the replica does not
+    /// hold the table yet (effort 857, requirement 4). **No verifying key**, as the rest of the
+    /// registry takes none: the row carries no signature, and what it is worth is
+    /// [`MachineVersionRecord`]'s docstring.
+    pub async fn machine_version(&self, id: &str) -> Result<Option<MachineVersionRecord>, Error> {
+        if !self.holds("machine_version").await? {
+            return Ok(None);
+        }
+
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT \"id\", \"rentable\", \"workspace_known\", \"format_known\", \
+                 \"written_at\" FROM \"machine_version\" WHERE \"id\" = ?",
+                vec![turso::Value::Text(id.to_string())],
+            )
+            .await?;
+
+        match rows.next().await? {
+            Some(row) => Ok(Some(MachineVersionRecord {
+                id: text(&row, 0)?,
+                rentable: text(&row, 1)?,
+                workspace_known: step(&row, 2)?,
+                format_known: step(&row, 3)?,
+                written_at: integer(&row, 4)?,
+            })),
+            None => Ok(None),
+        }
+    }
+
+    /// Write what this machine runs over its row (effort 857, requirement 4). **Unsigned**, like
+    /// the rest of the registry. Only the machine itself writes its row, and only where what it
+    /// runs differs from what the row says, which is the caller's to judge
+    /// (`session::machine_versioned`), so a launch on the same build writes nothing.
+    pub async fn write_machine_version(&self, row: &MachineVersionRecord) -> Result<(), Error> {
+        self.connection
+            .execute(
+                "INSERT OR REPLACE INTO \"machine_version\" \
+                 (\"id\", \"rentable\", \"workspace_known\", \"format_known\", \"written_at\") \
+                 VALUES (?, ?, ?, ?, ?)",
+                vec![
+                    turso::Value::Text(row.id.clone()),
+                    turso::Value::Text(row.rentable.clone()),
+                    turso::Value::Integer(i64::from(row.workspace_known)),
+                    turso::Value::Integer(i64::from(row.format_known)),
+                    turso::Value::Integer(row.written_at),
+                ],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Whether this replica holds `table`: the two tables effort 846 added, and `machine_version`
+    /// after them, are read only where they stand, since a replica an earlier build pulled gains
+    /// them at its next pull.
     async fn holds(&self, table: &str) -> Result<bool, Error> {
         let mut rows = self
             .connection
@@ -678,6 +769,17 @@ fn machine_of(row: &turso::Row) -> Result<MachineRecord, Error> {
         },
         seen_at: integer(row, 2)?,
         created_at: integer(row, 3)?,
+    })
+}
+
+/// A step number as a `machine_version` row holds it. **A number no build could know is refused as
+/// a row that is not what it says**, rather than read as some other step: the row is unsigned, and
+/// a machine reading it back writes its own over it.
+fn step(row: &turso::Row, index: usize) -> Result<u32, Error> {
+    let value = integer(row, index)?;
+
+    u32::try_from(value).map_err(|_| Error::Integrity {
+        message: format!("a machine's recorded step {value} is not a step"),
     })
 }
 

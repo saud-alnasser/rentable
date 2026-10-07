@@ -193,6 +193,16 @@ pub(super) async fn machine_registered(app_state: &Shared) -> Result<(), Error> 
             session::machine_named(store, &held, &signed_in.content_key, store.clock().now()).await;
         }
 
+        // and what it runs, where that changed since its last launch (effort 857, requirement 4),
+        // carried by the same push. Signed in or not, since the build is the machine's and not
+        // its member's.
+        session::machine_versioned(
+            store,
+            &held,
+            &app_state.upgrade.build(),
+            store.clock().now(),
+        )
+        .await;
         session::machine_seen(store, &held, held.member_id.as_deref(), store.clock().now()).await;
     }
 
@@ -374,8 +384,9 @@ mod tests {
     use crate::organization::role::permission;
     use crate::organization::session::replica::{Opening, open_replica};
     use crate::organization::session::{self, CredentialSlot, MEMBER_KEY_SERVICE, state_of};
+    use crate::organization::session::{AccountCopy, Upgrade, Upgrading};
     use crate::organization::setup::{CreateOrganization, Remote, create_organization};
-    use crate::organization::store::OrganizationStore;
+    use crate::organization::store::{MachineVersionRecord, OrganizationStore};
     use crate::organization::{HeldOrganization, ownership};
     use crate::persisted::Persisted;
     use crate::settings::Settings;
@@ -384,6 +395,7 @@ mod tests {
     use crate::turso::consent::TursoConsent;
     use crate::turso::discovery::McpEndpoint;
     use crate::turso::platform::InMemoryPlatform;
+    use crate::turso::platform::PlatformApi;
     use crate::update::Update;
     use serde_json::json;
     use std::sync::{Arc, Mutex};
@@ -1059,5 +1071,171 @@ mod tests {
             (new_key, "manager".to_string())
         );
         assert_eq!(pinned(&app_state).await, encoded(new_key));
+    }
+
+    /// The upgrade as the `upgrade` plugin answers it, but for the build it says this machine
+    /// runs: what stands in for a machine updated between two launches.
+    struct Built(session::Build);
+
+    impl Upgrade for Built {
+        fn with_password<'a>(
+            &'a self,
+            store: &'a OrganizationStore,
+            account: Option<PlatformApi>,
+            held: &'a HeldOrganization,
+            username: &'a str,
+            password: &'a str,
+            credential: &'a CredentialSlot,
+            now: i64,
+        ) -> Upgrading<'a> {
+            crate::upgrade::Upgrader
+                .with_password(store, account, held, username, password, credential, now)
+        }
+
+        fn with_remembered_key<'a>(
+            &'a self,
+            credentials: &'a dyn CredentialStore,
+            store: &'a OrganizationStore,
+            account: Option<PlatformApi>,
+            held: &'a HeldOrganization,
+            credential: &'a CredentialSlot,
+            now: i64,
+        ) -> Upgrading<'a> {
+            crate::upgrade::Upgrader.with_remembered_key(
+                credentials,
+                store,
+                account,
+                held,
+                credential,
+                now,
+            )
+        }
+
+        fn on_connect<'a>(
+            &'a self,
+            store: &'a OrganizationStore,
+            remote: Remote,
+            account: &'a dyn AccountCopy,
+            username: &'a str,
+            password: &'a str,
+            credential: &'a CredentialSlot,
+            now: i64,
+            refused: &'a (dyn Fn() -> Error + Send + Sync),
+        ) -> Upgrading<'a> {
+            crate::upgrade::Upgrader.on_connect(
+                store, remote, account, username, password, credential, now, refused,
+            )
+        }
+
+        fn forget_old_shape<'a>(
+            &'a self,
+            state: &'a Shared,
+            credentials: &'a dyn CredentialStore,
+            clock: &'a crate::clock::Shared,
+        ) -> Upgrading<'a> {
+            crate::upgrade::Upgrader.forget_old_shape(state, credentials, clock)
+        }
+
+        fn move_the_consent<'a>(
+            &'a self,
+            state: &'a Shared,
+            credentials: &'a dyn CredentialStore,
+        ) -> Upgrading<'a> {
+            crate::upgrade::Upgrader.move_the_consent(state, credentials)
+        }
+
+        fn build(&self) -> session::Build {
+            self.0
+        }
+    }
+
+    /// This machine's row in `machine_version`, read through the replica the launch holds open.
+    async fn version_recorded(app_state: &Shared) -> Option<MachineVersionRecord> {
+        let machine_id = held(app_state).await.machine_id;
+        let organization = app_state.organization.read().await;
+
+        organization
+            .as_ref()
+            .expect("the launch held no replica")
+            .machine_version(&machine_id)
+            .await
+            .expect("the row")
+    }
+
+    /// **Effort 857, criterion 4, at the launch.** The first state read of a launch that comes
+    /// back signed in records what the build this machine runs knows, as the upgrade port says
+    /// it; a launch on the same build writes nothing, and the next launch after the machine is
+    /// updated writes the newer build over its row.
+    #[tokio::test]
+    async fn a_launch_records_the_build_this_machine_runs_and_an_update_rewrites_it() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let directory = scratch("launch-versioned");
+        let older = session::Build {
+            rentable: "0.20.0",
+            workspace_known: 7,
+            format_known: 3,
+        };
+        let newer = session::Build {
+            rentable: "0.21.0",
+            workspace_known: 8,
+            format_known: 4,
+        };
+        let mut app_state = first_run(credentials.as_ref(), &directory).await;
+
+        app_state.upgrade = Arc::new(Built(older));
+
+        let state = state_of(&app_state, &credentials, &crate::clock::System::shared())
+            .await
+            .expect("the state");
+
+        assert!(state.session.is_some(), "the launch did not resume");
+
+        let first = version_recorded(&app_state)
+            .await
+            .expect("the launch recorded no version");
+
+        assert_eq!(
+            (
+                first.rentable.as_str(),
+                first.workspace_known,
+                first.format_known
+            ),
+            ("0.20.0", 7, 3)
+        );
+        drop(app_state);
+
+        // the same build launched again: the row and its moment stand.
+        let mut again = state_over(&directory).await;
+
+        again.upgrade = Arc::new(Built(older));
+        state_of(&again, &credentials, &crate::clock::System::shared())
+            .await
+            .expect("the state");
+
+        assert_eq!(version_recorded(&again).await, Some(first.clone()));
+        drop(again);
+
+        // the machine updated: its next launch writes the newer build over its row.
+        let mut updated = state_over(&directory).await;
+
+        updated.upgrade = Arc::new(Built(newer));
+        state_of(&updated, &credentials, &crate::clock::System::shared())
+            .await
+            .expect("the state");
+
+        let rewritten = version_recorded(&updated)
+            .await
+            .expect("the launch recorded no version");
+
+        assert_eq!(
+            (
+                rewritten.rentable.as_str(),
+                rewritten.workspace_known,
+                rewritten.format_known
+            ),
+            ("0.21.0", 8, 4)
+        );
+        assert_eq!(rewritten.id, first.id);
+        assert!(rewritten.written_at >= first.written_at);
     }
 }
