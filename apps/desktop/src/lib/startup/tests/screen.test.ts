@@ -523,10 +523,10 @@ test('a link arriving on the no-workspace screen takes no crossing', async () =>
 
 // --- A workspace past reading ----------------------------------------------------------------
 //
-// Ticket 11 of effort 857: the update-required screen stands inside the application, with the
+// Ticket 11 of effort 857: the workspace-held screen stands inside the application, with the
 // rail up, in place of the workspace, at every address.
 
-test('a workspace held by its version draws the update-required screen inside the application', async () => {
+test('a workspace held by its version draws the workspace-held screen inside the application', async () => {
 	const { startup } = harness({
 		organization: fakeOrganizationState({
 			session: fakeOrganizationSession({
@@ -547,6 +547,6 @@ test('a workspace held by its version draws the update-required screen inside th
 	assert.equal(shellFor(startup.snapshot), 'full');
 
 	for (const pathname of [THE_WAY_IN, '/settings', '/tenants', THE_JOIN]) {
-		assert.equal(startupScreen(startup.snapshot, pathname), 'update-required', pathname);
+		assert.equal(startupScreen(startup.snapshot, pathname), 'workspace-held', pathname);
 	}
 });

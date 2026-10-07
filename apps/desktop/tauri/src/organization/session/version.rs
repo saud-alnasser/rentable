@@ -35,7 +35,8 @@ use crate::{
     },
 };
 
-/// What a version holds: the organization, or one workspace by its id.
+/// The organization, or one workspace by its id: what a version holds, and what an upgrade
+/// brings forward (`organization::upgrade`). Crosses as `"organization"` or `{ "workspace": id }`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum VersionTarget {

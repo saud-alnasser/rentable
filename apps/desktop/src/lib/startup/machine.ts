@@ -101,7 +101,7 @@ export class StartupMachine {
 	 * - **The organization past reading** goes back to the switcher with the reason against it,
 	 *   whatever the workspace's verdict, since nothing in it can be opened.
 	 * - **The workspace open past reading**, in an organization that opens, read-only by its
-	 *   version or not (ticket 16), stands the update-required screen in its place. Only a verdict
+	 *   version or not (ticket 16), stands the workspace-held screen in its place. Only a verdict
 	 *   on the workspace open counts, and only for somebody in, since the screen is inside the
 	 *   application.
 	 *
@@ -169,7 +169,7 @@ export class StartupMachine {
 	 * Every version hold the snapshot stands in, one key each (effort 857, requirement 12):
 	 *
 	 * - **an organization refused for its version**, while its callout stands on the switcher;
-	 * - **a workspace on the update-required screen**, from the screen going up until another
+	 * - **a workspace on the workspace-held screen**, from the screen going up until another
 	 *   workspace opens in its place or the session leaves for the wall. A retry or a second
 	 *   choice of it lands on the same screen, and is the same hold;
 	 * - **read-only by version**, the organization's verdict and the open workspace's apart, for as
@@ -439,7 +439,7 @@ export class StartupMachine {
 		// **a resume the version refused is the organization refused** (effort 857, requirement 7):
 		// the shell carries it on the state rather than throwing it, and the person goes to the
 		// switcher with the reason above that organization, as for any other refusal of it. And
-		// the workspace open past reading meets the update-required screen, in an organization
+		// the workspace open past reading meets the workspace-held screen, in an organization
 		// read-only by its version too (ticket 16), by the same routing the heartbeat follows.
 		if (
 			await this.pastReading(organization?.heldByVersion ?? [], sync?.workspace.remoteId ?? null)

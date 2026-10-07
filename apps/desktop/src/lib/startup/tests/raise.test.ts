@@ -20,7 +20,7 @@ import { A_DAY, AT, harness } from './harness.ts';
  * already open, and the shell judges it before anything went out (`heldByVersion` on the
  * dispatch's answer). What this side owes is to move before anything else is written: read-only
  * below the write floor, and below the read floor the switcher for the organization or the
- * update-required screen for the workspace. The reconcile that follows a pull, and the one a day
+ * workspace-held screen for the workspace. The reconcile that follows a pull, and the one a day
  * crossing runs, write the derived columns, so neither runs while the version holds the session.
  */
 
@@ -172,7 +172,7 @@ test('a pull that raises nothing reconciles as it always has', async () => {
 
 // --- below the read floor -------------------------------------------------------------------
 
-test('a pulled read-floor raise on the open workspace stands the update-required screen in its place', async () => {
+test('a pulled read-floor raise on the open workspace stands the workspace-held screen in its place', async () => {
 	const { startup, journal, standWith } = await running();
 
 	standWith(inWithTwo([northUnreadable]));
@@ -196,7 +196,7 @@ test('a pulled read-floor raise on the open workspace stands the update-required
 	assert.equal(startup.snapshot.state, 'ready');
 });
 
-test('with the organization read-only too, a pulled read-floor raise on the workspace still stands the update-required screen', async () => {
+test('with the organization read-only too, a pulled read-floor raise on the workspace still stands the workspace-held screen', async () => {
 	const { startup, journal, standWith } = await running();
 
 	// effort 857, ticket 16: both verdicts cross, and the organization's does not hide the workspace's.

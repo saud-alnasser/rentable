@@ -12,12 +12,12 @@ use crate::{
 use crate::organization::{
     act::{Acting, Pull, as_member, owner_platform},
     lease::{PipelineLease, StoreLease, apply},
-    session::{MemberSession, Upgrades, Upgrading},
+    session::{MemberSession, Upgrades, Upgrading, VersionTarget},
     store::OrganizationStore,
     workspace::remote::Pipeline,
 };
 
-use super::{Awaiting, Changes, Preview, Primary, Running, Target};
+use super::{Awaiting, Changes, Preview, Primary, Running};
 
 /// What the upgrade of `target` would run, and whom it would stop or make read-only. Read after a
 /// pull, so the floors and the machines are the organization's as it stands.
@@ -25,14 +25,16 @@ use super::{Awaiting, Changes, Preview, Primary, Running, Target};
 pub(crate) async fn organization_upgrade_preview(
     app_state: tauri::State<'_, Shared>,
     clock: tauri::State<'_, clock::Shared>,
-    target: Target,
+    target: VersionTarget,
 ) -> Result<Preview, Error> {
     as_member(
         &app_state,
         Pull::First,
         async |Acting { member, store }| match &target {
-            Target::Organization => super::preview_organization(store, member, clock.now()).await,
-            Target::Workspace(workspace_id) => {
+            VersionTarget::Organization => {
+                super::preview_organization(store, member, clock.now()).await
+            }
+            VersionTarget::Workspace(workspace_id) => {
                 super::preview_workspace(store, member, workspace_id, &apply::SHIPPED, clock.now())
                     .await
             }
@@ -61,7 +63,7 @@ pub(crate) async fn organization_upgrade_run(
     app_state: tauri::State<'_, Shared>,
     credentials: tauri::State<'_, Credentials>,
     clock: tauri::State<'_, clock::Shared>,
-    target: Target,
+    target: VersionTarget,
 ) -> Result<(), Error> {
     let organization_id = app_state
         .member
@@ -93,7 +95,7 @@ pub(crate) async fn organization_upgrade_run(
         let now = || clock.now();
 
         match &target {
-            Target::Organization => {
+            VersionTarget::Organization => {
                 super::run_organization(
                     store,
                     member,
@@ -112,7 +114,7 @@ pub(crate) async fn organization_upgrade_run(
                 )
                 .await
             }
-            Target::Workspace(workspace_id) => {
+            VersionTarget::Workspace(workspace_id) => {
                 super::run_workspace(
                     Running {
                         store,

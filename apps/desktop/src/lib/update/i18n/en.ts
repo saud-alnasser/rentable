@@ -19,8 +19,31 @@ export const update = {
 	failed: 'the update could not be finished. try again.',
 	actions: {
 		check: 'check for updates',
+		// the check's name while it runs, which the settings card's icon control and its tooltip
+		// carry.
+		checking: 'checking for updates...',
 		download: 'download',
 		restart: 'restart to update',
 		tryAgain: 'try again'
+	},
+	// the update action's card on the settings' general tab (effort 846, *Everything in a tab is a
+	// card*): its title and line, its two rows, what its header says at its end, the chevron that
+	// opens a release's notes and the date in them, and the download at its foot.
+	card: {
+		title: 'updates',
+		description:
+			'check for a newer version and install it. if the app then fails to start, it offers the version you were on.',
+		currentVersion: 'current version',
+		availableVersion: 'available version',
+		state: {
+			checking: 'checking',
+			upToDate: 'up to date',
+			available: 'update available',
+			downloading: 'downloading',
+			restart: 'restart to finish'
+		},
+		whatsNew: "what's new in {version:string}",
+		releasedOn: 'released {date:string}',
+		downloading: 'downloading update'
 	}
 } satisfies BaseTranslation;

@@ -17,7 +17,7 @@ import { fakeRelease, noRelease, offline } from './testing';
  * ONE UPDATE ACTION, IN THREE PLACES
  *
  * Criterion 11 of [[efforts/857-updating-never-locks-a-member-out/spec]], and ticket 10: the update
- * action is drawn on the update screen (`screen`), inside the read-only notice (`notice`) and as
+ * action is drawn on the workspace-held screen (`screen`), inside the read-only notice (`notice`) and as
  * the Settings card (`card`), and each is driven here through a check, a download, an install and
  * the restart, and through no release and offline, in both languages. The screen and the notice
  * say each outcome on themselves; the card says where it stands in its header and raises the
@@ -215,7 +215,7 @@ for (const locale of LOCALES) {
 		await fireEvent.click(check());
 		await expect.poll(state).toBe('checking');
 		expect(document.querySelector('[data-updates-state]')?.textContent?.trim()).toBe(
-			t.settings.updatesState.checking()
+			t.update.card.state.checking()
 		);
 
 		shell.check.resolve(fakeRelease());

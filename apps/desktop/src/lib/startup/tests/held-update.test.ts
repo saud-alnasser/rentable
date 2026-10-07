@@ -18,7 +18,7 @@ import { harness, refusal } from './harness.ts';
  * Ticket 18 of [[efforts/857-updating-never-locks-a-member-out/spec]], requirement 12. Besides
  * the launch, the app looks for a newer release each time a version holds it, so a held person
  * sees a release without pressing anything: an organization refused for its version (the
- * switcher's callout), a workspace on the update-required screen, and read-only by version. Each
+ * switcher's callout), a workspace on the workspace-held screen, and read-only by version. Each
  * hold asks once when it begins, and staying in it asks nothing more. Driven through the harness,
  * with no window; what the look itself does is the updater's (`update/tests/updater.svelte.test.ts`).
  */
@@ -105,9 +105,9 @@ test('an organization refused for any other reason is no version hold, and looks
 	assert.equal(journal.heldLooks, 0);
 });
 
-// --- a workspace on the update-required screen ----------------------------------------------
+// --- a workspace on the workspace-held screen ----------------------------------------------
 
-test('a workspace on the update-required screen looks once, however often it is retried', async () => {
+test('a workspace on the workspace-held screen looks once, however often it is retried', async () => {
 	const { startup, journal } = harness({
 		organization: inWithTwo(),
 		openWorkspace: async (id) => {

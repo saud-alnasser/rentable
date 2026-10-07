@@ -57,13 +57,13 @@
 		onRetry: () => void;
 	} = $props();
 
-	const listName = 'update-required-others';
+	const listName = 'workspace-held-others';
 </script>
 
 <PageFrame>
 	<section
 		class="mx-auto flex w-full max-w-md flex-col items-center gap-6 py-16 text-center"
-		data-update-required={workspaceId}
+		data-workspace-held={workspaceId}
 	>
 		<span
 			class="flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary"
@@ -77,10 +77,10 @@
 		</span>
 
 		<div class="flex flex-col gap-2">
-			<h1 class="text-xl font-semibold" data-update-required-name><bdi>{name}</bdi></h1>
+			<h1 class="text-xl font-semibold" data-workspace-held-name><bdi>{name}</bdi></h1>
 			<p
 				class="text-balance text-muted-foreground first-letter:uppercase"
-				data-update-required-reason
+				data-workspace-held-reason
 			>
 				{sentence}
 			</p>
@@ -89,7 +89,7 @@
 		{#if byVersion}
 			<UpdateAction variant="screen" />
 		{:else}
-			<Button data-update-required-retry onclick={onRetry}>
+			<Button data-workspace-held-retry onclick={onRetry}>
 				<RefreshCwIcon />
 				{$LL.layout.startup.tryAgain()}
 			</Button>
@@ -106,7 +106,7 @@
 							<Button
 								variant="ghost"
 								class="w-full justify-start gap-3"
-								data-update-required-switch={workspace.id}
+								data-workspace-held-switch={workspace.id}
 								onclick={() => onSwitch(workspace.id)}
 							>
 								<span class="flex-1 truncate text-start"><bdi>{workspace.name}</bdi></span>

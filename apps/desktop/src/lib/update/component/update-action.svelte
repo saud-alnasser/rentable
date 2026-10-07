@@ -28,7 +28,7 @@
 	 *
 	 * **Three variants, for three places.**
 	 *
-	 * - `screen`: the act of the update-required screen, a sentence above one labelled button and
+	 * - `screen`: the act of the workspace-held screen, a sentence above one labelled button and
 	 *   the download's progress between them. The screen around it is ticket 11's.
 	 * - `notice`: inside the read-only notice's callout, the sentence and a small button on one line.
 	 *   The callout around it is ticket 12's.
@@ -149,9 +149,7 @@
 
 	/** the check's name, which says what it is doing while it does it. */
 	const checkLabel = $derived(
-		update.phase === 'checking'
-			? $LL.common.actions.checkingForUpdates()
-			: $LL.common.actions.checkForUpdates()
+		update.phase === 'checking' ? $LL.update.actions.checking() : $LL.update.actions.check()
 	);
 </script>
 
@@ -238,7 +236,7 @@
 				variant={cardState === 'available' || cardState === 'restart' ? 'default' : 'secondary'}
 				data-updates-state={cardState}
 			>
-				{$LL.settings.updatesState[cardState]()}
+				{$LL.update.card.state[cardState]()}
 			</Badge>
 		{/if}
 	{/snippet}
@@ -247,7 +245,7 @@
 	{#snippet whatsNew()}
 		{#if update.release}
 			<p data-release-date>
-				{$LL.settings.releasedOn({ date: formatReleaseDate(update.release.date) })}
+				{$LL.update.card.releasedOn({ date: formatReleaseDate(update.release.date) })}
 			</p>
 			{#if update.release.body}
 				<p class="whitespace-pre-wrap" dir="auto" data-release-notes>{update.release.body}</p>
@@ -259,13 +257,13 @@
 	     length, which is a real answer rather than a bar stuck at zero. -->
 	{#snippet downloading()}
 		<p class="text-xs tabular-nums" data-update-progress>
-			{$LL.settings.downloadingUpdate()}{#if update.percent !== null}
+			{$LL.update.card.downloading()}{#if update.percent !== null}
 				&nbsp;·&nbsp;{update.percent}%{/if}
 		</p>
 		<Progress
 			value={update.percent}
 			max={100}
-			aria-label={$LL.settings.downloadingUpdate()}
+			aria-label={$LL.update.card.downloading()}
 			class={update.percent === null
 				? 'animate-pulse [&>[data-slot=progress-indicator]]:w-1/3'
 				: undefined}
@@ -275,13 +273,13 @@
 	<div data-updates data-update-action="card" class="contents">
 		<SettingsGroup
 			icon={CircleFadingArrowUpIcon}
-			title={$LL.settings.updatesTitle()}
-			description={$LL.settings.updatesDescription()}
+			title={$LL.update.card.title()}
+			description={$LL.update.card.description()}
 			value={cardState ? stateBadge : undefined}
 			footer={update.phase === 'downloading' ? downloading : undefined}
 		>
 			{#snippet rows()}
-				<SettingsRow icon={PackageIcon} name={$LL.common.labels.currentVersion()}>
+				<SettingsRow icon={PackageIcon} name={$LL.update.card.currentVersion()}>
 					{#snippet value()}
 						{@render figure(version)}
 					{/snippet}
@@ -289,10 +287,10 @@
 
 				<SettingsRow
 					icon={PackagePlusIcon}
-					name={$LL.common.labels.availableVersion()}
+					name={$LL.update.card.availableVersion()}
 					details={update.release ? whatsNew : undefined}
 					detailsLabel={update.release
-						? $LL.settings.whatsNew({ version: update.release.version })
+						? $LL.update.card.whatsNew({ version: update.release.version })
 						: undefined}
 					detailsKey="settings.updates.whats-new"
 					value={update.release ? availableFigure : undefined}

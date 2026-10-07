@@ -130,7 +130,7 @@ test('a writable session, one past reading, and nobody signed in read nothing', 
 
 	expect(drawn(), 'writable').toBeNull();
 
-	// past reading is the update-required screen's or the switcher's to say, not this notice's.
+	// past reading is the workspace-held screen's or the switcher's to say, not this notice's.
 	reads.heldByVersion = [{ ...workspaceReadOnly, standing: 'unreadable' }];
 	flushSync();
 

@@ -41,7 +41,7 @@
 	import StartupSignIn from './sign-in.svelte';
 	import StartupSwitching from './switching.svelte';
 	import StartupUnreadable from './unreadable.svelte';
-	import StartupUpdateRequired from './update-required.svelte';
+	import StartupWorkspaceHeld from './workspace-held.svelte';
 
 	/** what the window is handed to draw a running application's state in. */
 	type WindowProps = {
@@ -357,11 +357,11 @@
 			onSetUpOrganization={() => void walkTo(THE_FIRST_RUN)}
 			onJoinByLink={() => void walkTo(THE_JOIN)}
 		/>
-	{:else if screen === 'update-required' && shellState.held}
+	{:else if screen === 'workspace-held' && shellState.held}
 		<!-- a workspace that would not open, this build unable to read it or refused for a reason
 		     of its own, in place of the workspace, with the session's others to switch to (effort
 		     857, requirement 7, and ticket 25). -->
-		<StartupUpdateRequired
+		<StartupWorkspaceHeld
 			workspaceId={shellState.held.workspaceId}
 			name={shellState.held.name}
 			sentence={shellState.held.sentence}
@@ -402,7 +402,7 @@
 		currentDirection,
 		shell,
 		onSwitchWorkspace: switchWorkspace,
-		// nothing beside the frame reaches a workspace the update-required screen stands in for.
+		// nothing beside the frame reaches a workspace the workspace-held screen stands in for.
 		dialogs:
 			shellState.railIsUp &&
 			Boolean(shellState.organization?.session) &&

@@ -156,7 +156,7 @@ answer, each with the organization or the workspace it holds: **the organization
 workspace's apart, the organization's first**, or the wall's refusal alone while no store is open,
 and an empty list where this build may write everything open. Neither hides the other: a workspace
 read-only by its version folds its writes away (`api/context.ts`, `permissionsIn`) and one past
-reading meets the update screen, whatever the organization's standing, by the one routing the ways
+reading meets the workspace-held screen, whatever the organization's standing, by the one routing the ways
 in and the heartbeat follow (`startup/machine.ts`, `pastReading`; ticket 16). Below the write floor the organization is read-only:
 every act through `as_member` that writes is refused as `OrganizationReadOnlyByVersion`, the replica
 held with `PRAGMA query_only` for the act, and the shell draws the read-only notice above every
@@ -174,7 +174,7 @@ accept's write), the screen lands on its `outdated` step, the reason in a callou
 action beside it (`organization/setup/connect.ts`, `joinFailed`), and the corner's way back hands
 the form back with the link and the code and leads on to the switcher; any other reason is said
 alone (ticket 17). A workspace below its read floor, in an
-organization that opens, meets the update screen instead ([[contexts/desktop/persistence]]).
+organization that opens, meets the workspace-held screen instead ([[contexts/desktop/persistence]]).
 *Effort 857, requirements 6 to 9, requirement 7 as amended at /implement.*
 
 **Flag**:

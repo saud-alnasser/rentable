@@ -34,7 +34,7 @@ import { tauri } from './tauri';
  * here to close; what is kept is what the shell said of the release, and how far it has got.
  *
  * **A press either says its outcome as a toast or leaves it to the surface.** The Settings card
- * has its header's state and announces what a press produced (`voice: 'toast'`); the update screen
+ * has its header's state and announces what a press produced (`voice: 'toast'`); the workspace-held screen
  * and the read-only notice say it on themselves (`voice: 'inline'`), so nothing is raised over
  * them. The launch says nothing until there is something to take: a release ready to install.
  */
@@ -241,7 +241,7 @@ class Updater {
 
 	/**
 	 * Look again, the way the launch does, because a version holds this run: an organization
-	 * refused for its version, a workspace on the update-required screen, or read-only by version
+	 * refused for its version, a workspace on the workspace-held screen, or read-only by version
 	 * (effort 857, requirement 12, ticket 18). Startup asks once as each hold begins
 	 * (`startup/machine.ts`), so a held person sees a release that came out after the launch
 	 * without pressing anything.

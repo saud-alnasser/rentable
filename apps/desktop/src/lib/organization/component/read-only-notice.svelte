@@ -21,7 +21,7 @@
 	 * organization's), the one an act refused for the version reads as, so the notice and the act
 	 * say the same thing. It is read off the state every heartbeat reads again, so it appears within
 	 * one heartbeat of a pull bringing the raise, and goes once this build may write again. Past
-	 * reading is not said here: the update-required screen or the switcher stands instead.
+	 * reading is not said here: the workspace-held screen or the switcher stands instead.
 	 */
 	const stateQuery = useFetchOrganizationState();
 

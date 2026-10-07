@@ -2,4 +2,4 @@
 '@rentable/desktop': minor
 ---
 
-look for a newer version at launch by itself, download it in the background, and offer to restart into it; an update not restarted into installs when you quit
+rentable now looks for a newer version by itself when it starts, downloads it in the background, and offers to restart into it; an update you do not restart into installs when you quit

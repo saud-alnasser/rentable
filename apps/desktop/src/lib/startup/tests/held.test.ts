@@ -19,7 +19,7 @@ import { harness, refusal } from './harness.ts';
  * organization refused at launch, at sign-in, on switching or on joining is recorded against that
  * organization and the person is put back at the organization switcher, never on the generic
  * failure and never on a wall they cannot leave; a workspace below its read floor is held on the
- * update-required screen with the session's other workspaces to switch to; and a retry never
+ * workspace-held screen with the session's other workspaces to switch to; and a retry never
  * reopens what the version refused. Driven through the harness, with no window.
  */
 
@@ -198,7 +198,7 @@ test('an organization refused after the sign-in, while the workspace opens, sign
 
 // --- a workspace below its read floor ---------------------------------------------------------
 
-test('a launch whose workspace a newer rentable upgraded stands on the update-required screen', async () => {
+test('a launch whose workspace a newer rentable upgraded stands on the workspace-held screen', async () => {
 	const { startup, journal } = harness({
 		organization: inWithTwo(),
 		openWorkspace: async (id) => {
@@ -229,8 +229,8 @@ test('a launch whose workspace a newer rentable upgraded stands on the update-re
 });
 
 // effort 857, ticket 16: the organization's verdict and the workspace's both cross, and a
-// workspace past reading in an organization read-only too still meets the update-required screen.
-test('a launch whose organization is read-only and whose workspace is past reading stands on the update-required screen', async () => {
+// workspace past reading in an organization read-only too still meets the workspace-held screen.
+test('a launch whose organization is read-only and whose workspace is past reading stands on the workspace-held screen', async () => {
 	const { startup, journal } = harness({
 		organization: inWithTwo([acmeReadOnly]),
 		openWorkspace: async (id) => {
@@ -308,7 +308,7 @@ test('switching to a workspace past reading holds it, and a retry does not open 
 	assert.equal(startup.snapshot.state, 'held');
 	assert.deepEqual(journal.workspacesOpened, ['north', 'south']);
 
-	// nor does a retry from the top, which lands back on the update screen.
+	// nor does a retry from the top, which lands back on the workspace-held screen.
 	await startup.retry();
 	assert.equal(startup.snapshot.state, 'held');
 	assert.equal(startup.snapshot.held?.workspaceId, 'south');

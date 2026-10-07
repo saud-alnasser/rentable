@@ -81,15 +81,6 @@ use super::{
 /// workspaces' ids: one upgrade of the organization at a time, as one of each workspace.
 pub const ORGANIZATION_LEASE: &str = "organization";
 
-/// What is upgraded: the organization, or one workspace by its id. Crosses as `"organization"` or
-/// `{ "workspace": id }`.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum Target {
-    Organization,
-    Workspace(String),
-}
-
 /// One step the upgrade would run, by the key of the sentence that says what it adds or changes,
 /// under `organization.upgrade.steps` in both locales.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1002,6 +993,26 @@ mod tests {
             platform::{AccessLevel, InMemoryPlatform},
         },
     };
+
+    /// The target an upgrade is asked for arrives in the shape a hold crosses in, since the two
+    /// are one type (ticket 29): `"organization"`, or `{ "workspace": id }`.
+    #[test]
+    fn a_target_arrives_as_a_hold_names_it() {
+        use crate::organization::session::VersionTarget;
+
+        assert_eq!(
+            serde_json::from_value::<VersionTarget>(json!("organization")).expect("read"),
+            VersionTarget::Organization
+        );
+        assert_eq!(
+            serde_json::from_value::<VersionTarget>(json!({ "workspace": "w-1" })).expect("read"),
+            VersionTarget::Workspace("w-1".to_string())
+        );
+        assert_eq!(
+            serde_json::to_value(VersionTarget::Workspace("w-1".to_string())).expect("written"),
+            json!({ "workspace": "w-1" })
+        );
+    }
 
     const PASSWORD: &str = "the owners password";
     const AT: i64 = 1_757_000_000_000;

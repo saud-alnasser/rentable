@@ -120,17 +120,57 @@ pub struct Fetched {
 
 /// What a check answered, with "none published" read as no release.
 ///
-/// The plugin says [`tauri_plugin_updater::Error::ReleaseNotFound`] when no endpoint served a
-/// manifest it could read, which is what the release address answers before any release carries
-/// one; that is no release rather than a failure.
-pub fn outcome<T>(
+/// **Only a missing manifest, or one naming no newer version, is no release.** The plugin says
+/// [`tauri_plugin_updater::Error::ReleaseNotFound`] where no endpoint answered with a success, and
+/// keeps the status to its log, so a server error and the 404 the release address answers before
+/// any release carries a manifest arrive as the same error. Where it says so, each address in
+/// `endpoints` is asked again ([`missing`]): a 404 is no release, and anything else is a failure,
+/// since reading a server that is down as no release would tell a person held by a floor that
+/// they are up to date while a newer release is out (ticket 29 of effort 857).
+pub async fn outcome<T>(
     result: Result<Option<T>, tauri_plugin_updater::Error>,
+    endpoints: &[String],
 ) -> Result<Option<T>, Error> {
     match result {
         Ok(found) => Ok(found),
-        Err(tauri_plugin_updater::Error::ReleaseNotFound) => Ok(None),
+        Err(tauri_plugin_updater::Error::ReleaseNotFound) => {
+            missing(endpoints).await.map(|()| None)
+        }
         Err(error) => Err(failure(error)),
     }
+}
+
+/// Whether every release address says it has no manifest: `Ok` where each answered 404, offline
+/// where one could not be reached, and a failure naming the status where one answered anything
+/// else. No address at all is a failure too, since nothing said there was no release.
+async fn missing(endpoints: &[String]) -> Result<(), Error> {
+    if endpoints.is_empty() {
+        return Err(Error::Internal {
+            message: "no release address is configured to look for updates at".to_string(),
+        });
+    }
+
+    let client = crate::http::build_client(std::time::Duration::from_secs(30))?;
+
+    for endpoint in endpoints {
+        let response = client
+            .get(endpoint)
+            .header(reqwest::header::ACCEPT, "application/json")
+            .send()
+            .await
+            .map_err(|error| Error::Network {
+                message: format!("the release address could not be reached: {error}"),
+            })?;
+        let status = response.status();
+
+        if status != reqwest::StatusCode::NOT_FOUND {
+            return Err(Error::Internal {
+                message: format!("the release address answered {status} rather than a release"),
+            });
+        }
+    }
+
+    Ok(())
 }
 
 /// An updater error in the crate's shape: offline as [`Error::Network`], a release that fails
@@ -252,6 +292,7 @@ mod tests {
     use crate::error::Error;
     use crate::persisted::Persisted;
     use crate::settings::Settings;
+    use crate::sync::test::server::{ScriptedResponse, ScriptedServer};
     use crate::test::scratch;
     use crate::update::{RecoveryStatus, Update};
     use std::path::{Path, PathBuf};
@@ -503,15 +544,60 @@ mod tests {
         });
     }
 
-    /// **No release published is no release, not a failure** (effort 857, requirement 11).
+    /// **No release published is no release, not a failure** (effort 857, requirement 11): the
+    /// release address answering that it has no manifest.
     #[test]
-    fn no_manifest_and_no_newer_version_both_read_as_no_release() {
-        assert_eq!(super::outcome::<()>(Ok(None)), Ok(None));
-        assert_eq!(
-            super::outcome::<()>(Err(tauri_plugin_updater::Error::ReleaseNotFound)),
-            Ok(None)
-        );
-        assert_eq!(super::outcome(Ok(Some(()))), Ok(Some(())));
+    fn a_missing_manifest_reads_as_no_release() {
+        Runtime::new().expect("runtime").block_on(async {
+            let server = ScriptedServer::start(vec![ScriptedResponse::new(404, "Not Found")]).await;
+
+            let checked = super::outcome::<()>(
+                Err(tauri_plugin_updater::Error::ReleaseNotFound),
+                &[server.url("/latest.json")],
+            )
+            .await;
+
+            assert_eq!(checked, Ok(None));
+            assert_eq!(server.request_count(), 1);
+        });
+    }
+
+    /// a manifest naming no newer version is no release, and one naming a newer one is found;
+    /// neither asks the release address again.
+    #[test]
+    fn no_newer_version_reads_as_no_release() {
+        Runtime::new().expect("runtime").block_on(async {
+            let server = ScriptedServer::start(Vec::new()).await;
+            let address = [server.url("/latest.json")];
+
+            assert_eq!(super::outcome::<()>(Ok(None), &address).await, Ok(None));
+            assert_eq!(super::outcome(Ok(Some(())), &address).await, Ok(Some(())));
+            assert_eq!(server.request_count(), 0);
+        });
+    }
+
+    /// **A release address that answers with an error is a failure, never no release** (ticket 29
+    /// of effort 857). The plugin reads any status but a success as no manifest, and keeps the
+    /// status to its log, so a server down would tell a person held by a floor that they are up to
+    /// date while a newer release is out.
+    #[test]
+    fn a_release_address_answering_with_an_error_reads_as_a_failure() {
+        Runtime::new().expect("runtime").block_on(async {
+            let server =
+                ScriptedServer::start(vec![ScriptedResponse::new(503, "Service Unavailable")])
+                    .await;
+
+            let checked = super::outcome::<()>(
+                Err(tauri_plugin_updater::Error::ReleaseNotFound),
+                &[server.url("/latest.json")],
+            )
+            .await;
+
+            assert!(
+                matches!(checked, Err(Error::Internal { .. })),
+                "a server error read as {checked:?}"
+            );
+        });
     }
 
     /// **Offline reads as the network, apart from every other failure** (effort 857,

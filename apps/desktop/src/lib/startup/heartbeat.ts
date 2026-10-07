@@ -60,7 +60,7 @@ function standingOf(organization: OrganizationState | null): string | null {
  * **A pull that brought a newer rentable's upgrade moves the application first** (effort 857,
  * requirement 9), before anything else is written, the reconcile after the pull included. Below a
  * read floor the person goes where ticket 11's routing puts a way in the version refused: the
- * switcher with the reason against the organization, or the update-required screen in place of
+ * switcher with the reason against the organization, or the workspace-held screen in place of
  * the workspace. Below a write floor the application stays and reads: the verdict is folded into
  * what the session holds, the held API context is dropped so every create, edit and delete is
  * refused for the version, and the rows the pull brought are announced without the reconcile,

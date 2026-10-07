@@ -107,7 +107,6 @@ const ar = {
 		history: history.common.history,
 
 		labels: {
-			...settings.common.labels,
 			action: 'إجراء',
 			activeContracts: 'العقود السارية',
 			appVersion: 'إصدار التطبيق',

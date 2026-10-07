@@ -109,7 +109,7 @@ A screen that is neither a step of the way in nor the application failing takes 
 this section is where the question of a third is answered.
 
 - **A workspace this version cannot read stands inside the application, in place of the
-  workspace**: the update-required screen, `startup/component/update-required.svelte`, in the page
+  workspace**: the workspace-held screen, `startup/component/workspace-held.svelte`, in the page
   frame where the workspace's page would be, with the rail and the titlebar up around it at every
   address. The organization opened and only that workspace did not, so it is neither a step of
   the way in nor the application failing, and it takes neither surface: the workspace's name under

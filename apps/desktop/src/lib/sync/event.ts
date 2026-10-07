@@ -43,7 +43,7 @@ export type WorkspaceSyncEventResult = {
 	 * organization's verdict and the open workspace's apart, or empty where nothing does or the
 	 * dispatch threw (effort 857, requirement 9, ticket 16). Carried as it was
 	 * judged rather than said as text, since what follows is a move: read-only, the switcher or the
-	 * update-required screen, before anything else is written.
+	 * workspace-held screen, before anything else is written.
 	 */
 	heldByVersion: HeldByVersion[];
 	/**

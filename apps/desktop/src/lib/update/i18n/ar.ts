@@ -17,8 +17,26 @@ export const update = {
 	failed: 'تعذر إكمال التحديث. حاول مجددًا.',
 	actions: {
 		check: 'التحقق من التحديثات',
+		checking: 'جاري التحقق من التحديثات...',
 		download: 'تنزيل',
 		restart: 'أعد التشغيل للتحديث',
 		tryAgain: 'حاول مجددًا'
+	},
+	card: {
+		title: 'التحديثات',
+		description:
+			'تحقق من وجود إصدار أحدث وثبّته. وإذا تعذر تشغيل التطبيق بعده، فسيعرض إعادة الإصدار السابق.',
+		currentVersion: 'الإصدار الحالي',
+		availableVersion: 'الإصدار المتاح',
+		state: {
+			checking: 'جارٍ التحقق',
+			upToDate: 'محدّث',
+			available: 'يتوفر تحديث',
+			downloading: 'جارٍ التنزيل',
+			restart: 'أعد التشغيل لإكماله'
+		},
+		whatsNew: 'ما الجديد في {version}',
+		releasedOn: 'صدر في {date}',
+		downloading: 'جاري تنزيل التحديث'
 	}
 } satisfies Translation['update'];

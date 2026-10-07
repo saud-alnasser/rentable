@@ -25,7 +25,7 @@ export const layout = {
 		stagePrepare: 'creating your first workspace',
 		stageSettings: 'reading your settings',
 		stageWorkspace: 'opening your workspace',
-		// the update-required screen's way to the session's other workspaces (effort 857).
+		// the workspace-held screen's way to the session's other workspaces (effort 857).
 		otherWorkspaces: 'open another workspace',
 		// the held screen's way to open the workspace again, where the version did not refuse it.
 		tryAgain: 'try again',

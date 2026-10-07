@@ -1,5 +1,5 @@
 // The settings feature's strings in arabic, composed back into `i18n/ar/index.ts` at `settings`,
-// `settingsHooks`, `common.actions` and `common.labels`. It imports nothing but types, because the
+// `settingsHooks` and `common.actions`. It imports nothing but types, because the
 // typesafe-i18n generator transpiles it along with the locale. Each object satisfies its own slice
 // of the generated types, so a key missing, left over or without its placeholder fails here.
 
@@ -11,8 +11,6 @@ export const settings = {
 	diagnosticsFolder: 'مجلد السجل',
 	diagnosticsReveal: 'فتح مجلد السجل',
 	diagnosticsTitle: 'التشخيص',
-
-	downloadingUpdate: 'جاري تنزيل التحديث',
 
 	loadErrorTitle: 'الإعدادات غير متاحة حالياً',
 
@@ -43,19 +41,6 @@ export const settings = {
 	},
 
 	title: 'الإعدادات',
-
-	updatesState: {
-		checking: 'جارٍ التحقق',
-		upToDate: 'محدّث',
-		available: 'يتوفر تحديث',
-		downloading: 'جارٍ التنزيل',
-		restart: 'أعد التشغيل لإكماله'
-	},
-	whatsNew: 'ما الجديد في {version}',
-	releasedOn: 'صدر في {date}',
-	updatesDescription:
-		'تحقق من وجود إصدار أحدث وثبّته. وإذا تعذر تشغيل التطبيق بعده، فسيعرض إعادة الإصدار السابق.',
-	updatesTitle: 'التحديثات',
 
 	// الأداة الهادئة الوحيدة أسفل كل خطوة من خطوات الدخول (الجهد 843، المتطلب 7).
 	wayIn: {
@@ -115,28 +100,12 @@ export const settingsHooks = {
 	workspaceUpToDate: 'كل شيء محدّث.'
 } satisfies Translation['settingsHooks'];
 
-// the update's controls and the labels of its block, which the settings' general tab draws
-// (`component/updates.svelte`), and the retry of a settings read that failed, composed back at
-// `common.actions` and `common.labels`.
+// the retry of a settings read that failed, composed back at `common.actions`. The update's words
+// are the update feature's (`update/i18n/ar.ts`) since ticket 29 of effort 857.
 export const common = {
 	actions: {
-		checkForUpdates: 'التحقق من التحديثات',
-		checkingForUpdates: 'جاري التحقق من التحديثات...',
 		retry: 'إعادة المحاولة'
-	},
-	labels: {
-		releaseNotes: 'ملاحظات الإصدار',
-		availableVersion: 'الإصدار المتاح',
-		currentVersion: 'الإصدار الحالي',
-		releaseDate: 'تاريخ الإصدار'
 	}
 } satisfies {
-	actions: Pick<
-		Translation['common']['actions'],
-		'checkForUpdates' | 'checkingForUpdates' | 'retry'
-	>;
-	labels: Pick<
-		Translation['common']['labels'],
-		'releaseNotes' | 'availableVersion' | 'currentVersion' | 'releaseDate'
-	>;
+	actions: Pick<Translation['common']['actions'], 'retry'>;
 };

@@ -55,7 +55,7 @@ export async function switchWorkspace(
 	}
 
 	// **a workspace this run found past reading is not opened again** (effort 857, requirement 8):
-	// its update-required screen comes back, with the others still offered from it, rather than a
+	// its workspace-held screen comes back, with the others still offered from it, rather than a
 	// loading page ending on the same refusal. One held for any other reason is opened again,
 	// since the person chose it and what refused it can pass (ticket 25).
 	const known = machine.heldWorkspace(workspaceId);

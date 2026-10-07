@@ -27,7 +27,7 @@ export type StartupScreen =
 	| 'switching'
 	| 'sign-in'
 	| 'no-workspace'
-	| 'update-required'
+	| 'workspace-held'
 	| 'recovery'
 	| 'error'
 	| 'route';
@@ -264,7 +264,7 @@ export function startupScreen(snapshot: StartupSnapshot, pathname: string): Star
 			return 'error';
 		// over every address: the workspace every address would draw from is the one held.
 		case 'held':
-			return 'update-required';
+			return 'workspace-held';
 		case 'ready':
 			return 'route';
 	}

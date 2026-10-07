@@ -86,7 +86,7 @@ for (const reduced of [false, true]) {
 
 		// pending: busy for whoever listens, and turning for whoever looks, unless they asked not.
 		await expect.poll(() => check().getAttribute('aria-busy')).toBe('true');
-		expect(check().getAttribute('aria-label')).toBe(en.common.actions.checkingForUpdates);
+		expect(check().getAttribute('aria-label')).toBe(en.update.actions.checking);
 		expect(turning()).toBe(!reduced);
 		if (!reduced) {
 			// the media query holds it still too, should the reader ask while it turns.
@@ -100,7 +100,7 @@ for (const reduced of [false, true]) {
 		// answered: no longer busy, and the glyph at rest.
 		await expect.poll(() => check().getAttribute('aria-busy')).not.toBe('true');
 		expect(turning()).toBe(false);
-		expect(check().getAttribute('aria-label')).toBe(en.common.actions.checkForUpdates);
+		expect(check().getAttribute('aria-label')).toBe(en.update.actions.check);
 	});
 }
 

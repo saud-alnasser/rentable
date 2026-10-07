@@ -108,7 +108,6 @@ const en = {
 		history: history.common.history,
 
 		labels: {
-			...settings.common.labels,
 			action: 'action',
 			activeContracts: 'active contracts',
 			appVersion: 'app version',

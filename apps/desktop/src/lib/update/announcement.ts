@@ -17,7 +17,7 @@ import {
  * nothing can drive. *This was `settings/update-announcement.ts` until effort 857 (ticket 10)
  * moved it beside the updater, so startup can reach it without reaching into settings.*
  *
- * **Two voices.** Where the update action stands on its own, on the update screen and inside the
+ * **Two voices.** Where the update action stands on its own, on the workspace-held screen and inside the
  * read-only notice, it says where the update stands on itself (`describeUpdate`), since the person
  * reading it is held and looking at it. The Settings card says it in its header's state instead,
  * and announces what a press produced as a toast rather than depositing it (requirement 2 of

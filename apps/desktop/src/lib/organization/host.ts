@@ -309,7 +309,7 @@ export type VersionStanding = 'readOnly' | 'unreadable';
  * its own words (effort 857).
  */
 export type HeldByVersion = {
-	target: 'organization' | { workspace: string };
+	target: UpgradeTarget;
 	standing: VersionStanding;
 	reason: string;
 };

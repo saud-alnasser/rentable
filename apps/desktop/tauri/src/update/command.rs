@@ -22,7 +22,7 @@ use super::release::{
 #[tauri::command(rename = "check")]
 pub async fn update_check(app: AppHandle, releases: State<'_, Held>) -> Result<Checked, Error> {
     let updater = app.updater().map_err(failure)?;
-    let found = release::outcome(updater.check().await)?;
+    let found = release::outcome(updater.check().await, &endpoints(&app)).await?;
     let mut releases = releases.lock().await;
 
     Ok(match found {
@@ -38,6 +38,26 @@ pub async fn update_check(app: AppHandle, releases: State<'_, Held>) -> Result<C
             Checked::NoRelease
         }
     })
+}
+
+/// The release addresses the updater plugin is configured with, `plugins.updater.endpoints`, which
+/// a check that found no manifest asks again for the status the plugin kept to its log
+/// ([`release::outcome`]). None where the configuration names none.
+fn endpoints(app: &AppHandle) -> Vec<String> {
+    app.config()
+        .plugins
+        .0
+        .get("updater")
+        .and_then(|updater| updater.get("endpoints"))
+        .and_then(serde_json::Value::as_array)
+        .map(|endpoints| {
+            endpoints
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// Invoked as `plugin:update|download`.

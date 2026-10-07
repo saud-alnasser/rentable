@@ -25,7 +25,7 @@
 	 * the shell said, for whoever the reader asks about it. A person who has tried starting again
 	 * and is still here is the one who opens it. A refusal never reaches this screen: an
 	 * organization that would not open goes back to the switcher, and a workspace past reading to
-	 * its update-required screen, so a retry from here never meets the same refusal again.
+	 * its workspace-held screen, so a retry from here never meets the same refusal again.
 	 *
 	 * **This screen, the one a startup draws when it failed before a locale, and update recovery
 	 * are the three that declare a tone**, and the recovery does not declare what the other two do.

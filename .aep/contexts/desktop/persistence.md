@@ -153,8 +153,8 @@ router test can pass over a conversion that is broken in the running application
   and again from its own record once its replica has pulled (`organization/workspace/open.rs`,
   `session::workspace_judged`), and every heartbeat judges it again, after the organization's pull
   and before anything of the workspace is pushed (`session_replicate`). The verdict is kept on `Database` (`hold`, `standing`). Below the read floor the
-  workspace is not opened: the update screen stands in its place, inside the application
-  (`startup/component/update-required.svelte`), saying a newer rentable upgraded it, carrying the
+  workspace is not opened: the workspace-held screen stands in its place, inside the application
+  (`startup/component/workspace-held.svelte`), saying a newer rentable upgraded it, carrying the
   update action, and listing the session's other workspaces to switch to. *Effort 857,
   requirements 7 to 9.*
 - **Read-only is enforced where writes cross into the engine, not in the interface.** While the

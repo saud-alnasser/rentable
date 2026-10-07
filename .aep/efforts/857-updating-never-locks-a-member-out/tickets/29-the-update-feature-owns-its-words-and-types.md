@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [25, 27]
 ---
 
@@ -15,11 +15,11 @@ Found at review round one (standards 1, 3, 4, 5, 7, 8, 10; correctness 9): the u
 
 Traces requirement 6, requirement 11, criterion 11 and criterion 12.
 
-- [ ] The strings `update-action.svelte` draws from `settings` move to `update/i18n/{en,ar}.ts`, with nothing left unused in `settings`, and the update action uses one check label rather than both `update.actions.check` and `common.actions.checkForUpdates`.
-- [ ] TypeScript has one target type (`HeldByVersion.target` reuses `UpgradeTarget`), and Rust one (`VersionTarget` and the upgrade's `Target` become one serde enum).
-- [ ] [[rules/module-layout]] gains a departures row for `organization/upgrade/sheet.svelte.ts`, lists `organization/session/unsent.rs` among the test homes that construct the upgrader, names `upgrade/` among the organization's sub-concepts, and no longer says TypeScript has no upgrade concept.
-- [ ] A changeset in a user's words covers the read-only refusals of ticket 05, and `.changeset/updates-arrive-by-themselves.md` is a full sentence addressed to the user like the others.
-- [ ] A check that the server answers with an error is reported as a failure, not as no release; only a missing manifest or no newer version reads as no release; a test per case.
+- [x] The strings `update-action.svelte` draws from `settings` move to `update/i18n/{en,ar}.ts`, with nothing left unused in `settings`, and the update action uses one check label rather than both `update.actions.check` and `common.actions.checkForUpdates`.
+- [x] TypeScript has one target type (`HeldByVersion.target` reuses `UpgradeTarget`), and Rust one (`VersionTarget` and the upgrade's `Target` become one serde enum).
+- [x] [[rules/module-layout]] gains a departures row for `organization/upgrade/sheet.svelte.ts`, lists `organization/session/unsent.rs` among the test homes that construct the upgrader, names `upgrade/` among the organization's sub-concepts, and no longer says TypeScript has no upgrade concept.
+- [x] A changeset in a user's words covers the read-only refusals of ticket 05, and `.changeset/updates-arrive-by-themselves.md` is a full sentence addressed to the user like the others.
+- [x] A check that the server answers with an error is reported as a failure, not as no release; only a missing manifest or no newer version reads as no release; a test per case.
 
 ## Relevant areas
 

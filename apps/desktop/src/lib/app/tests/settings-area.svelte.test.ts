@@ -318,7 +318,7 @@ test('with nobody signed in, the one section that needs no session', () => {
 
 	expect(tabNames()).toEqual([en.settings.section.general]);
 	expect(screen.getByText(en.settings.localeTitle)).toBeDefined();
-	expect(screen.getByText(en.settings.updatesTitle)).toBeDefined();
+	expect(screen.getByText(en.update.card.title)).toBeDefined();
 	expect(screen.getByText(en.settings.diagnosticsTitle)).toBeDefined();
 });
 
@@ -361,13 +361,13 @@ test('the general section is three groups of rows: preferences, then updates, th
 	expect(generalRows().map(rowName)).toEqual([
 		en.settings.localeTitle,
 		en.settings.appearanceTitle,
-		en.common.labels.currentVersion,
-		en.common.labels.availableVersion,
+		en.update.card.currentVersion,
+		en.update.card.availableVersion,
 		en.settings.diagnosticsFolder
 	]);
 
-	expect(screen.getByText(en.settings.updatesTitle)).toBeDefined();
-	expect(screen.getByText(en.settings.updatesDescription)).toBeDefined();
+	expect(screen.getByText(en.update.card.title)).toBeDefined();
+	expect(screen.getByText(en.update.card.description)).toBeDefined();
 	expect(screen.getByText(en.settings.diagnosticsTitle)).toBeDefined();
 	expect(screen.getByText(en.settings.diagnosticsDescription)).toBeDefined();
 	expect(screen.queryByText(en.dashboard.endingSoon.title)).toBeNull();
@@ -412,7 +412,7 @@ test('within each group in general, every button carries an svg or none does', (
 
 	// updates' check and diagnostics' reveal are icon controls, each its glyph alone.
 	expect(withGlyph.slice(1)).toEqual([[true], [true]]);
-	expect(screen.getByRole('button', { name: en.common.actions.checkForUpdates })).toBeDefined();
+	expect(screen.getByRole('button', { name: en.update.actions.check })).toBeDefined();
 	expect(screen.getByRole('button', { name: en.settings.diagnosticsReveal })).toBeDefined();
 });
 
@@ -1753,14 +1753,14 @@ test('the three rows the rule names fold their detail, and no other row does', a
 	at('?section=general');
 	const general = area({ section: 'general' });
 
-	await fireEvent.click(screen.getByRole('button', { name: en.common.actions.checkForUpdates }));
+	await fireEvent.click(screen.getByRole('button', { name: en.update.actions.check }));
 	await expect.poll(() => foldingRows()).toHaveLength(1);
 
 	const fromGeneral = foldingRows();
 
 	// the header says where the installation stands, in words.
 	expect(document.querySelector('[data-updates-state]')?.textContent?.trim()).toBe(
-		en.settings.updatesState.available
+		en.update.card.state.available
 	);
 	general.unmount();
 
@@ -1802,7 +1802,7 @@ test('the three rows the rule names fold their detail, and no other row does', a
 	const fromWorkspaces = foldingRows();
 
 	expect([...fromGeneral, ...fromAccount, ...fromOrganization, ...fromWorkspaces]).toEqual([
-		en.common.labels.availableVersion,
+		en.update.card.availableVersion,
 		en.organization.standing.state.upToDate,
 		en.organization.dashboard.authorityTitle
 	]);
@@ -1998,20 +1998,18 @@ test('updates checks by an icon named for it, and shows no available version unt
 
 	// the row is drawn again once it has a release's notes to fold, so it is found afresh.
 	const availableRow = () =>
-		generalRows().find((row) => rowName(row) === en.common.labels.availableVersion)!;
+		generalRows().find((row) => rowName(row) === en.update.card.availableVersion)!;
 	const available = availableRow();
 
 	expect(available.querySelector('[data-row-value]')).toBeNull();
 	expect(available.textContent).not.toContain(en.common.messages.unknown);
 
-	const check = within(available).getByRole('button', { name: en.common.actions.checkForUpdates });
+	const check = within(available).getByRole('button', { name: en.update.actions.check });
 
 	expect(check.hasAttribute('data-check-for-updates')).toBe(true);
 	expect(check.querySelector('svg')).not.toBeNull();
 	expect(check.textContent?.trim()).toBe('');
-	expect(await hintOf(check, 'data-check-for-updates-hint')).toBe(
-		en.common.actions.checkForUpdates
-	);
+	expect(await hintOf(check, 'data-check-for-updates-hint')).toBe(en.update.actions.check);
 
 	await fireEvent.click(check);
 	await expect

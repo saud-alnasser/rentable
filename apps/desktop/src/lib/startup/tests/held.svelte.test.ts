@@ -18,7 +18,7 @@ import {
 import { fakeSettings } from '$lib/settings/tests/testing';
 import StartupError from '$lib/startup/component/error.svelte';
 import StartupSignIn from '$lib/startup/component/sign-in.svelte';
-import StartupUpdateRequired from '$lib/startup/component/update-required.svelte';
+import StartupWorkspaceHeld from '$lib/startup/component/workspace-held.svelte';
 import type { Startup } from '$lib/startup';
 import { resetUpdater } from '$lib/update/updater.svelte';
 import { fakeUpdateHost } from '$lib/update/tests/testing';
@@ -33,7 +33,7 @@ import { fakeRecovery, harness, refusal } from './harness';
  * (launch, resume, sign-in, switching workspace, joining) is driven through the real startup unit
  * with the shell's refusal in the reader's language, and the screen the unit then names is drawn
  * from what it wrote, in Arabic and in English: the organization's callout above it at the
- * switcher, with the update action where the version is the reason, and the update-required screen
+ * switcher, with the update action where the version is the reason, and the workspace-held screen
  * in place of a workspace past reading. From each, switching to another organization or another
  * workspace is pressed and works.
  */
@@ -129,12 +129,12 @@ function drawTheWall(startup: Startup, locale: Locales) {
 	);
 }
 
-/** the update-required screen, drawn from what the unit wrote, as the root draws it. */
+/** the workspace-held screen, drawn from what the unit wrote, as the root draws it. */
 function drawTheHold(startup: Startup, locale: Locales) {
 	const { held, organization } = startup.snapshot;
 
 	return render(
-		StartupUpdateRequired,
+		StartupWorkspaceHeld,
 		{
 			workspaceId: held!.workspaceId,
 			name: held!.name,
@@ -260,7 +260,7 @@ for (const locale of LOCALES) {
 		await vi.waitFor(() => expect(startup.snapshot.organization?.selected).toBe('beta'));
 	});
 
-	test(`${locale}: a workspace a newer rentable upgraded stands on the update-required screen, and another opens from it`, async () => {
+	test(`${locale}: a workspace a newer rentable upgraded stands on the workspace-held screen, and another opens from it`, async () => {
 		const { LL, describeError } = readerIn(locale);
 		const { startup, journal } = harness({
 			describeError,
@@ -277,20 +277,20 @@ for (const locale of LOCALES) {
 		drawTheHold(startup, locale);
 
 		expect(
-			document.querySelector('[data-update-required]')?.getAttribute('data-update-required')
+			document.querySelector('[data-workspace-held]')?.getAttribute('data-workspace-held')
 		).toBe('south');
-		expect(document.querySelector('[data-update-required-name]')?.textContent?.trim()).toBe(
+		expect(document.querySelector('[data-workspace-held-name]')?.textContent?.trim()).toBe(
 			'South Properties'
 		);
-		expect(document.querySelector('[data-update-required-reason]')?.textContent?.trim()).toBe(
+		expect(document.querySelector('[data-workspace-held-reason]')?.textContent?.trim()).toBe(
 			LL.common.refusals.host.workspaceNewer()
 		);
 		expect(document.querySelector('[data-update-action="screen"]')).not.toBeNull();
-		expect(document.querySelector('[data-update-required-retry]')).toBeNull();
+		expect(document.querySelector('[data-workspace-held-retry]')).toBeNull();
 		expect(screen.getByText(LL.layout.startup.otherWorkspaces())).toBeTruthy();
-		expect(document.querySelector('[data-update-required-switch="south"]')).toBeNull();
+		expect(document.querySelector('[data-workspace-held-switch="south"]')).toBeNull();
 
-		await fireEvent.click(document.querySelector('[data-update-required-switch="north"]')!);
+		await fireEvent.click(document.querySelector('[data-workspace-held-switch="north"]')!);
 		await vi.waitFor(() => expect(startup.snapshot.state).toBe('ready'));
 		expect(journal.workspacesOpened.at(-1)).toBe('north');
 	});
@@ -318,14 +318,14 @@ for (const locale of LOCALES) {
 
 		drawTheHold(startup, locale);
 
-		expect(document.querySelector('[data-update-required-name]')?.textContent?.trim()).toBe(
+		expect(document.querySelector('[data-workspace-held-name]')?.textContent?.trim()).toBe(
 			'South Properties'
 		);
-		expect(document.querySelector('[data-update-required-reason]')?.textContent?.trim()).toBe(
+		expect(document.querySelector('[data-workspace-held-reason]')?.textContent?.trim()).toBe(
 			LL.common.refusals.host.copyNotTaken()
 		);
 		expect(document.querySelector('[data-update-action]')).toBeNull();
-		expect(document.querySelector('[data-update-required-switch="north"]')).not.toBeNull();
+		expect(document.querySelector('[data-workspace-held-switch="north"]')).not.toBeNull();
 
 		// the space was cleared, and trying again opens it.
 		full = false;
