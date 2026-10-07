@@ -34,7 +34,7 @@ mod command;
 
 pub(crate) use command::*;
 
-use std::future::Future;
+use std::{collections::BTreeMap, future::Future};
 
 use serde::{Deserialize, Serialize};
 
@@ -266,6 +266,82 @@ pub async fn preview_organization(
         now,
     )
     .await
+}
+
+/// One step waiting for the explicit upgrade: its number, which a capability gated on it names,
+/// and whether it needs the owner's own key, which decides who a capability says can run it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AwaitingStep {
+    pub number: u32,
+    pub needs_owner: bool,
+}
+
+/// What waits for the explicit upgrade (effort 857, ticket 08): on the organization's changes of
+/// format, and on each workspace the member holds a grant on, by its id. An empty list is a target
+/// with nothing waiting.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Awaiting {
+    /// the organization's steps waiting, in order.
+    pub organization: Vec<AwaitingStep>,
+    /// each held workspace's steps waiting, in order, by the workspace's id.
+    pub workspaces: BTreeMap<String, Vec<AwaitingStep>>,
+}
+
+/// The steps of `steps` waiting on data whose floors are `floors`, each with whether it needs the
+/// owner's own key.
+fn waiting(steps: &Steps, floors: Floors) -> Vec<AwaitingStep> {
+    steps
+        .awaiting(floors)
+        .into_iter()
+        .map(|number| AwaitingStep {
+            number,
+            needs_owner: steps.need_the_owner(&[number]),
+        })
+        .collect()
+}
+
+/// What waits for the upgrade on the organization and on every workspace `session` holds a grant
+/// on, read off the floors each records, as [`preview_workspace`] and [`preview_organization`]
+/// read them. `migrations` is the ladder this build ships ([`apply::SHIPPED`]), or a test's own.
+///
+/// **Any member reads it**, the member role included, unlike the preview: a capability gated on a
+/// step waiting says why it is unavailable and who can upgrade to whoever meets it, and the
+/// settings mark it for whoever holds `upgradeData` (spec requirements 1 and 3). It names no
+/// machine and no member, only steps. Reads and writes nothing.
+///
+/// **The floors say it, never the level**: an addition after a step waiting runs on open and takes
+/// the level past it, so only the floors tell an upgrade that ran from one passed over.
+pub async fn awaiting(
+    store: &OrganizationStore,
+    session: &MemberSession,
+    migrations: &Migrations,
+) -> Result<Awaiting, Error> {
+    session.settled()?;
+
+    // an organization with no format row waits for its owner, and nothing it holds is an upgrade
+    // anybody else could run.
+    let organization = match store.floors().await? {
+        Some(floors) => waiting(&store.format_steps(), floors),
+        None => Vec::new(),
+    };
+    let mut workspaces = BTreeMap::new();
+
+    for workspace in store.workspaces(&session.verifying_key).await? {
+        if !session.workspace_credentials.contains_key(&workspace.id) {
+            continue;
+        }
+
+        let floors = lease::recorded_floors(store, &workspace.id, workspace.schema_version).await?;
+
+        workspaces.insert(workspace.id, waiting(&migrations.steps, floors));
+    }
+
+    Ok(Awaiting {
+        organization,
+        workspaces,
+    })
 }
 
 /// How a preview judges one machine: the floors before and after, whether the number builds
@@ -774,8 +850,8 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        Machine, ORGANIZATION_LEASE, Preview, Running, StepFacts, preview_organization,
-        preview_workspace, run_organization, run_workspace,
+        AwaitingStep, Machine, ORGANIZATION_LEASE, Preview, Running, StepFacts, awaiting,
+        preview_organization, preview_workspace, run_organization, run_workspace,
     };
     use crate::{
         backup,
@@ -2191,5 +2267,83 @@ mod tests {
             })
         );
         assert_eq!(copies(&store, &database).len(), 1, "one upgrade, one copy");
+    }
+
+    // -------------------------------------------------------------------------------------
+    // Ticket 08: what waits for the upgrade, read by every member.
+    // -------------------------------------------------------------------------------------
+
+    /// **Ticket 08.** What waits for the upgrade is read by any member, the member role included,
+    /// since a capability gated on a step says why it is unavailable to whoever meets it: the
+    /// organization's steps and each held workspace's, by number. Once the owner has run them,
+    /// nothing waits, and a workspace the member holds no grant on is not listed.
+    #[tokio::test]
+    async fn what_waits_for_the_upgrade_is_read_by_every_member_and_empties_once_run() {
+        let credentials = Memory::new();
+        let directory = scratch("upgrade-awaiting");
+        let (store, owner, link, workspace_id) = organization(
+            &credentials,
+            &directory,
+            format_ladder(&[later(None, Some(4), "aLaterChange")]),
+        )
+        .await;
+        let sami = member(
+            &store,
+            &owner,
+            &link,
+            "sami.staff",
+            permission::MEMBER,
+            &[workspace_id.as_str()],
+        )
+        .await;
+        let omar = member(&store, &owner, &link, "omar.away", permission::MEMBER, &[]).await;
+        let pipeline = at_seven().await;
+        let ladder = workspace_ladder(&[(
+            "0007_fake_upgrade",
+            RENAME,
+            later(None, Some(8), "aLaterUpgrade"),
+        )]);
+
+        let read = awaiting(&store, &sami, &ladder)
+            .await
+            .expect("a member reads what waits");
+
+        assert_eq!(
+            read.organization,
+            vec![AwaitingStep {
+                number: 4,
+                needs_owner: false
+            }]
+        );
+        assert_eq!(
+            read.workspaces.get(&workspace_id).cloned(),
+            Some(vec![AwaitingStep {
+                number: 8,
+                needs_owner: false
+            }]),
+            "{read:?}"
+        );
+
+        let elsewhere = awaiting(&store, &omar, &ladder)
+            .await
+            .expect("a member holding no workspace reads it too");
+
+        assert_eq!(elsewhere.organization.len(), 1, "{elsewhere:?}");
+        assert!(elsewhere.workspaces.is_empty(), "{elsewhere:?}");
+
+        run_on(&store, &owner, &workspace_id, &pipeline, &ladder)
+            .await
+            .expect("the workspace's upgrade");
+        run_organization_as(&store, &owner, 0)
+            .await
+            .expect("the organization's upgrade");
+
+        let after = awaiting(&store, &sami, &ladder).await.expect("read again");
+
+        assert!(after.organization.is_empty(), "{after:?}");
+        assert_eq!(
+            after.workspaces.get(&workspace_id).cloned(),
+            Some(Vec::new())
+        );
     }
 }

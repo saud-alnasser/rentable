@@ -48,11 +48,31 @@ export type UpgradePreview = {
 };
 
 /**
+ * one step waiting for the upgrade (ticket 08): its number on its ladder, which a capability gated
+ * on it names, and whether it needs the owner's own key, which decides who can run it.
+ */
+export type AwaitingStep = { number: number; needsOwner: boolean };
+
+/**
+ * what waits for the upgrade (ticket 08): the organization's steps, and each workspace's the
+ * member holds, by its id. An empty list is a target with nothing waiting.
+ */
+export type UpgradeAwaiting = {
+	organization: AwaitingStep[];
+	workspaces: Record<string, AwaitingStep[]>;
+};
+
+/**
  * the upgrade of the organization or of one workspace. Both are `upgradeData`'s, and before the
  * owner has opened this version of rentable nobody but the owner's (`ownerNotUpdated`); Rust
  * refuses each by name.
  */
 export type UpgradeHost = {
+	/**
+	 * what waits for the upgrade on the organization and on each workspace the member holds, read
+	 * by any member: a capability gated on a step says why to whoever meets it (ticket 08).
+	 */
+	awaiting: () => Promise<UpgradeAwaiting>;
 	/** what the upgrade of `target` would run, and whom it would stop or make read-only. */
 	preview: (target: UpgradeTarget) => Promise<UpgradePreview>;
 	/**

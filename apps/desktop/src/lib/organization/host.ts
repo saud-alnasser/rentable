@@ -26,6 +26,8 @@ import type {
 } from './member/host';
 import type { OrganizationRole, RoleHost } from './role/host';
 import type {
+	AwaitingStep,
+	UpgradeAwaiting,
 	UpgradeHost,
 	UpgradeMachine,
 	UpgradePreview,
@@ -39,6 +41,7 @@ import type { OrganizationWorkspace, WorkspaceHost, WorkspaceStatement } from '.
  * caller has always read them: the port is one, whichever part of it a type belongs to.
  */
 export type {
+	AwaitingStep,
 	LockOutCost,
 	MadeLink,
 	MemberRemoved,
@@ -49,6 +52,7 @@ export type {
 	OrganizationWorkspace,
 	OutstandingLink,
 	UnreachableWorkspace,
+	UpgradeAwaiting,
 	UpgradeMachine,
 	UpgradePreview,
 	UpgradeStep,

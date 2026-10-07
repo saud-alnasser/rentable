@@ -5397,6 +5397,127 @@ type RootTranslation = {
 			removeAsks: string
 		}
 		upgrade: {
+			/**
+			 * u​p​g​r​a​d​e​ ​a​v​a​i​l​a​b​l​e
+			 */
+			available: string
+			/**
+			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​d​a​t​a​ ​c​a​n​ ​b​e​ ​u​p​g​r​a​d​e​d​.​ ​y​o​u​ ​s​e​e​ ​w​h​o​ ​i​t​ ​a​f​f​e​c​t​s​ ​b​e​f​o​r​e​ ​a​n​y​t​h​i​n​g​ ​c​h​a​n​g​e​s​.
+			 */
+			availableOrganization: string
+			/**
+			 * r​e​v​i​e​w
+			 */
+			review: string
+			/**
+			 * u​p​g​r​a​d​e
+			 */
+			act: string
+			/**
+			 * u​p​g​r​a​d​e​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n
+			 */
+			titleOrganization: string
+			/**
+			 * u​p​g​r​a​d​e​ ​{​w​o​r​k​s​p​a​c​e​}
+			 * @param {string} workspace
+			 */
+			titleWorkspace: RequiredParams<'workspace'>
+			/**
+			 * i​t​ ​r​u​n​s​ ​o​n​c​e​,​ ​f​o​r​ ​e​v​e​r​y​o​n​e​,​ ​a​n​d​ ​a​ ​c​o​p​y​ ​o​f​ ​t​h​e​ ​d​a​t​a​ ​i​s​ ​k​e​p​t​ ​f​i​r​s​t​.
+			 */
+			description: string
+			/**
+			 * w​h​a​t​ ​i​t​ ​c​h​a​n​g​e​s
+			 */
+			changes: string
+			/**
+			 * c​a​n​'​t​ ​o​p​e​n​ ​i​t​ ​u​n​t​i​l​ ​t​h​e​y​ ​u​p​d​a​t​e
+			 */
+			stopped: string
+			/**
+			 * c​a​n​ ​r​e​a​d​ ​i​t​ ​b​u​t​ ​c​a​n​'​t​ ​c​h​a​n​g​e​ ​i​t​ ​u​n​t​i​l​ ​t​h​e​y​ ​u​p​d​a​t​e
+			 */
+			readOnly: string
+			/**
+			 * n​o​t​ ​s​e​e​n​ ​i​n​ ​t​h​e​ ​l​a​s​t​ ​s​e​v​e​n​ ​d​a​y​s
+			 */
+			unseen: string
+			/**
+			 * n​o​b​o​d​y​ ​s​e​e​n​ ​i​n​ ​t​h​e​ ​l​a​s​t​ ​s​e​v​e​n​ ​d​a​y​s​ ​i​s​ ​a​f​f​e​c​t​e​d​.
+			 */
+			nobodyAffected: string
+			/**
+			 * f​i​n​d​i​n​g​ ​w​h​o​ ​i​t​ ​a​f​f​e​c​t​s​…
+			 */
+			finding: string
+			/**
+			 * a​ ​m​a​c​h​i​n​e​ ​w​i​t​h​ ​n​o​ ​n​a​m​e
+			 */
+			unnamedMachine: string
+			/**
+			 * n​o​b​o​d​y​ ​s​i​g​n​e​d​ ​i​n
+			 */
+			nobodySignedIn: string
+			/**
+			 * r​e​n​t​a​b​l​e​ ​{​v​e​r​s​i​o​n​}
+			 * @param {string} version
+			 */
+			version: RequiredParams<'version'>
+			/**
+			 * a​n​ ​o​l​d​e​r​ ​r​e​n​t​a​b​l​e
+			 */
+			unknownVersion: string
+			/**
+			 * l​a​s​t​ ​s​e​e​n​ ​{​d​a​t​e​}
+			 * @param {string} date
+			 */
+			lastSeen: RequiredParams<'date'>
+			/**
+			 * n​o​t​ ​y​e​t
+			 */
+			notYet: string
+			/**
+			 * u​p​g​r​a​d​e​ ​n​o​w
+			 */
+			now: string
+			/**
+			 * t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​w​a​s​ ​u​p​g​r​a​d​e​d​.
+			 */
+			upgradedOrganization: string
+			/**
+			 * {​w​o​r​k​s​p​a​c​e​}​ ​w​a​s​ ​u​p​g​r​a​d​e​d​.
+			 * @param {string} workspace
+			 */
+			upgradedWorkspace: RequiredParams<'workspace'>
+			gate: {
+				/**
+				 * t​h​i​s​ ​n​e​e​d​s​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​'​s​ ​d​a​t​a​ ​u​p​g​r​a​d​e​d​ ​f​i​r​s​t​.
+				 */
+				needsOrganization: string
+				/**
+				 * t​h​i​s​ ​n​e​e​d​s​ ​{​w​o​r​k​s​p​a​c​e​}​'​s​ ​d​a​t​a​ ​u​p​g​r​a​d​e​d​ ​f​i​r​s​t​.
+				 * @param {string} workspace
+				 */
+				needsWorkspace: RequiredParams<'workspace'>
+				/**
+				 * y​o​u​ ​c​a​n​ ​u​p​g​r​a​d​e​ ​i​t​ ​i​n​ ​s​e​t​t​i​n​g​s​.
+				 */
+				youCan: string
+				/**
+				 * {​w​h​o​}​ ​c​a​n​ ​u​p​g​r​a​d​e​ ​i​t​ ​i​n​ ​s​e​t​t​i​n​g​s​.
+				 * @param {string} who
+				 */
+				theyCan: RequiredParams<'who'>
+				/**
+				 * {​o​w​n​e​r​}​,​ ​t​h​e​ ​o​w​n​e​r​,​ ​c​a​n​ ​u​p​g​r​a​d​e​ ​i​t​ ​i​n​ ​s​e​t​t​i​n​g​s​.
+				 * @param {string} owner
+				 */
+				ownerCan: RequiredParams<'owner'>
+				/**
+				 * t​h​e​ ​o​w​n​e​r​ ​o​r​ ​a​ ​m​a​n​a​g​e​r​ ​c​a​n​ ​u​p​g​r​a​d​e​ ​i​t​ ​i​n​ ​s​e​t​t​i​n​g​s​.
+				 */
+				someoneCan: string
+			}
 			steps: {
 				/**
 				 * t​h​e​ ​w​o​r​k​s​p​a​c​e​'​s​ ​r​e​c​o​r​d​s​:​ ​c​o​m​p​l​e​x​e​s​,​ ​u​n​i​t​s​,​ ​t​e​n​a​n​t​s​,​ ​c​o​n​t​r​a​c​t​s​ ​a​n​d​ ​p​a​y​m​e​n​t​s​.
@@ -10669,6 +10790,120 @@ export type TranslationFunctions = {
 			removeAsks: () => LocalizedString
 		}
 		upgrade: {
+			/**
+			 * upgrade available
+			 */
+			available: () => LocalizedString
+			/**
+			 * the organization's data can be upgraded. you see who it affects before anything changes.
+			 */
+			availableOrganization: () => LocalizedString
+			/**
+			 * review
+			 */
+			review: () => LocalizedString
+			/**
+			 * upgrade
+			 */
+			act: () => LocalizedString
+			/**
+			 * upgrade the organization
+			 */
+			titleOrganization: () => LocalizedString
+			/**
+			 * upgrade {workspace}
+			 */
+			titleWorkspace: (arg: { workspace: string }) => LocalizedString
+			/**
+			 * it runs once, for everyone, and a copy of the data is kept first.
+			 */
+			description: () => LocalizedString
+			/**
+			 * what it changes
+			 */
+			changes: () => LocalizedString
+			/**
+			 * can't open it until they update
+			 */
+			stopped: () => LocalizedString
+			/**
+			 * can read it but can't change it until they update
+			 */
+			readOnly: () => LocalizedString
+			/**
+			 * not seen in the last seven days
+			 */
+			unseen: () => LocalizedString
+			/**
+			 * nobody seen in the last seven days is affected.
+			 */
+			nobodyAffected: () => LocalizedString
+			/**
+			 * finding who it affects…
+			 */
+			finding: () => LocalizedString
+			/**
+			 * a machine with no name
+			 */
+			unnamedMachine: () => LocalizedString
+			/**
+			 * nobody signed in
+			 */
+			nobodySignedIn: () => LocalizedString
+			/**
+			 * rentable {version}
+			 */
+			version: (arg: { version: string }) => LocalizedString
+			/**
+			 * an older rentable
+			 */
+			unknownVersion: () => LocalizedString
+			/**
+			 * last seen {date}
+			 */
+			lastSeen: (arg: { date: string }) => LocalizedString
+			/**
+			 * not yet
+			 */
+			notYet: () => LocalizedString
+			/**
+			 * upgrade now
+			 */
+			now: () => LocalizedString
+			/**
+			 * the organization was upgraded.
+			 */
+			upgradedOrganization: () => LocalizedString
+			/**
+			 * {workspace} was upgraded.
+			 */
+			upgradedWorkspace: (arg: { workspace: string }) => LocalizedString
+			gate: {
+				/**
+				 * this needs the organization's data upgraded first.
+				 */
+				needsOrganization: () => LocalizedString
+				/**
+				 * this needs {workspace}'s data upgraded first.
+				 */
+				needsWorkspace: (arg: { workspace: string }) => LocalizedString
+				/**
+				 * you can upgrade it in settings.
+				 */
+				youCan: () => LocalizedString
+				/**
+				 * {who} can upgrade it in settings.
+				 */
+				theyCan: (arg: { who: string }) => LocalizedString
+				/**
+				 * {owner}, the owner, can upgrade it in settings.
+				 */
+				ownerCan: (arg: { owner: string }) => LocalizedString
+				/**
+				 * the owner or a manager can upgrade it in settings.
+				 */
+				someoneCan: () => LocalizedString
+			}
 			steps: {
 				/**
 				 * the workspace's records: complexes, units, tenants, contracts and payments.

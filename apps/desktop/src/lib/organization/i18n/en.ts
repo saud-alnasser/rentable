@@ -639,6 +639,41 @@ export const organization = {
 	// each step adds or changes, one sentence per step `database/step.rs` declares, by its
 	// `describes` key; the upgrade sheet lists the ones it would run.
 	upgrade: {
+		// the mark on the organization's card and on a workspace's, and the act that opens the sheet
+		// (ticket 08). Drawn only for a holder of `upgradeData` with an upgrade waiting.
+		available: 'upgrade available',
+		availableOrganization:
+			"the organization's data can be upgraded. you see who it affects before anything changes.",
+		review: 'review',
+		act: 'upgrade',
+		// the sheet: what it changes, who it stops or makes read-only, and those not seen lately.
+		titleOrganization: 'upgrade the organization',
+		titleWorkspace: 'upgrade {workspace:string}',
+		description: 'it runs once, for everyone, and a copy of the data is kept first.',
+		changes: 'what it changes',
+		stopped: "can't open it until they update",
+		readOnly: "can read it but can't change it until they update",
+		unseen: 'not seen in the last seven days',
+		nobodyAffected: 'nobody seen in the last seven days is affected.',
+		finding: 'finding who it affects…',
+		unnamedMachine: 'a machine with no name',
+		nobodySignedIn: 'nobody signed in',
+		version: 'rentable {version:string}',
+		unknownVersion: 'an older rentable',
+		lastSeen: 'last seen {date:string}',
+		notYet: 'not yet',
+		now: 'upgrade now',
+		upgradedOrganization: 'the organization was upgraded.',
+		upgradedWorkspace: '{workspace:string} was upgraded.',
+		// what a capability waiting on a step says at its control, and who can run the upgrade.
+		gate: {
+			needsOrganization: "this needs the organization's data upgraded first.",
+			needsWorkspace: "this needs {workspace:string}'s data upgraded first.",
+			youCan: 'you can upgrade it in settings.',
+			theyCan: '{who:string} can upgrade it in settings.',
+			ownerCan: '{owner:string}, the owner, can upgrade it in settings.',
+			someoneCan: 'the owner or a manager can upgrade it in settings.'
+		},
 		steps: {
 			workspaceRecords:
 				"the workspace's records: complexes, units, tenants, contracts and payments.",

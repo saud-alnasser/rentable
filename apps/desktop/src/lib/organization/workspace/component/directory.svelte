@@ -44,6 +44,7 @@
 	import EarlierRecords from './app-database-records.svelte';
 	import DiscIcon from '$lib/design/cell/disc.svelte';
 	import BuildingIcon from '@lucide/svelte/icons/building';
+	import DatabaseArrowUpIcon from '@lucide/svelte/icons/database-arrow-up';
 	import XIcon from '@lucide/svelte/icons/x';
 	import UsersIcon from '@lucide/svelte/icons/users';
 	import CalendarPlusIcon from '@lucide/svelte/icons/calendar-plus';
@@ -152,6 +153,7 @@
 		canGrantWorkspace,
 		isOwner,
 		standingOf,
+		upgradable = () => false,
 		refusal
 	}: {
 		/** the workspaces this member holds a grant on, which is what the session carries. */
@@ -174,6 +176,11 @@
 		isOwner: boolean;
 		/** where the reader stands in a workspace, by its id, which its file's acts are refused by. */
 		standingOf: (workspaceId: string) => Standing | null;
+		/**
+		 * whether a workspace has an upgrade waiting that the reader may run (effort 857, ticket
+		 * 08): its card is marked and its menu offers the upgrade. Nothing is, where unsaid.
+		 */
+		upgradable?: (workspaceId: string) => boolean;
 		/**
 		 * why there is no create control, for an owner whose machine lost the Turso authority;
 		 * `null` for the owner who holds it and for everybody else, who is offered nothing and
@@ -217,7 +224,8 @@
 		canGrantWorkspace,
 		canDelete,
 		locked,
-		standingOf
+		standingOf,
+		upgradable
 	});
 
 	const recordOfWorkspace = (workspace: OrganizationWorkspace): WorkspaceActRecord => ({
@@ -355,6 +363,19 @@
 							>
 								<DiscIcon class="size-3 shrink-0 text-primary" aria-hidden="true" />
 								<span class="truncate">{$LL.organization.dashboard.workspaceOpenHere()}</span>
+							</Badge>
+						{/if}
+						<!-- an upgrade waiting that the reader may run, said in words beside the name as the
+						     open one is, with the glyph of the permission it takes (effort 857, ticket 08). The
+						     card's menu offers it. -->
+						{#if upgradable(workspace.id)}
+							<Badge
+								variant="outline"
+								class="max-w-full min-w-0 shrink"
+								data-upgrade-mark={workspace.id}
+							>
+								<DatabaseArrowUpIcon class="size-3 shrink-0" aria-hidden="true" />
+								<span class="truncate">{$LL.organization.upgrade.available()}</span>
 							</Badge>
 						{/if}
 					{/snippet}

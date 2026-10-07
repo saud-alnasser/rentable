@@ -8,7 +8,9 @@
  * root, which binds the port.
  */
 export { linkArrived } from './setup/connect';
+export type { GatedStep } from './upgrade/upgrade';
 export type {
+	AwaitingStep,
 	HeldByVersion,
 	HeldOrganization,
 	MigrationNotice,
@@ -18,6 +20,7 @@ export type {
 	OrganizationSession,
 	OrganizationState,
 	OrganizationWorkspace,
+	UpgradeAwaiting,
 	UpgradeMachine,
 	UpgradePreview,
 	UpgradeStep,

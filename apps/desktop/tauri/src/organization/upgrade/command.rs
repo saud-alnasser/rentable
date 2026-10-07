@@ -16,7 +16,7 @@ use crate::organization::{
     workspace::remote::Pipeline,
 };
 
-use super::{Preview, Running, Target};
+use super::{Awaiting, Preview, Running, Target};
 
 /// What the upgrade of `target` would run, and whom it would stop or make read-only. Read after a
 /// pull, so the floors and the machines are the organization's as it stands.
@@ -37,6 +37,19 @@ pub(crate) async fn organization_upgrade_preview(
             }
         },
     )
+    .await
+}
+
+/// What waits for the upgrade on the organization and on each workspace the member holds, by step
+/// number (ticket 08): read by any member, since a capability gated on a step tells whoever meets
+/// it why. Read off what the replica holds; the heartbeat's pull keeps it current.
+#[tauri::command(rename = "upgrade_awaiting")]
+pub(crate) async fn organization_upgrade_awaiting(
+    app_state: tauri::State<'_, Shared>,
+) -> Result<Awaiting, Error> {
+    as_member(&app_state, Pull::No, async |Acting { member, store }| {
+        super::awaiting(store, member, &apply::SHIPPED).await
+    })
     .await
 }
 

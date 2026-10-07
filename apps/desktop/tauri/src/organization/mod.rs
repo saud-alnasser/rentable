@@ -211,6 +211,9 @@ mod tests {
         // needing the owner's own key is refused to anybody else inside the act.
         ("upgrade_preview", Gate::Flag(Flag::UpgradeData)),
         ("upgrade_run", Gate::Flag(Flag::UpgradeData)),
+        // what waits for it, by step number, read by every member: a capability gated on a step
+        // says why to whoever meets it (ticket 08).
+        ("upgrade_awaiting", Gate::SignedIn),
     ];
 
     /// Every command the sub-concepts declare, read off their source by walking `organization/`,

@@ -5,6 +5,9 @@
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import OrganizationRenameForm from '$lib/organization/component/rename-form.svelte';
 	import OrganizationTile from '$lib/organization/component/tile.svelte';
+	import UpgradeAvailable from '$lib/organization/upgrade/component/available.svelte';
+	import { useFetchUpgradeAwaiting } from '$lib/organization/upgrade/query';
+	import { isUpgradable, mayUpgrade } from '$lib/organization/upgrade/upgrade';
 
 	/**
 	 * The organization tab's first card: what the organization is called (effort 851, requirements
@@ -22,16 +25,27 @@
 	 * member holding every flag included: no flag carries the rename, so there is nothing to draw
 	 * refused with a reason, and the card's line says instead who can change the name. Rust refuses
 	 * anybody else's rename again on their verified row (requirement 24).
+	 *
+	 * **An upgrade waiting on the organization is marked here**, as the card's one row, for whoever
+	 * may run it (effort 857, ticket 08, `../upgrade/component/available.svelte`): what waits is
+	 * read for them alone, since nobody else is offered an act that is not theirs.
 	 */
 	let { session }: { session: OrganizationSession } = $props();
 
 	const isOwner = $derived(session.role === 'owner');
+
+	const awaitingQuery = useFetchUpgradeAwaiting(() => mayUpgrade(session));
+	const upgradable = $derived(isUpgradable(session, awaitingQuery.data, 'organization'));
 
 	let renaming = $state(false);
 </script>
 
 {#snippet tile()}
 	<OrganizationTile name={session.organizationName} size="card" />
+{/snippet}
+
+{#snippet upgrade()}
+	<UpgradeAvailable />
 {/snippet}
 
 {#snippet edit()}
@@ -58,6 +72,7 @@
 			? $LL.organization.name.description()
 			: `${$LL.organization.name.description()} ${$LL.organization.name.readOnly()}`}
 		action={isOwner ? edit : undefined}
+		rows={upgradable ? upgrade : undefined}
 	/>
 </div>
 

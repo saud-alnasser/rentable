@@ -562,6 +562,7 @@ const ORGANIZATION_GLYPHS = [
 	'arrow-down',
 	'arrow-up',
 	'crown',
+	'database-arrow-up',
 	'file-down',
 	'file-up',
 	'laptop',
@@ -622,6 +623,7 @@ function recordingOrganizationHost() {
 			changeAccess: onWorkspace('changeAccess'),
 			exportFile: onWorkspace('exportFile'),
 			importFile: onWorkspace('importFile'),
+			upgrade: onWorkspace('upgrade'),
 			confirmDelete: onWorkspace('confirmDelete')
 		}
 	};

@@ -64,6 +64,7 @@ export function fakeOrganizationHost(): OrganizationHost {
 			batch: refuse('organization.workspace.batch')
 		},
 		upgrade: {
+			awaiting: refuse('organization.upgrade.awaiting'),
 			preview: refuse('organization.upgrade.preview'),
 			run: refuse('organization.upgrade.run')
 		},

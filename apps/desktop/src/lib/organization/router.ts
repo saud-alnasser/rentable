@@ -7,6 +7,7 @@ import { ORGANIZATION_NAME_LIMIT } from './setup/setup';
 import role from './role/router';
 import session from './session/router';
 import setup from './setup/router';
+import upgrade from './upgrade/router';
 import workspace from './workspace/router';
 
 /**
@@ -26,9 +27,9 @@ import workspace from './workspace/router';
  * of the boundary ([[rules/credentials]], *Client boundary*).
  *
  * **Each sub-concept holds its own procedures** (`./setup`, `./workspace`, `./member`, `./role`,
- * `./session`), and this router mounts them where they always stood: the way in's and the reader's
- * own at the root, the rest under their names. What belongs to the organization as a whole, letting
- * it go, handing it over and its mark, is written here.
+ * `./session`, `./upgrade`), and this router mounts them where they always stood: the way in's and
+ * the reader's own at the root, the rest under their names. What belongs to the organization as a
+ * whole, letting it go, handing it over and its mark, is written here.
  */
 export default router({
 	...setup,
@@ -132,6 +133,7 @@ export default router({
 	workspace,
 	member,
 	role,
+	upgrade,
 	...session,
 	/**
 	 * The organization's signature or seal (effort 835, requirement 13). Reading it is `member`:
