@@ -140,7 +140,7 @@ Start at [[protocol]].
 | 846-the-settings-and-the-record-cards-are-rethought | implemented | [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]] | 7 | 1 | 55 |
 | 851-the-way-out-the-password-fields-and-the-organizations-name | implemented | [[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/spec]] | 0 | 0 | 20 |
 | 854-bugs-and-edge-cases-across-the-app | implemented | [[efforts/854-bugs-and-edge-cases-across-the-app/spec]] | 3 | 0 | 41 |
-| 857-updating-never-locks-a-member-out | accepted | [[efforts/857-updating-never-locks-a-member-out/spec]] | 1 | 1 | 24 |
+| 857-updating-never-locks-a-member-out | accepted | [[efforts/857-updating-never-locks-a-member-out/spec]] | 1 | 1 | 29 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -646,3 +646,8 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/857-updating-never-locks-a-member-out/tickets/22-a-format-step-that-re-signs-nothing-is-a-managers]] feat(upgrade): a format step that re-signs nothing is a manager's to run | 857-updating-never-locks-a-member-out | resolved | 19 |
 | [[efforts/857-updating-never-locks-a-member-out/tickets/23-the-rules-and-contexts-the-effort-moved]] docs: the rules and contexts the effort moved | 857-updating-never-locks-a-member-out | resolved | 16, 17 |
 | [[efforts/857-updating-never-locks-a-member-out/tickets/24-the-organizations-upgrade-runs-on-turso]] fix(organization): the organization's upgrade runs on Turso in one transaction | 857-updating-never-locks-a-member-out | resolved | — |
+| [[efforts/857-updating-never-locks-a-member-out/tickets/25-a-refusal-signs-out-only-what-it-is-about]] fix(startup): a refusal signs out only what it is about | 857-updating-never-locks-a-member-out | open | — |
+| [[efforts/857-updating-never-locks-a-member-out/tickets/26-only-an-upgrade-holds-a-replica]] fix(sync): only an upgrade's refusal holds a replica | 857-updating-never-locks-a-member-out | open | — |
+| [[efforts/857-updating-never-locks-a-member-out/tickets/27-a-verdict-is-judged-once-and-fails-closed]] fix(organization): a verdict is judged with its pull and never guesses | 857-updating-never-locks-a-member-out | open | — |
+| [[efforts/857-updating-never-locks-a-member-out/tickets/28-connect-preview-and-lease-keep-what-0-20-did]] fix(organization): connect, the preview and the lease keep what 0.20 did | 857-updating-never-locks-a-member-out | open | — |
+| [[efforts/857-updating-never-locks-a-member-out/tickets/29-the-update-feature-owns-its-words-and-types]] refactor(update): the update feature owns its words, and one type each | 857-updating-never-locks-a-member-out | open | 25, 27 |
