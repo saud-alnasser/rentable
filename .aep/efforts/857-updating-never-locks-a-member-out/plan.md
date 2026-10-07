@@ -91,7 +91,12 @@ The human chose B on 2026-10-07 and amended spec requirements 1 and 3 to match i
 - **`organization/upgrade/`** (new): the explicit act. `organization_upgrade_preview(target)`
   returns what will change and who is behind; `organization_upgrade_run(target)` runs it. Target
   is the organization or one workspace. Gated by the new `upgradeData` flag through
-  `act::as_member`, plus `Gate::OwnerAlone` semantics for a `needs_owner` step.
+  `act::as_member`, plus `Gate::OwnerAlone` semantics for a `needs_owner` step. **Both targets run
+  as one transaction at the primary**, over the pipeline the workspace upgrade already uses, so no
+  other machine's push can land between its steps: a replica-side run that pulls, takes an advisory
+  lease and pushes leaves a window an ordinary push cannot be made to respect (found at converge
+  round two, 2026-10-07; the human chose running it on Turso over narrowing the window or accepting
+  it).
 - **`organization/store/`**: three new tables, all additions created by `complete_schema`, all
   unsigned and written as the `machine_name` pattern (one writer per row):
   - `machine_version(id PK = machine id, rentable TEXT, workspace_known INT, format_known INT,
