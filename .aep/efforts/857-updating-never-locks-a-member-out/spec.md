@@ -40,15 +40,19 @@ decided it, and those stopped are told nothing they can act on.
 # Goal
 
 Anyone can update rentable to the latest version at any time and keep working with every
-organization and workspace they belong to. Upgrading an organization's or a workspace's data is a
-deliberate act by its owner, who is shown beforehand which machines it would stop. A machine that
+organization and workspace they belong to. A newer build adapts to the version the data is on,
+and what needs a newer version appears once the data is upgraded. Upgrading data in a way that can
+stop anyone is a deliberate act by the owner or a member given the permission for it, who is shown
+beforehand which machines it would stop; an ordinary member never does it. A machine that
 is behind keeps as much of its work as it safely can, is told why in plain words, and can update
 from wherever it stands.
 
 # Scope
 
-- Opening data that has not been upgraded: a newer build works on it as it is.
-- The explicit upgrade of an organization and of a workspace, by the owner, with who is behind.
+- Opening data that has not been upgraded: a newer build works on it as it is, and additions that
+  stop nobody arrive on their own.
+- The explicit upgrade of an organization and of a workspace, under a permission of its own, with
+  who is behind.
 - What each machine can read and write, recorded in the organization.
 - What an older build meets: full use, read-only, or the update screen, at launch, at sign-in,
   on switching, on joining, and mid-session.
@@ -58,22 +62,32 @@ from wherever it stands.
 
 # Requirements
 
-1. **A newer build opens data that has not been upgraded, as it is, and upgrades nothing on its
-   own.** No organization format step and no workspace migration runs without the owner's
-   upgrade (requirement 3). A capability that needs the newer data is offered with the reason it
-   is unavailable, never hidden and never failing as a generic error.
+1. **A newer build opens data that has not been upgraded and adapts to the version it is on.**
+   A step that moves no floor (requirement 2), such as a new table, a column that may be empty or
+   has a default, or an index, is applied automatically by whichever machine meets it first, as
+   the organization's tables already are, because it stops nobody. **Nothing that moves a floor
+   runs without the upgrade of requirement 3.** A capability that needs data not yet upgraded is
+   offered with the reason it is unavailable and who can upgrade, never hidden and never failing
+   as a generic error, and it becomes available on every machine that can use it once the data is
+   upgraded. *Amended 2026-10-07 by the human at /plan, from "upgrades nothing on its own": an
+   addition that stops nobody needs nobody's decision, and making a normal member's newer build
+   wait for a manager would itself be a lock-out.*
 2. **Every format step and migration declares the oldest version that can still read the result
    and the oldest that can still write to it, and the database records both beside its version.**
    A step that only adds, and changes the meaning of nothing an older build reads or writes,
    leaves both where they were. A build is refused writing only below the write floor and refused
    reading only below the read floor, never merely for being below the version.
-3. **Upgrading is an explicit act, and the owner's alone.** The organization and each workspace
-   show that an upgrade is available. The owner, and nobody else, can start it; no member, manager
-   or custom role can, and no permission override grants it. Before it runs the owner sees what
-   it adds or changes, and every machine seen in the last seven days that would be stopped or made
-   read-only by it, by member and machine name and the version it runs, and separately the
-   machines not seen within that window, with the date each was last seen. The owner can upgrade
-   now or not yet.
+3. **Upgrading is an explicit act under a permission of its own.** The organization and each
+   workspace show that an upgrade is available. Starting it needs the new permission to upgrade
+   data, which the owner always holds, the manager role carries by default, the member role does
+   not, and which can be given to a custom role or by an override like any administration
+   permission. A step that re-signs the organization's rows needs the owner's own key, so it waits
+   for the owner whoever holds the permission, and says so. Before it runs the person upgrading
+   sees what it adds or changes, and every machine seen in the last seven days that would be
+   stopped or made read-only by it, by member and machine name and the version it runs, and
+   separately the machines not seen within that window, with the date each was last seen. They can
+   upgrade now or not yet. *Amended 2026-10-07 by the human at /plan, from "the owner's alone":
+   "not a normal member ... a manager or owner maybe and a permission is for it".*
 4. **Each machine records, in the organization, the data versions it can read and write and the
    version of rentable it runs**, refreshed whenever that changes and with when it was last seen.
 5. **An upgrade runs whole or not at all, with nobody else writing while it runs**, and keeps the
@@ -109,15 +123,20 @@ from wherever it stands.
 
 # Acceptance Criteria
 
-1. A test opens a workspace one migration behind and an organization one format behind on the
-   current build, as a member and as the owner: each opens read-write, its version is unchanged
-   afterwards, and a capability that needs the newer data shows its unavailable reason.
+1. A test opens, on the current build as a member and as a manager, a workspace and an
+   organization whose pending steps move no floor, and a workspace and an organization with a
+   floor-moving step pending. The first pair gains the additions automatically and opens
+   read-write with both floors unchanged; the second opens read-write with both floors unchanged,
+   and a capability gated on the pending step shows its unavailable reason naming who can
+   upgrade, and is available on that machine once the step has run.
 2. A test per shipped step asserts the declared read and write floors, and that a step adding a
    nullable or defaulted column leaves both floors unchanged. A test opens a database with each
    build's known version below, at and above the floors and gets read-write, read-only and the
    update screen exactly where the floors say.
-3. A test offers the upgrade to the owner and refuses it, through the router and the IPC command,
-   to a manager, a member, a custom role and a member whose override sets every flag. A component
+3. A test offers the upgrade to the owner, a manager and a custom role or override carrying
+   the upgrade permission, and refuses it, through the router and the IPC command, to the member
+   role and to a manager whose override removes the permission; a step that re-signs the
+   organization is refused to anyone but the owner with its own reason. A component
    test shows the upgrade sheet listing a machine seen within seven days whose recorded write
    version is below the new floor, by member name, machine name and rentable version, and an older
    machine under a separate "not seen since" heading with its date; choosing not yet changes
@@ -159,12 +178,17 @@ from wherever it stands.
   floors, and ships no earlier than the rule allows.
 - **A shipped migration or format step is never edited**, so floors for steps already shipped
   are declared beside them, not written into them.
-- **The owner alone upgrades**, because an upgrade can stop other people's work, and the human
-  ruled on 2026-10-07 that an ordinary member must never be able to do that.
+- **Only a holder of the upgrade permission upgrades**, because an upgrade can stop other
+  people's work, and the human ruled on 2026-10-07 that an ordinary member must never be able to
+  do that.
+- **A step is either one that moves no floor or one that waits for the upgrade, and never
+  both.** What arrives on its own must be safe for every build that can still read the data, so a
+  column it adds may be empty or has a default, and a meaning change it brings is gated behind a
+  floor rather than shipped with the addition.
 - **Nothing an older build writes may reach data it cannot write correctly**; read-only is
   enforced where writes cross into the engine, not only in the interface.
-- **The organization's format walk needs the owner's keys** (effort 838), so its upgrade runs on
-  the owner's machine.
+- **A step that re-signs the organization's rows needs the owner's keys** (effort 838), so it runs
+  on the owner's machine whoever else holds the upgrade permission.
 - **Every sentence a held person reads exists in Arabic and English.**
 - **No organization or workspace is reset and nobody sets up again** to reach this effort's state.
 
@@ -179,8 +203,9 @@ from wherever it stands.
   read-only or updates.
 - **Restoring a copy taken before an upgrade.** The copies keep being written; putting one back
   over a replicated database is its own effort.
-- **Carrying data more than one version behind read-write if the plan finds the cost too high.**
-  How far back a build supports is the plan's call (Open Questions); beyond it the owner upgrades.
+- **Running a build's queries against a shape that lacks its own additions.** Additions arrive on
+  their own (requirement 1), so no query layer has to handle an older shape; this is approach A of
+  the plan, which lost.
 - **Changing what each role may do otherwise.** No other permission moves.
 - **Making the workspace migration runner atomic**, gap 1 of the 838 research, except where this
   effort's own whole-or-nothing requirement 5 needs it.
@@ -190,21 +215,13 @@ from wherever it stands.
 - Each build can tell, from the numbers alone, whether it may read or write; no capability list
   per feature is needed. The research found capability lists (Git, Mercurial) buy finer gating at
   a cost this app does not yet need.
-- Inserts an older build makes against a newer additive schema succeed when every added column is
-  nullable or defaulted. Not yet tested against a seeded workspace (the research's Not checked).
+- An older build's captured, unsent changes push after the shared database gains an addition,
+  and its new writes succeed when every added column may be empty or has a default. Measured live
+  in [[efforts/857-updating-never-locks-a-member-out/evidence/prototypes/an-older-replica-pushes-after-an-added-column]].
 - Seven days is the right window for "seen recently", taken from the existing machine presence
   window rather than chosen afresh.
 - The Tauri updater can download without installing and install at quit on Windows; the research
   found no documentation of install-on-quit and did not try it.
-
-# Open Questions
-
-- **How many data versions back a build supports read-write**, and what that costs per release:
-  the research estimates one to three days per additive release for one version back, from a grep
-  rather than a prototype. The plan decides, with a prototype if a seeded workspace one version
-  back does not settle it.
-- **What exactly the owner sees as "what it adds or changes"** for each step, and where that text
-  is written.
 
 # Risks
 
