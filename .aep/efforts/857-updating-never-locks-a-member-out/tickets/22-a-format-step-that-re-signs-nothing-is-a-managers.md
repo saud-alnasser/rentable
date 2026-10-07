@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [19]
 ---
 
@@ -15,8 +15,8 @@ Found at converge round one: a format step declared `needs_owner: false` runs fo
 
 Traces requirement 3 and criterion 3.
 
-- [ ] The format runner refuses with `UpgradeNeedsOwner` only a step declared `needs_owner`; a fake format step with real work and `needs_owner: false` runs for a manager and moves the floors.
-- [ ] The test runs through the real runner, not a stub `work`.
+- [x] The format runner refuses with `UpgradeNeedsOwner` only a step declared `needs_owner`; a fake format step with real work and `needs_owner: false` runs for a manager and moves the floors.
+- [x] The test runs through the real runner, not a stub `work`.
 
 ## Relevant areas
 

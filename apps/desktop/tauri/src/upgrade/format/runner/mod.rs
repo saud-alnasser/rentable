@@ -577,14 +577,16 @@ async fn reading<'t>(
 
 /// Run the change of format numbered `number` of `transitions`, declared after effort 857, on
 /// `store`, inside the explicit upgrade's transaction (effort 857, ticket 07): the change that
-/// starts from the format before it, on the owner's keys, which `secret` derives where it is the
-/// owner's. `organization_verifying_key` is the key the session pinned, and `member_id` the member
-/// whose vault `secret` came from.
+/// starts from the format before it, on the keys of the member whose vault `secret` came from,
+/// `member_id`. `organization_verifying_key` is the key the session pinned.
 ///
-/// **A change of format runs on the owner's keys, as every one has** (`Upgrading`), so a secret
-/// that derives no key the organization is on refuses with `UpgradeNeedsOwner` before anything is
-/// read or written. A step `transitions` holds no change for has nothing of its own to run: the
-/// upgrade records its floors and that is all it does.
+/// **Only a step that re-signs waits for the owner's key** (spec requirement 3, ticket 22). A step
+/// `store` declares `needs_owner`, or does not declare at all, runs on the organization key, so a
+/// secret that derives no key the organization is on refuses with `UpgradeNeedsOwner` before
+/// anything is read or written. A step declared `needs_owner: false` runs for whoever the caller
+/// let through, on their own signing key, and is never handed the organization key. A step
+/// `transitions` holds no change for has nothing of its own to run: the upgrade records its floors
+/// and that is all it does.
 ///
 /// It begins no transaction of its own; the caller's holds it, as the walk's holds every change it
 /// runs.
@@ -603,18 +605,27 @@ pub(crate) async fn change(
     else {
         return Ok(());
     };
-    let organization_key = owner_key_from(secret)?;
+    let steps = store.format_steps();
+    let re_signs = steps.step(number).is_none() || steps.need_the_owner(&[number]);
     let key = settled(store, organization_verifying_key).await?;
+    let organization_key = if re_signs {
+        let organization_key = owner_key_from(secret)?;
 
-    if organization_key.verifying_key() != key {
-        return Err(Error::refused(
-            RefusalReason::UpgradeNeedsOwner,
-            format!(
-                "the change of format {} runs on the owner's keys, so only the owner can run it;                  nothing was changed",
-                transition.name
-            ),
-        ));
-    }
+        if organization_key.verifying_key() != key {
+            return Err(Error::refused(
+                RefusalReason::UpgradeNeedsOwner,
+                format!(
+                    "the change of format {} runs on the owner's keys, so only the owner can run \
+                     it; nothing was changed",
+                    transition.name
+                ),
+            ));
+        }
+
+        Some(organization_key)
+    } else {
+        None
+    };
 
     let signing_key = signing_key_of(secret)?;
     let opened = Opened {
@@ -625,7 +636,7 @@ pub(crate) async fn change(
     (transition.run)(&Upgrading {
         store,
         key: &key,
-        organization_key: &organization_key,
+        organization_key: organization_key.as_ref(),
         signing_key: &signing_key,
         opened: &opened,
         now,
@@ -3039,7 +3050,7 @@ mod tests {
         let upgrading = Upgrading {
             store,
             key: &key,
-            organization_key: &older.organization_key,
+            organization_key: Some(&older.organization_key),
             signing_key: &signing_key,
             opened: &opened,
             now: NOW + 60_000,
@@ -3674,14 +3685,13 @@ mod tests {
         );
     }
 
-    /// **Ticket 07, the port's change.** A change of format declared after 857, run inside the
-    /// explicit upgrade, runs on the owner's keys: anybody else's secret is refused with
-    /// `UpgradeNeedsOwner` before anything is written, the owner's runs it, and a step with no
-    /// change of its own runs nothing.
-    #[tokio::test]
-    async fn a_change_declared_after_857_runs_on_the_owners_keys_alone() {
-        fn changed<'a>(upgrading: &'a Upgrading<'a>) -> Pending<'a, ()> {
+    /// A change that makes the table `changed`, handed the organization key or not as `re_signs`
+    /// says it is: work of its own, which fails the test where the runner hands it the wrong keys.
+    fn changing(re_signs: bool) -> for<'a> fn(&'a Upgrading<'a>) -> Pending<'a, ()> {
+        fn changed<'a>(upgrading: &'a Upgrading<'a>, re_signs: bool) -> Pending<'a, ()> {
             Box::pin(async move {
+                assert_eq!(upgrading.organization_key.is_some(), re_signs);
+
                 run(
                     upgrading.store,
                     "CREATE TABLE IF NOT EXISTS \"changed\" (\"id\" TEXT)",
@@ -3693,17 +3703,52 @@ mod tests {
             })
         }
 
-        let (older, store) = upgraded("a-later-change").await;
-        let transitions: Vec<Transition> = TRANSITIONS
+        fn re_signing<'a>(upgrading: &'a Upgrading<'a>) -> Pending<'a, ()> {
+            changed(upgrading, true)
+        }
+
+        fn re_signing_nothing<'a>(upgrading: &'a Upgrading<'a>) -> Pending<'a, ()> {
+            changed(upgrading, false)
+        }
+
+        if re_signs {
+            re_signing
+        } else {
+            re_signing_nothing
+        }
+    }
+
+    /// The shipped changes with one more from format 3, running `run`.
+    fn and_a_later_change(
+        run: for<'a> fn(&'a Upgrading<'a>) -> Pending<'a, ()>,
+    ) -> Vec<Transition> {
+        TRANSITIONS
             .iter()
             .copied()
             .chain([Transition {
                 from: 3,
                 name: "a later change",
-                run: changed,
+                run,
                 ..TRANSITIONS[1]
             }])
-            .collect();
+            .collect()
+    }
+
+    /// **Ticket 07, the port's change, as ticket 22 corrected it.** A change of format declared
+    /// after 857 with `needs_owner`, run inside the explicit upgrade, runs on the owner's keys:
+    /// anybody else's secret is refused with `UpgradeNeedsOwner` before anything is written, the
+    /// owner's runs it, and a step with no change of its own runs nothing.
+    #[tokio::test]
+    async fn a_change_declared_after_857_needing_the_owner_runs_on_the_owners_keys_alone() {
+        use crate::database::step::Kind;
+
+        let (older, store) = upgraded("a-later-change").await;
+        let store = store.declaring(declaring_after(Kind::Upgrade {
+            read_floor: Some(4),
+            write_floor: Some(4),
+            needs_owner: true,
+        }));
+        let transitions = and_a_later_change(changing(true));
         let holds_it = |tables: Vec<String>| tables.iter().any(|table| table == "changed");
 
         let refused = super::change(
@@ -3745,6 +3790,68 @@ mod tests {
         )
         .await
         .expect("a step with no change of its own");
+    }
+
+    /// **Ticket 22's first criterion, at the runner.** A change declared after 857 with
+    /// `needs_owner: false` runs for somebody other than the owner, on their own keys, and is not
+    /// handed the organization key, whoever runs it; one the store does not declare at all is
+    /// taken as needing the owner.
+    #[tokio::test]
+    async fn a_change_declared_after_857_that_re_signs_nothing_runs_for_anybody_let_through() {
+        use crate::database::step::Kind;
+
+        let (older, store) = upgraded("a-managers-change").await;
+        let transitions = and_a_later_change(changing(false));
+        let holds_it = |tables: Vec<String>| tables.iter().any(|table| table == "changed");
+
+        assert_eq!(
+            reason_of(
+                &super::change(
+                    &store,
+                    &transitions,
+                    &older.pinned(),
+                    "mina",
+                    &older.person("mina").secret,
+                    4,
+                    NOW,
+                )
+                .await
+            ),
+            Some(RefusalReason::UpgradeNeedsOwner),
+            "an undeclared step ran for somebody other than the owner"
+        );
+
+        let store = store.declaring(declaring_after(Kind::Upgrade {
+            read_floor: Some(4),
+            write_floor: Some(4),
+            needs_owner: false,
+        }));
+
+        super::change(
+            &store,
+            &transitions,
+            &older.pinned(),
+            "mina",
+            &older.person("mina").secret,
+            4,
+            NOW,
+        )
+        .await
+        .expect("mina's change");
+
+        assert!(holds_it(store.tables().await.expect("the tables")));
+
+        super::change(
+            &store,
+            &transitions,
+            &older.pinned(),
+            "owner",
+            &older.owners_vault().secret,
+            4,
+            NOW,
+        )
+        .await
+        .expect("the owner's change, handed no organization key either");
     }
 
     // effort 857, ticket 14: every format of an organization shipped carries across.

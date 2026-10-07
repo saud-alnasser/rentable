@@ -1573,6 +1573,103 @@ mod tests {
         );
     }
 
+    /// **Effort 857, ticket 22.** A change of format declared after 857 with `needs_owner: false`
+    /// and work of its own runs for a manager through the real runner, on the manager's own keys:
+    /// the change writes what it writes and the floors move. Only a step declared `needs_owner`
+    /// waits for the owner's key.
+    #[tokio::test]
+    async fn a_change_of_format_that_re_signs_nothing_is_a_managers() {
+        use crate::upgrade::format::{Pending, TRANSITIONS, Transition, Upgrading, runner};
+
+        fn changed<'a>(upgrading: &'a Upgrading<'a>) -> Pending<'a, ()> {
+            Box::pin(async move {
+                upgrading
+                    .store
+                    .write_machine_version(&MachineVersionRecord {
+                        id: format!("changed-by-{}", upgrading.opened.member_id),
+                        rentable: "0.0.0".to_string(),
+                        workspace_known: 0,
+                        format_known: 4,
+                        written_at: upgrading.now,
+                    })
+                    .await
+            })
+        }
+
+        let credentials = Memory::new();
+        let directory = scratch("upgrade-managers-change");
+        let (store, owner, link, workspace_id) = organization(
+            &credentials,
+            &directory,
+            format_ladder(&[later(Some(4), Some(4), "aLaterChange")]),
+        )
+        .await;
+        let manager = member(
+            &store,
+            &owner,
+            &link,
+            "ada.lead",
+            permission::MANAGER,
+            &[workspace_id.as_str()],
+        )
+        .await;
+        let transitions: Vec<Transition> = TRANSITIONS
+            .iter()
+            .copied()
+            .chain([Transition {
+                from: 3,
+                name: "a later change",
+                run: changed,
+                ..TRANSITIONS[1]
+            }])
+            .collect();
+
+        assert!(
+            !preview_organization(&store, &manager, AT)
+                .await
+                .expect("the manager's preview")
+                .needs_owner
+        );
+
+        run_organization(
+            &store,
+            &manager,
+            &StoreLease::new(&store),
+            no_platform(),
+            |number| {
+                runner::change(
+                    &store,
+                    &transitions,
+                    &manager.verifying_key,
+                    &manager.member_id,
+                    &manager.secret,
+                    number,
+                    AT,
+                )
+            },
+            || AT,
+        )
+        .await
+        .expect("the manager's upgrade");
+
+        assert!(
+            store
+                .machine_version(&format!("changed-by-{}", manager.member_id))
+                .await
+                .expect("the record")
+                .is_some(),
+            "the change did not run"
+        );
+        assert_eq!(
+            store.floors().await.expect("the floors"),
+            Some(Floors {
+                level: 4,
+                read: 4,
+                write: 4
+            })
+        );
+    }
+
     // -------------------------------------------------------------------------------------
     // Criterion 2: what the preview says, and of whom.
     // -------------------------------------------------------------------------------------
