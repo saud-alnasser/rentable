@@ -102,6 +102,13 @@ pub(crate) async fn ended_elsewhere(app_state: &Shared, credentials: &dyn Creden
                 pulled,
             )
             .await;
+
+            // and the organization's lease a run of this machine's left when it died, released
+            // at the member's next start rather than holding everyone else's acts until it lapses
+            // (effort 857, ticket 28).
+            if let Some(held) = held.as_ref() {
+                crate::organization::upgrade::dead_lease_released_here(store, session, held).await;
+            }
         }
 
         let standing = match session::ended_elsewhere(store, session).await {

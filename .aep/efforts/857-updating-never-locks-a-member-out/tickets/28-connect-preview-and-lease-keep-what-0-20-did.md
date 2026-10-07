@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(organization): connect, the preview and the lease keep what 0.20 did
@@ -14,9 +14,9 @@ Found at review round one (correctness 7, 8, 10): connecting by link to an organ
 
 Traces requirement 3, requirement 5, criterion 3 and criterion 5.
 
-- [ ] Connecting by link to an organization this machine already holds selects it before any format verdict, as 0.20 did, including one at format 2 waiting for its owner; a test.
-- [ ] The workspace and organization previews list a machine seen within seven days whose member signed out, by machine name and version; a test.
-- [ ] An upgrade lease left by a run that died is released by the same member's next start, or by any holder of `upgradeData` once the run is known dead, rather than holding every other member until it lapses; a test.
+- [x] Connecting by link to an organization this machine already holds selects it before any format verdict, as 0.20 did, including one at format 2 waiting for its owner; a test.
+- [x] The workspace and organization previews list a machine seen within seven days whose member signed out, by machine name and version; a test.
+- [x] An upgrade lease left by a run that died is released by the same member's next start, or by any holder of `upgradeData` once the run is known dead, rather than holding every other member until it lapses; a test.
 
 ## Relevant areas
 

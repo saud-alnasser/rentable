@@ -138,6 +138,16 @@ pub trait LeaseAuthority {
         workspace_id: &str,
         holder: &str,
     ) -> impl Future<Output = Result<(), Error>> + Send;
+
+    /// Let go of the lease where `holder` holds it until exactly `until`: the one a run that took
+    /// it so left behind, and never a later take of the same holder's, which moves the deadline
+    /// (effort 857, ticket 28).
+    fn release_taken(
+        &self,
+        workspace_id: &str,
+        holder: &str,
+        until: i64,
+    ) -> impl Future<Output = Result<(), Error>> + Send;
 }
 
 /// The upsert that takes a lease where the old one lapsed or is this holder's own, and the read
@@ -153,6 +163,9 @@ const READ: &str = "SELECT \"holder_member_id\", \"expires_at\" FROM \"migration
                     WHERE \"workspace_id\" = ?";
 const RELEASE: &str = "DELETE FROM \"migration_lease\" \
                        WHERE \"workspace_id\" = ? AND \"holder_member_id\" = ?";
+const RELEASE_TAKEN: &str = "DELETE FROM \"migration_lease\" \
+                             WHERE \"workspace_id\" = ? AND \"holder_member_id\" = ? \
+                             AND \"expires_at\" = ?";
 
 /// The lease authority production uses: the organization database's primary, over its
 /// pipeline, under the member's own organization credential.
@@ -286,6 +299,23 @@ impl LeaseAuthority for PipelineLease {
         .await
         .map(|_| ())
     }
+
+    async fn release_taken(
+        &self,
+        workspace_id: &str,
+        holder: &str,
+        until: i64,
+    ) -> Result<(), Error> {
+        self.post(vec![
+            execute(
+                RELEASE_TAKEN,
+                vec![text_arg(workspace_id), text_arg(holder), integer_arg(until)],
+            ),
+            json!({ "type": "close" }),
+        ])
+        .await
+        .map(|_| ())
+    }
 }
 
 /// The same statements against the organization store's own connection: the authority for a
@@ -342,6 +372,27 @@ impl LeaseAuthority for StoreLease<'_> {
                 vec![
                     turso::Value::Text(workspace_id.to_string()),
                     turso::Value::Text(holder.to_string()),
+                ],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    async fn release_taken(
+        &self,
+        workspace_id: &str,
+        holder: &str,
+        until: i64,
+    ) -> Result<(), Error> {
+        self.store
+            .lease_connection()
+            .execute(
+                RELEASE_TAKEN,
+                vec![
+                    turso::Value::Text(workspace_id.to_string()),
+                    turso::Value::Text(holder.to_string()),
+                    turso::Value::Integer(until),
                 ],
             )
             .await?;

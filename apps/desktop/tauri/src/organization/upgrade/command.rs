@@ -6,12 +6,12 @@ use crate::{
     clock,
     credential::Credentials,
     error::{Error, RefusalReason},
-    organization::Shared,
+    organization::{HeldOrganization, Shared},
 };
 
 use crate::organization::{
     act::{Acting, Pull, as_member, owner_platform},
-    lease::{PipelineLease, apply},
+    lease::{PipelineLease, StoreLease, apply},
     session::{MemberSession, Upgrades, Upgrading},
     store::OrganizationStore,
     workspace::remote::Pipeline,
@@ -162,4 +162,35 @@ fn organization_credential(member: &MemberSession) -> Result<String, Error> {
                  the lease to upgrade",
             )
         })
+}
+
+/// [`super::dead_lease_released`] for the organization this machine has open, at its database's
+/// primary under the member's own credential, as the run took the lease there; at the replica
+/// itself for an organization with no remote, whose local file is the primary. What the heartbeat
+/// asks once a session is open, a launch's resume and a sign-in among them, so a run that died
+/// is released at its member's next start (ticket 28). A session with no credential in hand
+/// releases nothing, and the beat after one is filled does.
+pub(crate) async fn dead_lease_released_here(
+    store: &OrganizationStore,
+    member: &MemberSession,
+    held: &HeldOrganization,
+) {
+    let host = held.remote_url.trim_start_matches("libsql://");
+
+    if host.is_empty() {
+        super::dead_lease_released(store, member, &StoreLease::new(store)).await;
+
+        return;
+    }
+
+    let Ok(credential) = organization_credential(member) else {
+        return;
+    };
+
+    super::dead_lease_released(
+        store,
+        member,
+        &PipelineLease::new(Pipeline::of(host), &credential),
+    )
+    .await;
 }

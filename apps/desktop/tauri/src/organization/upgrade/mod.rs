@@ -39,7 +39,10 @@ mod primary;
 pub(crate) use command::*;
 pub use primary::Primary;
 
-use std::collections::BTreeMap;
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -216,7 +219,8 @@ fn after_awaiting(steps: &Steps, before: Floors) -> (Vec<u32>, Floors) {
 }
 
 /// What the upgrade of the workspace `workspace_id` would run, and whom it would stop or make
-/// read-only: the machines of the members holding a grant on it. `migrations` is the ladder this
+/// read-only: the machines of the members holding a grant on it, and every machine nobody is
+/// signed in on, since whoever signs in there next may hold it. `migrations` is the ladder this
 /// build ships ([`apply::SHIPPED`]), or a test's own.
 pub async fn preview_workspace(
     store: &OrganizationStore,
@@ -250,11 +254,14 @@ pub async fn preview_workspace(
             after,
             moves_legacy: steps.legacy_after(legacy, after) != legacy,
             known_of: |row| row.workspace_known,
+            // a machine nobody is signed in on counts too (ticket 28): signing out clears its
+            // member and leaves its build, and whoever signs in on it next may hold this
+            // workspace.
             counts: &|machine| {
                 machine
                     .member_id
                     .as_ref()
-                    .is_some_and(|member| holders.contains(member))
+                    .is_none_or(|member| holders.contains(member))
             },
         },
         now,
@@ -762,21 +769,32 @@ where
         return Err(needs_the_owner());
     }
 
+    // held for the whole run, so a start meanwhile knows the lease noted below is a live run's.
+    let _running = RUNNING.lock().await;
     let taken_at = now();
     let holder = &session.member_id;
+    let deadline = taken_at + MIGRATION_LEASE_LIFETIME_MS;
+
+    // noted before it is taken, so a run dying at any point after leaves this machine knowing what
+    // to release at its member's next start (ticket 28).
+    note_taken(
+        store.directory(),
+        &session.organization_id,
+        &Taken {
+            holder: holder.clone(),
+            until: deadline,
+        },
+    );
 
     if let LeaseOutcome::HeldBy {
         holder_member_id,
         until,
     } = lease
-        .take(
-            ORGANIZATION_LEASE,
-            holder,
-            taken_at + MIGRATION_LEASE_LIFETIME_MS,
-            taken_at,
-        )
+        .take(ORGANIZATION_LEASE, holder, deadline, taken_at)
         .await?
     {
+        forget_taken(store.directory(), &session.organization_id);
+
         return Err(under_way(&holder_member_id, until));
     }
 
@@ -827,14 +845,111 @@ where
     }
     .await;
 
-    if let Err(error) = lease.release(ORGANIZATION_LEASE, holder).await {
-        diagnostics::warn("organization.upgrade.releaseFailed")
+    // a release that could not go keeps the note, and the member's next start releases it.
+    match lease.release(ORGANIZATION_LEASE, holder).await {
+        Ok(()) => forget_taken(store.directory(), &session.organization_id),
+        Err(error) => diagnostics::warn("organization.upgrade.releaseFailed")
             .with("organization", session.organization_id.as_str())
             .with("error", error.to_string().as_str())
-            .write();
+            .write(),
     }
 
     ran
+}
+
+/// The organization's upgrades this process is running, one at a time and each held for the whole
+/// of its run: what tells [`dead_lease_released`] that a lease this machine took is a live run's.
+/// The application runs as one instance, so a lease this machine took while nothing here holds
+/// this is the lease of a run that is gone.
+static RUNNING: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+/// The organization's lease as this machine took it for a run (ticket 28): who holds it, and the
+/// deadline it was taken until, which no later take of the same holder's shares.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Taken {
+    holder: String,
+    until: i64,
+}
+
+/// `<data>/.upgrade-lease/<organization>`: where a run notes the lease it is about to take, and
+/// lets go of the note once it has let go of the lease.
+fn taken_path(data_directory: &Path, organization_id: &str) -> PathBuf {
+    data_directory.join(".upgrade-lease").join(organization_id)
+}
+
+/// Note the lease a run is about to take, best effort: a note that could not be written leaves the
+/// lease to lapse if the run dies, as it did before ticket 28.
+fn note_taken(data_directory: &Path, organization_id: &str, taken: &Taken) {
+    let path = taken_path(data_directory, organization_id);
+    let written = serde_json::to_vec(taken)
+        .map_err(std::io::Error::other)
+        .and_then(|bytes| {
+            path.parent()
+                .map_or(Ok(()), std::fs::create_dir_all)
+                .and_then(|()| std::fs::write(&path, bytes))
+        });
+
+    if let Err(error) = written {
+        diagnostics::warn("organization.upgrade.leaseNotNoted")
+            .with("organization", organization_id)
+            .with("reason", error.to_string())
+            .write();
+    }
+}
+
+/// Let go of the note of a lease no longer held.
+fn forget_taken(data_directory: &Path, organization_id: &str) {
+    let _ = std::fs::remove_file(taken_path(data_directory, organization_id));
+}
+
+/// Release the organization's lease that a run of this machine's left behind when it died (spec
+/// requirement 5, ticket 28): what the member's next start does, so their dead run does not hold
+/// every other member's acts as an upgrade under way until the lease lapses, up to
+/// [`MIGRATION_LEASE_LIFETIME_MS`] later.
+///
+/// **It cannot release a live run's lease.** Only a lease this machine noted taking is released,
+/// only while no run of this process holds [`RUNNING`], so the run that took it is gone, and only
+/// the row with the noted holder and deadline: the same member taking the lease again, from
+/// another machine, moves the deadline, and that row is left alone. A lease another member holds
+/// is theirs to release, so a start of anybody else's here leaves it and the note. A release that
+/// could not go keeps the note for the next start.
+pub(crate) async fn dead_lease_released<L: LeaseAuthority>(
+    store: &OrganizationStore,
+    session: &MemberSession,
+    lease: &L,
+) {
+    let Ok(_running) = RUNNING.try_lock() else {
+        return;
+    };
+    let path = taken_path(store.directory(), &session.organization_id);
+    let Some(taken) = std::fs::read(&path)
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<Taken>(&bytes).ok())
+    else {
+        return;
+    };
+
+    if taken.holder != session.member_id {
+        return;
+    }
+
+    match lease
+        .release_taken(ORGANIZATION_LEASE, &taken.holder, taken.until)
+        .await
+    {
+        Ok(()) => {
+            forget_taken(store.directory(), &session.organization_id);
+
+            diagnostics::info("organization.upgrade.deadLeaseReleased")
+                .with("organization", session.organization_id.as_str())
+                .write();
+        }
+        Err(error) => diagnostics::warn("organization.upgrade.deadLeaseNotReleased")
+            .with("organization", session.organization_id.as_str())
+            .with("error", error.to_string().as_str())
+            .write(),
+    }
 }
 
 #[cfg(test)]
@@ -1894,6 +2009,114 @@ mod tests {
         assert_eq!(nothing, Preview::default());
     }
 
+    /// **Ticket 28 (review round one, correctness 8).** A machine on an older build whose member
+    /// signed out of it yesterday names nobody in the registry, and still runs that build: whoever
+    /// signs in on it next meets the upgrade. Both previews list it as stopped, by its name and
+    /// the version it runs, with no member; a signed-out machine not seen within the week is
+    /// listed apart.
+    #[tokio::test]
+    async fn the_preview_lists_a_machine_its_member_signed_out_of() {
+        let credentials = Memory::new();
+        let directory = scratch("upgrade-preview-signed-out");
+        let (store, owner, link, workspace_id) = organization(
+            &credentials,
+            &directory,
+            format_ladder(&[later(Some(4), Some(4), "aLaterChange")]),
+        )
+        .await;
+        let ada = member(
+            &store,
+            &owner,
+            &link,
+            "ada.lead",
+            permission::MANAGER,
+            &[workspace_id.as_str()],
+        )
+        .await;
+
+        for machine in store.machines().await.expect("the machines") {
+            store
+                .unregister_machine(&machine.id)
+                .await
+                .expect("a clean registry");
+        }
+
+        let now = AT + 30 * DAY;
+
+        for (id, seen_at) in [
+            ("signed-out", now - DAY),
+            ("signed-out-long-ago", now - 10 * DAY),
+        ] {
+            store
+                .register_machine(id, Some(&ada.member_id), seen_at - DAY)
+                .await
+                .expect("the machine");
+            store
+                .write_machine_version(&MachineVersionRecord {
+                    id: id.to_string(),
+                    rentable: "0.7.0".to_string(),
+                    workspace_known: 7,
+                    format_known: 3,
+                    written_at: seen_at - DAY,
+                })
+                .await
+                .expect("the version");
+            // what a sign-out writes of the machine.
+            store
+                .machine_seen(id, None, seen_at)
+                .await
+                .expect("the sign-out");
+        }
+
+        store
+            .write_machine_name(
+                "signed-out",
+                Some(
+                    &seal_content(&owner.content_key, "machine_name.name", b"Front desk")
+                        .expect("sealed"),
+                ),
+                now,
+            )
+            .await
+            .expect("the name");
+
+        let signed_out = Machine {
+            member: None,
+            name: Some("Front desk".to_string()),
+            rentable: Some("0.7.0".to_string()),
+            seen_at: now - DAY,
+        };
+        let long_ago = Machine {
+            member: None,
+            name: None,
+            rentable: Some("0.7.0".to_string()),
+            seen_at: now - 10 * DAY,
+        };
+
+        let migrations = workspace_ladder(&[(
+            "0007_fake_read",
+            RENAME,
+            later(Some(8), Some(8), "aReadFloorRaised"),
+        )]);
+        let workspace = preview_workspace(&store, &owner, &workspace_id, &migrations, now)
+            .await
+            .expect("the workspace's preview");
+
+        assert_eq!(
+            workspace.stopped,
+            vec![signed_out.clone()],
+            "the workspace's"
+        );
+        assert_eq!(workspace.unseen, vec![long_ago.clone()], "the workspace's");
+
+        let organization = preview_organization(&store, &owner, now)
+            .await
+            .expect("the organization's preview");
+
+        assert_eq!(organization.stopped, vec![signed_out], "the organization's");
+        assert_eq!(organization.unseen, vec![long_ago], "the organization's");
+    }
+
     // -------------------------------------------------------------------------------------
     // Criteria 3 and 5: the run, whole or nothing, and the legacy numbers.
     // -------------------------------------------------------------------------------------
@@ -2583,6 +2806,102 @@ mod tests {
             })
         );
         assert_eq!(copies(&store, &database).len(), 1, "one upgrade, one copy");
+    }
+
+    /// **Ticket 28 (review round one, correctness 10).** The owner's upgrade of the organization
+    /// dies part way, as a process ends, with nothing let go: its lease still holds the manager's
+    /// acts as an upgrade under way. While the run was going the owner's start released nothing;
+    /// once it is gone, a start of the manager's releases nothing either, and the owner's next
+    /// start on this machine releases it. A later take of the owner's own, as from another
+    /// machine, is a live run, and a start here never releases it.
+    #[tokio::test]
+    async fn a_lease_left_by_a_run_that_died_is_released_by_its_members_next_start() {
+        /// A change of format that never finishes, saying when it has begun.
+        struct Hanging<'a> {
+            begun: &'a tokio::sync::Notify,
+        }
+
+        impl Changes for Hanging<'_> {
+            fn change<'s>(&'s self, _: &'s OrganizationStore, _: u32) -> Upgrading<'s> {
+                Box::pin(async move {
+                    self.begun.notify_one();
+                    std::future::pending::<Result<(), Error>>().await
+                })
+            }
+        }
+
+        let credentials = Memory::new();
+        let directory = scratch("upgrade-dead-lease");
+        let (store, owner, link, _) = organization(
+            &credentials,
+            &directory,
+            format_ladder(&[later(None, Some(4), "aLaterChange")]),
+        )
+        .await;
+        let manager = member(&store, &owner, &link, "ada.lead", permission::MANAGER, &[]).await;
+        let lease = StoreLease::new(&store);
+        let held_back = async |store: &OrganizationStore| {
+            super::under_way_elsewhere(store, Some(&manager.member_id), AT + 1)
+                .await
+                .expect("the lease")
+                .is_some()
+        };
+
+        // the run, under way and then gone; each at a primary of its own, since the one a dead
+        // run left still holds its transaction open.
+        let dies = async |owner: &MemberSession| {
+            let primary = primary_of(&store).await;
+            let begun = tokio::sync::Notify::new();
+            let hanging = Hanging { begun: &begun };
+            let run = run_with(&store, owner, &primary, &hanging);
+
+            tokio::pin!(run);
+            tokio::select! {
+                ran = &mut run => panic!("the run ended: {ran:?}"),
+                () = begun.notified() => {}
+            }
+
+            // a start while it runs leaves its lease alone.
+            super::dead_lease_released(&store, owner, &lease).await;
+
+            assert!(held_back(&store).await, "a live run's lease was released");
+        };
+
+        dies(&owner).await;
+
+        assert!(
+            held_back(&store).await,
+            "the dead run's lease went on its own"
+        );
+
+        super::dead_lease_released(&store, &manager, &lease).await;
+
+        assert!(
+            held_back(&store).await,
+            "another member's start released it"
+        );
+
+        super::dead_lease_released(&store, &owner, &lease).await;
+
+        assert!(!held_back(&store).await, "the owner's next start left it");
+
+        // dead again, and then taken by the owner from another machine, with its own deadline.
+        dies(&owner).await;
+        lease
+            .take(
+                ORGANIZATION_LEASE,
+                &owner.member_id,
+                AT + 2 * lease::MIGRATION_LEASE_LIFETIME_MS,
+                AT + 1,
+            )
+            .await
+            .expect("the take elsewhere");
+        super::dead_lease_released(&store, &owner, &lease).await;
+
+        assert!(
+            held_back(&store).await,
+            "a start here released a run going on elsewhere"
+        );
     }
 
     // -------------------------------------------------------------------------------------
