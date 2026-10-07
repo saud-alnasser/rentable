@@ -309,6 +309,14 @@ constructing a second kind of client.**
 *Why: the proxy row-mapping is real logic sitting on the language boundary, and a test that
 skips it verifies a system that does not ship.*
 
+**The factory also rewrites every statement to keep retired rows out.** Each statement, single
+or batched, passes `keepRetiredOut` (`platform/database/retired.ts`) on its way to the transport,
+and gains `"merged_into" is null` wherever it reads `tenant`, `complex`, `contract`, `unit` or
+`payment`, so a record the pass after a pull retired as an exact copy is read by no query, and no
+query carries the condition itself ([[contexts/desktop/persistence]]). A client built anywhere
+else would read retired records, which is one more reason there is only this one; the rewrite's
+own `retired.test.ts` fails on a second. *Effort 857, requirement 14, ticket 35.*
+
 **The condition this rule carried is discharged** *(2026-08-18; the record of what discharged it
 corrected 2026-08-19 by #565, and re-read against the tree 2026-08-20 by #573)*. It was flagged in
 [[efforts/a-workspace-follows-its-user/spec]] as holding "only if the chosen client can be driven

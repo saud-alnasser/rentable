@@ -263,7 +263,9 @@ test('every statement reaches the engine through the one client the rewrite is i
 
 		// a table interpolated into a `sql` template is read where it follows `from` or `join`,
 		// and anywhere else it is a read the rewrite does not see.
-		for (const match of source.matchAll(/(\w+)?\s*\$\{s\.(tenant|complex|contract)\}/g)) {
+		for (const match of source.matchAll(
+			/(\w+)?\s*\$\{s\.(tenant|complex|contract|unit|payment)\}/g
+		)) {
 			if (!/^(from|join)$/i.test(match[1] ?? '')) {
 				unseen.push(`${relative}: ${match[0].trim()}`);
 			}

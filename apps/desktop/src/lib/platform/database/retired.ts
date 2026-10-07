@@ -1,24 +1,25 @@
 /**
  * RETIRED RECORDS
  *
- * Every statement the application sends keeps a retired tenant, complex or contract out of what
- * it reads (effort 857, requirement 14).
+ * Every statement the application sends keeps a retired tenant, complex, contract, unit or
+ * payment out of what it reads (effort 857, requirement 14).
  *
  * Two machines saving the same record while apart make two records the same in every field a
  * person entered, and the pass after a pull (`tauri/src/database/heal.rs`) keeps the earlier and
- * retires the later: `merged_into` names the record it went into. The retired record stays in the
- * table, so an edit a machine that had not heard of the merge makes to it still lands somewhere
- * the pass can carry it from, and it is never read.
+ * retires the later: `merged_into` names the record it went into. A unit or a payment under a
+ * retired complex or contract is retired the same way into its match under the record that stayed
+ * (ticket 35). The retired record stays in the table, so an edit a machine that had not heard of
+ * the merge makes to it still lands somewhere the pass can carry it from, and it is never read.
  *
- * **One place rather than a condition in every query.** A read of these three tables is written
+ * **One place rather than a condition in every query.** A read of these five tables is written
  * in some sixty places, through drizzle and through `sql` templates, and a condition each of them
  * has to remember is one the next of them forgets, with nothing failing: the record simply shows
  * twice. So {@link keepRetiredOut} rewrites the statement itself, in `createDatabase`, which every
  * client is built by (`./client`): production's, a workspace reached over the shell, and every
- * test's. Wherever a statement reads `tenant`, `complex` or `contract` after `from` or `join`, or
- * among the tables a comma lists after `from`, it gains `"<name>"."merged_into" is null`: in the
- * `on` of a join, so a left join still answers its row with nothing beside it, and in the `where`
- * of the select that reads it otherwise. The base table stays the table, so every index it has is
+ * test's. Wherever a statement reads `tenant`, `complex`, `contract`, `unit` or `payment` after
+ * `from` or `join`, or among the tables a comma lists after `from`, it gains
+ * `"<name>"."merged_into" is null`: in the `on` of a join, so a left join still answers its row
+ * with nothing beside it, and in the `where` of the select that reads it otherwise. The base table stays the table, so every index it has is
  * still used, which a subquery or a view in its place was measured not to keep on the engine the
  * replica runs.
  *
@@ -26,6 +27,10 @@
  * `insert` names no table after `from` unless it reads one, which is then kept clear like any
  * other read. So an edit made to a retired record by its id still lands on it, which is what lets
  * the pass carry it to the record that stayed.
+ *
+ * **Six tests keep it so**, each named `retired.test.ts`: this module's own, over the rewrite and
+ * the one client it lives in, and one beside each of the five kinds (`tenant/`, `complex/`,
+ * `complex/unit/`, `contract/`, `payment/`), reading a retired copy through that kind's routers.
  */
 
 import { getTableColumns, getTableName, is } from 'drizzle-orm';
@@ -93,11 +98,11 @@ const ENDS_AN_ON = new Set([
 const NOT_AN_ALIAS = new Set([...ENDS_AN_ON, 'on', 'using', 'as', 'indexed', 'not', 'set']);
 
 /**
- * `sql` with every read of a retired tenant, complex or contract kept out, as this module's
- * comment says. A statement reading none of them comes back as it was.
+ * `sql` with every read of a record retired from one of {@link RETIRABLE} kept out, as this
+ * module's comment says. A statement reading none of them comes back as it was.
  */
 export function keepRetiredOut(sql: string): string {
-	// most statements name none of the three; they are answered without being read twice.
+	// most statements name none of the five; they are answered without being read twice.
 	if (!MENTIONS.test(sql)) {
 		return sql;
 	}

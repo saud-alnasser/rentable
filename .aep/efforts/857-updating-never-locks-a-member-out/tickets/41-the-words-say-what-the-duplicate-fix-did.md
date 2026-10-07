@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [39, 40]
 ---
 
@@ -15,10 +15,10 @@ Found by the standards review of the reopened work: the step declaration contrac
 
 Traces requirement 14.
 
-- [ ] `rules/migrations.md` *Every step declares its kind and its floors* names `readers_need` and its test, and `contexts/desktop/organization.md` says what a read-only member meets behind a step (tickets 37 and 40).
-- [ ] `retired.ts`, `client.ts` and `persistence.md` describe the five retirable tables and the six exclusion tests; the three save-check helpers' comments say retired records are kept out by the statement rewrite.
-- [ ] Tickets 34, 37 and 38 say in Notes why they carry no changeset; `duplicateValues` and `identicalRecords` say machines; `tenant/transfer.ts`'s comment no longer names the unique constraint; `rules/api-layer.md` says `createDatabase` rewrites every statement to keep retired rows out; the heal paragraph in `rules/testing.md` sits after the explanation it interrupted, wrapped as the file is.
-- [ ] `node .aep/scripts/validate.mjs` passes; `pnpm check` and `pnpm lint` pass.
+- [x] `rules/migrations.md` *Every step declares its kind and its floors* names `readers_need` and its test, and `contexts/desktop/organization.md` says what a read-only member meets behind a step (tickets 37 and 40).
+- [x] `retired.ts`, `client.ts` and `persistence.md` describe the five retirable tables and the six exclusion tests; the three save-check helpers' comments say retired records are kept out by the statement rewrite.
+- [x] Tickets 34, 37 and 38 say in Notes why they carry no changeset; `duplicateValues` and `identicalRecords` say machines; `tenant/transfer.ts`'s comment no longer names the unique constraint; `rules/api-layer.md` says `createDatabase` rewrites every statement to keep retired rows out; the heal paragraph in `rules/testing.md` sits after the explanation it interrupted, wrapped as the file is.
+- [x] `node .aep/scripts/validate.mjs` passes; `pnpm check` and `pnpm lint` pass.
 
 ## Relevant areas
 

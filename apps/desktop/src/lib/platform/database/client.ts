@@ -46,8 +46,8 @@ export function mapRows(rows: Row[], method: Method) {
  * same `SqliteRemoteDatabase<typeof schema>` type and runs the same row mapping.
  *
  * **Every statement passes `keepRetiredOut` on its way to the transport** (effort 857,
- * requirement 14): a tenant, complex or contract the pass after a pull retired as an exact copy
- * is never read, wherever the read was written. This is the one place every client is built, so
+ * requirement 14): a tenant, complex, contract, unit or payment the pass after a pull retired as
+ * an exact copy is never read, wherever the read was written. This is the one place every client is built, so
  * it is the one place that holds for all of them (`./retired` says why it is not a condition in
  * each query).
  */

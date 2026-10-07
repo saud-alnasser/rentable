@@ -786,7 +786,9 @@ where
         return Err(Error::refused(
             RefusalReason::WorkspaceBehindReadOnlyByVersion,
             format!(
-                "{} is behind this version, and a newer version of rentable upgraded the                  organization past what this version writes, so this version cannot bring it up.                  update rentable to open it; nothing was written",
+                "{} is behind this version, and a newer version of rentable upgraded the \
+                 organization past what this version writes, so this version cannot bring it up. \
+                 update rentable to open it; nothing was written",
                 facts.name
             ),
         ));
@@ -2428,15 +2430,16 @@ mod tests {
         )
         .await;
 
+        let Err(Error::Refused {
+            reason: RefusalReason::WorkspaceBehindReadOnlyByVersion,
+            message,
+        }) = opened
+        else {
+            panic!("{opened:?}");
+        };
         assert!(
-            matches!(
-                opened,
-                Err(Error::Refused {
-                    reason: RefusalReason::WorkspaceBehindReadOnlyByVersion,
-                    ..
-                })
-            ),
-            "{opened:?}"
+            !message.contains("  "),
+            "the refusal reads as one sentence: {message:?}"
         );
         assert_eq!(
             store

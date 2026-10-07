@@ -140,7 +140,7 @@ Start at [[protocol]].
 | 846-the-settings-and-the-record-cards-are-rethought | implemented | [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]] | 7 | 1 | 55 |
 | 851-the-way-out-the-password-fields-and-the-organizations-name | implemented | [[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/spec]] | 0 | 0 | 20 |
 | 854-bugs-and-edge-cases-across-the-app | implemented | [[efforts/854-bugs-and-edge-cases-across-the-app/spec]] | 3 | 0 | 41 |
-| 857-updating-never-locks-a-member-out | accepted | [[efforts/857-updating-never-locks-a-member-out/spec]] | 2 | 2 | 41 |
+| 857-updating-never-locks-a-member-out | implemented | [[efforts/857-updating-never-locks-a-member-out/spec]] | 2 | 2 | 41 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -662,4 +662,4 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/857-updating-never-locks-a-member-out/tickets/38-the-save-check-looks-only-at-a-changed-value]] fix(records): the save check looks only at a value the person changed | 857-updating-never-locks-a-member-out | resolved | — |
 | [[efforts/857-updating-never-locks-a-member-out/tickets/39-the-heal-never-hides-or-doubles-a-record]] fix(records): the heal never hides, doubles or misreads a record | 857-updating-never-locks-a-member-out | resolved | — |
 | [[efforts/857-updating-never-locks-a-member-out/tickets/40-a-full-access-machine-brings-every-workspace-up]] fix(organization): a full-access machine brings every workspace up, so readers barely wait | 857-updating-never-locks-a-member-out | resolved | — |
-| [[efforts/857-updating-never-locks-a-member-out/tickets/41-the-words-say-what-the-duplicate-fix-did]] docs: the rules, contexts and comments say what the duplicate fix did | 857-updating-never-locks-a-member-out | open | 39, 40 |
+| [[efforts/857-updating-never-locks-a-member-out/tickets/41-the-words-say-what-the-duplicate-fix-did]] docs: the rules, contexts and comments say what the duplicate fix did | 857-updating-never-locks-a-member-out | resolved | 39, 40 |

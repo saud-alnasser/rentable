@@ -140,8 +140,9 @@ export async function ensureTenantsAvailable(
  * **The app keeps these fields unique, not the database** (effort 857, requirement 14): the
  * shared database refused one machine's changes over a value another saved while apart, and the
  * engine dropped them. So every save that could take a value reads who holds it through here,
- * and what counts as holding one is decided once: a record retired by a merge joins this
- * condition, and no act changes.
+ * and what counts as holding one is decided once. A tenant retired by a merge holds nothing: the
+ * statement rewrite every client applies keeps it out of this read (`platform/database/retired`),
+ * so no condition here names it.
  */
 export async function tenantsHolding(
 	db: Database,

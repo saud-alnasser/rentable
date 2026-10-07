@@ -27,3 +27,9 @@ Traces requirement 1, requirement 13, criterion 1 and criterion 13.
 
 - Write the failing test first, at the level [[rules/testing]] fixes ([[skills/tdd]]).
 - A changeset only if a user can observe it; say so if none.
+
+## Notes
+
+- **No changeset.** The hold this lifts was never in a person's hands: `0007` is the only step a
+  reader does not need, and it arrives in this same release, so no released build ever held a
+  reader behind it. Every step shipped before 857 still holds a reader as 0.20 did.

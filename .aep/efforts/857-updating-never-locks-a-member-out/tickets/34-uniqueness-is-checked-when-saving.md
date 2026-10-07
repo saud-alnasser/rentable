@@ -26,3 +26,10 @@ Traces requirement 14 and criterion 14.
 
 - Write the failing test first, at the level [[rules/testing]] fixes ([[skills/tdd]]).
 - A changeset for `@rentable/desktop` in a user's words, in the same commit ([[references/changesets]]), unless nothing here is observable by a user; say so in Notes if none.
+
+## Notes
+
+- **No changeset.** Nothing a person sees changes: these four values were already refused by
+  reading the workspace before each write, never by the database's own error, and every refusal
+  keeps today's message. What moved is where the read is written, one helper per table, and the
+  complex and contract imports asking it again when they write.

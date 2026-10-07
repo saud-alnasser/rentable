@@ -177,11 +177,13 @@ router test can pass over a conversion that is broken in the running application
   earlier, moves what else pointed at it, and retires each copy with `merged_into` rather than
   deleting it (`tauri/src/database/heal.rs`), where this build and the member's grant may write the
   workspace. So a payment both machines saved is counted once, and one only a copy held moves.
-  Every statement a client built by `createDatabase` sends gains `"merged_into" is null` wherever it
-  reads one of the tables holding that column (`platform/database/retired.ts`), so no query carries
-  the condition itself, and a read written outside that client or naming a table where the rewrite
-  does not look fails `retired.test.ts`. A build before `0008` shows both copies, as it did before
-  any pass ran. *Effort 857, requirement 14, ticket 35.*
+  Five tables hold that column, `tenant`, `complex`, `contract`, `unit` and `payment`, and every
+  statement a client built by `createDatabase` sends gains `"merged_into" is null` wherever it reads
+  one of them (`platform/database/retired.ts`), so no query carries the condition itself. Six tests
+  named `retired.test.ts` hold it: the rewrite's own, under `platform/database/`, which a read
+  written outside that client or naming a table where the rewrite does not look also fails, and one
+  beside each of the five kinds reading a retired copy through its routers. A build before `0008`
+  shows both copies, as it did before any pass ran. *Effort 857, requirement 14, ticket 35.*
 
 ## Constraints
 

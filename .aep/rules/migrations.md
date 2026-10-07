@@ -56,6 +56,13 @@ its SQL. A test there fails while a migration file or a change of format has no 
 - **An upgrade** is everything else: a drop, a rename, a rebuild, a re-signing, or an addition
   whose meaning an older build would get wrong. It runs only by the explicit upgrade, it declares
   the read floor and the write floor it raises, and it says whether it needs the owner's key.
+- **Every step says whether a reader needs it** (`readers_need`, ticket 37). A member with a
+  read-only grant cannot run a step, so a pending step a reader needs refuses them until a member
+  who can write has run it, and one a reader does not need leaves them reading the data as it is.
+  Only a step that takes a rule away says no, as `0007` does; a step that adds a table or a column
+  says yes, and so does every step marked `shipped_before_857`.
+  `a_reader_needs_every_step_but_one_that_only_takes_a_rule_away` fails when a step a reader is
+  said not to need does more than drop an index, or a shipped step lets a reader past it.
 - **A meaning change that only adds a column is split**: the column as an addition, and the step
   that lets a build write the new meaning as an upgrade raising the write floor. The capability that
   writes it waits for that upgrade.

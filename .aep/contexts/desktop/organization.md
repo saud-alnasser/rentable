@@ -562,6 +562,21 @@ refused unless what it yields is the key this machine pinned, and the directory 
   after the commit, and where the workspace's row is already at the shipped version only the record
   is brought up. *It said an older build refused a newer workspace until effort 857 judged it by
   its floors.*
+- **A member with a read-only grant runs no step, and waits only behind one they need.** Each step
+  says whether a reader needs it ([[rules/migrations]], `readers_need`; ticket 37). Where nothing
+  pending is one they need, as `0007` alone is not, they read the workspace as it is, writing
+  nothing to it or to the organization, and the next member with full access runs the step
+  (`lease::holds_a_reader`). Where one is, as `0008` is, the workspace is refused as
+  `WorkspaceBehind` and they meet the workspace-held screen saying it is waiting for someone with
+  full access to open it on the new version, with their other workspaces reachable; in an
+  organization this build holds read-only by its version the refusal is
+  `WorkspaceBehindReadOnlyByVersion`, saying to update rentable. **The wait is shrunk, not
+  removed** (ticket 40, `lease/behind.rs`): after a sign-in, a resume and each heartbeat, a machine
+  on this build whose member holds full access brings up in the background every workspace it may
+  write that is behind, one at a time under the same lease and copy as opening, without opening
+  it in the interface, and nowhere this machine may not write. A failure is logged and the
+  workspace waits five minutes before a later beat tries it again. A reader therefore waits only
+  until such a machine comes online.
 - **A damaged organization replica is rebuilt from the remote, not repaired.** `org-<id>.db` opens
   through the workspace's own `Database::open_replica`, so one the engine finds corrupt, not a
   database, or cut short is set aside as `<name>.corrupt-<ms>` with its sidecars and opened again

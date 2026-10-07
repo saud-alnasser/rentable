@@ -11083,11 +11083,11 @@ export type TranslationFunctions = {
 				 */
 				workspaceOverride: () => LocalizedString;
 				/**
-				 * records saved on two devices while apart all stay, even with the same phone, national ID, complex name or government ID.
+				 * records saved apart on two machines all stay, even with the same phone, national ID, complex name or government ID.
 				 */
 				duplicateValues: () => LocalizedString;
 				/**
-				 * a record saved the same way on two devices while apart becomes one, keeping everything that belongs to it.
+				 * a record saved the same way on two machines while apart becomes one, keeping everything that belongs to it.
 				 */
 				identicalRecords: () => LocalizedString;
 			};

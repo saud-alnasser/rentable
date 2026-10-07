@@ -25,3 +25,9 @@ Traces requirement 14 and criterion 14.
 
 - Write the failing test first, at the level [[rules/testing]] fixes ([[skills/tdd]]).
 - A changeset only if a user can observe it; say so if none.
+
+## Notes
+
+- **No changeset.** Two records can share a value only since `0007` dropped the rules (ticket 33),
+  which has not shipped, so no released build ever refused such an edit. Ticket 33's entry already
+  says every record saved apart is kept.

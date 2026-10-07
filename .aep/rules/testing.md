@@ -334,26 +334,27 @@ own, and ticket 35 moved it with its own.*
 Everything else in this repository is tested against a local file, a loopback HTTP server, or an
 in-memory engine, and that is not changing.
 
-**A second instance holds the first property for two replicas healing one record** (effort 857,
-ticket 35, spec requirement 14, under the bound of 2026-10-07 below, which allowed live runs on
-throwaway databases in the `rentable` group alone): `identical_records_live_heal_into_one_with_both_contracts_in_either_order`,
-at the foot of `tauri/src/database/mod.rs`, provisions at this build's version through
-`database/test/workspace.rs`, has two replicas create the same tenant while apart with a contract
-each and the same contract with the same payment on both, syncs them in either order until each holds both, heals both at once as two heartbeats that
-met the copies together would, and syncs again: every replica and the remote hold one tenant shown,
-the earlier, with both contracts on it and the later kept, retired into it, and the shared
-contract once, holding its payment once. It reads `TURSO_GROUP`
-and refuses to run in any group but `rentable`, and each case deletes its database whatever it
-asserted. A local stand-in cannot say this, since the subject is what the engine replays when two
-replicas both wrote the same heal to the same rows. *First run 2026-10-07, and again on 2026-10-08
-with the shared contract and payment: both orders passed each time, and the group held the same
-twenty databases before and after.*
-
 *Why the first could not be: it measures what the sync engine does when two replicas diverge, and
 the engine reaches its remote over HTTP. There is no local stand-in. The loopback server
 [[rules/credentials]] endorses under *Transport testing* is the right shape and cannot be built
 here, because standing up the replication protocol would mean implementing the behaviour under
 test, and a bug in the stand-in would read as a finding about Turso.*
+
+**A second instance holds the first property for two replicas healing one record** (effort 857,
+ticket 35, spec requirement 14, under the bound of 2026-10-07 below, which allowed live runs on
+throwaway databases in the `rentable` group alone):
+`identical_records_live_heal_into_one_with_both_contracts_in_either_order`, at the foot of
+`tauri/src/database/mod.rs`, provisions at this build's version through
+`database/test/workspace.rs`, has two replicas create the same tenant while apart with a contract
+each and the same contract with the same payment on both, syncs them in either order until each
+holds both, heals both at once as two heartbeats that met the copies together would, and syncs
+again: every replica and the remote hold one tenant shown, the earlier, with both contracts on it
+and the later kept, retired into it, and the shared contract once, holding its payment once. It
+reads `TURSO_GROUP` and refuses to run in any group but `rentable`, and each case deletes its
+database whatever it asserted. A local stand-in cannot say this, since the subject is what the
+engine replays when two replicas both wrote the same heal to the same rows. *First run 2026-10-07,
+and again on 2026-10-08 with the shared contract and payment: both orders passed each time, and the
+group held the same twenty databases before and after.*
 
 *Two admissions retired with the control plane on 2026-09-12
 ([[efforts/819-an-organization-hosts-its-own-workspaces/spec]], requirement 19):
