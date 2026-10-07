@@ -140,7 +140,7 @@ Start at [[protocol]].
 | 846-the-settings-and-the-record-cards-are-rethought | implemented | [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]] | 7 | 1 | 55 |
 | 851-the-way-out-the-password-fields-and-the-organizations-name | implemented | [[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/spec]] | 0 | 0 | 20 |
 | 854-bugs-and-edge-cases-across-the-app | implemented | [[efforts/854-bugs-and-edge-cases-across-the-app/spec]] | 3 | 0 | 41 |
-| 857-updating-never-locks-a-member-out | accepted | [[efforts/857-updating-never-locks-a-member-out/spec]] | 1 | 1 | 0 |
+| 857-updating-never-locks-a-member-out | accepted | [[efforts/857-updating-never-locks-a-member-out/spec]] | 1 | 1 | 14 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -622,3 +622,17 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/854-bugs-and-edge-cases-across-the-app/tickets/39-the-last-words-match-the-code]] docs(desktop): the last contexts and rules match the code | 854-bugs-and-edge-cases-across-the-app | resolved | 37, 38 |
 | [[efforts/854-bugs-and-edge-cases-across-the-app/tickets/40-undoing-a-refund-change-puts-back-what-was-recorded]] fix(desktop): undoing a refund's change puts back what was recorded | 854-bugs-and-edge-cases-across-the-app | resolved | — |
 | [[efforts/854-bugs-and-edge-cases-across-the-app/tickets/41-the-refund-is-the-bars-create]] feat(desktop): a refund is a tab of the payment form, opened from the bar's plus | 854-bugs-and-edge-cases-across-the-app | resolved | — |
+| [[efforts/857-updating-never-locks-a-member-out/tickets/01-every-step-declares-its-kind-and-floors]] refactor(upgrade): every step declares its kind and floors | 857-updating-never-locks-a-member-out | open | — |
+| [[efforts/857-updating-never-locks-a-member-out/tickets/02-each-machine-records-what-it-runs]] feat(organization): each machine records what it runs | 857-updating-never-locks-a-member-out | open | 01 |
+| [[efforts/857-updating-never-locks-a-member-out/tickets/03-additions-arrive-on-their-own]] feat(organization): additions arrive on their own | 857-updating-never-locks-a-member-out | open | 01 |
+| [[efforts/857-updating-never-locks-a-member-out/tickets/04-the-floors-are-judged-at-every-way-in]] fix(organization): the floors are judged at every way in, after a pull | 857-updating-never-locks-a-member-out | open | 01 |
+| [[efforts/857-updating-never-locks-a-member-out/tickets/05-a-machine-below-the-write-floor-is-read-only]] feat(database): a machine below the write floor is read-only | 857-updating-never-locks-a-member-out | open | 04 |
+| [[efforts/857-updating-never-locks-a-member-out/tickets/06-the-upgrade-data-permission]] feat(permission): the upgrade data permission | 857-updating-never-locks-a-member-out | open | — |
+| [[efforts/857-updating-never-locks-a-member-out/tickets/07-the-upgrade-is-run-on-purpose]] feat(organization): the upgrade is run on purpose | 857-updating-never-locks-a-member-out | open | 01, 02, 03, 06 |
+| [[efforts/857-updating-never-locks-a-member-out/tickets/08-the-upgrade-sheet-and-the-gated-capability]] feat(organization): the upgrade sheet, and a capability waits for its upgrade | 857-updating-never-locks-a-member-out | open | 07 |
+| [[efforts/857-updating-never-locks-a-member-out/tickets/09-the-updater-runs-in-rust]] feat(update): the updater runs in Rust and installs at quit | 857-updating-never-locks-a-member-out | open | — |
+| [[efforts/857-updating-never-locks-a-member-out/tickets/10-one-update-action-everywhere]] feat(update): one update action, and the app looks for updates itself | 857-updating-never-locks-a-member-out | open | 09 |
+| [[efforts/857-updating-never-locks-a-member-out/tickets/11-a-held-machine-meets-the-update-screen]] feat(startup): a held machine meets the update screen | 857-updating-never-locks-a-member-out | open | 04, 10 |
+| [[efforts/857-updating-never-locks-a-member-out/tickets/12-the-running-app-follows-a-raise]] feat(sync): the running app follows a floor raise | 857-updating-never-locks-a-member-out | open | 05, 10, 11 |
+| [[efforts/857-updating-never-locks-a-member-out/tickets/13-unsent-changes-survive-an-upgrade]] fix(sync): unsent changes survive an upgrade | 857-updating-never-locks-a-member-out | open | 07 |
+| [[efforts/857-updating-never-locks-a-member-out/tickets/14-every-shipped-version-carries-across]] test(upgrade): every shipped version carries across | 857-updating-never-locks-a-member-out | open | 03, 04, 07 |
