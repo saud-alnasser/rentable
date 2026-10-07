@@ -93,7 +93,8 @@ The human chose B on 2026-10-07 and amended spec requirements 1 and 3 to match i
   `UpdaterBuilder`, which the JS 2.10 plugin cannot ask for. `Recovery` is untouched.
 - **`organization/role/permission.rs`** and `packages/workspace-permission`: the `upgradeData` flag
   on free bit 18, in the administration family, in `MANAGER_ROLE`, not in `MEMBER_ROLE`, not in
-  `OWNER_ONLY` (spec requirement 3: an override can grant it).
+  `OWNER_ONLY` (spec requirement 3: an override can grant it). Existing organizations' certificates
+  are re-issued to carry it, as Migration says.
 - **`error.rs`**: new reasons `WorkspaceReadOnlyByVersion`, `OrganizationReadOnlyByVersion`,
   `UpgradeNeedsPermission` (reuses the flag refusal if one fits), `UpgradeNeedsOwner`,
   `ChangesUnsendableAfterUpgrade`; `WorkspaceNewer` and `OrganizationNewer` keep their names and
@@ -198,9 +199,23 @@ The order is foundation first, so every later ticket has a verdict to read:
 - **Already-shipped steps are declared** in `upgrade/step.rs` with the floors they effectively had:
   every one an upgrade step whose floors equal its own number, because every pre-857 build
   refused on any rise. `0006` and format 3 are declared as their meaning requires.
-- **The manager role's stored mask** lacks bit 18. The owner's machine adds it once, as a signed
-  write, at its first sign-in on this build, on the pattern of `owner_row_repaired`; a manager role
-  whose mask the owner edited keeps the edit and gains only bit 18. Until the owner signs in, a
+- **A new permission reaches existing organizations through new certificates.** Every pre-857
+  root certificate carries the owner's mask as it was at setup as its `ceiling`, under the
+  organization key's signature, so it lacks bit 18. A role row is covered only when its mask sits
+  inside the signer's ceiling (`authority/chain.rs`, `Authority::Role`, no exemption for the root),
+  so the store refuses a manager role carrying bit 18 under that root, and writing it around the
+  check would make the role table unreadable for everybody (role rows refuse the whole read).
+  Managers' certificates lack the bit for the same reason. Found by ticket 06 on 2026-10-07; the
+  human chose re-issuing over reusing a flag or tying the act to the built-in roles.
+
+  So at the owner's first sign-in on a build whose `OWNER_ROLE` knows more flags than the root's
+  ceiling, the owner's machine, in order: re-issues the root with the current `OWNER_ROLE.mask`
+  and retires the old one, re-signing or re-issuing what the old root issued, on the pattern of the
+  handover's re-signing; adds bit 18 once to the stored manager role, keeping any other edit the
+  owner made to it; and re-issues each live certificate whose standing now reaches further than
+  its ceiling (`reissue_within`). It is general: the next new flag takes the same path. Every row
+  and certificate still verifies afterwards, on this build and on a pre-857 build, since a mask is
+  a number to both and the handover's re-keying already runs on them. Until the owner signs in, a
   manager is refused the upgrade with the reason that the owner has not opened this version yet.
 - **Pre-857 machines** have no `machine_version` row. The sheet lists them as on an unknown
   version, which reads as stopped by any upgrade that moves a legacy floor.

@@ -1,6 +1,6 @@
 ---
 status: open
-blocked-by: [01, 02, 03, 06]
+blocked-by: [01, 02, 03, 06, 15]
 ---
 
 # feat(organization): the upgrade is run on purpose
