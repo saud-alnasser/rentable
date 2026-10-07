@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [16]
 ---
 
@@ -15,8 +15,8 @@ Found at converge round one: besides the launch, the app looks for an update eac
 
 Traces requirement 12 and criterion 12.
 
-- [ ] Entering a version hold (an organization refused for its version, a workspace on update-required, read-only by version) triggers a check and a background download when none has run since the hold began; one hold never checks twice.
-- [ ] A test covers each of the three holds, and that staying in one hold does not check again.
+- [x] Entering a version hold (an organization refused for its version, a workspace on update-required, read-only by version) triggers a check and a background download when none has run since the hold began; one hold never checks twice.
+- [x] A test covers each of the three holds, and that staying in one hold does not check again.
 
 ## Relevant areas
 

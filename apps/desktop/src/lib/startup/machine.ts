@@ -40,6 +40,12 @@ export class StartupMachine {
 	 * update-required screen rather than round the same refusal.
 	 */
 	#unreadable = new Map<string, WorkspaceHold>();
+	/**
+	 * the version holds the snapshot stood in at its last change, one key each (effort 857,
+	 * ticket 18): what tells a hold that has just begun from one the run is still in, so each asks
+	 * the update to look once (`#lookAtNewHolds`).
+	 */
+	#holds = new Set<string>();
 
 	constructor(ports: StartupPorts) {
 		this.ports = ports;
@@ -133,6 +139,62 @@ export class StartupMachine {
 
 		for (const observer of this.#observers) {
 			observer(this.snapshot);
+		}
+
+		this.#lookAtNewHolds();
+	}
+
+	/**
+	 * Every version hold the snapshot stands in, one key each (effort 857, requirement 12):
+	 *
+	 * - **an organization refused for its version**, while its callout stands on the switcher;
+	 * - **a workspace on the update-required screen**, from the screen going up until another
+	 *   workspace opens in its place or the session leaves for the wall. A retry or a second
+	 *   choice of it lands on the same screen, and is the same hold;
+	 * - **read-only by version**, the organization's verdict and the open workspace's apart, for as
+	 *   long as the session and that workspace are open.
+	 */
+	#versionHolds() {
+		const { refusals, held, state, organization } = this.#snapshot;
+		const holds = new Set<string>();
+
+		for (const [organizationId, refusal] of Object.entries(refusals)) {
+			if (refusal.byVersion) {
+				holds.add(`refused:${organizationId}`);
+			}
+		}
+
+		if (held && state !== 'sign-in') {
+			holds.add(`unreadable:${held.workspaceId}`);
+		}
+
+		const organizationId = organization?.session?.organizationId ?? '';
+
+		for (const verdict of this.heldByVersion) {
+			if (verdict.standing === 'readOnly') {
+				const target = verdict.target === 'organization' ? '' : verdict.target.workspace;
+
+				holds.add(`readOnly:${organizationId}:${target}`);
+			}
+		}
+
+		return holds;
+	}
+
+	/**
+	 * Ask the update to look where a version hold has just begun (effort 857, requirement 12,
+	 * ticket 18), so a held person sees a release without pressing anything. **Once per hold**:
+	 * a hold the last change already stood in asks nothing, however many changes pass inside it,
+	 * and a hold left and entered again is a new one.
+	 */
+	#lookAtNewHolds() {
+		const holds = this.#versionHolds();
+		const begun = [...holds].some((hold) => !this.#holds.has(hold));
+
+		this.#holds = holds;
+
+		if (begun) {
+			this.ports.update.lookWhileHeld();
 		}
 	}
 

@@ -96,8 +96,12 @@ export function browserStartupPorts(
 			forgetContext
 		},
 		undo: { forget: forgetEveryChange },
-		// the update looks once a run, downloads in the background and offers the restart itself.
-		update: { lookAtLaunch: () => void updater.lookAtLaunch() },
+		// the update looks once a run and again as each version hold begins, downloads in the
+		// background and offers the restart itself.
+		update: {
+			lookAtLaunch: () => void updater.lookAtLaunch(),
+			lookWhileHeld: () => void updater.lookWhileHeld()
+		},
 		// read at the moment of the failure rather than captured, so it is written in whatever
 		// language the reader had by then.
 		// the sentence alone: the shell's own words are the detail, drawn behind a disclosure where

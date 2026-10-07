@@ -149,6 +149,8 @@ export type Journal = {
 	standing: 'held' | 'signedOutElsewhere';
 	/** how many times the unit asked the update to look for a newer release. */
 	updateLooks: number;
+	/** how many times the unit asked the update to look again because a version holds it. */
+	heldLooks: number;
 };
 
 export type Harness = {
@@ -221,6 +223,7 @@ export function harness(
 		invalidatedAll: 0,
 		standing: 'held',
 		updateLooks: 0,
+		heldLooks: 0,
 		remoteSyncInvalidated: 0,
 		remembered: [],
 		contextsForgotten: 0,
@@ -417,7 +420,8 @@ export function harness(
 			lookAtLaunch: () => {
 				journal.updateLooks += 1;
 				void overrides.lookForUpdate?.();
-			}
+			},
+			lookWhileHeld: () => void journal.heldLooks++
 		},
 		describeError: (error) => {
 			if (overrides.describeError) return overrides.describeError(error);

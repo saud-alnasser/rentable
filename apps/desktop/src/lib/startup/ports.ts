@@ -107,6 +107,12 @@ export type StartupPorts = {
 		 * this is asked.
 		 */
 		lookAtLaunch(): void;
+		/**
+		 * look again, the same way, because a version holds the run (effort 857, ticket 18). Never
+		 * awaited either. The machine asks once as each hold begins; a look already under way
+		 * answers for it.
+		 */
+		lookWhileHeld(): void;
 	};
 	/** a thrown value as a reader should see it. The route's translations, from outside. */
 	describeError(error: unknown): string;

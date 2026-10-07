@@ -127,3 +127,63 @@ test('the launch looks once, however many passes of startup ask', async () => {
 
 	expect(sequence).toEqual(['check']);
 });
+
+// --- whenever a version holds it (ticket 18) ------------------------------------------------
+
+test('a version hold looks again after the launch, and downloads a release it finds in the background', async () => {
+	let answer: () => CheckedUpdate = noRelease;
+
+	shellAnswering(async () => answer());
+
+	await updater.lookAtLaunch();
+	expect(updater.phase).toBe('upToDate');
+
+	// the release came out after the launch looked, and the hold is what finds it.
+	answer = () => fakeRelease();
+	await updater.lookWhileHeld();
+
+	expect(sequence).toEqual(['check', 'check', 'download']);
+	expect(updater.phase).toBe('ready');
+	expect(toasts).toHaveLength(1);
+	expect(toasts[0]?.title).toBe(en().update.ready({ version: '0.15.0' }));
+});
+
+test('a hold that finds nothing, or nothing reachable, says nothing', async () => {
+	shellAnswering(async () => noRelease());
+	await updater.lookWhileHeld();
+
+	shellAnswering(async () => {
+		throw offline();
+	});
+	await updater.lookWhileHeld();
+
+	expect(updater.failure).toBe('offline');
+	expect(toasts).toEqual([]);
+});
+
+test('a hold that begins while a look is under way leaves it to answer', async () => {
+	let finish: (checked: CheckedUpdate) => void = () => {};
+
+	shellAnswering(() => new Promise<CheckedUpdate>((resolve) => (finish = resolve)));
+
+	const launch = updater.lookAtLaunch();
+	const held = updater.lookWhileHeld();
+
+	finish(noRelease());
+	await Promise.all([launch, held]);
+
+	expect(sequence).toEqual(['check']);
+});
+
+test('a hold with a release already in asks nothing', async () => {
+	shellAnswering(async () => fakeRelease());
+
+	await updater.lookAtLaunch();
+	expect(updater.phase).toBe('ready');
+
+	await updater.lookWhileHeld();
+
+	expect(sequence).toEqual(['check', 'download']);
+	// the restart is offered once.
+	expect(toasts).toHaveLength(1);
+});

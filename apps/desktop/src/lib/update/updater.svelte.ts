@@ -22,7 +22,8 @@ import { tauri } from './tauri';
  *
  * The one update this installation is checking, downloading or waiting to restart into, in one
  * module-level instance. Every surface that draws the update action reads it
- * (`component/update-action.svelte`), and startup asks it to look at launch (`lookAtLaunch`), so
+ * (`component/update-action.svelte`), and startup asks it to look at launch (`lookAtLaunch`) and
+ * whenever a version holds the run (`lookWhileHeld`), so
  * it lives in the update feature rather than in any of theirs. *It was
  * `settings/update-download.svelte.ts` until effort 857 (ticket 10); startup could not reach it
  * there without reaching into settings.*
@@ -234,6 +235,30 @@ class Updater {
 		}
 
 		this.#looked = true;
+
+		await this.#look();
+	}
+
+	/**
+	 * Look again, the way the launch does, because a version holds this run: an organization
+	 * refused for its version, a workspace on the update-required screen, or read-only by version
+	 * (effort 857, requirement 12, ticket 18). Startup asks once as each hold begins
+	 * (`startup/machine.ts`), so a held person sees a release that came out after the launch
+	 * without pressing anything.
+	 */
+	async lookWhileHeld() {
+		await this.#look();
+	}
+
+	/**
+	 * check, and download a release found in the background, offering the restart once it is in.
+	 * **A look already under way answers for this one, and a release already in needs no other**,
+	 * so a hold that begins while the launch is looking adds no second check beside it.
+	 */
+	async #look() {
+		if (this.busy || this.phase === 'ready') {
+			return;
+		}
 
 		await this.check('inline');
 
