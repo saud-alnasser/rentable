@@ -28,7 +28,7 @@ use crate::{
         floor::{Floors, Standing},
         proxy::{SQLQuery, SQLRow},
     },
-    error::Error,
+    error::{Error, RefusalReason},
     persisted::Persisted,
     settings::Settings,
     turso::platform::read_sync_refusal,
@@ -65,19 +65,23 @@ pub struct Pulled {
 ///
 /// `watch` records damage either half reports beside the replica (`corrupt.rs`), and `bound` is
 /// how long each half may wait on the remote before it is the offline case (`bound.rs`).
+/// `pushing` is whether this build may write the workspace: where it may not, only the pull goes
+/// (effort 857, requirement 6).
 pub(crate) async fn replicate_engine(
     database: &turso::sync::Database,
     watch: &corrupt::Watch,
     bound: Bound,
+    pushing: bool,
 ) -> Replicated {
     let mut refusal = None;
-    let pushed = match watch.note(bounded(bound, "push", database.push()).await) {
-        Ok(()) => true,
-        Err(error) => {
-            refusal = read_sync_refusal(&error);
-            false
-        }
-    };
+    let pushed = pushing
+        && match watch.note(bounded(bound, "push", database.push()).await) {
+            Ok(()) => true,
+            Err(error) => {
+                refusal = read_sync_refusal(&error);
+                false
+            }
+        };
     let pulled = match watch.note(bounded(bound, "pull", database.pull()).await) {
         Ok(brought) => Some(brought),
         Err(error) => {
@@ -381,7 +385,14 @@ impl Database {
     /// **A failure is an answer rather than an error to raise.** What could not be sent stays
     /// captured and goes with the next push, which is what makes an offline write survive rather
     /// than a promise anybody had to keep.
+    ///
+    /// **Nothing is pushed of a workspace this build may not write** (effort 857, requirement 9):
+    /// what it captured before the floor rose stays captured, and goes once it has updated.
     pub async fn push_replica(&self) -> bool {
+        if self.standing() != Standing::Writable {
+            return false;
+        }
+
         match self.engine.as_ref() {
             Some(Engine::Workspace(replica)) => self
                 .watch
@@ -434,10 +445,19 @@ impl Database {
     /// refused credential is collected again). The refusal is read at the response by
     /// `turso::platform::read_sync_refusal`, and the first refusal of the two halves is
     /// the one reported, because both are about the same database and the same credential.
+    ///
+    /// **A workspace this build may not write is pulled and not pushed** (effort 857, requirement
+    /// 6): what the others wrote comes in, and nothing this build holds goes out.
     pub async fn replicate(&self) -> Replicated {
         match self.engine.as_ref() {
             Some(Engine::Workspace(replica)) => {
-                replicate_engine(&replica.engine, &self.watch, self.bound).await
+                replicate_engine(
+                    &replica.engine,
+                    &self.watch,
+                    self.bound,
+                    self.standing() == Standing::Writable,
+                )
+                .await
             }
             Some(Engine::Local(_)) | None => Replicated {
                 pushed: false,
@@ -694,6 +714,13 @@ impl Database {
         }
     }
 
+    /// Run one statement on the open database.
+    ///
+    /// **A workspace this build may not write refuses every write here** (effort 857, requirement
+    /// 6): the connection is held to the standing before the statement runs
+    /// ([`floor::hold_writes`](crate::database::floor::hold_writes)), so the engine refuses a write
+    /// and serves a read, and its refusal is answered with the version as the reason. The `Local`
+    /// arm is the seeded and test paths, which no organization judges, and is not held.
     pub async fn execute_single_sql(&self, query: SQLQuery) -> Result<Vec<SQLRow>, Error> {
         match self.engine.as_ref().ok_or_else(Self::not_connected)? {
             Engine::Local(pool) => proxy::execute_single_sql(pool, query).await,
@@ -702,12 +729,21 @@ impl Database {
             // it opens, so one it opened is one whose writes can be pushed, and one taken any
             // other way is not.
             Engine::Workspace(replica) => {
-                proxy::workspace_execute_single_sql(&*replica.connections.checkout().await?, query)
+                let connection = replica.connections.checkout().await?;
+                let standing = self.standing();
+
+                crate::database::floor::hold_writes(&connection, standing).await?;
+
+                proxy::workspace_execute_single_sql(&connection, query)
                     .await
+                    .map_err(|error| Self::refused_by_version(standing, error))
             }
         }
     }
 
+    /// Run a batch on the open database, as one transaction, held as
+    /// [`Database::execute_single_sql`] holds one statement: a batch holding a write is refused
+    /// whole, and rolled back, while this build may not write the workspace.
     pub async fn execute_batch_sql(
         &self,
         queries: Vec<SQLQuery>,
@@ -715,9 +751,37 @@ impl Database {
         match self.engine.as_ref().ok_or_else(Self::not_connected)? {
             Engine::Local(pool) => proxy::execute_batch_sql(pool, queries).await,
             Engine::Workspace(replica) => {
-                proxy::workspace_execute_batch_sql(&*replica.connections.checkout().await?, queries)
+                let connection = replica.connections.checkout().await?;
+                let standing = self.standing();
+
+                crate::database::floor::hold_writes(&connection, standing).await?;
+
+                proxy::workspace_execute_batch_sql(&connection, queries)
                     .await
+                    .map_err(|error| Self::refused_by_version(standing, error))
             }
+        }
+    }
+
+    /// The engine's refusal of a write on a connection held to `standing`, as the refusal a person
+    /// is told: the workspace upgraded past what this build writes, or past what it reads. Any
+    /// other error is answered as it came.
+    fn refused_by_version(standing: Standing, error: Error) -> Error {
+        if !crate::database::floor::refused_a_write(&error) {
+            return error;
+        }
+
+        match standing {
+            Standing::Unreadable => Error::refused(
+                RefusalReason::WorkspaceNewer,
+                "a newer version of rentable upgraded this workspace past what this version reads. \
+                 update rentable to open it; nothing was written",
+            ),
+            Standing::ReadOnly | Standing::Writable => Error::refused(
+                RefusalReason::WorkspaceReadOnlyByVersion,
+                "a newer version of rentable upgraded this workspace, and this version reads it but \
+                 does not write to it. update rentable to make changes; nothing was written",
+            ),
         }
     }
 }
@@ -826,7 +890,7 @@ mod tests {
         .expect("replica engine");
 
         let replicated =
-            super::replicate_engine(&database, &Default::default(), super::SYNC_BOUND).await;
+            super::replicate_engine(&database, &Default::default(), super::SYNC_BOUND, true).await;
 
         assert!(!replicated.pushed);
         assert!(!replicated.received);
@@ -877,7 +941,7 @@ mod tests {
         .expect("replica engine");
 
         let unreached =
-            super::replicate_engine(&offline, &Default::default(), super::SYNC_BOUND).await;
+            super::replicate_engine(&offline, &Default::default(), super::SYNC_BOUND, true).await;
 
         assert_eq!(unreached.refusal, None);
 
@@ -1677,5 +1741,207 @@ mod tests {
         let _ = std::fs::remove_dir_all(&first_dir);
         let _ = std::fs::remove_dir_all(&second_dir);
         workspace.destroy().await;
+    }
+
+    /// One statement, with nothing bound.
+    fn statement(sql: &str) -> crate::database::proxy::SQLQuery {
+        crate::database::proxy::SQLQuery {
+            sql: sql.to_string(),
+            params: Vec::new(),
+        }
+    }
+
+    /// The reason a refusal carries, or a panic naming what came back instead.
+    fn reason_of<T: std::fmt::Debug>(
+        answered: Result<T, crate::error::Error>,
+    ) -> crate::error::RefusalReason {
+        match answered {
+            Err(crate::error::Error::Refused { reason, .. }) => reason,
+            other => panic!("not a refusal: {other:?}"),
+        }
+    }
+
+    /// Every tenant the workspace holds, by id.
+    async fn tenants(database: &Database) -> Vec<crate::database::proxy::SQLRow> {
+        database
+            .execute_single_sql(statement("SELECT \"id\" FROM \"tenant\" ORDER BY \"id\""))
+            .await
+            .expect("the read")
+    }
+
+    /// **Ticket 05's second criterion.** While this build stands below the workspace's write floor,
+    /// every kind of write, alone or in a batch, is refused with the version as the reason and
+    /// changes nothing, and every read answers as before; below the read floor a write is refused
+    /// as the workspace being newer. Once the standing is writable again the same connections
+    /// write, so nothing of the refusal outlives it.
+    #[test]
+    fn a_workspace_below_its_write_floor_refuses_every_write_and_serves_reads() {
+        use crate::{database::floor::Standing, error::RefusalReason, sync::test::server::within};
+        use std::time::Duration;
+
+        within(Duration::from_secs(60), async {
+            let (directory, database) =
+                workspace_against("read-only-writes", None, Duration::from_secs(30)).await;
+
+            for sql in [
+                "CREATE TABLE \"tenant\" (\"id\" TEXT PRIMARY KEY, \"name\" TEXT)",
+                "INSERT INTO \"tenant\" VALUES ('t-1', 'first')",
+            ] {
+                database
+                    .execute_single_sql(statement(sql))
+                    .await
+                    .expect(sql);
+            }
+
+            let before = tenants(&database).await;
+
+            database.hold(Standing::ReadOnly);
+
+            let writes = [
+                "INSERT INTO \"tenant\" VALUES ('t-2', 'second')",
+                "UPDATE \"tenant\" SET \"name\" = 'renamed' WHERE \"id\" = 't-1'",
+                "DELETE FROM \"tenant\" WHERE \"id\" = 't-1'",
+                "CREATE TABLE \"other\" (\"id\" TEXT)",
+                "DROP TABLE \"tenant\"",
+            ];
+
+            // more times than the replica holds connections, so every one of them is met.
+            for _ in 0..super::held::SIZE + 1 {
+                for sql in writes {
+                    assert_eq!(
+                        reason_of(database.execute_single_sql(statement(sql)).await),
+                        RefusalReason::WorkspaceReadOnlyByVersion,
+                        "{sql}"
+                    );
+                    assert_eq!(
+                        reason_of(
+                            database
+                                .execute_batch_sql(vec![
+                                    statement("SELECT count(*) FROM \"tenant\""),
+                                    statement(sql),
+                                ])
+                                .await
+                        ),
+                        RefusalReason::WorkspaceReadOnlyByVersion,
+                        "a batch holding {sql}"
+                    );
+                }
+
+                assert_eq!(tenants(&database).await, before, "a write went through");
+                assert_eq!(
+                    database
+                        .execute_batch_sql(vec![
+                            statement("SELECT count(*) FROM \"tenant\""),
+                            statement("SELECT \"name\" FROM \"tenant\""),
+                        ])
+                        .await
+                        .expect("a batch of reads")
+                        .len(),
+                    2
+                );
+            }
+
+            database.hold(Standing::Unreadable);
+
+            assert_eq!(
+                reason_of(database.execute_single_sql(statement(writes[0])).await),
+                RefusalReason::WorkspaceNewer
+            );
+
+            database.hold(Standing::Writable);
+
+            for _ in 0..super::held::SIZE + 1 {
+                database
+                    .execute_batch_sql(vec![statement(
+                        "UPDATE \"tenant\" SET \"name\" = 'written' WHERE \"id\" = 't-1'",
+                    )])
+                    .await
+                    .expect("a write once writable again");
+            }
+
+            drop(database);
+            let _ = std::fs::remove_dir_all(&directory);
+        });
+    }
+
+    /// **Ticket 05's second criterion, the push.** A workspace this build may not write is pulled
+    /// and never pushed, by the replication and by the last push of a session alike, so what it
+    /// wrote before the floor rose stays captured on the machine. The same replica pushes once it
+    /// may write again, which is what shows the test can see a push at all.
+    #[test]
+    fn a_workspace_below_its_write_floor_is_pulled_and_never_pushed() {
+        use crate::{
+            database::floor::Standing,
+            sync::test::server::{ScriptedResponse, ScriptedServer, within},
+        };
+        use std::time::Duration;
+
+        // what the engine sends each half to, measured against this server (ticket 05).
+        const PUSH: &str = "/v2/pipeline";
+        const PULL: &str = "/pull-updates";
+
+        within(Duration::from_secs(60), async {
+            let remote = ScriptedServer::start(
+                (0..32)
+                    .map(|_| ScriptedResponse::new(500, "unavailable"))
+                    .collect(),
+            )
+            .await;
+            let (directory, database) = workspace_against(
+                "read-only-push",
+                Some(remote.url("")),
+                Duration::from_secs(5),
+            )
+            .await;
+            let sent = |from: usize| {
+                (from..remote.request_count())
+                    .map(|index| remote.request(index).target)
+                    .collect::<Vec<_>>()
+            };
+
+            for sql in [
+                "CREATE TABLE \"tenant\" (\"id\" TEXT PRIMARY KEY)",
+                "INSERT INTO \"tenant\" VALUES ('t-1')",
+            ] {
+                database
+                    .execute_single_sql(statement(sql))
+                    .await
+                    .expect(sql);
+            }
+
+            let start = remote.request_count();
+
+            database.hold(Standing::ReadOnly);
+
+            let replicated = database.replicate().await;
+
+            assert!(!replicated.pushed);
+            assert!(!database.push_replica().await, "the last push went");
+
+            let targets = sent(start);
+
+            assert!(
+                !targets.iter().any(|target| target == PUSH),
+                "a read-only workspace pushed: {targets:?}"
+            );
+            assert!(
+                targets.iter().any(|target| target == PULL),
+                "a read-only workspace was not pulled: {targets:?}"
+            );
+
+            let start = remote.request_count();
+
+            database.hold(Standing::Writable);
+            database.push_replica().await;
+
+            assert!(
+                sent(start).iter().any(|target| target == PUSH),
+                "a writable workspace did not push, so nothing above shows a push was held"
+            );
+
+            drop(database);
+            drop(remote);
+            let _ = std::fs::remove_dir_all(&directory);
+        });
     }
 }

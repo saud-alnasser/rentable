@@ -43,9 +43,15 @@ export type { Host };
  * who is signed in on this machine, as the organization's port answers it: read off the composed
  * host rather than off the port, so the wiring names no feature.
  */
-type OrganizationSession = NonNullable<
-	Awaited<ReturnType<Host['organization']['getState']>>['session']
->;
+type OrganizationState = Awaited<ReturnType<Host['organization']['getState']>>;
+type OrganizationSession = NonNullable<OrganizationState['session']>;
+
+/**
+ * what holds this machine by its version, as the organization's port answers it (effort 857): the
+ * organization or one workspace, and how far this build may still go with it. Read off the composed
+ * host for the reason the session is.
+ */
+type HeldByVersion = NonNullable<OrganizationState['heldByVersion']>;
 
 /**
  * IDENTITY
@@ -109,6 +115,13 @@ export type Identity = {
 	 * and so nothing to read this off.
 	 */
 	permissions: number;
+	/**
+	 * set where a newer rentable upgraded the workspace open past what this one writes (effort 857,
+	 * requirement 6): `permissions` already has every create, edit and delete cleared, as a
+	 * read-only grant clears them, and this says the version is why, which is what a refused write
+	 * names ([`refuseMissing`] in `./trpc`). Absent wherever this build may write the workspace open.
+	 */
+	readOnlyByVersion?: true;
 };
 
 /**
@@ -154,20 +167,45 @@ const systemClock: Clock = {
  * procedure.
  */
 async function actingIdentity(host: Host): Promise<Identity | null> {
-	const session = await sessionOf(host);
+	const state = await organizationStateOf(host);
+	const session = state?.session ?? null;
 
-	return (
-		session && {
-			accountId: session.memberId,
-			username: session.username,
-			// **Off the same answer, for the workspace open** (effort 838, requirements 10 and 12).
-			// What this member may do across the organization is on their verified row, and the
-			// session carries it with what is pinned for them in each workspace; in the workspace
-			// this machine has open, those pins apply, and a read-only grant clears every create,
-			// edit and delete whatever the role and the overrides say.
-			permissions: permissionsIn(session, await openWorkspace(host))
-		}
-	);
+	if (!session) {
+		return null;
+	}
+
+	const openWorkspaceId = await openWorkspace(host);
+	const heldByVersion = state?.heldByVersion ?? null;
+
+	return {
+		accountId: session.memberId,
+		username: session.username,
+		// **Off the same answer, for the workspace open** (effort 838, requirements 10 and 12).
+		// What this member may do across the organization is on their verified row, and the
+		// session carries it with what is pinned for them in each workspace; in the workspace
+		// this machine has open, those pins apply, and a read-only grant clears every create,
+		// edit and delete whatever the role and the overrides say. So does a newer rentable having
+		// upgraded it past what this one writes (effort 857, requirement 6).
+		permissions: permissionsIn(session, openWorkspaceId, heldByVersion),
+		...(readOnlyByVersionIn(heldByVersion, openWorkspaceId)
+			? { readOnlyByVersion: true as const }
+			: {})
+	};
+}
+
+/**
+ * the organization's state as the shell answers it, or `null` where the shell cannot be reached.
+ *
+ * Only the asking is guarded, and deliberately: a failure to reach the shell is an unanswered
+ * question, while a failure to make sense of the answer is a defect, and swallowing the second
+ * inside the first would report it as a request nobody made.
+ */
+async function organizationStateOf(host: Host): Promise<OrganizationState | null> {
+	try {
+		return await host.organization.getState();
+	} catch {
+		return null;
+	}
 }
 
 /**
@@ -175,18 +213,30 @@ async function actingIdentity(host: Host): Promise<Identity | null> {
  * shell cannot be reached.
  */
 export async function sessionOf(host: Host): Promise<OrganizationSession | null> {
-	let state;
+	return (await organizationStateOf(host))?.session ?? null;
+}
 
-	// only the asking is guarded, and deliberately: a failure to reach the shell is an
-	// unanswered question, while a failure to make sense of the answer is a defect, and
-	// swallowing the second inside the first would report it as a request nobody made.
-	try {
-		state = await host.organization.getState();
-	} catch {
-		return null;
-	}
+/**
+ * whether a newer rentable upgraded the workspace `openWorkspaceId` past what this one writes, as
+ * the shell's verdict `heldByVersion` says (effort 857, requirement 6). Below the read floor counts
+ * too, which is the safe direction, though such a workspace is not served at all. A verdict on the
+ * organization, or on another workspace, holds nothing here: the organization's acts are refused
+ * in the shell, and its verdict is not a workspace's.
+ *
+ * **Exported so the interface folds the same way** (`workspace/component/permissions.svelte`).
+ */
+export function readOnlyByVersionIn(
+	heldByVersion: HeldByVersion | null,
+	openWorkspaceId: string | null
+): boolean {
+	const target = heldByVersion?.target;
 
-	return state.session;
+	return (
+		openWorkspaceId !== null &&
+		typeof target === 'object' &&
+		target !== null &&
+		target.workspace === openWorkspaceId
+	);
 }
 
 /**
@@ -261,14 +311,21 @@ function viewsOf(permissions: number): number {
  * what a member may do in one workspace, from their session and the workspace's id: what they may
  * do there ([`workspacePermissionsIn`]) folded by how their grant reaches it ([`accessIn`]). What
  * every `procedure.permitted` gate is answered by.
+ *
+ * **A workspace a newer rentable upgraded past what this one writes folds like a read-only grant**
+ * (effort 857, requirement 6), whatever the grant: `heldByVersion` is the shell's verdict, and
+ * where it names this workspace every create, edit and delete is cleared ([`readOnlyByVersionIn`]).
  */
 export function permissionsIn(
 	session: OrganizationSession,
-	openWorkspaceId: string | null
+	openWorkspaceId: string | null,
+	heldByVersion: HeldByVersion | null = null
 ): number {
 	return effectiveIn(
 		workspacePermissionsIn(session, openWorkspaceId),
-		accessIn(session, openWorkspaceId)
+		readOnlyByVersionIn(heldByVersion, openWorkspaceId)
+			? 'read-only'
+			: accessIn(session, openWorkspaceId)
 	);
 }
 

@@ -69,11 +69,25 @@ pub async fn as_member<T>(
     act: impl AsyncFnOnce(Acting<'_>) -> Result<T, Error>,
 ) -> Result<T, Error> {
     let acted = if_member(app_state, pull, async move |Acting { member, store }| {
+        // **Below the organization's write floor the act reads and writes nothing** (effort 857,
+        // ticket 05): the replica's connection refuses every write for the act's length, and the
+        // refusal is answered with the version as the reason. A read goes on, so the acts that
+        // only read need nothing of their own.
+        let held = match store.hold_writes().await {
+            Ok(held) => held,
+            Err(error) => return (Err(error), false),
+        };
         let acted = act(Acting {
             member: &mut *member,
             store,
         })
         .await;
+
+        if held {
+            store.release_writes().await;
+        }
+
+        let acted = acted.map_err(|error| refused_by_version(held, error));
         let ended_alone = matches!(
             acted,
             Err(Error::Refused {
@@ -127,6 +141,20 @@ pub(super) fn signed_in<'a>(
     match (member.as_mut(), store.as_ref()) {
         (Some(member), Some(store)) => Ok((member, store)),
         _ => Err(signed_out()),
+    }
+}
+
+/// The engine's refusal of a write during an act its standing `held` to reading, as the refusal a
+/// person is told; any other error as it came.
+fn refused_by_version(held: bool, error: Error) -> Error {
+    if held && crate::database::floor::refused_a_write(&error) {
+        Error::refused(
+            RefusalReason::OrganizationReadOnlyByVersion,
+            "a newer version of rentable upgraded the organization, and this version can read it \
+             but not write to it. update rentable to make changes; nothing was written",
+        )
+    } else {
+        error
     }
 }
 

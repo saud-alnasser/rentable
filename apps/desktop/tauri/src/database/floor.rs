@@ -134,6 +134,41 @@ pub async fn workspace(connection: &turso::Connection) -> Result<Option<Floors>,
     }
 }
 
+/// What the engine's refusal of a write says on a connection that may not write, measured on the
+/// engine as built (ticket 05): `Parse error: Cannot execute write statement in query_only mode`,
+/// and the same words after `VACUUM`. A change of wording fails
+/// `the_engine_refuses_every_write_under_query_only_and_reads_on`, which says so.
+const QUERY_ONLY_REFUSAL: &str = "in query_only mode";
+
+/// Hold `connection` to what `standing` allows (effort 857, requirement 6): `PRAGMA query_only` on
+/// for a build that may not write, and off for one that may.
+///
+/// **The engine is what refuses, measured rather than assumed** (ticket 05): with the pragma on,
+/// every insert, update, delete, `CREATE` and `DROP` is refused before it runs, a read answers as
+/// before, and turning it off lets a write through on the same connection. It is the connection's
+/// own setting, so the sync engine's connections, which apply what a pull brings, are untouched by
+/// it. Set on every use rather than once, since a connection is handed back and taken again, and
+/// the standing can move between the two.
+pub(crate) async fn hold_writes(
+    connection: &turso::Connection,
+    standing: Standing,
+) -> Result<(), Error> {
+    let pragma = match standing {
+        Standing::Writable => "PRAGMA query_only = 0",
+        Standing::ReadOnly | Standing::Unreadable => "PRAGMA query_only = 1",
+    };
+
+    connection.execute(pragma, ()).await?;
+
+    Ok(())
+}
+
+/// Whether `error` is the engine refusing a write on a connection [`hold_writes`] holds to a
+/// standing that may not write.
+pub(crate) fn refused_a_write(error: &Error) -> bool {
+    matches!(error, Error::Database { message } if message.contains(QUERY_ONLY_REFUSAL))
+}
+
 /// The tables a database holds, read from it.
 async fn tables(connection: &turso::Connection) -> Result<Vec<String>, Error> {
     let mut rows = connection
@@ -347,6 +382,68 @@ mod tests {
 
         assert_eq!(workspace(&connection).await.expect("the floors"), None);
         assert_eq!(everything(&connection).await, before);
+    }
+
+    /// **Ticket 05's measurement, kept.** Under `PRAGMA query_only` the engine refuses every kind
+    /// of write before it runs and serves a read, and turning the pragma off lets a write through
+    /// on the same connection. The refusal is read by its words ([`super::refused_a_write`]), so
+    /// an engine that rewords it fails here rather than letting a write's refusal pass as some
+    /// other failure.
+    #[tokio::test]
+    async fn the_engine_refuses_every_write_under_query_only_and_reads_on() {
+        use super::{hold_writes, refused_a_write};
+        use crate::error::Error;
+
+        let connection = memory().await;
+
+        for statement in [
+            "CREATE TABLE \"t\" (\"id\" TEXT PRIMARY KEY)",
+            "INSERT INTO \"t\" VALUES ('a')",
+        ] {
+            connection.execute(statement, ()).await.expect(statement);
+        }
+
+        let before = everything(&connection).await;
+
+        hold_writes(&connection, Standing::ReadOnly)
+            .await
+            .expect("the pragma");
+
+        for statement in [
+            "INSERT INTO \"t\" VALUES ('b')",
+            "UPDATE \"t\" SET \"id\" = 'c' WHERE \"id\" = 'a'",
+            "DELETE FROM \"t\"",
+            "CREATE TABLE \"u\" (\"id\" TEXT)",
+            "DROP TABLE \"t\"",
+            "INSERT INTO \"t\" SELECT 'd' WHERE 1",
+        ] {
+            let refused: Error = connection
+                .execute(statement, ())
+                .await
+                .expect_err(statement)
+                .into();
+
+            assert!(refused_a_write(&refused), "{statement}: {refused:?}");
+        }
+
+        assert_eq!(
+            everything(&connection).await,
+            before,
+            "a write went through"
+        );
+
+        hold_writes(&connection, Standing::Writable)
+            .await
+            .expect("the pragma off");
+        connection
+            .execute("INSERT INTO \"t\" VALUES ('e')", ())
+            .await
+            .expect("a write after the pragma went off");
+
+        // and nothing else the engine says is read as it.
+        assert!(!refused_a_write(&Error::Database {
+            message: "no such table: t".to_string()
+        }));
     }
 
     /// A workspace an upgrade recorded floors in reads them rather than its version.

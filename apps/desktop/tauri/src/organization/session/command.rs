@@ -2817,6 +2817,143 @@ mod tests {
         );
     }
 
+    /// **Effort 857, ticket 05's third criterion.** While this build stands below the
+    /// organization's write floor, every act through `as_member` that writes is refused with the
+    /// version as the reason and changes nothing: a role made (an insert), a role renamed and the
+    /// organization renamed (updates), and a role deleted (a delete). Reading goes on, the roles
+    /// listed as they were, and once the organization is writable again the same acts write.
+    #[tokio::test]
+    async fn an_organization_below_its_write_floor_refuses_every_act_that_writes_and_reads_on() {
+        use crate::{
+            database::floor::Standing,
+            error::RefusalReason,
+            organization::{
+                act::{Acting, Pull, as_member},
+                role,
+                store::FORMAT_VERSION,
+            },
+        };
+
+        let credentials: Credentials = Arc::new(Memory::new());
+        let clock = crate::clock::System::shared();
+        let directory = scratch("read-only-acts");
+        let owners = first_run(credentials.as_ref(), &directory).await;
+
+        owner_signed_in(&owners).await;
+
+        let made = as_member(&owners, Pull::No, async |Acting { member, store }| {
+            role::create_role(
+                store,
+                member,
+                "clerks",
+                permission::MEMBER_ROLE.mask,
+                permission::MANAGER,
+                CREATED_AT + 1,
+            )
+            .await
+        })
+        .await
+        .expect("a role made while writable")
+        .id;
+        let roles = async || {
+            as_member(&owners, Pull::No, async |Acting { member, store }| {
+                role::roles(store, member).await
+            })
+            .await
+        };
+        let before = (roles().await.expect("the roles"), name_rows(&owners).await);
+
+        {
+            let organization = owners.organization.read().await;
+            let store = organization.as_ref().expect("the replica");
+
+            store
+                .record_floors(FORMAT_VERSION + 1, FORMAT_VERSION, FORMAT_VERSION + 1)
+                .await;
+            assert_eq!(
+                store.refuse_another_format().await.expect("judged"),
+                Standing::ReadOnly
+            );
+        }
+
+        let refusals = [
+            (
+                "a role made",
+                as_member(&owners, Pull::No, async |Acting { member, store }| {
+                    role::create_role(
+                        store,
+                        member,
+                        "tellers",
+                        permission::MEMBER_ROLE.mask,
+                        permission::MANAGER,
+                        CREATED_AT + 2,
+                    )
+                    .await
+                    .map(|_| ())
+                })
+                .await,
+            ),
+            (
+                "a role renamed",
+                as_member(&owners, Pull::First, async |Acting { member, store }| {
+                    role::rename_role(store, member, &made, "cashiers", CREATED_AT + 2)
+                        .await
+                        .map(|_| ())
+                })
+                .await,
+            ),
+            (
+                "a role deleted",
+                as_member(&owners, Pull::First, async |Acting { member, store }| {
+                    role::delete_role(store, member, &made, CREATED_AT + 2).await
+                })
+                .await,
+            ),
+            (
+                "the organization renamed",
+                crate::organization::setup::rename(&owners, &credentials, &clock, "Acme Rentals")
+                    .await
+                    .map(|_| ()),
+            ),
+        ];
+
+        for (act, refused) in refusals {
+            assert_eq!(
+                reason_of(refused.expect_err(act)),
+                RefusalReason::OrganizationReadOnlyByVersion,
+                "{act}"
+            );
+        }
+
+        assert_eq!(
+            (
+                roles().await.expect("the roles, read while read-only"),
+                name_rows(&owners).await
+            ),
+            before,
+            "an act wrote while the organization was read-only"
+        );
+
+        {
+            let organization = owners.organization.read().await;
+            let store = organization.as_ref().expect("the replica");
+
+            store
+                .record_floors(FORMAT_VERSION, FORMAT_VERSION, FORMAT_VERSION)
+                .await;
+            assert_eq!(
+                store.refuse_another_format().await.expect("judged"),
+                Standing::Writable
+            );
+        }
+
+        as_member(&owners, Pull::First, async |Acting { member, store }| {
+            role::rename_role(store, member, &made, "cashiers", CREATED_AT + 3).await
+        })
+        .await
+        .expect("a role renamed once writable again");
+    }
+
     /// **Criterion 24.** A rename sent by anybody but the owner is refused in the shell, whatever
     /// the interface drew, and changes nothing: a member locked as their link leaves them, and the
     /// same member unlocked and made a manager, holding every flag but the owner's.

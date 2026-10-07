@@ -4,7 +4,7 @@ import test from 'node:test';
 import { sql } from 'drizzle-orm';
 
 import type { Host } from '$lib/app/host.ts';
-import type { OrganizationSession } from '$lib/organization/host.ts';
+import type { HeldByVersion, OrganizationSession } from '$lib/organization/host.ts';
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import { fakeIdentity } from '$lib/app/tests/testing.ts';
 import { fakeHost } from '$lib/app/tests/host.ts';
@@ -277,8 +277,12 @@ test('a shell that cannot be reached carries no permissions because it carries n
  * writes cleared** (effort 838, requirement 10, criterion 10). The session carries what they may
  * do across the organization; the context folds it for the workspace this machine has open.
  */
-function shellOpenOn(workspaceId: string | null, session: OrganizationSession): Host {
-	const state = fakeOrganizationState({ session });
+function shellOpenOn(
+	workspaceId: string | null,
+	session: OrganizationSession,
+	heldByVersion: HeldByVersion | null = null
+): Host {
+	const state = fakeOrganizationState({ session, heldByVersion });
 
 	return fakeHost({
 		organization: { ...fakeHost().organization, getState: async () => state },
@@ -446,4 +450,49 @@ test('a locked member holds the view flags alone, in the workspace open and acro
 	// unlocked, the same member holds what the role carries again.
 	assert.equal(heldPermissions(lockedManager(false)), BUILT_IN.manager.mask);
 	assert.ok(permits(permissionsIn(lockedManager(false), 'north'), 'createPayment'));
+});
+
+/**
+ * **A workspace a newer rentable upgraded past what this one writes is read-only, whatever the
+ * grant** (effort 857, requirement 6, ticket 05). The shell's verdict on the workspace open folds
+ * like a read-only grant: every create, edit and delete is cleared, the organization's own flags and
+ * reading stay, and the identity says the version is why. A verdict on the organization, or on a
+ * workspace that is not the one open, folds nothing here.
+ */
+test('a workspace upgraded past what this version writes clears every write flag, and nothing else', async () => {
+	const held = (target: HeldByVersion['target']): HeldByVersion => ({
+		target,
+		standing: 'readOnly',
+		reason: 'a newer version of rentable upgraded south'
+	});
+	const actor = await actorFrom({
+		db: createMemoryDatabase(),
+		clock: { now: () => 0 },
+		host: shellOpenOn('south', managerOnTwo(), held({ workspace: 'south' }))
+	});
+
+	assert.equal(actor?.permissions, effectiveIn(BUILT_IN.manager.mask, 'read-only'));
+	assert.equal(actor?.readOnlyByVersion, true);
+
+	for (const flag of WRITE_FLAGS) {
+		assert.ok(!permits(actor?.permissions ?? 0, flag), `${flag} was held below the write floor`);
+	}
+
+	assert.ok(permits(actor?.permissions ?? 0, 'assignRole'));
+	assert.ok(permits(actor?.permissions ?? 0, 'viewPayment'));
+	assert.equal(
+		permissionsIn(managerOnTwo(), 'south', held({ workspace: 'south' })),
+		effectiveIn(BUILT_IN.manager.mask, 'read-only')
+	);
+
+	for (const elsewhere of [held('organization'), held({ workspace: 'north' })]) {
+		const writing = await actorFrom({
+			db: createMemoryDatabase(),
+			clock: { now: () => 0 },
+			host: shellOpenOn('south', managerOnTwo(), elsewhere)
+		});
+
+		assert.equal(writing?.permissions, BUILT_IN.manager.mask, JSON.stringify(elsewhere.target));
+		assert.equal(writing?.readOnlyByVersion, undefined);
+	}
 });

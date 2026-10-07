@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { accessIn, workspacePermissionsIn } from '$lib/api/context';
+	import { accessIn, readOnlyByVersionIn, workspacePermissionsIn } from '$lib/api/context';
 	import { contributionsTo } from '$lib/feature/surface';
 	import { useFetchRemoteSyncState } from '$lib/sync/ui';
 	import { memberPermissions } from '$lib/permission';
@@ -22,6 +22,7 @@
 
 	$effect(() => {
 		const session = organizationQuery.data?.session;
+		const heldByVersion = organizationQuery.data?.heldByVersion ?? null;
 		const workspace = remoteSyncQuery.data?.workspace;
 
 		memberPermissions.hold(
@@ -29,7 +30,8 @@
 				? {
 						permissions: workspacePermissionsIn(session, workspace.remoteId),
 						accessLevel: accessIn(session, workspace.remoteId),
-						locked: session.locked
+						locked: session.locked,
+						readOnlyByVersion: readOnlyByVersionIn(heldByVersion, workspace.remoteId)
 					}
 				: null
 		);

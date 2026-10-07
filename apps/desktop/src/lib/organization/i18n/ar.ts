@@ -574,6 +574,8 @@ export const refusals = {
 		ownerNotUpdated: 'لم يفتح المالك هذا الإصدار من rentable بعد. تنتظر الترقية حتى يفتحه.',
 		organizationReadOnlyByVersion:
 			'رقّى إصدار أحدث من rentable هذه المؤسسة. حدّث rentable لتجري تغييرات فيها.',
+		workspaceReadOnlyByVersion:
+			'رقّى إصدار أحدث من rentable مساحة العمل هذه. حدّث rentable لتجري تغييرات فيها.',
 		copyNotTaken:
 			'تعذّر أخذ نسخة قبل الترقية، فلم يتغيّر شيء. تحقّق من الاتصال ومن مجلد النسخ الاحتياطية، ثم حاول مرة أخرى.',
 		shapeNotAsBuilt:

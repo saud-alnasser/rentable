@@ -281,6 +281,10 @@ pub enum RefusalReason {
     /// write to it (below its write floor, effort 857): what a way in that must write is refused
     /// with, and nothing was written.
     OrganizationReadOnlyByVersion,
+    /// a newer version of rentable upgraded the open workspace, and this one reads it but may not
+    /// write to it (below its write floor, effort 857): what every create, edit and delete reaching
+    /// the workspace's engine is refused with, and nothing was written (ticket 05).
+    WorkspaceReadOnlyByVersion,
 
     // a copy and a check before a change of shape (effort 838, requirements 13 and 15).
     /// the copy of the organization or the workspace taken before it changes shape could not be

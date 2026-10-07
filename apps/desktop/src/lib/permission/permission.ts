@@ -74,8 +74,17 @@ export const IMPORT_FLAGS: readonly CreateFlagOf<RecordKind>[] = RECORD_KINDS.ma
  *
  * `locked` is the third reason (effort 851, requirement 32): a locked account holds the view flags
  * alone, which `workspacePermissionsIn` has already folded into `permissions`, and is told why.
+ *
+ * `readOnlyByVersion` is the fourth (effort 857, requirement 6): a newer rentable upgraded the
+ * workspace open past what this one writes, so every write is refused whatever the grant, and the
+ * version is named, since updating is what lifts it (`readOnlyByVersionIn` in `$lib/api/context`).
  */
-export type Standing = { permissions: number; accessLevel: AccessLevel; locked?: boolean };
+export type Standing = {
+	permissions: number;
+	accessLevel: AccessLevel;
+	locked?: boolean;
+	readOnlyByVersion?: boolean;
+};
 
 /**
  * Why the reader may not use a flag in the workspace open, in one line, or nothing where they may.
@@ -94,12 +103,22 @@ export function refusalOf(
 	standing: Standing | null,
 	t: TranslationFunctions
 ): string | undefined {
-	if (!standing || permits(effectiveIn(standing.permissions, standing.accessLevel), flag)) {
+	if (!standing) {
+		return undefined;
+	}
+
+	const heldByVersion = standing.readOnlyByVersion === true && WRITE_FLAGS.includes(flag);
+
+	if (!heldByVersion && permits(effectiveIn(standing.permissions, standing.accessLevel), flag)) {
 		return undefined;
 	}
 
 	if (standing.locked && WRITE_FLAGS.includes(flag)) {
 		return t.common.permission.locked();
+	}
+
+	if (heldByVersion) {
+		return t.common.refusals.host.workspaceReadOnlyByVersion();
 	}
 
 	if (standing.accessLevel === 'read-only' && WRITE_FLAGS.includes(flag)) {

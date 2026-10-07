@@ -125,6 +125,7 @@ export const TAURI_REFUSAL_REASONS = [
 	'organizationNewer',
 	'ownerNotUpdated',
 	'organizationReadOnlyByVersion',
+	'workspaceReadOnlyByVersion',
 	'copyNotTaken',
 	'shapeNotAsBuilt',
 	'tursoNotConnected',

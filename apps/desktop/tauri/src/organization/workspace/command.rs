@@ -335,7 +335,10 @@ pub(crate) async fn organization_workspace_renew_due(
     // nobody signed in answers `false` rather than the wall, and the pull is its own, after the
     // settled check: an unsettled role answers `false` before anything is asked of the remote.
     if_member(&app_state, Pull::No, async |Acting { member, store }| {
-        if member.settled().is_err() {
+        // an organization this build may not write is not renewed from it: the renewal mints at
+        // Turso before it writes, and the write would be refused (effort 857, ticket 05). It waits
+        // for this machine to update, or for a machine already updated to renew it.
+        if member.settled().is_err() || !crate::organization::session::writes_to(store) {
             return Ok(false);
         }
 

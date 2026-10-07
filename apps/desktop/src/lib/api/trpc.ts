@@ -1,4 +1,4 @@
-import { FAMILIES, permits, type Flag } from '@rentable/workspace-permission';
+import { FAMILIES, permits, WRITE_FLAGS, type Flag } from '@rentable/workspace-permission';
 import { TRPCError, initTRPC } from '@trpc/server';
 import { ZodError, z } from 'zod';
 import { contributions } from './contribution';
@@ -49,12 +49,24 @@ function refused(names: readonly Flag[]): string {
  * person, since `FORBIDDEN` reads as its own translated sentence, so it is written for whoever is
  * reading a log, and *may not renameWorkspace* is prose neither audience wants. Only the ones
  * missing, which is what the reader needs.
+ *
+ * **A write the version took away is refused for the version** (effort 857, requirement 6): where
+ * a newer rentable upgraded the workspace open past what this one writes, the identity's writes are
+ * already cleared, and a missing create, edit or delete is refused with the shell's own code for
+ * it, which reads as its sentence, since updating is what the person can do about it.
  */
 export function refuseMissing(
 	identity: Identity | null,
 	acts: readonly Flag[]
 ): asserts identity is Identity {
 	const missing = acts.filter((act) => !identity || !permits(identity.permissions, act));
+
+	if (
+		identity?.readOnlyByVersion &&
+		missing.some((act) => (WRITE_FLAGS as readonly Flag[]).includes(act))
+	) {
+		throw refuse('host.workspaceReadOnlyByVersion');
+	}
 
 	if (!identity || missing.length > 0) {
 		throw new TRPCError({
@@ -326,10 +338,15 @@ async function reach(
 		throw refuse('host.noGrant');
 	}
 
+	// the version's verdict is on the workspace open, so it is not carried to another.
 	return {
 		opened: false,
 		db: ctx.databaseOf(workspaceId),
-		identity: { ...identity, permissions: permissionsIn(session, workspaceId) }
+		identity: {
+			accountId: identity.accountId,
+			username: identity.username,
+			permissions: permissionsIn(session, workspaceId)
+		}
 	};
 }
 

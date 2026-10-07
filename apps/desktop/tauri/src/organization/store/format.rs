@@ -443,6 +443,36 @@ impl OrganizationStore {
             .unwrap_or(Standing::Unreadable)
     }
 
+    /// Hold the replica's connection to the last verdict where it says this build may not write
+    /// the organization, so the engine refuses every write on it and serves every read (effort 857,
+    /// ticket 05; `database::floor::hold_writes` says what was measured). Answers whether it held
+    /// it, which is what says [`OrganizationStore::release_writes`] is owed.
+    ///
+    /// **Held for one act and released after it** (`act::as_member`), rather than for as long as
+    /// the verdict stands: an organization waiting for its owner is read-only by the same verdict,
+    /// and the owner's own upgrade writes to it through this connection.
+    pub(crate) async fn hold_writes(&self) -> Result<bool, Error> {
+        let standing = self.standing();
+
+        if standing == Standing::Writable {
+            return Ok(false);
+        }
+
+        floor::hold_writes(&self.connection, standing).await?;
+
+        Ok(true)
+    }
+
+    /// Let the replica's connection write again, after an act [`OrganizationStore::hold_writes`]
+    /// held. A pragma that cannot be set is logged rather than raised: the act has answered.
+    pub(crate) async fn release_writes(&self) {
+        if let Err(error) = floor::hold_writes(&self.connection, Standing::Writable).await {
+            crate::diagnostics::warn("organization.writes.notReleased")
+                .with("error", error.to_string())
+                .write();
+        }
+    }
+
     /// Keep `standing` as the verdict this store answers with.
     fn hold(&self, standing: Standing) {
         if let Ok(mut held) = self.standing.lock() {

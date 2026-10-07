@@ -1,4 +1,4 @@
-import type { OrganizationSession } from '$lib/organization';
+import type { HeldByVersion, OrganizationSession } from '$lib/organization';
 
 /**
  * What the workspace's row at the top of the rail and its permissions in the frame need of the
@@ -8,10 +8,12 @@ import type { OrganizationSession } from '$lib/organization';
  */
 export type WorkspaceSurfaceContributions = {
 	/**
-	 * where this machine stands: the session, whose permissions and workspaces the two read. The
+	 * where this machine stands: the session, whose permissions and workspaces the two read, and
+	 * what holds the machine by its version, which the permissions fold (effort 857, ticket 05). The
 	 * organization's state query, read in a component's script as it is created.
 	 */
 	useOrganizationState: () => {
-		readonly data: { session: OrganizationSession | null } | undefined;
+		readonly data:
+			{ session: OrganizationSession | null; heldByVersion: HeldByVersion | null } | undefined;
 	};
 };
