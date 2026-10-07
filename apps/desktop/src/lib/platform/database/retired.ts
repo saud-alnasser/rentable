@@ -15,11 +15,12 @@
  * has to remember is one the next of them forgets, with nothing failing: the record simply shows
  * twice. So {@link keepRetiredOut} rewrites the statement itself, in `createDatabase`, which every
  * client is built by (`./client`): production's, a workspace reached over the shell, and every
- * test's. Wherever a statement reads `tenant`, `complex` or `contract` after `from` or `join`, it
- * gains `"<name>"."merged_into" is null`: in the `on` of a join, so a left join still answers its
- * row with nothing beside it, and in the `where` of the select that reads it otherwise. The base
- * table stays the table, so every index it has is still used, which a subquery or a view in its
- * place was measured not to keep on the engine the replica runs.
+ * test's. Wherever a statement reads `tenant`, `complex` or `contract` after `from` or `join`, or
+ * among the tables a comma lists after `from`, it gains `"<name>"."merged_into" is null`: in the
+ * `on` of a join, so a left join still answers its row with nothing beside it, and in the `where`
+ * of the select that reads it otherwise. The base table stays the table, so every index it has is
+ * still used, which a subquery or a view in its place was measured not to keep on the engine the
+ * replica runs.
  *
  * A write is left alone: `delete from` names the table it deletes from, and an `update` or an
  * `insert` names no table after `from` unless it reads one, which is then kept clear like any
@@ -112,12 +113,6 @@ export function keepRetiredOut(sql: string): string {
 			return;
 		}
 
-		const table = tokens[at + 1];
-
-		if (!isRetirable(table) || tokens[at + 2]?.value === '.') {
-			return;
-		}
-
 		if (
 			token.value === 'from' &&
 			tokens[at - 1]?.kind === 'word' &&
@@ -126,10 +121,18 @@ export function keepRetiredOut(sql: string): string {
 			return;
 		}
 
-		const [alias, last] = aliasAfter(tokens, at + 1);
-		const predicate = `${quote(alias)}.${quote(RETIRED_COLUMN)} is null`;
+		const listed = tablesListed(tokens, at + 1, token.depth);
+		const predicates = listed
+			.filter((table) => table.retirable)
+			.map((table) => `${quote(table.alias)}.${quote(RETIRED_COLUMN)} is null`);
 
-		if (token.value === 'join') {
+		if (predicates.length === 0) {
+			return;
+		}
+
+		const last = listed[listed.length - 1].last;
+
+		if (token.value === 'join' && listed.length === 1) {
 			const on = sibling(tokens, last + 1, token.depth, (next) =>
 				next.kind === 'word' && next.value === 'on'
 					? 'found'
@@ -141,7 +144,7 @@ export function keepRetiredOut(sql: string): string {
 					endsAt(next, token.depth, ENDS_AN_ON) ? 'found' : null
 				);
 
-				insertions.push({ at: tokens[on].end, rank: 2, text: ` ${predicate} and` });
+				insertions.push({ at: tokens[on].end, rank: 2, text: ` ${predicates[0]} and` });
 				insertions.push({ at: tokens[on + 1].start, rank: 3, text: '(' });
 				insertions.push({ at: tokens[(end ?? tokens.length) - 1].end, rank: 0, text: ')' });
 
@@ -156,7 +159,7 @@ export function keepRetiredOut(sql: string): string {
 		);
 		const key = where ?? tokens.length;
 
-		wheres.set(key, [...(wheres.get(key) ?? []), predicate]);
+		wheres.set(key, [...(wheres.get(key) ?? []), ...predicates]);
 	});
 
 	for (const [at, predicates] of wheres) {
@@ -194,6 +197,43 @@ export function keepRetiredOut(sql: string): string {
 	}
 
 	return written + sql.slice(from);
+}
+
+/**
+ * The tables read from `at` on: the one there, and each after it a comma at `depth` lists beside
+ * it, as `from a, b` reads both. Each with the name it is read by, the last token naming it, and
+ * whether its records can be retired. A table named with its schema, or anything that is not a
+ * plain table, ends the list.
+ */
+function tablesListed(
+	tokens: Token[],
+	at: number,
+	depth: number
+): { alias: string; last: number; retirable: boolean }[] {
+	const listed: { alias: string; last: number; retirable: boolean }[] = [];
+
+	for (let next = at; ;) {
+		const table = tokens[next];
+
+		if (
+			table === undefined ||
+			(table.kind !== 'name' && table.kind !== 'word') ||
+			tokens[next + 1]?.value === '.'
+		) {
+			return listed;
+		}
+
+		const [alias, last] = aliasAfter(tokens, next);
+		const comma = tokens[last + 1];
+
+		listed.push({ alias, last, retirable: isRetirable(table) });
+
+		if (comma?.kind !== 'other' || comma.value !== ',' || comma.depth !== depth) {
+			return listed;
+		}
+
+		next = last + 2;
+	}
 }
 
 function isRetirable(token: Token | undefined): boolean {

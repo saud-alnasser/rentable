@@ -195,6 +195,10 @@ pub enum Engine {
 trait Request: Clone + Send {
     type Answer: Send;
 
+    /// Whether it may write a record that can be retired as a copy (`heal.rs`), read off its
+    /// statements: one naming such a table and a word that writes.
+    fn may_write_a_retirable(&self) -> bool;
+
     /// Run it on `connection`.
     fn run(
         self,
@@ -204,6 +208,10 @@ trait Request: Clone + Send {
 
 impl Request for SQLQuery {
     type Answer = Vec<SQLRow>;
+
+    fn may_write_a_retirable(&self) -> bool {
+        heal::may_write_a_retirable(&self.sql)
+    }
 
     fn run(
         self,
@@ -215,6 +223,10 @@ impl Request for SQLQuery {
 
 impl Request for Vec<SQLQuery> {
     type Answer = Vec<Vec<SQLRow>>;
+
+    fn may_write_a_retirable(&self) -> bool {
+        self.iter().any(Request::may_write_a_retirable)
+    }
 
     fn run(
         self,
@@ -978,9 +990,10 @@ impl Database {
     /// that the workspace refuses since an upgrade, which a write would join. Whether the member
     /// may write it, a full-access grant, is the caller's to say, since the engine does not know
     /// whose credential it holds. **Only where something could need it**: a pull that `brought`
-    /// rows, or a pass owed since the workspace opened or since one failed. Nothing a person saves
-    /// on this machine makes a copy, since the save check refuses one, so a quiet heartbeat reads
-    /// nothing here.
+    /// rows, or a pass owed since the workspace opened, since one failed, or since a write of this
+    /// machine's own while it held a retired record, which may have edited one. Nothing a person
+    /// saves on this machine makes a copy, since the save check refuses one, so a quiet heartbeat
+    /// otherwise reads nothing here.
     ///
     /// **It never fails the replication around it.** A pass that fails writes nothing, since its
     /// writes are one transaction, and is logged and owed again, so the next pull retries it.
@@ -1020,6 +1033,7 @@ impl Database {
                         .with("retired", healed.retired.to_string())
                         .with("moved", healed.moved.to_string())
                         .with("carried", healed.carried.to_string())
+                        .with("shown", healed.shown.to_string())
                         .write();
                 }
 
@@ -1095,6 +1109,38 @@ impl Database {
     /// runs again, held to it. Its connection goes back before it waits, so the judgment, which
     /// reads the floors on one, is never left waiting on the requests waiting on it.
     async fn held<R: Request>(&self, replica: &Replica, request: R) -> Result<R::Answer, Error> {
+        let writes = request.may_write_a_retirable();
+        let answered = self.held_judged(replica, request).await;
+
+        if writes && answered.is_ok() {
+            self.owe_heal_where_retired(replica).await;
+        }
+
+        answered
+    }
+
+    /// A write of this machine's own owes the open workspace a healing pass where it holds a
+    /// retired record (effort 857, ticket 39). A person who had a copy open as the pass retired it
+    /// edits it by its id, and the edit lands on the copy; owing the pass carries it to the record
+    /// that stayed at the next heartbeat, rather than when another machine's rows next arrive.
+    /// A workspace holding no retired record owes nothing, and a read that fails owes nothing.
+    async fn owe_heal_where_retired(&self, replica: &Replica) {
+        let Ok(connection) = replica.connections.checkout().await else {
+            return;
+        };
+
+        if heal::holds_a_retired(&connection).await.unwrap_or(false) {
+            self.heal_owed
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+    }
+
+    /// Run `request` held as [`Database::held`] says, owing no pass.
+    async fn held_judged<R: Request>(
+        &self,
+        replica: &Replica,
+        request: R,
+    ) -> Result<R::Answer, Error> {
         if let Ok(_judged) = self.judging.try_read() {
             let verdict = self.verdict();
 
@@ -3353,6 +3399,53 @@ mod tests {
             let _ = std::fs::remove_dir_all(&directory);
         });
     }
+
+    /// **Ticket 39.** A person on this machine edits the copy they had open as the pass retired
+    /// it: the edit lands on the copy, by its id, and the pass is owed for it, so the next
+    /// heartbeat carries it to the record that stayed though no other machine synced. An edit that
+    /// touches no retired record owes nothing.
+    #[test]
+    fn an_edit_saved_here_to_a_just_retired_copy_reaches_its_survivor() {
+        use crate::sync::test::server::within;
+        use std::time::Duration;
+
+        within(Duration::from_secs(60), async {
+            let (directory, database) = two_copies_on_a_replica("heal-own-write").await;
+
+            assert!(database.heal(false).await, "the copies were not healed");
+            database
+                .execute_single_sql(statement(
+                    "UPDATE \"tenant\" SET \"name\" = 'Sara Al-Harbi' WHERE \"id\" = 't-2'",
+                ))
+                .await
+                .expect("the edit");
+
+            assert!(
+                database.heal(false).await,
+                "the edit waited for another machine"
+            );
+            assert_eq!(
+                database
+                    .execute_single_sql(statement(
+                        "SELECT \"name\" FROM \"tenant\" WHERE \"id\" = 't-1'",
+                    ))
+                    .await
+                    .expect("the read")[0]
+                    .rows,
+                vec![serde_json::json!("Sara Al-Harbi")]
+            );
+
+            database
+                .execute_single_sql(statement("SELECT \"name\" FROM \"tenant\""))
+                .await
+                .expect("a read");
+            assert!(!database.heal(false).await, "a read owed a pass");
+
+            drop(database);
+            let _ = std::fs::remove_dir_all(&directory);
+        });
+    }
+
     // -------------------------------------------------------------------------------------
     // Effort 857, ticket 35, live: identical records made apart heal into one.
     // -------------------------------------------------------------------------------------

@@ -32,9 +32,16 @@
 //!
 //! **What a person entered** is every column but `id`, `merged_into` and `merged_as`, and those the
 //! application derives from the rest: a unit's status, which its contracts decide, and a contract's
-//! paid and expected amounts, which its payments and its terms decide. The columns are read off the
-//! table rather than listed, so a column added later is compared from the day it lands. A record's
-//! parent is compared as the record that parent finally went into.
+//! paid and expected amounts and its status, which its payments and its terms decide. Of a
+//! contract's status only whether somebody terminated it is entered, so that is all of it compared
+//! and carried. Nothing the application derives is compared or carried, since a machine
+//! reconciling a copy it still shows moves it without anybody entering anything. The columns are
+//! read off the table rather than listed, so a column added later is compared from the day it
+//! lands. A record's parent is compared as the record that parent finally went into.
+//!
+//! **A copy whose record is gone is shown again.** A build that does not know a copy was retired
+//! shows both, and a person there may delete the one that stayed as the duplicate it looks like.
+//! The copy is the record then, so it is retired into nothing.
 //!
 //! **The same on every machine.** What a pass does is decided only by what the workspace holds,
 //! with every record read in the order of its id, and a record retired twice points at the one it
@@ -63,6 +70,39 @@ struct Kind {
     parent: Option<(&'static str, &'static str)>,
     /// the columns the application derives, which no person entered.
     derived: &'static [&'static str],
+    /// a column the application derives but for one value of it a person sets, which is all of it
+    /// that is compared and carried.
+    entered: Option<Entered>,
+}
+
+/// A column the application derives but for the one value a person sets, as a contract's status
+/// is: its term and its payments decide it, unless somebody terminated it.
+#[derive(Clone, Copy)]
+struct Entered {
+    column: &'static str,
+    /// the value a person sets, which reads as itself; every other value reads as empty.
+    value: &'static str,
+    /// what a record that loses that value is written as, which the reconcile after a pass that
+    /// wrote derives the rest from.
+    otherwise: &'static str,
+}
+
+impl Entered {
+    /// What a person entered of `value`: the value a person sets, or nothing.
+    fn of(&self, value: turso::Value) -> turso::Value {
+        match value {
+            turso::Value::Text(text) if text == self.value => turso::Value::Text(text),
+            _ => turso::Value::Null,
+        }
+    }
+
+    /// What the column is written as to hold `value`, as [`Entered::of`] reads it.
+    fn written(&self, value: &turso::Value) -> turso::Value {
+        match value {
+            turso::Value::Null => text(self.otherwise),
+            other => other.clone(),
+        }
+    }
 }
 
 /// Every kind that heals, a parent before its children.
@@ -72,30 +112,39 @@ const KINDS: [Kind; 5] = [
         shared: Some("name"),
         parent: None,
         derived: &[],
+        entered: None,
     },
     Kind {
         table: "unit",
         shared: None,
         parent: Some(("complex_id", "complex")),
         derived: &["status"],
+        entered: None,
     },
     Kind {
         table: "tenant",
         shared: Some("phone"),
         parent: None,
         derived: &[],
+        entered: None,
     },
     Kind {
         table: "contract",
         shared: Some("gov_id"),
         parent: Some(("tenant_id", "tenant")),
         derived: &["paid_amount", "expected_amount"],
+        entered: Some(Entered {
+            column: "status",
+            value: "terminated",
+            otherwise: "active",
+        }),
     },
     Kind {
         table: "payment",
         shared: None,
         parent: Some(("contract_id", "contract")),
         derived: &[],
+        entered: None,
     },
 ];
 
@@ -111,6 +160,8 @@ pub(crate) struct Healed {
     pub moved: usize,
     /// records that stayed and took a change made to a copy retired into them.
     pub carried: usize,
+    /// retired records shown again, the record they went into being gone.
+    pub shown: usize,
     /// every statement the pass wrote.
     pub written: usize,
 }
@@ -186,6 +237,54 @@ fn text(value: &str) -> turso::Value {
 /// move as this module says, every write in one transaction. Reads first, and writes nothing
 /// where there is nothing to heal.
 pub(crate) async fn pass(connection: &turso::Connection) -> Result<Healed, Error> {
+    let plan = planned(connection).await?;
+
+    if plan.statements.is_empty() {
+        return Ok(plan.healed);
+    }
+
+    written(connection, plan.statements).await?;
+
+    Ok(plan.healed)
+}
+
+/// Whether `sql` may write a record of a kind that heals: it names one of their tables and a word
+/// that writes. Read loosely, since what it decides is only whether a pass is owed.
+pub(crate) fn may_write_a_retirable(sql: &str) -> bool {
+    let sql = sql.to_ascii_lowercase();
+    let words: Vec<&str> = sql
+        .split(|character: char| !character.is_ascii_alphanumeric() && character != '_')
+        .collect();
+
+    words
+        .iter()
+        .any(|word| matches!(*word, "insert" | "update" | "delete" | "replace"))
+        && KINDS.iter().any(|kind| words.contains(&kind.table))
+}
+
+/// Whether the workspace on `connection` holds a record retired as a copy, of any kind that heals.
+pub(crate) async fn holds_a_retired(connection: &turso::Connection) -> Result<bool, Error> {
+    let any: Vec<String> = KINDS
+        .iter()
+        .map(|kind| {
+            format!(
+                "EXISTS (SELECT 1 FROM \"{}\" WHERE \"merged_into\" IS NOT NULL)",
+                kind.table
+            )
+        })
+        .collect();
+    let mut rows = connection
+        .query(format!("SELECT {}", any.join(" OR ")), ())
+        .await?;
+
+    Ok(match rows.next().await? {
+        Some(row) => matches!(row.get_value(0)?, turso::Value::Integer(held) if held != 0),
+        None => false,
+    })
+}
+
+/// What a pass over the workspace on `connection` would write, read and decided, nothing written.
+async fn planned(connection: &turso::Connection) -> Result<Plan, Error> {
     let mut plan = Plan::default();
     // every retired record of each kind, by its id, and the record it finally went into.
     let mut survivors: HashMap<&'static str, BTreeMap<String, String>> = HashMap::new();
@@ -201,13 +300,7 @@ pub(crate) async fn pass(connection: &turso::Connection) -> Result<Healed, Error
 
     plan.healed.written = plan.statements.len();
 
-    if plan.statements.is_empty() {
-        return Ok(plan.healed);
-    }
-
-    written(connection, plan.statements).await?;
-
-    Ok(plan.healed)
+    Ok(plan)
 }
 
 /// Carry, retire and pair the records of `kind`, given the survivors of the kinds before it, and
@@ -239,7 +332,18 @@ async fn kind_healed(
     let mut live: BTreeMap<String, Record> = BTreeMap::new();
     let mut retired: BTreeMap<String, Record> = BTreeMap::new();
 
-    for record in records_of(connection, table, &columns).await? {
+    let entered = kind
+        .entered
+        .and_then(|entered| Some((position(entered.column)?, entered)));
+
+    for mut record in records_of(connection, table, &columns).await? {
+        if let Some((at, entered)) = entered {
+            record.fields[at] = entered.of(std::mem::replace(
+                &mut record.fields[at],
+                turso::Value::Null,
+            ));
+        }
+
         let parent = parent_at.and_then(|at| match &record.fields[at] {
             turso::Value::Text(parent) => Some(parent.clone()),
             _ => None,
@@ -257,13 +361,40 @@ async fn kind_healed(
         }
     }
 
-    // 1. carry: every retired record into the live one it finally went into.
+    // 1. carry: every retired record into the live one it finally went into. One whose record is
+    // gone, deleted by a build that showed it as a copy, is the record now, and is shown again.
     let mut targets: BTreeMap<String, String> = BTreeMap::new();
+    let mut gone: Vec<String> = Vec::new();
 
     for id in retired.keys() {
-        if let Some(target) = final_target(id, &retired, &live) {
-            targets.insert(id.clone(), target);
+        match final_target(id, &retired, &live) {
+            Some(target) => {
+                targets.insert(id.clone(), target);
+            }
+            None => gone.push(id.clone()),
         }
+    }
+
+    for id in gone {
+        let Some(record) = retired.remove(&id) else {
+            continue;
+        };
+
+        plan.statements.push((
+            format!(
+                "UPDATE \"{table}\" SET \"merged_into\" = NULL, \"merged_as\" = NULL WHERE \"id\" = ?"
+            ),
+            vec![text(&id)],
+        ));
+        plan.healed.shown += 1;
+        live.insert(
+            id,
+            Record {
+                merged_into: None,
+                merged_as: None,
+                ..record
+            },
+        );
     }
 
     let mut changed: BTreeMap<String, Vec<usize>> = BTreeMap::new();
@@ -312,8 +443,13 @@ async fn kind_healed(
             .iter()
             .map(|at| format!("\"{}\" = ?", columns[*at]))
             .collect();
-        let mut params: Vec<turso::Value> =
-            set.iter().map(|at| survivor.fields[*at].clone()).collect();
+        let mut params: Vec<turso::Value> = set
+            .iter()
+            .map(|at| match entered {
+                Some((column, entered)) if column == *at => entered.written(&survivor.fields[*at]),
+                _ => survivor.fields[*at].clone(),
+            })
+            .collect();
 
         params.push(text(id));
         plan.statements.push((
@@ -430,7 +566,7 @@ async fn kind_healed(
 
 /// The record a retired one finally went into: through every record retired into another on the
 /// way, to a live one. `None` where the chain ends at a record the workspace no longer holds, or
-/// runs round, which leaves it where it is.
+/// runs round, which shows it again.
 fn final_target(
     id: &str,
     retired: &BTreeMap<String, Record>,
@@ -493,6 +629,10 @@ async fn history_moved(
 /// Move every link between a contract and a unit naming a retired one to the one it went into, a
 /// link that would then hold what another already holds going instead. A link the pass does not
 /// move is left as it is.
+///
+/// **A link is named by what it links**, never by its place in the table: the table has no key of
+/// its own, and a row's place is not the same on two machines, so a write naming it would reach
+/// another row where another machine replays it. Two rows linking the same pair are one link.
 async fn links_moved(
     connection: &turso::Connection,
     survivors: &HashMap<&'static str, BTreeMap<String, String>>,
@@ -505,25 +645,13 @@ async fn links_moved(
         return Ok(());
     }
 
-    let mut rows = connection
-        .query(
-            "SELECT rowid, \"contract_id\", \"unit_id\" FROM \"contract_unit\" ORDER BY rowid",
-            (),
-        )
-        .await?;
-    let mut links = Vec::new();
-
-    while let Some(row) = rows.next().await? {
-        if let (
-            turso::Value::Integer(rowid),
-            turso::Value::Text(contract),
-            turso::Value::Text(unit),
-        ) = (row.get_value(0)?, row.get_value(1)?, row.get_value(2)?)
-        {
-            links.push((rowid, contract, unit));
-        }
-    }
-
+    let links = pairs(
+        connection,
+        "SELECT DISTINCT \"contract_id\", \"unit_id\" FROM \"contract_unit\" \
+         ORDER BY \"contract_id\", \"unit_id\"",
+        &[],
+    )
+    .await?;
     let moved = |contract: &String, unit: &String| {
         (
             contracts.get(contract).cloned().unwrap_or(contract.clone()),
@@ -532,11 +660,11 @@ async fn links_moved(
     };
     let mut held: HashSet<(String, String)> = links
         .iter()
-        .filter(|(_, contract, unit)| moved(contract, unit) == (contract.clone(), unit.clone()))
-        .map(|(_, contract, unit)| (contract.clone(), unit.clone()))
+        .filter(|(contract, unit)| moved(contract, unit) == (contract.clone(), unit.clone()))
+        .cloned()
         .collect();
 
-    for (rowid, contract, unit) in links {
+    for (contract, unit) in links {
         let to = moved(&contract, &unit);
 
         if to == (contract.clone(), unit.clone()) {
@@ -547,14 +675,16 @@ async fn links_moved(
 
         if held.contains(&to) {
             plan.statements.push((
-                "DELETE FROM \"contract_unit\" WHERE rowid = ?".to_string(),
-                vec![turso::Value::Integer(rowid)],
+                "DELETE FROM \"contract_unit\" WHERE \"contract_id\" = ? AND \"unit_id\" = ?"
+                    .to_string(),
+                vec![text(&contract), text(&unit)],
             ));
         } else {
             plan.statements.push((
-                "UPDATE \"contract_unit\" SET \"contract_id\" = ?, \"unit_id\" = ? WHERE rowid = ?"
+                "UPDATE \"contract_unit\" SET \"contract_id\" = ?, \"unit_id\" = ? \
+                 WHERE \"contract_id\" = ? AND \"unit_id\" = ?"
                     .to_string(),
-                vec![text(&to.0), text(&to.1), turso::Value::Integer(rowid)],
+                vec![text(&to.0), text(&to.1), text(&contract), text(&unit)],
             ));
             held.insert(to);
         }
@@ -776,7 +906,7 @@ async fn written(connection: &turso::Connection, statements: Vec<Statement>) -> 
 
 #[cfg(test)]
 mod tests {
-    use super::{Healed, pass, written};
+    use super::{Healed, pass, planned, written};
     use crate::database::test::workspace::{migration_statements, shipped_migration_count};
 
     // ids that sort in the order the records were made, as UUIDv7 ones do.
@@ -1429,6 +1559,199 @@ mod tests {
             vec![vec![text(T0)]]
         );
         assert_eq!(pass(&connection).await.expect("a third"), Healed::default());
+    }
+
+    /// **Ticket 39, the review's case.** One machine saved a tenant with a contract and its whole
+    /// payment, so the contract reconciled to `fulfilled` and took the amounts; the other saved
+    /// the same tenant and contract with no payment, so its copy stayed `active`. What a contract
+    /// shows of its standing is the application's, not anybody's entry: the copies pair, and the
+    /// payment counts once.
+    #[tokio::test]
+    async fn copies_of_a_contract_differing_only_in_what_the_app_derives_pair() {
+        let connection = workspace().await;
+
+        for (tenant_id, contract_id) in [(T1, C1), (T2, C2)] {
+            tenant(&connection, tenant_id, "Sara", "+966551234567").await;
+            contract(&connection, contract_id, "GOV-1", tenant_id).await;
+            run(
+                &connection,
+                &format!(
+                    "INSERT INTO contract_unit (contract_id, unit_id) VALUES ('{contract_id}', '{U1}')"
+                ),
+            )
+            .await;
+        }
+
+        paid(&connection, "p-1", C1, 12000.0).await;
+        run(
+            &connection,
+            &format!(
+                "UPDATE contract SET status = 'fulfilled', paid_amount = 12000.0, \
+                 expected_amount = 12000.0 WHERE id = '{C1}'"
+            ),
+        )
+        .await;
+
+        pass(&connection).await.expect("the pass");
+
+        assert_eq!(
+            rows(
+                &connection,
+                "SELECT id, merged_into FROM contract ORDER BY id"
+            )
+            .await,
+            vec![vec![text(C1), turso::Value::Null], vec![text(C2), text(C1)]],
+            "the copies did not pair"
+        );
+        assert_eq!(
+            shown_payments(&connection, C1).await,
+            (vec!["p-1".to_string()], 12000.0)
+        );
+        assert_eq!(pass(&connection).await.expect("again"), Healed::default());
+    }
+
+    /// **Ticket 39.** A reconcile of a retired copy, on a build that does not know it was retired,
+    /// moves its status and its amounts. None of that was entered by anybody, so none of it is
+    /// carried to the contract that stayed, and the copy is written nothing either.
+    #[tokio::test]
+    async fn what_a_reconcile_writes_to_a_retired_copy_is_not_carried() {
+        let connection = workspace().await;
+
+        tenant(&connection, T1, "Sara", "+966551234567").await;
+        contract(&connection, C1, "GOV-1", T1).await;
+        contract(&connection, C2, "GOV-1", T1).await;
+        pass(&connection).await.expect("the pass");
+        run(
+            &connection,
+            &format!(
+                "UPDATE contract SET status = 'defaulted', paid_amount = 99.0, \
+                 expected_amount = 99.0 WHERE id = '{C2}'"
+            ),
+        )
+        .await;
+
+        assert_eq!(pass(&connection).await.expect("again"), Healed::default());
+        assert_eq!(
+            rows(
+                &connection,
+                &format!("SELECT status, paid_amount FROM contract WHERE id = '{C1}'")
+            )
+            .await,
+            vec![vec![text("active"), turso::Value::Real(0.0)]]
+        );
+    }
+
+    /// **Ticket 39.** Terminating is a person's act, though the rest of a contract's status is
+    /// derived: a copy terminated and one not are not the same contract, and a copy terminated
+    /// after its merge, by a machine that had not heard of it, terminates the one that stayed.
+    #[tokio::test]
+    async fn a_termination_is_entered_and_is_compared_and_carried() {
+        let connection = workspace().await;
+
+        tenant(&connection, T1, "Sara", "+966551234567").await;
+        contract(&connection, C1, "GOV-1", T1).await;
+        contract(&connection, C2, "GOV-1", T1).await;
+        contract(&connection, C3, "GOV-1", T1).await;
+        run(
+            &connection,
+            &format!("UPDATE contract SET status = 'terminated' WHERE id = '{C3}'"),
+        )
+        .await;
+
+        let healed = pass(&connection).await.expect("the pass");
+
+        assert_eq!(healed.retired, 1, "a terminated copy was retired");
+        assert_eq!(
+            rows(
+                &connection,
+                "SELECT id FROM contract WHERE merged_into IS NULL ORDER BY id"
+            )
+            .await,
+            vec![vec![text(C1)], vec![text(C3)]]
+        );
+
+        run(
+            &connection,
+            &format!("UPDATE contract SET status = 'terminated' WHERE id = '{C2}'"),
+        )
+        .await;
+
+        assert_eq!(pass(&connection).await.expect("again").carried, 1);
+        assert_eq!(
+            rows(
+                &connection,
+                &format!("SELECT status FROM contract WHERE id = '{C1}'")
+            )
+            .await,
+            vec![vec![text("terminated")]]
+        );
+    }
+
+    /// **Ticket 39.** A person on a build that shows both copies deletes the one that stayed,
+    /// seeing a duplicate. The copy retired into it is the record now: it is retired into nothing
+    /// and is shown again, the same on every later pass.
+    #[tokio::test]
+    async fn a_copy_whose_survivor_was_deleted_is_shown_again() {
+        let connection = two_copies_of_one_tenant().await;
+
+        pass(&connection).await.expect("the pass");
+        run(
+            &connection,
+            &format!("DELETE FROM tenant WHERE id = '{T1}'"),
+        )
+        .await;
+        pass(&connection).await.expect("again");
+
+        assert_eq!(
+            rows(&connection, "SELECT id, merged_into, merged_as FROM tenant").await,
+            vec![vec![text(T2), turso::Value::Null, turso::Value::Null]]
+        );
+        assert_eq!(pass(&connection).await.expect("a third"), Healed::default());
+    }
+
+    /// **Ticket 39.** The links between contracts and units carry no key of their own, and a row's
+    /// place in the table is not the same on two machines. Another machine replaying what one
+    /// machine's pass wrote ends where its own pass would have, so the pass names a link by what
+    /// it links.
+    #[tokio::test]
+    async fn what_a_pass_writes_to_the_links_means_the_same_on_another_machine() {
+        async fn laid(order: [&str; 2]) -> turso::Connection {
+            let connection = workspace().await;
+
+            tenant(&connection, T1, "Sara", "+966551234567").await;
+
+            for id in [C1, C2] {
+                contract(&connection, id, "GOV-1", T1).await;
+            }
+
+            for id in order {
+                run(
+                    &connection,
+                    &format!(
+                        "INSERT INTO contract_unit (contract_id, unit_id) VALUES ('{id}', '{U1}')"
+                    ),
+                )
+                .await;
+            }
+
+            connection
+        }
+
+        let one = laid([C1, C2]).await;
+        let other = laid([C2, C1]).await;
+        let replayed = laid([C2, C1]).await;
+
+        written(&replayed, planned(&one).await.expect("the plan").statements)
+            .await
+            .expect("the replay");
+        pass(&one).await.expect("one");
+        pass(&other).await.expect("the other");
+
+        assert_eq!(
+            rows(&replayed, "SELECT contract_id, unit_id FROM contract_unit").await,
+            vec![vec![text(C1), text(U1)]]
+        );
+        assert_eq!(everything(&replayed).await, everything(&other).await);
     }
 
     /// **A pass that fails writes nothing**: its writes are one transaction, and a workspace

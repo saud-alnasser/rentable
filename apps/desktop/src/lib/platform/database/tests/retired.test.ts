@@ -215,10 +215,27 @@ test('a statement written by hand gains the condition wherever it reads one of t
 		keepRetiredOut('delete from "tenant" where "id" = ?'),
 		'delete from "tenant" where "id" = ?'
 	);
+});
+
+test('a comma join keeps the retired out of every table it reads', async () => {
 	assert.equal(
 		keepRetiredOut('select 1 from "tenant", "complex"'),
-		'select 1 from "tenant", "complex" where "tenant"."merged_into" is null',
-		'a second table after a comma is not seen, which the source check below forbids writing'
+		'select 1 from "tenant", "complex" where "tenant"."merged_into" is null and "complex"."merged_into" is null'
+	);
+	assert.equal(
+		keepRetiredOut('select 1 from history h, contract as c, unit u where c.id = h.record_id'),
+		'select 1 from history h, contract as c, unit u where "c"."merged_into" is null and "u"."merged_into" is null and (c.id = h.record_id)'
+	);
+
+	const db = await healed();
+
+	assert.deepEqual(
+		await db.all(
+			sql.raw(
+				'select t.id as tenant, c.id as contract from tenant t, contract c where c.tenant_id = t.id'
+			)
+		),
+		[[KEPT, CONTRACT]]
 	);
 });
 
