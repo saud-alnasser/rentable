@@ -8,6 +8,7 @@ export { syncActivity } from './activity.svelte';
 export {
 	keys as syncKeys,
 	useDiscardUnsent,
+	useDiscardUnsentOrganization,
 	useFetchRemoteSyncState,
 	useSyncWorkspace
 } from './query';

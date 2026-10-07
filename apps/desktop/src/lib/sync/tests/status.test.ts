@@ -35,6 +35,8 @@ const accountRefused = () => fakeSyncState({ lastReachedAt: 1, accountRefusal: {
 const credentialRefused = () =>
 	fakeSyncState({ lastReachedAt: 1, credentialRefusal: { since: 2 } });
 const unsendable = () => fakeSyncState({ lastReachedAt: 1, unsendableChanges: { since: 3 } });
+const organizationUnsendable = () =>
+	fakeSyncState({ lastReachedAt: 1, unsendableOrganizationChanges: { since: 4 } });
 const faulted = () =>
 	fakeSyncState({
 		lastReachedAt: 1,
@@ -72,6 +74,7 @@ test('a refused account or credential needs attention, and a fault needs reconne
 	assert.equal(syncStatusOf(accountRefused()), 'needsAttention');
 	assert.equal(syncStatusOf(credentialRefused()), 'needsAttention');
 	assert.equal(syncStatusOf(unsendable()), 'needsAttention');
+	assert.equal(syncStatusOf(organizationUnsendable()), 'needsAttention');
 	assert.equal(syncStatusOf(faulted()), 'needsReconnecting');
 });
 
@@ -85,17 +88,20 @@ test('a problem keeps its state while a retry runs', () => {
 	assert.equal(syncStatusOf(accountRefused(), true), 'needsAttention');
 	assert.equal(syncStatusOf(credentialRefused(), true), 'needsAttention');
 	assert.equal(syncStatusOf(unsendable(), true), 'needsAttention');
+	assert.equal(syncStatusOf(organizationUnsendable(), true), 'needsAttention');
 	assert.equal(syncStatusOf(faulted(), true), 'needsReconnecting');
 });
 
 // requirement 25 of effort 819: the account is read first, then the credential, then a fault,
 // so the block explains the thing the owner has to see to first. Changes the workspace refuses
 // since an upgrade come after the credential and before a fault (effort 857, ticket 13): they
-// wait on the person's choice, which a fault's stale report does not.
+// wait on the person's choice, which a fault's stale report does not. The organization's held
+// changes come before the workspace's (ticket 20): what waits there is what says who may do what.
 test('the problems are read account first, then the credential, the held changes, a fault', () => {
 	const everything = fakeSyncState({
 		accountRefusal: { since: 1 },
 		credentialRefusal: { since: 2 },
+		unsendableOrganizationChanges: { since: 4 },
 		unsendableChanges: { since: 3 },
 		workspace: fakeWorkspace({ lastError: 'something stale' })
 	});
@@ -104,6 +110,15 @@ test('the problems are read account first, then the credential, the held changes
 	assert.equal(syncProblemOf({ ...everything, accountRefusal: null }), 'credentialRefused');
 	assert.equal(
 		syncProblemOf({ ...everything, accountRefusal: null, credentialRefusal: null }),
+		'organizationChangesUnsendable'
+	);
+	assert.equal(
+		syncProblemOf({
+			...everything,
+			accountRefusal: null,
+			credentialRefusal: null,
+			unsendableOrganizationChanges: null
+		}),
 		'changesUnsendable'
 	);
 	assert.equal(
@@ -111,6 +126,7 @@ test('the problems are read account first, then the credential, the held changes
 			...everything,
 			accountRefusal: null,
 			credentialRefusal: null,
+			unsendableOrganizationChanges: null,
 			unsendableChanges: null
 		}),
 		'needsReconnect'

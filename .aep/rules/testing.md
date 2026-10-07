@@ -464,7 +464,12 @@ raised. Nothing local holds it: the subject is the engine's push and pull agains
 to a statement naming a column it no longer has, and the run that wrote these found the engine drops
 such a change on its second push or on a pull, which no stand-in would have said. It is a new
 property rather than an instance of the first, which is what two replicas lose to each other, not
-what one loses to the remote's shape.
+what one loses to the remote's shape. **A second instance holds it for the organization's replica**
+(effort 857, ticket 20, under the same bound): `organization_unsent_live_changes_are_held_and_discarded_only_when_asked`,
+at the foot of `tauri/src/organization/store/mod.rs`, provisions through the same scaffolding, holds
+a change in an organization replica, drops the column it names over the pipeline, and finds it
+classified at a first push and at a first pull alike, held across a reopen, and gone only at the
+discard.
 
 *The count in the heading sentence is the thing that goes stale. Another live test is a decision
 somebody takes here, in this section, naming its property and saying whether it is a new property or

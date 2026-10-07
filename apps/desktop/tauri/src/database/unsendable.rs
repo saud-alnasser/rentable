@@ -23,6 +23,12 @@
 //! when the person says to discard them ([`super::Database::discard_unsendable`]), and nothing
 //! else removes it.
 //!
+//! **The organization's replica is held the same way** (ticket 20), by the same record beside
+//! `org-<id>.db`: `OrganizationStore::pushed` and `pulled` make neither call of a replica holding
+//! it, and the person discards the changes from the sync card (`organization/session/unsent.rs`).
+//! There the pull is usually first, since a sign-in and a resume pull before anything pushes, so
+//! the engine's failure to replay is the refusal most often met.
+//!
 //! *Additions are not this case.* Captured changes push over an added column or table in either
 //! order, as the effort's prototype measured (`an-older-replica-pushes-after-an-added-column`).
 
@@ -61,6 +67,17 @@ pub(crate) fn refusal() -> Error {
         "this machine holds changes it had not sent when the workspace was upgraded, and the \
          upgrade removed what they name. they are kept on this machine, and nothing is sent or \
          brought until they are discarded",
+    )
+}
+
+/// The refusal a push or a pull of the organization's replica answers while it holds such changes
+/// (effort 857, ticket 20): the same reason as a workspace's, said of the organization.
+pub(crate) fn organization_refusal() -> Error {
+    Error::refused(
+        RefusalReason::ChangesUnsendableAfterUpgrade,
+        "this machine holds changes to the organization it had not sent when the organization was \
+         upgraded, and the upgrade removed what they name. they are kept on this machine, and \
+         nothing of the organization is sent or brought until they are discarded",
     )
 }
 

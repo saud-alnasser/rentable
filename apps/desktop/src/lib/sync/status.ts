@@ -31,7 +31,11 @@ import { DAY, formatLocaleDate, formatLocaleRelativeTime } from '$lib/platform/l
  * other.
  */
 export type SyncProblem =
-	'accountRefused' | 'credentialRefused' | 'changesUnsendable' | 'needsReconnect';
+	| 'accountRefused'
+	| 'credentialRefused'
+	| 'organizationChangesUnsendable'
+	| 'changesUnsendable'
+	| 'needsReconnect';
 
 export const syncProblemOf = (state: RemoteSyncState): SyncProblem | null => {
 	// the organization's account, refused by Turso: a fact from a replication that reached Turso
@@ -46,6 +50,13 @@ export const syncProblemOf = (state: RemoteSyncState): SyncProblem | null => {
 	// answer about why nothing syncs where a fault is a stale report.
 	if (state.credentialRefusal) {
 		return 'credentialRefused';
+	}
+
+	// changes this machine holds that the organization refuses since an upgrade (effort 857,
+	// ticket 20), read before the workspace's: the organization is what says who may do what, and
+	// nothing of it moves until the person discards them.
+	if (state.unsendableOrganizationChanges) {
+		return 'organizationChangesUnsendable';
 	}
 
 	// changes this machine holds that the workspace refuses since an upgrade (effort 857, ticket
@@ -83,6 +94,7 @@ export const syncStatusOf = (state: RemoteSyncState, inFlight = false): SyncStat
 	switch (syncProblemOf(state)) {
 		case 'accountRefused':
 		case 'credentialRefused':
+		case 'organizationChangesUnsendable':
 		case 'changesUnsendable':
 			return 'needsAttention';
 		case 'needsReconnect':

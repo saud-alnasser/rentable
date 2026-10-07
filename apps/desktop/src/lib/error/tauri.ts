@@ -129,6 +129,7 @@ export const TAURI_REFUSAL_REASONS = [
 	'organizationReadOnlyByVersion',
 	'workspaceReadOnlyByVersion',
 	'changesUnsendableAfterUpgrade',
+	'nothingUnsent',
 	'copyNotTaken',
 	'shapeNotAsBuilt',
 	'tursoNotConnected',

@@ -1,13 +1,15 @@
 //! Reaching a live Turso workspace database from a test.
 //!
-//! Three sets of tests go through this scaffolding. The four at the foot of `database/mod.rs`,
+//! Four sets of tests go through this scaffolding. The four at the foot of `database/mod.rs`,
 //! beside the `open_replica` they go through, measure what a losing writer loses when two replicas
 //! of one workspace diverge (#552, acceptance criteria 9 and 17). The one at the foot of
 //! `organization/lease/apply.rs` measures whether the server takes every shipped migration in one
 //! explicit transaction (effort 838, ticket 32). The two `unsent_changes_live` tests beside the
 //! first measure what becomes of changes a replica held when the workspace changed shape under them
-//! (effort 857, ticket 13). This is the part that provisions a database for them, which is the
-//! Turso-side counterpart of `sync/test/server.rs`.
+//! (effort 857, ticket 13), and `organization_unsent_live` at the foot of `organization/store/mod.rs`
+//! measures the same of the organization's replica (ticket 20), which is why
+//! [`LiveWorkspace::over_the_wire`] is the crate's rather than this module's. This is the part that
+//! provisions a database for them, which is the Turso-side counterpart of `sync/test/server.rs`.
 //!
 //! **A live account is reached, and there is no local stand-in.** The sync engine speaks HTTP to
 //! a remote; the crate's own harness wants a separate server binary, and writing one would mean
@@ -206,10 +208,7 @@ impl LiveWorkspace {
     /// workspace's upgrade reaches it (`organization/lease/apply.rs`) rather than from a replica,
     /// and answer the rows the last statement before the commit read, each a list of the
     /// pipeline's typed cells. A statement the server refuses fails the test.
-    pub(in crate::database) async fn over_the_wire(
-        &self,
-        statements: &[&str],
-    ) -> Vec<serde_json::Value> {
+    pub(crate) async fn over_the_wire(&self, statements: &[&str]) -> Vec<serde_json::Value> {
         use crate::organization::workspace::remote::{
             OverThePipeline, Pipeline, execute, refused_at, rows_of,
         };

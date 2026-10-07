@@ -298,6 +298,9 @@ pub enum RefusalReason {
     /// sent or brought until the person discards them, and nothing is discarded without their yes
     /// (effort 857, ticket 13).
     ChangesUnsendableAfterUpgrade,
+    /// a discard of the organization's unsent changes was asked of a replica holding none the
+    /// organization refused, so nothing was discarded (effort 857, ticket 20).
+    NothingUnsent,
 
     // a copy and a check before a change of shape (effort 838, requirements 13 and 15).
     /// the copy of the organization or the workspace taken before it changes shape could not be

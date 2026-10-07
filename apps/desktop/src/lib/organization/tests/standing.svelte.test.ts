@@ -29,7 +29,7 @@ import Providers from '#tests/providers.svelte';
  */
 
 const { port } = vi.hoisted(() => ({
-	port: { releases: [] as (() => void)[], discards: 0 }
+	port: { releases: [] as (() => void)[], discards: 0, organizationDiscards: 0 }
 }));
 
 vi.mock('$lib/sync/tauri', async () => {
@@ -48,6 +48,11 @@ vi.mock('$lib/sync/tauri', async () => {
 			renameWorkspace: async () => fakeSyncState(),
 			discardUnsent: async () => {
 				port.discards += 1;
+
+				return fakeSyncState();
+			},
+			discardUnsentOrganization: async () => {
+				port.organizationDiscards += 1;
 
 				return fakeSyncState();
 			}
@@ -473,6 +478,68 @@ test('changes an upgrade made unsendable: the sentence, kept on leaving, discard
 	await waitFor(() => expect(port.discards).toBe(1));
 });
 
+// effort 857, ticket 20: the organization's own replica holds changes an upgrade of the
+// organization made unsendable. Its own sentence, naming the organization rather than the
+// workspace, and its own discard, which asks first under the organization's name; only a yes
+// reaches the shell, and never the workspace's discard.
+test('organization changes an upgrade made unsendable: their sentence, kept on leaving, discarded on a yes', async () => {
+	port.discards = 0;
+	port.organizationDiscards = 0;
+	block({
+		syncState: fakeSyncState({ unsendableOrganizationChanges: { since: 3 } }),
+		session: fakeOrganizationSession({ role: 'member', permissions: 0, organizationName: 'Acme' })
+	});
+
+	expect(row().dataset.standing).toBe('needsAttention');
+	beneathTheState('[data-unsendable-organization]');
+	expect(document.querySelector('[data-unsendable-organization]')?.textContent?.trim()).toBe(
+		en.organization.standing.unsendableOrganization.sentence
+	);
+	expect(document.querySelector('[data-unsendable]')).toBeNull();
+	beneathTheState('[data-discard-unsent-organization]');
+
+	const discard = document.querySelector<HTMLButtonElement>('[data-discard-unsent-organization]')!;
+
+	expect(discard.textContent?.trim()).toBe(en.organization.standing.unsendable.discard);
+
+	// asked, and left: nothing is discarded.
+	await fireEvent.click(discard);
+
+	const dialog = await waitFor(() => {
+		const open = document.querySelector<HTMLElement>('[data-confirm-dialog]');
+
+		expect(open).not.toBeNull();
+
+		return open!;
+	});
+
+	expect(dialog.textContent).toContain('Acme');
+	expect(dialog.textContent).toContain(
+		en.organization.standing.unsendableOrganization.confirmDescription
+	);
+
+	await fireEvent.click(
+		[...dialog.querySelectorAll<HTMLButtonElement>('button')].find(
+			(button) => button.textContent?.trim() === strings.cancel
+		)!
+	);
+	await waitFor(() => expect(document.querySelector('[data-confirm-dialog]')).toBeNull());
+	expect(port.organizationDiscards).toBe(0);
+
+	// asked, and answered yes: the shell discards the organization's, and the workspace's are
+	// not touched.
+	await fireEvent.click(discard);
+	await waitFor(() => expect(document.querySelector('[data-confirm-dialog]')).not.toBeNull());
+	await fireEvent.click(
+		[...document.querySelectorAll<HTMLButtonElement>('[data-confirm-dialog] button')].find(
+			(button) => button.textContent?.trim() === en.organization.standing.unsendable.confirm
+		)!
+	);
+
+	await waitFor(() => expect(port.organizationDiscards).toBe(1));
+	expect(port.discards).toBe(0);
+});
+
 test('a fault on the replica: needs reconnecting, and the fault behind details under it', () => {
 	block({
 		syncState: fakeSyncState({ workspace: fakeWorkspace({ lastError: 'the replica refused' }) })
@@ -510,13 +577,15 @@ test('each state reads in arabic', () => {
 		fakeSyncState(),
 		fakeSyncState({ accountRefusal: { since: 1 } }),
 		fakeSyncState({ workspace: fakeWorkspace({ lastError: 'the replica refused' }) }),
-		fakeSyncState({ unsendableChanges: { since: 3 } })
+		fakeSyncState({ unsendableChanges: { since: 3 } }),
+		fakeSyncState({ unsendableOrganizationChanges: { since: 3 } })
 	];
 	const keys = [
 		'upToDate',
 		'notYetReached',
 		'needsAttention',
 		'needsReconnecting',
+		'needsAttention',
 		'needsAttention'
 	] as const;
 

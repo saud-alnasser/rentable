@@ -1372,6 +1372,10 @@ type RootTranslation = {
 				 */
 				changesUnsendableAfterUpgrade: string
 				/**
+				 * t​h​e​r​e​ ​a​r​e​ ​n​o​ ​u​n​s​e​n​t​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​c​h​a​n​g​e​s​ ​t​o​ ​d​i​s​c​a​r​d​.
+				 */
+				nothingUnsent: string
+				/**
 				 * n​o​ ​c​o​p​y​ ​w​a​s​ ​t​a​k​e​n​ ​b​e​f​o​r​e​ ​u​p​g​r​a​d​i​n​g​,​ ​s​o​ ​n​o​t​h​i​n​g​ ​w​a​s​ ​c​h​a​n​g​e​d​.​ ​c​h​e​c​k​ ​t​h​e​ ​c​o​n​n​e​c​t​i​o​n​ ​a​n​d​ ​t​h​e​ ​b​a​c​k​u​p​s​ ​f​o​l​d​e​r​,​ ​t​h​e​n​ ​t​r​y​ ​a​g​a​i​n​.
 				 */
 				copyNotTaken: string
@@ -4263,6 +4267,20 @@ type RootTranslation = {
 				 */
 				discarded: string
 			}
+			unsendableOrganization: {
+				/**
+				 * o​r​g​a​n​i​z​a​t​i​o​n​ ​c​h​a​n​g​e​s​ ​m​a​d​e​ ​h​e​r​e​ ​b​e​f​o​r​e​ ​i​t​s​ ​u​p​g​r​a​d​e​ ​c​a​n​n​o​t​ ​b​e​ ​s​e​n​t​.​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​w​a​i​t​s​ ​u​n​t​i​l​ ​y​o​u​ ​d​i​s​c​a​r​d​ ​t​h​e​m​.
+				 */
+				sentence: string
+				/**
+				 * e​v​e​r​y​ ​u​n​s​e​n​t​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​c​h​a​n​g​e​ ​i​s​ ​r​e​m​o​v​e​d​,​ ​a​n​d​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​i​s​ ​c​o​p​i​e​d​ ​a​g​a​i​n​ ​f​r​o​m​ ​T​u​r​s​o​.​ ​t​h​i​s​ ​c​a​n​n​o​t​ ​b​e​ ​u​n​d​o​n​e​.
+				 */
+				confirmDescription: string
+				/**
+				 * u​n​s​e​n​t​ ​c​h​a​n​g​e​s​ ​d​i​s​c​a​r​d​e​d​.​ ​t​h​e​ ​o​r​g​a​n​i​z​a​t​i​o​n​ ​s​y​n​c​s​ ​a​g​a​i​n​.
+				 */
+				discarded: string
+			}
 			/**
 			 * s​y​n​c
 			 */
@@ -6979,6 +6997,10 @@ export type TranslationFunctions = {
 				 * changes made here before the workspace was upgraded cannot be sent. they are kept until you discard them.
 				 */
 				changesUnsendableAfterUpgrade: () => LocalizedString
+				/**
+				 * there are no unsent organization changes to discard.
+				 */
+				nothingUnsent: () => LocalizedString
 				/**
 				 * no copy was taken before upgrading, so nothing was changed. check the connection and the backups folder, then try again.
 				 */
@@ -9723,6 +9745,20 @@ export type TranslationFunctions = {
 				confirming: () => LocalizedString
 				/**
 				 * unsent changes discarded. this workspace syncs again.
+				 */
+				discarded: () => LocalizedString
+			}
+			unsendableOrganization: {
+				/**
+				 * organization changes made here before its upgrade cannot be sent. the organization waits until you discard them.
+				 */
+				sentence: () => LocalizedString
+				/**
+				 * every unsent organization change is removed, and the organization is copied again from Turso. this cannot be undone.
+				 */
+				confirmDescription: () => LocalizedString
+				/**
+				 * unsent changes discarded. the organization syncs again.
 				 */
 				discarded: () => LocalizedString
 			}

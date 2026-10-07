@@ -55,7 +55,8 @@ async function signedOutApi() {
 				}),
 				push: async () => false,
 				renameWorkspace: async () => fakeSyncState(),
-				discardUnsent: async () => fakeSyncState()
+				discardUnsent: async () => fakeSyncState(),
+				discardUnsentOrganization: async () => fakeSyncState()
 			}
 		}),
 		identity: null

@@ -47,7 +47,8 @@ function hostRecordingRenames(asked: string[]) {
 
 				return { ...state, workspace: { ...state.workspace, name } };
 			},
-			discardUnsent: async () => state
+			discardUnsent: async () => state,
+			discardUnsentOrganization: async () => state
 		}
 	});
 }

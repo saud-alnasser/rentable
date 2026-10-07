@@ -78,6 +78,12 @@ export type RemoteSyncState = {
 	 */
 	unsendableChanges: { since: number } | null;
 	/**
+	 * changes this machine holds that the organization refuses since an upgrade of the organization
+	 * removed what they name, kept here until the person discards them (effort 857, ticket 20).
+	 * While it stands nothing of the organization is sent or brought; the workspace goes on.
+	 */
+	unsendableOrganizationChanges: { since: number } | null;
+	/**
 	 * the moment of the last replication that went through, as epoch milliseconds, or `null`
 	 * before any has: the remote took the push or answered the pull, whether or not it had
 	 * anything to bring. What the standing block says beside "up to date" (effort 828,
@@ -155,6 +161,15 @@ export type SyncHost = {
 	 * nothing is held, so changes that could still be sent are never thrown away by it.
 	 */
 	discardUnsent: () => Promise<RemoteSyncState>;
+	/**
+	 * throw away the changes this machine holds that the organization refuses since an upgrade, and
+	 * copy the organization again from the remote; answers where the machine stands afterwards.
+	 *
+	 * **Only at the person's explicit yes** (effort 857, ticket 20). The member stays signed in
+	 * over the fresh copy; where it cannot be brought just now, the session ends on this machine and
+	 * the shell says the remote could not be reached. Refused while nothing is held.
+	 */
+	discardUnsentOrganization: () => Promise<RemoteSyncState>;
 };
 
 /**

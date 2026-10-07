@@ -29,6 +29,7 @@ export function fakeSyncState(overrides: Partial<RemoteSyncState> = {}): RemoteS
 		accountRefusal: null,
 		credentialRefusal: null,
 		unsendableChanges: null,
+		unsendableOrganizationChanges: null,
 		lastReachedAt: null,
 		...overrides
 	};
@@ -41,6 +42,7 @@ export function fakeSyncHost(): SyncHost {
 		replicate: refuse('sync.replicate'),
 		push: refuse('sync.push'),
 		renameWorkspace: refuse('sync.renameWorkspace'),
-		discardUnsent: refuse('sync.discardUnsent')
+		discardUnsent: refuse('sync.discardUnsent'),
+		discardUnsentOrganization: refuse('sync.discardUnsentOrganization')
 	};
 }

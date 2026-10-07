@@ -37,6 +37,7 @@ pub fn plugin() -> TauriPlugin<tauri::Wry> {
             super::setup::organization_setup_rename,
             super::session::organization_session_replicate,
             super::session::organization_session_discard_unsent,
+            super::session::organization_session_discard_unsent_organization,
             super::session::organization_session_disconnect,
             super::session::organization_session_select,
             super::session::organization_session_remove,

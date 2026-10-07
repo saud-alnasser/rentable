@@ -216,6 +216,11 @@ pub struct RemoteSync {
     /// refusals above: what keeps the changes is the record beside the replica
     /// (`database/unsendable.rs`), and every replication says so again.
     pub(super) unsendable_changes: Option<i64>,
+    /// the same for the organization's replica (effort 857, ticket 20): the moment this session
+    /// found it holding changes the organization refuses since an upgrade, until they are
+    /// discarded. What keeps them is the record beside `org-<id>.db`, which every replication reads
+    /// again.
+    pub(super) unsendable_organization_changes: Option<i64>,
     /// what says when, for every moment this record keeps.
     pub(super) clock: clock::Shared,
 }
@@ -550,6 +555,10 @@ pub struct RemoteSyncState {
     /// above: nothing about the account or the credential is wrong, and only the person can say
     /// what becomes of them.
     pub unsendable_changes: Option<UnsendableChangesFacts>,
+    /// changes the organization's replica holds that the organization refuses since an upgrade,
+    /// kept until the person discards them (effort 857, ticket 20). The workspace goes on syncing;
+    /// what waits is the organization's own push and pull.
+    pub unsendable_organization_changes: Option<UnsendableChangesFacts>,
     /// the moment of the last replication that went through, or `None` before any has. What the
     /// standing block says beside "up to date". A fact about a request and not a credential, so
     /// it crosses ([[rules/credentials]], under *Client boundary*).
@@ -937,6 +946,7 @@ impl RemoteSync {
             account_refusal: None,
             credential_refusal: None,
             unsendable_changes: None,
+            unsendable_organization_changes: None,
             clock,
         };
         // committed as a launch commits, so a record that cannot be written is named (ticket 38).
@@ -1085,6 +1095,7 @@ impl RemoteSync {
         self.account_refusal = None;
         self.credential_refusal = None;
         self.unsendable_changes = None;
+        self.unsendable_organization_changes = None;
 
         if self.store.last_reached_at.take().is_none() {
             return Ok(());
@@ -1117,6 +1128,7 @@ impl RemoteSync {
         self.account_refusal = None;
         self.credential_refusal = None;
         self.unsendable_changes = None;
+        self.unsendable_organization_changes = None;
     }
 
     /// Stop naming a workspace this machine may no longer open.
@@ -1357,6 +1369,9 @@ impl RemoteSync {
             unsendable_changes: self
                 .unsendable_changes
                 .map(|since| UnsendableChangesFacts { since }),
+            unsendable_organization_changes: self
+                .unsendable_organization_changes
+                .map(|since| UnsendableChangesFacts { since }),
             last_reached_at: self.store.last_reached_at,
         }
     }
@@ -1410,6 +1425,17 @@ impl RemoteSync {
     /// for a replica that has since pushed.
     pub(crate) fn clear_unsendable_changes(&mut self) {
         self.unsendable_changes = None;
+    }
+
+    /// Whether the organization's replica holds changes the organization refuses since an upgrade,
+    /// as a replication read it (effort 857, ticket 20): the first moment this session found them
+    /// stands until they are gone, and a replica found holding none clears it.
+    pub(crate) fn note_unsendable_organization_changes(&mut self, held: bool, now: i64) {
+        if held {
+            self.unsendable_organization_changes.get_or_insert(now);
+        } else {
+            self.unsendable_organization_changes = None;
+        }
     }
 
     /// Turso's own sentence about the standing refusal, for the owner and nobody else; the
@@ -2128,6 +2154,7 @@ mod tests {
             account_refusal: None,
             credential_refusal: None,
             unsendable_changes: None,
+            unsendable_organization_changes: None,
             clock: crate::clock::System::shared(),
         }
     }

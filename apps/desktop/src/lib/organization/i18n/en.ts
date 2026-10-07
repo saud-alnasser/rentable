@@ -171,6 +171,16 @@ export const organization = {
 			confirming: 'discarding…',
 			discarded: 'unsent changes discarded. this workspace syncs again.'
 		},
+		// the same, for changes to the organization itself (effort 857, ticket 20): kept until
+		// the person discards them, and the organization does not sync until then. The act, its
+		// confirm and its labels are the ones above; what goes and what follows are its own.
+		unsendableOrganization: {
+			sentence:
+				'organization changes made here before its upgrade cannot be sent. the organization waits until you discard them.',
+			confirmDescription:
+				'every unsent organization change is removed, and the organization is copied again from Turso. this cannot be undone.',
+			discarded: 'unsent changes discarded. the organization syncs again.'
+		},
 		checkNow: 'sync',
 		// what folds under the state: the workspace this machine keeps a copy of, and where the copy
 		// is (effort 846, *Detail that few readers need folds under its row*).
@@ -816,6 +826,7 @@ export const refusals = {
 			'a newer version of rentable upgraded this workspace. update rentable to make changes in it.',
 		changesUnsendableAfterUpgrade:
 			'changes made here before the workspace was upgraded cannot be sent. they are kept until you discard them.',
+		nothingUnsent: 'there are no unsent organization changes to discard.',
 		copyNotTaken:
 			'no copy was taken before upgrading, so nothing was changed. check the connection and the backups folder, then try again.',
 		shapeNotAsBuilt:

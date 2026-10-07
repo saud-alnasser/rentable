@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [19]
 ---
 
@@ -15,10 +15,10 @@ Found at converge round one: the organization replica gets the protection ticket
 
 Traces requirement 10 and criterion 10.
 
-- [ ] The organization store's push classifies a failure naming what an upgrade removed as `ChangesUnsendableAfterUpgrade`, records the hold beside the replica, and refuses further pushes and pulls of that replica until it is resolved.
-- [ ] The person sees the sentence and the choice; discarding needs a confirmed yes and reopens the organization from Turso; unit tests cover the classification, the hold and the choice.
-- [ ] The comment in `organization/store/mod.rs` saying what could not be sent goes with the next push is corrected.
-- [ ] A live test behind `RENTABLE_LIVE_TURSO=1`, on throwaway databases only in the group `rentable`, covers a removal after captured organization changes, and leaves no database behind.
+- [x] The organization store's push classifies a failure naming what an upgrade removed as `ChangesUnsendableAfterUpgrade`, records the hold beside the replica, and refuses further pushes and pulls of that replica until it is resolved.
+- [x] The person sees the sentence and the choice; discarding needs a confirmed yes and reopens the organization from Turso; unit tests cover the classification, the hold and the choice.
+- [x] The comment in `organization/store/mod.rs` saying what could not be sent goes with the next push is corrected.
+- [x] A live test behind `RENTABLE_LIVE_TURSO=1`, on throwaway databases only in the group `rentable`, covers a removal after captured organization changes, and leaves no database behind.
 
 ## Relevant areas
 

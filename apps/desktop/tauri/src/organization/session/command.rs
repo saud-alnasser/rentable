@@ -29,6 +29,7 @@ use crate::organization::{
         self, HeldByVersion, MachineView, SessionFacts, SessionsEnded, both_verdicts, forget,
         held_by_version, hold_at_the_wall, workspace_judged,
     },
+    store::OrganizationStore,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -784,6 +785,22 @@ pub(crate) async fn replicate(
         });
     }
 
+    // the organization's own replica, held where it met changes the organization refuses since an
+    // upgrade (effort 857, ticket 20): its pull and push above made neither call, and the record
+    // says so to the sync card until the person discards them. The workspace goes on below.
+    let organization_held = app_state
+        .organization
+        .read()
+        .await
+        .as_ref()
+        .is_some_and(OrganizationStore::holds_unsendable);
+
+    app_state
+        .remote_sync
+        .write()
+        .await
+        .note_unsendable_organization_changes(organization_held, clock.now());
+
     // the organization as its pull left it, and the open workspace judged now.
     let organization = app_state
         .organization
@@ -1339,6 +1356,145 @@ mod tests {
                 "heldByVersion": []
             })
         );
+    }
+
+    /// **Effort 857, ticket 20, on this machine.** A signed-in member whose organization replica
+    /// holds changes the organization refused since an upgrade is told so by the replication's
+    /// record, and the workspace's half is not what says it. The discard is refused while nothing
+    /// is held and leaves the session alone; once asked, it removes the replica with its record,
+    /// and where the fresh copy cannot be pulled (nothing serves one here) the session ends on
+    /// this machine with the key it stays signed in on kept, and the remote's absence is said.
+    #[tokio::test]
+    async fn organization_changes_an_upgrade_made_unsendable_are_said_and_discarded_only_when_asked()
+     {
+        use crate::database::unsendable;
+        use crate::organization::session::{discard_unsent_organization, replicate};
+
+        let credentials: Credentials = Arc::new(Memory::new());
+        let directory = scratch("organization-unsent");
+        let app_state = first_run(credentials.as_ref(), &directory).await;
+        let (organization_id, member_id) = recorded(&app_state).await;
+        let clock = crate::clock::System::shared();
+
+        state_of(&app_state, &credentials, &clock)
+            .await
+            .expect("the state")
+            .session
+            .expect("the launch did not resume");
+
+        let path = app_state
+            .organization
+            .read()
+            .await
+            .as_ref()
+            .expect("the replica")
+            .path()
+            .to_path_buf();
+
+        // nothing held: nothing said, and a discard is refused with the session left as it was.
+        replicate(&app_state, credentials.as_ref(), &clock)
+            .await
+            .expect("the heartbeat");
+
+        assert!(
+            app_state
+                .remote_sync
+                .write()
+                .await
+                .get_state()
+                .await
+                .expect("the state")
+                .unsendable_organization_changes
+                .is_none(),
+            "held with nothing refused"
+        );
+        assert!(matches!(
+            discard_unsent_organization(&app_state, &clock).await,
+            Err(Error::Refused {
+                reason: crate::error::RefusalReason::NothingUnsent,
+                ..
+            })
+        ));
+        assert!(path.exists(), "a refused discard removed the replica");
+        assert!(
+            app_state.member.read().await.is_some(),
+            "a refused discard ended the session"
+        );
+
+        // held, as a push or a pull refused for what an upgrade removed records it.
+        unsendable::hold(&path, "SQLite error: table member has no column named note");
+
+        replicate(&app_state, credentials.as_ref(), &clock)
+            .await
+            .expect("the heartbeat");
+
+        let state = app_state
+            .remote_sync
+            .write()
+            .await
+            .get_state()
+            .await
+            .expect("the state");
+
+        assert!(
+            state.unsendable_organization_changes.is_some(),
+            "the record says nothing"
+        );
+        assert!(
+            state.unsendable_changes.is_none(),
+            "the organization's hold was said as the workspace's"
+        );
+        assert!(
+            app_state
+                .organization
+                .read()
+                .await
+                .as_ref()
+                .is_some_and(OrganizationStore::holds_unsendable),
+            "a replication let the hold go"
+        );
+
+        // the discard, asked.
+        let discarded = discard_unsent_organization(&app_state, &clock).await;
+
+        assert!(
+            matches!(discarded, Err(Error::Network { .. })),
+            "{discarded:?}"
+        );
+        assert!(
+            !unsendable::marker(&path).exists(),
+            "the record is still on disk"
+        );
+        assert!(
+            !path.exists(),
+            "the replica holding the refused change is still on disk"
+        );
+        assert!(app_state.member.read().await.is_none());
+        assert!(app_state.organization.read().await.is_none());
+        assert!(
+            filed(credentials.as_ref(), &organization_id, &member_id).is_some(),
+            "the key this machine stays signed in on went with the changes"
+        );
+        assert!(
+            app_state
+                .remote_sync
+                .write()
+                .await
+                .get_state()
+                .await
+                .expect("the state")
+                .unsendable_organization_changes
+                .is_none(),
+            "the record still says there are changes to discard"
+        );
+
+        // and with nobody in, a discard is refused.
+        assert!(matches!(
+            discard_unsent_organization(&app_state, &clock).await,
+            Err(Error::Refused { .. })
+        ));
+
+        let _ = std::fs::remove_dir_all(&directory);
     }
 
     /// **Criterion 1, the sign-out half.** The keys go and so does the entry, so the next launch

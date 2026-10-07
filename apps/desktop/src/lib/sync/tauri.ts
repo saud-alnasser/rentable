@@ -27,5 +27,7 @@ export const tauri = {
 	push: () => invoke<boolean>('plugin:sync|push'),
 	renameWorkspace: (name: string) =>
 		invoke<RemoteSyncState>('plugin:organization|workspace_rename', { name }),
-	discardUnsent: () => invoke<RemoteSyncState>('plugin:organization|session_discard_unsent')
+	discardUnsent: () => invoke<RemoteSyncState>('plugin:organization|session_discard_unsent'),
+	discardUnsentOrganization: () =>
+		invoke<RemoteSyncState>('plugin:organization|session_discard_unsent_organization')
 } satisfies SyncHost;

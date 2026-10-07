@@ -15,7 +15,12 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { useAccountRefusalDetail } from '$lib/organization/query';
 	import { TURSO_DASHBOARD_URL } from '$lib/organization/setup/setup';
-	import { syncActivity, useDiscardUnsent, useSyncWorkspace } from '$lib/sync/ui';
+	import {
+		syncActivity,
+		useDiscardUnsent,
+		useDiscardUnsentOrganization,
+		useSyncWorkspace
+	} from '$lib/sync/ui';
 	import { accountRefusalSentence } from '$lib/error/refusal';
 	import {
 		SYNC_STATUS_TONE,
@@ -80,6 +85,12 @@
 	 * the design package's confirm dialog named for the act, whose way out keeps them; only a yes
 	 * reaches the shell.
 	 *
+	 * **Changes to the organization itself are drawn the same way, in their own sentence** (ticket
+	 * 20). The organization's replica holds them, so the sentence names the organization and the
+	 * question is asked under its name; the act and its labels are the workspace's, since they do
+	 * the same thing. A yes copies the organization again from Turso and keeps the member signed in
+	 * where the copy can be brought. Read before the workspace's, as `sync/status.ts` orders them.
+	 *
 	 * **The reconnect stays on the Turso account's row, in the leaving card.** "Needs
 	 * reconnecting" is a replica fault, while the authority is the owner's consent, a different
 	 * fact with a row of its own (ticket 38 folded the Turso account card into leaving). So where
@@ -115,9 +126,12 @@
 
 	const syncWorkspaceMutation = useSyncWorkspace();
 	const discardUnsentMutation = useDiscardUnsent();
+	const discardUnsentOrganizationMutation = useDiscardUnsentOrganization();
 
 	/** whether the question before discarding the held changes is open. */
 	let discarding = $state(false);
+	/** the same, for the organization's held changes. */
+	let discardingOrganization = $state(false);
 
 	const isChecking = $derived(syncWorkspaceMutation.isPending || syncActivity.inFlight);
 	const status = $derived(syncStatusOf(syncState, syncActivity.inFlight));
@@ -162,6 +176,7 @@
 	const beneath = $derived(
 		problem === 'accountRefused' ||
 			problem === 'credentialRefused' ||
+			problem === 'organizationChangesUnsendable' ||
 			problem === 'changesUnsendable' ||
 			(problem === 'needsReconnect' && (fault !== null || needsAuthority))
 	);
@@ -270,6 +285,27 @@
 			<Callout tone="warning" data-credential-refusal>
 				{$LL.workspace.credentialRefused()}
 			</Callout>
+		{:else if problem === 'organizationChangesUnsendable'}
+			<!-- changes to the organization this machine had not sent when an upgrade of the
+			     organization removed what they name: kept until the person discards them, and the
+			     organization waits until then. The act asks first. -->
+			<Callout tone="warning" data-unsendable-organization>
+				{$LL.organization.standing.unsendableOrganization.sentence()}
+			</Callout>
+			<div>
+				<Button
+					type="button"
+					variant="ghost"
+					size="sm"
+					class="{toneOf({
+						tone: 'error'
+					}).text()} hover:bg-destructive/10 hover:text-destructive"
+					data-discard-unsent-organization
+					onclick={() => (discardingOrganization = true)}
+				>
+					{$LL.organization.standing.unsendable.discard()}
+				</Button>
+			</div>
 		{:else if problem === 'changesUnsendable'}
 			<!-- changes this machine had not sent when an upgrade removed what they name: kept until
 			     the person discards them, and the workspace waits until then. The act asks first. -->
@@ -320,6 +356,20 @@
 	record={syncState.workspace.name}
 	title={$LL.organization.standing.unsendable.confirmTitle()}
 	description={$LL.organization.standing.unsendable.confirmDescription()}
+	confirmLabel={$LL.organization.standing.unsendable.confirm()}
+	confirmLoadingLabel={$LL.organization.standing.unsendable.confirming()}
+/>
+
+<!-- and before the organization's go: the organization leads it, under the same title and act. -->
+<ConfirmDialog
+	open={discardingOrganization}
+	onOpenChange={(open) => (discardingOrganization = open)}
+	onSubmit={async () => {
+		await discardUnsentOrganizationMutation.mutateAsync();
+	}}
+	record={session?.organizationName}
+	title={$LL.organization.standing.unsendable.confirmTitle()}
+	description={$LL.organization.standing.unsendableOrganization.confirmDescription()}
 	confirmLabel={$LL.organization.standing.unsendable.confirm()}
 	confirmLoadingLabel={$LL.organization.standing.unsendable.confirming()}
 />

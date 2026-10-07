@@ -209,6 +209,9 @@ mod tests {
         // 857, ticket 13): somebody is in, since the workspace is opened again under their
         // credential, and the act is refused where nothing is held.
         ("session_discard_unsent", Gate::SignedIn),
+        // the same for changes the organization refused (ticket 20): the organization is copied
+        // again under the signed-in member's own credential.
+        ("session_discard_unsent_organization", Gate::SignedIn),
         ("workspace_rename", Gate::Flag(Flag::RenameWorkspace)),
         ("setup_rename", Gate::OwnerAlone),
         // the explicit upgrade of the organization or a workspace (effort 857, ticket 07); a step

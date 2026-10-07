@@ -100,3 +100,30 @@ export const useDiscardUnsent = declareMutation({
 		await client.invalidateQueries({ queryKey: keys.remoteSync });
 	}
 });
+
+/**
+ * throw away the changes this machine holds that the organization refuses since an upgrade, once
+ * the person has said yes (effort 857, ticket 20).
+ *
+ * **It writes the whole organization**: the replica is replaced by the remote's copy, so who may
+ * do what may have changed, and where the copy could not be brought the session has ended. Every
+ * query is read again either way.
+ */
+export const useDiscardUnsentOrganization = declareMutation({
+	mutate: () => tauri.discardUnsentOrganization(),
+	touches: 'every',
+	toast: {
+		success: () => get(LL).organization.standing.unsendableOrganization.discarded(),
+		error: true,
+		unexpected: () => get(LL).common.messages.unexpectedError()
+	},
+	landed: ({ result }, client) => {
+		client.setQueryData(keys.remoteSync, result);
+	},
+	// every organization query, under the prefix they share (`organization/query.ts`): who may do
+	// what is read from the fresh copy.
+	invalidates: [['organization']],
+	failed: async (_failure, client) => {
+		await client.invalidateQueries();
+	}
+});
