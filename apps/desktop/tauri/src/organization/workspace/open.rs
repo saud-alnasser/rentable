@@ -1163,6 +1163,9 @@ mod tests {
     /// verdict.** The workspace open on this machine is writable, and its pull brings floors past
     /// this build's write floor. A save the interface sends while that pull is being judged waits
     /// for the verdict and is refused by it, rather than landing on the replica in between.
+    // the replication hands back the save still running, on purpose: it is awaited only once the
+    // verdict is in, which is what the test is about.
+    #[allow(clippy::async_yields_async)]
     #[tokio::test]
     async fn a_save_between_a_pull_and_its_verdict_waits_for_the_verdict() {
         use std::time::Duration;

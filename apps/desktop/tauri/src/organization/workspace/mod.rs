@@ -2911,6 +2911,7 @@ mod tests {
                 kind,
                 describes: "aLaterStep",
                 shipped_before_857: false,
+                readers_need: true,
             }])
             .collect();
 

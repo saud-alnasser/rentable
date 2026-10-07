@@ -559,8 +559,13 @@ pub(crate) async fn reach(
 
     // a workspace behind this build is brought up by opening it, under the lease, which this
     // path never takes: what is read here would be in a shape this build was not written for,
-    // and what is written would be refused by it. A read-only grant cannot bring it up even then.
-    if lease::is_pending(store, &facts).await? {
+    // and what is written would be refused by it. A read-only grant cannot bring it up even then,
+    // and reads it as it is where nothing pending is a step a reader needs (effort 857, ticket
+    // 37), since a read-only grant writes nothing here either.
+    let reads_as_it_is = credential.access != AccessLevel::FullAccess
+        && !lease::holds_a_reader(store, &facts).await?;
+
+    if !reads_as_it_is && lease::is_pending(store, &facts).await? {
         return Err(if credential.access == AccessLevel::FullAccess {
             Error::refused(
                 RefusalReason::WorkspaceNeedsOpening,
@@ -1263,6 +1268,18 @@ mod tests {
             .get_mut(&workspace_id)
             .expect("held")
             .access = crate::turso::platform::AccessLevel::ReadOnly;
+
+        // behind a step a reader needs, the last one shipped before 857: a read-only grant is let
+        // past a step a reader does not need, which is all a workspace at `shipped - 1` is behind
+        // while `0007` is the last step this build ships (effort 857, ticket 37).
+        store
+            .record_schema_version(
+                &workspace_id,
+                i64::from(crate::organization::lease::apply::SHIPPED.steps.settled()) - 1,
+                1_757_000_000_003,
+            )
+            .await
+            .expect("the version");
 
         let (read_only, _) =
             reason(reached_at(&store, &owner, &workspace_id, &pipeline, &Mutex::default()).await);

@@ -3586,6 +3586,7 @@ mod tests {
                 kind: later,
                 describes: "aLaterChange",
                 shipped_before_857: false,
+                readers_need: true,
             }])
             .collect();
 
@@ -3664,6 +3665,7 @@ mod tests {
                 },
                 describes: "aShippedChange",
                 shipped_before_857: true,
+                readers_need: true,
             }])
             .collect();
         let store = store.declaring(Steps {

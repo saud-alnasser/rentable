@@ -496,6 +496,28 @@ fn pending_from(migrations: &apply::Migrations, level: u32) -> bool {
     !migrations.steps.on_open(level, &[]).is_empty()
 }
 
+/// Whether what opening runs on the workspace holds back a member who only reads it (effort 857,
+/// ticket 37): a step they need is pending ([`Step::readers_need`]). A read-only grant cannot run
+/// a step, so where nothing pending is one a reader needs, they read the workspace as it is and
+/// the next member who can write runs the rest.
+///
+/// [`Step::readers_need`]: crate::database::step::Step::readers_need
+pub async fn holds_a_reader(
+    store: &OrganizationStore,
+    facts: &WorkspaceFacts,
+) -> Result<bool, Error> {
+    let level = level_of(store, &facts.id, facts.schema_version).await?;
+
+    Ok(holds_a_reader_from(&apply::SHIPPED, level))
+}
+
+/// Whether a workspace at `level` has a step a reader needs among what opening runs above it.
+fn holds_a_reader_from(migrations: &apply::Migrations, level: u32) -> bool {
+    let steps = &migrations.steps;
+
+    steps.a_reader_needs(&steps.on_open(level, &[]))
+}
+
 /// The level the organization records for a workspace: its `workspace_floor` row's, where a step
 /// declared after 857 has run on it, and otherwise its `schema_version`, `recorded`. Every step
 /// opening runs up to it has run, since whoever took it there ran every one it knew (ticket 03).
@@ -603,8 +625,23 @@ where
 
     // a read-only credential cannot write the schema, so a holder of one takes no lease: the
     // lease would be spent on a refusal from the database and held, for as long as that takes,
-    // against whoever could apply the migrations. What they are owed is the sentence, and the
-    // workspace opens for them once a member with full access has opened it.
+    // against whoever could apply the migrations. Nor does a member whose rentable may not write
+    // the organization (below). Either way, where nothing pending is a step a reader needs, the
+    // workspace opens as it is, nothing is written to it or to the organization, and the next
+    // member who can run the steps does (effort 857, ticket 37).
+    let cannot_run = held.access != AccessLevel::FullAccess || !super::session::writes_to(store);
+
+    if pending_from(migrations, level) && cannot_run && !holds_a_reader_from(migrations, level) {
+        diagnostics::info("organization.migration.leftForAWriter")
+            .with("workspace", facts.id.as_str())
+            .with("at", level.to_string().as_str())
+            .write();
+
+        return Ok(recorded);
+    }
+
+    // otherwise a read-only grant is owed the sentence, and the workspace opens for them once a
+    // member with full access has opened it.
     if pending_from(migrations, level) && held.access != AccessLevel::FullAccess {
         return Err(Error::refused(
             RefusalReason::WorkspaceBehind,
@@ -2057,6 +2094,7 @@ mod tests {
             kind,
             describes,
             shipped_before_857: false,
+            readers_need: true,
         }
     }
 
@@ -2726,6 +2764,469 @@ mod tests {
             .await,
             vec![vec![2]]
         );
+    }
+
+    /// The workspace at 7 as 0.20 leaves it, with one tenant, and the organization's record of it
+    /// at 7 with no floor record: the starting point of ticket 37's tests.
+    async fn at_7_with_a_tenant(
+        store: &OrganizationStore,
+        workspace_id: &str,
+        pipeline: &LocalPipeline,
+    ) {
+        apply::apply(&Pipeline::at(&pipeline.url("")), "t", 7)
+            .await
+            .expect("the workspace at 7");
+        pipeline
+            .holding(&[
+                "INSERT INTO `tenant` (`id`, `national_id`, `name`, `phone`) \
+                 VALUES ('t-1', '1000', 'Sami', '0500')"
+                    .to_string(),
+            ])
+            .await;
+        store
+            .record_schema_version(workspace_id, 7, AT)
+            .await
+            .expect("the version 0.20 records");
+    }
+
+    /// The names of the unique indexes on the workspace database behind `pipeline`.
+    async fn unique_indexes(pipeline: &LocalPipeline) -> Vec<String> {
+        let mut connection = pipeline.connection().await;
+
+        sqlx::query_scalar(
+            "SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE '%_unique' \
+             ORDER BY name",
+        )
+        .fetch_all(&mut connection)
+        .await
+        .expect("the indexes")
+    }
+
+    /// `session` holding a read-only grant on `workspace_id`, as an owner may give one.
+    fn reading_only(session: &mut MemberSession, workspace_id: &str) {
+        session
+            .workspace_credentials
+            .get_mut(workspace_id)
+            .expect("a grant")
+            .access = AccessLevel::ReadOnly;
+    }
+
+    /// **Ticket 37's second criterion** (effort 857, requirements 1 and 13). A workspace at 7, as
+    /// 0.20 leaves it, whose only pending step is `0007`, which a reader does not need, opened on
+    /// this build by a member with a read-only grant. Opening refuses nothing, sends nothing to the
+    /// workspace and takes no lease; the workspace stays exactly as it was, its version, its rules
+    /// and no record of 857's, and the organization's record of it too; the verdict is writable
+    /// for this build, which a read-only grant still writes nothing through; and the reader reads
+    /// every record. The next member with full access then runs `0007` as before.
+    #[tokio::test]
+    async fn a_reader_opens_a_workspace_behind_only_a_step_a_reader_does_not_need_as_it_is() {
+        use crate::{
+            database::proxy::SQLQuery,
+            organization::workspace::remote::{query, reach},
+        };
+
+        let credentials = Memory::new();
+        let directory = scratch("reader-behind-0007");
+        let (store, owner, mut member, workspace_id) = organization(&credentials, &directory).await;
+        let pipeline = LocalPipeline::start().await;
+
+        at_7_with_a_tenant(&store, &workspace_id, &pipeline).await;
+        reading_only(&mut member, &workspace_id);
+
+        let rules_before = unique_indexes(&pipeline).await;
+        let format_before = store.format().await.expect("the format");
+        let organization_floors = store.floors().await.expect("the floors");
+        let (facts, held) = facts_of(&store, &member, &workspace_id).await;
+
+        assert_eq!(held.access, AccessLevel::ReadOnly);
+        assert!(is_pending(&store, &facts).await.expect("pending"));
+        assert_eq!(
+            refuse_newer(&store, &facts).await.expect("readable"),
+            Standing::Writable
+        );
+
+        let requests = pipeline.request_count();
+        let opened = upgrade(
+            Pending {
+                store: &store,
+                session: &member,
+                facts: &facts,
+                held: &held,
+                pipeline: &Pipeline::at(&pipeline.url("")),
+                account: no_platform(),
+            },
+            &StoreLease::new(&store),
+            || async {},
+            |phase| panic!("a reader was told {phase:?}"),
+            || AT + 1,
+        )
+        .await;
+
+        assert!(
+            matches!(opened, Ok(7)),
+            "a reader was refused a workspace behind a step a reader does not need: {opened:?}"
+        );
+        assert_eq!(pipeline.request_count(), requests, "a request was sent");
+
+        // nothing written to the workspace: its version, its rules, and no record of 857's.
+        assert_eq!(
+            read_off(&pipeline, "SELECT version FROM schema_version").await,
+            vec![vec![7]]
+        );
+        assert_eq!(unique_indexes(&pipeline).await, rules_before);
+
+        let (tables, _) = shape_of(&pipeline, "tenant").await;
+
+        assert!(
+            !tables
+                .iter()
+                .any(|table| table == "applied_step" || table == "data_floor"),
+            "a record of 857 was written by a reader"
+        );
+
+        // nor to the organization: no lease, the version and the floors as they were.
+        assert_eq!(
+            store
+                .migration_lease(&workspace_id)
+                .await
+                .expect("the lease"),
+            None
+        );
+        assert_eq!(
+            store
+                .workspace_floor(&workspace_id)
+                .await
+                .expect("the floor"),
+            None
+        );
+        assert_eq!(store.format().await.expect("the format"), format_before);
+        assert_eq!(
+            store.floors().await.expect("the floors"),
+            organization_floors
+        );
+
+        let (facts, _) = facts_of(&store, &member, &workspace_id).await;
+
+        assert_eq!(facts.schema_version, 7);
+        assert_eq!(
+            recorded_floors(&store, &workspace_id, facts.schema_version)
+                .await
+                .expect("the floors"),
+            Floors::legacy(7)
+        );
+        assert_eq!(
+            refuse_newer(&store, &facts).await.expect("readable"),
+            Standing::Writable
+        );
+        // the workspace's own floors read as 0.20 left them, and this build may write them.
+        assert_eq!(own_floors(&pipeline).await, Some(Floors::legacy(7)));
+        assert_eq!(
+            Floors::legacy(7).standing(apply::SHIPPED.steps.known()),
+            Standing::Writable
+        );
+
+        // the reader reads every record, over Turso as well, never refused as behind.
+        let target = reach(&store, &member, &workspace_id, |_| {
+            Pipeline::at(&pipeline.url(""))
+        })
+        .await
+        .expect("a reader reached the workspace");
+        let tenants = query(
+            &target,
+            &SQLQuery {
+                sql: "SELECT id FROM tenant".to_string(),
+                params: vec![],
+            },
+        )
+        .await
+        .expect("the tenants");
+
+        assert_eq!(tenants.len(), 1, "{tenants:?}");
+
+        // and the next member with full access runs `0007` as before.
+        assert!(is_pending(&store, &facts).await.expect("pending"));
+
+        assert_eq!(
+            opened_by(&store, &owner, &workspace_id, &pipeline, &apply::SHIPPED).await,
+            7
+        );
+        assert_eq!(
+            read_off(&pipeline, "SELECT version FROM schema_version").await,
+            vec![vec![8]]
+        );
+        assert_eq!(
+            unique_indexes(&pipeline).await,
+            rules_before
+                .iter()
+                .filter(|name| ![
+                    "complex_name_unique",
+                    "contract_gov_id_unique",
+                    "tenant_national_id_unique",
+                    "tenant_phone_unique",
+                ]
+                .contains(&name.as_str()))
+                .cloned()
+                .collect::<Vec<String>>()
+        );
+        assert_eq!(
+            store
+                .workspace_floor(&workspace_id)
+                .await
+                .expect("the floor"),
+            Some(Floors {
+                level: 8,
+                read: 7,
+                write: 7
+            })
+        );
+    }
+
+    /// Opening a workspace at 7 by a full-access member, on `migrations`, in an organization a
+    /// newer rentable took past what this build writes. Answers what opening answered, with the
+    /// workspace and the organization as they were before it, for the test to compare.
+    async fn opened_in_a_read_only_organization(
+        directory: &str,
+        migrations: &apply::Migrations,
+    ) -> (Result<i64, Error>, Vec<String>, Vec<String>, i64, bool) {
+        use crate::organization::store::FORMAT_VERSION;
+
+        let credentials = Memory::new();
+        let directory = scratch(directory);
+        let (store, _, member, workspace_id) = organization(&credentials, &directory).await;
+        let pipeline = LocalPipeline::start().await;
+
+        at_7_with_a_tenant(&store, &workspace_id, &pipeline).await;
+        store
+            .record_floors(FORMAT_VERSION + 1, FORMAT_VERSION, FORMAT_VERSION + 1)
+            .await;
+        assert_eq!(
+            store.refuse_another_format().await.expect("readable"),
+            Standing::ReadOnly
+        );
+
+        let rules_before = unique_indexes(&pipeline).await;
+        let (facts, held) = facts_of(&store, &member, &workspace_id).await;
+
+        assert_eq!(held.access, AccessLevel::FullAccess);
+        assert!(
+            is_pending_over(migrations, &store, &facts)
+                .await
+                .expect("pending")
+        );
+
+        let requests = pipeline.request_count();
+        let opened = upgrade_over(
+            migrations,
+            Pending {
+                store: &store,
+                session: &member,
+                facts: &facts,
+                held: &held,
+                pipeline: &Pipeline::at(&pipeline.url("")),
+                account: no_platform(),
+            },
+            &StoreLease::new(&store),
+            || async {},
+            |_| {},
+            || AT + 1,
+        )
+        .await;
+
+        assert_eq!(pipeline.request_count(), requests, "a request was sent");
+        assert_eq!(
+            read_off(&pipeline, "SELECT version FROM schema_version").await,
+            vec![vec![7]],
+            "the workspace was migrated"
+        );
+
+        let (tables, _) = shape_of(&pipeline, "tenant").await;
+        let untouched = store
+            .migration_lease(&workspace_id)
+            .await
+            .expect("the lease")
+            .is_none()
+            && store
+                .workspace_floor(&workspace_id)
+                .await
+                .expect("the floor")
+                .is_none()
+            && !tables
+                .iter()
+                .any(|table| table == "applied_step" || table == "data_floor");
+
+        (
+            opened,
+            rules_before,
+            unique_indexes(&pipeline).await,
+            facts_of(&store, &member, &workspace_id)
+                .await
+                .0
+                .schema_version,
+            untouched,
+        )
+    }
+
+    /// **Ticket 37, in an organization this build may not write.** A full-access member opens a
+    /// workspace whose only pending step is `0007`, which a reader does not need, in an
+    /// organization a newer rentable took past what this build writes. Nothing is refused: the
+    /// workspace opens as it is, no lease is taken, and nothing is written to the workspace or the
+    /// organization.
+    #[tokio::test]
+    async fn a_workspace_behind_only_a_step_a_reader_does_not_need_opens_in_a_read_only_organization()
+     {
+        let (opened, rules_before, rules_after, recorded, untouched) =
+            opened_in_a_read_only_organization("read-only-organization-0007", &apply::SHIPPED)
+                .await;
+
+        assert!(matches!(opened, Ok(7)), "{opened:?}");
+        assert_eq!(rules_after, rules_before);
+        assert_eq!(recorded, 7);
+        assert!(
+            untouched,
+            "something was written to the workspace or the organization"
+        );
+    }
+
+    /// **Ticket 37, in an organization this build may not write, behind a step a reader needs.**
+    /// The same, with an addition of a table and a column pending beside `0007`'s kind of step: it
+    /// still refuses as `WorkspaceBehindReadOnlyByVersion`, and nothing is written.
+    #[tokio::test]
+    async fn a_workspace_behind_a_step_a_reader_needs_is_still_refused_in_a_read_only_organization()
+    {
+        let (name, sql) = apply::WORKSPACE_MIGRATIONS[7];
+        let migrations = workspace_ladder(&[
+            (name, sql, WORKSPACE_STEPS[7]),
+            ("0008_fake_addition", ADDITION_SQL, ADDITION),
+        ]);
+        let (opened, rules_before, rules_after, recorded, untouched) =
+            opened_in_a_read_only_organization("read-only-organization-needed", &migrations).await;
+
+        assert!(
+            matches!(
+                opened,
+                Err(Error::Refused {
+                    reason: RefusalReason::WorkspaceBehindReadOnlyByVersion,
+                    ..
+                })
+            ),
+            "{opened:?}"
+        );
+        assert_eq!(rules_after, rules_before);
+        assert_eq!(recorded, 7);
+        assert!(
+            untouched,
+            "something was written to the workspace or the organization"
+        );
+    }
+
+    /// **Ticket 37's last criterion.** A workspace whose pending steps include one a reader needs,
+    /// alone or beside one a reader does not, still refuses a member with a read-only grant as
+    /// `WorkspaceBehind`, as 0.20 does, before anything is written to the workspace or the
+    /// organization: a step shipped before 857 (`0006`, from a workspace at 6), and an addition of
+    /// a table and a column after `0007`'s kind of step.
+    #[tokio::test]
+    async fn a_reader_is_still_refused_behind_a_step_a_reader_needs() {
+        let (name, sql) = apply::WORKSPACE_MIGRATIONS[7];
+        let duplicates = WORKSPACE_STEPS[7];
+
+        assert!(!duplicates.readers_need);
+
+        let cases: [(&str, i64, apply::Migrations); 3] = [
+            ("a step shipped before 857", 6, apply::SHIPPED),
+            (
+                "an addition of a table and a column",
+                7,
+                workspace_ladder(&[("0007_fake_addition", ADDITION_SQL, ADDITION)]),
+            ),
+            (
+                "an addition beside a step a reader does not need",
+                7,
+                workspace_ladder(&[
+                    (name, sql, duplicates),
+                    ("0008_fake_addition", ADDITION_SQL, ADDITION),
+                ]),
+            ),
+        ];
+
+        for (case, at, migrations) in cases {
+            let credentials = Memory::new();
+            let directory = scratch(&format!("reader-refused-{at}-{}", case.len()));
+            let (store, _, mut member, workspace_id) = organization(&credentials, &directory).await;
+            let pipeline = LocalPipeline::start().await;
+
+            apply::apply(&Pipeline::at(&pipeline.url("")), "t", at as usize)
+                .await
+                .expect("the workspace as an older build left it");
+            store
+                .record_schema_version(&workspace_id, at, AT)
+                .await
+                .expect("the older version");
+            reading_only(&mut member, &workspace_id);
+
+            let (facts, held) = facts_of(&store, &member, &workspace_id).await;
+
+            assert!(
+                is_pending_over(&migrations, &store, &facts)
+                    .await
+                    .expect("pending"),
+                "{case}"
+            );
+
+            let requests = pipeline.request_count();
+            let opened = upgrade_over(
+                &migrations,
+                Pending {
+                    store: &store,
+                    session: &member,
+                    facts: &facts,
+                    held: &held,
+                    pipeline: &Pipeline::at(&pipeline.url("")),
+                    account: no_platform(),
+                },
+                &StoreLease::new(&store),
+                || async {},
+                |_| {},
+                || AT + 1,
+            )
+            .await;
+
+            assert!(
+                matches!(
+                    opened,
+                    Err(Error::Refused {
+                        reason: RefusalReason::WorkspaceBehind,
+                        ..
+                    })
+                ),
+                "{case}: {opened:?}"
+            );
+            assert_eq!(
+                pipeline.request_count(),
+                requests,
+                "{case}: a request was sent"
+            );
+            assert_eq!(
+                read_off(&pipeline, "SELECT version FROM schema_version").await,
+                vec![vec![at]],
+                "{case}"
+            );
+            assert_eq!(
+                store
+                    .migration_lease(&workspace_id)
+                    .await
+                    .expect("the lease"),
+                None,
+                "{case}"
+            );
+            assert_eq!(
+                facts_of(&store, &member, &workspace_id)
+                    .await
+                    .0
+                    .schema_version,
+                at,
+                "{case}"
+            );
+        }
     }
 
     // effort 857, ticket 14: every workspace version shipped from 0.14.0 on carries across.

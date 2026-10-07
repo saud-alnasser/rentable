@@ -1214,6 +1214,7 @@ mod tests {
                 kind,
                 describes: "aLaterChange",
                 shipped_before_857: false,
+                readers_need: true,
             }])
             .collect();
 

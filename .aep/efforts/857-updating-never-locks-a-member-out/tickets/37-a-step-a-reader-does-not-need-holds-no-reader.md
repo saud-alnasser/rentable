@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [33]
 ---
 
@@ -15,9 +15,9 @@ Found while building ticket 33: a member with a read-only grant cannot apply a s
 
 Traces requirement 1, requirement 13, criterion 1 and criterion 13.
 
-- [ ] Each step declared after 857 says whether reading needs it; `0007` says no, and a step that adds a table or a column reads say yes; the declaration test pins both.
-- [ ] A member with a read-only grant opens a workspace whose only pending steps a reader does not need, sees every record, writes nothing to the workspace or the organization, and is never refused `WorkspaceBehind`; a test.
-- [ ] A workspace with a pending step a reader needs still refuses a read-only member as `WorkspaceBehind`, as 0.20 does; a test.
+- [x] Each step declared after 857 says whether reading needs it; `0007` says no, and a step that adds a table or a column reads say yes; the declaration test pins both.
+- [x] A member with a read-only grant opens a workspace whose only pending steps a reader does not need, sees every record, writes nothing to the workspace or the organization, and is never refused `WorkspaceBehind`; a test.
+- [x] A workspace with a pending step a reader needs still refuses a read-only member as `WorkspaceBehind`, as 0.20 does; a test.
 
 ## Relevant areas
 

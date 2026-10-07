@@ -61,6 +61,14 @@ pub struct Step {
     /// whether it shipped before effort 857, and so still runs on open whatever its kind, as 0.20
     /// ran it. Never set on a step declared after.
     pub shipped_before_857: bool,
+    /// whether a member who only reads needs it run before the data opens for them (effort 857,
+    /// ticket 37). A read-only grant cannot run a step, so a pending step a reader needs refuses
+    /// them until a member who can write has opened the data, and one a reader does not need
+    /// leaves them reading the data as it is, for the next member who can write to run. Only a
+    /// step that takes a rule away and adds or changes nothing read says no, as `0007` does; a step
+    /// that adds a table or a column says yes, and so does every step shipped before 857, which
+    /// refused a reader as 0.20 did.
+    pub readers_need: bool,
 }
 
 impl Step {
@@ -137,6 +145,15 @@ impl Steps {
                 })
             })
             .collect()
+    }
+
+    /// Whether a member who only reads needs any of the steps `numbers` run before the data opens
+    /// for them ([`Step::readers_need`]). A number this ladder does not declare is needed, since
+    /// nothing says otherwise.
+    pub fn a_reader_needs(&self, numbers: &[u32]) -> bool {
+        numbers
+            .iter()
+            .any(|number| self.step(*number).is_none_or(|step| step.readers_need))
     }
 
     /// Whether any of the steps `numbers` needs the owner's own key.
@@ -293,6 +310,7 @@ const fn shipped(number: u32, needs_owner: bool, describes: &'static str) -> Ste
         },
         describes,
         shipped_before_857: true,
+        readers_need: true,
     }
 }
 
@@ -319,10 +337,13 @@ pub const WORKSPACE_STEPS: &[Step] = &[
     // second of two machines that saved one value apart, and the engine then dropped that
     // machine's records; the app keeps those values unique when a person saves. Taking a rule away
     // refuses an older build nothing and changes nothing it reads or writes, so it is an addition.
+    // Nothing read changes either, so a member who only reads opens a workspace still behind it,
+    // and the next member who can write runs it (ticket 37).
     Step {
         kind: Kind::Addition,
         describes: "duplicateValues",
         shipped_before_857: false,
+        readers_need: false,
     },
 ];
 
@@ -664,6 +685,68 @@ mod tests {
         );
     }
 
+    /// **Ticket 37's first criterion.** Every step says whether a member who only reads needs it.
+    /// `0007` says no, since it only takes four rules away; every step shipped before 857 says yes,
+    /// as 0.20 refused a reader behind it; and a step a reader is said not to need only drops
+    /// indexes, so one that adds a table or a column, which a reader's build reads, has to say yes.
+    /// Over a ladder of the test's own, an addition of a table and a column is needed and `0007`'s
+    /// kind of step is not, alone or beside it.
+    #[test]
+    fn a_reader_needs_every_step_but_one_that_only_takes_a_rule_away() {
+        let duplicates = Ladder::Workspace.step(8).expect("0007 is declared");
+
+        assert!(!duplicates.readers_need, "0007 holds a reader back");
+
+        for ladder in [Ladder::Workspace, Ladder::Format] {
+            for (index, step) in ladder.steps().iter().enumerate() {
+                if step.shipped_before_857 {
+                    assert!(
+                        step.readers_need,
+                        "{ladder:?} step {} lets a reader past it, which 0.20 never did",
+                        ladder.first() + index as u32
+                    );
+                }
+            }
+        }
+
+        for (index, step) in WORKSPACE_STEPS.iter().enumerate() {
+            let (name, sql) = apply::WORKSPACE_MIGRATIONS[index];
+
+            if !step.readers_need {
+                assert!(
+                    super::statements(sql)
+                        .iter()
+                        .all(|words| words.first().map(String::as_str) == Some("DROP")
+                            && words.get(1).map(String::as_str) == Some("INDEX")),
+                    "{name} says a reader does not need it, and does more than drop an index"
+                );
+            }
+        }
+
+        const DECLARED: &[Step] = &[
+            WORKSPACE_STEPS[0],
+            WORKSPACE_STEPS[1],
+            Step {
+                readers_need: false,
+                ..after(Kind::Addition, "aRuleTakenAway")
+            },
+            after(Kind::Addition, "aTableAndAColumn"),
+        ];
+        let steps = Steps {
+            first: 1,
+            declared: DECLARED,
+        };
+
+        assert!(!steps.a_reader_needs(&[3]));
+        assert!(!steps.a_reader_needs(&[]));
+        assert!(steps.a_reader_needs(&[4]));
+        assert!(steps.a_reader_needs(&[3, 4]));
+        assert!(steps.a_reader_needs(&[2]));
+        assert!(steps.a_reader_needs(&[5]), "a step nobody declared");
+        assert!(!Ladder::Workspace.declared().a_reader_needs(&[8]));
+        assert!(Ladder::Workspace.declared().a_reader_needs(&[7, 8]));
+    }
+
     /// **Ticket 01's third criterion.** Every step shipped before effort 857 is an upgrade whose
     /// floors are its own number, `0006` and format 3 included as their meaning requires; only the
     /// change that re-signs every row needs the owner. The steps declared after it are their own
@@ -769,6 +852,7 @@ mod tests {
             kind,
             describes,
             shipped_before_857: false,
+            readers_need: true,
         }
     }
 

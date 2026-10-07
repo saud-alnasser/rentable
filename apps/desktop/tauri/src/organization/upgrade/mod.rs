@@ -1216,6 +1216,7 @@ mod tests {
             kind,
             describes,
             shipped_before_857: false,
+            readers_need: true,
         }
     }
 
