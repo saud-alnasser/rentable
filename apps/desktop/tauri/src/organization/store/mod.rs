@@ -66,6 +66,7 @@ mod mark;
 mod member;
 mod ownership;
 mod role;
+mod scratch;
 mod session;
 mod setup;
 mod signature;
@@ -647,6 +648,12 @@ impl OrganizationStore {
     pub(crate) fn connection(&self) -> &turso::Connection {
         &self.connection
     }
+}
+
+/// The statements [`install`] runs, in order: what the organization's upgrade builds a fresh
+/// organization with on a plain SQLite, to check the primary against (effort 857, ticket 24).
+pub(crate) fn statements() -> &'static [&'static str] {
+    &SCHEMA
 }
 
 /// Create the nineteen tables on `connection` where they do not exist: what

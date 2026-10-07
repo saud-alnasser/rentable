@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(organization): the organization's upgrade runs on Turso in one transaction
@@ -14,9 +14,9 @@ Found at converge round two: the organization upgrade runs its steps, its floor 
 
 Traces requirement 5 and criterion 5.
 
-- [ ] `organization_upgrade_run` for the organization applies its pending steps, writes `organization_floor` and moves `format` only as ticket 07 decides, all in one transaction at the primary over the pipeline; a failure partway leaves the primary as it was, with the copy written.
-- [ ] A test with a second session's organization write pushed while the upgrade runs finds that write either refused or applied before the upgrade's transaction and carried through it, never lost and never landing between steps.
-- [ ] The steps shipped before 857 still run on open as in 0.20, and the lease and `UpgradeUnderWay` of ticket 19 still hold other members' acts while it runs.
+- [x] `organization_upgrade_run` for the organization applies its pending steps, writes `organization_floor` and moves `format` only as ticket 07 decides, all in one transaction at the primary over the pipeline; a failure partway leaves the primary as it was, with the copy written.
+- [x] A test with a second session's organization write pushed while the upgrade runs finds that write either refused or applied before the upgrade's transaction and carried through it, never lost and never landing between steps.
+- [x] The steps shipped before 857 still run on open as in 0.20, and the lease and `UpgradeUnderWay` of ticket 19 still hold other members' acts while it runs.
 
 ## Relevant areas
 

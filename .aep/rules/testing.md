@@ -324,11 +324,11 @@ other otherwise. See [[references/cargo]].
 
 ## Tests that reach a live remote
 
-**Nine sets are admitted, in seven properties, and they are the exception rather than a second way
-of testing.** All nine exist, and every one is Rust. The four `losing_writer` tests at the foot of
+**Ten sets are admitted, in seven properties, and they are the exception rather than a second way
+of testing.** All ten exist, and every one is Rust. The four `losing_writer` tests at the foot of
 `tauri/src/database/mod.rs` open two replicas of one workspace against a database they provision on
 Turso; the six admitted for the organization effort below, the one admitted for effort 838 after
-them, and the one admitted for effort 857 after that, each create and remove their own.
+them, and the two admitted for effort 857 after that, each create and remove their own.
 Everything else in this repository is tested against a local file, a loopback HTTP server, or an
 in-memory engine, and that is not changing.
 
@@ -449,7 +449,15 @@ a pragma, which is the subject; a `file:` database has no pipeline. It is a new 
 an instance of the fourth: the subject is the database's own SQL endpoint, not the Platform API. It
 is the nearest thing to the retired admission whose property was whether a remote honours a
 transaction the client asks for, and it is admitted on its own rather than as that one restored,
-because what it asks is this runner's transaction on this server.
+because what it asks is this runner's transaction on this server. **A second instance holds it for
+the organization's upgrade** (effort 857, ticket 24, under the bound of 2026-10-07 below): the
+organization is upgraded as one transaction at its primary over the pipeline, so
+`organization_upgrade_live_runs_whole_at_the_primary_and_holds_other_writes`, at the foot of
+`tauri/src/organization/upgrade/mod.rs`, provisions through the same scaffolding, lays an organization
+on it, holds `BEGIN IMMEDIATE` on one stream while another connection writes, and finds the write
+kept out until the commit, never landing inside; then runs the upgrade there and finds its batch
+committed whole and the check against Turso's answers passing. The first run, on 2026-10-07, saw the
+other write wait some 3.5 seconds and land once the commit let it go.
 
 **A ninth property: what the sync engine does with changes a replica had not sent when the workspace
 changed shape under them.** Admitted by the human's bound of 2026-10-07 (effort 857, ticket 13,

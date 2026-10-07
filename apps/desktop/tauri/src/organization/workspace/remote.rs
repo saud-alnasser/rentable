@@ -85,6 +85,12 @@ impl Pipeline {
     }
 }
 
+/// How a stream's failures name a workspace's database.
+const WORKSPACE_DATABASE: &str = "the workspace database";
+
+/// How a stream's failures name the organization's database.
+const ORGANIZATION_DATABASE: &str = "the organization database";
+
 /// One statement, as the pipeline takes it.
 pub(crate) fn execute(sql: &str) -> Value {
     json!({ "type": "execute", "stmt": { "sql": sql } })
@@ -121,9 +127,12 @@ pub(crate) struct OverThePipeline<'a> {
     pipeline: &'a Pipeline,
     token: &'a str,
     stream: std::sync::Mutex<Stream>,
-    /// what the stream is for, as the failures say it: `its copy`, `its migration`, or the
-    /// workspace's name.
+    /// what the stream is for, as the failures say it: `its copy`, `its migration`, `its
+    /// upgrade`, or the workspace's name.
     doing: String,
+    /// which database the failures name: the workspace's, or the organization's for the
+    /// organization's upgrade and its copy (effort 857, ticket 24).
+    database: &'static str,
     /// whether a 401 or a 403 is the credential's ([`Error::Credential`]), which the caller
     /// collects again, rather than the database's refusal, which a migration and a copy say.
     credential_refusals: bool,
@@ -149,6 +158,25 @@ impl<'a> OverThePipeline<'a> {
         Self::doing(pipeline, token, "its migration", false)
     }
 
+    /// A stream the organization's upgrade runs over, at its database's primary (effort 857,
+    /// ticket 24, `organization/upgrade/primary.rs`).
+    pub(crate) fn upgrading(pipeline: &'a Pipeline, token: &'a str) -> Self {
+        Self::doing(pipeline, token, "its upgrade", false).of_the_organization()
+    }
+
+    /// A stream the copy of the organization taken before its upgrade reads it over.
+    pub(crate) fn copying_the_organization(pipeline: &'a Pipeline, token: &'a str) -> Self {
+        Self::new(pipeline, token).of_the_organization()
+    }
+
+    /// The same stream, its failures naming the organization's database.
+    fn of_the_organization(self) -> Self {
+        Self {
+            database: ORGANIZATION_DATABASE,
+            ..self
+        }
+    }
+
     /// A stream a workspace that is not open is read or written over, under the member's own
     /// credential, which Turso refusing is said as the credential's.
     fn reaching(pipeline: &'a Pipeline, token: &'a str, name: &str) -> Self {
@@ -166,6 +194,7 @@ impl<'a> OverThePipeline<'a> {
             token,
             stream: std::sync::Mutex::new(Stream::default()),
             doing: doing.to_string(),
+            database: WORKSPACE_DATABASE,
             credential_refusals,
         }
     }
@@ -178,6 +207,7 @@ impl<'a> OverThePipeline<'a> {
         close: bool,
     ) -> Result<Vec<Value>, Error> {
         let doing = self.doing.as_str();
+        let database = self.database;
         let (url, baton) = {
             let stream = self.stream.lock().unwrap_or_else(PoisonError::into_inner);
             let url = stream.base_url.as_deref().map_or_else(
@@ -201,9 +231,7 @@ impl<'a> OverThePipeline<'a> {
             .send()
             .await
             .map_err(|error| Error::Network {
-                message: format!(
-                    "the workspace database could not be reached for {doing} ({error})"
-                ),
+                message: format!("{database} could not be reached for {doing} ({error})"),
             })?;
         let status = response.status();
 
@@ -219,20 +247,20 @@ impl<'a> OverThePipeline<'a> {
             {
                 return Err(Error::Credential {
                     message: format!(
-                        "the workspace database refused the credential held for {doing} ({status})"
+                        "{database} refused the credential held for {doing} ({status})"
                     ),
                 });
             }
 
             return Err(Error::refused(
                 RefusalReason::DatabaseRefused,
-                format!("the workspace database refused {doing} ({status})"),
+                format!("{database} refused {doing} ({status})"),
             ));
         }
 
         let answered: Value = response.json().await.map_err(|_| Error::Integrity {
             message: format!(
-                "the workspace database answered {doing} with something this application cannot \
+                "{database} answered {doing} with something this application cannot \
                  read"
             ),
         })?;
@@ -260,17 +288,13 @@ impl<'a> OverThePipeline<'a> {
         // is one the rest of the work has nowhere to go.
         if baton.is_none() && !close && refused_at(&results).is_none() {
             return Err(Error::Integrity {
-                message: format!(
-                    "the workspace database closed the stream of {doing} before it was done"
-                ),
+                message: format!("{database} closed the stream of {doing} before it was done"),
             });
         }
 
         if results.len() < requests.len() && refused_at(&results).is_none() {
             return Err(Error::Integrity {
-                message: format!(
-                    "the workspace database answered {doing} with fewer results than it was sent"
-                ),
+                message: format!("{database} answered {doing} with fewer results than it was sent"),
             });
         }
 
@@ -285,10 +309,7 @@ impl<'a> OverThePipeline<'a> {
         if refused_at(&results) == Some(0) {
             return Err(Error::refused(
                 RefusalReason::DatabaseRefused,
-                format!(
-                    "the workspace database refused to be read for {}",
-                    self.doing
-                ),
+                format!("{} refused to be read for {}", self.database, self.doing),
             ));
         }
 
@@ -406,14 +427,12 @@ pub(crate) fn decoded(cell: &Value) -> Result<turso::Value, Error> {
 /// cell of a storage class it does not know, or a value that does not parse as its class says.
 pub(crate) fn unreadable(what: &str) -> Error {
     Error::Integrity {
-        message: format!(
-            "the workspace database answered with {what} this application cannot read"
-        ),
+        message: format!("the database answered with {what} this application cannot read"),
     }
 }
 
 /// A value bound to a statement, as the pipeline takes it: the encoding [`decoded`] reads.
-fn argument(value: turso::Value) -> Value {
+pub(crate) fn argument(value: turso::Value) -> Value {
     match value {
         turso::Value::Null => json!({ "type": "null" }),
         turso::Value::Integer(integer) => {
@@ -1504,5 +1523,33 @@ mod tests {
         assert!(sql(3).contains(&format!("LIMIT {}", backup::PAGE)));
         assert_eq!(sql(4), "ROLLBACK");
         assert_eq!(sent[4]["requests"][1]["type"], "close");
+    }
+
+    /// **Effort 857, ticket 24.** The organization's upgrade and its copy reach the
+    /// organization's database, and a failure on either names that database, never a workspace's.
+    #[tokio::test]
+    async fn the_organizations_streams_name_the_organizations_database() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("a free port");
+        let address = listener.local_addr().expect("its address");
+
+        // nothing listens there once it is let go, so every request fails to connect.
+        drop(listener);
+
+        let pipeline = Pipeline::at(&format!("http://{address}"));
+
+        for stream in [
+            OverThePipeline::upgrading(&pipeline, "t"),
+            OverThePipeline::copying_the_organization(&pipeline, "t"),
+        ] {
+            let failed = stream
+                .exchanged(vec![super::execute("SELECT 1")], true)
+                .await
+                .expect_err("nothing listens");
+            let said = failed.to_string();
+
+            assert!(matches!(failed, Error::Network { .. }), "{failed:?}");
+            assert!(said.contains("the organization database"), "{said}");
+            assert!(!said.contains("workspace"), "{said}");
+        }
     }
 }

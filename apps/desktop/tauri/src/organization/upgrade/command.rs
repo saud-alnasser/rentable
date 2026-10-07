@@ -12,11 +12,12 @@ use crate::{
 use crate::organization::{
     act::{Acting, Pull, as_member, owner_platform},
     lease::{PipelineLease, apply},
-    session::MemberSession,
+    session::{MemberSession, Upgrades, Upgrading},
+    store::OrganizationStore,
     workspace::remote::Pipeline,
 };
 
-use super::{Awaiting, Preview, Running, Target};
+use super::{Awaiting, Changes, Preview, Primary, Running, Target};
 
 /// What the upgrade of `target` would run, and whom it would stop or make read-only. Read after a
 /// pull, so the floors and the machines are the organization's as it stands.
@@ -97,8 +98,16 @@ pub(crate) async fn organization_upgrade_run(
                     store,
                     member,
                     &lease,
+                    Primary {
+                        pipeline: &Pipeline::of(&organization_host),
+                        token: &organization_credential(member)?,
+                    },
                     account.as_ref(),
-                    |number| upgrade.change(store, member, number, clock.now()),
+                    &Port {
+                        upgrade: &upgrade,
+                        session: member,
+                        clock: &clock,
+                    },
                     now,
                 )
                 .await
@@ -123,8 +132,23 @@ pub(crate) async fn organization_upgrade_run(
     .await
 }
 
+/// The changes of format the organization's upgrade runs, through the session's upgrade port, on
+/// the keys of the member running it.
+struct Port<'a> {
+    upgrade: &'a Upgrades,
+    session: &'a MemberSession,
+    clock: &'a clock::Shared,
+}
+
+impl Changes for Port<'_> {
+    fn change<'s>(&'s self, store: &'s OrganizationStore, number: u32) -> Upgrading<'s> {
+        self.upgrade
+            .change(store, self.session, number, self.clock.now())
+    }
+}
+
 /// The credential to the organization database the member's session holds, which the lease is
-/// taken under.
+/// taken under and the upgrade of the organization is sent under.
 fn organization_credential(member: &MemberSession) -> Result<String, Error> {
     member
         .organization_credential

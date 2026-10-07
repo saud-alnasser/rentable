@@ -20,10 +20,13 @@
 //! taken before the first write, the steps and their records in one transaction checked against
 //! a fresh database before it commits, and a refusal before anything is written. For a workspace
 //! that is [`apply::bring_up_selected`] running every step the workspace has not run; for the
-//! organization it is one transaction on its replica running each change of format through the
-//! caller's `work`, which production hands the session's upgrade port. Each records its floors,
-//! inside the workspace and in the organization, and moves the number builds before 857 read only
-//! where a floor now passes what they know ([`Steps::legacy_after`]).
+//! organization it is one transaction at its database's primary ([`primary`], ticket 24), each
+//! change of format run through the caller's [`Changes`], which production makes the session's
+//! upgrade port, on what the primary holds, and what it writes sent there in the same transaction;
+//! then the machine running it pulls. Both run at the primary, so no other machine's write lands
+//! between the steps. Each records its floors, inside the workspace and in the organization, and
+//! moves the number builds before 857 read only where a floor now passes what they know
+//! ([`Steps::legacy_after`]).
 //!
 //! **Who may**: whoever holds `upgradeData` on their verified row ([`gate`]), which the owner
 //! always does, a manager does by default and a member does not; and before the owner has opened
@@ -31,10 +34,12 @@
 //! the flag. A step that needs the owner's own key is the owner's whoever else holds it.
 
 mod command;
+mod primary;
 
 pub(crate) use command::*;
+pub use primary::Primary;
 
-use std::{collections::BTreeMap, future::Future};
+use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
@@ -46,7 +51,6 @@ use crate::{
     },
     diagnostics,
     error::{Error, RefusalReason},
-    schema,
     turso::platform::{AccessLevel, TursoPlatform},
 };
 
@@ -57,17 +61,15 @@ use super::{
     },
     member::vault::ContentKey,
     ownership::refuse_until_the_owner_has_opened_this_version,
-    role::{
-        in_one_transaction,
-        permission::{self, Flag},
-    },
+    role::permission::{self, Flag},
     session::{
-        MemberSession, WorkspaceCredential, WorkspaceFacts, acting_row, opened, opened_name,
+        MemberSession, Upgrading, WorkspaceCredential, WorkspaceFacts, acting_row, opened,
+        opened_name,
     },
     setup::ORGANIZATION_DATABASE_PREFIX,
     store::{
         MACHINE_PRESENCE_WINDOW, MachineRecord, MachineVersionRecord, MemberRecord,
-        MigrationLeaseRecord, OrganizationStore, TABLES, waits_for_its_owner,
+        MigrationLeaseRecord, OrganizationStore, waits_for_its_owner,
     },
     workspace::{self, remote::OverThePipeline, remote::Pipeline},
 };
@@ -704,46 +706,53 @@ async fn upgraded_workspace<P: TursoPlatform>(
     Ok(())
 }
 
+/// The changes of format an upgrade of the organization runs, each by its number, on the store it
+/// is handed: production's is the session's upgrade port (`session::Upgrade::change`), a test's
+/// its own. The store is the organization as the primary holds it, read in the upgrade's
+/// transaction ([`primary`]), and what a change writes on it is what is sent there.
+pub(crate) trait Changes: Sync {
+    fn change<'s>(&'s self, store: &'s OrganizationStore, number: u32) -> Upgrading<'s>;
+}
+
 /// Run the upgrade of the organization (spec requirements 3 and 5): every change of format
-/// waiting for this act, each through `work`, under the organization's lease, after a copy, in
-/// one transaction on the replica with its floors in `organization_floor` and the check against a
-/// fresh organization of this build, or not at all; then a push. The `format` row, which builds
-/// before 857 read, moves only where a floor now stops every one of them ([`Steps::legacy_after`]).
-///
-/// `work` runs the change of format numbered by its argument inside the transaction: production
-/// hands it the session's upgrade port (`session::Upgrade::change`), and a test its own.
+/// waiting for this act, each through `changes`, under the organization's lease, after a copy, as
+/// one transaction at the organization database's primary with its floors in `organization_floor`
+/// and the check against a fresh organization of this build, or not at all ([`primary`], ticket
+/// 24); then a pull, so this machine follows it as every other does. The `format` row, which builds
+/// before 857 read, moves only where a floor now stops every one of them
+/// ([`Steps::legacy_after`]).
 ///
 /// **Refused before anything is written**, as [`run_workspace`] is: by the [`gate`], for a step
 /// needing the owner's key asked by anybody else, for an organization this build may not write,
-/// and while another member holds the lease. A copy that cannot be taken, or a change or the check
+/// and while another member holds the lease; judged first on what this machine pulled, and again
+/// at the primary inside the transaction. A copy that cannot be taken, or a change or the check
 /// failing, releases the lease and leaves the organization exactly as it was.
-pub async fn run_organization<L, P, W, F>(
+pub(crate) async fn run_organization<L, P, C>(
     store: &OrganizationStore,
     session: &MemberSession,
     lease: &L,
+    at: Primary<'_>,
     account: Option<&P>,
-    work: W,
+    changes: &C,
     now: impl Fn() -> i64,
 ) -> Result<(), Error>
 where
     L: LeaseAuthority,
     P: TursoPlatform,
-    W: Fn(u32) -> F,
-    F: Future<Output = Result<(), Error>>,
+    C: Changes + ?Sized,
 {
     let owner = gate(store, session).await?;
 
     if store.refuse_another_format().await? != Standing::Writable {
         return Err(Error::refused(
             RefusalReason::OrganizationReadOnlyByVersion,
-            "a newer version of rentable upgraded the organization, and this version may read it \
-             but not write to it; nothing was changed",
+            "a newer version of rentable upgraded the organization, and this version may read it              but not write to it; nothing was changed",
         ));
     }
 
     let steps = store.format_steps();
     let before = store.floors().await?.ok_or_else(waits_for_its_owner)?;
-    let (awaiting, after) = after_awaiting(&steps, before);
+    let (awaiting, _) = after_awaiting(&steps, before);
 
     if awaiting.is_empty() {
         return Ok(());
@@ -775,7 +784,14 @@ where
         let database = format!("{ORGANIZATION_DATABASE_PREFIX}{}", session.organization_id);
         let label = format!("format-{}-to-{}", before.level, steps.known());
 
-        backup::local_copy(store, store.directory(), &database, &label, taken_at).await?;
+        backup::local_copy(
+            &OverThePipeline::copying_the_organization(at.pipeline, at.token),
+            store.directory(),
+            &database,
+            &label,
+            taken_at,
+        )
+        .await?;
 
         if let Some(account) = account
             && !backup::remote_copy_made(store.directory(), &database, &label)
@@ -784,31 +800,14 @@ where
             backup::remember_remote_copy(store.directory(), &database, &label, &name);
         }
 
-        let format = floor::number(store.format().await?.unwrap_or(i64::from(steps.settled())))?;
-        let legacy = steps.legacy_after(format, after);
-
-        in_one_transaction(store, async {
-            for number in &awaiting {
-                work(*number).await?;
-            }
-
-            store.record_organization_floor(after, now()).await?;
-
-            if legacy != format {
-                store.write_format_version(i64::from(legacy)).await?;
-            }
-
-            checked(store).await
-        })
-        .await?;
+        let ran = primary::upgraded(store, session, at, changes, &now).await?;
 
         diagnostics::info("organization.upgrade.organization")
             .with("organization", session.organization_id.as_str())
             .with("member", session.member_id.as_str())
             .with(
                 "steps",
-                awaiting
-                    .iter()
+                ran.iter()
                     .map(u32::to_string)
                     .collect::<Vec<String>>()
                     .join(",")
@@ -816,8 +815,10 @@ where
             )
             .write();
 
-        if !store.push().await {
-            diagnostics::warn("organization.upgrade.notYetSent")
+        // this machine follows the upgrade as every other does; a pull that does not go now is
+        // the heartbeat's to make.
+        if !store.pull().await {
+            diagnostics::warn("organization.upgrade.notYetPulled")
                 .with("organization", session.organization_id.as_str())
                 .write();
         }
@@ -836,36 +837,6 @@ where
     ran
 }
 
-/// Refuse with `ShapeNotAsBuilt` unless the organization, read inside the upgrade's transaction,
-/// is what a fresh organization of this build is: SQLite's own checks pass, and every table this
-/// build makes has the structure a fresh one has. A table this build does not make, which an
-/// earlier change of format left alone, is left out on both sides, as the walk leaves them.
-async fn checked(store: &OrganizationStore) -> Result<(), Error> {
-    let fresh_database = turso::Builder::new_local(":memory:").build().await?;
-    let fresh_connection = fresh_database.connect()?;
-
-    crate::organization::store::install(&fresh_connection).await?;
-
-    let others: Vec<String> = store
-        .tables()
-        .await?
-        .into_iter()
-        .filter(|table| !TABLES.contains(&table.as_str()))
-        .collect();
-    let others: Vec<&str> = others.iter().map(String::as_str).collect();
-    let fresh = schema::read_engine(&fresh_connection)
-        .await?
-        .shape
-        .without(&others);
-    let found = store.found().await?;
-    let found = schema::Found {
-        shape: found.shape.without(&others),
-        ..found
-    };
-
-    schema::as_built("the organization upgraded", &found, &fresh)
-}
-
 #[cfg(test)]
 mod tests {
     use std::sync::{Arc, Mutex};
@@ -873,8 +844,8 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        AwaitingStep, Machine, ORGANIZATION_LEASE, Preview, Running, StepFacts, awaiting,
-        preview_organization, preview_workspace, run_organization, run_workspace,
+        AwaitingStep, Changes, Machine, ORGANIZATION_LEASE, Preview, Primary, Running, StepFacts,
+        awaiting, preview_organization, preview_workspace, run_organization, run_workspace,
     };
     use crate::{
         backup,
@@ -900,7 +871,7 @@ mod tests {
                 permission::{self, Flag},
                 set_override,
             },
-            session::{CredentialSlot, MemberSession, sign_in},
+            session::{CredentialSlot, MemberSession, Upgrading, sign_in},
             setup::{CreateOrganization, Remote, create_organization},
             store::{MachineVersionRecord, OrganizationStore},
             workspace::{create_workspace, openable, remote::Pipeline},
@@ -1312,18 +1283,76 @@ mod tests {
             .await
     }
 
-    /// The upgrade of the organization run by `session`, each change through [`work_writing`].
+    /// Changes of format each writing a row of `machine_version` named for its step, the one
+    /// numbered `failing` failing instead.
+    struct Writing {
+        failing: u32,
+    }
+
+    impl Changes for Writing {
+        fn change<'s>(&'s self, store: &'s OrganizationStore, number: u32) -> Upgrading<'s> {
+            Box::pin(work_writing(store, number, self.failing))
+        }
+    }
+
+    /// The organization database's primary, holding what the replica `store` holds now: a
+    /// stand-in pipeline over a copy of it, as Turso holds what every machine pushed.
+    async fn primary_of(store: &OrganizationStore) -> LocalPipeline {
+        let primary = LocalPipeline::start().await;
+        let copy = backup::local_copy(store, &scratch("upgrade-primary"), "org", "primary", AT)
+            .await
+            .expect("the replica copied");
+
+        std::fs::copy(&copy, primary.path()).expect("the primary laid down");
+
+        primary
+    }
+
+    /// The organization as `primary` holds it, read into a store of its own.
+    async fn seen_at(store: &OrganizationStore, primary: &LocalPipeline) -> OrganizationStore {
+        let pipeline = Pipeline::at(&primary.url(""));
+
+        super::primary::seen(
+            store,
+            Primary {
+                pipeline: &pipeline,
+                token: "t",
+            },
+            &scratch("upgrade-seen").join("org.db"),
+        )
+        .await
+    }
+
+    /// The upgrade of the organization run by `session` at `primary`, each change through
+    /// [`work_writing`], the lease taken on the replica.
     async fn run_organization_as(
         store: &OrganizationStore,
         session: &MemberSession,
+        primary: &LocalPipeline,
         failing: u32,
     ) -> Result<(), Error> {
+        run_with(store, session, primary, &Writing { failing }).await
+    }
+
+    /// The upgrade of the organization run by `session` at `primary`, through `changes`.
+    async fn run_with(
+        store: &OrganizationStore,
+        session: &MemberSession,
+        primary: &LocalPipeline,
+        changes: &(impl Changes + ?Sized),
+    ) -> Result<(), Error> {
+        let pipeline = Pipeline::at(&primary.url(""));
+
         run_organization(
             store,
             session,
             &StoreLease::new(store),
+            Primary {
+                pipeline: &pipeline,
+                token: "t",
+            },
             no_platform(),
-            |number| work_writing(store, number, failing),
+            changes,
             || AT,
         )
         .await
@@ -1455,6 +1484,9 @@ mod tests {
             );
         }
 
+        let primary = primary_of(&store).await;
+        let held_at_first = backup::contents_of(primary.path()).await;
+
         for (who, session) in [
             ("the member role", &plain),
             ("an override removing it", &removed),
@@ -1475,7 +1507,7 @@ mod tests {
                 "{who}"
             );
             assert_eq!(
-                reason_of(run_organization_as(&store, session, 0).await),
+                reason_of(run_organization_as(&store, session, &primary, 0).await),
                 RefusalReason::RoleLacksAct,
                 "{who}"
             );
@@ -1485,6 +1517,7 @@ mod tests {
         let (_, payment) = shape_of(&pipeline).await;
 
         assert!(payment.iter().any(|column| column == "note"), "{payment:?}");
+        assert_eq!(backup::contents_of(primary.path()).await, held_at_first);
         assert_eq!(
             row_of(&store, &owner, &workspace_id).await.schema_version,
             7
@@ -1550,21 +1583,31 @@ mod tests {
                 .expect("the manager's preview")
                 .needs_owner
         );
+        let primary = primary_of(&store).await;
+
         assert_eq!(
-            reason_of(run_organization_as(&store, &manager, 0).await),
+            reason_of(run_organization_as(&store, &manager, &primary, 0).await),
             RefusalReason::UpgradeNeedsOwner
         );
         assert_eq!(
-            store.floors().await.expect("the floors"),
+            seen_at(&store, &primary)
+                .await
+                .floors()
+                .await
+                .expect("the floors"),
             Some(Floors::legacy(3))
         );
 
-        run_organization_as(&store, &owner, 0)
+        run_organization_as(&store, &owner, &primary, 0)
             .await
             .expect("the owner's upgrade");
 
         assert_eq!(
-            store.floors().await.expect("the floors"),
+            seen_at(&store, &primary)
+                .await
+                .floors()
+                .await
+                .expect("the floors"),
             Some(Floors {
                 level: 4,
                 read: 4,
@@ -1631,29 +1674,47 @@ mod tests {
                 .needs_owner
         );
 
-        run_organization(
-            &store,
-            &manager,
-            &StoreLease::new(&store),
-            no_platform(),
-            |number| {
-                runner::change(
-                    &store,
-                    &transitions,
-                    &manager.verifying_key,
-                    &manager.member_id,
-                    &manager.secret,
+        struct Through<'t> {
+            transitions: &'t [Transition],
+            session: &'t MemberSession,
+        }
+
+        impl Changes for Through<'_> {
+            fn change<'s>(
+                &'s self,
+                store: &'s OrganizationStore,
+                number: u32,
+            ) -> crate::organization::session::Upgrading<'s> {
+                Box::pin(runner::change(
+                    store,
+                    self.transitions,
+                    &self.session.verifying_key,
+                    &self.session.member_id,
+                    &self.session.secret,
                     number,
                     AT,
-                )
+                ))
+            }
+        }
+
+        let primary = primary_of(&store).await;
+
+        run_with(
+            &store,
+            &manager,
+            &primary,
+            &Through {
+                transitions: &transitions,
+                session: &manager,
             },
-            || AT,
         )
         .await
         .expect("the manager's upgrade");
 
+        let upgraded = seen_at(&store, &primary).await;
+
         assert!(
-            store
+            upgraded
                 .machine_version(&format!("changed-by-{}", manager.member_id))
                 .await
                 .expect("the record")
@@ -1661,7 +1722,7 @@ mod tests {
             "the change did not run"
         );
         assert_eq!(
-            store.floors().await.expect("the floors"),
+            upgraded.floors().await.expect("the floors"),
             Some(Floors {
                 level: 4,
                 read: 4,
@@ -2045,13 +2106,34 @@ mod tests {
         );
     }
 
-    /// **Ticket 07's third and fifth criteria, on the organization.** A change failing part way,
-    /// and one leaving the organization other than a fresh one is, leave the format, the floors and
-    /// every table as they were, with the copy written and the lease let go. Then the run copies
-    /// the organization, runs both changes, checks it against a fresh organization, records
-    /// `organization_floor`, and moves the `format` row to 5, which every build before 857 refuses.
+    /// **Ticket 07's third and fifth criteria, on the organization, and ticket 24's first.** A
+    /// change failing part way, and one leaving the organization other than a fresh one is, leave
+    /// the primary exactly as it was, with the copy written and the lease let go. Then the run
+    /// copies the organization, runs both changes at the primary in one transaction, checks it
+    /// there against a fresh organization, records `organization_floor`, and moves the `format`
+    /// row to 5, which every build before 857 refuses.
     #[tokio::test]
     async fn an_organization_upgrade_is_whole_or_nothing_and_moves_the_format_past_857() {
+        /// A change of format leaving a column no fresh organization has.
+        struct Stray;
+
+        impl Changes for Stray {
+            fn change<'s>(&'s self, store: &'s OrganizationStore, number: u32) -> Upgrading<'s> {
+                Box::pin(async move {
+                    if number == 4 {
+                        store
+                            .laid(
+                                "ALTER TABLE \"machine_name\" ADD COLUMN \"stray\" TEXT",
+                                Vec::new(),
+                            )
+                            .await?;
+                    }
+
+                    Ok(())
+                })
+            }
+        }
+
         let credentials = Memory::new();
         let directory = scratch("upgrade-organization");
         let (store, owner, _, _) = organization(
@@ -2064,29 +2146,17 @@ mod tests {
         )
         .await;
         let database = format!("org-{}", owner.organization_id);
-        let tables = store.tables().await.expect("the tables");
+        let primary = primary_of(&store).await;
+        let held_at_first = backup::contents_of(primary.path()).await;
 
         // the second change fails: nothing of the first is kept.
-        let refused = run_organization_as(&store, &owner, 5).await;
+        let refused = run_organization_as(&store, &owner, &primary, 5).await;
 
         assert!(
             matches!(refused, Err(Error::Internal { .. })),
             "{refused:?}"
         );
-        assert_eq!(store.format().await.expect("the format"), Some(3));
-        assert_eq!(
-            store.floors().await.expect("the floors"),
-            Some(Floors::legacy(3))
-        );
-        assert_eq!(store.tables().await.expect("the tables"), tables);
-        assert_eq!(
-            store
-                .machine_version("written-by-change-4")
-                .await
-                .expect("the row"),
-            None,
-            "the first change was kept"
-        );
+        assert_eq!(backup::contents_of(primary.path()).await, held_at_first);
         assert_eq!(copies(&store, &database).len(), 1, "no copy was written");
         assert!(
             store
@@ -2097,59 +2167,30 @@ mod tests {
         );
 
         // a change leaving the organization other than a fresh one is refused by the check.
-        let replica = &store;
-        let reshaped = run_organization(
-            &store,
-            &owner,
-            &StoreLease::new(&store),
-            no_platform(),
-            |number| async move {
-                if number == 4 {
-                    replica
-                        .connection()
-                        .execute("ALTER TABLE \"machine_name\" ADD COLUMN \"stray\" TEXT", ())
-                        .await?;
-                }
-
-                Ok(())
-            },
-            || AT,
-        )
-        .await;
-
-        assert_eq!(reason_of(reshaped), RefusalReason::ShapeNotAsBuilt);
-        assert_eq!(store.format().await.expect("the format"), Some(3));
         assert_eq!(
-            store.floors().await.expect("the floors"),
-            Some(Floors::legacy(3))
+            reason_of(run_with(&store, &owner, &primary, &Stray).await),
+            RefusalReason::ShapeNotAsBuilt
         );
-        assert!(
-            !store
-                .columns_of("machine_name")
-                .await
-                .expect("the columns")
-                .iter()
-                .any(|column| column == "stray"),
-            "the stray column was kept"
-        );
+        assert_eq!(backup::contents_of(primary.path()).await, held_at_first);
 
         // and run whole.
-        run_organization_as(&store, &owner, 0)
+        run_organization_as(&store, &owner, &primary, 0)
             .await
             .expect("the upgrade");
 
+        let upgraded = seen_at(&store, &primary).await;
         let floors = Floors {
             level: 5,
             read: 5,
             write: 5,
         };
 
-        assert_eq!(store.floors().await.expect("the floors"), Some(floors));
-        assert_eq!(store.format().await.expect("the format"), Some(5));
+        assert_eq!(upgraded.floors().await.expect("the floors"), Some(floors));
+        assert_eq!(upgraded.format().await.expect("the format"), Some(5));
 
         for change in ["written-by-change-4", "written-by-change-5"] {
             assert!(
-                store
+                upgraded
                     .machine_version(change)
                     .await
                     .expect("the row")
@@ -2161,7 +2202,7 @@ mod tests {
         // one copy, taken at the same moment each time, so each run wrote it again.
         assert_eq!(copies(&store, &database).len(), 1);
         assert_eq!(
-            store.refuse_another_format().await.expect("writable"),
+            upgraded.refuse_another_format().await.expect("writable"),
             Standing::Writable
         );
     }
@@ -2181,13 +2222,17 @@ mod tests {
         )
         .await;
 
-        run_organization_as(&store, &owner, 0)
+        let primary = primary_of(&store).await;
+
+        run_organization_as(&store, &owner, &primary, 0)
             .await
             .expect("the upgrade");
 
-        assert_eq!(store.format().await.expect("the format"), Some(4));
+        let upgraded = seen_at(&store, &primary).await;
+
+        assert_eq!(upgraded.format().await.expect("the format"), Some(4));
         assert_eq!(
-            store.floors().await.expect("the floors"),
+            upgraded.floors().await.expect("the floors"),
             Some(Floors {
                 level: 4,
                 read: 3,
@@ -2196,11 +2241,160 @@ mod tests {
         );
 
         // a build from 857 knowing format 3 is judged by the floors, and reads it read-only.
-        let earlier = store.declaring(format_ladder(&[]));
+        let earlier = upgraded.declaring(format_ladder(&[]));
 
         assert_eq!(
             earlier.refuse_another_format().await.expect("readable"),
             Standing::ReadOnly
+        );
+    }
+
+    /// Another machine's push of its own `machine_version` row, named `id`, reaching the primary
+    /// behind `primary` straight away: a write the organization takes from a machine that is not
+    /// this one. A write the primary will not take now is answered with what it said.
+    async fn pushed(primary: &LocalPipeline, id: &str) -> Result<(), Error> {
+        use sqlx::{ConnectOptions, Connection};
+
+        let mut connection = sqlx::sqlite::SqliteConnectOptions::new()
+            .filename(primary.path())
+            .busy_timeout(std::time::Duration::from_millis(200))
+            .connect()
+            .await?;
+        let written = sqlx::query(
+            "INSERT INTO \"machine_version\" (\"id\", \"rentable\", \"workspace_known\", \
+             \"format_known\", \"written_at\") VALUES (?, '0.20.0', 7, 3, ?)",
+        )
+        .bind(id)
+        .bind(AT)
+        .execute(&mut connection)
+        .await
+        .map(|_| ())
+        .map_err(Error::from);
+
+        let _ = connection.close().await;
+
+        written
+    }
+
+    /// Every `machine_version` row the primary behind `primary` holds, by id, with the format it
+    /// says its machine knows.
+    async fn versions_at(primary: &LocalPipeline) -> Vec<(String, i64)> {
+        use sqlx::Row;
+
+        let mut connection = primary.connection().await;
+
+        sqlx::query("SELECT \"id\", \"format_known\" FROM \"machine_version\" ORDER BY \"id\"")
+            .fetch_all(&mut connection)
+            .await
+            .expect("the versions")
+            .iter()
+            .map(|row| (row.get::<String, _>(0), row.get::<i64, _>(1)))
+            .collect()
+    }
+
+    /// **Ticket 24's second criterion.** The organization's upgrade runs as one transaction at
+    /// the primary. A write another machine pushed there after this machine pulled, which the
+    /// replica never saw, is in what the step reads and is carried through it. A write pushed
+    /// while the transaction is open is refused at the primary rather than landing between the
+    /// steps, and sent again once the upgrade is done it lands after it. Nothing is lost.
+    #[tokio::test]
+    async fn a_write_pushed_while_the_organization_upgrades_is_carried_through_or_refused() {
+        /// A change of format stamping every machine's recorded version as knowing its format,
+        /// while another machine pushes a row of its own to the primary.
+        struct Stamping<'p> {
+            primary: &'p LocalPipeline,
+            during: Mutex<Vec<Result<(), Error>>>,
+        }
+
+        impl Changes for Stamping<'_> {
+            fn change<'s>(&'s self, store: &'s OrganizationStore, number: u32) -> Upgrading<'s> {
+                Box::pin(async move {
+                    let during = pushed(self.primary, "pushed-during").await;
+
+                    self.during.lock().expect("the pushes").push(during);
+                    store
+                        .laid(
+                            "UPDATE \"machine_version\" SET \"format_known\" = ?",
+                            vec![turso::Value::Integer(i64::from(number))],
+                        )
+                        .await
+                })
+            }
+        }
+
+        let credentials = Memory::new();
+        let directory = scratch("upgrade-organization-pushed");
+        let (store, owner, _, _) = organization(
+            &credentials,
+            &directory,
+            format_ladder(&[later(None, Some(4), "aLaterChange")]),
+        )
+        .await;
+        let primary = primary_of(&store).await;
+
+        // pushed by another machine after this one pulled: the primary holds it, the replica not.
+        pushed(&primary, "pushed-before")
+            .await
+            .expect("the push before the upgrade");
+
+        assert_eq!(
+            store
+                .machine_version("pushed-before")
+                .await
+                .expect("the row"),
+            None
+        );
+
+        let stamping = Stamping {
+            primary: &primary,
+            during: Mutex::new(Vec::new()),
+        };
+
+        run_with(&store, &owner, &primary, &stamping)
+            .await
+            .expect("the upgrade");
+
+        let during = stamping.during.into_inner().expect("the pushes");
+
+        assert!(
+            matches!(during.as_slice(), [Err(refusal)] if refusal.to_string().contains("locked")),
+            "the push during the upgrade was not refused: {during:?}"
+        );
+
+        let versions = versions_at(&primary).await;
+
+        assert!(
+            versions.contains(&("pushed-before".to_string(), 4)),
+            "the write before the upgrade was not carried through it: {versions:?}"
+        );
+        assert!(
+            versions
+                .iter()
+                .all(|(id, known)| *known == 4 && id != "pushed-during"),
+            "{versions:?}"
+        );
+        assert_eq!(
+            seen_at(&store, &primary)
+                .await
+                .floors()
+                .await
+                .expect("the floors"),
+            Some(Floors {
+                level: 4,
+                read: 3,
+                write: 4
+            })
+        );
+
+        // sent again once the upgrade is done, the refused write lands after it, untouched.
+        pushed(&primary, "pushed-during")
+            .await
+            .expect("the push after the upgrade");
+
+        assert!(
+            versions_at(&primary)
+                .await
+                .contains(&("pushed-during".to_string(), 3))
         );
     }
 
@@ -2262,8 +2456,10 @@ mod tests {
             reason_of(run_on(&store, &owner, &workspace_id, &pipeline, &migrations).await),
             RefusalReason::UpgradeUnderWay
         );
+        let primary = primary_of(&store).await;
+
         assert_eq!(
-            reason_of(run_organization_as(&store, &owner, 0).await),
+            reason_of(run_organization_as(&store, &owner, &primary, 0).await),
             RefusalReason::UpgradeUnderWay
         );
         assert_eq!(
@@ -2454,16 +2650,296 @@ mod tests {
         run_on(&store, &owner, &workspace_id, &pipeline, &ladder)
             .await
             .expect("the workspace's upgrade");
-        run_organization_as(&store, &owner, 0)
+        // the organization's primary holds what the workspace's upgrade recorded.
+        let primary = primary_of(&store).await;
+
+        run_organization_as(&store, &owner, &primary, 0)
             .await
             .expect("the organization's upgrade");
 
-        let after = awaiting(&store, &sami, &ladder).await.expect("read again");
+        let after = awaiting(&seen_at(&store, &primary).await, &sami, &ladder)
+            .await
+            .expect("read again");
 
         assert!(after.organization.is_empty(), "{after:?}");
         assert_eq!(
             after.workspaces.get(&workspace_id).cloned(),
             Some(Vec::new())
         );
+    }
+
+    // -------------------------------------------------------------------------------------
+    // Ticket 24, live: the organization's upgrade as one transaction at Turso's primary.
+    // -------------------------------------------------------------------------------------
+
+    /// One case on a throwaway database of its own in the group `rentable`: `case` runs against
+    /// it, the database is deleted whatever the case did, and only then does a failure in the case
+    /// fail the test, so a failed assertion never leaves a database behind. *The same shape as
+    /// `organization/store/mod.rs`'s and `database/mod.rs`'s live tests.*
+    async fn on_a_throwaway_organization<F, Fut>(label: &str, case: F)
+    where
+        F: FnOnce(Arc<crate::database::test::workspace::LiveWorkspace>) -> Fut,
+        Fut: std::future::Future<Output = ()> + Send + 'static,
+    {
+        use crate::database::test::workspace::LiveWorkspace;
+
+        assert_eq!(
+            std::env::var("RENTABLE_LIVE_TURSO")
+                .unwrap_or_else(|_| panic!(
+                    "RENTABLE_LIVE_TURSO is needed for a live run; see organization_upgrade_live_*"
+                ))
+                .trim(),
+            "1",
+            "a live run is armed by RENTABLE_LIVE_TURSO=1 as well as by --ignored"
+        );
+        assert_eq!(
+            std::env::var("TURSO_GROUP").unwrap_or_default().trim(),
+            "rentable",
+            "these runs are allowed in the group rentable alone"
+        );
+
+        let organization = Arc::new(LiveWorkspace::create(label).await);
+        let ran = tokio::spawn(case(Arc::clone(&organization))).await;
+
+        match Arc::try_unwrap(organization) {
+            Ok(organization) => organization.destroy().await,
+            Err(_) => panic!("the case kept the database, so it could not be deleted"),
+        }
+
+        if let Err(failure) = ran {
+            std::panic::resume_unwind(failure.into_panic());
+        }
+    }
+
+    /// One statement with its values bound, as the pipeline takes it.
+    fn bound(sql: &str, values: &[turso::Value]) -> serde_json::Value {
+        json!({
+            "type": "execute",
+            "stmt": {
+                "sql": sql,
+                "args": values
+                    .iter()
+                    .cloned()
+                    .map(crate::organization::workspace::remote::argument)
+                    .collect::<Vec<serde_json::Value>>(),
+            },
+        })
+    }
+
+    /// Lay what the replica `store` holds on the remote database behind `pipeline`, in one
+    /// transaction: every table with its rows, then every index, as the organization stands on
+    /// Turso once every machine has pushed.
+    async fn laid_on(store: &OrganizationStore, pipeline: &Pipeline, token: &str) {
+        use crate::{
+            backup::Source,
+            organization::workspace::remote::{OverThePipeline, execute, refused_at},
+        };
+
+        let objects = store.read(&backup::listing()).await.expect("the listing");
+        let mut requests = vec![execute("BEGIN")];
+
+        for tables in [true, false] {
+            for object in &objects {
+                let [
+                    turso::Value::Text(kind),
+                    turso::Value::Text(name),
+                    turso::Value::Text(statement),
+                ] = object.as_slice()
+                else {
+                    panic!("a listing row: {object:?}");
+                };
+
+                if (kind == "table") != tables {
+                    continue;
+                }
+
+                requests.push(execute(statement));
+
+                if tables {
+                    for row in store
+                        .read(&format!("SELECT * FROM \"{name}\""))
+                        .await
+                        .expect("the rows")
+                    {
+                        let places = vec!["?"; row.len()].join(", ");
+
+                        requests.push(bound(
+                            &format!("INSERT INTO \"{name}\" VALUES ({places})"),
+                            &row,
+                        ));
+                    }
+                }
+            }
+        }
+
+        requests.push(execute("COMMIT"));
+
+        let answered = OverThePipeline::migrating(pipeline, token)
+            .exchanged(requests, true)
+            .await
+            .expect("the organization laid on Turso");
+
+        assert_eq!(refused_at(&answered), None, "{answered:?}");
+    }
+
+    /// **Ticket 24's live criterion** ([[rules/testing]], the eighth property's second instance).
+    /// On Turso's own server: a stream holding `BEGIN IMMEDIATE` keeps another connection's write
+    /// out until it ends, the write waiting or refused and never landing inside it; and the
+    /// organization's upgrade sends its batch whole in one transaction at the primary, the shape
+    /// check against Turso's answers passing and the floors and the change's row read back.
+    ///
+    /// ```text
+    /// RENTABLE_LIVE_TURSO=1 TURSO_API_TOKEN=... TURSO_ORG=... TURSO_GROUP=rentable \
+    ///   cargo test --manifest-path ./apps/desktop/tauri/Cargo.toml organization_upgrade_live -- \
+    ///   --test-threads=1 --ignored --nocapture
+    /// ```
+    #[ignore = "reaches a live Turso account and creates a database; see the doc comment"]
+    #[tokio::test]
+    async fn organization_upgrade_live_runs_whole_at_the_primary_and_holds_other_writes() {
+        on_a_throwaway_organization("o857-upgrade", |remote| async move {
+            use crate::organization::workspace::remote::{
+                OverThePipeline, decoded_rows, execute, refused_at,
+            };
+
+            let host = remote
+                .url
+                .strip_prefix("libsql://")
+                .expect("a libsql:// url")
+                .to_string();
+            let token = remote.token.clone();
+            let pipeline = Pipeline::of(&host);
+            let credentials = Memory::new();
+            let directory = scratch("upgrade-live");
+            let (store, owner, _, _) = organization(
+                &credentials,
+                &directory,
+                format_ladder(&[later(None, Some(4), "aLaterChange")]),
+            )
+            .await;
+
+            laid_on(&store, &pipeline, &token).await;
+
+            // a stream holding the write lock, and another connection's write meanwhile.
+            let holder = OverThePipeline::upgrading(&pipeline, &token);
+            let opened = holder
+                .exchanged(vec![execute("BEGIN IMMEDIATE")], false)
+                .await
+                .expect("the request went");
+
+            eprintln!("BEGIN IMMEDIATE answered: {}", opened[0]);
+            assert_eq!(
+                refused_at(&opened),
+                None,
+                "Turso refused BEGIN IMMEDIATE: {opened:?}"
+            );
+
+            let other = tokio::spawn({
+                let (host, token) = (host.clone(), token.clone());
+
+                async move {
+                    let pipeline = Pipeline::of(&host);
+                    let started = std::time::Instant::now();
+                    let answered = OverThePipeline::migrating(&pipeline, &token)
+                        .exchanged(
+                            vec![execute(
+                                "INSERT INTO \"machine_version\" (\"id\", \"rentable\", \
+                                 \"workspace_known\", \"format_known\", \"written_at\") \
+                                 VALUES ('live-during', '0.20.0', 7, 3, 0)",
+                            )],
+                            true,
+                        )
+                        .await;
+
+                    (started.elapsed(), answered)
+                }
+            });
+
+            tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+
+            let ended_while_held = other.is_finished();
+            let inside = holder
+                .exchanged(
+                    vec![execute(
+                        "SELECT COUNT(*) FROM \"machine_version\" WHERE \"id\" = 'live-during'",
+                    )],
+                    false,
+                )
+                .await
+                .expect("the read inside the transaction");
+            let committed = holder
+                .exchanged(vec![execute("COMMIT")], true)
+                .await
+                .expect("the commit");
+            let (waited, answered) = other.await.expect("the other write's task");
+            let landed = answered
+                .as_ref()
+                .is_ok_and(|results| refused_at(results).is_none());
+
+            eprintln!(
+                "the other write: ended while held {ended_while_held}, after {waited:?}, landed \
+                 {landed}, answered {answered:?}"
+            );
+
+            assert_eq!(refused_at(&committed), None, "{committed:?}");
+            assert_eq!(
+                decoded_rows(&inside, 0).expect("the count"),
+                vec![vec![turso::Value::Integer(0)]],
+                "the other write landed inside the held transaction"
+            );
+            assert!(
+                !(ended_while_held && landed),
+                "the other write landed while the transaction was held"
+            );
+
+            // the organization's upgrade, as one transaction at the primary.
+            let ran = run_organization(
+                &store,
+                &owner,
+                &StoreLease::new(&store),
+                Primary {
+                    pipeline: &pipeline,
+                    token: &token,
+                },
+                no_platform(),
+                &Writing { failing: 0 },
+                || AT,
+            )
+            .await;
+
+            eprintln!("the upgrade at the primary: {ran:?}");
+            ran.expect("the upgrade committed whole and passed the check on Turso");
+
+            let upgraded = super::primary::seen(
+                &store,
+                Primary {
+                    pipeline: &pipeline,
+                    token: &token,
+                },
+                &scratch("upgrade-live-seen").join("org.db"),
+            )
+            .await;
+
+            assert_eq!(
+                upgraded.floors().await.expect("the floors"),
+                Some(Floors {
+                    level: 4,
+                    read: 3,
+                    write: 4
+                })
+            );
+            assert_eq!(upgraded.format().await.expect("the format"), Some(4));
+            assert!(
+                upgraded
+                    .machine_version("written-by-change-4")
+                    .await
+                    .expect("the row")
+                    .is_some()
+            );
+
+            drop(upgraded);
+            drop(store);
+            let _ = std::fs::remove_dir_all(&directory);
+        })
+        .await;
     }
 }
