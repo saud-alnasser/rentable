@@ -31,6 +31,7 @@ Start at [[protocol]].
 | [[rules/testing]] | writing or changing a test, or deciding what a change must be tested at | apps/desktop/src/**, apps/desktop/tauri/src/**, packages/design/src/**, packages/testing/** | — |
 | [[rules/tracker]] | creating, reading, claiming, or labelling a ticket, or deciding whether work is a ticket at all | — | — |
 | [[rules/version-control]] | branching, committing, opening a pull request, or landing work here | — | — |
+| [[rules/workstation]] | about to create, edit or delete anything on disk, creating a worktree, or writing a brief for an agent that will | — | — |
 
 ## Contexts
 

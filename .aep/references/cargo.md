@@ -41,3 +41,22 @@ cargo check --manifest-path ./apps/desktop/tauri/Cargo.toml
 Much faster than a build when the question is only whether it compiles. Note that neither
 `pnpm check` nor `pnpm lint` covers Rust — nothing in the frontend gate will catch a Rust
 compile error.
+
+## Build from a worktree
+
+**A worktree's own `apps/desktop/tauri/target` is too deep for Windows.** Under
+`.aep/worktrees/<effort>/<ticket>/` the build scripts' paths pass 260 characters and the link
+fails with `LNK1104: cannot open file`. **A shared target is wrong too**: sibling worktrees
+overwrite each other's test binaries, and a test run reports another ticket's results.
+
+So each surface builds into a short folder of its own **beside** the worktrees, inside the
+effort's folder, which `.gitignore` already covers:
+
+```bash
+CARGO_TARGET_DIR=<main checkout>/.aep/worktrees/<effort>/_t<NN>   # ticket NN's child
+CARGO_TARGET_DIR=<main checkout>/.aep/worktrees/<effort>/_target_run  # the run itself
+```
+
+`CARGO_INCREMENTAL=0` keeps each folder a few gigabytes smaller. The folder goes when its
+surface does ([[rules/workstation]]); a path still too long there is reported, never moved
+somewhere shorter.
