@@ -137,6 +137,9 @@ The human's rulings of 2026-10-06, after
     correct one would turn it live and owing for a moment for no reason. Where a payment on a
     terminated contract is locked, the ledger says why and how to change it (restore the
     contract), rather than only hiding the control.
+    *Amended 2026-10-07 by the human:* the refund is recorded from the bar above the payments,
+    by its one plus, not from a control of its own: the payment form has two tabs, a payment and a
+    refund, each with an icon pointing the way the money moves.
 26. **How much may be refunded depends on the contract's state.** On a contract that is not
     terminated, a refund may return only what the contract has received beyond its total cost,
     less earlier refunds, so it never makes the contract owe; a payment made by mistake is
@@ -242,7 +245,10 @@ The human's rulings of 2026-10-06, after
 25. Tests record a refund on an active and on a terminated contract, see it in the ledger as
     money going out, undo it and delete it, and find every existing payment untouched; a
     payment on the terminated contract is still refused. A refund on the terminated contract is
-    edited in place, and a locked payment's row says why it is locked and how to change it.
+    edited in place, and a locked payment's row says why it is locked and how to change it. The
+    payment form opened from the bar's plus has a payment tab and a refund tab, the form opens on
+    the tab the contract takes, a tab it does not take is dimmed with its reason and cannot be chosen,
+    and the plus is refused only where neither may be made.
 26. Tests: on a live contract paid 1,000 beyond its total, a refund of 1,000 goes through and
     one of 1,001 is refused naming the limit; on a live contract paid exactly its total, any
     refund is refused; on a terminated contract that received 5,000, refunds of 3,000 then

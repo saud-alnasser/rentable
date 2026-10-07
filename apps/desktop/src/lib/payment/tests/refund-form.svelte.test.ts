@@ -201,3 +201,133 @@ test('a refund above the limit is refused under the amount, naming the limit', a
 		)
 	);
 });
+
+// the human, 2026-10-07 (effort 854, requirement 25 as amended): the bar's plus opens the payment
+// form, and a payment and a refund are its two tabs. A tab the contract does not take says why, and
+// nothing is created from it; the other is a press away.
+const openNew = (direction: 'received' | 'refund') =>
+	render(
+		PaymentForm,
+		{ contractId: 'contract-1', direction, open: true, onOpenChange: () => {} },
+		{ wrapper: Providers, wrapperProps: { strings, direction: 'ltr' } }
+	);
+
+const tab = (direction: 'received' | 'refund') =>
+	document.querySelector<HTMLElement>(`[data-payment-direction] [data-direction="${direction}"]`);
+const submit = () =>
+	document.querySelector<HTMLButtonElement>('[data-slot=form-surface] button[type=submit]');
+
+test('a tab the contract does not take is dimmed with its reason, and the form opens on the other', async () => {
+	// paid beyond its total: no new payment, and 1,000 to refund.
+	read.contract = { ...contract, paidAmount: 19000 };
+
+	// asked for a payment, as the plus asks before the contract is weighed here.
+	openNew('received');
+
+	await waitFor(() => expect(tab('refund')?.getAttribute('data-state')).toBe('on'));
+	expect(tab('received')?.textContent).toContain(en.common.labels.payment);
+	expect(tab('refund')?.textContent?.trim()).toBe(en.contracts.payments.refund.tag);
+	// each its glyph, money in and money out.
+	expect(tab('received')?.querySelector('svg')?.getAttribute('class')).toMatch(
+		/banknote-arrow-down/
+	);
+	expect(tab('refund')?.querySelector('svg')?.getAttribute('class')).toMatch(/banknote-arrow-up/);
+
+	// the payment tab: dimmed, reachable, saying why, and choosing nothing.
+	const refused = tab('received')!;
+
+	expect(refused.getAttribute('aria-disabled')).toBe('true');
+	expect(document.getElementById(refused.getAttribute('aria-describedby') ?? '')?.textContent).toBe(
+		en.contracts.payments.fullyPaidNotice
+	);
+	await fireEvent.click(refused);
+	expect(tab('refund')?.getAttribute('data-state')).toBe('on');
+	expect(tab('received')?.getAttribute('data-state')).toBe('off');
+
+	// the tab chosen takes a refund, so nothing about creating it is dimmed.
+	await waitFor(() => expect(limit()).toMatch(/1,000/));
+	expect(submit()?.disabled).toBe(false);
+
+	await fireEvent.input(amount()!, { target: { value: '600' } });
+	await fireEvent.submit(document.querySelector<HTMLFormElement>('[data-slot=form-surface] form')!);
+
+	await waitFor(() => expect(submitted).toHaveLength(1));
+	expect(submitted[0]).toMatchObject({
+		contractId: 'contract-1',
+		amount: 600,
+		direction: 'refund'
+	});
+});
+test('a contract still owing opens on the payment, filled with what is due, its refund tab dimmed', async () => {
+	read.contract = { ...contract, paidAmount: 3000 };
+
+	openNew('received');
+
+	await waitFor(() => expect(amount()?.value).toBe('1500'));
+	expect(tab('received')?.getAttribute('data-state')).toBe('on');
+
+	const refused = tab('refund')!;
+
+	expect(refused.getAttribute('aria-disabled')).toBe('true');
+	expect(document.getElementById(refused.getAttribute('aria-describedby') ?? '')?.textContent).toBe(
+		en.contracts.payments.refund.unavailable.nothingToRefund
+	);
+
+	await fireEvent.click(refused);
+	expect(tab('received')?.getAttribute('data-state')).toBe('on');
+	expect(amount()?.value).toBe('1500');
+	expect(submit()?.disabled).toBe(false);
+});
+test('an edit draws no tabs: it goes the way its payment went', async () => {
+	read.contract = { ...contract, paidAmount: 19000 };
+
+	open({
+		id: 'refund-1',
+		contractId: 'contract-1',
+		date: Date.UTC(2026, 2, 10),
+		amount: 400,
+		direction: 'refund'
+	});
+
+	await waitFor(() => expect(limit()).not.toBe(''));
+	expect(document.querySelector('[data-payment-direction]')).toBeNull();
+});
+
+// the human, 2026-10-07: the dimmed tab's reason stood open as the form opened, unhovered. The
+// focus the surface places as it opens lands on the tab chosen, and no reason opens until the
+// reader hovers the dimmed tab or moves to it.
+test('opening the form opens no reason; hovering or moving to the dimmed tab does', async () => {
+	read.contract = { ...contract, status: 'terminated', paidAmount: 5000 };
+	// the one browser fact a tooltip's content reaches for that jsdom does not carry.
+	window.ResizeObserver = class {
+		observe() {}
+		unobserve() {}
+		disconnect() {}
+	} as unknown as typeof ResizeObserver;
+
+	openNew('refund');
+
+	await waitFor(() => expect(tab('refund')?.getAttribute('data-state')).toBe('on'));
+	await new Promise((resolve) => setTimeout(resolve, 50));
+
+	expect(document.querySelector('[data-unavailable-reason]')).toBeNull();
+
+	// hovered, the dimmed tab says why; left, it closes again.
+	await fireEvent.pointerEnter(tab('received')!);
+	await waitFor(() =>
+		expect(document.querySelector('[data-unavailable-reason]')?.textContent).toBe(
+			en.contracts.payments.terminatedNotice
+		)
+	);
+	await fireEvent.pointerLeave(tab('received')!);
+	await waitFor(() => expect(document.querySelector('[data-unavailable-reason]')).toBeNull());
+
+	// moved to by the keyboard, it says why too.
+	await fireEvent.keyDown(tab('refund')!, { key: 'ArrowLeft' });
+	await fireEvent.focus(tab('received')!);
+	await waitFor(() =>
+		expect(document.querySelector('[data-unavailable-reason]')?.textContent).toBe(
+			en.contracts.payments.terminatedNotice
+		)
+	);
+});

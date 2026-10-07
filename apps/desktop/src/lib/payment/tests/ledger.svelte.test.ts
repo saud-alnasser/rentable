@@ -256,8 +256,8 @@ function layOut() {
 const row = (id: string) =>
 	document.querySelector(`a[href$="/contracts/payments/${id}"]`)?.parentElement as HTMLElement;
 
-/** the ledger's refund control. */
-const refundControl = () => document.querySelector<HTMLElement>('[data-refund-create] button');
+/** the bar's create control. */
+const createControl = () => document.querySelector<HTMLElement>('[data-create-control]');
 
 test('a refund reads as money going out, tagged and signed, and its month states both', async () => {
 	reads.contract = { ...TERMINATED, status: 'active', paidAmount: 12600 };
@@ -303,32 +303,35 @@ test('a refund reads as money going out, tagged and signed, and its month states
 	expect(february.querySelector('[data-month-returned]')).toBeNull();
 });
 
-test('a refund is recorded from the ledger of a terminated contract that received money', async () => {
+// the human, 2026-10-07: the bar keeps its one plus, and a payment and a refund are the payment
+// form's two tabs. So the plus opens the form wherever the contract takes either one.
+test('the plus opens the payment form on a terminated contract that received money', async () => {
 	reads.contract = { ...TERMINATED, paidAmount: 5000 };
 
 	ledger();
 
-	const control = refundControl();
+	const control = createControl();
 
-	expect(control, 'the refund is offered').not.toBeNull();
+	expect(document.querySelector('[data-refund-create]'), 'no refund control of its own').toBeNull();
+	// no new payment, but a refund to make, so the plus is not refused.
 	expect(control?.getAttribute('aria-disabled')).toBeNull();
-	expect(control?.getAttribute('aria-label')).toBe(en.contracts.payments.refund.new);
+	expect(control?.getAttribute('aria-label')).toBe(en.common.actions.newPayment);
 
 	await fireEvent.click(control!);
 
-	expect(created).toEqual([{ contractId: 'contract-1', direction: 'refund' }]);
+	expect(created).toEqual([{ contractId: 'contract-1' }]);
 });
 
-test('a refund is refused, saying why, where nothing may be refunded', async () => {
-	// paid exactly its total: a refund would leave it owing.
+test("the plus is refused, with the payment's reason, where neither a payment nor a refund may be made", async () => {
+	// paid exactly its total: no new payment, and a refund would leave it owing.
 	reads.contract = { ...TERMINATED, status: 'fulfilled', paidAmount: 12000 };
 
 	ledger();
 
-	const control = refundControl();
+	const control = createControl();
 
 	expect(control?.getAttribute('aria-disabled')).toBe('true');
-	expect(describedBy(control)).toBe(en.contracts.payments.refund.unavailable.nothingToRefund);
+	expect(describedBy(control)).toBe(en.contracts.payments.fullyPaidNotice);
 
 	await fireEvent.click(control!);
 

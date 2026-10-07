@@ -129,9 +129,11 @@ test('the amount due is capped at what the contract still owes', async () => {
 // Ticket 03 of [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]], criterion 1(a): the
 // form offers the four methods and leaves none chosen, and a reference and a note beside them.
 
-/** the method's segments, in the order they are drawn. */
+/** the method's segments, in the order they are drawn: the method's group, not the tabs above. */
 const methods = () => [
-	...document.querySelectorAll<HTMLButtonElement>('[data-slot="toggle-group-item"]')
+	...document.querySelectorAll<HTMLButtonElement>(
+		`[aria-label="${en.contracts.payments.method}"] [data-slot="toggle-group-item"]`
+	)
 ];
 
 /** the segments pressed now, by their label. */

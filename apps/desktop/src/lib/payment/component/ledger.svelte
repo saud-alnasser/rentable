@@ -42,7 +42,6 @@
 	import { useImportRecords } from '$lib/workspace/ui';
 	import { toTransferInput } from '$lib/transfer';
 	import { IMPORT_FLAGS, memberPermissions } from '$lib/permission';
-	import BanknoteArrowUpIcon from '@lucide/svelte/icons/banknote-arrow-up';
 	import LockIcon from '@lucide/svelte/icons/lock';
 	import StickyNoteIcon from '@lucide/svelte/icons/sticky-note';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
@@ -129,6 +128,12 @@
 	// A terminated contract takes one, since a refund is how it is settled (effort 854, requirements
 	// 25 and 26).
 	const refundUnavailable = $derived(toRefundCreateUnavailable(contractQuery.data, $LL));
+	// the bar's one create opens the payment form, whose two tabs are the two ways money moves
+	// (effort 854, requirement 25). So it is refused only where both are, with the payment's reason,
+	// the one a reader looking to add money reads first.
+	const createUnavailableWhole = $derived(
+		createUnavailable && refundUnavailable ? createUnavailable : undefined
+	);
 
 	const formatMonth = (month: PaymentLedgerMonth) => formatPaymentLedgerMonth($locale, month);
 	const formatMoney = (value: number) => formatLocaleMoney($locale, value);
@@ -274,7 +279,7 @@
 		importUnavailable={memberPermissions.refusalOfEvery(IMPORT_FLAGS, $LL) ?? createUnavailable}
 		onCreate={() => paymentHost.create({ contractId })}
 		createLabel={$LL.common.actions.newPayment()}
-		{createUnavailable}
+		createUnavailable={createUnavailableWhole}
 	>
 		{#snippet groupHeader(month: PaymentLedgerMonth)}
 			<!-- a card in the list rather than a marker floating over it, and a separator rather than
@@ -420,17 +425,6 @@
 					{formatLocaleMoneyRange($locale, contract.paidAmount, contract.expectedAmount)}
 				</span>
 			</div>
-			<!-- money returned to the tenant, beside the figures it changes. The act is the ledger's
-			     rather than a payment's, so it stands here, quiet like a record's acts, and refused
-			     with its reason where nothing may be refunded (effort 854, requirements 25 and 26). -->
-			<span class="self-center" data-refund-create>
-				<RecordActionControl
-					label={$LL.contracts.payments.refund.new()}
-					icon={BanknoteArrowUpIcon}
-					unavailable={refundUnavailable}
-					onclick={() => paymentHost.create({ contractId, direction: 'refund' })}
-				/>
-			</span>
 		</div>
 	{/if}
 </div>

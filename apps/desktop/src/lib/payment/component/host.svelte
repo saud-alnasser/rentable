@@ -270,10 +270,19 @@
 			return;
 		}
 
+		const paymentRefused = toPaymentCreateUnavailable(contract, $LL);
+		const refundRefused = toRefundCreateUnavailable(contract, $LL);
+
+		// asked for one kind by name, that kind is answered. Asked for a new payment with neither
+		// named, as the ledger's create and the key ask, the form opens on whichever of its two tabs
+		// the contract takes, the payment first, and is refused only where it takes neither (effort
+		// 854, requirement 25).
 		const reason =
 			direction === 'refund'
-				? toRefundCreateUnavailable(contract, $LL)
-				: toPaymentCreateUnavailable(contract, $LL);
+				? refundRefused
+				: direction === 'received'
+					? paymentRefused
+					: paymentRefused && refundRefused && paymentRefused;
 
 		if (reason) {
 			showErrorSentence(reason);
@@ -281,7 +290,7 @@
 			return;
 		}
 
-		openNewPaymentForm(contractId, direction);
+		openNewPaymentForm(contractId, direction ?? (paymentRefused ? 'refund' : 'received'));
 	}
 
 	// both requests are answered once and cleared first, so an answer that takes a read cannot be

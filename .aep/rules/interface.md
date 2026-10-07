@@ -783,20 +783,30 @@ requirements 1 and 12.
 
 **Every set a person can add to offers one create control, in one place, and one key.**
 
-- **The control** is `create/component/control.svelte`, and nothing else draws a create but the
-  one exception below: a
+- **The control** is `create/component/control.svelte`, and nothing else draws a create: a
   quiet plus, its words in the tooltip and on the control, with the key beside them. It stands
   **last at the end of the bar above the records**: `list/component/list-toolbar.svelte`, which the
   list shell draws and the settings directories' tray (`organization/component/directory-tray.svelte`)
   draws too. A set
   that may not be added to right now keeps its control, refused, with its reason on hover and focus
   (*Guidance*, below); the workspaces tray puts its refusal in that place instead.
-- **One create is drawn outside the bar: a contract's refund.** A contract's payments are one set
-  with two creates, a payment and a refund, and the bar holds one, the one the key answers. So the
-  refund is drawn with `block/record-action-control.svelte` on the ledger's balance footer
-  (`payment/component/ledger.svelte`), beside the figures it changes, quiet like a record's acts and
-  refused with its reason where nothing may be refunded. The key and the bar stay the payment's
-  (effort 854, requirements 25 and 26).
+- **A set of more than one kind keeps its one plus, and the form chooses the kind.** A contract's
+  payments take a payment and a refund: the plus and the key open the payment form, whose two tabs
+  (a toggle group, each with its glyph pointing the way the money moves, `banknote-arrow-down` in,
+  `banknote-arrow-up` out) are the two kinds. It opens on the payment where the contract takes one
+  and on the refund where it does not. A tab the contract does not take is dimmed in place, says
+  why on hover and on a focus the reader moves to it (never on the focus the surface places as it
+  opens, which the toggle group puts on its first tab), and cannot be chosen, as any refused
+  control does (*Guidance*): the reader
+  never stands on a tab whose create would only be refused, so the form's create is never the thing
+  dimmed. A contract never takes both at once, since a live one refunds only what was paid beyond
+  its total and a terminated one takes no payment, so one tab is always the dimmed one and says
+  which way money can move now. The plus is refused only where neither may be made, with the
+  payment's reason (`payment/component/form.svelte`; effort 854, requirement 25).
+
+  *Why: the human, 2026-10-07. A refund alone on the ledger's balance footer was away from where
+  every create is looked for, and a second create in the bar split one act in two; recording money
+  is one act, and which way it moves is a value of it.*
 - **The key** is Ctrl or Cmd with N, an application shortcut in the registry
   (`create/key.ts`, registered by `create/component/shortcut.svelte`). It is answered
   by the set on screen: a drawn control holds its place (`create/target.svelte.ts`) and the
