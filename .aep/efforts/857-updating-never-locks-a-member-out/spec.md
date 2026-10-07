@@ -1,5 +1,5 @@
 ---
-status: implemented
+status: accepted
 ---
 
 # Problem
@@ -132,6 +132,21 @@ from wherever it stands.
     without setting anything up again, and no organization or workspace is reset (`the app has
     users`).
 
+14. **No record is lost because two machines saved the same value while apart.** A tenant's
+    phone and national ID, a complex's name and a contract's government ID are kept unique by the
+    app when a person saves, with today's messages, and never by a rule of the shared database,
+    which would refuse one machine's changes and let the engine drop them. Removing those rules
+    moves no floor, so any machine applies it on its own. Two records made apart that are the same
+    in every field a person entered heal into one without anyone noticing: the earlier stays, what
+    pointed at the later moves to it, and the later is retired rather than deleted, so a change
+    that still arrives for it reaches the one that stayed. Two records that differ are both kept as
+    they are. *Added 2026-10-07 by the human at /implement, after the measurement in
+    [[efforts/857-updating-never-locks-a-member-out/evidence/prototypes/what-a-duplicate-value-does-to-sync]]
+    showed a refused push half-applied (an orphaned contract every member pulls) and its refused
+    rows dropped. The human's words: "i want the most resilainet and reailbie soluation that and
+    not user facing meaning the user will not notice and it's autmoatic self-healing and proactive
+    and quick", and "not implicit change that affice the user configtive about the system data".*
+
 # Acceptance Criteria
 
 1. A test opens, on the current build as a member and as a manager, a workspace and an
@@ -184,6 +199,15 @@ from wherever it stands.
 13. A test seeds an organization and a workspace at every version shipped since 0.14.0
     (`[[rules/migrations]]`), opens each on the new build as the owner and as a member, and finds
     every row intact, both floors equal to the version, and no setup step asked for.
+
+14. A live test on throwaway databases, two replicas offline saving the same phone (and a
+    contract on each tenant), finds every record and contract on every replica after both sync, in
+    either order, with no push refused; a test finds the rules gone after any machine opens the
+    workspace, the legacy numbers unchanged, and an older replica still syncing; a test merges two
+    identical records into the earlier, moves what pointed at the later, retires it, and carries a
+    later edit of it to the survivor, the same on two machines healing at once; a test keeps two
+    records that differ untouched; and the save checks refuse each of the four duplicates online
+    with today's messages, in Arabic and English.
 
 # Constraints
 

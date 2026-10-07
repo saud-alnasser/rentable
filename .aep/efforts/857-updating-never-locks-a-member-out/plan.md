@@ -65,6 +65,30 @@ builds on it.
 
 The human chose B on 2026-10-07 and amended spec requirements 1 and 3 to match it.
 
+## Duplicates never cost a record (requirement 14)
+
+Measured in [[efforts/857-updating-never-locks-a-member-out/evidence/prototypes/what-a-duplicate-value-does-to-sync]]:
+a UNIQUE refusal of a pushed change aborts only that statement, so the rest of the batch (a
+contract on the refused tenant) lands and every member pulls an orphan, and the next push answers
+`Ok` with the refused rows gone. With the shared index dropped every push and pull succeeds in
+either order, and a replica still holding the index pulls the drop with the pages and keeps syncing.
+
+- **Workspace step `0007` drops the four user-field unique indexes** (`tenant_phone_unique`,
+  `tenant_national_id_unique`, `complex_name_unique`, `contract_gov_id_unique`), and `schema.ts`
+  stops declaring them so no later generated migration recreates them. Removing a rule moves no
+  floor (requirement 2): it is declared a step that runs on its own, and the addition check admits
+  `DROP INDEX` as a relaxation. Legacy numbers do not move, so 0.20 keeps opening the workspace.
+- **Uniqueness is the app's, at save**: the tenant, complex and contract acts keep refusing a
+  value already in use with today's messages (`tenant.phoneTaken` and its siblings), reading the
+  workspace rather than relying on the engine's refusal.
+- **Identical records heal**: after every pull on a machine that may write, a pass finds records
+  sharing one of the four values whose every person-entered field is equal, keeps the earliest
+  (`created_at`, then `id`), points what referred to the later at it, and retires the later with a
+  new nullable `merged_into` column (an addition) that every read excludes. The pass is
+  deterministic and idempotent, so two machines healing at once agree; on later passes it points
+  new references at the survivor and carries a field changed on a retired record after its merge
+  to the survivor where the survivor has not changed since. Records that differ are left alone.
+
 # Components
 
 ## Rust, `apps/desktop/tauri/src/`
