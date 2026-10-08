@@ -6,6 +6,8 @@ use-when: "resuming this effort, or asking where it stands"
 
 ## Ledger
 
+[x] 02 error-toasts-stay-and-mirror 4/4
+
 ## Rounds
 
 ## Recorded

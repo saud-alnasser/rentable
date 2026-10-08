@@ -5,9 +5,12 @@
 	import OctagonXIcon from '@lucide/svelte/icons/octagon-x';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 
+	import { useDesignContract } from '#lib/strings.js';
 	import { Toaster as Sonner, type ToasterProps as SonnerProps } from 'svelte-sonner';
 
 	let { ...restProps }: SonnerProps = $props();
+
+	const contract = useDesignContract();
 </script>
 
 <!--
@@ -26,9 +29,19 @@
 	**`theme` is the application's to pass**, as the appearance it resolved: this package does not
 	choose light or dark, and sonner cannot read the class on `<html>`. *It read `mode-watcher`
 	until effort 832, which followed nothing the application set, so toasts stayed dark in light.*
+
+	**The side, the direction and the close control's name are the design contract's.** Toasts
+	stand at the bottom end of the window, which is the right in a left-to-right reading and the
+	left in a right-to-left one. svelte-sonner places a toaster physically, by `position`, and reads
+	`dir="auto"` from the document once and keeps it, so both are handed over from the contract and
+	follow a change of language. *Added by effort 861, requirement 4: the toaster stood at the bottom
+	right in Arabic, where every other surface mirrors.*
 -->
 <Sonner
 	class="toaster group"
+	position={contract.direction === 'rtl' ? 'bottom-left' : 'bottom-right'}
+	dir={contract.direction}
+	closeButtonAriaLabel={contract.strings.close}
 	richColors
 	style="--normal-bg: var(--color-popover); --normal-text: var(--color-popover-foreground); --normal-border: var(--color-border);
 	       --success-bg: color-mix(in oklab, var(--success) 12%, var(--popover)); --success-border: color-mix(in oklab, var(--success) 30%, transparent); --success-text: var(--success);

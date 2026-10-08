@@ -170,9 +170,9 @@ export const DESIGN_CONTRACT = Symbol('rentable.design.contract');
  * **It fires when the calling component initialises, which for most of the package is not when
  * the screen draws.** Most of the families that read this are overlays whose content `bits-ui`
  * instantiates only once they open, so a missing provider surfaces on the first interaction
- * rather than on render. `card`, `toggle-group`, `breadcrumb`, `carousel`, `pagination`, the
- * sidebar's own chrome, `block/record-surface`, `block/back-control` and `block/password-input`
- * throw at render, because they are the ones that are not overlays. **`block/delete-dialog` throws at render as well, and
+ * rather than on render. `card`, `toggle-group`, `breadcrumb`, `carousel`, `pagination`,
+ * `sonner`, the sidebar's own chrome, `block/record-surface`, `block/back-control` and
+ * `block/password-input` throw at render, because they are the ones that are not overlays. **`block/delete-dialog` throws at render as well, and
  * it is an overlay.** Its own script reads the contract to default four of its props, before
  * `bits-ui` has decided anything, and consumers mount it closed rather than behind an `{#if}`,
  * so it runs when the page holding it first draws. The laziness is `Dialog.Content`'s, not the

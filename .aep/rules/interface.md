@@ -1431,10 +1431,23 @@ vocabulary above, never a hand-coloured box. The contract units lock notice is t
 
 **Notifying is these two and nothing else.** The application tells the reader something through a
 toast, raised through the shared handlers, or through a callout standing on the surface it is
-about; it raises no system notification. A toast is read and gone in the toaster's shared
-duration, and one carrying an offer stays longer (*Undo*).
+about; it raises no system notification. A success or a warning is read and gone in the
+toaster's shared duration, and one carrying an offer stays longer (*Undo*).
 
-Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 12.
+**An error toast stands until the reader closes it**, and carries the control that closes it.
+`notify.error` and `showErrorSentence` raise it so, and every error path reaches one of the two,
+so no caller decides it again. A success, a warning and an offer carry no close control, since
+they leave on their own. **The toaster stands at the bottom end of the window**: bottom right in a
+left-to-right reading and bottom left in a right-to-left one, with its close control named in the
+reader's language, all three read from the design contract by `primitive/sonner`.
+
+*Why: an error is the only channel an act that failed has, and in the shared
+duration it was gone before it could be read; and the toaster stayed at the bottom right in
+Arabic, where every other surface mirrors.*
+
+Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 12; the
+error toast and the toaster's side by [[efforts/861-the-app-never-shows-something-false/spec]],
+requirements 3 and 4.
 
 ## Navigation
 
