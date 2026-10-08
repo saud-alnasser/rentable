@@ -86,12 +86,16 @@ thrown away without the reader choosing to.
 5. **A renewal records the contract it continues.** A contract created by renewal stores which
    contract it renews. The link survives undo and redo of the renewal, a workspace export and
    import, and replication. A duplicate does not carry it.
-6. **Contracts renewed before this change are recognised.** On the first open by a build carrying
-   this change, a contract is taken as renewed by another when both name the same tenant, the
-   other starts on the day after it ends, the two hold the same set of units, and the other is not
-   terminated. Where more than one contract would qualify, none is taken (see *Risks*).
+6. **Renewals the application did not link are recognised.** Whenever the contracts are
+   reconciled on a machine that may write (at startup, after a sync brings rows, at a day
+   crossing), a contract that names no predecessor is linked as renewing another when both name
+   the same tenant, it starts on the day after the other ends, the two hold the same set of units,
+   and it is not terminated. Where more than one contract would qualify on either side, none is
+   linked (see *Risks*). A link once written is never removed by this pass. This covers renewals
+   made before this change, by a build without it, and in a file imported without the link.
    *The human's call, 2026-10-09: "Yes, recognise them", over linking only renewals made after
-   the update.*
+   the update; and, at /plan, "Every recalculation", over a pass that runs once per workspace and
+   over inferring the link at read time with no column.*
 7. **A renewed contract is not up for renewal.** A contract with a successor that is not
    terminated does not rank as ending soon anywhere the rank is read (the landing screen, the
    contracts directory's rank filter, the command menu), and *renew* is not offered on it. If the
@@ -128,9 +132,12 @@ thrown away without the reader choosing to.
 5. A renewal's successor stores the predecessor's id; undoing the renewal and redoing it restores
    the same link; a workspace exported and imported keeps it; a duplicated contract has none.
    Router tests cover each.
-6. Opening a workspace seeded with a renewal made before this change (same tenant, next-day start,
-   same units) shows the predecessor out of ending soon. A seeded pair that differs in tenant,
-   units or start date is not linked, and an ambiguous seed links nothing. Tests cover each.
+6. Opening a workspace seeded at the version before this change with a renewal (same tenant,
+   next-day start, same units) shows the predecessor out of ending soon once the contracts are
+   reconciled. A pair that differs in tenant, units or start date is not linked, an ambiguous set
+   links nothing, a terminated candidate is not linked, and an existing link is not moved. A
+   successor written without the link after the change is linked at the next reconcile. Tests
+   cover each.
 7. A renewed contract inside its notice window appears in no ending-soon list and offers no
    *renew*; deleting or terminating its successor puts it back in both. Rank and act tests cover
    it.
@@ -187,19 +194,18 @@ thrown away without the reader choosing to.
   is enough. If it is not, the plan caps how many stand at once.
 - The dark destructive fill can reach 4.5:1 for its label without failing the 4.5:1 the same token
   needs as text on the surfaces, by a separate fill or label token. The plan decides which.
-- Recognising earlier renewals at first open, rather than at every read, is the cheaper shape; the
-  plan decides between a one-off step and a read-time rule.
 - The renew form's rent field is the contract form's existing cost field, enabled for renewal.
 
 # Risks
 
 - **A wrong link hides a contract that needs renewing.** Requirement 6 matches on tenant, next-day
-  start and the same units; a hand-made next contract that matches but was not meant as a renewal
+  start and the same units; a hand-made next contract, made before or after this change, that matches but was not meant as a renewal
   is taken as one. Harmless, since it does continue the term, but it is a guess written into data.
   Contracts holding no units match on tenant and date alone, which is weaker, and an ambiguous
   match links nothing.
 - **An older build on the same workspace.** A build without this change renews without writing
-  the link and drops it if it restores a successor from its own undo. The predecessor then
-  reappears in ending soon. The migration's kind and floors are where this is judged.
+  the link and drops it if it restores a successor from its own undo. Requirement 6 links such a
+  successor again at the next reconcile where it matches the rule; a renewal whose start was moved
+  off the next day stays unlinked, and its predecessor reappears in ending soon until it ends.
 - **The discard question fires where it should not.** A form that seeds values on open (the
   renew form, a duplicate) must count only the reader's changes, or every such form asks on close.
