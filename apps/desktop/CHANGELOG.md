@@ -1,5 +1,51 @@
 # rentable
 
+## 0.21.0
+
+### Minor Changes
+
+- [#858](https://github.com/saud-alnasser/rentable/pull/858) [`c55b598`](https://github.com/saud-alnasser/rentable/commit/c55b5984bcc3943809852f428a4da131be7f0faf) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - while a newer rentable has upgraded a workspace or the organization past what your version may change, anything you try to add, edit or delete there is refused with that reason and nothing is sent, so your version never writes over the newer one; everything you could read stays open to read
+
+- [#858](https://github.com/saud-alnasser/rentable/pull/858) [`c55b598`](https://github.com/saud-alnasser/rentable/commit/c55b5984bcc3943809852f428a4da131be7f0faf) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - an older version of rentable whose data a newer one upgraded keeps reading it, and a notice above every screen says it needs updating to make changes, with the update in it; an app that is already open follows the upgrade as soon as it arrives, to that notice, or to the update screen or the organization switcher where it can no longer read
+
+- [#858](https://github.com/saud-alnasser/rentable/pull/858) [`c55b598`](https://github.com/saud-alnasser/rentable/commit/c55b5984bcc3943809852f428a4da131be7f0faf) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - an organization that cannot open now returns you to the organization switcher and says why above it, with the update where a newer rentable upgraded it; a workspace a newer rentable upgraded shows an update screen in its place, from which your other workspaces still open
+
+- [#858](https://github.com/saud-alnasser/rentable/pull/858) [`c55b598`](https://github.com/saud-alnasser/rentable/commit/c55b5984bcc3943809852f428a4da131be7f0faf) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - the first time an organization's owner signs in on this version, managers gain the permission to upgrade the data and it can be given to anybody; until then, upgrading waits for the owner
+
+- [#858](https://github.com/saud-alnasser/rentable/pull/858) [`c55b598`](https://github.com/saud-alnasser/rentable/commit/c55b5984bcc3943809852f428a4da131be7f0faf) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - changes you made on a machine that had not sent them before a workspace was upgraded are sent once that machine is updated; where the upgrade removed what they name, they are kept on the machine, the sync card says so, and they are only discarded when you choose to and confirm
+
+- [#858](https://github.com/saud-alnasser/rentable/pull/858) [`c55b598`](https://github.com/saud-alnasser/rentable/commit/c55b5984bcc3943809852f428a4da131be7f0faf) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - changes you made to the organization on a machine that had not sent them before the organization was upgraded are no longer lost: where the upgrade removed what they name, they are kept on the machine, the sync card says so, and they are only discarded when you choose to and confirm, after which the organization is copied again from Turso and you stay signed in
+
+- [#858](https://github.com/saud-alnasser/rentable/pull/858) [`c55b598`](https://github.com/saud-alnasser/rentable/commit/c55b5984bcc3943809852f428a4da131be7f0faf) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - rentable now looks for a newer version by itself when it starts, downloads it in the background, and offers to restart into it; an update you do not restart into installs when you quit
+
+- [#858](https://github.com/saud-alnasser/rentable/pull/858) [`c55b598`](https://github.com/saud-alnasser/rentable/commit/c55b5984bcc3943809852f428a4da131be7f0faf) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - settings marks an organization or workspace that has an upgrade available, for whoever may run it; reviewing it shows what the upgrade changes and whose machines it would stop or make read-only, with the version each runs and those not seen lately apart, and you choose not yet or upgrade now; a feature that needs an upgrade says why it is unavailable and who can run it until then
+
+- [#858](https://github.com/saud-alnasser/rentable/pull/858) [`c55b598`](https://github.com/saud-alnasser/rentable/commit/c55b5984bcc3943809852f428a4da131be7f0faf) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - roles and members' cards list a new permission, upgrade the data, which managers hold by default and which can be given to any role or member, or taken away
+
+### Patch Changes
+
+- [#858](https://github.com/saud-alnasser/rentable/pull/858) [`c55b598`](https://github.com/saud-alnasser/rentable/commit/c55b5984bcc3943809852f428a4da131be7f0faf) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - when a newer rentable keeps you out of an organization or a workspace, or leaves one read-only, the app looks for the update by itself and downloads it in the background, so you do not have to press anything to find it
+
+- [#858](https://github.com/saud-alnasser/rentable/pull/858) [`c55b598`](https://github.com/saud-alnasser/rentable/commit/c55b5984bcc3943809852f428a4da131be7f0faf) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - joining an organization a newer rentable upgraded now says why on the join screen and offers the update right there, and the way back still leads to your organizations
+
+- [#858](https://github.com/saud-alnasser/rentable/pull/858) [`c55b598`](https://github.com/saud-alnasser/rentable/commit/c55b5984bcc3943809852f428a4da131be7f0faf) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - rentable no longer guesses when it cannot tell which version a workspace or organization is at: a change you save while an upgrade is arriving waits to see whether it can be kept, a short hiccup while checking no longer stops you from making changes, and removing an organization no longer leaves its update notice on the next one
+
+- [#858](https://github.com/saud-alnasser/rentable/pull/858) [`c55b598`](https://github.com/saud-alnasser/rentable/commit/c55b5984bcc3943809852f428a4da131be7f0faf) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - when someone with full access signs in on a new version of rentable, it brings every workspace they can change up to that version in the background, without opening any of them, so members who can only read are not left waiting for somebody to open each one; until then, a member who can only read sees that the workspace is waiting for someone with full access to open it on the new version, with their other workspaces still there to open
+
+- [#858](https://github.com/saud-alnasser/rentable/pull/858) [`c55b598`](https://github.com/saud-alnasser/rentable/commit/c55b5984bcc3943809852f428a4da131be7f0faf) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - a workspace that needs upgrading in an organization a newer version of rentable upgraded no longer signs you out: you stay in, on a screen that says to update rentable, with your other workspaces to open; a save no longer waits while changes are being sent, a moment the database is busy no longer makes a workspace read-only or asks you to update, a workspace whose version record cannot be read says that changes are paused rather than asking you to update, and being taken out of your organization now brings you back to the organization switcher
+
+- [#858](https://github.com/saud-alnasser/rentable/pull/858) [`c55b598`](https://github.com/saud-alnasser/rentable/commit/c55b5984bcc3943809852f428a4da131be7f0faf) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - a workspace that will not open no longer signs you out of your organization: you stay in, on a screen that says why, with a way to try it again and your other workspaces to open; signing in again or choosing another organization no longer goes back to the workspace that failed, and a join link refused for one organization no longer signs you out of the one you are in
+
+- [#858](https://github.com/saud-alnasser/rentable/pull/858) [`c55b598`](https://github.com/saud-alnasser/rentable/commit/c55b5984bcc3943809852f428a4da131be7f0faf) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - if rentable closes in the middle of upgrading the organization, the other members are let back to their work as soon as you open rentable again on that machine, rather than waiting up to half an hour
+
+- [#858](https://github.com/saud-alnasser/rentable/pull/858) [`c55b598`](https://github.com/saud-alnasser/rentable/commit/c55b5984bcc3943809852f428a4da131be7f0faf) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - where a newer rentable upgraded both the organization and the workspace you have open, the workspace is followed too: its changes are turned off while it can still be read, and the update screen stands in its place once it cannot
+
+- [#858](https://github.com/saud-alnasser/rentable/pull/858) [`c55b598`](https://github.com/saud-alnasser/rentable/commit/c55b5984bcc3943809852f428a4da131be7f0faf) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - while another member upgrades the organization, a change you make to it from another machine is refused with that reason and nothing is written, so nothing lands in the middle of the upgrade; try again once it has finished
+
+- [#858](https://github.com/saud-alnasser/rentable/pull/858) [`c55b598`](https://github.com/saud-alnasser/rentable/commit/c55b5984bcc3943809852f428a4da131be7f0faf) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - records saved on two machines while they were apart are no longer lost when both happen to use the same phone, national ID, complex name or government ID; both machines keep every record once they sync
+
+- [#858](https://github.com/saud-alnasser/rentable/pull/858) [`c55b598`](https://github.com/saud-alnasser/rentable/commit/c55b5984bcc3943809852f428a4da131be7f0faf) Thanks [@saud-alnasser](https://github.com/saud-alnasser)! - a change you save while rentable is still opening a workspace now waits until rentable knows whether that workspace can take it, and when something stops a workspace from opening, its details say what really happened
+
 ## 0.20.0
 
 ### Minor Changes
