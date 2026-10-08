@@ -9,6 +9,7 @@
 	import { Input } from '@rentable/design/primitive/input/index.js';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { PASSWORD_FLOOR } from '$lib/organization/setup/setup';
+	import { UpdateAction } from '$lib/update/ui';
 	import { WayInPreferences } from '$lib/settings/ui';
 	import { tick, untrack } from 'svelte';
 
@@ -339,6 +340,18 @@
 			</Button>
 		{:else if step.kind === 'refused'}
 			{@render shellRefusal(refusal, step.detail)}
+		{:else if step.kind === 'outdated'}
+			<!-- a newer rentable upgraded what the link leads to, and this machine does not hold it
+			     yet (effort 857, ticket 17): the reason, and the update beside it in the same
+			     callout as the switcher draws it, since updating is the one way on. Nothing else is
+			     offered; the corner's way back hands the form back for after the update. -->
+			<Callout tone="warning" class="flex flex-col gap-3" data-join-outdated>
+				<p class="first-letter:uppercase">{step.errorMessage}</p>
+				<UpdateAction variant="notice" />
+			</Callout>
+			{#if step.detail}
+				<DetailDisclosure detail={step.detail} name="join" />
+			{/if}
 		{:else if step.kind === 'password'}
 			<!-- the one thing a link cannot carry: the password this person is choosing. The code
 			     was given on the form that took the link, and is held with it. -->

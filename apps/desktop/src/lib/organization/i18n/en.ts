@@ -157,6 +157,30 @@ export const organization = {
 		// row, and the sync group points at it by name rather than drawing a second consent (effort
 		// 846, ticket 38).
 		reconnectOnAccount: 'reconnect the Turso account under leaving.',
+		// changes this machine had not sent when an upgrade removed what they name (effort 857,
+		// ticket 13): kept until the person discards them, and the workspace does not sync until
+		// then. Keeping them is doing nothing; discarding asks first.
+		unsendable: {
+			sentence:
+				'changes made here before the upgrade cannot be sent. they are kept, and syncing waits until you discard them.',
+			discard: 'discard unsent changes',
+			confirmTitle: 'discard unsent changes',
+			confirmDescription:
+				'every change this machine has not sent is removed, and the workspace is copied again from Turso. this cannot be undone.',
+			confirm: 'discard',
+			confirming: 'discarding…',
+			discarded: 'unsent changes discarded. this workspace syncs again.'
+		},
+		// the same, for changes to the organization itself (effort 857, ticket 20): kept until
+		// the person discards them, and the organization does not sync until then. The act, its
+		// confirm and its labels are the ones above; what goes and what follows are its own.
+		unsendableOrganization: {
+			sentence:
+				'organization changes made here before its upgrade cannot be sent. the organization waits until you discard them.',
+			confirmDescription:
+				'every unsent organization change is removed, and the organization is copied again from Turso. this cannot be undone.',
+			discarded: 'unsent changes discarded. the organization syncs again.'
+		},
 		checkNow: 'sync',
 		// what folds under the state: the workspace this machine keeps a copy of, and where the copy
 		// is (effort 846, *Detail that few readers need folds under its row*).
@@ -434,6 +458,7 @@ export const organization = {
 		manageRoles: 'manage roles',
 		overrideMember: "change one member's permissions",
 		manageMark: 'change the organization stamp',
+		upgradeData: 'upgrade the data',
 		createWorkspace: 'create workspaces',
 		deleteWorkspace: 'delete workspaces',
 		mintReadOnly: 'grant read only access',
@@ -517,7 +542,9 @@ export const organization = {
 			grantWorkspace: 'put members in workspaces, or take them out.',
 			manageRoles: 'add, edit, rank and delete roles.',
 			overrideMember: 'give one member more or less than their role does.',
-			manageMark: 'set the organization stamp printed on its pages.'
+			manageMark: 'set the organization stamp printed on its pages.',
+			upgradeData:
+				'bring the organization and its workspaces up to a newer version, which older versions may then not open.'
 		},
 		viewFirst: 'turn view on first: adding, editing or deleting a record needs seeing it.',
 		groupRefused: 'some of these are not yours to change',
@@ -631,6 +658,65 @@ export const organization = {
 		removeFromWorkspace: 'remove from workspace',
 		removeAsks:
 			'they can no longer open this workspace once the access they hold runs out. adding them again gives it back.'
+	},
+	// the upgrade of the organization or of a workspace (effort 857, ticket 07). `steps` says what
+	// each step adds or changes, one sentence per step `database/step.rs` declares, by its
+	// `describes` key; the upgrade sheet lists the ones it would run.
+	upgrade: {
+		// the mark on the organization's card and on a workspace's, and the act that opens the sheet
+		// (ticket 08). Drawn only for a holder of `upgradeData` with an upgrade waiting.
+		available: 'upgrade available',
+		availableOrganization:
+			"the organization's data can be upgraded. you see who it affects before anything changes.",
+		review: 'review',
+		act: 'upgrade',
+		// the sheet: what it changes, who it stops or makes read-only, and those not seen lately.
+		titleOrganization: 'upgrade the organization',
+		titleWorkspace: 'upgrade {workspace:string}',
+		description: 'it runs once, for everyone, and a copy of the data is kept first.',
+		changes: 'what it changes',
+		stopped: "can't open it until they update",
+		readOnly: "can read it but can't change it until they update",
+		unseen: 'not seen in the last seven days',
+		nobodyAffected: 'nobody seen in the last seven days is affected.',
+		finding: 'finding who it affects…',
+		unnamedMachine: 'a machine with no name',
+		nobodySignedIn: 'nobody signed in',
+		version: 'rentable {version:string}',
+		unknownVersion: 'an older rentable',
+		lastSeen: 'last seen {date:string}',
+		notYet: 'not yet',
+		now: 'upgrade now',
+		upgradedOrganization: 'the organization was upgraded.',
+		upgradedWorkspace: '{workspace:string} was upgraded.',
+		// what a capability waiting on a step says at its control, and who can run the upgrade.
+		gate: {
+			needsOrganization: "this needs the organization's data upgraded first.",
+			needsWorkspace: "this needs {workspace:string}'s data upgraded first.",
+			youCan: 'you can upgrade it in settings.',
+			theyCan: '{who:string} can upgrade it in settings.',
+			ownerCan: '{owner:string}, the owner, can upgrade it in settings.',
+			someoneCan: 'the owner or a manager can upgrade it in settings.'
+		},
+		steps: {
+			workspaceRecords:
+				"the workspace's records: complexes, units, tenants, contracts and payments.",
+			contractAmounts: 'the paid and expected amounts on each contract.',
+			recordHistory: 'the history of every record.',
+			recordIds: "every record's id rebuilt as text.",
+			paymentIndex: "a quicker look-up of a contract's payments.",
+			paymentMethod: 'how each payment was paid, with its reference and its note.',
+			paymentDirection:
+				"which way each payment's money went, so a refund counts as money paid back.",
+			chainOfCertificates:
+				"every member's permissions signed again from the owner's key, in one chain of certificates.",
+			workspaceOverride:
+				'what a member may do in one workspace, apart from the rest of the organization.',
+			duplicateValues:
+				'records saved apart on two machines all stay, even with the same phone, national ID, complex name or government ID.',
+			identicalRecords:
+				'a record saved the same way on two machines while apart becomes one, keeping everything that belongs to it.'
+		}
 	}
 } satisfies BaseTranslation;
 
@@ -718,7 +804,9 @@ export const refusals = {
 		workspaceNewer:
 			'a newer version of rentable upgraded this workspace. update rentable to open it.',
 		workspaceBehind:
-			'this workspace needs upgrading, and read-only access cannot do it. ask a member with full access to open it once.',
+			'this workspace is waiting for someone with full access to open it on the new version of rentable. try again later.',
+		workspaceBehindReadOnlyByVersion:
+			'this workspace needs upgrading, and a newer version of rentable upgraded its organization. update rentable to open it.',
 		workspaceNeedsOpening:
 			'this workspace is behind this version of rentable. open it once on this machine to bring it up to date.',
 		databaseRefused: 'the database refused the request, and nothing was changed. try again later.',
@@ -732,6 +820,21 @@ export const refusals = {
 			"this machine's access to the organization has lapsed. ask your organization for a new link to connect it again.",
 		organizationNewer:
 			'a newer version of rentable made this organization. update rentable to open it.',
+		ownerNotUpdated:
+			'the owner has not opened this version of rentable yet. upgrading waits until they have.',
+		upgradeNeedsOwner:
+			"this upgrade signs the organization again with the owner's key, so only the owner can run it.",
+		upgradeUnderWay:
+			'another member is upgrading this right now. try again once they have finished; nothing was changed.',
+		organizationReadOnlyByVersion:
+			'a newer version of rentable upgraded this organization. update rentable to make changes in it.',
+		workspaceReadOnlyByVersion:
+			'a newer version of rentable upgraded this workspace. update rentable to make changes in it.',
+		workspaceFloorsUnreadable:
+			"this workspace's version record could not be read, so changes are paused. try again soon, or contact the owner.",
+		changesUnsendableAfterUpgrade:
+			'changes made here before the workspace was upgraded cannot be sent. they are kept until you discard them.',
+		nothingUnsent: 'there are no unsent organization changes to discard.',
 		copyNotTaken:
 			'no copy was taken before upgrading, so nothing was changed. check the connection and the backups folder, then try again.',
 		shapeNotAsBuilt:

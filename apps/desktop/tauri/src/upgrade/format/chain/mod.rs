@@ -176,9 +176,13 @@ fn refused<'a>(upgrading: &'a Upgrading<'a>) -> Pending<'a, Option<&'static str>
 /// transaction.
 fn run<'a>(upgrading: &'a Upgrading<'a>) -> Pending<'a, ()> {
     Box::pin(async move {
+        // every row is re-signed from the root, so the change runs on the organization key alone.
+        let organization_key = upgrading
+            .organization_key
+            .ok_or_else(crate::organization::upgrade::needs_the_owner)?;
         let plan = planned(
             upgrading.store,
-            upgrading.organization_key,
+            organization_key,
             upgrading.signing_key,
             upgrading.opened,
             upgrading.now,

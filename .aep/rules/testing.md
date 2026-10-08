@@ -324,11 +324,13 @@ other otherwise. See [[references/cargo]].
 
 ## Tests that reach a live remote
 
-**Eight sets are admitted, in six properties, and they are the exception rather than a second way
-of testing.** All eight exist, and every one is Rust. The four `losing_writer` tests at the foot of
-`tauri/src/database/mod.rs` open two replicas of one workspace against a database they provision on
-Turso; the six admitted for the organization effort below, and the one admitted for effort 838 after
-them, each create and remove their own.
+**Thirteen sets are admitted, in seven properties, and they are the exception rather than a second
+way of testing.** All thirteen exist, and every one is Rust. The four `losing_writer` tests at the
+foot of `tauri/src/database/mod.rs` open two replicas of one workspace against a database they
+provision on Turso; the six admitted for the organization effort below, the one admitted for effort
+838 after them, and the five admitted for effort 857 after that, each create and remove their own.
+*The count read ten after ticket 24 added a set without moving it; ticket 33 corrected it with its
+own, and ticket 35 moved it with its own.*
 Everything else in this repository is tested against a local file, a loopback HTTP server, or an
 in-memory engine, and that is not changing.
 
@@ -337,6 +339,22 @@ the engine reaches its remote over HTTP. There is no local stand-in. The loopbac
 [[rules/credentials]] endorses under *Transport testing* is the right shape and cannot be built
 here, because standing up the replication protocol would mean implementing the behaviour under
 test, and a bug in the stand-in would read as a finding about Turso.*
+
+**A second instance holds the first property for two replicas healing one record** (effort 857,
+ticket 35, spec requirement 14, under the bound of 2026-10-07 below, which allowed live runs on
+throwaway databases in the `rentable` group alone):
+`identical_records_live_heal_into_one_with_both_contracts_in_either_order`, at the foot of
+`tauri/src/database/mod.rs`, provisions at this build's version through
+`database/test/workspace.rs`, has two replicas create the same tenant while apart with a contract
+each and the same contract with the same payment on both, syncs them in either order until each
+holds both, heals both at once as two heartbeats that met the copies together would, and syncs
+again: every replica and the remote hold one tenant shown, the earlier, with both contracts on it
+and the later kept, retired into it, and the shared contract once, holding its payment once. It
+reads `TURSO_GROUP` and refuses to run in any group but `rentable`, and each case deletes its
+database whatever it asserted. A local stand-in cannot say this, since the subject is what the
+engine replays when two replicas both wrote the same heal to the same rows. *First run 2026-10-07,
+and again on 2026-10-08 with the shared contract and payment: both orders passed each time, and the
+group held the same twenty databases before and after.*
 
 *Two admissions retired with the control plane on 2026-09-12
 ([[efforts/819-an-organization-hosts-its-own-workspaces/spec]], requirement 19):
@@ -449,7 +467,43 @@ a pragma, which is the subject; a `file:` database has no pipeline. It is a new 
 an instance of the fourth: the subject is the database's own SQL endpoint, not the Platform API. It
 is the nearest thing to the retired admission whose property was whether a remote honours a
 transaction the client asks for, and it is admitted on its own rather than as that one restored,
-because what it asks is this runner's transaction on this server.
+because what it asks is this runner's transaction on this server. **A second instance holds it for
+the organization's upgrade** (effort 857, ticket 24, under the bound of 2026-10-07 below): the
+organization is upgraded as one transaction at its primary over the pipeline, so
+`organization_upgrade_live_runs_whole_at_the_primary_and_holds_other_writes`, at the foot of
+`tauri/src/organization/upgrade/mod.rs`, provisions through the same scaffolding, lays an organization
+on it, holds `BEGIN IMMEDIATE` on one stream while another connection writes, and finds the write
+kept out until the commit, never landing inside; then runs the upgrade there and finds its batch
+committed whole and the check against Turso's answers passing. The first run, on 2026-10-07, saw the
+other write wait some 3.5 seconds and land once the commit let it go.
+
+**A ninth property: what the sync engine does with changes a replica had not sent when the workspace
+changed shape under them.** Admitted by the human's bound of 2026-10-07 (effort 857, ticket 13,
+spec criterion 10), which allowed live runs on throwaway databases in the `rentable` group alone and
+never on an existing one. `unsent_changes_live_are_sent_after_an_addition` and
+`unsent_changes_live_are_kept_and_asked_for_after_a_removal`, at the foot of
+`tauri/src/database/mod.rs`, provision through `database/test/workspace.rs`, hold a change in a
+replica, change the remote's shape over the pipeline as an upgrade's step does, and open the replica
+again as the updated build: an added column is pushed past, a dropped or renamed one is classified
+and kept until the discard. Each case deletes its database whatever it asserted, before a failure is
+raised. Nothing local holds it: the subject is the engine's push and pull against Turso's own answer
+to a statement naming a column it no longer has, and the run that wrote these found the engine drops
+such a change on its second push or on a pull, which no stand-in would have said. It is a new
+property rather than an instance of the first, which is what two replicas lose to each other, not
+what one loses to the remote's shape. **A second instance holds it for the organization's replica**
+(effort 857, ticket 20, under the same bound): `organization_unsent_live_changes_are_held_and_discarded_only_when_asked`,
+at the foot of `tauri/src/organization/store/mod.rs`, provisions through the same scaffolding, holds
+a change in an organization replica, drops the column it names over the pipeline, and finds it
+classified at a first push and at a first pull alike, held across a reopen, and gone only at the
+discard. **A third instance holds it for two replicas and a rule taken away** (effort 857, ticket 33,
+spec criterion 14, under the same bound): `duplicate_values_live_cost_no_record_in_either_order`, at
+the foot of `tauri/src/database/mod.rs`, provisions through the same scaffolding at 7, has two
+replicas save a complex, a tenant and a contract each while apart with the same complex name, phone,
+national ID and government ID, runs `0007` at the primary as opening on this build does, and syncs
+them in either order, the second never having pulled the drop: no push or pull is refused, and both
+replicas and the remote hold both of every record with no contract on a missing tenant. A local
+stand-in cannot say this either, since the subject is what the engine replays over a replica whose
+own copy of the shape still carries the rule.
 
 *The count in the heading sentence is the thing that goes stale. Another live test is a decision
 somebody takes here, in this section, naming its property and saying whether it is a new property or

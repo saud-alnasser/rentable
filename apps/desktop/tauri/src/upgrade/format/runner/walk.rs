@@ -141,7 +141,7 @@ pub(super) async fn upgrade(
     let upgrading = Upgrading {
         store,
         key: &key,
-        organization_key: &organization_key,
+        organization_key: Some(&organization_key),
         signing_key: &signing_key,
         opened,
         now,

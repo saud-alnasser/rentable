@@ -1,5 +1,5 @@
 // The settings feature's strings in english, composed back into `i18n/en/index.ts` at `settings`,
-// `settingsHooks`, `common.actions` and `common.labels`. It imports nothing but types, because the
+// `settingsHooks` and `common.actions`. It imports nothing but types, because the
 // typesafe-i18n generator transpiles it along with the locale.
 
 import type { BaseTranslation } from '../../i18n/i18n-types';
@@ -12,16 +12,10 @@ export const settings = {
 	diagnosticsReveal: 'open log folder',
 	diagnosticsTitle: 'diagnostics',
 
-	downloadingUpdate: 'downloading update',
-
-	latestRelease: "you're already on the latest release.",
-
 	loadErrorTitle: 'settings are unavailable right now',
 
 	transferImportTitle: 'import into {workspace:string}',
 	transferImportSuccess: 'the file was imported',
-
-	restartNotice: 'update installed. restart rentable to finish.',
 
 	// the language and appearance card: its title and its one line (effort 846, *Everything in a
 	// tab is a card*).
@@ -50,22 +44,6 @@ export const settings = {
 	},
 
 	title: 'settings',
-
-	// what the updates card's header says at its end, in words: where this installation stands
-	// (effort 846, *Everything in a tab is a card*).
-	updatesState: {
-		checking: 'checking',
-		upToDate: 'up to date',
-		available: 'update available',
-		downloading: 'downloading',
-		restart: 'restart to finish'
-	},
-	// the chevron that opens a release's notes under the available version, and the date in them.
-	whatsNew: "what's new in {version:string}",
-	releasedOn: 'released {date:string}',
-	updatesDescription:
-		'check for a newer version and install it. if the app then fails to start, it offers the version you were on.',
-	updatesTitle: 'updates',
 
 	// the one quiet control at the foot of every step of the way in (effort 843, requirement 7).
 	wayIn: {
@@ -138,22 +116,10 @@ export const settingsHooks = {
 	workspaceUpToDate: 'everything is up to date.'
 } satisfies BaseTranslation;
 
-// the update's controls and the labels of its block, which the settings' general tab draws
-// (`component/updates.svelte`), and the retry of a settings read that failed, composed back at
-// `common.actions` and `common.labels`.
+// the retry of a settings read that failed, composed back at `common.actions`. The update's words
+// are the update feature's (`update/i18n/en.ts`) since ticket 29 of effort 857.
 export const common = {
 	actions: {
-		checkForUpdates: 'check for updates',
-		downloadAndInstall: 'download & install',
-		installingUpdate: 'installing update...',
-		checkingForUpdates: 'checking for updates...',
-		restartApp: 'restart app',
 		retry: 'retry'
-	},
-	labels: {
-		releaseNotes: 'release notes',
-		availableVersion: 'available version',
-		currentVersion: 'current version',
-		releaseDate: 'release date'
 	}
 } satisfies BaseTranslation;

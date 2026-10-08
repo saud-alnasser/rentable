@@ -38,14 +38,17 @@ function hostRecordingRenames(asked: string[]) {
 				pushed: false,
 				received: false,
 				refusal: 'none' as const,
-				standing: 'held' as const
+				standing: 'held' as const,
+				heldByVersion: []
 			}),
 			push: async () => false,
 			renameWorkspace: async (name: string) => {
 				asked.push(name);
 
 				return { ...state, workspace: { ...state.workspace, name } };
-			}
+			},
+			discardUnsent: async () => state,
+			discardUnsentOrganization: async () => state
 		}
 	});
 }

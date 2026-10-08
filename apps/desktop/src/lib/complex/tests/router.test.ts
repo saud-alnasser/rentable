@@ -186,13 +186,21 @@ test('a complex whose units no contract holds is deleted with them, and put back
 	assert.deepEqual(await api.complex.get({ id: complex.id }), {
 		id: complex.id,
 		name: complex.name,
-		location: complex.location
+		location: complex.location,
+		// a complex nobody retired as a copy of another (effort 857, requirement 14).
+		mergedInto: null,
+		mergedAs: null
 	});
 	assert.deepEqual(await api.complex.units.getMany({ complexId: complex.id }), before);
 
-	for (const unit of deleted.units) {
-		assert.deepEqual(await api.complex.units.get({ id: unit.id }), {
-			...unit,
+	// a unit is read with every column a person sees, which leaves out what says it was retired
+	// as a copy (effort 857, requirement 14).
+	for (const { id, name, status, complexId } of deleted.units) {
+		assert.deepEqual(await api.complex.units.get({ id }), {
+			id,
+			name,
+			status,
+			complexId,
 			complexName: complex.name
 		});
 	}

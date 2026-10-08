@@ -4,7 +4,7 @@ import type { RecordKind } from '$lib/permission';
 import * as s from '$lib/platform/database/schema';
 import type { Contract } from '$lib/platform/database/schema';
 import { ensureIdFree, refuse } from '$lib/api/refusal';
-import { inArray } from 'drizzle-orm';
+import { and, inArray, ne } from 'drizzle-orm';
 import z from 'zod';
 
 /**
@@ -124,16 +124,45 @@ export async function ensureTenantsAvailable(
 
 	ensureIdFree(held[0], held[0]?.id);
 
-	const registered = await db
-		.select()
-		.from(s.tenant)
-		.where(inArray(s.tenant.nationalId, nationalIds));
+	const registered = await tenantsHolding(db, 'nationalId', nationalIds);
 
 	ensureIdentityAvailable(registered[0], registered[0]?.nationalId);
 
-	const reachable = await db.select().from(s.tenant).where(inArray(s.tenant.phone, phones));
+	const reachable = await tenantsHolding(db, 'phone', phones);
 
 	ensurePhoneAvailable(reachable[0], reachable[0]?.phone);
+}
+
+/**
+ * The tenants holding any of `values` in one of the fields a tenant is unique by, leaving out
+ * the tenant `except` names, which is the one being edited.
+ *
+ * **The app keeps these fields unique, not the database** (effort 857, requirement 14): the
+ * shared database refused one machine's changes over a value another saved while apart, and the
+ * engine dropped them. So every save that could take a value reads who holds it through here,
+ * and what counts as holding one is decided once. A tenant retired by a merge holds nothing: the
+ * statement rewrite every client applies keeps it out of this read (`platform/database/retired`),
+ * so no condition here names it.
+ */
+export async function tenantsHolding(
+	db: Database,
+	field: 'nationalId' | 'phone',
+	values: readonly string[],
+	except?: string
+) {
+	if (values.length === 0) {
+		return [];
+	}
+
+	return await db
+		.select()
+		.from(s.tenant)
+		.where(
+			and(
+				inArray(s.tenant[field], [...values]),
+				except === undefined ? undefined : ne(s.tenant.id, except)
+			)
+		);
 }
 
 /**

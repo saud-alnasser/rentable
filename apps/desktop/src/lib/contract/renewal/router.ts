@@ -11,7 +11,11 @@ import {
 } from '$lib/contract/contract';
 import { ensureUnitsAssignable } from '$lib/contract/assignment/assignment';
 import { reconcileTouched } from '$lib/contract/reconcile';
-import { selectAssignmentsForUnits, selectContract } from '$lib/contract/row';
+import {
+	contractsHoldingGovId,
+	selectAssignmentsForUnits,
+	selectContract
+} from '$lib/contract/row';
 import { serializeContract } from '$lib/contract/serialize';
 import { eq } from 'drizzle-orm';
 import z from 'zod';
@@ -76,13 +80,7 @@ export default router({
 			const normalizedGovId = successor.govId?.trim() || null;
 
 			ensureGovIdAvailable(
-				normalizedGovId
-					? await ctx.db
-							.select()
-							.from(s.contract)
-							.where(eq(s.contract.govId, normalizedGovId))
-							.get()
-					: undefined
+				normalizedGovId ? (await contractsHoldingGovId(ctx.db, [normalizedGovId]))[0] : undefined
 			);
 
 			const held = await ctx.db

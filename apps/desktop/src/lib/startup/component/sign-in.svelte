@@ -65,6 +65,7 @@
 		errorMessage,
 		errorDetail = null,
 		earlier = null,
+		refusals = {},
 		onSignIn,
 		onSelect,
 		onRemove,
@@ -90,6 +91,11 @@
 		 * quiet line; `null` where there are none (effort 838, requirement 18).
 		 */
 		earlier?: EarlierRecords | null;
+		/**
+		 * why each organization this run could not open was refused, by its id, which the switcher
+		 * says above the chosen one (effort 857, requirement 7).
+		 */
+		refusals?: Readonly<Record<string, { sentence: string; byVersion: boolean }>>;
 		onSignIn: (username: string, password: string) => void;
 		/** another held organization was chosen at the switcher: put its wall up. */
 		onSelect: (organizationId: string) => void;
@@ -214,6 +220,7 @@
 			<OrganizationSwitcher
 				{organizations}
 				{selected}
+				{refusals}
 				disabled={isSigningIn}
 				{onSelect}
 				onAdd={() => (isAdding = true)}

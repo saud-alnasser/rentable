@@ -105,6 +105,18 @@ test('a key that produces nothing printable falls back to the physical key', () 
 	assert.equal(matchesShortcutKey({ key: 'Unidentified', code: 'KeyZ' }, 'z'), true);
 });
 
+// picking a remembered sign-in from the browser's autofill list sends the window a `keydown` that
+// is a plain `Event`: it carries no key and no code. It used to throw reading `toLowerCase` off
+// the missing key, out of the application's one keyboard listener.
+test('a keydown that carries no key is no shortcut, and does not throw', () => {
+	// the listener is handed it as a `KeyboardEvent`, which is the claim being tested.
+	const autofill = new Event('keydown') as KeyboardEvent;
+
+	assert.equal(matchesShortcutKey(autofill, 'z'), false);
+	assert.equal(matchesShortcutKey(autofill, 'ArrowDown'), false);
+	assert.equal(matchesShortcut(autofill, undo), false);
+});
+
 /**
  * What a keydown reached, carrying the two properties {@link isEditingText} reads off it.
  *

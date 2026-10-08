@@ -92,7 +92,7 @@ test('every group folds to its glyph, its name and how many are on, and opens fr
 
 		expect(summary(kind)).toBe(`${on} of 4`);
 	}
-	expect(summary('administration')).toBe('0 of 10');
+	expect(summary('administration')).toBe('0 of 11');
 	expect(document.querySelector('[data-switch]')).toBeNull();
 
 	await fireEvent.click(fold('complex'));
@@ -209,12 +209,12 @@ test('a write carried without its view can be seen and turned off', async () => 
 	expect(handed.at(-1)).toBe(0);
 });
 
-test("the organization's ten each say what they allow, and turn", async () => {
+test("the organization's eleven each say what they allow, and turn", async () => {
 	const handed = list({
 		mask: maskOf('inviteMember', 'removeMember', 'manageRoles', 'manageMark')
 	});
 
-	expect(summary('administration')).toBe('4 of 10');
+	expect(summary('administration')).toBe('4 of 11');
 	expect(control('inviteMember')).toBeNull();
 
 	await unfold('administration');
@@ -230,7 +230,8 @@ test("the organization's ten each say what they allow, and turn", async () => {
 		en.organization.flags.grantWorkspace,
 		en.organization.flags.manageRoles,
 		en.organization.flags.overrideMember,
-		en.organization.flags.manageMark
+		en.organization.flags.manageMark,
+		en.organization.flags.upgradeData
 	]);
 
 	for (const flag of FAMILIES.administration) {
@@ -238,19 +239,19 @@ test("the organization's ten each say what they allow, and turn", async () => {
 		expect(document.querySelector(`[data-switch-row="${flag}"] svg`)).not.toBeNull();
 	}
 
-	// ten glyphs, none of them another's.
+	// eleven glyphs, none of them another's.
 	const glyphs = FAMILIES.administration.map((flag) =>
 		document.querySelector(`[data-switch-row="${flag}"] svg`)?.getAttribute('class')
 	);
 
-	expect(new Set(glyphs).size).toBe(10);
+	expect(new Set(glyphs).size).toBe(11);
 
 	await fireEvent.click(control('assignRole')!);
 
 	expect(handed.at(-1)).toBe(
 		maskOf('inviteMember', 'removeMember', 'assignRole', 'manageRoles', 'manageMark')
 	);
-	expect(summary('administration')).toBe('5 of 10');
+	expect(summary('administration')).toBe('5 of 11');
 });
 
 test("the owner's own acts are one line under the crown, and no switch", async () => {
@@ -396,7 +397,7 @@ test('and in arabic the list reads in its own words, and its thumbs run right to
 	list({ baseline: { mask: BUILT_IN.member.mask - maskOf('editUnit'), name: 'محصّل' } }, 'rtl');
 
 	expect(fold('unit').textContent).toContain(ar.organization.families.unit);
-	expect(summary('administration')).toBe('0 من 10');
+	expect(summary('administration')).toBe('0 من 11');
 
 	await unfold();
 
@@ -405,6 +406,10 @@ test('and in arabic the list reads in its own words, and its thumbs run right to
 	);
 	expect(says('createUnit')).toBe(ar.organization.switches.verbSays.create);
 	expect(says('manageMark')).toBe(ar.organization.switches.flagSays.manageMark);
+	expect(control('upgradeData')?.getAttribute('aria-label')).toBe(
+		ar.organization.flags.upgradeData
+	);
+	expect(says('upgradeData')).toBe(ar.organization.switches.flagSays.upgradeData);
 	expect(document.querySelector('[data-switches-owner]')?.textContent?.trim()).toBe(
 		ar.organization.switches.owner
 	);

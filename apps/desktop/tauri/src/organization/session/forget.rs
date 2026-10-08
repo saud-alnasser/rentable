@@ -161,6 +161,10 @@ pub(crate) async fn forget_one(
             .await?
     };
 
+    // and what held the wall for its version, where it was this organization's (effort 857,
+    // ticket 27): the wall moves to another, and it is not that one's.
+    super::release_the_wall_of(app_state, organization_id);
+
     // the wall's sentence was about the organization the wall stood on.
     if was_selected {
         app_state
@@ -459,7 +463,9 @@ mod tests {
             member: Arc::new(RwLock::new(None)),
             arriving_link: Arc::new(Mutex::new(None)),
             signed_out_elsewhere: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            held_by_version: Arc::new(std::sync::Mutex::new(None)),
             old_shape_check: tokio::sync::OnceCell::new(),
+            bringing_up: Default::default(),
         }
     }
 

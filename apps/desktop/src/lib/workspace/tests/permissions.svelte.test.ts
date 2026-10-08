@@ -5,7 +5,7 @@ import { placeholderStrings as strings } from '$lib/design/tests/strings';
 import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
-import type { OrganizationSession } from '$lib/organization/host';
+import type { HeldByVersion, OrganizationSession } from '$lib/organization/host';
 import {
 	fakeOrganizationSession,
 	fakeOrganizationWorkspace
@@ -39,7 +39,8 @@ import { EVERY_FLAG, maskOf } from '@rentable/workspace-permission';
 const { reads, shell } = vi.hoisted(() => ({
 	reads: {
 		session: null as OrganizationSession | null,
-		openWorkspace: 'north' as string | null
+		openWorkspace: 'north' as string | null,
+		heldByVersion: [] as HeldByVersion[]
 	},
 	shell: { openFile: vi.fn(), refused: [] as string[] }
 }));
@@ -48,7 +49,9 @@ vi.mock('$lib/organization/query', async (importOriginal) => ({
 	...(await importOriginal<typeof import('$lib/organization/query')>()),
 	useFetchOrganizationState: () => ({
 		get data() {
-			return reads.session ? { session: reads.session } : undefined;
+			return reads.session
+				? { session: reads.session, heldByVersion: reads.heldByVersion }
+				: undefined;
 		}
 	})
 }));
@@ -81,6 +84,7 @@ beforeEach(() => {
 	setLocale('en');
 	reads.session = null;
 	reads.openWorkspace = 'north';
+	reads.heldByVersion = [];
 	shell.openFile.mockReset();
 	shell.refused.length = 0;
 });
@@ -110,7 +114,9 @@ test('the standing held is the session folded for the workspace open, and goes w
 	expect(memberPermissions.standing).toEqual({
 		permissions: maskOf(...EVERY_FLAG),
 		accessLevel: 'full-access',
-		locked: false
+		locked: false,
+		readOnlyByVersion: false,
+		floorsUnreadable: false
 	});
 	expect(memberPermissions.views('tenant')).toBe(true);
 
@@ -129,6 +135,30 @@ test('in a workspace the reader holds a read-only grant on, every write is refus
 	expect(memberPermissions.views('payment')).toBe(true);
 });
 
+// effort 857, requirement 6 (ticket 05): where the shell says a newer rentable upgraded the
+// workspace open past what this one writes, the standing says so, and every write is refused for
+// the version on a full grant, while viewing goes on. A verdict on another workspace holds nothing.
+test('a workspace upgraded past this version is held read-only for the version', () => {
+	reads.session = everyFlagOnTwoWorkspaces();
+	reads.heldByVersion = [{ target: { workspace: 'north' }, standing: 'readOnly', reason: '' }];
+
+	const { unmount } = render(WorkspacePermissions);
+
+	expect(memberPermissions.standing?.readOnlyByVersion).toBe(true);
+	expect(memberPermissions.views('payment')).toBe(true);
+	expect(memberPermissions.refusal('createPayment', i18nObject('en'))).toBe(
+		en.common.refusals.host.workspaceReadOnlyByVersion
+	);
+	expect(memberPermissions.refusal('viewPayment', i18nObject('en'))).toBeUndefined();
+
+	reads.heldByVersion = [{ target: { workspace: 'south' }, standing: 'readOnly', reason: '' }];
+	unmount();
+	render(WorkspacePermissions);
+
+	expect(memberPermissions.standing?.readOnlyByVersion).toBe(false);
+	expect(memberPermissions.refusal('createPayment', i18nObject('en'))).toBeUndefined();
+});
+
 // effort 851, requirement 32: a locked session is held as the view flags alone, marked locked, so
 // every write is refused for the lock and viewing goes on; once the session reads unlocked, what
 // the role carries is held again.
@@ -140,7 +170,9 @@ test('a locked session is held as the view flags alone, and as the role once unl
 	expect(memberPermissions.standing).toEqual({
 		permissions: maskOf('viewComplex', 'viewUnit', 'viewTenant', 'viewContract', 'viewPayment'),
 		accessLevel: 'full-access',
-		locked: true
+		locked: true,
+		readOnlyByVersion: false,
+		floorsUnreadable: false
 	});
 	expect(memberPermissions.views('payment')).toBe(true);
 	expect(memberPermissions.refusal('createPayment', i18nObject('en'))).toBe(

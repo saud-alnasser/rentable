@@ -39,7 +39,17 @@
 //!
 //! What is here is the runner. Which client applies a *pending* migration to a workspace that
 //! already has rows, and under what lease, is `organization/lease/`; creating a workspace
-//! already at the current schema is [`apply`], which is the same transaction from nothing.
+//! already at the current schema is [`create`], which is [`bring_up`]'s transaction from nothing
+//! (effort 857, ticket 21).
+//!
+//! **Opening a workspace runs what [`bring_up`] runs, and that is not always a prefix** (effort
+//! 857, ticket 03). Every step shipped before 857 runs as it always did, and so does every step
+//! declared after it as an addition; one declared an upgrade is passed over until the explicit
+//! act, and the additions after it still run. So the workspace keeps `schema_version` as "every
+//! step up to here has run" and lists any step above it that ran in `applied_step`; the check
+//! builds its fresh database from that version's steps and the listed ones ([`fresh_of`]); and the
+//! first step declared after 857 to run writes `data_floor`, holding the floors read before it.
+//! A workspace only 0.20's steps have reached holds neither table, exactly as 0.20 left it.
 //!
 //! **The same stream is what a workspace is copied over** before a pending migration changes it
 //! (effort 838, tickets 28 and 30). [`OverThePipeline`] answers `backup.rs` the workspace's schema
@@ -59,7 +69,12 @@ use serde_json::{Value, json};
 use sqlx::{ConnectOptions, sqlite::SqliteConnectOptions};
 
 use crate::{
-    backup, diagnostics,
+    backup,
+    database::{
+        floor::{self, Floors, Standing, WORKSPACE_FLOOR_TABLE},
+        step::{Steps, WORKSPACE_STEPS},
+    },
+    diagnostics,
     error::{Error, RefusalReason},
     organization::workspace::remote::{
         OverThePipeline, Pipeline, decoded, decoded_row, decoded_rows, execute, refused_at,
@@ -123,15 +138,36 @@ pub fn statements_between(from: usize, up_to: usize) -> Vec<String> {
 /// The shape a fresh workspace database at `version` is built with: the first `version` shipped
 /// migrations and the version table, applied to an in-memory SQLite. Built once per version per
 /// process, since it is the same every time.
+///
+/// **What [`apply_between`] checks against**, which runs the steps as a build before effort 857
+/// ran them, a prefix and nothing of 857's records, whatever the steps were declared as; the open
+/// path checks against [`fresh_of`] (effort 857, ticket 33, when `0007` became the first shipped
+/// step declared after 857).
 pub async fn fresh(version: usize) -> Result<Shape, Error> {
-    static BUILT: OnceLock<Mutex<HashMap<usize, Shape>>> = OnceLock::new();
+    built(&SHIPPED, &(1..=version as u32).collect::<Vec<u32>>(), false).await
+}
+
+/// The shape a fresh workspace database that has run the steps `run` of `migrations` is built
+/// with (effort 857, ticket 03): their statements in order and the version table, and where any
+/// of them was declared after 857, the tables that record what ran and the floors
+/// ([`Migrations::records`]). Built once per ladder and set of steps per process.
+pub async fn fresh_of(migrations: &Migrations, run: &[u32]) -> Result<Shape, Error> {
+    built(migrations, run, migrations.records(run)).await
+}
+
+/// The shape of a fresh database that has run the steps `run` of `migrations`, with effort 857's
+/// record tables where `records` says so.
+async fn built(migrations: &Migrations, run: &[u32], records: bool) -> Result<Shape, Error> {
+    type Built = HashMap<(usize, Vec<u32>, bool), Shape>;
+    static BUILT: OnceLock<Mutex<Built>> = OnceLock::new();
 
     let built = BUILT.get_or_init(Mutex::default);
+    let key = (migrations.files.as_ptr() as usize, run.to_vec(), records);
 
     if let Some(shape) = built
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .get(&version)
+        .get(&key)
     {
         return Ok(shape.clone());
     }
@@ -140,13 +176,20 @@ pub async fn fresh(version: usize) -> Result<Shape, Error> {
         .foreign_keys(false)
         .connect()
         .await?;
-
-    for statement in statements(version)
+    let mut made: Vec<String> = run
         .iter()
-        .map(String::as_str)
-        .chain([VERSION_MADE])
-    {
-        sqlx::query(sqlx::AssertSqlSafe(statement))
+        .flat_map(|number| migrations.statements_of(*number))
+        .collect();
+
+    made.push(VERSION_MADE.to_string());
+
+    if records {
+        made.push(APPLIED_MADE.to_string());
+        made.push(FLOOR_MADE.to_string());
+    }
+
+    for statement in &made {
+        sqlx::query(sqlx::AssertSqlSafe(statement.as_str()))
             .execute(&mut connection)
             .await?;
     }
@@ -156,9 +199,88 @@ pub async fn fresh(version: usize) -> Result<Shape, Error> {
     built
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
-        .insert(version, shape.clone());
+        .insert(key, shape.clone());
 
     Ok(shape)
+}
+
+/// The table a workspace lists the steps it ran above its `schema_version` in (effort 857, ticket
+/// 03). A step waiting for the explicit upgrade is passed over and the additions after it still
+/// run, so what ran stops being a prefix: `schema_version` keeps meaning every step up to it has
+/// run, and this lists any step above it that has.
+pub const APPLIED_TABLE: &str = "applied_step";
+
+/// [`APPLIED_TABLE`], made with the first step declared after 857 that runs.
+const APPLIED_MADE: &str = "CREATE TABLE IF NOT EXISTS \"applied_step\" (\
+                            \"step\" INTEGER PRIMARY KEY, \
+                            \"applied_at\" INTEGER NOT NULL)";
+
+/// The one-row table a workspace keeps its floors in (`database/floor.rs`), made with the first
+/// step declared after 857 that runs, which writes its row.
+const FLOOR_MADE: &str = "CREATE TABLE IF NOT EXISTS \"data_floor\" (\
+                          \"id\" INTEGER PRIMARY KEY CHECK (\"id\" = 1), \
+                          \"level\" INTEGER NOT NULL, \
+                          \"read\" INTEGER NOT NULL, \
+                          \"write\" INTEGER NOT NULL)";
+
+/// Which of the two record tables a workspace already holds.
+const RECORDS_LISTED: &str = "SELECT \"name\" FROM sqlite_master WHERE \"type\" = 'table' \
+                              AND \"name\" IN ('applied_step', 'data_floor')";
+
+/// The workspace's ladder as the open path is handed it (effort 857, ticket 03): the migration
+/// files and the step each is declared as. [`SHIPPED`] in production, and a ladder of a test's
+/// own under test, naming the steps declared after 857 a test is about.
+#[derive(Clone, Copy, Debug)]
+pub struct Migrations {
+    /// every migration file, `files[i]` being step `i + 1`.
+    pub files: &'static [(&'static str, &'static str)],
+    /// the declaration of each, in the same order.
+    pub steps: Steps,
+}
+
+/// The ladder this build ships: the embedded migrations and `database/step.rs`'s declarations.
+pub const SHIPPED: Migrations = Migrations {
+    files: WORKSPACE_MIGRATIONS,
+    steps: Steps {
+        first: 1,
+        declared: WORKSPACE_STEPS,
+    },
+};
+
+impl Migrations {
+    /// The statements of step `number`, split at `drizzle-kit`'s breakpoints.
+    fn statements_of(&self, number: u32) -> Vec<String> {
+        self.files
+            .get(number as usize - 1)
+            .map(|(_, sql)| {
+                sql.split(STATEMENT_BREAKPOINT)
+                    .map(|statement| statement.trim().to_string())
+                    .filter(|statement| !statement.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// Whether a workspace that has run the steps `run` keeps the records of effort 857: the
+    /// steps above its version, and its floors. It does once any step declared after 857 has run
+    /// on it, and before that it is exactly what 0.20 left, with nothing added.
+    pub fn records(&self, run: &[u32]) -> bool {
+        let settled = self.steps.settled();
+
+        run.iter().any(|number| *number > settled)
+    }
+}
+
+/// Which steps [`bring_up`] runs: what opening runs, or every step the workspace has not run.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Selected {
+    /// [`Steps::on_open`]'s: each step shipped before 857 and each addition, passing over an
+    /// upgrade declared after (ticket 03).
+    OnOpen,
+    /// every step above the version the workspace has not run, the upgrades waiting for the
+    /// explicit act among them (ticket 07). `owner` says whether the member running them is the
+    /// owner, without whom a step needing the owner's key is refused and nothing runs.
+    Every { owner: bool },
 }
 
 /// What [`apply_between`] found and did.
@@ -170,8 +292,9 @@ pub enum Migrated {
     AlreadyAt(usize),
 }
 
-/// Apply the first `up_to` shipped migrations to the database behind `pipeline`, with `token`:
-/// a workspace being created, in the one transaction [`apply_between`] runs.
+/// Apply the first `up_to` shipped migrations to the database behind `pipeline`, with `token`, in
+/// the one transaction [`apply_between`] runs: a workspace as a build before effort 857 created
+/// it, which is how the tests seed one. A workspace being created goes through [`create`].
 ///
 /// The token is the short-lived credential minted for the migration and nothing else, and it is
 /// spent here and dropped.
@@ -201,19 +324,23 @@ pub async fn apply_between(
     migrated
 }
 
-/// The transaction [`apply_between`] runs on `stream`, which it rolls back where this fails.
-async fn migrated_on(
+/// The transaction opened on `stream`, and the workspace's own version read inside it: the row,
+/// or `from` where it has none. Answers that version and every answer of the opening request.
+async fn opened_on(
     stream: &OverThePipeline<'_>,
     from: usize,
-    up_to: usize,
-) -> Result<Migrated, Error> {
+    also: &[&str],
+) -> Result<(usize, Vec<Value>), Error> {
     let opened = stream
         .exchanged(
-            vec![
+            [
                 execute("BEGIN"),
                 execute(VERSION_MADE),
                 execute(VERSION_READ),
-            ],
+            ]
+            .into_iter()
+            .chain(also.iter().map(|sql| execute(sql)))
+            .collect(),
             false,
         )
         .await?;
@@ -246,27 +373,75 @@ async fn migrated_on(
         None => from,
     };
 
+    Ok((at, opened))
+}
+
+/// The transaction on `stream` ended with nothing in it kept.
+async fn rolled_back(stream: &OverThePipeline<'_>) -> Result<(), Error> {
+    let ended = stream.exchanged(vec![execute("ROLLBACK")], true).await?;
+
+    if refused_at(&ended).is_some() {
+        diagnostics::warn("organization.migrate.rollbackRefused").write();
+    }
+
+    Ok(())
+}
+
+/// The workspace refused for having been upgraded past `known`, which this build knows.
+fn newer_than(at: impl std::fmt::Display, known: impl std::fmt::Display) -> Error {
+    Error::refused(
+        RefusalReason::WorkspaceNewer,
+        format!(
+            "the workspace was upgraded by a newer rentable (schema {at}, and this one knows \
+             {known}). update rentable to open it; nothing was changed"
+        ),
+    )
+}
+
+/// The transaction [`apply_between`] runs on `stream`, which it rolls back where this fails.
+async fn migrated_on(
+    stream: &OverThePipeline<'_>,
+    from: usize,
+    up_to: usize,
+) -> Result<Migrated, Error> {
+    let (at, _) = opened_on(stream, from, &[]).await?;
+
     if at > up_to {
-        return Err(Error::refused(
-            RefusalReason::WorkspaceNewer,
-            format!(
-                "the workspace was upgraded by a newer rentable (schema {at}, and this one knows \
-                 {up_to}). update rentable to open it; nothing was changed"
-            ),
-        ));
+        return Err(newer_than(at, up_to));
     }
 
     if at == up_to {
-        let ended = stream.exchanged(vec![execute("ROLLBACK")], true).await?;
-
-        if refused_at(&ended).is_some() {
-            diagnostics::warn("organization.migrate.rollbackRefused").write();
-        }
+        rolled_back(stream).await?;
 
         return Ok(Migrated::AlreadyAt(at));
     }
 
-    let tail = statements_between(at, up_to);
+    committed(
+        stream,
+        &statements_between(at, up_to),
+        &fresh(up_to).await?,
+        up_to,
+        &format!("from {at} to {up_to}"),
+    )
+    .await?;
+
+    Ok(Migrated::Applied {
+        from: at,
+        to: up_to,
+    })
+}
+
+/// The `tail` run as one batch on `stream`, each statement only where the one before it answered
+/// `ok`, the check's reads after it compared with `expected`, and the version row at `version`
+/// written and committed: what every migration of a workspace ends with, whatever it applies.
+/// `between` says which, as the refusals name it.
+async fn committed(
+    stream: &OverThePipeline<'_>,
+    tail: &[String],
+    expected: &Shape,
+    version: usize,
+    between: &str,
+) -> Result<(), Error> {
     let steps: Vec<Value> = tail
         .iter()
         .enumerate()
@@ -296,8 +471,7 @@ async fn migrated_on(
         return Err(Error::refused(
             RefusalReason::DatabaseRefused,
             format!(
-                "the workspace database refused the migration from {at} to {up_to}, and nothing \
-                 was changed"
+                "the workspace database refused the migration {between}, and nothing was changed"
             ),
         ));
     }
@@ -317,8 +491,8 @@ async fn migrated_on(
             return Err(Error::refused(
                 RefusalReason::DatabaseRefused,
                 format!(
-                    "statement {index} of the migration from {at} to {up_to} was refused by the \
-                     database, and nothing of it was kept"
+                    "statement {index} of the migration {between} was refused by the database, \
+                     and nothing of it was kept"
                 ),
             ));
         }
@@ -328,8 +502,8 @@ async fn migrated_on(
         return Err(Error::refused(
             RefusalReason::DatabaseRefused,
             format!(
-                "the workspace database refused check {index} of the migration from {at} to \
-                 {up_to}, and nothing of it was kept"
+                "the workspace database refused check {index} of the migration {between}, and \
+                 nothing of it was kept"
             ),
         ));
     }
@@ -352,14 +526,14 @@ async fn migrated_on(
     };
 
     schema::as_built(
-        &format!("the workspace migrated from {at} to {up_to}"),
+        &format!("the workspace migrated {between}"),
         &found,
-        &fresh(up_to).await?,
+        expected,
     )?;
 
     let committed = stream
         .exchanged(
-            vec![execute(&version_written(up_to)), execute("COMMIT")],
+            vec![execute(&version_written(version)), execute("COMMIT")],
             true,
         )
         .await?;
@@ -368,16 +542,300 @@ async fn migrated_on(
         return Err(Error::refused(
             RefusalReason::DatabaseRefused,
             format!(
-                "the workspace database refused request {index} committing the migration from \
-                 {at} to {up_to}, and nothing of it was kept"
+                "the workspace database refused request {index} committing the migration \
+                 {between}, and nothing of it was kept"
             ),
         ));
     }
 
-    Ok(Migrated::Applied {
+    Ok(())
+}
+
+/// What opening a workspace found and ran ([`bring_up`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Brought {
+    /// the version its own row said, or the caller's where it had none.
+    pub from: u32,
+    /// every step run, in order; none where nothing was due.
+    pub ran: Vec<u32>,
+    /// its version now: every step up to it has run.
+    pub version: u32,
+    /// the floors its own `data_floor` records now, where it keeps them.
+    pub floors: Option<Floors>,
+}
+
+/// Run on the workspace behind `pipeline` every step of `migrations` that opening it runs
+/// (effort 857, ticket 03), in one transaction with the check and its version row, or not at all.
+///
+/// **What runs is [`Steps::on_open`]'s**: each step above the version that it has not run yet,
+/// shipped before 857 or declared an addition. A step declared after 857 as an upgrade is passed
+/// over and the additions after it still run, which is why the workspace lists in `applied_step`
+/// any step it ran above its version, and why the fresh database it is checked against is built
+/// from that version's steps and the listed ones ([`fresh_of`]).
+///
+/// **The first step declared after 857 to run writes the floors** into `data_floor`, as they were
+/// read before it with the level it took the workspace to: the version alone would otherwise read
+/// as raised floors (`database/floor.rs`). An addition moves neither floor.
+///
+/// **Nothing runs on a workspace this build may not write**: one whose own floors put it below the
+/// read floor is refused as `WorkspaceNewer`, as an older build opening a newer one always was,
+/// and one below the write floor is left as it is. `from` and `token` are [`apply_between`]'s.
+pub async fn bring_up(
+    pipeline: &Pipeline,
+    token: &str,
+    migrations: &Migrations,
+    from: usize,
+    now: i64,
+) -> Result<Brought, Error> {
+    bring_up_selected(pipeline, token, migrations, from, now, Selected::OnOpen).await
+}
+
+/// Run every step of `migrations` on the new, empty workspace behind `pipeline`, with `token`: a
+/// workspace being created, in the one transaction [`bring_up`] runs, with its check and records
+/// (effort 857, ticket 21).
+///
+/// **So it is born with the floors its steps declare**: where a step declared after 857 is among
+/// them, `data_floor` holds the highest floors any step declares beside the level, never the
+/// level alone ([`Steps::born`]); and where none is, nothing of 857's records is written, and its
+/// version reads as exactly those floors. The token is the short-lived credential minted for the
+/// migration and nothing else, and it is spent here and dropped.
+///
+/// [`Steps::born`]: crate::database::step::Steps::born
+pub async fn create(
+    pipeline: &Pipeline,
+    token: &str,
+    migrations: &Migrations,
+    now: i64,
+) -> Result<Brought, Error> {
+    bring_up_selected(
+        pipeline,
+        token,
+        migrations,
+        0,
+        now,
+        Selected::Every { owner: true },
+    )
+    .await
+}
+
+/// [`bring_up`], running the steps `selected` names: what opening runs, or every step the
+/// workspace has not run, which is the explicit upgrade (effort 857, ticket 07). The same one
+/// transaction, check and records either way, so an upgrade is whole or nothing.
+pub async fn bring_up_selected(
+    pipeline: &Pipeline,
+    token: &str,
+    migrations: &Migrations,
+    from: usize,
+    now: i64,
+    selected: Selected,
+) -> Result<Brought, Error> {
+    let stream = OverThePipeline::migrating(pipeline, token);
+    let brought = brought_on(&stream, migrations, from, now, selected).await;
+
+    if brought.is_err() {
+        stream.abandoned().await;
+    }
+
+    brought
+}
+
+/// The transaction [`bring_up`] runs on `stream`, which it rolls back where this fails.
+async fn brought_on(
+    stream: &OverThePipeline<'_>,
+    migrations: &Migrations,
+    from: usize,
+    now: i64,
+    selected: Selected,
+) -> Result<Brought, Error> {
+    let (at, opened) = opened_on(stream, from, &[RECORDS_LISTED]).await?;
+    let at = floor::number(at as i64)?;
+    let listed: Vec<String> = rows_of(&opened, 3)
+        .iter()
+        .filter_map(|row| match decoded_row(row).ok()?.into_iter().next() {
+            Some(turso::Value::Text(name)) => Some(name),
+            _ => None,
+        })
+        .collect();
+    let (applied, recorded) = records_read(stream, &listed).await?;
+    let before = recorded.unwrap_or(Floors::legacy(at));
+    let known = migrations.steps.known();
+
+    match before.standing(known) {
+        Standing::Unreadable => return Err(newer_than(before.level.max(at), known)),
+        Standing::ReadOnly => {
+            rolled_back(stream).await?;
+
+            return Ok(Brought {
+                from: at,
+                ran: Vec::new(),
+                version: at,
+                floors: recorded,
+            });
+        }
+        Standing::Writable => {}
+    }
+
+    let ran: Vec<u32> = match selected {
+        Selected::OnOpen => migrations.steps.on_open(at, &applied),
+        Selected::Every { .. } => (at.saturating_add(1)..=known)
+            .filter(|number| !applied.contains(number))
+            .collect(),
+    };
+
+    if selected == (Selected::Every { owner: false }) && migrations.steps.need_the_owner(&ran) {
+        rolled_back(stream).await?;
+
+        return Err(crate::organization::upgrade::needs_the_owner());
+    }
+
+    if ran.is_empty() {
+        rolled_back(stream).await?;
+
+        return Ok(Brought {
+            from: at,
+            ran,
+            version: at,
+            floors: recorded,
+        });
+    }
+
+    // every step the workspace holds once these have run, its version the end of their unbroken
+    // run from the first, and what lies above it listed.
+    let mut holds: Vec<u32> = (1..=at).chain(applied).chain(ran.iter().copied()).collect();
+
+    holds.sort_unstable();
+    holds.dedup();
+
+    let mut version = at;
+
+    while holds.contains(&(version + 1)) {
+        version += 1;
+    }
+
+    let above: Vec<u32> = holds
+        .iter()
+        .copied()
+        .filter(|number| *number > version)
+        .collect();
+    let level = holds.last().copied().unwrap_or(version);
+    let floors = migrations
+        .records(&holds)
+        .then(|| migrations.steps.raised(before, &ran, level));
+    let mut tail: Vec<String> = ran
+        .iter()
+        .flat_map(|number| migrations.statements_of(*number))
+        .collect();
+
+    if let Some(floors) = floors {
+        tail.push(APPLIED_MADE.to_string());
+        tail.push(FLOOR_MADE.to_string());
+        tail.push(format!(
+            "DELETE FROM \"{APPLIED_TABLE}\" WHERE \"step\" <= {version}"
+        ));
+        tail.extend(above.iter().map(|number| {
+            format!(
+                "INSERT OR IGNORE INTO \"{APPLIED_TABLE}\" (\"step\", \"applied_at\") \
+                 VALUES ({number}, {now})"
+            )
+        }));
+        tail.push(format!(
+            "INSERT INTO \"{WORKSPACE_FLOOR_TABLE}\" (\"id\", \"level\", \"read\", \"write\") \
+             VALUES (1, {}, {}, {}) ON CONFLICT(\"id\") DO UPDATE SET \
+             \"level\" = excluded.\"level\", \"read\" = excluded.\"read\", \
+             \"write\" = excluded.\"write\"",
+            floors.level, floors.read, floors.write
+        ));
+    }
+
+    committed(
+        stream,
+        &tail,
+        &fresh_of(migrations, &holds).await?,
+        version as usize,
+        &format!("from {at} to {level}"),
+    )
+    .await?;
+
+    Ok(Brought {
         from: at,
-        to: up_to,
+        ran,
+        version,
+        floors: floors.or(recorded),
     })
+}
+
+/// The steps a workspace lists above its version and the floors it records, read inside the
+/// transaction from the record tables `listed` says it holds; none of either where it holds
+/// neither, which is every workspace no step declared after 857 has reached.
+async fn records_read(
+    stream: &OverThePipeline<'_>,
+    listed: &[String],
+) -> Result<(Vec<u32>, Option<Floors>), Error> {
+    let holds = |table: &str| listed.iter().any(|name| name == table);
+    let mut reads = Vec::new();
+
+    if holds(APPLIED_TABLE) {
+        reads.push(execute(&format!(
+            "SELECT \"step\" FROM \"{APPLIED_TABLE}\" ORDER BY \"step\""
+        )));
+    }
+
+    if holds(WORKSPACE_FLOOR_TABLE) {
+        reads.push(execute(&format!(
+            "SELECT \"level\", \"read\", \"write\" FROM \"{WORKSPACE_FLOOR_TABLE}\" \
+             WHERE \"id\" = 1"
+        )));
+    }
+
+    if reads.is_empty() {
+        return Ok((Vec::new(), None));
+    }
+
+    let read = stream.exchanged(reads, false).await?;
+
+    if let Some(index) = refused_at(&read) {
+        return Err(Error::refused(
+            RefusalReason::DatabaseRefused,
+            format!(
+                "the workspace database refused read {index} of what it records, and nothing was \
+                 changed"
+            ),
+        ));
+    }
+
+    let number_in = |cell: Option<turso::Value>| match cell {
+        Some(turso::Value::Integer(value)) => floor::number(value),
+        _ => Err(unreadable("a step number")),
+    };
+    let mut at = 0;
+    let mut applied = Vec::new();
+
+    if holds(APPLIED_TABLE) {
+        for row in decoded_rows(&read, at)? {
+            applied.push(number_in(row.into_iter().next())?);
+        }
+
+        at += 1;
+    }
+
+    let floors = if holds(WORKSPACE_FLOOR_TABLE) {
+        match decoded_rows(&read, at)?.into_iter().next() {
+            Some(row) => {
+                let mut cells = row.into_iter();
+
+                Some(Floors {
+                    level: number_in(cells.next())?,
+                    read: number_in(cells.next())?,
+                    write: number_in(cells.next())?,
+                })
+            }
+            None => None,
+        }
+    } else {
+        None
+    };
+
+    Ok((applied, floors))
 }
 
 #[cfg(test)]
@@ -388,12 +846,15 @@ mod tests {
     };
 
     use super::{
-        Migrated, Pipeline, VERSION_READ, WORKSPACE_MIGRATIONS, apply, apply_between, fresh,
-        shipped_version, statements, statements_between, version_written,
+        Migrated, Pipeline, SHIPPED, VERSION_READ, WORKSPACE_MIGRATIONS, apply, apply_between,
+        fresh, shipped_version, statements, statements_between, version_written,
     };
     use crate::{
         backup,
         error::{Error, RefusalReason},
+        organization::lease::test::seed::{
+            AT_THE_SHIPPED_VERSION, FIRST_CARRIED, SEEDS, Seed, seeded,
+        },
         schema::{self, Shape},
     };
 
@@ -769,287 +1230,8 @@ mod tests {
     }
 
     // every workspace version shipped from 0.14.0 on, seeded with rows and walked to the shipped
-    // version (effort 838, requirement 16, ticket 34; `rules/migrations`).
-
-    /// The first workspace version a release on Turso shipped at: 0.14.0 and 0.15.0 are both at 5.
-    /// Earlier releases kept their records in one local file, and move over by the guided step of
-    /// effort 838's requirement 18 rather than by migration.
-    const FIRST_CARRIED: usize = 5;
-
-    /// Every table and every row a database holds, as `backup::contents_of` reads it: tables by
-    /// name, rows by rowid.
-    type Contents = Vec<(String, Vec<Vec<turso::Value>>)>;
-
-    /// A workspace database as a shipped version left it, and what walking it to the shipped
-    /// version must leave.
-    struct Seed {
-        /// the version it is at: its first `version` migrations, and no version row, since no
-        /// build before ticket 32 wrote one.
-        version: usize,
-        /// the rows it holds, as that version's build wrote them.
-        rows: &'static [&'static str],
-        /// every row once it is at the shipped version, the version row included.
-        carried: fn() -> Contents,
-    }
-
-    /// **One seed per shipped version from [`FIRST_CARRIED`] up to the one before the shipped
-    /// version.** A new migration comes with the seed of the version before it, the rows a
-    /// database of that version holds, and the rows each seed here holds once the new migration
-    /// has run.
-    const SEEDS: &[Seed] = &[
-        Seed {
-            version: 5,
-            rows: SEEDED_AT_FIVE,
-            carried: carried_from_five,
-        },
-        Seed {
-            version: 6,
-            rows: SEEDED_AT_SIX,
-            carried: carried_from_six,
-        },
-    ];
-
-    /// A workspace as 0.14.0 and 0.15.0 wrote it: a record of every kind, a contract with a
-    /// government id and one without, a unit on both contracts and one on neither, a payment on
-    /// each contract and one of them fractional, and history naming a record by its id. `0005`
-    /// adds a payment's method, reference and note, so every payment here is one written before it.
-    const SEEDED_AT_FIVE: &[&str] = &[
-        "INSERT INTO `complex` (`id`, `name`, `location`) VALUES \
-         ('0199a000-0000-7000-8000-0000000c0001', 'North Towers', 'Riyadh, Olaya'), \
-         ('0199a000-0000-7000-8000-0000000c0002', 'برج الروضة', 'Jeddah')",
-        "INSERT INTO `tenant` (`id`, `national_id`, `name`, `phone`) VALUES \
-         ('0199a000-0000-7000-8000-000000070001', '1012345678', 'Sara Al-Harbi', '0501234567'), \
-         ('0199a000-0000-7000-8000-000000070002', '2098765432', 'خالد العتيبي', '0559876543')",
-        "INSERT INTO `unit` (`id`, `name`, `status`, `complex_id`) VALUES \
-         ('0199a000-0000-7000-8000-0000000a0001', 'A-101', 'occupied', \
-          '0199a000-0000-7000-8000-0000000c0001'), \
-         ('0199a000-0000-7000-8000-0000000a0002', 'A-102', 'occupied', \
-          '0199a000-0000-7000-8000-0000000c0001'), \
-         ('0199a000-0000-7000-8000-0000000a0003', 'B-1', 'vacant', \
-          '0199a000-0000-7000-8000-0000000c0002')",
-        "INSERT INTO `contract` (`id`, `gov_id`, `status`, `start_date`, `end_date`, \
-         `interval_in_months`, `cost_per_interval`, `paid_amount`, `expected_amount`, \
-         `tenant_id`) VALUES \
-         ('0199a000-0000-7000-8000-0000000d0001', '20250001', 'active', 1735689600000, \
-          1767225600000, '6m', 30000.5, 15000.25, 30000.5, \
-          '0199a000-0000-7000-8000-000000070001'), \
-         ('0199a000-0000-7000-8000-0000000d0002', NULL, 'expired', 1704067200000, \
-          1735603200000, '1m', 2500, 0, 0, '0199a000-0000-7000-8000-000000070002')",
-        "INSERT INTO `contract_unit` (`contract_id`, `unit_id`) VALUES \
-         ('0199a000-0000-7000-8000-0000000d0001', '0199a000-0000-7000-8000-0000000a0001'), \
-         ('0199a000-0000-7000-8000-0000000d0001', '0199a000-0000-7000-8000-0000000a0002'), \
-         ('0199a000-0000-7000-8000-0000000d0002', '0199a000-0000-7000-8000-0000000a0002')",
-        "INSERT INTO `payment` (`id`, `date`, `amount`, `contract_id`) VALUES \
-         ('0199a000-0000-7000-8000-0000000e0001', 1738368000000, 15000.25, \
-          '0199a000-0000-7000-8000-0000000d0001'), \
-         ('0199a000-0000-7000-8000-0000000e0002', 1706745600000, 2500, \
-          '0199a000-0000-7000-8000-0000000d0002')",
-        "INSERT INTO `history` (`id`, `at`, `concept`, `record_id`, `action`, `record`) VALUES \
-         ('0199a000-0000-7000-8000-0000000f0001', 1738368000000, 'payment', \
-          '0199a000-0000-7000-8000-0000000e0001', 'created', '15000.25'), \
-         ('0199a000-0000-7000-8000-0000000f0002', 1738454400000, 'tenant', \
-          '0199a000-0000-7000-8000-000000070002', 'edited', 'خالد العتيبي')",
-    ];
-
-    /// [`SEEDED_AT_FIVE`] at the shipped version: every row where it was, each payment's method,
-    /// reference and note null, each payment received, and the version row.
-    fn carried_from_five() -> Contents {
-        let null = || turso::Value::Null;
-
-        vec![
-            (
-                "complex".to_string(),
-                vec![
-                    vec![
-                        cell("0199a000-0000-7000-8000-0000000c0001"),
-                        cell("North Towers"),
-                        cell("Riyadh, Olaya"),
-                    ],
-                    vec![
-                        cell("0199a000-0000-7000-8000-0000000c0002"),
-                        cell("برج الروضة"),
-                        cell("Jeddah"),
-                    ],
-                ],
-            ),
-            (
-                "contract".to_string(),
-                vec![
-                    vec![
-                        cell("0199a000-0000-7000-8000-0000000d0001"),
-                        cell("20250001"),
-                        cell("active"),
-                        turso::Value::Integer(1_735_689_600_000),
-                        turso::Value::Integer(1_767_225_600_000),
-                        cell("6m"),
-                        turso::Value::Real(30_000.5),
-                        turso::Value::Real(15_000.25),
-                        turso::Value::Real(30_000.5),
-                        cell("0199a000-0000-7000-8000-000000070001"),
-                    ],
-                    vec![
-                        cell("0199a000-0000-7000-8000-0000000d0002"),
-                        null(),
-                        cell("expired"),
-                        turso::Value::Integer(1_704_067_200_000),
-                        turso::Value::Integer(1_735_603_200_000),
-                        cell("1m"),
-                        turso::Value::Real(2_500.0),
-                        turso::Value::Real(0.0),
-                        turso::Value::Real(0.0),
-                        cell("0199a000-0000-7000-8000-000000070002"),
-                    ],
-                ],
-            ),
-            (
-                "contract_unit".to_string(),
-                vec![
-                    vec![
-                        cell("0199a000-0000-7000-8000-0000000d0001"),
-                        cell("0199a000-0000-7000-8000-0000000a0001"),
-                    ],
-                    vec![
-                        cell("0199a000-0000-7000-8000-0000000d0001"),
-                        cell("0199a000-0000-7000-8000-0000000a0002"),
-                    ],
-                    vec![
-                        cell("0199a000-0000-7000-8000-0000000d0002"),
-                        cell("0199a000-0000-7000-8000-0000000a0002"),
-                    ],
-                ],
-            ),
-            (
-                "history".to_string(),
-                vec![
-                    vec![
-                        cell("0199a000-0000-7000-8000-0000000f0001"),
-                        turso::Value::Integer(1_738_368_000_000),
-                        cell("payment"),
-                        cell("0199a000-0000-7000-8000-0000000e0001"),
-                        cell("created"),
-                        cell("15000.25"),
-                    ],
-                    vec![
-                        cell("0199a000-0000-7000-8000-0000000f0002"),
-                        turso::Value::Integer(1_738_454_400_000),
-                        cell("tenant"),
-                        cell("0199a000-0000-7000-8000-000000070002"),
-                        cell("edited"),
-                        cell("خالد العتيبي"),
-                    ],
-                ],
-            ),
-            (
-                "payment".to_string(),
-                vec![
-                    vec![
-                        cell("0199a000-0000-7000-8000-0000000e0001"),
-                        turso::Value::Integer(1_738_368_000_000),
-                        turso::Value::Real(15_000.25),
-                        cell("0199a000-0000-7000-8000-0000000d0001"),
-                        null(),
-                        null(),
-                        null(),
-                        cell("received"),
-                    ],
-                    vec![
-                        cell("0199a000-0000-7000-8000-0000000e0002"),
-                        turso::Value::Integer(1_706_745_600_000),
-                        turso::Value::Real(2_500.0),
-                        cell("0199a000-0000-7000-8000-0000000d0002"),
-                        null(),
-                        null(),
-                        null(),
-                        cell("received"),
-                    ],
-                ],
-            ),
-            (
-                "schema_version".to_string(),
-                vec![vec![
-                    turso::Value::Integer(1),
-                    turso::Value::Integer(shipped_version()),
-                ]],
-            ),
-            (
-                "tenant".to_string(),
-                vec![
-                    vec![
-                        cell("0199a000-0000-7000-8000-000000070001"),
-                        cell("1012345678"),
-                        cell("Sara Al-Harbi"),
-                        cell("0501234567"),
-                    ],
-                    vec![
-                        cell("0199a000-0000-7000-8000-000000070002"),
-                        cell("2098765432"),
-                        cell("خالد العتيبي"),
-                        cell("0559876543"),
-                    ],
-                ],
-            ),
-            (
-                "unit".to_string(),
-                vec![
-                    vec![
-                        cell("0199a000-0000-7000-8000-0000000a0001"),
-                        cell("A-101"),
-                        cell("occupied"),
-                        cell("0199a000-0000-7000-8000-0000000c0001"),
-                    ],
-                    vec![
-                        cell("0199a000-0000-7000-8000-0000000a0002"),
-                        cell("A-102"),
-                        cell("occupied"),
-                        cell("0199a000-0000-7000-8000-0000000c0001"),
-                    ],
-                    vec![
-                        cell("0199a000-0000-7000-8000-0000000a0003"),
-                        cell("B-1"),
-                        cell("vacant"),
-                        cell("0199a000-0000-7000-8000-0000000c0002"),
-                    ],
-                ],
-            ),
-        ]
-    }
-
-    /// A workspace as a build at version 6 wrote it: every record of [`SEEDED_AT_FIVE`] but its
-    /// payments, which now say how they were paid, one with a reference and a note and one with
-    /// a note alone. `0006` adds a payment's direction, so every payment here is one written
-    /// before it, and money received.
-    const SEEDED_AT_SIX: &[&str] = &[
-        SEEDED_AT_FIVE[0],
-        SEEDED_AT_FIVE[1],
-        SEEDED_AT_FIVE[2],
-        SEEDED_AT_FIVE[3],
-        SEEDED_AT_FIVE[4],
-        "INSERT INTO `payment` (`id`, `date`, `amount`, `contract_id`, `method`, `reference`,          `note`) VALUES          ('0199a000-0000-7000-8000-0000000e0001', 1738368000000, 15000.25,           '0199a000-0000-7000-8000-0000000d0001', 'bank-transfer', 'SADAD-7731', 'first half'),          ('0199a000-0000-7000-8000-0000000e0002', 1706745600000, 2500,           '0199a000-0000-7000-8000-0000000d0002', 'cash', NULL, 'دفعة نقدية')",
-        SEEDED_AT_FIVE[6],
-    ];
-
-    /// [`SEEDED_AT_SIX`] at the shipped version: every row where it was, each payment's method,
-    /// reference and note as written, each payment received, and the version row.
-    fn carried_from_six() -> Contents {
-        let mut carried = carried_from_five();
-        let (_, payments) = carried
-            .iter_mut()
-            .find(|(table, _)| table == "payment")
-            .expect("the payments carried from five");
-
-        payments[0][4] = cell("bank-transfer");
-        payments[0][5] = cell("SADAD-7731");
-        payments[0][6] = cell("first half");
-        payments[1][4] = cell("cash");
-        payments[1][6] = cell("دفعة نقدية");
-
-        carried
-    }
-
-    /// A text value as a row holds it.
-    fn cell(value: &str) -> turso::Value {
-        turso::Value::Text(value.to_string())
-    }
+    // version (effort 838, requirement 16, ticket 34; `rules/migrations`). The seeds are
+    // `test/seed.rs`'s.
 
     /// The shipped versions from [`FIRST_CARRIED`] up to the one before `shipped` that no seed of
     /// `seeds` is at.
@@ -1087,6 +1269,14 @@ mod tests {
                 seed.version
             );
         }
+
+        // and the shipped version has its own, which joins the others once a migration follows it
+        // (effort 857, ticket 14).
+        assert_eq!(
+            AT_THE_SHIPPED_VERSION.version, shipped,
+            "a migration was added: the seed at the shipped version joins SEEDS, and a new one is \
+             written at the version it brings"
+        );
     }
 
     /// The check above fails a shipped version with no seed: a migration added after the last
@@ -1103,7 +1293,7 @@ mod tests {
     }
 
     /// **Ticket 34's first criterion.** Each seed is a database of its version with its rows,
-    /// holding no version row, as its build left it; walked by [`apply_between`] over the
+    /// holding a version row only where its build wrote one, as its build left it; walked by [`apply_between`] over the
     /// pipeline, from the version the organization records it at, to the shipped version, it is
     /// the schema a fresh database of the shipped version is built with, the check passing inside
     /// the migration, and every row is carried as the seed says.
@@ -1111,29 +1301,30 @@ mod tests {
     async fn every_seeded_version_is_walked_to_the_shipped_version_with_its_rows() {
         let shipped = shipped_version() as usize;
 
-        for seed in SEEDS {
-            let pipeline = LocalPipeline::start().await;
-
-            pipeline
-                .holding(
-                    &[
-                        statements(seed.version),
-                        seed.rows.iter().map(|row| row.to_string()).collect(),
-                    ]
-                    .concat(),
-                )
-                .await;
+        // the versions a build before 857 walked, which is what this runner is: a workspace left
+        // by a build that declared a step after 857 is opened by the open path, and its test in
+        // `lease/mod.rs` walks it (effort 857, ticket 35, when the seed at 8 joined).
+        for seed in SEEDS
+            .iter()
+            .filter(|seed| seed.version as u32 <= SHIPPED.steps.settled())
+        {
+            let pipeline = seeded(seed).await;
+            let shape = fresh(seed.version).await.expect("the fresh shape");
 
             assert_eq!(
                 as_it_is(&pipeline).await.0,
-                fresh(seed.version)
-                    .await
-                    .expect("the fresh shape")
-                    .without(&[super::VERSION_TABLE]),
+                if seed.version_row {
+                    shape
+                } else {
+                    shape.without(&[super::VERSION_TABLE])
+                },
                 "the seed at {} is not a database of that version",
                 seed.version
             );
-            assert_eq!(recorded(&pipeline).await, None);
+            assert_eq!(
+                recorded(&pipeline).await,
+                seed.version_row.then_some(seed.version as i64)
+            );
 
             let walked =
                 apply_between(&Pipeline::at(&pipeline.url("")), "t", seed.version, shipped)

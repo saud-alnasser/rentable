@@ -21,11 +21,15 @@ import {
 	hasSameUtcDateRange
 } from '$lib/contract/assignment/assignment';
 import { reconcile, reconcileTouched } from '$lib/contract/reconcile';
-import { selectAssignmentsForUnits, selectPaymentsForContract } from '$lib/contract/row';
+import {
+	contractsHoldingGovId,
+	selectAssignmentsForUnits,
+	selectPaymentsForContract
+} from '$lib/contract/row';
 import { serializeContract, withRank } from '$lib/contract/serialize';
 import { referencesOf } from '$lib/contract/transfer';
 import { toUnitReference, UNIT_LIST_SEPARATOR } from '$lib/transfer';
-import { eq, inArray, sql } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { permits } from '@rentable/workspace-permission';
 import z from 'zod';
 import assignment from './assignment/router';
@@ -100,13 +104,7 @@ export default router({
 			const normalizedGovId = input.govId?.trim() || null;
 
 			ensureGovIdAvailable(
-				normalizedGovId
-					? await ctx.db
-							.select()
-							.from(s.contract)
-							.where(eq(s.contract.govId, normalizedGovId))
-							.get()
-					: undefined
+				normalizedGovId ? (await contractsHoldingGovId(ctx.db, [normalizedGovId]))[0] : undefined
 			);
 
 			const unitIds = [...new Set(chosenUnitIds)];
@@ -209,15 +207,11 @@ export default router({
 
 			const normalizedGovId = input.govId?.trim() || null;
 
+			// only a government ID this edit changes is checked: two contracts may already share
+			// one, saved apart on two machines (effort 857, ticket 38), and each stays editable.
 			ensureGovIdAvailable(
-				normalizedGovId
-					? await ctx.db
-							.select()
-							.from(s.contract)
-							.where(
-								sql`${s.contract.govId} = ${normalizedGovId} AND ${s.contract.id} != ${input.id}`
-							)
-							.get()
+				normalizedGovId && normalizedGovId !== existingContract.govId
+					? (await contractsHoldingGovId(ctx.db, [normalizedGovId], input.id))[0]
 					: undefined
 			);
 
@@ -476,10 +470,18 @@ export default router({
 	 * Recompute every contract's and unit's status and the payment aggregates, for the triggers
 	 * that have no touch-set: startup, a UTC-day crossing while the app runs, and a remote-sync
 	 * pull. *It was `app.state.reconcile` until effort 840 flattened the router tree.*
+	 *
+	 * **Skipped where a newer rentable upgraded the workspace past what this one writes** (effort
+	 * 857, ticket 05): the derived columns are written, and the shell refuses every write there, so
+	 * the pass would fail a launch or a heartbeat that is no person's act. The statuses stay as the
+	 * last writer left them, which is what the others' machines wrote.
 	 */
 	reconcile: procedure.member.mutation(async ({ ctx }) => {
 		const reconciledAt = ctx.clock.now();
-		await reconcile(ctx, reconciledAt);
+
+		if (!ctx.identity.readOnlyByVersion) {
+			await reconcile(ctx, reconciledAt);
+		}
 
 		return { reconciledAt };
 	})

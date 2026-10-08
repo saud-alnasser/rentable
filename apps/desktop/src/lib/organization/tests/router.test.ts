@@ -526,6 +526,9 @@ test('nothing here asks the host to list organizations', () => {
 		'session.endElsewhere',
 		'session.endMachine',
 		'session.machines',
+		'upgrade.awaiting',
+		'upgrade.preview',
+		'upgrade.run',
 		'workspace.create',
 		'workspace.grant',
 		'workspace.open',
@@ -1231,6 +1234,7 @@ const COMMAND_OF: Record<string, string> = {
 	select: 'plugin:organization|session_select',
 	'session.endElsewhere': 'plugin:organization|session_end_elsewhere',
 	'session.endMachine': 'plugin:organization|session_end_machine',
+	'upgrade.run': 'plugin:organization|upgrade_run',
 	'workspace.create': 'plugin:organization|workspace_create',
 	'workspace.grant': 'plugin:organization|workspace_grant',
 	'workspace.open': 'plugin:organization|workspace_open',
@@ -1609,4 +1613,72 @@ test('a role or an override that writes a kind of record without viewing it is r
 		`setOverride:member-2:${maskOf('viewPayment', 'createPayment', 'editPayment')}`,
 		'assignRole:member-2:role-7:undefined'
 	]);
+});
+
+// effort 857, ticket 08 (requirement 3 and criterion 3, from this side): previewing and running an
+// upgrade are `upgradeData`'s, here as in `GATES`, refused by name to a member without it before the
+// host is reached, and what waits is read by any signed-in member and nobody else. A target is the
+// organization or one workspace by a non-empty id; anything else is refused first.
+test("an upgrade is upgradeData's, and what waits for it is read by any member", async () => {
+	const asked: string[] = [];
+	const awaiting = { organization: [{ number: 4, needsOwner: false }], workspaces: {} };
+	const preview = { steps: [], stopped: [], readOnly: [], unseen: [], needsOwner: false };
+	const host = fakeHost({
+		organization: {
+			...fakeHost().organization,
+			upgrade: {
+				awaiting: async () => {
+					asked.push('awaiting');
+
+					return awaiting;
+				},
+				preview: async (target) => {
+					asked.push(`preview:${JSON.stringify(target)}`);
+
+					return preview;
+				},
+				run: async (target) => {
+					asked.push(`run:${JSON.stringify(target)}`);
+				}
+			}
+		}
+	});
+
+	const member = await permittedApi(host);
+
+	assert.deepEqual(await member.organization.upgrade.awaiting(), awaiting);
+
+	for (const refused of [
+		member.organization.upgrade.preview({ target: 'organization' }),
+		member.organization.upgrade.run({ target: { workspace: 'north' } })
+	]) {
+		const error = await refused.then(
+			() => null,
+			(caught: unknown) => caught as { code?: string; message?: string }
+		);
+
+		assert.equal(error?.code, 'FORBIDDEN');
+		assert.equal(error?.message, 'this account does not hold upgradeData');
+	}
+
+	assert.deepEqual(asked, ['awaiting']);
+
+	const upgrading = await permittedApi(host, 'upgradeData');
+
+	assert.deepEqual(
+		await upgrading.organization.upgrade.preview({ target: 'organization' }),
+		preview
+	);
+	await upgrading.organization.upgrade.run({ target: { workspace: 'north' } });
+	await assert.rejects(upgrading.organization.upgrade.run({ target: { workspace: '  ' } }));
+	await assert.rejects(
+		upgrading.organization.upgrade.run({ target: 'everything' as unknown as 'organization' })
+	);
+
+	assert.deepEqual(asked, ['awaiting', 'preview:"organization"', 'run:{"workspace":"north"}']);
+
+	const signedOut = await signedOutApi(host);
+
+	await assert.rejects(signedOut.organization.upgrade.awaiting());
+	assert.equal(asked.length, 3);
 });

@@ -6,7 +6,7 @@ use tokio::sync::RwLock;
 use crate::{credential::Credentials, database, machine, settings, turso::consent::TursoConsent};
 
 use super::{
-    session::{MemberSession, Upgrades},
+    session::{AtTheWall, MemberSession, Upgrades},
     store::OrganizationStore,
 };
 
@@ -63,9 +63,22 @@ pub struct Shared {
     /// went wrong. Set where the member's row is found to have moved past the session, and
     /// cleared by the next state read that finds somebody signed in, which is every way back in.
     pub signed_out_elsewhere: Arc<AtomicBool>,
+    /// what kept this machine at the wall for its version, as the last resume found it (effort
+    /// 857, ticket 04): the organization upgraded past what this build reads, with the reason.
+    ///
+    /// **A standing like the one above**, carried on `OrganizationState` as `heldByVersion` rather
+    /// than only written to the diagnostics, and cleared where a session opens or another
+    /// organization is chosen. A version holding an open session is the store's own verdict, and
+    /// the open workspace's is the workspace engine's (`session/version.rs`).
+    pub held_by_version: Arc<Mutex<Option<AtTheWall>>>,
     /// whether this launch has checked the shape of what the machine holds, which the first
     /// `organization_session_state_get` does before anything opens the replica
     /// (`upgrade/shape.rs`). Set once the check has run to completion; a check that
     /// failed leaves it empty, so the next read tries again rather than reading past it.
     pub old_shape_check: tokio::sync::OnceCell<()>,
+    /// the one gate every bring-up of a workspace on this machine passes, opening's and the
+    /// background's alike, so no two run at once; and what the background last saw fail behind
+    /// it (effort 857, ticket 40, `lease/behind.rs`). **Taken before the session and the
+    /// replica**, by both, so neither waits on the other while holding them.
+    pub(crate) bringing_up: Arc<tokio::sync::Mutex<super::lease::behind::Tried>>,
 }

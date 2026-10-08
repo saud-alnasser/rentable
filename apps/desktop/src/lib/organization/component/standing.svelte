@@ -3,17 +3,24 @@
 	import type { OrganizationSession } from '$lib/organization/host';
 	import type { Component } from 'svelte';
 	import { tauri } from '$lib/platform/tauri';
+	import ConfirmDialog from '@rentable/design/block/confirm-dialog.svelte';
 	import SettingsGroup from '@rentable/design/block/settings-group.svelte';
 	import SettingsRow from '@rentable/design/block/settings-row.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import { Callout } from '@rentable/design/primitive/callout/index.js';
+	import { tone as toneOf } from '@rentable/design/tone.js';
 	import * as Tooltip from '@rentable/design/primitive/tooltip/index.js';
 	import { reducesMotion } from '@rentable/design/reduces-motion.js';
 	import DetailDisclosure from '$lib/error/component/detail-disclosure.svelte';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { useAccountRefusalDetail } from '$lib/organization/query';
 	import { TURSO_DASHBOARD_URL } from '$lib/organization/setup/setup';
-	import { syncActivity, useSyncWorkspace } from '$lib/sync/ui';
+	import {
+		syncActivity,
+		useDiscardUnsent,
+		useDiscardUnsentOrganization,
+		useSyncWorkspace
+	} from '$lib/sync/ui';
 	import { accountRefusalSentence } from '$lib/error/refusal';
 	import {
 		SYNC_STATUS_TONE,
@@ -67,8 +74,22 @@
 	 * was not a `settings-row`.*
 	 *
 	 * **Beneath the state, only what the problem calls for**: the account refusal's sentence and
-	 * the owner's dashboard control, the credential refusal's sentence, or the fault's own
-	 * sentence with what was said behind a disclosure.
+	 * the owner's dashboard control, the credential refusal's sentence, the held changes' sentence
+	 * and the act that discards them, or the fault's own sentence with what was said behind a
+	 * disclosure.
+	 *
+	 * **Changes an upgrade made unsendable are the person's to decide** (effort 857, ticket 13).
+	 * The sentence says they are kept and that the workspace waits; keeping them is doing nothing,
+	 * so the one act is to discard them, a quiet button in the error tone, words with no glyph, as
+	 * an act that ends something is drawn (*A dangerous act that looks benign*). It asks first, in
+	 * the design package's confirm dialog named for the act, whose way out keeps them; only a yes
+	 * reaches the shell.
+	 *
+	 * **Changes to the organization itself are drawn the same way, in their own sentence** (ticket
+	 * 20). The organization's replica holds them, so the sentence names the organization and the
+	 * question is asked under its name; the act and its labels are the workspace's, since they do
+	 * the same thing. A yes copies the organization again from Turso and keeps the member signed in
+	 * where the copy can be brought. Read before the workspace's, as `sync/status.ts` orders them.
 	 *
 	 * **The reconnect stays on the Turso account's row, in the leaving card.** "Needs
 	 * reconnecting" is a replica fault, while the authority is the owner's consent, a different
@@ -104,6 +125,13 @@
 	};
 
 	const syncWorkspaceMutation = useSyncWorkspace();
+	const discardUnsentMutation = useDiscardUnsent();
+	const discardUnsentOrganizationMutation = useDiscardUnsentOrganization();
+
+	/** whether the question before discarding the held changes is open. */
+	let discarding = $state(false);
+	/** the same, for the organization's held changes. */
+	let discardingOrganization = $state(false);
 
 	const isChecking = $derived(syncWorkspaceMutation.isPending || syncActivity.inFlight);
 	const status = $derived(syncStatusOf(syncState, syncActivity.inFlight));
@@ -148,6 +176,8 @@
 	const beneath = $derived(
 		problem === 'accountRefused' ||
 			problem === 'credentialRefused' ||
+			problem === 'organizationChangesUnsendable' ||
+			problem === 'changesUnsendable' ||
 			(problem === 'needsReconnect' && (fault !== null || needsAuthority))
 	);
 
@@ -255,6 +285,47 @@
 			<Callout tone="warning" data-credential-refusal>
 				{$LL.workspace.credentialRefused()}
 			</Callout>
+		{:else if problem === 'organizationChangesUnsendable'}
+			<!-- changes to the organization this machine had not sent when an upgrade of the
+			     organization removed what they name: kept until the person discards them, and the
+			     organization waits until then. The act asks first. -->
+			<Callout tone="warning" data-unsendable-organization>
+				{$LL.organization.standing.unsendableOrganization.sentence()}
+			</Callout>
+			<div>
+				<Button
+					type="button"
+					variant="ghost"
+					size="sm"
+					class="{toneOf({
+						tone: 'error'
+					}).text()} hover:bg-destructive/10 hover:text-destructive"
+					data-discard-unsent-organization
+					onclick={() => (discardingOrganization = true)}
+				>
+					{$LL.organization.standing.unsendable.discard()}
+				</Button>
+			</div>
+		{:else if problem === 'changesUnsendable'}
+			<!-- changes this machine had not sent when an upgrade removed what they name: kept until
+			     the person discards them, and the workspace waits until then. The act asks first. -->
+			<Callout tone="warning" data-unsendable>
+				{$LL.organization.standing.unsendable.sentence()}
+			</Callout>
+			<div>
+				<Button
+					type="button"
+					variant="ghost"
+					size="sm"
+					class="{toneOf({
+						tone: 'error'
+					}).text()} hover:bg-destructive/10 hover:text-destructive"
+					data-discard-unsent
+					onclick={() => (discarding = true)}
+				>
+					{$LL.organization.standing.unsendable.discard()}
+				</Button>
+			</div>
 		{:else if problem === 'needsReconnect'}
 			<!-- the fault, and only where there is one. What the service or the replica said is kept
 			     as plain words with no code to read a sentence from, so the callout says the generic
@@ -273,6 +344,35 @@
 		{/if}
 	</div>
 {/snippet}
+
+<!-- the question before the held changes go: the workspace they belong to leads it, what goes and
+     that it cannot be undone follow, and leaving keeps them. -->
+<ConfirmDialog
+	open={discarding}
+	onOpenChange={(open) => (discarding = open)}
+	onSubmit={async () => {
+		await discardUnsentMutation.mutateAsync();
+	}}
+	record={syncState.workspace.name}
+	title={$LL.organization.standing.unsendable.confirmTitle()}
+	description={$LL.organization.standing.unsendable.confirmDescription()}
+	confirmLabel={$LL.organization.standing.unsendable.confirm()}
+	confirmLoadingLabel={$LL.organization.standing.unsendable.confirming()}
+/>
+
+<!-- and before the organization's go: the organization leads it, under the same title and act. -->
+<ConfirmDialog
+	open={discardingOrganization}
+	onOpenChange={(open) => (discardingOrganization = open)}
+	onSubmit={async () => {
+		await discardUnsentOrganizationMutation.mutateAsync();
+	}}
+	record={session?.organizationName}
+	title={$LL.organization.standing.unsendable.confirmTitle()}
+	description={$LL.organization.standing.unsendableOrganization.confirmDescription()}
+	confirmLabel={$LL.organization.standing.unsendable.confirm()}
+	confirmLoadingLabel={$LL.organization.standing.unsendable.confirming()}
+/>
 
 <SettingsGroup
 	icon={CloudIcon}

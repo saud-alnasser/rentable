@@ -108,6 +108,30 @@ pub fn issue_root_certificate(
     certificate
 }
 
+/// The root as a build whose owner's role knew fewer flags issued it: `root` with `ceiling` in
+/// place of its own, signed again under the organization key. For a test seeding an organization
+/// made before a flag was added (effort 857, ticket 15).
+#[cfg(test)]
+pub(crate) fn root_issued_with(
+    organization_key: &OrganizationKey,
+    root: &Certificate,
+    ceiling: i64,
+) -> Certificate {
+    let mut certificate = Certificate {
+        ceiling,
+        signature: Vec::new(),
+        ..root.clone()
+    };
+
+    certificate.signature = organization_key
+        .0
+        .sign(&certificate_preimage(&certificate))
+        .to_bytes()
+        .to_vec();
+
+    certificate
+}
+
 /// What a certificate issued by `issuer` has to carry, and how high it may stand.
 ///
 /// The fields a caller supplies when issuing: [`issue_certificate`] takes these beside the

@@ -6,6 +6,8 @@
 	import { workspaceContextOf } from '$lib/organization/workspace/acts';
 	import { useFetchMembers } from '$lib/organization/member/query';
 	import { useFetchOrganizationState } from '$lib/organization/query';
+	import { useFetchUpgradeAwaiting } from '$lib/organization/upgrade/query';
+	import { isUpgradable, mayUpgrade } from '$lib/organization/upgrade/upgrade';
 	import { useFetchRemoteSyncState } from '$lib/sync/ui';
 
 	/**
@@ -34,6 +36,12 @@
 	// an owner restored on this machine holds no Turso authority until they repeat the consent.
 	const needsAuthority = $derived(isOwner && !holdsTursoAuthority);
 	const canCreateWorkspace = $derived(isOwner && holdsTursoAuthority);
+
+	// what waits for an upgrade, read for whoever may run one and nobody else: a workspace with one
+	// waiting is marked on its card, and its menu offers it (effort 857, ticket 08).
+	const awaitingQuery = useFetchUpgradeAwaiting(() => mayUpgrade(session));
+	const upgradable = (workspaceId: string) =>
+		isUpgradable(session, awaitingQuery.data, { workspace: workspaceId });
 </script>
 
 {#if session}
@@ -53,6 +61,7 @@
 				{...workspaceContextOf(session, syncQuery.data?.workspace.remoteId ?? null)}
 				canCreate={canCreateWorkspace}
 				{isOwner}
+				{upgradable}
 				refusal={needsAuthority ? $LL.layout.workspaceMenu.workspaceRefusedAuthority() : null}
 			/>
 		</div>

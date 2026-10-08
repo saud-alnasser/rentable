@@ -1,6 +1,7 @@
 import api, { forgetContext } from '$lib/api/caller';
 import { invalidateRoot } from '$lib/mutation';
 import { toErrorMessage, toErrorText } from '$lib/error/message';
+import { toTauriRefusalReason } from '$lib/error/tauri';
 import LL from '$lib/i18n/i18n-svelte';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { baseLocale, locales } from '$lib/i18n/i18n-util';
@@ -10,6 +11,7 @@ import { browserAppearance } from '$lib/platform/appearance';
 import { recordDiagnosticError } from '$lib/platform/diagnostics';
 import { tauri } from '$lib/platform/tauri';
 import { forgetEveryChange } from '$lib/undo';
+import { updater } from '$lib/update/ui';
 import { organizationKeys } from '$lib/organization/ui';
 import { announceReceivedRows, syncWorkspaceBeforeExit, syncWorkspaceNow } from '$lib/sync';
 import { syncKeys } from '$lib/sync/ui';
@@ -94,6 +96,12 @@ export function browserStartupPorts(
 			forgetContext
 		},
 		undo: { forget: forgetEveryChange },
+		// the update looks once a run and again as each version hold begins, downloads in the
+		// background and offers the restart itself.
+		update: {
+			lookAtLaunch: () => void updater.lookAtLaunch(),
+			lookWhileHeld: () => void updater.lookWhileHeld()
+		},
 		// read at the moment of the failure rather than captured, so it is written in whatever
 		// language the reader had by then.
 		// the sentence alone: the shell's own words are the detail, drawn behind a disclosure where
@@ -101,6 +109,7 @@ export function browserStartupPorts(
 		describeError: (error) =>
 			toErrorText(error, get(LL), get(LL).layout.startup.failedToStartFallback()),
 		detailError: (error) => toErrorMessage(error, get(LL)).detail,
+		refusalReason: (error) => toTauriRefusalReason(error),
 		recordFailure: (message, detail) =>
 			recordDiagnosticError('startup.failed', { error: message, detail }),
 		reportStage: reportStartupStage,

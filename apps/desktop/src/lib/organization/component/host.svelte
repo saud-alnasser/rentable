@@ -4,6 +4,7 @@
 	import RoleHost from '$lib/organization/role/component/host.svelte';
 	import { useFetchRoles } from '$lib/organization/role/query';
 	import WorkspaceHost from '$lib/organization/workspace/component/host.svelte';
+	import UpgradeHost from '$lib/organization/upgrade/component/host.svelte';
 	import { organizationHostState, resetOrganizationHost } from '$lib/organization/host.svelte';
 	import { useFetchOrganizationState } from '$lib/organization/query';
 	import { onDestroy } from 'svelte';
@@ -60,3 +61,6 @@
 <WorkspaceHost {changeAccess} {refetchState} />
 
 <RoleHost {session} {roles} />
+
+<!-- the upgrade sheet, opened from the organization's card and a workspace's (effort 857). -->
+<UpgradeHost />

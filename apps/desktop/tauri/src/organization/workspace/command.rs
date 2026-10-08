@@ -8,6 +8,7 @@ use tauri::Emitter;
 use crate::{
     clock,
     credential::Credentials,
+    database::floor::Standing,
     error::{Error, RefusalReason},
     machine::RemoteSyncState,
     organization::Shared,
@@ -141,6 +142,10 @@ pub(crate) async fn organization_workspace_open(
     clock: tauri::State<'_, clock::Shared>,
     workspace_id: String,
 ) -> Result<WorkspaceFacts, Error> {
+    // one bring-up at a time on this machine (effort 857, ticket 40): opening waits for one the
+    // background is running, which may be of this very workspace. Taken before the session and
+    // the replica, as the background takes it, so neither waits on the other while holding them.
+    let one_at_a_time = app_state.bringing_up.lock().await;
     // the pull is its own, after the settled check rather than before it: a member whose role
     // is unsettled is refused before anything is asked of the remote.
     let (facts, credential) = as_member(&app_state, Pull::No, async |Acting { member, store }| {
@@ -174,14 +179,18 @@ pub(crate) async fn organization_workspace_open(
                 })?;
 
         // a workspace this build was not written against is refused here, before the replica is
-        // named, and nothing of it is read.
-        lease::refuse_newer(&facts)?;
+        // named, and nothing of it is read; one it may read and not write is let through, and
+        // nothing is written to it (effort 857, ticket 04).
+        let standing = lease::refuse_newer(store, &facts).await?;
 
         // requirement 20: a workspace behind what this build ships is brought up to it, under a
-        // lease taken at the organization database's primary, by whichever member opened it.
+        // lease taken at the organization database's primary, by whichever member opened it:
+        // every step shipped before 857 and every addition, and never an upgrade declared after
+        // (effort 857, ticket 03), which waits for the explicit act.
         // The organization credential in the session's slot is what the lease is taken under,
-        // and the member's own workspace credential is what the migrations go over.
-        if lease::is_pending(&facts) {
+        // and the member's own workspace credential is what the migrations go over. Only where
+        // this build may write it.
+        if standing == Standing::Writable && lease::is_pending(store, &facts).await? {
             let organization_credential = member
                 .organization_credential
                 .lock()
@@ -234,6 +243,8 @@ pub(crate) async fn organization_workspace_open(
         Ok((facts, credential))
     })
     .await?;
+
+    drop(one_at_a_time);
 
     {
         let permissions = app_state
@@ -332,7 +343,10 @@ pub(crate) async fn organization_workspace_renew_due(
     // nobody signed in answers `false` rather than the wall, and the pull is its own, after the
     // settled check: an unsettled role answers `false` before anything is asked of the remote.
     if_member(&app_state, Pull::No, async |Acting { member, store }| {
-        if member.settled().is_err() {
+        // an organization this build may not write is not renewed from it: the renewal mints at
+        // Turso before it writes, and the write would be refused (effort 857, ticket 05). It waits
+        // for this machine to update, or for a machine already updated to renew it.
+        if member.settled().is_err() || !crate::organization::session::writes_to(store) {
             return Ok(false);
         }
 

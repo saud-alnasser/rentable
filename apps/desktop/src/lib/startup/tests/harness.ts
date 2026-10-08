@@ -6,6 +6,11 @@ import type { RemoteSyncState } from '$lib/sync/host.ts';
 import type { Recovery } from '$lib/update/host.ts';
 import type { OrganizationState } from '$lib/organization/host.ts';
 import { inverseStack } from '$lib/undo/undo.ts';
+import {
+	toTauriRefusalReason,
+	type TauriError,
+	type TauriRefusalReason
+} from '$lib/error/tauri.ts';
 
 /**
  * Shared harness for driving startup with no window.
@@ -35,7 +40,8 @@ export const nowhereToGo = (): OrganizationState => ({
 	session: null,
 	holdsTursoAuthority: false,
 	setupConsented: false,
-	signedOutElsewhere: false
+	signedOutElsewhere: false,
+	heldByVersion: []
 });
 /** a machine whose person is admitted to an organization with no workspace in it yet. */
 export const withoutWorkspace = () =>
@@ -70,6 +76,16 @@ export const heldUndo = () => ({
 
 /** what a test holding the real stack hands the harness as `forgetUndo`. */
 export const forgetRealUndo = () => inverseStack.clear();
+
+/**
+ * a refusal as the shell sends one: the `refused` code and its reason, with Rust's own words as
+ * the message. The harness says it back as `refused: <reason>`, which stands in for the sentence.
+ */
+export const refusal = (reason: TauriRefusalReason): TauriError => ({
+	code: 'refused',
+	reason,
+	message: `the shell refused: ${reason}`
+});
 
 export function fakeRecovery(overrides: Partial<Recovery> = {}): Recovery {
 	return {
@@ -131,6 +147,10 @@ export type Journal = {
 	 * another machine, and the dispatch signs the member out as Rust does.
 	 */
 	standing: 'held' | 'signedOutElsewhere';
+	/** how many times the unit asked the update to look for a newer release. */
+	updateLooks: number;
+	/** how many times the unit asked the update to look again because a version holds it. */
+	heldLooks: number;
 };
 
 export type Harness = {
@@ -141,6 +161,8 @@ export type Harness = {
 	now: { value: number };
 	/** change where the machine stands from here on, as another machine's write would. */
 	standWith: (next: OrganizationState) => void;
+	/** change the machine's own sync record from here on, as choosing another organization does. */
+	syncWith: (next: RemoteSyncState) => void;
 };
 
 /**
@@ -177,6 +199,13 @@ export function harness(
 		forgetUndo?: () => void;
 		/** what else dropping the undrawn queries does, for a test asking what was on screen. */
 		dropUndrawn?: () => void;
+		/** what looking for an update meets, for the path where the update server is slow. */
+		lookForUpdate?: () => Promise<void>;
+		/**
+		 * how a thrown value reads, for a test drawing what the unit wrote in a reader's language;
+		 * `refused: <reason>` for a refusal, and the message otherwise, unless said.
+		 */
+		describeError?: (error: unknown) => string;
 	} = {}
 ): Harness {
 	const journal: Journal = {
@@ -195,6 +224,8 @@ export function harness(
 		undrawnDropped: 0,
 		invalidatedAll: 0,
 		standing: 'held',
+		updateLooks: 0,
+		heldLooks: 0,
 		remoteSyncInvalidated: 0,
 		remembered: [],
 		contextsForgotten: 0,
@@ -387,7 +418,23 @@ export function harness(
 				overrides.forgetUndo?.();
 			}
 		},
-		describeError: (error) => (error instanceof Error ? error.message : String(error)),
+		update: {
+			lookAtLaunch: () => {
+				journal.updateLooks += 1;
+				void overrides.lookForUpdate?.();
+			},
+			lookWhileHeld: () => void journal.heldLooks++
+		},
+		describeError: (error) => {
+			if (overrides.describeError) return overrides.describeError(error);
+
+			const reason = toTauriRefusalReason(error);
+
+			if (reason) return `refused: ${reason}`;
+
+			return error instanceof Error ? error.message : String(error);
+		},
+		refusalReason: (error) => toTauriRefusalReason(error),
 		detailError: () => null,
 		recordFailure: (message) => void journal.failures.push(message),
 		reportStage: (stage) => void journal.stages.push(stage),
@@ -405,6 +452,9 @@ export function harness(
 		now,
 		standWith: (next) => {
 			organization = next;
+		},
+		syncWith: (next) => {
+			state = next;
 		}
 	};
 }

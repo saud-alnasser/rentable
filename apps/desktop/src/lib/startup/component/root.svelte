@@ -41,6 +41,7 @@
 	import StartupSignIn from './sign-in.svelte';
 	import StartupSwitching from './switching.svelte';
 	import StartupUnreadable from './unreadable.svelte';
+	import StartupWorkspaceHeld from './workspace-held.svelte';
 
 	/** what the window is handed to draw a running application's state in. */
 	type WindowProps = {
@@ -335,6 +336,7 @@
 			errorMessage={shellState.error}
 			errorDetail={shellState.errorDetail}
 			earlier={earlier.offered}
+			refusals={shellState.refusals}
 			onSignIn={(username, password) => void startup.signIn(username, password)}
 			onSelect={(organizationId) => void startup.select(organizationId)}
 			onRemove={(organizationId) => startup.remove(organizationId)}
@@ -355,12 +357,33 @@
 			onSetUpOrganization={() => void walkTo(THE_FIRST_RUN)}
 			onJoinByLink={() => void walkTo(THE_JOIN)}
 		/>
+	{:else if screen === 'workspace-held' && shellState.held}
+		<!-- a workspace that would not open, this build unable to read it or refused for a reason
+		     of its own, in place of the workspace, with the session's others to switch to (effort
+		     857, requirement 7, and ticket 25). -->
+		<StartupWorkspaceHeld
+			workspaceId={shellState.held.workspaceId}
+			name={shellState.held.name}
+			sentence={shellState.held.sentence}
+			byVersion={shellState.held.byVersion}
+			workspaces={(shellState.organization?.session?.workspaces ?? []).filter(
+				(workspace) => workspace.id !== shellState.held?.workspaceId
+			)}
+			onSwitch={(workspaceId) => void startup.switchWorkspace(workspaceId)}
+			onRetry={() => {
+				if (shellState.held) void startup.switchWorkspace(shellState.held.workspaceId);
+			}}
+		/>
 	{:else if screen === 'recovery' && shellState.recovery}
 		<StartupRecovery recovery={shellState.recovery} onRetry={() => void startup.retry()} />
 	{:else if screen === 'error'}
-		<!-- the reported error does not reach this screen: it is not shown, and nothing
-		     writes it down yet. See the component. -->
-		<StartupError onRetry={() => void startup.retry()} />
+		<!-- the reason, kept behind the screen's details; the machine wrote it to diagnostics too.
+		     See the component. -->
+		<StartupError
+			message={shellState.error}
+			detail={shellState.errorDetail}
+			onRetry={() => void startup.retry()}
+		/>
 	{:else}
 		{@render children?.()}
 	{/if}
@@ -379,7 +402,11 @@
 		currentDirection,
 		shell,
 		onSwitchWorkspace: switchWorkspace,
-		dialogs: shellState.railIsUp && Boolean(shellState.organization?.session),
+		// nothing beside the frame reaches a workspace the workspace-held screen stands in for.
+		dialogs:
+			shellState.railIsUp &&
+			Boolean(shellState.organization?.session) &&
+			shellState.state !== 'held',
 		children: inside
 	})}
 {:else if startupSurfaceBeforeLocale(shellState) === 'failure'}

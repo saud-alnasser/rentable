@@ -40,6 +40,63 @@ for no other; the desktop's `workspace_live` test applies them through the Rust 
 account. *A TypeScript runner's test in `packages/turso-platform` ran them against a real libSQL
 file until effort 840 removed that package, imported by nothing.*
 
+**Step**:
+One move a database makes, numbered by the version it brings the data to, which is the numbering
+its floors are in: a workspace's migration `0000` is step 1 and `0006` step 7, and an
+organization's change from format 1 is step 2. Every step is declared in
+`tauri/src/database/step.rs`, beside its SQL and never in it ([[rules/migrations]]), as one of
+**two kinds**. An **addition** creates a table or an index, or adds a column that may be empty or
+has a default, and changes the meaning of nothing an older build reads or writes: it moves neither
+floor, and any machine whose build ships it runs it the first time it meets the data. An
+**upgrade** is everything else, a drop, a rename, a rebuild, a re-signing, or an addition whose
+meaning an older build would get wrong: it declares the floors it raises and whether it needs the
+owner's key, and runs only when a holder of `upgradeData` chooses it
+([[contexts/desktop/organization]], *Upgrade*). A meaning change that only adds a column is split
+into the two.
+**The steps shipped before effort 857 still run on open**, as 0.20 ran them (`shipped_before_857`,
+read by `Step::runs_on_open`): `0000` to `0006`, by the first member with full access to open the
+workspace, under the lease, and the changes of format up to 3, on the owner's machine at their
+sign-in, resume or connect. Each is declared an upgrade with both floors at its own number, which is
+what every build before 857 enforced by refusing any rise, and data in users' hands stands behind
+them. The rule that an upgrade waits for somebody to choose it binds every step declared after.
+*Effort 857, requirements 1 and 2, requirement 1 as amended at /implement.*
+_Avoid_: "upgrade" for a step that runs on open by itself.
+
+**Floors**:
+What a database is judged by, three numbers in the numbering of its steps (`database/floor.rs`): its
+**level**, the step it has taken, additions included; its **read floor**, the step a build must know
+to read it; and its **write floor**, the step a build must know to write it. A build knowing step
+`known` is **writable** at or above both, **read-only** at or above the read floor and below the
+write floor, and **unreadable** below the read floor, whatever the level, so a build is never
+refused for being behind a step that moved no floor. Data from before effort 857 has no floor
+record and reads as floors equal to its version, so a workspace at 7 reads `{7, 7, 7}`, and nothing
+is written to make it so (requirement 13). The **floor record** is a workspace's one-row
+`data_floor`, beside its `schema_version` row, and the organization's `organization_floor` and
+`workspace_floor` rows ([[contexts/desktop/organization]]); data created on a build that ships a
+step declared after 857 is created with it, holding the floors its steps declare (effort 857,
+ticket 21), older data gains it from the first such step to run on it, holding the floors read
+before it, and after that only the explicit upgrade moves it. Where the workspace's own record and the organization's disagree, the lesser verdict
+stands (`Standing::least`).
+_Avoid_: "the version" for the floors; nothing is refused for being newer or older, only for being
+below a floor.
+
+**`applied_step`**:
+The table listing each step a workspace ran above its `schema_version`. An upgrade waiting for
+somebody to choose it is passed over and the additions after it still run, so what has run stops
+being a prefix: `schema_version` keeps meaning every step up to it has run, and the check against a
+fresh database builds that database from the steps up to it and the ones listed (`apply::fresh_of`).
+It and `data_floor` are made with the first step declared after 857 to run, so a workspace only
+0.20's steps have reached holds neither, exactly as 0.20 left it.
+
+**Legacy number**:
+What a build from before effort 857 reads and refuses on any rise: the organization's record of a
+workspace, `workspace.schema_version`, and the organization's own `format` row. It follows the steps
+shipped before 857 and stops there (`Steps::settled`), so an addition never moves it; the explicit
+upgrade moves it only where a floor passes what any of those builds knows, and then to the higher
+floor, which every one of them refuses (`Steps::legacy_after`). That is the one way to stop a build
+that knows nothing of floors. A build from 857 on reads the floor record where there is one, and the
+legacy number as floors equal to it where there is not.
+
 **Transport**:
 What carries a query to the engine. Production goes through IPC to Rust; tests go through
 an in-memory engine that is type-identical to it.
@@ -78,17 +135,55 @@ router test can pass over a conversion that is broken in the running application
   together in one place; a change to one of the three without the others is a defect, not a
   partial edit.
 - **Nothing on this machine applies a migration to the replica.** A workspace's schema is applied
-  to its database over the wire, at creation and under a lease when a build ships more migrations
-  than the workspace is recorded at, and the replica receives it as replicated pages. It is applied
-  in one transaction with the workspace's own `schema_version` row and a check against a fresh
-  database of that version, or not at all (`organization/lease/apply.rs`, `schema/`); inside that
-  transaction a `PRAGMA foreign_keys` would be a no-op, which is one more reason none ships. The
-  TypeScript side here generates migrations and never runs them against the app's database;
-  `tauri/migrations/` is a build-time mirror `build.rs` counts to produce
-  `WORKSPACE_SCHEMA_VERSION` and embeds for the runner, and a build older than a workspace's
-  recorded version refuses to open it.
+  to its database over the wire, at creation, and under a lease when it is opened with a step it has
+  not taken that runs on open (a step shipped before 857, or an addition); an upgrade declared after
+  857 is applied only by the explicit upgrade, under the same lease (`organization/upgrade/`). The
+  replica receives either as replicated pages. It is applied in one transaction with the
+  workspace's own `schema_version` row, its `applied_step` and floor record where those are owed,
+  and a check against a fresh database of what it then holds, or not at all
+  (`organization/lease/apply.rs`, `schema/`); inside that transaction a `PRAGMA foreign_keys` would
+  be a no-op, which is one more reason none ships. The TypeScript side here generates migrations
+  and never runs them against the app's database; `tauri/migrations/` is a build-time mirror
+  `build.rs` counts to produce `WORKSPACE_SCHEMA_VERSION` and embeds for the runner. **A build is
+  refused a workspace only below its read floor**, and read-only below its write floor, never
+  merely for being older than its level. *It said a build older than a workspace's recorded version
+  refused to open it until effort 857, when the version stopped being the verdict.*
+- **The verdict is judged at every way in, after a pull, and held on the engine.** A workspace is
+  judged from the organization's record of it before its replica is named (`lease::refuse_newer`),
+  and again from its own record once its replica has pulled (`organization/workspace/open.rs`,
+  `session::workspace_judged`), and every heartbeat judges it again, after the organization's pull
+  and before anything of the workspace is pushed (`session_replicate`). The verdict is kept on `Database` (`hold`, `standing`). Below the read floor the
+  workspace is not opened: the workspace-held screen stands in its place, inside the application
+  (`startup/component/workspace-held.svelte`), saying a newer rentable upgraded it, carrying the
+  update action, and listing the session's other workspaces to switch to. *Effort 857,
+  requirements 7 to 9.*
+- **Read-only is enforced where writes cross into the engine, not in the interface.** While the
+  verdict is read-only, every statement through `execute_single_sql` and `execute_batch_sql` runs on
+  a connection held with `PRAGMA query_only` (`floor::hold_writes`), so the engine refuses a write
+  and serves a read, measured on the engine as built, and the refusal is answered as
+  `WorkspaceReadOnlyByVersion`; nothing is pushed (`push_replica`), so what was captured before the
+  floor rose waits for this machine to update. The shell draws the read-only notice with the update
+  action ([[contexts/desktop/organization]], *Held by a version*). *Effort 857, requirement 6.*
 - **Every query crosses the boundary as data** — statement, parameters, and the kind of
   result wanted. Nothing else about the engine is visible to the caller.
+- **The database refuses no duplicate value a person typed.** A tenant's phone and national ID, a
+  complex's name and a contract's government ID are kept unique by the acts that save them, with
+  today's words, and by no rule of the shared database since `0007`: the engine dropped the
+  records of the second of two machines that saved one value apart. Only identities are unique in
+  the schema. *Effort 857, requirement 14.*
+- **A retired record is never read, and the client is what makes that so.** Two machines saving the
+  same tenant, complex or contract apart make an exact copy, and the pass after a pull keeps the
+  earlier, heals the units, contracts and payments under the later one to one with those under the
+  earlier, moves what else pointed at it, and retires each copy with `merged_into` rather than
+  deleting it (`tauri/src/database/heal.rs`), where this build and the member's grant may write the
+  workspace. So a payment both machines saved is counted once, and one only a copy held moves.
+  Five tables hold that column, `tenant`, `complex`, `contract`, `unit` and `payment`, and every
+  statement a client built by `createDatabase` sends gains `"merged_into" is null` wherever it reads
+  one of them (`platform/database/retired.ts`), so no query carries the condition itself. Six tests
+  named `retired.test.ts` hold it: the rewrite's own, under `platform/database/`, which a read
+  written outside that client or naming a table where the rewrite does not look also fails, and one
+  beside each of the five kinds reading a retired copy through its routers. A build before `0008`
+  shows both copies, as it did before any pass ran. *Effort 857, requirement 14, ticket 35.*
 
 ## Constraints
 

@@ -65,7 +65,7 @@
 	const hasRail = $derived(shell === 'full');
 
 	// what a feature says above every screen about the reader's own account, read once: the lock
-	// (effort 851, requirement 32) is the one so far.
+	// (effort 851, requirement 32), and read-only for the version (effort 857, requirement 6).
 	const notices = slotsAt('notice');
 
 	const hasBreadcrumb = $derived(toBreadcrumbTrail(page.route.id).length > 0);

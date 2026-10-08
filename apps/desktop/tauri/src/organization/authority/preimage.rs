@@ -724,16 +724,38 @@ mod tests {
 
     const CHECKED_IN_ISSUED_AT: &str = "2026-08-30T00:00:00Z";
 
+    /// The owner's every flag and the manager's on the day the vectors below were made: bits 0 to
+    /// 17 and 20 to 39, and the same less the owner's. Written out rather than read off
+    /// `OWNER_ROLE` and `MANAGER_ROLE`, because the vectors pin bytes, and a flag added since
+    /// (`upgradeData`, effort 857) moves those masks and not the bytes an outside encoder made.
+    const CHECKED_IN_ROOT_CEILING: i64 = 1_099_510_841_343;
+
+    const CHECKED_IN_MANAGER_CEILING: i64 = 1_099_510_580_223;
+
     /// The root the vectors below pin. Issued at a fixed moment under a fixed key,
-    /// so its bytes are the same on every machine that runs this.
+    /// so its bytes are the same on every machine that runs this; its ceiling is the
+    /// one the vectors were made with, signed again under the same key where the
+    /// owner's mask has grown since.
     fn checked_in_certificate() -> Certificate {
-        issue_root_certificate(
-            &checked_in_organization_key(),
+        use ed25519_dalek::Signer as _;
+
+        let organization_key = checked_in_organization_key();
+        let mut certificate = issue_root_certificate(
+            &organization_key,
             CHECKED_IN_CERTIFICATE_ID,
             CHECKED_IN_MEMBER_ID,
             &hex_array(CHECKED_IN_ADMINISTRATOR_VERIFYING_KEY),
             CHECKED_IN_ISSUED_AT,
-        )
+        );
+
+        certificate.ceiling = CHECKED_IN_ROOT_CEILING;
+        certificate.signature = organization_key
+            .0
+            .sign(&certificate_preimage(&certificate))
+            .to_bytes()
+            .to_vec();
+
+        certificate
     }
 
     /// The same row, carrying the organization seed a transfer sealed onto it.
@@ -1455,7 +1477,7 @@ mod tests {
                 id: "certificate-2",
                 member_id: "member-2",
                 signing_public_key: &hex_array(CHECKED_IN_ADMINISTRATOR_VERIFYING_KEY),
-                ceiling: MANAGER_ROLE.mask,
+                ceiling: CHECKED_IN_MANAGER_CEILING,
                 rank: MANAGER_ROLE.rank,
                 issued_at: "2026-08-31T00:00:00Z",
             },

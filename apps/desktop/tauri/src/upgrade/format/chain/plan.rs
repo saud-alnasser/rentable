@@ -883,11 +883,14 @@ mod tests {
             narrowed.effective
         );
 
-        // an administrator with every act is a manager with nothing switched.
+        // an administrator with every act is a manager with nothing switched but upgrading the
+        // data, which format 1 did not name and the manager role carries since effort 857: they
+        // keep exactly what they could do.
         let whole = carried_by("administrator", FORMAT_ONE_ACTS, false);
+        let upgrading = mask(&[Flag::UpgradeData]);
 
-        assert_eq!(whole.effective, MANAGER_ROLE.mask);
-        assert_eq!(whole.override_mask, 0);
+        assert_eq!(whole.effective, MANAGER_ROLE.mask & !upgrading);
+        assert_eq!(whole.override_mask, upgrading);
 
         // a member granted administration acts: a manager holding exactly those, and the records.
         let lead = carried_by("member", GRANT_WORKSPACE | RENAME_WORKSPACE, false);

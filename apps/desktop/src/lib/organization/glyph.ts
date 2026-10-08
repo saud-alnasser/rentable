@@ -1,3 +1,4 @@
+import DatabaseArrowUpIcon from '@lucide/svelte/icons/database-arrow-up';
 import DoorOpenIcon from '@lucide/svelte/icons/door-open';
 import EyeIcon from '@lucide/svelte/icons/eye';
 import KeyRoundIcon from '@lucide/svelte/icons/key-round';
@@ -35,9 +36,9 @@ export const ADMINISTRATION_GLYPH = UsersIcon;
  * The glyph each permission's row in the switch list leads with (effort 838, requirement 12 as
  * amended a fourth time 2026-09-28). A kind of record's four are the verbs' glyphs, the ones the
  * application's own acts carry: the eye, the plus every create takes, the pen every edit takes and
- * the bin every delete takes. The organization's ten are each what the person acts on: a member
- * let in or out, a name changed, a password's key, a workspace's door, a role's shield, and the
- * seal the mark prints.
+ * the bin every delete takes. The organization's eleven are each what the person acts on: a member
+ * let in or out, a name changed, a password's key, a workspace's door, a role's shield, the seal
+ * the mark prints, and the data raised to a newer version.
  */
 const VERB_GLYPH = {
 	view: EyeIcon,
@@ -56,7 +57,8 @@ const ADMINISTRATION_FLAG_GLYPH: Partial<Record<Flag, typeof EyeIcon>> = {
 	grantWorkspace: DoorOpenIcon,
 	manageRoles: ShieldIcon,
 	overrideMember: UserCogIcon,
-	manageMark: StampIcon
+	manageMark: StampIcon,
+	upgradeData: DatabaseArrowUpIcon
 };
 
 /** the glyph a permission's row leads with. */

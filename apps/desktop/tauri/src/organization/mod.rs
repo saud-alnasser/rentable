@@ -18,8 +18,9 @@
 //! resume, the heartbeat and the forget that leaves nothing of the organization here (`session/`),
 //! the accounts and the links a machine is admitted by (`invitation/`), a member's own row and
 //! their removal (`member/`), the roles (`role/`), the handover (`ownership/`), the workspaces
-//! (`workspace/`) and the lease their schema is brought up under (`lease/`), and the mark the
-//! organization prints (`mark/`). What every command does first, acting as the signed-in member,
+//! (`workspace/`) and the lease their schema is brought up under (`lease/`), the explicit upgrade
+//! of the organization or a workspace by whoever holds the permission for it (`upgrade/`), and the
+//! mark the organization prints (`mark/`). What every command does first, acting as the signed-in member,
 //! is `act.rs`. The commands are served as one plugin, `organization`, whose handler in `plugin.rs`
 //! lists every sub-concept's: a command answers to its Rust name without `organization_`, so
 //! `organization_member_rename` is invoked as `plugin:organization|member_rename`. What they read
@@ -41,6 +42,7 @@ pub mod session;
 pub mod setup;
 mod state;
 pub mod store;
+pub mod upgrade;
 pub mod workspace;
 
 /// One organization this machine holds, as this machine's record keeps it. Described with
@@ -203,8 +205,22 @@ mod tests {
         // the heartbeat over this machine's own replicas; it asks nothing of a row, and a member
         // signed out elsewhere ends it before anything is pushed.
         ("session_replicate", Gate::ThisMachine),
+        // changes the workspace refused since an upgrade, discarded at the person's word (effort
+        // 857, ticket 13): somebody is in, since the workspace is opened again under their
+        // credential, and the act is refused where nothing is held.
+        ("session_discard_unsent", Gate::SignedIn),
+        // the same for changes the organization refused (ticket 20): the organization is copied
+        // again under the signed-in member's own credential.
+        ("session_discard_unsent_organization", Gate::SignedIn),
         ("workspace_rename", Gate::Flag(Flag::RenameWorkspace)),
         ("setup_rename", Gate::OwnerAlone),
+        // the explicit upgrade of the organization or a workspace (effort 857, ticket 07); a step
+        // needing the owner's own key is refused to anybody else inside the act.
+        ("upgrade_preview", Gate::Flag(Flag::UpgradeData)),
+        ("upgrade_run", Gate::Flag(Flag::UpgradeData)),
+        // what waits for it, by step number, read by every member: a capability gated on a step
+        // says why to whoever meets it (ticket 08).
+        ("upgrade_awaiting", Gate::SignedIn),
     ];
 
     /// Every command the sub-concepts declare, read off their source by walking `organization/`,

@@ -4,15 +4,17 @@ import { StartupMachine } from './machine';
 import type { StartupPorts } from './ports';
 import type { StartupSnapshot } from './snapshot';
 import { switchWorkspace } from './switch';
-import { linkRefused, remove, select, signIn, signOut } from './wall';
+import { linkRefused, organizationRefused, remove, select, signIn, signOut } from './wall';
 
 export type { SyncOutcome } from './heartbeat';
 export type { StartupPorts } from './ports';
 export {
 	hasRecoveryData,
+	type OrganizationRefusal,
 	type SignInReason,
 	type StartupSnapshot,
-	type StartupState
+	type StartupState,
+	type WorkspaceHold
 } from './snapshot';
 
 /**
@@ -85,6 +87,19 @@ export class Startup {
 	/** A link was refused: read where the machine stands again, in place, under it (`./wall`). */
 	linkRefused() {
 		return linkRefused(this.#machine);
+	}
+
+	/**
+	 * A link was refused because the organization it names cannot be opened (`./wall`): back to
+	 * the switcher with the reason above it, where this machine holds that organization. Answers
+	 * whether it did; where it did not, the join screen says the refusal itself.
+	 */
+	organizationRefused(
+		organizationId: string,
+		error: unknown,
+		passing?: { arrive?: () => Promise<unknown> }
+	) {
+		return organizationRefused(this.#machine, organizationId, error, passing);
 	}
 
 	/**

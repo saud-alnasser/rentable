@@ -36,6 +36,8 @@ pub fn plugin() -> TauriPlugin<tauri::Wry> {
             super::setup::organization_setup_forget_authority,
             super::setup::organization_setup_rename,
             super::session::organization_session_replicate,
+            super::session::organization_session_discard_unsent,
+            super::session::organization_session_discard_unsent_organization,
             super::session::organization_session_disconnect,
             super::session::organization_session_select,
             super::session::organization_session_remove,
@@ -88,6 +90,9 @@ pub fn plugin() -> TauriPlugin<tauri::Wry> {
             super::mark::organization_mark_get,
             super::mark::organization_mark_set,
             super::mark::organization_mark_clear,
+            super::upgrade::organization_upgrade_preview,
+            super::upgrade::organization_upgrade_run,
+            super::upgrade::organization_upgrade_awaiting,
         ])
         .setup(|app, _api| {
             app.manage(Shared {
@@ -101,7 +106,9 @@ pub fn plugin() -> TauriPlugin<tauri::Wry> {
                 member: Arc::new(RwLock::new(None)),
                 arriving_link: Arc::new(Mutex::new(None)),
                 signed_out_elsewhere: Arc::new(AtomicBool::new(false)),
+                held_by_version: Arc::new(std::sync::Mutex::new(None)),
                 old_shape_check: tokio::sync::OnceCell::new(),
+                bringing_up: Default::default(),
             });
 
             Ok(())

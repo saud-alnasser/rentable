@@ -63,6 +63,11 @@ export function fakeOrganizationHost(): OrganizationHost {
 			query: refuse('organization.workspace.query'),
 			batch: refuse('organization.workspace.batch')
 		},
+		upgrade: {
+			awaiting: refuse('organization.upgrade.awaiting'),
+			preview: refuse('organization.upgrade.preview'),
+			run: refuse('organization.upgrade.run')
+		},
 		member: {
 			list: refuse('organization.member.list'),
 			standings: refuse('organization.member.standings'),
@@ -225,6 +230,7 @@ export function fakeOrganizationState(
 		holdsTursoAuthority: true,
 		setupConsented: false,
 		signedOutElsewhere: false,
+		heldByVersion: [],
 		...overrides
 	};
 }

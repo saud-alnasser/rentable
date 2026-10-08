@@ -13,6 +13,7 @@ import { refuse } from '$lib/api/refusal';
 import { autosync, procedure, refuseMissing, router } from '$lib/api/trpc';
 import {
 	COMPLEX_SORT_COLUMN_IDS,
+	complexesNamed,
 	ensureComplexDeletable,
 	ensureComplexNameAvailable,
 	ensureComplexStillExists,
@@ -201,9 +202,7 @@ export default router({
 					: await ctx.db.select().from(s.complex).where(eq(s.complex.id, complex.id)).get()
 			);
 
-			ensureComplexNameAvailable(
-				await ctx.db.select().from(s.complex).where(eq(s.complex.name, complex.name)).get()
-			);
+			ensureComplexNameAvailable((await complexesNamed(ctx.db, [complex.name]))[0]);
 
 			const named = units.map((unit) => ({ ...unit, name: unit.name.trim() }));
 
@@ -250,20 +249,20 @@ export default router({
 		.use(autosync())
 		.input(ComplexSchema.partial({ name: true, location: true }))
 		.mutation(async ({ input, ctx }) => {
-			// presence, not truthiness: the schema admits '' for name, and a present value
-			// must hit the uniqueness check exactly when the set clause would write it.
-			const isNameUsed =
-				input.name !== undefined
-					? await ctx.db
-							.select()
-							.from(s.complex)
-							.where(sql`${s.complex.name} = ${input.name} AND ${s.complex.id} != ${input.id}`)
-							.get()
-					: null;
+			// presence, not truthiness: the schema admits '' for name. Only a name this edit
+			// changes is checked: two complexes may already share one, saved apart on two
+			// machines (effort 857, ticket 38), and each stays editable.
+			const current = await ctx.db
+				.select({ name: s.complex.name })
+				.from(s.complex)
+				.where(eq(s.complex.id, input.id))
+				.get();
+			const renamed =
+				input.name !== undefined && input.name !== current?.name ? input.name : undefined;
 
-			if (isNameUsed) {
-				throw refuse('complex.nameTaken');
-			}
+			ensureComplexNameAvailable(
+				renamed !== undefined ? (await complexesNamed(ctx.db, [renamed], input.id))[0] : null
+			);
 
 			const values = {
 				...(input.name !== undefined ? { name: input.name } : {}),
@@ -457,7 +456,7 @@ export default router({
 
 			ensureIdFree(held[0], held[0]?.id);
 
-			const taken = await ctx.db.select().from(s.complex).where(inArray(s.complex.name, names));
+			const taken = await complexesNamed(ctx.db, names);
 
 			ensureComplexNameAvailable(taken[0], taken[0]?.name);
 

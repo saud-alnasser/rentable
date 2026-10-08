@@ -1,4 +1,6 @@
+pub mod command;
 mod plugin;
+pub mod release;
 
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;

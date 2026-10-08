@@ -14,7 +14,7 @@ use crate::error::Error;
 /// statements through its query builder and never concatenates a value into one: everything
 /// variable travels in `params` and is bound, so the statement text is fixed by the code
 /// that shipped rather than by anything a user typed.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SQLQuery {
     pub sql: String,
     pub params: Vec<Value>,

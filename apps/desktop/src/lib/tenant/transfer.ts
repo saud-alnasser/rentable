@@ -104,8 +104,9 @@ export default defineSheet({
 			return { id, name: tenant.name, nationalId: tenant.nationalId, phone: tenant.phone };
 		});
 
-		// the checks `tenant.createMany` makes, so a file that slipped past the plan is refused by
-		// name rather than by the unique constraint part-way through the batch.
+		// the checks `tenant.createMany` makes: the plan rejected a value the workspace held, but
+		// one can arrive by sync before the write, and no rule of the shared database refuses it any
+		// longer (effort 857, requirement 14), so the whole write is refused by name here.
 		await ensureTenantsAvailable(writing.db, rows);
 
 		return {

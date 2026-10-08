@@ -22,6 +22,9 @@ import type {
 	OutstandingLink,
 	SessionsEnded,
 	UnreachableWorkspace,
+	UpgradeAwaiting,
+	UpgradePreview,
+	UpgradeTarget,
 	WorkspaceGrant,
 	WorkspaceStatement
 } from './host';
@@ -116,6 +119,12 @@ export const tauri = {
 			invoke<Row[]>('plugin:organization|workspace_query', { workspaceId, query }),
 		batch: (workspaceId: string, queries: WorkspaceStatement[]) =>
 			invoke<Row[][]>('plugin:organization|workspace_batch', { workspaceId, queries })
+	},
+	upgrade: {
+		awaiting: () => invoke<UpgradeAwaiting>('plugin:organization|upgrade_awaiting'),
+		preview: (target: UpgradeTarget) =>
+			invoke<UpgradePreview>('plugin:organization|upgrade_preview', { target }),
+		run: (target: UpgradeTarget) => invoke<void>('plugin:organization|upgrade_run', { target })
 	},
 	member: {
 		list: () => invoke<OrganizationMember[]>('plugin:organization|member_list'),

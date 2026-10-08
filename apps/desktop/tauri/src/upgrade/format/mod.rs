@@ -73,16 +73,19 @@ pub(crate) const TRANSITIONS: &[Transition] = &[chain::TRANSITION, overriding::T
 /// What a change of format hands the runner to await, borrowing what it was given.
 pub(crate) type Pending<'a, T> = Pin<Box<dyn Future<Output = Result<T, Error>> + Send + 'a>>;
 
-/// The owner's upgrade under way, as every change of format is given it.
+/// An upgrade under way, as every change of format is given it: the owner's, or, for a change
+/// declared after effort 857 that re-signs nothing, that of any holder of `upgradeData` (ticket 22).
 pub(crate) struct Upgrading<'a> {
     pub(crate) store: &'a OrganizationStore,
-    /// the key the organization is on now, settled along any handover it holds, which is the one
-    /// the owner's secret derives.
+    /// the key the organization is on now, settled along any handover it holds.
     pub(crate) key: &'a [u8; VERIFYING_KEY_BYTES],
-    pub(crate) organization_key: &'a OrganizationKey,
-    /// the key the owner signs rows with, which their own secret derives.
+    /// the organization key, which only the owner's secret derives: held on the owner's walk on
+    /// open, and in the explicit upgrade only for a step declared `needs_owner`, since that is the
+    /// step that re-signs. A change that re-signs nothing is never handed it.
+    pub(crate) organization_key: Option<&'a OrganizationKey>,
+    /// the key the member running the upgrade signs rows with, which their own secret derives.
     pub(crate) signing_key: &'a AdministratorKey,
-    /// the owner's vault, and the member row it sits on.
+    /// the vault of the member running the upgrade, and the member row it sits on.
     pub(crate) opened: &'a Opened,
     pub(crate) now: i64,
 }

@@ -3,9 +3,11 @@
  *
  * What a member may do, as one bitmask of named flags (effort 838, requirement 1).
  *
- * Three families share the mask: the organization's administration on bits 0 to 9, the acts only
- * the owner performs on bits 10 to 17, and, for each record kind, viewing, creating, editing and
- * deleting on bits 20 to 39. Bits 18, 19 and 40 to 52 are free. A member's permissions are their
+ * Three families share the mask: the organization's administration on bits 0 to 9 and 18, the acts
+ * only the owner performs on bits 10 to 17, and, for each record kind, viewing, creating, editing
+ * and deleting on bits 20 to 39. Bits 19 and 40 to 52 are free. *Bit 18, upgrading the
+ * organization's and its workspaces' data, joined the administration in effort 857, after the
+ * owner's run had taken 10 to 17.* A member's permissions are their
  * role's mask exclusive-or'd with their own override, which is [`effective`]; in one workspace,
  * that with the record flags pinned for that workspace set to what is granted there, which is
  * [`effectiveInWorkspace`].
@@ -47,6 +49,7 @@ export const FLAGS = {
 	tursoAccount: 15,
 	transferOwnership: 16,
 	deleteOrganization: 17,
+	upgradeData: 18,
 	viewComplex: 20,
 	createComplex: 21,
 	editComplex: 22,
@@ -89,7 +92,8 @@ export const FAMILIES = {
 		'grantWorkspace',
 		'manageRoles',
 		'overrideMember',
-		'manageMark'
+		'manageMark',
+		'upgradeData'
 	],
 	owner: [
 		'createWorkspace',

@@ -39,6 +39,20 @@ use crate::organization::{
 /// and makes them an account again. A row that is gone is a deletion,
 /// which the chain says it cannot stop (`authority/`): there is no vault left to keep, so nothing
 /// is written and the point-in-time restore is the answer.
+/// Whether `secret` is the owner's own: the vault that derives the key the organization is pinned
+/// to, whose machine repairs a row somebody below them wrote ([`repair_owner_row`]). A removal on
+/// that row does not stop a sign-in or a resume at the vault, since the repair after their pull
+/// writes it back (`session::repaired_after_the_pull`, effort 857, ticket 04); on anybody else's
+/// row it is a removal.
+pub(in crate::organization) fn is_the_owners(
+    secret: &MemberSecretKey,
+    verifying_key: &[u8; VERIFYING_KEY_BYTES],
+) -> bool {
+    owner_key_from(secret)
+        .map(|key| key.verifying_key() == *verifying_key)
+        .unwrap_or(false)
+}
+
 pub(in crate::organization) async fn repair_owner_row(
     store: &OrganizationStore,
     verifying_key: &[u8; VERIFYING_KEY_BYTES],

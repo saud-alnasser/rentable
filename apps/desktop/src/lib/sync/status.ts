@@ -30,7 +30,12 @@ import { DAY, formatLocaleDate, formatLocaleRelativeTime } from '$lib/platform/l
  * explanations: the block says the account's sentence under one and the credential's under the
  * other.
  */
-export type SyncProblem = 'accountRefused' | 'credentialRefused' | 'needsReconnect';
+export type SyncProblem =
+	| 'accountRefused'
+	| 'credentialRefused'
+	| 'organizationChangesUnsendable'
+	| 'changesUnsendable'
+	| 'needsReconnect';
 
 export const syncProblemOf = (state: RemoteSyncState): SyncProblem | null => {
 	// the organization's account, refused by Turso: a fact from a replication that reached Turso
@@ -45,6 +50,20 @@ export const syncProblemOf = (state: RemoteSyncState): SyncProblem | null => {
 	// answer about why nothing syncs where a fault is a stale report.
 	if (state.credentialRefusal) {
 		return 'credentialRefused';
+	}
+
+	// changes this machine holds that the organization refuses since an upgrade (effort 857,
+	// ticket 20), read before the workspace's: the organization is what says who may do what, and
+	// nothing of it moves until the person discards them.
+	if (state.unsendableOrganizationChanges) {
+		return 'organizationChangesUnsendable';
+	}
+
+	// changes this machine holds that the workspace refuses since an upgrade (effort 857, ticket
+	// 13): nothing goes either way until the person discards them, a definite answer that
+	// waits on them where a fault is a stale report.
+	if (state.unsendableChanges) {
+		return 'changesUnsendable';
 	}
 
 	// the one fault in the list, and the only one a person can act on by doing something.
@@ -75,6 +94,8 @@ export const syncStatusOf = (state: RemoteSyncState, inFlight = false): SyncStat
 	switch (syncProblemOf(state)) {
 		case 'accountRefused':
 		case 'credentialRefused':
+		case 'organizationChangesUnsendable':
+		case 'changesUnsendable':
 			return 'needsAttention';
 		case 'needsReconnect':
 			return 'needsReconnecting';

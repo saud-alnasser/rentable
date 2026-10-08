@@ -44,10 +44,18 @@ const LATIN_CHARACTER = /^[ -~]$/;
  * application treats as first-class. A named key, `ArrowDown` or `Enter`, reports its own name
  * and matches at the first step.
  *
+ * A keydown that carries no key is no shortcut. Chromium sends one when a remembered sign-in is
+ * picked from the autofill list: a plain `Event` named `keydown`, with neither `key` nor `code`.
+ *
+ * @param event the keydown; its key and code are optional because that one arrives without them.
  * @param character the shortcut's character: a single lowercase letter, a punctuation mark, or
  * the name of a key that types nothing.
  */
-export function matchesShortcutKey(event: Pick<KeyboardEvent, 'key' | 'code'>, character: string) {
+export function matchesShortcutKey(event: { key?: string; code?: string }, character: string) {
+	if (event.key === undefined) {
+		return false;
+	}
+
 	if (event.key.toLowerCase() === character.toLowerCase()) {
 		return true;
 	}

@@ -15,11 +15,16 @@
 //! unchanged, until review round one found that a way back resting on that seal rests on the
 //! database it is meant to judge.*
 
+mod ceiling;
 mod command;
 mod repair;
 
+pub use ceiling::THE_OWNER_HAS_NOT_OPENED_THIS_VERSION;
+pub(in crate::organization) use ceiling::widen_root;
+// the upgrade command asks this before it runs (effort 857, ticket 07), and nothing else does.
+pub(in crate::organization) use ceiling::refuse_until_the_owner_has_opened_this_version;
 pub use command::*;
-pub(in crate::organization) use repair::{repair_owner_row, sign_organization_name};
+pub(in crate::organization) use repair::{is_the_owners, repair_owner_row, sign_organization_name};
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64URL};
 
@@ -90,10 +95,11 @@ pub const NOT_THE_KEY_IN_FORCE: &str = "the key your vault derives is not the on
 /// session that followed a succession has a new pinned key the founder's derivation fails against.
 ///
 /// **What the tests ask to say that no organization key is in reach.** No act signs with the
-/// organization key since effort 838 but the first run, the root the handover issues and a
-/// succession, each of which derives it where it is: a certificate is issued from the issuer's own
-/// (`authority::issue_certificate`), so a manager puts a signer into effect without it
-/// (requirement 9). *Assigning a signing act read the key through this until effort 838.*
+/// organization key since effort 838 but the first run, the root the handover issues, the root the
+/// owner's machine issues again where this build's owner holds a flag it lacks (`widen_root`,
+/// effort 857) and a succession, each of which derives it where it is: a certificate is issued
+/// from the issuer's own (`authority::issue_certificate`), so a manager puts a signer into effect
+/// without it (requirement 9). *Assigning a signing act read the key through this until effort 838.*
 #[cfg(test)]
 pub(super) fn organization_key_of(session: &MemberSession) -> Result<OrganizationKey, Error> {
     let key = owner_key_from(&session.secret)?;
@@ -652,7 +658,7 @@ pub async fn accept_ownership(
     // below the certificate it names. Read under the key being left, so before anything above
     // them is issued again.
     for old in &earlier {
-        reissue_what_it_issued(store, session, &signer, old).await?;
+        reissue_what_it_issued(store, &session.verifying_key, &signer, old).await?;
     }
 
     // every certificate the founder issued directly is issued again, under the same id with the

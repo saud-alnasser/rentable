@@ -90,11 +90,11 @@ use crate::organization::{
     session::{
         CredentialSlot, content_key_of, opened, refused_by_name, remembered, verifying_key_of,
     },
-    setup::ADMINISTRATOR_KEY_PURPOSE,
+    setup::{ADMINISTRATOR_KEY_PURPOSE, owner_key_from},
     store::{OrganizationStore, waits_for_its_owner},
 };
 
-use super::{Sought, TRANSITIONS, Transition};
+use super::{Sought, TRANSITIONS, Transition, Upgrading};
 
 mod replication;
 mod walk;
@@ -126,7 +126,7 @@ pub(crate) async fn with_password(
     now: i64,
 ) -> Result<(), Error> {
     with_password_over(
-        TRANSITIONS,
+        on_open(store, TRANSITIONS),
         store,
         remote,
         held,
@@ -201,13 +201,15 @@ pub(crate) async fn with_remembered_key(
     credential: &CredentialSlot,
     now: i64,
 ) -> Result<(), Error> {
-    if !store.is_older_than(shipped(TRANSITIONS)).await? {
+    let transitions = on_open(store, TRANSITIONS);
+
+    if !store.is_older_than(shipped(transitions)).await? {
         return Ok(());
     }
 
     let member_id = held.member_id.as_deref().ok_or_else(waits_for_its_owner)?;
     let (filed_epoch, member_key) = remembered(credentials, &held.id, member_id)?;
-    let reading = reading(store, TRANSITIONS).await?;
+    let reading = reading(store, transitions).await?;
     let member = (reading.members)(store)
         .await?
         .into_iter()
@@ -232,7 +234,7 @@ pub(crate) async fn with_remembered_key(
     upgrade(
         store,
         remote,
-        TRANSITIONS,
+        transitions,
         reading,
         &held.id,
         &pinned,
@@ -262,7 +264,9 @@ pub(crate) async fn with_the_owners_password(
     now: i64,
     refused: impl Fn() -> Error,
 ) -> Result<(), Error> {
-    if !store.is_older_than(shipped(TRANSITIONS)).await? {
+    let transitions = on_open(store, TRANSITIONS);
+
+    if !store.is_older_than(shipped(transitions)).await? {
         return Ok(());
     }
 
@@ -274,7 +278,7 @@ pub(crate) async fn with_the_owners_password(
                 .to_string(),
         })?;
     let key = settled(store, &organization.verifying_key).await?;
-    let reading = reading(store, TRANSITIONS).await?;
+    let reading = reading(store, transitions).await?;
     let opened = vault_opened_by(store, reading, &key, username, password)
         .await?
         .ok_or_else(refused)?;
@@ -282,7 +286,7 @@ pub(crate) async fn with_the_owners_password(
     upgrade(
         store,
         remote,
-        TRANSITIONS,
+        transitions,
         reading,
         &organization.id,
         &organization.verifying_key,
@@ -543,6 +547,17 @@ fn shipped(transitions: &[Transition]) -> i64 {
     transitions.len() as i64 + 1
 }
 
+/// The changes of `transitions` a sign-in, a resume or a connect walks on open (effort 857, ticket
+/// 03): those shipped before 857, by the steps `store` declares, which its owner's machine still
+/// runs as 0.20 ran them. A change declared after them is never walked here. An upgrade waits for
+/// the explicit act (ticket 07), and an addition's tables reach any member's replica through
+/// [`OrganizationStore::complete_schema`] after the pull, with the `format` row left where it was.
+fn on_open<'t>(store: &OrganizationStore, transitions: &'t [Transition]) -> &'t [Transition] {
+    let settled = store.format_steps().settled().saturating_sub(1) as usize;
+
+    &transitions[..transitions.len().min(settled)]
+}
+
 /// The change of format whose readers find a vault and a grant in the organization as it stands
 /// (ticket 29): the first due, the one starting from the format it is in; or, where it is in the
 /// format `transitions` ship and only its `format` row is missing or wrong, the last, whose
@@ -558,6 +573,75 @@ async fn reading<'t>(
         .find(|transition| transition.from >= from)
         .or(transitions.last())
         .ok_or_else(waits_for_its_owner)
+}
+
+/// Run the change of format numbered `number` of `transitions`, declared after effort 857, on
+/// `store`, inside the explicit upgrade's transaction (effort 857, ticket 07): the change that
+/// starts from the format before it, on the keys of the member whose vault `secret` came from,
+/// `member_id`. `organization_verifying_key` is the key the session pinned.
+///
+/// **Only a step that re-signs waits for the owner's key** (spec requirement 3, ticket 22). A step
+/// `store` declares `needs_owner`, or does not declare at all, runs on the organization key, so a
+/// secret that derives no key the organization is on refuses with `UpgradeNeedsOwner` before
+/// anything is read or written. A step declared `needs_owner: false` runs for whoever the caller
+/// let through, on their own signing key, and is never handed the organization key. A step
+/// `transitions` holds no change for has nothing of its own to run: the upgrade records its floors
+/// and that is all it does.
+///
+/// It begins no transaction of its own; the caller's holds it, as the walk's holds every change it
+/// runs.
+pub(crate) async fn change(
+    store: &OrganizationStore,
+    transitions: &[Transition],
+    organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
+    member_id: &str,
+    secret: &MemberSecretKey,
+    number: u32,
+    now: i64,
+) -> Result<(), Error> {
+    let Some(transition) = transitions
+        .iter()
+        .find(|transition| transition.from + 1 == i64::from(number))
+    else {
+        return Ok(());
+    };
+    let steps = store.format_steps();
+    let re_signs = steps.step(number).is_none() || steps.need_the_owner(&[number]);
+    let key = settled(store, organization_verifying_key).await?;
+    let organization_key = if re_signs {
+        let organization_key = owner_key_from(secret)?;
+
+        if organization_key.verifying_key() != key {
+            return Err(Error::refused(
+                RefusalReason::UpgradeNeedsOwner,
+                format!(
+                    "the change of format {} runs on the owner's keys, so only the owner can run \
+                     it; nothing was changed",
+                    transition.name
+                ),
+            ));
+        }
+
+        Some(organization_key)
+    } else {
+        None
+    };
+
+    let signing_key = signing_key_of(secret)?;
+    let opened = Opened {
+        member_id: member_id.to_string(),
+        secret: secret.copied(),
+    };
+
+    (transition.run)(&Upgrading {
+        store,
+        key: &key,
+        organization_key: organization_key.as_ref(),
+        signing_key: &signing_key,
+        opened: &opened,
+        now,
+    })
+    .await
 }
 
 /// The key the owner signs rows with, which their own secret derives and the root names.
@@ -2966,7 +3050,7 @@ mod tests {
         let upgrading = Upgrading {
             store,
             key: &key,
-            organization_key: &older.organization_key,
+            organization_key: Some(&older.organization_key),
             signing_key: &signing_key,
             opened: &opened,
             now: NOW + 60_000,
@@ -3489,5 +3573,484 @@ mod tests {
             vec![format!("format-1-to-{FORMAT_VERSION}-{NOW}.sqlite")]
         );
         assert_upgraded(&store, &older, &older.pinned()).await;
+    }
+
+    /// The shipped changes of format with `later`, declared after effort 857, after them.
+    fn declaring_after(later: crate::database::step::Kind) -> crate::database::step::Steps {
+        use crate::database::step::{FORMAT_STEPS, Step, Steps};
+
+        let declared: Vec<Step> = FORMAT_STEPS
+            .iter()
+            .copied()
+            .chain([Step {
+                kind: later,
+                describes: "aLaterChange",
+                shipped_before_857: false,
+                readers_need: true,
+            }])
+            .collect();
+
+        Steps {
+            first: 2,
+            declared: Box::leak(declared.into_boxed_slice()),
+        }
+    }
+
+    /// **Ticket 03's third criterion.** An organization of format 3 opened by a build that knows a
+    /// fourth change, declared after 857 as an addition: a member's sign-in walks nothing, waits for
+    /// nobody and asks nothing of the remote; the completion the pull runs makes the organization
+    /// this build's, records the level the addition took it to beside floors left at 3, and leaves
+    /// the `format` row at 3; and the organization is read-write.
+    #[tokio::test]
+    async fn a_members_sign_in_meets_only_an_addition_and_the_format_stays() {
+        use crate::database::{
+            floor::{Floors, Standing},
+            step::Kind,
+        };
+
+        let (older, store) = upgraded("additions-arrive").await;
+        let store = store.declaring(declaring_after(Kind::Addition));
+        let mina = older.person("mina");
+        let remote = online();
+
+        with_password(
+            &store,
+            &remote,
+            &older.held_by("mina"),
+            mina.username,
+            mina.password,
+            &slot(),
+            NOW,
+        )
+        .await
+        .expect("the member waited for an addition");
+
+        assert!(remote.asked().is_empty(), "{:?}", remote.asked());
+        assert!(store.complete_schema().await.expect("the completion"));
+        assert_eq!(store.format().await.expect("the format"), Some(3));
+        assert_eq!(
+            store.floors().await.expect("the floors"),
+            Some(Floors {
+                level: 4,
+                read: 3,
+                write: 3
+            })
+        );
+        assert_eq!(
+            store.refuse_another_format().await.expect("readable"),
+            Standing::Writable
+        );
+        assert!(!store.is_older().await.expect("the format"));
+    }
+
+    /// The contrast: a fourth change shipped before 857, as every change so far was, is not an
+    /// addition this machine may run. The completion creates nothing and records nothing, and the
+    /// organization waits for its owner, as 0.20 left everybody else waiting.
+    #[tokio::test]
+    async fn a_change_shipped_before_857_still_waits_for_its_owner() {
+        use crate::database::{
+            floor::Floors,
+            step::{FORMAT_STEPS, Kind, Step, Steps},
+        };
+
+        let (_, store) = upgraded("shipped-waits").await;
+        let declared: Vec<Step> = FORMAT_STEPS
+            .iter()
+            .copied()
+            .chain([Step {
+                kind: Kind::Upgrade {
+                    read_floor: Some(4),
+                    write_floor: Some(4),
+                    needs_owner: false,
+                },
+                describes: "aShippedChange",
+                shipped_before_857: true,
+                readers_need: true,
+            }])
+            .collect();
+        let store = store.declaring(Steps {
+            first: 2,
+            declared: Box::leak(declared.into_boxed_slice()),
+        });
+        let before = contents(&store).await;
+
+        assert!(store.is_older().await.expect("the format"));
+        assert!(!store.complete_schema().await.expect("the completion"));
+        assert_eq!(
+            reason_of(&store.refuse_another_format().await),
+            Some(RefusalReason::OrganizationOlder)
+        );
+        assert_eq!(contents(&store).await, before, "something was written");
+        assert_eq!(
+            store.floors().await.expect("the floors"),
+            Some(Floors::legacy(3))
+        );
+    }
+
+    /// A change that makes the table `changed`, handed the organization key or not as `re_signs`
+    /// says it is: work of its own, which fails the test where the runner hands it the wrong keys.
+    fn changing(re_signs: bool) -> for<'a> fn(&'a Upgrading<'a>) -> Pending<'a, ()> {
+        fn changed<'a>(upgrading: &'a Upgrading<'a>, re_signs: bool) -> Pending<'a, ()> {
+            Box::pin(async move {
+                assert_eq!(upgrading.organization_key.is_some(), re_signs);
+
+                run(
+                    upgrading.store,
+                    "CREATE TABLE IF NOT EXISTS \"changed\" (\"id\" TEXT)",
+                    Vec::new(),
+                )
+                .await;
+
+                Ok(())
+            })
+        }
+
+        fn re_signing<'a>(upgrading: &'a Upgrading<'a>) -> Pending<'a, ()> {
+            changed(upgrading, true)
+        }
+
+        fn re_signing_nothing<'a>(upgrading: &'a Upgrading<'a>) -> Pending<'a, ()> {
+            changed(upgrading, false)
+        }
+
+        if re_signs {
+            re_signing
+        } else {
+            re_signing_nothing
+        }
+    }
+
+    /// The shipped changes with one more from format 3, running `run`.
+    fn and_a_later_change(
+        run: for<'a> fn(&'a Upgrading<'a>) -> Pending<'a, ()>,
+    ) -> Vec<Transition> {
+        TRANSITIONS
+            .iter()
+            .copied()
+            .chain([Transition {
+                from: 3,
+                name: "a later change",
+                run,
+                ..TRANSITIONS[1]
+            }])
+            .collect()
+    }
+
+    /// **Ticket 07, the port's change, as ticket 22 corrected it.** A change of format declared
+    /// after 857 with `needs_owner`, run inside the explicit upgrade, runs on the owner's keys:
+    /// anybody else's secret is refused with `UpgradeNeedsOwner` before anything is written, the
+    /// owner's runs it, and a step with no change of its own runs nothing.
+    #[tokio::test]
+    async fn a_change_declared_after_857_needing_the_owner_runs_on_the_owners_keys_alone() {
+        use crate::database::step::Kind;
+
+        let (older, store) = upgraded("a-later-change").await;
+        let store = store.declaring(declaring_after(Kind::Upgrade {
+            read_floor: Some(4),
+            write_floor: Some(4),
+            needs_owner: true,
+        }));
+        let transitions = and_a_later_change(changing(true));
+        let holds_it = |tables: Vec<String>| tables.iter().any(|table| table == "changed");
+
+        let refused = super::change(
+            &store,
+            &transitions,
+            &older.pinned(),
+            "mina",
+            &older.person("mina").secret,
+            4,
+            NOW,
+        )
+        .await;
+
+        assert_eq!(reason_of(&refused), Some(RefusalReason::UpgradeNeedsOwner));
+        assert!(!holds_it(store.tables().await.expect("the tables")));
+
+        super::change(
+            &store,
+            &transitions,
+            &older.pinned(),
+            "owner",
+            &older.owners_vault().secret,
+            4,
+            NOW,
+        )
+        .await
+        .expect("the owner's change");
+
+        assert!(holds_it(store.tables().await.expect("the tables")));
+
+        super::change(
+            &store,
+            &transitions,
+            &older.pinned(),
+            "mina",
+            &older.person("mina").secret,
+            5,
+            NOW,
+        )
+        .await
+        .expect("a step with no change of its own");
+    }
+
+    /// **Ticket 22's first criterion, at the runner.** A change declared after 857 with
+    /// `needs_owner: false` runs for somebody other than the owner, on their own keys, and is not
+    /// handed the organization key, whoever runs it; one the store does not declare at all is
+    /// taken as needing the owner.
+    #[tokio::test]
+    async fn a_change_declared_after_857_that_re_signs_nothing_runs_for_anybody_let_through() {
+        use crate::database::step::Kind;
+
+        let (older, store) = upgraded("a-managers-change").await;
+        let transitions = and_a_later_change(changing(false));
+        let holds_it = |tables: Vec<String>| tables.iter().any(|table| table == "changed");
+
+        assert_eq!(
+            reason_of(
+                &super::change(
+                    &store,
+                    &transitions,
+                    &older.pinned(),
+                    "mina",
+                    &older.person("mina").secret,
+                    4,
+                    NOW,
+                )
+                .await
+            ),
+            Some(RefusalReason::UpgradeNeedsOwner),
+            "an undeclared step ran for somebody other than the owner"
+        );
+
+        let store = store.declaring(declaring_after(Kind::Upgrade {
+            read_floor: Some(4),
+            write_floor: Some(4),
+            needs_owner: false,
+        }));
+
+        super::change(
+            &store,
+            &transitions,
+            &older.pinned(),
+            "mina",
+            &older.person("mina").secret,
+            4,
+            NOW,
+        )
+        .await
+        .expect("mina's change");
+
+        assert!(holds_it(store.tables().await.expect("the tables")));
+
+        super::change(
+            &store,
+            &transitions,
+            &older.pinned(),
+            "owner",
+            &older.owners_vault().secret,
+            4,
+            NOW,
+        )
+        .await
+        .expect("the owner's change, handed no organization key either");
+    }
+
+    // effort 857, ticket 14: every format of an organization shipped carries across.
+
+    /// The tables effort 857 adds to format 3 with no change of format, which an organization
+    /// 0.20.0 left does not hold: the completion after a pull makes them.
+    const ADDED_BY_857: [&str; 3] = ["machine_version", "workspace_floor", "organization_floor"];
+
+    /// An organization of `format` as the build that shipped it left it: the format 1 fixture,
+    /// walked by its owner's sign-in through the changes up to `format` and no further, and at
+    /// format 3 without the tables effort 857 added to it.
+    async fn of_format(format: i64, name: &str) -> (Older, OrganizationStore) {
+        let older = older(name).await;
+        let store = older.open().await;
+        let owner = older.person("owner");
+
+        if format > 1 {
+            with_password_over(
+                &TRANSITIONS[..format as usize - 1],
+                &store,
+                &online(),
+                &older.held,
+                owner.username,
+                owner.password,
+                &slot(),
+                NOW,
+            )
+            .await
+            .expect("the walk to the format");
+        }
+
+        if format == FORMAT_VERSION {
+            for table in ADDED_BY_857 {
+                run(&store, &format!("DROP TABLE \"{table}\""), Vec::new()).await;
+            }
+        }
+
+        assert_eq!(
+            store
+                .format_as_it_stands(FORMAT_VERSION)
+                .await
+                .expect("the format"),
+            format
+        );
+
+        (older, store)
+    }
+
+    /// `id` of the fixture signs in on this build with their password, online: the way in's
+    /// owner's upgrade or member's wait, where the organization is older, then the completion its
+    /// pull runs, then the ordinary sign-in. A member meeting an older organization pulls, and the
+    /// pull brings the owner's upgrade, which their machine made first.
+    async fn signed_in(
+        credentials: &Memory,
+        older: &Older,
+        store: &OrganizationStore,
+        id: &str,
+    ) -> crate::organization::session::MemberSession {
+        let person = older.person(id);
+        let credential = slot();
+
+        if id == "owner" {
+            with_password(
+                store,
+                &online(),
+                &older.held,
+                person.username,
+                person.password,
+                &credential,
+                NOW + 60_000,
+            )
+            .await
+        } else {
+            with_password(
+                store,
+                &MemberPull {
+                    older,
+                    transitions: TRANSITIONS,
+                    slot: Arc::clone(&credential),
+                    owner_upgraded: true,
+                    pulled_with: Mutex::new(Vec::new()),
+                },
+                &older.held_by(id),
+                person.username,
+                person.password,
+                &credential,
+                NOW + 60_000,
+            )
+            .await
+        }
+        .unwrap_or_else(|error| panic!("{id} was held at the way in: {error:?}"));
+
+        // the completion a sign-in's pull runs, which this replica, with no remote, is asked for.
+        store.complete_schema().await.expect("the completion");
+
+        sign_in_by_username(
+            credentials,
+            store,
+            &older.held_by(id),
+            person.username,
+            person.password,
+            &credential,
+        )
+        .await
+        .unwrap_or_else(|error| panic!("{id} did not sign in: {error:?}"))
+    }
+
+    /// **Ticket 14's first and second criteria, the organization** (effort 857, requirement 13 and
+    /// criterion 13). An organization of every format shipped, 2 and 3, and of format 1 before
+    /// them, is opened on this build by its owner, and again from the start by a member, then by
+    /// the other. A format 1 or 2 is walked to 3 by the owner's sign-in, as effort 838 built it,
+    /// and a member who meets it first waits for the owner and writes nothing, as 0.20 left them
+    /// waiting, then follows the owner's upgrade when the pull brings it; one of format 3 walks
+    /// nothing, for anybody. Every member, role, certificate, workspace, grant, invitation and the
+    /// mark read verified where they stood (`assert_upgraded`); **its floors read equal to the
+    /// format it is now at, which is 3 for all three**, with no floor record written; and nobody is
+    /// asked to choose a password or connect again.
+    #[tokio::test]
+    async fn every_shipped_format_opens_for_its_owner_and_a_member_with_every_row() {
+        use crate::database::floor::{Floors, Standing};
+
+        for format in 1..=FORMAT_VERSION {
+            for first in ["owner", "mina"] {
+                let credentials = Memory::new();
+                let (older, store) = of_format(format, &format!("carried-{format}-{first}")).await;
+                let mina = older.person("mina");
+
+                // a member meeting an older organization first waits for its owner, as 0.20 did.
+                if first == "mina" && format < FORMAT_VERSION {
+                    let before = contents(&store).await;
+                    let credential = slot();
+                    let waiting = with_password(
+                        &store,
+                        &MemberPull {
+                            older: &older,
+                            transitions: TRANSITIONS,
+                            slot: Arc::clone(&credential),
+                            owner_upgraded: false,
+                            pulled_with: Mutex::new(Vec::new()),
+                        },
+                        &older.held_by("mina"),
+                        mina.username,
+                        mina.password,
+                        &credential,
+                        NOW + 60_000,
+                    )
+                    .await;
+
+                    assert_eq!(
+                        reason_of(&waiting),
+                        Some(RefusalReason::OrganizationOlder),
+                        "{format}: {waiting:?}"
+                    );
+                    assert_eq!(contents(&store).await, before, "{format}: a member wrote");
+                }
+
+                let then = if first == "owner" { "mina" } else { "owner" };
+
+                for id in [first, then] {
+                    let session = signed_in(&credentials, &older, &store, id).await;
+
+                    assert_eq!(session.organization_id, ORGANIZATION_ID, "{format}, {id}");
+                    assert_eq!(session.verifying_key, older.pinned(), "{format}, {id}");
+                    assert_eq!(
+                        session.role,
+                        if id == "owner" { "owner" } else { "member" },
+                        "{format}, {id}"
+                    );
+                    assert!(
+                        !session.must_change_password,
+                        "{format}, {id} was asked to choose a password"
+                    );
+                }
+
+                assert_eq!(
+                    store.format().await.expect("the format"),
+                    Some(FORMAT_VERSION),
+                    "{format}, first {first}"
+                );
+                assert_eq!(
+                    store.floor_recorded().await.expect("the floor record"),
+                    None,
+                    "{format}, first {first}: a floor record was written"
+                );
+                assert_eq!(
+                    store.floors().await.expect("the floors"),
+                    Some(Floors::legacy(FORMAT_VERSION as u32)),
+                    "{format}, first {first}"
+                );
+                assert_eq!(
+                    store.refuse_another_format().await.expect("the verdict"),
+                    Standing::Writable,
+                    "{format}, first {first}"
+                );
+
+                assert_upgraded(&store, &older, &older.pinned()).await;
+            }
+        }
     }
 }

@@ -12,6 +12,7 @@ import { appRouter } from '$lib/app/router.ts';
 import {
 	type Api,
 	createApi,
+	createApiWithoutUniqueRules,
 	EVERY_RECORD_ACT,
 	fakeIdentity,
 	monthsFromNow,
@@ -875,6 +876,56 @@ test('a unit whose stored status went stale exports the status it derives now', 
 		['A1', 'vacant'],
 		['A2', 'vacant']
 	]);
+});
+
+// --- A value taken after the plan (effort 857, requirement 14) --------------------------------
+//
+// The plan rejects a row whose name or government ID the workspace already holds, but a record
+// can arrive by sync between the plan and the write, and the shared database no longer refuses
+// the duplicate. So the write asks again, as the tenants' already does, over a workspace with
+// the unique rules dropped. Handing the write a file directly is what a plan made before that
+// sync looks like.
+
+test('a complex name taken since the plan refuses the whole write, creating nothing', async () => {
+	const { api } = await createApiWithoutUniqueRules();
+
+	await seedWorkspace(api);
+
+	const before = await api.transfer.get();
+
+	await assert.rejects(
+		api.transfer.importWhole({
+			tenants: [],
+			complexes: [{ name: 'Al Nakheel', location: 'Jeddah' }],
+			units: [],
+			contracts: [],
+			payments: []
+		}),
+		refusedWith('complex.nameTakenNamed', { named: 'Al Nakheel' })
+	);
+
+	assert.deepEqual(await api.transfer.get(), before);
+});
+
+test('a government ID taken since the plan refuses the whole write, creating nothing', async () => {
+	const { api } = await createApiWithoutUniqueRules();
+
+	await seedWorkspace(api);
+
+	const before = await api.transfer.get();
+
+	await assert.rejects(
+		api.transfer.importWhole({
+			tenants: [],
+			complexes: [],
+			units: [],
+			contracts: [aFileContract('GOV-1', [toUnitReference('Al Nakheel', 'A2')])],
+			payments: []
+		}),
+		refusedWith('contract.govIdTakenNamed', { named: 'GOV-1' })
+	);
+
+	assert.deepEqual(await api.transfer.get(), before);
 });
 
 // --- A unit taken twice (effort 854, requirement 5, criterion 5) -----------------------------

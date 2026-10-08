@@ -63,6 +63,7 @@ use std::{
 };
 
 use crate::clock::Clock;
+use crate::database::replay::Replay;
 use crate::diagnostics::{self, DiagnosticRecord};
 
 /// The words turso_core gives `LimboError::NotADB`, which are all that reach the caller when the
@@ -253,6 +254,12 @@ impl Watch {
         self.0.as_deref() == Some(replica)
     }
 
+    /// The replica this watches, where it names one: where a record kept beside it lies
+    /// (`unsendable.rs`).
+    pub(crate) fn replica(&self) -> Option<&Path> {
+        self.0.as_deref()
+    }
+
     /// Pass `answer` through, having recorded any damage it reports ([`met`]).
     pub(crate) fn note<T>(&self, answer: Result<T, turso::Error>) -> Result<T, turso::Error> {
         if let (Some(replica), Err(error)) = (self.0.as_deref(), &answer) {
@@ -267,15 +274,34 @@ impl Watch {
 ///
 /// `query` and `execute` are its own, and the rows a query answers are [`Rows`], whose `next` is
 /// its own too, which is where a damaged page is read; everything else is the engine's connection,
-/// reached through `Deref`.
+/// reached through `Deref`. **Where it keeps a [`Replay`]**, every statement `query` and `execute`
+/// run is noted in it first (`replay.rs`, effort 857, ticket 24).
 pub(crate) struct Watched {
     connection: turso::Connection,
     watch: Watch,
+    replay: Option<Arc<Replay>>,
 }
 
 impl Watched {
     pub(crate) fn new(connection: turso::Connection, watch: Watch) -> Self {
-        Watched { connection, watch }
+        Watched {
+            connection,
+            watch,
+            replay: None,
+        }
+    }
+
+    /// The same connection noting what it runs in `replay`.
+    pub(crate) fn replaying(
+        connection: turso::Connection,
+        watch: Watch,
+        replay: Arc<Replay>,
+    ) -> Self {
+        Watched {
+            connection,
+            watch,
+            replay: Some(replay),
+        }
     }
 
     /// What records the damage this connection's replica answers, for a push or a pull of it.
@@ -288,7 +314,14 @@ impl Watched {
         sql: impl AsRef<str>,
         params: impl turso::IntoParams,
     ) -> Result<Rows, turso::Error> {
-        let rows = self.watch.note(self.connection.query(sql, params).await)?;
+        let rows = match &self.replay {
+            Some(replay) => {
+                let params = replay.note(sql.as_ref(), params.into_params()?);
+
+                self.watch.note(self.connection.query(sql, params).await)?
+            }
+            None => self.watch.note(self.connection.query(sql, params).await)?,
+        };
 
         Ok(Rows {
             rows,
@@ -301,7 +334,14 @@ impl Watched {
         sql: impl AsRef<str>,
         params: impl turso::IntoParams,
     ) -> Result<u64, turso::Error> {
-        self.watch.note(self.connection.execute(sql, params).await)
+        match &self.replay {
+            Some(replay) => {
+                let params = replay.note(sql.as_ref(), params.into_params()?);
+
+                self.watch.note(self.connection.execute(sql, params).await)
+            }
+            None => self.watch.note(self.connection.execute(sql, params).await),
+        }
     }
 }
 

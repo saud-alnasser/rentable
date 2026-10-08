@@ -278,6 +278,13 @@ impl MemberSecretKey {
         PublicKey::from(&self.0).to_bytes()
     }
 
+    /// The same secret held twice: what the owner's change of format declared after effort 857 is
+    /// handed as the vault it opened, from the session that holds it (effort 857, ticket 07), so
+    /// the session keeps its own. It never leaves the process either way.
+    pub(crate) fn copied(&self) -> Self {
+        Self(StaticSecret::from(self.0.to_bytes()))
+    }
+
     /// The secret's own bytes, for the test that tries them as a key against another's vault.
     #[cfg(test)]
     pub(crate) fn to_bytes(&self) -> [u8; SECRET_KEY_BYTES] {

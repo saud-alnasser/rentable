@@ -70,6 +70,8 @@ mod machine;
 mod remember;
 mod replica;
 mod signin;
+mod unsent;
+mod version;
 
 pub use command::*;
 // by name: `command` has an `ended_elsewhere` of its own, and the one this module's name
@@ -77,13 +79,23 @@ pub use command::*;
 pub(crate) use epoch::end_elsewhere;
 pub use epoch::{end_member_sessions, ended_elsewhere};
 pub(crate) use heartbeat::signed_out_from_elsewhere;
-pub use machine::{MachineView, SEEN_REFRESH, machines};
+pub use machine::{Build, MachineView, SEEN_REFRESH, machines};
 pub(crate) use machine::{
-    end_machine, ended_alone, machine_kept, machine_named, sign_outs_acknowledged, signed_out_here,
+    end_machine, ended_alone, machine_kept, machine_named, machine_versioned, opened_name,
+    sign_outs_acknowledged, signed_out_here, version_recorded,
 };
 pub(crate) use remember::*;
 pub(crate) use replica::leave_registry;
 pub use signin::*;
+pub(crate) use unsent::*;
+pub(crate) use version::holds_full_access;
+pub use version::{AtTheWall, HeldByVersion, VersionTarget};
+pub(crate) use version::{
+    both as both_verdicts, held_by_version, hold_at_the_wall, release_the_wall,
+    release_the_wall_of, replicated_judged_then_healed, replicated_then_judged, workspace_judged,
+    writes_to,
+};
+pub(crate) use version::{judged as workspace_judged_on, recorded as workspace_recorded};
 
 use std::{
     collections::HashMap,
@@ -964,6 +976,25 @@ pub(crate) trait Upgrade: Send + Sync {
         state: &'a Shared,
         credentials: &'a dyn CredentialStore,
     ) -> Upgrading<'a>;
+
+    /// Run the change of format numbered `number`, declared after effort 857, inside the explicit
+    /// upgrade's transaction on `store` (ticket 07): the change `upgrade/format/` holds for it,
+    /// on the owner's keys, which `session`'s secret derives on the owner's machine alone. A step
+    /// this build holds no change for has nothing of its own to run but the floors the upgrade
+    /// records; a change asked of anybody but the owner is refused with `UpgradeNeedsOwner`, and
+    /// nothing is written.
+    fn change<'a>(
+        &'a self,
+        store: &'a OrganizationStore,
+        session: &'a MemberSession,
+        number: u32,
+        now: i64,
+    ) -> Upgrading<'a>;
+
+    /// The build this machine runs: the version of rentable and the highest step it knows on each
+    /// ladder, as `database/step.rs` declares them, which every way in and the heartbeat record in
+    /// the organization's `machine_version` (effort 857, requirement 4).
+    fn build(&self) -> Build;
 }
 
 /// The upgrade port as the `upgrade` plugin manages it and the organization's state holds it.

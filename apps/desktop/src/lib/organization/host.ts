@@ -25,6 +25,15 @@ import type {
 	WorkspaceGrant
 } from './member/host';
 import type { OrganizationRole, RoleHost } from './role/host';
+import type {
+	AwaitingStep,
+	UpgradeAwaiting,
+	UpgradeHost,
+	UpgradeMachine,
+	UpgradePreview,
+	UpgradeStep,
+	UpgradeTarget
+} from './upgrade/host';
 import type { OrganizationWorkspace, WorkspaceHost, WorkspaceStatement } from './workspace/host';
 
 /**
@@ -32,6 +41,7 @@ import type { OrganizationWorkspace, WorkspaceHost, WorkspaceStatement } from '.
  * caller has always read them: the port is one, whichever part of it a type belongs to.
  */
 export type {
+	AwaitingStep,
 	LockOutCost,
 	MadeLink,
 	MemberRemoved,
@@ -42,6 +52,11 @@ export type {
 	OrganizationWorkspace,
 	OutstandingLink,
 	UnreachableWorkspace,
+	UpgradeAwaiting,
+	UpgradeMachine,
+	UpgradePreview,
+	UpgradeStep,
+	UpgradeTarget,
 	WorkspaceGrant,
 	WorkspaceStatement
 };
@@ -268,6 +283,35 @@ export type OrganizationState = {
 	 * False the moment anybody is signed in again.
 	 */
 	signedOutElsewhere: boolean;
+	/**
+	 * what holds this machine by its version, empty where this build may write everything it has
+	 * open (effort 857). A resume refused because a newer rentable upgraded the organization past
+	 * what this one reads leaves the wall up with that verdict alone; a session let through on an
+	 * organization or a workspace this one may read and not write carries it while it lasts.
+	 *
+	 * **The organization's verdict and the open workspace's, each apart**, the organization's
+	 * first (ticket 16): an organization read-only by its version does not hide a workspace that
+	 * is read-only or past reading too, and each is followed on its own.
+	 */
+	heldByVersion: HeldByVersion[];
+};
+
+/**
+ * where this build stands against a database's floors: `readOnly` below the write floor, and
+ * `unreadable` below the read floor (effort 857). A writable database holds nothing and is never
+ * carried.
+ */
+export type VersionStanding = 'readOnly' | 'unreadable';
+
+/**
+ * the organization or one workspace, by its id, upgraded past this build: which, how far this
+ * build may still go with it, and the reason as a sentence for the detail a screen keeps behind
+ * its own words (effort 857).
+ */
+export type HeldByVersion = {
+	target: UpgradeTarget;
+	standing: VersionStanding;
+	reason: string;
 };
 
 /** The organization's mark as the host hands it over: its kind, and the image in base64. */
@@ -451,6 +495,8 @@ export type OrganizationHost = {
 	workspace: WorkspaceHost;
 	/** accounts and their invitations, as `./member/host.ts` says of each act. */
 	member: MemberHost;
+	/** the upgrade of the organization or a workspace, as `./upgrade/host.ts` says of each act. */
+	upgrade: UpgradeHost;
 	invitation: {
 		/**
 		 * open an invitation link, with the code the issuer read out and a password of the

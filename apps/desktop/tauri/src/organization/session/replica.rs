@@ -12,7 +12,7 @@ use crate::organization::{
     act::owner_platform,
     invitation::{self},
     ownership,
-    session::{self, CredentialSlot, Resumption},
+    session::{self, CredentialSlot, HeldByVersion, Resumption},
     store::{self, OrganizationStore},
 };
 
@@ -101,7 +101,12 @@ pub(super) async fn resume_remembered(
 
             return;
         }
+        // a refusal for the version is carried to the wall as well as logged (effort 857, ticket
+        // 04): the person is owed the reason they are held, where every other failure to resume
+        // is the wall's own sentence.
         Err(refusal) => {
+            session::hold_at_the_wall(app_state, &held.id, HeldByVersion::refused(&refusal));
+
             diagnostics::info("organization.session.notResumed")
                 .with("organization", held.id.as_str())
                 .with("reason", refusal.to_string())
@@ -189,10 +194,28 @@ pub(super) async fn machine_registered(app_state: &Shared) -> Result<(), Error> 
         // a machine that came back signed in names itself, which is how a machine that signed in
         // before this build gains a name without anybody typing a password (effort 846,
         // requirement 11). The registry's push below carries it.
+        //
+        // **Neither where this build may not write the organization** (effort 857, ticket 04): the
+        // resume judged it after its pull, and a version that holds it read-only, or past reading,
+        // is one this machine writes nothing into, its own row included.
+        if !session::writes_to(store) {
+            return Ok(());
+        }
+
         if let Some(signed_in) = member.as_ref() {
             session::machine_named(store, &held, &signed_in.content_key, store.clock().now()).await;
         }
 
+        // and what it runs, where that changed since its last launch (effort 857, requirement 4),
+        // carried by the same push. Signed in or not, since the build is the machine's and not
+        // its member's.
+        session::machine_versioned(
+            store,
+            &held,
+            &app_state.upgrade.build(),
+            store.clock().now(),
+        )
+        .await;
         session::machine_seen(store, &held, held.member_id.as_deref(), store.clock().now()).await;
     }
 
@@ -374,8 +397,9 @@ mod tests {
     use crate::organization::role::permission;
     use crate::organization::session::replica::{Opening, open_replica};
     use crate::organization::session::{self, CredentialSlot, MEMBER_KEY_SERVICE, state_of};
+    use crate::organization::session::{AccountCopy, Upgrade, Upgrading};
     use crate::organization::setup::{CreateOrganization, Remote, create_organization};
-    use crate::organization::store::OrganizationStore;
+    use crate::organization::store::{MachineVersionRecord, OrganizationStore};
     use crate::organization::{HeldOrganization, ownership};
     use crate::persisted::Persisted;
     use crate::settings::Settings;
@@ -384,6 +408,7 @@ mod tests {
     use crate::turso::consent::TursoConsent;
     use crate::turso::discovery::McpEndpoint;
     use crate::turso::platform::InMemoryPlatform;
+    use crate::turso::platform::PlatformApi;
     use crate::update::Update;
     use serde_json::json;
     use std::sync::{Arc, Mutex};
@@ -441,7 +466,9 @@ mod tests {
             member: Arc::new(RwLock::new(None)),
             arriving_link: Arc::new(Mutex::new(None)),
             signed_out_elsewhere: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            held_by_version: Arc::new(std::sync::Mutex::new(None)),
             old_shape_check: tokio::sync::OnceCell::new(),
+            bringing_up: Default::default(),
         }
     }
 
@@ -1059,5 +1086,252 @@ mod tests {
             (new_key, "manager".to_string())
         );
         assert_eq!(pinned(&app_state).await, encoded(new_key));
+    }
+
+    /// The upgrade as the `upgrade` plugin answers it, but for the build it says this machine
+    /// runs: what stands in for a machine updated between two launches.
+    struct Built(session::Build);
+
+    impl Upgrade for Built {
+        fn with_password<'a>(
+            &'a self,
+            store: &'a OrganizationStore,
+            account: Option<PlatformApi>,
+            held: &'a HeldOrganization,
+            username: &'a str,
+            password: &'a str,
+            credential: &'a CredentialSlot,
+            now: i64,
+        ) -> Upgrading<'a> {
+            crate::upgrade::Upgrader
+                .with_password(store, account, held, username, password, credential, now)
+        }
+
+        fn with_remembered_key<'a>(
+            &'a self,
+            credentials: &'a dyn CredentialStore,
+            store: &'a OrganizationStore,
+            account: Option<PlatformApi>,
+            held: &'a HeldOrganization,
+            credential: &'a CredentialSlot,
+            now: i64,
+        ) -> Upgrading<'a> {
+            crate::upgrade::Upgrader.with_remembered_key(
+                credentials,
+                store,
+                account,
+                held,
+                credential,
+                now,
+            )
+        }
+
+        fn on_connect<'a>(
+            &'a self,
+            store: &'a OrganizationStore,
+            remote: Remote,
+            account: &'a dyn AccountCopy,
+            username: &'a str,
+            password: &'a str,
+            credential: &'a CredentialSlot,
+            now: i64,
+            refused: &'a (dyn Fn() -> Error + Send + Sync),
+        ) -> Upgrading<'a> {
+            crate::upgrade::Upgrader.on_connect(
+                store, remote, account, username, password, credential, now, refused,
+            )
+        }
+
+        fn forget_old_shape<'a>(
+            &'a self,
+            state: &'a Shared,
+            credentials: &'a dyn CredentialStore,
+            clock: &'a crate::clock::Shared,
+        ) -> Upgrading<'a> {
+            crate::upgrade::Upgrader.forget_old_shape(state, credentials, clock)
+        }
+
+        fn move_the_consent<'a>(
+            &'a self,
+            state: &'a Shared,
+            credentials: &'a dyn CredentialStore,
+        ) -> Upgrading<'a> {
+            crate::upgrade::Upgrader.move_the_consent(state, credentials)
+        }
+
+        fn change<'a>(
+            &'a self,
+            store: &'a OrganizationStore,
+            session: &'a session::MemberSession,
+            number: u32,
+            now: i64,
+        ) -> Upgrading<'a> {
+            crate::upgrade::Upgrader.change(store, session, number, now)
+        }
+
+        fn build(&self) -> session::Build {
+            self.0
+        }
+    }
+
+    /// This machine's row in `machine_version`, read through the replica the launch holds open.
+    async fn version_recorded(app_state: &Shared) -> Option<MachineVersionRecord> {
+        let machine_id = held(app_state).await.machine_id;
+        let organization = app_state.organization.read().await;
+
+        organization
+            .as_ref()
+            .expect("the launch held no replica")
+            .machine_version(&machine_id)
+            .await
+            .expect("the row")
+    }
+
+    /// **Effort 857, criterion 4, at the launch.** The first state read of a launch that comes
+    /// back signed in records what the build this machine runs knows, as the upgrade port says
+    /// it; a launch on the same build writes nothing, and the next launch after the machine is
+    /// updated writes the newer build over its row.
+    #[tokio::test]
+    async fn a_launch_records_the_build_this_machine_runs_and_an_update_rewrites_it() {
+        let credentials: Credentials = Arc::new(Memory::new());
+        let directory = scratch("launch-versioned");
+        let older = session::Build {
+            rentable: "0.20.0",
+            workspace_known: 7,
+            format_known: 3,
+        };
+        let newer = session::Build {
+            rentable: "0.21.0",
+            workspace_known: 8,
+            format_known: 4,
+        };
+        let mut app_state = first_run(credentials.as_ref(), &directory).await;
+
+        app_state.upgrade = Arc::new(Built(older));
+
+        let state = state_of(&app_state, &credentials, &crate::clock::System::shared())
+            .await
+            .expect("the state");
+
+        assert!(state.session.is_some(), "the launch did not resume");
+
+        let first = version_recorded(&app_state)
+            .await
+            .expect("the launch recorded no version");
+
+        assert_eq!(
+            (
+                first.rentable.as_str(),
+                first.workspace_known,
+                first.format_known
+            ),
+            ("0.20.0", 7, 3)
+        );
+        drop(app_state);
+
+        // the same build launched again: the row and its moment stand.
+        let mut again = state_over(&directory).await;
+
+        again.upgrade = Arc::new(Built(older));
+        state_of(&again, &credentials, &crate::clock::System::shared())
+            .await
+            .expect("the state");
+
+        assert_eq!(version_recorded(&again).await, Some(first.clone()));
+        drop(again);
+
+        // the machine updated: its next launch writes the newer build over its row.
+        let mut updated = state_over(&directory).await;
+
+        updated.upgrade = Arc::new(Built(newer));
+        state_of(&updated, &credentials, &crate::clock::System::shared())
+            .await
+            .expect("the state");
+
+        let rewritten = version_recorded(&updated)
+            .await
+            .expect("the launch recorded no version");
+
+        assert_eq!(
+            (
+                rewritten.rentable.as_str(),
+                rewritten.workspace_known,
+                rewritten.format_known
+            ),
+            ("0.21.0", 8, 4)
+        );
+        assert_eq!(rewritten.id, first.id);
+        assert!(rewritten.written_at >= first.written_at);
+    }
+
+    /// **Effort 857, ticket 04, at the launch: a resume is judged against the floors, and a
+    /// refusal for the version is carried rather than only logged.** The organization a machine
+    /// stayed signed in to was upgraded by a newer rentable while it was closed. Past the read
+    /// floor, the launch leaves the wall up and `heldByVersion` says the organization is
+    /// unreadable to this version; past the write floor alone, the launch resumes and
+    /// `heldByVersion` says it is read-only. Either way the launch writes nothing to the
+    /// organization: no registry row, no name, no repair.
+    #[tokio::test]
+    async fn a_launch_past_the_floors_is_held_by_its_version_and_writes_nothing() {
+        use crate::database::floor::Standing;
+        use crate::organization::session::VersionTarget;
+        use crate::organization::store::FORMAT_VERSION;
+
+        let credentials: Credentials = Arc::new(Memory::new());
+
+        for (name, read, standing) in [
+            ("unreadable", FORMAT_VERSION + 1, Standing::Unreadable),
+            ("read-only", FORMAT_VERSION, Standing::ReadOnly),
+        ] {
+            let directory = scratch(&format!("resume-held-{name}"));
+            let app_state = first_run(credentials.as_ref(), &directory).await;
+            let (organization_id, _) = recorded(&app_state).await;
+            let replica = OrganizationStore::replica_path(
+                &directory.join(Database::FILENAME),
+                &organization_id,
+            );
+
+            {
+                let store = OrganizationStore::open(
+                    crate::clock::System::shared(),
+                    &replica,
+                    None,
+                    || async { Ok::<String, turso::Error>(String::new()) },
+                )
+                .await
+                .expect("the replica");
+
+                store
+                    .record_floors(FORMAT_VERSION + 1, read, FORMAT_VERSION + 1)
+                    .await;
+            }
+
+            let before = contents(&replica).await;
+            let state = state_of(&app_state, &credentials, &crate::clock::System::shared())
+                .await
+                .expect("the state");
+            let held = state
+                .held_by_version
+                .first()
+                .cloned()
+                .unwrap_or_else(|| panic!("{name}: the launch carried no version"));
+
+            assert_eq!(held.target, VersionTarget::Organization, "{name}");
+            assert_eq!(held.standing, standing, "{name}");
+            assert!(!held.reason.is_empty(), "{name}: no reason");
+            assert_eq!(
+                state.session.is_some(),
+                standing == Standing::ReadOnly,
+                "{name}: the launch resumed where it should not, or not where it should"
+            );
+
+            drop(app_state);
+
+            assert_eq!(
+                contents(&replica).await,
+                before,
+                "{name}: the launch wrote to the organization"
+            );
+        }
     }
 }

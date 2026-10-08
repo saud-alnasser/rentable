@@ -26,14 +26,16 @@ change, the link and the Turso account, keep their history.*
 ## Language
 
 **Organization**:
-One database on the owner's Turso account, `org-<id>`, holding nineteen tables (`store::TABLES`):
+One database on the owner's Turso account, `org-<id>`, holding twenty-two tables (`store::TABLES`):
 its format, the organization, the roles, the members, the certificates, the revocations, the
 workspaces, the grants, the invitations, the migration lease, the machine links, the register of
 the machines that hold it, the successions a handover writes, its mark, the workspace
 overrides, the sign-outs of one machine, each machine's name (those two by effort 846), the
-organization's signed name and each member's lock (those two by effort 851). The four came with no
-change of format: `complete_schema` creates them after a pull, and the change to format 3 came
-with `workspace_override`. *It read seventeen tables until effort 851 (2026-10-05).* Every username and name
+organization's signed name and each member's lock (those two by effort 851), and what each machine
+runs and the floors of the organization and of each workspace (those three by effort 857). The
+seven came with no change of format: `complete_schema` creates them after a pull, and the change to
+format 3 came with `workspace_override`. *It read seventeen tables until effort 851 (2026-10-05),
+and nineteen until effort 857.* Every username and name
 in it is sealed under the content key; every authority field is signed along a chain rooted at a
 key the member's machine pinned. Every member's machine keeps a replica.
 _Avoid_: "the control plane" and "the account" for it. There is no service of ours, and the
@@ -78,11 +80,12 @@ is whoever's vault derives the organization key, and nothing else on a row decid
 completed; otherwise nothing is written and the owner is asked for a connection. An upgrade cut short
 has no row either, reads as older, and the owner's next sign-in, resume or connect finishes it from any machine. Each
 certificate the upgrade issues keeps format 1's id, `cert-<member>`, and its key, so a row an old
-build signs afterwards still verifies. Until the row is there, and for an organization with a newer
-number, a build reads nothing from it and writes nothing to it, and says what to do: an older one
-waits for its owner, which a member's machine learns by pulling first with its own grant, and a
-newer one needs the application updated (838, requirement 11, as the human amended it on
-2026-09-26). A `format` row beside format 1's certificate table or member columns is not this
+build signs afterwards still verifies. Until the row is there a build reads nothing from it and
+writes nothing to it, and says what to do: an older one waits for its owner, which a member's
+machine learns by pulling first with its own grant (838, requirement 11, as the human amended it on
+2026-09-26). One whose format is past this build's is judged by its floors (see *Floors*), and
+refused only below its read floor, where it needs the application updated. *It said a newer number
+was refused outright until effort 857.* A `format` row beside format 1's certificate table or member columns is not this
 format: it reads as unfinished. The number is unsigned: rewriting it only makes the organization
 refuse to open, which the credential already allows by deleting rows, and **it never makes an
 upgraded organization upgraded again**. A machine that has read the organization in this format
@@ -104,13 +107,90 @@ push of the machine that made it; ticket 33 added the check before the commit, w
 declared for each table reshaped in place, and ticket 38 made the check compare structure, which
 retired the declaration.*
 
+**Floors**:
+The organization is judged as a workspace is, by a level, a read floor and a write floor in the
+numbering of its changes of format, and every step that moves them is one of the two kinds
+([[contexts/desktop/persistence]], *Step*, *Floors*, *Legacy number*, which say what they are).
+What is the organization's: its **floor record** is the one `organization_floor` row, and it keeps
+the floors of each workspace beside that workspace's `schema_version`, in `workspace_floor`, which
+wins over the version where they differ, since an upgrade moves the version past every build before
+857 to stop them. Its **legacy numbers** are the `format` row and `workspace.schema_version`. An
+addition to the organization arrives through `complete_schema` after any member's pull, and the
+first one to run records its level in `organization_floor` with both floors where they were; the
+changes of format shipped before 857 still run on the owner's machine alone, as 0.20 ran them, and
+anybody else meeting one waits for the owner. Data from before 857 reads as floors equal to its
+format and version, with nothing written (requirement 13; the carry-over tests at the foot of
+`upgrade/format/runner/mod.rs` and `organization/lease/mod.rs` open every shipped format and
+workspace version, as the owner and as a member).
+
+**Upgrade**:
+The explicit act that runs an upgrade step declared after effort 857, on the organization or on one
+workspace (`organization/upgrade/`, effort 857, requirements 3 and 5). It needs `upgradeData` on the
+acting member's verified row, which the owner always holds, the manager role carries by default, the
+member role does not, and a custom role or an override can carry; until the owner has signed in on
+the build that adds the flag no certificate carries it, and a manager is refused with
+`ownerNotUpdated`. A step that re-signs the organization's rows needs the owner's own key, so it is
+the owner's whoever else holds the flag (`UpgradeNeedsOwner`). Its preview lists the steps it would
+run, by the sentence saying what each adds or changes, and every machine it would stop or make
+read-only, read off **`machine_version`**, the row each machine writes for itself with the rentable
+version it runs and the step it knows on each ladder, and `machine.seen_at`: a machine seen within
+seven days by member, machine name and version, one not seen since apart with the date it was, and
+one that has never recorded what it runs as on a build before 857. Running it takes the lease and a
+copy, runs every step in one transaction with the floor records, checked against a fresh database
+before it commits, and moves a legacy number only where a floor now passes what the builds before
+857 know. While an organization upgrade holds its lease, every other member's act that writes is
+refused as `UpgradeUnderWay` and their machine's own rows wait for the next heartbeat (ticket 19).
+An organization replica whose unsent changes an upgrade made unsendable is held, neither pushed nor
+pulled, until the person discards them with a confirmed yes on the sync card (ticket 20), as a
+workspace's are ([[contexts/desktop/persistence]]). No upgrade step has been declared yet, so the
+first release with this act moves no floor.
+
+**Held by a version**:
+Where this build stands against a floor, as the shell is told it (`session/version.rs`): the
+organization's verdict is kept on its store (`OrganizationStore::refuse_another_format`, asked after
+every pull at every way in, and `standing` before any write of its own), the open workspace's on the
+workspace engine ([[contexts/desktop/persistence]]), and a resume refused for its version, when no
+store is open, on the organization's state (`Shared::held_by_version`). Every verdict that is not
+writable crosses in the list `heldByVersion` on `OrganizationState` and on `session_replicate`'s
+answer, each with the organization or the workspace it holds: **the organization's and the open
+workspace's apart, the organization's first**, or the wall's refusal alone while no store is open,
+and an empty list where this build may write everything open. Neither hides the other: a workspace
+read-only by its version folds its writes away (`api/context.ts`, `permissionsIn`) and one past
+reading meets the workspace-held screen, whatever the organization's standing, by the one routing the ways
+in and the heartbeat follow (`startup/machine.ts`, `pastReading`; ticket 16). Below the write floor the organization is read-only:
+every act through `as_member` that writes is refused as `OrganizationReadOnlyByVersion`, the replica
+held with `PRAGMA query_only` for the act, and the shell draws the read-only notice above every
+screen (`organization/component/read-only-notice.svelte`), saying nothing can be changed until
+rentable is updated, with the update action in it. Below the read floor the organization is not
+opened. **A refusal goes back as far as what it is about, and no further** (`startup/whose-refusal.ts`,
+ticket 25): one about the organization or the member (its version, `memberGone`, a lapsed
+credential and the others it lists) returns the person to the organization switcher; any other is
+about one workspace, keeps the person in the organization on the workspace-held screen with the
+other workspaces reachable, and a later sign-in does not reopen that workspace by itself; and a
+link refused while the person is in another organization records the refusal against the linked
+one and leaves them where they are. **An organization that cannot be opened, for its version or
+for any other refusal, returns the person to the organization switcher**, from launch, resume,
+sign-in, switching and joining, and
+a short callout above that organization, while it is the chosen one, says why in the person's
+language (`organization/component/switcher.svelte`); where the reason is its version, the callout
+says a newer rentable upgraded it and carries the update action, since updating is the way past it.
+The callout clears once that organization opens. **Joining one this machine does not hold yet** has
+no place at the switcher, so a refusal of it stays on the join screen: where the reason is its
+version (`organizationNewer`, `workspaceNewer`, or `organizationReadOnlyByVersion` refusing the
+accept's write), the screen lands on its `outdated` step, the reason in a callout with the update
+action beside it (`organization/setup/connect.ts`, `joinFailed`), and the corner's way back hands
+the form back with the link and the code and leads on to the switcher; any other reason is said
+alone (ticket 17). A workspace below its read floor, in an
+organization that opens, meets the workspace-held screen instead ([[contexts/desktop/persistence]]).
+*Effort 857, requirements 6 to 9, requirement 7 as amended at /implement.*
+
 **Flag**:
 One act the application performs for a member, on one bit of one mask. The vocabulary lives in
 `packages/workspace-permission` (`FLAGS`, grouped by `FAMILIES`) and is mirrored in
 `organization/role/permission.rs`, held equal by a test that reads the package source: the
 organization's administration on bits 0 to 9 (`inviteMember`, `removeMember`, `assignRole`,
 `renameWorkspace`, `resetPassword`, `renameMember`, `grantWorkspace`, `manageRoles`,
-`overrideMember`, `manageMark`), the owner's acts on 10 to 17 (`createWorkspace`,
+`overrideMember`, `manageMark`) and 18 (`upgradeData`, effort 857), the owner's acts on 10 to 17 (`createWorkspace`,
 `deleteWorkspace`, `mintReadOnly`, `lockOut`, `renewCredentials`, `tursoAccount`,
 `transferOwnership`, `deleteOrganization`, together `OWNER_ONLY`), and viewing, creating, editing
 and deleting each record kind on 20 to 39. Arithmetic, never `&` or `^` in TypeScript: bitwise
@@ -313,6 +393,18 @@ assignment, an override, a role's new mask or rank, a reset and a removal all go
 issue takes a fresh id, `cert-<member>-<issued at>`, except the owner's upgrade of a format 1
 organization, whose certificates keep format 1's `cert-<member>` (see *Format*).
 
+**A flag added since the root was issued reaches the organization at the owner's first sign-in on
+the build that adds it** (effort 857, ticket 15). A root carries the owner's mask as it was when it
+was issued, and nothing covers a role or a certificate wider than its signer, so a new flag is in no
+certificate until the owner's machine, the one holder of the organization key, issues a root with the
+whole of this build's owner mask (`ownership::widen_root`, beside the repair above): in one
+transaction, what the old root issued is issued again from the new one under the same ids, what it
+signed is re-signed under it, and it revokes the old one; each built-in role gains the new flags its
+default carries, keeping the owner's edits; and every member whose standing then reaches past their
+certificate is re-issued one (`role::reissue_within`). The root's own ceiling records that it ran,
+so it runs once per new flag, and an act that needs the flag before then is refused with
+`ownerNotUpdated`.
+
 **The key changes when the owner does.** A handover is two acts (see *Authority*). The acceptance
 issues the new owner a root under what their own vault derives, re-signs the founder's rows under
 it, and issues again from it every live certificate the founder issued to somebody else, the
@@ -459,12 +551,32 @@ refused unless what it yields is the key this machine pinned, and the directory 
 - **What deleting does is the limit of every signature.** A member who can write the database can
   delete rows they cannot forge, a revocation included, which reinstates what it revoked; the answer
   is Turso's point-in-time restore, on the customer's account.
-- **A migration reaches a workspace under a lease taken at the primary**, by whichever member
-  opens it, and an older build refuses a newer workspace before reading anything. The lease holder
-  copies the workspace first (`backup.rs`), and a copy not taken applies nothing. The tail, a check
-  of what it made (`schema/`) and the workspace's own version row commit in one transaction or
-  not at all (`lease/apply.rs`); the organization's record is written after the commit, and where the
-  workspace's row is already at the shipped version only the record is brought up.
+- **A migration reaches a workspace under a lease taken at the primary**: what runs on open (the
+  steps shipped before 857 and the additions), by whichever member with full access opens it, and
+  an upgrade declared after 857 by the explicit act (*Upgrade*). A build below the workspace's read
+  floor reads nothing of it, judged before the replica is named (`lease::refuse_newer`). The lease
+  holder copies the workspace first (`backup.rs`), and a copy not taken applies nothing. The steps,
+  a check of what they made (`schema/`) and the workspace's own version row, with `applied_step`
+  and `data_floor` where those are owed, commit in one transaction or not at all
+  (`lease/apply.rs`); the organization's record, `schema_version` and `workspace_floor`, is written
+  after the commit, and where the workspace's row is already at the shipped version only the record
+  is brought up. *It said an older build refused a newer workspace until effort 857 judged it by
+  its floors.*
+- **A member with a read-only grant runs no step, and waits only behind one they need.** Each step
+  says whether a reader needs it ([[rules/migrations]], `readers_need`; ticket 37). Where nothing
+  pending is one they need, as `0007` alone is not, they read the workspace as it is, writing
+  nothing to it or to the organization, and the next member with full access runs the step
+  (`lease::holds_a_reader`). Where one is, as `0008` is, the workspace is refused as
+  `WorkspaceBehind` and they meet the workspace-held screen saying it is waiting for someone with
+  full access to open it on the new version, with their other workspaces reachable; in an
+  organization this build holds read-only by its version the refusal is
+  `WorkspaceBehindReadOnlyByVersion`, saying to update rentable. **The wait is shrunk, not
+  removed** (ticket 40, `lease/behind.rs`): after a sign-in, a resume and each heartbeat, a machine
+  on this build whose member holds full access brings up in the background every workspace it may
+  write that is behind, one at a time under the same lease and copy as opening, without opening
+  it in the interface, and nowhere this machine may not write. A failure is logged and the
+  workspace waits five minutes before a later beat tries it again. A reader therefore waits only
+  until such a machine comes online.
 - **A damaged organization replica is rebuilt from the remote, not repaired.** `org-<id>.db` opens
   through the workspace's own `Database::open_replica`, so one the engine finds corrupt, not a
   database, or cut short is set aside as `<name>.corrupt-<ms>` with its sidecars and opened again

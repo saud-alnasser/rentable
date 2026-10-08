@@ -3,6 +3,7 @@ import { accessIn, workspacePermissionsIn } from '$lib/api/context';
 import type { OrganizationSession, OrganizationWorkspace } from '$lib/organization/host';
 import { EXPORT_FLAGS, IMPORT_FLAGS, refusalOfEvery, type Standing } from '$lib/permission';
 import { permits } from '@rentable/workspace-permission';
+import DatabaseArrowUpIcon from '@lucide/svelte/icons/database-arrow-up';
 import FileDownIcon from '@lucide/svelte/icons/file-down';
 import FileUpIcon from '@lucide/svelte/icons/file-up';
 import SlidersHorizontalIcon from '@lucide/svelte/icons/sliders-horizontal';
@@ -42,6 +43,12 @@ export type WorkspaceActContext = {
 	 * requirement 15).
 	 */
 	standingOf: (workspaceId: string) => Standing | null;
+	/**
+	 * whether a workspace has an upgrade waiting that the reader may run, by its id (effort 857,
+	 * ticket 08): what waits there and the reader's `upgradeData`, read by the section that has
+	 * them. Nothing is upgradable where it is not said.
+	 */
+	upgradable?: (workspaceId: string) => boolean;
 };
 
 /**
@@ -85,6 +92,7 @@ export type WorkspaceActId =
 	| 'workspace.members'
 	| 'workspace.export'
 	| 'workspace.import'
+	| 'workspace.upgrade'
 	| 'workspace.delete';
 
 /** What the workspace acts ask of the organization host. */
@@ -97,6 +105,8 @@ export type WorkspaceHostRequests = {
 	exportFile: (record: WorkspaceActRecord) => void;
 	/** read a file into the workspace, once the reader has seen what it would do. */
 	importFile: (record: WorkspaceActRecord) => void;
+	/** open the upgrade sheet on the workspace: what it changes and whom it stops. */
+	upgrade: (record: WorkspaceActRecord) => void;
 	/** ask before deleting the workspace and its database. */
 	confirmDelete: (record: WorkspaceActRecord) => void;
 };
@@ -105,8 +115,8 @@ export type WorkspaceHostRequests = {
 export type WorkspaceAct = RecordAct<WorkspaceActRecord> & { id: WorkspaceActId };
 
 /**
- * The workspace's acts, bound to the host: its name, then who is in it, then its file, then losing
- * it.
+ * The workspace's acts, bound to the host: its name, then who is in it, then its file, then its
+ * upgrade where one waits that the reader may run, then losing it.
  */
 export function declareWorkspaceActs(host: WorkspaceHostRequests): WorkspaceAct[] {
 	const acts: WorkspaceAct[] = [
@@ -158,6 +168,17 @@ export function declareWorkspaceActs(host: WorkspaceHostRequests): WorkspaceAct[
 			unavailable: ({ workspace, context }, t) =>
 				refusalOfEvery(IMPORT_FLAGS, context.standingOf(workspace.id), t),
 			run: host.importFile
+		},
+		{
+			// offered only where an upgrade waits and the reader may run it, which is also where the
+			// card carries its mark (effort 857, ticket 08); nobody else is offered it, since it is
+			// not theirs to be refused.
+			id: 'workspace.upgrade',
+			label: (t) => t.organization.upgrade.act(),
+			icon: DatabaseArrowUpIcon,
+			group: 'primary',
+			appliesTo: ({ workspace, context }) => context.upgradable?.(workspace.id) === true,
+			run: host.upgrade
 		},
 		{
 			id: 'workspace.delete',

@@ -22,6 +22,7 @@ import { goto } from '$app/navigation';
 import { mayRun, type RecordAct } from '$lib/act';
 import { workspacePageOf } from '$lib/organization/workspace/address';
 import { openOrganizationDialog } from '$lib/organization/dialogs.svelte';
+import { openUpgrade } from '$lib/organization/upgrade/sheet.svelte';
 
 /**
  * THE ORGANIZATION HOST, ASKED FOR ANYWHERE AND DRAWN ONCE
@@ -180,6 +181,10 @@ export const workspaceActs = declareWorkspaceActs({
 	},
 	importFile: (record) => {
 		organizationHostState.workspace.importing = record;
+	},
+	// the upgrade sheet is the upgrade's own, mounted beside this host (effort 857, ticket 08).
+	upgrade: (record) => {
+		openUpgrade({ workspace: record.workspace.id }, record.workspace.name);
 	}
 });
 

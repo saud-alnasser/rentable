@@ -1,11 +1,16 @@
 pub(crate) mod bound;
 pub mod command;
 pub(crate) mod corrupt;
+pub mod floor;
+pub(crate) mod heal;
 mod held;
 mod plugin;
 pub mod proxy;
+pub(crate) mod replay;
+pub mod step;
 #[cfg(test)]
 pub(crate) mod test;
+pub(crate) mod unsendable;
 pub mod version;
 
 pub use plugin::plugin;
@@ -24,9 +29,10 @@ use crate::{
     clock::{self, Clock},
     database::{
         bound::{Bound, SYNC_BOUND, bounded},
+        floor::{Floors, Standing},
         proxy::{SQLQuery, SQLRow},
     },
-    error::Error,
+    error::{Error, RefusalReason},
     persisted::Persisted,
     settings::Settings,
     turso::platform::read_sync_refusal,
@@ -63,22 +69,60 @@ pub struct Pulled {
 ///
 /// `watch` records damage either half reports beside the replica (`corrupt.rs`), and `bound` is
 /// how long each half may wait on the remote before it is the offline case (`bound.rs`).
+/// `pushing` is whether this build may write the workspace: where it may not, only the pull goes
+/// (effort 857, requirement 6).
+///
+/// **Changes the workspace refuses because an upgrade removed what they name stop both halves**
+/// (effort 857, ticket 13): the refusal is recorded beside the replica, nothing is pulled after
+/// it, and a replica holding such a record is neither pushed nor pulled, since either drops the
+/// changes without a word (`unsendable.rs`). The person is asked before they go.
+#[cfg(test)]
 pub(crate) async fn replicate_engine(
     database: &turso::sync::Database,
     watch: &corrupt::Watch,
     bound: Bound,
+    pushing: bool,
 ) -> Replicated {
+    replicate_engine_then(database, watch, bound, pushing, async || ()).await
+}
+
+/// [`replicate_engine`], running `before_pull` between the push and the pull: where the heartbeat
+/// takes the hold of the engine for its verdict (effort 857, ticket 31), so a save waits for the
+/// pull and never for the push. A replication that stops before its pull does not run it.
+async fn replicate_engine_then(
+    database: &turso::sync::Database,
+    watch: &corrupt::Watch,
+    bound: Bound,
+    pushing: bool,
+    before_pull: impl AsyncFnOnce(),
+) -> Replicated {
+    if watch.replica().is_some_and(unsendable::held) {
+        return Replicated::unsendable();
+    }
+
     let mut refusal = None;
-    let pushed = match watch.note(bounded(bound, "push", database.push()).await) {
-        Ok(()) => true,
-        Err(error) => {
-            refusal = read_sync_refusal(&error);
-            false
-        }
-    };
+    let pushed = pushing
+        && match watch.note(bounded(bound, "push", database.push()).await) {
+            Ok(()) => true,
+            Err(error) => {
+                if held_as_unsendable(watch, &error) {
+                    return Replicated::unsendable();
+                }
+
+                refusal = read_sync_refusal(&error);
+                false
+            }
+        };
+
+    before_pull().await;
+
     let pulled = match watch.note(bounded(bound, "pull", database.pull()).await) {
         Ok(brought) => Some(brought),
         Err(error) => {
+            if held_as_unsendable(watch, &error) {
+                return Replicated::unsendable();
+            }
+
             if refusal.is_none() {
                 refusal = read_sync_refusal(&error);
             }
@@ -91,6 +135,36 @@ pub(crate) async fn replicate_engine(
         received: pulled.unwrap_or(false),
         refusal,
         completed: pushed || pulled.is_some(),
+    }
+}
+
+/// Whether `error`, a push's or a pull's, is changes the workspace refuses because an upgrade
+/// removed what they name; where it is, the refusal is recorded beside the replica `watch` is over,
+/// so nothing pushes or pulls it again (`unsendable.rs`).
+fn held_as_unsendable(watch: &corrupt::Watch, error: &turso::Error) -> bool {
+    let refusal = error.to_string();
+
+    if !unsendable::names_what_the_upgrade_removed(&refusal) {
+        return false;
+    }
+
+    if let Some(replica) = watch.replica() {
+        unsendable::hold(replica, &refusal);
+    }
+
+    true
+}
+
+impl Replicated {
+    /// A replication that sent nothing and brought nothing, because the replica holds changes the
+    /// workspace refuses since an upgrade.
+    fn unsendable() -> Self {
+        Replicated {
+            pushed: false,
+            received: false,
+            refusal: Some(unsendable::refusal()),
+            completed: false,
+        }
     }
 }
 
@@ -114,6 +188,52 @@ pub(crate) async fn replicate_engine(
 pub enum Engine {
     Local(Pool<Sqlite>),
     Workspace(Replica),
+}
+
+/// What the interface asks of the open workspace, one statement or a batch, as
+/// [`Database::held`] runs it, again where it has to wait for a verdict.
+trait Request: Clone + Send {
+    type Answer: Send;
+
+    /// Whether it may write a record that can be retired as a copy (`heal.rs`), read off its
+    /// statements: one naming such a table and a word that writes.
+    fn may_write_a_retirable(&self) -> bool;
+
+    /// Run it on `connection`.
+    fn run(
+        self,
+        connection: &corrupt::Watched,
+    ) -> impl Future<Output = Result<Self::Answer, Error>> + Send + '_;
+}
+
+impl Request for SQLQuery {
+    type Answer = Vec<SQLRow>;
+
+    fn may_write_a_retirable(&self) -> bool {
+        heal::may_write_a_retirable(&self.sql)
+    }
+
+    fn run(
+        self,
+        connection: &corrupt::Watched,
+    ) -> impl Future<Output = Result<Self::Answer, Error>> + Send + '_ {
+        proxy::workspace_execute_single_sql(connection, self)
+    }
+}
+
+impl Request for Vec<SQLQuery> {
+    type Answer = Vec<Vec<SQLRow>>;
+
+    fn may_write_a_retirable(&self) -> bool {
+        self.iter().any(Request::may_write_a_retirable)
+    }
+
+    fn run(
+        self,
+        connection: &corrupt::Watched,
+    ) -> impl Future<Output = Result<Self::Answer, Error>> + Send + '_ {
+        proxy::workspace_execute_batch_sql(connection, self)
+    }
 }
 
 /// A workspace's replica: the sync engine, and the connections its requests are served on.
@@ -154,6 +274,20 @@ pub struct Database {
     clock: clock::Shared,
     /// how long a push or a pull of the replica may wait on the remote (`bound.rs`).
     bound: Bound,
+    /// where this build stands against the open workspace's floors, as the organization last
+    /// judged them (effort 857, ticket 04): set by every open and every heartbeat, writable with
+    /// no workspace open and until the first verdict, and let go of with the engine. Beside it the
+    /// reason the verdict gave, where it gave one, which the state read carries (ticket 30).
+    /// `None` until the first verdict, which a floor read that fails falls back on (ticket 31).
+    standing: std::sync::Mutex<Option<(Standing, Option<String>)>>,
+    /// held for writing while the open workspace is pulled and judged over what the pull brought
+    /// ([`Database::judging`], effort 857, ticket 27), so no write lands between the two. A
+    /// request holds it for reading while it runs.
+    judging: Arc<tokio::sync::RwLock<()>>,
+    /// whether the open workspace is owed a healing pass whatever the next pull brings
+    /// ([`Database::heal`], effort 857, ticket 35): from its opening, and again after a pass that
+    /// failed, so the next one tries again.
+    heal_owed: std::sync::atomic::AtomicBool,
 }
 
 impl Database {
@@ -167,6 +301,9 @@ impl Database {
             settings,
             clock,
             bound: SYNC_BOUND,
+            standing: std::sync::Mutex::new(None),
+            judging: Arc::new(tokio::sync::RwLock::new(())),
+            heal_owed: std::sync::atomic::AtomicBool::new(true),
         }
     }
 
@@ -269,6 +406,8 @@ impl Database {
         // push or pull it yet and `connect()` therefore waits on nothing (`held.rs`).
         self.engine = Some(Engine::Workspace(Replica::open(engine, &watch).await?));
         self.watch = watch;
+        self.heal_owed
+            .store(true, std::sync::atomic::Ordering::SeqCst);
 
         Ok(())
     }
@@ -333,7 +472,7 @@ impl Database {
             .chain(
                 Self::REPLICA_SIDECARS
                     .iter()
-                    .chain(std::iter::once(&corrupt::MARKER))
+                    .chain([&corrupt::MARKER, &unsendable::MARKER])
                     .map(|suffix| PathBuf::from(format!("{}{suffix}", replica.display()))),
             )
             .filter(|file| file.exists())
@@ -374,13 +513,90 @@ impl Database {
     /// **A failure is an answer rather than an error to raise.** What could not be sent stays
     /// captured and goes with the next push, which is what makes an offline write survive rather
     /// than a promise anybody had to keep.
+    ///
+    /// **Nothing is pushed of a workspace this build may not write** (effort 857, requirement 9):
+    /// what it captured before the floor rose stays captured, and goes once it has updated.
+    ///
+    /// **Nor of one holding changes the workspace refused since an upgrade** (ticket 13): a second
+    /// push is what drops them, so it is never made, and a push refused that way records it.
     pub async fn push_replica(&self) -> bool {
+        if self.standing() != Standing::Writable || self.holds_unsendable() {
+            return false;
+        }
+
         match self.engine.as_ref() {
-            Some(Engine::Workspace(replica)) => self
-                .watch
-                .note(bounded(self.bound, "push", replica.engine.push()).await)
-                .is_ok(),
+            Some(Engine::Workspace(replica)) => {
+                match self
+                    .watch
+                    .note(bounded(self.bound, "push", replica.engine.push()).await)
+                {
+                    Ok(()) => true,
+                    Err(error) => {
+                        held_as_unsendable(&self.watch, &error);
+                        false
+                    }
+                }
+            }
             Some(Engine::Local(_)) | None => false,
+        }
+    }
+
+    /// Whether the open replica holds changes the workspace refused because an upgrade removed
+    /// what they name, which nothing sends or brings over until the person discards them
+    /// (`unsendable.rs`).
+    pub fn holds_unsendable(&self) -> bool {
+        self.watch.replica().is_some_and(unsendable::held)
+    }
+
+    /// Whether the open replica holds changes it has not sent yet: what the opening pull is held
+    /// back for (`organization/workspace/open.rs`), since a pull laid over changes the workspace
+    /// can no longer take fails and holds the file locked (`unsendable.rs`). The engine counts them
+    /// itself, and the count falls to nothing once a push has taken them. A count it cannot give
+    /// reads as nothing held, so the opening pulls as it did before: holding back the first pull of
+    /// a replica that has never had one would leave it with no tables.
+    pub async fn holds_unsent(&self) -> bool {
+        match self.engine.as_ref() {
+            Some(Engine::Workspace(replica)) => replica
+                .engine
+                .stats()
+                .await
+                .is_ok_and(|stats| stats.cdc_operations > 0),
+            Some(Engine::Local(_)) | None => false,
+        }
+    }
+
+    /// Discard the changes the open replica holds that the workspace refused since an upgrade, at
+    /// the person's word (effort 857, ticket 13): the replica is let go of and removed with
+    /// everything beside it, its record of the refusal included, and the caller opens the workspace
+    /// again, which makes a fresh copy of what the remote holds.
+    ///
+    /// **Refused while nothing is held**, so changes that could still be sent are never thrown
+    /// away by this, and refused on anything but a replica. What else the replica held unsent goes
+    /// with it, and that is what the person is told before they say yes.
+    pub async fn discard_unsendable(&mut self) -> Result<(), Error> {
+        let Some(replica) = self.watch.replica().map(Path::to_path_buf) else {
+            return Err(Self::nothing_unsendable());
+        };
+
+        if !matches!(self.engine, Some(Engine::Workspace(_))) || !unsendable::held(&replica) {
+            return Err(Self::nothing_unsendable());
+        }
+
+        self.disconnect().await;
+        Self::remove_replica_files(&replica);
+        unsendable::forget(&replica);
+
+        crate::diagnostics::warn("database.unsendable.discarded")
+            .with("replica", replica.display().to_string())
+            .write();
+
+        Ok(())
+    }
+
+    fn nothing_unsendable() -> Error {
+        Error::PreconditionFailed {
+            message: "this workspace holds no changes it was refused, so nothing was discarded"
+                .to_string(),
         }
     }
 
@@ -391,7 +607,18 @@ impl Database {
     /// is the offline case, and the replica goes on serving what it holds, so the caller is told
     /// and decides, which for a replica that has never pulled is a different decision from one
     /// for a replica that has.
+    ///
+    /// **A replica holding changes the workspace refused since an upgrade is not pulled** (ticket
+    /// 13), since a pull drops them, and a pull that fails laying them over a changed remote
+    /// records that it did.
     pub async fn pull_replica(&self) -> Pulled {
+        if self.holds_unsendable() {
+            return Pulled {
+                completed: false,
+                brought: false,
+            };
+        }
+
         match self.engine.as_ref() {
             // **`pull` answers `Ok(false)` when there was nothing to bring**, and that bool is the
             // answer rather than the call succeeding. Reading it as `is_ok()` made every online
@@ -407,10 +634,14 @@ impl Database {
                     completed: true,
                     brought,
                 },
-                Err(_) => Pulled {
-                    completed: false,
-                    brought: false,
-                },
+                Err(error) => {
+                    held_as_unsendable(&self.watch, &error);
+
+                    Pulled {
+                        completed: false,
+                        brought: false,
+                    }
+                }
             },
             Some(Engine::Local(_)) | None => Pulled {
                 completed: false,
@@ -427,10 +658,28 @@ impl Database {
     /// refused credential is collected again). The refusal is read at the response by
     /// `turso::platform::read_sync_refusal`, and the first refusal of the two halves is
     /// the one reported, because both are about the same database and the same credential.
+    ///
+    /// **A workspace this build may not write is pulled and not pushed** (effort 857, requirement
+    /// 6): what the others wrote comes in, and nothing this build holds goes out.
     pub async fn replicate(&self) -> Replicated {
+        self.replicate_then(async || ()).await
+    }
+
+    /// [`Database::replicate`], running `before_pull` once the push is done and before the pull:
+    /// what the heartbeat takes the hold for its verdict in (effort 857, ticket 31), so a save
+    /// made while a slow push waits commits at once, and one made during the pull waits for the
+    /// verdict over what it brought.
+    pub(crate) async fn replicate_then(&self, before_pull: impl AsyncFnOnce()) -> Replicated {
         match self.engine.as_ref() {
             Some(Engine::Workspace(replica)) => {
-                replicate_engine(&replica.engine, &self.watch, self.bound).await
+                replicate_engine_then(
+                    &replica.engine,
+                    &self.watch,
+                    self.bound,
+                    self.standing() == Standing::Writable,
+                    before_pull,
+                )
+                .await
             }
             Some(Engine::Local(_)) | None => Replicated {
                 pushed: false,
@@ -532,6 +781,7 @@ impl Database {
     /// close to call, and the file is held for exactly as long as the engine is.
     pub async fn disconnect(&mut self) {
         self.watch = corrupt::Watch::default();
+        self.forget_the_verdict();
 
         match self.engine.take() {
             Some(Engine::Local(pool)) => pool.close().await,
@@ -658,6 +908,174 @@ impl Database {
          AND name NOT LIKE 'turso!_%' ESCAPE '!' \
          AND name NOT LIKE '!_!_turso!_internal!_%' ESCAPE '!';";
 
+    /// Where this build stands against the open workspace's floors, as last judged.
+    pub fn standing(&self) -> Standing {
+        self.verdict().0
+    }
+
+    /// Where this build stands against the open workspace's floors, as last judged, and the reason
+    /// that verdict gave where it gave one (ticket 30).
+    pub fn verdict(&self) -> (Standing, Option<String>) {
+        self.standing
+            .lock()
+            .map(|verdict| verdict.clone().unwrap_or((Standing::Writable, None)))
+            .unwrap_or((Standing::Unreadable, None))
+    }
+
+    /// [`Database::verdict`] where one was given since the workspace opened, and nothing before
+    /// the first: what a floor read that fails keeps (ticket 31).
+    pub fn last_verdict(&self) -> Option<(Standing, Option<String>)> {
+        self.standing
+            .lock()
+            .map(|verdict| verdict.clone())
+            .unwrap_or(Some((Standing::Unreadable, None)))
+    }
+
+    /// Forget the verdict, as letting go of the engine does: writable again, and no verdict given.
+    fn forget_the_verdict(&self) {
+        if let Ok(mut held) = self.standing.lock() {
+            *held = None;
+        }
+    }
+
+    /// Hold the open workspace for a verdict (effort 857, ticket 27): a pull and the judgment over
+    /// what it brought run under this, so no write lands on the replica between the two, where it
+    /// would commit after a raise the pull brought and before the verdict that refuses it.
+    ///
+    /// **Reads go on beside it, and writes wait for the verdict.** A request that meets a verdict
+    /// being judged runs held to reading; one the engine refuses as a write waits for the verdict
+    /// and runs again, held to it ([`Database::held`]). So a pull the network is slow to answer
+    /// holds no read, which effort 854 (requirement 15) is owed, and a save made during it is
+    /// judged by what it brought. Waits for the requests already running.
+    ///
+    /// **The hold is owned rather than borrowed** (ticket 30), so the launch can take it while it
+    /// has the database to itself and keep it past letting go of that, from the moment the replica
+    /// opens to its verdict.
+    pub(crate) async fn judging(&self) -> tokio::sync::OwnedRwLockWriteGuard<()> {
+        Arc::clone(&self.judging).write_owned().await
+    }
+
+    /// Keep `standing` as the open workspace's verdict: what the organization does at every open
+    /// and every heartbeat, having judged the floors (effort 857, ticket 04).
+    pub fn hold(&self, standing: Standing) {
+        self.hold_because(standing, None);
+    }
+
+    /// Keep `standing` as the open workspace's verdict, and `reason` as the reason it gave, for
+    /// the state read to carry as it was given (ticket 30).
+    pub fn hold_because(&self, standing: Standing, reason: Option<String>) {
+        if let Ok(mut held) = self.standing.lock() {
+            *held = Some((standing, reason));
+        }
+    }
+
+    /// The open workspace's own floors, read from its replica as it stands
+    /// ([`floor::workspace`](crate::database::floor::workspace)); `None` with no replica open, or
+    /// one holding no version of its own. Reads and writes nothing.
+    pub async fn floors(&self) -> Result<Option<Floors>, Error> {
+        match self.engine.as_ref() {
+            Some(Engine::Workspace(replica)) => {
+                crate::database::floor::workspace(&*replica.connections.checkout().await?).await
+            }
+            Some(Engine::Local(_)) | None => Ok(None),
+        }
+    }
+
+    /// Heal the open workspace (`heal.rs`, effort 857, ticket 35): make the identical records two
+    /// machines saved apart into one, after a pull and its verdict, under the same hold of the
+    /// engine. Answers whether it wrote anything, which the caller reports as rows having arrived,
+    /// so the interface reconciles and reads again.
+    ///
+    /// **Only where this build may write the workspace**: its verdict writable, and no changes held
+    /// that the workspace refuses since an upgrade, which a write would join. Whether the member
+    /// may write it, a full-access grant, is the caller's to say, since the engine does not know
+    /// whose credential it holds. **Only where something could need it**: a pull that `brought`
+    /// rows, or a pass owed since the workspace opened, since one failed, or since a write of this
+    /// machine's own while it held a retired record, which may have edited one. Nothing a person
+    /// saves on this machine makes a copy, since the save check refuses one, so a quiet heartbeat
+    /// otherwise reads nothing here.
+    ///
+    /// **It never fails the replication around it.** A pass that fails writes nothing, since its
+    /// writes are one transaction, and is logged and owed again, so the next pull retries it.
+    ///
+    /// Writes on a connection of the replica's own, held to writing, rather than through
+    /// [`Database::held`]: it runs while the verdict's hold is taken, which `held` would wait on.
+    pub(crate) async fn heal(&self, brought: bool) -> bool {
+        use std::sync::atomic::Ordering;
+
+        let Some(Engine::Workspace(replica)) = self.engine.as_ref() else {
+            return false;
+        };
+
+        if self.standing() != Standing::Writable || self.holds_unsendable() {
+            return false;
+        }
+
+        if !brought && !self.heal_owed.load(Ordering::SeqCst) {
+            return false;
+        }
+
+        let healed = async {
+            let connection = replica.connections.checkout().await?;
+
+            crate::database::floor::hold_writes(&connection, Standing::Writable).await?;
+
+            heal::pass(&connection).await
+        }
+        .await;
+
+        match healed {
+            Ok(healed) => {
+                self.heal_owed.store(false, Ordering::SeqCst);
+
+                if healed.changed() {
+                    crate::diagnostics::info("replica.heal.healed")
+                        .with("retired", healed.retired.to_string())
+                        .with("moved", healed.moved.to_string())
+                        .with("carried", healed.carried.to_string())
+                        .with("shown", healed.shown.to_string())
+                        .write();
+                }
+
+                healed.changed()
+            }
+            Err(error) => {
+                self.heal_owed.store(true, Ordering::SeqCst);
+                crate::diagnostics::warn("replica.heal.failed")
+                    .with("error", error.to_string())
+                    .write();
+
+                false
+            }
+        }
+    }
+
+    /// Write `sql` to the open replica as a pull lays what it brings: on a connection of the
+    /// replica's own, whatever the verdict holds, for a test standing in for a pull that brought
+    /// it.
+    #[cfg(test)]
+    pub(crate) async fn as_a_pull_brings(&self, sql: &str) {
+        let Some(Engine::Workspace(replica)) = self.engine.as_ref() else {
+            panic!("no replica is open");
+        };
+        let connection = replica.connections.checkout().await.expect("a connection");
+
+        crate::database::floor::hold_writes(&connection, Standing::Writable)
+            .await
+            .expect("writable");
+        connection
+            .execute(sql, ())
+            .await
+            .expect("what the pull brought");
+    }
+
+    /// Run one statement on the open database.
+    ///
+    /// **A workspace this build may not write refuses every write here** (effort 857, requirement
+    /// 6): the connection is held to the standing before the statement runs
+    /// ([`floor::hold_writes`](crate::database::floor::hold_writes)), so the engine refuses a write
+    /// and serves a read, and its refusal is answered with the version as the reason. The `Local`
+    /// arm is the seeded and test paths, which no organization judges, and is not held.
     pub async fn execute_single_sql(&self, query: SQLQuery) -> Result<Vec<SQLRow>, Error> {
         match self.engine.as_ref().ok_or_else(Self::not_connected)? {
             Engine::Local(pool) => proxy::execute_single_sql(pool, query).await,
@@ -665,23 +1083,131 @@ impl Database {
             // hands out on the other arm too. The engine arms change capture on every connection
             // it opens, so one it opened is one whose writes can be pushed, and one taken any
             // other way is not.
-            Engine::Workspace(replica) => {
-                proxy::workspace_execute_single_sql(&*replica.connections.checkout().await?, query)
-                    .await
-            }
+            Engine::Workspace(replica) => self.held(replica, query).await,
         }
     }
 
+    /// Run a batch on the open database, as one transaction, held as
+    /// [`Database::execute_single_sql`] holds one statement: a batch holding a write is refused
+    /// whole, and rolled back, while this build may not write the workspace.
     pub async fn execute_batch_sql(
         &self,
         queries: Vec<SQLQuery>,
     ) -> Result<Vec<Vec<SQLRow>>, Error> {
         match self.engine.as_ref().ok_or_else(Self::not_connected)? {
             Engine::Local(pool) => proxy::execute_batch_sql(pool, queries).await,
-            Engine::Workspace(replica) => {
-                proxy::workspace_execute_batch_sql(&*replica.connections.checkout().await?, queries)
-                    .await
+            Engine::Workspace(replica) => self.held(replica, queries).await,
+        }
+    }
+
+    /// Run `request` on a connection of `replica` held to the workspace's verdict, so the engine
+    /// refuses a write this build may not make (effort 857, requirement 6), and answer its refusal
+    /// with the version as the reason.
+    ///
+    /// **While a verdict is being judged** ([`Database::judging`]) the request runs held to
+    /// reading: a read answers at once, and a write the engine refuses waits for the verdict and
+    /// runs again, held to it. Its connection goes back before it waits, so the judgment, which
+    /// reads the floors on one, is never left waiting on the requests waiting on it.
+    async fn held<R: Request>(&self, replica: &Replica, request: R) -> Result<R::Answer, Error> {
+        let writes = request.may_write_a_retirable();
+        let answered = self.held_judged(replica, request).await;
+
+        if writes && answered.is_ok() {
+            self.owe_heal_where_retired(replica).await;
+        }
+
+        answered
+    }
+
+    /// A write of this machine's own owes the open workspace a healing pass where it holds a
+    /// retired record (effort 857, ticket 39). A person who had a copy open as the pass retired it
+    /// edits it by its id, and the edit lands on the copy; owing the pass carries it to the record
+    /// that stayed at the next heartbeat, rather than when another machine's rows next arrive.
+    /// A workspace holding no retired record owes nothing, and a read that fails owes nothing.
+    async fn owe_heal_where_retired(&self, replica: &Replica) {
+        let Ok(connection) = replica.connections.checkout().await else {
+            return;
+        };
+
+        if heal::holds_a_retired(&connection).await.unwrap_or(false) {
+            self.heal_owed
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+    }
+
+    /// Run `request` held as [`Database::held`] says, owing no pass.
+    async fn held_judged<R: Request>(
+        &self,
+        replica: &Replica,
+        request: R,
+    ) -> Result<R::Answer, Error> {
+        if let Ok(_judged) = self.judging.try_read() {
+            let verdict = self.verdict();
+
+            return Self::held_to(replica, verdict.0, request)
+                .await
+                .map_err(|error| Self::refused_by_version(&verdict, error));
+        }
+
+        match Self::held_to(replica, Standing::ReadOnly, request.clone()).await {
+            Err(error) if crate::database::floor::refused_a_write(&error) => {}
+            answered => return answered,
+        }
+
+        let _judged = self.judging.read().await;
+        let verdict = self.verdict();
+
+        Self::held_to(replica, verdict.0, request)
+            .await
+            .map_err(|error| Self::refused_by_version(&verdict, error))
+    }
+
+    /// Run `request` on a connection of `replica` held to `standing`, answering the engine's
+    /// refusal of a write as it came.
+    async fn held_to<R: Request>(
+        replica: &Replica,
+        standing: Standing,
+        request: R,
+    ) -> Result<R::Answer, Error> {
+        let connection = replica.connections.checkout().await?;
+
+        crate::database::floor::hold_writes(&connection, standing).await?;
+
+        request.run(&connection).await
+    }
+
+    /// The engine's refusal of a write on a connection held to `standing`, as the refusal a person
+    /// is told: the workspace upgraded past what this build writes, or past what it reads. Any
+    /// other error is answered as it came.
+    ///
+    /// **Floors that could not be read are not a newer version** (ticket 31): where the verdict's
+    /// reason says so ([`floor::FLOORS_UNREADABLE`](crate::database::floor::FLOORS_UNREADABLE)),
+    /// the write is refused as that, and nobody is told to update.
+    fn refused_by_version(verdict: &(Standing, Option<String>), error: Error) -> Error {
+        if !crate::database::floor::refused_a_write(&error) {
+            return error;
+        }
+
+        match verdict {
+            (Standing::ReadOnly, Some(reason))
+                if reason.as_str() == crate::database::floor::FLOORS_UNREADABLE =>
+            {
+                Error::refused(
+                    RefusalReason::WorkspaceFloorsUnreadable,
+                    "this version could not read which versions of rentable may write this \
+                     workspace, so it writes nothing to it until it can; nothing was written",
+                )
             }
+            (Standing::Unreadable, _) => Error::refused(
+                RefusalReason::WorkspaceNewer,
+                "a newer version of rentable upgraded this workspace past what this version reads. \
+                 update rentable to open it; nothing was written",
+            ),
+            (Standing::ReadOnly | Standing::Writable, _) => Error::refused(
+                RefusalReason::WorkspaceReadOnlyByVersion,
+                "a newer version of rentable upgraded this workspace, and this version reads it but \
+                 does not write to it. update rentable to make changes; nothing was written",
+            ),
         }
     }
 }
@@ -693,6 +1219,8 @@ mod tests {
     };
     use super::{Database, Engine};
     use crate::test::scratch;
+    use serde_json::json;
+    use std::sync::Arc;
 
     /// A replica engine over a file of its own, with no remote to reach.
     async fn replica(name: &str) -> (std::path::PathBuf, turso::sync::Database) {
@@ -790,7 +1318,7 @@ mod tests {
         .expect("replica engine");
 
         let replicated =
-            super::replicate_engine(&database, &Default::default(), super::SYNC_BOUND).await;
+            super::replicate_engine(&database, &Default::default(), super::SYNC_BOUND, true).await;
 
         assert!(!replicated.pushed);
         assert!(!replicated.received);
@@ -841,7 +1369,7 @@ mod tests {
         .expect("replica engine");
 
         let unreached =
-            super::replicate_engine(&offline, &Default::default(), super::SYNC_BOUND).await;
+            super::replicate_engine(&offline, &Default::default(), super::SYNC_BOUND, true).await;
 
         assert_eq!(unreached.refusal, None);
 
@@ -1641,5 +2169,1534 @@ mod tests {
         let _ = std::fs::remove_dir_all(&first_dir);
         let _ = std::fs::remove_dir_all(&second_dir);
         workspace.destroy().await;
+    }
+
+    /// One statement, with nothing bound.
+    fn statement(sql: &str) -> crate::database::proxy::SQLQuery {
+        crate::database::proxy::SQLQuery {
+            sql: sql.to_string(),
+            params: Vec::new(),
+        }
+    }
+
+    /// The reason a refusal carries, or a panic naming what came back instead.
+    fn reason_of<T: std::fmt::Debug>(
+        answered: Result<T, crate::error::Error>,
+    ) -> crate::error::RefusalReason {
+        match answered {
+            Err(crate::error::Error::Refused { reason, .. }) => reason,
+            other => panic!("not a refusal: {other:?}"),
+        }
+    }
+
+    /// Every tenant the workspace holds, by id.
+    async fn tenants(database: &Database) -> Vec<crate::database::proxy::SQLRow> {
+        database
+            .execute_single_sql(statement("SELECT \"id\" FROM \"tenant\" ORDER BY \"id\""))
+            .await
+            .expect("the read")
+    }
+
+    /// **Ticket 05's second criterion.** While this build stands below the workspace's write floor,
+    /// every kind of write, alone or in a batch, is refused with the version as the reason and
+    /// changes nothing, and every read answers as before; below the read floor a write is refused
+    /// as the workspace being newer. Once the standing is writable again the same connections
+    /// write, so nothing of the refusal outlives it.
+    #[test]
+    fn a_workspace_below_its_write_floor_refuses_every_write_and_serves_reads() {
+        use crate::{database::floor::Standing, error::RefusalReason, sync::test::server::within};
+        use std::time::Duration;
+
+        within(Duration::from_secs(60), async {
+            let (directory, database) =
+                workspace_against("read-only-writes", None, Duration::from_secs(30)).await;
+
+            for sql in [
+                "CREATE TABLE \"tenant\" (\"id\" TEXT PRIMARY KEY, \"name\" TEXT)",
+                "INSERT INTO \"tenant\" VALUES ('t-1', 'first')",
+            ] {
+                database
+                    .execute_single_sql(statement(sql))
+                    .await
+                    .expect(sql);
+            }
+
+            let before = tenants(&database).await;
+
+            database.hold(Standing::ReadOnly);
+
+            let writes = [
+                "INSERT INTO \"tenant\" VALUES ('t-2', 'second')",
+                "UPDATE \"tenant\" SET \"name\" = 'renamed' WHERE \"id\" = 't-1'",
+                "DELETE FROM \"tenant\" WHERE \"id\" = 't-1'",
+                "CREATE TABLE \"other\" (\"id\" TEXT)",
+                "DROP TABLE \"tenant\"",
+            ];
+
+            // more times than the replica holds connections, so every one of them is met.
+            for _ in 0..super::held::SIZE + 1 {
+                for sql in writes {
+                    assert_eq!(
+                        reason_of(database.execute_single_sql(statement(sql)).await),
+                        RefusalReason::WorkspaceReadOnlyByVersion,
+                        "{sql}"
+                    );
+                    assert_eq!(
+                        reason_of(
+                            database
+                                .execute_batch_sql(vec![
+                                    statement("SELECT count(*) FROM \"tenant\""),
+                                    statement(sql),
+                                ])
+                                .await
+                        ),
+                        RefusalReason::WorkspaceReadOnlyByVersion,
+                        "a batch holding {sql}"
+                    );
+                }
+
+                assert_eq!(tenants(&database).await, before, "a write went through");
+                assert_eq!(
+                    database
+                        .execute_batch_sql(vec![
+                            statement("SELECT count(*) FROM \"tenant\""),
+                            statement("SELECT \"name\" FROM \"tenant\""),
+                        ])
+                        .await
+                        .expect("a batch of reads")
+                        .len(),
+                    2
+                );
+            }
+
+            database.hold(Standing::Unreadable);
+
+            assert_eq!(
+                reason_of(database.execute_single_sql(statement(writes[0])).await),
+                RefusalReason::WorkspaceNewer
+            );
+
+            database.hold(Standing::Writable);
+
+            for _ in 0..super::held::SIZE + 1 {
+                database
+                    .execute_batch_sql(vec![statement(
+                        "UPDATE \"tenant\" SET \"name\" = 'written' WHERE \"id\" = 't-1'",
+                    )])
+                    .await
+                    .expect("a write once writable again");
+            }
+
+            drop(database);
+            let _ = std::fs::remove_dir_all(&directory);
+        });
+    }
+
+    /// **Effort 857, ticket 31: floors that could not be read are not a newer version.** A
+    /// workspace held read-only because its floors could not be read refuses every write, alone or
+    /// in a batch, with the floors as the reason rather than a newer version, and still reads.
+    #[test]
+    fn a_workspace_whose_floors_could_not_be_read_refuses_writes_without_naming_a_version() {
+        use crate::{
+            database::floor::{FLOORS_UNREADABLE, Standing},
+            error::RefusalReason,
+            sync::test::server::within,
+        };
+        use std::time::Duration;
+
+        within(Duration::from_secs(60), async {
+            let (directory, database) =
+                workspace_against("floors-unreadable-writes", None, Duration::from_secs(30)).await;
+
+            database
+                .execute_single_sql(statement(
+                    "CREATE TABLE \"tenant\" (\"id\" TEXT PRIMARY KEY)",
+                ))
+                .await
+                .expect("the table");
+            let before = tenants(&database).await;
+
+            database.hold_because(Standing::ReadOnly, Some(FLOORS_UNREADABLE.to_string()));
+
+            let write = "INSERT INTO \"tenant\" VALUES ('t-1')";
+
+            assert_eq!(
+                reason_of(database.execute_single_sql(statement(write)).await),
+                RefusalReason::WorkspaceFloorsUnreadable
+            );
+            assert_eq!(
+                reason_of(database.execute_batch_sql(vec![statement(write)]).await),
+                RefusalReason::WorkspaceFloorsUnreadable
+            );
+            assert_eq!(tenants(&database).await, before, "a write went through");
+
+            drop(database);
+            let _ = std::fs::remove_dir_all(&directory);
+        });
+    }
+
+    /// **Ticket 05's second criterion, the push.** A workspace this build may not write is pulled
+    /// and never pushed, by the replication and by the last push of a session alike, so what it
+    /// wrote before the floor rose stays captured on the machine. The same replica pushes once it
+    /// may write again, which is what shows the test can see a push at all.
+    #[test]
+    fn a_workspace_below_its_write_floor_is_pulled_and_never_pushed() {
+        use crate::{
+            database::floor::Standing,
+            sync::test::server::{ScriptedResponse, ScriptedServer, within},
+        };
+        use std::time::Duration;
+
+        // what the engine sends each half to, measured against this server (ticket 05).
+        const PUSH: &str = "/v2/pipeline";
+        const PULL: &str = "/pull-updates";
+
+        within(Duration::from_secs(60), async {
+            let remote = ScriptedServer::start(
+                (0..32)
+                    .map(|_| ScriptedResponse::new(500, "unavailable"))
+                    .collect(),
+            )
+            .await;
+            let (directory, database) = workspace_against(
+                "read-only-push",
+                Some(remote.url("")),
+                Duration::from_secs(5),
+            )
+            .await;
+            let sent = |from: usize| {
+                (from..remote.request_count())
+                    .map(|index| remote.request(index).target)
+                    .collect::<Vec<_>>()
+            };
+
+            for sql in [
+                "CREATE TABLE \"tenant\" (\"id\" TEXT PRIMARY KEY)",
+                "INSERT INTO \"tenant\" VALUES ('t-1')",
+            ] {
+                database
+                    .execute_single_sql(statement(sql))
+                    .await
+                    .expect(sql);
+            }
+
+            let start = remote.request_count();
+
+            database.hold(Standing::ReadOnly);
+
+            let replicated = database.replicate().await;
+
+            assert!(!replicated.pushed);
+            assert!(!database.push_replica().await, "the last push went");
+
+            let targets = sent(start);
+
+            assert!(
+                !targets.iter().any(|target| target == PUSH),
+                "a read-only workspace pushed: {targets:?}"
+            );
+            assert!(
+                targets.iter().any(|target| target == PULL),
+                "a read-only workspace was not pulled: {targets:?}"
+            );
+
+            let start = remote.request_count();
+
+            database.hold(Standing::Writable);
+            database.push_replica().await;
+
+            assert!(
+                sent(start).iter().any(|target| target == PUSH),
+                "a writable workspace did not push, so nothing above shows a push was held"
+            );
+
+            drop(database);
+            drop(remote);
+            let _ = std::fs::remove_dir_all(&directory);
+        });
+    }
+
+    /// What the remote answers a push whose changes name a column an upgrade removed, as the
+    /// live run of ticket 13 read it off Turso: the statement the engine sends is refused inside
+    /// a pipeline that is otherwise answered.
+    const REMOVED_COLUMN: &str = r#"{"baton":null,"base_url":null,"results":[{"type":"error","error":{"message":"SQLite error: table tenant has no column named note","code":"SQLITE_UNKNOWN"}}]}"#;
+
+    /// **Ticket 13, the classification and the keeping.** A push the remote refuses because an
+    /// upgrade removed what the changes name is answered as `ChangesUnsendableAfterUpgrade`, and
+    /// from then on the replica is neither pushed nor pulled, by the replication, the last push of
+    /// a session or a pull alike, in this session or the next: the live run measured that a
+    /// second push, or a pull, after the first refusal drops the changes without a word. The
+    /// changes stay readable on this machine until the person says to discard them.
+    #[test]
+    fn a_push_naming_what_an_upgrade_removed_is_classified_and_kept() {
+        use crate::{
+            error::{Error, RefusalReason},
+            sync::test::server::{ScriptedResponse, ScriptedServer, within},
+        };
+        use std::time::Duration;
+
+        within(Duration::from_secs(60), async {
+            let remote = ScriptedServer::start(
+                (0..32)
+                    .map(|_| ScriptedResponse::new(200, REMOVED_COLUMN))
+                    .collect(),
+            )
+            .await;
+            let (directory, mut database) =
+                workspace_against("unsendable", Some(remote.url("")), Duration::from_secs(5)).await;
+
+            for sql in [
+                "CREATE TABLE \"tenant\" (\"id\" TEXT PRIMARY KEY, \"note\" TEXT)",
+                "INSERT INTO \"tenant\" VALUES ('t-1', 'written before the upgrade')",
+            ] {
+                database
+                    .execute_single_sql(statement(sql))
+                    .await
+                    .expect(sql);
+            }
+
+            let replicated = database.replicate().await;
+
+            assert!(
+                matches!(
+                    replicated.refusal,
+                    Some(Error::Refused {
+                        reason: RefusalReason::ChangesUnsendableAfterUpgrade,
+                        ..
+                    })
+                ),
+                "{replicated:?}"
+            );
+            assert!(!replicated.pushed);
+            assert!(!replicated.received);
+            assert!(database.holds_unsendable(), "nothing records the refusal");
+
+            let sent = remote.request_count();
+
+            assert!(
+                !(0..sent).any(|index| remote.request(index).target == "/pull-updates"),
+                "a refused push was followed by a pull, which drops what it holds"
+            );
+
+            // kept: nothing reaches the remote again, whichever call asks.
+            let again = database.replicate().await;
+
+            assert_eq!(again.refusal, replicated.refusal);
+            assert!(!database.push_replica().await);
+            assert!(!database.pull_replica().await.completed);
+
+            // and a later launch keeps it the same way.
+            database.disconnect().await;
+            database
+                .connect_workspace("silent", Some(remote.url("")), || async {
+                    Ok::<String, turso::Error>("a-credential".to_string())
+                })
+                .await
+                .expect("the replica, opened again");
+
+            assert!(database.holds_unsendable());
+            assert_eq!(database.replicate().await.refusal, replicated.refusal);
+            assert_eq!(
+                remote.request_count(),
+                sent,
+                "a held replica reached the remote again"
+            );
+            assert_eq!(
+                tenants(&database).await.len(),
+                1,
+                "the change was not kept on this machine"
+            );
+
+            drop(database);
+            drop(remote);
+            let _ = std::fs::remove_dir_all(&directory);
+        });
+    }
+
+    /// What the remote answers a push whose change another machine's took the unique value of
+    /// first: a conflict between two machines, which no upgrade caused.
+    const UNIQUE_CONFLICT: &str = r#"{"baton":null,"base_url":null,"results":[{"type":"error","error":{"message":"SQLite error: UNIQUE constraint failed: tenant.phone","code":"SQLITE_CONSTRAINT"}}]}"#;
+
+    /// **Ticket 26 (correctness 2).** A push refused over a unique constraint is a conflict between
+    /// two machines rather than a workspace an upgrade reshaped: the replica is not held, the
+    /// person is not told it was upgraded nor offered a discard, and the next replication reaches
+    /// the remote again.
+    #[test]
+    fn a_conflict_is_not_held_as_an_upgrade() {
+        use crate::{
+            error::{Error, RefusalReason},
+            sync::test::server::{ScriptedResponse, ScriptedServer, within},
+        };
+        use std::time::Duration;
+
+        within(Duration::from_secs(60), async {
+            let remote = ScriptedServer::start(
+                (0..32)
+                    .map(|_| ScriptedResponse::new(200, UNIQUE_CONFLICT))
+                    .collect(),
+            )
+            .await;
+            let (directory, mut database) =
+                workspace_against("conflict", Some(remote.url("")), Duration::from_secs(5)).await;
+
+            for sql in [
+                "CREATE TABLE \"tenant\" (\"id\" TEXT PRIMARY KEY, \"phone\" TEXT UNIQUE)",
+                "INSERT INTO \"tenant\" VALUES ('t-1', '0500000000')",
+            ] {
+                database
+                    .execute_single_sql(statement(sql))
+                    .await
+                    .expect(sql);
+            }
+
+            let replicated = database.replicate().await;
+
+            assert!(
+                !matches!(
+                    replicated.refusal,
+                    Some(Error::Refused {
+                        reason: RefusalReason::ChangesUnsendableAfterUpgrade,
+                        ..
+                    })
+                ),
+                "a conflict was told as an upgrade: {replicated:?}"
+            );
+            assert!(!replicated.pushed);
+            assert!(!database.holds_unsendable(), "a conflict held the replica");
+            assert!(!database.push_replica().await);
+            assert!(
+                !database.holds_unsendable(),
+                "the last push held the replica"
+            );
+
+            let sent = remote.request_count();
+
+            database.replicate().await;
+
+            assert!(
+                remote.request_count() > sent,
+                "the replica stopped reaching the remote after a conflict"
+            );
+            assert!(
+                matches!(
+                    database.discard_unsendable().await,
+                    Err(Error::PreconditionFailed { .. })
+                ),
+                "a conflict's changes were offered for discarding"
+            );
+
+            drop(database);
+            drop(remote);
+            let _ = std::fs::remove_dir_all(&directory);
+        });
+    }
+
+    /// **Ticket 26 (correctness 11).** Where the record of a refusal cannot be written beside the
+    /// replica (here a directory stands where the file would go), the replica is held all the same
+    /// for the rest of the session: no later replication, last push or pull reaches the remote,
+    /// which is what would answer `Ok` and drop the refused changes.
+    #[test]
+    fn a_refusal_that_cannot_be_recorded_still_holds_the_replica() {
+        use crate::{
+            error::{Error, RefusalReason},
+            sync::test::server::{ScriptedResponse, ScriptedServer, within},
+        };
+        use std::time::Duration;
+
+        within(Duration::from_secs(60), async {
+            let remote = ScriptedServer::start(
+                (0..32)
+                    .map(|_| ScriptedResponse::new(200, REMOVED_COLUMN))
+                    .collect(),
+            )
+            .await;
+            let (directory, database) =
+                workspace_against("unrecorded", Some(remote.url("")), Duration::from_secs(5)).await;
+            let replica = Database::replica_path(&directory.join("app.db"), "silent");
+
+            std::fs::create_dir(super::unsendable::marker(&replica))
+                .expect("the record's place, taken");
+
+            for sql in [
+                "CREATE TABLE \"tenant\" (\"id\" TEXT PRIMARY KEY, \"note\" TEXT)",
+                "INSERT INTO \"tenant\" VALUES ('t-1', 'written before the upgrade')",
+            ] {
+                database
+                    .execute_single_sql(statement(sql))
+                    .await
+                    .expect(sql);
+            }
+
+            assert!(
+                !database.holds_unsendable(),
+                "held before anything was refused"
+            );
+
+            let replicated = database.replicate().await;
+
+            assert!(remote.request_count() > 0, "the push was never made");
+            assert!(
+                matches!(
+                    replicated.refusal,
+                    Some(Error::Refused {
+                        reason: RefusalReason::ChangesUnsendableAfterUpgrade,
+                        ..
+                    })
+                ),
+                "{replicated:?}"
+            );
+            assert!(
+                database.holds_unsendable(),
+                "an unrecorded refusal was forgotten"
+            );
+
+            let sent = remote.request_count();
+
+            assert_eq!(database.replicate().await.refusal, replicated.refusal);
+            assert!(!database.push_replica().await);
+            assert!(!database.pull_replica().await.completed);
+            assert_eq!(
+                remote.request_count(),
+                sent,
+                "an unrecorded hold let the replica reach the remote again"
+            );
+            assert_eq!(tenants(&database).await.len(), 1, "the change was not kept");
+
+            drop(database);
+            drop(remote);
+            super::unsendable::forget(&replica);
+            let _ = std::fs::remove_dir_all(&directory);
+        });
+    }
+
+    // -------------------------------------------------------------------------------------
+    // Effort 857, ticket 13, live: what an older build left unsent, pushed after an upgrade.
+    // -------------------------------------------------------------------------------------
+
+    /// Fail unless `RENTABLE_LIVE_TURSO=1` arms the run, as every live test admitted since
+    /// 2026-08-30 does ([[rules/testing]]).
+    fn armed_for_a_live_run() {
+        assert_eq!(
+            std::env::var("RENTABLE_LIVE_TURSO")
+                .unwrap_or_else(|_| panic!(
+                    "RENTABLE_LIVE_TURSO is needed for a live run; see unsent_changes_live_*"
+                ))
+                .trim(),
+            "1",
+            "a live run is armed by RENTABLE_LIVE_TURSO=1 as well as by --ignored"
+        );
+    }
+
+    /// This machine's database over the replica of `workspace` kept in `directory`, opened as a
+    /// launch opens it: the same file each time, so a second call is the build after an update.
+    async fn live_database(directory: &std::path::Path, workspace: &LiveWorkspace) -> Database {
+        use crate::{persisted::Persisted, settings::Settings};
+        use std::sync::Arc;
+        use tokio::sync::RwLock;
+
+        let mut settings =
+            Persisted::<Settings>::load(directory.join("settings.json")).expect("settings");
+        settings.database_path = directory.join("app.db");
+
+        let mut database = Database::new(
+            Arc::new(RwLock::new(settings)),
+            crate::clock::System::shared(),
+        );
+        let token = workspace.token.clone();
+
+        database
+            .connect_workspace("live", Some(workspace.url.clone()), move || {
+                let token = token.clone();
+                async move { Ok::<String, turso::Error>(token) }
+            })
+            .await
+            .expect("the workspace replica");
+
+        database
+    }
+
+    /// Every row of `pay` on this machine, each as its values in order.
+    async fn local_pay(database: &Database) -> Vec<Vec<serde_json::Value>> {
+        database
+            .execute_single_sql(statement("SELECT * FROM \"pay\" ORDER BY \"id\""))
+            .await
+            .expect("the local read")
+            .into_iter()
+            .map(|row| row.rows)
+            .collect()
+    }
+
+    /// Every row of `pay` on the remote, each as the pipeline's typed cells.
+    async fn remote_pay(workspace: &LiveWorkspace) -> Vec<serde_json::Value> {
+        workspace
+            .over_the_wire(&["SELECT * FROM \"pay\" ORDER BY \"id\""])
+            .await
+    }
+
+    /// One case on a throwaway database of its own: `case` runs against it, the database is
+    /// deleted whatever the case did, and only then does a failure in the case fail the test, so a
+    /// failed assertion never leaves a database behind.
+    async fn on_a_throwaway_workspace<F, Fut>(label: &str, case: F)
+    where
+        F: FnOnce(Arc<LiveWorkspace>, std::path::PathBuf) -> Fut,
+        Fut: std::future::Future<Output = ()> + Send + 'static,
+    {
+        let workspace = Arc::new(LiveWorkspace::create(label).await);
+        let directory = scratch(label);
+        let ran = tokio::spawn(case(Arc::clone(&workspace), directory.clone())).await;
+
+        let _ = std::fs::remove_dir_all(&directory);
+
+        match Arc::try_unwrap(workspace) {
+            Ok(workspace) => workspace.destroy().await,
+            Err(_) => panic!("the case kept the workspace, so it could not be deleted"),
+        }
+
+        if let Err(failure) = ran {
+            std::panic::resume_unwind(failure.into_panic());
+        }
+    }
+
+    /// The workspace as an older build left it: a table, a row everybody has, and this machine's
+    /// replica holding `captured` unsent. `upgrade` then reaches the remote over the pipeline, as
+    /// an upgrade's step does, and the replica is opened again, which is the build after the
+    /// update. What the older build captured is still held when it opens.
+    async fn captured_before(
+        workspace: &LiveWorkspace,
+        directory: &std::path::Path,
+        captured: &str,
+        upgrade: &str,
+    ) -> Database {
+        workspace
+            .over_the_wire(&[
+                "CREATE TABLE \"pay\" (\"id\" TEXT PRIMARY KEY, \"amount\" INTEGER NOT NULL, \
+                 \"note\" TEXT)",
+                "INSERT INTO \"pay\" VALUES ('u1', 1, 'seed')",
+            ])
+            .await;
+
+        let mut older = live_database(directory, workspace).await;
+
+        assert!(older.pull_replica().await.completed, "the first pull");
+        older
+            .execute_single_sql(statement(captured))
+            .await
+            .expect("the older build's write");
+        older.disconnect().await;
+
+        workspace.over_the_wire(&[upgrade]).await;
+
+        let updated = live_database(directory, workspace).await;
+
+        assert!(
+            updated.holds_unsent().await,
+            "the change the older build wrote is not held"
+        );
+
+        updated
+    }
+
+    /// **Ticket 13's live criterion, the addition: sent.** Changes an older build held when an
+    /// upgrade added a column reach the remote at the updated build's first replication, with the
+    /// new column empty, and the replica reads the new shape afterwards.
+    ///
+    /// ```text
+    /// RENTABLE_LIVE_TURSO=1 TURSO_API_TOKEN=... TURSO_ORG=... TURSO_GROUP=... \
+    ///   cargo test --manifest-path ./apps/desktop/tauri/Cargo.toml unsent_changes_live -- \
+    ///   --test-threads=1 --ignored --nocapture
+    /// ```
+    #[ignore = "reaches a live Turso account and creates a database; see the doc comment"]
+    #[tokio::test]
+    async fn unsent_changes_live_are_sent_after_an_addition() {
+        armed_for_a_live_run();
+
+        on_a_throwaway_workspace("u857-added", |workspace, directory| async move {
+            let database = captured_before(
+                &workspace,
+                &directory,
+                "INSERT INTO \"pay\" (\"id\", \"amount\", \"note\") VALUES ('i1', 10, 'held')",
+                "ALTER TABLE \"pay\" ADD COLUMN \"extra\" TEXT",
+            )
+            .await;
+
+            let replicated = database.replicate().await;
+
+            assert!(replicated.pushed, "{replicated:?}");
+            assert_eq!(replicated.refusal, None);
+            assert!(!database.holds_unsendable());
+            assert_eq!(
+                remote_pay(&workspace).await.len(),
+                2,
+                "the held row did not reach the remote"
+            );
+            assert_eq!(
+                local_pay(&database).await,
+                vec![
+                    vec![json!("i1"), json!(10), json!("held"), json!(null)],
+                    vec![json!("u1"), json!(1), json!("seed"), json!(null)],
+                ]
+            );
+            assert!(!database.holds_unsent().await, "the row is still held");
+
+            drop(database);
+        })
+        .await;
+    }
+
+    /// **Ticket 13's live criterion, the removal: kept and asked.** Changes an older build held
+    /// when an upgrade dropped or renamed the column they name are classified at the updated
+    /// build's first replication, kept on this machine across another replication, a last push, a
+    /// pull and a reopen, and never reach the remote; once discarded, the next open is the
+    /// remote's copy and this machine writes and sends again.
+    #[ignore = "reaches a live Turso account and creates a database; see the doc comment"]
+    #[tokio::test]
+    async fn unsent_changes_live_are_kept_and_asked_for_after_a_removal() {
+        use crate::error::{Error, RefusalReason};
+
+        armed_for_a_live_run();
+
+        for (label, upgrade) in [
+            ("u857-dropped", "ALTER TABLE \"pay\" DROP COLUMN \"note\""),
+            (
+                "u857-renamed",
+                "ALTER TABLE \"pay\" RENAME COLUMN \"note\" TO \"memo\"",
+            ),
+        ] {
+            on_a_throwaway_workspace(label, move |workspace, directory| async move {
+                let held_row = vec![json!("i1"), json!(10), json!("held")];
+                let mut database = captured_before(
+                    &workspace,
+                    &directory,
+                    "INSERT INTO \"pay\" (\"id\", \"amount\", \"note\") VALUES ('i1', 10, 'held')",
+                    upgrade,
+                )
+                .await;
+                let remote_before = remote_pay(&workspace).await;
+
+                let replicated = database.replicate().await;
+
+                assert!(
+                    matches!(
+                        replicated.refusal,
+                        Some(Error::Refused {
+                            reason: RefusalReason::ChangesUnsendableAfterUpgrade,
+                            ..
+                        })
+                    ),
+                    "{label}: {replicated:?}"
+                );
+                assert!(!replicated.pushed);
+                assert!(database.holds_unsendable());
+
+                // kept: every way the replica could reach the remote again declines, and the row
+                // is still here.
+                assert_eq!(database.replicate().await.refusal, replicated.refusal);
+                assert!(!database.push_replica().await);
+                assert!(!database.pull_replica().await.completed);
+                database.disconnect().await;
+
+                let mut database = live_database(&directory, &workspace).await;
+
+                assert!(database.holds_unsendable(), "{label}: a reopen forgot");
+                assert_eq!(database.replicate().await.refusal, replicated.refusal);
+                assert!(
+                    local_pay(&database).await.contains(&held_row),
+                    "{label}: the held row is gone from this machine"
+                );
+                assert_eq!(
+                    remote_pay(&workspace).await,
+                    remote_before,
+                    "{label}: the remote changed"
+                );
+
+                // asked: discarded at the person's word, and the next open is the remote's copy.
+                database
+                    .discard_unsendable()
+                    .await
+                    .expect("the held changes discarded");
+
+                let database = live_database(&directory, &workspace).await;
+
+                assert!(!database.holds_unsendable());
+                assert!(
+                    database.pull_replica().await.completed,
+                    "{label}: the fresh pull"
+                );
+                assert!(
+                    !local_pay(&database).await.contains(&held_row),
+                    "{label}: the discarded row is still here"
+                );
+
+                database
+                    .execute_single_sql(statement(
+                        "INSERT INTO \"pay\" (\"id\", \"amount\") VALUES ('i2', 20)",
+                    ))
+                    .await
+                    .expect("a write after the discard");
+
+                let replicated = database.replicate().await;
+
+                assert!(replicated.pushed, "{label}: {replicated:?}");
+                assert_eq!(remote_pay(&workspace).await.len(), 2);
+
+                drop(database);
+            })
+            .await;
+        }
+    }
+
+    // -------------------------------------------------------------------------------------
+    // Effort 857, ticket 33, live: two machines saving the same value apart lose nothing.
+    // -------------------------------------------------------------------------------------
+
+    /// The one number `sql` reads on the remote, over the pipeline.
+    async fn remote_number(workspace: &LiveWorkspace, sql: &str) -> i64 {
+        let rows = workspace.over_the_wire(&[sql]).await;
+
+        rows.first()
+            .and_then(|row| row.get(0))
+            .and_then(|cell| cell.get("value"))
+            .and_then(|value| match value {
+                serde_json::Value::String(text) => text.parse().ok(),
+                serde_json::Value::Number(number) => number.as_i64(),
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("no number from the remote for {sql}: {rows:?}"))
+    }
+
+    /// The records one machine saves while it is apart from the other: a complex, a tenant and a
+    /// contract on that tenant, with the complex's name, the tenant's phone and national ID and the
+    /// contract's government ID the same on both machines, and every id its own.
+    fn saved_apart(side: &str) -> Vec<String> {
+        vec![
+            format!(
+                "INSERT INTO complex (id, name, location) VALUES ('x-{side}', 'Olaya', 'Riyadh')"
+            ),
+            format!(
+                "INSERT INTO tenant (id, national_id, name, phone) \
+                 VALUES ('t-{side}', '1000000001', 'Sami {side}', '+966500000000')"
+            ),
+            format!(
+                "INSERT INTO contract (id, gov_id, status, start_date, end_date, \
+                 interval_in_months, cost_per_interval, tenant_id) \
+                 VALUES ('c-{side}', 'gov-1', 'active', 0, 1, '12m', 100, 't-{side}')"
+            ),
+        ]
+    }
+
+    /// What a replica must hold once both machines have synced: both of every record, and each
+    /// contract on a tenant it holds.
+    async fn holds_both(connection: &turso::Connection, side: &str, label: &str) {
+        use super::test::workspace::number;
+
+        for (table, sql) in [
+            (
+                "tenant",
+                "SELECT count(*) FROM tenant WHERE phone = '+966500000000'",
+            ),
+            (
+                "contract",
+                "SELECT count(*) FROM contract WHERE gov_id = 'gov-1'",
+            ),
+            (
+                "complex",
+                "SELECT count(*) FROM complex WHERE name = 'Olaya'",
+            ),
+            (
+                "an orphan",
+                "SELECT 2 - count(*) FROM contract WHERE tenant_id NOT IN (SELECT id FROM tenant)",
+            ),
+        ] {
+            assert_eq!(
+                number(connection, sql).await,
+                2,
+                "{label}: replica {side} lost a record ({table})"
+            );
+        }
+    }
+
+    /// **Ticket 33's live criterion** (effort 857, requirement 14, criterion 14). Two machines on a
+    /// workspace at 7, as 0.20 leaves it, each save a complex, a tenant and a contract on it while
+    /// apart, with the same complex name, phone, national ID and government ID. A third machine on
+    /// this build opens the workspace, which runs `0007` at the primary. Then they sync, in either
+    /// order: the first pulls the drop and pushes, and the second, **which never pulled `0007` and
+    /// still holds the rules**, pushes and then pulls. No push or pull is refused, and both
+    /// replicas and the remote hold both of every record, with no contract on a tenant that
+    /// exists nowhere.
+    ///
+    /// The engine is driven directly (`turso::sync::Database::push` and `pull`), as the
+    /// measurement in effort 857's `what-a-duplicate-value-does-to-sync` did, so each call's own
+    /// answer is what is asserted. Each case deletes its database whatever it asserted.
+    ///
+    /// ```text
+    /// RENTABLE_LIVE_TURSO=1 TURSO_API_TOKEN=... TURSO_ORG=... TURSO_GROUP=rentable \
+    ///   cargo test --manifest-path ./apps/desktop/tauri/Cargo.toml duplicate_values_live -- \
+    ///   --test-threads=1 --ignored --nocapture
+    /// ```
+    #[ignore = "reaches a live Turso account and creates a database; see the doc comment"]
+    #[tokio::test]
+    async fn duplicate_values_live_cost_no_record_in_either_order() {
+        use super::test::workspace::number;
+        use crate::organization::{lease::apply, workspace::remote::Pipeline};
+
+        armed_for_a_live_run();
+
+        for (label, first, second) in [("dup-a-first", "a", "b"), ("dup-b-first", "b", "a")] {
+            on_a_throwaway_workspace(label, move |workspace, directory| async move {
+                workspace.apply_schema_remotely(7).await;
+
+                // each machine's replica in a directory of its own, under the case's.
+                let replica_of = |side: &str| {
+                    let replica = directory.join(side);
+
+                    std::fs::create_dir_all(&replica).expect("the machine's directory");
+                    replica
+                };
+                let one = workspace.replica_in(&replica_of(first)).await;
+                let other = workspace.replica_in(&replica_of(second)).await;
+
+                assert!(one.pull().await.expect("the first pull"), "{label}");
+                assert!(other.pull().await.expect("the first pull"), "{label}");
+
+                let one_connection = one.connect().await.expect("a connection");
+                let other_connection = other.connect().await.expect("a connection");
+
+                // both save while apart; nothing here reaches the network.
+                for statement in saved_apart(first) {
+                    run(&one_connection, &statement).await;
+                }
+
+                for statement in saved_apart(second) {
+                    run(&other_connection, &statement).await;
+                }
+
+                // a machine on this build opens the workspace, as a member, and 0007 runs.
+                let host = workspace
+                    .url
+                    .strip_prefix("libsql://")
+                    .expect("a libsql:// url");
+                let brought = apply::bring_up(
+                    &Pipeline::of(host),
+                    &workspace.token,
+                    &apply::SHIPPED,
+                    7,
+                    1_757_000_000_000,
+                )
+                .await
+                .expect("0007 at the primary");
+
+                assert_eq!(brought.ran, vec![8], "{label}");
+                assert_eq!(
+                    remote_number(
+                        &workspace,
+                        "SELECT count(*) FROM sqlite_master WHERE name IN ('tenant_phone_unique', \
+                         'tenant_national_id_unique', 'complex_name_unique', \
+                         'contract_gov_id_unique')"
+                    )
+                    .await,
+                    0,
+                    "{label}: a rule is still on the remote"
+                );
+
+                // the first pulls the drop, then pushes.
+                one.pull()
+                    .await
+                    .expect("the first machine's pull was refused");
+                one.push()
+                    .await
+                    .expect("the first machine's push was refused");
+
+                // the second never pulled 0007 and still holds the rules; it pushes, then pulls.
+                assert_eq!(
+                    number(
+                        &other_connection,
+                        "SELECT count(*) FROM sqlite_master WHERE name = 'tenant_phone_unique'"
+                    )
+                    .await,
+                    1,
+                    "{label}: the second machine was meant to hold the rule still"
+                );
+                other
+                    .push()
+                    .await
+                    .expect("the second machine's push was refused");
+                other
+                    .pull()
+                    .await
+                    .expect("the second machine's pull was refused");
+                one.pull().await.expect("the first machine's last pull");
+
+                holds_both(&one_connection, first, label).await;
+                holds_both(&other_connection, second, label).await;
+
+                for (table, sql) in [
+                    (
+                        "tenant",
+                        "SELECT count(*) FROM tenant WHERE phone = '+966500000000'",
+                    ),
+                    (
+                        "contract",
+                        "SELECT count(*) FROM contract WHERE gov_id = 'gov-1'",
+                    ),
+                    (
+                        "complex",
+                        "SELECT count(*) FROM complex WHERE name = 'Olaya'",
+                    ),
+                    (
+                        "an orphan",
+                        "SELECT 2 - count(*) FROM contract \
+                         WHERE tenant_id NOT IN (SELECT id FROM tenant)",
+                    ),
+                ] {
+                    assert_eq!(
+                        remote_number(&workspace, sql).await,
+                        2,
+                        "{label}: the remote lost a record ({table})"
+                    );
+                }
+
+                eprintln!("{label}: both of every record on both replicas and the remote");
+
+                drop(one_connection);
+                drop(other_connection);
+                drop(one);
+                drop(other);
+            })
+            .await;
+        }
+    }
+
+    /// **Ticket 13, what holds the opening pull back.** A replica that has written nothing holds
+    /// nothing unsent, so its first pull goes as it always did; one that has written and not
+    /// pushed holds something, which the opening does not pull over.
+    #[test]
+    fn a_replica_holds_what_it_wrote_and_has_not_sent() {
+        use crate::sync::test::server::within;
+        use std::time::Duration;
+
+        within(Duration::from_secs(60), async {
+            let (directory, database) =
+                workspace_against("unsent", None, Duration::from_secs(5)).await;
+
+            assert!(
+                !database.holds_unsent().await,
+                "an empty replica holds something"
+            );
+
+            for sql in [
+                "CREATE TABLE \"tenant\" (\"id\" TEXT PRIMARY KEY)",
+                "INSERT INTO \"tenant\" VALUES ('t-1')",
+            ] {
+                database
+                    .execute_single_sql(statement(sql))
+                    .await
+                    .expect(sql);
+            }
+
+            assert!(database.holds_unsent().await, "a write is not counted");
+
+            drop(database);
+            let _ = std::fs::remove_dir_all(&directory);
+        });
+    }
+
+    /// **Ticket 13, the choice.** Discarding is refused while nothing is held, and leaves the
+    /// replica as it was; once a push has been classified, it lets go of the replica and removes
+    /// it, its record of the refusal with it, so the next open is a fresh copy of the remote and
+    /// nothing of what was held reaches anyone.
+    #[test]
+    fn unsent_changes_are_discarded_only_once_held() {
+        use crate::{
+            error::Error,
+            sync::test::server::{ScriptedResponse, ScriptedServer, within},
+        };
+        use std::time::Duration;
+
+        within(Duration::from_secs(60), async {
+            let remote = ScriptedServer::start(
+                (0..32)
+                    .map(|_| ScriptedResponse::new(200, REMOVED_COLUMN))
+                    .collect(),
+            )
+            .await;
+            let (directory, mut database) =
+                workspace_against("discard", Some(remote.url("")), Duration::from_secs(5)).await;
+            let replica = Database::replica_path(&directory.join("app.db"), "silent");
+
+            for sql in [
+                "CREATE TABLE \"tenant\" (\"id\" TEXT PRIMARY KEY, \"note\" TEXT)",
+                "INSERT INTO \"tenant\" VALUES ('t-1', 'written before the upgrade')",
+            ] {
+                database
+                    .execute_single_sql(statement(sql))
+                    .await
+                    .expect(sql);
+            }
+
+            assert!(
+                matches!(
+                    database.discard_unsendable().await,
+                    Err(Error::PreconditionFailed { .. })
+                ),
+                "a discard went ahead with nothing held"
+            );
+            assert!(replica.exists(), "a refused discard removed the replica");
+            assert_eq!(tenants(&database).await.len(), 1);
+
+            database.replicate().await;
+            database
+                .discard_unsendable()
+                .await
+                .expect("the held changes discarded");
+
+            assert!(!replica.exists(), "the replica is still on disk");
+            assert!(!database.holds_unsendable());
+            assert!(
+                database
+                    .execute_single_sql(statement("SELECT 1"))
+                    .await
+                    .is_err(),
+                "the discarded replica is still open"
+            );
+
+            drop(database);
+            drop(remote);
+            let _ = std::fs::remove_dir_all(&directory);
+        });
+    }
+    /// A replica of `name` at the shipped version, holding two tenants a person would call one,
+    /// as two machines saving the same tenant apart leave it.
+    async fn two_copies_on_a_replica(name: &str) -> (std::path::PathBuf, Database) {
+        use crate::database::test::workspace::{migration_statements, shipped_migration_count};
+
+        let (directory, database) =
+            workspace_against(name, None, std::time::Duration::from_secs(30)).await;
+
+        for sql in migration_statements(shipped_migration_count()) {
+            database.as_a_pull_brings(&sql).await;
+        }
+
+        for id in ["t-1", "t-2"] {
+            database
+                .as_a_pull_brings(&format!(
+                    "INSERT INTO \"tenant\" (\"id\", \"national_id\", \"name\", \"phone\") \
+                     VALUES ('{id}', '1012345678', 'Sara', '+966551234567')"
+                ))
+                .await;
+        }
+
+        (directory, database)
+    }
+
+    /// The tenants a replica holds that nobody retired, read past the interface's filter.
+    async fn kept(database: &Database) -> usize {
+        database
+            .execute_single_sql(statement(
+                "SELECT \"id\" FROM \"tenant\" WHERE \"merged_into\" IS NULL",
+            ))
+            .await
+            .expect("the read")
+            .len()
+    }
+
+    /// **Ticket 35's fifth criterion, the standing.** The pass runs only where this build may write
+    /// the workspace: read-only by its version, or holding changes the workspace refuses since an
+    /// upgrade, it writes nothing; writable, it heals.
+    #[test]
+    fn a_workspace_this_build_may_not_write_is_not_healed() {
+        use crate::{database::floor::Standing, sync::test::server::within};
+        use std::time::Duration;
+
+        within(Duration::from_secs(60), async {
+            let (directory, database) = two_copies_on_a_replica("heal-standing").await;
+
+            database.hold(Standing::ReadOnly);
+            assert!(
+                !database.heal(true).await,
+                "a read-only workspace was healed"
+            );
+            database.hold(Standing::Unreadable);
+            assert!(
+                !database.heal(true).await,
+                "an unreadable workspace was healed"
+            );
+
+            database.hold(Standing::Writable);
+            let replica = database.watch.replica().expect("a replica").to_path_buf();
+
+            assert!(super::unsendable::hold(&replica, "a refusal"));
+            assert!(!database.heal(true).await, "a held replica was healed");
+            assert_eq!(kept(&database).await, 2);
+
+            std::fs::remove_file(super::unsendable::marker(&replica)).expect("the record");
+            super::unsendable::forget(&replica);
+
+            assert!(
+                !database.holds_unsendable(),
+                "the record is still beside it"
+            );
+            assert!(
+                database.heal(true).await,
+                "a writable workspace was not healed"
+            );
+            assert_eq!(kept(&database).await, 1);
+
+            drop(database);
+            let _ = std::fs::remove_dir_all(&directory);
+        });
+    }
+
+    /// **Ticket 35's fifth criterion, the rest.** A pass with nothing to heal writes nothing; a
+    /// quiet pull that brought nothing runs none, once the workspace has been healed since it
+    /// opened; and a pass that fails fails no replication: it answers that nothing was written, is
+    /// logged, and is owed again, so the next pull heals what it could not, whatever that pull
+    /// brought.
+    #[test]
+    fn a_pass_runs_where_it_could_be_needed_and_a_failed_one_is_tried_again() {
+        use crate::sync::test::server::within;
+        use std::time::Duration;
+
+        within(Duration::from_secs(60), async {
+            let (directory, database) = two_copies_on_a_replica("heal-owed").await;
+
+            // owed from the opening: healed though no pull brought anything.
+            assert!(database.heal(false).await);
+            assert!(
+                !database.heal(true).await,
+                "a healed workspace was written again"
+            );
+
+            // a copy that arrives with no pull bringing it waits for the next pull that does.
+            database
+                .as_a_pull_brings(
+                    "INSERT INTO \"tenant\" (\"id\", \"national_id\", \"name\", \"phone\") \
+                     VALUES ('t-3', '1012345678', 'Sara', '+966551234567')",
+                )
+                .await;
+            assert!(
+                !database.heal(false).await,
+                "a quiet pull read the workspace"
+            );
+            assert_eq!(kept(&database).await, 2);
+
+            // a pass that cannot read what it needs fails, writes nothing, and is owed again.
+            database
+                .as_a_pull_brings("ALTER TABLE \"history\" RENAME TO \"history_away\"")
+                .await;
+            assert!(!database.heal(true).await, "a failed pass said it wrote");
+            assert_eq!(kept(&database).await, 2);
+
+            database
+                .as_a_pull_brings("ALTER TABLE \"history_away\" RENAME TO \"history\"")
+                .await;
+            assert!(
+                database.heal(false).await,
+                "the failed pass was not tried again"
+            );
+            assert_eq!(kept(&database).await, 1);
+
+            drop(database);
+            let _ = std::fs::remove_dir_all(&directory);
+        });
+    }
+
+    /// **Ticket 39.** A person on this machine edits the copy they had open as the pass retired
+    /// it: the edit lands on the copy, by its id, and the pass is owed for it, so the next
+    /// heartbeat carries it to the record that stayed though no other machine synced. An edit that
+    /// touches no retired record owes nothing.
+    #[test]
+    fn an_edit_saved_here_to_a_just_retired_copy_reaches_its_survivor() {
+        use crate::sync::test::server::within;
+        use std::time::Duration;
+
+        within(Duration::from_secs(60), async {
+            let (directory, database) = two_copies_on_a_replica("heal-own-write").await;
+
+            assert!(database.heal(false).await, "the copies were not healed");
+            database
+                .execute_single_sql(statement(
+                    "UPDATE \"tenant\" SET \"name\" = 'Sara Al-Harbi' WHERE \"id\" = 't-2'",
+                ))
+                .await
+                .expect("the edit");
+
+            assert!(
+                database.heal(false).await,
+                "the edit waited for another machine"
+            );
+            assert_eq!(
+                database
+                    .execute_single_sql(statement(
+                        "SELECT \"name\" FROM \"tenant\" WHERE \"id\" = 't-1'",
+                    ))
+                    .await
+                    .expect("the read")[0]
+                    .rows,
+                vec![serde_json::json!("Sara Al-Harbi")]
+            );
+
+            database
+                .execute_single_sql(statement("SELECT \"name\" FROM \"tenant\""))
+                .await
+                .expect("a read");
+            assert!(!database.heal(false).await, "a read owed a pass");
+
+            drop(database);
+            let _ = std::fs::remove_dir_all(&directory);
+        });
+    }
+
+    // -------------------------------------------------------------------------------------
+    // Effort 857, ticket 35, live: identical records made apart heal into one.
+    // -------------------------------------------------------------------------------------
+
+    /// The one number `sql` reads on this machine's replica, past nothing: the interface's filter
+    /// is the interface's, and this reads the table as it is.
+    async fn local_number(database: &Database, sql: &str) -> i64 {
+        let rows = database
+            .execute_single_sql(statement(sql))
+            .await
+            .unwrap_or_else(|error| panic!("{sql}: {error:?}"));
+
+        rows.first()
+            .and_then(|row| row.rows.first())
+            .and_then(serde_json::Value::as_i64)
+            .unwrap_or_else(|| panic!("no number from {sql}: {rows:?}"))
+    }
+
+    /// Push and pull this machine, then heal it as the heartbeat does after the verdict.
+    async fn synced_and_healed(database: &Database, label: &str) -> bool {
+        let replicated = database.replicate().await;
+
+        assert!(
+            replicated.refusal.is_none(),
+            "{label}: a sync was refused: {replicated:?}"
+        );
+        assert!(
+            replicated.completed,
+            "{label}: the sync did not reach the remote"
+        );
+
+        database.heal(replicated.received).await
+    }
+
+    /// **Ticket 35's live criterion** (effort 857, requirement 14). Two machines on a workspace at
+    /// this build's version, both offline, create the same tenant, each with a contract of its own,
+    /// and the same contract with the same payment on both.
+    /// They sync, in either order, until each holds the other's; both heal at once, as two machines
+    /// whose heartbeats met the copies together do; and they sync again. Every replica and the
+    /// remote then hold one tenant, the earlier, with both contracts on it, and the later retired
+    /// into it rather than deleted; the shared contract once, holding its payment once; no sync was refused, and a further pass on either writes
+    /// nothing.
+    ///
+    /// Armed by `RENTABLE_LIVE_TURSO=1` and run only in the group `rentable`, on throwaway
+    /// `t552-*` databases it creates and deletes, whatever it asserted.
+    ///
+    /// ```text
+    /// RENTABLE_LIVE_TURSO=1 TURSO_API_TOKEN=... TURSO_ORG=... TURSO_GROUP=rentable \
+    ///   cargo test --manifest-path ./apps/desktop/tauri/Cargo.toml identical_records_live -- \
+    ///   --test-threads=1 --ignored --nocapture
+    /// ```
+    #[ignore = "reaches a live Turso account and creates a database; see the doc comment"]
+    #[tokio::test]
+    async fn identical_records_live_heal_into_one_with_both_contracts_in_either_order() {
+        use super::test::workspace::shipped_migration_count;
+
+        armed_for_a_live_run();
+        assert_eq!(
+            std::env::var("TURSO_GROUP").unwrap_or_default().trim(),
+            "rentable",
+            "this live run creates its throwaway databases in the group rentable alone"
+        );
+
+        // the earlier tenant is made on `a`, by its id.
+        const EARLIER: &str = "01900000-0000-7000-8000-000000000001";
+        const LATER: &str = "01900000-0000-7000-8000-000000000002";
+
+        for (label, first) in [("heal-a-first", "a"), ("heal-b-first", "b")] {
+            on_a_throwaway_workspace(label, move |workspace, directory| async move {
+                workspace
+                    .apply_schema_remotely(shipped_migration_count())
+                    .await;
+
+                let machine = |side: &str| {
+                    let at = directory.join(side);
+
+                    std::fs::create_dir_all(&at).expect("the machine's directory");
+                    at
+                };
+                let a = live_database(&machine("a"), &workspace).await;
+                let b = live_database(&machine("b"), &workspace).await;
+
+                for (side, database) in [("a", &a), ("b", &b)] {
+                    assert!(
+                        database.pull_replica().await.completed,
+                        "{label}: {side}'s first pull"
+                    );
+                    // the opening's pass, over an empty workspace, writes nothing.
+                    assert!(!database.heal(true).await, "{label}: {side} healed nothing");
+                }
+
+                // apart: the same tenant on both, a contract of each machine's own on it, and the
+                // same contract on both with the same payment.
+                for (side, database, tenant) in [("a", &a, EARLIER), ("b", &b, LATER)] {
+                    for sql in [
+                        format!(
+                            "INSERT INTO \"tenant\" (\"id\", \"national_id\", \"name\", \"phone\") \
+                             VALUES ('{tenant}', '1000000001', 'Sami', '+966500000000')"
+                        ),
+                        format!(
+                            "INSERT INTO \"contract\" (\"id\", \"gov_id\", \"status\", \
+                             \"start_date\", \"end_date\", \"interval_in_months\", \
+                             \"cost_per_interval\", \"tenant_id\") VALUES ('c-{side}', \
+                             'gov-{side}', 'active', 0, 1, '12m', 100, '{tenant}')"
+                        ),
+                        format!(
+                            "INSERT INTO \"contract\" (\"id\", \"gov_id\", \"status\", \
+                             \"start_date\", \"end_date\", \"interval_in_months\", \
+                             \"cost_per_interval\", \"tenant_id\") VALUES ('k-{side}', \
+                             'gov-same', 'active', 0, 1, '12m', 100, '{tenant}')"
+                        ),
+                        format!(
+                            "INSERT INTO \"payment\" (\"id\", \"date\", \"amount\", \
+                             \"contract_id\") VALUES ('p-{side}', 1750000000000, 300.0, \
+                             'k-{side}')"
+                        ),
+                    ] {
+                        database
+                            .execute_single_sql(statement(&sql))
+                            .await
+                            .unwrap_or_else(|error| panic!("{label}: {sql}: {error:?}"));
+                    }
+                }
+
+                let (one, other) = if first == "a" { (&a, &b) } else { (&b, &a) };
+
+                // they meet: the first sends its own, the second sends its own and takes the
+                // first's, and the first takes the second's. Neither heals until both hold both.
+                for database in [one, other, one] {
+                    let replicated = database.replicate().await;
+
+                    assert!(replicated.refusal.is_none(), "{label}: {replicated:?}");
+                }
+
+                for (side, database) in [("a", &a), ("b", &b)] {
+                    assert_eq!(
+                        local_number(database, "SELECT count(*) FROM tenant").await,
+                        2,
+                        "{label}: {side} does not hold both copies"
+                    );
+                }
+
+                // both heal at once, then sync again in the same order.
+                assert!(a.heal(true).await, "{label}: a healed nothing");
+                assert!(b.heal(true).await, "{label}: b healed nothing");
+
+                for database in [one, other, one, other] {
+                    synced_and_healed(database, label).await;
+                }
+
+                for (side, database) in [("a", &a), ("b", &b)] {
+                    for (what, sql, expected) in [
+                        (
+                            "one tenant shown",
+                            "SELECT count(*) FROM tenant WHERE merged_into IS NULL".to_string(),
+                            1,
+                        ),
+                        (
+                            "the earlier is the one shown",
+                            format!(
+                                "SELECT count(*) FROM tenant WHERE merged_into IS NULL \
+                                 AND id = '{EARLIER}'"
+                            ),
+                            1,
+                        ),
+                        (
+                            "the later kept, retired into it",
+                            format!(
+                                "SELECT count(*) FROM tenant WHERE id = '{LATER}' \
+                                 AND merged_into = '{EARLIER}'"
+                            ),
+                            1,
+                        ),
+                        (
+                            "both contracts and the one they shared on it",
+                            format!(
+                                "SELECT count(*) FROM contract WHERE tenant_id = '{EARLIER}' \
+                                 AND merged_into IS NULL"
+                            ),
+                            3,
+                        ),
+                        (
+                            "the shared contract's copy kept, retired into it",
+                            "SELECT count(*) FROM contract WHERE id = 'k-b' \
+                             AND merged_into = 'k-a'"
+                                .to_string(),
+                            1,
+                        ),
+                        (
+                            "the payment both saved shown once",
+                            "SELECT count(*) FROM payment WHERE merged_into IS NULL \
+                             AND contract_id = 'k-a'"
+                                .to_string(),
+                            1,
+                        ),
+                        (
+                            "and both kept",
+                            "SELECT count(*) FROM payment".to_string(),
+                            2,
+                        ),
+                    ] {
+                        assert_eq!(
+                            local_number(database, &sql).await,
+                            expected,
+                            "{label}: {side}: {what}"
+                        );
+                    }
+
+                    assert!(!database.heal(true).await, "{label}: {side} healed again");
+                }
+
+                for (what, sql, expected) in [
+                    (
+                        "one tenant shown",
+                        "SELECT count(*) FROM tenant WHERE merged_into IS NULL".to_string(),
+                        1,
+                    ),
+                    (
+                        "both copies kept",
+                        "SELECT count(*) FROM tenant".to_string(),
+                        2,
+                    ),
+                    (
+                        "three contracts shown on the earlier",
+                        format!(
+                            "SELECT count(*) FROM contract WHERE tenant_id = '{EARLIER}' \
+                             AND merged_into IS NULL"
+                        ),
+                        3,
+                    ),
+                    (
+                        "the payment both saved shown once",
+                        "SELECT count(*) FROM payment WHERE merged_into IS NULL".to_string(),
+                        1,
+                    ),
+                ] {
+                    assert_eq!(
+                        remote_number(&workspace, &sql).await,
+                        expected,
+                        "{label}: the remote: {what}"
+                    );
+                }
+
+                eprintln!(
+                    "{label}: one tenant with both contracts on both replicas and the remote"
+                );
+
+                drop(a);
+                drop(b);
+            })
+            .await;
+        }
     }
 }

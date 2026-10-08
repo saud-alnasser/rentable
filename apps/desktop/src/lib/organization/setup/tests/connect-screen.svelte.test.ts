@@ -113,6 +113,13 @@ const everyStep: JoinStep[] = [
 	{ kind: 'reading', link: LINK, code: CODE },
 	{ kind: 'unreachable', link: LINK, code: CODE, detail: 'offline' },
 	{ kind: 'refused', link: LINK, refusal: 'lapsed', detail: null },
+	{
+		kind: 'outdated',
+		link: LINK,
+		code: CODE,
+		errorMessage: 'a newer version of rentable made this organization.',
+		detail: null
+	},
 	stepOf({ kind: 'invitation', expiresAt: 1 })
 ];
 

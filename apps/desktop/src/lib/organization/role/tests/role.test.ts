@@ -185,8 +185,8 @@ test('in Arabic, the line is written in Arabic, the kinds named as a verb takes 
 
 test("the organization's flags a role holds are counted, and the owner's are not", () => {
 	assert.equal(administrationHeld(BUILT_IN.member.mask), 0);
-	assert.equal(administrationHeld(BUILT_IN.manager.mask), 10);
-	assert.equal(administrationHeld(BUILT_IN.owner.mask), 10);
+	assert.equal(administrationHeld(BUILT_IN.manager.mask), 11);
+	assert.equal(administrationHeld(BUILT_IN.owner.mask), 11);
 	assert.equal(
 		administrationHeld(masked(['inviteMember', 'manageRoles', 'lockOut', 'viewTenant'])),
 		2
@@ -260,7 +260,7 @@ test("a role's reach counts the kinds it reads and changes, and the acts it hold
 		reads: { held: 5, total: 5 },
 		changes: { held: 5, total: 5 },
 		people: { held: 7, total: 7 },
-		organization: { held: 3, total: 3 }
+		organization: { held: 4, total: 4 }
 	});
 	assert.deepEqual(roleReach(BUILT_IN.member.mask).people, { held: 0, total: 7 });
 
@@ -276,11 +276,11 @@ test("a role's reach counts the kinds it reads and changes, and the acts it hold
 		reads: { held: 2, total: 5 },
 		changes: { held: 2, total: 5 },
 		people: { held: 1, total: 7 },
-		organization: { held: 0, total: 3 }
+		organization: { held: 0, total: 4 }
 	});
-	assert.deepEqual(roleReach(maskOf('manageRoles')).organization, { held: 1, total: 3 });
+	assert.deepEqual(roleReach(maskOf('manageRoles')).organization, { held: 1, total: 4 });
 
-	// the two sets split the organization's ten between them, and nothing else.
+	// the two sets split the organization's eleven between them, and nothing else.
 	assert.deepEqual(
 		[...PEOPLE_ACTS, ...ORGANIZATION_ACTS].sort(),
 		[...FAMILIES.administration].sort()

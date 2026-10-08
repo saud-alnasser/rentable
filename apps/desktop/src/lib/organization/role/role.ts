@@ -438,7 +438,10 @@ export const PEOPLE_ACTS = [
 	'overrideMember'
 ] as const satisfies readonly Flag[];
 
-/** the organization's own flags that act on the organization: its workspaces' names, its roles, its stamp. */
+/**
+ * the organization's own flags that act on the organization: its workspaces' names, its roles,
+ * its stamp, and upgrading its data.
+ */
 export const ORGANIZATION_ACTS = FAMILIES.administration.filter(
 	(flag) => !(PEOPLE_ACTS as readonly Flag[]).includes(flag)
 );

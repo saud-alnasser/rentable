@@ -1,9 +1,11 @@
 import type { Contributed } from '$lib/api/contribution';
-import type { Context } from '$lib/api/context';
+import type { Context, Database } from '$lib/api/context';
 import type { ContributedRead } from '$lib/feature/surface';
 import type { RecordFlag, RecordKind } from '$lib/permission';
 import type { Contract, Unit } from '$lib/platform/database/schema';
 import { refuse } from '$lib/api/refusal';
+import * as s from '$lib/platform/database/schema';
+import { and, inArray, ne } from 'drizzle-orm';
 
 /**
  * COMPLEX
@@ -68,6 +70,33 @@ export function ensureComplexNameAvailable(conflicting: unknown, named?: string)
 	if (conflicting) {
 		throw named ? refuse('complex.nameTakenNamed', { named }) : refuse('complex.nameTaken');
 	}
+}
+
+/**
+ * The complexes holding any of `names`, leaving out the complex `except` names, which is the one
+ * being edited.
+ *
+ * **The app keeps a complex's name unique, not the database** (effort 857, requirement 14): the
+ * shared database refused one machine's changes over a name another saved while apart, and the
+ * engine dropped them. So every save that could take a name reads who holds it through here, and
+ * what counts as holding one is decided once. A complex retired by a merge holds nothing: the
+ * statement rewrite every client applies keeps it out of this read (`platform/database/retired`),
+ * so no condition here names it.
+ */
+export async function complexesNamed(db: Database, names: readonly string[], except?: string) {
+	if (names.length === 0) {
+		return [];
+	}
+
+	return await db
+		.select()
+		.from(s.complex)
+		.where(
+			and(
+				inArray(s.complex.name, [...names]),
+				except === undefined ? undefined : ne(s.complex.id, except)
+			)
+		);
 }
 
 /** The same, for a unit's name, which is unique within the complex holding it. */

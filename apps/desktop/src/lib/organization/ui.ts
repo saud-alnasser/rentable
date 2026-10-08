@@ -4,7 +4,8 @@
 // workspace's create, the name and mark a printed page carries, and the switcher of the
 // organizations this machine holds, which the wall and the no-workspace screen draw at their head
 // and which confirms letting go of one, and the locked sentence the no-workspace screen says as the
-// shell does. Everything else stays private; `index.ts` holds what loads
+// shell does, and the gate a capability waiting on an upgrade reads (`useUpgraded`). Everything
+// else stays private; `index.ts` holds what loads
 // under Node (plan, *A feature has the same two entries*).
 export { default as OrganizationLockedNotice } from './component/locked-notice.svelte';
 export { default as OrganizationSwitcher } from './component/switcher.svelte';
@@ -15,4 +16,5 @@ export {
 	useReadOrganizationName,
 	useSignedIn
 } from './query';
+export { useUpgraded } from './upgrade/gate';
 export { useCreateWorkspace } from './workspace/query';

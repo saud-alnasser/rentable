@@ -448,7 +448,7 @@ async fn finish<P: TursoPlatform>(
         .await?;
 
     organization_store.install_schema().await?;
-    organization_store.write_format().await?;
+    organization_store.write_born_format(now).await?;
     let name_sealed = seal_content(&content_key, "organization.name_sealed", name.as_bytes())?;
 
     organization_store

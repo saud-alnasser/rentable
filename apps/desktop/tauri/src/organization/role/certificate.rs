@@ -67,7 +67,14 @@ pub(in crate::organization) async fn reissue(
 ) -> Result<(), Error> {
     in_one_transaction(
         store,
-        reissue_within(store, session, signer, member_id, signing, now),
+        reissue_within(
+            store,
+            &session.verifying_key,
+            signer,
+            member_id,
+            signing,
+            now,
+        ),
     )
     .await
 }
@@ -93,14 +100,14 @@ pub(in crate::organization) async fn reissue(
 /// deleting it instead would take somebody's access away.
 pub(in crate::organization) async fn reissue_within(
     store: &OrganizationStore,
-    session: &MemberSession,
+    organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
     signer: &Signer<'_>,
     member_id: &str,
     signing: Option<(&[u8; VERIFYING_KEY_BYTES], Standing<'_>)>,
     now: i64,
 ) -> Result<(), Error> {
     let live = store
-        .live_certificates(&session.verifying_key, member_id)
+        .live_certificates(organization_verifying_key, member_id)
         .await?;
     let in_step = |certificate: &Certificate| {
         signing.is_some_and(|(key, standing)| {
@@ -150,9 +157,9 @@ pub(in crate::organization) async fn reissue_within(
     }
 
     for old in &live {
-        reissue_what_it_issued(store, session, signer, old).await?;
+        reissue_what_it_issued(store, organization_verifying_key, signer, old).await?;
         store
-            .re_sign_rows_of_certificate(&session.verifying_key, &old.id, signer)
+            .re_sign_rows_of_certificate(organization_verifying_key, &old.id, signer)
             .await?;
         store
             .write_revocation(&revoke(signer.key, signer.certificate, old, &issued_at)?)
@@ -167,12 +174,12 @@ pub(in crate::organization) async fn reissue_within(
 /// certificates each issued in turn stand as they were once `old` is revoked.
 pub(in crate::organization) async fn reissue_what_it_issued(
     store: &OrganizationStore,
-    session: &MemberSession,
+    organization_verifying_key: &[u8; VERIFYING_KEY_BYTES],
     signer: &Signer<'_>,
     old: &Certificate,
 ) -> Result<(), Error> {
     let (certificates, revocations) = store.chain_rows().await?;
-    let chain = Chain::new(&session.verifying_key, &certificates, &revocations);
+    let chain = Chain::new(organization_verifying_key, &certificates, &revocations);
     let issued: Vec<&Certificate> = certificates
         .iter()
         .filter(|certificate| {

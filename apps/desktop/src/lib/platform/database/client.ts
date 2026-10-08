@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { drizzle } from 'drizzle-orm/sqlite-proxy';
 
+import { keepRetiredOut } from './retired';
 import * as schema from './schema';
 
 export type Method = 'run' | 'all' | 'values' | 'get';
@@ -43,12 +44,21 @@ export function mapRows(rows: Row[], method: Method) {
 /**
  * builds a drizzle client over a transport. every client — production and test — is the
  * same `SqliteRemoteDatabase<typeof schema>` type and runs the same row mapping.
+ *
+ * **Every statement passes `keepRetiredOut` on its way to the transport** (effort 857,
+ * requirement 14): a tenant, complex, contract, unit or payment the pass after a pull retired as
+ * an exact copy is never read, wherever the read was written. This is the one place every client is built, so
+ * it is the one place that holds for all of them (`./retired` says why it is not a condition in
+ * each query).
  */
 export function createDatabase(single: SingleTransport, batch: BatchTransport) {
 	return drizzle(
-		async (sql, params, method) => mapRows(await single(sql, params, method), method),
+		async (sql, params, method) =>
+			mapRows(await single(keepRetiredOut(sql), params, method), method),
 		async (queries: Query[]) => {
-			const results = await batch(queries);
+			const results = await batch(
+				queries.map((query) => ({ ...query, sql: keepRetiredOut(query.sql) }))
+			);
 			return results.map((rows, index) => mapRows(rows, queries[index].method));
 		},
 		{

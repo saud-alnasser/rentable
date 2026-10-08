@@ -16,7 +16,7 @@ import {
 	type ContractAssignment
 } from '$lib/contract/assignment/assignment';
 import { reconcileTouched, type Settling } from '$lib/contract/reconcile';
-import { selectAssignmentsForUnits } from '$lib/contract/row';
+import { contractsHoldingGovId, selectAssignmentsForUnits } from '$lib/contract/row';
 import { serializeContract } from '$lib/contract/serialize';
 import { eq, inArray } from 'drizzle-orm';
 import z from 'zod';
@@ -365,9 +365,7 @@ export default router({
 				throw refuse('contract.tenantMissingNamed', { named: missingTenant });
 			}
 
-			const taken = govIds.length
-				? await ctx.db.select().from(s.contract).where(inArray(s.contract.govId, govIds))
-				: [];
+			const taken = await contractsHoldingGovId(ctx.db, govIds);
 
 			ensureGovIdAvailable(taken[0], taken[0]?.govId ?? undefined);
 

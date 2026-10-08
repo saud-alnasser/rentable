@@ -1,3 +1,4 @@
+import type { TauriRefusalReason } from '$lib/error/tauri';
 import type { RemoteSyncState } from '$lib/sync';
 import type { Recovery } from '$lib/update';
 import type { OrganizationState } from '$lib/organization';
@@ -99,10 +100,31 @@ export type StartupPorts = {
 		 */
 		forget(): void;
 	};
+	update: {
+		/**
+		 * look for a newer release, and download one found, in the background (effort 857,
+		 * requirement 12). Never awaited: what it finds is the update's to offer, and a slow or
+		 * offline update server holds no launch up. The update looks once per run however often
+		 * this is asked.
+		 */
+		lookAtLaunch(): void;
+		/**
+		 * look again, the same way, because a version holds the run (effort 857, ticket 18). Never
+		 * awaited either. The machine asks once as each hold begins; a look already under way
+		 * answers for it.
+		 */
+		lookWhileHeld(): void;
+	};
 	/** a thrown value as a reader should see it. The route's translations, from outside. */
 	describeError(error: unknown): string;
 	/** what the shell said behind a thrown value, kept for a disclosure; `null` where nothing. */
 	detailError(error: unknown): string | null;
+	/**
+	 * why the shell refused, where a thrown value is a refusal it sent with a reason, and `null`
+	 * otherwise: what decides whether a failure is the organization's, a workspace's, the
+	 * password's or a link's (`./whose-refusal`).
+	 */
+	refusalReason(error: unknown): TauriRefusalReason | null;
 	recordFailure(message: string, detail: string | null): void;
 	reportStage(stage: StartupStage): void;
 	reportComplete(): void;

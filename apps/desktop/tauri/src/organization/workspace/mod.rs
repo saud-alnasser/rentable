@@ -113,6 +113,38 @@ pub async fn create_workspace<P: TursoPlatform>(
     name: &str,
     now: i64,
 ) -> Result<WorkspaceFacts, Error> {
+    create_workspace_over(
+        &apply::SHIPPED,
+        store,
+        session,
+        platform,
+        pipeline_for,
+        name,
+        now,
+    )
+    .await
+}
+
+/// [`create_workspace`] over `migrations`, a ladder of a test's own under test.
+///
+/// **The workspace is born with the floors its steps declare** (effort 857, ticket 21): every step
+/// runs in the one transaction opening runs ([`apply::create`]), and where one declared after 857
+/// is among them, its own `data_floor` and the organization's `workspace_floor` record the floors
+/// they declare beside the level. The `schema_version` the organization records is the number
+/// builds before 857 read, kept at the last step they know unless a declared floor must stop them
+/// ([`Steps::born_legacy`]). Without that record the version would read as every floor at the
+/// level, and the first addition after 857 would refuse every older build.
+///
+/// [`Steps::born_legacy`]: crate::database::step::Steps::born_legacy
+pub async fn create_workspace_over<P: TursoPlatform>(
+    migrations: &apply::Migrations,
+    store: &OrganizationStore,
+    session: &mut MemberSession,
+    platform: &P,
+    pipeline_for: impl Fn(&str) -> Pipeline,
+    name: &str,
+    now: i64,
+) -> Result<WorkspaceFacts, Error> {
     session.settled()?;
     require_owner(
         store,
@@ -138,6 +170,7 @@ pub async fn create_workspace<P: TursoPlatform>(
 
     // from here on a database exists that nothing refers to, so every failure removes it.
     let finished = finish_workspace(
+        migrations,
         store,
         session,
         platform,
@@ -172,6 +205,7 @@ pub async fn create_workspace<P: TursoPlatform>(
 
 #[allow(clippy::too_many_arguments)]
 async fn finish_workspace<P: TursoPlatform>(
+    migrations: &apply::Migrations,
     store: &OrganizationStore,
     session: &mut MemberSession,
     platform: &P,
@@ -192,9 +226,13 @@ async fn finish_workspace<P: TursoPlatform>(
             AccessLevel::FullAccess,
         )
         .await?;
-    let version = apply::shipped_version();
-
-    apply::apply(pipeline, &migration_credential, version as usize).await?;
+    let brought = apply::create(pipeline, &migration_credential, migrations, now).await?;
+    let version = i64::from(match brought.floors {
+        Some(floors) => migrations
+            .steps
+            .legacy_after(brought.version.min(migrations.steps.settled()), floors),
+        None => brought.version,
+    });
 
     // the owner's own credential, sealed to the owner.
     let credential = platform
@@ -224,6 +262,10 @@ async fn finish_workspace<P: TursoPlatform>(
             },
         )
         .await?;
+
+    if let Some(floors) = brought.floors {
+        store.record_workspace_floor(id, floors, now).await?;
+    }
     store
         .write_grant(
             &signer,
@@ -861,16 +903,21 @@ mod tests {
 
     use super::{
         MIGRATION_CREDENTIAL_LIFETIME, WORKSPACE_CREDENTIAL_LIFETIME, create_workspace,
-        credentials_due, delete_workspace, grant_workspace, openable, rename_workspace,
-        renew_credentials, require_owner, withdraw_grant,
+        create_workspace_over, credentials_due, delete_workspace, grant_workspace, openable,
+        rename_workspace, renew_credentials, require_owner, withdraw_grant,
     };
     use crate::test::scratch;
     use crate::{
+        database::{
+            floor::{Floors, Standing},
+            step::{Kind, Step, Steps, WORKSPACE_STEPS},
+        },
         error::Error,
         machine::RemoteSyncStore,
         organization::{
             HeldOrganization,
             authority::{AdministratorKey, Issue, certificate_id, issue_certificate},
+            lease::{self, apply},
             member::vault::{
                 KdfParams, MemberSecretKey, create_vault_with_secret, seal_content,
                 seal_to_public_key,
@@ -1182,9 +1229,14 @@ mod tests {
 
         assert_eq!(facts.name, "North Properties");
         assert_eq!(facts.database_name, format!("ws-{}", facts.id));
+        // the number builds before 857 read, at the last step they know (ticket 21).
         assert_eq!(
             facts.schema_version,
-            crate::organization::lease::apply::shipped_version()
+            i64::from(
+                crate::organization::lease::apply::SHIPPED
+                    .steps
+                    .born_legacy()
+            )
         );
         assert_eq!(facts.access_level, "full-access");
 
@@ -2840,6 +2892,198 @@ mod tests {
             owner.workspace_credentials[&facts.id]
                 .token
                 .contains(WORKSPACE_CREDENTIAL_LIFETIME)
+        );
+    }
+
+    /// The workspace ladder 0.20 shipped with one step declared after effort 857 on top: a ladder
+    /// of the test's own, so the test names the step it is about, whatever this build ships.
+    fn ladder_with(sql: &'static str, kind: Kind) -> apply::Migrations {
+        let settled = apply::SHIPPED.steps.settled() as usize;
+        let files: Vec<(&'static str, &'static str)> = apply::WORKSPACE_MIGRATIONS[..settled]
+            .iter()
+            .copied()
+            .chain([("0007_after_857", sql)])
+            .collect();
+        let declared: Vec<Step> = WORKSPACE_STEPS[..settled]
+            .iter()
+            .copied()
+            .chain([Step {
+                kind,
+                describes: "aLaterStep",
+                shipped_before_857: false,
+                readers_need: true,
+            }])
+            .collect();
+
+        apply::Migrations {
+            files: Box::leak(files.into_boxed_slice()),
+            steps: Steps {
+                first: 1,
+                declared: Box::leak(declared.into_boxed_slice()),
+            },
+        }
+    }
+
+    /// The floors the workspace database behind `pipeline` records in its own `data_floor`, where
+    /// it holds the table.
+    async fn data_floor_of(
+        pipeline: &crate::sync::test::pipeline::LocalPipeline,
+    ) -> Option<Floors> {
+        use sqlx::Row;
+
+        let mut connection = pipeline.connection().await;
+        let held = sqlx::query(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'data_floor'",
+        )
+        .fetch_optional(&mut connection)
+        .await
+        .expect("the tables")
+        .is_some();
+
+        if !held {
+            return None;
+        }
+
+        sqlx::query("SELECT level, read, write FROM data_floor WHERE id = 1")
+            .fetch_optional(&mut connection)
+            .await
+            .expect("the floor row")
+            .map(|row| Floors {
+                level: row.get::<i64, _>(0) as u32,
+                read: row.get::<i64, _>(1) as u32,
+                write: row.get::<i64, _>(2) as u32,
+            })
+    }
+
+    /// **Ticket 21's three criteria, on a workspace.** A workspace created by a build whose ladder
+    /// ends in a step declared after 857 is born with its floor record, in its own `data_floor`
+    /// and in the organization's `workspace_floor`, holding the floors the steps declare and not
+    /// the level. After an addition a build knowing one step less reads and writes it, and the
+    /// number builds before 857 read stays at 7, which they accept. After an upgrade raising the
+    /// write floor, a build knowing one step less reads it, and that number moves to 8, which stops
+    /// every build before 857, as the declared floor says it must. On the shipped ladder, which
+    /// ends in `0007`, an addition (ticket 33), the same holds: born with its records, at the floors
+    /// `0006` declares, and the number builds before 857 read at 7.
+    #[tokio::test]
+    async fn a_workspace_is_born_with_the_floors_its_steps_declare() {
+        const ADDITION_SQL: &str = "CREATE TABLE `receipt_note` (`id` text PRIMARY KEY NOT NULL, \
+                                    `note` text);--> statement-breakpoint\n\
+                                    ALTER TABLE `payment` ADD `memo` text;";
+        const UPGRADE_SQL: &str = "ALTER TABLE `payment` RENAME COLUMN `note` TO `remark`;";
+
+        let cases = [
+            (
+                "addition",
+                ladder_with(ADDITION_SQL, Kind::Addition),
+                Floors {
+                    level: 8,
+                    read: 7,
+                    write: 7,
+                },
+                7,
+                Standing::Writable,
+            ),
+            (
+                "upgrade",
+                ladder_with(
+                    UPGRADE_SQL,
+                    Kind::Upgrade {
+                        read_floor: None,
+                        write_floor: Some(8),
+                        needs_owner: false,
+                    },
+                ),
+                Floors {
+                    level: 8,
+                    read: 7,
+                    write: 8,
+                },
+                8,
+                Standing::ReadOnly,
+            ),
+        ];
+
+        for (case, migrations, born, legacy, one_step_less) in cases {
+            let credentials = Memory::new();
+            let directory = scratch(&format!("create-born-{case}"));
+            let (_, store, _, mut owner, platform) = owned(&credentials, &directory).await;
+            let pipeline = applying_pipeline().await;
+
+            let facts = create_workspace_over(
+                &migrations,
+                &store,
+                &mut owner,
+                &platform,
+                |_| Pipeline::at(&pipeline.url("")),
+                "North Properties",
+                1_757_000_000_000,
+            )
+            .await
+            .expect("the create failed");
+
+            assert_eq!(data_floor_of(&pipeline).await, Some(born), "{case}");
+            assert_eq!(
+                store.workspace_floor(&facts.id).await.expect("the floor"),
+                Some(born),
+                "{case}"
+            );
+            assert_eq!(facts.schema_version, legacy, "{case}");
+
+            let recorded = store
+                .workspaces(&owner.verifying_key)
+                .await
+                .expect("the rows")
+                .into_iter()
+                .find(|workspace| workspace.id == facts.id)
+                .expect("the row")
+                .schema_version;
+
+            assert_eq!(recorded, legacy, "{case}");
+
+            // a build knowing one step less, judged by the organization's record and by the
+            // workspace's own.
+            let judged = lease::recorded_floors(&store, &facts.id, recorded)
+                .await
+                .expect("the floors");
+
+            assert_eq!(judged.standing(7), one_step_less, "{case}");
+            assert_eq!(born.standing(7), one_step_less, "{case}");
+        }
+
+        // the shipped ladder: no record of 857's, and the version reads as the declared floors.
+        let credentials = Memory::new();
+        let directory = scratch("create-born-shipped");
+        let (_, store, _, mut owner, platform) = owned(&credentials, &directory).await;
+        let pipeline = applying_pipeline().await;
+        let facts = create_workspace(
+            &store,
+            &mut owner,
+            &platform,
+            |_| Pipeline::at(&pipeline.url("")),
+            "North Properties",
+            1_757_000_000_000,
+        )
+        .await
+        .expect("the create failed");
+
+        let shipped = apply::SHIPPED.steps;
+        let records = apply::SHIPPED.records(&(1..=shipped.known()).collect::<Vec<u32>>());
+
+        assert!(
+            records,
+            "the shipped ladder ends in 0007, declared after 857"
+        );
+        assert_eq!(data_floor_of(&pipeline).await, Some(shipped.born()));
+        assert_eq!(
+            store.workspace_floor(&facts.id).await.expect("the floor"),
+            Some(shipped.born())
+        );
+        assert_eq!(facts.schema_version, i64::from(shipped.born_legacy()));
+        assert_eq!(
+            lease::recorded_floors(&store, &facts.id, facts.schema_version)
+                .await
+                .expect("the floors"),
+            shipped.born()
         );
     }
 

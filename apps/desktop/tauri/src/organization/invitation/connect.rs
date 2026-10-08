@@ -34,6 +34,7 @@
 use std::path::Path;
 
 use crate::{
+    database::floor::Standing,
     diagnostics,
     error::{Error, RefusalReason},
     machine::RemoteSyncStore,
@@ -75,10 +76,17 @@ pub async fn connect(
     now: i64,
 ) -> Result<HeldOrganization, Error> {
     // an organization already held is selected and nothing is recorded a second time: its entry
-    // carries the member and the machine this machine already has there.
+    // carries the member and the machine this machine already has there. **Before any verdict on
+    // its format**, as 0.20 selected it (effort 857, ticket 28): one waiting for its owner, or one
+    // a newer rentable raised, is the wall's and the sign-in's to judge and say, and the selection
+    // writes nothing to it.
     if let Some(held) = selected_if_held(machine, &locator.organization_id)? {
         return Ok(held);
     }
+
+    // the replica the caller pulled is judged against the floors before anything is recorded
+    // (effort 857, ticket 04): below the read floor it is refused by name.
+    let standing = store.refuse_another_format().await?;
 
     if credential.trim().is_empty() {
         return Err(Error::refused(
@@ -91,8 +99,12 @@ pub async fn connect(
     }
 
     // an organization another version of the application made is refused before its row is read
-    // and before this machine records or registers anything (effort 838, requirement 11).
-    store.refuse_another_format().await?;
+    // and before this machine records or registers anything (effort 838, requirement 11); and one
+    // this build may read and not write, since recording it registers this machine in it (effort
+    // 857, ticket 04).
+    if standing != Standing::Writable {
+        store.refuse_unwritable().await?;
+    }
 
     let verifying_key = locator.verifying_key_bytes()?;
     let organization = store
@@ -844,6 +856,94 @@ mod tests {
                 machine.selected().is_none(),
                 "{name}: a refused connect recorded the organization"
             );
+        }
+    }
+
+    /// **Effort 857, ticket 04, at the connect.** What the caller pulled carries a raise of the
+    /// organization's floors. A connect to an organization this machine does not hold is refused
+    /// past the write floor alone, as `OrganizationReadOnlyByVersion`, since it registers the
+    /// machine. Nothing is written to the organization. *One this machine holds already is
+    /// selected before any verdict (ticket 28), below.*
+    #[tokio::test]
+    async fn a_connect_past_the_floors_is_refused_and_writes_nothing() {
+        use crate::organization::store::FORMAT_VERSION;
+
+        let credentials = Memory::new();
+
+        // not held: past the write floor alone.
+        let directory = scratch("connect-read-only");
+        let (store, _, link) = created(&credentials, &directory).await;
+        let mut machine = fresh_machine(&directory);
+
+        store
+            .record_floors(FORMAT_VERSION + 1, FORMAT_VERSION, FORMAT_VERSION + 1)
+            .await;
+
+        let before = contents(&store).await;
+        let refused = connect(&store, &mut machine, &link, UNSEALED, ISSUED_AT + 1).await;
+
+        assert!(
+            matches!(
+                refused,
+                Err(Error::Refused {
+                    reason: crate::error::RefusalReason::OrganizationReadOnlyByVersion,
+                    ..
+                })
+            ),
+            "{refused:?}"
+        );
+        assert_eq!(contents(&store).await, before, "the refusal wrote");
+        assert!(
+            machine.selected().is_none(),
+            "a refused connect recorded it"
+        );
+    }
+
+    /// **Effort 857, ticket 28 (review round one, correctness 7).** A link for an organization
+    /// this machine holds already selects it before any verdict on its format, as 0.20 did: one at
+    /// format 2 waiting for its owner, and one a newer rentable raised past this build's read
+    /// floor. Each is selected and nothing is written to it; what it is then is said by the wall
+    /// and the sign-in that follow, which judge it themselves.
+    #[tokio::test]
+    async fn a_link_for_an_organization_held_selects_it_before_any_verdict_on_its_format() {
+        use crate::organization::store::FORMAT_VERSION;
+
+        let credentials = Memory::new();
+
+        for name in ["waiting-for-its-owner", "past-the-read-floor"] {
+            let directory = scratch(&format!("connect-held-{name}"));
+            let (store, _, link) = created(&credentials, &directory).await;
+            let mut machine = fresh_machine(&directory);
+            let first = connect(&store, &mut machine, &link, UNSEALED, ISSUED_AT + 1)
+                .await
+                .expect("the first connect");
+
+            if name == "waiting-for-its-owner" {
+                store
+                    .connection()
+                    .execute("UPDATE \"format\" SET \"version\" = 2", ())
+                    .await
+                    .expect("the organization at format 2");
+            } else {
+                store
+                    .record_floors(FORMAT_VERSION + 1, FORMAT_VERSION + 1, FORMAT_VERSION + 1)
+                    .await;
+            }
+
+            let before = contents(&store).await;
+            let selected = connect(&store, &mut machine, &link, UNSEALED, ISSUED_AT + 2).await;
+
+            assert_eq!(
+                selected.as_ref().map(|held| held.machine_id.as_str()).ok(),
+                Some(first.machine_id.as_str()),
+                "{name}: {selected:?}"
+            );
+            assert_eq!(
+                machine.selected().map(|held| held.id.as_str()),
+                Some(link.organization_id.as_str()),
+                "{name}: not selected"
+            );
+            assert_eq!(contents(&store).await, before, "{name}: the connect wrote");
         }
     }
 }

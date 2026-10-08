@@ -242,10 +242,15 @@ pub enum RefusalReason {
     GrantBeyondOwn,
     /// this machine holds no credential to the organization database.
     NoOrganizationCredential,
-    /// a newer rentable upgraded the workspace.
+    /// a newer rentable upgraded the workspace past what this one reads (below its read floor,
+    /// effort 857).
     WorkspaceNewer,
     /// the workspace is behind this version, and read-only access cannot bring it up.
     WorkspaceBehind,
+    /// the workspace is behind this version, and its organization was upgraded by a newer one past
+    /// what this one writes, so this one cannot record bringing it up: updating rentable is the way
+    /// past (effort 857, ticket 31). A workspace's refusal, so the organization stays open.
+    WorkspaceBehindReadOnlyByVersion,
     /// the workspace is behind this version, and opening it once on this machine brings it up to
     /// date: what a workspace that is not open meets when it is reached on Turso (effort 846,
     /// requirement 15).
@@ -269,8 +274,42 @@ pub enum RefusalReason {
     /// cannot learn whether the owner has upgraded; it needs a new link from its organization
     /// (effort 838, ticket 25).
     OrganizationCredentialLapsed,
-    /// the organization was made by a newer version of rentable, which this one is updated to.
+    /// a newer version of rentable upgraded the organization past what this one reads (below its
+    /// read floor, effort 857), which this one is updated to.
     OrganizationNewer,
+    /// the owner has not opened this version of rentable yet, and an upgrade asked of it waits
+    /// until they have: their machine is what brings a permission this version added to the
+    /// organization's certificates (effort 857, ticket 15).
+    OwnerNotUpdated,
+    /// an upgrade holds a step that needs the owner's own key, as every step re-signing the
+    /// organization's rows does, so it runs on the owner's machine whoever else holds the
+    /// permission to upgrade, and nothing was changed (effort 857, ticket 07).
+    UpgradeNeedsOwner,
+    /// another member is bringing the workspace or the organization up under the lease right now,
+    /// so the upgrade asked for waits until they have finished, and nothing was changed (effort
+    /// 857, ticket 07).
+    UpgradeUnderWay,
+    /// a newer version of rentable upgraded the organization, and this one reads it but may not
+    /// write to it (below its write floor, effort 857): what a way in that must write is refused
+    /// with, and nothing was written.
+    OrganizationReadOnlyByVersion,
+    /// a newer version of rentable upgraded the open workspace, and this one reads it but may not
+    /// write to it (below its write floor, effort 857): what every create, edit and delete reaching
+    /// the workspace's engine is refused with, and nothing was written (ticket 05).
+    WorkspaceReadOnlyByVersion,
+    /// the open workspace's floors, its record of which versions of rentable may write it, could
+    /// not be read, so this one writes nothing to it until they can be (effort 857, ticket 31).
+    /// Not a newer version: updating is not the way past, and every write is refused with this
+    /// rather than [`RefusalReason::WorkspaceReadOnlyByVersion`].
+    WorkspaceFloorsUnreadable,
+    /// this machine holds changes it had not sent when an upgrade removed or renamed what they
+    /// name, so the open workspace refuses them: they are kept here, nothing of the workspace is
+    /// sent or brought until the person discards them, and nothing is discarded without their yes
+    /// (effort 857, ticket 13).
+    ChangesUnsendableAfterUpgrade,
+    /// a discard of the organization's unsent changes was asked of a replica holding none the
+    /// organization refused, so nothing was discarded (effort 857, ticket 20).
+    NothingUnsent,
 
     // a copy and a check before a change of shape (effort 838, requirements 13 and 15).
     /// the copy of the organization or the workspace taken before it changes shape could not be

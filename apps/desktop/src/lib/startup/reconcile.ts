@@ -11,13 +11,16 @@ import type { StartupPorts } from './ports';
  */
 export class Reconciliation {
 	#ports: StartupPorts;
+	/** whether a newer rentable holds the session read-only, or past reading, by its version. */
+	#isHeldByVersion: () => boolean;
 
 	#isReconcilingDayCrossing = false;
 	#receivedWhileReconciling = false;
 	#lastReconciledUtcDay: number;
 
-	constructor(ports: StartupPorts) {
+	constructor(ports: StartupPorts, isHeldByVersion: () => boolean) {
 		this.#ports = ports;
+		this.#isHeldByVersion = isHeldByVersion;
 		this.#lastReconciledUtcDay = toUtcDay(ports.now()).getTime();
 	}
 
@@ -66,9 +69,13 @@ export class Reconciliation {
 	 * Derived state moves only at UTC day boundaries, so an application left running crosses into
 	 * wrong statuses at midnight UTC. Comparing calendar days on every tick, rather than counting
 	 * elapsed ticks, keeps the check correct across sleep and wake.
+	 *
+	 * **Nothing while the version holds the session** (effort 857, requirement 9): the pass writes
+	 * the derived columns, and a newer rentable upgraded what it would write past what this one
+	 * may. The machines that write it keep the statuses current, and this one reads what they wrote.
 	 */
 	async onDayCrossing(isReady: boolean) {
-		if (!isReady || this.#isReconcilingDayCrossing) {
+		if (!isReady || this.#isReconcilingDayCrossing || this.#isHeldByVersion()) {
 			return;
 		}
 

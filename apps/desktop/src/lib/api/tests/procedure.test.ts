@@ -36,7 +36,13 @@ async function signedOutApi() {
 				prepare: async () => {
 					throw new Error('not asked for');
 				},
-				check: async () => null
+				check: async () => ({ outcome: 'noRelease' as const }),
+				download: async () => {
+					throw new Error('not asked for');
+				},
+				install: async () => {
+					throw new Error('not asked for');
+				}
 			},
 			sync: {
 				getState: async () => fakeSyncState(),
@@ -44,10 +50,13 @@ async function signedOutApi() {
 					pushed: false,
 					received: false,
 					refusal: 'none' as const,
-					standing: 'held' as const
+					standing: 'held' as const,
+					heldByVersion: []
 				}),
 				push: async () => false,
-				renameWorkspace: async () => fakeSyncState()
+				renameWorkspace: async () => fakeSyncState(),
+				discardUnsent: async () => fakeSyncState(),
+				discardUnsentOrganization: async () => fakeSyncState()
 			}
 		}),
 		identity: null

@@ -1,11 +1,15 @@
 //! Reaching a live Turso workspace database from a test.
 //!
-//! Two sets of tests go through this scaffolding. The four at the foot of `database/mod.rs`,
+//! Four sets of tests go through this scaffolding. The four at the foot of `database/mod.rs`,
 //! beside the `open_replica` they go through, measure what a losing writer loses when two replicas
 //! of one workspace diverge (#552, acceptance criteria 9 and 17). The one at the foot of
 //! `organization/lease/apply.rs` measures whether the server takes every shipped migration in one
-//! explicit transaction (effort 838, ticket 32). This is the part that provisions a database for
-//! them, which is the Turso-side counterpart of `sync/test/server.rs`.
+//! explicit transaction (effort 838, ticket 32). The two `unsent_changes_live` tests beside the
+//! first measure what becomes of changes a replica held when the workspace changed shape under them
+//! (effort 857, ticket 13), and `organization_unsent_live` at the foot of `organization/store/mod.rs`
+//! measures the same of the organization's replica (ticket 20), which is why
+//! [`LiveWorkspace::over_the_wire`] is the crate's rather than this module's. This is the part that
+//! provisions a database for them, which is the Turso-side counterpart of `sync/test/server.rs`.
 //!
 //! **A live account is reached, and there is no local stand-in.** The sync engine speaks HTTP to
 //! a remote; the crate's own harness wants a separate server binary, and writing one would mean
@@ -148,9 +152,20 @@ impl LiveWorkspace {
         name: &str,
     ) -> (std::path::PathBuf, turso::sync::Database) {
         let directory = crate::test::scratch(name);
+        let database = self.replica_in(&directory).await;
 
+        (directory, database)
+    }
+
+    /// The replica of this workspace kept in `directory`, opened again as a later launch opens
+    /// it, or made there where there is none yet.
+    pub(in crate::database) async fn replica_in(
+        &self,
+        directory: &std::path::Path,
+    ) -> turso::sync::Database {
         let token = self.token.clone();
-        let database = Database::open_replica(
+
+        Database::open_replica(
             &crate::clock::System,
             &directory.join("app.db"),
             Some(self.url.clone()),
@@ -160,9 +175,7 @@ impl LiveWorkspace {
             },
         )
         .await
-        .expect("replica engine");
-
-        (directory, database)
+        .expect("replica engine")
     }
 
     /// Apply the first `up_to` migrations to the **remote** database, as `organization/lease/apply.rs` does.
@@ -189,6 +202,40 @@ impl LiveWorkspace {
         )
         .await
         .expect("apply the schema remotely");
+    }
+
+    /// Run `statements` on the **remote** database in one transaction over the pipeline, the way a
+    /// workspace's upgrade reaches it (`organization/lease/apply.rs`) rather than from a replica,
+    /// and answer the rows the last statement before the commit read, each a list of the
+    /// pipeline's typed cells. A statement the server refuses fails the test.
+    pub(crate) async fn over_the_wire(&self, statements: &[&str]) -> Vec<serde_json::Value> {
+        use crate::organization::workspace::remote::{
+            OverThePipeline, Pipeline, execute, refused_at, rows_of,
+        };
+
+        let host = self
+            .url
+            .strip_prefix("libsql://")
+            .expect("a libsql:// workspace url");
+        let pipeline = Pipeline::of(host);
+        let stream = OverThePipeline::migrating(&pipeline, &self.token);
+        let requests = std::iter::once(execute("BEGIN"))
+            .chain(statements.iter().map(|sql| execute(sql)))
+            .chain(std::iter::once(execute("COMMIT")))
+            .collect();
+        let results = stream
+            .exchanged(requests, true)
+            .await
+            .expect("the remote took the request");
+
+        if let Some(refused) = refused_at(&results) {
+            panic!(
+                "the remote refused statement {refused} of {statements:?}: {}",
+                results[refused]
+            );
+        }
+
+        rows_of(&results, statements.len())
     }
 
     /// Best effort, and **a refusal is printed rather than swallowed**.

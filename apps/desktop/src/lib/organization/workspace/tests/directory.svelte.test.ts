@@ -11,6 +11,7 @@ import { columnsFor, RECORD_TILE_MIN_WIDTH } from '$lib/list';
 import { formatLocaleDate } from '$lib/platform/locale';
 import { organizationDialog, resetOrganizationDialogs } from '$lib/organization/dialogs.svelte';
 import { organizationHostState, resetOrganizationHost } from '$lib/organization/host.svelte';
+import { closeUpgrade, upgradeSheet } from '$lib/organization/upgrade/sheet.svelte';
 import { fakeOrganizationMember, fakeOrganizationSession } from '$lib/organization/tests/testing';
 import { BUILT_IN, EVERY_FLAG, maskOf } from '@rentable/workspace-permission';
 import type { OrganizationMember, OrganizationWorkspace } from '$lib/organization/host';
@@ -1373,4 +1374,55 @@ test('the tray orders search, count, sort and create as the list shell does', ()
 	expect(document.querySelector('[data-directory-description]')?.className).toContain(
 		'text-muted-foreground'
 	);
+});
+
+// effort 857, ticket 08 (requirement 3): a workspace with an upgrade waiting, for a reader who may
+// run it, is marked on its card in words, *upgrade available*, and its menu offers the upgrade,
+// which opens the sheet on that workspace. Whether it is upgradable is the section's to say
+// (`upgradable`, from what waits and the reader's `upgradeData`); a card it does not name carries
+// neither the mark nor the act.
+/** whether a card's menu offers the upgrade, read by the act its entry projects, then closed. */
+const offersUpgrade = async (id: string) => {
+	await fireEvent.click(control(id)!);
+
+	const entry = document.querySelector(
+		'[data-slot=dropdown-menu-item][data-act="workspace.upgrade"]'
+	);
+	const offered =
+		entry !== null && entry.textContent?.trim() === toTitleCase(en.organization.upgrade.act);
+
+	await fireEvent.click(control(id)!);
+
+	return offered;
+};
+
+test('a workspace with an upgrade waiting is marked, and its menu opens the upgrade on it', async () => {
+	closeUpgrade();
+	list({ upgradable: (workspaceId: string) => workspaceId === 'ws-2' });
+
+	const mark = card('ws-2')?.querySelector('[data-upgrade-mark]');
+
+	expect(mark?.getAttribute('data-upgrade-mark')).toBe('ws-2');
+	expect(mark?.textContent?.trim()).toBe(en.organization.upgrade.available);
+	expect(card('ws-1')?.querySelector('[data-upgrade-mark]')).toBeNull();
+
+	expect(await offersUpgrade('ws-1')).toBe(false);
+	expect(await offersUpgrade('ws-2')).toBe(true);
+
+	await fireEvent.click(control('ws-2')!);
+	await fireEvent.click(
+		document.querySelector('[data-slot=dropdown-menu-item][data-act="workspace.upgrade"]')!
+	);
+
+	expect(upgradeSheet.target).toEqual({ workspace: 'ws-2' });
+	expect(upgradeSheet.name).toBe('Jeddah');
+	closeUpgrade();
+});
+
+test('with nothing upgradable, no card is marked and no menu offers the upgrade', async () => {
+	list();
+
+	expect(document.querySelector('[data-upgrade-mark]')).toBeNull();
+	expect(await offersUpgrade('ws-1')).toBe(false);
+	expect(await offersUpgrade('ws-2')).toBe(false);
 });

@@ -10,6 +10,7 @@ import {
 import type { SqliteRemoteDatabase } from 'drizzle-orm/sqlite-proxy';
 
 import type { Host } from '$lib/app/host';
+import type { TauriRefusalReason } from '$lib/error/tauri';
 
 /**
  * DATABASE
@@ -43,9 +44,15 @@ export type { Host };
  * who is signed in on this machine, as the organization's port answers it: read off the composed
  * host rather than off the port, so the wiring names no feature.
  */
-type OrganizationSession = NonNullable<
-	Awaited<ReturnType<Host['organization']['getState']>>['session']
->;
+type OrganizationState = Awaited<ReturnType<Host['organization']['getState']>>;
+type OrganizationSession = NonNullable<OrganizationState['session']>;
+
+/**
+ * what holds this machine by its version, as the organization's port answers it (effort 857): the
+ * organization or one workspace, and how far this build may still go with it. Read off the composed
+ * host for the reason the session is.
+ */
+type HeldByVersion = OrganizationState['heldByVersion'][number];
 
 /**
  * IDENTITY
@@ -109,6 +116,19 @@ export type Identity = {
 	 * and so nothing to read this off.
 	 */
 	permissions: number;
+	/**
+	 * set where a newer rentable upgraded the workspace open past what this one writes (effort 857,
+	 * requirement 6): `permissions` already has every create, edit and delete cleared, as a
+	 * read-only grant clears them, and this says the version is why, which is what a refused write
+	 * names ([`refuseMissing`] in `./trpc`). Absent wherever this build may write the workspace open.
+	 */
+	readOnlyByVersion?: true;
+	/**
+	 * set beside `readOnlyByVersion` where the hold is not a newer version's: the workspace's floors
+	 * could not be read (effort 857, ticket 31), so a refused write names the floors and nobody is
+	 * told to update ([`refuseMissing`] in `./trpc`).
+	 */
+	floorsUnreadable?: true;
 };
 
 /**
@@ -154,20 +174,48 @@ const systemClock: Clock = {
  * procedure.
  */
 async function actingIdentity(host: Host): Promise<Identity | null> {
-	const session = await sessionOf(host);
+	const state = await organizationStateOf(host);
+	const session = state?.session ?? null;
 
-	return (
-		session && {
-			accountId: session.memberId,
-			username: session.username,
-			// **Off the same answer, for the workspace open** (effort 838, requirements 10 and 12).
-			// What this member may do across the organization is on their verified row, and the
-			// session carries it with what is pinned for them in each workspace; in the workspace
-			// this machine has open, those pins apply, and a read-only grant clears every create,
-			// edit and delete whatever the role and the overrides say.
-			permissions: permissionsIn(session, await openWorkspace(host))
-		}
-	);
+	if (!session) {
+		return null;
+	}
+
+	const openWorkspaceId = await openWorkspace(host);
+	const heldByVersion = state?.heldByVersion ?? [];
+
+	return {
+		accountId: session.memberId,
+		username: session.username,
+		// **Off the same answer, for the workspace open** (effort 838, requirements 10 and 12).
+		// What this member may do across the organization is on their verified row, and the
+		// session carries it with what is pinned for them in each workspace; in the workspace
+		// this machine has open, those pins apply, and a read-only grant clears every create,
+		// edit and delete whatever the role and the overrides say. So does a newer rentable having
+		// upgraded it past what this one writes (effort 857, requirement 6).
+		permissions: permissionsIn(session, openWorkspaceId, heldByVersion),
+		...(readOnlyByVersionIn(heldByVersion, openWorkspaceId)
+			? { readOnlyByVersion: true as const }
+			: {}),
+		...(floorsUnreadableIn(heldByVersion, openWorkspaceId)
+			? { floorsUnreadable: true as const }
+			: {})
+	};
+}
+
+/**
+ * the organization's state as the shell answers it, or `null` where the shell cannot be reached.
+ *
+ * Only the asking is guarded, and deliberately: a failure to reach the shell is an unanswered
+ * question, while a failure to make sense of the answer is a defect, and swallowing the second
+ * inside the first would report it as a request nobody made.
+ */
+async function organizationStateOf(host: Host): Promise<OrganizationState | null> {
+	try {
+		return await host.organization.getState();
+	} catch {
+		return null;
+	}
 }
 
 /**
@@ -175,19 +223,63 @@ async function actingIdentity(host: Host): Promise<Identity | null> {
  * shell cannot be reached.
  */
 export async function sessionOf(host: Host): Promise<OrganizationSession | null> {
-	let state;
-
-	// only the asking is guarded, and deliberately: a failure to reach the shell is an
-	// unanswered question, while a failure to make sense of the answer is a defect, and
-	// swallowing the second inside the first would report it as a request nobody made.
-	try {
-		state = await host.organization.getState();
-	} catch {
-		return null;
-	}
-
-	return state.session;
+	return (await organizationStateOf(host))?.session ?? null;
 }
+
+/**
+ * whether a newer rentable upgraded the workspace `openWorkspaceId` past what this one writes, as
+ * the shell's verdicts `heldByVersion` say (effort 857, requirement 6). Below the read floor counts
+ * too, which is the safe direction, though such a workspace is not served at all. A verdict on the
+ * organization, or on another workspace, holds nothing here: the organization's acts are refused
+ * in the shell, and its verdict is not a workspace's.
+ *
+ * **The workspace's verdict is read whatever the organization's says** (ticket 16): the shell
+ * carries both apart, so an organization read-only by its version too does not hide it.
+ *
+ * **Exported so the interface folds the same way** (`workspace/component/permissions.svelte`).
+ */
+export function readOnlyByVersionIn(
+	heldByVersion: readonly HeldByVersion[],
+	openWorkspaceId: string | null
+): boolean {
+	return (
+		openWorkspaceId !== null &&
+		heldByVersion.some(
+			({ target }) => typeof target === 'object' && target.workspace === openWorkspaceId
+		)
+	);
+}
+
+/**
+ * whether the hold on the workspace `openWorkspaceId` is its floors that could not be read rather
+ * than a newer version (effort 857, ticket 31): the verdict's reason is then the refusal's own word,
+ * `workspaceFloorsUnreadable`, which the shell gives it for that cause alone. Updating is not the
+ * way past, so nothing that reads this offers it.
+ *
+ * **Exported so the interface folds the same way** (`workspace/component/permissions.svelte`).
+ */
+export function floorsUnreadableIn(
+	heldByVersion: readonly HeldByVersion[],
+	openWorkspaceId: string | null
+): boolean {
+	return (
+		openWorkspaceId !== null &&
+		heldByVersion.some(
+			(held) =>
+				typeof held.target === 'object' &&
+				held.target.workspace === openWorkspaceId &&
+				isFloorsUnreadable(held)
+		)
+	);
+}
+
+/** whether `held` is a hold for floors that could not be read ([`floorsUnreadableIn`]). */
+export function isFloorsUnreadable(held: HeldByVersion): boolean {
+	return held.standing === 'readOnly' && held.reason === FLOORS_UNREADABLE;
+}
+
+/** the reason a hold for floors that could not be read carries: the refusal's own word. */
+const FLOORS_UNREADABLE = 'workspaceFloorsUnreadable' satisfies TauriRefusalReason;
 
 /**
  * the workspace this machine has open, by id, or `null` where the shell cannot say or none is.
@@ -261,14 +353,21 @@ function viewsOf(permissions: number): number {
  * what a member may do in one workspace, from their session and the workspace's id: what they may
  * do there ([`workspacePermissionsIn`]) folded by how their grant reaches it ([`accessIn`]). What
  * every `procedure.permitted` gate is answered by.
+ *
+ * **A workspace a newer rentable upgraded past what this one writes folds like a read-only grant**
+ * (effort 857, requirement 6), whatever the grant: `heldByVersion` is the shell's verdict, and
+ * where it names this workspace every create, edit and delete is cleared ([`readOnlyByVersionIn`]).
  */
 export function permissionsIn(
 	session: OrganizationSession,
-	openWorkspaceId: string | null
+	openWorkspaceId: string | null,
+	heldByVersion: readonly HeldByVersion[] = []
 ): number {
 	return effectiveIn(
 		workspacePermissionsIn(session, openWorkspaceId),
-		accessIn(session, openWorkspaceId)
+		readOnlyByVersionIn(heldByVersion, openWorkspaceId)
+			? 'read-only'
+			: accessIn(session, openWorkspaceId)
 	);
 }
 

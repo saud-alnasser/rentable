@@ -452,8 +452,9 @@ and no wider.
 **The trap is the stand-in.** Where a figure has a fallback — *unknown*, *checking* — the
 fallback is the reader's word and takes the reader's direction, so the attribute is
 conditional on there being a figure rather than fixed on the element.
-`settings/component/updates.svelte` is the worked example: its plate takes an `isFigure`
-parameter and sets `dir={isFigure ? 'ltr' : undefined}`.
+`update/component/update-action.svelte` is the worked example: its `figure` snippet carries
+`dir="ltr"` and is drawn only where there is a version to show, so where there is none the
+plate draws nothing in its place rather than a word in the wrong direction.
 
 *Why this is written down: it was applied consistently and recorded nowhere, so the only way
 to learn it was to notice it, and a surface that missed it failed in Arabic alone.*

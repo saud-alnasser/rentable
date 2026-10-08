@@ -211,6 +211,16 @@ pub struct RemoteSync {
     /// there is none to collect, so the member is told their access needs attention rather than
     /// shown nothing wrong.
     pub(super) credential_refusal: Option<i64>,
+    /// the moment the open workspace's replica was found holding changes the workspace refuses
+    /// since an upgrade, until they are discarded (effort 857, ticket 13). In memory, like the two
+    /// refusals above: what keeps the changes is the record beside the replica
+    /// (`database/unsendable.rs`), and every replication says so again.
+    pub(super) unsendable_changes: Option<i64>,
+    /// the same for the organization's replica (effort 857, ticket 20): the moment this session
+    /// found it holding changes the organization refuses since an upgrade, until they are
+    /// discarded. What keeps them is the record beside `org-<id>.db`, which every replication reads
+    /// again.
+    pub(super) unsendable_organization_changes: Option<i64>,
     /// what says when, for every moment this record keeps.
     pub(super) clock: clock::Shared,
 }
@@ -235,6 +245,14 @@ pub struct AccountRefusalFacts {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CredentialRefusalFacts {
+    pub since: i64,
+}
+
+/// What a member is told about changes this machine holds that the workspace refuses since an
+/// upgrade: that there are some, and since when this session found them.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct UnsendableChangesFacts {
     pub since: i64,
 }
 
@@ -532,6 +550,15 @@ pub struct RemoteSyncState {
     /// standing until one goes through. Distinct from the account's refusal, which is the owner's
     /// to see to, and from a fault: this is a credential that stopped being accepted.
     pub credential_refusal: Option<CredentialRefusalFacts>,
+    /// changes the open workspace's replica holds that the workspace refuses since an upgrade,
+    /// kept until the person discards them (effort 857, ticket 13). Distinct from the refusals
+    /// above: nothing about the account or the credential is wrong, and only the person can say
+    /// what becomes of them.
+    pub unsendable_changes: Option<UnsendableChangesFacts>,
+    /// changes the organization's replica holds that the organization refuses since an upgrade,
+    /// kept until the person discards them (effort 857, ticket 20). The workspace goes on syncing;
+    /// what waits is the organization's own push and pull.
+    pub unsendable_organization_changes: Option<UnsendableChangesFacts>,
     /// the moment of the last replication that went through, or `None` before any has. What the
     /// standing block says beside "up to date". A fact about a request and not a credential, so
     /// it crosses ([[rules/credentials]], under *Client boundary*).
@@ -918,6 +945,8 @@ impl RemoteSync {
             workspace_token: None,
             account_refusal: None,
             credential_refusal: None,
+            unsendable_changes: None,
+            unsendable_organization_changes: None,
             clock,
         };
         // committed as a launch commits, so a record that cannot be written is named (ticket 38).
@@ -1065,6 +1094,8 @@ impl RemoteSync {
     pub(crate) fn note_signed_out(&mut self) -> Result<(), Error> {
         self.account_refusal = None;
         self.credential_refusal = None;
+        self.unsendable_changes = None;
+        self.unsendable_organization_changes = None;
 
         if self.store.last_reached_at.take().is_none() {
             return Ok(());
@@ -1096,6 +1127,8 @@ impl RemoteSync {
         self.workspace_token = None;
         self.account_refusal = None;
         self.credential_refusal = None;
+        self.unsendable_changes = None;
+        self.unsendable_organization_changes = None;
     }
 
     /// Stop naming a workspace this machine may no longer open.
@@ -1333,6 +1366,12 @@ impl RemoteSync {
             credential_refusal: self
                 .credential_refusal
                 .map(|since| CredentialRefusalFacts { since }),
+            unsendable_changes: self
+                .unsendable_changes
+                .map(|since| UnsendableChangesFacts { since }),
+            unsendable_organization_changes: self
+                .unsendable_organization_changes
+                .map(|since| UnsendableChangesFacts { since }),
             last_reached_at: self.store.last_reached_at,
         }
     }
@@ -1374,6 +1413,29 @@ impl RemoteSync {
     /// A replication went through, so whatever the credential was refused for is over.
     pub(crate) fn clear_credential_refusal(&mut self) {
         self.credential_refusal = None;
+    }
+
+    /// The open workspace's replica holds changes the workspace refuses since an upgrade. The
+    /// first moment this session found them stands until they are discarded.
+    pub(crate) fn note_unsendable_changes(&mut self, now: i64) {
+        self.unsendable_changes.get_or_insert(now);
+    }
+
+    /// The changes the workspace refused are gone: discarded at the person's word, or never there
+    /// for a replica that has since pushed.
+    pub(crate) fn clear_unsendable_changes(&mut self) {
+        self.unsendable_changes = None;
+    }
+
+    /// Whether the organization's replica holds changes the organization refuses since an upgrade,
+    /// as a replication read it (effort 857, ticket 20): the first moment this session found them
+    /// stands until they are gone, and a replica found holding none clears it.
+    pub(crate) fn note_unsendable_organization_changes(&mut self, held: bool, now: i64) {
+        if held {
+            self.unsendable_organization_changes.get_or_insert(now);
+        } else {
+            self.unsendable_organization_changes = None;
+        }
     }
 
     /// Turso's own sentence about the standing refusal, for the owner and nobody else; the
@@ -2091,6 +2153,8 @@ mod tests {
             workspace_token: None,
             account_refusal: None,
             credential_refusal: None,
+            unsendable_changes: None,
+            unsendable_organization_changes: None,
             clock: crate::clock::System::shared(),
         }
     }

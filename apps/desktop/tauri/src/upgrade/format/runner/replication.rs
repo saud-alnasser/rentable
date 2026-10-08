@@ -2,7 +2,9 @@
 //! either side of the transaction, on this machine's replica or on the owner's account.
 
 use crate::{
-    backup, diagnostics,
+    backup,
+    database::unsendable,
+    diagnostics,
     turso::platform::{AccessLevel, PlatformApi, TursoPlatform},
 };
 
@@ -11,10 +13,6 @@ use crate::organization::{
     setup::{ORGANIZATION_CREDENTIAL_LIFETIME, Remote},
     store::OrganizationStore,
 };
-
-/// What the remote said to a push this measured failure is in: changes captured under a column
-/// set a later statement dropped (`OrganizationStore::format_one_reshape`).
-const ARGUMENTS_MISMATCH: &str = "Number of arguments mismatch";
 
 /// What a push came to.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -151,6 +149,10 @@ impl<P: AccountCopy + ?Sized> Replication for OnTheAccount<'_, P> {
 
 /// The replica's own push, told apart by what the remote answered: a column set it no longer has
 /// is refused for good, and anything else is the offline case. A push that did not go is logged.
+///
+/// **A replica already holding changes the organization refused is refused for good too**
+/// (effort 857, ticket 20): the store made no push of it, and the hold beside the replica is what
+/// says why.
 pub(crate) async fn pushed(store: &OrganizationStore) -> Pushed {
     match store.pushed().await {
         Ok(()) => Pushed::Went,
@@ -161,15 +163,21 @@ pub(crate) async fn pushed(store: &OrganizationStore) -> Pushed {
                 .with("reason", refusal.as_str())
                 .write();
 
-            classified(&refusal)
+            if store.holds_unsendable() {
+                Pushed::Unsendable
+            } else {
+                classified(&refusal)
+            }
         }
     }
 }
 
-/// What a push the remote refused with `refusal` came to: the measured mismatch is refused for
-/// good, and anything else is the offline case.
+/// What a push the remote refused with `refusal` came to: changes naming what the remote no longer
+/// has are refused for good, the measured mismatch of format 1's reshape among them
+/// (`OrganizationStore::format_one_reshape`), and anything else is the offline case. *It read the
+/// mismatch alone until effort 857 (ticket 20) gave the organization the workspace's signs.*
 pub(super) fn classified(refusal: &str) -> Pushed {
-    if refusal.contains(ARGUMENTS_MISMATCH) {
+    if unsendable::names_what_the_upgrade_removed(refusal) {
         Pushed::Unsendable
     } else {
         Pushed::DidNotGo
@@ -187,6 +195,44 @@ pub(crate) async fn pulled(store: &OrganizationStore) -> bool {
                 .write();
 
             false
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Pushed, classified};
+
+    /// **Effort 857, ticket 20.** A push of the organization refused because an upgrade removed or
+    /// renamed what its changes name is refused for good, in every wording the live runs read off
+    /// Turso and the engine, as well as the mismatch format 1's reshape measured; a remote that
+    /// could not be reached is the offline case.
+    #[test]
+    fn a_push_naming_what_an_upgrade_removed_is_refused_for_good() {
+        for refusal in [
+            "Number of arguments mismatch: expected 2, got 3",
+            "SQLite error: table kept has no column named note",
+            "SQLite error: no such column: note",
+            "failed to replay local change after remote apply: database error: 2 values for 1 \
+             columns",
+        ] {
+            assert_eq!(classified(refusal), Pushed::Unsendable, "{refusal}");
+        }
+
+        assert_eq!(classified("error sending request"), Pushed::DidNotGo);
+    }
+
+    /// **Effort 857, ticket 26.** A push of the organization refused over a constraint, in the
+    /// remote's words or the replay's, is a conflict between machines and not an upgrade's: it is
+    /// not refused for good.
+    #[test]
+    fn a_conflict_is_not_refused_for_good() {
+        for conflict in [
+            "SQLite error: UNIQUE constraint failed: member.email",
+            "failed to replay local change after remote apply: database error: UNIQUE constraint \
+             failed: member.email",
+        ] {
+            assert_eq!(classified(conflict), Pushed::DidNotGo, "{conflict}");
         }
     }
 }

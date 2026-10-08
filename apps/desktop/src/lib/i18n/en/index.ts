@@ -19,6 +19,7 @@ import * as startup from '../../startup/i18n/en.js';
 import * as tenant from '../../tenant/i18n/en.js';
 import * as transfer from '../../transfer/i18n/en.js';
 import * as undo from '../../undo/i18n/en.js';
+import * as update from '../../update/i18n/en.js';
 import * as workspace from '../../workspace/i18n/en.js';
 
 const en = {
@@ -107,7 +108,6 @@ const en = {
 		history: history.common.history,
 
 		labels: {
-			...settings.common.labels,
 			action: 'action',
 			activeContracts: 'active contracts',
 			appVersion: 'app version',
@@ -290,6 +290,8 @@ const en = {
 	print: print.print,
 
 	settingsHooks: settings.settingsHooks,
+
+	update: update.update,
 
 	organization: organization.organization,
 

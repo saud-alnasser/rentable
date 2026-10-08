@@ -80,8 +80,8 @@ use crate::organization::{
     member::vault::{ContentKey, KdfParams, MemberSecretKey, open_vault, reseal_vault_with_key},
     session::{
         CredentialSlot, MemberSession, content_key_of, forget_remembered, machine_named,
-        machine_seen, open_session, refused_by_name, remember, sign_in_by_username,
-        sign_outs_acknowledged,
+        machine_seen, open_session, refused_by_name, remember, repaired_after_the_pull,
+        sign_in_by_username, sign_outs_acknowledged, writes_to,
     },
     setup::MINIMUM_PASSWORD_LENGTH,
     store::{FORMAT_VERSION, InvitationRecord, MemberRecord, OrganizationStore},
@@ -357,8 +357,10 @@ async fn accepted(
     let half = &link.half;
 
     // an organization another version made is refused before any row of it is read (effort 838,
-    // requirement 11).
-    store.refuse_another_format().await?;
+    // requirement 11), judged over what the reach pulled; and one this build may read and not
+    // write is refused too, since an accept writes a vault, a spent row and a registry row
+    // (effort 857, ticket 04).
+    store.refuse_unwritable().await?;
 
     // the name a refusal says: the link's, which is what the record is written from. On a machine
     // holding the organization every standing is refused as already used (`standing_refused`).
@@ -693,10 +695,27 @@ pub(crate) async fn admitted_after(
     // first moment it can; what it brings is what the number below is read from.
     let pulled = pull().await;
 
+    // **and the floors judged over what it brought, before anything is written** (effort 857,
+    // ticket 04): below the read floor the sign-in is refused by name, and below the write floor
+    // it goes on read-only, writing nothing to the organization from here; the session's state
+    // says which (`heldByVersion`).
+    store.refuse_another_format().await?;
+
+    // the owner's own row, where somebody below them wrote it, repaired on their machine now that
+    // the pull is in and the organization may be written; a removed row that stays removed is
+    // the wall's one sentence, as a removed row is refused at the vault.
+    repaired_after_the_pull(store, &mut session, Some(held), || {
+        refused_by_name(&held.name)
+    })
+    .await?;
+
     // and the members carried over from before the lock, locked by the first machine able to sign
     // it, over the rows that pull brought and never over a replica it could not bring up to date
     // (effort 851, requirement 36).
-    crate::organization::member::lock::carry_locks_over(store, &session, Some(held), pulled).await;
+    if writes_to(store) {
+        crate::organization::member::lock::carry_locks_over(store, &session, Some(held), pulled)
+            .await;
+    }
 
     // a sign-in reads the organization in this build's format and in no other, so the record keeps
     // that it has (effort 838, ticket 25); and it acknowledges whatever signed this machine out on
@@ -717,9 +736,12 @@ pub(crate) async fn admitted_after(
 
     // the registry learns who is on this machine (effort 828, requirement 15), and the machine's
     // name with it (effort 846, requirement 11). After the sign-in, because the push it makes goes
-    // out under the credential the vault just unsealed.
-    machine_named(store, &filled, &session.content_key, now).await;
-    machine_seen(store, &filled, Some(&session.member_id), now).await;
+    // out under the credential the vault just unsealed; and only where this build may write the
+    // organization (effort 857, ticket 04).
+    if writes_to(store) {
+        machine_named(store, &filled, &session.content_key, now).await;
+        machine_seen(store, &filled, Some(&session.member_id), now).await;
+    }
 
     machine.hold(filled);
     machine.commit()?;
@@ -2270,7 +2292,9 @@ mod tests {
             member: Arc::new(RwLock::new(None)),
             arriving_link: Arc::new(Mutex::new(None)),
             signed_out_elsewhere: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            held_by_version: Arc::new(std::sync::Mutex::new(None)),
             old_shape_check: tokio::sync::OnceCell::new(),
+            bringing_up: Default::default(),
         }
     }
 
@@ -3748,6 +3772,9 @@ mod tests {
             "DROP TABLE \"machine_name\"",
             "DROP TABLE \"organization_name\"",
             "DROP TABLE \"member_lock\"",
+            "DROP TABLE \"machine_version\"",
+            "DROP TABLE \"workspace_floor\"",
+            "DROP TABLE \"organization_floor\"",
             "DROP TABLE \"role\"",
             "DROP TABLE \"certificate\"",
             "DROP TABLE \"revocation\"",
@@ -3862,5 +3889,64 @@ mod tests {
             "the refusal wrote to the organization"
         );
         assert!(machine.selected().is_none());
+    }
+
+    /// **Effort 857, ticket 04, on a link.** A newer rentable raised the organization's floors, and
+    /// what the reach pulled carries the raise. Past the read floor the accept is refused as
+    /// `OrganizationNewer`; past the write floor alone it is refused as
+    /// `OrganizationReadOnlyByVersion`, since an accept reseals a vault, spends its row and
+    /// registers the machine. Either way nothing is written to the organization after the reach,
+    /// the invitation stands unspent, and the machine records nothing.
+    #[tokio::test]
+    async fn a_link_to_an_organization_past_the_floors_is_refused_and_writes_nothing() {
+        use crate::organization::store::FORMAT_VERSION;
+
+        for (name, read, reason) in [
+            (
+                "unreadable",
+                FORMAT_VERSION + 1,
+                RefusalReason::OrganizationNewer,
+            ),
+            (
+                "read-only",
+                FORMAT_VERSION,
+                RefusalReason::OrganizationReadOnlyByVersion,
+            ),
+        ] {
+            let credentials = Memory::new();
+            let directory = scratch(&format!("floors-{name}"));
+            let (store, _, _, invitation, _, code) = invited(&credentials, &directory).await;
+
+            store
+                .record_floors(FORMAT_VERSION + 1, read, FORMAT_VERSION + 1)
+                .await;
+
+            let before = contents(&store).await;
+            let (machine, refused) = opened(
+                &credentials,
+                &scratch(&format!("floors-{name}-machine")),
+                &store,
+                &invitation,
+                &code,
+                CHOSEN,
+                ISSUED_AT + 3,
+            )
+            .await;
+
+            assert!(
+                matches!(&refused, Err(Error::Refused { reason: refused, .. }) if *refused == reason),
+                "{name}: {:?}",
+                refused.map(|session| session.member_id)
+            );
+            assert_eq!(
+                contents(&store).await,
+                before,
+                "{name}: the refusal wrote to the organization"
+            );
+            assert!(
+                machine.selected().is_none(),
+                "{name}: the machine recorded it"
+            );
+        }
     }
 }

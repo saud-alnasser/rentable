@@ -19,6 +19,7 @@ import * as startup from '../../startup/i18n/ar.js';
 import * as tenant from '../../tenant/i18n/ar.js';
 import * as transfer from '../../transfer/i18n/ar.js';
 import * as undo from '../../undo/i18n/ar.js';
+import * as update from '../../update/i18n/ar.js';
 import * as workspace from '../../workspace/i18n/ar.js';
 
 const ar = {
@@ -106,7 +107,6 @@ const ar = {
 		history: history.common.history,
 
 		labels: {
-			...settings.common.labels,
 			action: 'إجراء',
 			activeContracts: 'العقود السارية',
 			appVersion: 'إصدار التطبيق',
@@ -283,6 +283,8 @@ const ar = {
 	print: print.print,
 
 	settingsHooks: settings.settingsHooks,
+
+	update: update.update,
 
 	organization: organization.organization,
 

@@ -93,10 +93,20 @@ test('and a pull that landed rows announces them, while one that landed none doe
 
 	await startup.start();
 
-	await startup.applySyncOutcome({ action: 'none', received: false, workspaceId: 'north' });
+	await startup.applySyncOutcome({
+		action: 'none',
+		received: false,
+		workspaceId: 'north',
+		heldByVersion: []
+	});
 	assert.equal(journal.announced, 0, 'nothing arrived, so nothing to announce');
 
-	await startup.applySyncOutcome({ action: 'none', received: true, workspaceId: 'north' });
+	await startup.applySyncOutcome({
+		action: 'none',
+		received: true,
+		workspaceId: 'north',
+		heldByVersion: []
+	});
 	assert.equal(journal.announced, 1, 'rows arrived, and derived state has to be told');
 });
 
@@ -148,7 +158,12 @@ test('a member narrowed on another machine is refused on the next call after one
 
 	const invalidatedBefore = journal.organizationInvalidated;
 	const everythingBefore = journal.invalidatedAll;
-	await startup.applySyncOutcome({ action: 'none', received: false, workspaceId: 'north' });
+	await startup.applySyncOutcome({
+		action: 'none',
+		received: false,
+		workspaceId: 'north',
+		heldByVersion: []
+	});
 
 	const refusal = await api.rename().then(
 		() => null,
@@ -163,7 +178,12 @@ test('a member narrowed on another machine is refused on the next call after one
 	assert.equal(journal.organizationInvalidated, invalidatedBefore);
 
 	// a heartbeat that moves nothing reads the organization alone.
-	await startup.applySyncOutcome({ action: 'none', received: false, workspaceId: 'north' });
+	await startup.applySyncOutcome({
+		action: 'none',
+		received: false,
+		workspaceId: 'north',
+		heldByVersion: []
+	});
 
 	assert.equal(journal.invalidatedAll, everythingBefore + 1);
 	assert.equal(journal.organizationInvalidated, invalidatedBefore + 1);
@@ -171,7 +191,12 @@ test('a member narrowed on another machine is refused on the next call after one
 	// and the other way: widened again, the next heartbeat gives the act back.
 	shell = widened;
 	standWith(widened);
-	await startup.applySyncOutcome({ action: 'none', received: false, workspaceId: 'north' });
+	await startup.applySyncOutcome({
+		action: 'none',
+		received: false,
+		workspaceId: 'north',
+		heldByVersion: []
+	});
 
 	assert.equal(await api.rename(), 'renamed');
 });
@@ -199,7 +224,12 @@ test('and rows that land while a day-crossing reconcile is out are announced onc
 	now.value = AT + A_DAY;
 	holding = true;
 	const crossing = startup.reconcileOnDayCrossing();
-	await startup.applySyncOutcome({ action: 'none', received: true, workspaceId: 'north' });
+	await startup.applySyncOutcome({
+		action: 'none',
+		received: true,
+		workspaceId: 'north',
+		heldByVersion: []
+	});
 	assert.equal(journal.announced, 0, 'the pass is still out, so the rows wait');
 
 	release();
@@ -475,7 +505,12 @@ test('and a dispatch that reported for the workspace open before the switch is d
 	assert.equal(startup.snapshot.state, 'ready');
 
 	const before = { snapshot: startup.snapshot, journal: { ...journal } };
-	await startup.applySyncOutcome({ action: 'none', received: true, workspaceId: 'north' });
+	await startup.applySyncOutcome({
+		action: 'none',
+		received: true,
+		workspaceId: 'north',
+		heldByVersion: []
+	});
 
 	assert.equal(journal.announced, before.journal.announced, 'no rows were announced');
 	assert.equal(journal.remoteSyncInvalidated, before.journal.remoteSyncInvalidated);
@@ -483,7 +518,12 @@ test('and a dispatch that reported for the workspace open before the switch is d
 	assert.deepEqual(startup.snapshot, before.snapshot, 'and the reader saw nothing change');
 
 	// while one for the workspace that is open now is applied as every outcome is.
-	await startup.applySyncOutcome({ action: 'none', received: true, workspaceId: 'south' });
+	await startup.applySyncOutcome({
+		action: 'none',
+		received: true,
+		workspaceId: 'south',
+		heldByVersion: []
+	});
 
 	assert.equal(journal.announced, before.journal.announced + 1);
 });

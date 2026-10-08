@@ -50,6 +50,9 @@ use crate::{
         Database,
         bound::{Bound, SYNC_BOUND, bounded},
         corrupt,
+        floor::{Floors, Standing},
+        step::{Ladder, Steps},
+        unsendable,
     },
     error::Error,
     schema,
@@ -63,13 +66,15 @@ mod mark;
 mod member;
 mod ownership;
 mod role;
+mod scratch;
 mod session;
 mod setup;
 mod signature;
 mod workspace;
 
 pub use format::{
-    FORMAT_VERSION, FormatOneDirectory, FormatOneMemberRow, FormatOneReshape, waits_for_its_owner,
+    FORMAT_VERSION, FormatOneDirectory, FormatOneMemberRow, FormatOneReshape, read_only_by_version,
+    waits_for_its_owner,
 };
 pub use invitation::InvitationRecord;
 pub use lease::MigrationLeaseRecord;
@@ -77,7 +82,10 @@ pub use mark::MarkRecord;
 pub use member::{MemberLockRecord, MemberLocks, MemberRecord, locked_in};
 pub use ownership::SuccessionRecord;
 pub use role::RoleRecord;
-pub use session::{MACHINE_PRESENCE_WINDOW, MachineLinkRecord, MachineNameRecord, MachineRecord};
+pub use session::{
+    MACHINE_PRESENCE_WINDOW, MachineLinkRecord, MachineNameRecord, MachineRecord,
+    MachineVersionRecord,
+};
 pub use setup::{OrganizationNameRecord, OrganizationRecord};
 pub use signature::{SignedRow, Signer};
 pub(crate) use signature::{
@@ -86,7 +94,7 @@ pub(crate) use signature::{
 };
 pub use workspace::{GrantRecord, WorkspaceOverrideRecord, WorkspaceRecord, pins_of};
 
-/// The nineteen tables, in the order the schema creates them. A test pins this list against what
+/// The twenty-two tables, in the order the schema creates them. A test pins this list against what
 /// the database reports, so a table added anywhere is added here or fails there.
 ///
 /// **A table added after format 3 goes last, with no change of format** (effort 846): the two
@@ -94,8 +102,10 @@ pub use workspace::{GrantRecord, WorkspaceOverrideRecord, WorkspaceRecord, pins_
 /// [`OrganizationStore::complete_schema`] after a pull, and by the change to format 3 with
 /// `workspace_override`, so a walk arriving at this format builds what a fresh one is built with.
 /// `organization_name` came after them the same way (effort 851), and `member_lock` after it, and
-/// the next table goes after that.
-pub const TABLES: [&str; 19] = [
+/// `machine_version` after that (effort 857), an addition that moves no floor, then `workspace_floor`
+/// and `organization_floor` (effort 857, ticket 03), where a database's floors are recorded once a
+/// step declared after 857 has run on it; the next table goes after them.
+pub const TABLES: [&str; 22] = [
     "format",
     "organization",
     "role",
@@ -115,11 +125,14 @@ pub const TABLES: [&str; 19] = [
     "machine_name",
     "organization_name",
     "member_lock",
+    "machine_version",
+    "workspace_floor",
+    "organization_floor",
 ];
 
 /// How many of [`TABLES`] format 2 held: every one but `workspace_override`, which format 3 adds
-/// (`upgrade/format/overriding.rs`), and the tables effort 846 and effort 851 added after it, which
-/// the change to format 3 creates with it.
+/// (`upgrade/format/overriding.rs`), and the tables effort 846, effort 851 and effort 857 added
+/// after it, which the change to format 3 creates with it.
 const FORMAT_TWO_TABLES: usize = 14;
 
 /// The schema, as the plan's data model gives it.
@@ -131,7 +144,7 @@ const FORMAT_TWO_TABLES: usize = 14;
 ///
 /// `grant` is quoted everywhere because it is a keyword in most dialects, and a statement that
 /// works in SQLite and fails elsewhere is a statement worth spelling defensively once.
-const SCHEMA: [&str; 19] = [
+const SCHEMA: [&str; 22] = [
     format::FORMAT,
     setup::ORGANIZATION,
     role::ROLE,
@@ -151,6 +164,9 @@ const SCHEMA: [&str; 19] = [
     session::MACHINE_NAME,
     setup::ORGANIZATION_NAME,
     member::MEMBER_LOCK,
+    session::MACHINE_VERSION,
+    workspace::WORKSPACE_FLOOR,
+    format::ORGANIZATION_FLOOR,
 ];
 
 /// The organization replica on this machine.
@@ -168,6 +184,19 @@ pub struct OrganizationStore {
     clock: clock::Shared,
     /// how long a push or a pull of the replica may wait on the remote (`database/bound.rs`).
     bound: Bound,
+    /// where this build stood against the organization's floors when it last judged them
+    /// ([`OrganizationStore::refuse_another_format`], effort 857, ticket 04): writable until the
+    /// first verdict, which every way in reaches before it writes. What a way in and the heartbeat
+    /// ask before they write anything of their own.
+    standing: std::sync::Mutex<Standing>,
+    /// the changes of format this build declares (`database/step.rs`): which of them run on open,
+    /// and the format it knows. [`Ladder::Format`] in production, and a ladder of a test's own
+    /// under test.
+    format_steps: Steps,
+    /// a read of the verdict that fails once, for a test standing in for a read the engine could
+    /// not answer during a pull (effort 857, ticket 27).
+    #[cfg(test)]
+    a_read_fails: std::sync::atomic::AtomicBool,
 }
 
 impl std::fmt::Debug for OrganizationStore {
@@ -199,6 +228,13 @@ pub(crate) fn leave_no_replica(database_path: &Path, organization_id: &str) {
         database_path,
         organization_id,
     ));
+}
+
+/// What a push or a pull of a replica holding changes the organization refused since an upgrade
+/// answers, in the engine's terms, since neither is made (effort 857, ticket 20). A caller that
+/// tells refusals apart asks [`OrganizationStore::holds_unsendable`] rather than reading this.
+fn held() -> turso::Error {
+    turso::Error::Error(unsendable::organization_refusal().to_string())
 }
 
 impl OrganizationStore {
@@ -244,6 +280,10 @@ impl OrganizationStore {
             path: path.to_path_buf(),
             clock,
             bound: SYNC_BOUND,
+            standing: std::sync::Mutex::new(Standing::Writable),
+            format_steps: Ladder::Format.declared(),
+            #[cfg(test)]
+            a_read_fails: std::sync::atomic::AtomicBool::new(false),
         })
     }
 
@@ -253,6 +293,20 @@ impl OrganizationStore {
     pub(crate) fn with_bound(mut self, bound: Bound) -> Self {
         self.bound = bound;
         self
+    }
+
+    /// The same store judging and completing the organization by `steps`, a ladder of the test's
+    /// own: a change of format declared after effort 857, which no shipped step is yet.
+    #[cfg(test)]
+    pub(crate) fn declaring(mut self, steps: Steps) -> Self {
+        self.format_steps = steps;
+        self
+    }
+
+    /// The changes of format this store judges and completes the organization by: which run on
+    /// open, and the format this build knows.
+    pub(crate) fn format_steps(&self) -> Steps {
+        self.format_steps
     }
 
     /// The clock the replica was opened with.
@@ -293,21 +347,103 @@ impl OrganizationStore {
         install_format_three(&self.connection).await
     }
 
-    /// Send what this machine wrote. A failure is an answer, as `Database::push_replica` says:
-    /// what could not be sent stays captured and goes with the next push.
+    /// Send what this machine wrote. A failure is an answer, as `Database::push_replica` says: a
+    /// push that did not reach the remote leaves what it carried captured for the next one.
+    ///
+    /// **Except where the remote refused it because an upgrade removed what it names** (effort
+    /// 857, ticket 20): measured on the workspace's replica and true of this one, a second push
+    /// after that refusal drops the changes without a word. So the refusal is recorded beside the
+    /// replica and no push or pull is made of it again until the person discards the changes
+    /// ([`OrganizationStore::pushed`], `database/unsendable.rs`).
     pub async fn push(&self) -> bool {
         self.pushed().await.is_ok()
     }
 
-    /// The same push with the refusal kept, for the one caller that has to tell a push the remote
+    /// The same push with the refusal kept, for the callers that have to tell a push the remote
     /// refused on its merits from one that did not reach it: the owner's upgrade, where changes an
     /// earlier build captured under columns the remote has since dropped are refused for good
     /// (effort 838, ticket 25; [`OrganizationStore::format_one_reshape`] records the measurement).
+    ///
+    /// **A replica holding changes the organization refused since an upgrade is not pushed**, and
+    /// a push refused that way records it (effort 857, ticket 20): the answer is the refusal
+    /// either way, in the engine's own words the first time and in the hold's after.
     pub async fn pushed(&self) -> Result<(), turso::Error> {
-        self.connection
+        if self.holds_unsendable() {
+            return Err(held());
+        }
+
+        let pushed = self
+            .connection
             .watch()
             .note(bounded(self.bound, "push", self.database.push()).await)
-            .map(|_| ())
+            .map(|_| ());
+
+        if let Err(refusal) = &pushed {
+            self.hold_if_unsendable(refusal);
+        }
+
+        pushed
+    }
+
+    /// Whether this replica holds changes the organization refused because an upgrade removed or
+    /// renamed what they name, which nothing sends or brings over until the person discards them
+    /// (effort 857, ticket 20; `database/unsendable.rs`).
+    pub fn holds_unsendable(&self) -> bool {
+        unsendable::held(&self.path)
+    }
+
+    /// The refusal a person is told while this replica holds such changes, or `None` where it
+    /// holds none.
+    pub fn unsendable(&self) -> Option<Error> {
+        self.holds_unsendable()
+            .then(unsendable::organization_refusal)
+    }
+
+    /// Discard the changes the replica at `path` holds that the organization refused since an
+    /// upgrade, at the person's word (effort 857, ticket 20): the replica is removed with
+    /// everything beside it, its record of the refusal included, and the caller opens it again,
+    /// which makes a fresh copy of what the remote holds. The caller lets the store go first: on
+    /// Windows a file this process still has open cannot be deleted.
+    ///
+    /// **Refused while nothing is held**, so changes that could still be sent are never thrown
+    /// away by this. What else the replica held unsent goes with it, and that is what the person
+    /// is told before they say yes.
+    pub(crate) fn discard_unsendable(path: &Path) -> Result<(), Error> {
+        if !unsendable::held(path) {
+            return Err(Self::nothing_unsent());
+        }
+
+        Database::remove_replica_files(path);
+        unsendable::forget(path);
+
+        crate::diagnostics::warn("organization.unsendable.discarded")
+            .with("replica", path.display().to_string())
+            .write();
+
+        Ok(())
+    }
+
+    /// The refusal of a discard asked where nothing is held.
+    pub(crate) fn nothing_unsent() -> Error {
+        Error::refused(
+            crate::error::RefusalReason::NothingUnsent,
+            "this organization holds no changes it was refused, so nothing was discarded",
+        )
+    }
+
+    /// The replica's file, which is where the record of a refusal is kept beside.
+    pub(crate) fn path(&self) -> &Path {
+        &self.path
+    }
+
+    /// Record beside the replica that `refusal`, a push's or a pull's, is changes the organization
+    /// refuses since an upgrade, where it is.
+    fn hold_if_unsendable(&self, refusal: &turso::Error) {
+        let refusal = refusal.to_string();
+
+        if unsendable::names_what_the_upgrade_removed(&refusal) {
+            unsendable::hold(&self.path, &refusal);
+        }
     }
 
     /// Bring what the remote has, and say whether anything arrived.
@@ -322,11 +458,21 @@ impl OrganizationStore {
     /// exception: a remote answering that the database is not there any more is a fact about the
     /// organization rather than about this machine's connection, and it is the only way a machine
     /// learns the owner deleted it (effort 828, requirement 18).
+    ///
+    /// **A replica holding changes the organization refused since an upgrade is not pulled**
+    /// (effort 857, ticket 20), since a pull drops them; and a pull that fails laying captured
+    /// changes over a remote an upgrade reshaped, which is the first thing an updated build does
+    /// at its sign-in or resume, records that it did. The changes stay where they are either way.
     pub async fn pulled(&self) -> Result<bool, turso::Error> {
+        if self.holds_unsendable() {
+            return Err(held());
+        }
+
         let arrived = self
             .connection
             .watch()
-            .note(bounded(self.bound, "pull", self.database.pull()).await)?;
+            .note(bounded(self.bound, "pull", self.database.pull()).await)
+            .inspect_err(|refusal| self.hold_if_unsendable(refusal))?;
 
         // a replica made by an earlier build lacks the tables the schema gained since, and the
         // remote lacks them too, because the schema is issued once, on the machine that created
@@ -355,25 +501,29 @@ impl OrganizationStore {
     /// older organization, whose missing table is one of the things that tell it apart; one
     /// carrying a `format` row beside format 1's table or columns is older too (ticket 25), and a
     /// member's pull creates nothing in it.
+    ///
+    /// **This build's format means any format that only additions separate from it** (effort 857,
+    /// ticket 03): one at or past the last change shipped before 857, which still runs on open on
+    /// the owner's machine as it always did, and no newer than this build knows. A change declared
+    /// after 857 leaves the `format` row where it was, since the builds before 857 refuse any other
+    /// number; so an organization of format 3 opened by a build knowing a later addition is
+    /// completed here, by any member, and records in `organization_floor` the level the addition
+    /// took it to beside the floors it left where they were. A change declared an upgrade is
+    /// passed over: its tables, made empty here like any other, change nothing until the explicit
+    /// upgrade runs it (ticket 07).
     pub async fn complete_schema(&self) -> Result<bool, turso::Error> {
-        let format = self
-            .format()
-            .await
-            .map_err(|error| turso::Error::Error(error.to_string()))?;
+        let as_turso = |error: Error| turso::Error::Error(error.to_string());
+        let steps = self.format_steps;
+        let format = self.format().await.map_err(as_turso)?;
+        let completed = format.is_some_and(|format| {
+            format >= i64::from(steps.settled()) && format <= i64::from(steps.known())
+        });
 
-        if format != Some(FORMAT_VERSION)
-            || self
-                .carries_format_one()
-                .await
-                .map_err(|error| turso::Error::Error(error.to_string()))?
-        {
+        if !completed || self.carries_format_one().await.map_err(as_turso)? {
             return Ok(false);
         }
 
-        let present = self
-            .tables()
-            .await
-            .map_err(|error| turso::Error::Error(error.to_string()))?;
+        let present = self.tables().await.map_err(as_turso)?;
         let mut created = false;
 
         for (table, statement) in TABLES.iter().zip(SCHEMA.iter()) {
@@ -381,6 +531,17 @@ impl OrganizationStore {
                 self.connection.execute(statement, ()).await?;
                 created = true;
             }
+        }
+
+        // the floors as they stand, before the additions this build knows are counted in: a
+        // level they take it to is recorded once, with both floors where they were.
+        if let Some(before) = self.floors().await.map_err(as_turso)?
+            && let Some(level) = steps.on_open(before.level, &[]).into_iter().max()
+        {
+            self.record_organization_floor(Floors { level, ..before }, self.clock.now())
+                .await
+                .map_err(as_turso)?;
+            created = true;
         }
 
         Ok(created)
@@ -495,6 +656,12 @@ impl OrganizationStore {
     pub(crate) fn connection(&self) -> &turso::Connection {
         &self.connection
     }
+}
+
+/// The statements [`install`] runs, in order: what the organization's upgrade builds a fresh
+/// organization with on a plain SQLite, to check the primary against (effort 857, ticket 24).
+pub(crate) fn statements() -> &'static [&'static str] {
+    &SCHEMA
 }
 
 /// Create the nineteen tables on `connection` where they do not exist: what
@@ -848,6 +1015,113 @@ mod tests {
         });
     }
 
+    /// What the remote answers a push whose changes name a column an upgrade removed, as the live
+    /// run of ticket 13 read it off Turso. *`database/mod.rs` keeps the same answer; a fixture is
+    /// written out per module ([[rules/testing]]).*
+    const REMOVED_COLUMN: &str = r#"{"baton":null,"base_url":null,"results":[{"type":"error","error":{"message":"SQLite error: table member has no column named note","code":"SQLITE_UNKNOWN"}}]}"#;
+
+    /// **Effort 857, ticket 20, the classification and the hold.** A push of the organization
+    /// replica the remote refuses because an upgrade removed what the changes name is answered as
+    /// `ChangesUnsendableAfterUpgrade` and recorded beside the replica; from then on nothing pushes
+    /// or pulls that replica, in this session or the next, since a second push or a pull drops the
+    /// changes without a word (`database/unsendable.rs`). What it holds stays readable here.
+    #[test]
+    fn a_push_naming_what_an_upgrade_removed_holds_the_organization_replica() {
+        use crate::{
+            database::{bound::Bound, unsendable},
+            sync::test::server::{ScriptedResponse, ScriptedServer, within},
+        };
+        use std::time::Duration;
+
+        within(Duration::from_secs(60), async {
+            let remote = ScriptedServer::start(
+                (0..32)
+                    .map(|_| ScriptedResponse::new(200, REMOVED_COLUMN))
+                    .collect(),
+            )
+            .await;
+            let directory = scratch("organization-unsendable");
+            let path = directory.join("org-acme.db");
+            let opened = || async {
+                OrganizationStore::open(
+                    crate::clock::System::shared(),
+                    &path,
+                    Some(remote.url("")),
+                    || async { Ok::<String, turso::Error>("a-credential".to_string()) },
+                )
+                .await
+                .expect("the organization replica")
+                .with_bound(Bound {
+                    silence: Duration::from_secs(5),
+                    ceiling: Duration::from_secs(60),
+                })
+            };
+            let store = opened().await;
+
+            store.install_schema().await.expect("the schema, unsent");
+
+            assert!(
+                !store.holds_unsendable(),
+                "held before anything was refused"
+            );
+
+            let refused = store.pushed().await.expect_err("the push went");
+
+            assert!(
+                unsendable::names_what_the_upgrade_removed(&refused.to_string()),
+                "{refused}"
+            );
+            assert!(store.holds_unsendable(), "nothing records the refusal");
+            assert!(unsendable::marker(&path).exists());
+            assert!(matches!(
+                store.unsendable(),
+                Some(Error::Refused {
+                    reason: RefusalReason::ChangesUnsendableAfterUpgrade,
+                    ..
+                })
+            ));
+
+            // held: nothing reaches the remote again, whichever call asks.
+            let sent = remote.request_count();
+
+            assert!(!store.push().await);
+            assert!(!store.pull().await);
+            assert!(store.pulled().await.is_err());
+            assert!(store.pushed().await.is_err());
+            assert_eq!(
+                remote.request_count(),
+                sent,
+                "a held replica reached the remote"
+            );
+            assert!(
+                !(0..sent).any(|index| remote.request(index).target == "/pull-updates"),
+                "the refused push was followed by a pull"
+            );
+
+            // and the next launch holds it the same way, with what it held still here.
+            drop(store);
+            let store = opened().await;
+
+            assert!(store.holds_unsendable(), "a reopen forgot");
+            assert!(!store.push().await);
+            assert!(!store.pull().await);
+            assert_eq!(
+                remote.request_count(),
+                sent,
+                "a reopened replica reached the remote"
+            );
+            assert_eq!(
+                store.tables().await.expect("the tables").len(),
+                TABLES.len(),
+                "what the replica held is gone"
+            );
+
+            drop(store);
+            drop(remote);
+            let _ = std::fs::remove_dir_all(&directory);
+        });
+    }
+
     /// The organization every populated test starts from: one owner, one member, two workspaces,
     /// and a grant on each. **Two workspaces of one organization**, which is criterion 1 and the
     /// thing `workspace.ownerAccountId` being `.unique()` prevented.
@@ -967,7 +1241,8 @@ mod tests {
     /// before this one made it, `workspace_override` and all, gains both and says so, and the
     /// `machine` table they sit beside keeps its four columns. **Effort 851's signed organization
     /// name and the members' locks came after them the same way**, and reach the same replica with
-    /// them.
+    /// them, and so does what each machine runs (effort 857), which is an addition on this ladder,
+    /// and the two tables floors are recorded in (effort 857, ticket 03).
     #[tokio::test]
     async fn a_format_three_replica_without_the_machine_tables_gains_both() {
         let directory = scratch("schema-machine-tables");
@@ -980,19 +1255,22 @@ mod tests {
         .await
         .expect("the store");
 
-        assert_eq!(TABLES.len(), 19);
+        assert_eq!(TABLES.len(), 22);
         assert_eq!(
-            &TABLES[TABLES.len() - 5..],
+            &TABLES[TABLES.len() - 8..],
             &[
                 "workspace_override",
                 "machine_sign_out",
                 "machine_name",
                 "organization_name",
-                "member_lock"
+                "member_lock",
+                "machine_version",
+                "workspace_floor",
+                "organization_floor"
             ]
         );
 
-        for statement in &super::SCHEMA[..super::SCHEMA.len() - 4] {
+        for statement in &super::SCHEMA[..super::SCHEMA.len() - 7] {
             store
                 .connection
                 .execute(statement, ())
@@ -1017,6 +1295,9 @@ mod tests {
             "machine_name",
             "organization_name",
             "member_lock",
+            "machine_version",
+            "workspace_floor",
+            "organization_floor",
         ] {
             assert!(tables.iter().any(|t| t == table), "{table} was not created");
         }
@@ -1035,6 +1316,19 @@ mod tests {
         assert_eq!(
             store.columns_of("machine_name").await.expect("the columns"),
             vec!["id", "name", "named_at"]
+        );
+        assert_eq!(
+            store
+                .columns_of("machine_version")
+                .await
+                .expect("the columns"),
+            vec![
+                "id",
+                "rentable",
+                "workspace_known",
+                "format_known",
+                "written_at"
+            ]
         );
         assert_eq!(
             store
@@ -3369,5 +3663,245 @@ mod tests {
             vec!["organization/setup/connect.rs".to_string()],
             "the unverified member read is meant to have exactly one caller"
         );
+    }
+
+    // -------------------------------------------------------------------------------------
+    // Effort 857, ticket 20, live: what an older build left unsent in the organization replica,
+    // met after an upgrade removed what it names.
+    // -------------------------------------------------------------------------------------
+
+    /// One case on a throwaway database of its own, in the group `TURSO_GROUP` names: `case` runs
+    /// against it, the database is deleted whatever the case did, and only then does a failure in
+    /// the case fail the test, so a failed assertion never leaves a database behind. *The
+    /// workspace's live tests keep the same shape in `database/mod.rs`.*
+    async fn on_a_throwaway_organization<F, Fut>(label: &str, case: F)
+    where
+        F: FnOnce(std::sync::Arc<crate::database::test::workspace::LiveWorkspace>, PathBuf) -> Fut,
+        Fut: std::future::Future<Output = ()> + Send + 'static,
+    {
+        use crate::database::test::workspace::LiveWorkspace;
+        use std::sync::Arc;
+
+        assert_eq!(
+            std::env::var("RENTABLE_LIVE_TURSO")
+                .unwrap_or_else(|_| panic!(
+                    "RENTABLE_LIVE_TURSO is needed for a live run; see organization_unsent_live_*"
+                ))
+                .trim(),
+            "1",
+            "a live run is armed by RENTABLE_LIVE_TURSO=1 as well as by --ignored"
+        );
+        assert_eq!(
+            std::env::var("TURSO_GROUP").unwrap_or_default().trim(),
+            "rentable",
+            "these runs are allowed in the group rentable alone"
+        );
+
+        let organization = Arc::new(LiveWorkspace::create(label).await);
+        let directory = scratch(label);
+        let ran = tokio::spawn(case(Arc::clone(&organization), directory.clone())).await;
+
+        let _ = std::fs::remove_dir_all(&directory);
+
+        match Arc::try_unwrap(organization) {
+            Ok(organization) => organization.destroy().await,
+            Err(_) => panic!("the case kept the database, so it could not be deleted"),
+        }
+
+        if let Err(failure) = ran {
+            std::panic::resume_unwind(failure.into_panic());
+        }
+    }
+
+    /// This machine's organization replica in `directory`, opened against `remote` as a launch
+    /// opens it: the same file each time, so a second call is the build after an update.
+    async fn live_replica(
+        directory: &std::path::Path,
+        remote: &crate::database::test::workspace::LiveWorkspace,
+    ) -> OrganizationStore {
+        let token = remote.token.clone();
+
+        OrganizationStore::open(
+            crate::clock::System::shared(),
+            &directory.join("org-live.db"),
+            Some(remote.url.clone()),
+            move || {
+                let token = token.clone();
+                async move { Ok::<String, turso::Error>(token) }
+            },
+        )
+        .await
+        .expect("the organization replica")
+    }
+
+    /// Every row of `kept` on this machine's replica, each as its cells in order.
+    async fn kept_here(store: &OrganizationStore) -> Vec<Vec<String>> {
+        let mut rows = store
+            .connection()
+            .query("SELECT * FROM \"kept\" ORDER BY \"id\"", ())
+            .await
+            .expect("the local read");
+        let mut read = Vec::new();
+
+        while let Some(row) = rows.next().await.expect("a row") {
+            read.push(
+                (0..row.column_count())
+                    .map(|index| format!("{:?}", row.get_value(index).expect("a cell")))
+                    .collect(),
+            );
+        }
+
+        read
+    }
+
+    /// The organization as an older build left it: the schema and a table of the test's own
+    /// pushed, then a row of it captured on this machine and never sent. `upgrade` then reaches
+    /// the remote over the pipeline, as an upgrade's step does, and the replica is opened again,
+    /// which is the build after the update.
+    async fn captured_before(
+        remote: &crate::database::test::workspace::LiveWorkspace,
+        directory: &std::path::Path,
+        upgrade: &str,
+    ) -> OrganizationStore {
+        let older = live_replica(directory, remote).await;
+
+        older.install_schema().await.expect("the schema");
+        older
+            .connection()
+            .execute(
+                "CREATE TABLE \"kept\" (\"id\" TEXT PRIMARY KEY, \"note\" TEXT)",
+                (),
+            )
+            .await
+            .expect("the table");
+        assert!(older.push().await, "the older build's first push");
+        older
+            .connection()
+            .execute("INSERT INTO \"kept\" VALUES ('k1', 'held')", ())
+            .await
+            .expect("the older build's write");
+        drop(older);
+
+        remote.over_the_wire(&[upgrade]).await;
+
+        live_replica(directory, remote).await
+    }
+
+    /// **Ticket 20's live criterion.** An organization change an older build held when an upgrade
+    /// dropped the column it names is classified at the updated build's first push, or at its
+    /// first pull, which is what a sign-in or a resume makes first; it is held from every push
+    /// and pull after, across a reopen, never reaches the remote, and stays on this machine. Once
+    /// discarded, the next open is the remote's copy and this machine writes and sends again.
+    ///
+    /// ```text
+    /// RENTABLE_LIVE_TURSO=1 TURSO_API_TOKEN=... TURSO_ORG=... TURSO_GROUP=rentable \
+    ///   cargo test --manifest-path ./apps/desktop/tauri/Cargo.toml organization_unsent_live -- \
+    ///   --test-threads=1 --ignored --nocapture
+    /// ```
+    #[ignore = "reaches a live Turso account and creates a database; see the doc comment"]
+    #[tokio::test]
+    async fn organization_unsent_live_changes_are_held_and_discarded_only_when_asked() {
+        for (label, pull_first) in [("o857-pushed", false), ("o857-pulled", true)] {
+            on_a_throwaway_organization(label, move |remote, directory| async move {
+                let held_row = vec!["Text(\"k1\")".to_string(), "Text(\"held\")".to_string()];
+                let store = captured_before(
+                    &remote,
+                    &directory,
+                    "ALTER TABLE \"kept\" DROP COLUMN \"note\"",
+                )
+                .await;
+                let path = store.path().to_path_buf();
+                let remote_before = remote.over_the_wire(&["SELECT * FROM \"kept\""]).await;
+
+                let refusal = if pull_first {
+                    store.pulled().await.map(|_| ()).expect_err("the pull went")
+                } else {
+                    store.pushed().await.expect_err("the push went")
+                };
+
+                eprintln!("{label}: the first refusal: {refusal}");
+
+                assert!(
+                    crate::database::unsendable::names_what_the_upgrade_removed(
+                        &refusal.to_string()
+                    ),
+                    "{label}: {refusal}"
+                );
+                assert!(store.holds_unsendable(), "{label}: nothing records it");
+                assert!(matches!(
+                    store.unsendable(),
+                    Some(Error::Refused {
+                        reason: RefusalReason::ChangesUnsendableAfterUpgrade,
+                        ..
+                    })
+                ));
+
+                // held: every way the replica could reach the remote again declines.
+                assert!(!store.push().await);
+                assert!(!store.pull().await);
+                eprintln!(
+                    "{label}: a read of the held replica in the same session: {:?}",
+                    store.tables().await.map(|tables| tables.len())
+                );
+                drop(store);
+
+                let store = live_replica(&directory, &remote).await;
+
+                assert!(store.holds_unsendable(), "{label}: a reopen forgot");
+                assert!(!store.push().await);
+                assert!(!store.pull().await);
+                assert!(
+                    kept_here(&store).await.contains(&held_row),
+                    "{label}: the held row is gone from this machine"
+                );
+                assert_eq!(
+                    remote.over_the_wire(&["SELECT * FROM \"kept\""]).await,
+                    remote_before,
+                    "{label}: the remote changed"
+                );
+
+                // asked: discarded at the person's word, and the next open is the remote's copy.
+                drop(store);
+                OrganizationStore::discard_unsendable(&path).expect("the held changes discarded");
+                assert!(
+                    matches!(
+                        OrganizationStore::discard_unsendable(&path),
+                        Err(Error::Refused {
+                            reason: RefusalReason::NothingUnsent,
+                            ..
+                        })
+                    ),
+                    "{label}: a second discard went ahead with nothing held"
+                );
+
+                let store = live_replica(&directory, &remote).await;
+
+                assert!(!store.holds_unsendable());
+                assert!(store.pulled().await.is_ok(), "{label}: the fresh pull");
+                assert!(
+                    !kept_here(&store).await.contains(&held_row),
+                    "{label}: the discarded row is still here"
+                );
+
+                store
+                    .connection()
+                    .execute("INSERT INTO \"kept\" (\"id\") VALUES ('k2')", ())
+                    .await
+                    .expect("a write after the discard");
+
+                assert!(store.push().await, "{label}: the push after the discard");
+                assert_eq!(
+                    remote
+                        .over_the_wire(&["SELECT * FROM \"kept\""])
+                        .await
+                        .len(),
+                    1,
+                    "{label}: the write after the discard did not arrive"
+                );
+
+                drop(store);
+            })
+            .await;
+        }
     }
 }

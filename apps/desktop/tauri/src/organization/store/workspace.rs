@@ -2,6 +2,7 @@
 //! given each, and what is pinned for a member in one.
 
 use crate::{
+    database::floor::{self, Floors},
     error::Error,
     organization::authority::{Chain, VERIFYING_KEY_BYTES, sign},
 };
@@ -48,6 +49,18 @@ pub(super) const WORKSPACE_OVERRIDE: &str = "CREATE TABLE IF NOT EXISTS \"worksp
         \"certificate_id\" TEXT NOT NULL, \
         \"signature\" BLOB NOT NULL, \
         PRIMARY KEY (\"member_id\", \"workspace_id\"))";
+
+/// one row a workspace, its floors as its own database records them, once a step declared after
+/// effort 857 has run on it (ticket 03): what is read before the workspace is opened, beside the
+/// `schema_version` its row carries, which builds before 857 read and an addition never moves.
+/// Unsigned, as that version is, and written by whichever member ran the step. An addition,
+/// created by [`OrganizationStore::complete_schema`].
+pub(super) const WORKSPACE_FLOOR: &str = "CREATE TABLE IF NOT EXISTS \"workspace_floor\" (\
+        \"workspace_id\" TEXT PRIMARY KEY NOT NULL, \
+        \"level\" INTEGER NOT NULL, \
+        \"read\" INTEGER NOT NULL, \
+        \"write\" INTEGER NOT NULL, \
+        \"written_at\" INTEGER NOT NULL)";
 
 /// A `workspace` row. Only the database identity is under signature; the name and the schema
 /// version are not, as the plan says.
@@ -523,6 +536,72 @@ impl OrganizationStore {
                     turso::Value::Blob(name_sealed.to_vec()),
                     turso::Value::Integer(now),
                     turso::Value::Text(workspace_id.to_string()),
+                ],
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// The floors the organization records for a workspace, once a step declared after effort 857
+    /// has run on it (ticket 03): `None` before, where its `schema_version` is the record.
+    ///
+    /// Read against the tables the database reports, so a replica the table has not reached yet
+    /// answers `None`, and writes nothing.
+    pub async fn workspace_floor(&self, workspace_id: &str) -> Result<Option<Floors>, Error> {
+        if !self
+            .tables()
+            .await?
+            .iter()
+            .any(|table| table == "workspace_floor")
+        {
+            return Ok(None);
+        }
+
+        let mut rows = self
+            .connection
+            .query(
+                "SELECT \"level\", \"read\", \"write\" FROM \"workspace_floor\" \
+                 WHERE \"workspace_id\" = ? LIMIT 1",
+                vec![turso::Value::Text(workspace_id.to_string())],
+            )
+            .await?;
+
+        match rows.next().await? {
+            Some(row) => Ok(Some(Floors {
+                level: floor::number(integer(&row, 0)?)?,
+                read: floor::number(integer(&row, 1)?)?,
+                write: floor::number(integer(&row, 2)?)?,
+            })),
+            None => Ok(None),
+        }
+    }
+
+    /// Record a workspace's floors as its own database now holds them (ticket 03): what the
+    /// organization reads before the workspace is opened, beside its `schema_version`. The table
+    /// is made where this replica lacks it, as `complete_schema` makes it. Unsigned, as the
+    /// version is, since whichever member ran the step says so.
+    pub async fn record_workspace_floor(
+        &self,
+        workspace_id: &str,
+        floors: Floors,
+        now: i64,
+    ) -> Result<(), Error> {
+        self.connection.execute(WORKSPACE_FLOOR, ()).await?;
+        self.connection
+            .execute(
+                "INSERT INTO \"workspace_floor\" \
+                 (\"workspace_id\", \"level\", \"read\", \"write\", \"written_at\") \
+                 VALUES (?, ?, ?, ?, ?) \
+                 ON CONFLICT(\"workspace_id\") DO UPDATE SET \"level\" = excluded.\"level\", \
+                 \"read\" = excluded.\"read\", \"write\" = excluded.\"write\", \
+                 \"written_at\" = excluded.\"written_at\"",
+                vec![
+                    turso::Value::Text(workspace_id.to_string()),
+                    turso::Value::Integer(i64::from(floors.level)),
+                    turso::Value::Integer(i64::from(floors.read)),
+                    turso::Value::Integer(i64::from(floors.write)),
+                    turso::Value::Integer(now),
                 ],
             )
             .await?;

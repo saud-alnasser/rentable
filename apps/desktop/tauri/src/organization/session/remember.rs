@@ -9,11 +9,12 @@ use crate::{
 
 use super::{
     CredentialSlot, MEMBER_KEY_SERVICE, MemberSession, content_key_of, machine::signed_out_here,
-    open_session, signin::owner_row_repaired, verifying_key_of,
+    open_session, verifying_key_of,
 };
 use crate::organization::{
     HeldOrganization,
     member::vault::{MemberKey, open_sealed_secret_key},
+    ownership::is_the_owners,
     store::OrganizationStore,
 };
 
@@ -178,16 +179,16 @@ async fn resumed(
 
     // as `sign_in` reads it: a removal is a signed row rather than an absence, and the vault
     // would still open onto grants that grant nothing, unless it is the owner's own vault meeting
-    // a removal written from below, which their machine repairs (`owner_row_repaired`).
+    // a removal written from below, which their machine repairs once the launch has pulled and
+    // judged the organization's floors, and never before (`repaired_after_the_pull`, effort 857,
+    // ticket 04).
     let secret = match open_sealed_secret_key(&member_key, &member.vault) {
         Ok(secret) => secret,
         Err(_) if member.removed_at.is_some() => return Err(removed()),
         Err(refusal) => return Err(refusal),
     };
-    let repaired = owner_row_repaired(store, &verifying_key, member, &secret, Some(held)).await;
-    let member = repaired.as_ref().unwrap_or(member);
 
-    if member.removed_at.is_some() {
+    if member.removed_at.is_some() && !is_the_owners(&secret, &verifying_key) {
         return Err(removed());
     }
 

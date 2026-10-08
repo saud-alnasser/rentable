@@ -1,0 +1,482 @@
+//! the floors of one database, and where this build stands against them (effort 857, requirements
+//! 2 and 13).
+//!
+//! **Three numbers, in the numbering of the steps** (`database/step.rs`). `level` is the step the
+//! data has taken, additions included; `read` is the step a build must know to read it, and `write`
+//! the step a build must know to write it. [`Floors::standing`] judges a build that knows step
+//! `known` against them: [`Standing::Unreadable`] below the read floor, [`Standing::ReadOnly`] at
+//! or above it and below the write floor, and [`Standing::Writable`] at or above both, whatever the
+//! level, since a step that moved no floor stops nobody.
+//!
+//! **Data from before this effort has no floor record, and reads as floors equal to its version**
+//! (requirement 13): a workspace at `schema_version` 7 reads `{ level: 7, read: 7, write: 7 }`, and
+//! an organization of format 3 reads `{ level: 3, read: 3, write: 3 }`, which is exactly what every
+//! build released before it enforced. Nothing is written to make that true, so no workspace or
+//! organization is touched to carry it: [`workspace`] and the organization's own read
+//! (`OrganizationStore::floors`) read, and never create a table or a row.
+//!
+//! **Where the record is**: the workspace's own `data_floor` row, beside its `schema_version` row,
+//! and the organization's `organization_floor` row. Both are first written by the first step
+//! declared after effort 857 to reach the database, holding the floors read before it (ticket 03),
+//! and then by the explicit upgrade, inside its transaction; until a step declared after 857 has
+//! run, neither holds a row and the version is the record.
+//!
+//! **Here, under the database, because every database has floors and both sides read the verdict**
+//! (effort 857, ticket 04): the workspace engine holds its workspace's [`Standing`] and the
+//! organization's store holds its own, and the organization, which judges both at every way in,
+//! sits above this module. *It was `upgrade/floor.rs` until ticket 04, where nothing but the
+//! composition root may name it (`guard/cycle.rs`).*
+
+use serde::{Deserialize, Serialize};
+
+use crate::error::Error;
+
+/// The one-row table a workspace keeps its floors in, beside `schema_version`.
+pub const WORKSPACE_FLOOR_TABLE: &str = "data_floor";
+
+/// The workspace's own version: one row, or none before the table was first written.
+const WORKSPACE_VERSION_TABLE: &str = "schema_version";
+
+/// The floors of one database, in the numbering of its steps.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Floors {
+    /// the step the data has taken, additions included.
+    pub level: u32,
+    /// the step a build must know to read it.
+    pub read: u32,
+    /// the step a build must know to write it.
+    pub write: u32,
+}
+
+/// What a build may do with a database, judged against its floors. It crosses to the shell as
+/// `writable`, `readOnly` or `unreadable`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Standing {
+    /// at or above both floors: it reads and writes.
+    Writable,
+    /// at or above the read floor and below the write floor: it reads, and writes nothing.
+    ReadOnly,
+    /// below the read floor: it reads nothing.
+    Unreadable,
+}
+
+impl Standing {
+    /// The lesser of two verdicts on one database, judged from two records of it: what may be done
+    /// is what both allow.
+    pub fn least(self, other: Standing) -> Standing {
+        match (self, other) {
+            (Standing::Unreadable, _) | (_, Standing::Unreadable) => Standing::Unreadable,
+            (Standing::ReadOnly, _) | (_, Standing::ReadOnly) => Standing::ReadOnly,
+            _ => Standing::Writable,
+        }
+    }
+}
+
+impl Floors {
+    /// The floors of data from before this effort, which has no floor record: every one at its
+    /// version, since every build released before it refused any version above its own.
+    pub fn legacy(version: u32) -> Self {
+        Self {
+            level: version,
+            read: version,
+            write: version,
+        }
+    }
+
+    /// Where a build knowing step `known` stands against these floors.
+    pub fn standing(&self, known: u32) -> Standing {
+        if known < self.read {
+            Standing::Unreadable
+        } else if known < self.write {
+            Standing::ReadOnly
+        } else {
+            Standing::Writable
+        }
+    }
+}
+
+/// The floors of a workspace, read from its own database: its `data_floor` row where an upgrade
+/// wrote one, and otherwise its `schema_version` row, as [`Floors::legacy`] reads it. `None` where
+/// it has neither, which is a workspace whose version only the organization's record holds.
+///
+/// Reads and writes nothing: a table that is not there is looked for, never made.
+pub async fn workspace(connection: &turso::Connection) -> Result<Option<Floors>, Error> {
+    let tables = tables(connection).await?;
+
+    if tables.iter().any(|table| table == WORKSPACE_FLOOR_TABLE) {
+        if let Some(floors) = recorded(
+            connection,
+            &format!(
+                "SELECT \"level\", \"read\", \"write\" FROM \"{WORKSPACE_FLOOR_TABLE}\" \
+                 WHERE \"id\" = 1"
+            ),
+        )
+        .await?
+        {
+            return Ok(Some(floors));
+        }
+    }
+
+    if !tables.iter().any(|table| table == WORKSPACE_VERSION_TABLE) {
+        return Ok(None);
+    }
+
+    let mut rows = connection
+        .query(
+            &format!("SELECT \"version\" FROM \"{WORKSPACE_VERSION_TABLE}\" WHERE \"id\" = 1"),
+            (),
+        )
+        .await?;
+
+    match rows.next().await? {
+        Some(row) => Ok(Some(Floors::legacy(step(&row, 0)?))),
+        None => Ok(None),
+    }
+}
+
+/// The reason a verdict gives where the workspace's floors could not be read (effort 857, ticket
+/// 31): the refusal's own word, [`RefusalReason::WorkspaceFloorsUnreadable`] as it crosses, so the
+/// verdict's reason is what tells a save, and the interface reading `heldByVersion`, that the hold
+/// is not a newer version's. Why they could not be read is in the diagnostics.
+///
+/// [`RefusalReason::WorkspaceFloorsUnreadable`]: crate::error::RefusalReason::WorkspaceFloorsUnreadable
+pub(crate) const FLOORS_UNREADABLE: &str = "workspaceFloorsUnreadable";
+
+/// What the engine's refusal of a write says on a connection that may not write, measured on the
+/// engine as built (ticket 05): `Parse error: Cannot execute write statement in query_only mode`,
+/// and the same words after `VACUUM`. A change of wording fails
+/// `the_engine_refuses_every_write_under_query_only_and_reads_on`, which says so.
+const QUERY_ONLY_REFUSAL: &str = "in query_only mode";
+
+/// Hold `connection` to what `standing` allows (effort 857, requirement 6): `PRAGMA query_only` on
+/// for a build that may not write, and off for one that may.
+///
+/// **The engine is what refuses, measured rather than assumed** (ticket 05): with the pragma on,
+/// every insert, update, delete, `CREATE` and `DROP` is refused before it runs, a read answers as
+/// before, and turning it off lets a write through on the same connection. It is the connection's
+/// own setting, so the sync engine's connections, which apply what a pull brings, are untouched by
+/// it. Set on every use rather than once, since a connection is handed back and taken again, and
+/// the standing can move between the two.
+pub(crate) async fn hold_writes(
+    connection: &turso::Connection,
+    standing: Standing,
+) -> Result<(), Error> {
+    let pragma = match standing {
+        Standing::Writable => "PRAGMA query_only = 0",
+        Standing::ReadOnly | Standing::Unreadable => "PRAGMA query_only = 1",
+    };
+
+    connection.execute(pragma, ()).await?;
+
+    Ok(())
+}
+
+/// Whether `error` is the engine refusing a write on a connection [`hold_writes`] holds to a
+/// standing that may not write.
+pub(crate) fn refused_a_write(error: &Error) -> bool {
+    matches!(error, Error::Database { message } if message.contains(QUERY_ONLY_REFUSAL))
+}
+
+/// The tables a database holds, read from it.
+async fn tables(connection: &turso::Connection) -> Result<Vec<String>, Error> {
+    let mut rows = connection
+        .query("SELECT name FROM sqlite_master WHERE type = 'table'", ())
+        .await?;
+    let mut names = Vec::new();
+
+    while let Some(row) = rows.next().await? {
+        if let turso::Value::Text(name) = row.get_value(0)? {
+            names.push(name);
+        }
+    }
+
+    Ok(names)
+}
+
+/// The floors one row records, read by `query`, where it holds one.
+async fn recorded(connection: &turso::Connection, query: &str) -> Result<Option<Floors>, Error> {
+    let mut rows = connection.query(query, ()).await?;
+
+    match rows.next().await? {
+        Some(row) => Ok(Some(Floors {
+            level: step(&row, 0)?,
+            read: step(&row, 1)?,
+            write: step(&row, 2)?,
+        })),
+        None => Ok(None),
+    }
+}
+
+/// The step number in column `index` of `row`.
+fn step(row: &turso::Row, index: usize) -> Result<u32, Error> {
+    match row.get_value(index)? {
+        turso::Value::Integer(value) => number(value),
+        other => Err(Error::Integrity {
+            message: format!("a floor or a version held {other:?} where a step number belongs"),
+        }),
+    }
+}
+
+/// A stored version or floor as a step number, which is never negative.
+pub(crate) fn number(value: i64) -> Result<u32, Error> {
+    u32::try_from(value).map_err(|_| Error::Integrity {
+        message: format!("a floor or a version of {value}, which is no step number"),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Floors, Standing, workspace};
+
+    /// **Ticket 01's fourth criterion.** Below, at and above each floor, for floors apart and
+    /// together.
+    #[test]
+    fn a_build_is_judged_below_at_and_above_each_floor() {
+        let apart = Floors {
+            level: 9,
+            read: 5,
+            write: 8,
+        };
+        let together = Floors::legacy(7);
+        let cases = [
+            // (floors, the build knows, it stands)
+            (apart, 4, Standing::Unreadable),
+            (apart, 5, Standing::ReadOnly),
+            (apart, 6, Standing::ReadOnly),
+            (apart, 7, Standing::ReadOnly),
+            (apart, 8, Standing::Writable),
+            (apart, 9, Standing::Writable),
+            (apart, 10, Standing::Writable),
+            (together, 6, Standing::Unreadable),
+            (together, 7, Standing::Writable),
+            (together, 8, Standing::Writable),
+            (Floors::legacy(0), 0, Standing::Writable),
+        ];
+
+        for (floors, known, expected) in cases {
+            assert_eq!(
+                floors.standing(known),
+                expected,
+                "a build knowing {known} against {floors:?}"
+            );
+        }
+    }
+
+    /// A level above what the build knows stops nobody by itself: what it took past the floors
+    /// were additions.
+    #[test]
+    fn a_level_past_the_build_with_floors_it_meets_is_writable() {
+        let floors = Floors {
+            level: 12,
+            read: 7,
+            write: 7,
+        };
+
+        assert_eq!(floors.standing(7), Standing::Writable);
+    }
+
+    #[test]
+    fn data_with_no_record_has_every_floor_at_its_version() {
+        assert_eq!(
+            Floors::legacy(7),
+            Floors {
+                level: 7,
+                read: 7,
+                write: 7
+            }
+        );
+        assert_eq!(
+            Floors::legacy(3),
+            Floors {
+                level: 3,
+                read: 3,
+                write: 3
+            }
+        );
+    }
+
+    /// Every table, and every row of each, as the database holds them: what "writes nothing" is
+    /// held to.
+    async fn everything(connection: &turso::Connection) -> Vec<(String, Vec<String>)> {
+        let mut tables = Vec::new();
+        let mut rows = connection
+            .query(
+                "SELECT name, sql FROM sqlite_master WHERE type = 'table' ORDER BY name",
+                (),
+            )
+            .await
+            .expect("the tables");
+
+        while let Some(row) = rows.next().await.expect("a table") {
+            let name = match row.get_value(0).expect("a name") {
+                turso::Value::Text(name) => name,
+                other => panic!("a table named {other:?}"),
+            };
+
+            tables.push(name);
+        }
+
+        let mut everything = Vec::new();
+
+        for table in tables {
+            let mut rows = connection
+                .query(&format!("SELECT * FROM \"{table}\""), ())
+                .await
+                .expect("the rows");
+            let mut held = Vec::new();
+
+            while let Some(row) = rows.next().await.expect("a row") {
+                held.push(format!(
+                    "{:?}",
+                    (0..row.column_count())
+                        .map(|index| row.get_value(index).expect("a value"))
+                        .collect::<Vec<_>>()
+                ));
+            }
+
+            everything.push((table, held));
+        }
+
+        everything
+    }
+
+    async fn memory() -> turso::Connection {
+        turso::Builder::new_local(":memory:")
+            .build()
+            .await
+            .expect("an in-memory database")
+            .connect()
+            .expect("a connection")
+    }
+
+    /// **Ticket 01's fifth criterion, on a workspace.** A workspace at `schema_version` 7 with no
+    /// floor record reads every floor at 7, and nothing in it changes.
+    #[tokio::test]
+    async fn a_workspace_with_no_floor_record_reads_its_version_and_writes_nothing() {
+        let connection = memory().await;
+
+        connection
+            .execute(
+                "CREATE TABLE \"schema_version\" (\"id\" INTEGER PRIMARY KEY CHECK (\"id\" = 1), \
+                 \"version\" INTEGER NOT NULL)",
+                (),
+            )
+            .await
+            .expect("the version table");
+        connection
+            .execute(
+                "INSERT INTO \"schema_version\" (\"id\", \"version\") VALUES (1, 7)",
+                (),
+            )
+            .await
+            .expect("the version row");
+        connection
+            .execute("CREATE TABLE \"payment\" (\"id\" TEXT PRIMARY KEY)", ())
+            .await
+            .expect("a table");
+
+        let before = everything(&connection).await;
+        let floors = workspace(&connection).await.expect("the floors");
+
+        assert_eq!(floors, Some(Floors::legacy(7)));
+        assert_eq!(everything(&connection).await, before);
+    }
+
+    /// A workspace whose version table was never written has no floors of its own to read.
+    #[tokio::test]
+    async fn a_workspace_with_no_version_row_has_no_floors_of_its_own() {
+        let connection = memory().await;
+        let before = everything(&connection).await;
+
+        assert_eq!(workspace(&connection).await.expect("the floors"), None);
+        assert_eq!(everything(&connection).await, before);
+    }
+
+    /// **Ticket 05's measurement, kept.** Under `PRAGMA query_only` the engine refuses every kind
+    /// of write before it runs and serves a read, and turning the pragma off lets a write through
+    /// on the same connection. The refusal is read by its words ([`super::refused_a_write`]), so
+    /// an engine that rewords it fails here rather than letting a write's refusal pass as some
+    /// other failure.
+    #[tokio::test]
+    async fn the_engine_refuses_every_write_under_query_only_and_reads_on() {
+        use super::{hold_writes, refused_a_write};
+        use crate::error::Error;
+
+        let connection = memory().await;
+
+        for statement in [
+            "CREATE TABLE \"t\" (\"id\" TEXT PRIMARY KEY)",
+            "INSERT INTO \"t\" VALUES ('a')",
+        ] {
+            connection.execute(statement, ()).await.expect(statement);
+        }
+
+        let before = everything(&connection).await;
+
+        hold_writes(&connection, Standing::ReadOnly)
+            .await
+            .expect("the pragma");
+
+        for statement in [
+            "INSERT INTO \"t\" VALUES ('b')",
+            "UPDATE \"t\" SET \"id\" = 'c' WHERE \"id\" = 'a'",
+            "DELETE FROM \"t\"",
+            "CREATE TABLE \"u\" (\"id\" TEXT)",
+            "DROP TABLE \"t\"",
+            "INSERT INTO \"t\" SELECT 'd' WHERE 1",
+        ] {
+            let refused: Error = connection
+                .execute(statement, ())
+                .await
+                .expect_err(statement)
+                .into();
+
+            assert!(refused_a_write(&refused), "{statement}: {refused:?}");
+        }
+
+        assert_eq!(
+            everything(&connection).await,
+            before,
+            "a write went through"
+        );
+
+        hold_writes(&connection, Standing::Writable)
+            .await
+            .expect("the pragma off");
+        connection
+            .execute("INSERT INTO \"t\" VALUES ('e')", ())
+            .await
+            .expect("a write after the pragma went off");
+
+        // and nothing else the engine says is read as it.
+        assert!(!refused_a_write(&Error::Database {
+            message: "no such table: t".to_string()
+        }));
+    }
+
+    /// A workspace an upgrade recorded floors in reads them rather than its version.
+    #[tokio::test]
+    async fn a_workspace_with_a_floor_record_reads_it() {
+        let connection = memory().await;
+
+        for statement in [
+            "CREATE TABLE \"schema_version\" (\"id\" INTEGER PRIMARY KEY, \"version\" INTEGER)",
+            "INSERT INTO \"schema_version\" VALUES (1, 9)",
+            "CREATE TABLE \"data_floor\" (\"id\" INTEGER PRIMARY KEY CHECK (\"id\" = 1), \
+             \"level\" INTEGER NOT NULL, \"read\" INTEGER NOT NULL, \"write\" INTEGER NOT NULL)",
+            "INSERT INTO \"data_floor\" VALUES (1, 9, 7, 8)",
+        ] {
+            connection.execute(statement, ()).await.expect(statement);
+        }
+
+        assert_eq!(
+            workspace(&connection).await.expect("the floors"),
+            Some(Floors {
+                level: 9,
+                read: 7,
+                write: 8
+            })
+        );
+    }
+}

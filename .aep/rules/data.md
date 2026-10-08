@@ -176,8 +176,10 @@ procedure for it: it derives what it stores from today, and it asks whether the 
 made now. A contract deleted while terminated comes back terminated rather than active, and it
 comes back holding the units it held even where another contract has taken one since, because
 the undo is taking back a deletion rather than making a new contract. What a restore still
-refuses is what the schema could not hold: an identity or a unique value taken since, or a row
-it names that is gone. `contract.restoreMany` is the procedure for contracts.
+refuses is an identity taken since, which the schema could not hold, a government ID another
+contract took since, which the procedure checks as a save does (the schema holds no rule on it
+since effort 857, requirement 14), or a row it names that is gone. `contract.restoreMany` is the
+procedure for contracts.
 
 *Added 2026-09-25 by ticket 41 of [[efforts/832-the-interface-speaks-one-language-and-guides/spec]]:
 the contract inverses recreated through `create` and `createMany`, so a terminated contract came

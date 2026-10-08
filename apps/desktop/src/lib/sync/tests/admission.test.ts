@@ -45,7 +45,8 @@ test('a machine signed out from another one is locked, with the reason said', ()
 			session: null,
 			holdsTursoAuthority: false,
 			setupConsented: false,
-			signedOutElsewhere: true
+			signedOutElsewhere: true,
+			heldByVersion: []
 		}),
 		{ kind: 'signInRequired', reason: 'noOrganization' }
 	);
@@ -61,7 +62,8 @@ test('a machine that holds no organization is stopped at the door, and told why'
 			session: null,
 			holdsTursoAuthority: false,
 			setupConsented: false,
-			signedOutElsewhere: false
+			signedOutElsewhere: false,
+			heldByVersion: []
 		}),
 		{
 			kind: 'signInRequired',
