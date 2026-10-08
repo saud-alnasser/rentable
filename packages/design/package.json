@@ -39,7 +39,7 @@
 	},
 	"devDependencies": {
 		"@rentable/testing": "workspace:*",
-		"@sveltejs/kit": "^2.70.3",
+		"@sveltejs/kit": "^3.0.0",
 		"@sveltejs/vite-plugin-svelte": "^7.3.0",
 		"@testing-library/svelte": "^5.4.2",
 		"jsdom": "^30.0.1",
