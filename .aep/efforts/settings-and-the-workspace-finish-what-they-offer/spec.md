@@ -149,7 +149,7 @@ this installation rather than on the workspace read as controls rather than as s
 
 2b. **The winning code was carried into the implementation rather than rewritten**, on the human's
     instruction on 2026-08-21. [[skills/prototype]] requires the opposite and
-    [[policies/authority]] rank 1 overrides it; the promotion is recorded here because that skill
+    [[protocol]] rank 1 overrides it; the promotion is recorded here because that skill
     requires a promotion to be recorded in the spec, and the write-up says precisely what moved.
 
     **What shipped is the variant's presentation on the previous implementation's machinery.** The

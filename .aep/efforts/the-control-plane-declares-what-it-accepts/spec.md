@@ -267,7 +267,7 @@ subject. They are touched only where a signature has to change to receive what a
 
 - **Fastify 5 runs under Node 24 with `tsx` and `node:test`**, importing `.ts` sources directly,
   the way every other module here does. **Unverified, and it is the one assumption here that no
-  amount of further discussion can settle** — `[[policies/engineering]]` routes a technical
+  amount of further discussion can settle** — `[[protocol]]` routes a technical
   uncertainty to `[[skills/prototype]]`, and this is that. If it is wrong the approach changes
   rather than bends, so it is worth an hour before the plan is written rather than a week after.
   Left as an assumption at the close of refine on 2026-08-22 because refine is the wrong

@@ -34,6 +34,6 @@ Traces requirements 9, 10 and 11, and criteria 9, 10 and 11 at the store and ses
 ## Constraints
 
 - [[rules/credentials]] binds: no token or session secret crosses; the commands hand over names and times.
-- Confirm `whoami`'s 2.x `devicename` signature in its docs before relying on it ([[policies/engineering]]).
+- Confirm `whoami`'s 2.x `devicename` signature in its docs before relying on it ([[protocol]]).
 - Correct [[contexts/desktop/organization]]'s table count in the same commit.
 - No changeset: nothing a person sees changes until ticket 09.

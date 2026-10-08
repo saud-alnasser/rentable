@@ -44,8 +44,8 @@ break that byte-for-byte comparison and make every update show a spurious diff. 
 also keeps knowledge from being rewritten on the formatter's schedule, which turns a readable
 diff into an unreadable one.
 
-`CLAUDE.md` is deliberately **not** ignored — it is authored in this repository rather than
-copied, so it stays format-enforced with the rest of the root.
+`AGENTS.md` and `CLAUDE.md` are deliberately **not** ignored — they are authored in this
+repository rather than copied, so they stay format-enforced with the rest of the root.
 
 The Svelte plugin means `.svelte` files are formatted by prettier, not by any editor-specific
 formatter. Check `.vscode/` settings before blaming prettier for a diff it did not make.

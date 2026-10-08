@@ -450,7 +450,7 @@ their packages and keep asserting exactly what they assert now. `src/**/*.test.m
 - **A cached task result is a claim that nothing relevant changed**, and Turborepo believes
   whatever `inputs` says. `test:rust` restricted to `tauri/**` is the sharp edge: get the glob
   wrong and a green run means "nothing was re-tested", reported identically to "everything
-  passed". This is `[[policies/engineering]]`'s *obeying a rule means letting its check fire*, and it
+  passed". This is `[[protocol]]`'s *obeying a rule means letting its check fire*, and it
   is why the `.integration-pass` memo is kept as the outer gate rather than replaced — the memo
   is keyed on the whole tree, so it cannot be wrong about what it covers.
 - ~~**A default `cwd` this plan does not rely on may still be inherited somewhere.**~~ **Closed

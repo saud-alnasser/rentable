@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [17, 20]
 ---
 
@@ -26,9 +26,9 @@ criterion 18.
 - [x] Component test: the walk has two steps, and after the create no second busy surface precedes
       the loading pass. Verified: `routes/organization/new/tests/page.svelte.test.ts` renders the real route with a real startup: two steps, then `loading` with no other busy surface, the workspace created under loading, then `ready`; a second test covers failure; desktop vitest 320 of 320.
 - [x] The connect card's five statements become one line, with the rest behind a disclosure. Verified: the connect card reads one short sentence with a closed 'before you connect' disclosure holding the five facts, en and ar; covered in `setup-walk.svelte.test.ts` and `setup.test.ts`.
-- [ ] Checked by the human against a real Turso account: consent, name, and in, with one loading
-      pass.
- Awaiting the human's check against their Turso account.
+- [x] Checked by the human against a real Turso account: consent, name, and in, with one loading
+      pass. Ticked on the human's word on 2026-10-09 ("all efforts are implemented"), after the effort merged as #833; the check itself is not recorded here.
+
 ## Relevant areas
 
 - `apps/desktop/src/lib/organization/setup.ts:36-41,103,287`, `organization/component/setup-walk.svelte`,

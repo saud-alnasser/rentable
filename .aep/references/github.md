@@ -31,7 +31,7 @@ Run this before the first tracker operation of a session, not after a failure.
 gh issue create --title "<conventional title>" --body-file -
 ```
 
-**Creating an issue publishes.** It lands in a workspace other people read, so it is the human's call — the same standing rule as opening a pull request and as pushing, and for the same reason — [[policies/engineering]] carries it. Propose the whole set, show the exact titles rather than a summary, get it approved, then create. [[policies/execution]] has that procedure and applies it to labels and milestones too.
+**Creating an issue publishes.** It lands in a workspace other people read, so it is the human's call — the same standing rule as opening a pull request and as pushing, and for the same reason — [[protocol]] carries it. Propose the whole set, show the exact titles rather than a summary, get it approved, then create. [[policies/tracker]] has that procedure and applies it to labels and milestones too.
 
 `--body-file -` reads the body from stdin, which is how multi-line markdown survives intact — `--body` on a shell line does not. `-` for stdin, a path for a file.
 
@@ -67,7 +67,7 @@ gh label create "<name>" --color <hex> --description "<text>"
 
 **Which labels to apply, and whether to create one at all, is [[rules/tracker]]'s** — the example above is a real transition between two labels that exist.
 
-`gh label list` is the read that comes before `gh label create`, always — [[policies/execution]] has the reuse ladder. **Pass `--limit`**: the default is 30 and this repository's vocabulary is longer, so a bare call answers with a truncated list that reads as the whole one. `create` fails on a name that already exists rather than editing it, so the list is what tells you whether you are adding or colliding. `--color` takes a bare hex with no leading `#`.
+`gh label list` is the read that comes before `gh label create`, always — [[policies/tracker]] has the reuse ladder. **Pass `--limit`**: the default is 30 and this repository's vocabulary is longer, so a bare call answers with a truncated list that reads as the whole one. `create` fails on a name that already exists rather than editing it, so the list is what tells you whether you are adding or colliding. `--color` takes a bare hex with no leading `#`.
 
 ## Pin and unpin an issue
 
@@ -109,7 +109,7 @@ gh issue develop <number> --list                  # read-only: branches linked t
 
 **AEP writes neither of these edges.** At 3.5 a task is a file under
 `.aep/efforts/<effort>/tickets/`, the effort it belongs to is the directory it sits in, and what
-gates it is `blocked-by:` in its own frontmatter. [[policies/execution]] is flat about it: a
+gates it is `blocked-by:` in its own frontmatter. [[policies/tracker]] is flat about it: a
 ticket is never a tracker object, and the dependency graph never leaves the repository.
 
 What is below is kept for two reasons. This repository holds 143 closed sub-issues written under
@@ -203,7 +203,7 @@ Read from `gh issue create --help` and `gh issue edit --help` on gh 2.96.0. This
 
 ## What carries an effort here, and where its open work is read
 
-Resolved once against this tracker, per [[policies/execution]]. **The tracker carries the
+Resolved once against this tracker, per [[policies/tracker]]. **The tracker carries the
 effort. Everything about the effort's tasks is in the repository**, and the two halves are
 read with different tools.
 
@@ -262,7 +262,7 @@ repository is a question about branches. Read both.*
 
 *Why a script over a tracker query: the graph is read on every scheduling pass. Local, it is a
 field in a file. In the tracker it is something to fetch, paginate and interpret first, and
-[[policies/execution]] is flat about which side it lives on.*
+[[policies/tracker]] is flat about which side it lives on.*
 
 ### Reading the graph 2.x left behind
 

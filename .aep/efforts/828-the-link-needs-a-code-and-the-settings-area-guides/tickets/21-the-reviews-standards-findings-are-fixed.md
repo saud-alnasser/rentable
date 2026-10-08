@@ -80,7 +80,7 @@ this effort's plan, `apps/desktop/src/lib/organization/component/connect-screen.
 ## Constraints
 
 - **Last, so the formatter run lands on the final tree**: blocked by 22.
-- **Corrections are dated and additive** ([[policies/authority]]).
+- **Corrections are dated and additive** ([[protocol]]).
 - **Finding 9 is accepted by the human**: ticket 07's commit stays on the branch.
 
 ## Notes

@@ -93,7 +93,7 @@ recorded here).
 
 ## Constraints
 
-- **Corrections are dated and additive** ([[policies/authority]]); `.aep/` prose is exempt from
+- **Corrections are dated and additive** ([[protocol]]); `.aep/` prose is exempt from
   the em-dash prohibition, source and changesets are not.
 - **After 27**, so the corrections describe the final tree.
 

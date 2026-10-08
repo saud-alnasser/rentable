@@ -257,9 +257,10 @@ counter-example used to be `src/lib/api/mod.ts`; there is no `mod.ts`, no `utils
 `common/`, and no plural module directory left. `src/routes/` is the acknowledged
 exception, and its segments are URL path names rather than module names.
 
-Where a divergence turns up anyway, `CLAUDE.md`'s rule on architectural boundaries governs
-what happens to it. What that means specifically for naming: **a rename the change is not
-about waits for its own ticket**, however small it looks from here.
+Where a divergence turns up anyway, **it is not fixed in passing**: a correction folded into
+a change it is not about makes that change unreviewable, and takes the work off whatever
+ticket was scoped for it. What that means specifically for naming: **a rename the change is
+not about waits for its own ticket**, however small it looks from here.
 
 ## Prototype code
 
