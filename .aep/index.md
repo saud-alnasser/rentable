@@ -141,7 +141,7 @@ Start at [[protocol]].
 | 851-the-way-out-the-password-fields-and-the-organizations-name | implemented | [[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/spec]] | 0 | 0 | 20 |
 | 854-bugs-and-edge-cases-across-the-app | implemented | [[efforts/854-bugs-and-edge-cases-across-the-app/spec]] | 3 | 0 | 41 |
 | 857-updating-never-locks-a-member-out | implemented | [[efforts/857-updating-never-locks-a-member-out/spec]] | 2 | 2 | 41 |
-| 861-the-app-never-shows-something-false | accepted | [[efforts/861-the-app-never-shows-something-false/spec]] | 0 | 0 | 0 |
+| 861-the-app-never-shows-something-false | accepted | [[efforts/861-the-app-never-shows-something-false/spec]] | 0 | 0 | 14 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -664,3 +664,17 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/857-updating-never-locks-a-member-out/tickets/39-the-heal-never-hides-or-doubles-a-record]] fix(records): the heal never hides, doubles or misreads a record | 857-updating-never-locks-a-member-out | resolved | — |
 | [[efforts/857-updating-never-locks-a-member-out/tickets/40-a-full-access-machine-brings-every-workspace-up]] fix(organization): a full-access machine brings every workspace up, so readers barely wait | 857-updating-never-locks-a-member-out | resolved | — |
 | [[efforts/857-updating-never-locks-a-member-out/tickets/41-the-words-say-what-the-duplicate-fix-did]] docs: the rules, contexts and comments say what the duplicate fix did | 857-updating-never-locks-a-member-out | resolved | 39, 40 |
+| [[efforts/861-the-app-never-shows-something-false/tickets/01-labels-on-fills-read-in-both-appearances]] fix(design): labels on fills read in both appearances | 861-the-app-never-shows-something-false | open | — |
+| [[efforts/861-the-app-never-shows-something-false/tickets/02-error-toasts-stay-and-mirror]] fix(desktop): error toasts stay until closed and mirror in Arabic | 861-the-app-never-shows-something-false | open | — |
+| [[efforts/861-the-app-never-shows-something-false/tickets/03-a-failed-list-read-says-it-failed]] fix(desktop): a failed list read says it failed | 861-the-app-never-shows-something-false | open | — |
+| [[efforts/861-the-app-never-shows-something-false/tickets/04-a-failed-record-read-says-it-failed]] fix(desktop): a failed record read says it failed | 861-the-app-never-shows-something-false | open | 03 |
+| [[efforts/861-the-app-never-shows-something-false/tickets/05-the-landing-screen-states-no-figure-it-does-not-know]] fix(desktop): the landing screen states no figure it does not know | 861-the-app-never-shows-something-false | open | 03 |
+| [[efforts/861-the-app-never-shows-something-false/tickets/06-the-form-surface-asks-before-discarding]] fix(design): the form surface asks before discarding changes | 861-the-app-never-shows-something-false | open | — |
+| [[efforts/861-the-app-never-shows-something-false/tickets/07-the-schema-forms-report-their-changes]] fix(desktop): the schema forms report their changes | 861-the-app-never-shows-something-false | open | 06 |
+| [[efforts/861-the-app-never-shows-something-false/tickets/08-the-other-forms-report-their-changes]] fix(desktop): the forms without a schema report their changes | 861-the-app-never-shows-something-false | open | 06 |
+| [[efforts/861-the-app-never-shows-something-false/tickets/09-a-contract-can-name-what-it-renews]] feat(desktop): a contract can name the contract it renews | 861-the-app-never-shows-something-false | open | — |
+| [[efforts/861-the-app-never-shows-something-false/tickets/10-merging-copies-keeps-the-renewal-link]] fix(desktop): merging copies keeps the renewal link | 861-the-app-never-shows-something-false | open | 09 |
+| [[efforts/861-the-app-never-shows-something-false/tickets/11-renewing-records-the-link-and-may-change-the-rent]] feat(desktop): renewing records the link and may change the rent | 861-the-app-never-shows-something-false | open | 09 |
+| [[efforts/861-the-app-never-shows-something-false/tickets/12-reconcile-links-the-renewals-it-did-not-record]] feat(desktop): reconcile links the renewals it did not record | 861-the-app-never-shows-something-false | open | 09 |
+| [[efforts/861-the-app-never-shows-something-false/tickets/13-a-renewed-contract-is-not-up-for-renewal]] fix(desktop): a renewed contract is not up for renewal | 861-the-app-never-shows-something-false | open | 09, 11 |
+| [[efforts/861-the-app-never-shows-something-false/tickets/14-an-export-carries-the-renewal-link]] feat(desktop): an export carries the renewal link | 861-the-app-never-shows-something-false | open | 09, 12 |
