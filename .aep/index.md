@@ -12,10 +12,10 @@ Start at [[protocol]].
 | Artifact | Load when | Paths | Owner |
 | --- | --- | --- | --- |
 | [[policies/artifacts]] | about to create, change, move, or remove anything under .aep/ — whose it is, where it belongs, and what shape it takes | .aep/**/*.md | — |
-| [[policies/authority]] | two sources disagree, or the work reaches a repository other than this one | — | — |
-| [[policies/engineering]] | writing code, or about to state anything about this repository you have not verified | — | — |
-| [[policies/execution]] | an effort is in progress — deriving tasks, dispatching, implementing, or reviewing | — | — |
-| [[policies/reporting]] | about to write anything a human will read — session output, a commit message, a pull request, a code comment, a README — or a turn's opening or closing block does not take the shape it should | — | — |
+| [[policies/execution/parallel]] | a full-lane wave of two or more tickets is dispatched to sub-agents, or a child returns | — | — |
+| [[policies/execution]] | an effort is in progress — deriving tasks, implementing, converging, or reviewing | — | — |
+| [[policies/reporting]] | about to write anything a human will read: session output, a commit message, a pull request, a code comment, a README; or a turn's report does not take the shape it should | — | — |
+| [[policies/tracker]] | the repository's version-control rule sets tracker to github or gitlab, and an effort is opened, landed, closed, or abandoned | — | — |
 
 ## Rules
 
@@ -81,7 +81,7 @@ Start at [[protocol]].
 | [[skills/implement]] | a task exists and is ready to build | — |
 | [[skills/install]] | a repository has no .aep/ directory and should start running AEP | — |
 | [[skills/plan]] | a spec is settled and the technical approach is not yet decided | — |
-| [[skills/prose]] | about to emit text a human will read, or editing text that reads as though nobody wrote it | — |
+| [[skills/prose]] | writing a README, a pull request body, a changelog, or docs, or editing text that reads as though nobody wrote it | — |
 | [[skills/prototype]] | a technical or design question will not settle on paper and needs building to answer | — |
 | [[skills/prune]] | the .aep/ tree has accumulated stale, contradicted, or orphaned artifacts | — |
 | [[skills/refine]] | a spec exists but reads as ambiguous, under-constrained, or too agreeable | — |
@@ -132,7 +132,7 @@ Start at [[protocol]].
 | 824-the-way-in-and-the-workspace-control-are-redesigned | implemented | [[efforts/824-the-way-in-and-the-workspace-control-are-redesigned/spec]] | 0 | 0 | 17 |
 | 826-the-organization-and-the-way-in-are-rethought | implemented | [[efforts/826-the-organization-and-the-way-in-are-rethought/spec]] | 2 | 1 | 22 |
 | 828-the-link-needs-a-code-and-the-settings-area-guides | implemented | [[efforts/828-the-link-needs-a-code-and-the-settings-area-guides/spec]] | 5 | 0 | 29 |
-| 832-the-interface-speaks-one-language-and-guides | accepted | [[efforts/832-the-interface-speaks-one-language-and-guides/spec]] | 3 | 4 | 43 |
+| 832-the-interface-speaks-one-language-and-guides | implemented | [[efforts/832-the-interface-speaks-one-language-and-guides/spec]] | 3 | 4 | 43 |
 | 835-the-rent-is-receipted-scheduled-and-chased | implemented | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/spec]] | 1 | 0 | 19 |
 | 838-permissions-are-a-role-and-an-override | implemented | [[efforts/838-permissions-are-a-role-and-an-override/spec]] | 2 | 0 | 60 |
 | 840-a-feature-plugs-in-and-lives-in-one-place | implemented | [[efforts/840-a-feature-plugs-in-and-lives-in-one-place/spec]] | 2 | 0 | 77 |
@@ -306,8 +306,8 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/19-router-refusals-travel-as-codes]] feat(api): router refusals travel as codes | 832-the-interface-speaks-one-language-and-guides | resolved | 18 |
 | [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/20-rust-refusals-carry-reasons]] feat(organization): refusals from the shell carry reasons, and Turso's text sits behind details | 832-the-interface-speaks-one-language-and-guides | resolved | 19 |
 | [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/21-the-interface-guides]] feat(desktop): the interface fills what it can and lands where the next step is | 832-the-interface-speaks-one-language-and-guides | resolved | 13, 18 |
-| [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/22-onboarding-in-two-steps]] feat(organization): creating an organization is two steps and one loading pass | 832-the-interface-speaks-one-language-and-guides | open | 17, 20 |
-| [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/23-joining-is-one-loading-pass]] feat(organization): joining reaches the application in one loading pass | 832-the-interface-speaks-one-language-and-guides | open | 22 |
+| [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/22-onboarding-in-two-steps]] feat(organization): creating an organization is two steps and one loading pass | 832-the-interface-speaks-one-language-and-guides | resolved | 17, 20 |
+| [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/23-joining-is-one-loading-pass]] feat(organization): joining reaches the application in one loading pass | 832-the-interface-speaks-one-language-and-guides | resolved | 22 |
 | [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/24-a-contract-is-created-with-its-units]] feat(contract): a contract is created with its units | 832-the-interface-speaks-one-language-and-guides | resolved | 08, 18, 19 |
 | [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/25-a-contract-starts-where-the-user-is]] feat(contract): a contract starts from a tenant or a unit | 832-the-interface-speaks-one-language-and-guides | resolved | 24 |
 | [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/26-short-copy]] docs(i18n): the words are short and plain | 832-the-interface-speaks-one-language-and-guides | resolved | 21, 23, 25 |
@@ -327,7 +327,7 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/40-the-tree-follows-its-own-layout]] refactor(desktop): the tree follows its own layout rules | 832-the-interface-speaks-one-language-and-guides | resolved | 38, 39 |
 | [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/41-undo-restores-what-was-deleted]] fix(contract): undoing a delete restores exactly what was deleted | 832-the-interface-speaks-one-language-and-guides | resolved | — |
 | [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/42-the-member-sheets-read-as-one]] fix(organization): the new member sheet reads like the edit sheet, and every segment keeps its padding | 832-the-interface-speaks-one-language-and-guides | resolved | — |
-| [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/43-the-dashboard-rings-sit-on-one-line]] fix(desktop): the dashboard's two rings sit on one line | 832-the-interface-speaks-one-language-and-guides | open | — |
+| [[efforts/832-the-interface-speaks-one-language-and-guides/tickets/43-the-dashboard-rings-sit-on-one-line]] fix(desktop): the dashboard's two rings sit on one line | 832-the-interface-speaks-one-language-and-guides | resolved | — |
 | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/01-payments-cover-cycles-oldest-first]] feat(contract): payments cover cycles oldest first | 835-the-rent-is-receipted-scheduled-and-chased | resolved | — |
 | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/02-a-payment-keeps-a-history]] feat(payment): a payment keeps a history | 835-the-rent-is-receipted-scheduled-and-chased | resolved | — |
 | [[efforts/835-the-rent-is-receipted-scheduled-and-chased/tickets/03-a-payment-says-how-it-was-paid]] feat(payment): a payment says how it was paid | 835-the-rent-is-receipted-scheduled-and-chased | resolved | 02 |

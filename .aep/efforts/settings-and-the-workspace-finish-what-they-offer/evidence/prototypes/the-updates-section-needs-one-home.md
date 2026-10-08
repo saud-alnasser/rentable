@@ -36,7 +36,7 @@ say so is written down in advance. It is written down here.
 **Where it was built.** `apps/desktop/src/lib/prototype/updates/`, untracked, in the working
 checkout — `[[rules/module-layout]]` under *Prototype code*, which says the working checkout and
 names `git status` as what keeps it off a commit. `[[skills/prototype]]` step 2 says a worktree
-instead, and the conflict was surfaced to the human under `[[policies/authority]]` rather than
+instead, and the conflict was surfaced to the human under `[[protocol]]` rather than
 resolved silently. **The human chose the working checkout**, and the deciding cost was that a
 worktree has no shared cargo target directory and its own empty `apps/desktop/tauri/data/`, so
 the section would have been judged on an install with nobody signed in and no rows in it.
@@ -128,7 +128,7 @@ presentation needs one of the two.
 rewritten from nothing, on the human's instruction on 2026-08-21: "use the code just alter it to
 fit as an actual impl."** That is a deliberate override of `[[skills/prototype]]`, which says
 promoted code is rewritten under `[[skills/implement]]` rather than moved, and it is recorded here
-as an override rather than presented as the default. `[[policies/authority]]` rank 1 is what
+as an override rather than presented as the default. `[[protocol]]` rank 1 is what
 carries it.
 
 **What survived the move, and what did not.** The arrangement, the snippet that draws a plate, the

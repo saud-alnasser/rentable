@@ -4,18 +4,19 @@ use-when: "about to create, edit or delete anything on disk, creating a worktree
 
 # Rule — the project directory is the boundary
 
-This rule tightens [[policies/execution]], which places a child in its own worktree but
-says nothing about the rest of the workstation. It binds the orchestrator and every agent,
+This rule tightens [[protocol]]'s *Write only inside the project*, which names the zones a
+run may write in. It binds the orchestrator and every agent,
 inside an effort or not.
 
 ## Nothing is created, edited or deleted outside the project directory
 
 Every file or folder a run or an agent creates, edits or deletes by its own act sits inside
-the repository's directory. **The one exception is the system temp folder** (`$TEMP`,
-`/tmp`), for the small working files of the process itself: helper scripts, logs, backups.
-The scratchpad the harness names, which sits there, is the first choice.
+the repository's directory, in a zone [[protocol]] names. Notes, drafts, handoffs and helper
+scripts go in `.aep/scratch/`. **The system temp folder is reached only through the
+language's temp API**, never by a typed path, and what goes there is removed before the run
+ends.
 
-Outside those two there is nothing: not the root of a drive, the home directory, a sibling
+Outside the project there is nothing: not the root of a drive, the home directory, a sibling
 of the repository. And the temp folder is not where a build or a worktree goes: anything
 the size of a build belongs inside the project, where it is named and removed.
 

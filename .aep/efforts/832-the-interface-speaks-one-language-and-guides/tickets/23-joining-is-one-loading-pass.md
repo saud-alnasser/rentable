@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [22]
 ---
 
@@ -19,8 +19,8 @@ criterion 19.
       surface of its own in between. Component test. Verified: `routes/organization/join/tests/page.svelte.test.ts`: after the accept the next state is `loading`, only `loading -> ready` follows, and the address arrives before `ready`; the real fault was an unawaited `goto` racing the pass, fixed by `standingChanged({ arrive })` (node tests in `startup.test.ts`); desktop vitest 323 of 323 on the merged tree.
 - [x] The seven refusal texts (lapsed, consumed, consumedElsewhere, revoked, replaced,
       anotherOrganization, unreachable) are one line each, and each names the next step. Verified: the seven refusals are rewritten in en and ar; a component test checks in both locales that each is at most 80 characters, the only callout, shown once, with the shell's words behind a closed disclosure, and in English that each names a next step; desktop node 1158 of 1158.
-- [ ] Checked by the human with a real invitation link.
- Awaiting the human's check with a real invitation link.
+- [x] Checked by the human with a real invitation link. Ticked on the human's word on 2026-10-09 ("all efforts are implemented"), after the effort merged as #833; the check itself is not recorded here.
+
 ## Relevant areas
 
 - `apps/desktop/src/lib/organization/component/connect-screen.svelte`, `organization/connect.ts:232,267,320`,

@@ -22,10 +22,10 @@ commit discipline, how work lands — is [[rules/version-control]]'s.
 **A file, not an issue.** A ticket lives at `.aep/efforts/<effort>/tickets/<NN>-<slug>.md`
 and never becomes a GitHub issue of its own. AEP opens exactly two tracker objects for an
 effort — one issue carrying `spec.md`, one pull request carrying the approach — and
-[[policies/execution]] is where that count is fixed.
+[[policies/tracker]] is where that count is fixed.
 
-**Branch-bound.** One ticket becomes one branch, which lands as one unit of review — from
-[[rules/version-control]], under *One ticket, one branch, one commit*.
+**Branch-bound.** One ticket becomes one commit on its effort's branch, from
+[[rules/version-control]], under *One effort, one branch; one ticket, one commit*.
 
 Work that produces no branch — a decision, an investigation — is **not a ticket here**.
 Decision work lives in its effort's `spec.md`.
@@ -87,7 +87,7 @@ The two things the map carried that no spec section owns still have homes:
   the section it bears on, or in a rule where it turns out to govern.
 
 **Neither tracker body is the source of truth.** `spec.md` and `plan.md` are what the effort
-is, and both bodies are projections of them ([[policies/execution]]). Where one disagrees
+is, and both bodies are projections of them ([[policies/tracker]]). Where one disagrees
 with the file, the file wins and the body is corrected — never the reverse.
 
 ## Assignment
@@ -110,7 +110,7 @@ convention is what is recorded here; the values are read from the tracker.**
 | `size:` | how large a pull request is | describes a **pull request**, not an issue |
 
 **Read the whole list before applying or proposing a label**, never the first page — the
-ladder in [[policies/execution]] requires it before anything is created, and the
+ladder in [[policies/tracker]] requires it before anything is created, and the
 vocabulary here is longer than the default page. [[references/github]] has the invocation
 and what the flag does.
 

@@ -1,13 +1,18 @@
 ---
 use-when: "branching, committing, opening a pull request, or landing work here"
+tracker: github
+setup: "pnpm install --frozen-lockfile"
+stack: true
 ---
 
 # Rule — version control
 
 ## Which model
 
-**Stacked changes, on Graphite.** `gt` replaces `git commit` here: `gt create` branches and
-commits in one step, and `gt modify` is the amend path — it restacks descendants, which
+**Stacked changes, on Graphite.** `node .aep/scripts/aep.mjs` creates every branch and the
+commits it makes ([[protocol]]); with `stack: true` it branches from the current tip, and
+`gt track --parent <base> --no-interactive` then adopts the branch into the stack
+([[references/graphite]]). `gt modify` is the amend path: it restacks descendants, which
 `git commit --amend` does not. Read [[references/graphite]] before any of it, and never
 guess a `gt` verb; several read like git's and do something else.
 
@@ -47,7 +52,7 @@ new rule.*
 
 *Why: it is what makes the branch reviewable — a commit holding two tickets is two changes a
 reviewer cannot take separately, and a ticket spread over two commits cannot be told from the
-next one; and one pull request per effort is what `policies/execution` fixes, two tracker
+next one; and one pull request per effort is what `policies/tracker` fixes, two tracker
 objects and no more.*
 
 The practical consequences, in order of how often they catch people:
@@ -91,51 +96,25 @@ on the tracker without anybody creating an object for them.*
 
 ## Branch naming
 
-Branches are cut from `main`, and **the name is the conventional commit the branch will land
-as**, under the `graphite/` prefix:
+**An effort's branches are named by `node .aep/scripts/aep.mjs`, never by hand.** `aep open`
+names the effort branch `<issue>-<slug>`, and `aep dispatch` names a ticket's build claim
+`<effort>--<NN>-<slug>`: `824-the-way-in` and `824-the-way-in--05-the-rail-switches-workspaces`.
+The name is reproducible from the effort and the ticket alone, which is the one property a
+claim needs: two tools that derive different names disagree about whether the ticket is
+taken. A claim is local and short-lived. `aep land` folds it into the effort branch and
+deletes it, so it never needs a pull request or a remote.
 
-```
-graphite/<type>/<ticket-id>-<slug>
-```
+*Until 4.0 (2026-10-09) the name was the conventional commit the branch would land as, under
+a `graphite/` prefix: `graphite/<type>/<issue>-<slug>`, and `graphite/<type>/<issue>-<NN>-<slug>`
+for a ticket's claim. Branches cut before then keep their names.*
 
-```
-issue #135 → graphite/fix/135-partial-update-uniqueness
-             → PR #142 → fix: partial updates crash on unguarded uniqueness checks (#142)
-issue #111 → graphite/refactor/111-typed-error-enum
-             → PR #147 → refactor: introduce a typed error enum (#147)
-```
+**The number in the branch and the number on `main` are different numbers.** The branch
+carries the effort's **issue**; the trailing `(#N)` on the landed subject is the **pull
+request**, appended by GitHub (see **Commit discipline**). Never derive one from the other:
+issue #135 landed as PR #142, and #111 as #147.
 
-**The number in the branch and the number on `main` are different numbers**, and both
-examples above are real. The branch carries the **ticket**; the trailing `(#N)` on the
-landed subject is the **pull request**, appended by GitHub — see **Commit discipline**.
-Never derive one from the other.
-
-`<type>` is the conventional-commit type the branch lands as, from the list under **Commit
-discipline** below. `<ticket-id>` is the bare issue number, no `#`, and it is the number a
-branch carrying a whole effort takes (`graphite/docs/824-the-way-in-...`). `<slug>` is the commit
-summary in kebab-case, trimmed to the words that identify the change — it is a handle, not
-the subject line, so it does not have to reproduce it exactly.
-
-**A ticket's build claim carries the effort's issue number and its own id**, joined:
-`graphite/<type>/<issue>-<NN>-<slug>`, so `graphite/feat/824-05-the-rail-switches-workspaces`
-was ticket 05 of effort 824 while it was being built. Ticket ids restart per effort, so the id
-alone would name one branch for two claims ([[policies/execution]], *Claiming, before
-dispatching*, leaves how uniqueness is reached to this rule); the issue number is what an
-effort has one of. The claim is local and short-lived: it is folded into the effort's branch
-and deleted on integration, so it never needs a pull request or a remote. *Added 2026-09-13 by
-effort 824; the sentence above it was written when every ticket had an issue number of its
-own.*
-
-**The ticket id is what makes the name reproducible from the ticket alone**, and that is the
-one property the convention has to have: the branch is how a ticket is claimed, so two
-tools that derive different names disagree about whether the ticket is taken.
-
-Earlier branches carry no id — `graphite/refactor/contract-domain`,
-`graphite/chore/ai-engineering-protocol`. They predate this convention and are left alone;
-match the shape above for new work rather than the history.
-
-A branch with no ticket behind it drops the id: `graphite/<type>/<slug>`. That is the
-exception, not a second convention — if there is no ticket, there is nothing to claim.
+A branch with no effort behind it, such as a design session's (above), is not one `aep.mjs`
+makes. It keeps the old shape without an id: `graphite/<type>/<slug>`.
 
 ## Commit discipline
 
@@ -209,4 +188,4 @@ means the change ships without appearing in the changelog. Dependency bumps and 
 refactors that no user can observe do not need one. [[references/changesets]] has the form.
 
 `gt submit` and `gt sync` publish and rewrite history respectively. Both are the human's
-call, like `git push` — [[policies/engineering]] carries that as a standing rule.
+call, like `git push` — [[protocol]] carries that as a standing rule.

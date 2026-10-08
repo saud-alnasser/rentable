@@ -17,7 +17,7 @@ use-when: "adding or changing a router, a domain module, a database client or tr
   Path-scoped: the `paths:` frontmatter above is the authority, and the harness
   enforces it — this rule loads when a file under `apps/desktop/src/lib/api/` is
   read, and costs nothing otherwise. A standard that must hold on every turn belongs in
-  `CLAUDE.md` or in an unscoped file beside this one instead.
+  `AGENTS.md` or in an unscoped file beside this one instead.
 
   The layer is no longer one directory. A concept that has relocated (#123-#126)
   keeps its router under its own name, so the globs follow it there; without them

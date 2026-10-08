@@ -227,7 +227,7 @@ thin thing around it that the four entrypoints call.
   `required()` already exists twice in this package, which is what that shape turns into.
 - *Rejected: a shared `startup.ts` holding this guard and `required()` together.* It would end
   the existing duplication, and it rewrites the Turso platform guard this effort was not asked to
-  touch. Raise it; do not take it (`[[policies/engineering]]`, smallest sufficient change).
+  touch. Raise it; do not take it (`[[protocol]]`, smallest sufficient change).
 
 **2. The URL's scheme decides whether a token is required.** `file:` is local. Every other scheme
 is hosted and refuses without `CONTROL_PLANE_DATABASE_TOKEN`.

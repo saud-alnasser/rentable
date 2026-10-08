@@ -52,7 +52,7 @@ sections C and E1).
 
 ## Constraints
 
-- **Corrections are dated and additive** ([[policies/authority]]): the old sentence stays
+- **Corrections are dated and additive** ([[protocol]]): the old sentence stays
   visible where the artifact's own convention keeps it, and the correction says what is true
   now and since when.
 - **828's own spec is not this ticket's**; its contradictions were corrected by the
