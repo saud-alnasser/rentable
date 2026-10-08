@@ -1,5 +1,5 @@
 ---
-status: draft
+status: accepted
 lane: full
 ---
 
@@ -90,6 +90,8 @@ thrown away without the reader choosing to.
    this change, a contract is taken as renewed by another when both name the same tenant, the
    other starts on the day after it ends, the two hold the same set of units, and the other is not
    terminated. Where more than one contract would qualify, none is taken (see *Risks*).
+   *The human's call, 2026-10-09: "Yes, recognise them", over linking only renewals made after
+   the update.*
 7. **A renewed contract is not up for renewal.** A contract with a successor that is not
    terminated does not rank as ending soon anywhere the rank is read (the landing screen, the
    contracts directory's rank filter, the command menu), and *renew* is not offered on it. If the
@@ -97,7 +99,8 @@ thrown away without the reader choosing to.
 8. **A renewal may change the rent.** The renew form shows the rent, filled with the
    predecessor's, and the reader may change it. The successor carries the rent entered; the
    predecessor is not written. The interval, tenant and units are still the predecessor's. The
-   comment in `contract/renewal/router.ts` that rules this out is corrected.
+   comment in `contract/renewal/router.ts` that rules this out is corrected. *The human's call,
+   2026-10-09: "Yes, prefilled", over keeping the rule that a renewal copies the cost.*
 9. **Every label on a filled tone is readable in both appearances.** Text drawn on a filled
    destructive, primary, success, warning, info or permitted colour meets WCAG AA (4.5:1) in light
    and dark, and the token test fails when one does not.
