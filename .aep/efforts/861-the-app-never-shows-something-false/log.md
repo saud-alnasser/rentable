@@ -22,6 +22,7 @@ use-when: "resuming this effort, or asking where it stands"
 - opened in the full lane, from main, the current branch, because rules/version-control sets stack: true
 - 03: after try again the failed block shows no sign of work while the read reruns; weigh at converge
 - 05: the human chose to leave out a figure the member may not view (no card, no ring unless due and collected are both known, no nothing-to-chase without view-contracts), over keeping zeros or a marked placeholder
+- seam after 11: the ticket 09 section comment in contract/tests/router.test.ts still says nothing writes the link
 
 ## Needs you
 
