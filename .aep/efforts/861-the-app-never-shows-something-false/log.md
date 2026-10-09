@@ -29,6 +29,7 @@ use-when: "resuming this effort, or asking where it stands"
 [x] 24 a-toast-reads-on-its-wash-in-both-appearances 2/2
 [x] 21 a-failed-members-read-on-the-workspace-page-says-it-failed 2/2
 [x] 23 an-edit-keeps-a-renewal-after-what-it-renews 3/3
+[x] 22 the-band-never-shows-another-periods-figures 2/2
 
 ## Rounds
 

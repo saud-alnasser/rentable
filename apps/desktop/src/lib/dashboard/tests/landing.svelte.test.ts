@@ -442,6 +442,64 @@ test('a period with no refund shows no returned figure', async () => {
 });
 
 /**
+ * ANOTHER PERIOD'S FIGURES ARE NEVER DRAWN UNDER THIS ONE'S NAME
+ *
+ * Ticket 22 of effort 861, requirement 2 and criterion 2: once the reader picks another period, the
+ * band draws the loading treatment until that period's figures arrive, never the period they left.
+ */
+test("a period on its way draws none of the previous period's figures, and then its own", async () => {
+	let answerHeld: (dashboard: Dashboard) => void = () => {};
+
+	host.dashboardGet.mockImplementation(({ period }: { period: string }) =>
+		period === 'this-month'
+			? Promise.resolve(answerWithMoney({ due: 1000, collected: 800 }))
+			: new Promise<Dashboard>((resolve) => (answerHeld = resolve))
+	);
+
+	renderLanding();
+	await screen.findByRole('heading', { name: 'owing' });
+
+	expect(moneyCard()).toContain(formatLocaleMoney('en', 800));
+
+	// from the keyboard, as a reader whose focus is the thing to keep would.
+	const trigger = screen.getByRole('button', { name: 'this month' });
+
+	trigger.focus();
+	await fireEvent.keyDown(trigger, { key: 'Enter' });
+	await waitFor(() => expect(document.activeElement?.closest('[role="menu"]')).not.toBeNull());
+	const lastMonth = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
+		(item) => item.textContent?.trim() === 'last month'
+	);
+
+	await fireEvent.click(lastMonth!);
+
+	await waitFor(() => expect(host.dashboardGet).toHaveBeenCalledWith({ period: 'last-month' }));
+
+	const firstPeriodFigures = () =>
+		[800, 1000].filter((amount) =>
+			document.body.textContent?.includes(formatLocaleMoney('en', amount))
+		);
+
+	expect(firstPeriodFigures()).toEqual([]);
+
+	// past the loading block's delay, so the skeleton is up rather than the busy region before it.
+	await waitFor(() => expect(document.querySelector('[data-loading="skeleton"]')).not.toBeNull());
+
+	expect(firstPeriodFigures()).toEqual([]);
+	// the period control stands through the load, the same control naming the period on its way,
+	// and the focus the menu handed back on closing is still on it.
+	expect(trigger.isConnected).toBe(true);
+	expect(trigger.textContent).toContain('last month');
+	await waitFor(() => expect(document.activeElement).toBe(trigger));
+
+	answerHeld(answerWithMoney({ due: 3000, collected: 2500 }));
+
+	await waitFor(() => expect(moneyCard()).toContain(formatLocaleMoney('en', 2500)));
+	expect(moneyCard()).toContain(formatLocaleMoney('en', 3000));
+	expect(firstPeriodFigures()).toEqual([]);
+});
+
+/**
  * A FIGURE THE SCREEN DOES NOT KNOW IS NOT DRAWN
  *
  * Ticket 05 of effort 861, requirement 2 and criterion 2: while the dashboard's read is on its way

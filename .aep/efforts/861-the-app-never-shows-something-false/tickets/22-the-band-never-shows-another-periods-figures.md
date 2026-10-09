@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(desktop): the figure band never shows another period's figures
@@ -14,8 +14,8 @@ When the reader changes the landing screen's period, the band draws the loading 
 
 Traces requirement 2 and criterion 2.
 
-- [ ] While the dashboard read holds the previous period's answer as a placeholder for the new one (`isPlaceholderData`), the band and the sections draw the loading treatment; once the new answer arrives they draw it.
-- [ ] `dashboard/tests/landing.svelte.test.ts`: with the first period answered and the second held pending, the band draws no figure from the first period; once the second answers, its figures are drawn.
+- [x] While the dashboard read holds the previous period's answer as a placeholder for the new one (`isPlaceholderData`), the band and the sections draw the loading treatment; once the new answer arrives they draw it. Verified: `landing.svelte` reads `isPlaceholderData`: while it holds, the money figures, occupancy, outstanding and the sections draw the loading block in their cards' height, and the band's frame and the period control stay mounted and focused; the new answer is drawn once it arrives.
+- [x] `dashboard/tests/landing.svelte.test.ts`: with the first period answered and the second held pending, the band draws no figure from the first period; once the second answers, its figures are drawn. Verified: `vitest run src/lib/dashboard`: 23 of 23 pass; the new test failed against the earlier landing with `expected [ 800, 1000 ] to deeply equal []`, and now finds no first-period figure while the second is held, the trigger connected and focused, then 2500 and 3000 drawn.
 
 ## Relevant areas
 

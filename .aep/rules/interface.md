@@ -235,6 +235,13 @@ figure is drawn as `0` while the read is on its way. A read that failed draws th
 *Nothing to chase* is said only under a read that answered with no rank, since a read on its way
 or one that failed does not know whether there is anything to chase.
 
+**A period change never draws the period the reader left, and the period control stays while the
+figures load.** While the new period's answer is on its way, the band keeps its cards and the money
+card's header with the period control, which keeps its focus, and each figure and the sections draw
+the loading block in their own place until the answer arrives. The figures the screen held belong
+to another period, so none of them is drawn under the new period's name. *Ticket 22 of
+[[efforts/861-the-app-never-shows-something-false/spec]], requirement 2.*
+
 **A figure the reader may not view is left out, never drawn as `0`.** The read leaves out each
 figure whose kind the reader may not view (effort 838, requirement 10), and the band leaves it out
 with it: a card with nothing the reader may see is not drawn, and the money ring is drawn only where

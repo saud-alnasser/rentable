@@ -49,6 +49,10 @@
 	 * as `0`: a card with nothing the reader may see is not drawn, and the money ring only where
 	 * both what was due and what was collected are known. Nor is a door drawn to a page the reader
 	 * may not open: the money card links to the contracts only for a reader who may view them.
+	 *
+	 * **Nor does a period change draw the period the reader left.** While the new period's answer is
+	 * on its way the band keeps its cards and the period control, which keeps its focus, and each
+	 * figure and the sections draw the loading treatment until it arrives (ticket 22 of effort 861).
 	 */
 	// the period the money figures answer about. It opens on the current month, which is what
 	// this band could say and nothing else before it took one.
@@ -59,6 +63,11 @@
 	// whether the read failed with nothing to show, as `$lib/error/read` decides it, and what runs
 	// it again: the failed state stands in place of the band and the sections while it did.
 	const workQueueRead = $derived(toReadFailure(workQueueQuery));
+	// whether another period's answer is on its way. The query holds the answer for the period the
+	// reader left as a placeholder until then, which keeps the band's cards and the period control
+	// standing; every figure and the sections draw the loading treatment meanwhile, since the band
+	// is one read and none of what it holds is this period's answer (ticket 22 of effort 861).
+	const periodOnItsWay = $derived(workQueueQuery.isPlaceholderData);
 
 	// whether the reader may view contracts. The read answers no ranks and no queue to a reader who
 	// may not, and a list they were not allowed to read is not one with nothing in it: nothing is
@@ -157,13 +166,7 @@
 				{#each { length: 2 }, index (index)}
 					<div class="flex flex-col gap-2 rounded-2xl bg-card p-4 sm:p-5">
 						<Skeleton class="h-6 w-24" />
-						<div class="flex items-center justify-around gap-4 p-1">
-							<Skeleton class="size-16 rounded-full sm:size-24" />
-							<div class="flex flex-col gap-2">
-								<Skeleton class="h-4 w-20" />
-								<Skeleton class="h-3 w-16" />
-							</div>
-						</div>
+						{@render ringFiguresSkeleton()}
 					</div>
 				{/each}
 				<div class="flex flex-col justify-center gap-3 rounded-2xl bg-card p-4 sm:p-5">
@@ -171,20 +174,10 @@
 						<Skeleton class="size-9 rounded-xl" />
 						<Skeleton class="h-3 w-20" />
 					</div>
-					<Skeleton class="h-5 w-32" />
+					{@render outstandingFigureSkeleton()}
 				</div>
 			</div>
-			{#each { length: 2 }, index (index)}
-				<div class="flex flex-col gap-3 rounded-2xl bg-card p-4">
-					<div class="flex items-center gap-3">
-						<Skeleton class="size-8 rounded-lg" />
-						<Skeleton class="h-4 w-32" />
-					</div>
-					{#each { length: 3 }, row (row)}
-						<Skeleton class="h-10 w-full rounded-xl" />
-					{/each}
-				</div>
-			{/each}
+			{@render sectionsSkeleton()}
 		{/snippet}
 
 		{#if workQueueRead.failed}
@@ -270,19 +263,32 @@
 
 							<!-- a door only where the reader may go: a reader who may not view contracts is
 							     shown the same figures with no link, since the page it opens is one they may
-							     not open (ticket 16 of effort 861). -->
-							{#if viewsContracts}
-								<a
-									href={resolve('/contracts')}
-									class="-m-1 flex items-center justify-around gap-4 rounded-xl p-1 transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-								>
-									{@render moneyFigures()}
-								</a>
-							{:else}
-								<div class="-m-1 flex items-center justify-around gap-4 p-1">
-									{@render moneyFigures()}
-								</div>
-							{/if}
+							     not open (ticket 16 of effort 861).
+
+							     While another period's answer is on its way, the figures load and
+							     the header above them, with the control, stays where it is. -->
+							<Loading
+								loading={periodOnItsWay}
+								label={$LL.common.ui.loading()}
+								class="min-h-16 sm:min-h-24"
+							>
+								{#snippet skeleton()}
+									{@render ringFiguresSkeleton()}
+								{/snippet}
+
+								{#if viewsContracts}
+									<a
+										href={resolve('/contracts')}
+										class="-m-1 flex items-center justify-around gap-4 rounded-xl p-1 transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+									>
+										{@render moneyFigures()}
+									</a>
+								{:else}
+									<div class="-m-1 flex items-center justify-around gap-4 p-1">
+										{@render moneyFigures()}
+									</div>
+								{/if}
+							</Loading>
 
 							{#snippet moneyFigures()}
 								<!-- the ring is collected of due, so it is drawn only where both
@@ -332,16 +338,28 @@
 							<span class="flex h-6 items-center truncate text-xs text-muted-foreground">
 								{$LL.dashboard.figures.occupiedUnits()}
 							</span>
-							<span class="-m-1 flex items-center justify-around gap-4 p-1" data-occupancy-figure>
-								<Cell.Ring
-									size="hero"
-									value={occupancy.occupiedUnits}
-									total={occupancy.totalUnits}
-								/>
-								<span class="flex min-w-0 flex-col gap-1 text-start">
-									<span class="truncate text-sm font-semibold tabular-nums">{occupiedOfTotal}</span>
+							<Loading
+								loading={periodOnItsWay}
+								label={$LL.common.ui.loading()}
+								class="min-h-16 sm:min-h-24"
+							>
+								{#snippet skeleton()}
+									{@render ringFiguresSkeleton()}
+								{/snippet}
+
+								<span class="-m-1 flex items-center justify-around gap-4 p-1" data-occupancy-figure>
+									<Cell.Ring
+										size="hero"
+										value={occupancy.occupiedUnits}
+										total={occupancy.totalUnits}
+									/>
+									<span class="flex min-w-0 flex-col gap-1 text-start">
+										<span class="truncate text-sm font-semibold tabular-nums">
+											{occupiedOfTotal}
+										</span>
+									</span>
 								</span>
-							</span>
+							</Loading>
 						</a>
 					{/if}
 
@@ -368,44 +386,62 @@
 									{$LL.dashboard.figures.outstanding()}
 								</span>
 							</span>
-							<span class="truncate text-xl leading-none font-semibold tabular-nums">
-								<Cell.Money amount={outstanding} />
-							</span>
+							<Loading loading={periodOnItsWay} label={$LL.common.ui.loading()} class="min-h-5">
+								{#snippet skeleton()}
+									{@render outstandingFigureSkeleton()}
+								{/snippet}
+
+								<span class="truncate text-xl leading-none font-semibold tabular-nums">
+									<Cell.Money amount={outstanding} />
+								</span>
+							</Loading>
 						</a>
 					{/if}
 				</div>
 			{/if}
 
-			{#if !viewsContracts}
-				<!-- nothing is drawn from a list the reader was not allowed to read: no section,
-				     and not *nothing to chase*. -->
-			{:else if sections.length === 0}
-				<!-- the one empty treatment ([[rules/interface]], *Empty*). Nothing to chase is the
-				     landing screen with nothing in it yet, and there is no act to offer: the
-				     sections fill as contracts fall behind or near their end. It is said only here,
-				     under a read that answered: a read on its way or one that failed does not know
-				     whether there is anything to chase. -->
-				<Empty
-					kind="nothing-yet"
-					title={$LL.dashboard.empty.title()}
-					description={$LL.dashboard.empty.description()}
-					class="rounded-2xl border border-dashed"
-				/>
-			{:else}
-				{#each sections as section (section.summary.rank)}
-					<DashboardSectionCard
-						{section}
-						control={section.summary.rank === 'ending-soon' ? endingSoonControl : undefined}
-					/>
-				{/each}
-			{/if}
+			<!-- nothing is drawn from a list the reader was not allowed to read: no section, and not
+			     *nothing to chase*. While another period's answer is on its way, the sections load
+			     with the figures, since they are the same read. -->
+			{#if viewsContracts}
+				<Loading
+					loading={periodOnItsWay}
+					label={$LL.common.ui.loading()}
+					class="flex flex-col gap-4"
+				>
+					{#snippet skeleton()}
+						{@render sectionsSkeleton()}
+					{/snippet}
 
-			{#if viewsContracts && !holdsEndingSoon}
-				<DashboardSectionCard
-					section={vacantEndingSoon}
-					control={endingSoonControl}
-					none={$LL.dashboard.endingSoon.none({ days: workQueue.endingSoonNoticeDays })}
-				/>
+					{#if sections.length === 0}
+						<!-- the one empty treatment ([[rules/interface]], *Empty*). Nothing to chase
+						     is the landing screen with nothing in it yet, and there is no act to offer:
+						     the sections fill as contracts fall behind or near their end. It is said
+						     only here, under a read that answered: a read on its way or one that failed
+						     does not know whether there is anything to chase. -->
+						<Empty
+							kind="nothing-yet"
+							title={$LL.dashboard.empty.title()}
+							description={$LL.dashboard.empty.description()}
+							class="rounded-2xl border border-dashed"
+						/>
+					{:else}
+						{#each sections as section (section.summary.rank)}
+							<DashboardSectionCard
+								{section}
+								control={section.summary.rank === 'ending-soon' ? endingSoonControl : undefined}
+							/>
+						{/each}
+					{/if}
+
+					{#if !holdsEndingSoon}
+						<DashboardSectionCard
+							section={vacantEndingSoon}
+							control={endingSoonControl}
+							none={$LL.dashboard.endingSoon.none({ days: workQueue.endingSoonNoticeDays })}
+						/>
+					{/if}
+				</Loading>
 			{/if}
 		{/if}
 	</Loading>
@@ -417,4 +453,36 @@
 	{#if workQueue}
 		<DashboardEndingSoon days={workQueue.endingSoonNoticeDays} bind:open={endingSoonOpen} />
 	{/if}
+{/snippet}
+
+<!-- the loading shapes the screen draws in more than one place: inside the first read's band and
+     sections, and in place of the figures and the sections while another period's answer is on
+     its way. The ring figures' shape takes the live figures' own bleed, so the card keeps its
+     height when the one gives way to the other. -->
+{#snippet ringFiguresSkeleton()}
+	<div class="-m-1 flex items-center justify-around gap-4 p-1">
+		<Skeleton class="size-16 rounded-full sm:size-24" />
+		<div class="flex flex-col gap-2">
+			<Skeleton class="h-4 w-20" />
+			<Skeleton class="h-3 w-16" />
+		</div>
+	</div>
+{/snippet}
+
+{#snippet outstandingFigureSkeleton()}
+	<Skeleton class="h-5 w-32" />
+{/snippet}
+
+{#snippet sectionsSkeleton()}
+	{#each { length: 2 }, index (index)}
+		<div class="flex flex-col gap-3 rounded-2xl bg-card p-4">
+			<div class="flex items-center gap-3">
+				<Skeleton class="size-8 rounded-lg" />
+				<Skeleton class="h-4 w-32" />
+			</div>
+			{#each { length: 3 }, row (row)}
+				<Skeleton class="h-10 w-full rounded-xl" />
+			{/each}
+		</div>
+	{/each}
 {/snippet}
