@@ -7,6 +7,7 @@ import {
 	type ContractLike
 } from '$lib/contract/contract';
 import { deriveUnitStatuses, type ContractAssignment } from '$lib/contract/assignment/assignment';
+import { recognizeRenewals } from '$lib/contract/renewal/recognize';
 import { eq, inArray } from 'drizzle-orm';
 
 /**
@@ -19,6 +20,11 @@ import { eq, inArray } from 'drizzle-orm';
  * while `reconcile` walks the whole table for the triggers that have no touch-set —
  * startup, a UTC-day crossing while the app runs, and a remote-sync pull. (`sync` means
  * remote exclusively; this local recomputation never is.)
+ *
+ * **The whole-table pass also links the renewals nothing recorded** (effort 861, requirement 6):
+ * a contract the rule in `renewal/recognize.ts` reads as renewing another, made before the link
+ * existed, by a build without it, or in a file imported without it, is given the link, at every
+ * pass rather than once. Only the whole table can find them, so a mutation's pass does not.
  *
  * **The payments are read through what the payment contributes** (`paymentsOf`), since the payment
  * depends on the contract and not the other way round: a pass is handed a procedure's context, and
@@ -101,10 +107,43 @@ async function selectAssignmentsForUnits(db: Database, unitIds: string[]) {
 		.where(inArray(s.contractUnit.unitId, unitIds));
 }
 
+/**
+ * Writes the renewal links `contracts` hold unrecorded, all of them in one batch, and none where
+ * there are none: a second pass finds every successor already linked, so it writes nothing.
+ */
+async function writeRecognizedRenewals(db: Database, contracts: DbContract[]) {
+	const held = await db
+		.select({ contractId: s.contractUnit.contractId, unitId: s.contractUnit.unitId })
+		.from(s.contractUnit);
+	const unitsByContract = new Map<string, string[]>();
+
+	for (const { contractId, unitId } of held) {
+		unitsByContract.set(contractId, [...(unitsByContract.get(contractId) ?? []), unitId]);
+	}
+
+	const updates = recognizeRenewals(contracts, unitsByContract).map(
+		({ successorId, predecessorId }) =>
+			db
+				.update(s.contract)
+				.set({ renewsContractId: predecessorId })
+				.where(eq(s.contract.id, successorId))
+	);
+
+	if (updates.length > 0) {
+		const [first, ...rest] = updates;
+
+		await db.batch([first, ...rest]);
+	}
+}
+
 /** the whole-table pass — for startup, a UTC-day crossing, and a remote-sync pull. */
 export async function reconcile(ctx: Settling, now: number) {
 	const { db } = ctx;
 	const contracts = await db.select().from(s.contract);
+
+	// before deriving anything, though nothing derived reads the link.
+	await writeRecognizedRenewals(db, contracts);
+
 	const contractIds = contracts.map((contract) => contract.id);
 	const paymentsByContractId = await ctx.contributions.contract.paymentsOf(db, contractIds);
 

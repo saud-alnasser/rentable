@@ -470,14 +470,15 @@ export default router({
 	units: assignment,
 
 	/**
-	 * Recompute every contract's and unit's status and the payment aggregates, for the triggers
-	 * that have no touch-set: startup, a UTC-day crossing while the app runs, and a remote-sync
-	 * pull. *It was `app.state.reconcile` until effort 840 flattened the router tree.*
+	 * Recompute every contract's and unit's status and the payment aggregates, and link the
+	 * renewals nothing recorded (effort 861, requirement 6), for the triggers that have no
+	 * touch-set: startup, a UTC-day crossing while the app runs, and a remote-sync pull. *It was
+	 * `app.state.reconcile` until effort 840 flattened the router tree.*
 	 *
 	 * **Skipped where a newer rentable upgraded the workspace past what this one writes** (effort
 	 * 857, ticket 05): the derived columns are written, and the shell refuses every write there, so
 	 * the pass would fail a launch or a heartbeat that is no person's act. The statuses stay as the
-	 * last writer left them, which is what the others' machines wrote.
+	 * last writer left them, which is what the others' machines wrote, and no renewal is linked.
 	 */
 	reconcile: procedure.member.mutation(async ({ ctx }) => {
 		const reconciledAt = ctx.clock.now();

@@ -12,7 +12,7 @@ import {
 	refusedWith,
 	refusalReadIn
 } from '$lib/app/tests/testing.ts';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
 import { isRecordId } from '$lib/platform/database/identity.ts';
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
@@ -475,6 +475,145 @@ test('a deleted renewal is undone naming the contract it renews', async () => {
 	await api.contract.restoreMany({ contracts: many.deleted });
 
 	assert.equal((await api.contract.get({ id: successor.id }))?.renewsContractId, predecessor.id);
+});
+
+// --- The renewals the reconcile recognises ---------------------------------------------
+//
+// Effort 861, requirement 6 and criterion 6, ticket 12: the whole-table reconcile links a renewal
+// nothing recorded, by the rule `recognizeRenewals` states, and a second pass finds nothing left.
+
+const DAY = 24 * 60 * 60 * 1000;
+
+/** a caller over a database of its own, logging what it sends, and a renewal nothing linked. */
+async function withUnlinkedRenewal() {
+	const statements: string[] = [];
+	const db = createMemoryDatabase((statement) => statements.push(statement));
+	const api = await createApi({ db });
+	const { unit: first } = await seedComplexWithUnit(api, 'Recognized-A');
+	const { unit: second } = await seedComplexWithUnit(api, 'Recognized-B');
+	const predecessor = await seedContract(api, {
+		start: monthsFromNow(-13),
+		end: monthsFromNow(-1),
+		unitIds: [first.id, second.id]
+	});
+	const successor = await api.contract.create({
+		tenantId: predecessor.tenantId,
+		start: predecessor.end + DAY,
+		end: monthsFromNow(11),
+		interval: '12m',
+		cost: 1000,
+		unitIds: [second.id, first.id]
+	});
+
+	return { api, db, statements, predecessor, successor };
+}
+
+test('the reconcile links a renewal nothing recorded, and a second pass changes nothing', async () => {
+	const { api, db, statements, predecessor, successor } = await withUnlinkedRenewal();
+
+	assert.equal((await api.contract.get({ id: successor.id }))?.renewsContractId, null);
+
+	await api.contract.reconcile();
+
+	assert.equal((await api.contract.get({ id: successor.id }))?.renewsContractId, predecessor.id);
+	assert.equal((await api.contract.get({ id: predecessor.id }))?.renewsContractId, null);
+
+	const before = await db.select().from(s.contract);
+
+	statements.length = 0;
+	await api.contract.reconcile();
+
+	assert.deepEqual(await db.select().from(s.contract), before);
+	assert.equal(
+		countMatching(statements, /^\s*update\s+"contract"/i),
+		0,
+		'the second pass wrote a contract'
+	);
+});
+
+test('the reconcile writes every link it finds and no other', async () => {
+	const { api, statements } = await withUnlinkedRenewal();
+	const renewsIn = (sent: readonly string[]) =>
+		countMatching(sent, /^\s*update\s+"contract"\s+set\s+"renews_contract_id"/i);
+
+	// a second, separate renewal, so the pass has two links to write.
+	const other = await seedContract(api, { start: monthsFromNow(-25), end: monthsFromNow(-13) });
+	const next = await api.contract.create({
+		tenantId: other.tenantId,
+		start: other.end + DAY,
+		end: monthsFromNow(-1),
+		interval: '12m',
+		cost: 1000
+	});
+
+	statements.length = 0;
+	await api.contract.reconcile();
+
+	assert.equal(renewsIn(statements), 2);
+	assert.equal((await api.contract.get({ id: next.id }))?.renewsContractId, other.id);
+});
+
+test('the reconcile links no contract on another tenant, other units, or another day', async () => {
+	const { api, predecessor } = await withUnlinkedRenewal();
+	const { unit } = await seedComplexWithUnit(api, 'Recognized-C');
+	const otherTenant = await seedContract(api, {
+		start: predecessor.end + DAY,
+		end: monthsFromNow(11)
+	});
+	const otherUnits = await api.contract.create({
+		tenantId: predecessor.tenantId,
+		start: predecessor.end + DAY,
+		end: monthsFromNow(11),
+		interval: '12m',
+		cost: 1000,
+		unitIds: [unit.id]
+	});
+	const otherDay = await api.contract.create({
+		tenantId: predecessor.tenantId,
+		start: predecessor.end + 2 * DAY,
+		end: monthsFromNow(11),
+		interval: '12m',
+		cost: 1000
+	});
+
+	await api.contract.reconcile();
+
+	for (const contract of [otherTenant, otherUnits, otherDay]) {
+		assert.equal((await api.contract.get({ id: contract.id }))?.renewsContractId, null);
+	}
+});
+
+// criterion 6's workspace: the Rust seed walk opens its version-9 seed at 10 without reconciling,
+// since the reconcile is the application's, so the walk's rows are seeded here at the shape the
+// version-10 seed (`tauri/src/organization/lease/test/seed.rs`, `SEEDED_AT_TEN`) holds, with the
+// renewal written as a build at 9 wrote it: the same tenant and both units, the day after
+// `d0001` ends, and naming nothing.
+test('a renewal a build at version 9 wrote, opened at 10, is linked by the reconcile', async () => {
+	const db = createMemoryDatabase();
+	const api = await createApi({ db });
+
+	for (const statement of [
+		"INSERT INTO `complex` (`id`, `name`, `location`) VALUES ('0199a000-0000-7000-8000-0000000c0001', 'North Towers', 'Riyadh, Olaya')",
+		"INSERT INTO `tenant` (`id`, `national_id`, `name`, `phone`) VALUES ('0199a000-0000-7000-8000-000000070001', '1012345678', 'Sara Al-Harbi', '0501234567'), ('0199a000-0000-7000-8000-000000070002', '2098765432', 'Khalid Al-Otaibi', '0559876543')",
+		"INSERT INTO `unit` (`id`, `name`, `status`, `complex_id`) VALUES ('0199a000-0000-7000-8000-0000000a0001', 'A-101', 'occupied', '0199a000-0000-7000-8000-0000000c0001'), ('0199a000-0000-7000-8000-0000000a0002', 'A-102', 'occupied', '0199a000-0000-7000-8000-0000000c0001')",
+		"INSERT INTO `contract` (`id`, `gov_id`, `status`, `start_date`, `end_date`, `interval_in_months`, `cost_per_interval`, `paid_amount`, `expected_amount`, `tenant_id`) VALUES ('0199a000-0000-7000-8000-0000000d0001', '20250001', 'active', 1735689600000, 1767225600000, '6m', 30000.5, 15000.25, 30000.5, '0199a000-0000-7000-8000-000000070001'), ('0199a000-0000-7000-8000-0000000d0002', NULL, 'expired', 1704067200000, 1735603200000, '1m', 2500, 0, 0, '0199a000-0000-7000-8000-000000070002'), ('0199a000-0000-7000-8000-0000000d0003', '20260001', 'active', 1767312000000, 1798761600000, '6m', 30000.5, 0, 30000.5, '0199a000-0000-7000-8000-000000070001')",
+		"INSERT INTO `contract_unit` (`contract_id`, `unit_id`) VALUES ('0199a000-0000-7000-8000-0000000d0001', '0199a000-0000-7000-8000-0000000a0001'), ('0199a000-0000-7000-8000-0000000d0001', '0199a000-0000-7000-8000-0000000a0002'), ('0199a000-0000-7000-8000-0000000d0002', '0199a000-0000-7000-8000-0000000a0002'), ('0199a000-0000-7000-8000-0000000d0003', '0199a000-0000-7000-8000-0000000a0001'), ('0199a000-0000-7000-8000-0000000d0003', '0199a000-0000-7000-8000-0000000a0002')"
+	]) {
+		await db.run(sql.raw(statement));
+	}
+
+	await api.contract.reconcile();
+
+	const links = await db
+		.select({ id: s.contract.id, renews: s.contract.renewsContractId })
+		.from(s.contract)
+		.orderBy(s.contract.id);
+
+	assert.deepEqual(links, [
+		{ id: '0199a000-0000-7000-8000-0000000d0001', renews: null },
+		{ id: '0199a000-0000-7000-8000-0000000d0002', renews: null },
+		{ id: '0199a000-0000-7000-8000-0000000d0003', renews: '0199a000-0000-7000-8000-0000000d0001' }
+	]);
 });
 
 // --- Restoring a terminated contract -------------------------------------------------
