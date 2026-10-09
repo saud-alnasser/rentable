@@ -167,7 +167,9 @@ itself stays for text and for washes (`bg-destructive/10`). The same test holds 
 fill at over the background, card and popover, and it fails on a fill painted at an alpha its
 pairing table does not list and on `text-white` anywhere in the package. *Added by effort 861
 (requirement 9), when the dark destructive, primary and permitted fills were measured at 2.8, 3.2
-and 2.4 to 1 under their white labels.* `apps/desktop/src/app.css` imports
+and 2.4 to 1 under their white labels.* A toned toast's text, the tone itself, is held to the
+same 4.5:1 on its wash, the tone mixed into the popover at the share `primitive/sonner` paints it,
+in both appearances; the test reads both from the primitive. `apps/desktop/src/app.css` imports
 it, registers the package with `@source`, and holds only what belongs to this window.
 
 **The token layer's own header states the consumer contract**, and it is three lines rather than

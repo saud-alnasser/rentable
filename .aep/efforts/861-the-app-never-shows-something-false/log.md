@@ -26,6 +26,7 @@ use-when: "resuming this effort, or asking where it stands"
 [x] 19 a-failed-list-offers-no-create-and-no-export 3/3
 [x] 20 an-import-writes-only-a-renewal-link-that-can-stand 3/3
 [x] 18 copies-pair-when-one-alone-names-what-it-renews 3/3
+[x] 24 a-toast-reads-on-its-wash-in-both-appearances 2/2
 
 ## Rounds
 

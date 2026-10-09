@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(design): a toast reads on its wash in both appearances
@@ -14,8 +14,8 @@ A toned toast's text reads at 4.5:1 or more on its tinted background in light an
 
 Traces requirement 9 and criterion 9.
 
-- [ ] The success, error, warning and info toasts' text reaches 4.5:1 on their wash, composited over the popover, in both appearances; the wash keeps its tone.
-- [ ] `packages/design/src/lib/tests/tokens.test.ts` checks each toast tone's text on its wash in both appearances and passes, and fails on today's light values (about 4.4:1).
+- [x] The success, error, warning and info toasts' text reaches 4.5:1 on their wash, composited over the popover, in both appearances; the wash keeps its tone. Verified: `node --test src/lib/tests/tokens.test.ts` in packages/design: 40 pass, 0 fail; at an 8% wash the light ratios are success 4.62, error 4.65, warning 4.66, info 4.96, and dark 11.58, 5.85, 11.21, 9.09; the wash is still a tint of its tone.
+- [x] `packages/design/src/lib/tests/tokens.test.ts` checks each toast tone's text on its wash in both appearances and passes, and fails on today's light values (about 4.4:1). Verified: the 8 toast cases read the primitive's own `color-mix` and text, run in both appearances, failed 3 of 40 at the old 12% wash (4.37, 4.41, 4.41), and pass now; the frontend rule's *Styling* names the check.
 
 ## Relevant areas
 

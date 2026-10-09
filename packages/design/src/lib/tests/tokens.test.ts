@@ -11,9 +11,10 @@ import { sourceFiles } from '#tests/source.ts';
  * from one silently falls back to the other appearance's value. The text a reader has to read,
  * the foreground, the muted foreground and each tone, meets WCAG AA (4.5:1) against each surface it
  * sits on, in both. And a label drawn on a filled tone meets it on that fill, solid and at the
- * alpha its hover paints the fill at over each surface. A disabled button's label is held to 3:1,
- * the floor for a control that is shown but cannot run, against its own fill and every surface a
- * button without one sits on.
+ * alpha its hover paints the fill at over each surface. A toned toast's text is held to the same
+ * on the wash the toaster mixes for it. A disabled button's label is held to 3:1, the floor for a
+ * control that is shown but cannot run, against its own fill and every surface a button without
+ * one sits on.
  */
 
 const source = readFileSync(new URL('../tokens.css', import.meta.url), 'utf8').replace(
@@ -121,6 +122,23 @@ function over(fill: Oklch, alpha: number, ground: Oklch): Rgb {
 	return [blend(red, beneath[0]), blend(green, beneath[1]), blend(blue, beneath[2])];
 }
 
+/**
+ * `color-mix(in oklab, one weight, other)` for two opaque colours: a straight interpolation of the
+ * oklab coordinates, returned in oklch so the luminance above reads it.
+ */
+function mix(one: Oklch, weight: number, other: Oklch): Oklch {
+	const rectangular = ({ l, c, h }: Oklch) => {
+		const hue = (h * Math.PI) / 180;
+
+		return [l, c * Math.cos(hue), c * Math.sin(hue)];
+	};
+	const [l, a, b] = rectangular(one).map(
+		(value, axis) => weight * value + (1 - weight) * rectangular(other)[axis]
+	);
+
+	return { l, c: Math.hypot(a, b), h: (Math.atan2(b, a) * 180) / Math.PI, alpha: 1 };
+}
+
 const appearances = { light: block(':root'), dark: block('.dark') };
 
 const TEXT = [
@@ -157,6 +175,27 @@ const theme = /@theme inline\s*\{([^}]*)\}/.exec(source)?.[1] ?? '';
 const DISABLED_LABEL = 'disabled-foreground';
 const DISABLED_FILL = 'muted';
 const button = readFileSync(new URL('../primitive/button/button.svelte', import.meta.url), 'utf8');
+
+/**
+ * The toned toasts, as `primitive/sonner/sonner.svelte` hands them to sonner: each type's wash is
+ * a `color-mix` of its tone into a ground, and its text is a token. The primitive is read rather
+ * than restated, so the mix asserted here is the one drawn, and a change to the percentage or to
+ * either token is checked as it is written.
+ */
+const TOASTS = ['success', 'error', 'warning', 'info'];
+const sonner = readFileSync(new URL('../primitive/sonner/sonner.svelte', import.meta.url), 'utf8');
+
+function toast(type: string) {
+	const wash = new RegExp(
+		`--${type}-bg:\\s*color-mix\\(in oklab, var\\(--([\\w-]+)\\) ([\\d.]+)%, var\\(--([\\w-]+)\\)\\);`
+	).exec(sonner);
+	const text = new RegExp(`--${type}-text:\\s*var\\(--([\\w-]+)\\);`).exec(sonner);
+
+	assert.ok(wash, `the ${type} toast's wash is a color-mix of a tone into a ground`);
+	assert.ok(text, `the ${type} toast's text is a token`);
+
+	return { tone: wash[1], weight: Number(wash[2]) / 100, ground: wash[3], text: text[1] };
+}
 
 describe('the luminance function', () => {
 	it('puts white at one and black at zero, so white on black is 21:1', () => {
@@ -271,6 +310,35 @@ describe('a label on a filled tone', () => {
 						);
 					}
 				}
+			});
+		}
+	}
+});
+
+describe('a toned toast', () => {
+	for (const [appearance, tokens] of Object.entries(appearances)) {
+		for (const type of TOASTS) {
+			it(`${appearance}: the ${type} toast's text reads at 4.5:1 on its wash`, () => {
+				const { tone, weight, ground, text } = toast(type);
+				const paint = tokens.get(tone);
+				const beneath = tokens.get(ground);
+				const ink = tokens.get(text);
+
+				assert.equal(ground, 'popover', `the ${type} wash is mixed over the popover`);
+				assert.ok(paint, `${appearance} declares --${tone}`);
+				assert.ok(beneath, `${appearance} declares --${ground}`);
+				assert.ok(ink, `${appearance} declares --${text}`);
+				assert.ok(
+					paint.alpha === 1 && beneath.alpha === 1,
+					`${appearance} --${tone} and --${ground} are opaque, so the wash is`
+				);
+
+				const ratio = contrast(ink, mix(paint, weight, beneath));
+
+				assert.ok(
+					ratio >= 4.5,
+					`${appearance} --${text} on the ${type} wash (--${tone} at ${weight} into --${ground}) is ${ratio.toFixed(2)}:1`
+				);
 			});
 		}
 	}
