@@ -21,3 +21,4 @@ use-when: "resuming this effort, or asking where it stands"
 ## Needs you
 
 - ticket 02: in the running app, an error toast is still up after ten seconds, closes from its X, and sits bottom-left in Arabic and bottom-right in English
+- ticket 01: judge the new primary, destructive and permitted fills in the running app, light and dark (buttons, badges, a selected day, a checked box, the rail mark)
