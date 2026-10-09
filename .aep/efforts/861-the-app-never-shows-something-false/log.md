@@ -27,6 +27,7 @@ use-when: "resuming this effort, or asking where it stands"
 ## Rounds
 
 converge 1: gap, tickets 15 16 17
+converge 2: no gap
 
 ## Recorded
 
