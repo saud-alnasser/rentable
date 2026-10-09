@@ -39,14 +39,16 @@ import schedule from './schedule/router';
 import selection from './selection/router';
 
 // status and the payment aggregates are derived columns: reconcile owns them, so no
-// caller may supply them.
+// caller may supply them. The contract a renewal continues is written by the renewal alone, so
+// creating, duplicating and editing a contract can never name one (effort 861, requirement 5).
 // an optional id, so undoing a deletion can put the row back with the identity it had — a page
 // still open on that record is holding a reference to it (ADR 0026). Absent otherwise, and the
 // engine assigns one.
 const ContractFieldsSchema = ContractSchema.omit({
 	status: true,
 	paidAmount: true,
-	expectedAmount: true
+	expectedAmount: true,
+	renewsContractId: true
 }).partial({ id: true });
 // a new contract with the units it is created holding, which the form chooses alongside the
 // tenant (effort 832, requirement 20). Empty by default: a contract may start holding none and
@@ -57,7 +59,8 @@ const ContractCreateSchema = ContractFieldsSchema.extend({
 const ContractUpdateSchema = ContractSchema.omit({
 	status: true,
 	paidAmount: true,
-	expectedAmount: true
+	expectedAmount: true,
+	renewsContractId: true
 });
 
 /**

@@ -65,7 +65,8 @@ const CONTRACT: ContractActRecord = {
 	cost: 12000,
 	paidAmount: 0,
 	expectedAmount: 12000,
-	tenantId: 'tenant-1'
+	tenantId: 'tenant-1',
+	renewsContractId: null
 };
 
 beforeEach(() => {

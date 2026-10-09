@@ -41,7 +41,9 @@ export function serializeContract(
 		cost: record.cost,
 		paidAmount: record.paidAmount,
 		expectedAmount: record.expectedAmount,
-		tenantId: record.tenantId
+		tenantId: record.tenantId,
+		// carried so undoing a deletion puts the link back with the row (`contract.restoreMany`).
+		renewsContractId: record.renewsContractId
 	};
 
 	if (tenantName !== undefined) {

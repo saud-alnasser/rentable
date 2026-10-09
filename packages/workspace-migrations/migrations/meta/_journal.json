@@ -64,6 +64,13 @@
 			"when": 1791406466241,
 			"tag": "0008_living_vampiro",
 			"breakpoints": true
+		},
+		{
+			"idx": 9,
+			"version": "6",
+			"when": 1791503235193,
+			"tag": "0009_black_star_brand",
+			"breakpoints": true
 		}
 	]
 }

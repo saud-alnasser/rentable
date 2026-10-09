@@ -94,7 +94,17 @@ export const contract = sqliteTable('contract', {
 	paidAmount: real('paid_amount').notNull().default(0),
 	expectedAmount: real('expected_amount').notNull().default(0),
 	tenantId: text('tenant_id').notNull(),
-	...merged()
+	...merged(),
+	/**
+	 * The contract this one renews, where it was made by renewing another (effort 861,
+	 * requirement 5). Only a renewal writes it, so creating, duplicating and editing a contract
+	 * never do, and it goes back with the row when a deletion is undone. Nullable and without a
+	 * default, so every contract saved before it renews nothing until it is linked. Whether a
+	 * contract *is renewed* is never stored: it is read as a contract that is not terminated
+	 * naming it. Unindexed, as every reference but a payment's contract is, for the reason
+	 * `payment_contract_id_idx` below gives: nothing has measured it costing anything.
+	 */
+	renewsContractId: text('renews_contract_id')
 });
 
 export const ContractSchema = z.object({
@@ -107,7 +117,8 @@ export const ContractSchema = z.object({
 	cost: z.number(),
 	paidAmount: z.number(),
 	expectedAmount: z.number(),
-	tenantId: z.string()
+	tenantId: z.string(),
+	renewsContractId: z.string().nullable()
 });
 
 export type Contract = z.infer<typeof ContractSchema>;

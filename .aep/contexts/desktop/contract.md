@@ -64,6 +64,14 @@ receipts. Never the gross of what was received, which is _collected_ and is the 
 The link between a contract and a unit. A unit may be held by at most one non-terminated
 contract over any given period.
 
+**Renewal link**:
+The contract a contract _renews_, named by its `renews_contract_id` (effort 861, requirement 5):
+the one a renewal continues, its _predecessor_, the renewal being its _successor_. Only a renewal
+writes it. Creating, duplicating and editing a contract never do, and their input schemas leave it
+out; undoing a deletion puts it back with the row (`contract.restoreMany`). A contract that names
+none renews nothing, which is every contract saved before the column. Whether a contract is
+_renewed_ is never stored: it is read from its successors.
+
 **Interval**:
 The billing period — monthly, quarterly, semi-annual, or annual. Fixed at creation.
 

@@ -12,8 +12,11 @@ import {
 	refusedWith,
 	refusalReadIn
 } from '$lib/app/tests/testing.ts';
+import { eq } from 'drizzle-orm';
+
 import { isRecordId } from '$lib/platform/database/identity.ts';
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
+import * as s from '$lib/platform/database/schema.ts';
 import {
 	type ContractInput,
 	seedComplexWithUnit,
@@ -360,6 +363,118 @@ test('a deleted contract is undone holding its unit after another contract took 
 		[unit.id]
 	);
 	assert.equal((await api.complex.units.get({ id: unit.id }))?.status, 'occupied');
+});
+
+// --- The contract a renewal continues --------------------------------------------------
+//
+// Effort 861, requirement 5, ticket 09: a contract may name the contract it renews. Only a
+// renewal writes the link, so create, a duplicate and an edit never do, and undoing a deletion
+// puts it back with the row. Nothing writes it yet, so these tests write it into the row
+// themselves, as a renewal will.
+
+/** a caller over a database of its own, and a successor naming its predecessor as renewed. */
+async function withRenewal() {
+	const db = createMemoryDatabase();
+	const api = await createApi({ db });
+	const predecessor = await seedContract(api, {
+		start: monthsFromNow(-13),
+		end: monthsFromNow(-1)
+	});
+	const successor = await seedContract(api, {
+		tenantId: predecessor.tenantId,
+		start: monthsFromNow(-1, 1),
+		end: monthsFromNow(11)
+	});
+
+	await db
+		.update(s.contract)
+		.set({ renewsContractId: predecessor.id })
+		.where(eq(s.contract.id, successor.id));
+
+	return { api, predecessor, successor };
+}
+
+test('a contract reads the contract it renews, and one that renews nothing reads null', async () => {
+	const { api, predecessor, successor } = await withRenewal();
+
+	assert.equal((await api.contract.get({ id: successor.id }))?.renewsContractId, predecessor.id);
+	assert.equal((await api.contract.get({ id: predecessor.id }))?.renewsContractId, null);
+});
+
+test('creating a contract cannot write the contract it renews', async () => {
+	const { api, predecessor } = await withRenewal();
+	// passed through a variable, as a caller that is not this application could send it.
+	const sent = {
+		tenantId: predecessor.tenantId,
+		start: monthsFromNow(11, 1),
+		end: monthsFromNow(23),
+		interval: '12m' as const,
+		cost: 1000,
+		renewsContractId: predecessor.id
+	};
+
+	const created = await api.contract.create(sent);
+
+	assert.equal(created.renewsContractId, null);
+	assert.equal((await api.contract.get({ id: created.id }))?.renewsContractId, null);
+});
+
+test('a duplicate of a renewal does not carry the contract it renews', async () => {
+	const { api, successor } = await withRenewal();
+	const original = await api.contract.get({ id: successor.id });
+
+	assert.ok(original);
+
+	// what the duplicate act hands the form, sent whole: the contract as read, without its
+	// identity and its government id (`host.svelte.ts`).
+	const duplicate = await api.contract.create({
+		...original,
+		id: undefined,
+		govId: '',
+		start: monthsFromNow(11, 1),
+		end: monthsFromNow(23)
+	});
+
+	assert.equal((await api.contract.get({ id: duplicate.id }))?.renewsContractId, null);
+});
+
+test('an edit neither writes nor clears the contract a renewal continues', async () => {
+	const { api, predecessor, successor } = await withRenewal();
+	const sent = {
+		id: predecessor.id,
+		tenantId: predecessor.tenantId,
+		start: predecessor.start,
+		end: predecessor.end,
+		interval: predecessor.interval,
+		cost: 1200,
+		renewsContractId: successor.id
+	};
+
+	await api.contract.update(sent);
+	await api.contract.update({ ...successor, govId: undefined, cost: 1300 });
+
+	assert.equal((await api.contract.get({ id: predecessor.id }))?.renewsContractId, null);
+	assert.equal((await api.contract.get({ id: successor.id }))?.renewsContractId, predecessor.id);
+});
+
+test('a deleted renewal is undone naming the contract it renews', async () => {
+	const { api, predecessor, successor } = await withRenewal();
+
+	const deleted = await api.contract.delete({ id: successor.id });
+
+	assert.ok(deleted);
+	assert.equal(deleted.renewsContractId, predecessor.id);
+
+	const [undone] = await api.contract.restoreMany({ contracts: [deleted] });
+
+	assert.equal(undone.renewsContractId, predecessor.id);
+	assert.equal((await api.contract.get({ id: successor.id }))?.renewsContractId, predecessor.id);
+
+	const many = await api.contract.deleteMany({ ids: [successor.id] });
+
+	await api.contract.restoreMany({ contracts: many.deleted });
+
+	assert.equal((await api.contract.get({ id: successor.id }))?.renewsContractId, predecessor.id);
 });
 
 // --- Restoring a terminated contract -------------------------------------------------

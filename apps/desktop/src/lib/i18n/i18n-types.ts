@@ -5645,6 +5645,10 @@ type RootTranslation = {
 				 * a​ ​r​e​c​o​r​d​ ​s​a​v​e​d​ ​t​h​e​ ​s​a​m​e​ ​w​a​y​ ​o​n​ ​t​w​o​ ​m​a​c​h​i​n​e​s​ ​w​h​i​l​e​ ​a​p​a​r​t​ ​b​e​c​o​m​e​s​ ​o​n​e​,​ ​k​e​e​p​i​n​g​ ​e​v​e​r​y​t​h​i​n​g​ ​t​h​a​t​ ​b​e​l​o​n​g​s​ ​t​o​ ​i​t​.
 				 */
 				identicalRecords: string;
+				/**
+				 * w​h​i​c​h​ ​c​o​n​t​r​a​c​t​ ​e​a​c​h​ ​r​e​n​e​w​a​l​ ​c​o​n​t​i​n​u​e​s​.
+				 */
+				renewalLink: string;
 			};
 		};
 	};
@@ -11142,6 +11146,10 @@ export type TranslationFunctions = {
 				 * a record saved the same way on two machines while apart becomes one, keeping everything that belongs to it.
 				 */
 				identicalRecords: () => LocalizedString;
+				/**
+				 * which contract each renewal continues.
+				 */
+				renewalLink: () => LocalizedString;
 			};
 		};
 	};
