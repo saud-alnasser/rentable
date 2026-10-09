@@ -3,9 +3,10 @@
 	import PasswordInput from '@rentable/design/block/password-input.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
-	import { onSubmit } from '$lib/form';
+	import { isDirty, onSubmit } from '$lib/form';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import CrownIcon from '@lucide/svelte/icons/crown';
+	import { untrack } from 'svelte';
 
 	/**
 	 * Accepting the organization that was offered to this reader: the second of the two acts a
@@ -57,11 +58,18 @@
 
 	let password = $state('');
 
+	/** what the password held when the form opened, which a close is measured against. */
+	let opened = $state.raw<string>();
+
 	// nothing typed here outlives the surface: a password left in memory with nothing drawing it
 	// is the one value this must not keep.
 	$effect(() => {
 		if (!open) password = '';
+		else opened = untrack(() => $state.snapshot(password));
 	});
+
+	// a typed password asks before the form closes (effort 861, requirement 10).
+	const dirty = $derived(isDirty(opened, $state.snapshot(password)));
 
 	const canSubmit = $derived(password.length > 0 && !isAccepting);
 
@@ -73,6 +81,7 @@
 <FormSurface
 	{open}
 	{onOpenChange}
+	{dirty}
 	{enhance}
 	weight="heavy"
 	title={$LL.organization.dashboard.acceptOwnership()}
@@ -111,13 +120,8 @@
 		</Field.Field>
 	</div>
 
-	{#snippet actions()}
-		<Button
-			type="button"
-			variant="outline"
-			disabled={isAccepting}
-			onclick={() => onOpenChange(false)}
-		>
+	{#snippet actions({ requestClose })}
+		<Button type="button" variant="outline" disabled={isAccepting} onclick={requestClose}>
 			{$LL.common.actions.cancel()}
 		</Button>
 		<Button type="submit" disabled={!canSubmit}>

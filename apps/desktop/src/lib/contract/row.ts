@@ -1,15 +1,15 @@
 import type { Database } from '$lib/api/context';
 import * as s from '$lib/platform/database/schema';
 import { refuse } from '$lib/api/refusal';
-import { and, eq, inArray, ne } from 'drizzle-orm';
+import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 
 /**
  * ROW
  *
  * the rows a contract's procedures read before a rule decides: the contract a procedure is about,
- * the payments recorded against it, and the assignment rows of a set of units joined with the
- * contracts holding them. The contract's router and its sub-concepts' routers assert their rules
- * over the same reads, so the reads are stated once, here.
+ * the payments recorded against it, the assignment rows of a set of units joined with the
+ * contracts holding them, and whether a contract is renewed. The contract's router and its
+ * sub-concepts' routers assert their rules over the same reads, so the reads are stated once, here.
  */
 
 // fetches the assignment rows (joined with their contracts) for the given units — the
@@ -49,6 +49,66 @@ export async function selectContract(db: Database, contractId: string) {
 	}
 
 	return contract;
+}
+
+/**
+ * Whether the contract a statement reads is _renewed_: a successor that still stands names it
+ * as the contract it renews (effort 861, requirements 5 and 7). Standing means not terminated and
+ * not retired. A successor retired by a merge is kept out of the subquery by the statement rewrite
+ * every client applies (`platform/database/retired`), so no condition here names it, and a deleted
+ * one is not there to find. Never stored, so terminating or deleting the successor puts the
+ * contract back up for renewal with nothing to reconcile. The one expression of it, for every read
+ * that asks.
+ *
+ * The contract it asks about is named `"contract"."id"` in full rather than through the column:
+ * drizzle writes a column of a select over one table without its table, and an unqualified `"id"`
+ * inside the subquery is the successor's own. So a read using it reads `contract` by that name,
+ * never under an alias.
+ */
+export const renewedColumn = sql<boolean>`exists (
+	select 1 from "contract" as "successor"
+	where "successor"."renews_contract_id" = "contract"."id"
+		and "successor"."status" <> 'terminated'
+)`.mapWith(Boolean);
+
+// whether a contract is renewed, read for a rule that refuses it. A contract that is not there is
+// not renewed; the read that refuses a missing one is `selectContract`.
+export async function isContractRenewed(db: Database, contractId: string) {
+	const read = await db
+		.select({ renewed: renewedColumn })
+		.from(s.contract)
+		.where(eq(s.contract.id, contractId))
+		.get();
+
+	return read?.renewed ?? false;
+}
+
+/**
+ * The dates an edit of `contract`'s term has to keep in order (effort 861, ticket 23): the end of
+ * the contract it renews, and the start of each standing successor renewing it. Standing is what
+ * `renewedColumn` reads: not terminated, and not retired by a merge, which the statement rewrite
+ * every client applies keeps out of both reads (`platform/database/retired`), the predecessor's
+ * too; a deleted one is not there to find. The predecessor is read whatever its status, since the
+ * link stays on the successor either way.
+ */
+export async function selectRenewalNeighbours(
+	db: Database,
+	contract: { id: string; renewsContractId: string | null }
+) {
+	const predecessor =
+		contract.renewsContractId === null
+			? undefined
+			: await db
+					.select({ end: s.contract.end })
+					.from(s.contract)
+					.where(eq(s.contract.id, contract.renewsContractId))
+					.get();
+	const successors = await db
+		.select({ start: s.contract.start })
+		.from(s.contract)
+		.where(and(eq(s.contract.renewsContractId, contract.id), ne(s.contract.status, 'terminated')));
+
+	return { predecessor, successors };
 }
 
 /**

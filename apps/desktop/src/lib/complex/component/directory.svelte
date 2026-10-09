@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { toReadFailure } from '$lib/error/read';
 	import { resolve } from '$app/paths';
 	import type api from '$lib/api/caller';
 	import { COMPLEX_SORT_COLUMN_IDS, type ComplexSortColumnId } from '$lib/complex/complex';
@@ -45,6 +46,9 @@
 		() => sort
 	);
 	const complexes = $derived(complexesQuery.data ?? []);
+	// whether the read behind the list failed, as `$lib/error/read` decides it, and what runs it
+	// again: the list draws the failed state in place of *nothing yet* while it did.
+	const complexesRead = $derived(toReadFailure(complexesQuery));
 	const deleteManyMutation = useDeleteManyComplexes();
 	const importMutation = useImportRecords();
 
@@ -143,6 +147,9 @@
 	{selectionActions}
 	isLoading={complexesQuery.isLoading}
 	isFetching={complexesQuery.isFetching}
+	failed={complexesRead.failed}
+	onRetry={complexesRead.retry}
+	retrying={complexesRead.retrying}
 	recordMinWidth={RECORD_TILE_MIN_WIDTH}
 	recordHeight={COMPLEX_TILE_HEIGHT}
 	exportAs={{

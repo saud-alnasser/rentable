@@ -15,7 +15,7 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import SaveIcon from '@lucide/svelte/icons/save';
 	import { TRPCError } from '@trpc/server';
-	import { surfaceForm } from '$lib/form';
+	import { seed, surfaceForm } from '$lib/form';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import z from 'zod';
@@ -120,25 +120,38 @@
 		}
 	);
 
+	// whether the reader has changed a field since the form opened, which the surface asks about
+	// before closing it.
+	const { tainted, isTainted } = rest;
+
+	// the complex it opens on, or a new one's blank fields, is where the form starts rather than a
+	// change the reader made.
 	$effect(() => {
 		if (open) {
-			if (value) {
-				// a form field holds a string rather than nothing, and the surface may open on a
-				// record that states neither.
-				form.set({ id: value.id, name: value.name ?? '', location: value.location ?? '' });
-			} else {
-				reset();
-			}
+			// a form field holds a string rather than nothing, and the surface may open on a record
+			// that states neither.
+			seed(reset, { id: value?.id, name: value?.name ?? '', location: value?.location ?? '' });
 		}
 	});
 
 	const superform = { form, constraints, errors, enhance, reset, ...rest };
+
+	// a unit named in the entry is a change as much as a field typed in, though the entry keeps it
+	// outside the fields.
+	const dirty = $derived(isTainted($tainted) || (unitEntry?.holds() ?? false));
 </script>
 
 <!-- heavy, for edit as well: a concept's weight is decided by its create form, and creating a
      complex writes its units with it ([[rules/interface]], *Form surface*). One concept opens on
      one presentation, so the reader never meets the same record in two. -->
-<FormSurface {open} {onOpenChange} {enhance} weight="heavy" title={$LL.common.labels.complex()}>
+<FormSurface
+	{open}
+	{onOpenChange}
+	{dirty}
+	{enhance}
+	weight="heavy"
+	title={$LL.common.labels.complex()}
+>
 	<!-- no pinned read-out: a complex is a name and a location, and a panel restating the two
 	     fields directly beneath it is decoration rather than an answer. -->
 	<div class="flex flex-col gap-4">
@@ -179,12 +192,12 @@
 		{/if}
 	</div>
 
-	{#snippet actions()}
+	{#snippet actions({ requestClose })}
 		<Button
 			type="button"
 			variant="outline"
 			disabled={CreateMutation.isPending || UpdateMutation.isPending}
-			onclick={() => onOpenChange(false)}
+			onclick={requestClose}
 		>
 			{$LL.common.actions.cancel()}
 		</Button>

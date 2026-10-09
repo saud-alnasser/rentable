@@ -145,6 +145,16 @@
 		return listed;
 	}
 
+	/**
+	 * Whether the reader has named anything here: a unit on the list, or a line still in the
+	 * entry. Both are changes to the form holding this, which asks before it is closed with any
+	 * ([[rules/interface]], *Form surface*); the list starts over each time the form opens, so
+	 * anything in it is the reader's. Read in the form's markup, so it follows both as they change.
+	 */
+	export function holds(): boolean {
+		return units.length > 0 || draft.trim() !== '';
+	}
+
 	$effect(() => {
 		if (open) {
 			units = [];

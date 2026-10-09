@@ -5,9 +5,10 @@
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import * as Select from '@rentable/design/primitive/select/index.js';
 	import { cn } from '@rentable/design/tailwind.js';
-	import { onSubmit } from '$lib/form';
+	import { isDirty, onSubmit } from '$lib/form';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import CrownIcon from '@lucide/svelte/icons/crown';
+	import { untrack } from 'svelte';
 
 	/**
 	 * Offering the organization to somebody else: the first of the two acts a handover is (effort
@@ -63,14 +64,26 @@
 	let chosen = $state('');
 	let password = $state('');
 
+	/** what a close would lose: the account chosen and the password. */
+	const edits = () => ({ chosen, password });
+
+	/** what the form held when it opened, which a close is measured against. */
+	let opened = $state.raw<ReturnType<typeof edits>>();
+
 	// nothing typed here outlives the surface: a password left in memory with nothing drawing it
 	// is the one value this must not keep.
 	$effect(() => {
 		if (!open) {
 			chosen = '';
 			password = '';
+		} else {
+			opened = untrack(() => $state.snapshot(edits()));
 		}
 	});
+
+	// an account chosen or a password typed asks before the form closes (effort 861,
+	// requirement 10).
+	const dirty = $derived(isDirty(opened, $state.snapshot(edits())));
 
 	const usernameOf = (id: string) => accounts.find((account) => account.id === id)?.username ?? '';
 
@@ -84,6 +97,7 @@
 <FormSurface
 	{open}
 	{onOpenChange}
+	{dirty}
 	{enhance}
 	weight="heavy"
 	title={$LL.organization.dashboard.transferOwnership()}
@@ -148,13 +162,8 @@
 		</Field.Field>
 	</div>
 
-	{#snippet actions()}
-		<Button
-			type="button"
-			variant="outline"
-			disabled={isOffering}
-			onclick={() => onOpenChange(false)}
-		>
+	{#snippet actions({ requestClose })}
+		<Button type="button" variant="outline" disabled={isOffering} onclick={requestClose}>
 			{$LL.common.actions.cancel()}
 		</Button>
 		<Button type="submit" disabled={!canSubmit}>

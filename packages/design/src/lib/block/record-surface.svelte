@@ -14,6 +14,7 @@
 
 <script lang="ts">
 	import BackControl from '#lib/block/back-control.svelte';
+	import Empty from '#lib/block/empty.svelte';
 	import Loading from '#lib/block/loading.svelte';
 	import NotFound from '#lib/block/not-found.svelte';
 	import PageFrame from '#lib/block/page-frame.svelte';
@@ -36,10 +37,19 @@
 	 * always. What a reader may switch between is the record's *collections* — its contracts, its
 	 * units, its payments — and four of the five records have exactly one, so most of them show
 	 * it under a heading and offer no control at all.
+	 *
+	 * **A read that failed is not a record that is not there.** Whether the read failed is the
+	 * caller's to say, since only the caller holds the read; the surface draws it before *not
+	 * found*, with *try again* as its one act, and names no record for the chrome while it stands,
+	 * since a failed read has not said whether there is one ([[rules/interface]], *Empty* and
+	 * *Error*).
 	 */
 	let {
 		isLoading = false,
 		found = false,
+		failed = false,
+		onRetry,
+		retrying = false,
 		backFallback,
 		path,
 		eyebrow,
@@ -55,6 +65,18 @@
 		isLoading?: boolean;
 		/** Whether the record was found. A surface that is neither found nor loading says so. */
 		found?: boolean;
+		/**
+		 * Whether the read of the record failed with nothing to show. Drawn before *not found*: a read
+		 * that failed has not said whether the record is there.
+		 */
+		failed?: boolean;
+		/** Run the record's read again: the failed state's *try again*. */
+		onRetry?: () => void;
+		/**
+		 * Whether the failed read is running again. While it is, the failed state stays in place of
+		 * the loading one and its *try again* is busy, so the control the reader pressed keeps focus.
+		 */
+		retrying?: boolean;
 		/** Where back goes when the reader arrived here from nowhere: the concept's directory,
 		    already resolved. */
 		backFallback: string;
@@ -109,11 +131,13 @@
 	);
 
 	// the chrome above names the record this surface is showing, and only once it knows whether
-	// there is one: nothing while it loads, the record's name once found, and `null` where the
-	// record is not there. Taken back when the surface goes.
+	// there is one: nothing while it loads or while its read failed, the record's name once found,
+	// and `null` where the record is not there. Taken back when the surface goes.
 	$effect(() => {
-		shownRecord.name = isLoading ? undefined : found ? title : null;
-		shownRecord.parent = !isLoading && found ? parent : undefined;
+		const known = !isLoading && !failed;
+
+		shownRecord.name = known ? (found ? title : null) : undefined;
+		shownRecord.parent = known && found ? parent : undefined;
 
 		return () => {
 			shownRecord.name = undefined;
@@ -129,7 +153,12 @@
 <!-- fills: a record's collections scroll inside their own panel, which they cannot do unless the
      frame above them is exactly as tall as the window. -->
 <PageFrame fills>
-	<Loading loading={isLoading} label={contract.strings.loadingRecord} class="flex flex-col gap-4">
+	<!-- a failed read running again is still the failed state, with its *try again* busy, not a load. -->
+	<Loading
+		loading={isLoading && !failed}
+		label={contract.strings.loadingRecord}
+		class="flex flex-col gap-4"
+	>
 		<!-- the shape of the header every record draws: the back control and the action cluster on
 		     one line, then the eyebrow, the name and the identity beneath it, then the fields. -->
 		{#snippet skeleton()}
@@ -145,7 +174,11 @@
 			<Skeleton class="h-24 w-full rounded-xl" />
 		{/snippet}
 
-		{#if !found}
+		{#if failed}
+			<!-- the read failed, so whether the record is there is not known: said as a failure with
+			     the read again as its act, never as a record that does not exist. -->
+			<Empty kind="failed" onRetry={() => onRetry?.()} {retrying} class="flex-1" />
+		{:else if !found}
 			<!-- that the record does not exist, never that a search found nothing: nothing was
 			     searched. One way back, beneath the sentence where the reader's eye lands, and the
 			     same treatment an address leading nowhere gets (`not-found.svelte`). -->

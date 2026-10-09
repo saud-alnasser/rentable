@@ -1,5 +1,6 @@
 import type { Database } from '$lib/api/context';
 import type { ContributedRead } from '$lib/feature/surface';
+import type { RecordKind } from '$lib/permission';
 import type { Contract, Payment, payment } from '$lib/platform/database/schema';
 import { toUtcDay, type DateLike } from '$lib/date';
 import { refuse } from '$lib/api/refusal';
@@ -22,6 +23,12 @@ import {
  * against arrive as rows its caller hands in, or through what the payment contributes
  * ({@link ContractContributions}).
  */
+
+/**
+ * The kind of record a contract is, as its declaration names it: what a feature depending on the
+ * contract asks the reader's permissions about, rather than spelling the kind itself.
+ */
+export const CONTRACT_KIND = 'contract' satisfies RecordKind;
 
 /**
  * a payment as a caller holds it, with the date in whichever form it arrived. One that names no
@@ -90,6 +97,11 @@ export type ContractLike = Omit<
 > & {
 	start: DateLike;
 	end: DateLike;
+	/**
+	 * whether a successor that still stands renews it, where the read asked (`renewedColumn` in
+	 * `contract/row.ts`). Read, never stored. Absent reads as not renewed.
+	 */
+	renewed?: boolean;
 };
 
 /** the tolerance every comparison of money in this domain allows, so float dust is never a debt. */

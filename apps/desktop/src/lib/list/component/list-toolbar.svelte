@@ -42,8 +42,11 @@
 		onSearch?: (term: string) => void;
 		/** Whether the field answers `/`. See `search-field.svelte`. */
 		answersSearchKey?: boolean;
-		/** How many records the set is showing. */
-		count: number;
+		/**
+		 * How many records the set is showing, or nothing where that is not known: a set whose read
+		 * failed draws no count, since a count of nothing would say the set is empty.
+		 */
+		count: number | undefined;
 		/**
 		 * Whether something besides the search narrows the set: a filter. With the search, it is
 		 * what tells a set that holds nothing from a narrowing that matched nothing.
@@ -67,7 +70,9 @@
 	// a set with nothing in it, read under no search and no filter, says so in its empty state, and
 	// a count of nothing above that sentence says it twice. A narrowing that matched nothing keeps
 	// its count, since that one is an answer to what was asked ([[rules/interface]], *Empty*).
-	const isCounted = $derived(count > 0 || search.trim() !== '' || narrowed);
+	const isCounted = $derived(
+		count !== undefined && (count > 0 || search.trim() !== '' || narrowed)
+	);
 
 	function chooseSort(columnId: string) {
 		sort = nextListSort(sort, columnId, sortableColumnIds);
@@ -86,7 +91,7 @@
 	<div data-set-bar-end class="flex shrink-0 flex-wrap items-center gap-3">
 		{#if isCounted}
 			<span class="text-xs text-muted-foreground" aria-live="polite" data-list-count>
-				{$LL.common.table.results({ count })}
+				{$LL.common.table.results({ count: count ?? 0 })}
 			</span>
 		{/if}
 

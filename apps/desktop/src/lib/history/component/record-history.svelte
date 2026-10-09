@@ -30,6 +30,7 @@
 </script>
 
 <script lang="ts">
+	import { toReadFailure } from '$lib/error/read';
 	import { List } from '$lib/list/ui';
 	import { recordCard } from '@rentable/design/block/record-card.svelte';
 	import { cn } from '@rentable/design/tailwind.js';
@@ -62,6 +63,9 @@
 		() => search
 	);
 	const entries = $derived(historyQuery.data ?? []);
+	// whether the read behind the list failed, as `$lib/error/read` decides it, and what runs it
+	// again: the list draws the failed state in place of *nothing yet* while it did.
+	const historyRead = $derived(toReadFailure(historyQuery));
 
 	// the whole moment, not the day: two changes to one record on one afternoon are told apart
 	// by the time or not at all.
@@ -90,6 +94,9 @@
 	bind:search
 	isLoading={historyQuery.isLoading}
 	isFetching={historyQuery.isFetching}
+	failed={historyRead.failed}
+	onRetry={historyRead.retry}
+	retrying={historyRead.retrying}
 	recordHeight={ROW_HEIGHT}
 	emptyTitle={$LL.common.history.emptyTitle()}
 	emptyDescription={$LL.common.history.emptyDescription()}

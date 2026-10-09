@@ -21,7 +21,7 @@
 	import { lacking } from '$lib/organization/role/acts';
 	import UserIcon from '@lucide/svelte/icons/user';
 	import UserPlusIcon from '@lucide/svelte/icons/user-plus';
-	import { surfaceForm } from '$lib/form';
+	import { seed, surfaceForm } from '$lib/form';
 	import { defaults, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import z from 'zod';
@@ -163,12 +163,17 @@
 		}
 	);
 
+	// whether the reader has changed a field since the form opened, which the surface asks about
+	// before closing it.
+	const { tainted, isTainted } = rest;
+
 	const superform = { form, constraints, errors, enhance, reset, ...rest };
 
-	// a fresh open is a fresh account, as every create form here starts blank.
+	// a fresh open is a fresh account, as every create form here starts blank, and the blank is
+	// where it starts rather than a change the reader made.
 	$effect(() => {
 		if (open) {
-			reset({ data: blank });
+			seed(reset, blank);
 			access = {};
 			chosenRole = BUILT_IN.member.id;
 			chosenOverride = 0;
@@ -178,11 +183,21 @@
 	const pickAccess = (id: string, value: AccessChoice) => {
 		access[id] = value;
 	};
+
+	// a role, an override or a workspace chosen is a change as much as a username typed, though
+	// each is held beside the fields.
+	const dirty = $derived(
+		isTainted($tainted) ||
+			chosenRole !== BUILT_IN.member.id ||
+			chosenOverride !== 0 ||
+			Object.values(access).some((choice) => choice !== 'none')
+	);
 </script>
 
 <FormSurface
 	{open}
 	{onOpenChange}
+	{dirty}
 	{enhance}
 	weight="heavy"
 	title={$LL.organization.dashboard.memberTitle()}
@@ -263,13 +278,8 @@
 		/>
 	</div>
 
-	{#snippet actions()}
-		<Button
-			type="button"
-			variant="outline"
-			disabled={isCreating}
-			onclick={() => onOpenChange(false)}
-		>
+	{#snippet actions({ requestClose })}
+		<Button type="button" variant="outline" disabled={isCreating} onclick={requestClose}>
 			{$LL.common.actions.cancel()}
 		</Button>
 		<!-- the verb's glyph before its label, as every primary here carries one. -->

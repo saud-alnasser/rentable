@@ -29,6 +29,7 @@ export type ContractRefusalCode =
 	| 'contract.unitsTaken'
 	| 'contract.unitsTakenNamed'
 	| 'contract.renewalBeforeEnd'
+	| 'contract.alreadyRenewed'
 	| 'contract.missing'
 	| 'contract.tenantMissing'
 	| 'contract.tenantMissingNamed'

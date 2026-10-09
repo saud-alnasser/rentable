@@ -3,10 +3,11 @@
 	import PasswordInput from '@rentable/design/block/password-input.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
-	import { onSubmit } from '$lib/form';
+	import { isDirty, onSubmit } from '$lib/form';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { PASSWORD_FLOOR } from '$lib/organization/setup/setup';
 	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
+	import { untrack } from 'svelte';
 
 	/**
 	 * Choosing a password: the current one, and the new one, checked against the floor.
@@ -62,6 +63,12 @@
 	let next = $state('');
 	let confirmation = $state('');
 
+	/** what a close would lose: the three fields. */
+	const edits = () => ({ current, next, confirmation });
+
+	/** what the fields held when the dialog opened, which a close is measured against. */
+	let opened = $state.raw<ReturnType<typeof edits>>();
+
 	// nothing typed here outlives the surface. A change that went through is closed by the host
 	// and a cancel is closed by the surface, and either way three passwords are left in memory
 	// with nothing drawing them.
@@ -70,8 +77,14 @@
 			current = '';
 			next = '';
 			confirmation = '';
+		} else {
+			opened = untrack(() => $state.snapshot(edits()));
 		}
 	});
+
+	// anything typed asks before the dialog closes (effort 861, requirement 10), and a field
+	// typed in and emptied again is no change (`form/dirty.ts`).
+	const dirty = $derived(isDirty(opened, $state.snapshot(edits())));
 
 	const tooShort = $derived(next.length > 0 && next.length < PASSWORD_FLOOR);
 	const mismatch = $derived(confirmation.length > 0 && confirmation !== next);
@@ -87,6 +100,7 @@
 <FormSurface
 	{open}
 	{onOpenChange}
+	{dirty}
 	{enhance}
 	weight="light"
 	title={$LL.settings.you.password.change()}
@@ -147,13 +161,8 @@
 		</Field.Field>
 	</div>
 
-	{#snippet actions()}
-		<Button
-			type="button"
-			variant="outline"
-			disabled={isChanging}
-			onclick={() => onOpenChange(false)}
-		>
+	{#snippet actions({ requestClose })}
+		<Button type="button" variant="outline" disabled={isChanging} onclick={requestClose}>
 			{$LL.common.actions.cancel()}
 		</Button>
 		<!-- the verb's glyph before its label, as every primary here carries one. -->

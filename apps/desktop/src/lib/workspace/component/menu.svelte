@@ -142,7 +142,7 @@
 						class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
 					>
 						<div
-							class="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground"
+							class="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-primary-fill text-primary-foreground"
 						>
 							<MarkIcon class="size-4" />
 						</div>

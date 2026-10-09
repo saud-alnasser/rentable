@@ -58,3 +58,27 @@ export const surfaceForm = {
 	autoFocusOnError: true,
 	scrollToError: { block: 'nearest' }
 } as const;
+
+/**
+ * Opens a schema form on `data` as the state it starts in, so what the form was filled with is
+ * not counted as a change.
+ *
+ * A form on the shared surface reports whether it has changes from superforms' taint
+ * (`dirty={isTainted($tainted)}`), and the surface asks before closing one that has
+ * ([[rules/interface]], *Form surface*). Superforms taints whatever reaches the form through
+ * `form.set`, so a form filled that way on open, with the record it edits, the record it
+ * duplicates or the contract it renews, would read as changed before the reader touched it, and
+ * every close would ask. A reset is not a change: `data` becomes the values and the clean state
+ * taint is measured against, and `newState` makes it the form's initial state, so nothing that
+ * resets the form afterwards returns it to an earlier opening's values.
+ *
+ * Every opening passes the whole of what the form starts with, a new record's blank values
+ * included, for that same reason: a bare `reset()` returns to the last state given here.
+ *
+ * A value filled in after the form opened, once a read arrives, is not a reset: it is written
+ * with `{ taint: false }`, so it is no change of the reader's either.
+ */
+export const seed = <T extends Record<string, unknown>>(
+	reset: (options: { data: T; newState: T }) => void,
+	data: T
+) => reset({ data, newState: data });

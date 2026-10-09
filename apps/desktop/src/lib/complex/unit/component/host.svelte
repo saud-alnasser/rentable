@@ -135,7 +135,7 @@
 	 * own projection gives for it.
 	 */
 	async function answerAsked(actId: string, unitId: string) {
-		let unit: UnitActRecord | undefined;
+		let unit: UnitActRecord | null;
 
 		try {
 			unit = await readUnit(unitId);

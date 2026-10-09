@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { toReadFailure } from '$lib/error/read';
 	import type api from '$lib/api/caller';
 	import { List } from '$lib/list/ui';
 	import type { ListSort } from '@rentable/design/sort.js';
@@ -33,6 +34,9 @@
 		() => (rank ? { unitId, rank } : { unitId })
 	);
 	const contracts = $derived(contractsQuery.data ?? []);
+	// whether the read behind the list failed, as `$lib/error/read` decides it, and what runs it
+	// again: the list draws the failed state in place of *nothing yet* while it did.
+	const contractsRead = $derived(toReadFailure(contractsQuery));
 
 	// every sort key the directory offers: a unit's contracts are held by different tenants
 	// over different periods, so none of them is constant here the way a tenant's name is on
@@ -64,6 +68,9 @@
 			{selectionActions}
 			isLoading={contractsQuery.isLoading}
 			isFetching={contractsQuery.isFetching}
+			failed={contractsRead.failed}
+			onRetry={contractsRead.retry}
+			retrying={contractsRead.retrying}
 			recordHeight={CONTRACT_TILE_HEIGHT}
 			recordMinWidth={RECORD_TILE_MIN_WIDTH}
 			onCreate={() => contractHost.create({ unitIds: [unitId] })}

@@ -1,4 +1,5 @@
 import api from '$lib/api/caller';
+import { readRecord } from '$lib/error/read';
 import { COMPLEX_SORT_COLUMN_IDS, type ComplexSortColumnId } from '$lib/complex/complex';
 import type { RecordFlag } from '$lib/permission';
 import { prefixOf } from '$lib/mutation';
@@ -151,7 +152,8 @@ export function useFetchComplex(id: () => string) {
 
 		return {
 			queryKey: keys.get(freshId),
-			queryFn: () => api.complex.get({ id: freshId })
+			// a complex that is not there answers `null`, so it is not found rather than failed.
+			queryFn: () => readRecord(api.complex.get({ id: freshId }))
 		};
 	});
 }
@@ -165,7 +167,10 @@ export function useReadComplex() {
 	const client = useQueryClient();
 
 	return (id: string) =>
-		client.fetchQuery({ queryKey: keys.get(id), queryFn: () => api.complex.get({ id }) });
+		client.fetchQuery({
+			queryKey: keys.get(id),
+			queryFn: () => readRecord(api.complex.get({ id }))
+		});
 }
 
 export const useCreateComplex = declareMutation({

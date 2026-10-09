@@ -24,6 +24,7 @@ export const dashboard = {
 
 	figures: {
 		collected: 'المحصل',
+		expected: 'المتوقع',
 		occupiedUnits: 'الوحدات المشغولة',
 		outstanding: 'المستحق',
 		returned: 'المُعاد'

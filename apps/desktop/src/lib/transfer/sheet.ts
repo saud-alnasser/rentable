@@ -73,6 +73,16 @@ export type Writing = {
 	 * refusal has to say back to them.
 	 */
 	resolve(concept: string, name: string, values?: readonly string[]): string;
+	/**
+	 * The id a name stands for, or nothing where no record answers to it or more than one does.
+	 *
+	 * For a name a row may carry without it resolving, which is never one of the row's
+	 * `references`: those drop the row in the planning pass, and that pass reads each sheet's
+	 * targets once, before the rows of the same sheet are named. Asked once the sheet has named
+	 * every record it writes, a name answers to any of them whatever its row, and to the records
+	 * the workspace holds. A contract's `Renews` is the one such name (effort 861, ticket 14).
+	 */
+	find(concept: string, name: string, values?: readonly string[]): string | undefined;
 };
 
 /** What a sheet's writer hands back: its statements, how many records, and what it touched. */

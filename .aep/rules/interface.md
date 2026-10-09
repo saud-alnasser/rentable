@@ -228,6 +228,31 @@ be reached. The command menu offers it as a place, `/?ending-soon`, which opens 
 every neighbour there applied at once while it asked for a save.* *Added by
 [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirements 6 and 7.*
 
+**The band and the sections are one read, and no figure stands before it has answered.** They
+load under one loading block, whose shape is the band's three cards over two sections, so no
+figure is drawn as `0` while the read is on its way. A read that failed draws the failed state
+(*Failed*, under *Empty*) in place of both, with *try again*, and the ending-soon header with it.
+*Nothing to chase* is said only under a read that answered with no rank, since a read on its way
+or one that failed does not know whether there is anything to chase.
+
+**A period change never draws the period the reader left, and the period control stays while the
+figures load.** While the new period's answer is on its way, the band keeps its cards and the money
+card's header with the period control, which keeps its focus, and each figure and the sections draw
+the loading block in their own place until the answer arrives. The figures the screen held belong
+to another period, so none of them is drawn under the new period's name. *Ticket 22 of
+[[efforts/861-the-app-never-shows-something-false/spec]], requirement 2.*
+
+**A figure the reader may not view is left out, never drawn as `0`.** The read leaves out each
+figure whose kind the reader may not view (effort 838, requirement 10), and the band leaves it out
+with it: a card with nothing the reader may see is not drawn, and the money ring is drawn only where
+both what was due and what was collected are known. Where collected is left out, what was due
+heads the money card as *expected*. A reader who may not view contracts is answered no ranks, and
+a list they were not allowed to read is not one with nothing in it, so nothing is drawn from it:
+no outstanding figure, no section, no ending-soon header and not *nothing to chase*. *Ticket 05 of
+[[efforts/861-the-app-never-shows-something-false/spec]], requirement 2.* Nor is a figure a door
+to a page the reader may not open: the money card links to the contracts only where the reader may
+view contracts, and elsewhere draws the same figures with no link. *Ticket 16 of the same effort.*
+
 ### Settings section
 
 **A settings section is one column of cards, and everything in it is one.** Each tab of the
@@ -808,7 +833,8 @@ requirements 1 and 12.
   list shell draws and the settings directories' tray (`organization/component/directory-tray.svelte`)
   draws too. A set
   that may not be added to right now keeps its control, refused, with its reason on hover and focus
-  (*Guidance*, below); the workspaces tray puts its refusal in that place instead.
+  (*Guidance*, below); the workspaces tray puts its refusal in that place instead. A list whose
+  read failed draws no control until the read answers (*Failed*, under *Empty*).
 - **A set of more than one kind keeps its one plus, and the form chooses the kind.** A contract's
   payments take a payment and a refund: the plus and the key open the payment form, whose two tabs
   (a toggle group, each with its glyph pointing the way the money moves, `banknote-arrow-down` in,
@@ -901,7 +927,9 @@ the order and before the create, holding *export* and *import* and nothing else.
   list is showing, under its search and order, in the columns its rows show (`exportAs`), under a
   name that carries the list and what narrowed it. It announces where the file went and opens its
   folder; walking away from the save dialog writes nothing and says nothing. A list with no rows
-  cannot export, and its entry stays in the menu, refused, saying so (*Guidance*). With a selection, the selection bar's *export selection* writes only the
+  cannot export, and its entry stays in the menu, refused, saying so (*Guidance*). A list whose
+  read failed is not one with no rows, and draws no export entry at all (*Failed*, under
+  *Empty*). With a selection, the selection bar's *export selection* writes only the
   selection, under a name that says so.
 - **Import** reads a file into the directory it was opened from, through
   `transfer/component/directory-import-dialog.svelte`: choose the file, see what it would do, then
@@ -1131,6 +1159,30 @@ Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], re
 was heavy on create and light on edit, and the domain submits carried no glyph where the
 organization's did.
 
+**A form with changes asks before it closes.** Escape, a press on the overlay, the corner control
+and the form's cancel close a form with no changes at once. Where the reader has changed
+something, each first asks whether to discard the changes or keep editing, in
+`block/confirm-dialog.svelte`: titled by the question, saying the changes are not saved and that
+nothing brings them back, its control destructive and named *discard*, and its way out named *keep
+editing*, focused first, which puts the reader back in the form with nothing lost. Escape inside
+the question closes the question alone. A submit closes the form by its own path and never asks.
+The surface owns the question and every close the reader makes (`block/form-surface.svelte`: its
+`dirty`, and the `requestClose` it hands the form's actions, which every cancel calls); whether a
+form has changes is the form's to say, since only the form sees the state it keeps outside its
+fields. **A schema form opens through `seed` from `$lib/form`**, which resets it onto what it starts
+with, so the record it edits, duplicates or renews is no change; a value that arrives after it
+opened is written with `{ taint: false }`; and it passes `dirty` from its taint
+(`isTainted($tainted)`), or'd with any state it keeps outside its fields, as the complex's form does
+with a unit still in its entry. **A form without a schema compares snapshots through `isDirty`
+from `$lib/form`**: it takes a `$state.snapshot` of what the reader edits when it opens, under
+`untrack` in the effect that seeds it, and passes `isDirty` of that against a snapshot of the same
+state now, which compares values, so a change made and undone is none. A preview with nothing to
+lose (the made link, the reminder and print previews, the upgrade sheet) passes no `dirty`, and
+closes at once. *Settled by [[efforts/861-the-app-never-shows-something-false/spec]], requirement 10, after
+Apple's guidance to confirm before dismissing a sheet with unsaved changes: the surface closed on
+any of the four with no check, and a half-filled contract or tenant was lost to a stray key or
+click, which undo does not cover.*
+
 ### Field kinds
 
 **Each kind of value takes one control**, in a form and on a record alike:
@@ -1315,7 +1367,7 @@ list that filters by rank offers it. Settled by
 **A surface waiting on its content draws `packages/design/src/lib/block/loading.svelte`, and
 nothing else.** The surface hands in a snippet drawing the shape of what is on its way (a list's
 cards, a record's header, the settings area's title, its section switch and a section's grid of
-group cards, the dashboard's sections) from the
+group cards, the dashboard's band and its sections) from the
 skeleton primitive. The block decides when that shape appears: **not before 200 ms, and once shown,
 for at least 300 ms.** A load that settles inside the delay draws no skeleton at all. Until then the
 region is empty and marked busy, and the skeleton, once it is up, is a status carrying the
@@ -1341,9 +1393,10 @@ fast local read from flashing a skeleton for a frame.*
 ### Empty
 
 **A region with nothing to show draws `packages/design/src/lib/block/empty.svelte`, and nothing
-else**: a title, an optional line under it, and one act beneath both. The block names no concept
-and reads no words from the string contract; every sentence is the caller's. It says which of
-three situations it is, on `data-empty`, and the three never read the same:
+else**: a title, an optional line under it, and one act beneath both. The block names no concept,
+and every sentence of the first three situations is the caller's; the fourth, a failed read, reads
+its words from the string contract, since it says the same wherever a read fails. It says which of
+four situations it is, on `data-empty`, and the four never read the same:
 
 - **Nothing here yet.** The set holds nothing, and the title says what it will hold in the
   concept's own words (*no tenants yet*), with a line saying where the records come from. Its act
@@ -1364,6 +1417,35 @@ three situations it is, on `data-empty`, and the three never read the same:
   concept's directory; the unknown route's error page says the page does not exist, rather than
   that a screen failed, and falls back to the dashboard. A screen that failed keeps the shared
   application surface.
+- **Failed.** The read of what belongs here failed, so whether there is anything is not known
+  (*Error*, below). The block says the read failed and offers one act, *try again*, which runs the
+  read again; its words are the string contract's `readFailed`, `readFailedDescription` and
+  `tryAgain`, the last the same words the caught-error screen offers its retry in. What counts as
+  a failed read is decided in one place, `error/read.ts`'s `toReadFailure`: the read errored and
+  holds no data. A refetch that fails while an earlier answer is held keeps the answer, and a read
+  that succeeded with no rows is *nothing here yet*. The list shell takes `failed` and `onRetry`
+  from it, and while the read failed draws this state with no create, no *nothing yet* title and
+  no count; every list it draws passes both. **Nor does its toolbar offer a create or an export
+  while the read has failed**: a create there would ask to fill a set that may not be empty, and
+  an export would be refused as *nothing to export*, a statement about a set nobody could read.
+  Both come back once the read answers; the transfer menu keeps its import throughout, since an
+  import says nothing about what the set holds (ticket 19). The record surface takes the same two
+  and draws this state before *not found*; every record page and the workspace page pass both. A
+  record that is not there is a read that answered with nothing, not one that failed: the query
+  client refuses an answer of `undefined` as a failure, so a record is read through
+  `error/read.ts`'s `readRecord`, which answers `null` for it. The landing screen reads its failure
+  from the same helper and draws this state in place of its band and its sections (*Landing
+  screen*). A failed read is never drawn as *nothing here yet*, *no match* or *not found*. *Tickets
+  03, 04 and 05 of [[efforts/861-the-app-never-shows-something-false/spec]], requirements 1 and 2.*
+  **While the read runs again, the block stays and its *try again* says it is trying.** The query
+  client puts a read that holds nothing back to pending while it runs, which would draw the
+  loading block and take the control the reader pressed, and the focus, with the failed one. So
+  `toReadFailure` counts a read that holds nothing, failed before and is running as still failed,
+  and reports it `retrying`; the list shell, the record surface and the landing screen take
+  `retrying` and draw the failed state rather than the loading one meanwhile. The block's *try
+  again* is then `aria-busy`, its glyph turns as the update check's does and holds still for a
+  reader who asked for less motion, a second press asks for nothing, and it is never disabled, so
+  it keeps the focus it had. *Ticket 15 of the same effort.*
 
 "No results" is not a sentence any of them says: it names neither the situation nor the way out.
 Nor does the bar above a set that holds nothing yet count it: `list-toolbar.svelte` draws its
@@ -1386,6 +1468,12 @@ Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], re
 **What failed says so in the reader's words, where they asked for it; what is not there is not a
 failure** (*Not found*, under *Empty*, above).
 
+- **A read that failed** says so where its content would stand, in the empty block's failed kind
+  (*Failed*, under *Empty*, above), with *try again* as its one act. It is not a toast: the reader
+  did not act, and what they are looking at is what failed. It never stands in for a set with
+  nothing in it, nor a set with nothing in it for it, and the query client retries nothing on its
+  own, so *try again* is the reader's. *Ticket 03 of
+  [[efforts/861-the-app-never-shows-something-false/spec]], requirement 1.*
 - **An act refused or failed** is an error toast, raised by the mutation's declaration or through
   `$lib/notification` (*Feedback*, below). Its title is the reader's sentence, read from the refusal's
   code (`error/refusal.ts`), never the words a procedure or the shell wrote. A confirmation holds
@@ -1431,10 +1519,23 @@ vocabulary above, never a hand-coloured box. The contract units lock notice is t
 
 **Notifying is these two and nothing else.** The application tells the reader something through a
 toast, raised through the shared handlers, or through a callout standing on the surface it is
-about; it raises no system notification. A toast is read and gone in the toaster's shared
-duration, and one carrying an offer stays longer (*Undo*).
+about; it raises no system notification. A success or a warning is read and gone in the
+toaster's shared duration, and one carrying an offer stays longer (*Undo*).
 
-Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 12.
+**An error toast stands until the reader closes it**, and carries the control that closes it.
+`notify.error` and `showErrorSentence` raise it so, and every error path reaches one of the two,
+so no caller decides it again. A success, a warning and an offer carry no close control, since
+they leave on their own. **The toaster stands at the bottom end of the window**: bottom right in a
+left-to-right reading and bottom left in a right-to-left one, with its close control named in the
+reader's language, all three read from the design contract by `primitive/sonner`.
+
+*Why: an error is the only channel an act that failed has, and in the shared
+duration it was gone before it could be read; and the toaster stayed at the bottom right in
+Arabic, where every other surface mirrors.*
+
+Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], requirement 12; the
+error toast and the toaster's side by [[efforts/861-the-app-never-shows-something-false/spec]],
+requirements 3 and 4.
 
 ## Navigation
 
@@ -1454,8 +1555,8 @@ it shows is called (`shown-record.svelte.ts` in the design package), because onl
 knows: a contract is named by its tenant. A record reached through another runs its trail through
 that one: a payment's trail is its directory, its contract, then the payment
 (the page's `parent` in `payment/feature.ts`, read into `RECORD_PARENTS` in `shell/navigation.ts`), and the record surface names and addresses the
-contract as its `parent`. Until the record is read the trail ends on the directory
-above it, and a record that is not there is named as unknown. The dashboard and the way in carry no
+contract as its `parent`. Until the record is read, and while its read failed, the trail ends on
+the directory above it, and a record that is not there is named as unknown. The dashboard and the way in carry no
 trail: the first is where the application opens, and the second is a walk whose card says which
 step it is on.
 
@@ -1549,7 +1650,8 @@ ticket 16 of effort 838*), and every surface draws it from the one declaration: 
 two menus (`record-card.svelte`), the record page's cluster (`record-action-control.svelte`), and
 the create control (`create/component/control.svelte`, given the set's reason by the list's
 `createUnavailable`), whose key answers with the same reason, and the create an empty list offers
-under its title. The command menu puts it beside the
+under its title. A list whose read failed draws no create at all, since it does not apply to a set
+nobody could read (*Failed*, under *Empty*). The command menu puts it beside the
 row, where its keys would be, because its rows are chosen from the search field and never take the
 focus a tooltip opens on; a record's act asked for there is refused by the host with the same line,
 and a member or a workspace the chosen act cannot run on now carries it on its own row.

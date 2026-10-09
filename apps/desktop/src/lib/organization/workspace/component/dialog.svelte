@@ -1,7 +1,7 @@
 <script lang="ts">
 	import FormSurface, { insetControl } from '@rentable/design/block/form-surface.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
-	import { surfaceForm } from '$lib/form';
+	import { seed, surfaceForm } from '$lib/form';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { WorkspaceFields } from '$lib/workspace/ui';
 	import { workspaceFormSchema } from '$lib/workspace';
@@ -60,12 +60,17 @@
 		}
 	);
 
+	// whether the reader has changed a field since the form opened, which the surface asks about
+	// before closing it.
+	const { tainted, isTainted } = rest;
+
 	const superform = { form, constraints, errors, enhance, reset, ...rest };
 
-	// a fresh open is a fresh name, as every create form here starts blank.
+	// a fresh open is a fresh name, as every create form here starts blank, and the blank is where
+	// it starts rather than a change the reader made.
 	$effect(() => {
 		if (open) {
-			reset();
+			seed(reset, { name: '' });
 		}
 	});
 </script>
@@ -73,6 +78,7 @@
 <FormSurface
 	{open}
 	{onOpenChange}
+	dirty={isTainted($tainted)}
 	{enhance}
 	weight="light"
 	title={$LL.layout.workspaceMenu.create()}
@@ -89,13 +95,8 @@
 		{/if}
 	</div>
 
-	{#snippet actions()}
-		<Button
-			type="button"
-			variant="outline"
-			disabled={isCreating}
-			onclick={() => onOpenChange(false)}
-		>
+	{#snippet actions({ requestClose })}
+		<Button type="button" variant="outline" disabled={isCreating} onclick={requestClose}>
 			{$LL.common.actions.cancel()}
 		</Button>
 		<!-- the verb's glyph before its label, as every primary here carries one. -->

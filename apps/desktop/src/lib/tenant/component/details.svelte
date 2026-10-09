@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import { toReadFailure } from '$lib/error/read';
 	import RecordSurface from '@rentable/design/block/record-surface.svelte';
 	import Specification from '@rentable/design/block/specification.svelte';
 	import * as Cell from '$lib/design/cell';
@@ -25,6 +26,9 @@
 		enabled: isRecordId(tenantId)
 	}));
 	const tenant = $derived(tenantQuery.data);
+	// whether the read behind the page failed, as `$lib/error/read` decides it, and what runs it
+	// again: the surface draws the failed state in place of *not found* while it did.
+	const tenantRead = $derived(toReadFailure(tenantQuery));
 
 	// the page's cluster is a projection of the one list the card and the command menu read, so it
 	// offers what they offer, in their order and under their names. What each act opens is the
@@ -79,6 +83,9 @@
 
 <RecordSurface
 	isLoading={tenantQuery.isLoading}
+	failed={tenantRead.failed}
+	onRetry={tenantRead.retry}
+	retrying={tenantRead.retrying}
 	found={Boolean(tenant)}
 	backFallback={resolve('/tenants')}
 	path={resolve(`/tenants/${tenantId}`)}

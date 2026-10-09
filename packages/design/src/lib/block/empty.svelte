@@ -1,6 +1,8 @@
 <script lang="ts" module>
+	import type { Snippet } from 'svelte';
+
 	/**
-	 * Which of the three things a region with nothing in it is saying.
+	 * Which of the four things a region with nothing in it is saying.
 	 *
 	 * - `nothing-yet`: the set holds nothing, and the words say what it will hold. Its act is the
 	 *   set's create, where the set can be added to.
@@ -8,50 +10,109 @@
 	 *   act clears what narrowed it.
 	 * - `not-found`: the one record, or the page, that was asked for does not exist. Its act is the
 	 *   way back.
+	 * - `failed`: the read of what belongs here failed, so whether there is anything is not known.
+	 *   Its act reads it again.
 	 */
-	export type EmptyKind = 'nothing-yet' | 'no-match' | 'not-found';
+	export type EmptyKind = 'nothing-yet' | 'no-match' | 'not-found' | 'failed';
+
+	/** What every kind takes. */
+	type EmptyRegion = {
+		/** Classes for the region, so it fills the space the content would have. */
+		class?: string;
+	};
+
+	/**
+	 * What the block takes, by kind. The failed kind takes no words, since a read that failed reads
+	 * the same wherever it fails, and it cannot be drawn without the act that reads again.
+	 */
+	export type EmptyProps = EmptyRegion &
+		(
+			| {
+					/** Which situation this is. Marked on the region, so a test and a stylesheet can tell. */
+					kind: Exclude<EmptyKind, 'failed'>;
+					/**
+					 * What the region says first: what it will hold, that nothing matched, or that it is
+					 * gone.
+					 */
+					title: string;
+					/** One line under the title, where there is more to say. */
+					description?: string;
+					/** The one act that leads out: create, clear, or go back. */
+					action?: Snippet;
+			  }
+			| {
+					kind: 'failed';
+					/** Run the read that failed again. The block's one act, *try again*, calls it. */
+					onRetry: () => void;
+					/**
+					 * Whether the read is running again. While it is, *try again* is busy: its glyph turns,
+					 * it is marked `aria-busy`, and a second press asks for nothing more. It is never
+					 * disabled, so it keeps the keyboard focus the press left on it.
+					 */
+					retrying?: boolean;
+			  }
+		);
 </script>
 
 <script lang="ts">
+	import { Button } from '#lib/primitive/button/index.js';
 	import * as Empty from '#lib/primitive/empty/index.js';
+	import { useDesignContract } from '#lib/strings.js';
 	import { cn } from '#lib/tailwind.js';
-	import type { Snippet } from 'svelte';
+	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
 
 	/**
 	 * The one treatment for a region with nothing to show.
 	 *
 	 * **An empty region leads.** It says what the region is for and offers the act that fills it,
 	 * or the act that undoes what emptied it, so a reader is never left at a blank with no next
-	 * step. The three kinds never read the same: a set with nothing in it yet and a search that
+	 * step. The four kinds never read the same: a set with nothing in it yet and a search that
 	 * matched nothing are different situations with different ways out, and one sentence for both
 	 * (the old "no results") told the reader neither.
 	 *
-	 * **The words are the caller's.** What a set will hold is the concept's to say, and this
-	 * package names no concept, so every sentence arrives as a prop and the block reads nothing
-	 * from the string contract. What it owns is the arrangement: a title, an optional line under
-	 * it, and the one act beneath both.
+	 * **The words are the caller's, but for a failed read.** What a set will hold is the concept's
+	 * to say, and this package names no concept, so those sentences arrive as props. A read that
+	 * failed names no concept either: it says the same in a list, a record and the landing screen,
+	 * so the failed kind reads its title, its line and its act from the string contract, and the
+	 * caller hands it only what runs the read again, and whether it is running
+	 * ([[rules/interface]], *Empty* and *Error*).
+	 * What the block owns is the arrangement: a title, an optional line under it, and the one act
+	 * beneath both.
 	 */
-	let {
-		kind,
-		title,
-		description,
-		action,
-		class: className
-	}: {
-		/** Which situation this is. Marked on the region, so a test and a stylesheet can tell. */
-		kind: EmptyKind;
-		/** What the region says first: what it will hold, that nothing matched, or that it is gone. */
-		title: string;
-		/** One line under the title, where there is more to say. */
-		description?: string;
-		/** The one act that leads out: create, clear, or go back. */
-		action?: Snippet;
-		/** Classes for the region, so it fills the space the content would have. */
-		class?: string;
-	} = $props();
+	let props: EmptyProps = $props();
+
+	const contract = useDesignContract();
+
+	const title = $derived(props.kind === 'failed' ? contract.strings.readFailed : props.title);
+	const description = $derived(
+		props.kind === 'failed' ? contract.strings.readFailedDescription : props.description
+	);
+	const action = $derived(props.kind === 'failed' ? retryAct : props.action);
+	const retrying = $derived(props.kind === 'failed' && props.retrying === true);
 </script>
 
-<Empty.Root data-empty={kind} class={cn('h-full gap-4', className)}>
+<!-- a failed read's one act: the read again, in words, as every empty act is drawn. While the read
+     runs again it says so on itself, as the update check does: its glyph turns, still for a reader
+     who asked for less motion, and it is busy for as long. It stays enabled, since disabling the
+     control that holds the focus drops the focus, and a press while it is busy asks for nothing. -->
+{#snippet retryAct()}
+	<Button
+		variant="outline"
+		size="sm"
+		data-empty-retry
+		aria-busy={retrying || undefined}
+		onclick={() => {
+			if (props.kind === 'failed' && !retrying) {
+				props.onRetry();
+			}
+		}}
+	>
+		<RefreshCwIcon class={retrying ? 'animate-spin motion-reduce:animate-none' : undefined} />
+		{contract.strings.tryAgain}
+	</Button>
+{/snippet}
+
+<Empty.Root data-empty={props.kind} class={cn('h-full gap-4', props.class)}>
 	<!-- polite rather than silent: a search that empties the set replaces the records under the
 	     reader's cursor, and a reader who cannot see that is told what happened. -->
 	<Empty.Header aria-live="polite">

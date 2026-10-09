@@ -23,7 +23,7 @@
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import * as InputGroup from '@rentable/design/primitive/input-group/index.js';
-	import { onSubmit } from '$lib/form';
+	import { isDirty, onSubmit } from '$lib/form';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { lacking } from '$lib/organization/role/acts';
 	import type { AccessChoice } from '$lib/organization/access/access';
@@ -104,6 +104,12 @@
 	 * `member/component/workspaces.svelte`, so adding a member and editing one read as one surface in
 	 * two moments.
 	 *
+	 * **Anything changed asks before the sheet closes** (effort 861, requirement 10). What is
+	 * measured is what the save would come to: the name, the role, what is changed for them, and
+	 * the grant and the permissions each workspace comes to, against the same taken when the sheet
+	 * opened (`form/dirty.ts`). So a role picked and picked back, or a switch turned and turned
+	 * back, is no change.
+	 *
 	 * **The mutations are the caller's.** This owns the surface and what is chosen on it, and hands
 	 * them up through `onSave`.
 	 */
@@ -182,6 +188,9 @@
 	/** what each workspace is tailored to, where the switches beneath it were turned. */
 	let tailoring = $state<Record<string, Tailoring>>({});
 
+	/** what the sheet came to when it opened, which a close is measured against. */
+	let opened = $state.raw<ReturnType<typeof edits>>();
+
 	// a fresh open starts on what the row holds, with nothing left over from the last member.
 	$effect(() => {
 		if (open) {
@@ -191,6 +200,7 @@
 			chosenOverride = override;
 			access = Object.fromEntries(rows.map((row) => [row.id, row.access]));
 			tailoring = {};
+			opened = untrack(() => $state.snapshot(edits()));
 		}
 	});
 
@@ -266,6 +276,19 @@
 		(access[row.id] ?? row.access) === 'none' ? 'none' : tailoringOf(row).access;
 
 	/**
+	 * what a close would lose: what the save would come to, read the way the save reads it, so a
+	 * value turned back to where it opened is no change.
+	 */
+	const edits = () => ({
+		name: chosenName,
+		roleId: chosenRole,
+		override: chosenOverride,
+		workspaces: rows.map((row) => ({ level: levelOf(row), ...tailoringOf(row) }))
+	});
+
+	const dirty = $derived(isDirty(opened, $state.snapshot(edits())));
+
+	/**
 	 * why re-granting a workspace minted read only at full access would be refused, as Rust
 	 * refuses it: the act, and a workspace the reader holds at full access.
 	 */
@@ -327,6 +350,7 @@
 <FormSurface
 	{open}
 	{onOpenChange}
+	{dirty}
 	{enhance}
 	weight="heavy"
 	title={$LL.common.actions.edit()}
@@ -432,8 +456,8 @@
 		</MemberWorkspaces>
 	</div>
 
-	{#snippet actions()}
-		<Button type="button" variant="outline" disabled={isSaving} onclick={() => onOpenChange(false)}>
+	{#snippet actions({ requestClose })}
+		<Button type="button" variant="outline" disabled={isSaving} onclick={requestClose}>
 			{$LL.common.actions.cancel()}
 		</Button>
 		<!-- the verb's glyph before its label, as every primary here carries one. -->

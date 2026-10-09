@@ -101,9 +101,10 @@ export const toFormValue = (contract: ContractFormContract): ContractForm => ({
 
 /**
  * The successor a renewal starts from: the predecessor's tenant, cycle and cost, over the
- * term the domain proposes. Only that term is the user's to move, so the fields carrying the
- * other three are shown and locked rather than left out — a renewal that quietly dropped the
- * cost off the surface would be asking the reader to trust a figure they cannot see.
+ * term the domain proposes. The term and the cost are the user's to move, the cost because a
+ * renewal may change the rent (effort 861, requirement 8); the tenant and the cycle are shown and
+ * locked rather than left out, since a renewal that quietly dropped them off the surface would be
+ * asking the reader to trust what they cannot see.
  */
 export const toRenewalFormValue = (
 	contract: Pick<Contract, 'tenantId' | 'interval' | 'cost' | 'start' | 'end'>

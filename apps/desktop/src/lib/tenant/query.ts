@@ -1,4 +1,5 @@
 import api from '$lib/api/caller';
+import { readRecord } from '$lib/error/read';
 import { prefixOf } from '$lib/mutation';
 import { declareMutation, describeOutcomeChange } from '$lib/mutation/ui';
 import type { SelectionCall } from '@rentable/design/selection.js';
@@ -162,10 +163,11 @@ export function useFetchTenant(params: () => FetchTenantParams) {
 		return {
 			queryKey: keys.get(id ?? ''),
 			enabled: enabled && Boolean(id),
+			// a tenant that is not there answers `null`, so it is not found rather than failed.
 			queryFn: async () => {
-				if (!id) return undefined;
+				if (!id) return null;
 
-				return api.tenant.get({ id });
+				return readRecord(api.tenant.get({ id }));
 			}
 		};
 	});
@@ -179,7 +181,10 @@ export function useReadTenant() {
 	const client = useQueryClient();
 
 	return (id: string) =>
-		client.fetchQuery({ queryKey: keys.get(id), queryFn: () => api.tenant.get({ id }) });
+		client.fetchQuery({
+			queryKey: keys.get(id),
+			queryFn: () => readRecord(api.tenant.get({ id }))
+		});
 }
 
 export const useCreateTenant = declareMutation({

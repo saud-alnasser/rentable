@@ -732,6 +732,14 @@ type RootTranslation = {
 			 */
 			noMatch: string;
 			/**
+			 * t​h​i​s​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​l​o​a​d​e​d
+			 */
+			readFailed: string;
+			/**
+			 * s​o​m​e​t​h​i​n​g​ ​w​e​n​t​ ​w​r​o​n​g​ ​w​h​i​l​e​ ​r​e​a​d​i​n​g​ ​i​t​.​ ​n​o​t​h​i​n​g​ ​w​a​s​ ​c​h​a​n​g​e​d​.
+			 */
+			readFailedDescription: string;
+			/**
 			 * t​h​i​s​ ​r​e​c​o​r​d​ ​d​o​e​s​ ​n​o​t​ ​e​x​i​s​t
 			 */
 			recordNotFound: string;
@@ -927,6 +935,10 @@ type RootTranslation = {
 			};
 			contract: {
 				/**
+				 * t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​i​s​ ​a​l​r​e​a​d​y​ ​r​e​n​e​w​e​d​.​ ​o​p​e​n​ ​i​t​s​ ​r​e​n​e​w​a​l​ ​t​o​ ​c​h​a​n​g​e​ ​i​t​.
+				 */
+				alreadyRenewed: string;
+				/**
 				 * c​o​s​t​ ​p​e​r​ ​p​a​y​m​e​n​t​ ​m​u​s​t​ ​b​e​ ​g​r​e​a​t​e​r​ ​t​h​a​n​ ​z​e​r​o​.
 				 */
 				costNotPositive: string;
@@ -992,7 +1004,7 @@ type RootTranslation = {
 				 */
 				periodOverlapsUnits: string;
 				/**
-				 * a​ ​r​e​n​e​w​a​l​ ​m​u​s​t​ ​s​t​a​r​t​ ​a​f​t​e​r​ ​t​h​e​ ​c​o​n​t​r​a​c​t​ ​i​t​ ​r​e​n​e​w​s​ ​e​n​d​s​.
+				 * w​i​t​h​ ​t​h​e​s​e​ ​d​a​t​e​s​,​ ​a​ ​r​e​n​e​w​a​l​ ​w​o​u​l​d​ ​s​t​a​r​t​ ​b​e​f​o​r​e​ ​t​h​e​ ​c​o​n​t​r​a​c​t​ ​i​t​ ​r​e​n​e​w​s​ ​h​a​s​ ​e​n​d​e​d​.
 				 */
 				renewalBeforeEnd: string;
 				/**
@@ -1969,6 +1981,24 @@ type RootTranslation = {
 			 */
 			unnamedRecord: string;
 		};
+		discardDialog: {
+			/**
+			 * y​o​u​r​ ​c​h​a​n​g​e​s​ ​h​a​v​e​ ​n​o​t​ ​b​e​e​n​ ​s​a​v​e​d​.​ ​o​n​c​e​ ​d​i​s​c​a​r​d​e​d​,​ ​n​o​t​h​i​n​g​ ​b​r​i​n​g​s​ ​t​h​e​m​ ​b​a​c​k​.
+			 */
+			description: string;
+			/**
+			 * d​i​s​c​a​r​d
+			 */
+			discard: string;
+			/**
+			 * k​e​e​p​ ​e​d​i​t​i​n​g
+			 */
+			keepEditing: string;
+			/**
+			 * d​i​s​c​a​r​d​ ​c​h​a​n​g​e​s​?
+			 */
+			title: string;
+		};
 	};
 	layout: {
 		notFound: {
@@ -2262,6 +2292,10 @@ type RootTranslation = {
 			 * c​o​l​l​e​c​t​e​d
 			 */
 			collected: string;
+			/**
+			 * e​x​p​e​c​t​e​d
+			 */
+			expected: string;
 			/**
 			 * o​c​c​u​p​i​e​d​ ​u​n​i​t​s
 			 */
@@ -2998,7 +3032,7 @@ type RootTranslation = {
 			 */
 			periodMustMatchWholeCycles: RequiredParams<'days' | 'interval'>;
 			/**
-			 * t​h​e​ ​t​e​n​a​n​t​,​ ​u​n​i​t​s​,​ ​c​y​c​l​e​ ​a​n​d​ ​c​o​s​t​ ​c​a​r​r​y​ ​o​v​e​r​ ​f​r​o​m​ ​t​h​e​ ​c​o​n​t​r​a​c​t​ ​b​e​i​n​g​ ​r​e​n​e​w​e​d​.​ ​s​e​t​ ​t​h​e​ ​t​e​r​m​ ​t​h​e​ ​r​e​n​e​w​a​l​ ​r​u​n​s​ ​f​o​r​.
+			 * t​h​e​ ​t​e​n​a​n​t​,​ ​u​n​i​t​s​ ​a​n​d​ ​c​y​c​l​e​ ​c​a​r​r​y​ ​o​v​e​r​.​ ​t​h​e​ ​c​o​s​t​ ​s​t​a​r​t​s​ ​a​t​ ​t​h​e​ ​o​l​d​ ​r​e​n​t​ ​a​n​d​ ​m​a​y​ ​c​h​a​n​g​e​.​ ​s​e​t​ ​t​h​e​ ​r​e​n​e​w​a​l​'​s​ ​t​e​r​m​.
 			 */
 			renewDescription: string;
 			/**
@@ -5612,13 +5646,17 @@ type RootTranslation = {
 				 */
 				workspaceOverride: string;
 				/**
-				 * r​e​c​o​r​d​s​ ​s​a​v​e​d​ ​o​n​ ​t​w​o​ ​d​e​v​i​c​e​s​ ​w​h​i​l​e​ ​a​p​a​r​t​ ​a​l​l​ ​s​t​a​y​,​ ​e​v​e​n​ ​w​i​t​h​ ​t​h​e​ ​s​a​m​e​ ​p​h​o​n​e​,​ ​n​a​t​i​o​n​a​l​ ​I​D​,​ ​c​o​m​p​l​e​x​ ​n​a​m​e​ ​o​r​ ​g​o​v​e​r​n​m​e​n​t​ ​I​D​.
+				 * r​e​c​o​r​d​s​ ​s​a​v​e​d​ ​a​p​a​r​t​ ​o​n​ ​t​w​o​ ​m​a​c​h​i​n​e​s​ ​a​l​l​ ​s​t​a​y​,​ ​e​v​e​n​ ​w​i​t​h​ ​t​h​e​ ​s​a​m​e​ ​p​h​o​n​e​,​ ​n​a​t​i​o​n​a​l​ ​I​D​,​ ​c​o​m​p​l​e​x​ ​n​a​m​e​ ​o​r​ ​g​o​v​e​r​n​m​e​n​t​ ​I​D​.
 				 */
 				duplicateValues: string;
 				/**
-				 * a​ ​r​e​c​o​r​d​ ​s​a​v​e​d​ ​t​h​e​ ​s​a​m​e​ ​w​a​y​ ​o​n​ ​t​w​o​ ​d​e​v​i​c​e​s​ ​w​h​i​l​e​ ​a​p​a​r​t​ ​b​e​c​o​m​e​s​ ​o​n​e​,​ ​k​e​e​p​i​n​g​ ​e​v​e​r​y​t​h​i​n​g​ ​t​h​a​t​ ​b​e​l​o​n​g​s​ ​t​o​ ​i​t​.
+				 * a​ ​r​e​c​o​r​d​ ​s​a​v​e​d​ ​t​h​e​ ​s​a​m​e​ ​w​a​y​ ​o​n​ ​t​w​o​ ​m​a​c​h​i​n​e​s​ ​w​h​i​l​e​ ​a​p​a​r​t​ ​b​e​c​o​m​e​s​ ​o​n​e​,​ ​k​e​e​p​i​n​g​ ​e​v​e​r​y​t​h​i​n​g​ ​t​h​a​t​ ​b​e​l​o​n​g​s​ ​t​o​ ​i​t​.
 				 */
 				identicalRecords: string;
+				/**
+				 * w​h​i​c​h​ ​c​o​n​t​r​a​c​t​ ​e​a​c​h​ ​r​e​n​e​w​a​l​ ​c​o​n​t​i​n​u​e​s​.
+				 */
+				renewalLink: string;
 			};
 		};
 	};
@@ -6379,6 +6417,14 @@ export type TranslationFunctions = {
 			 */
 			noMatch: () => LocalizedString;
 			/**
+			 * this could not be loaded
+			 */
+			readFailed: () => LocalizedString;
+			/**
+			 * something went wrong while reading it. nothing was changed.
+			 */
+			readFailedDescription: () => LocalizedString;
+			/**
 			 * this record does not exist
 			 */
 			recordNotFound: () => LocalizedString;
@@ -6572,6 +6618,10 @@ export type TranslationFunctions = {
 			};
 			contract: {
 				/**
+				 * this contract is already renewed. open its renewal to change it.
+				 */
+				alreadyRenewed: () => LocalizedString;
+				/**
 				 * cost per payment must be greater than zero.
 				 */
 				costNotPositive: () => LocalizedString;
@@ -6632,7 +6682,7 @@ export type TranslationFunctions = {
 				 */
 				periodOverlapsUnits: () => LocalizedString;
 				/**
-				 * a renewal must start after the contract it renews ends.
+				 * with these dates, a renewal would start before the contract it renews has ended.
 				 */
 				renewalBeforeEnd: () => LocalizedString;
 				/**
@@ -7566,6 +7616,24 @@ export type TranslationFunctions = {
 			 */
 			unnamedRecord: () => LocalizedString;
 		};
+		discardDialog: {
+			/**
+			 * your changes have not been saved. once discarded, nothing brings them back.
+			 */
+			description: () => LocalizedString;
+			/**
+			 * discard
+			 */
+			discard: () => LocalizedString;
+			/**
+			 * keep editing
+			 */
+			keepEditing: () => LocalizedString;
+			/**
+			 * discard changes?
+			 */
+			title: () => LocalizedString;
+		};
 	};
 	layout: {
 		notFound: {
@@ -7855,6 +7923,10 @@ export type TranslationFunctions = {
 			 * collected
 			 */
 			collected: () => LocalizedString;
+			/**
+			 * expected
+			 */
+			expected: () => LocalizedString;
 			/**
 			 * occupied units
 			 */
@@ -8551,7 +8623,7 @@ export type TranslationFunctions = {
 			 */
 			periodMustMatchWholeCycles: (arg: { days: unknown; interval: unknown }) => LocalizedString;
 			/**
-			 * the tenant, units, cycle and cost carry over from the contract being renewed. set the term the renewal runs for.
+			 * the tenant, units and cycle carry over. the cost starts at the old rent and may change. set the renewal's term.
 			 */
 			renewDescription: () => LocalizedString;
 			/**
@@ -11090,6 +11162,10 @@ export type TranslationFunctions = {
 				 * a record saved the same way on two machines while apart becomes one, keeping everything that belongs to it.
 				 */
 				identicalRecords: () => LocalizedString;
+				/**
+				 * which contract each renewal continues.
+				 */
+				renewalLink: () => LocalizedString;
 			};
 		};
 	};

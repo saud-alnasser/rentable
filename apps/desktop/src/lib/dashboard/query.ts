@@ -37,6 +37,10 @@ export function useFetchContractWorkQueue(period: () => FilterPeriod) {
 		return {
 			queryKey: keys.get(chosen),
 			queryFn: () => api.dashboard.get({ period: chosen }),
+			// the answer for the period the reader left is held while the new one is on its way, so
+			// the band keeps its cards and the period control. It is another period's answer, so
+			// the screen draws none of its figures: it reads `isPlaceholderData` and draws the
+			// loading treatment in their place (ticket 22 of effort 861).
 			placeholderData: <T>(previous: T) => previous
 		};
 	});

@@ -198,6 +198,13 @@ export default function transferRouter<S extends AnySheet>(declared: readonly S[
 					return id;
 				};
 
+				// the same lookup, answering nothing where `resolve` would refuse.
+				const find: Writing['find'] = (concept, name, values = [name]) => {
+					const key = toTransferKey(...values);
+
+					return ambiguous.get(concept)?.has(key) ? undefined : ids.get(concept)?.get(key);
+				};
+
 				const statements: Statement[] = [];
 				// run last, once every sheet has written: see `Written.closing`.
 				const closing: Statement[] = [];
@@ -209,7 +216,8 @@ export default function transferRouter<S extends AnySheet>(declared: readonly S[
 						db: ctx.db,
 						now,
 						name: (values, id) => ids.get(sheet.concept)!.set(toTransferKey(...values), id),
-						resolve
+						resolve,
+						find
 					});
 
 					statements.push(...written.statements);

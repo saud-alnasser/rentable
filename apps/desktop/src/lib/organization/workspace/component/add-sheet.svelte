@@ -11,7 +11,7 @@
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { cn } from '@rentable/design/tailwind.js';
-	import { onSubmit } from '$lib/form';
+	import { isDirty, onSubmit } from '$lib/form';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import { SearchField } from '$lib/list/ui';
 	import { matchesTerm } from '$lib/palette';
@@ -19,6 +19,7 @@
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import UserPlusIcon from '@lucide/svelte/icons/user-plus';
 	import XIcon from '@lucide/svelte/icons/x';
+	import { untrack } from 'svelte';
 
 	/**
 	 * The sheet the plus on a workspace's members opens, which puts several members in at once
@@ -77,6 +78,9 @@
 	/** whether the sheet was open when last looked at, so only an opening clears it. */
 	let wasOpen = false;
 
+	/** who was checked when the sheet opened, which a close is measured against. */
+	let opened = $state.raw<string[]>();
+
 	// a fresh open starts with nobody checked and nothing searched. Only the opening does: a
 	// refusal hands the sheet new candidates while it stays open, and what is checked stands.
 	$effect(() => {
@@ -84,10 +88,16 @@
 			checkedIds = [];
 			search = '';
 			activeId = null;
+			opened = untrack(() => $state.snapshot(checkedIds));
 		}
 
 		wasOpen = open;
 	});
+
+	// a member checked asks before the sheet closes, and one checked and unchecked again is no
+	// change (effort 861, requirement 10). The search is not counted: it is how the reader looks
+	// through the list, and nothing the save writes.
+	const dirty = $derived(isDirty(opened, $state.snapshot(checkedIds)));
 
 	/** the checked who can still be put in: one granted already has left the candidates. */
 	const checked = $derived(candidates.filter((candidate) => checkedIds.includes(candidate.id)));
@@ -147,6 +157,7 @@
 <FormSurface
 	{open}
 	{onOpenChange}
+	{dirty}
 	{enhance}
 	weight="heavy"
 	title={$LL.organization.workspacePage.addMembers()}
@@ -224,7 +235,7 @@
 							class={cn(
 								'flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors',
 								isChecked
-									? 'border-primary bg-primary text-primary-foreground'
+									? 'border-primary-fill bg-primary-fill text-primary-foreground'
 									: 'border-muted-foreground/40'
 							)}
 							data-holder-check
@@ -246,8 +257,8 @@
 		{/if}
 	</div>
 
-	{#snippet actions()}
-		<Button type="button" variant="outline" disabled={isSaving} onclick={() => onOpenChange(false)}>
+	{#snippet actions({ requestClose })}
+		<Button type="button" variant="outline" disabled={isSaving} onclick={requestClose}>
 			{$LL.common.actions.cancel()}
 		</Button>
 		<!-- the verb's glyph before its label, as every primary here carries one; it counts what it

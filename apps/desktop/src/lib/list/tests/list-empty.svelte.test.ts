@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/svelte';
+import { fireEvent, render, screen, within } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
@@ -6,6 +6,7 @@ import ar from '$lib/i18n/ar';
 import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
+import { placeholderStrings as strings } from '$lib/design/tests/strings';
 
 import ListEmptyHarness from './list-empty-harness.svelte';
 
@@ -125,4 +126,82 @@ test('the two states never read the same', () => {
 	expect(en.common.messages.noMatch).not.toBe(en.tenants.empty.title);
 	expect(en.common.messages.noMatch).not.toBe(en.contracts.empty.title);
 	expect(en.common.messages.noMatch).not.toBe(en.complexes.empty.title);
+});
+
+// ticket 03 of effort 861, requirement 1: a list whose read failed does not know whether it holds
+// anything, so it says the read failed and offers to read it again. It never says what the list
+// will hold, never offers the create, and never counts.
+test('a list whose read failed says so, and offers no create, no nothing yet and no count', () => {
+	render(ListEmptyHarness, { failed: true, onRetry: () => {}, onCreate: () => {} });
+
+	expect(empty()?.dataset.empty).toBe('failed');
+	expect(empty()?.textContent).toContain(strings.readFailed);
+	expect(empty()?.textContent).not.toContain('no tenants yet');
+	expect(document.querySelector('[data-empty-create]')).toBeNull();
+	expect(document.querySelector('[data-list-count]')).toBeNull();
+	expect(within(empty()!).getAllByRole('button')).toHaveLength(1);
+});
+
+/** the toolbar's create, wherever the list draws it. */
+const toolbarCreate = () => document.querySelector('[data-create-control]');
+/** the toolbar's transfer menu, which holds the export. */
+const transferMenu = () => screen.queryByRole('button', { name: en.common.actions.transferData });
+
+// ticket 19 of effort 861, requirement 1: the bar above a read that failed offers nothing to do to
+// the set either. A create there would ask to fill a set that may not be empty, and an export would
+// be refused as *nothing to export*, a statement about a set nobody could read. Both come back once
+// the read answers.
+test('a list whose read failed offers no create and no export in its bar, until it answers', async () => {
+	const { rerender } = render(ListEmptyHarness, {
+		failed: true,
+		onRetry: () => {},
+		onCreate: () => {},
+		exportable: true
+	});
+
+	expect(toolbarCreate()).toBeNull();
+	expect(transferMenu()).toBeNull();
+	expect(document.body.textContent).not.toContain(en.common.export.nothingToExport);
+
+	await rerender({ failed: false });
+
+	expect(empty()?.dataset.empty).toBe('nothing-yet');
+	expect(toolbarCreate()).not.toBeNull();
+
+	await fireEvent.click(transferMenu()!);
+
+	expect(document.querySelector('[data-transfer="export"]')).not.toBeNull();
+});
+
+test('a list whose read failed keeps its import, and the menu holds no export', async () => {
+	render(ListEmptyHarness, {
+		failed: true,
+		onRetry: () => {},
+		exportable: true,
+		onImport: () => {}
+	});
+
+	await fireEvent.click(transferMenu()!);
+
+	expect(document.querySelector('[data-transfer="import"]')).not.toBeNull();
+	expect(document.querySelector('[data-transfer="export"]')).toBeNull();
+	expect(document.body.textContent).not.toContain(en.common.export.nothingToExport);
+});
+
+test('a failed read under a search still draws no count, and no match is not what it says', () => {
+	render(ListEmptyHarness, { failed: true, onRetry: () => {}, initialSearch: 'north' });
+
+	expect(empty()?.dataset.empty).toBe('failed');
+	expect(empty()?.textContent).not.toContain(en.common.messages.noMatch);
+	expect(document.querySelector('[data-list-count]')).toBeNull();
+});
+
+test('try again asks for the read again', () => {
+	const onRetry = vi.fn();
+
+	render(ListEmptyHarness, { failed: true, onRetry });
+
+	within(empty()!).getByRole('button', { name: strings.tryAgain }).click();
+
+	expect(onRetry).toHaveBeenCalledOnce();
 });

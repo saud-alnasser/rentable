@@ -87,6 +87,7 @@ const SHARED = [
 	'app',
 	...SHARED_ACTIONS.map((key) => `common.actions.${key}`),
 	'common.deleteDialog',
+	'common.discardDialog',
 	'common.errors',
 	'common.failures',
 	'common.formats',

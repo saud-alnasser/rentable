@@ -3,7 +3,7 @@
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { Slider } from '@rentable/design/primitive/slider/index.js';
-	import { onSubmit } from '$lib/form';
+	import { isDirty, onSubmit } from '$lib/form';
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import {
 		DEFAULT_LINK_LIFETIME_HOURS,
@@ -11,6 +11,7 @@
 		formatLinkLifetime
 	} from '$lib/organization/member/link-lifetime';
 	import LinkIcon from '@lucide/svelte/icons/link';
+	import { untrack } from 'svelte';
 
 	/**
 	 * Making a link: how long it and its code last, chosen before it is made (effort 851,
@@ -56,10 +57,18 @@
 	const chosen = $derived(LINK_LIFETIME_HOURS[step]);
 	const shown = $derived(formatLinkLifetime($locale, chosen));
 
+	/** where the thumb stood when the form opened, which a close is measured against. */
+	let opened = $state.raw<number>();
+
 	// every link starts at the default: a lifetime chosen for one account is not a setting.
 	$effect(() => {
 		if (!open) step = DEFAULT_STEP;
+		else opened = untrack(() => $state.snapshot(step));
 	});
+
+	// a lifetime moved from the default asks before the form closes, and one moved back to it
+	// is no change (effort 861, requirement 10).
+	const dirty = $derived(isDirty(opened, $state.snapshot(step)));
 
 	const enhance = onSubmit(() => {
 		if (!isMaking) onMake(chosen);
@@ -69,6 +78,7 @@
 <FormSurface
 	{open}
 	{onOpenChange}
+	{dirty}
 	{enhance}
 	weight="light"
 	title={$LL.organization.dashboard.makeLink()}
@@ -102,8 +112,8 @@
 		<Field.Description>{$LL.organization.dashboard.linkLifetimeDescription()}</Field.Description>
 	</Field.Field>
 
-	{#snippet actions()}
-		<Button type="button" variant="outline" disabled={isMaking} onclick={() => onOpenChange(false)}>
+	{#snippet actions({ requestClose })}
+		<Button type="button" variant="outline" disabled={isMaking} onclick={requestClose}>
 			{$LL.common.actions.cancel()}
 		</Button>
 		<Button type="submit" disabled={isMaking}>

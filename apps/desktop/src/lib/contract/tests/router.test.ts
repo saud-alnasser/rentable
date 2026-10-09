@@ -12,13 +12,20 @@ import {
 	refusedWith,
 	refusalReadIn
 } from '$lib/app/tests/testing.ts';
+import { eq, sql } from 'drizzle-orm';
+
 import { isRecordId } from '$lib/platform/database/identity.ts';
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
+import * as s from '$lib/platform/database/schema.ts';
 import {
 	type ContractInput,
+	type CreatedContract,
+	RENEWAL_WITHDRAWALS,
 	seedComplexWithUnit,
 	seedContract,
-	seedRemindedContract
+	seedRemindedContract,
+	seedRenewedEndingSoon,
+	withdrawRenewal
 } from '$lib/contract/tests/seed.ts';
 
 // --- Creation ------------------------------------------------------------------------
@@ -360,6 +367,431 @@ test('a deleted contract is undone holding its unit after another contract took 
 		[unit.id]
 	);
 	assert.equal((await api.complex.units.get({ id: unit.id }))?.status, 'occupied');
+});
+
+// --- The contract a renewal continues --------------------------------------------------
+//
+// Effort 861, requirement 5, ticket 09: a contract may name the contract it renews. A renewal
+// writes the link, and the reconcile writes it for a pair it recognises (requirement 6); create,
+// a duplicate and an edit never do, and undoing a deletion puts it back with the row. These tests
+// write it into the row themselves, as a renewal does (`renewal/tests/router.test.ts` holds the
+// renewal's own), so each is about the link alone.
+
+/** a caller over a database of its own, and a successor naming its predecessor as renewed. */
+async function withRenewal() {
+	const db = createMemoryDatabase();
+	const api = await createApi({ db });
+	const predecessor = await seedContract(api, {
+		start: monthsFromNow(-13),
+		end: monthsFromNow(-1)
+	});
+	const successor = await seedContract(api, {
+		tenantId: predecessor.tenantId,
+		start: monthsFromNow(-1, 1),
+		end: monthsFromNow(11)
+	});
+
+	await db
+		.update(s.contract)
+		.set({ renewsContractId: predecessor.id })
+		.where(eq(s.contract.id, successor.id));
+
+	return { api, predecessor, successor };
+}
+
+test('a contract reads the contract it renews, and one that renews nothing reads null', async () => {
+	const { api, predecessor, successor } = await withRenewal();
+
+	assert.equal((await api.contract.get({ id: successor.id }))?.renewsContractId, predecessor.id);
+	assert.equal((await api.contract.get({ id: predecessor.id }))?.renewsContractId, null);
+});
+
+test('creating a contract cannot write the contract it renews', async () => {
+	const { api, predecessor } = await withRenewal();
+	// passed through a variable, as a caller that is not this application could send it.
+	const sent = {
+		tenantId: predecessor.tenantId,
+		start: monthsFromNow(11, 1),
+		end: monthsFromNow(23),
+		interval: '12m' as const,
+		cost: 1000,
+		renewsContractId: predecessor.id
+	};
+
+	const created = await api.contract.create(sent);
+
+	assert.equal(created.renewsContractId, null);
+	assert.equal((await api.contract.get({ id: created.id }))?.renewsContractId, null);
+});
+
+test('a duplicate of a renewal does not carry the contract it renews', async () => {
+	const { api, successor } = await withRenewal();
+	const original = await api.contract.get({ id: successor.id });
+
+	assert.ok(original);
+
+	// what the duplicate act hands the form, sent whole: the contract as read, without its
+	// identity and its government id (`host.svelte.ts`).
+	const duplicate = await api.contract.create({
+		...original,
+		id: undefined,
+		govId: '',
+		start: monthsFromNow(11, 1),
+		end: monthsFromNow(23)
+	});
+
+	assert.equal((await api.contract.get({ id: duplicate.id }))?.renewsContractId, null);
+});
+
+test('an edit neither writes nor clears the contract a renewal continues', async () => {
+	const { api, predecessor, successor } = await withRenewal();
+	const sent = {
+		id: predecessor.id,
+		tenantId: predecessor.tenantId,
+		start: predecessor.start,
+		end: predecessor.end,
+		interval: predecessor.interval,
+		cost: 1200,
+		renewsContractId: successor.id
+	};
+
+	await api.contract.update(sent);
+	await api.contract.update({ ...successor, govId: undefined, cost: 1300 });
+
+	assert.equal((await api.contract.get({ id: predecessor.id }))?.renewsContractId, null);
+	assert.equal((await api.contract.get({ id: successor.id }))?.renewsContractId, predecessor.id);
+});
+
+test('a deleted renewal is undone naming the contract it renews', async () => {
+	const { api, predecessor, successor } = await withRenewal();
+
+	const deleted = await api.contract.delete({ id: successor.id });
+
+	assert.ok(deleted);
+	assert.equal(deleted.renewsContractId, predecessor.id);
+
+	const [undone] = await api.contract.restoreMany({ contracts: [deleted] });
+
+	assert.equal(undone.renewsContractId, predecessor.id);
+	assert.equal((await api.contract.get({ id: successor.id }))?.renewsContractId, predecessor.id);
+
+	const many = await api.contract.deleteMany({ ids: [successor.id] });
+
+	await api.contract.restoreMany({ contracts: many.deleted });
+
+	assert.equal((await api.contract.get({ id: successor.id }))?.renewsContractId, predecessor.id);
+});
+
+// --- A renewed contract, read on its own -----------------------------------------------
+//
+// effort 861, requirement 7: the contract's own read says whether a standing successor renews it,
+// which its page's renew act reads, and ranks it as ending soon only where none does.
+
+test('a renewed contract reads as renewed and not as ending soon', async () => {
+	const { api, contract, successor } = await seedRenewedEndingSoon();
+	const read = await api.contract.get({ id: contract.id });
+
+	assert.equal(read?.renewed, true);
+	assert.equal(read?.rank, undefined);
+	assert.equal((await api.contract.get({ id: successor.id }))?.renewed, false);
+	// read by its reference, the same
+	assert.equal((await api.contract.get({ govId: 'RENEWED' }))?.renewed, true);
+});
+
+for (const how of RENEWAL_WITHDRAWALS) {
+	test(`a contract whose renewal was ${how} reads as ending soon again`, async () => {
+		const seeded = await seedRenewedEndingSoon();
+		const { api, contract, successor } = seeded;
+
+		await withdrawRenewal(seeded, successor.id, how);
+
+		const read = await api.contract.get({ id: contract.id });
+
+		assert.equal(read?.renewed, false);
+		assert.equal(read?.rank, 'ending-soon');
+	});
+}
+
+// --- An edit keeps a renewal after what it renews ----------------------------------------
+//
+// Effort 861, requirement 5, ticket 23: an edit is held to the rule a renewal is, from either
+// side. A renewal's start may not move on or before the end of the contract it renews, nor that
+// contract's end on or after the start of a renewal that still stands, or the link would be one an
+// export and import cannot carry. The pair holds no units, so no overlap rule stands in for it.
+// The renewed contract here ends next month, and its renewal starts the day after.
+
+/** what the contract form sends for `contract` with its dates moved to `start` and `end`. */
+function withDates(contract: CreatedContract, start: number, end: number) {
+	return {
+		id: contract.id,
+		govId: contract.govId,
+		tenantId: contract.tenantId,
+		interval: contract.interval,
+		cost: contract.cost,
+		start,
+		end
+	};
+}
+
+test('an edit is refused a renewal start on or before the end of the contract it renews', async () => {
+	const { api, successor } = await seedRenewedEndingSoon();
+	const before = await api.contract.get({ id: successor.id });
+
+	// on the day the renewed contract ends, and a month before it.
+	for (const [start, end] of [
+		[monthsFromNow(1), monthsFromNow(13)],
+		[monthsFromNow(0), monthsFromNow(12)]
+	]) {
+		await assert.rejects(
+			() => api.contract.update(withDates(successor, start, end)),
+			refusedWith('contract.renewalBeforeEnd')
+		);
+	}
+
+	assert.deepEqual(await api.contract.get({ id: successor.id }), before);
+});
+
+test('an edit is refused an end on or after the start of a renewal that stands', async () => {
+	const { api, contract, successor } = await seedRenewedEndingSoon();
+	const before = await api.contract.get({ id: contract.id });
+
+	// on the day the renewal starts, and a month after it.
+	for (const [start, end] of [
+		[monthsFromNow(-11, 1), monthsFromNow(1, 1)],
+		[monthsFromNow(-10), monthsFromNow(2)]
+	]) {
+		await assert.rejects(
+			() => api.contract.update(withDates(contract, start, end)),
+			refusedWith('contract.renewalBeforeEnd')
+		);
+	}
+
+	assert.deepEqual(await api.contract.get({ id: contract.id }), before);
+	assert.equal(successor.renewsContractId, contract.id);
+});
+
+test('an edit that keeps a renewal after what it renews goes through, from either side', async () => {
+	const { api, contract, successor } = await seedRenewedEndingSoon();
+
+	const later = await api.contract.update(
+		withDates(successor, monthsFromNow(2), monthsFromNow(14))
+	);
+	const earlier = await api.contract.update(
+		withDates(contract, monthsFromNow(-12), monthsFromNow(0))
+	);
+
+	assert.equal(later.start, monthsFromNow(2));
+	assert.equal(earlier.end, monthsFromNow(0));
+	assert.equal((await api.contract.get({ id: contract.id }))?.renewed, true);
+});
+
+for (const how of RENEWAL_WITHDRAWALS) {
+	test(`a contract whose renewal was ${how} may be moved past where the renewal started`, async () => {
+		const seeded = await seedRenewedEndingSoon();
+		const { api, contract, successor } = seeded;
+
+		await withdrawRenewal(seeded, successor.id, how);
+
+		const moved = await api.contract.update(
+			withDates(contract, monthsFromNow(-10), monthsFromNow(2))
+		);
+
+		assert.equal(moved.end, monthsFromNow(2));
+	});
+}
+
+// restoring a terminated renewal makes it stand again, so it is held to the same order, and to the
+// rule that a contract is renewed once: what changed while it was terminated may leave it unable to.
+test('restoring a renewal is refused once what it renews has moved past where it starts', async () => {
+	const seeded = await seedRenewedEndingSoon();
+	const { api, contract, successor } = seeded;
+
+	await withdrawRenewal(seeded, successor.id, 'terminated');
+	await api.contract.update(withDates(contract, monthsFromNow(-10), monthsFromNow(2)));
+
+	await assert.rejects(
+		() => api.contract.unterminate({ id: successor.id }),
+		refusedWith('contract.renewalBeforeEnd')
+	);
+	assert.equal((await api.contract.get({ id: successor.id }))?.status, 'terminated');
+});
+
+test('restoring a renewal is refused once another renewal continues the same contract', async () => {
+	const seeded = await seedRenewedEndingSoon();
+	const { api, contract, successor } = seeded;
+
+	await withdrawRenewal(seeded, successor.id, 'terminated');
+	await api.contract.renew({
+		contractId: contract.id,
+		govId: 'RENEWAL-2',
+		start: successor.start,
+		end: successor.end,
+		cost: contract.cost
+	});
+
+	await assert.rejects(
+		() => api.contract.unterminate({ id: successor.id }),
+		refusedWith('contract.alreadyRenewed')
+	);
+	assert.equal((await api.contract.get({ id: successor.id }))?.status, 'terminated');
+});
+
+test('an edit refused for the order of a renewal reads in both languages', async () => {
+	const { api, contract, successor } = await seedRenewedEndingSoon();
+	const moveSuccessor = () =>
+		api.contract.update(withDates(successor, monthsFromNow(1), monthsFromNow(13)));
+	const moveContract = () =>
+		api.contract.update(withDates(contract, monthsFromNow(-10), monthsFromNow(2)));
+
+	for (const move of [moveSuccessor, moveContract]) {
+		assert.equal(
+			await refusalReadIn(move, 'ar'),
+			'بهذه التواريخ يبدأ التجديد قبل أن ينتهي العقد الذي يجدده.'
+		);
+		assert.equal(
+			await refusalReadIn(move, 'en'),
+			'with these dates, a renewal would start before the contract it renews has ended.'
+		);
+	}
+});
+
+// --- The renewals the reconcile recognises ---------------------------------------------
+//
+// Effort 861, requirement 6 and criterion 6, ticket 12: the whole-table reconcile links a renewal
+// nothing recorded, by the rule `recognizeRenewals` states, and a second pass finds nothing left.
+
+const DAY = 24 * 60 * 60 * 1000;
+
+/** a caller over a database of its own, logging what it sends, and a renewal nothing linked. */
+async function withUnlinkedRenewal() {
+	const statements: string[] = [];
+	const db = createMemoryDatabase((statement) => statements.push(statement));
+	const api = await createApi({ db });
+	const { unit: first } = await seedComplexWithUnit(api, 'Recognized-A');
+	const { unit: second } = await seedComplexWithUnit(api, 'Recognized-B');
+	const predecessor = await seedContract(api, {
+		start: monthsFromNow(-13),
+		end: monthsFromNow(-1),
+		unitIds: [first.id, second.id]
+	});
+	const successor = await api.contract.create({
+		tenantId: predecessor.tenantId,
+		start: predecessor.end + DAY,
+		end: monthsFromNow(11),
+		interval: '12m',
+		cost: 1000,
+		unitIds: [second.id, first.id]
+	});
+
+	return { api, db, statements, predecessor, successor };
+}
+
+test('the reconcile links a renewal nothing recorded, and a second pass changes nothing', async () => {
+	const { api, db, statements, predecessor, successor } = await withUnlinkedRenewal();
+
+	assert.equal((await api.contract.get({ id: successor.id }))?.renewsContractId, null);
+
+	await api.contract.reconcile();
+
+	assert.equal((await api.contract.get({ id: successor.id }))?.renewsContractId, predecessor.id);
+	assert.equal((await api.contract.get({ id: predecessor.id }))?.renewsContractId, null);
+
+	const before = await db.select().from(s.contract);
+
+	statements.length = 0;
+	await api.contract.reconcile();
+
+	assert.deepEqual(await db.select().from(s.contract), before);
+	assert.equal(
+		countMatching(statements, /^\s*update\s+"contract"/i),
+		0,
+		'the second pass wrote a contract'
+	);
+});
+
+test('the reconcile writes every link it finds and no other', async () => {
+	const { api, statements } = await withUnlinkedRenewal();
+	const renewsIn = (sent: readonly string[]) =>
+		countMatching(sent, /^\s*update\s+"contract"\s+set\s+"renews_contract_id"/i);
+
+	// a second, separate renewal, so the pass has two links to write.
+	const other = await seedContract(api, { start: monthsFromNow(-25), end: monthsFromNow(-13) });
+	const next = await api.contract.create({
+		tenantId: other.tenantId,
+		start: other.end + DAY,
+		end: monthsFromNow(-1),
+		interval: '12m',
+		cost: 1000
+	});
+
+	statements.length = 0;
+	await api.contract.reconcile();
+
+	assert.equal(renewsIn(statements), 2);
+	assert.equal((await api.contract.get({ id: next.id }))?.renewsContractId, other.id);
+});
+
+test('the reconcile links no contract on another tenant, other units, or another day', async () => {
+	const { api, predecessor } = await withUnlinkedRenewal();
+	const { unit } = await seedComplexWithUnit(api, 'Recognized-C');
+	const otherTenant = await seedContract(api, {
+		start: predecessor.end + DAY,
+		end: monthsFromNow(11)
+	});
+	const otherUnits = await api.contract.create({
+		tenantId: predecessor.tenantId,
+		start: predecessor.end + DAY,
+		end: monthsFromNow(11),
+		interval: '12m',
+		cost: 1000,
+		unitIds: [unit.id]
+	});
+	const otherDay = await api.contract.create({
+		tenantId: predecessor.tenantId,
+		start: predecessor.end + 2 * DAY,
+		end: monthsFromNow(11),
+		interval: '12m',
+		cost: 1000
+	});
+
+	await api.contract.reconcile();
+
+	for (const contract of [otherTenant, otherUnits, otherDay]) {
+		assert.equal((await api.contract.get({ id: contract.id }))?.renewsContractId, null);
+	}
+});
+
+// criterion 6's workspace: the Rust seed walk opens its version-9 seed at 10 without reconciling,
+// since the reconcile is the application's, so the walk's rows are seeded here at the shape the
+// version-10 seed (`tauri/src/organization/lease/test/seed.rs`, `SEEDED_AT_TEN`) holds, with the
+// renewal written as a build at 9 wrote it: the same tenant and both units, the day after
+// `d0001` ends, and naming nothing.
+test('a renewal a build at version 9 wrote, opened at 10, is linked by the reconcile', async () => {
+	const db = createMemoryDatabase();
+	const api = await createApi({ db });
+
+	for (const statement of [
+		"INSERT INTO `complex` (`id`, `name`, `location`) VALUES ('0199a000-0000-7000-8000-0000000c0001', 'North Towers', 'Riyadh, Olaya')",
+		"INSERT INTO `tenant` (`id`, `national_id`, `name`, `phone`) VALUES ('0199a000-0000-7000-8000-000000070001', '1012345678', 'Sara Al-Harbi', '0501234567'), ('0199a000-0000-7000-8000-000000070002', '2098765432', 'Khalid Al-Otaibi', '0559876543')",
+		"INSERT INTO `unit` (`id`, `name`, `status`, `complex_id`) VALUES ('0199a000-0000-7000-8000-0000000a0001', 'A-101', 'occupied', '0199a000-0000-7000-8000-0000000c0001'), ('0199a000-0000-7000-8000-0000000a0002', 'A-102', 'occupied', '0199a000-0000-7000-8000-0000000c0001')",
+		"INSERT INTO `contract` (`id`, `gov_id`, `status`, `start_date`, `end_date`, `interval_in_months`, `cost_per_interval`, `paid_amount`, `expected_amount`, `tenant_id`) VALUES ('0199a000-0000-7000-8000-0000000d0001', '20250001', 'active', 1735689600000, 1767225600000, '6m', 30000.5, 15000.25, 30000.5, '0199a000-0000-7000-8000-000000070001'), ('0199a000-0000-7000-8000-0000000d0002', NULL, 'expired', 1704067200000, 1735603200000, '1m', 2500, 0, 0, '0199a000-0000-7000-8000-000000070002'), ('0199a000-0000-7000-8000-0000000d0003', '20260001', 'active', 1767312000000, 1798761600000, '6m', 30000.5, 0, 30000.5, '0199a000-0000-7000-8000-000000070001')",
+		"INSERT INTO `contract_unit` (`contract_id`, `unit_id`) VALUES ('0199a000-0000-7000-8000-0000000d0001', '0199a000-0000-7000-8000-0000000a0001'), ('0199a000-0000-7000-8000-0000000d0001', '0199a000-0000-7000-8000-0000000a0002'), ('0199a000-0000-7000-8000-0000000d0002', '0199a000-0000-7000-8000-0000000a0002'), ('0199a000-0000-7000-8000-0000000d0003', '0199a000-0000-7000-8000-0000000a0001'), ('0199a000-0000-7000-8000-0000000d0003', '0199a000-0000-7000-8000-0000000a0002')"
+	]) {
+		await db.run(sql.raw(statement));
+	}
+
+	await api.contract.reconcile();
+
+	const links = await db
+		.select({ id: s.contract.id, renews: s.contract.renewsContractId })
+		.from(s.contract)
+		.orderBy(s.contract.id);
+
+	assert.deepEqual(links, [
+		{ id: '0199a000-0000-7000-8000-0000000d0001', renews: null },
+		{ id: '0199a000-0000-7000-8000-0000000d0002', renews: null },
+		{ id: '0199a000-0000-7000-8000-0000000d0003', renews: '0199a000-0000-7000-8000-0000000d0001' }
+	]);
 });
 
 // --- Restoring a terminated contract -------------------------------------------------

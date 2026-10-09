@@ -72,7 +72,8 @@ copy a replica's file, and the copy is read out row by row instead.*
 _Avoid_: using it for the local replica, which is a live copy rather than a point in time
 
 **Reconcile**:
-Recompute derived state from its source of truth and write the result back. Always local.
+Recompute derived state from its source of truth and write the result back, and link the
+renewals it recognises, the one fact it writes that is not derived. Always local.
 _Avoid_: sync
 
 **Sync**:
@@ -186,7 +187,11 @@ a mechanism underneath it ([[rules/data]], under *Undo*).
   aggregates, and unit status. Any mutation touching contracts, payments, or unit
   assignments must reconcile, or the stored values go stale. A mutation may seed the
   derived columns of the row it writes, so the row it returns is current without a
-  re-read; reconcile recomputes them regardless, from the same domain functions.
+  re-read; reconcile recomputes them regardless, from the same domain functions. The
+  whole-table pass also writes one fact that is not derived: the renewal link, where it
+  recognises a renewal the application did not record ([[contexts/desktop/contract]],
+  *Renewal link*). Once written the link is the contract's, and no reconcile pass moves it; only
+  the heal moves it, to the contract that stayed when copies merge.
 
 ## Constraints
 

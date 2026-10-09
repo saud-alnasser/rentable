@@ -124,7 +124,8 @@ describe("a contract's history", () => {
 			contractId: contract.id,
 			govId: 'CT-002',
 			start: term.start.getTime(),
-			end: term.end.getTime()
+			end: term.end.getTime(),
+			cost: contract.cost
 		});
 
 		assert.deepEqual(await settled(), [
@@ -174,7 +175,8 @@ describe("a contract's history", () => {
 		await run(useRenewContract, {
 			contractId: contract.id,
 			start: term.start.getTime(),
-			end: term.end.getTime()
+			end: term.end.getTime(),
+			cost: contract.cost
 		});
 		await settled();
 

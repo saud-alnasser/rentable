@@ -124,7 +124,7 @@ const dialogFooter = () =>
 	Array.from(document.querySelectorAll<HTMLButtonElement>('[data-slot="dialog-footer"] button'));
 
 /** whether a button is drawn prominent: the filled primary variant, which only one per step is. */
-const isProminent = (button: HTMLElement) => button.className.includes('bg-primary');
+const isProminent = (button: HTMLElement) => button.classList.contains('bg-primary-fill');
 
 // criterion 22 of effort 826: a machine somebody signed out from another one is the wall with the
 // reason on it, in both locales. The way through is still the password, so the fields are the

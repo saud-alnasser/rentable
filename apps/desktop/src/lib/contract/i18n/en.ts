@@ -48,7 +48,7 @@ export const contracts = {
 		periodMustMatchWholeCycles:
 			'end date must stay within {days} days before or after the calculated {interval} cycle end date.',
 		renewDescription:
-			'the tenant, units, cycle and cost carry over from the contract being renewed. set the term the renewal runs for.',
+			"the tenant, units and cycle carry over. the cost starts at the old rent and may change. set the renewal's term.",
 		renewTitle: 'renew contract',
 		searchAndSelectTenant: 'search and select tenant',
 		searchTenantPlaceholder: 'search tenant by name, ID or phone...',
@@ -195,6 +195,7 @@ export const contracts = {
 
 export const refusals = {
 	contract: {
+		alreadyRenewed: 'this contract is already renewed. open its renewal to change it.',
 		costNotPositive: 'cost per payment must be greater than zero.',
 		endBeforeStart: 'end date must be after start date.',
 		govIdTaken: 'government ID is associated with another contract.',
@@ -214,7 +215,8 @@ export const refusals = {
 			'end date must stay within {days:number} days before or after the calculated {interval:string} cycle end date.',
 		periodOverlapsUnits:
 			'another contract holds one or more of these units over the new dates. choose different dates.',
-		renewalBeforeEnd: 'a renewal must start after the contract it renews ends.',
+		renewalBeforeEnd:
+			'with these dates, a renewal would start before the contract it renews has ended.',
 		repeatedInSet: 'two contracts in this set claim {value:string}.',
 		tenantMissing: 'the selected tenant is no longer in the workspace. choose another.',
 		tenantMissingNamed: 'no tenant with the ID {named:string} is in the workspace.',

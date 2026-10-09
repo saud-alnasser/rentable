@@ -23,6 +23,14 @@ import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import { fakeHost } from '$lib/app/tests/host.ts';
 import { fakeSettings } from '$lib/settings/tests/testing.ts';
 
+import { getContractRenewalTerm } from '$lib/contract/renewal/renewal.ts';
+import {
+	RENEWAL_WITHDRAWALS,
+	seedContract,
+	seedRenewedEndingSoon,
+	withdrawRenewal
+} from '$lib/contract/tests/seed.ts';
+
 import { DASHBOARD_ENTRIES_PER_RANK } from '../dashboard.ts';
 
 /** What `contract.create` takes, and one line of the queue — both read off the procedures. */
@@ -373,6 +381,51 @@ test('the aggregation is identical across repeated calls', async () => {
 
 	assert.deepEqual(second, first);
 });
+
+// --- A renewed contract, effort 861 requirement 7 --------------------------------------
+//
+// a contract a standing successor renews is not up for renewal, so the landing screen ranks it as
+// ending soon nowhere: not under its own rank, and not as the second need on a contract that owes.
+// A successor deleted, terminated or retired by a merge no longer stands, and it is back.
+
+test('a renewed contract inside its notice window is in no ending-soon list', async () => {
+	const { api } = await seedRenewedEndingSoon();
+	// owing and ending inside the window, then renewed: still under the money, no longer ending.
+	const owing = await seedContract(api, {
+		govId: 'RENEWED-OWING',
+		cost: 8000,
+		start: monthsFromNow(-11),
+		end: monthsFromNow(1)
+	});
+	const term = getContractRenewalTerm(owing);
+
+	await api.contract.renew({
+		contractId: owing.id,
+		start: term.start.getTime(),
+		end: term.end.getTime(),
+		cost: owing.cost
+	});
+
+	const { queue, ranks } = await api.dashboard.get();
+
+	assert.equal(queueEntry(queue, 'RENEWED'), undefined);
+	assert.equal(queueEntry(queue, 'RENEWED-OWING')?.rank, 'owing');
+	assert.equal(queueEntry(queue, 'RENEWED-OWING')?.isEndingSoon, false);
+	assert.deepEqual(ranks, [{ rank: 'owing', contractCount: 1, totalAmount: 8000 }]);
+});
+
+for (const how of RENEWAL_WITHDRAWALS) {
+	test(`a contract whose renewal was ${how} is in the ending-soon list again`, async () => {
+		const seeded = await seedRenewedEndingSoon();
+
+		await withdrawRenewal(seeded, seeded.successor.id, how);
+
+		const { queue, ranks } = await seeded.api.dashboard.get();
+
+		assert.equal(queueEntry(queue, 'RENEWED')?.rank, 'ending-soon');
+		assert.deepEqual(ranks, [{ rank: 'ending-soon', contractCount: 1, totalAmount: 0 }]);
+	});
+}
 
 // The screen's cost is a function of how many contracts exist, never of how many payments
 // have been recorded: outstanding comes from the materialized `paid_amount` column, and the

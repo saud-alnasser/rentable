@@ -9,8 +9,8 @@ import {
 /**
  * RENEWAL
  *
- * Continuing a contract past its own end: the term a renewal proposes, and the rule that
- * separates a renewal from an edit.
+ * Continuing a contract past its own end: the term a renewal proposes, the rule that separates a
+ * renewal from an edit, and the rule that a contract is renewed once.
  *
  * **A renewal produces a successor; it never moves the predecessor's end date.** A contract's
  * expected amount and its whole derived status model are computed from its period, so widening
@@ -18,8 +18,12 @@ import {
  * continuing it. The successor is an ordinary contract, created through the ordinary rules, and
  * the predecessor is left exactly as it was.
  *
- * Nothing here records lineage — the successor stores no link back to what it renews. That is a
- * schema change, and the action is useful without one.
+ * **The successor records what it renews** in `renews_contract_id` (effort 861, requirement 5),
+ * and that link is the whole of the lineage: whether a contract is renewed is read from it, never
+ * stored (`renewedColumn` in `contract/row.ts`). So a contract a standing successor already renews
+ * is not renewed a second time. The successor may carry a different rent from its predecessor
+ * (requirement 8), since a renewal at a new rent is the common case; its tenant, units and
+ * interval are still the predecessor's.
  */
 
 /** The fields a renewal reads off the contract being renewed. */
@@ -88,4 +92,31 @@ export function ensureRenewalFollowsPredecessor(
 	if (!doesRenewalFollowPredecessor(predecessorEnd, successorStart)) {
 		throw refuse('contract.renewalBeforeEnd');
 	}
+}
+
+/**
+ * The rule that a contract is renewed once: one a standing successor already renews is refused
+ * another, which would leave two contracts each claiming to continue it. A successor that was
+ * terminated, retired or deleted no longer stands, so the contract may be renewed again.
+ */
+export function ensureNotRenewed(renewed: boolean) {
+	if (renewed) {
+		throw refuse('contract.alreadyRenewed');
+	}
+}
+
+/**
+ * The contracts renewed among `contracts`: those a successor that is not terminated names. The
+ * same fact as `renewedColumn` in `contract/row.ts`, for a read that already holds every contract
+ * and so every successor, where a subquery per row would ask again what the rows say. A retired
+ * successor is kept out of such a read by the statement rewrite, and a deleted one is not there.
+ */
+export function getRenewedContractIds(
+	contracts: readonly Pick<Contract, 'renewsContractId' | 'status'>[]
+): Set<string> {
+	return new Set(
+		contracts.flatMap(({ renewsContractId, status }) =>
+			renewsContractId !== null && status !== 'terminated' ? [renewsContractId] : []
+		)
+	);
 }
