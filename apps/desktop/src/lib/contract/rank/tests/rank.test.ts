@@ -97,7 +97,46 @@ test('a contract owing nothing and ending outside the notice window has no rank'
 
 test('a contract owing money and also ending soon is ranked on the money', () => {
 	assert.equal(getContractRank(contract('active', '2025-02-02', '2026-02-01'), 500, NOW), 'owing');
-	assert.equal(isContractEndingSoon('active', day('2026-02-01'), NOW), true);
+	assert.equal(isContractEndingSoon({ status: 'active', end: day('2026-02-01') }, NOW), true);
+});
+
+// --- A renewed contract, effort 861 requirement 7 ---------------------------------------
+//
+// a contract a standing successor renews is not up for renewal, wherever the rank is read: what
+// needs renewing has been renewed. What it owes or has coming due is still work.
+
+test('a renewed contract inside the notice window is not ending soon', () => {
+	const renewed = { ...contract('active', '2025-02-02', '2026-02-01'), renewed: true };
+
+	assert.equal(getContractRank(renewed, 1000, NOW), undefined);
+	assert.equal(getContractRank({ ...renewed, status: 'fulfilled' }, 1000, NOW), undefined);
+	assert.equal(isContractEndingSoon(renewed, NOW), false);
+	// one that is not renewed is, which is what the two above are measured against.
+	assert.equal(getContractRank({ ...renewed, renewed: false }, 1000, NOW), 'ending-soon');
+	assert.equal(isContractEndingSoon({ ...renewed, renewed: false }, NOW), true);
+});
+
+test('a renewed contract that owes or has a cycle coming due keeps that rank', () => {
+	const renewed = { ...contract('active', '2025-02-02', '2026-02-01'), renewed: true };
+
+	assert.equal(getContractRank(renewed, 500, NOW), 'owing');
+	assert.equal(
+		getContractRank(
+			{ ...contract('defaulted', '2025-01-01', '2025-12-31', '12m', 4000), renewed: true },
+			0,
+			NOW
+		),
+		'overdue'
+	);
+	assert.equal(getContractRank({ ...DUE_IN_THREE_DAYS, renewed: true }, 6000, NOW), 'due-soon');
+});
+
+test('the renewals bounds admit no renewed contract, and the other ranks either', () => {
+	assert.equal(getContractRankBounds('ending-soon', NOW).renewed, false);
+
+	for (const rank of ['overdue', 'owing', 'due-soon'] as const) {
+		assert.equal(getContractRankBounds(rank, NOW).renewed, undefined, rank);
+	}
 });
 
 // termination locks the contract, so the debt on one is a closed matter rather than work.
@@ -286,17 +325,16 @@ test('a rank nothing landed in is not summarized', () => {
 test('ending soon uses the default notice window and supports custom overrides', () => {
 	const now = new Date('2026-01-01T00:00:00.000Z');
 
+	const ending = (status: Contract['status'], end: string) => ({ status, end: day(end) });
+
 	assert.equal(DEFAULT_ENDING_SOON_NOTICE_DAYS, 60);
-	assert.equal(isContractEndingSoon('active', new Date('2026-03-02T00:00:00.000Z'), now), true);
-	assert.equal(isContractEndingSoon('fulfilled', new Date('2026-02-15T00:00:00.000Z'), now), true);
-	assert.equal(isContractEndingSoon('active', new Date('2026-03-03T00:00:00.000Z'), now), false);
-	assert.equal(isContractEndingSoon('active', new Date('2026-01-31T00:00:00.000Z'), now, 30), true);
-	assert.equal(
-		isContractEndingSoon('active', new Date('2026-02-01T00:00:00.000Z'), now, 30),
-		false
-	);
-	assert.equal(isContractEndingSoon('defaulted', new Date('2026-02-15T00:00:00.000Z'), now), false);
-	assert.equal(isContractEndingSoon('active', new Date('2025-12-31T00:00:00.000Z'), now), false);
+	assert.equal(isContractEndingSoon(ending('active', '2026-03-02'), now), true);
+	assert.equal(isContractEndingSoon(ending('fulfilled', '2026-02-15'), now), true);
+	assert.equal(isContractEndingSoon(ending('active', '2026-03-03'), now), false);
+	assert.equal(isContractEndingSoon(ending('active', '2026-01-31'), now, 30), true);
+	assert.equal(isContractEndingSoon(ending('active', '2026-02-01'), now, 30), false);
+	assert.equal(isContractEndingSoon(ending('defaulted', '2026-02-15'), now), false);
+	assert.equal(isContractEndingSoon(ending('active', '2025-12-31'), now), false);
 });
 
 // --- The bounds a rank puts on stored columns ------------------------------------------
@@ -310,7 +348,7 @@ const STATUSES = ContractSchema.shape.status.options;
  * and that is a claim about every contract rather than about the handful a test would pick. So
  * it is swept: every status against periods ending either side of every boundary the bounds
  * name, with cycles falling due either side of the week ahead, against amounts paid from nothing
- * to past the total.
+ * to past the total, renewed and not.
  *
  * A drift in either direction fails here: a bound tightened past what the ranking means, or a
  * ranking widened past what the bounds still allow.
@@ -344,8 +382,11 @@ test('every contract a rank holds satisfies that rank’s bounds', () => {
 
 	for (const status of STATUSES) {
 		for (const [start, end, interval] of periods) {
-			for (const cycles of paidCycles) {
-				const subject = contract(status, start, end, interval);
+			for (const [cycles, renewed] of paidCycles.flatMap((paid) => [
+				[paid, false] as const,
+				[paid, true] as const
+			])) {
+				const subject = { ...contract(status, start, end, interval), renewed };
 				const paidAmount = cycles * subject.cost;
 				const rank = getContractRank(subject, paidAmount, NOW);
 
@@ -355,7 +396,7 @@ test('every contract a rank holds satisfies that rank’s bounds', () => {
 
 				filed.add(rank);
 				const bounds = getContractRankBounds(rank, NOW);
-				const where = `${rank}: ${status} ${start} to ${end} every ${interval}, paid ${paidAmount}`;
+				const where = `${rank}: ${status} ${start} to ${end} every ${interval}, paid ${paidAmount}${renewed ? ', renewed' : ''}`;
 
 				if ('holds' in bounds.status) {
 					assert.ok(bounds.status.holds.includes(status), where);
@@ -373,6 +414,10 @@ test('every contract a rank holds satisfies that rank’s bounds', () => {
 
 				if (bounds.endBefore) {
 					assert.ok(day(end).getTime() < bounds.endBefore.getTime(), where);
+				}
+
+				if (bounds.renewed !== undefined) {
+					assert.equal(renewed, bounds.renewed, where);
 				}
 			}
 		}

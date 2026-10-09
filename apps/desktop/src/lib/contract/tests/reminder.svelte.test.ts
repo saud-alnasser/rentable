@@ -81,6 +81,7 @@ const OWING: ContractActRecord = {
 	expectedAmount: 18000,
 	tenantId: 'tenant-1',
 	renewsContractId: null,
+	renewed: false,
 	rank: 'owing'
 };
 

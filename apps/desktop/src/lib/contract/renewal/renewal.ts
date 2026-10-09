@@ -104,3 +104,19 @@ export function ensureNotRenewed(renewed: boolean) {
 		throw refuse('contract.alreadyRenewed');
 	}
 }
+
+/**
+ * The contracts renewed among `contracts`: those a successor that is not terminated names. The
+ * same fact as `renewedColumn` in `contract/row.ts`, for a read that already holds every contract
+ * and so every successor, where a subquery per row would ask again what the rows say. A retired
+ * successor is kept out of such a read by the statement rewrite, and a deleted one is not there.
+ */
+export function getRenewedContractIds(
+	contracts: readonly Pick<Contract, 'renewsContractId' | 'status'>[]
+): Set<string> {
+	return new Set(
+		contracts.flatMap(({ renewsContractId, status }) =>
+			renewsContractId !== null && status !== 'terminated' ? [renewsContractId] : []
+		)
+	);
+}

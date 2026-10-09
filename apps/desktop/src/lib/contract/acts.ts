@@ -28,8 +28,11 @@ import Trash2Icon from '@lucide/svelte/icons/trash-2';
  * restated: a card and a page cannot come to disagree about what may be done to one.
  */
 
-/** What an act is given: a contract as any surface holds one, its tenant's name where it has it. */
-export type ContractActRecord = SerializedContract;
+/**
+ * What an act is given: a contract as any surface holds one, its tenant's name where it has it.
+ * Whether it is renewed is always read, since renewing is offered only where it is not.
+ */
+export type ContractActRecord = SerializedContract & { renewed: boolean };
 
 /** Every contract act, by the id the palette keys it on. */
 export type ContractActId =
@@ -133,6 +136,9 @@ export function declareContractActs(host: ContractHostRequests): ContractAct[] {
 			group: 'primary',
 			// a renewal continues the contract, and the procedure counts it an edit of it.
 			flag: 'editContract',
+			// a contract a successor that still stands renews is not up for renewal, and the
+			// procedure refuses it a second (effort 861, requirement 7).
+			appliesTo: (contract) => !contract.renewed,
 			run: host.renew
 		},
 		{

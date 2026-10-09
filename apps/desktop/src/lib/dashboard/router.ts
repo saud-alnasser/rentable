@@ -9,6 +9,7 @@ import {
 	compareContractsByRank,
 	getContractRank,
 	getDueSoonCycle,
+	getRenewedContractIds,
 	isContractEndingSoon,
 	summarizeContractRanks,
 	type ContractRank,
@@ -133,9 +134,14 @@ const get = procedure.member
 					.from(s.contract)
 					.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id));
 
+		// the contracts renewed, from the rows just read: the read holds every contract, so it
+		// holds every successor (effort 861, requirement 7).
+		const renewedIds = getRenewedContractIds(contracts.map(({ contract }) => contract));
+
 		const ranked = contracts
-			.flatMap(({ contract, tenantName, tenantPhone }): DashboardQueueEntry[] => {
-				const serializedContract = serializeContract(contract);
+			.flatMap(({ contract: row, tenantName, tenantPhone }): DashboardQueueEntry[] => {
+				const contract = { ...row, renewed: renewedIds.has(row.id) };
+				const serializedContract = serializeContract(row);
 				const outstandingAmount = Math.max(
 					getExpectedAmountBy(contract, now) - serializedContract.paidAmount,
 					0
@@ -165,12 +171,7 @@ const get = procedure.member
 						...(views('viewTenant') ? { tenantName, tenantPhone } : {}),
 						outstandingAmount,
 						contractEnd: serializedContract.end,
-						isEndingSoon: isContractEndingSoon(
-							serializedContract.status,
-							contract.end,
-							now,
-							settings.endingSoonNoticeDays
-						),
+						isEndingSoon: isContractEndingSoon(contract, now, settings.endingSoonNoticeDays),
 						...(comingDue
 							? { comingDue: { due: comingDue.due.getTime(), amount: comingDue.amount } }
 							: {})

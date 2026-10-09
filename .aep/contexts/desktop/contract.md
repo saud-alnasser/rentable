@@ -81,6 +81,15 @@ When copies made apart heal into one, a successor naming a retired copy is moved
 that stayed, and two copies of a successor are compared with what they renew as the contract it
 went into (`tauri/src/database/heal.rs`, ticket 10).
 
+**Renewed**:
+A contract a successor that still stands names as the one it renews: a successor not terminated,
+and not retired into a copy by a merge. Never stored: it is read from its successors, by
+`renewedColumn` in `contract/row.ts` where a read asks per row (`contract.get`, the directory) and
+from the same rows where a read holds every contract (the landing screen). So deleting or
+terminating the successor makes the contract not renewed again with nothing to reconcile. A
+renewed contract is not _ending soon_, is not offered _renew_, and is refused a second renewal
+(`contract.alreadyRenewed`).
+
 **Interval**:
 The billing period — monthly, quarterly, semi-annual, or annual. Fixed at creation.
 
@@ -161,8 +170,9 @@ write; a terminated row claims none of its units.
 _Avoid_: conflict — that word belongs to remote sync
 
 **Ending soon**:
-A contract whose end date falls inside the user-configured notice window. A presentation
-concern, never a stored status.
+An active or fulfilled contract whose end date falls inside the user-configured notice window and
+that is not _renewed_: one a standing successor renews has had its renewal, so no ending-soon list
+holds it (effort 861, requirement 7). A presentation concern, never a stored status.
 
 **Owing**:
 A contract inside its period, not terminated, whose outstanding is above zero. What the

@@ -197,6 +197,7 @@ const contract: ContractActRecord = {
 	expectedAmount: 18000,
 	tenantId: 'tenant-1',
 	renewsContractId: null,
+	renewed: false,
 	tenantName: 'Noura'
 };
 

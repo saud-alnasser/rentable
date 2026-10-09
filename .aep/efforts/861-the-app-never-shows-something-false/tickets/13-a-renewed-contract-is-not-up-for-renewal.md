@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [09, 11]
 ---
 
@@ -15,11 +15,11 @@ A contract that a non-terminated successor names is read as renewed by the contr
 
 Traces requirement 7 and criterion 7.
 
-- [ ] `renewedColumn` in `contract/row.ts` is the one SQL expression; `contract.get` and `directory.list` select it, and the dashboard builds the same fact from the rows it reads.
-- [ ] `isContractEndingSoon`, `getContractRank` and `getContractRankBounds` exclude a renewed contract from ending soon; `rank/tests` cover it.
-- [ ] Directory, `get` and dashboard router tests: a renewed contract inside its window is in no ending-soon list; after its successor is deleted, and separately terminated, it is again; a retired successor does not count.
-- [ ] `contract.renew` has `appliesTo: (contract) => !contract.renewed`; an acts test covers it.
-- [ ] [[contexts/desktop/contract]], under *Ending soon*, excludes a renewed contract.
+- [x] `renewedColumn` in `contract/row.ts` is the one SQL expression; `contract.get` and `directory.list` select it, and the dashboard builds the same fact from the rows it reads. Verified: the diff selects `renewedColumn` in `contract.get` and `getMany`, and the dashboard builds the set from the `renewsContractId` of its non-terminated rows; the three router test files pass in the run below.
+- [x] `isContractEndingSoon`, `getContractRank` and `getContractRankBounds` exclude a renewed contract from ending soon; `rank/tests` cover it. Verified: `node --test` over `contract/rank/tests`, `contract/tests/router.test.ts`, `contract/directory/tests` and `dashboard/tests/router.test.ts`: 169 pass, 0 fail, with renewed cases in `rank.test.ts` and the bounds sweep run with and without `renewed`.
+- [x] Directory, `get` and dashboard router tests: a renewed contract inside its window is in no ending-soon list; after its successor is deleted, and separately terminated, it is again; a retired successor does not count. Verified: the same run: a renewed contract in its window is in no ending-soon list, is back after its successor is deleted and, separately, terminated, and a retired successor does not count.
+- [x] `contract.renew` has `appliesTo: (contract) => !contract.renewed`; an acts test covers it. Verified: `acts.ts` line 141 reads `appliesTo: (contract) => !contract.renewed`; `node --test src/lib/act/tests/act.test.ts`: 98 pass, 0 fail, including `renewing is offered on a contract nothing renews, and on no renewed one`.
+- [x] [[contexts/desktop/contract]], under *Ending soon*, excludes a renewed contract. Verified: `.aep/contexts/desktop/contract.md` gains a *Renewed* entry and *Ending soon* excludes a renewed contract.
 
 ## Relevant areas
 

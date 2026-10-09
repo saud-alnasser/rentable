@@ -43,6 +43,7 @@ export {
 } from './rank/rank';
 export { withContractRank } from './rank/filter';
 export { reconcileTouched } from './reconcile';
+export { getRenewedContractIds } from './renewal/renewal';
 export {
 	getContractTotalCost,
 	getExpectedAmountBy,

@@ -19,9 +19,12 @@ import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import * as s from '$lib/platform/database/schema.ts';
 import {
 	type ContractInput,
+	RENEWAL_WITHDRAWALS,
 	seedComplexWithUnit,
 	seedContract,
-	seedRemindedContract
+	seedRemindedContract,
+	seedRenewedEndingSoon,
+	withdrawRenewal
 } from '$lib/contract/tests/seed.ts';
 
 // --- Creation ------------------------------------------------------------------------
@@ -477,6 +480,36 @@ test('a deleted renewal is undone naming the contract it renews', async () => {
 
 	assert.equal((await api.contract.get({ id: successor.id }))?.renewsContractId, predecessor.id);
 });
+
+// --- A renewed contract, read on its own -----------------------------------------------
+//
+// effort 861, requirement 7: the contract's own read says whether a standing successor renews it,
+// which its page's renew act reads, and ranks it as ending soon only where none does.
+
+test('a renewed contract reads as renewed and not as ending soon', async () => {
+	const { api, contract, successor } = await seedRenewedEndingSoon();
+	const read = await api.contract.get({ id: contract.id });
+
+	assert.equal(read?.renewed, true);
+	assert.equal(read?.rank, undefined);
+	assert.equal((await api.contract.get({ id: successor.id }))?.renewed, false);
+	// read by its reference, the same
+	assert.equal((await api.contract.get({ govId: 'RENEWED' }))?.renewed, true);
+});
+
+for (const how of RENEWAL_WITHDRAWALS) {
+	test(`a contract whose renewal was ${how} reads as ending soon again`, async () => {
+		const seeded = await seedRenewedEndingSoon();
+		const { api, contract, successor } = seeded;
+
+		await withdrawRenewal(seeded, successor.id, how);
+
+		const read = await api.contract.get({ id: contract.id });
+
+		assert.equal(read?.renewed, false);
+		assert.equal(read?.rank, 'ending-soon');
+	});
+}
 
 // --- The renewals the reconcile recognises ---------------------------------------------
 //

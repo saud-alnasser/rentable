@@ -97,6 +97,11 @@ export type ContractLike = Omit<
 > & {
 	start: DateLike;
 	end: DateLike;
+	/**
+	 * whether a successor that still stands renews it, where the read asked (`renewedColumn` in
+	 * `contract/row.ts`). Read, never stored. Absent reads as not renewed.
+	 */
+	renewed?: boolean;
 };
 
 /** the tolerance every comparison of money in this domain allows, so float dust is never a debt. */

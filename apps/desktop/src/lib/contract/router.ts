@@ -23,6 +23,7 @@ import {
 import { reconcile, reconcileTouched } from '$lib/contract/reconcile';
 import {
 	contractsHoldingGovId,
+	renewedColumn,
 	selectAssignmentsForUnits,
 	selectPaymentsForContract
 } from '$lib/contract/row';
@@ -413,12 +414,12 @@ export default router({
 
 	...directory._def.record,
 
-	// one contract, with the rank it is filed under today, so the record page's acts gate on it
-	// as a card's do, and the reference a workspace file calls it by, so what its page exports
-	// names it as the import reads it back, where that reference shows the reader nothing they may
-	// not see. Its tenant's name comes with it for a reader who may
-	// see tenants, as every other read of a contract gives it, so the ledger the page exports
-	// names its tenant (effort 854, requirement 30).
+	// one contract, with the rank it is filed under today and whether it is renewed, so the record
+	// page's acts gate on them as a card's do, and the reference a workspace file calls it by, so
+	// what its page exports names it as the import reads it back, where that reference shows the
+	// reader nothing they may not see. Its tenant's name comes with it for a reader who may see
+	// tenants, as every other read of a contract gives it, so the ledger the page exports names its
+	// tenant (effort 854, requirement 30).
 	get: procedure
 		.permitted('viewContract')
 		.input(ContractSchema.pick({ id: true, govId: true }).partial())
@@ -434,7 +435,7 @@ export default router({
 			}
 
 			const row = await ctx.db
-				.select({ contract: s.contract, tenantName: s.tenant.name })
+				.select({ contract: s.contract, tenantName: s.tenant.name, renewed: renewedColumn })
 				.from(s.contract)
 				.innerJoin(s.tenant, eq(s.contract.tenantId, s.tenant.id))
 				.where(matching)
@@ -444,12 +445,12 @@ export default router({
 				return undefined;
 			}
 
-			const { contract, tenantName } = row;
+			const { contract, tenantName, renewed } = row;
 			const { endingSoonNoticeDays } = await ctx.host.settings.get();
 			const seesTenants = permits(ctx.identity.permissions, 'viewTenant');
 			const named = seesTenants ? tenantName : undefined;
 			const read = withRank(
-				serializeContract(contract, named),
+				{ ...serializeContract(contract, named), renewed },
 				ctx.clock.now(),
 				endingSoonNoticeDays
 			);

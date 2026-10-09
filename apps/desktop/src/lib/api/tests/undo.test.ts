@@ -146,9 +146,10 @@ async function run<TVariables, TResult, TCaptured>(
 }
 
 /**
- * a contract as its own read answers with it, less the reference a workspace file calls it by and
- * its tenant's name: a mutation's answer never carried either, and what these tests compare is the
- * record itself.
+ * a contract as its own read answers with it, less the reference a workspace file calls it by, its
+ * tenant's name and whether it is renewed: a mutation's answer carries none of them, and what these
+ * tests compare is the record itself. Whether it is renewed is read off its successors, and a test
+ * about it asks the read itself.
  */
 async function readContract(id: string) {
 	const read = await caller.contract.get({ id });
@@ -157,7 +158,9 @@ async function readContract(id: string) {
 		return read;
 	}
 
-	const { reference, tenantName, ...contract } = read;
+	const { reference, tenantName, renewed, ...contract } = read;
+
+	assert.equal(typeof renewed, 'boolean', 'a contract read says whether it is renewed');
 
 	assert.ok(reference, 'a contract read names the reference a file calls it by');
 	assert.ok(tenantName, 'a contract read names its tenant to a reader who may see tenants');
@@ -401,8 +404,12 @@ describe('undoing a record change', () => {
 			(await caller.contract.units.getMany({ contractId: contract.id })).map((held) => held.id),
 			[unit.id]
 		);
+		// with its renewal taken back nothing renews it, and applied again its renewal does
+		// (effort 861, requirement 7).
+		assert.equal((await caller.contract.get({ id: contract.id }))?.renewed, false);
 
 		await inverseStack.redo();
+		assert.equal((await caller.contract.get({ id: contract.id }))?.renewed, true);
 		assert.deepEqual(await readContract(successor.id), successor);
 		assert.equal((await readContract(successor.id))?.renewsContractId, contract.id);
 		assert.equal((await readContract(successor.id))?.cost, 1200);

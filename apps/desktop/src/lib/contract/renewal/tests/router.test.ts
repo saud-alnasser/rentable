@@ -60,7 +60,8 @@ test('renewing produces a successor whose term follows the original’s', async 
 });
 
 // the one that regresses silently: nothing about renewal writes to the contract it renews, so
-// the whole record is compared rather than its dates.
+// the whole record is compared rather than its dates. Whether it is renewed is the one thing its
+// read says differently, and that is read off the successor rather than written to it.
 test('renewing leaves the original contract unaltered', async () => {
 	const api = await createApi();
 	const contract = await seedContract(api, { govId: 'ORIGINAL-1' });
@@ -72,7 +73,8 @@ test('renewing leaves the original contract unaltered', async () => {
 
 	await renew(api, contract);
 
-	assert.deepEqual(await api.contract.get({ id: contract.id }), before);
+	assert.deepEqual(await api.contract.get({ id: contract.id }), { ...before, renewed: true });
+	assert.equal(before?.renewed, false);
 	assert.deepEqual(
 		(await api.contract.units.getMany({ contractId: contract.id })).map((held) => held.id),
 		[unit.id]

@@ -84,6 +84,7 @@ function contractIn(status: ContractActRecord['status']): ContractActRecord {
 		expectedAmount: 18000,
 		tenantId: 'tenant-1',
 		renewsContractId: null,
+		renewed: false,
 		tenantName: 'Noura'
 	};
 }
@@ -154,6 +155,51 @@ test('the acts are offered in the declared order, and only those the status admi
 		'contract.edit',
 		'contract.delete'
 	]);
+});
+
+// effort 861, requirement 7: a contract a standing successor renews is not up for renewal, so
+// renewing it is offered on no surface. Every other act it admits is still offered.
+test('renewing is offered on a contract nothing renews, and on no renewed one', () => {
+	const acts = declareContractActs(recordingHost().host);
+	const offersRenewal = (contract: ContractActRecord) => {
+		const page = toPageActions(acts, contract, translations).some(
+			(act) => act.id === 'contract.renew'
+		);
+
+		assert.equal(
+			toCardActions(acts, contract, translations).some(
+				(action) => action.attributes?.['data-act'] === 'contract.renew'
+			),
+			page
+		);
+		assert.equal(
+			toPaletteVerbs(acts, contract, translations, false).some(
+				(act) => act.id === 'contract.renew'
+			),
+			page
+		);
+
+		return page;
+	};
+
+	for (const status of STATUSES) {
+		assert.equal(offersRenewal(contractIn(status)), true, status);
+		assert.equal(offersRenewal({ ...contractIn(status), renewed: true }), false, status);
+	}
+
+	assert.deepEqual(
+		toPageActions(acts, { ...contractIn('active'), renewed: true }, translations).map(
+			(act) => act.id
+		),
+		[
+			'contract.copyDetails',
+			'contract.print',
+			'contract.duplicate',
+			'contract.edit',
+			'contract.terminate',
+			'contract.delete'
+		]
+	);
 });
 
 // criterion 12(c) of effort 835: the reminder is offered on the three ranks that owe or fall due,
