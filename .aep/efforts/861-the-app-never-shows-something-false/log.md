@@ -28,6 +28,7 @@ use-when: "resuming this effort, or asking where it stands"
 
 converge 1: gap, tickets 15 16 17
 converge 2: no gap
+review 1: 9 findings: 6 fixed (stale retrying, reconcile rule and repository context, renewed helper, form changeset, layout stand-in, comment wrap), 3 ticketed (18 heal, 19 failed list toolbar, 20 import link)
 
 ## Recorded
 
