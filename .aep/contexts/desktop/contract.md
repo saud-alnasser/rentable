@@ -81,7 +81,10 @@ recognition once its write has landed (`contract/transfer.ts`). A contract that 
 renews nothing. Whether a contract is _renewed_ is never stored: it is read from its successors.
 When copies made apart heal into one, a successor naming a retired copy is moved to the contract
 that stayed, and two copies of a successor are compared with what they renew as the contract it
-went into (`tauri/src/database/heal.rs`, ticket 10).
+went into (`tauri/src/database/heal.rs`, ticket 10). A copy naming none pairs with one naming a
+predecessor, since one machine's reconcile may link its copy before the copies meet and an older
+build links none; two naming one pair only where it is the same contract, and the contract that
+stayed names it whichever copy stayed (ticket 18).
 
 **Renewed**:
 A contract a successor that still stands names as the one it renews: a successor not terminated,

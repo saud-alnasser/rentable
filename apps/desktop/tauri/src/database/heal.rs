@@ -43,6 +43,12 @@
 //! kind, so it may be retired in the same pass: steps 2 and 3 run again while a round retires a
 //! contract, and two renewals of two copies made apart pair in the pass that makes the copies one.
 //!
+//! **A contract that names none it renews pairs with a copy that names one** (effort 861, ticket
+//! 18): one machine's reconcile may link its copy before the copies meet, and an older build links
+//! none. Two that name one pair only where it is the same contract, a copy pairs first with one
+//! naming what it names, and neither may name the other. The contract that stayed names what
+//! either named, whichever of them stayed, which is counted as carried.
+//!
 //! **A copy whose record is gone is shown again.** A build that does not know a copy was retired
 //! shows both, and a person there may delete the one that stayed as the duplicate it looks like.
 //! The copy is the record then, so it is retired into nothing.
@@ -508,8 +514,17 @@ async fn kind_healed(
     } else {
         HashMap::new()
     };
+    // The record of its own kind it names is no part of that: two copies pair where one names it
+    // and the other names nothing yet, and only where both name one must it be the same one
+    // (`kin_fits`, effort 861, ticket 18).
     let key_of = |id: &str, record: &Record| {
-        let mut key = snapshot(&columns, &record.fields);
+        let mut fields = record.fields.clone();
+
+        if let Some(at) = kin_at {
+            fields[at] = turso::Value::Null;
+        }
+
+        let mut key = snapshot(&columns, &fields);
 
         if let Some(held) = units.get(id) {
             key.push_str(&held.join(","));
@@ -545,12 +560,15 @@ async fn kind_healed(
             }
 
             for ids in groups.values().filter(|ids| ids.len() > 1) {
-                // `live` is read in the order of its ids, so the first is the earliest.
-                for copy in &ids[1..] {
-                    let merged_as = snapshot(&columns, &live[copy].fields);
+                // `live` is read in the order of its ids, so the first of each is the earliest.
+                for ids in kin_clusters(ids, &live, kin_at) {
+                    for copy in &ids[1..] {
+                        let merged_as = snapshot(&columns, &live[copy].fields);
 
-                    plan.retire(table, copy, &ids[0], merged_as.clone(), &mut targets);
-                    set_aside(&mut live, &mut retired, copy, &ids[0], merged_as);
+                        kin_taken(table, &columns, kin_at, &mut live, &ids[0], copy, plan);
+                        plan.retire(table, copy, &ids[0], merged_as.clone(), &mut targets);
+                        set_aside(&mut live, &mut retired, copy, &ids[0], merged_as);
+                    }
                 }
             }
         }
@@ -592,9 +610,23 @@ async fn kind_healed(
 
                     for child in children {
                         let key = key_of(&child, &live[&child]);
+                        let named = kin_of(&live[&child], kin_at);
+                        // the first naming what the child names, or, once a round pairs no more
+                        // that way, the first it fits (`kin_fits`).
                         let partner = kept.get(&(survivor.clone(), key.clone())).and_then(|list| {
+                            let fitting = |kept: &&String| {
+                                let kin = kin_of(&live[*kept], kin_at);
+
+                                !used.contains(&(parent.clone(), (*kept).clone()))
+                                    && kin_fits(kept, &kin, &child, &named)
+                                    && (moving || kin == named)
+                            };
+                            let exact = |kept: &&String| kin_of(&live[*kept], kin_at) == named;
+
                             list.iter()
-                                .find(|kept| !used.contains(&(parent.clone(), (*kept).clone())))
+                                .filter(fitting)
+                                .find(exact)
+                                .or_else(|| list.iter().find(fitting))
                                 .cloned()
                         });
 
@@ -604,6 +636,9 @@ async fn kind_healed(
 
                                 let merged_as = snapshot(&columns, &live[&child].fields);
 
+                                kin_taken(
+                                    table, &columns, kin_at, &mut live, &partner, &child, plan,
+                                );
                                 plan.retire(
                                     table,
                                     &child,
@@ -711,6 +746,108 @@ fn kin_normalized(
     {
         fields[at] = turso::Value::Text(target.clone());
     }
+}
+
+/// The record of its own kind `record` names, at `at`, as the pass reads it: empty where the kind
+/// names none.
+fn kin_of(record: &Record, at: Option<usize>) -> turso::Value {
+    at.map_or(turso::Value::Null, |at| record.fields[at].clone())
+}
+
+/// Whether records `one` and `other`, alike in all else, may pair by what of their own kind they
+/// name: one naming nothing fits any, as a copy a machine linked before the copies met fits one
+/// another machine had not linked yet, or an older build made, and two naming one must name the
+/// same. Neither may name the other, which pairing would make a record name itself.
+fn kin_fits(one: &str, one_named: &turso::Value, other: &str, other_named: &turso::Value) -> bool {
+    let names =
+        |named: &turso::Value, id: &str| matches!(named, turso::Value::Text(named) if named == id);
+
+    !names(one_named, other)
+        && !names(other_named, one)
+        && (matches!(one_named, turso::Value::Null)
+            || matches!(other_named, turso::Value::Null)
+            || one_named == other_named)
+}
+
+/// `ids`, records alike in all but what of their own kind they name, in the order of their ids,
+/// as the sets that pair: each joins the first set naming what it names, or else the first whose
+/// every record it fits (`kin_fits`), or starts one, and a set naming nothing names what the first
+/// to name one names. So each set's first is its earliest, and two naming two records are never
+/// in one.
+fn kin_clusters(
+    ids: &[String],
+    live: &BTreeMap<String, Record>,
+    at: Option<usize>,
+) -> Vec<Vec<String>> {
+    let mut clusters: Vec<(turso::Value, Vec<String>)> = Vec::new();
+
+    for id in ids {
+        let named = kin_of(&live[id], at);
+        let fits = |members: &[String]| {
+            members
+                .iter()
+                .all(|member| kin_fits(member, &kin_of(&live[member], at), id, &named))
+        };
+        let joined = clusters
+            .iter()
+            .position(|(link, members)| *link == named && fits(members))
+            .or_else(|| clusters.iter().position(|(_, members)| fits(members)));
+
+        match joined {
+            Some(joined) => {
+                let (link, members) = &mut clusters[joined];
+
+                if matches!(link, turso::Value::Null) {
+                    *link = named;
+                }
+
+                members.push(id.clone());
+            }
+            None => clusters.push((named, vec![id.clone()])),
+        }
+    }
+
+    clusters.into_iter().map(|(_, members)| members).collect()
+}
+
+/// Where `copy`, about to be retired into `survivor`, names a record of its own kind and the
+/// survivor names none, the survivor names that one now, so a link the copy alone carried stays
+/// whichever of them stays. Counted as carried.
+fn kin_taken(
+    table: &str,
+    columns: &[String],
+    at: Option<usize>,
+    live: &mut BTreeMap<String, Record>,
+    survivor: &str,
+    copy: &str,
+    plan: &mut Plan,
+) {
+    let Some(at) = at else {
+        return;
+    };
+    let named = kin_of(&live[copy], Some(at));
+    let Some(record) = live.get_mut(survivor) else {
+        return;
+    };
+
+    let turso::Value::Text(link) = &named else {
+        return;
+    };
+
+    if !matches!(record.fields[at], turso::Value::Null) {
+        return;
+    }
+
+    plan.statements.push((
+        format!(
+            "UPDATE \"{table}\" SET \"{}\" = ? WHERE \"id\" = ?",
+            columns[at]
+        ),
+        vec![named.clone(), text(survivor)],
+    ));
+    plan.healed.carried += 1;
+    record.kin = Some(link.clone());
+    record.fields[at] = named;
 }
 
 /// Every record of `records` as [`kin_normalized`] reads it.
@@ -2149,6 +2286,208 @@ mod tests {
             vec![vec![text(C1)]]
         );
         assert_eq!(pass(&connection).await.expect("again"), Healed::default());
+    }
+
+    /// Contracts the copies renew, made before them.
+    const P1: &str = "01800000-0000-7000-8000-0000000000b1";
+    const P2: &str = "01800000-0000-7000-8000-0000000000b2";
+
+    /// **Effort 861, ticket 18, the first criterion.** Two machines entered the same next contract
+    /// while apart, and one machine's reconcile linked its copy to what it renews before the copies
+    /// met; the other's copy names nothing yet, as an older build's renewal does too. The copies
+    /// pair whichever of them names it, and the contract that stayed names it: under one tenant,
+    /// sharing a government ID, and under two copies of one tenant, holding none. The rows laid
+    /// down in either order heal alike, and a pass over what either healed writes nothing.
+    #[tokio::test]
+    async fn copies_pair_when_one_alone_names_what_it_renews() {
+        // under one tenant: the predecessor, and two copies of its successor, `linked` naming it.
+        async fn one_tenant(linked: &str, order: [&str; 2]) -> turso::Connection {
+            let connection = workspace().await;
+
+            tenant(&connection, T1, "Sara", "+966551234567").await;
+            contract(&connection, P1, "GOV-0", T1).await;
+
+            for id in order {
+                contract(&connection, id, "GOV-1", T1).await;
+            }
+
+            renews(&connection, linked, P1).await;
+
+            connection
+        }
+
+        // under two copies of one tenant, each holding one copy of the successor, and no
+        // government ID anywhere.
+        async fn two_tenants(linked: &str, order: [(&str, &str); 2]) -> turso::Connection {
+            let connection = workspace().await;
+
+            tenant(&connection, T1, "Sara", "+966551234567").await;
+            contract(&connection, P1, "x", T1).await;
+
+            for (tenant_id, id) in order {
+                if tenant_id != T1 {
+                    tenant(&connection, tenant_id, "Sara", "+966551234567").await;
+                }
+
+                contract(&connection, id, "x", tenant_id).await;
+            }
+
+            renews(&connection, linked, P1).await;
+            run(&connection, "UPDATE contract SET gov_id = NULL").await;
+            // the contract it continues began earlier, so it is no copy of the successor.
+            run(
+                &connection,
+                &format!("UPDATE contract SET start_date = 1720000000000 WHERE id = '{P1}'"),
+            )
+            .await;
+
+            connection
+        }
+
+        for linked in [C1, C2] {
+            let mut healed_alike = Vec::new();
+
+            for order in [[C1, C2], [C2, C1]] {
+                let connection = one_tenant(linked, order).await;
+
+                let healed = pass(&connection).await.expect("one tenant");
+
+                assert_eq!(healed.retired, 1);
+                assert_eq!(
+                    healed.carried,
+                    usize::from(linked == C2),
+                    "the link a retired copy alone named is the survivor's now"
+                );
+                assert_eq!(
+                    rows(
+                        &connection,
+                        &format!(
+                            "SELECT id, renews_contract_id, merged_into FROM contract \
+                             WHERE id <> '{P1}' ORDER BY id"
+                        )
+                    )
+                    .await,
+                    vec![
+                        vec![text(C1), text(P1), turso::Value::Null],
+                        vec![
+                            text(C2),
+                            if linked == C2 {
+                                text(P1)
+                            } else {
+                                turso::Value::Null
+                            },
+                            text(C1)
+                        ],
+                    ],
+                    "the earlier stays and names what it renews, {linked} naming it"
+                );
+                assert_eq!(pass(&connection).await.expect("again"), Healed::default());
+                healed_alike.push(everything(&connection).await);
+            }
+
+            assert_eq!(healed_alike[0], healed_alike[1], "{linked} naming it");
+
+            let mut healed_alike = Vec::new();
+
+            for order in [[(T1, C1), (T2, C2)], [(T2, C2), (T1, C1)]] {
+                let connection = two_tenants(linked, order).await;
+
+                assert_eq!(
+                    pass(&connection).await.expect("two tenants").retired,
+                    2,
+                    "the tenant and the successor"
+                );
+                assert_eq!(
+                    rows(
+                        &connection,
+                        &format!(
+                            "SELECT renews_contract_id FROM contract \
+                             WHERE merged_into IS NULL AND id <> '{P1}'"
+                        )
+                    )
+                    .await,
+                    vec![vec![text(P1)]],
+                    "the successor that stayed names what it renews, {linked} naming it"
+                );
+                assert_eq!(pass(&connection).await.expect("again"), Healed::default());
+                healed_alike.push(everything(&connection).await);
+            }
+
+            assert_eq!(healed_alike[0], healed_alike[1], "{linked} naming it");
+        }
+    }
+
+    /// **Effort 861, ticket 18, the second criterion.** Two copies alike in everything else but
+    /// naming two contracts they renew are two contracts, under one tenant and under two copies of
+    /// one tenant, where the one under the copy moves.
+    #[tokio::test]
+    async fn copies_naming_two_predecessors_do_not_pair() {
+        let connection = workspace().await;
+
+        tenant(&connection, T1, "Sara", "+966551234567").await;
+        contract(&connection, P1, "GOV-0", T1).await;
+        contract(&connection, P2, "GOV-9", T1).await;
+        contract(&connection, C1, "GOV-1", T1).await;
+        contract(&connection, C2, "GOV-1", T1).await;
+        renews(&connection, C1, P1).await;
+        renews(&connection, C2, P2).await;
+
+        assert_eq!(
+            pass(&connection).await.expect("one tenant"),
+            Healed::default()
+        );
+
+        let connection = workspace().await;
+
+        tenant(&connection, T1, "Sara", "+966551234567").await;
+        tenant(&connection, T2, "Sara", "+966551234567").await;
+        contract(&connection, P1, "GOV-0", T1).await;
+        contract(&connection, P2, "GOV-9", T1).await;
+        contract(&connection, C1, "x", T1).await;
+        contract(&connection, C2, "x", T2).await;
+        renews(&connection, C1, P1).await;
+        renews(&connection, C2, P2).await;
+        run(
+            &connection,
+            &format!("UPDATE contract SET gov_id = NULL WHERE id IN ('{C1}', '{C2}')"),
+        )
+        .await;
+
+        let healed = pass(&connection).await.expect("two tenants");
+
+        assert_eq!(healed.retired, 1, "the tenant alone");
+        assert_eq!(
+            rows(
+                &connection,
+                &format!(
+                    "SELECT id, renews_contract_id, merged_into, tenant_id FROM contract \
+                     WHERE id IN ('{C1}', '{C2}') ORDER BY id"
+                )
+            )
+            .await,
+            vec![
+                vec![text(C1), text(P1), turso::Value::Null, text(T1)],
+                vec![text(C2), text(P2), turso::Value::Null, text(T1)],
+            ]
+        );
+        assert_eq!(pass(&connection).await.expect("again"), Healed::default());
+    }
+
+    /// A contract alike in all else to the one it renews is no copy of it, though it alone names
+    /// one: pairing them would make the contract that stayed renew itself.
+    #[tokio::test]
+    async fn a_contract_never_pairs_with_the_one_it_renews() {
+        let connection = workspace().await;
+
+        tenant(&connection, T1, "Sara", "+966551234567").await;
+        contract(&connection, C1, "GOV-1", T1).await;
+        contract(&connection, C2, "GOV-1", T1).await;
+        renews(&connection, C2, C1).await;
+
+        assert_eq!(
+            pass(&connection).await.expect("the pass"),
+            Healed::default()
+        );
     }
 
     /// **A pass that fails writes nothing**: its writes are one transaction, and a workspace
