@@ -20,6 +20,7 @@ use-when: "resuming this effort, or asking where it stands"
 [x] 10 merging-copies-keeps-the-renewal-link 2/2
 [x] 14 an-export-carries-the-renewal-link 3/3
 [x] 13 a-renewed-contract-is-not-up-for-renewal 5/5
+[x] 17 the-interface-rule-names-how-a-form-reports-its-changes 2/2
 
 ## Rounds
 

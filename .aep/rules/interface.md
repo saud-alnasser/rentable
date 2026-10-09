@@ -1157,7 +1157,16 @@ the question closes the question alone. A submit closes the form by its own path
 The surface owns the question and every close the reader makes (`block/form-surface.svelte`: its
 `dirty`, and the `requestClose` it hands the form's actions, which every cancel calls); whether a
 form has changes is the form's to say, since only the form sees the state it keeps outside its
-fields. *Settled by [[efforts/861-the-app-never-shows-something-false/spec]], requirement 10, after
+fields. **A schema form opens through `seed` from `$lib/form`**, which resets it onto what it starts
+with, so the record it edits, duplicates or renews is no change; a value that arrives after it
+opened is written with `{ taint: false }`; and it passes `dirty` from its taint
+(`isTainted($tainted)`), or'd with any state it keeps outside its fields, as the complex's form does
+with a unit still in its entry. **A form without a schema compares snapshots through `isDirty`
+from `$lib/form`**: it takes a `$state.snapshot` of what the reader edits when it opens, under
+`untrack` in the effect that seeds it, and passes `isDirty` of that against a snapshot of the same
+state now, which compares values, so a change made and undone is none. A preview with nothing to
+lose (the made link, the reminder and print previews, the upgrade sheet) passes no `dirty`, and
+closes at once. *Settled by [[efforts/861-the-app-never-shows-something-false/spec]], requirement 10, after
 Apple's guidance to confirm before dismissing a sheet with unsaved changes: the surface closed on
 any of the four with no check, and a half-filled contract or tenant was lost to a stray key or
 click, which undo does not cover.*
