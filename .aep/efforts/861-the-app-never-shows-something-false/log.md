@@ -46,3 +46,4 @@ review 1: 9 findings: 6 fixed (stale retrying, reconcile rule and repository con
 - ticket 06: on real forms, the discard question opens with keep editing focused and its focus ring showing
 - ticket 07: in the running app, the contract form (edit, renew, duplicate), the tenant form and the payment form close at once when untouched and ask after a field changes
 - converge: a member who may view none of contracts, payments or units now sees an empty landing screen; say what it should show, if anything
+- changelog: the renewal features (renew may change the rent, an export carries the link, earlier renewals recognised) are patch; say if they should be minor
