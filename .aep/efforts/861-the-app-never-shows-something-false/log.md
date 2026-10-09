@@ -16,6 +16,7 @@ use-when: "resuming this effort, or asking where it stands"
 [x] 12 reconcile-links-the-renewals-it-did-not-record 4/4
 [x] 11 renewing-records-the-link-and-may-change-the-rent 4/4
 [x] 07 the-schema-forms-report-their-changes 3/3
+[x] 05 the-landing-screen-states-no-figure-it-does-not-know 2/2
 
 ## Rounds
 

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { QueryClient, type QueryKey } from '@tanstack/svelte-query';
-import { beforeEach, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
 import type api from '$lib/api/caller';
 import '$lib/app/surfaces';
@@ -15,7 +15,7 @@ import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
 import { formatLocaleMoney } from '$lib/platform/locale';
 import en from '$lib/i18n/en';
-import { layOutLists } from '#tests/permission.ts';
+import { forgetReader, holdEveryFlagBut, layOutLists } from '#tests/permission.ts';
 import Providers from '#tests/providers.svelte';
 
 /**
@@ -439,4 +439,149 @@ test('a period with no refund shows no returned figure', async () => {
 
 	expect(moneyCard()).toContain(formatLocaleMoney('en', 800));
 	expect(moneyCard()).not.toContain('returned');
+});
+
+/**
+ * A FIGURE THE SCREEN DOES NOT KNOW IS NOT DRAWN
+ *
+ * Ticket 05 of effort 861, requirement 2 and criterion 2: while the dashboard's read is on its way
+ * the band and the sections draw the loading block, and no figure reads `0`; when the read fails
+ * the failed state stands in place of both, with *try again*, and *nothing to chase* is not drawn,
+ * since nobody knows whether there is anything to chase.
+ */
+
+/** the region the one empty block draws, of whichever kind. */
+const emptyRegion = () => document.querySelector<HTMLElement>('[data-empty]');
+
+test('while the read is on its way the band draws its skeleton and no zero', async () => {
+	host.dashboardGet.mockReturnValue(new Promise(() => {}));
+
+	renderLanding();
+
+	// past the loading block's delay, so the skeleton is up rather than the busy region before it.
+	await waitFor(() => expect(document.querySelector('[data-loading="skeleton"]')).not.toBeNull());
+
+	expect(document.querySelector('[data-dashboard-band-skeleton]')).not.toBeNull();
+	expect(document.body.textContent).not.toMatch(/0/);
+	expect(screen.queryByText('collected')).toBeNull();
+	expect(screen.queryByText(en.dashboard.empty.title)).toBeNull();
+	expect(emptyRegion()).toBeNull();
+});
+
+test('a read that failed draws the failed state in place of the band and the sections', async () => {
+	host.dashboardGet.mockRejectedValue(new Error('the workspace could not be read'));
+
+	renderLanding();
+
+	await waitFor(() => expect(emptyRegion()?.dataset.empty).toBe('failed'));
+
+	expect(emptyRegion()?.textContent).toContain(strings.readFailed);
+	expect(screen.queryByText(en.dashboard.empty.title)).toBeNull();
+	expect(screen.queryByText('collected')).toBeNull();
+	expect(screen.queryByText('outstanding', { exact: false })).toBeNull();
+	expect(endingSoonSection()).toBeNull();
+	expect(document.body.textContent).not.toMatch(/0/);
+});
+
+test('try again runs the read again, and a read that answers draws the band and the sections', async () => {
+	host.dashboardGet.mockRejectedValueOnce(new Error('the workspace could not be read'));
+	reads(answer(MONEY_RANKS, MONEY_QUEUE));
+
+	renderLanding();
+
+	await waitFor(() => expect(emptyRegion()?.dataset.empty).toBe('failed'));
+
+	expect(host.dashboardGet).toHaveBeenCalledTimes(1);
+
+	await fireEvent.click(within(emptyRegion()!).getByRole('button', { name: strings.tryAgain }));
+
+	await screen.findByRole('heading', { name: 'owing' });
+
+	expect(host.dashboardGet).toHaveBeenCalledTimes(2);
+	expect(document.querySelector('[data-empty="failed"]')).toBeNull();
+	expect(outstandingFigure()).toContain(formatLocaleMoney('en', 4750));
+});
+
+// and nothing to chase is a read that answered with no ranks, not one still on its way.
+test('nothing to chase is drawn once a read answers with no ranks', async () => {
+	reads(answer([], []));
+
+	renderLanding();
+
+	await screen.findByText(en.dashboard.empty.title);
+
+	expect(emptyRegion()?.dataset.empty).toBe('nothing-yet');
+	expect(screen.getByText('collected')).toBeDefined();
+});
+
+/**
+ * A FIGURE THE READER MAY NOT VIEW IS LEFT OUT
+ *
+ * Ticket 05 of effort 861, requirement 2, as effort 838's requirement 10 answers it: the read
+ * leaves out each figure whose kind the reader may not view, and the band leaves it out with it,
+ * rather than drawing it as `0`. A card with nothing the reader may see is not drawn, and the money
+ * ring only where both what was due and what was collected are known. Without contracts, the
+ * outstanding figure, the sections and *nothing to chase* are not drawn either: each would be read
+ * off a list the reader was not allowed to read.
+ */
+
+afterEach(forgetReader);
+
+/** the money card's ring, where it is drawn. */
+const moneyRing = () =>
+	screen.queryByText('collected')?.closest('.rounded-2xl')?.querySelector('[data-ring-figure]') ??
+	null;
+
+test('without payments, collected is left out and what was due stands alone with no ring', async () => {
+	holdEveryFlagBut('viewPayment');
+	reads({
+		...answer(MONEY_RANKS, MONEY_QUEUE),
+		summary: { money: { due: 1500 }, occupancy: { totalUnits: 4, occupiedUnits: 3 } }
+	});
+
+	renderLanding();
+	await screen.findByRole('heading', { name: 'owing' });
+
+	const card = screen.getByText(en.dashboard.figures.expected).closest<HTMLElement>('.rounded-2xl');
+
+	expect(screen.queryByText('collected')).toBeNull();
+	expect(card?.textContent).toContain(formatLocaleMoney('en', 1500));
+	expect(card?.querySelector('[data-ring-figure]')).toBeNull();
+	expect(outstandingFigure()).toContain(formatLocaleMoney('en', 4750));
+});
+
+test('without contracts, neither outstanding, the sections nor nothing to chase is drawn', async () => {
+	holdEveryFlagBut('viewContract');
+	reads({
+		...answer([], []),
+		summary: { money: { collected: 800 }, occupancy: { totalUnits: 4, occupiedUnits: 3 } }
+	});
+
+	renderLanding();
+	await screen.findByText('collected');
+
+	expect(screen.getByText('collected').closest('.rounded-2xl')?.textContent).toContain(
+		formatLocaleMoney('en', 800)
+	);
+	expect(moneyRing()).toBeNull();
+	expect(screen.queryByText('outstanding', { exact: false })).toBeNull();
+	expect(screen.queryByText(en.dashboard.empty.title)).toBeNull();
+	expect(endingSoonSection()).toBeNull();
+	expect(document.querySelector('[data-dashboard-section]')).toBeNull();
+});
+
+test('without units, the occupancy card is not drawn', async () => {
+	holdEveryFlagBut('viewUnit');
+	reads({
+		...answer(MONEY_RANKS, MONEY_QUEUE),
+		summary: { money: { due: 1500, collected: 800 } }
+	});
+
+	renderLanding();
+	await screen.findByRole('heading', { name: 'owing' });
+
+	expect(screen.queryByText(en.dashboard.figures.occupiedUnits)).toBeNull();
+	expect(document.querySelector('[data-occupancy-figure]')).toBeNull();
+	expect(moneyRing()).not.toBeNull();
+	expect(outstandingFigure()).toContain(formatLocaleMoney('en', 4750));
 });

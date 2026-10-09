@@ -228,6 +228,22 @@ be reached. The command menu offers it as a place, `/?ending-soon`, which opens 
 every neighbour there applied at once while it asked for a save.* *Added by
 [[efforts/846-the-settings-and-the-record-cards-are-rethought/spec]], requirements 6 and 7.*
 
+**The band and the sections are one read, and no figure stands before it has answered.** They
+load under one loading block, whose shape is the band's three cards over two sections, so no
+figure is drawn as `0` while the read is on its way. A read that failed draws the failed state
+(*Failed*, under *Empty*) in place of both, with *try again*, and the ending-soon header with it.
+*Nothing to chase* is said only under a read that answered with no rank, since a read on its way
+or one that failed does not know whether there is anything to chase.
+
+**A figure the reader may not view is left out, never drawn as `0`.** The read leaves out each
+figure whose kind the reader may not view (effort 838, requirement 10), and the band leaves it out
+with it: a card with nothing the reader may see is not drawn, and the money ring is drawn only where
+both what was due and what was collected are known. Where collected is left out, what was due
+heads the money card as *expected*. A reader who may not view contracts is answered no ranks, and
+a list they were not allowed to read is not one with nothing in it, so nothing is drawn from it:
+no outstanding figure, no section, no ending-soon header and not *nothing to chase*. *Ticket 05 of
+[[efforts/861-the-app-never-shows-something-false/spec]], requirement 2.*
+
 ### Settings section
 
 **A settings section is one column of cards, and everything in it is one.** Each tab of the
@@ -1330,7 +1346,7 @@ list that filters by rank offers it. Settled by
 **A surface waiting on its content draws `packages/design/src/lib/block/loading.svelte`, and
 nothing else.** The surface hands in a snippet drawing the shape of what is on its way (a list's
 cards, a record's header, the settings area's title, its section switch and a section's grid of
-group cards, the dashboard's sections) from the
+group cards, the dashboard's band and its sections) from the
 skeleton primitive. The block decides when that shape appears: **not before 200 ms, and once shown,
 for at least 300 ms.** A load that settles inside the delay draws no skeleton at all. Until then the
 region is empty and marked busy, and the skeleton, once it is up, is a status carrying the
@@ -1392,9 +1408,10 @@ four situations it is, on `data-empty`, and the four never read the same:
   state before *not found*; every record page and the workspace page pass both. A record that is
   not there is a read that answered with nothing, not one that failed: the query client refuses an
   answer of `undefined` as a failure, so a record is read through `error/read.ts`'s `readRecord`,
-  which answers `null` for it. A failed read is never drawn as *nothing here yet*, *no match* or
-  *not found*. *Tickets 03 and 04 of
-  [[efforts/861-the-app-never-shows-something-false/spec]], requirement 1.*
+  which answers `null` for it. The landing screen reads its failure from the same helper and
+  draws this state in place of its band and its sections (*Landing screen*). A failed read is
+  never drawn as *nothing here yet*, *no match* or *not found*. *Tickets 03, 04 and 05 of
+  [[efforts/861-the-app-never-shows-something-false/spec]], requirements 1 and 2.*
 
 "No results" is not a sentence any of them says: it names neither the situation nor the way out.
 Nor does the bar above a set that holds nothing yet count it: `list-toolbar.svelte` draws its

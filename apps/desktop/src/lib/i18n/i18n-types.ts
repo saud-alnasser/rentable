@@ -2293,6 +2293,10 @@ type RootTranslation = {
 			 */
 			collected: string;
 			/**
+			 * e​x​p​e​c​t​e​d
+			 */
+			expected: string;
+			/**
 			 * o​c​c​u​p​i​e​d​ ​u​n​i​t​s
 			 */
 			occupiedUnits: string;
@@ -7919,6 +7923,10 @@ export type TranslationFunctions = {
 			 * collected
 			 */
 			collected: () => LocalizedString;
+			/**
+			 * expected
+			 */
+			expected: () => LocalizedString;
 			/**
 			 * occupied units
 			 */

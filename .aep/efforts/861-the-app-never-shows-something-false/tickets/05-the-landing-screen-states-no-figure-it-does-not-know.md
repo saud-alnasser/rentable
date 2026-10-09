@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [03]
 ---
 
@@ -15,8 +15,8 @@ The figure band and the sections load together under one loading block, a failed
 
 Traces requirement 2 and criterion 2.
 
-- [ ] One `<Loading>` wraps the band and the sections with a band-shaped skeleton; no `?? 0` remains on a figure.
-- [ ] `dashboard/tests/landing.svelte.test.ts`: with `host.dashboardGet` pending the band draws no `0`; rejected, the failed state is drawn, the empty state is not, and *try again* re-runs the read.
+- [x] One `<Loading>` wraps the band and the sections with a band-shaped skeleton; no `?? 0` remains on a figure. Verified: `grep -c "?? 0" landing.svelte` prints 0; one `<Loading>` wraps the band and the sections with a three-card band skeleton (`data-dashboard-band-skeleton`); a figure the member may not view is left out, as the human chose.
+- [x] `dashboard/tests/landing.svelte.test.ts`: with `host.dashboardGet` pending the band draws no `0`; rejected, the failed state is drawn, the empty state is not, and *try again* re-runs the read. Verified: `vitest run src/lib/dashboard/tests/landing.svelte.test.ts`: 19 of 19 pass; pending draws no `0`, rejected draws the failed state and not the empty one, try again re-runs the read, and one test per permission (contracts, payments, units).
 
 ## Relevant areas
 

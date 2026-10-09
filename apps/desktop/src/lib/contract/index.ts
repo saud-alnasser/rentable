@@ -17,6 +17,7 @@ export {
 	ensureRefundsCovered,
 	ensureRefundWithinLimit,
 	areRefundsCovered,
+	CONTRACT_KIND,
 	getAmountDueThisCycle,
 	getPaidAmount,
 	getRefundableFromTotals,
