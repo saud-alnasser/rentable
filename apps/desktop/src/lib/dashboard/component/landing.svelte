@@ -47,7 +47,8 @@
 	 * zeros beside *nothing to chase* (effort 861, requirement 2). A figure the reader may not view
 	 * is left out of the read (effort 838, requirement 10) and out of the band with it, never drawn
 	 * as `0`: a card with nothing the reader may see is not drawn, and the money ring only where
-	 * both what was due and what was collected are known.
+	 * both what was due and what was collected are known. Nor is a door drawn to a page the reader
+	 * may not open: the money card links to the contracts only for a reader who may view them.
 	 */
 	// the period the money figures answer about. It opens on the current month, which is what
 	// this band could say and nothing else before it took one.
@@ -261,10 +262,23 @@
 								</DropdownMenu.Root>
 							</div>
 
-							<a
-								href={resolve('/contracts')}
-								class="-m-1 flex items-center justify-around gap-4 rounded-xl p-1 transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-							>
+							<!-- a door only where the reader may go: a reader who may not view contracts is
+							     shown the same figures with no link, since the page it opens is one they may
+							     not open (ticket 16 of effort 861). -->
+							{#if viewsContracts}
+								<a
+									href={resolve('/contracts')}
+									class="-m-1 flex items-center justify-around gap-4 rounded-xl p-1 transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+								>
+									{@render moneyFigures()}
+								</a>
+							{:else}
+								<div class="-m-1 flex items-center justify-around gap-4 p-1">
+									{@render moneyFigures()}
+								</div>
+							{/if}
+
+							{#snippet moneyFigures()}
 								<!-- the ring is collected of due, so it is drawn only where both
 								     are known. -->
 								{#if collected !== undefined && due !== undefined}
@@ -297,7 +311,7 @@
 										</span>
 									{/if}
 								</span>
-							</a>
+							{/snippet}
 						</div>
 					{/if}
 

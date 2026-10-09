@@ -242,7 +242,9 @@ both what was due and what was collected are known. Where collected is left out,
 heads the money card as *expected*. A reader who may not view contracts is answered no ranks, and
 a list they were not allowed to read is not one with nothing in it, so nothing is drawn from it:
 no outstanding figure, no section, no ending-soon header and not *nothing to chase*. *Ticket 05 of
-[[efforts/861-the-app-never-shows-something-false/spec]], requirement 2.*
+[[efforts/861-the-app-never-shows-something-false/spec]], requirement 2.* Nor is a figure a door
+to a page the reader may not open: the money card links to the contracts only where the reader may
+view contracts, and elsewhere draws the same figures with no link. *Ticket 16 of the same effort.*
 
 ### Settings section
 

@@ -570,6 +570,50 @@ test('without contracts, neither outstanding, the sections nor nothing to chase 
 	expect(document.querySelector('[data-dashboard-section]')).toBeNull();
 });
 
+/**
+ * THE MONEY CARD IS A DOOR ONLY WHERE THE READER MAY GO
+ *
+ * Ticket 16 of effort 861, requirement 2: a reader who may view payments and not contracts is
+ * shown what was collected, and the card is not a link to the contracts, a page they may not open.
+ * A reader who may view both still has the link.
+ */
+
+/** every link on the screen to the contracts list itself. */
+const contractsLinks = () => document.querySelectorAll('a[href="/contracts"]');
+
+test('without contracts, the money card shows collected and is not a link to the contracts', async () => {
+	holdEveryFlagBut('viewContract');
+	reads({
+		...answer([], []),
+		summary: { money: { collected: 800 }, occupancy: { totalUnits: 4, occupiedUnits: 3 } }
+	});
+
+	renderLanding();
+	await screen.findByText('collected');
+
+	const card = screen.getByText('collected').closest<HTMLElement>('.rounded-2xl');
+
+	expect(card?.textContent).toContain(formatLocaleMoney('en', 800));
+	expect(card?.querySelector('a')).toBeNull();
+	expect(contractsLinks()).toHaveLength(0);
+});
+
+test('with contracts and payments, the money card is a link to the contracts', async () => {
+	// a member, held rather than left unheld, who lacks nothing: so may view both.
+	holdEveryFlagBut();
+	reads(answerWithMoney({ due: 1000, collected: 800 }));
+
+	renderLanding();
+	await screen.findByRole('heading', { name: 'owing' });
+
+	const link = screen
+		.getByText('collected')
+		.closest<HTMLElement>('.rounded-2xl')
+		?.querySelector('a[href="/contracts"]');
+
+	expect(link?.textContent).toContain(formatLocaleMoney('en', 800));
+});
+
 test('without units, the occupancy card is not drawn', async () => {
 	holdEveryFlagBut('viewUnit');
 	reads({
