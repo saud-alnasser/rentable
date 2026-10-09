@@ -20,6 +20,11 @@
  * again* busy until the read answers. *Its last answer*, not *it has ever failed*: a read that
  * failed once and answered since is loading when it runs again, not a failure.
  *
+ * **A surface drawn from more than one read fails with any of them.** What it would draw from the
+ * reads that answered, without the one that failed, says something false: a workspace page whose
+ * members could not be read would say nobody holds it. So {@link toReadsFailure} makes one
+ * failure of several, and its *try again* runs each read that failed, never one that answered.
+ *
  * **A record that is not there is not a failed read.** A record's read answers with nothing for a
  * record that does not exist, and the query client takes an answer of `undefined` for a read that
  * failed, so every record a surface reads is read through {@link readRecord}, which answers `null`
@@ -61,6 +66,21 @@ export function toReadFailure(query: ReadResult): ReadFailure {
 		failed: holdsNothing && (query.isError || retrying),
 		retrying,
 		retry: () => void query.refetch()
+	};
+}
+
+/**
+ * One failure of the several reads a surface draws from: failed while any of them failed, retrying
+ * while any that failed runs again, and trying again runs each read that failed, never one that
+ * answered, whose answer stands. Each read is decided by {@link toReadFailure} first.
+ */
+export function toReadsFailure(...reads: ReadFailure[]): ReadFailure {
+	return {
+		failed: reads.some((read) => read.failed),
+		retrying: reads.some((read) => read.retrying),
+		retry: () => {
+			for (const read of reads) if (read.failed) read.retry();
+		}
 	};
 }
 

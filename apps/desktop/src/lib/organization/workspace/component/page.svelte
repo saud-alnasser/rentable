@@ -10,7 +10,7 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { formatLocaleDate } from '$lib/platform/locale';
 	import { toErrorText } from '$lib/error/message';
-	import { toReadFailure } from '$lib/error/read';
+	import { toReadFailure, toReadsFailure } from '$lib/error/read';
 	import { accessRefusalOf, isTailored } from '$lib/organization/access/access';
 	import { useChangeAccess } from '$lib/organization/access/query';
 	import {
@@ -82,12 +82,14 @@
 	let { workspaceId }: { workspaceId: string } = $props();
 
 	const stateQuery = useFetchOrganizationState();
-	// whether the organization's state could not be read, as `$lib/error/read` decides it, and what
-	// runs it again: the surface draws the failed state in place of *not found* while it could not.
-	const stateRead = $derived(toReadFailure(stateQuery));
 	const session = $derived(stateQuery.data?.session ?? null);
 	const syncQuery = useFetchRemoteSyncState(() => session !== null);
 	const membersQuery = useFetchMembers();
+	// whether the organization's state or its members could not be read, as `$lib/error/read`
+	// decides it, and what runs each that failed again: the surface draws the failed state in place
+	// of *not found* while the state could not be read, and in place of the fields and the holders
+	// while the members could not, which would otherwise say nobody holds it (ticket 21).
+	const pageRead = $derived(toReadsFailure(toReadFailure(stateQuery), toReadFailure(membersQuery)));
 	const standingsQuery = useFetchMemberStandings();
 	const changeAccess = useChangeAccess();
 
@@ -359,10 +361,10 @@
 {/snippet}
 
 <RecordSurface
-	isLoading={stateQuery.isLoading}
-	failed={stateRead.failed}
-	onRetry={stateRead.retry}
-	retrying={stateRead.retrying}
+	isLoading={stateQuery.isLoading || membersQuery.isLoading}
+	failed={pageRead.failed}
+	onRetry={pageRead.retry}
+	retrying={pageRead.retrying}
 	found={workspace !== null}
 	backFallback={workspacesSection()}
 	path={workspacePageOf(workspaceId)}

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { readRecord, toReadFailure, type ReadResult } from '$lib/error/read';
+import { readRecord, toReadFailure, toReadsFailure, type ReadResult } from '$lib/error/read';
 
 /**
  * WHAT COUNTS AS A FAILED READ
@@ -115,4 +115,38 @@ test('a record read that answers with the record answers it unchanged', async ()
 
 test('a record read that is refused stays refused, so it is drawn as failed', async () => {
 	await assert.rejects(readRecord(Promise.reject(new Error('refused'))), /refused/);
+});
+
+// ticket 21 of effort 861: a surface drawn from several reads, the workspace page's state and its
+// members, fails with any of them, and trying again runs each that failed.
+test('several reads fail together where any one of them failed', () => {
+	const answered = toReadFailure(read({ isError: false, data: [] }));
+	const failed = toReadFailure(read({ isError: true, data: undefined }));
+
+	assert.equal(toReadsFailure(answered, failed).failed, true);
+	assert.equal(toReadsFailure(failed, answered).failed, true);
+	assert.equal(toReadsFailure(answered, answered).failed, false);
+});
+
+test('several reads are retrying while one that failed runs again', () => {
+	const answered = toReadFailure(read({ isError: false, data: [] }));
+	const trying = toReadFailure(
+		read({ isError: false, data: undefined, isFetching: true, errorUpdatedAt: 2 })
+	);
+	const failed = toReadFailure(read({ isError: true, data: undefined }));
+
+	assert.equal(toReadsFailure(answered, trying).retrying, true);
+	assert.equal(toReadsFailure(answered, failed).retrying, false);
+});
+
+test('trying several reads again runs each that failed, and not one that answered', () => {
+	const answered = read({ isError: false, data: [] });
+	const first = read({ isError: true, data: undefined });
+	const second = read({ isError: true, data: undefined });
+
+	toReadsFailure(toReadFailure(answered), toReadFailure(first), toReadFailure(second)).retry();
+
+	assert.equal(answered.refetches, 0);
+	assert.equal(first.refetches, 1);
+	assert.equal(second.refetches, 1);
 });
