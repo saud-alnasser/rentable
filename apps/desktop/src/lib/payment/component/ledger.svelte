@@ -266,6 +266,7 @@
 		isFetching={paymentsQuery.isFetching}
 		failed={paymentsRead.failed}
 		onRetry={paymentsRead.retry}
+		retrying={paymentsRead.retrying}
 		recordHeight={isTerminated ? LOCKED_ROW_HEIGHT : ROW_HEIGHT}
 		groupHeaderHeight={MONTH_HEIGHT}
 		emptyTitle={$LL.contracts.payments.emptyTitle()}

@@ -63,7 +63,8 @@
 		emptyTitle,
 		emptyDescription,
 		failed = false,
-		onRetry
+		onRetry,
+		retrying = false
 	}: ListProps<TData, TGroup> = $props();
 
 	// the grid overscanned two rows of cards; a record row is a fraction of a card's height,
@@ -148,7 +149,9 @@
 		search = '';
 		filters = {};
 	}
-	const isAwaitingFirstResults = $derived(isLoading && !hasResults);
+	// a failed read running again is still the failed state, with its *try again* busy, rather than
+	// a load: the control the reader pressed stays, and the focus with it.
+	const isAwaitingFirstResults = $derived(isLoading && !hasResults && !failed);
 
 	const virtualizer = createVirtualizer<HTMLElement, HTMLElement>({
 		count: 0,
@@ -311,6 +314,7 @@
 					{createUnavailable}
 					{failed}
 					{onRetry}
+					{retrying}
 				/>
 			{:else}
 				<Rows

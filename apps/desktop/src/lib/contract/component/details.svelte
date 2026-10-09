@@ -160,6 +160,7 @@
 	isLoading={contractQuery.isLoading}
 	failed={contractRead.failed}
 	onRetry={contractRead.retry}
+	retrying={contractRead.retrying}
 	found={Boolean(contract)}
 	backFallback={resolve('/contracts')}
 	path={resolve(`/contracts/${contractId}`)}

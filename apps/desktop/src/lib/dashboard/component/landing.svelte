@@ -140,8 +140,9 @@
 	     is drawn before the read has answered, and a read that failed is said in place of both,
 	     never as a band of zeros over *nothing to chase* ([[rules/interface]], *Loading* and
 	     *Empty*). -->
+	<!-- a failed read running again is still the failed state, with its *try again* busy, not a load. -->
 	<Loading
-		loading={workQueueQuery.isPending}
+		loading={workQueueQuery.isPending && !workQueueRead.failed}
 		label={$LL.common.ui.loading()}
 		class="flex flex-col gap-4"
 	>
@@ -189,7 +190,12 @@
 		{#if workQueueRead.failed}
 			<!-- the read failed, so whether there is anything to chase is not known: the failed
 			     state, with *try again*, stands where the band and the sections would. -->
-			<Empty kind="failed" onRetry={workQueueRead.retry} class="rounded-2xl border border-dashed" />
+			<Empty
+				kind="failed"
+				onRetry={workQueueRead.retry}
+				retrying={workQueueRead.retrying}
+				class="rounded-2xl border border-dashed"
+			/>
 		{:else if workQueue}
 			{@const collected = workQueue.summary.money.collected}
 			{@const due = workQueue.summary.money.due}

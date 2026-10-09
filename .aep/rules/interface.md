@@ -1423,6 +1423,15 @@ four situations it is, on `data-empty`, and the four never read the same:
   draws this state in place of its band and its sections (*Landing screen*). A failed read is
   never drawn as *nothing here yet*, *no match* or *not found*. *Tickets 03, 04 and 05 of
   [[efforts/861-the-app-never-shows-something-false/spec]], requirements 1 and 2.*
+  **While the read runs again, the block stays and its *try again* says it is trying.** The query
+  client puts a read that holds nothing back to pending while it runs, which would draw the
+  loading block and take the control the reader pressed, and the focus, with the failed one. So
+  `toReadFailure` counts a read that holds nothing, failed before and is running as still failed,
+  and reports it `retrying`; the list shell, the record surface and the landing screen take
+  `retrying` and draw the failed state rather than the loading one meanwhile. The block's *try
+  again* is then `aria-busy`, its glyph turns as the update check's does and holds still for a
+  reader who asked for less motion, a second press asks for nothing, and it is never disabled, so
+  it keeps the focus it had. *Ticket 15 of the same effort.*
 
 "No results" is not a sentence any of them says: it names neither the situation nor the way out.
 Nor does the bar above a set that holds nothing yet count it: `list-toolbar.svelte` draws its

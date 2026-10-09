@@ -70,6 +70,7 @@
 			isFetching={contractsQuery.isFetching}
 			failed={contractsRead.failed}
 			onRetry={contractsRead.retry}
+			retrying={contractsRead.retrying}
 			recordHeight={CONTRACT_TILE_HEIGHT}
 			recordMinWidth={RECORD_TILE_MIN_WIDTH}
 			onCreate={() => contractHost.create({ unitIds: [unitId] })}

@@ -25,7 +25,8 @@
 		createLabel,
 		createUnavailable,
 		failed = false,
-		onRetry
+		onRetry,
+		retrying = false
 	}: {
 		/** What scopes the refused create's reason id. */
 		listId: string;
@@ -49,6 +50,8 @@
 		failed?: boolean;
 		/** Run the read again. */
 		onRetry?: () => void;
+		/** Whether the failed read is running again. */
+		retrying?: boolean;
 	} = $props();
 
 	// what names the empty state's refused create to assistive technology, whether or not its
@@ -106,7 +109,7 @@
 {/snippet}
 
 {#if failed}
-	<EmptyState kind="failed" onRetry={() => onRetry?.()} />
+	<EmptyState kind="failed" onRetry={() => onRetry?.()} {retrying} />
 {:else if emptyKind === 'no-match'}
 	<EmptyState kind="no-match" title={$LL.common.messages.noMatch()}>
 		{#snippet action()}

@@ -96,6 +96,7 @@
 	isFetching={historyQuery.isFetching}
 	failed={historyRead.failed}
 	onRetry={historyRead.retry}
+	retrying={historyRead.retrying}
 	recordHeight={ROW_HEIGHT}
 	emptyTitle={$LL.common.history.emptyTitle()}
 	emptyDescription={$LL.common.history.emptyDescription()}

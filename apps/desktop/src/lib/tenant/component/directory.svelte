@@ -145,6 +145,7 @@
 	isFetching={tenantsQuery.isFetching}
 	failed={tenantsRead.failed}
 	onRetry={tenantsRead.retry}
+	retrying={tenantsRead.retrying}
 	recordMinWidth={RECORD_TILE_MIN_WIDTH}
 	recordHeight={TENANT_TILE_HEIGHT}
 	exportAs={{

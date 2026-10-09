@@ -49,6 +49,7 @@
 		found = false,
 		failed = false,
 		onRetry,
+		retrying = false,
 		backFallback,
 		path,
 		eyebrow,
@@ -71,6 +72,11 @@
 		failed?: boolean;
 		/** Run the record's read again: the failed state's *try again*. */
 		onRetry?: () => void;
+		/**
+		 * Whether the failed read is running again. While it is, the failed state stays in place of
+		 * the loading one and its *try again* is busy, so the control the reader pressed keeps focus.
+		 */
+		retrying?: boolean;
 		/** Where back goes when the reader arrived here from nowhere: the concept's directory,
 		    already resolved. */
 		backFallback: string;
@@ -147,7 +153,12 @@
 <!-- fills: a record's collections scroll inside their own panel, which they cannot do unless the
      frame above them is exactly as tall as the window. -->
 <PageFrame fills>
-	<Loading loading={isLoading} label={contract.strings.loadingRecord} class="flex flex-col gap-4">
+	<!-- a failed read running again is still the failed state, with its *try again* busy, not a load. -->
+	<Loading
+		loading={isLoading && !failed}
+		label={contract.strings.loadingRecord}
+		class="flex flex-col gap-4"
+	>
 		<!-- the shape of the header every record draws: the back control and the action cluster on
 		     one line, then the eyebrow, the name and the identity beneath it, then the fields. -->
 		{#snippet skeleton()}
@@ -166,7 +177,7 @@
 		{#if failed}
 			<!-- the read failed, so whether the record is there is not known: said as a failure with
 			     the read again as its act, never as a record that does not exist. -->
-			<Empty kind="failed" onRetry={() => onRetry?.()} class="flex-1" />
+			<Empty kind="failed" onRetry={() => onRetry?.()} {retrying} class="flex-1" />
 		{:else if !found}
 			<!-- that the record does not exist, never that a search found nothing: nothing was
 			     searched. One way back, beneath the sentence where the reader's eye lands, and the

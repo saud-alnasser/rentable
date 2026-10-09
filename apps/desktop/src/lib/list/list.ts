@@ -187,4 +187,9 @@ export type ListProps<TData extends { id: string }, TGroup extends ListGroup> = 
 	failed?: boolean;
 	/** Run the read again: the failed state's *try again*. Given with `failed`. */
 	onRetry?: () => void;
+	/**
+	 * Whether the failed read is running again, as `toReadFailure` reports it. While it is, the
+	 * failed state stays in place of the loading one and its *try again* is busy.
+	 */
+	retrying?: boolean;
 };

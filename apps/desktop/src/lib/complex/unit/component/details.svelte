@@ -96,6 +96,7 @@
 	isLoading={unitQuery.isLoading}
 	failed={unitRead.failed}
 	onRetry={unitRead.retry}
+	retrying={unitRead.retrying}
 	found={Boolean(unit)}
 	backFallback={unit ? resolve(`/complexes/${unit.complexId}`) : resolve('/complexes')}
 	path={resolve(`/complexes/units/${unitId}`)}

@@ -149,6 +149,7 @@
 	isFetching={complexesQuery.isFetching}
 	failed={complexesRead.failed}
 	onRetry={complexesRead.retry}
+	retrying={complexesRead.retrying}
 	recordMinWidth={RECORD_TILE_MIN_WIDTH}
 	recordHeight={COMPLEX_TILE_HEIGHT}
 	exportAs={{

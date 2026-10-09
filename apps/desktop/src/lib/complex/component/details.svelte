@@ -89,6 +89,7 @@
 	isLoading={complexQuery.isLoading}
 	failed={complexRead.failed}
 	onRetry={complexRead.retry}
+	retrying={complexRead.retrying}
 	found={Boolean(complex)}
 	backFallback={resolve('/complexes')}
 	path={resolve(`/complexes/${complexId}`)}

@@ -44,6 +44,12 @@
 					kind: 'failed';
 					/** Run the read that failed again. The block's one act, *try again*, calls it. */
 					onRetry: () => void;
+					/**
+					 * Whether the read is running again. While it is, *try again* is busy: its glyph turns,
+					 * it is marked `aria-busy`, and a second press asks for nothing more. It is never
+					 * disabled, so it keeps the keyboard focus the press left on it.
+					 */
+					retrying?: boolean;
 			  }
 		);
 </script>
@@ -68,7 +74,8 @@
 	 * to say, and this package names no concept, so those sentences arrive as props. A read that
 	 * failed names no concept either: it says the same in a list, a record and the landing screen,
 	 * so the failed kind reads its title, its line and its act from the string contract, and the
-	 * caller hands it only what runs the read again ([[rules/interface]], *Empty* and *Error*).
+	 * caller hands it only what runs the read again, and whether it is running
+	 * ([[rules/interface]], *Empty* and *Error*).
 	 * What the block owns is the arrangement: a title, an optional line under it, and the one act
 	 * beneath both.
 	 */
@@ -81,21 +88,26 @@
 		props.kind === 'failed' ? contract.strings.readFailedDescription : props.description
 	);
 	const action = $derived(props.kind === 'failed' ? retryAct : props.action);
+	const retrying = $derived(props.kind === 'failed' && props.retrying === true);
 </script>
 
-<!-- a failed read's one act: the read again, in words, as every empty act is drawn. -->
+<!-- a failed read's one act: the read again, in words, as every empty act is drawn. While the read
+     runs again it says so on itself, as the update check does: its glyph turns, still for a reader
+     who asked for less motion, and it is busy for as long. It stays enabled, since disabling the
+     control that holds the focus drops the focus, and a press while it is busy asks for nothing. -->
 {#snippet retryAct()}
 	<Button
 		variant="outline"
 		size="sm"
 		data-empty-retry
+		aria-busy={retrying || undefined}
 		onclick={() => {
-			if (props.kind === 'failed') {
+			if (props.kind === 'failed' && !retrying) {
 				props.onRetry();
 			}
 		}}
 	>
-		<RefreshCwIcon />
+		<RefreshCwIcon class={retrying ? 'animate-spin motion-reduce:animate-none' : undefined} />
 		{contract.strings.tryAgain}
 	</Button>
 {/snippet}

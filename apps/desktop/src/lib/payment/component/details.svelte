@@ -155,6 +155,7 @@
 	isLoading={paymentQuery.isLoading}
 	failed={paymentRead.failed}
 	onRetry={paymentRead.retry}
+	retrying={paymentRead.retrying}
 	found={Boolean(payment)}
 	backFallback={payment ? resolve(`/contracts/${payment.contractId}`) : resolve('/contracts')}
 	path={resolve(`/contracts/payments/${paymentId}`)}

@@ -22,6 +22,7 @@ use-when: "resuming this effort, or asking where it stands"
 [x] 13 a-renewed-contract-is-not-up-for-renewal 5/5
 [x] 17 the-interface-rule-names-how-a-form-reports-its-changes 2/2
 [x] 16 the-money-card-links-only-where-the-member-may-go 2/2
+[x] 15 try-again-shows-it-is-trying 3/3
 
 ## Rounds
 

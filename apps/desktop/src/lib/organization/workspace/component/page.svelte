@@ -362,6 +362,7 @@
 	isLoading={stateQuery.isLoading}
 	failed={stateRead.failed}
 	onRetry={stateRead.retry}
+	retrying={stateRead.retrying}
 	found={workspace !== null}
 	backFallback={workspacesSection()}
 	path={workspacePageOf(workspaceId)}

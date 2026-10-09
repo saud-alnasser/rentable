@@ -13,9 +13,22 @@ import { readRecord, toReadFailure, type ReadResult } from '$lib/error/read';
  * set with nothing in it, not a failure.
  */
 
-/** a read in the shape a query result has, counting what asked for it again. */
-function read(state: Pick<ReadResult, 'isError' | 'data'>) {
-	const result = { ...state, refetches: 0, refetch: () => (result.refetches += 1) };
+/**
+ * a read in the shape a query result has, counting what asked for it again. Not running, and with
+ * its last answer the error it holds, if any, unless the test says otherwise.
+ */
+function read(
+	state: Partial<Pick<ReadResult, 'isFetching' | 'errorUpdatedAt' | 'dataUpdatedAt'>> &
+		Pick<ReadResult, 'isError' | 'data'>
+) {
+	const result = {
+		isFetching: false,
+		errorUpdatedAt: state.isError ? 2 : 0,
+		dataUpdatedAt: state.data === undefined ? 0 : 1,
+		...state,
+		refetches: 0,
+		refetch: () => (result.refetches += 1)
+	};
 
 	return result;
 }
@@ -42,6 +55,50 @@ test('trying again runs the same read again', () => {
 	toReadFailure(query).retry();
 
 	assert.equal(query.refetches, 1);
+});
+
+// ticket 15 of effort 861: while a failed read runs again it is still the failed read, now trying.
+// The query client puts a read that holds nothing back to pending while it runs, so it no longer
+// errors; that its last answer was an error is what it keeps, and the run in flight is what says
+// it is trying.
+test('a failed read running again is still failed, and is retrying', () => {
+	const failure = toReadFailure(
+		read({ isError: false, data: undefined, isFetching: true, errorUpdatedAt: 2 })
+	);
+
+	assert.equal(failure.failed, true);
+	assert.equal(failure.retrying, true);
+});
+
+test('a failed read that is not running again is not retrying', () => {
+	assert.equal(toReadFailure(read({ isError: true, data: undefined })).retrying, false);
+});
+
+test('a first read on its way is neither failed nor retrying: it is loading', () => {
+	const failure = toReadFailure(read({ isError: false, data: undefined, isFetching: true }));
+
+	assert.equal(failure.failed, false);
+	assert.equal(failure.retrying, false);
+});
+
+test('a read holding an earlier answer while it runs again after an error is not retrying', () => {
+	const failure = toReadFailure(
+		read({ isError: true, data: [{ id: 'tenant-1' }], isFetching: true, errorUpdatedAt: 2 })
+	);
+
+	assert.equal(failure.failed, false);
+	assert.equal(failure.retrying, false);
+});
+
+// a read that failed once and answered since is not a failed read: its last answer was not the
+// error. Run again holding nothing, it is loading, and saying it failed would be false.
+test('a read that failed once and answered since, running again with nothing held, is loading', () => {
+	const failure = toReadFailure(
+		read({ isError: false, data: undefined, isFetching: true, errorUpdatedAt: 1, dataUpdatedAt: 2 })
+	);
+
+	assert.equal(failure.failed, false);
+	assert.equal(failure.retrying, false);
 });
 
 // ticket 04 of effort 861: a record that is not there is a read that answered, with nothing. The

@@ -104,3 +104,48 @@ test('its one act is try again, and pressing it asks for the read again', () => 
 
 	expect(onRetry).toHaveBeenCalledOnce();
 });
+
+// ticket 15 of effort 861: while the read runs again, *try again* says it is working. It is marked
+// busy, a second press asks for nothing more, and it keeps the focus it had, since it is the same
+// control and is never disabled out from under the reader.
+test('while the read runs again, try again is busy, ignores a second press and keeps focus', async () => {
+	const onRetry = vi.fn();
+
+	const { rerender } = empty({ kind: 'failed', onRetry }, FAILED);
+
+	const tryAgain = screen.getByRole('button', { name: FAILED.tryAgain });
+
+	expect(tryAgain.getAttribute('aria-busy')).toBeNull();
+
+	tryAgain.focus();
+	tryAgain.click();
+	await rerender({ kind: 'failed', onRetry, retrying: true });
+
+	expect(onRetry).toHaveBeenCalledOnce();
+	expect(tryAgain.isConnected).toBe(true);
+	expect(tryAgain.getAttribute('aria-busy')).toBe('true');
+	expect(tryAgain.hasAttribute('disabled')).toBe(false);
+	expect(document.activeElement).toBe(tryAgain);
+
+	tryAgain.click();
+
+	expect(onRetry).toHaveBeenCalledOnce();
+
+	await rerender({ kind: 'failed', onRetry, retrying: false });
+
+	expect(tryAgain.getAttribute('aria-busy')).toBeNull();
+	expect(document.activeElement).toBe(tryAgain);
+});
+
+test('while the read runs again, the glyph of try again turns, and holds still for less motion', async () => {
+	const { rerender } = empty({ kind: 'failed', onRetry: () => {} }, FAILED);
+
+	const glyph = () => screen.getByRole('button', { name: FAILED.tryAgain }).querySelector('svg');
+
+	expect(glyph()?.getAttribute('class')).not.toContain('animate-spin');
+
+	await rerender({ kind: 'failed', onRetry: () => {}, retrying: true });
+
+	expect(glyph()?.getAttribute('class')).toContain('animate-spin');
+	expect(glyph()?.getAttribute('class')).toContain('motion-reduce:animate-none');
+});

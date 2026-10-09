@@ -83,3 +83,37 @@ test('try again runs the read again, and a read that answers draws the tenants',
 	expect(host.tenantGetMany).toHaveBeenCalledTimes(2);
 	expect(empty()).toBeNull();
 });
+
+// ticket 15 of effort 861: while the read runs again after *try again*, the failed block says so.
+// Its *try again* is busy, ignores a second press and keeps the focus it had, and the tenants are
+// drawn once the read answers.
+test('while try again reruns a held read, its control is busy and keeps focus, then the tenants are drawn', async () => {
+	let answer: (tenants: (typeof TENANT)[]) => void = () => {};
+
+	host.tenantGetMany.mockRejectedValueOnce(new Error('the workspace could not be read'));
+	host.tenantGetMany.mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)));
+	directory();
+
+	await waitFor(() => expect(empty()?.dataset.empty).toBe('failed'));
+
+	const tryAgain = within(empty()!).getByRole('button', { name: strings.tryAgain });
+
+	tryAgain.focus();
+	tryAgain.click();
+
+	await waitFor(() => expect(tryAgain.getAttribute('aria-busy')).toBe('true'));
+
+	expect(empty()?.dataset.empty).toBe('failed');
+	expect(tryAgain.isConnected).toBe(true);
+	expect(document.activeElement).toBe(tryAgain);
+
+	tryAgain.click();
+
+	expect(host.tenantGetMany).toHaveBeenCalledTimes(2);
+
+	answer([TENANT]);
+
+	await waitFor(() => expect(document.body.textContent).toContain('Sara'));
+
+	expect(empty()).toBeNull();
+});

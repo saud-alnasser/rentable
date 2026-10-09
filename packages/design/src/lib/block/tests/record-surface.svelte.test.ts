@@ -255,3 +255,26 @@ test('a record whose read failed is not named for the chrome, and not named as a
 	expect(shownRecord.name).toBeUndefined();
 	expect(shownRecord.parent).toBeUndefined();
 });
+
+// ticket 15 of effort 861: a failed read running again is loading as the query client sees it, and
+// still the failed state here, with its *try again* busy, so the control the reader pressed stays.
+test('a failed record read running again keeps the failed state, with try again busy', async () => {
+	vi.useFakeTimers();
+
+	try {
+		surface(
+			{ isLoading: true, found: false, failed: true, retrying: true, onRetry: () => {} },
+			failedWords
+		);
+
+		await act(() => vi.advanceTimersByTime(LOADING_DELAY));
+
+		expect(shownState()).toBe('failed');
+		expect(document.querySelector('[data-loading]')).toBeNull();
+		expect(screen.getByRole('button', { name: 'try again' }).getAttribute('aria-busy')).toBe(
+			'true'
+		);
+	} finally {
+		vi.useRealTimers();
+	}
+});

@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(design): try again shows that it is trying
@@ -14,9 +14,9 @@ While a failed read runs again after *try again*, the failed block says so: its 
 
 Traces requirement 1 and criterion 1 (*try again* re-runs the read).
 
-- [ ] `Empty kind="failed"` takes a `retrying` flag; while it is set the *try again* control is marked busy (`aria-busy`), ignores a second press, and keeps focus; `pkg/block/tests/empty.svelte.test.ts` covers it.
-- [ ] `toReadFailure` reports `retrying` from the query's refetch in flight; its unit test covers it.
-- [ ] The list shell, the record surface and the landing screen pass it through; one list test shows the control busy while a held read reruns and the list drawn once it answers.
+- [x] `Empty kind="failed"` takes a `retrying` flag; while it is set the *try again* control is marked busy (`aria-busy`), ignores a second press, and keeps focus; `pkg/block/tests/empty.svelte.test.ts` covers it. Verified: `vitest run src/lib/block/tests/empty.svelte.test.ts` in packages/design: 8 of 8 pass; while `retrying`, try again is `aria-busy`, a second press does nothing, and the button, never `disabled`, keeps focus.
+- [x] `toReadFailure` reports `retrying` from the query's refetch in flight; its unit test covers it. Verified: `node --test src/lib/error/tests/read.test.ts`: 12 pass, 0 fail, including four `retrying` cases (no data, a run in flight, an earlier error).
+- [x] The list shell, the record surface and the landing screen pass it through; one list test shows the control busy while a held read reruns and the list drawn once it answers. Verified: `vitest run tenant/tests/directory-read.svelte.test.ts`: 3 of 3 pass, holding the reread: the control is busy, focused and still in the failed block, a second press calls nothing, then the tenants are drawn; record-surface and landing tests added beside it.
 
 ## Relevant areas
 

@@ -85,6 +85,7 @@
 	isLoading={tenantQuery.isLoading}
 	failed={tenantRead.failed}
 	onRetry={tenantRead.retry}
+	retrying={tenantRead.retrying}
 	found={Boolean(tenant)}
 	backFallback={resolve('/tenants')}
 	path={resolve(`/tenants/${tenantId}`)}

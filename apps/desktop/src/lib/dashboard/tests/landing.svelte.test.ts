@@ -502,6 +502,36 @@ test('try again runs the read again, and a read that answers draws the band and 
 	expect(outstandingFigure()).toContain(formatLocaleMoney('en', 4750));
 });
 
+// ticket 15 of effort 861: while the read runs again, the failed state stays with its *try again*
+// busy, rather than giving way to the loading band, and the band is drawn once the read answers.
+test('while try again reruns a held read, the failed state stays with try again busy', async () => {
+	let answerHeld: (dashboard: Dashboard) => void = () => {};
+
+	host.dashboardGet.mockRejectedValueOnce(new Error('the workspace could not be read'));
+	host.dashboardGet.mockImplementationOnce(
+		() => new Promise<Dashboard>((resolve) => (answerHeld = resolve))
+	);
+
+	renderLanding();
+
+	await waitFor(() => expect(emptyRegion()?.dataset.empty).toBe('failed'));
+
+	const tryAgain = within(emptyRegion()!).getByRole('button', { name: strings.tryAgain });
+
+	await fireEvent.click(tryAgain);
+
+	await waitFor(() => expect(tryAgain.getAttribute('aria-busy')).toBe('true'));
+
+	expect(emptyRegion()?.dataset.empty).toBe('failed');
+	expect(document.querySelector('[data-dashboard-band-skeleton]')).toBeNull();
+
+	answerHeld(answer(MONEY_RANKS, MONEY_QUEUE));
+
+	await screen.findByRole('heading', { name: 'owing' });
+
+	expect(document.querySelector('[data-empty="failed"]')).toBeNull();
+});
+
 // and nothing to chase is a read that answered with no ranks, not one still on its way.
 test('nothing to chase is drawn once a read answers with no ranks', async () => {
 	reads(answer([], []));

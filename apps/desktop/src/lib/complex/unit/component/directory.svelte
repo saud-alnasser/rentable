@@ -175,6 +175,7 @@
 	isFetching={unitsQuery.isFetching}
 	failed={unitsRead.failed}
 	onRetry={unitsRead.retry}
+	retrying={unitsRead.retrying}
 	recordHeight={ROW_HEIGHT}
 	exportAs={{
 		// the complex is in the name rather than its id: every complex has a units directory, one
