@@ -27,6 +27,7 @@ use-when: "resuming this effort, or asking where it stands"
 - 05: the human chose to leave out a figure the member may not view (no card, no ring unless due and collected are both known, no nothing-to-chase without view-contracts), over keeping zeros or a marked placeholder
 - seam after 11: the ticket 09 section comment in contract/tests/router.test.ts still says nothing writes the link
 - converge: rules/interface Form surface could name seed (schema forms) and isDirty (the others) as how a form reports its changes
+- converge: 05 shows an empty landing screen to a member who may view none of contracts, payments or units; the money card links to /contracts when only collected is shown
 
 ## Needs you
 
