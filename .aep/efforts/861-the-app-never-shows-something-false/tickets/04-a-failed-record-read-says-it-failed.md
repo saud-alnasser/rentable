@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [03]
 ---
 
@@ -15,8 +15,8 @@ The record surface draws the failed state for a read that failed, keeps *not fou
 
 Traces requirement 1 and criterion 1 (the records).
 
-- [ ] `RecordSurface` takes `failed` and `onRetry`, draws the failed state before *not found*, and leaves the breadcrumb's record name unset rather than absent; `pkg/block/tests/record-surface.svelte.test.ts` covers failed, not found and found.
-- [ ] The tenant, complex, unit, contract and payment record pages and the workspace page pass `toReadFailure`; the workspace page's `isLoading` no longer special-cases `isError`; a test with a rejecting host covers the workspace page and one record page.
+- [x] `RecordSurface` takes `failed` and `onRetry`, draws the failed state before *not found*, and leaves the breadcrumb's record name unset rather than absent; `pkg/block/tests/record-surface.svelte.test.ts` covers failed, not found and found. Verified: `vitest run record-surface.svelte.test.ts` in packages/design: 16 of 16 pass, covering failed with retry, not found, found, and the trail's name left `undefined` on a failed read.
+- [x] The tenant, complex, unit, contract and payment record pages and the workspace page pass `toReadFailure`; the workspace page's `isLoading` no longer special-cases `isError`; a test with a rejecting host covers the workspace page and one record page. Verified: a grep finds `toReadFailure` in all six callers; the workspace page's `isLoading` is `stateQuery.isLoading`; `vitest run details-read.svelte.test.ts page-read.svelte.test.ts`: 5 of 5 pass (tenant page and workspace page against a rejecting host, and a missing tenant still not found, read through `readRecord`).
 
 ## Relevant areas
 

@@ -1,4 +1,5 @@
 import api from '$lib/api/caller';
+import { readRecord } from '$lib/error/read';
 import type { FilterPeriod } from '$lib/date';
 import { prefixOf } from '$lib/mutation';
 import { declareMutation, describeOutcomeChange } from '$lib/mutation/ui';
@@ -117,7 +118,8 @@ export function useFetchPayment(id: () => string) {
 
 		return {
 			queryKey: keys.get(freshId),
-			queryFn: () => api.payment.get({ id: freshId }),
+			// a payment that is not there answers `null`, so it is not found rather than failed.
+			queryFn: () => readRecord(api.payment.get({ id: freshId })),
 			enabled: isRecordId(freshId)
 		};
 	});
@@ -134,7 +136,7 @@ export function useReadPayment() {
 	return (id: string) =>
 		client.fetchQuery({
 			queryKey: keys.get(id),
-			queryFn: () => api.payment.get({ id })
+			queryFn: () => readRecord(api.payment.get({ id }))
 		});
 }
 

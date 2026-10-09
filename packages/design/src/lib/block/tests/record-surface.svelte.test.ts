@@ -196,3 +196,62 @@ test('the surface names the record it is reached through while its own record st
 
 	expect(shownRecord.parent).toBeUndefined();
 });
+
+// ticket 04 of effort 861, requirement 1: a record whose read failed is not a record that is not
+// there. The surface says the read failed, in the contract's words, and its one act reads it again;
+// a record that was read and is not there still says it does not exist, and one that was read is
+// drawn. Whether the read failed is the caller's (`error/read.ts` in the desktop application).
+const failedWords = {
+	...missingWords,
+	readFailed: 'this could not be read',
+	readFailedDescription: 'something went wrong while reading it',
+	tryAgain: 'try again'
+} satisfies Partial<DesignStrings>;
+
+const shownState = () => document.querySelector('[data-empty]')?.getAttribute('data-empty');
+
+test('a record whose read failed says the read failed, and never that it does not exist', () => {
+	surface({ isLoading: false, found: false, failed: true, onRetry: () => {} }, failedWords);
+
+	expect(shownState()).toBe('failed');
+	expect(document.body.textContent).toContain('this could not be read');
+	expect(document.body.textContent).toContain('something went wrong while reading it');
+	expect(document.body.textContent).not.toContain('this record does not exist');
+	expect(document.querySelector('h1')).toBeNull();
+});
+
+test('a record whose read failed offers try again, which asks for the read again', () => {
+	const onRetry = vi.fn();
+
+	surface({ isLoading: false, found: false, failed: true, onRetry }, failedWords);
+
+	screen.getByRole('button', { name: 'try again' }).click();
+
+	expect(onRetry).toHaveBeenCalledOnce();
+});
+
+test('a record read without failing and not there still says it does not exist', () => {
+	surface({ isLoading: false, found: false, failed: false, onRetry: () => {} }, failedWords);
+
+	expect(shownState()).toBe('not-found');
+	expect(document.body.textContent).toContain('this record does not exist');
+	expect(document.body.textContent).not.toContain('this could not be read');
+});
+
+test('a record read without failing and found is drawn, with neither empty state', () => {
+	surface({ isLoading: false, found: true, failed: false, onRetry: () => {} }, failedWords);
+
+	expect(shownState()).toBeUndefined();
+	expect(document.querySelector('h1')?.textContent).toBe('a name');
+});
+
+// the trail names a record that is not there as unknown; a read that failed has not said whether
+// there is one, so the trail names nothing, as it does while the record is on its way.
+test('a record whose read failed is not named for the chrome, and not named as absent', () => {
+	const parent = { name: 'a tenant', href: '/contracts/contract-1' };
+
+	surface({ isLoading: false, found: false, failed: true, onRetry: () => {}, parent }, failedWords);
+
+	expect(shownRecord.name).toBeUndefined();
+	expect(shownRecord.parent).toBeUndefined();
+});

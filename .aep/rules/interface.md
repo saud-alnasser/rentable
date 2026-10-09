@@ -1388,8 +1388,12 @@ four situations it is, on `data-empty`, and the four never read the same:
   holds no data. A refetch that fails while an earlier answer is held keeps the answer, and a read
   that succeeded with no rows is *nothing here yet*. The list shell takes `failed` and `onRetry`
   from it, and while the read failed draws this state with no create, no *nothing yet* title and
-  no count; every list it draws passes both. A failed read is never drawn as *nothing here yet*,
-  *no match* or *not found*. *Ticket 03 of
+  no count; every list it draws passes both. The record surface takes the same two and draws this
+  state before *not found*; every record page and the workspace page pass both. A record that is
+  not there is a read that answered with nothing, not one that failed: the query client refuses an
+  answer of `undefined` as a failure, so a record is read through `error/read.ts`'s `readRecord`,
+  which answers `null` for it. A failed read is never drawn as *nothing here yet*, *no match* or
+  *not found*. *Tickets 03 and 04 of
   [[efforts/861-the-app-never-shows-something-false/spec]], requirement 1.*
 
 "No results" is not a sentence any of them says: it names neither the situation nor the way out.
@@ -1500,8 +1504,8 @@ it shows is called (`shown-record.svelte.ts` in the design package), because onl
 knows: a contract is named by its tenant. A record reached through another runs its trail through
 that one: a payment's trail is its directory, its contract, then the payment
 (the page's `parent` in `payment/feature.ts`, read into `RECORD_PARENTS` in `shell/navigation.ts`), and the record surface names and addresses the
-contract as its `parent`. Until the record is read the trail ends on the directory
-above it, and a record that is not there is named as unknown. The dashboard and the way in carry no
+contract as its `parent`. Until the record is read, and while its read failed, the trail ends on
+the directory above it, and a record that is not there is named as unknown. The dashboard and the way in carry no
 trail: the first is where the application opens, and the second is a walk whose card says which
 step it is on.
 

@@ -11,6 +11,11 @@
  * way is loading. Only the first is drawn as a failure, with *try again* as its act. The query
  * client retries nothing by itself (`startup/component/root.svelte`), so the reader's *try again*
  * is the only retry there is.
+ *
+ * **A record that is not there is not a failed read.** A record's read answers with nothing for a
+ * record that does not exist, and the query client takes an answer of `undefined` for a read that
+ * failed, so every record a surface reads is read through {@link readRecord}, which answers `null`
+ * instead: the read succeeded, and the surface says *not found*.
  */
 
 /** What this reads of a query's result: the part every query hook here returns. */
@@ -37,4 +42,15 @@ export function toReadFailure(query: ReadResult): ReadFailure {
 		failed: query.isError && query.data === undefined,
 		retry: () => void query.refetch()
 	};
+}
+
+/**
+ * A record's read, answering `null` where the record is not there.
+ *
+ * The query client refuses an answer of `undefined` as a failed read, so a record that does not
+ * exist would be drawn as a read that failed. Read through this, it is a read that answered with
+ * nothing, which the record surface draws as *not found*. A read that is refused stays refused.
+ */
+export async function readRecord<T>(read: Promise<T | undefined>): Promise<T | null> {
+	return (await read) ?? null;
 }

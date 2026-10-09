@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { toReadFailure, type ReadResult } from '$lib/error/read';
+import { readRecord, toReadFailure, type ReadResult } from '$lib/error/read';
 
 /**
  * WHAT COUNTS AS A FAILED READ
@@ -42,4 +42,20 @@ test('trying again runs the same read again', () => {
 	toReadFailure(query).retry();
 
 	assert.equal(query.refetches, 1);
+});
+
+// ticket 04 of effort 861: a record that is not there is a read that answered, with nothing. The
+// query client takes an answer of `undefined` for a failed read, so a record's read answers `null`.
+test('a record read that answers with nothing answers null, so it is not found rather than failed', async () => {
+	assert.equal(await readRecord(Promise.resolve(undefined)), null);
+});
+
+test('a record read that answers with the record answers it unchanged', async () => {
+	const record = { id: 'tenant-1' };
+
+	assert.equal(await readRecord(Promise.resolve(record)), record);
+});
+
+test('a record read that is refused stays refused, so it is drawn as failed', async () => {
+	await assert.rejects(readRecord(Promise.reject(new Error('refused'))), /refused/);
 });

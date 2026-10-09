@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import { toReadFailure } from '$lib/error/read';
 	import RecordSurface from '@rentable/design/block/record-surface.svelte';
 	import Specification from '@rentable/design/block/specification.svelte';
 	import * as Cell from '$lib/design/cell';
@@ -24,6 +25,9 @@
 
 	const paymentQuery = useFetchPayment(() => paymentId);
 	const payment = $derived(paymentQuery.data);
+	// whether the read behind the page failed, as `$lib/error/read` decides it, and what runs it
+	// again: the surface draws the failed state in place of *not found* while it did.
+	const paymentRead = $derived(toReadFailure(paymentQuery));
 
 	const formatMoney = (value: number) => formatLocaleMoney($locale, value);
 
@@ -149,6 +153,8 @@
 
 <RecordSurface
 	isLoading={paymentQuery.isLoading}
+	failed={paymentRead.failed}
+	onRetry={paymentRead.retry}
 	found={Boolean(payment)}
 	backFallback={payment ? resolve(`/contracts/${payment.contractId}`) : resolve('/contracts')}
 	path={resolve(`/contracts/payments/${paymentId}`)}

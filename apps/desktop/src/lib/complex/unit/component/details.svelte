@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import { toReadFailure } from '$lib/error/read';
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
 	import RecordSurface from '@rentable/design/block/record-surface.svelte';
 	import Specification from '@rentable/design/block/specification.svelte';
@@ -21,6 +22,9 @@
 
 	const unitQuery = useFetchUnit(() => unitId);
 	const unit = $derived(unitQuery.data);
+	// whether the read behind the page failed, as `$lib/error/read` decides it, and what runs it
+	// again: the surface draws the failed state in place of *not found* while it did.
+	const unitRead = $derived(toReadFailure(unitQuery));
 
 	// the page's cluster is a projection of the one list the unit's card and the command menu read,
 	// so it offers what the card offers, edit and delete included. What each act opens is the unit
@@ -90,6 +94,8 @@
 
 <RecordSurface
 	isLoading={unitQuery.isLoading}
+	failed={unitRead.failed}
+	onRetry={unitRead.retry}
 	found={Boolean(unit)}
 	backFallback={unit ? resolve(`/complexes/${unit.complexId}`) : resolve('/complexes')}
 	path={resolve(`/complexes/units/${unitId}`)}

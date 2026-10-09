@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import { toReadFailure } from '$lib/error/read';
 	import RecordSurface from '@rentable/design/block/record-surface.svelte';
 	import Specification from '@rentable/design/block/specification.svelte';
 	import RecordActionControl from '@rentable/design/block/record-action-control.svelte';
@@ -18,6 +19,9 @@
 
 	const complexQuery = useFetchComplex(() => complexId);
 	const complex = $derived(complexQuery.data);
+	// whether the read behind the page failed, as `$lib/error/read` decides it, and what runs it
+	// again: the surface draws the failed state in place of *not found* while it did.
+	const complexRead = $derived(toReadFailure(complexQuery));
 	// the units this complex holds, and what the field list states of them.
 	const heldUnitsQuery = useFetchUnits(() => complexId);
 	const unitFigures = $derived.by(() => {
@@ -83,6 +87,8 @@
 
 <RecordSurface
 	isLoading={complexQuery.isLoading}
+	failed={complexRead.failed}
+	onRetry={complexRead.retry}
 	found={Boolean(complex)}
 	backFallback={resolve('/complexes')}
 	path={resolve(`/complexes/${complexId}`)}

@@ -10,6 +10,7 @@
 	import { LL, locale } from '$lib/i18n/i18n-svelte';
 	import { formatLocaleDate } from '$lib/platform/locale';
 	import { toErrorText } from '$lib/error/message';
+	import { toReadFailure } from '$lib/error/read';
 	import { accessRefusalOf, isTailored } from '$lib/organization/access/access';
 	import { useChangeAccess } from '$lib/organization/access/query';
 	import {
@@ -81,6 +82,9 @@
 	let { workspaceId }: { workspaceId: string } = $props();
 
 	const stateQuery = useFetchOrganizationState();
+	// whether the organization's state could not be read, as `$lib/error/read` decides it, and what
+	// runs it again: the surface draws the failed state in place of *not found* while it could not.
+	const stateRead = $derived(toReadFailure(stateQuery));
 	const session = $derived(stateQuery.data?.session ?? null);
 	const syncQuery = useFetchRemoteSyncState(() => session !== null);
 	const membersQuery = useFetchMembers();
@@ -355,7 +359,9 @@
 {/snippet}
 
 <RecordSurface
-	isLoading={stateQuery.data === undefined && !stateQuery.isError}
+	isLoading={stateQuery.isLoading}
+	failed={stateRead.failed}
+	onRetry={stateRead.retry}
 	found={workspace !== null}
 	backFallback={workspacesSection()}
 	path={workspacePageOf(workspaceId)}
