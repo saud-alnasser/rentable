@@ -1,0 +1,29 @@
+---
+status: open
+---
+
+# fix(desktop): the money card links only where the member may go
+
+Authoritative: [[efforts/861-the-app-never-shows-something-false/spec]] (requirement 2), and the human's call recorded for ticket 05: a figure a member may not view is left out. Found at converge round 1.
+
+## Outcome
+
+On the landing screen the money card is a link to the contracts only for a member who may view contracts; for a member who may not, it shows the figures it may and is not a link.
+
+## Acceptance Criteria
+
+Traces requirement 2.
+
+- [ ] The money card's link to `/contracts` is drawn only where the member may view contracts (`CONTRACT_KIND`); otherwise the card is the same figures with no link.
+- [ ] `dashboard/tests/landing.svelte.test.ts`: a member who may view payments and not contracts sees the collected figure and no link to the contracts; a member who may view both still has the link.
+
+## Relevant areas
+
+- apps/desktop/src/lib/dashboard/component/landing.svelte, dashboard/tests/landing.svelte.test.ts
+
+## Constraints
+
+- Write the failing test first, at the level [[rules/testing]] fixes ([[skills/tdd]]).
+- A changeset for `@rentable/desktop` in a user's words rides in the same commit ([[references/changesets]]).
+
+## Notes
