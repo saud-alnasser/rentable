@@ -108,7 +108,7 @@ block a concept draws instead.
 | `block/back-control.svelte` | navigating | the one way back, on a record, a step of the way in, a not-found | the trail; leaving a dialog | `primitive/breadcrumb` | `settings/component/page.svelte` |
 | `block/confirm-dialog.svelte` | interrupting and confirming | asking before a dangerous act that is not a delete, under its own verb: terminate, restore, sign out another machine or every other one, disconnect, forget, withdraw (*Delete and confirm*); never signing this machine out, which asks nothing (effort 851); and the question the form surface asks before a form with changes closes, *discard* or *keep editing* (*Form surface*, effort 861) | a delete | `block/delete-dialog.svelte` | `contract/component/host.svelte` |
 | `block/delete-dialog.svelte` | interrupting and confirming | every delete of one record, saying what brings it back, and a refused delete saying why (*Delete and confirm*) | a delete of a selection (`block/selection-dialog.svelte`); an act that is not a delete | `block/confirm-dialog.svelte` | `complex/component/host.svelte` |
-| `block/empty.svelte` | guiding and empty states | a region with nothing in it: nothing yet, no match, not found, each with its act | a load; an error | `block/not-found.svelte` | `list/component/empty.svelte` |
+| `block/empty.svelte` | guiding and empty states | a region with nothing in it: nothing yet, no match, not found, each with its act; a read that failed, with *try again* | a load; an act that failed | `block/not-found.svelte` | `list/component/empty.svelte` |
 | `block/export-dialog.svelte` | interrupting and confirming | which file a list is written as | choosing where (the system's save dialog) | `primitive/dropdown-menu` | `list/component/list.svelte` |
 | `block/field-error.svelte` | feedback and progress | a field's validation message, at the field | a summary of a form's errors (*Validation errors*) | `primitive/callout` | `complex/component/form.svelte` |
 | `block/form-surface.svelte` | interrupting and confirming | every write: create and edit, light (centred) or heavy (the edge panel) by the form's weight | reading a record; a question with one answer | `block/confirm-dialog.svelte` | `complex/component/form.svelte` |
@@ -186,6 +186,7 @@ Each row names what this repository already draws for the need, and one file whe
 | a long-running task with stages | `primitive/progress` | `startup/component/loading.svelte` |
 | a short hint | `primitive/tooltip` | `create/component/control.svelte` |
 | nothing to show yet | `block/empty.svelte`, kind `nothing-yet`, with the create | `list/component/empty.svelte` |
+| a read that failed | `block/empty.svelte`, kind `failed`, with *try again*, from `toReadFailure` (`error/read.ts`) | `list/component/empty.svelte` |
 | a set of settings | `block/settings-group.svelte` of `block/settings-row.svelte`, one under the next in a `block/settings-grid.svelte` | `organization/component/settings-account.svelte` |
 | detail few readers need, under a setting | `block/settings-row.svelte`'s `details` | `update/component/update-action.svelte` |
 | a row's control whose words a tooltip can carry | `primitive/button` at `icon-sm` with its `aria-label`, in `primitive/tooltip` saying the same | `settings/component/diagnostics.svelte` |

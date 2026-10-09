@@ -1,21 +1,31 @@
 import Empty from '#lib/block/empty.svelte';
-import { render } from '@testing-library/svelte';
-import { createRawSnippet } from 'svelte';
-import { expect, test } from 'vitest';
+import { DesignProvider, type DesignStrings } from '#lib/strings.js';
+import { suppliedStrings } from '#tests/contract-strings.js';
+import { render, screen } from '@testing-library/svelte';
+import { createRawSnippet, type ComponentProps } from 'svelte';
+import { expect, test, vi } from 'vitest';
 
 /**
  * The one treatment for a region with nothing to show.
  *
- * The block reads nothing from the string contract, so it renders without a provider: every word
- * is the caller's. What it owns is the arrangement and the mark saying which situation it is, and
- * the mark is what the list's and the record surface's own tests read.
+ * Three of its four kinds take every word from the caller; the failed kind takes its words from
+ * the string contract, since a read that failed reads the same wherever it fails. So it renders
+ * under the provider, and the words a test asserts are the ones it supplied. What the block owns
+ * is the arrangement and the mark saying which situation it is, and the mark is what the list's
+ * and the record surface's own tests read.
  */
 const act = createRawSnippet(() => ({
 	render: () => '<button type="button">add a tenant</button>'
 }));
 
+const empty = (props: ComponentProps<typeof Empty>, strings: Partial<DesignStrings> = {}) =>
+	render(Empty, props, {
+		wrapper: DesignProvider,
+		wrapperProps: { strings: suppliedStrings(strings), direction: 'ltr' }
+	});
+
 test('it says what it was handed, under the kind it was given', () => {
-	const { container } = render(Empty, {
+	const { container } = empty({
 		kind: 'nothing-yet',
 		title: 'no tenants yet',
 		description: 'tenants you add are listed here.'
@@ -29,7 +39,7 @@ test('it says what it was handed, under the kind it was given', () => {
 });
 
 test('its one act is drawn beneath the words', () => {
-	const { getByRole } = render(Empty, {
+	const { getByRole } = empty({
 		kind: 'nothing-yet',
 		title: 'no tenants yet',
 		action: act
@@ -39,7 +49,7 @@ test('its one act is drawn beneath the words', () => {
 });
 
 test('with no act and no line, it draws the title alone', () => {
-	const { container } = render(Empty, { kind: 'no-match', title: 'nothing matches' });
+	const { container } = empty({ kind: 'no-match', title: 'nothing matches' });
 
 	expect(container.querySelector('button')).toBeNull();
 	expect(container.querySelector('[data-slot="empty-description"]')).toBeNull();
@@ -50,7 +60,7 @@ test('with no act and no line, it draws the title alone', () => {
 // is a description, and reads as written, in lower case, as every description does
 // ([[rules/frontend]], *i18n*).
 test('the title is raised to sentence case, and the line under it reads as written', () => {
-	const { container } = render(Empty, {
+	const { container } = empty({
 		kind: 'not-found',
 		title: 'this record does not exist',
 		description: 'it may have been deleted.'
@@ -61,4 +71,36 @@ test('the title is raised to sentence case, and the line under it reads as writt
 
 	expect(title?.className).toContain('first-letter:uppercase');
 	expect(description?.className).not.toMatch(/uppercase|capitalize/);
+});
+
+// ticket 03 of effort 861: a read that failed is not a set with nothing in it. It says so, in the
+// contract's words, and its one act runs the read again ([[rules/interface]], *Empty* and *Error*).
+const FAILED = {
+	readFailed: 'this could not be read',
+	readFailedDescription: 'something went wrong while reading it.',
+	tryAgain: 'try again'
+};
+
+test('a failed read is marked failed and says so in the words the contract gives it', () => {
+	const { container } = empty({ kind: 'failed', onRetry: () => {} }, FAILED);
+
+	const region = container.querySelector('[data-empty]');
+
+	expect(region?.getAttribute('data-empty')).toBe('failed');
+	expect(region?.querySelector('[data-slot="empty-title"]')?.textContent).toBe(FAILED.readFailed);
+	expect(region?.textContent).toContain(FAILED.readFailedDescription);
+});
+
+test('its one act is try again, and pressing it asks for the read again', () => {
+	const onRetry = vi.fn();
+
+	empty({ kind: 'failed', onRetry }, FAILED);
+
+	const buttons = screen.getAllByRole('button');
+
+	expect(buttons).toHaveLength(1);
+
+	screen.getByRole('button', { name: FAILED.tryAgain }).click();
+
+	expect(onRetry).toHaveBeenCalledOnce();
 });

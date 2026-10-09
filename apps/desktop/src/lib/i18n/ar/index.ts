@@ -145,6 +145,8 @@ const ar = {
 			loadingRecord: 'جاري تحميل السجل...',
 			loadingSettings: 'جاري تحميل الإعدادات...',
 			noMatch: 'لا يوجد ما يطابق',
+			readFailed: 'تعذر تحميل هذا',
+			readFailedDescription: 'حدث خطأ أثناء قراءته. لم يتغير شيء.',
 			recordNotFound: 'هذا السجل غير موجود',
 			recordNotFoundDescription: 'ربما حُذف.',
 			unexpectedError: 'حدث خطأ غير متوقع!',

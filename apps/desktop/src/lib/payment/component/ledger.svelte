@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { toReadFailure } from '$lib/error/read';
 	import { resolve } from '$app/paths';
 	import { back } from '@rentable/design/back.svelte.js';
 	import type { Payment } from '$lib/platform/database/schema';
@@ -89,6 +90,9 @@
 	const planQuery = usePlanManyPayments(() => confirming ?? []);
 
 	const payments = $derived(paymentsQuery.data ?? []);
+	// whether the read behind the list failed, as `$lib/error/read` decides it, and what runs it
+	// again: the list draws the failed state in place of *nothing yet* while it did.
+	const paymentsRead = $derived(toReadFailure(paymentsQuery));
 	const monthOf = $derived(paymentLedgerMonths(payments));
 	// a statement is read in months while it is read in time. Ordered by amount, the months would
 	// open and close again on every row, so the headers go and the rows read as one run.
@@ -260,6 +264,8 @@
 		groupOf={isReadInTime ? monthOf : undefined}
 		isLoading={paymentsQuery.isLoading}
 		isFetching={paymentsQuery.isFetching}
+		failed={paymentsRead.failed}
+		onRetry={paymentsRead.retry}
 		recordHeight={isTerminated ? LOCKED_ROW_HEIGHT : ROW_HEIGHT}
 		groupHeaderHeight={MONTH_HEIGHT}
 		emptyTitle={$LL.contracts.payments.emptyTitle()}

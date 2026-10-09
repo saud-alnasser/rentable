@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { toReadFailure } from '$lib/error/read';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
@@ -50,6 +51,9 @@
 	);
 
 	const contracts = $derived(contractsQuery.data ?? []);
+	// whether the read behind the list failed, as `$lib/error/read` decides it, and what runs it
+	// again: the list draws the failed state in place of *nothing yet* while it did.
+	const contractsRead = $derived(toReadFailure(contractsQuery));
 
 	// the same rendering the row shows, so the file reads as the screen does.
 
@@ -103,6 +107,8 @@
 			{selectionActions}
 			isLoading={contractsQuery.isLoading}
 			isFetching={contractsQuery.isFetching}
+			failed={contractsRead.failed}
+			onRetry={contractsRead.retry}
 			recordHeight={CONTRACT_TILE_HEIGHT}
 			recordMinWidth={RECORD_TILE_MIN_WIDTH}
 			exportAs={{

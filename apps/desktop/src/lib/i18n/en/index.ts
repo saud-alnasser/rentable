@@ -146,6 +146,8 @@ const en = {
 			loadingRecord: 'loading record...',
 			loadingSettings: 'loading settings...',
 			noMatch: 'nothing matches',
+			readFailed: 'this could not be loaded',
+			readFailedDescription: 'something went wrong while reading it. nothing was changed.',
 			recordNotFound: 'this record does not exist',
 			recordNotFoundDescription: 'it may have been deleted.',
 			unexpectedError: 'unexpected error occurred!',

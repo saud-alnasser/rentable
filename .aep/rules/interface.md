@@ -1356,9 +1356,10 @@ fast local read from flashing a skeleton for a frame.*
 ### Empty
 
 **A region with nothing to show draws `packages/design/src/lib/block/empty.svelte`, and nothing
-else**: a title, an optional line under it, and one act beneath both. The block names no concept
-and reads no words from the string contract; every sentence is the caller's. It says which of
-three situations it is, on `data-empty`, and the three never read the same:
+else**: a title, an optional line under it, and one act beneath both. The block names no concept,
+and every sentence of the first three situations is the caller's; the fourth, a failed read, reads
+its words from the string contract, since it says the same wherever a read fails. It says which of
+four situations it is, on `data-empty`, and the four never read the same:
 
 - **Nothing here yet.** The set holds nothing, and the title says what it will hold in the
   concept's own words (*no tenants yet*), with a line saying where the records come from. Its act
@@ -1379,6 +1380,17 @@ three situations it is, on `data-empty`, and the three never read the same:
   concept's directory; the unknown route's error page says the page does not exist, rather than
   that a screen failed, and falls back to the dashboard. A screen that failed keeps the shared
   application surface.
+- **Failed.** The read of what belongs here failed, so whether there is anything is not known
+  (*Error*, below). The block says the read failed and offers one act, *try again*, which runs the
+  read again; its words are the string contract's `readFailed`, `readFailedDescription` and
+  `tryAgain`, the last the same words the caught-error screen offers its retry in. What counts as
+  a failed read is decided in one place, `error/read.ts`'s `toReadFailure`: the read errored and
+  holds no data. A refetch that fails while an earlier answer is held keeps the answer, and a read
+  that succeeded with no rows is *nothing here yet*. The list shell takes `failed` and `onRetry`
+  from it, and while the read failed draws this state with no create, no *nothing yet* title and
+  no count; every list it draws passes both. A failed read is never drawn as *nothing here yet*,
+  *no match* or *not found*. *Ticket 03 of
+  [[efforts/861-the-app-never-shows-something-false/spec]], requirement 1.*
 
 "No results" is not a sentence any of them says: it names neither the situation nor the way out.
 Nor does the bar above a set that holds nothing yet count it: `list-toolbar.svelte` draws its
@@ -1401,6 +1413,12 @@ Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], re
 **What failed says so in the reader's words, where they asked for it; what is not there is not a
 failure** (*Not found*, under *Empty*, above).
 
+- **A read that failed** says so where its content would stand, in the empty block's failed kind
+  (*Failed*, under *Empty*, above), with *try again* as its one act. It is not a toast: the reader
+  did not act, and what they are looking at is what failed. It never stands in for a set with
+  nothing in it, nor a set with nothing in it for it, and the query client retries nothing on its
+  own, so *try again* is the reader's. *Ticket 03 of
+  [[efforts/861-the-app-never-shows-something-false/spec]], requirement 1.*
 - **An act refused or failed** is an error toast, raised by the mutation's declaration or through
   `$lib/notification` (*Feedback*, below). Its title is the reader's sentence, read from the refusal's
   code (`error/refusal.ts`), never the words a procedure or the shell wrote. A confirmation holds

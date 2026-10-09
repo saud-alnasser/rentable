@@ -61,7 +61,9 @@
 		groupHeaderHeight = 36,
 		recordMinWidth,
 		emptyTitle,
-		emptyDescription
+		emptyDescription,
+		failed = false,
+		onRetry
 	}: ListProps<TData, TGroup> = $props();
 
 	// the grid overscanned two rows of cards; a record row is a fraction of a card's height,
@@ -208,7 +210,7 @@
 	<ListToolbar
 		bind:search
 		onSearch={commit.awaitSearch}
-		count={commit.displayed.length}
+		count={failed ? undefined : commit.displayed.length}
 		narrowed={isFiltered}
 		{sortOptions}
 		bind:sort
@@ -296,7 +298,7 @@
 				{/each}
 			{/snippet}
 
-			{#if !hasResults}
+			{#if failed || !hasResults}
 				<Empty
 					{listId}
 					{isSearched}
@@ -307,6 +309,8 @@
 					{onCreate}
 					{createLabel}
 					{createUnavailable}
+					{failed}
+					{onRetry}
 				/>
 			{:else}
 				<Rows

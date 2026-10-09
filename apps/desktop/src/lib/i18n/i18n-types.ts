@@ -732,6 +732,14 @@ type RootTranslation = {
 			 */
 			noMatch: string;
 			/**
+			 * t​h​i​s​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​l​o​a​d​e​d
+			 */
+			readFailed: string;
+			/**
+			 * s​o​m​e​t​h​i​n​g​ ​w​e​n​t​ ​w​r​o​n​g​ ​w​h​i​l​e​ ​r​e​a​d​i​n​g​ ​i​t​.​ ​n​o​t​h​i​n​g​ ​w​a​s​ ​c​h​a​n​g​e​d​.
+			 */
+			readFailedDescription: string;
+			/**
 			 * t​h​i​s​ ​r​e​c​o​r​d​ ​d​o​e​s​ ​n​o​t​ ​e​x​i​s​t
 			 */
 			recordNotFound: string;
@@ -6396,6 +6404,14 @@ export type TranslationFunctions = {
 			 * nothing matches
 			 */
 			noMatch: () => LocalizedString;
+			/**
+			 * this could not be loaded
+			 */
+			readFailed: () => LocalizedString;
+			/**
+			 * something went wrong while reading it. nothing was changed.
+			 */
+			readFailedDescription: () => LocalizedString;
 			/**
 			 * this record does not exist
 			 */

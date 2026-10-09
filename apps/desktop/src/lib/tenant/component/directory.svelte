@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { toReadFailure } from '$lib/error/read';
 	import { DirectoryImportDialog } from '$lib/transfer/ui';
 	import { List } from '$lib/list/ui';
 	import { RECORD_TILE_MIN_WIDTH } from '$lib/list';
@@ -53,6 +54,9 @@
 		() => sort
 	);
 	const tenants = $derived(tenantsQuery.data ?? []);
+	// whether the read behind the list failed, as `$lib/error/read` decides it, and what runs it
+	// again: the list draws the failed state in place of *nothing yet* while it did.
+	const tenantsRead = $derived(toReadFailure(tenantsQuery));
 	const deleteManyMutation = useDeleteManyTenants();
 	const importMutation = useImportRecords();
 
@@ -139,6 +143,8 @@
 	{selectionActions}
 	isLoading={tenantsQuery.isLoading}
 	isFetching={tenantsQuery.isFetching}
+	failed={tenantsRead.failed}
+	onRetry={tenantsRead.retry}
 	recordMinWidth={RECORD_TILE_MIN_WIDTH}
 	recordHeight={TENANT_TILE_HEIGHT}
 	exportAs={{

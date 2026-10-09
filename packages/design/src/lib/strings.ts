@@ -28,7 +28,9 @@ import { getContext } from 'svelte';
  * surface's not-found three of that kind, `recordNotFound`, `recordNotFoundDescription` and
  * `goBack`, in place of the `noResults` it borrowed from the lists. Effort 851 gave the password
  * block one, `showPassword`, the accessible name of its eye: a word every field that draws the
- * block wants the same, so it is the block's rather than each caller's.
+ * block wants the same, so it is the block's rather than each caller's. Effort 861 gave the empty
+ * block's failed kind three, `readFailed`, `readFailedDescription` and `tryAgain`: a read that
+ * failed reads the same in a list, a record and the landing screen, so its words are the block's.
  * Effort 861 gave the form surface four, the question it asks before a form with changes closes:
  * `discardChangesTitle`, `discardChangesDescription`, `discard` and `keepEditing`. Every form asks
  * it in the same words, so they are the surface's rather than each form's.
@@ -129,6 +131,11 @@ export type DesignStrings = {
 	previous: string;
 	/** the accessible name of a carousel control that goes back a slide. */
 	previousSlide: string;
+	/** what a region says in place of its records or its record where the read of them failed:
+	 * that they could not be read, never that there is nothing, and never that it does not exist. */
+	readFailed: string;
+	/** the line under {@link DesignStrings.readFailed}, saying that trying again may bring them. */
+	readFailedDescription: string;
 	/** what a record surface says in place of the record where there is no such record: that it
 	 * does not exist, never that a search found nothing. */
 	recordNotFound: string;
@@ -144,6 +151,8 @@ export type DesignStrings = {
 	sidebar: string;
 	/** the accessible name of both controls that fold and unfold the sidebar. */
 	toggleSidebar: string;
+	/** the word on the one act a failed read offers, which reads it again. */
+	tryAgain: string;
 	/** what a confirmation reports where the action failed for a reason it has no words for. */
 	unexpectedError: string;
 	/** what a delete dialog calls the record where its surface passed no name for it. */
@@ -184,8 +193,8 @@ export const DESIGN_CONTRACT = Symbol('rentable.design.contract');
  * the screen draws.** Most of the families that read this are overlays whose content `bits-ui`
  * instantiates only once they open, so a missing provider surfaces on the first interaction
  * rather than on render. `card`, `toggle-group`, `breadcrumb`, `carousel`, `pagination`,
- * `sonner`, the sidebar's own chrome, `block/record-surface`, `block/back-control` and
- * `block/password-input` throw at render, because they are the ones that are not overlays. **`block/delete-dialog` throws at render as well, and
+ * `sonner`, the sidebar's own chrome, `block/empty`, `block/record-surface`,
+ * `block/back-control` and `block/password-input` throw at render, because they are the ones that are not overlays. **`block/delete-dialog` throws at render as well, and
  * it is an overlay.** Its own script reads the contract to default four of its props, before
  * `bits-ui` has decided anything, and consumers mount it closed rather than behind an `{#if}`,
  * so it runs when the page holding it first draws. The laziness is `Dialog.Content`'s, not the

@@ -102,12 +102,17 @@
 		pagination: $LL.common.ui.pagination(),
 		previous: $LL.common.ui.previous(),
 		previousSlide: $LL.common.ui.previousSlide(),
+		readFailed: $LL.common.messages.readFailed(),
+		readFailedDescription: $LL.common.messages.readFailedDescription(),
 		recordNotFound: $LL.common.messages.recordNotFound(),
 		recordNotFoundDescription: $LL.common.messages.recordNotFoundDescription(),
 		refusal: (failure: unknown) => toRefusalText(failure, $LL),
 		showPassword: $LL.common.ui.showPassword(),
 		sidebar: $LL.common.ui.sidebar(),
 		toggleSidebar: $LL.common.ui.toggleSidebar(),
+		// the words the caught-error screen offers its retry in, so a screen that failed and a
+		// read that failed say the same thing.
+		tryAgain: $LL.layout.error.retry(),
 		unexpectedError: $LL.common.messages.unexpectedError(),
 		unnamedRecord: $LL.common.deleteDialog.unnamedRecord(),
 		working: $LL.common.actions.working()

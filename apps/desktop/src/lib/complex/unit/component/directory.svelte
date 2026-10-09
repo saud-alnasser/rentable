@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { toReadFailure } from '$lib/error/read';
 	import { resolve } from '$app/paths';
 	import { back } from '@rentable/design/back.svelte.js';
 	import type api from '$lib/api/caller';
@@ -61,6 +62,9 @@
 		() => sort
 	);
 	const units = $derived(unitsQuery.data ?? []);
+	// whether the read behind the list failed, as `$lib/error/read` decides it, and what runs it
+	// again: the list draws the failed state in place of *nothing yet* while it did.
+	const unitsRead = $derived(toReadFailure(unitsQuery));
 	const deleteManyMutation = useDeleteManyUnits();
 	const importMutation = useImportRecords();
 
@@ -169,6 +173,8 @@
 	{selectionActions}
 	isLoading={unitsQuery.isLoading}
 	isFetching={unitsQuery.isFetching}
+	failed={unitsRead.failed}
+	onRetry={unitsRead.retry}
 	recordHeight={ROW_HEIGHT}
 	exportAs={{
 		// the complex is in the name rather than its id: every complex has a units directory, one

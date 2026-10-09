@@ -6,6 +6,7 @@ import ar from '$lib/i18n/ar';
 import en from '$lib/i18n/en';
 import { setLocale } from '$lib/i18n/i18n-svelte';
 import { loadLocale } from '$lib/i18n/i18n-util.sync';
+import { placeholderStrings as strings } from '$lib/design/tests/strings';
 
 import ListEmptyHarness from './list-empty-harness.svelte';
 
@@ -125,4 +126,38 @@ test('the two states never read the same', () => {
 	expect(en.common.messages.noMatch).not.toBe(en.tenants.empty.title);
 	expect(en.common.messages.noMatch).not.toBe(en.contracts.empty.title);
 	expect(en.common.messages.noMatch).not.toBe(en.complexes.empty.title);
+});
+
+// ticket 03 of effort 861, requirement 1: a list whose read failed does not know whether it holds
+// anything, so it says the read failed and offers to read it again. It never says what the list
+// will hold, never offers the create, and never counts.
+test('a list whose read failed says so, and offers no create, no nothing yet and no count', () => {
+	render(ListEmptyHarness, { failed: true, onRetry: () => {}, onCreate: () => {} });
+
+	expect(empty()?.dataset.empty).toBe('failed');
+	expect(empty()?.textContent).toContain(strings.readFailed);
+	expect(empty()?.textContent).not.toContain('no tenants yet');
+	expect(document.querySelector('[data-empty-create]')).toBeNull();
+	expect(document.querySelector('[data-list-count]')).toBeNull();
+	// the toolbar's create stays where it is: the set may still be added to, and the key still
+	// answers. What is gone is the empty state's offer to fill a set that may not be empty.
+	expect(within(empty()!).getAllByRole('button')).toHaveLength(1);
+});
+
+test('a failed read under a search still draws no count, and no match is not what it says', () => {
+	render(ListEmptyHarness, { failed: true, onRetry: () => {}, initialSearch: 'north' });
+
+	expect(empty()?.dataset.empty).toBe('failed');
+	expect(empty()?.textContent).not.toContain(en.common.messages.noMatch);
+	expect(document.querySelector('[data-list-count]')).toBeNull();
+});
+
+test('try again asks for the read again', () => {
+	const onRetry = vi.fn();
+
+	render(ListEmptyHarness, { failed: true, onRetry });
+
+	within(empty()!).getByRole('button', { name: strings.tryAgain }).click();
+
+	expect(onRetry).toHaveBeenCalledOnce();
 });
