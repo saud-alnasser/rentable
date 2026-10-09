@@ -30,3 +30,4 @@ use-when: "resuming this effort, or asking where it stands"
 - ticket 02: in the running app, an error toast is still up after ten seconds, closes from its X, and sits bottom-left in Arabic and bottom-right in English
 - ticket 01: judge the new primary, destructive and permitted fills in the running app, light and dark (buttons, badges, a selected day, a checked box, the rail mark)
 - ticket 06: on real forms, the discard question opens with keep editing focused and its focus ring showing
+- ticket 07: in the running app, the contract form (edit, renew, duplicate), the tenant form and the payment form close at once when untouched and ask after a field changes
