@@ -14,7 +14,7 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import SaveIcon from '@lucide/svelte/icons/save';
 	import { TRPCError } from '@trpc/server';
-	import { surfaceForm } from '$lib/form';
+	import { seed, surfaceForm } from '$lib/form';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import { toWesternDigits } from '$lib/platform/locale';
@@ -179,16 +179,28 @@
 		}
 	);
 
+	// whether the reader has changed a field since the form opened, which the surface asks about
+	// before closing it.
+	const { tainted, isTainted } = rest;
+
+	// the tenant it opens on is where the form starts, not a change the reader made.
 	$effect(() => {
 		if (open) {
-			form.set(toFormValue(value));
+			seed(reset, toFormValue(value));
 		}
 	});
 
 	const superform = { form, constraints, errors, enhance, reset, ...rest };
 </script>
 
-<FormSurface {open} {onOpenChange} {enhance} weight="heavy" title={$LL.common.labels.tenant()}>
+<FormSurface
+	{open}
+	{onOpenChange}
+	dirty={isTainted($tainted)}
+	{enhance}
+	weight="heavy"
+	title={$LL.common.labels.tenant()}
+>
 	<div class="flex flex-col gap-4">
 		<!-- who this record will be, pinned above the fields that decide it. A tenant is
 		     identified by a government document, and the identity is the field most easily

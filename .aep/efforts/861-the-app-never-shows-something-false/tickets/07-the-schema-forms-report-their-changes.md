@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [06]
 ---
 
@@ -15,9 +15,9 @@ The nine forms built on superforms seed without tainting and pass `dirty` from t
 
 Traces requirement 10 and criterion 10 (the schema forms).
 
-- [ ] The complex, unit, contract, tenant and payment forms, the organization rename, the workspace rename, the workspace dialog and the member account form seed through `reset({ data, newState })`; async fills pass `{ taint: false }`; each passes `dirty={isTainted($tainted)}`.
-- [ ] A tenant form test: an edit opened on a record closes without asking, and asks after a field changes. A contract form test does the same for renew and duplicate.
-- [ ] In the running application the contract, tenant and payment forms ask only after a change; recorded under `## Needs you` for the close if the application cannot be driven.
+- [x] The complex, unit, contract, tenant and payment forms, the organization rename, the workspace rename, the workspace dialog and the member account form seed through `reset({ data, newState })`; async fills pass `{ taint: false }`; each passes `dirty={isTainted($tainted)}`. Verified: each of the nine seeds through `seed(reset, data)` in `form/form.ts`, which calls `reset({ data, newState: data })`; the payment's async amount fill passes `{ taint: false }`; each passes `dirty` from `isTainted($tainted)`, and the complex, unit and account forms also count what they keep outside their fields; a grep finds `seed(` and `dirty` in all nine.
+- [x] A tenant form test: an edit opened on a record closes without asking, and asks after a field changes. A contract form test does the same for renew and duplicate. Verified: `vitest run` over the five new `*-discard.svelte.test.ts` files: 26 of 26 pass; the tenant edit closes untouched and asks after a change, and the contract test does the same for renew and duplicate.
+- [x] In the running application the contract, tenant and payment forms ask only after a change; recorded under `## Needs you` for the close if the application cannot be driven. Verified: not driven; recorded under `## Needs you` with `aep.mjs record --needs-you`, for the close.
 
 ## Relevant areas
 

@@ -14,7 +14,7 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import SaveIcon from '@lucide/svelte/icons/save';
 	import { TRPCError } from '@trpc/server';
-	import { surfaceForm } from '$lib/form';
+	import { seed, surfaceForm } from '$lib/form';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import z from 'zod';
@@ -119,22 +119,29 @@
 		}
 	);
 
+	// whether the reader has changed a field since the form opened, which the surface asks about
+	// before closing it.
+	const { tainted, isTainted } = rest;
+
+	// the unit it opens on, or a new one's blank fields, is where the form starts rather than a
+	// change the reader made. Every field is named, so nothing of an earlier opening stays behind.
 	$effect(() => {
 		if (open) {
-			if (value) {
-				form.set(value);
-			} else {
-				reset();
-			}
+			seed(reset, { id: undefined, name: '', status: undefined, complexId: undefined, ...value });
 		}
 	});
 
 	const superform = { form, constraints, errors, enhance, reset, ...rest };
+
+	// creating, the units named in the entry are the change, and the entry keeps them outside the
+	// fields; editing, the name is.
+	const dirty = $derived(isTainted($tainted) || (unitEntry?.holds() ?? false));
 </script>
 
 <FormSurface
 	{open}
 	{onOpenChange}
+	{dirty}
 	{enhance}
 	weight="light"
 	title={isCreating ? $LL.common.nav.units() : $LL.common.labels.unit()}

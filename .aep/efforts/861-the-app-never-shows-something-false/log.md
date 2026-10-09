@@ -15,6 +15,7 @@ use-when: "resuming this effort, or asking where it stands"
 [x] 04 a-failed-record-read-says-it-failed 2/2
 [x] 12 reconcile-links-the-renewals-it-did-not-record 4/4
 [x] 11 renewing-records-the-link-and-may-change-the-rent 4/4
+[x] 07 the-schema-forms-report-their-changes 3/3
 
 ## Rounds
 

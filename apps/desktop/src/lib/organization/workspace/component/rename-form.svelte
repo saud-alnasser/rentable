@@ -8,7 +8,7 @@
 	import { useRenameWorkspace } from '$lib/organization/workspace/query';
 	import { WORKSPACE_NAME_LIMIT } from '$lib/sync';
 	import SaveIcon from '@lucide/svelte/icons/save';
-	import { surfaceForm } from '$lib/form';
+	import { seed, surfaceForm } from '$lib/form';
 	import { defaults, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import z from 'zod';
@@ -81,9 +81,14 @@
 		}
 	);
 
+	// how the form opens on the name it has, and whether the reader has changed it since, which
+	// the surface asks about before closing it.
+	const { reset, tainted, isTainted } = rest;
+
+	// the name it has is where the form starts rather than a change the reader made.
 	$effect(() => {
 		if (open) {
-			form.set({ name: workspace.name });
+			seed(reset, { name: workspace.name });
 		}
 	});
 
@@ -96,6 +101,7 @@
 <FormSurface
 	{open}
 	{onOpenChange}
+	dirty={isTainted($tainted)}
 	{enhance}
 	weight="light"
 	title={$LL.common.actions.edit()}

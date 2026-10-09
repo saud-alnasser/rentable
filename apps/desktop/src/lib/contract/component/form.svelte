@@ -41,7 +41,7 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import SaveIcon from '@lucide/svelte/icons/save';
 	import { TRPCError } from '@trpc/server';
-	import { surfaceForm } from '$lib/form';
+	import { seed, surfaceForm } from '$lib/form';
 	import { defaults, setError, superForm } from 'sveltekit-superforms';
 	import { zod4 } from 'sveltekit-superforms/adapters';
 	import UnitField from '$lib/contract/assignment/component/unit-field.svelte';
@@ -208,6 +208,10 @@
 		}
 	);
 
+	// whether the reader has changed a field since the form opened, which the surface asks about
+	// before closing it.
+	const { tainted, isTainted } = rest;
+
 	let isTenantPickerOpen = $state(false);
 	let isStartDatePickerOpen = $state(false);
 	let isEndDatePickerOpen = $state(false);
@@ -285,7 +289,9 @@
 			interval: nextFormValue.interval,
 			cycles: nextFormValue.cycles
 		};
-		form.set(nextFormValue);
+		// what the form opens on, a renewal's term and a duplicate's copy included, is where it
+		// starts rather than a change the reader made.
+		seed(reset, nextFormValue);
 		contractStartDateValue = nextStartDateValue;
 		contractEndDateValue = nextEndDateValue;
 		endDateState = hydrateContractEndDateState({
@@ -363,6 +369,7 @@
 <FormSurface
 	{open}
 	{onOpenChange}
+	dirty={isTainted($tainted)}
 	{enhance}
 	weight="heavy"
 	title={isRenewing ? $LL.contracts.form.renewTitle() : $LL.common.nav.contracts()}
