@@ -5,9 +5,10 @@
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
 	import { tone } from '@rentable/design/tone.js';
-	import { onSubmit } from '$lib/form';
+	import { isDirty, onSubmit } from '$lib/form';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
+	import { untrack } from 'svelte';
 
 	/**
 	 * Deleting the organization, from the machine that holds the Turso account.
@@ -58,13 +59,21 @@
 
 	let password = $state('');
 
+	/** what the password held when the form opened, which a close is measured against. */
+	let opened = $state.raw<string>();
+
 	// nothing typed here outlives the surface: a password left in memory with nothing drawing it
 	// is the one value this must not keep.
 	$effect(() => {
 		if (!open) {
 			password = '';
+		} else {
+			opened = untrack(() => $state.snapshot(password));
 		}
 	});
+
+	// a typed password asks before the form closes (effort 861, requirement 10).
+	const dirty = $derived(isDirty(opened, $state.snapshot(password)));
 
 	const canSubmit = $derived(password.length > 0 && !isDeleting);
 
@@ -107,6 +116,7 @@
 <FormSurface
 	{open}
 	{onOpenChange}
+	{dirty}
 	{enhance}
 	weight="heavy"
 	title={$LL.organization.dashboard.deleteOrganization()}

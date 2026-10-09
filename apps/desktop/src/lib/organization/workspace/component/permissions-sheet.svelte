@@ -2,11 +2,12 @@
 	import FormSurface from '@rentable/design/block/form-surface.svelte';
 	import { Button } from '@rentable/design/primitive/button/index.js';
 	import * as Field from '@rentable/design/primitive/field/index.js';
-	import { onSubmit } from '$lib/form';
+	import { isDirty, onSubmit } from '$lib/form';
 	import { LL } from '$lib/i18n/i18n-svelte';
 	import type { WorkspaceTailoring as Tailoring } from '$lib/organization/access/access';
 	import WorkspaceTailoring from '$lib/organization/access/component/tailoring.svelte';
 	import SaveIcon from '@lucide/svelte/icons/save';
+	import { untrack } from 'svelte';
 
 	/**
 	 * What one member may do in one workspace, and nothing else (effort 846, ticket 51, at the
@@ -23,6 +24,10 @@
 	 * across the organization, each switch the reader may not turn says why, and a grant minted read
 	 * only lifts as it does there. Where the reader may change nothing (`refusal`) every switch is
 	 * dimmed with the reason once above them.
+	 *
+	 * **A switch moved asks before the sheet closes** (effort 861, requirement 10): what the
+	 * switches come to is measured against what they came to when it opened (`form/dirty.ts`), so
+	 * a switch turned and turned back is no change.
 	 *
 	 * **The writes are the caller's.** This holds what the switches come to and hands it up through
 	 * `onSave`; what the shell refused stands under the switches (`error`).
@@ -68,10 +73,18 @@
 
 	let value = $state<Tailoring>({ access: 'full-access', pinned: 0, granted: 0 });
 
+	/** what the switches came to when the sheet opened, which a close is measured against. */
+	let opened = $state.raw<Tailoring>();
+
 	// a fresh open starts on what the workspace holds for the member.
 	$effect(() => {
-		if (open) value = { ...held };
+		if (open) {
+			value = { ...held };
+			opened = untrack(() => $state.snapshot(value));
+		}
 	});
+
+	const dirty = $derived(isDirty(opened, $state.snapshot(value)));
 
 	const enhance = onSubmit(() => {
 		if (isSaving) return;
@@ -83,6 +96,7 @@
 <FormSurface
 	{open}
 	{onOpenChange}
+	{dirty}
 	{enhance}
 	weight="heavy"
 	title={$LL.organization.workspacePage.editPermissions()}

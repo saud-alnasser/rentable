@@ -11,6 +11,7 @@ use-when: "resuming this effort, or asking where it stands"
 [x] 01 labels-on-fills-read-in-both-appearances 3/3
 [x] 03 a-failed-list-read-says-it-failed 5/5
 [x] 09 a-contract-can-name-what-it-renews 4/4
+[x] 08 the-other-forms-report-their-changes 3/3
 
 ## Rounds
 
