@@ -70,10 +70,13 @@ the one a renewal continues, its _predecessor_, the renewal being its _successor
 writes it. So does the whole-table reconcile, at every pass on a machine that may write, for a
 contract naming none that starts the UTC day after another ends, on the same tenant and the same
 set of units, and is not terminated (requirement 6, `contract/renewal/recognize.ts`); a match
-ambiguous on either side links nothing, and a link once written is never moved. Creating,
-duplicating and editing a contract never write it, and their input schemas leave it out; undoing a
-deletion puts it back with the row (`contract.restoreMany`). A contract that names none renews
-nothing. Whether a contract is _renewed_ is never stored: it is read from its successors.
+ambiguous on either side links nothing, and the reconcile never moves a link once written.
+Creating, duplicating and editing a contract never write it, and their input schemas leave it out;
+undoing a deletion puts it back with the row (`contract.restoreMany`). A contract that names none
+renews nothing. Whether a contract is _renewed_ is never stored: it is read from its successors.
+When copies made apart heal into one, a successor naming a retired copy is moved to the contract
+that stayed, and two copies of a successor are compared with what they renew as the contract it
+went into (`tauri/src/database/heal.rs`, ticket 10).
 
 **Interval**:
 The billing period — monthly, quarterly, semi-annual, or annual. Fixed at creation.
