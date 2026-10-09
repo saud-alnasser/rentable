@@ -156,7 +156,18 @@ already differs by appearance. `packages/design/src/lib/tests/tokens.test.ts` re
 declared in one block and not the other, and any text or tone under WCAG AA (4.5:1) against the
 background, card or popover in either, and a disabled button's label under 3:1 on its muted fill
 or on those surfaces. A disabled button is dimmed by that colour pair, never by opacity. A tone
-darkened for light is the same token, saying the same thing. `apps/desktop/src/app.css` imports
+darkened for light is the same token, saying the same thing.
+
+**A label on a filled tone is drawn from a fill token, never from the tone's text token.** In
+dark no one value reads as text on the surfaces and also carries a white label, so primary,
+destructive and permitted each have a `-fill` beside the tone, and the label is the tone's
+`-foreground` (`bg-destructive-fill text-destructive-foreground`, never `text-white`). The tone
+itself stays for text and for washes (`bg-destructive/10`). The same test holds each
+`{ fill, label }` pair to 4.5:1 in both appearances, solid and at every alpha a hover paints the
+fill at over the background, card and popover, and it fails on a fill painted at an alpha its
+pairing table does not list and on `text-white` anywhere in the package. *Added by effort 861
+(requirement 9), when the dark destructive, primary and permitted fills were measured at 2.8, 3.2
+and 2.4 to 1 under their white labels.* `apps/desktop/src/app.css` imports
 it, registers the package with `@source`, and holds only what belongs to this window.
 
 **The token layer's own header states the consumer contract**, and it is three lines rather than

@@ -86,13 +86,13 @@ test('an act on no record says only what it does', () => {
 test('an act that takes something away is the destructive control, one that gives back is not', () => {
 	const { unmount } = open({});
 
-	expect(footer()[1]?.classList).toContain('bg-destructive');
+	expect(footer()[1]?.classList).toContain('bg-destructive-fill');
 	unmount();
 
 	open({ tone: 'neutral', title: 'استعادة العقد', confirmLabel: 'استعادة' });
 
-	expect(footer()[1]?.classList).not.toContain('bg-destructive');
-	expect(footer()[1]?.classList).toContain('bg-primary');
+	expect(footer()[1]?.classList).not.toContain('bg-destructive-fill');
+	expect(footer()[1]?.classList).toContain('bg-primary-fill');
 });
 
 test('the confirming control takes the act in flight while the handler runs', async () => {

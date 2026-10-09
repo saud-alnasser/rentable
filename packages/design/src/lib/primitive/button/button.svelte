@@ -18,8 +18,8 @@
 		base: "focus-visible:border-ring focus-visible:ring-ring/30 aria-invalid:ring-destructive/20 aria-invalid:border-destructive inline-flex shrink-0 cursor-pointer items-center justify-center rounded-2xl border border-transparent text-sm font-medium whitespace-nowrap transition-[background-color,border-color,color,box-shadow] duration-base outline-none focus-visible:ring-3 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:text-disabled-foreground aria-disabled:pointer-events-none aria-disabled:text-disabled-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
 		variants: {
 			variant: {
-				default: `bg-primary text-primary-foreground hover:bg-primary/90 ${disabledFill}`,
-				destructive: `bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/30 ${disabledFill}`,
+				default: `bg-primary-fill text-primary-foreground hover:bg-primary-fill/90 ${disabledFill}`,
+				destructive: `bg-destructive-fill text-destructive-foreground hover:bg-destructive-fill/90 focus-visible:ring-destructive/30 ${disabledFill}`,
 				outline: 'border-input bg-transparent text-foreground hover:bg-accent',
 				secondary: `bg-secondary text-secondary-foreground hover:bg-secondary/80 ${disabledFill}`,
 				ghost: 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',

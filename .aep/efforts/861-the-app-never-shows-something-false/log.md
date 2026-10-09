@@ -8,6 +8,7 @@ use-when: "resuming this effort, or asking where it stands"
 
 [x] 02 error-toasts-stay-and-mirror 4/4
 [x] 06 the-form-surface-asks-before-discarding 4/4
+[x] 01 labels-on-fills-read-in-both-appearances 3/3
 
 ## Rounds
 

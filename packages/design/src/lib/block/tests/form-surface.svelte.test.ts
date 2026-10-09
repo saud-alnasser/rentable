@@ -173,8 +173,8 @@ test("the question is the contract's, destructive, with keep editing focused fir
 		discardWords.discardChangesTitle
 	);
 	expect(question()?.textContent).toContain(discardWords.discardChangesDescription);
-	expect(discard()?.classList).toContain('bg-destructive');
-	expect(keepEditing()?.classList).not.toContain('bg-destructive');
+	expect(discard()?.classList).toContain('bg-destructive-fill');
+	expect(keepEditing()?.classList).not.toContain('bg-destructive-fill');
 	expect(firstTabbable(question())).toBe(keepEditing());
 	await waitFor(() => expect(question()?.contains(document.activeElement)).toBe(true));
 });
