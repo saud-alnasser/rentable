@@ -361,7 +361,9 @@ describe('undoing a record change', () => {
 	});
 
 	// a renewal is a creation, and is taken back like one — the successor arrives holding units,
-	// so the inverse empties it before deleting it, and putting it back restores those units.
+	// so the inverse empties it before deleting it, and putting it back restores those units. It is
+	// renewed at a new rent, and applied again it names the contract it renews and holds that rent
+	// under the same identity (effort 861, criterion 5).
 	it('takes back a renewal, and applies it again with the identity it had', async () => {
 		const tenant = await seedTenant(caller);
 		const contract = await run(useCreateContract, {
@@ -380,8 +382,12 @@ describe('undoing a record change', () => {
 		const successor = await run(useRenewContract, {
 			contractId: contract.id,
 			start: term.start.getTime(),
-			end: term.end.getTime()
+			end: term.end.getTime(),
+			cost: 1200
 		});
+
+		assert.equal(successor.renewsContractId, contract.id);
+		assert.equal(successor.cost, 1200);
 
 		await inverseStack.undo();
 		assert.equal(await caller.contract.get({ id: successor.id }), undefined);
@@ -398,6 +404,8 @@ describe('undoing a record change', () => {
 
 		await inverseStack.redo();
 		assert.deepEqual(await readContract(successor.id), successor);
+		assert.equal((await readContract(successor.id))?.renewsContractId, contract.id);
+		assert.equal((await readContract(successor.id))?.cost, 1200);
 		assert.deepEqual(
 			(await caller.contract.units.getMany({ contractId: successor.id })).map((held) => held.id),
 			[unit.id]
@@ -826,7 +834,8 @@ describe('taking back a creation whose record somebody else deleted', () => {
 		const successor = await run(useRenewContract, {
 			contractId: contract.id,
 			start: term.start.getTime(),
-			end: term.end.getTime()
+			end: term.end.getTime(),
+			cost: contract.cost
 		});
 
 		await caller.contract.delete({ id: successor.id });

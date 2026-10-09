@@ -51,7 +51,7 @@ export const contracts = {
 		periodMustMatchWholeCycles:
 			'يجب أن يبقى تاريخ النهاية ضمن {days} أيام قبل أو بعد تاريخ نهاية دورة {interval} المحسوب.',
 		renewDescription:
-			'المستأجر والوحدات والدورة والتكلفة تنتقل من العقد الجاري تجديده. حدّد مدة التجديد.',
+			'المستأجر والوحدات والدورة تنتقل من العقد الجاري تجديده. تبدأ التكلفة بالإيجار السابق ويمكن تغييرها. حدّد مدة التجديد.',
 		renewTitle: 'تجديد العقد',
 		searchAndSelectTenant: 'ابحث واختر مستأجر',
 		searchTenantPlaceholder: 'ابحث عن مستأجر بالاسم أو الهوية أو الهاتف...',
@@ -185,6 +185,7 @@ export const contracts = {
 
 export const refusals = {
 	contract: {
+		alreadyRenewed: 'جُدّد هذا العقد من قبل. افتح تجديده لتعديله.',
 		costNotPositive: 'يجب أن تكون تكلفة الدفعة أكبر من صفر.',
 		endBeforeStart: 'يجب أن يكون تاريخ النهاية بعد تاريخ البداية.',
 		govIdTaken: 'المعرف الحكومي مرتبط بعقد آخر.',

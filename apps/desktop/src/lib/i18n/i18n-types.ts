@@ -935,6 +935,10 @@ type RootTranslation = {
 			};
 			contract: {
 				/**
+				 * t​h​i​s​ ​c​o​n​t​r​a​c​t​ ​i​s​ ​a​l​r​e​a​d​y​ ​r​e​n​e​w​e​d​.​ ​o​p​e​n​ ​i​t​s​ ​r​e​n​e​w​a​l​ ​t​o​ ​c​h​a​n​g​e​ ​i​t​.
+				 */
+				alreadyRenewed: string;
+				/**
 				 * c​o​s​t​ ​p​e​r​ ​p​a​y​m​e​n​t​ ​m​u​s​t​ ​b​e​ ​g​r​e​a​t​e​r​ ​t​h​a​n​ ​z​e​r​o​.
 				 */
 				costNotPositive: string;
@@ -3024,7 +3028,7 @@ type RootTranslation = {
 			 */
 			periodMustMatchWholeCycles: RequiredParams<'days' | 'interval'>;
 			/**
-			 * t​h​e​ ​t​e​n​a​n​t​,​ ​u​n​i​t​s​,​ ​c​y​c​l​e​ ​a​n​d​ ​c​o​s​t​ ​c​a​r​r​y​ ​o​v​e​r​ ​f​r​o​m​ ​t​h​e​ ​c​o​n​t​r​a​c​t​ ​b​e​i​n​g​ ​r​e​n​e​w​e​d​.​ ​s​e​t​ ​t​h​e​ ​t​e​r​m​ ​t​h​e​ ​r​e​n​e​w​a​l​ ​r​u​n​s​ ​f​o​r​.
+			 * t​h​e​ ​t​e​n​a​n​t​,​ ​u​n​i​t​s​ ​a​n​d​ ​c​y​c​l​e​ ​c​a​r​r​y​ ​o​v​e​r​.​ ​t​h​e​ ​c​o​s​t​ ​s​t​a​r​t​s​ ​a​t​ ​t​h​e​ ​o​l​d​ ​r​e​n​t​ ​a​n​d​ ​m​a​y​ ​c​h​a​n​g​e​.​ ​s​e​t​ ​t​h​e​ ​r​e​n​e​w​a​l​'​s​ ​t​e​r​m​.
 			 */
 			renewDescription: string;
 			/**
@@ -6610,6 +6614,10 @@ export type TranslationFunctions = {
 			};
 			contract: {
 				/**
+				 * this contract is already renewed. open its renewal to change it.
+				 */
+				alreadyRenewed: () => LocalizedString;
+				/**
 				 * cost per payment must be greater than zero.
 				 */
 				costNotPositive: () => LocalizedString;
@@ -8607,7 +8615,7 @@ export type TranslationFunctions = {
 			 */
 			periodMustMatchWholeCycles: (arg: { days: unknown; interval: unknown }) => LocalizedString;
 			/**
-			 * the tenant, units, cycle and cost carry over from the contract being renewed. set the term the renewal runs for.
+			 * the tenant, units and cycle carry over. the cost starts at the old rent and may change. set the renewal's term.
 			 */
 			renewDescription: () => LocalizedString;
 			/**

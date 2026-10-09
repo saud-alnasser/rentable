@@ -24,7 +24,9 @@ export const useRenewContract = declareMutation({
 		// one delete, as a creation's undo is: it releases the successor's units in the same batch.
 		undo: () => api.contract.delete({ id: result.id }),
 		// renewed again with the identity it had, so a page still open on the successor is holding
-		// a reference to the record rather than to a copy of it.
+		// a reference to the record rather than to a copy of it. What the renewal was sent goes
+		// again, so the successor comes back at the rent it was given and naming the contract it
+		// renews (effort 861, criterion 5).
 		redo: () => api.contract.renew({ ...variables, id: result.id }),
 		// the undo deletes the successor and leaves the predecessor as it was, so only the successor
 		// has anything to record; the redo renews again, which both have.

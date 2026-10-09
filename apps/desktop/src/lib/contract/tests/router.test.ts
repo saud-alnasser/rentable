@@ -367,10 +367,11 @@ test('a deleted contract is undone holding its unit after another contract took 
 
 // --- The contract a renewal continues --------------------------------------------------
 //
-// Effort 861, requirement 5, ticket 09: a contract may name the contract it renews. Only a
-// renewal writes the link, so create, a duplicate and an edit never do, and undoing a deletion
-// puts it back with the row. Nothing writes it yet, so these tests write it into the row
-// themselves, as a renewal will.
+// Effort 861, requirement 5, ticket 09: a contract may name the contract it renews. A renewal
+// writes the link, and the reconcile writes it for a pair it recognises (requirement 6); create,
+// a duplicate and an edit never do, and undoing a deletion puts it back with the row. These tests
+// write it into the row themselves, as a renewal does (`renewal/tests/router.test.ts` holds the
+// renewal's own), so each is about the link alone.
 
 /** a caller over a database of its own, and a successor naming its predecessor as renewed. */
 async function withRenewal() {

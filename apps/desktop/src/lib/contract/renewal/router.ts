@@ -13,13 +13,14 @@ import { ensureUnitsAssignable } from '$lib/contract/assignment/assignment';
 import { reconcileTouched } from '$lib/contract/reconcile';
 import {
 	contractsHoldingGovId,
+	isContractRenewed,
 	selectAssignmentsForUnits,
 	selectContract
 } from '$lib/contract/row';
 import { serializeContract } from '$lib/contract/serialize';
 import { eq } from 'drizzle-orm';
 import z from 'zod';
-import { ensureRenewalFollowsPredecessor } from './renewal';
+import { ensureNotRenewed, ensureRenewalFollowsPredecessor } from './renewal';
 
 /**
  * RENEWING A CONTRACT
@@ -27,13 +28,21 @@ import { ensureRenewalFollowsPredecessor } from './renewal';
  * `contract.renew`, composed into the contract's router at its root.
  */
 
-// what a renewal is asked for: the contract being renewed, and the successor's term. Nothing
-// else is offered, because everything else the successor carries is the predecessor's — a
-// renewal that could restate the cost would be an edit wearing another name. The reference is
-// the successor's own, since a government id is unique to one contract.
+// what a renewal is asked for: the contract being renewed, the successor's term, and its rent.
+// The rent is asked for because a renewal at a new rent is the common case, and one entered as a
+// new contract by hand is one no link reaches (effort 861, requirement 8). The form opens on the
+// predecessor's, so a renewal nobody changed sends that. The tenant, the units and the interval
+// are not offered: they are the predecessor's, and changing them is an edit of the successor.
+// The reference is the successor's own, since a government id is unique to one contract.
 // The optional id is the same one `create` takes, and for the same reason (ADR 0026): redoing a
-// renewal that was undone puts the successor back with the identity it had.
-const ContractRenewSchema = ContractSchema.pick({ govId: true, start: true, end: true }).extend({
+// renewal that was undone puts the successor back with the identity it had, and since the redo
+// sends what the renewal was sent, with the same rent and the same link.
+const ContractRenewSchema = ContractSchema.pick({
+	govId: true,
+	start: true,
+	end: true,
+	cost: true
+}).extend({
 	contractId: z.string(),
 	id: z.string().optional()
 });
@@ -42,14 +51,16 @@ export default router({
 	/**
 	 * Renew a contract: create the successor its term continues, holding the same units.
 	 *
-	 * The successor carries the predecessor's tenant, units, interval and cost, and only its term
-	 * comes from the caller. The predecessor is read and never written — renewal continues a term
+	 * The successor carries the predecessor's tenant, units and interval; its term and its rent
+	 * come from the caller, and it names the predecessor as the contract it renews
+	 * (`renewsContractId`). The predecessor is read and never written: renewal continues a term
 	 * rather than widening one, because a contract's expected amount and its whole derived status
-	 * model are computed from its period ($lib/contract/renewal/renewal).
+	 * model are computed from its period ($lib/contract/renewal/renewal). A contract a standing
+	 * successor already renews is refused another.
 	 *
 	 * The successor is an ordinary contract and goes down through the ordinary rules: the same
 	 * period, cost and reference checks creation asserts, plus the assignment rule that refuses a
-	 * unit already held over the new term. A refusal creates nothing, including the assignments —
+	 * unit already held over the new term. A refusal creates nothing, including the assignments:
 	 * the contract and every assignment row are one batch, and the boundary runs a batch inside a
 	 * transaction (ADR 0027).
 	 */
@@ -62,11 +73,12 @@ export default router({
 			const { contractId, ...term } = input;
 			const predecessor = await selectContract(ctx.db, contractId);
 
+			ensureNotRenewed(await isContractRenewed(ctx.db, contractId));
+
 			const successor = {
 				...term,
 				tenantId: predecessor.tenantId,
-				interval: predecessor.interval,
-				cost: predecessor.cost
+				interval: predecessor.interval
 			};
 
 			ensureValidContractInput(successor);
@@ -111,6 +123,7 @@ export default router({
 				...successor,
 				id: successorId,
 				govId: normalizedGovId,
+				renewsContractId: contractId,
 				status: initialStatus,
 				paidAmount,
 				expectedAmount,

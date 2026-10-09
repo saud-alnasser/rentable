@@ -84,8 +84,8 @@
 		/**
 		 * the contract being renewed, where the form was opened to renew one.
 		 *
-		 * Only its identity is given, because everything the successor carries is read off the
-		 * predecessor rather than assembled by whoever opened the form — three surfaces offer
+		 * Only its identity is given, because what the successor starts from is read off the
+		 * predecessor rather than assembled by whoever opened the form: three surfaces offer
 		 * renewal and one of them holds nothing but the id.
 		 */
 		renewsContractId?: string;
@@ -157,14 +157,16 @@
 
 				try {
 					if (renewsContractId !== undefined) {
-						// the term and the reference are the whole of what a renewal is asked for;
-						// the tenant, the units, the cycle and the cost are the predecessor's and
-						// the procedure reads them off it.
+						// the term, the reference and the rent are what a renewal is asked for. The
+						// rent opened on the predecessor's, so one the reader left alone sends that
+						// (effort 861, requirement 8); the tenant, the units and the cycle are the
+						// predecessor's and the procedure reads them off it.
 						await RenewMutation.mutateAsync({
 							contractId: renewsContractId,
 							govId: payload.govId,
 							start: payload.start,
-							end: payload.end
+							end: payload.end,
+							cost: payload.cost
 						});
 					} else if (form.data.id) {
 						await UpdateMutation.mutateAsync({ id: form.data.id, ...payload });
@@ -407,12 +409,13 @@
 					<Form.Label>{$LL.common.labels.costPerPayment()}</Form.Label>
 					<!-- money: the riyal sign as the adornment and the decimal keypad, left to right in
 					     both locales as every amount is drawn ([[rules/interface]], *Field kinds*). -->
-					<InputGroup.Root class={insetControl} dir="ltr" data-disabled={isRenewing || undefined}>
+					<!-- a renewal may change the rent, so the field stays open when renewing, filled with
+					     the predecessor's (effort 861, requirement 8). -->
+					<InputGroup.Root class={insetControl} dir="ltr">
 						<InputGroup.Addon>{RIYAL}</InputGroup.Addon>
 						<InputGroup.Input
 							inputmode="decimal"
 							autocomplete="off"
-							disabled={isRenewing}
 							value={$form.cost}
 							oninput={(event) => {
 								$form.cost = event.currentTarget.value;
