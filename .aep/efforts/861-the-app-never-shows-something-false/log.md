@@ -16,6 +16,7 @@ use-when: "resuming this effort, or asking where it stands"
 ## Recorded
 
 - opened in the full lane, from main, the current branch, because rules/version-control sets stack: true
+- 03: after try again the failed block shows no sign of work while the read reruns; weigh at converge
 
 ## Needs you
 
