@@ -826,7 +826,8 @@ requirements 1 and 12.
   list shell draws and the settings directories' tray (`organization/component/directory-tray.svelte`)
   draws too. A set
   that may not be added to right now keeps its control, refused, with its reason on hover and focus
-  (*Guidance*, below); the workspaces tray puts its refusal in that place instead.
+  (*Guidance*, below); the workspaces tray puts its refusal in that place instead. A list whose
+  read failed draws no control until the read answers (*Failed*, under *Empty*).
 - **A set of more than one kind keeps its one plus, and the form chooses the kind.** A contract's
   payments take a payment and a refund: the plus and the key open the payment form, whose two tabs
   (a toggle group, each with its glyph pointing the way the money moves, `banknote-arrow-down` in,
@@ -919,7 +920,9 @@ the order and before the create, holding *export* and *import* and nothing else.
   list is showing, under its search and order, in the columns its rows show (`exportAs`), under a
   name that carries the list and what narrowed it. It announces where the file went and opens its
   folder; walking away from the save dialog writes nothing and says nothing. A list with no rows
-  cannot export, and its entry stays in the menu, refused, saying so (*Guidance*). With a selection, the selection bar's *export selection* writes only the
+  cannot export, and its entry stays in the menu, refused, saying so (*Guidance*). A list whose
+  read failed is not one with no rows, and draws no export entry at all (*Failed*, under
+  *Empty*). With a selection, the selection bar's *export selection* writes only the
   selection, under a name that says so.
 - **Import** reads a file into the directory it was opened from, through
   `transfer/component/directory-import-dialog.svelte`: choose the file, see what it would do, then
@@ -1415,14 +1418,18 @@ four situations it is, on `data-empty`, and the four never read the same:
   holds no data. A refetch that fails while an earlier answer is held keeps the answer, and a read
   that succeeded with no rows is *nothing here yet*. The list shell takes `failed` and `onRetry`
   from it, and while the read failed draws this state with no create, no *nothing yet* title and
-  no count; every list it draws passes both. The record surface takes the same two and draws this
-  state before *not found*; every record page and the workspace page pass both. A record that is
-  not there is a read that answered with nothing, not one that failed: the query client refuses an
-  answer of `undefined` as a failure, so a record is read through `error/read.ts`'s `readRecord`,
-  which answers `null` for it. The landing screen reads its failure from the same helper and
-  draws this state in place of its band and its sections (*Landing screen*). A failed read is
-  never drawn as *nothing here yet*, *no match* or *not found*. *Tickets 03, 04 and 05 of
-  [[efforts/861-the-app-never-shows-something-false/spec]], requirements 1 and 2.*
+  no count; every list it draws passes both. **Nor does its toolbar offer a create or an export
+  while the read has failed**: a create there would ask to fill a set that may not be empty, and
+  an export would be refused as *nothing to export*, a statement about a set nobody could read.
+  Both come back once the read answers; the transfer menu keeps its import throughout, since an
+  import says nothing about what the set holds (ticket 19). The record surface takes the same two
+  and draws this state before *not found*; every record page and the workspace page pass both. A
+  record that is not there is a read that answered with nothing, not one that failed: the query
+  client refuses an answer of `undefined` as a failure, so a record is read through
+  `error/read.ts`'s `readRecord`, which answers `null` for it. The landing screen reads its failure
+  from the same helper and draws this state in place of its band and its sections (*Landing
+  screen*). A failed read is never drawn as *nothing here yet*, *no match* or *not found*. *Tickets
+  03, 04 and 05 of [[efforts/861-the-app-never-shows-something-false/spec]], requirements 1 and 2.*
   **While the read runs again, the block stays and its *try again* says it is trying.** The query
   client puts a read that holds nothing back to pending while it runs, which would draw the
   loading block and take the control the reader pressed, and the focus, with the failed one. So
@@ -1636,7 +1643,8 @@ ticket 16 of effort 838*), and every surface draws it from the one declaration: 
 two menus (`record-card.svelte`), the record page's cluster (`record-action-control.svelte`), and
 the create control (`create/component/control.svelte`, given the set's reason by the list's
 `createUnavailable`), whose key answers with the same reason, and the create an empty list offers
-under its title. The command menu puts it beside the
+under its title. A list whose read failed draws no create at all, since it does not apply to a set
+nobody could read (*Failed*, under *Empty*). The command menu puts it beside the
 row, where its keys would be, because its rows are chosen from the search field and never take the
 focus a tooltip opens on; a record's act asked for there is refused by the host with the same line,
 and a member or a workspace the chosen act cannot run on now carries it on its own row.

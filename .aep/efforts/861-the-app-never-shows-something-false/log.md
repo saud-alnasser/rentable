@@ -23,6 +23,7 @@ use-when: "resuming this effort, or asking where it stands"
 [x] 17 the-interface-rule-names-how-a-form-reports-its-changes 2/2
 [x] 16 the-money-card-links-only-where-the-member-may-go 2/2
 [x] 15 try-again-shows-it-is-trying 3/3
+[x] 19 a-failed-list-offers-no-create-and-no-export 3/3
 
 ## Rounds
 
