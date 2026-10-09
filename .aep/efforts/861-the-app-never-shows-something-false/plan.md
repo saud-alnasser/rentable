@@ -271,3 +271,45 @@ the toaster's side in Arabic; the discard question on a real form.
   directory read slows measurably, an index on `renews_contract_id` is a later addition.
 - **Token values move how every primary button looks.** The fills change in dark mode by design;
   the human check above is where a wrong value is caught.
+
+# Staging
+
+Requirements 11 and 12, added 2026-10-09 after the close.
+
+**The cut is the shell.** Everything past `@tauri-apps/api/core`'s `invoke` is what reaches real
+data, so staging runs the frontend in a Chromium app window on the Vite dev server with no Tauri
+process at all, and answers `invoke` itself. Nothing in product code knows about it.
+
+- **Mode.** `vite dev --mode stage` on its own port. A Vite plugin, applied only in that mode,
+  redirects the resolved `src/lib/app/host.ts` to `src/lib/prototype/stage/host.ts`; every other
+  build resolves it as before, so no staging module enters a production bundle.
+- **Boot.** The stage host module is the first thing `$lib/app/caller` imports, so a top-level
+  `await` there runs before any procedure: it installs `mockIPC` and `mockWindows` from
+  `@tauri-apps/api/mocks`, opens an in-memory sql.js database, runs the migrations from
+  `@rentable/workspace-migrations` (read with `import.meta.glob(..., { query: '?raw' })`), seeds
+  the mock records, applies the state, and mounts the bar on `document.body` outside the app.
+- **Database.** `plugin:database|execute_single_sql` and `execute_batch_sql` are answered from
+  sql.js in the Rust proxy's row shape (`columns`, `rows`, blobs base64), batches in one
+  transaction, as `platform/database/memory.ts` does for tests. Any other command rejects naming
+  itself.
+- **Host.** `fakeHost()` from `app/tests/host.ts`, whose ports refuse by name and are typed
+  against `Host`, with the members boot needs answered: startup, settings (locale and
+  appearance from the stage's selection), the organization session and its one workspace with
+  the state's permissions and grant, sync state, update check, and no-op listeners.
+- **Records.** A deterministic generator (faker, fixed seed, `ar` and `en`) writes a small
+  workspace through drizzle: complexes, units, tenants, contracts across every status and a
+  renewal pair, and payments paid, partial and overdue.
+- **State.** `{ id, label, look, route, permissions?, access?, records?(db), host?(host),
+  steps?(screen) }` in `src/lib/prototype/stage/state/<effort>.ts`, collected by
+  `import.meta.glob`. The selection, language and appearance sit in `localStorage`; changing any
+  of them reloads the window, so each state is built from nothing. `steps` act on the real DOM
+  (find by role or text, click, type, press) after the route draws.
+- **Bar.** Like `prototype/switcher.svelte`, dev-only and deliberately unlike the product: prev,
+  `n/N` and label, next, the look-at line, and EN/AR and light/dark toggles.
+- **Launch.** `pnpm stage` from the desktop package (and the root alias) starts the dev server in
+  stage mode and opens Edge with `--app`, a throwaway profile in the OS temp dir, and the app's
+  1124 x 824 window size.
+
+**Per effort.** The kept part is the machinery and an example state file that tours the main
+screens. An effort's own states are untracked files in a `_stage` worktree at the effort's tip
+([[rules/module-layout]], *Prototype code*), removed at the hand-off.
