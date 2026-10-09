@@ -141,7 +141,7 @@ Start at [[protocol]].
 | 851-the-way-out-the-password-fields-and-the-organizations-name | implemented | [[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/spec]] | 0 | 0 | 20 |
 | 854-bugs-and-edge-cases-across-the-app | implemented | [[efforts/854-bugs-and-edge-cases-across-the-app/spec]] | 3 | 0 | 41 |
 | 857-updating-never-locks-a-member-out | implemented | [[efforts/857-updating-never-locks-a-member-out/spec]] | 2 | 2 | 41 |
-| 861-the-app-never-shows-something-false | accepted | [[efforts/861-the-app-never-shows-something-false/spec]] | 0 | 0 | 24 |
+| 861-the-app-never-shows-something-false | implemented | [[efforts/861-the-app-never-shows-something-false/spec]] | 0 | 0 | 24 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
