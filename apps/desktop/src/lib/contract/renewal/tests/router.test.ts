@@ -435,7 +435,7 @@ test('a renewal refused for its term reads in Arabic', async () => {
 
 	assert.equal(
 		await refusalReadIn(() => api.contract.renew({ contractId: contract.id, ...term })),
-		'يجب أن يبدأ التجديد بعد انتهاء العقد الذي يجدده.'
+		'بهذه التواريخ يبدأ التجديد قبل أن ينتهي العقد الذي يجدده.'
 	);
 	assert.equal(
 		await refusalReadIn(() => api.contract.renew({ contractId: unusedId(), ...term })),

@@ -23,10 +23,13 @@ import {
 import { reconcile, reconcileTouched } from '$lib/contract/reconcile';
 import {
 	contractsHoldingGovId,
+	isContractRenewed,
 	renewedColumn,
 	selectAssignmentsForUnits,
-	selectPaymentsForContract
+	selectPaymentsForContract,
+	selectRenewalNeighbours
 } from '$lib/contract/row';
+import { ensureNotRenewed, ensureRenewalFollowsPredecessor } from '$lib/contract/renewal/renewal';
 import { serializeContract, withRank } from '$lib/contract/serialize';
 import { referencesOf } from '$lib/contract/transfer';
 import { toUnitReference, UNIT_LIST_SEPARATOR } from '$lib/transfer';
@@ -227,6 +230,21 @@ export default router({
 			);
 
 			if (hasDateRangeChanged) {
+				// the renewal's own rule, held from both sides of the link: an edit may not start a
+				// renewal on or before the end of what it renews, nor end a renewed contract on or after
+				// a standing successor starts. Stated apart from the overlap below for the reason
+				// renewing states it: a pair holding no units would pass that, and the link would be
+				// one an export and import cannot carry (effort 861, requirement 5, ticket 23).
+				const { predecessor, successors } = await selectRenewalNeighbours(ctx.db, existingContract);
+
+				if (predecessor) {
+					ensureRenewalFollowsPredecessor(predecessor.end, input.start);
+				}
+
+				for (const successor of successors) {
+					ensureRenewalFollowsPredecessor(input.end, successor.start);
+				}
+
 				const assignedUnits = await ctx.db
 					.select({ unitId: s.contractUnit.unitId })
 					.from(s.contractUnit)
@@ -331,6 +349,18 @@ export default router({
 			}
 
 			ensureContractUnterminable(existingContract.status);
+
+			// restoring a renewal makes it stand again, so it is held to the rules renewing is: it
+			// starts after what it renews ends, and that contract is not renewed by another meanwhile
+			// (effort 861, requirement 5, ticket 23).
+			if (existingContract.renewsContractId !== null) {
+				const { predecessor } = await selectRenewalNeighbours(ctx.db, existingContract);
+
+				if (predecessor) {
+					ensureRenewalFollowsPredecessor(predecessor.end, existingContract.start);
+					ensureNotRenewed(await isContractRenewed(ctx.db, existingContract.renewsContractId));
+				}
+			}
 
 			// restoring makes the contract live again, so a unit another contract took while it was
 			// terminated refuses it, named the way the reader knows a unit.

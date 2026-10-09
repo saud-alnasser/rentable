@@ -28,6 +28,7 @@ use-when: "resuming this effort, or asking where it stands"
 [x] 18 copies-pair-when-one-alone-names-what-it-renews 3/3
 [x] 24 a-toast-reads-on-its-wash-in-both-appearances 2/2
 [x] 21 a-failed-members-read-on-the-workspace-page-says-it-failed 2/2
+[x] 23 an-edit-keeps-a-renewal-after-what-it-renews 3/3
 
 ## Rounds
 

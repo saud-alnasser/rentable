@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 ---
 
 # fix(desktop): an edit keeps a renewal after the contract it renews
@@ -14,9 +14,9 @@ An edit cannot make a renewal start on or before the end of the contract it rene
 
 Traces requirement 5 and criterion 5 (export and import).
 
-- [ ] `contract.update` refuses, with `contract.renewalBeforeEnd`, an edit that moves a successor's start on or before its predecessor's end, and one that moves a predecessor's end on or after a standing successor's start; an edit that keeps the order goes through; router tests cover each.
-- [ ] The rule is `ensureRenewalFollowsPredecessor` from the renewal module, not restated.
-- [ ] The refusal is worded for an edit in both locales if the renewal's wording does not read for one.
+- [x] `contract.update` refuses, with `contract.renewalBeforeEnd`, an edit that moves a successor's start on or before its predecessor's end, and one that moves a predecessor's end on or after a standing successor's start; an edit that keeps the order goes through; router tests cover each. Verified: `node --test` over `contract/tests/router.test.ts`, `contract/renewal/tests` and `api/tests/undo.test.ts`: 158 pass, 0 fail; refused for a successor moved onto and before its predecessor's end and a predecessor moved onto and past its successor's start, allowed for edits keeping the order and past a deleted, terminated or retired renewal; restoring a terminated renewal is held to the same order and to `contract.alreadyRenewed`.
+- [x] The rule is `ensureRenewalFollowsPredecessor` from the renewal module, not restated. Verified: `update` and `unterminate` import `ensureRenewalFollowsPredecessor` (and `ensureNotRenewed`) from `contract/renewal/renewal.ts`; no date comparison is written in the router.
+- [x] The refusal is worded for an edit in both locales if the renewal's wording does not read for one. Verified: reworded in both locales to read for an edit from either side and for renewing; a router test reads it in Arabic and English for both moves.
 
 ## Relevant areas
 

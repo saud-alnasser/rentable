@@ -84,6 +84,34 @@ export async function isContractRenewed(db: Database, contractId: string) {
 }
 
 /**
+ * The dates an edit of `contract`'s term has to keep in order (effort 861, ticket 23): the end of
+ * the contract it renews, and the start of each standing successor renewing it. Standing is what
+ * `renewedColumn` reads: not terminated, and not retired by a merge, which the statement rewrite
+ * every client applies keeps out of both reads (`platform/database/retired`), the predecessor's
+ * too; a deleted one is not there to find. The predecessor is read whatever its status, since the
+ * link stays on the successor either way.
+ */
+export async function selectRenewalNeighbours(
+	db: Database,
+	contract: { id: string; renewsContractId: string | null }
+) {
+	const predecessor =
+		contract.renewsContractId === null
+			? undefined
+			: await db
+					.select({ end: s.contract.end })
+					.from(s.contract)
+					.where(eq(s.contract.id, contract.renewsContractId))
+					.get();
+	const successors = await db
+		.select({ start: s.contract.start })
+		.from(s.contract)
+		.where(and(eq(s.contract.renewsContractId, contract.id), ne(s.contract.status, 'terminated')));
+
+	return { predecessor, successors };
+}
+
+/**
  * The contracts holding any of `govIds`, leaving out the contract `except` names, which is the one
  * being edited.
  *

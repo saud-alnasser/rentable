@@ -1004,7 +1004,7 @@ type RootTranslation = {
 				 */
 				periodOverlapsUnits: string;
 				/**
-				 * a​ ​r​e​n​e​w​a​l​ ​m​u​s​t​ ​s​t​a​r​t​ ​a​f​t​e​r​ ​t​h​e​ ​c​o​n​t​r​a​c​t​ ​i​t​ ​r​e​n​e​w​s​ ​e​n​d​s​.
+				 * w​i​t​h​ ​t​h​e​s​e​ ​d​a​t​e​s​,​ ​a​ ​r​e​n​e​w​a​l​ ​w​o​u​l​d​ ​s​t​a​r​t​ ​b​e​f​o​r​e​ ​t​h​e​ ​c​o​n​t​r​a​c​t​ ​i​t​ ​r​e​n​e​w​s​ ​h​a​s​ ​e​n​d​e​d​.
 				 */
 				renewalBeforeEnd: string;
 				/**
@@ -6682,7 +6682,7 @@ export type TranslationFunctions = {
 				 */
 				periodOverlapsUnits: () => LocalizedString;
 				/**
-				 * a renewal must start after the contract it renews ends.
+				 * with these dates, a renewal would start before the contract it renews has ended.
 				 */
 				renewalBeforeEnd: () => LocalizedString;
 				/**

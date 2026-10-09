@@ -19,6 +19,7 @@ import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import * as s from '$lib/platform/database/schema.ts';
 import {
 	type ContractInput,
+	type CreatedContract,
 	RENEWAL_WITHDRAWALS,
 	seedComplexWithUnit,
 	seedContract,
@@ -510,6 +511,149 @@ for (const how of RENEWAL_WITHDRAWALS) {
 		assert.equal(read?.rank, 'ending-soon');
 	});
 }
+
+// --- An edit keeps a renewal after what it renews ----------------------------------------
+//
+// Effort 861, requirement 5, ticket 23: an edit is held to the rule a renewal is, from either
+// side. A renewal's start may not move on or before the end of the contract it renews, nor that
+// contract's end on or after the start of a renewal that still stands, or the link would be one an
+// export and import cannot carry. The pair holds no units, so no overlap rule stands in for it.
+// The renewed contract here ends next month, and its renewal starts the day after.
+
+/** what the contract form sends for `contract` with its dates moved to `start` and `end`. */
+function withDates(contract: CreatedContract, start: number, end: number) {
+	return {
+		id: contract.id,
+		govId: contract.govId,
+		tenantId: contract.tenantId,
+		interval: contract.interval,
+		cost: contract.cost,
+		start,
+		end
+	};
+}
+
+test('an edit is refused a renewal start on or before the end of the contract it renews', async () => {
+	const { api, successor } = await seedRenewedEndingSoon();
+	const before = await api.contract.get({ id: successor.id });
+
+	// on the day the renewed contract ends, and a month before it.
+	for (const [start, end] of [
+		[monthsFromNow(1), monthsFromNow(13)],
+		[monthsFromNow(0), monthsFromNow(12)]
+	]) {
+		await assert.rejects(
+			() => api.contract.update(withDates(successor, start, end)),
+			refusedWith('contract.renewalBeforeEnd')
+		);
+	}
+
+	assert.deepEqual(await api.contract.get({ id: successor.id }), before);
+});
+
+test('an edit is refused an end on or after the start of a renewal that stands', async () => {
+	const { api, contract, successor } = await seedRenewedEndingSoon();
+	const before = await api.contract.get({ id: contract.id });
+
+	// on the day the renewal starts, and a month after it.
+	for (const [start, end] of [
+		[monthsFromNow(-11, 1), monthsFromNow(1, 1)],
+		[monthsFromNow(-10), monthsFromNow(2)]
+	]) {
+		await assert.rejects(
+			() => api.contract.update(withDates(contract, start, end)),
+			refusedWith('contract.renewalBeforeEnd')
+		);
+	}
+
+	assert.deepEqual(await api.contract.get({ id: contract.id }), before);
+	assert.equal(successor.renewsContractId, contract.id);
+});
+
+test('an edit that keeps a renewal after what it renews goes through, from either side', async () => {
+	const { api, contract, successor } = await seedRenewedEndingSoon();
+
+	const later = await api.contract.update(
+		withDates(successor, monthsFromNow(2), monthsFromNow(14))
+	);
+	const earlier = await api.contract.update(
+		withDates(contract, monthsFromNow(-12), monthsFromNow(0))
+	);
+
+	assert.equal(later.start, monthsFromNow(2));
+	assert.equal(earlier.end, monthsFromNow(0));
+	assert.equal((await api.contract.get({ id: contract.id }))?.renewed, true);
+});
+
+for (const how of RENEWAL_WITHDRAWALS) {
+	test(`a contract whose renewal was ${how} may be moved past where the renewal started`, async () => {
+		const seeded = await seedRenewedEndingSoon();
+		const { api, contract, successor } = seeded;
+
+		await withdrawRenewal(seeded, successor.id, how);
+
+		const moved = await api.contract.update(
+			withDates(contract, monthsFromNow(-10), monthsFromNow(2))
+		);
+
+		assert.equal(moved.end, monthsFromNow(2));
+	});
+}
+
+// restoring a terminated renewal makes it stand again, so it is held to the same order, and to the
+// rule that a contract is renewed once: what changed while it was terminated may leave it unable to.
+test('restoring a renewal is refused once what it renews has moved past where it starts', async () => {
+	const seeded = await seedRenewedEndingSoon();
+	const { api, contract, successor } = seeded;
+
+	await withdrawRenewal(seeded, successor.id, 'terminated');
+	await api.contract.update(withDates(contract, monthsFromNow(-10), monthsFromNow(2)));
+
+	await assert.rejects(
+		() => api.contract.unterminate({ id: successor.id }),
+		refusedWith('contract.renewalBeforeEnd')
+	);
+	assert.equal((await api.contract.get({ id: successor.id }))?.status, 'terminated');
+});
+
+test('restoring a renewal is refused once another renewal continues the same contract', async () => {
+	const seeded = await seedRenewedEndingSoon();
+	const { api, contract, successor } = seeded;
+
+	await withdrawRenewal(seeded, successor.id, 'terminated');
+	await api.contract.renew({
+		contractId: contract.id,
+		govId: 'RENEWAL-2',
+		start: successor.start,
+		end: successor.end,
+		cost: contract.cost
+	});
+
+	await assert.rejects(
+		() => api.contract.unterminate({ id: successor.id }),
+		refusedWith('contract.alreadyRenewed')
+	);
+	assert.equal((await api.contract.get({ id: successor.id }))?.status, 'terminated');
+});
+
+test('an edit refused for the order of a renewal reads in both languages', async () => {
+	const { api, contract, successor } = await seedRenewedEndingSoon();
+	const moveSuccessor = () =>
+		api.contract.update(withDates(successor, monthsFromNow(1), monthsFromNow(13)));
+	const moveContract = () =>
+		api.contract.update(withDates(contract, monthsFromNow(-10), monthsFromNow(2)));
+
+	for (const move of [moveSuccessor, moveContract]) {
+		assert.equal(
+			await refusalReadIn(move, 'ar'),
+			'بهذه التواريخ يبدأ التجديد قبل أن ينتهي العقد الذي يجدده.'
+		);
+		assert.equal(
+			await refusalReadIn(move, 'en'),
+			'with these dates, a renewal would start before the contract it renews has ended.'
+		);
+	}
+});
 
 // --- The renewals the reconcile recognises ---------------------------------------------
 //

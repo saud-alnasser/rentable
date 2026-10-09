@@ -72,7 +72,11 @@ contract naming none that starts the UTC day after another ends, on the same ten
 set of units, and is not terminated (requirement 6, `contract/renewal/recognize.ts`); a match
 ambiguous on either side links nothing, and the reconcile never moves a link once written.
 Creating, duplicating and editing a contract never write it, and their input schemas leave it out;
-undoing a deletion puts it back with the row (`contract.restoreMany`). A workspace file carries it
+undoing a deletion puts it back with the row (`contract.restoreMany`). An edit of either side keeps
+the order renewing keeps: a successor may not start on or before its predecessor ends, nor a
+predecessor end on or after a standing successor starts (`contract.renewalBeforeEnd`, ticket 23),
+and restoring a terminated renewal is held to that order and to its predecessor not being renewed
+by another meanwhile, so a link held is one an export and import carries. A workspace file carries it
 in the contracts sheet's `Renews` column, by the predecessor's reference; an import finds it once
 every row is named, and links it only where the renewal could have been made: the predecessor ends
 before the successor starts, and no standing successor, held or in a row above, renews it already
