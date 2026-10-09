@@ -40,3 +40,4 @@ converge 1: gap, tickets 15 16 17
 - ticket 01: judge the new primary, destructive and permitted fills in the running app, light and dark (buttons, badges, a selected day, a checked box, the rail mark)
 - ticket 06: on real forms, the discard question opens with keep editing focused and its focus ring showing
 - ticket 07: in the running app, the contract form (edit, renew, duplicate), the tenant form and the payment form close at once when untouched and ask after a field changes
+- converge: a member who may view none of contracts, payments or units now sees an empty landing screen; say what it should show, if anything
