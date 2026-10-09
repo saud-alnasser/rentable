@@ -53,3 +53,4 @@ review 2: 8 findings: 3 fixed (repository context on the heal, the act rule on c
 - converge: a member who may view none of contracts, payments or units now sees an empty landing screen; say what it should show, if anything
 - changelog: the renewal features (renew may change the rent, an export carries the link, earlier renewals recognised) are patch; say if they should be minor
 - 0009 is declared readers_need true, as the plan chose: a member with a read-only grant cannot open a version-9 workspace on this build until someone with full access opens it on the new version; accept, or make the step not need readers
+- ticket 24: look at the four toast types (success, error, warning, info) in light and dark; their wash is now 8% of the tone
