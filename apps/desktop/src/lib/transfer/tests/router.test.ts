@@ -9,6 +9,7 @@ import type { Database } from '$lib/api/context.ts';
 import { bindSyncRequest, caller, context } from '$lib/api/trpc.ts';
 import { fakeHost } from '$lib/app/tests/host.ts';
 import { appRouter } from '$lib/app/router.ts';
+import { referencesOf } from '$lib/contract/transfer.ts';
 import {
 	type Api,
 	createApi,
@@ -28,6 +29,7 @@ import {
 import { createMemoryDatabase } from '$lib/platform/database/memory.ts';
 import * as s from '$lib/platform/database/schema';
 import { fakeSyncState, fakeWorkspace } from '$lib/sync/tests/testing.ts';
+import type { ImportTable } from '$lib/transfer/host.ts';
 import { toTables } from './file.ts';
 import {
 	emptyHeld,
@@ -1167,4 +1169,249 @@ test('a reference two contracts answer to is refused, never resolved to either',
 		contracts.map((contract) => contract.paidAmount),
 		[0, 0]
 	);
+});
+
+// --- The renewal link -------------------------------------------------------------------
+//
+// Effort 861, requirement 5 and criterion 5, ticket 14: the contracts sheet carries the contract
+// each one renews, by its reference, and an import resolves it softly at write. Recognition runs
+// once at the import's end (requirement 6), so a renewal the file did not link is linked too.
+
+const DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * A workspace holding a chain of renewals the rule does not recognise, so only the link itself can
+ * carry them: each contract holds another unit than the one it renews. The middle one has no
+ * government number, so the file names it by its tenant and first day.
+ */
+async function seedRenewals() {
+	const db = createMemoryDatabase();
+	const api = await createApi({ db });
+	const tenant = await api.tenant.create({
+		name: 'Abby Kris',
+		nationalId: '1234567890',
+		phone: '+966512345678'
+	});
+	const complex = await api.complex.create({
+		name: 'Al Nakheel',
+		location: 'Riyadh',
+		units: [{ name: 'A1' }, { name: 'A2' }]
+	});
+	const units = await api.complex.units.getMany({ complexId: complex.id });
+	const unitId = (name: string) => units.find((unit) => unit.name === name)!.id;
+	const term = { tenantId: tenant.id, interval: '12m' as const, cost: 12_000 };
+
+	const first = await api.contract.create({
+		...term,
+		govId: 'GOV-1',
+		start: monthsFromNow(-25),
+		end: monthsFromNow(-13),
+		unitIds: [unitId('A1')]
+	});
+	const second = await api.contract.create({
+		...term,
+		start: monthsFromNow(-13, 1),
+		end: monthsFromNow(-1),
+		unitIds: [unitId('A2')]
+	});
+	const third = await api.contract.create({
+		...term,
+		govId: 'GOV-3',
+		start: monthsFromNow(-1, 1),
+		end: monthsFromNow(11),
+		unitIds: [unitId('A1')]
+	});
+
+	for (const [successor, predecessor] of [
+		[second, first],
+		[third, second]
+	]) {
+		await db
+			.update(s.contract)
+			.set({ renewsContractId: predecessor.id })
+			.where(eq(s.contract.id, successor.id));
+	}
+
+	return { api, db };
+}
+
+/** the contracts sheet of a file, as a reader hands it back. */
+function contractsTable(tables: ImportTable[]) {
+	const table = tables.find((each) => each.name === 'Contracts');
+
+	assert.ok(table, 'the file has no contracts sheet');
+
+	return table;
+}
+
+/** the contract each contract renews, both by the reference a file calls them by. */
+async function renewalsOf(db: Database) {
+	const referenceOf = await referencesOf(db);
+	const contracts = await db
+		.select({ id: s.contract.id, renews: s.contract.renewsContractId })
+		.from(s.contract);
+
+	return Object.fromEntries(
+		contracts.map(({ id, renews }) => [
+			referenceOf.get(id),
+			renews === null ? null : referenceOf.get(renews)
+		])
+	);
+}
+
+test('the contracts sheet names the contract each one renews by its reference', async () => {
+	const { api } = await seedRenewals();
+	const written = await api.transfer.get();
+	const [first, second, third] = written.contracts;
+
+	assert.equal(first.renews, undefined);
+	assert.equal(second.renews, first.reference);
+	assert.equal(third.renews, second.reference);
+
+	const table = contractsTable(toTables(written));
+	const column = table.headers.indexOf('Renews');
+
+	assert.ok(column >= 0, 'the contracts sheet has no Renews column');
+	assert.deepEqual(
+		table.rows.map((row) => row[column]),
+		['', first.reference, second.reference]
+	);
+});
+
+test('a workspace exported and imported keeps every renewal link, whatever order its rows are in', async () => {
+	const { api: source, db: sourceDb } = await seedRenewals();
+	const written = await source.transfer.get();
+	const tables = toTables(written);
+
+	// each successor before the contract it renews.
+	contractsTable(tables).rows.reverse();
+
+	const plan = planWorkspaceImport(tables, NOW, emptyHeld());
+
+	assert.ok(isWorkspaceImportable(plan), 'the file it wrote is a file it can read');
+	assert.deepEqual(plan.unresolved, []);
+
+	const db = createMemoryDatabase();
+	const target = await createApi({ db });
+
+	await target.transfer.importWhole(toInput(plan.transfer));
+
+	assert.deepEqual(await renewalsOf(db), await renewalsOf(sourceDb));
+	assert.deepEqual(await target.transfer.get(), written);
+});
+
+test('a contract a file renews may be one the workspace already holds', async () => {
+	const { api: source, db: sourceDb } = await seedRenewals();
+	const written = await source.transfer.get();
+	const db = createMemoryDatabase();
+	const target = await createApi({ db });
+
+	// the first contract and everything it stands on, already here.
+	await target.transfer.importWhole(
+		toInput({ ...written, contracts: written.contracts.slice(0, 1), payments: [] })
+	);
+
+	const plan = planWorkspaceImport(toTables(written), NOW, await target.transfer.held());
+
+	assert.ok(isWorkspaceImportable(plan));
+	assert.deepEqual(
+		plan.transfer.contracts.map((contract) => contract.reference),
+		written.contracts.slice(1).map((contract) => contract.reference)
+	);
+
+	await target.transfer.importWhole(toInput(plan.transfer));
+
+	assert.deepEqual(await renewalsOf(db), await renewalsOf(sourceDb));
+});
+
+test('a renewal naming a contract nothing answers to imports without a link, refusing nothing', async () => {
+	const { api: source } = await seedRenewals();
+	const tables = toTables(await source.transfer.get());
+	const contracts = contractsTable(tables);
+
+	contracts.rows[1][contracts.headers.indexOf('Renews')] = 'GOV-404';
+
+	const plan = planWorkspaceImport(tables, NOW, emptyHeld());
+
+	assert.ok(isWorkspaceImportable(plan));
+	assert.deepEqual(plan.unresolved, []);
+	assert.deepEqual(
+		plan.sheets.find((sheet) => sheet.concept === 'contracts')?.rejected,
+		[],
+		'a row was turned away over the contract it renews'
+	);
+
+	const db = createMemoryDatabase();
+	const target = await createApi({ db });
+	const imported = await target.transfer.importWhole(toInput(plan.transfer));
+	const [first, second, third] = contracts.rows.map((row) => row[0]);
+
+	assert.equal(imported.contracts, 3);
+	assert.deepEqual(await renewalsOf(db), { [first]: null, [second]: null, [third]: second });
+});
+
+test('a file without the Renews column imports as it did before, linking nothing', async () => {
+	const { api: source } = await seedRenewals();
+	const tables = toTables(await source.transfer.get());
+	const contracts = contractsTable(tables);
+	const column = contracts.headers.indexOf('Renews');
+
+	contracts.headers.splice(column, 1);
+	contracts.rows.forEach((row) => row.splice(column, 1));
+
+	const plan = planWorkspaceImport(tables, NOW, emptyHeld());
+
+	assert.ok(isWorkspaceImportable(plan));
+	assert.deepEqual(plan.sheets.find((sheet) => sheet.concept === 'contracts')?.missingColumns, []);
+
+	const db = createMemoryDatabase();
+	const target = await createApi({ db });
+	const imported = await target.transfer.importWhole(toInput(plan.transfer));
+
+	assert.equal(imported.contracts, 3);
+	assert.deepEqual(Object.values(await renewalsOf(db)), [null, null, null]);
+});
+
+test('an import links a renewal the file did not, where the rule recognises it', async () => {
+	const source = await createApi();
+	const tenant = await source.tenant.create({
+		name: 'Abby Kris',
+		nationalId: '1234567890',
+		phone: '+966512345678'
+	});
+	const complex = await source.complex.create({
+		name: 'Al Nakheel',
+		location: 'Riyadh',
+		units: [{ name: 'A1' }]
+	});
+	const [unit] = await source.complex.units.getMany({ complexId: complex.id });
+	const term = { tenantId: tenant.id, interval: '12m' as const, cost: 12_000, unitIds: [unit.id] };
+	const predecessor = await source.contract.create({
+		...term,
+		govId: 'GOV-1',
+		start: monthsFromNow(-13),
+		end: monthsFromNow(-1)
+	});
+
+	await source.contract.create({
+		...term,
+		govId: 'GOV-2',
+		start: predecessor.end + DAY,
+		end: monthsFromNow(11)
+	});
+
+	const written = await source.transfer.get();
+
+	// nothing linked it where it was made, so the file carries no link either.
+	assert.deepEqual(
+		written.contracts.map((contract) => contract.renews),
+		[undefined, undefined]
+	);
+
+	const db = createMemoryDatabase();
+	const target = await createApi({ db });
+
+	await target.transfer.importWhole(toInput(planWorkspaceImport(toTables(written), NOW).transfer));
+
+	assert.deepEqual(await renewalsOf(db), { 'GOV-1': null, 'GOV-2': 'GOV-1' });
 });

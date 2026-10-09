@@ -18,6 +18,7 @@ use-when: "resuming this effort, or asking where it stands"
 [x] 07 the-schema-forms-report-their-changes 3/3
 [x] 05 the-landing-screen-states-no-figure-it-does-not-know 2/2
 [x] 10 merging-copies-keeps-the-renewal-link 2/2
+[x] 14 an-export-carries-the-renewal-link 3/3
 
 ## Rounds
 

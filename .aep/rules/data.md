@@ -203,6 +203,16 @@ TypeScript and unchanged.
 *Why: time moves derived state only at UTC day boundaries and a mutation can only invalidate
 what it touched, so a full pass per save costs 40 ms and 2.6 MB to establish nothing.*
 
+**One whole-table step runs on a mutation: an import's renewal recognition.** The whole-table pass
+also links the renewals it recognises, a contract naming none that continues another on the
+same tenant and units ([[efforts/861-the-app-never-shows-something-false/spec]], requirement
+6). An import, which has a touch-set, runs that recognition alone, once over the whole table after
+its write lands, and recomputes no derived column there.
+
+*Why: a renewal in the file may continue a contract the workspace already holds, which no
+touch-set names, and the link is a recognised fact rather than derived state, so it is not
+recomputed on every save.*
+
 **Confirmed unchanged 2026-08-18, and still unchanged 2026-08-20**
 ([[efforts/a-workspace-follows-its-user/spec]], decision 09). The rule is written against the
 *trigger* rather than the mechanism, so the replica's pull is the same trigger and needs no new

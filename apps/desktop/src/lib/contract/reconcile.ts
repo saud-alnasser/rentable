@@ -24,7 +24,9 @@ import { eq, inArray } from 'drizzle-orm';
  * **The whole-table pass also links the renewals nothing recorded** (effort 861, requirement 6):
  * a contract the rule in `renewal/recognize.ts` reads as renewing another, made before the link
  * existed, by a build without it, or in a file imported without it, is given the link, at every
- * pass rather than once. Only the whole table can find them, so a mutation's pass does not.
+ * pass rather than once. Only the whole table can find them, so a mutation's pass does not. The
+ * one mutation that asks is a workspace file's import, which may write a renewal without its link
+ * and runs the same recognition once at its end (`linkRecognizedRenewals`, ticket 14).
  *
  * **The payments are read through what the payment contributes** (`paymentsOf`), since the payment
  * depends on the contract and not the other way round: a pass is handed a procedure's context, and
@@ -134,6 +136,15 @@ async function writeRecognizedRenewals(db: Database, contracts: DbContract[]) {
 
 		await db.batch([first, ...rest]);
 	}
+}
+
+/**
+ * Links the renewals nothing recorded across the whole table, and derives nothing: what an import
+ * runs once its batch has landed, so a renewal its file carried without the link is linked by the
+ * time the import answers, as the next whole-table pass would link it.
+ */
+export async function linkRecognizedRenewals(db: Database) {
+	await writeRecognizedRenewals(db, await db.select().from(s.contract));
 }
 
 /** the whole-table pass — for startup, a UTC-day crossing, and a remote-sync pull. */

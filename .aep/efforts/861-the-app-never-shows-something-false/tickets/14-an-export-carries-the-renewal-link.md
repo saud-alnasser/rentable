@@ -1,5 +1,5 @@
 ---
-status: open
+status: resolved
 blocked-by: [09, 12]
 ---
 
@@ -15,9 +15,9 @@ The contracts sheet writes a `Renews` column naming the predecessor by its refer
 
 Traces requirement 5 and criterion 5 (export and import).
 
-- [ ] A workspace exported and imported keeps every link, including a successor and predecessor in the same sheet.
-- [ ] A `Renews` reference that resolves to nothing writes no link and refuses no row; a file with no `Renews` column imports as before.
-- [ ] An import of an unlinked renewal that matches the rule is linked by the end of the import.
+- [x] A workspace exported and imported keeps every link, including a successor and predecessor in the same sheet. Verified: `node --test src/lib/transfer/tests/*.test.ts` in the child: 116 node tests pass (the one failure is `collisions.svelte.test.ts`, a vitest file the glob swept in); `transfer/tests/router.test.ts` round-trips a chain of three contracts with their rows reversed, each holding a different unit so recognition cannot stand in, and compares the links and the re-export.
+- [x] A `Renews` reference that resolves to nothing writes no link and refuses no row; a file with no `Renews` column imports as before. Verified: the same run: a `GOV-404` reference leaves nothing unresolved or rejected, imports all 3 contracts and writes no link; a file without the column imports as before, and the older-file tests still pass.
+- [x] An import of an unlinked renewal that matches the rule is linked by the end of the import. Verified: the same run: same tenant, same unit, next-day start and no `Renews` value, linked once `importWhole` returns, through `linkRecognizedRenewals` in the contracts sheet's `settle`.
 
 ## Relevant areas
 
