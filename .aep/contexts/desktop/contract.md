@@ -74,8 +74,10 @@ ambiguous on either side links nothing, and the reconcile never moves a link onc
 Creating, duplicating and editing a contract never write it, and their input schemas leave it out;
 undoing a deletion puts it back with the row (`contract.restoreMany`). A workspace file carries it
 in the contracts sheet's `Renews` column, by the predecessor's reference; an import finds it once
-every row is named, links nothing where nothing answers and refuses no row for it, and runs the
-same recognition once its write has landed (`contract/transfer.ts`). A contract that names none
+every row is named, and links it only where the renewal could have been made: the predecessor ends
+before the successor starts, and no standing successor, held or in a row above, renews it already
+(ticket 20). Anything else links nothing and refuses no row for it, and the import runs the same
+recognition once its write has landed (`contract/transfer.ts`). A contract that names none
 renews nothing. Whether a contract is _renewed_ is never stored: it is read from its successors.
 When copies made apart heal into one, a successor naming a retired copy is moved to the contract
 that stayed, and two copies of a successor are compared with what they renew as the contract it

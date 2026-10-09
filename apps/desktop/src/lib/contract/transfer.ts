@@ -21,6 +21,7 @@ import { ensureGovIdAvailable, ensureValidContractInput, hasValidContractCost } 
 import { contractsHoldingGovId, selectAssignmentsForUnits } from './row';
 import { hasValidContractPeriodForInterval } from './schedule/cycle';
 import { contractStatusesAt, linkRecognizedRenewals, reconcileTouched } from './reconcile';
+import { doesRenewalFollowPredecessor, getRenewedContractIds } from './renewal/renewal';
 
 /**
  * THE CONTRACTS SHEET
@@ -43,8 +44,10 @@ import { contractStatusesAt, linkRecognizedRenewals, reconcileTouched } from './
  * one (effort 861, requirement 5). It is not one of the row's `references`, which would drop the
  * row, and which the planning pass reads before the rows of this sheet are named: it is found at
  * the write (`Writing.find`), once every row is named, so a renewal above its predecessor still
- * finds it, and a name nothing answers to links nothing and refuses nothing. A file without the
- * column reads as it always did. Once the write has landed, `settle` runs the recognition the
+ * finds it, and a name nothing answers to links nothing and refuses nothing. Nor does one naming a
+ * contract the renewal could not continue (ticket 20): one ending on or after the renewal starts,
+ * or one a standing successor renews already, held or in a row above. A file without the column
+ * reads as it always did. Once the write has landed, `settle` runs the recognition the
  * whole-table reconcile runs, so a renewal the file did not link is linked where the rule finds it.
  */
 
@@ -471,11 +474,64 @@ export default defineSheet({
 		// what each contract renews, asked only now that every row of the sheet is named. Found
 		// rather than resolved: a name nothing answers to, or more than one does, links nothing and
 		// refuses nothing, and so does a contract naming itself.
-		const renewing = contracts.map((contract, index) => {
-			const named = contract.renews?.trim();
-			const found = named ? writing.find('contracts', named) : undefined;
+		const named = contracts.map((contract, index) => {
+			const reference = contract.renews?.trim();
+			const found = reference ? writing.find('contracts', reference) : undefined;
 
-			return found === rows[index].id ? null : (found ?? null);
+			return found === rows[index].id ? undefined : found;
+		});
+
+		// and of those, only the renewals that could have been made: the contract named ends before
+		// the renewal starts, and no other standing successor renews it, whether the workspace holds
+		// that one or a row above this one wrote it. Any other name links nothing and refuses
+		// nothing, like one nothing answers to; the dates alone are what keep two rows from renewing
+		// each other. The renewal's own rules, so a file cannot link what `contract.renew` refuses.
+		const written = new Set(rows.map((row) => row.id));
+		const heldIds = [
+			...new Set(named.filter((id): id is string => id !== undefined && !written.has(id)))
+		];
+		const heldEnds =
+			heldIds.length === 0
+				? []
+				: await writing.db
+						.select({ id: s.contract.id, end: s.contract.end })
+						.from(s.contract)
+						.where(inArray(s.contract.id, heldIds));
+		const heldSuccessors =
+			heldIds.length === 0
+				? []
+				: await writing.db
+						.select({ renewsContractId: s.contract.renewsContractId, status: s.contract.status })
+						.from(s.contract)
+						.where(inArray(s.contract.renewsContractId, heldIds));
+		const endOf = new Map<string, Date>([
+			...rows.map((row): [string, Date] => [row.id, row.end]),
+			...heldEnds.map(({ id, end }): [string, Date] => [id, end])
+		]);
+		const renewed = getRenewedContractIds(heldSuccessors);
+
+		const renewing = rows.map((row, index) => {
+			const predecessor = named[index];
+			const end = predecessor === undefined ? undefined : endOf.get(predecessor);
+
+			if (
+				predecessor === undefined ||
+				end === undefined ||
+				renewed.has(predecessor) ||
+				!doesRenewalFollowPredecessor(end, row.start)
+			) {
+				return null;
+			}
+
+			// a row the file terminated is no standing successor, and leaves its predecessor to the
+			// rows below it as the workspace would.
+			const status = contracts[index].status ?? 'active';
+
+			for (const id of getRenewedContractIds([{ renewsContractId: predecessor, status }])) {
+				renewed.add(id);
+			}
+
+			return predecessor;
 		});
 
 		return {

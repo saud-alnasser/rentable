@@ -1415,3 +1415,168 @@ test('an import links a renewal the file did not, where the rule recognises it',
 
 	assert.deepEqual(await renewalsOf(db), { 'GOV-1': null, 'GOV-2': 'GOV-1' });
 });
+
+// --- A renewal link that can stand -----------------------------------------------------------
+//
+// Effort 861, requirements 5 and 7, ticket 20: a file's `Renews` writes a link only where the
+// renewal could have been made. The contract it names ends before the renewal starts, and no
+// other standing successor renews it, held or earlier in the file. Any other name writes no link
+// and turns no row away, as one nothing answers to does.
+
+/**
+ * What the planning pass makes of `tables`, asserting no row was turned away over its `Renews`: a
+ * row is turned away only where the workspace already holds it.
+ */
+function planRenewals(tables: ImportTable[], held = emptyHeld()) {
+	const plan = planWorkspaceImport(tables, NOW, held);
+
+	assert.ok(isWorkspaceImportable(plan));
+	assert.deepEqual(plan.unresolved, []);
+	assert.deepEqual(
+		plan.sheets
+			.find((sheet) => sheet.concept === 'contracts')
+			?.rejected.filter((rejected) => rejected.reason !== 'duplicate-of-existing'),
+		[],
+		'a row was turned away over the contract it renews'
+	);
+
+	return plan;
+}
+
+/** `tables` with the contract referenced `successor` naming `predecessor` as the one it renews. */
+function renaming(tables: ImportTable[], successor: string, predecessor: string) {
+	const contracts = contractsTable(tables);
+	const row = contracts.rows.find((each) => each[0] === successor);
+
+	assert.ok(row, `the file has no contract ${successor}`);
+
+	row[contracts.headers.indexOf('Renews')] = predecessor;
+
+	return tables;
+}
+
+test('two contracts of one file renewing each other import with the one link the dates allow', async () => {
+	for (const reversed of [false, true]) {
+		const { api: source } = await seedRenewals();
+		const tables = toTables(await source.transfer.get());
+		const [first, second, third] = contractsTable(tables).rows.map((row) => row[0]);
+
+		// the first now renews the second as the second renews the first.
+		renaming(tables, first, second);
+
+		if (reversed) {
+			contractsTable(tables).rows.reverse();
+		}
+
+		const db = createMemoryDatabase();
+		const target = await createApi({ db });
+		const imported = await target.transfer.importWhole(toInput(planRenewals(tables).transfer));
+
+		assert.equal(imported.contracts, 3);
+		assert.deepEqual(
+			await renewalsOf(db),
+			{ [first]: null, [second]: first, [third]: second },
+			reversed ? 'with its rows reversed' : 'in the order it was written'
+		);
+	}
+});
+
+test('a contract an earlier row of the file renews is not renewed again by a later one', async () => {
+	const { api: source } = await seedRenewals();
+	const tables = toTables(await source.transfer.get());
+	const [first, second, third] = contractsTable(tables).rows.map((row) => row[0]);
+
+	// the second renews the first already, in the row above.
+	renaming(tables, third, first);
+
+	const db = createMemoryDatabase();
+	const target = await createApi({ db });
+	const imported = await target.transfer.importWhole(toInput(planRenewals(tables).transfer));
+
+	assert.equal(imported.contracts, 3);
+	assert.deepEqual(await renewalsOf(db), { [first]: null, [second]: first, [third]: null });
+});
+
+test('a contract a held successor renews is not renewed again by a file', async () => {
+	const { api: source } = await seedRenewals();
+	const written = await source.transfer.get();
+	const db = createMemoryDatabase();
+	const target = await createApi({ db });
+
+	// the first and the second, which renews it, already here.
+	await target.transfer.importWhole(
+		toInput({ ...written, contracts: written.contracts.slice(0, 2), payments: [] })
+	);
+
+	const [first, second, third] = written.contracts.map((contract) => contract.reference);
+	const tables = renaming(toTables(written), third, first);
+	const plan = planRenewals(tables, await target.transfer.held());
+
+	assert.deepEqual(
+		plan.transfer.contracts.map((contract) => contract.reference),
+		[third]
+	);
+
+	const imported = await target.transfer.importWhole(toInput(plan.transfer));
+
+	assert.equal(imported.contracts, 1);
+	assert.deepEqual(await renewalsOf(db), { [first]: null, [second]: first, [third]: null });
+});
+
+test('a terminated successor earlier in the file leaves the contract it renews to a later one', async () => {
+	const { api: source } = await seedRenewals();
+	const tables = toTables(await source.transfer.get());
+	const contracts = contractsTable(tables);
+	const [first, second, third] = contracts.rows.map((row) => row[0]);
+
+	// the second, which renews the first, terminated; the third now renews the first too.
+	contracts.rows[1][contracts.headers.indexOf('Status')] = 'terminated';
+	renaming(tables, third, first);
+
+	const db = createMemoryDatabase();
+	const target = await createApi({ db });
+	const imported = await target.transfer.importWhole(toInput(planRenewals(tables).transfer));
+
+	assert.equal(imported.contracts, 3);
+	assert.deepEqual(await renewalsOf(db), { [first]: null, [second]: first, [third]: first });
+});
+
+test('a contract that ends on or after the renewal starts is not renewed by a file', async () => {
+	const { api: source } = await seedRenewals();
+	const written = await source.transfer.get();
+	const [first, second, third] = written.contracts.map((contract) => contract.reference);
+
+	// the first names the third, which ends long after the first starts.
+	const db = createMemoryDatabase();
+	const target = await createApi({ db });
+	const imported = await target.transfer.importWhole(
+		toInput(planRenewals(renaming(toTables(written), first, third)).transfer)
+	);
+
+	assert.equal(imported.contracts, 3);
+	assert.deepEqual(await renewalsOf(db), { [first]: null, [second]: first, [third]: second });
+});
+
+test('a held contract that ends on or after the renewal starts is not renewed by a file', async () => {
+	const { api: source } = await seedRenewals();
+	const written = await source.transfer.get();
+	const [first, second, third] = written.contracts.map((contract) => contract.reference);
+
+	// the third already here, the first of the file naming it. The third came without the second
+	// it renews, and a held contract is not written again, so it links nothing either.
+	const heldDb = createMemoryDatabase();
+	const holding = await createApi({ db: heldDb });
+
+	await holding.transfer.importWhole(
+		toInput({ ...written, contracts: written.contracts.slice(2), payments: [] })
+	);
+
+	const plan = planRenewals(
+		renaming(toTables(written), first, third),
+		await holding.transfer.held()
+	);
+
+	await holding.transfer.importWhole(toInput(plan.transfer));
+
+	assert.deepEqual(await renewalsOf(heldDb), { [first]: null, [second]: first, [third]: null });
+});

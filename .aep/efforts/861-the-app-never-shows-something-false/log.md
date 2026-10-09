@@ -24,6 +24,7 @@ use-when: "resuming this effort, or asking where it stands"
 [x] 16 the-money-card-links-only-where-the-member-may-go 2/2
 [x] 15 try-again-shows-it-is-trying 3/3
 [x] 19 a-failed-list-offers-no-create-and-no-export 3/3
+[x] 20 an-import-writes-only-a-renewal-link-that-can-stand 3/3
 
 ## Rounds
 
