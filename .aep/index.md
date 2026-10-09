@@ -141,7 +141,7 @@ Start at [[protocol]].
 | 851-the-way-out-the-password-fields-and-the-organizations-name | implemented | [[efforts/851-the-way-out-the-password-fields-and-the-organizations-name/spec]] | 0 | 0 | 20 |
 | 854-bugs-and-edge-cases-across-the-app | implemented | [[efforts/854-bugs-and-edge-cases-across-the-app/spec]] | 3 | 0 | 41 |
 | 857-updating-never-locks-a-member-out | implemented | [[efforts/857-updating-never-locks-a-member-out/spec]] | 2 | 2 | 41 |
-| 861-the-app-never-shows-something-false | accepted | [[efforts/861-the-app-never-shows-something-false/spec]] | 0 | 0 | 17 |
+| 861-the-app-never-shows-something-false | accepted | [[efforts/861-the-app-never-shows-something-false/spec]] | 0 | 0 | 20 |
 | a-contract-keeps-its-units-through-a-transfer | implemented | [[efforts/a-contract-keeps-its-units-through-a-transfer/spec]] | 0 | 0 | 0 |
 | a-record-card-carries-its-actions-twice | implemented | [[efforts/a-record-card-carries-its-actions-twice/spec]] | 0 | 0 | 0 |
 | a-workspace-follows-its-user | implemented | [[efforts/a-workspace-follows-its-user/spec]] | 3 | 1 | 0 |
@@ -681,3 +681,6 @@ Every task of every effort. The tracker carries the effort, never its tasks.
 | [[efforts/861-the-app-never-shows-something-false/tickets/15-try-again-shows-it-is-trying]] fix(design): try again shows that it is trying | 861-the-app-never-shows-something-false | resolved | — |
 | [[efforts/861-the-app-never-shows-something-false/tickets/16-the-money-card-links-only-where-the-member-may-go]] fix(desktop): the money card links only where the member may go | 861-the-app-never-shows-something-false | resolved | — |
 | [[efforts/861-the-app-never-shows-something-false/tickets/17-the-interface-rule-names-how-a-form-reports-its-changes]] docs(aep): the interface rule names how a form reports its changes | 861-the-app-never-shows-something-false | resolved | — |
+| [[efforts/861-the-app-never-shows-something-false/tickets/18-copies-pair-when-one-alone-names-what-it-renews]] fix(desktop): copies pair when one alone names what it renews | 861-the-app-never-shows-something-false | open | — |
+| [[efforts/861-the-app-never-shows-something-false/tickets/19-a-failed-list-offers-no-create-and-no-export]] fix(desktop): a failed list offers no create and no export | 861-the-app-never-shows-something-false | open | — |
+| [[efforts/861-the-app-never-shows-something-false/tickets/20-an-import-writes-only-a-renewal-link-that-can-stand]] fix(desktop): an import writes only a renewal link that can stand | 861-the-app-never-shows-something-false | open | — |
