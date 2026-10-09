@@ -138,13 +138,8 @@
 		</Field.Field>
 	</div>
 
-	{#snippet actions()}
-		<Button
-			type="button"
-			variant="outline"
-			disabled={isDeleting}
-			onclick={() => onOpenChange(false)}
-		>
+	{#snippet actions({ requestClose })}
+		<Button type="button" variant="outline" disabled={isDeleting} onclick={requestClose}>
 			{$LL.common.actions.cancel()}
 		</Button>
 		<Button type="submit" variant="destructive" disabled={!canSubmit}>

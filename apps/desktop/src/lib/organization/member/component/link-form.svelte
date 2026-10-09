@@ -102,8 +102,8 @@
 		<Field.Description>{$LL.organization.dashboard.linkLifetimeDescription()}</Field.Description>
 	</Field.Field>
 
-	{#snippet actions()}
-		<Button type="button" variant="outline" disabled={isMaking} onclick={() => onOpenChange(false)}>
+	{#snippet actions({ requestClose })}
+		<Button type="button" variant="outline" disabled={isMaking} onclick={requestClose}>
 			{$LL.common.actions.cancel()}
 		</Button>
 		<Button type="submit" disabled={isMaking}>

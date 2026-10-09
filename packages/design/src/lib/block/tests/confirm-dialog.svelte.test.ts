@@ -62,6 +62,13 @@ test('the title and the confirming control are the act, and no delete word appea
 	expect(content()?.textContent).not.toContain('لا يمكن التراجع عن هذا');
 });
 
+test('leaving says what the caller names it, where cancel does not say it', () => {
+	open({ cancelLabel: 'متابعة التعديل' }, { cancel: 'إلغاء' });
+
+	expect(footer()[0]?.textContent?.trim()).toBe('متابعة التعديل');
+	expect(content()?.textContent).not.toContain('إلغاء');
+});
+
 test('the record leads and what the act does follows it', () => {
 	open({ record: 'عقد ٤٢', description: 'ينتهي العقد اليوم' });
 

@@ -7,6 +7,7 @@ use-when: "resuming this effort, or asking where it stands"
 ## Ledger
 
 [x] 02 error-toasts-stay-and-mirror 4/4
+[x] 06 the-form-surface-asks-before-discarding 4/4
 
 ## Rounds
 

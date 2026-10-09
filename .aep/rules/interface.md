@@ -1131,6 +1131,21 @@ Settled by [[efforts/832-the-interface-speaks-one-language-and-guides/spec]], re
 was heavy on create and light on edit, and the domain submits carried no glyph where the
 organization's did.
 
+**A form with changes asks before it closes.** Escape, a press on the overlay, the corner control
+and the form's cancel close a form with no changes at once. Where the reader has changed
+something, each first asks whether to discard the changes or keep editing, in
+`block/confirm-dialog.svelte`: titled by the question, saying the changes are not saved and that
+nothing brings them back, its control destructive and named *discard*, and its way out named *keep
+editing*, focused first, which puts the reader back in the form with nothing lost. Escape inside
+the question closes the question alone. A submit closes the form by its own path and never asks.
+The surface owns the question and every close the reader makes (`block/form-surface.svelte`: its
+`dirty`, and the `requestClose` it hands the form's actions, which every cancel calls); whether a
+form has changes is the form's to say, since only the form sees the state it keeps outside its
+fields. *Settled by [[efforts/861-the-app-never-shows-something-false/spec]], requirement 10, after
+Apple's guidance to confirm before dismissing a sheet with unsaved changes: the surface closed on
+any of the four with no check, and a half-filled contract or tenant was lost to a stray key or
+click, which undo does not cover.*
+
 ### Field kinds
 
 **Each kind of value takes one control**, in a form and on a record alike:

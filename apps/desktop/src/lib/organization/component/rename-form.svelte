@@ -113,12 +113,12 @@
 		<FieldError />
 	</Form.Field>
 
-	{#snippet actions()}
+	{#snippet actions({ requestClose })}
 		<Button
 			type="button"
 			variant="outline"
 			disabled={renameMutation.isPending}
-			onclick={() => onOpenChange(false)}
+			onclick={requestClose}
 		>
 			{$LL.common.actions.cancel()}
 		</Button>

@@ -280,12 +280,12 @@
 		</Form.Field>
 	</div>
 
-	{#snippet actions()}
+	{#snippet actions({ requestClose })}
 		<Button
 			type="button"
 			variant="outline"
 			disabled={CreateMutation.isPending || UpdateMutation.isPending}
-			onclick={() => onOpenChange(false)}
+			onclick={requestClose}
 		>
 			{$LL.common.actions.cancel()}
 		</Button>

@@ -1969,6 +1969,24 @@ type RootTranslation = {
 			 */
 			unnamedRecord: string;
 		};
+		discardDialog: {
+			/**
+			 * y​o​u​r​ ​c​h​a​n​g​e​s​ ​h​a​v​e​ ​n​o​t​ ​b​e​e​n​ ​s​a​v​e​d​.​ ​o​n​c​e​ ​d​i​s​c​a​r​d​e​d​,​ ​n​o​t​h​i​n​g​ ​b​r​i​n​g​s​ ​t​h​e​m​ ​b​a​c​k​.
+			 */
+			description: string;
+			/**
+			 * d​i​s​c​a​r​d
+			 */
+			discard: string;
+			/**
+			 * k​e​e​p​ ​e​d​i​t​i​n​g
+			 */
+			keepEditing: string;
+			/**
+			 * d​i​s​c​a​r​d​ ​c​h​a​n​g​e​s​?
+			 */
+			title: string;
+		};
 	};
 	layout: {
 		notFound: {
@@ -5612,11 +5630,11 @@ type RootTranslation = {
 				 */
 				workspaceOverride: string;
 				/**
-				 * r​e​c​o​r​d​s​ ​s​a​v​e​d​ ​o​n​ ​t​w​o​ ​d​e​v​i​c​e​s​ ​w​h​i​l​e​ ​a​p​a​r​t​ ​a​l​l​ ​s​t​a​y​,​ ​e​v​e​n​ ​w​i​t​h​ ​t​h​e​ ​s​a​m​e​ ​p​h​o​n​e​,​ ​n​a​t​i​o​n​a​l​ ​I​D​,​ ​c​o​m​p​l​e​x​ ​n​a​m​e​ ​o​r​ ​g​o​v​e​r​n​m​e​n​t​ ​I​D​.
+				 * r​e​c​o​r​d​s​ ​s​a​v​e​d​ ​a​p​a​r​t​ ​o​n​ ​t​w​o​ ​m​a​c​h​i​n​e​s​ ​a​l​l​ ​s​t​a​y​,​ ​e​v​e​n​ ​w​i​t​h​ ​t​h​e​ ​s​a​m​e​ ​p​h​o​n​e​,​ ​n​a​t​i​o​n​a​l​ ​I​D​,​ ​c​o​m​p​l​e​x​ ​n​a​m​e​ ​o​r​ ​g​o​v​e​r​n​m​e​n​t​ ​I​D​.
 				 */
 				duplicateValues: string;
 				/**
-				 * a​ ​r​e​c​o​r​d​ ​s​a​v​e​d​ ​t​h​e​ ​s​a​m​e​ ​w​a​y​ ​o​n​ ​t​w​o​ ​d​e​v​i​c​e​s​ ​w​h​i​l​e​ ​a​p​a​r​t​ ​b​e​c​o​m​e​s​ ​o​n​e​,​ ​k​e​e​p​i​n​g​ ​e​v​e​r​y​t​h​i​n​g​ ​t​h​a​t​ ​b​e​l​o​n​g​s​ ​t​o​ ​i​t​.
+				 * a​ ​r​e​c​o​r​d​ ​s​a​v​e​d​ ​t​h​e​ ​s​a​m​e​ ​w​a​y​ ​o​n​ ​t​w​o​ ​m​a​c​h​i​n​e​s​ ​w​h​i​l​e​ ​a​p​a​r​t​ ​b​e​c​o​m​e​s​ ​o​n​e​,​ ​k​e​e​p​i​n​g​ ​e​v​e​r​y​t​h​i​n​g​ ​t​h​a​t​ ​b​e​l​o​n​g​s​ ​t​o​ ​i​t​.
 				 */
 				identicalRecords: string;
 			};
@@ -7565,6 +7583,24 @@ export type TranslationFunctions = {
 			 * this record
 			 */
 			unnamedRecord: () => LocalizedString;
+		};
+		discardDialog: {
+			/**
+			 * your changes have not been saved. once discarded, nothing brings them back.
+			 */
+			description: () => LocalizedString;
+			/**
+			 * discard
+			 */
+			discard: () => LocalizedString;
+			/**
+			 * keep editing
+			 */
+			keepEditing: () => LocalizedString;
+			/**
+			 * discard changes?
+			 */
+			title: () => LocalizedString;
 		};
 	};
 	layout: {

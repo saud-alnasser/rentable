@@ -432,8 +432,8 @@
 		</MemberWorkspaces>
 	</div>
 
-	{#snippet actions()}
-		<Button type="button" variant="outline" disabled={isSaving} onclick={() => onOpenChange(false)}>
+	{#snippet actions({ requestClose })}
+		<Button type="button" variant="outline" disabled={isSaving} onclick={requestClose}>
 			{$LL.common.actions.cancel()}
 		</Button>
 		<!-- the verb's glyph before its label, as every primary here carries one. -->
