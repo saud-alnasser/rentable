@@ -65,17 +65,6 @@ review 2: 8 findings: 3 fixed (repository context on the heal, the act rule on c
 - the owner, on the staged landing message: it speaks of permissions, not roles, in both languages
 - the owner, on the staged undo toast: its undo and redo look plain; found 33, staged as state 13
 - converge: 05 shows an empty landing screen to a member who may view none of contracts, payments or units; the money card links to /contracts when only collected is shown
+- the owner, 2026-10-11: every staged on-screen check accepted (states 1 to 13); migration 0009 stays `readers_need: true`, as the plan chose; the changesets stay `patch`
 
 ## Needs you
-
-The on-screen items are staged: `pnpm stage:open` in `.aep/worktrees/861-the-app-never-shows-something-false/_stage` opens them in the desktop window, numbered as the bar numbers them, on mock data; what the run saw in each is [[efforts/861-the-app-never-shows-something-false/evidence/staging/needs-you]].
-
-- ticket 02, staged as state 1 (error toast stays): the error toast is still up after ten seconds, closes from its X, and sits bottom-left in Arabic and bottom-right in English
-- ticket 01, staged as states 3 to 5 (destructive fill; permitted and primary fills; checked boxes and badges): judge the new primary, destructive and permitted fills, light and dark (buttons, badges, a selected day, a checked box, the rail mark)
-- ticket 06, staged as state 6 (discard question): after a change and Escape, the discard question opens with keep editing focused and its focus ring showing
-- ticket 07, staged as states 7 to 11 (each form, untouched): the tenant form, the contract form (edit, renew, duplicate) and the payment form close at once when untouched and ask after a field changes
-- ticket 32, staged as state 12 (landing, may view nothing): a member who may view none of contracts, payments or units is told in the middle of the landing screen that they have no permission to view anything there
-- ticket 33, staged as state 13 (undo on a toast): undo on the success toast is a green outlined pill, firmer under the pointer, light and dark
-- changelog: the renewal features (renew may change the rent, an export carries the link, earlier renewals recognised) are patch; say if they should be minor
-- 0009 is declared readers_need true, as the plan chose: a member with a read-only grant cannot open a version-9 workspace on this build until someone with full access opens it on the new version; accept, or make the step not need readers
-- ticket 24, staged as states 1 and 2 (error toast stays; four toast tones): the four toast types in light and dark; their wash is now 8% of the tone
