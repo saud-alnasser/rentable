@@ -187,7 +187,9 @@ function moduleOf(label: string) {
 }
 
 // Every source file under `src/lib/`, labelled from it. A `tests/` directory covers the rules
-// rather than obeying them, so it is left out.
+// rather than obeying them, so it is left out. So is `prototype/stage/`, on the same ground: it is
+// the tests' fakes and the domain's own record shapes run in a window (`pnpm stage`), resolved only
+// by `vite dev --mode stage` and in no bundle, so it reaches into every feature as a test does.
 function libraryFiles() {
 	return readdirSync(LIB_ROOT, { recursive: true, withFileTypes: true })
 		.filter((entry) => entry.isFile() && /\.(ts|js|svelte)$/.test(entry.name))
@@ -195,7 +197,12 @@ function libraryFiles() {
 			const file = join(entry.parentPath, entry.name);
 			return { file, label: toPosix(relative(LIB_ROOT, file)) };
 		})
-		.filter(({ label }) => label.includes('/') && !label.split('/').includes('tests'));
+		.filter(
+			({ label }) =>
+				label.includes('/') &&
+				!label.split('/').includes('tests') &&
+				!label.startsWith('prototype/stage/')
+		);
 }
 
 // The code with its comments blanked, so an example in a docstring is not read as an import.
