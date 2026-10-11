@@ -7,7 +7,7 @@
 Verified against: Svelte 5.56 / SvelteKit 2.70, sql.js 1.14, Chrome 154 headless at the desktop
 window's 1124 by 824, through `pnpm stage:shots 861.` on the effort's tip, 2026-10-11
 
-Conclusion: **all twelve states reach their screen in English and Arabic, light and dark, with
+Conclusion: **all thirteen states reach their screen in English and Arabic, light and dark, with
 nothing false on them.** Staging found one defect on the way, the date picker's weekday row in
 Arabic and its squared selected day, fixed as ticket 29.
 
@@ -15,7 +15,7 @@ Consumed: [[rules/staging]]; [[references/stage]].
 
 Every on-screen item under `## Needs you` is a state in `state/861.ts` of the effort's `_stage`
 worktree, on mock records only. The run entered each in a fresh headless context, 48 shots in
-all, and every one passed: each reached its screen, nothing threw, and no host but the stage
+all, and every one passed (52 once state 13 was added): each reached its screen, nothing threw, and no host but the stage
 server was asked. One shot first failed to boot on a module the dev server dropped mid-run, and
 passed with the rest of its state when shot again. Each screenshot was looked at; what it showed
 follows, by the number the bar gives the state.
@@ -71,7 +71,16 @@ asking after a change is the owner's to do in the window, as the look line says.
 ## 12. landing, may view nothing (converge)
 
 A member, `sam.member`, who may view no contracts, payments or units: the rail offers Dashboard,
-Tenants and Complexes, and the main area is empty. What it should show is the owner's question.
+Tenants and Complexes, and the main area was empty. Asked what it should show, the owner had it
+say what is happening in its middle (ticket 32): it now reads "nothing on this screen is open to
+your role." over what the screen shows and who can change that, centred in the window, in English
+and Arabic.
+
+## 13. undo on a toast (ticket 33)
+
+Added after the owner found the undo and redo on a toast plain. A free tenant deleted through the
+app's own question raises the success toast with undo: undo is a pill with its label and a hairline
+in the toast's green, on the toast's wash, in English and Arabic, light and dark.
 
 ## What staging could not show
 

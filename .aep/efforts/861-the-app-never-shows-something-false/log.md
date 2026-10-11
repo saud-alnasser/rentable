@@ -36,6 +36,9 @@ use-when: "resuming this effort, or asking where it stands"
 [x] 27 every-effort-hands-its-on-screen-checks-over-staged 3/3
 [x] 28 this-efforts-on-screen-checks-are-staged 3/3
 [x] 30 an-error-toast-closes-from-its-x-over-an-open-form 2/2
+[x] 31 staging-opens-in-the-desktop-window 4/4
+[x] 32 a-landing-with-nothing-for-the-role-says-so 2/2
+[x] 33 a-toasts-action-is-drawn-in-its-tone 2/2
 
 ## Rounds
 
@@ -57,17 +60,21 @@ review 2: 8 findings: 3 fixed (repository context on the heal, the act rule on c
 - the owner, on the staged error toast: its X moves to the top end corner, where the reading ends; the provider test reads the toaster's properties, and only the staged shot shows where the X lands
 - staging: the owner pressed the staged error toast's X and nothing happened; found 30 (a modal dialog's pointer-events reached the toaster), fixed in the effort
 - staging: the launcher is `pnpm stage:open`, since pnpm 12 answers the bare `pnpm stage` with its own publish-staging command; found at the hand-off
+- the owner, on staging: open it as the app's desktop window, from development only, with no entry code changed; found 31. The shell's IPC cannot be mocked, so the application's own `@tauri-apps/api/core` resolves to a staged `invoke`, and the shell runs under its own identifier
+- the owner, on staged state 12: the empty landing says in its middle what is happening; found 32
+- the owner, on the staged undo toast: its undo and redo look plain; found 33, staged as state 13
 - converge: 05 shows an empty landing screen to a member who may view none of contracts, payments or units; the money card links to /contracts when only collected is shown
 
 ## Needs you
 
-The on-screen items are staged: `pnpm stage:open` in `.aep/worktrees/861-the-app-never-shows-something-false/_stage` opens them, numbered as the bar numbers them, on mock data; what the run saw in each is [[efforts/861-the-app-never-shows-something-false/evidence/staging/needs-you]].
+The on-screen items are staged: `pnpm stage:open` in `.aep/worktrees/861-the-app-never-shows-something-false/_stage` opens them in the desktop window, numbered as the bar numbers them, on mock data; what the run saw in each is [[efforts/861-the-app-never-shows-something-false/evidence/staging/needs-you]].
 
 - ticket 02, staged as state 1 (error toast stays): the error toast is still up after ten seconds, closes from its X, and sits bottom-left in Arabic and bottom-right in English
 - ticket 01, staged as states 3 to 5 (destructive fill; permitted and primary fills; checked boxes and badges): judge the new primary, destructive and permitted fills, light and dark (buttons, badges, a selected day, a checked box, the rail mark)
 - ticket 06, staged as state 6 (discard question): after a change and Escape, the discard question opens with keep editing focused and its focus ring showing
 - ticket 07, staged as states 7 to 11 (each form, untouched): the tenant form, the contract form (edit, renew, duplicate) and the payment form close at once when untouched and ask after a field changes
-- converge, staged as state 12 (landing, may view nothing): a member who may view none of contracts, payments or units now sees an empty landing screen; say what it should show, if anything
+- ticket 32, staged as state 12 (landing, may view nothing): a member who may view none of contracts, payments or units is told so in the middle of the landing screen; judge the words in both languages
+- ticket 33, staged as state 13 (undo on a toast): undo on the success toast is a green outlined pill, firmer under the pointer, light and dark
 - changelog: the renewal features (renew may change the rent, an export carries the link, earlier renewals recognised) are patch; say if they should be minor
 - 0009 is declared readers_need true, as the plan chose: a member with a read-only grant cannot open a version-9 workspace on this build until someone with full access opens it on the new version; accept, or make the step not need readers
 - ticket 24, staged as states 1 and 2 (error toast stays; four toast tones): the four toast types in light and dark; their wash is now 8% of the tone
