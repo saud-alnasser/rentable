@@ -33,6 +33,17 @@ export type State = {
 	host?: (host: Host) => void;
 	/** what is done on screen to reach the state, once the route has drawn. */
 	steps?: (screen: Screen) => Promise<void>;
+	/**
+	 * what the owner does last, which a step cannot do for them: a focus ring shows only after a
+	 * real key press, and a toast stack spreads only under a real pointer. The look line asks for
+	 * it; `scripts/stage-shots.mjs` does it through the browser's own input.
+	 */
+	owner?: {
+		/** a key to press, by its `KeyboardEvent.key`: `Escape`. */
+		press?: string;
+		/** what to point at, as a selector: `[data-sonner-toaster]`. */
+		hover?: string;
+	};
 };
 
 /** A file of states under `./state/`, in the order the bar steps through them. */

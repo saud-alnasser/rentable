@@ -53,6 +53,11 @@ hold(host);
 
 mountBar(states, state, selection, failed ?? null);
 
+// what `scripts/stage-shots.mjs` reads to enter each state; the bar says how far one has got.
+Object.assign(window, {
+	stage: { states: states.map(({ id, label, owner }) => ({ id, label, owner })) }
+});
+
 function stagedHost(selection: Selection, state: State | undefined): Host {
 	const role = state?.member?.role ?? 'owner';
 	const workspace = fakeOrganizationWorkspace({

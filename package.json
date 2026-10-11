@@ -23,6 +23,7 @@
 		"tauri": "pnpm --filter ./apps/desktop tauri",
 		"prototype": "pnpm --filter ./apps/desktop prototype",
 		"stage": "pnpm --filter ./apps/desktop stage",
+		"stage:shots": "pnpm --filter ./apps/desktop stage:shots",
 		"i18n": "pnpm --filter ./apps/desktop i18n"
 	},
 	"devDependencies": {

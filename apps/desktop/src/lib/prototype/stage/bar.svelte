@@ -92,6 +92,8 @@
 	role="toolbar"
 	tabindex="-1"
 	aria-label="stage"
+	data-state={current?.id}
+	data-status={failed ? 'failed' : reached ? 'reached' : 'reaching'}
 	{onpointerdown}
 	{onmousedown}
 	class="pointer-events-auto fixed {top

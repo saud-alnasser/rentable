@@ -26,6 +26,7 @@
 		"tauri": "node ./scripts/tauri-with-env.mjs",
 		"prototype": "node ./scripts/prototype.mjs",
 		"stage": "node ./scripts/stage.mjs",
+		"stage:shots": "node ./scripts/stage-shots.mjs",
 		"i18n": "typesafe-i18n"
 	},
 	"dependencies": {
